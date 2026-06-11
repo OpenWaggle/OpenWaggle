@@ -36,6 +36,7 @@ interface ExtensionMutationHandlers {
   readonly acceptUpdate: (extensionPackage: ExtensionPackageSummary) => void
   readonly approveBuild: (extensionPackage: ExtensionPackageSummary) => void
   readonly reload: (extensionPackage: ExtensionPackageSummary) => void
+  readonly remove: (extensionPackage: ExtensionPackageSummary) => void
 }
 
 function packageActions(
@@ -50,6 +51,7 @@ function packageActions(
     onAcceptUpdate: () => handlers.acceptUpdate(extensionPackage),
     onApproveBuild: () => handlers.approveBuild(extensionPackage),
     onReload: () => handlers.reload(extensionPackage),
+    onRemove: () => handlers.remove(extensionPackage),
   }
 }
 
@@ -237,6 +239,7 @@ export function ExtensionsSection() {
     acceptUpdate,
     approveBuild,
     reload,
+    remove,
   } = useExtensionsSectionController(requestedProjectPaths)
   const packages = view?.packages ?? []
   const projectPaths = view?.projectPaths ?? requestedProjectPaths
@@ -250,6 +253,7 @@ export function ExtensionsSection() {
     acceptUpdate: (extensionPackage) => void acceptUpdate(extensionPackage),
     approveBuild: (extensionPackage) => void approveBuild(extensionPackage),
     reload: (extensionPackage) => void reload(extensionPackage),
+    remove: (extensionPackage) => void remove(extensionPackage),
   }
 
   return (

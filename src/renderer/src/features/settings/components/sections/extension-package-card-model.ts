@@ -7,6 +7,7 @@ export interface ExtensionPackageCardActions {
   readonly onAcceptUpdate: () => void
   readonly onApproveBuild: () => void
   readonly onReload: () => void
+  readonly onRemove: () => void
 }
 
 export function packageTitle(extensionPackage: ExtensionPackageSummary) {

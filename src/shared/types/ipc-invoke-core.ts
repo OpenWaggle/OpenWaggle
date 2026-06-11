@@ -19,11 +19,17 @@ import type {
 } from './extension-frame'
 import type {
   ExtensionAcceptUpdateInput,
+  ExtensionApplyPackageRemoveInput,
+  ExtensionApplyPackageWriteInput,
   ExtensionApproveBuildInput,
   ExtensionContributionRegistryView,
   ExtensionListContributionsInput,
   ExtensionListPackagesInput,
   ExtensionManagerView,
+  ExtensionPackageRemoveProposalView,
+  ExtensionPackageWriteProposalView,
+  ExtensionProposePackageRemoveInput,
+  ExtensionProposePackageWriteInput,
   ExtensionReloadInput,
   ExtensionSetEnabledInput,
   ExtensionSetProjectDisabledInput,
@@ -124,6 +130,22 @@ export interface IpcCoreInvokeChannelMap {
   'extensions:list-contributions': {
     args: [input?: ExtensionListContributionsInput]
     return: ExtensionContributionRegistryView
+  }
+  'extensions:propose-package-write': {
+    args: [input: ExtensionProposePackageWriteInput]
+    return: ExtensionPackageWriteProposalView
+  }
+  'extensions:apply-package-write': {
+    args: [input: ExtensionApplyPackageWriteInput]
+    return: ExtensionManagerView
+  }
+  'extensions:propose-package-remove': {
+    args: [input: ExtensionProposePackageRemoveInput]
+    return: ExtensionPackageRemoveProposalView
+  }
+  'extensions:apply-package-remove': {
+    args: [input: ExtensionApplyPackageRemoveInput]
+    return: ExtensionManagerView
   }
   'extensions:invoke': {
     args: [input: ExtensionInvokeInput]

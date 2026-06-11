@@ -14,24 +14,6 @@ import type {
   DocsResolveTopicInput,
   FirstPartyDocsTopicSummary,
 } from './docs'
-import type { ExtensionInvokeInput, ExtensionInvokeResult } from './extension-broker'
-import type {
-  ExtensionFrameRegisterInput,
-  ExtensionFrameRegisterResult,
-  ExtensionFrameUnregisterInput,
-} from './extension-frame'
-import type {
-  ExtensionAcceptUpdateInput,
-  ExtensionApproveBuildInput,
-  ExtensionContributionRegistryView,
-  ExtensionListContributionsInput,
-  ExtensionListPackagesInput,
-  ExtensionManagerView,
-  ExtensionReloadInput,
-  ExtensionSetEnabledInput,
-  ExtensionSetProjectDisabledInput,
-  ExtensionSetTrustedInput,
-} from './extensions'
 import type {
   DiagnosticsInfo,
   FeedbackPayload,
@@ -54,6 +36,7 @@ import type {
 import type { IpcEventPayload } from './ipc'
 import type { ProviderInfo, SupportedModelId } from './llm'
 import type { McpSetServerEnabledInput, McpSettingsView, McpWriteSourceConfigInput } from './mcp'
+import type { OpenWaggleExtensionApi } from './openwaggle-extension-api'
 import type { AgentPhaseState } from './phase'
 import type {
   SessionCopyToNewResult,
@@ -76,11 +59,7 @@ import type { UpdateStatus } from './updater'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 import type { WaggleConfig, WagglePreset } from './waggle'
 
-// This is what the preload exposes to the renderer via contextBridge.
-
-// ─── Convenience API (what we actually expose on window.api) ─
-
-export interface OpenWaggleApi {
+export interface OpenWaggleApi extends OpenWaggleExtensionApi {
   // Agent
   sendMessage(
     sessionId: SessionId,
@@ -126,21 +105,6 @@ export interface OpenWaggleApi {
   setMcpAdapterEnabled(enabled: boolean, projectPath?: string | null): Promise<McpSettingsView>
   setMcpServerEnabled(input: McpSetServerEnabledInput): Promise<McpSettingsView>
   writeMcpSourceConfig(input: McpWriteSourceConfigInput): Promise<McpSettingsView>
-  listExtensionPackages(input?: ExtensionListPackagesInput): Promise<ExtensionManagerView>
-  listExtensionContributions(
-    input?: ExtensionListContributionsInput,
-  ): Promise<ExtensionContributionRegistryView>
-  invokeExtension(input: ExtensionInvokeInput): Promise<ExtensionInvokeResult>
-  registerExtensionFrame(input: ExtensionFrameRegisterInput): Promise<ExtensionFrameRegisterResult>
-  unregisterExtensionFrame(input: ExtensionFrameUnregisterInput): Promise<void>
-  setExtensionTrusted(input: ExtensionSetTrustedInput): Promise<ExtensionManagerView>
-  setExtensionEnabled(input: ExtensionSetEnabledInput): Promise<ExtensionManagerView>
-  setExtensionProjectDisabled(
-    input: ExtensionSetProjectDisabledInput,
-  ): Promise<ExtensionManagerView>
-  acceptExtensionUpdate(input: ExtensionAcceptUpdateInput): Promise<ExtensionManagerView>
-  approveExtensionBuild(input: ExtensionApproveBuildInput): Promise<ExtensionManagerView>
-  reloadExtension(input: ExtensionReloadInput): Promise<ExtensionManagerView>
   discoverDocs(input?: DocsListInput): Promise<DocsDiscoveryView>
   resolveDocsTopic(input: DocsResolveTopicInput): Promise<FirstPartyDocsTopicSummary | null>
 

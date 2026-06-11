@@ -6,6 +6,7 @@ import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../../
 import type { ExtensionLifecycleRepositoryShape } from '../../ports/extension-lifecycle-repository'
 import type { ExtensionManagerServiceShape } from '../../ports/extension-manager-service'
 import type { ExtensionProjectOverridesRepositoryShape } from '../../ports/extension-project-overrides-repository'
+import type { OpenWaggleExtensionPiResourceRoot } from './openwaggle-pi-settings-resources'
 
 export interface OpenWagglePiExtensionSelectionServices {
   readonly manager: ExtensionManagerServiceShape
@@ -84,6 +85,25 @@ export function listRuntimeEnabledPackagePaths(
   return listRuntimeEnabledPackages(projectPath, services).pipe(
     Effect.map((packages) => packages.map((extensionPackage) => extensionPackage.packagePath)),
   )
+}
+
+export function getRuntimeEnabledPackagePiResourceRoots(
+  selection: RuntimeEnabledOpenWaggleExtensionPackage,
+): readonly OpenWaggleExtensionPiResourceRoot[] {
+  return (selection.extensionPackage.manifest?.pi?.resourceRoots ?? []).map((resourceRoot) => ({
+    packagePath: selection.packagePath,
+    resourceRoot,
+  }))
+}
+
+export function getRuntimeEnabledPackagesPiResourceRoots(
+  selections: readonly RuntimeEnabledOpenWaggleExtensionPackage[],
+  packagePaths: readonly string[],
+) {
+  const selectedPaths = new Set(packagePaths)
+  return selections
+    .filter((selection) => selectedPaths.has(selection.packagePath))
+    .flatMap(getRuntimeEnabledPackagePiResourceRoots)
 }
 
 export function upsertRuntimeLoadFailure(

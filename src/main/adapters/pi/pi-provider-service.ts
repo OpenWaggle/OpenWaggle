@@ -9,6 +9,7 @@ import { ExtensionManagerService } from '../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
 import { type ProviderModelCapabilities, ProviderService } from '../../ports/provider-service'
 import {
+  getRuntimeEnabledPackagesPiResourceRoots,
   listRuntimeEnabledPackages,
   type OpenWagglePiExtensionSelectionServices,
 } from './openwaggle-pi-extension-selection'
@@ -187,6 +188,10 @@ function createProjectProviderCatalogSnapshot(
         load: async (enabledOpenWaggleExtensionPackagePaths) => {
           const snapshot = await createPiProviderCatalogSnapshot(projectPath, {
             enabledOpenWaggleExtensionPackagePaths,
+            enabledOpenWaggleExtensionResourceRoots: getRuntimeEnabledPackagesPiResourceRoots(
+              enabledOpenWaggleExtensionPackages,
+              enabledOpenWaggleExtensionPackagePaths,
+            ),
           })
           return rejectMatchingOpenWaggleExtensionLoadErrors({
             result: snapshot,

@@ -1,7 +1,11 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { loadWithRuntimeFailureIsolation } from '../../../extensions/runtime-load-isolation'
-import type { RuntimeEnabledOpenWaggleExtensionPackage } from '../openwaggle-pi-extension-selection'
+import {
+  getRuntimeEnabledPackagePiResourceRoots,
+  type RuntimeEnabledOpenWaggleExtensionPackage,
+} from '../openwaggle-pi-extension-selection'
+import type { OpenWaggleExtensionPiResourceRoot } from '../openwaggle-pi-settings-resources'
 import { createPiProjectModelRuntime, type PiProjectModelRuntime } from '../pi-provider-catalog'
 import {
   getPiRuntimeExtensionLoadErrors,
@@ -73,6 +77,23 @@ function runtimeExtensionSelections(
   return pathSelections(input.enabledOpenWaggleExtensionPackagePaths ?? [])
 }
 
+function runtimeExtensionResourceRoots(
+  selections: readonly RuntimeExtensionSelection[],
+  packagePaths: readonly string[],
+): readonly OpenWaggleExtensionPiResourceRoot[] {
+  const selectedPaths = new Set(packagePaths)
+  return selections.flatMap((selection) =>
+    matchBy(selection, 'type')
+      .with('runtime-enabled-package', (runtimeSelection) =>
+        selectedPaths.has(runtimeSelection.packagePath)
+          ? getRuntimeEnabledPackagePiResourceRoots(runtimeSelection.selection)
+          : [],
+      )
+      .with('package-path', () => [])
+      .exhaustive(),
+  )
+}
+
 async function recordRuntimeExtensionFailure(
   input: Pick<PiRuntimeExtensionIsolationInput, 'recordOpenWaggleExtensionRuntimeFailure'> & {
     readonly selection: RuntimeExtensionSelection
@@ -108,16 +129,24 @@ export async function createIsolatedPiProjectRuntime(input: {
   readonly extensionIsolation: PiRuntimeExtensionIsolationInput
   readonly options: PiProjectRuntimeIsolationOptions
 }): Promise<IsolatedPiProjectModelRuntime> {
+  const selections = runtimeExtensionSelections(input.extensionIsolation)
   return loadPiRuntimeWithExtensionFailureIsolation({
     operation: input.operation,
     extensionIsolation: input.extensionIsolation,
     load: async (enabledOpenWaggleExtensionPackagePaths) => {
+      const enabledOpenWaggleExtensionResourceRoots = runtimeExtensionResourceRoots(
+        selections,
+        enabledOpenWaggleExtensionPackagePaths,
+      )
       const runtime = await createPiProjectModelRuntime({
         projectPath: input.options.projectPath,
         modelReference: input.options.modelReference,
         ...(input.options.skillToggles ? { skillToggles: input.options.skillToggles } : {}),
         ...(enabledOpenWaggleExtensionPackagePaths.length > 0
           ? { enabledOpenWaggleExtensionPackagePaths }
+          : {}),
+        ...(enabledOpenWaggleExtensionResourceRoots.length > 0
+          ? { enabledOpenWaggleExtensionResourceRoots }
           : {}),
         ...(input.options.extensionFactories
           ? { extensionFactories: input.options.extensionFactories }

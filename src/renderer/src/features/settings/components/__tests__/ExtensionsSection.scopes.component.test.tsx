@@ -10,12 +10,19 @@ const { listExtensionPackagesMock } = vi.hoisted(() => ({
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     listExtensionPackages: listExtensionPackagesMock,
+    listExtensionContributions: vi.fn().mockResolvedValue({
+      projectPaths: ['/tmp/project'],
+      entries: [],
+    }),
     setExtensionTrusted: vi.fn(),
     setExtensionEnabled: vi.fn(),
     setExtensionProjectDisabled: vi.fn(),
     acceptExtensionUpdate: vi.fn(),
     approveExtensionBuild: vi.fn(),
     reloadExtension: vi.fn(),
+    proposeExtensionPackageRemove: vi.fn(),
+    applyExtensionPackageRemove: vi.fn(),
+    showConfirm: vi.fn(),
   },
 }))
 

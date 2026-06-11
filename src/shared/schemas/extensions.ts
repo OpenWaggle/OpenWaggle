@@ -54,8 +54,12 @@ export const extensionSemverVersionSchema = Schema.String.pipe(
   Schema.minLength(1),
   Schema.filter(isSemverVersion),
 )
+const extensionProposalHashSchema = Schema.String.pipe(
+  Schema.length(OPENWAGGLE_EXTENSION.HASH.HEX_LENGTH),
+)
 
 export const extensionInstallSourceSchema = Schema.Literal(...OPENWAGGLE_EXTENSION.INSTALL_SOURCES)
+export const extensionPackageWriteModeSchema = Schema.Literal('create', 'update')
 export const extensionRuntimeRequirementTypeSchema = Schema.Literal(
   ...OPENWAGGLE_EXTENSION.RUNTIME_REQUIREMENT_TYPES,
 )
@@ -78,6 +82,77 @@ export const extensionListPackagesInputSchema = Schema.Struct({
 export const extensionListContributionsInputSchema = Schema.Struct({
   projectPaths: Schema.optional(extensionViewProjectPathsSchema),
   sessionId: Schema.optional(nonEmptyStringSchema),
+})
+
+export const extensionPackageWorkflowActorSchema = Schema.Union(
+  Schema.Struct({
+    kind: Schema.Literal('agent'),
+    agentId: nonEmptyStringSchema,
+    sessionId: Schema.optional(nonEmptyStringSchema),
+  }),
+  Schema.Struct({
+    kind: Schema.Literal('user'),
+    userId: Schema.optional(nonEmptyStringSchema),
+  }),
+  Schema.Struct({
+    kind: Schema.Literal('extension'),
+    extensionId: extensionIdSchema,
+  }),
+)
+
+export const extensionPackageFileWriteSchema = Schema.Struct({
+  relativePath: extensionRelativePathSchema,
+  content: Schema.String,
+})
+
+export const extensionPackageWorkflowUserApprovalSchema = Schema.Struct({
+  approved: Schema.Boolean,
+  approvedProposalHash: extensionProposalHashSchema,
+  approvedBy: nonEmptyStringSchema,
+  approvedAt: Schema.Number,
+})
+
+export const extensionPackageWorkflowGlobalConfirmationSchema = Schema.Struct({
+  confirmed: Schema.Boolean,
+  confirmedExtensionId: extensionIdSchema,
+  confirmedProposalHash: extensionProposalHashSchema,
+  risk: Schema.Literal(OPENWAGGLE_EXTENSION.PACKAGE_WORKFLOW.GLOBAL_CONFIRMATION_RISK),
+})
+
+export const extensionProposePackageWriteInputSchema = Schema.Struct({
+  extensionId: extensionIdSchema,
+  scope: extensionLifecycleScopeSchema,
+  viewProjectPaths: Schema.optional(extensionViewProjectPathsSchema),
+  mode: extensionPackageWriteModeSchema,
+  files: Schema.mutable(Schema.Array(extensionPackageFileWriteSchema)),
+  actor: extensionPackageWorkflowActorSchema,
+})
+
+export const extensionApplyPackageWriteInputSchema = Schema.Struct({
+  extensionId: extensionIdSchema,
+  scope: extensionLifecycleScopeSchema,
+  viewProjectPaths: Schema.optional(extensionViewProjectPathsSchema),
+  mode: extensionPackageWriteModeSchema,
+  files: Schema.mutable(Schema.Array(extensionPackageFileWriteSchema)),
+  actor: extensionPackageWorkflowActorSchema,
+  userApproval: extensionPackageWorkflowUserApprovalSchema,
+  globalConfirmation: Schema.optional(extensionPackageWorkflowGlobalConfirmationSchema),
+})
+
+export const extensionProposePackageRemoveInputSchema = Schema.Struct({
+  extensionId: extensionIdSchema,
+  scope: extensionLifecycleScopeSchema,
+  viewProjectPaths: Schema.optional(extensionViewProjectPathsSchema),
+  actor: extensionPackageWorkflowActorSchema,
+})
+
+export const extensionApplyPackageRemoveInputSchema = Schema.Struct({
+  extensionId: extensionIdSchema,
+  scope: extensionLifecycleScopeSchema,
+  viewProjectPaths: Schema.optional(extensionViewProjectPathsSchema),
+  actor: extensionPackageWorkflowActorSchema,
+  userApproval: extensionPackageWorkflowUserApprovalSchema,
+  globalConfirmation: Schema.optional(extensionPackageWorkflowGlobalConfirmationSchema),
 })
 
 export const extensionRuntimeRequirementSchema = Schema.Struct({

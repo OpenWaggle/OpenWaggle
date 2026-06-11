@@ -108,8 +108,9 @@ The lifecycle for a user or agent is:
 10. Enable the extension.
 11. Reload the extension registry so eligible contributions can appear on their surfaces.
 12. Update the extension by replacing the package with a new approved proposal and bumping the version. OpenWaggle treats the changed content hash as an explicit update; approve the update, then enable and reload again if the update flow disables runtime loading.
-13. Disable the extension from Settings > Extensions to stop all contributions without deleting files. For global extensions, use project availability controls to disable only one project.
-14. Remove the extension through an approved remove workflow or by disabling it, deleting its package directory, and refreshing discovery. The remove workflow unregisters contributions, tears down runtime/module access, deletes lifecycle trust and enablement pins, and removes the package directory. Extension-owned storage cleanup should be a separate explicit user choice when data deletion matters.
+13. Disable the extension from Settings > Extensions to stop all contributions without deleting files. This unregisters contributions, tears down mounted sandbox frames and runtime subscriptions as surfaces unmount, revokes module access, and marks the package as not reloaded. For global extensions, use project availability controls to disable only one project.
+14. Remove the extension from Settings > Extensions by choosing Remove and approving the confirmation. Project-local removal deletes `<project>/.openwaggle/extensions/<extension-id>/`; global removal deletes the app-data `extensions/<extension-id>/` package and requires explicit global-impact confirmation. The approved remove workflow unregisters contributions, tears down runtime/module access, deletes lifecycle trust and enablement pins, and removes the package directory. Extension-owned storage cleanup should be a separate explicit user choice when data deletion matters.
+15. Agents must not delete extension package directories directly as a shortcut. They should propose the removal, get user approval for the exact extension id and scope, then call the host remove workflow so OpenWaggle can perform lifecycle cleanup before the files disappear.
 
 ## Model
 
@@ -326,6 +327,8 @@ Agents may help author project-local or global extension packages, but package w
 4. For global packages, the user also confirms the global impact because the package can affect every project where it is enabled.
 5. OpenWaggle writes, replaces, or removes the package, then refreshes discovery and lifecycle state.
 
+For create and update package writes, OpenWaggle first returns a proposal view with the operation, normalized file paths, per-file content hashes, byte counts, the full proposal hash, and whether global-impact confirmation is required. Create proposals are valid only when the package does not already exist; update proposals are valid only when the package already exists. If the package state changes between proposal and apply, OpenWaggle rejects the stale operation before writing files. Global write approval must include a second confirmation tied to the same proposal hash and the `global-extension-package-write` risk marker.
+
 Project-local extension source can be committed and shared with the project. Trust records, enablement, permission grants, build approvals, project opt-outs, lifecycle pins, and extension storage remain user-local.
 
 An approved update replaces the package directory as a full package. Stale files that are not in the new package proposal are removed. Runtime loading is disabled until the updated package is reviewed, trusted or update-approved, enabled, and reloaded again.
@@ -533,6 +536,35 @@ It should demonstrate:
 Development fixtures live under `fixtures/extensions/`. They are for tests, demos, and local QA only, and must not be shipped as product content.
 
 Use `pnpm extension:qa:install` to copy fixture packages into the current checkout's project-local `.openwaggle/extensions/` directory for QA. That command is a development helper, not a production packaging step.
+
+## Extension Host QA Proof
+
+The repeatable automated Electron proof is:
+
+```bash
+pnpm test:e2e:headless:quick e2e/extension-host.e2e.test.ts
+```
+
+Use the full build-backed variant when the built app may be stale:
+
+```bash
+pnpm test:e2e:headless e2e/extension-host.e2e.test.ts
+```
+
+The E2E test creates an isolated user-data directory and temporary project, installs the `openwaggle-github-issues-overview` fixture into that project's `.openwaggle/extensions/`, seeds a project-scoped session so Settings discovers the project scope, then drives Settings > Extensions through trust, enable, reload, iframe render, SDK-backed configuration save, disable, and package removal from discovery.
+
+Manual real-Electron QA uses the same path:
+
+1. Run `pnpm extension:qa:install openwaggle-github-issues-overview`.
+2. Start Electron with CDP using `pnpm dev:debug`.
+3. Verify CDP with `curl -s http://127.0.0.1:9222/json/version`.
+4. Open Settings > Extensions and click Refresh.
+5. Trust `GitHub Issues Overview`, enable it, then click Reload.
+6. Confirm `GitHub Issues Settings` appears under Extension settings and the frame titled `Extension module: GitHub Issues Settings` renders the fixture form.
+7. Save the configuration from inside the frame to prove the brokered storage SDK path.
+8. Disable the extension and confirm the settings contribution disappears.
+9. Remove the extension with the Settings > Extensions Remove action and confirm the package card, contribution registry entry, and sandbox frame disappear. Extension-owned storage is retained unless a separate data deletion flow is explicitly offered.
+10. Check console errors through the Electron QA DevTools path before signing off.
 
 ## Agent-Discoverable Installed Docs
 

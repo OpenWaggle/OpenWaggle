@@ -9,16 +9,28 @@ import { findPackage, makeLifecycleState } from './extension-lifecycle-model'
 import { listExtensionPackagesView } from './extension-manager-view-service'
 import {
   EXTENSION_PACKAGE_WORKFLOW,
+  type ExtensionPackageRemoveProposalInput,
   type ExtensionPackageRemoveWorkflowInput,
   type ExtensionPackageWorkflowGlobalConfirmation,
   type ExtensionPackageWorkflowTarget,
+  type ExtensionPackageWriteProposalInput,
   type ExtensionPackageWriteWorkflowInput,
+  getExtensionPackageRemoveProposal,
   getExtensionPackageRemoveProposalHash,
+  getExtensionPackageWriteProposal,
   getExtensionPackageWriteProposalHash,
+  validateExtensionPackageWriteManifestIdentity,
 } from './extension-package-workflow-model'
 import { deactivateTrustedMainExtensionPackage } from './extension-trusted-main-activation-service'
 
-function getWorkflowViewProjectPaths(input: ExtensionPackageWorkflowTarget) {
+interface ExtensionPackageWorkflowBaseTarget {
+  readonly extensionId: ExtensionPackageWorkflowTarget['extensionId']
+  readonly scope: ExtensionPackageWorkflowTarget['scope']
+  readonly actor: ExtensionPackageWorkflowTarget['actor']
+  readonly viewProjectPaths?: ExtensionPackageWorkflowTarget['viewProjectPaths']
+}
+
+function getWorkflowViewProjectPaths(input: ExtensionPackageWorkflowBaseTarget) {
   if (input.viewProjectPaths !== undefined && input.viewProjectPaths.length > 0) {
     return input.viewProjectPaths
   }
@@ -28,13 +40,13 @@ function getWorkflowViewProjectPaths(input: ExtensionPackageWorkflowTarget) {
     : []
 }
 
-function getWorkflowDiscoveryProjectPath(input: ExtensionPackageWorkflowTarget) {
+function getWorkflowDiscoveryProjectPath(input: ExtensionPackageWorkflowBaseTarget) {
   return input.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND
     ? input.scope.projectPath
     : null
 }
 
-function validatePackageWorkflowActor(input: ExtensionPackageWorkflowTarget) {
+function validatePackageWorkflowActor(input: ExtensionPackageWorkflowBaseTarget) {
   if (input.actor.kind === 'extension') {
     return Effect.fail(new Error(EXTENSION_PACKAGE_WORKFLOW.ERROR.EXTENSION_ACTOR_REJECTED))
   }
@@ -100,7 +112,28 @@ function validateWorkflowApproval(input: {
   })
 }
 
-function loadWorkflowPackage(input: ExtensionPackageWorkflowTarget) {
+function validateWriteModeAgainstPackage(input: {
+  readonly mode: ExtensionPackageWriteWorkflowInput['mode']
+  readonly existingPackage: DiscoveredExtensionPackage | null
+}) {
+  if (input.mode === 'create' && input.existingPackage) {
+    return Effect.fail(new Error(EXTENSION_PACKAGE_WORKFLOW.ERROR.CREATE_TARGET_EXISTS))
+  }
+  if (input.mode === 'update' && !input.existingPackage) {
+    return Effect.fail(new Error(EXTENSION_PACKAGE_WORKFLOW.ERROR.UPDATE_TARGET_MISSING))
+  }
+  return Effect.void
+}
+
+function validateWriteManifestIdentity(input: {
+  readonly extensionId: ExtensionPackageWriteWorkflowInput['extensionId']
+  readonly files: ExtensionPackageWriteWorkflowInput['files']
+}) {
+  const validation = validateExtensionPackageWriteManifestIdentity(input)
+  return validation._tag === 'valid' ? Effect.void : Effect.fail(new Error(validation.message))
+}
+
+function loadWorkflowPackage(input: ExtensionPackageWorkflowBaseTarget) {
   return Effect.gen(function* () {
     const manager = yield* ExtensionManagerService
     const packages = yield* manager.listPackages({
@@ -159,13 +192,33 @@ function deleteLifecycleState(input: ExtensionPackageRemoveWorkflowInput) {
   })
 }
 
+export function proposeExtensionPackageWrite(input: ExtensionPackageWriteProposalInput) {
+  return Effect.gen(function* () {
+    yield* validatePackageWorkflowActor(input)
+    yield* validateWriteManifestIdentity(input)
+    const existingPackage = yield* loadWorkflowPackage(input)
+    yield* validateWriteModeAgainstPackage({ mode: input.mode, existingPackage })
+
+    return getExtensionPackageWriteProposal(input)
+  })
+}
+
+export function proposeExtensionPackageRemove(input: ExtensionPackageRemoveProposalInput) {
+  return Effect.gen(function* () {
+    yield* validatePackageWorkflowActor(input)
+    return getExtensionPackageRemoveProposal(input)
+  })
+}
+
 export function createOrUpdateExtensionPackage(input: ExtensionPackageWriteWorkflowInput) {
   return Effect.gen(function* () {
     const proposalHash = getExtensionPackageWriteProposalHash(input)
     yield* validateWorkflowApproval({ target: input, proposalHash })
+    yield* validateWriteManifestIdentity(input)
 
     const packageRepository = yield* ExtensionPackageRepository
     const existingPackage = yield* loadWorkflowPackage(input)
+    yield* validateWriteModeAgainstPackage({ mode: input.mode, existingPackage })
     const currentLifecycle = existingPackage ? yield* loadCurrentLifecycle(existingPackage) : null
 
     yield* packageRepository.writePackage({

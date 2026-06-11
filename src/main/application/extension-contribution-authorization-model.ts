@@ -10,6 +10,10 @@ import {
   getManifestFamilyContributions,
   type ManifestContribution,
 } from './extension-contribution-family-model'
+import {
+  EXTENSION_PACKAGE_MUTATION_CAPABILITY_REJECTION,
+  isExtensionPackageMutationCapability,
+} from './extension-package-mutation-guard'
 
 const DEFAULT_DECLARED_SCOPES = ['app'] as const
 
@@ -181,6 +185,18 @@ function capabilityDiagnostics(input: {
   return match(binding)
     .with({ _tag: 'unbound' }, () => [])
     .with({ _tag: 'bound' }, (bound) => {
+      if (isExtensionPackageMutationCapability(bound.capability)) {
+        return [
+          contributionDiagnostic({
+            extensionPackage: input.extensionPackage,
+            family: input.family,
+            contributionId: input.contribution.id,
+            index: input.index,
+            message: EXTENSION_PACKAGE_MUTATION_CAPABILITY_REJECTION,
+          }),
+        ]
+      }
+
       const declaration = findManifestCapabilityDeclaration({
         manifest: input.extensionPackage.manifest,
         capability: bound.capability,

@@ -1,64 +1,33 @@
 import type {
   ExtensionContributionRegistryView,
-  ExtensionLifecycleMutationTarget,
   ExtensionManagerView,
   ExtensionPackageSummary,
 } from '@shared/types/extensions'
 import { type UseQueryResult, useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import {
   extensionContributionsQueryOptions,
   extensionPackagesQueryOptions,
   useAcceptExtensionUpdateMutation,
+  useApplyExtensionPackageRemoveMutation,
   useApproveExtensionBuildMutation,
   useReloadExtensionMutation,
   useSetExtensionEnabledMutation,
   useSetExtensionProjectDisabledMutation,
   useSetExtensionTrustedMutation,
 } from '@/queries/extensions'
+import { runApprovedExtensionRemoveWorkflow } from './extension-remove-workflow'
 import {
-  controllerError,
-  getUpdatingExtensionId,
-  hasPendingMutation,
+  describeExtensionControllerError,
+  type ExtensionsSectionController,
+  extensionControllerError,
+  extensionMutationState,
   logMutationFailure,
-  mutationError,
+  mutationSnapshot,
   packageScopeToMutationScope,
 } from './extensions-section-controller-model'
-
-export interface ExtensionsSectionController {
-  readonly view: ExtensionManagerView | null
-  readonly contributionRegistry: ExtensionContributionRegistryView | null
-  readonly loading: boolean
-  readonly updatingExtensionId: string | null
-  readonly error: string | null
-  readonly refresh: () => Promise<void>
-  readonly setTrusted: (
-    extensionPackage: ExtensionPackageSummary,
-    trusted: boolean,
-  ) => Promise<void>
-  readonly setEnabled: (
-    extensionPackage: ExtensionPackageSummary,
-    enabled: boolean,
-  ) => Promise<void>
-  readonly setProjectDisabled: (
-    extensionPackage: ExtensionPackageSummary,
-    projectPath: string,
-    disabled: boolean,
-  ) => Promise<void>
-  readonly acceptUpdate: (extensionPackage: ExtensionPackageSummary) => Promise<void>
-  readonly approveBuild: (extensionPackage: ExtensionPackageSummary) => Promise<void>
-  readonly reload: (extensionPackage: ExtensionPackageSummary) => Promise<void>
-}
-
-type MutationSnapshot = {
-  readonly pending: boolean
-  readonly error: Error | null
-  readonly extensionId: string | null
-}
-
-type MutationSlot = 'trusted' | 'enabled' | 'projectDisabled' | 'update' | 'build' | 'reload'
-type MutationSnapshots = Readonly<Record<MutationSlot, MutationSnapshot>>
 
 async function refreshProviderModelsAfterExtensionMutation() {
   const settingsSnapshot = usePreferencesStore.getState().settings
@@ -66,68 +35,6 @@ async function refreshProviderModelsAfterExtensionMutation() {
   if (updatedSettings) {
     usePreferencesStore.setState({ settings: updatedSettings })
   }
-}
-
-function mutationSnapshot(input: {
-  readonly error: Error | null
-  readonly isPending: boolean
-  readonly variables: ExtensionLifecycleMutationTarget | undefined
-}): MutationSnapshot {
-  return {
-    error: input.error,
-    pending: input.isPending,
-    extensionId: input.variables?.extensionId ?? null,
-  }
-}
-
-function extensionMutationState(mutations: MutationSnapshots) {
-  return {
-    latestError: mutationError({
-      trustedError: mutations.trusted.error,
-      enabledError: mutations.enabled.error,
-      projectDisabledError: mutations.projectDisabled.error,
-      updateError: mutations.update.error,
-      buildError: mutations.build.error,
-      reloadError: mutations.reload.error,
-    }),
-    pending: hasPendingMutation({
-      trustedPending: mutations.trusted.pending,
-      enabledPending: mutations.enabled.pending,
-      projectDisabledPending: mutations.projectDisabled.pending,
-      updatePending: mutations.update.pending,
-      buildPending: mutations.build.pending,
-      reloadPending: mutations.reload.pending,
-    }),
-    updatingId: getUpdatingExtensionId({
-      trustedPending: mutations.trusted.pending,
-      trustedExtensionId: mutations.trusted.extensionId,
-      enabledPending: mutations.enabled.pending,
-      enabledExtensionId: mutations.enabled.extensionId,
-      projectDisabledPending: mutations.projectDisabled.pending,
-      projectDisabledExtensionId: mutations.projectDisabled.extensionId,
-      updatePending: mutations.update.pending,
-      updateExtensionId: mutations.update.extensionId,
-      buildPending: mutations.build.pending,
-      buildExtensionId: mutations.build.extensionId,
-      reloadPending: mutations.reload.pending,
-      reloadExtensionId: mutations.reload.extensionId,
-    }),
-  }
-}
-
-function extensionControllerError(input: {
-  readonly extensionsError: Error | null
-  readonly contributionsError: Error | null
-  readonly mutationLatestError: Error | null
-}) {
-  return (
-    controllerError({
-      queryError: input.extensionsError,
-      latestMutationError: input.mutationLatestError,
-    }) ??
-    input.contributionsError?.message ??
-    null
-  )
 }
 
 export function useExtensionsSectionController(
@@ -145,6 +52,8 @@ export function useExtensionsSectionController(
   const acceptUpdateMutation = useAcceptExtensionUpdateMutation(projectPaths)
   const approveBuildMutation = useApproveExtensionBuildMutation(projectPaths)
   const reloadMutation = useReloadExtensionMutation(projectPaths)
+  const removeMutation = useApplyExtensionPackageRemoveMutation(projectPaths)
+  const [actionError, setActionError] = useState<string | null>(null)
   const view: ExtensionManagerView | null = extensionsQuery.data ?? null
   const contributionRegistry = contributionsQuery.data ?? null
   const mutationState = extensionMutationState({
@@ -154,12 +63,14 @@ export function useExtensionsSectionController(
     update: mutationSnapshot(acceptUpdateMutation),
     build: mutationSnapshot(approveBuildMutation),
     reload: mutationSnapshot(reloadMutation),
+    remove: mutationSnapshot(removeMutation),
   })
-  const error = extensionControllerError({
-    extensionsError: extensionsQuery.error,
-    contributionsError: contributionsQuery.error,
-    mutationLatestError: mutationState.latestError,
-  })
+  const error =
+    extensionControllerError({
+      extensionsError: extensionsQuery.error,
+      contributionsError: contributionsQuery.error,
+      mutationLatestError: mutationState.latestError,
+    }) ?? actionError
 
   async function refresh() {
     await Promise.all([extensionsQuery.refetch(), contributionsQuery.refetch()])
@@ -172,6 +83,7 @@ export function useExtensionsSectionController(
     acceptUpdateMutation.reset()
     approveBuildMutation.reset()
     reloadMutation.reset()
+    removeMutation.reset()
   }
 
   async function runExtensionMutation({
@@ -186,10 +98,12 @@ export function useExtensionsSectionController(
     readonly mutate: () => Promise<ExtensionManagerView>
   }) {
     resetMutations()
+    setActionError(null)
     try {
       await mutate()
       await refreshProviderModelsAfterExtensionMutation()
     } catch (error) {
+      setActionError(describeExtensionControllerError(error))
       logMutationFailure({
         action,
         extensionPackage,
@@ -297,6 +211,17 @@ export function useExtensionsSectionController(
     })
   }
 
+  async function remove(extensionPackage: ExtensionPackageSummary) {
+    await runApprovedExtensionRemoveWorkflow({
+      extensionPackage,
+      projectPaths,
+      resetMutations,
+      applyRemove: removeMutation.mutateAsync,
+      refreshProviderModels: refreshProviderModelsAfterExtensionMutation,
+      setActionError,
+    })
+  }
+
   return {
     view,
     contributionRegistry,
@@ -310,5 +235,6 @@ export function useExtensionsSectionController(
     acceptUpdate,
     approveBuild,
     reload,
+    remove,
   }
 }

@@ -1,10 +1,10 @@
 import type { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import type {
+  ExtensionLifecycleMutationTarget,
+  ExtensionPackageScopeView,
+} from './extension-package-scope'
 
 type ConstantValue<TObject> = TObject[keyof TObject]
-
-export type ExtensionPackageScopeKind =
-  | typeof OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND
-  | typeof OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND
 
 export type ExtensionDiagnosticSeverity = ConstantValue<
   typeof OPENWAGGLE_EXTENSION.DIAGNOSTIC.SEVERITY
@@ -18,26 +18,36 @@ export interface ExtensionDiagnosticView {
   readonly path?: string
 }
 
-export interface ExtensionPackageScopeView {
-  readonly kind: ExtensionPackageScopeKind
-  readonly label: string
-  readonly projectPath?: string
-}
-
-export type ExtensionPackageLifecycleScope =
-  | {
-      readonly kind: typeof OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND
-    }
-  | {
-      readonly kind: typeof OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND
-      readonly projectPath: string
-    }
-
-export interface ExtensionLifecycleMutationTarget {
-  readonly extensionId: string
-  readonly scope: ExtensionPackageLifecycleScope
-  readonly viewProjectPaths?: readonly string[]
-}
+export type {
+  ExtensionContributionEligibilityView,
+  ExtensionContributionMatchView,
+  ExtensionContributionRegistryEntry,
+  ExtensionContributionRegistryView,
+  ExtensionContributionTargetView,
+  ExtensionListContributionsInput,
+} from './extension-contribution-registry'
+export type {
+  ExtensionLifecycleMutationTarget,
+  ExtensionPackageLifecycleScope,
+  ExtensionPackageScopeKind,
+  ExtensionPackageScopeView,
+} from './extension-package-scope'
+export type {
+  ExtensionApplyPackageRemoveInput,
+  ExtensionApplyPackageWriteInput,
+  ExtensionPackageFileWrite,
+  ExtensionPackageRemoveOperation,
+  ExtensionPackageRemoveProposalView,
+  ExtensionPackageWorkflowActor,
+  ExtensionPackageWorkflowGlobalConfirmation,
+  ExtensionPackageWorkflowUserApproval,
+  ExtensionPackageWriteMode,
+  ExtensionPackageWriteOperation,
+  ExtensionPackageWriteProposalFileView,
+  ExtensionPackageWriteProposalView,
+  ExtensionProposePackageRemoveInput,
+  ExtensionProposePackageWriteInput,
+} from './extension-package-workflow'
 
 export interface ExtensionListPackagesInput {
   readonly projectPaths?: readonly string[]
@@ -249,65 +259,4 @@ export interface ExtensionManagerView {
   readonly projectPath: string | null
   readonly projectPaths: readonly string[]
   readonly packages: readonly ExtensionPackageSummary[]
-}
-
-export interface ExtensionListContributionsInput {
-  readonly projectPaths?: readonly string[]
-  readonly sessionId?: string
-}
-
-export interface ExtensionContributionEligibilityView {
-  readonly runtimeEnabled: boolean
-  readonly enabled: boolean
-  readonly trusted: boolean
-  readonly sdkCompatible: boolean | null
-  readonly updateAvailable: boolean
-  readonly disabledProjectPaths: readonly string[]
-}
-
-export interface ExtensionContributionTargetView {
-  readonly projectPaths?: readonly string[]
-  readonly sessionIds?: readonly string[]
-}
-
-export interface ExtensionContributionMatchView {
-  readonly toolNames?: readonly string[]
-  readonly customMessageNames?: readonly string[]
-  readonly interactionKinds?: readonly string[]
-}
-
-export interface ExtensionContributionRegistryEntry {
-  readonly extensionId: string
-  readonly extensionName: string
-  readonly extensionVersion: string
-  readonly scope: ExtensionPackageScopeView
-  readonly packagePath: string
-  readonly manifestPath: string
-  readonly contentHash: string
-  readonly projectPaths: readonly string[]
-  readonly sessionId?: string
-  readonly appliesToAllRequestedProjects: boolean
-  readonly family: ExtensionContributionFamily
-  readonly contributionId: string
-  readonly title: string
-  readonly label: string
-  readonly category?: string
-  readonly capability?: string
-  readonly method?: string
-  readonly methods?: readonly string[]
-  readonly declaredScopes?: readonly ExtensionCapabilityScope[]
-  readonly networkOrigins?: readonly string[]
-  readonly target?: ExtensionContributionTargetView
-  readonly matches?: ExtensionContributionMatchView
-  readonly runtime?: ExtensionContributionRuntime
-  readonly execution?: ExtensionExecutionPlacement
-  readonly entryPath?: string
-  readonly eligibility: ExtensionContributionEligibilityView
-  readonly diagnostics: readonly ExtensionDiagnosticView[]
-}
-
-export interface ExtensionContributionRegistryView {
-  readonly projectPaths: readonly string[]
-  readonly entries: readonly ExtensionContributionRegistryEntry[]
-  readonly diagnostics?: readonly ExtensionDiagnosticView[]
 }

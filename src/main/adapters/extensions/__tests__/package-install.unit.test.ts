@@ -129,6 +129,24 @@ describe('filesystem extension package install repository helpers', () => {
     ).rejects.toThrow('Invalid extension package file path')
   })
 
+  it('rejects package writes whose manifest id does not match the requested extension id', async () => {
+    const extensionId = 'manifest-id-workflow'
+    const scope = projectScope()
+
+    await expect(
+      writeFilesystemExtensionPackage({
+        extensionId,
+        scope,
+        mode: 'create',
+        globalRootPath: path.join(tmpRoot, 'user-data', 'extensions'),
+        files: filesFor({ extensionId: 'different-manifest-id' }),
+      }),
+    ).rejects.toThrow('Extension package manifest id must match requested extension id')
+    expect(
+      await exists(path.join(scope.projectPath, '.openwaggle', 'extensions', extensionId)),
+    ).toBe(false)
+  })
+
   it('removes only the requested package directory', async () => {
     const extensionId = 'remove-filesystem-workflow'
     const siblingId = 'remove-filesystem-sibling'

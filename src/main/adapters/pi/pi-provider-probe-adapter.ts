@@ -12,10 +12,13 @@ import { ExtensionManagerService } from '../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
 import { type ProviderProbeInput, ProviderProbeService } from '../../ports/provider-probe-service'
 import {
+  getRuntimeEnabledPackagesPiResourceRoots,
   listRuntimeEnabledPackages,
   type OpenWagglePiExtensionSelectionServices,
+  type RuntimeEnabledOpenWaggleExtensionPackage,
 } from './openwaggle-pi-extension-selection'
 import { recordRuntimeLoadFailure } from './openwaggle-pi-runtime-failure-recording'
+import type { OpenWaggleExtensionPiResourceRoot } from './openwaggle-pi-settings-resources'
 import { createPiRuntimeServices } from './pi-provider-catalog'
 import {
   getPiRuntimeExtensionLoadErrors,
@@ -73,10 +76,12 @@ async function runPiPromptProbe(input: ProviderProbeInput, services: AgentSessio
 async function createProbeRuntimeServices(
   input: ProviderProbeInput,
   enabledOpenWaggleExtensionPackagePaths: readonly string[],
+  enabledOpenWaggleExtensionResourceRoots: readonly OpenWaggleExtensionPiResourceRoot[],
 ) {
   const cwd = input.projectPath ?? process.cwd()
   const services = await createPiRuntimeServices(cwd, {
     enabledOpenWaggleExtensionPackagePaths,
+    enabledOpenWaggleExtensionResourceRoots,
     loadMcpAdapter: false,
   })
   return rejectMatchingOpenWaggleExtensionLoadErrors({
@@ -105,6 +110,16 @@ function loadEnabledOpenWaggleExtensionPackages(
     : Effect.succeed([])
 }
 
+function getProbeResourceRoots(
+  enabledOpenWaggleExtensionPackages: readonly RuntimeEnabledOpenWaggleExtensionPackage[],
+  enabledOpenWaggleExtensionPackagePaths: readonly string[],
+) {
+  return getRuntimeEnabledPackagesPiResourceRoots(
+    enabledOpenWaggleExtensionPackages,
+    enabledOpenWaggleExtensionPackagePaths,
+  )
+}
+
 export const PiProviderProbeLive = Layer.effect(
   ProviderProbeService,
   Effect.gen(function* () {
@@ -126,7 +141,14 @@ export const PiProviderProbeLive = Layer.effect(
               const services = await loadWithRuntimeFailureIsolation({
                 selections: enabledOpenWaggleExtensionPackages,
                 load: (enabledOpenWaggleExtensionPackagePaths) =>
-                  createProbeRuntimeServices(input, enabledOpenWaggleExtensionPackagePaths),
+                  createProbeRuntimeServices(
+                    input,
+                    enabledOpenWaggleExtensionPackagePaths,
+                    getProbeResourceRoots(
+                      enabledOpenWaggleExtensionPackages,
+                      enabledOpenWaggleExtensionPackagePaths,
+                    ),
+                  ),
                 recordFailure: (selection, error) =>
                   recordRuntimeLoadFailure({
                     selection,

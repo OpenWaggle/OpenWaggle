@@ -125,6 +125,55 @@ describe('createPiRuntimeServices OpenWaggle extension loading', () => {
     )
   })
 
+  it('loads manifest-declared Pi resource roots from enabled OpenWaggle extension packages', async () => {
+    const projectPath = await createTempProject()
+    const packageDir = path.join(
+      projectPath,
+      '.openwaggle',
+      'extensions',
+      'manifest-resource-extension',
+    )
+    await writeProviderPackage(packageDir, 'pi', 'manifest-resource-provider')
+    const skillPath = await writeSkill(packageDir, 'pi', 'manifest-resource-skill')
+    const promptPath = await writePrompt(path.join(packageDir, 'pi'), 'manifest-resource-prompt')
+
+    const services = await createPiRuntimeServices(projectPath, {
+      enabledOpenWaggleExtensionPackagePaths: [],
+      enabledOpenWaggleExtensionResourceRoots: [{ packagePath: packageDir, resourceRoot: 'pi' }],
+      loadMcpAdapter: false,
+    })
+
+    expect(services.settingsManager.getProjectSettings().skills).toEqual([
+      path.join('..', '.openwaggle', 'skills'),
+      path.join('..', '.openwaggle', 'extensions', 'manifest-resource-extension', 'pi', 'skills'),
+      'skills',
+      path.join('..', '.agents', 'skills'),
+    ])
+    expect(services.settingsManager.getProjectSettings().extensions).toEqual([
+      path.join(
+        '..',
+        '.openwaggle',
+        'extensions',
+        'manifest-resource-extension',
+        'pi',
+        'extensions',
+      ),
+      'extensions',
+      path.join('..', '.agents', 'extensions'),
+      '!extensions/pi-mcp-adapter',
+      '!extensions/pi-mcp-adapter/**',
+    ])
+    expect(
+      services.modelRegistry.find('manifest-resource-provider', 'offline-model'),
+    ).not.toBeNull()
+    expect(services.resourceLoader.getSkills().skills.map((skill) => skill.filePath)).toContain(
+      skillPath,
+    )
+    expect(services.resourceLoader.getPrompts().prompts.map((prompt) => prompt.filePath)).toContain(
+      promptPath,
+    )
+  })
+
   it('strips implicit runtime package sources when Pi persists project settings', async () => {
     const projectPath = await createTempProject()
     const packageSource = path.join('.openwaggle', 'extensions', 'persisted-extension')
@@ -147,6 +196,31 @@ describe('createPiRuntimeServices OpenWaggle extension loading', () => {
 
     expect(saved.pi).toEqual({
       skills: ['skills/custom'],
+    })
+  })
+
+  it('strips implicit manifest resource roots when Pi persists project settings', async () => {
+    const projectPath = await createTempProject()
+    const packageDir = path.join(
+      projectPath,
+      '.openwaggle',
+      'extensions',
+      'persisted-resource-root-extension',
+    )
+    await writeProviderPackage(packageDir, 'pi', 'persisted-resource-root-provider')
+    const settingsPath = path.join(projectPath, '.openwaggle', 'settings.json')
+
+    const services = await createPiRuntimeServices(projectPath, {
+      enabledOpenWaggleExtensionPackagePaths: [],
+      enabledOpenWaggleExtensionResourceRoots: [{ packagePath: packageDir, resourceRoot: 'pi' }],
+    })
+    services.settingsManager.setProjectPromptTemplatePaths(['prompts/custom'])
+    await services.settingsManager.flush()
+
+    const saved = JSON.parse(await fs.readFile(settingsPath, 'utf8'))
+
+    expect(saved.pi).toEqual({
+      prompts: ['prompts/custom'],
     })
   })
 })

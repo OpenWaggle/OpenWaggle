@@ -1,5 +1,6 @@
 import type {
   ExtensionAcceptUpdateInput,
+  ExtensionApplyPackageRemoveInput,
   ExtensionApproveBuildInput,
   ExtensionContributionRegistryView,
   ExtensionListContributionsInput,
@@ -25,6 +26,7 @@ type ExtensionApi = Pick<
   | 'acceptExtensionUpdate'
   | 'approveExtensionBuild'
   | 'reloadExtension'
+  | 'applyExtensionPackageRemove'
 >
 
 const extensionApi: ExtensionApi = api
@@ -91,6 +93,12 @@ function approveExtensionBuild(input: ExtensionApproveBuildInput): Promise<Exten
 
 function reloadExtension(input: ExtensionReloadInput): Promise<ExtensionManagerView> {
   return extensionApi.reloadExtension(input)
+}
+
+function applyExtensionPackageRemove(
+  input: ExtensionApplyPackageRemoveInput,
+): Promise<ExtensionManagerView> {
+  return extensionApi.applyExtensionPackageRemove(input)
 }
 
 function syncExtensionQueriesAfterMutation(input: {
@@ -199,6 +207,17 @@ export function useReloadExtensionMutation(projectPaths: readonly string[]) {
 
   return useMutation<ExtensionManagerView, Error, ExtensionReloadInput>({
     mutationFn: reloadExtension,
+    onSuccess: (view) => {
+      return syncExtensionQueriesAfterMutation({ queryClient, projectPaths, view })
+    },
+  })
+}
+
+export function useApplyExtensionPackageRemoveMutation(projectPaths: readonly string[]) {
+  const queryClient = useQueryClient()
+
+  return useMutation<ExtensionManagerView, Error, ExtensionApplyPackageRemoveInput>({
+    mutationFn: applyExtensionPackageRemove,
     onSuccess: (view) => {
       return syncExtensionQueriesAfterMutation({ queryClient, projectPaths, view })
     },

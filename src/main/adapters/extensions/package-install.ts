@@ -2,7 +2,9 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import { parseJsonUnknown, safeDecodeUnknown } from '@shared/schema'
 import { isExtensionId, isPortableRelativePath } from '@shared/schemas/extension-schema-primitives'
+import { openWaggleExtensionManifestSchema } from '@shared/schemas/extensions'
 import { isEnoent } from '@shared/utils/node-error'
 import type { ExtensionPackageScope } from '../../extensions/types'
 import type {
@@ -106,6 +108,39 @@ function normalizePackageFiles(files: readonly ExtensionPackageFileWrite[]) {
   return normalizedFiles.sort((left, right) =>
     left.normalizedRelativePath.localeCompare(right.normalizedRelativePath),
   )
+}
+
+function validatePackageManifestIdentity(input: {
+  readonly extensionId: string
+  readonly files: readonly NormalizedPackageFileWrite[]
+}) {
+  const manifestFile = input.files.find(
+    (file) => file.normalizedRelativePath === OPENWAGGLE_EXTENSION.MANIFEST_FILE,
+  )
+  if (!manifestFile) {
+    throw new Error(`Extension package writes must include ${OPENWAGGLE_EXTENSION.MANIFEST_FILE}.`)
+  }
+
+  let parsedManifest: unknown
+  try {
+    parsedManifest = parseJsonUnknown(manifestFile.content)
+  } catch {
+    throw new Error(
+      `Extension package writes must include a valid ${OPENWAGGLE_EXTENSION.MANIFEST_FILE} manifest.`,
+    )
+  }
+
+  const decoded = safeDecodeUnknown(openWaggleExtensionManifestSchema, parsedManifest)
+  if (!decoded.success) {
+    throw new Error(
+      `Extension package writes must include a valid ${OPENWAGGLE_EXTENSION.MANIFEST_FILE} manifest. ${decoded.issues.join('; ')}`,
+    )
+  }
+  if (decoded.data.id !== input.extensionId) {
+    throw new Error(
+      `Extension package manifest id must match requested extension id. Expected "${input.extensionId}", received "${decoded.data.id}".`,
+    )
+  }
 }
 
 async function pathExists(filePath: string) {
@@ -215,12 +250,14 @@ export async function writeFilesystemExtensionPackage(
   input: FilesystemWriteExtensionPackageInput,
 ): Promise<WriteExtensionPackageResult> {
   const paths = extensionPackagePath(input)
+  const files = normalizePackageFiles(input.files)
+  validatePackageManifestIdentity({ extensionId: input.extensionId, files })
   await replacePackageDirectory({
     mode: input.mode,
     extensionId: input.extensionId,
     rootPath: paths.rootPath,
     packagePath: paths.packagePath,
-    files: normalizePackageFiles(input.files),
+    files,
   })
 
   return {

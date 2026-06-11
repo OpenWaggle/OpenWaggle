@@ -1,5 +1,8 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
+  ExtensionContributionRegistryView,
+  ExtensionLifecycleMutationTarget,
+  ExtensionManagerView,
   ExtensionPackageLifecycleScope,
   ExtensionPackageSummary,
 } from '@shared/types/extensions'
@@ -7,8 +10,116 @@ import { createRendererLogger } from '@/shared/lib/logger'
 
 const logger = createRendererLogger('extensions-settings')
 
+export interface ExtensionsSectionController {
+  readonly view: ExtensionManagerView | null
+  readonly contributionRegistry: ExtensionContributionRegistryView | null
+  readonly loading: boolean
+  readonly updatingExtensionId: string | null
+  readonly error: string | null
+  readonly refresh: () => Promise<void>
+  readonly setTrusted: (
+    extensionPackage: ExtensionPackageSummary,
+    trusted: boolean,
+  ) => Promise<void>
+  readonly setEnabled: (
+    extensionPackage: ExtensionPackageSummary,
+    enabled: boolean,
+  ) => Promise<void>
+  readonly setProjectDisabled: (
+    extensionPackage: ExtensionPackageSummary,
+    projectPath: string,
+    disabled: boolean,
+  ) => Promise<void>
+  readonly acceptUpdate: (extensionPackage: ExtensionPackageSummary) => Promise<void>
+  readonly approveBuild: (extensionPackage: ExtensionPackageSummary) => Promise<void>
+  readonly reload: (extensionPackage: ExtensionPackageSummary) => Promise<void>
+  readonly remove: (extensionPackage: ExtensionPackageSummary) => Promise<void>
+}
+
+interface MutationSnapshot {
+  readonly pending: boolean
+  readonly error: Error | null
+  readonly extensionId: string | null
+}
+
+type MutationSlot =
+  | 'trusted'
+  | 'enabled'
+  | 'projectDisabled'
+  | 'update'
+  | 'build'
+  | 'reload'
+  | 'remove'
+export type MutationSnapshots = Readonly<Record<MutationSlot, MutationSnapshot>>
+
 export function describeExtensionControllerError(error: unknown) {
   return error instanceof Error ? error.message : 'Failed to load extensions.'
+}
+
+export function mutationSnapshot(input: {
+  readonly error: Error | null
+  readonly isPending: boolean
+  readonly variables: ExtensionLifecycleMutationTarget | undefined
+}): MutationSnapshot {
+  return {
+    error: input.error,
+    pending: input.isPending,
+    extensionId: input.variables?.extensionId ?? null,
+  }
+}
+
+export function extensionMutationState(mutations: MutationSnapshots) {
+  return {
+    latestError: mutationError({
+      trustedError: mutations.trusted.error,
+      enabledError: mutations.enabled.error,
+      projectDisabledError: mutations.projectDisabled.error,
+      updateError: mutations.update.error,
+      buildError: mutations.build.error,
+      reloadError: mutations.reload.error,
+      removeError: mutations.remove.error,
+    }),
+    pending: hasPendingMutation({
+      trustedPending: mutations.trusted.pending,
+      enabledPending: mutations.enabled.pending,
+      projectDisabledPending: mutations.projectDisabled.pending,
+      updatePending: mutations.update.pending,
+      buildPending: mutations.build.pending,
+      reloadPending: mutations.reload.pending,
+      removePending: mutations.remove.pending,
+    }),
+    updatingId: getUpdatingExtensionId({
+      trustedPending: mutations.trusted.pending,
+      trustedExtensionId: mutations.trusted.extensionId,
+      enabledPending: mutations.enabled.pending,
+      enabledExtensionId: mutations.enabled.extensionId,
+      projectDisabledPending: mutations.projectDisabled.pending,
+      projectDisabledExtensionId: mutations.projectDisabled.extensionId,
+      updatePending: mutations.update.pending,
+      updateExtensionId: mutations.update.extensionId,
+      buildPending: mutations.build.pending,
+      buildExtensionId: mutations.build.extensionId,
+      reloadPending: mutations.reload.pending,
+      reloadExtensionId: mutations.reload.extensionId,
+      removePending: mutations.remove.pending,
+      removeExtensionId: mutations.remove.extensionId,
+    }),
+  }
+}
+
+export function extensionControllerError(input: {
+  readonly extensionsError: Error | null
+  readonly contributionsError: Error | null
+  readonly mutationLatestError: Error | null
+}) {
+  return (
+    controllerError({
+      queryError: input.extensionsError,
+      latestMutationError: input.mutationLatestError,
+    }) ??
+    input.contributionsError?.message ??
+    null
+  )
 }
 
 export function getUpdatingExtensionId({
@@ -24,6 +135,8 @@ export function getUpdatingExtensionId({
   buildExtensionId,
   reloadPending,
   reloadExtensionId,
+  removePending,
+  removeExtensionId,
 }: {
   readonly trustedPending: boolean
   readonly trustedExtensionId: string | null
@@ -37,6 +150,8 @@ export function getUpdatingExtensionId({
   readonly buildExtensionId: string | null
   readonly reloadPending: boolean
   readonly reloadExtensionId: string | null
+  readonly removePending: boolean
+  readonly removeExtensionId: string | null
 }) {
   if (trustedPending) {
     return trustedExtensionId
@@ -56,6 +171,9 @@ export function getUpdatingExtensionId({
   if (reloadPending) {
     return reloadExtensionId
   }
+  if (removePending) {
+    return removeExtensionId
+  }
   return null
 }
 
@@ -66,6 +184,7 @@ export function hasPendingMutation({
   updatePending,
   buildPending,
   reloadPending,
+  removePending,
 }: {
   readonly trustedPending: boolean
   readonly enabledPending: boolean
@@ -73,6 +192,7 @@ export function hasPendingMutation({
   readonly updatePending: boolean
   readonly buildPending: boolean
   readonly reloadPending: boolean
+  readonly removePending: boolean
 }) {
   return (
     trustedPending ||
@@ -80,7 +200,8 @@ export function hasPendingMutation({
     projectDisabledPending ||
     updatePending ||
     buildPending ||
-    reloadPending
+    reloadPending ||
+    removePending
   )
 }
 
@@ -91,6 +212,7 @@ export function mutationError({
   updateError,
   buildError,
   reloadError,
+  removeError,
 }: {
   readonly trustedError: Error | null
   readonly enabledError: Error | null
@@ -98,9 +220,16 @@ export function mutationError({
   readonly updateError: Error | null
   readonly buildError: Error | null
   readonly reloadError: Error | null
+  readonly removeError: Error | null
 }) {
   return (
-    trustedError ?? enabledError ?? projectDisabledError ?? updateError ?? buildError ?? reloadError
+    trustedError ??
+    enabledError ??
+    projectDisabledError ??
+    updateError ??
+    buildError ??
+    reloadError ??
+    removeError
   )
 }
 

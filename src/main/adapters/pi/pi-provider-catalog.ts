@@ -145,6 +145,7 @@ export async function createPiRuntimeServices(
   const loadMcpAdapter = options.loadMcpAdapter ?? true
   const settingsManager = createOpenWagglePiSettingsManager(projectPath, {
     enabledOpenWaggleExtensionPackagePaths: options.enabledOpenWaggleExtensionPackagePaths ?? [],
+    enabledOpenWaggleExtensionResourceRoots: options.enabledOpenWaggleExtensionResourceRoots ?? [],
     ...(loadMcpAdapter
       ? {}
       : {
@@ -203,7 +204,10 @@ async function createPiGlobalProviderCatalogServices() {
 
 export async function createPiProviderCatalogSnapshot(
   projectPath?: string | null,
-  options: Pick<PiRuntimeServicesOptions, 'enabledOpenWaggleExtensionPackagePaths'> = {},
+  options: Pick<
+    PiRuntimeServicesOptions,
+    'enabledOpenWaggleExtensionPackagePaths' | 'enabledOpenWaggleExtensionResourceRoots'
+  > = {},
 ): Promise<ProviderCatalogSnapshot> {
   const normalizedProjectPath = projectPath?.trim()
   if (!normalizedProjectPath) {
@@ -213,6 +217,7 @@ export async function createPiProviderCatalogSnapshot(
 
   const services = await createPiRuntimeServices(normalizedProjectPath, {
     enabledOpenWaggleExtensionPackagePaths: options.enabledOpenWaggleExtensionPackagePaths ?? [],
+    enabledOpenWaggleExtensionResourceRoots: options.enabledOpenWaggleExtensionResourceRoots ?? [],
     loadMcpAdapter: false,
   })
   return createPiProviderCatalogSnapshotFromRuntime(services)
@@ -262,12 +267,16 @@ export async function createPiProjectModelRuntime(input: {
   readonly modelReference: string
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
+  readonly enabledOpenWaggleExtensionResourceRoots?: PiRuntimeServicesOptions['enabledOpenWaggleExtensionResourceRoots']
   readonly extensionFactories?: readonly ExtensionFactory[]
 }): Promise<PiProjectModelRuntime> {
   const services = await createPiRuntimeServices(input.projectPath, {
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
     ...(input.enabledOpenWaggleExtensionPackagePaths
       ? { enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths }
+      : {}),
+    ...(input.enabledOpenWaggleExtensionResourceRoots
+      ? { enabledOpenWaggleExtensionResourceRoots: input.enabledOpenWaggleExtensionResourceRoots }
       : {}),
     ...(input.extensionFactories ? { extensionFactories: input.extensionFactories } : {}),
   })

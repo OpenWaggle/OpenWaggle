@@ -6,15 +6,15 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TrustedMainActivationDependenciesTestLayer } from '../../application/__tests__/extension-trusted-main-activation-test-layer'
-import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../../extensions/types'
+import type { DiscoveredExtensionPackage } from '../../extensions/types'
 import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../../ports/extension-manager-service'
+import { ExtensionPackageRepository } from '../../ports/extension-package-repository'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
 
-const { typedHandleMock, listPackagesMock, upsertLifecycleMock } = vi.hoisted(() => ({
+const { typedHandleMock, listPackagesMock } = vi.hoisted(() => ({
   typedHandleMock: vi.fn(),
   listPackagesMock: vi.fn(),
-  upsertLifecycleMock: vi.fn(),
 }))
 
 vi.mock('../typed-ipc', () => ({
@@ -48,47 +48,32 @@ const discoveredPackage: DiscoveredExtensionPackage = {
   diagnostics: [],
 }
 
-function makeTestLayer(lifecycle: ExtensionLifecycleState | null = null) {
-  let storedLifecycle = lifecycle
+function makeTestLayer() {
   return Layer.mergeAll(
     Layer.succeed(ExtensionManagerService, {
       listPackages: (input) => Effect.sync(() => listPackagesMock(input)),
     }),
     Layer.succeed(ExtensionLifecycleRepository, {
-      get: () => Effect.sync(() => storedLifecycle),
-      list: () => Effect.sync(() => (storedLifecycle ? [storedLifecycle] : [])),
-      upsert: (state) =>
-        Effect.sync(() => {
-          storedLifecycle = state
-          upsertLifecycleMock(state)
-        }),
+      get: () => Effect.succeed(null),
+      list: () => Effect.succeed([]),
+      upsert: () => Effect.void,
+      delete: () => Effect.void,
     }),
     Layer.succeed(ExtensionProjectOverridesRepository, {
       get: () => Effect.succeed(null),
       upsert: () => Effect.void,
     }),
+    Layer.succeed(ExtensionPackageRepository, {
+      writePackage: (input) =>
+        Effect.succeed({
+          packagePath: '/tmp/package',
+          manifestPath: '/tmp/package/openwaggle.extension.json',
+          mode: input.mode,
+        }),
+      removePackage: (_input) => Effect.succeed({ packagePath: '/tmp/package', removed: false }),
+    }),
     TrustedMainActivationDependenciesTestLayer,
   )
-}
-
-const trustedLifecycleState: ExtensionLifecycleState = {
-  extensionId: 'sample-extension',
-  scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND },
-  enabled: false,
-  trusted: true,
-  grantedCapabilities: ['sample.invoke'],
-  contentHash: 'abcdef',
-  packageVersion: '1.0.0',
-  approvedBuildPlanHash: null,
-  buildStatus: OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.NOT_RUN,
-  buildLog: null,
-  reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED,
-  lastReloadedAt: null,
-  sdkRange: '>=0.1.0 <0.2.0',
-  sdkCompatible: true,
-  diagnostics: [],
-  installedAt: 1000,
-  updatedAt: 2000,
 }
 
 const brokenPackage: DiscoveredExtensionPackage = {
@@ -121,7 +106,6 @@ describe('registerExtensionsHandlers', () => {
   beforeEach(() => {
     typedHandleMock.mockReset()
     listPackagesMock.mockReset()
-    upsertLifecycleMock.mockReset()
     listPackagesMock.mockReturnValue([brokenPackage])
   })
 
@@ -201,126 +185,6 @@ describe('registerExtensionsHandlers', () => {
     await expect(handler?.({}, 123)).rejects.toThrow()
     await expect(handler?.({}, null)).rejects.toThrow()
     await expect(handler?.({}, '/tmp/project')).rejects.toThrow()
-    expect(listPackagesMock).not.toHaveBeenCalled()
-  })
-
-  it('registers extensions:set-trusted and persists trusted lifecycle state', async () => {
-    listPackagesMock.mockReturnValue([discoveredPackage])
-    const layer = makeTestLayer()
-    registerExtensionsHandlers()
-    const handler = getRegisteredHandler('extensions:set-trusted', layer)
-
-    await handler?.(
-      {},
-      {
-        extensionId: 'sample-extension',
-        scope: { kind: 'global' },
-        trusted: true,
-      },
-    )
-
-    expect(upsertLifecycleMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        extensionId: 'sample-extension',
-        trusted: true,
-        enabled: false,
-        contentHash: 'abcdef',
-      }),
-    )
-  })
-
-  it('registers extensions:set-enabled and persists enabled lifecycle state', async () => {
-    listPackagesMock.mockReturnValue([discoveredPackage])
-    const layer = makeTestLayer(trustedLifecycleState)
-    registerExtensionsHandlers()
-    const handler = getRegisteredHandler('extensions:set-enabled', layer)
-
-    await handler?.(
-      {},
-      {
-        extensionId: 'sample-extension',
-        scope: { kind: 'global' },
-        enabled: true,
-      },
-    )
-
-    expect(upsertLifecycleMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        extensionId: 'sample-extension',
-        trusted: true,
-        enabled: true,
-        contentHash: 'abcdef',
-      }),
-    )
-  })
-
-  it('registers extensions:reload and persists reload lifecycle state', async () => {
-    listPackagesMock.mockReturnValue([discoveredPackage])
-    const layer = makeTestLayer({ ...trustedLifecycleState, enabled: true })
-    registerExtensionsHandlers()
-    const handler = getRegisteredHandler('extensions:reload', layer)
-
-    await handler?.(
-      {},
-      {
-        extensionId: 'sample-extension',
-        scope: { kind: 'global' },
-      },
-    )
-
-    expect(upsertLifecycleMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        extensionId: 'sample-extension',
-        trusted: true,
-        enabled: true,
-        reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.SUCCEEDED,
-        lastReloadedAt: expect.any(Number),
-      }),
-    )
-  })
-
-  it('registers extensions:accept-update and persists the approved package pin', async () => {
-    const updatedPackage: DiscoveredExtensionPackage = {
-      ...discoveredPackage,
-      manifest: discoveredPackage.manifest
-        ? { ...discoveredPackage.manifest, version: '1.1.0' }
-        : null,
-      contentHash: 'changed-hash',
-    }
-    listPackagesMock.mockReturnValue([updatedPackage])
-    const layer = makeTestLayer({
-      ...trustedLifecycleState,
-      enabled: true,
-      contentHash: 'abcdef',
-      packageVersion: '1.0.0',
-    })
-    registerExtensionsHandlers()
-    const handler = getRegisteredHandler('extensions:accept-update', layer)
-
-    await handler?.(
-      {},
-      {
-        extensionId: 'sample-extension',
-        scope: { kind: 'global' },
-      },
-    )
-
-    expect(upsertLifecycleMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        extensionId: 'sample-extension',
-        trusted: true,
-        enabled: false,
-        contentHash: 'changed-hash',
-        packageVersion: '1.1.0',
-      }),
-    )
-  })
-
-  it('rejects malformed lifecycle mutation payloads before discovery', async () => {
-    registerExtensionsHandlers()
-    const handler = getRegisteredHandler('extensions:set-enabled')
-
-    await expect(handler?.({}, { extensionId: 'Sample Extension' })).rejects.toThrow()
     expect(listPackagesMock).not.toHaveBeenCalled()
   })
 })

@@ -97,6 +97,30 @@ describe('extension package workflow service', () => {
     expect(harness.getWrites()).toEqual([])
   })
 
+  it('rejects approved package writes whose manifest id does not match the approved target id', async () => {
+    const extensionId = 'workflow-apply-manifest-identity-extension'
+    const harness = makeWorkflowHarness({
+      packages: [],
+      lifecycle: null,
+    })
+
+    await expect(
+      Effect.runPromise(
+        createOrUpdateExtensionPackage(
+          approvedWriteInput({
+            extensionId,
+            scope: PROJECT_SCOPE,
+            mode: 'create',
+            files: packageFiles('other-approved-manifest-extension'),
+            actor: AGENT_ACTOR,
+            viewProjectPaths: [PROJECT_PATH],
+          }),
+        ).pipe(Effect.provide(harness.layer)),
+      ),
+    ).rejects.toThrow(EXTENSION_PACKAGE_WORKFLOW.ERROR.MANIFEST_ID_MISMATCH)
+    expect(harness.getWrites()).toEqual([])
+  })
+
   it('disables runtime loading and unregisters contributions after an approved package update', async () => {
     const extensionPackage = makePackage({
       id: 'workflow-update-extension',

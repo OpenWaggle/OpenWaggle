@@ -50,6 +50,10 @@ describe('preload api surface contract', () => {
     'writeMcpSourceConfig',
     'listExtensionPackages',
     'listExtensionContributions',
+    'proposeExtensionPackageWrite',
+    'applyExtensionPackageWrite',
+    'proposeExtensionPackageRemove',
+    'applyExtensionPackageRemove',
     'invokeExtension',
     'registerExtensionFrame',
     'unregisterExtensionFrame',
@@ -195,6 +199,59 @@ describe('preload api surface contract', () => {
     await api.listExtensionContributions(input)
 
     expect(ipcRenderer.invoke).toHaveBeenCalledWith('extensions:list-contributions', input)
+  })
+
+  it('proposes extension package writes through the typed IPC channel', async () => {
+    const input = {
+      extensionId: 'sample-extension',
+      scope: { kind: 'project', projectPath: '/tmp/project' },
+      mode: 'create',
+      files: [{ relativePath: 'openwaggle.extension.json', content: '{}' }],
+      actor: { kind: 'agent', agentId: 'agent-1' },
+    } as const
+    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce({
+      extensionId: 'sample-extension',
+      scope: { kind: 'project', projectPath: '/tmp/project' },
+      mode: 'create',
+      operation: 'write:create',
+      actor: { kind: 'agent', agentId: 'agent-1' },
+      proposalHash: 'a'.repeat(64),
+      files: [],
+      fileCount: 0,
+      totalBytes: 0,
+      requiresGlobalConfirmation: false,
+      globalConfirmationRisk: null,
+    })
+
+    await api.proposeExtensionPackageWrite(input)
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith('extensions:propose-package-write', input)
+  })
+
+  it('applies approved extension package writes through the typed IPC channel', async () => {
+    const proposalHash = 'a'.repeat(64)
+    const input = {
+      extensionId: 'sample-extension',
+      scope: { kind: 'project', projectPath: '/tmp/project' },
+      mode: 'create',
+      files: [{ relativePath: 'openwaggle.extension.json', content: '{}' }],
+      actor: { kind: 'agent', agentId: 'agent-1' },
+      userApproval: {
+        approved: true,
+        approvedProposalHash: proposalHash,
+        approvedBy: 'User',
+        approvedAt: 1000,
+      },
+    } as const
+    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce({
+      projectPath: '/tmp/project',
+      projectPaths: ['/tmp/project'],
+      packages: [],
+    })
+
+    await api.applyExtensionPackageWrite(input)
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith('extensions:apply-package-write', input)
   })
 
   it('invokes extension capabilities through the generic broker IPC channel', async () => {

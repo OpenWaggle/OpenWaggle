@@ -4,12 +4,12 @@ import { getAgentDir, SettingsManager } from '@earendil-works/pi-coding-agent'
 import { decodeUnknownOrThrow, type SchemaType } from '@shared/schema'
 import { jsonObjectSchema, projectSettingsFileSchema } from '@shared/schemas/validation'
 import type { JsonObject, JsonValue } from '@shared/types/json'
+import { withoutImplicitOpenWaggleResourcePrecedence } from './openwaggle-pi-settings-resource-removal'
 import {
   isStringArray,
   type OpenWaggleResourcePrecedenceOptions,
   PI_CONFIG_DIR,
   withOpenWaggleResourcePrecedence,
-  withoutImplicitOpenWaggleResourcePrecedence,
 } from './openwaggle-pi-settings-resources'
 
 const JSON_INDENT_SPACES = 2

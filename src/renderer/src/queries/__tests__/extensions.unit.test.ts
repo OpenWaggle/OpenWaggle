@@ -6,6 +6,7 @@ const PROJECT_PATH = '/tmp/project'
 
 const apiMock = vi.hoisted(() => ({
   acceptExtensionUpdate: vi.fn(),
+  applyExtensionPackageRemove: vi.fn(),
   approveExtensionBuild: vi.fn(),
   listExtensionContributions: vi.fn(),
   listExtensionPackages: vi.fn(),

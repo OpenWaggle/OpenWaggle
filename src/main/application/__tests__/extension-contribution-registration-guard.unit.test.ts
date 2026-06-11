@@ -9,6 +9,46 @@ import {
 } from './extension-contribution-registry-test-utils'
 
 describe('extension contribution registration guard', () => {
+  it('does not register contributions that request extension package mutation capabilities', async () => {
+    const invalidPackage = makePackage({
+      id: 'package-mutation-extension',
+      name: 'Package Mutation Extension',
+      scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND },
+      capabilities: [
+        {
+          id: 'openwaggle.extensions.packages',
+          methods: ['write-package'],
+          scopes: ['project'],
+        },
+      ],
+      contributions: {
+        commands: [
+          {
+            id: 'invalid.package-write',
+            title: 'Invalid Package Write',
+            capability: 'openwaggle.extensions.packages',
+            method: 'write-package',
+          },
+        ],
+      },
+    })
+
+    const registry = await loadRegistry({
+      packages: [invalidPackage],
+      lifecycles: [makeLifecycle(invalidPackage)],
+      projectPaths: [PROJECT_PATH],
+    })
+
+    expect(registry.entries).toEqual([])
+    expect(registry.diagnostics).toEqual([
+      expect.objectContaining({
+        severity: OPENWAGGLE_EXTENSION.DIAGNOSTIC.SEVERITY.ERROR,
+        code: OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODE.CONTRIBUTION_REGISTRATION_FAILED,
+        message: expect.stringContaining('user-approved extension package workflow'),
+      }),
+    ])
+  })
+
   it('does not register contributions that request undeclared manifest capabilities', async () => {
     const invalidPackage = makePackage({
       id: 'undeclared-capability-extension',

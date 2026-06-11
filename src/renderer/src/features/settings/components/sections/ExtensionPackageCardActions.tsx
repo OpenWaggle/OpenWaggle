@@ -1,6 +1,7 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { ExtensionPackageSummary } from '@shared/types/extensions'
 import { Button } from '@/shared/ui/Button'
+import { ReloadAction, RemoveAction } from './ExtensionPackageLifecycleActions'
 import { ProjectOverrideActions } from './ExtensionProjectOverrideActions'
 import {
   type ExtensionPackageCardActions,
@@ -114,35 +115,6 @@ function trustActionValue({
 
 function enableActionLabel(enabled: boolean) {
   return enabled ? 'Disable' : 'Enable'
-}
-
-function ReloadAction({
-  extensionPackage,
-  busy,
-  enabled,
-  onReload,
-}: {
-  readonly extensionPackage: ExtensionPackageSummary
-  readonly busy: boolean
-  readonly enabled: boolean
-  readonly onReload: () => void
-}) {
-  if (!enabled) {
-    return null
-  }
-
-  const reloadLabel = OPENWAGGLE_EXTENSION.LIFECYCLE.RELOAD_ACTION_LABEL
-  return (
-    <Button
-      size="xs"
-      variant="secondary"
-      disabled={busy}
-      onClick={onReload}
-      aria-label={`${reloadLabel} ${packageTitle(extensionPackage)}`}
-    >
-      {busy ? 'Saving…' : reloadLabel}
-    </Button>
-  )
 }
 
 function TrustAction({
@@ -306,6 +278,7 @@ export function PackageActions({
         enabled={enabled}
         onReload={actions.onReload}
       />
+      <RemoveAction extensionPackage={extensionPackage} busy={busy} onRemove={actions.onRemove} />
       <ProjectOverrideActions
         extensionPackage={extensionPackage}
         busy={busy}

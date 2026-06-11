@@ -53,7 +53,18 @@ function runtimePackage(): RuntimeEnabledOpenWaggleExtensionPackage {
       scope,
       packagePath,
       manifestPath: `${packagePath}/${OPENWAGGLE_EXTENSION.MANIFEST_FILE}`,
-      manifest: null,
+      manifest: {
+        manifestVersion: 1,
+        id: 'sample-runtime-extension',
+        name: 'Sample Runtime Extension',
+        version: '1.0.0',
+        sdk: { openwaggle: '>=0.1.0 <0.2.0' },
+        sourceFiles: ['src/provider.js'],
+        builtArtifacts: ['pi/extensions/provider.js'],
+        pi: {
+          resourceRoots: ['pi'],
+        },
+      },
       buildPlan: null,
       contentHash: 'abcdef',
       sdkCompatibility: null,
@@ -123,6 +134,9 @@ describe('Pi run OpenWaggle extension selection', () => {
       projectPath: '/repo',
       modelReference: PRIMARY_MODEL,
       enabledOpenWaggleExtensionPackagePaths: [selectedPackage.packagePath],
+      enabledOpenWaggleExtensionResourceRoots: [
+        { packagePath: selectedPackage.packagePath, resourceRoot: 'pi' },
+      ],
     })
   })
 })

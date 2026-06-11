@@ -73,6 +73,16 @@ export class OpenWaggleApp {
     await this.app.close()
   }
 
+  async confirmNativeDialogs(response = 1): Promise<void> {
+    await this.app.evaluate(({ dialog }, dialogResponse) => {
+      dialog.showMessageBox = () =>
+        Promise.resolve({
+          response: dialogResponse,
+          checkboxChecked: false,
+        })
+    }, response)
+  }
+
   async cleanup(): Promise<void> {
     await this.close().catch(() => undefined)
     await fs.rm(this.userDataDir, { recursive: true, force: true })

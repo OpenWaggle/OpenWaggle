@@ -154,6 +154,9 @@ export const OPENWAGGLE_EXTENSION = {
     ENABLE_ACTION_LABEL: 'Enable for project',
     REQUIRED_PROJECT_PATH_ERROR: 'Project path is required to set a project extension override.',
   },
+  PACKAGE_WORKFLOW: {
+    GLOBAL_CONFIRMATION_RISK: 'global-extension-package-write',
+  },
   LIFECYCLE: {
     UPDATE_AVAILABLE_LABEL: 'Update available',
     BUILD_APPROVAL_REQUIRED_LABEL: 'Build approval required',

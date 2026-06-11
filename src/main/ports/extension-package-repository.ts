@@ -1,14 +1,13 @@
+import type {
+  ExtensionPackageFileWrite,
+  ExtensionPackageWriteMode,
+} from '@shared/types/extension-package-workflow'
 import { Context } from 'effect'
 import type { Effect as EffectType } from 'effect/Effect'
 import type { ExtensionPackageRepositoryError } from '../errors'
 import type { ExtensionPackageScope } from '../extensions/types'
 
-export type ExtensionPackageWriteMode = 'create' | 'update'
-
-export interface ExtensionPackageFileWrite {
-  readonly relativePath: string
-  readonly content: string
-}
+export type { ExtensionPackageFileWrite, ExtensionPackageWriteMode }
 
 export interface WriteExtensionPackageInput {
   readonly extensionId: string
