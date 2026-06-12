@@ -39,7 +39,7 @@ import {
 } from './extension-lifecycle-model'
 import { listExtensionPackagesView } from './extension-manager-view-service'
 import {
-  activateTrustedMainExtensionsForActiveProject,
+  activateTrustedMainExtensionsForActiveProjectSafely,
   deactivateTrustedMainExtensionPackage,
 } from './extension-trusted-main-activation-service'
 
@@ -272,7 +272,7 @@ export function reloadExtension(input: ExtensionReloadInput) {
     })
 
     yield* lifecycleRepository.upsert(nextLifecycle)
-    yield* activateTrustedMainExtensionsForActiveProject()
+    yield* activateTrustedMainExtensionsForActiveProjectSafely()
 
     return yield* listExtensionPackagesView({ projectPaths: getViewProjectPaths(input) })
   })
@@ -301,7 +301,7 @@ export function setExtensionProjectDisabled(input: ExtensionSetProjectDisabledIn
       updatedAt: now,
     })
     yield* unregisterPackageContributionState(extensionPackage)
-    yield* activateTrustedMainExtensionsForActiveProject()
+    yield* activateTrustedMainExtensionsForActiveProjectSafely()
 
     return yield* listExtensionPackagesView({
       projectPaths: getProjectDisabledViewProjectPaths(input),

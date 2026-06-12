@@ -41,13 +41,24 @@ describe('createFrameExtensionSdk', () => {
         },
       },
       openWaggle: {
-        state: { get: expect.any(Function) },
+        state: {
+          get: expect.any(Function),
+          readCurrentProject: expect.any(Function),
+          readCurrentSession: expect.any(Function),
+          readCurrentBranch: expect.any(Function),
+          readRecentProjects: expect.any(Function),
+          readModelPreferences: expect.any(Function),
+        },
         actions: {
           openExternal: expect.any(Function),
           selectProject: expect.any(Function),
         },
         settings: {
           get: expect.any(Function),
+          getModelPreferences: expect.any(Function),
+          updateModelPreferences: expect.any(Function),
+          getProjectDisplayName: expect.any(Function),
+          setProjectDisplayName: expect.any(Function),
           update: expect.any(Function),
         },
         docs: {

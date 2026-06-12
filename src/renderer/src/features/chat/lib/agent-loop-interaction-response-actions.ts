@@ -29,11 +29,7 @@ export function responseFromExtensionAction(input: {
   readonly payload?: JsonValue
 }): AgentLoopInteractionResponse | null {
   const typedResponse = typedResponseFromPayload(input.interaction, input.payload)
-  if (
-    input.actionId === CUSTOM_INTERACTION_RESPONSE_ACTION_ID &&
-    typedResponse !== null &&
-    input.interaction.kind !== 'custom'
-  ) {
+  if (input.actionId === CUSTOM_INTERACTION_RESPONSE_ACTION_ID && typedResponse !== null) {
     return typedResponse
   }
 

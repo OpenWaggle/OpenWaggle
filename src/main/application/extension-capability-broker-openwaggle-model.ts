@@ -1,7 +1,9 @@
 import { BASE_TEN } from '@shared/constants/math'
 import { SessionBranchId, SupportedModelId } from '@shared/types/brand'
 import type {
+  ExtensionModelPreferencesSettingsPatch,
   ExtensionModelPrefs,
+  ExtensionSettingsProjectDisplayNameValue,
   ExtensionSettingsUpdatePayload,
   ExtensionSettingsView,
 } from '@shared/types/extension-broker'
@@ -24,7 +26,7 @@ export function toExtensionSettingsView(settings: Settings): ExtensionSettingsVi
   }
 }
 
-function projectName(settings: Settings, projectPath: string) {
+export function projectName(settings: Settings, projectPath: string) {
   const displayName = settings.projectDisplayNames[projectPath]?.trim()
   return displayName && displayName.length > 0 ? displayName : null
 }
@@ -88,4 +90,49 @@ export function toSettingsUpdatePatch(payload: ExtensionSettingsUpdatePayload): 
       ? { projectDisplayNames: payload.projectDisplayNames }
       : {}),
   }
+}
+
+export function toModelPreferencesUpdatePatch(
+  payload: ExtensionModelPreferencesSettingsPatch,
+): Partial<Settings> {
+  return {
+    ...(payload.selectedModel !== undefined
+      ? { selectedModel: SupportedModelId(payload.selectedModel) }
+      : {}),
+    ...(payload.favoriteModels !== undefined
+      ? { favoriteModels: payload.favoriteModels.map(SupportedModelId) }
+      : {}),
+    ...(payload.enabledModels !== undefined
+      ? { enabledModels: payload.enabledModels.map(SupportedModelId) }
+      : {}),
+    ...(payload.thinkingLevel !== undefined ? { thinkingLevel: payload.thinkingLevel } : {}),
+  }
+}
+
+export function toProjectDisplayNameValue(
+  settings: Settings,
+  projectPath: string,
+): ExtensionSettingsProjectDisplayNameValue {
+  return {
+    key: 'project-display-name',
+    projectPath,
+    value: projectName(settings, projectPath),
+  }
+}
+
+export function toProjectDisplayNameUpdatePatch(input: {
+  readonly settings: Settings
+  readonly projectPath: string
+  readonly value: string | null
+}): Partial<Settings> {
+  const projectDisplayNames = { ...input.settings.projectDisplayNames }
+  const trimmedValue = input.value?.trim() ?? ''
+
+  if (trimmedValue.length === 0) {
+    delete projectDisplayNames[input.projectPath]
+  } else {
+    projectDisplayNames[input.projectPath] = trimmedValue
+  }
+
+  return { projectDisplayNames }
 }

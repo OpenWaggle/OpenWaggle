@@ -88,6 +88,64 @@ describe('extension broker schemas', () => {
     expect(result.success).toBe(true)
   })
 
+  it('accepts typed OpenWaggle state selector results', () => {
+    const result = safeDecodeUnknown(extensionInvokeResultSchema, {
+      ok: true,
+      value: {
+        extensionId: 'sample-extension',
+        contributionId: 'sample.state',
+        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE,
+        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE,
+        scope: { kind: 'project', projectPath: '/tmp/project' },
+        selector: OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR.CURRENT_PROJECT,
+        value: {
+          projectPath: '/tmp/project',
+          displayName: 'OpenWaggle',
+          active: true,
+        },
+      },
+      audit: {
+        extensionId: 'sample-extension',
+        contributionId: 'sample.state',
+        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE,
+        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE,
+        scope: { kind: 'project', projectPath: '/tmp/project' },
+        outcome: OPENWAGGLE_EXTENSION_BROKER.OUTCOME.SUCCEEDED,
+        timestamp: 1234,
+      },
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts typed OpenWaggle setting key results', () => {
+    const result = safeDecodeUnknown(extensionInvokeResultSchema, {
+      ok: true,
+      value: {
+        extensionId: 'sample-extension',
+        contributionId: 'sample.settings',
+        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
+        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTING,
+        setting: {
+          key: OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.PROJECT_DISPLAY_NAME,
+          projectPath: '/tmp/project',
+          value: 'OpenWaggle',
+        },
+      },
+      audit: {
+        extensionId: 'sample-extension',
+        contributionId: 'sample.settings',
+        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
+        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTING,
+        scope: { kind: 'app' },
+        outcome: OPENWAGGLE_EXTENSION_BROKER.OUTCOME.SUCCEEDED,
+        timestamp: 1234,
+      },
+    })
+
+    expect(result.success).toBe(true)
+  })
+
   it('accepts every broker failure code configured in constants', () => {
     const results = Object.values(OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE).map((failureCode) =>
       safeDecodeUnknown(extensionInvokeFailureCodeSchema, failureCode),

@@ -3,6 +3,7 @@ import {
   OPENWAGGLE_EXTENSION_FRAME_PROTOCOL,
   OPENWAGGLE_EXTENSION_FRAME_ROOT_ID,
 } from '@shared/constants/extension-frame'
+import { createOpenWaggleExtensionSharedModules } from '@shared/extension-context'
 import type { ExtensionSdkInvokeRequest } from '@shared/extension-sdk-core'
 import { extensionThemeCssVariableEntries } from '@shared/extension-theme'
 import type { ExtensionInvokeResult } from '@shared/types/extension-broker'
@@ -144,6 +145,7 @@ function mountContext(input: {
     ...input.config.context,
     root: input.root,
     sdk: createFrameExtensionSdk({ invokeBroker: invoke, post }),
+    modules: createOpenWaggleExtensionSharedModules(input.config.context.theme),
   }
 }
 

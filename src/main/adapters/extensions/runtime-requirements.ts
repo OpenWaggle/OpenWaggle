@@ -5,13 +5,23 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { OpenWaggleExtensionManifest } from '@shared/schemas/extensions'
 import { getSafeChildEnv } from '../../env'
 import type { ExtensionDiagnostic } from '../../extensions/types'
+import { validateDeclaredFiles } from './package-files'
 
 const WINDOWS_EXECUTABLE_EXTENSIONS = ['.EXE', '.CMD', '.BAT', '.COM'] as const
 
 type RuntimeRequirement = NonNullable<OpenWaggleExtensionManifest['runtimeRequirements']>[number]
 
+export interface DiagnoseRuntimeRequirementsInput {
+  readonly packagePath: string
+  readonly manifest: OpenWaggleExtensionManifest
+}
+
 function runtimeRequirementBinary(requirement: RuntimeRequirement) {
   return requirement.binary ?? null
+}
+
+function runtimeRequirementCommand(requirement: RuntimeRequirement) {
+  return requirement.command ?? null
 }
 
 function pathDirectories() {
@@ -64,12 +74,32 @@ function missingRuntimeRequirementDiagnostic(
   }
 }
 
+function runtimeRequirementCommandPaths(manifest: OpenWaggleExtensionManifest): readonly string[] {
+  const commands: string[] = []
+  for (const requirement of manifest.runtimeRequirements ?? []) {
+    const command = runtimeRequirementCommand(requirement)
+    if (command !== null) {
+      commands.push(command)
+    }
+  }
+  return commands
+}
+
+function diagnosePackageRuntimeRequirementCommands(input: DiagnoseRuntimeRequirementsInput) {
+  return validateDeclaredFiles({
+    packagePath: input.packagePath,
+    relativePaths: runtimeRequirementCommandPaths(input.manifest),
+    label: 'runtime requirement command',
+    missingCode: OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODE.RUNTIME_REQUIREMENT_MISSING,
+  })
+}
+
 export async function diagnoseRuntimeRequirements(
-  manifest: OpenWaggleExtensionManifest,
+  input: DiagnoseRuntimeRequirementsInput,
 ): Promise<readonly ExtensionDiagnostic[]> {
   const diagnostics: ExtensionDiagnostic[] = []
 
-  for (const requirement of manifest.runtimeRequirements ?? []) {
+  for (const requirement of input.manifest.runtimeRequirements ?? []) {
     const binary = runtimeRequirementBinary(requirement)
     if (binary === null || (await isBinaryAvailable(binary))) {
       continue
@@ -77,5 +107,5 @@ export async function diagnoseRuntimeRequirements(
     diagnostics.push(missingRuntimeRequirementDiagnostic(requirement, binary))
   }
 
-  return diagnostics
+  return [...diagnostics, ...(await diagnosePackageRuntimeRequirementCommands(input))]
 }

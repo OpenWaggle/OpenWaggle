@@ -1,6 +1,7 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import {
   createNoopExtensionSurfaceSdk,
+  createOpenWaggleExtensionSharedModules,
   createOpenWaggleExtensionSurfaceContext,
 } from '@shared/extension-context'
 import {
@@ -102,9 +103,19 @@ describe('OpenWaggle extension context', () => {
   it('exposes CSS variable entries and noop surface SDK affordances', async () => {
     const entries = extensionThemeCssVariableEntries(createOpenWaggleExtensionTheme())
     const surfaceSdk = createNoopExtensionSurfaceSdk()
+    const modules = createOpenWaggleExtensionSharedModules()
 
     expect(entries).toContainEqual({ name: '--ow-color-accent', value: '#f5a623' })
     expect(entries).toContainEqual({ name: '--ow-radius-panel', value: '22px' })
+    expect(modules.sdk.openWaggleVersion).toBe(OPENWAGGLE_EXTENSION.SDK_VERSION)
+    expect(modules.theme.cssVariableEntries(modules.theme.current)).toContainEqual({
+      name: '--ow-color-accent',
+      value: '#f5a623',
+    })
+    expect(modules.ui.className(modules.ui.classNames.root, 'custom-panel')).toBe(
+      'ow-extension-root custom-panel',
+    )
+    expect(modules.ui.createStylesheet()).toContain('.ow-extension-root .ow-extension-button')
     await expect(surfaceSdk.sendAction('refresh')).resolves.toBeUndefined()
     await expect(surfaceSdk.respondInteraction(null)).resolves.toBeUndefined()
   })

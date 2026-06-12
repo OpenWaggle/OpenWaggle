@@ -12,9 +12,10 @@ The active extension points today are:
 - Pi-native project resources loaded with `.openwaggle > .pi > .agents` precedence for skills, extensions, prompts, and themes
 - project instructions through `AGENTS.md`
 - Pi-native runtime extension work behind main-process adapter/port boundaries
+- local OpenWaggle extension packages for desktop contributions and optional Pi runtime resources
 
-## Planned OpenWaggle Extensions
+## OpenWaggle Extensions
 
-The planned OpenWaggle extension host uses first-class extension packages for desktop contributions and optional Pi runtime resources. Visual desktop contributions are expected to mount into OpenWaggle-owned containers through a framework-neutral federated-module runtime, while extension integration goes through the public SDK/API and brokered capabilities.
+OpenWaggle extension packages are the current local package model for Settings sections, side panels, dialogs, extension routes, transcript/tool renderers, status widgets, command palette entries, slash commands, and Pi runtime/resource additions.
 
-Do not document plugin installation flows until they exist in the app.
+Use [OpenWaggle Extensions](/docs/extending/openwaggle-extensions/) for the package format and lifecycle. The public marketplace and remote discovery service remain out of scope; local packages are installed, trusted, updated, disabled, and removed through the Extension Manager or the approved package workflow.

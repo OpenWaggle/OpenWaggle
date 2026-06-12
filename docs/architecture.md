@@ -27,6 +27,7 @@ Specs capture planned or in-progress product/runtime work. They may be more deta
 
 - `docs/specs/pi-migration-remaining-work.md`
 - `docs/specs/pi-waggle-extension-package-spec.md`
+- `docs/specs/issue-113-extension-host-ac-mapping.md`
 - `docs/specs/waggle-composer-wireframes.md`
 
 ## User-Facing Docs

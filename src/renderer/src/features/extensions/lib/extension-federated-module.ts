@@ -1,7 +1,9 @@
 import {
   createNoopExtensionSurfaceSdk,
+  createOpenWaggleExtensionSharedModules,
   createOpenWaggleExtensionSurfaceContext,
   type OpenWaggleExtensionSdk,
+  type OpenWaggleExtensionSharedModules,
   type OpenWaggleExtensionSurfaceContext,
   type OpenWaggleExtensionSurfaceSdk,
 } from '@shared/extension-context'
@@ -18,6 +20,7 @@ export type { OpenWaggleExtensionSdk, OpenWaggleExtensionSurfaceSdk }
 export interface OpenWaggleExtensionMountContext extends OpenWaggleExtensionSurfaceContext {
   readonly root: HTMLElement
   readonly sdk: OpenWaggleExtensionSdk
+  readonly modules: OpenWaggleExtensionSharedModules
 }
 
 export type ExtensionFederatedModuleCleanup = () => void
@@ -71,14 +74,16 @@ export function createExtensionMountContext(input: {
     ...brokerSdk,
     surface: input.surface ?? createNoopExtensionSurfaceSdk(),
   }
+  const theme = createRendererExtensionTheme()
 
   return {
     ...createOpenWaggleExtensionSurfaceContext({
       entry: input.entry,
       surfacePayload: input.surfacePayload,
-      theme: createRendererExtensionTheme(),
+      theme,
     }),
     root: input.root,
     sdk,
+    modules: createOpenWaggleExtensionSharedModules(theme),
   }
 }

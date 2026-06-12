@@ -1,5 +1,16 @@
+import { OPENWAGGLE_EXTENSION } from './constants/extensions'
 import type { ExtensionBrokerSdk } from './extension-sdk'
-import { createOpenWaggleExtensionTheme, type OpenWaggleExtensionTheme } from './extension-theme'
+import {
+  createOpenWaggleExtensionTheme,
+  extensionThemeCssVariableEntries,
+  type OpenWaggleExtensionTheme,
+} from './extension-theme'
+import {
+  createOpenWaggleExtensionUiStylesheet,
+  OPENWAGGLE_EXTENSION_UI_ATTRIBUTES,
+  OPENWAGGLE_EXTENSION_UI_CLASS_NAMES,
+  openWaggleExtensionClassName,
+} from './extension-ui'
 import type { ExtensionContributionRegistryEntry } from './types/extensions'
 import type { JsonValue } from './types/json'
 
@@ -33,9 +44,27 @@ export type OpenWaggleExtensionSdk = ExtensionBrokerSdk & {
   readonly surface: OpenWaggleExtensionSurfaceSdk
 }
 
+export interface OpenWaggleExtensionSharedModules {
+  readonly sdk: {
+    readonly openWaggleVersion: string
+  }
+  readonly theme: {
+    readonly current: OpenWaggleExtensionTheme
+    readonly createTheme: typeof createOpenWaggleExtensionTheme
+    readonly cssVariableEntries: typeof extensionThemeCssVariableEntries
+  }
+  readonly ui: {
+    readonly classNames: typeof OPENWAGGLE_EXTENSION_UI_CLASS_NAMES
+    readonly attributes: typeof OPENWAGGLE_EXTENSION_UI_ATTRIBUTES
+    readonly className: typeof openWaggleExtensionClassName
+    readonly createStylesheet: typeof createOpenWaggleExtensionUiStylesheet
+  }
+}
+
 export interface OpenWaggleExtensionMountContext extends OpenWaggleExtensionSurfaceContext {
   readonly root: HTMLElement
   readonly sdk: OpenWaggleExtensionSdk
+  readonly modules: OpenWaggleExtensionSharedModules
 }
 
 export type OpenWaggleExtensionMountCleanup = () => void
@@ -57,6 +86,27 @@ export function createNoopExtensionSurfaceSdk(): OpenWaggleExtensionSurfaceSdk {
   return {
     sendAction: async () => undefined,
     respondInteraction: async () => undefined,
+  }
+}
+
+export function createOpenWaggleExtensionSharedModules(
+  theme: OpenWaggleExtensionTheme = createOpenWaggleExtensionTheme(),
+): OpenWaggleExtensionSharedModules {
+  return {
+    sdk: {
+      openWaggleVersion: OPENWAGGLE_EXTENSION.SDK_VERSION,
+    },
+    theme: {
+      current: theme,
+      createTheme: createOpenWaggleExtensionTheme,
+      cssVariableEntries: extensionThemeCssVariableEntries,
+    },
+    ui: {
+      classNames: OPENWAGGLE_EXTENSION_UI_CLASS_NAMES,
+      attributes: OPENWAGGLE_EXTENSION_UI_ATTRIBUTES,
+      className: openWaggleExtensionClassName,
+      createStylesheet: createOpenWaggleExtensionUiStylesheet,
+    },
   }
 }
 

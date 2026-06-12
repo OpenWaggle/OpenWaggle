@@ -90,6 +90,34 @@ function sdkDiagnostics(compatibility: ExtensionSdkCompatibility): readonly Exte
   ]
 }
 
+function runtimeRequirementDiagnosticPaths(diagnostics: readonly ExtensionDiagnostic[]) {
+  return new Set(
+    diagnostics
+      .filter(
+        (diagnostic) =>
+          diagnostic.code === OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODE.RUNTIME_REQUIREMENT_MISSING &&
+          diagnostic.path !== undefined,
+      )
+      .map((diagnostic) => diagnostic.path ?? ''),
+  )
+}
+
+function contentHashDiagnosticsForView(input: {
+  readonly contentHashDiagnostics: readonly ExtensionDiagnostic[]
+  readonly runtimeRequirementDiagnostics: readonly ExtensionDiagnostic[]
+}) {
+  const runtimeRequirementPaths = runtimeRequirementDiagnosticPaths(
+    input.runtimeRequirementDiagnostics,
+  )
+
+  return input.contentHashDiagnostics.filter(
+    (diagnostic) =>
+      diagnostic.code !== OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODE.RUNTIME_FILE_MISSING ||
+      diagnostic.path === undefined ||
+      !runtimeRequirementPaths.has(diagnostic.path),
+  )
+}
+
 async function discoverPackage(
   root: ExtensionDiscoveryRoot,
   packageDirectoryName: string,
@@ -149,7 +177,14 @@ async function discoverPackage(
     manifestResult.rawManifest,
     manifestResult.manifest,
   )
-  const runtimeRequirementDiagnostics = await diagnoseRuntimeRequirements(manifestResult.manifest)
+  const runtimeRequirementDiagnostics = await diagnoseRuntimeRequirements({
+    packagePath,
+    manifest: manifestResult.manifest,
+  })
+  const contentHashDiagnostics = contentHashDiagnosticsForView({
+    contentHashDiagnostics: contentHash.diagnostics,
+    runtimeRequirementDiagnostics,
+  })
 
   return {
     id: manifestResult.manifest.id,
@@ -164,7 +199,7 @@ async function discoverPackage(
       ...baseDiagnostics,
       ...sourceDiagnostics,
       ...artifactDiagnostics,
-      ...contentHash.diagnostics,
+      ...contentHashDiagnostics,
       ...buildPlan.diagnostics,
       ...runtimeRequirementDiagnostics,
       ...sdkDiagnostics(sdkCompatibility),

@@ -131,6 +131,7 @@ function makeBrokerLayer(input: {
   readonly capturedLogs: CapturedLog[]
   readonly currentProjectPath: string | null
   readonly reconciledProjectPaths: string[]
+  readonly reconcileFailure?: Error
 }) {
   const projectOverrides = input.projectOverrides ?? []
 
@@ -139,10 +140,15 @@ function makeBrokerLayer(input: {
     makeExtensionStorageRepositoryLayer(input.storageItems),
     makeBrokerSettingsLayer(input.currentProjectPath),
     Layer.succeed(ActiveProjectChangeService, {
-      reconcileTrustedMainExtensions: (projectPath) =>
-        Effect.sync(() => {
+      reconcileTrustedMainExtensions: (projectPath) => {
+        if (input.reconcileFailure !== undefined) {
+          return Effect.die(input.reconcileFailure)
+        }
+
+        return Effect.sync(() => {
           input.reconciledProjectPaths.push(projectPath ?? '<none>')
-        }),
+        })
+      },
     }),
     Layer.succeed(DocsBundleService, {
       getBundlePath: () => Effect.succeed(DOCS_BUNDLE_PATH),
@@ -257,6 +263,7 @@ export async function runBroker(input: {
   readonly capturedLogs?: CapturedLog[]
   readonly currentProjectPath?: string | null
   readonly reconciledProjectPaths?: string[]
+  readonly reconcileFailure?: Error
 }) {
   const harness = makeBrokerHarness(input)
   return harness.run(input.invocation)
@@ -272,6 +279,7 @@ export function makeBrokerHarness(input: {
   readonly capturedLogs?: CapturedLog[]
   readonly currentProjectPath?: string | null
   readonly reconciledProjectPaths?: string[]
+  readonly reconcileFailure?: Error
 }) {
   clearExtensionContributionRegistryCacheForTests()
   const capturedLogs = input.capturedLogs ?? []
@@ -287,6 +295,7 @@ export function makeBrokerHarness(input: {
     capturedLogs,
     currentProjectPath: input.currentProjectPath ?? PROJECT_PATH,
     reconciledProjectPaths,
+    ...(input.reconcileFailure !== undefined ? { reconcileFailure: input.reconcileFailure } : {}),
   })
 
   return {

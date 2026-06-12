@@ -20,12 +20,14 @@ export type {
   OpenWaggleExtensionMountContext,
   OpenWaggleExtensionMountResult,
   OpenWaggleExtensionSdk,
+  OpenWaggleExtensionSharedModules,
   OpenWaggleExtensionSurfaceContext,
   OpenWaggleExtensionSurfaceSdk,
   OpenWaggleFederatedModule,
 } from './extension-context'
 export {
   createNoopExtensionSurfaceSdk,
+  createOpenWaggleExtensionSharedModules,
   createOpenWaggleExtensionSurfaceContext,
 } from './extension-context'
 export type {
@@ -42,8 +44,15 @@ export type {
   ExtensionOpenWaggleSdk,
   ExtensionSelectProjectOperationResult,
   ExtensionSettingsGetOperationResult,
+  ExtensionSettingsGetSettingOperationResult,
   ExtensionSettingsUpdateOperationResult,
+  ExtensionSettingsUpdateSettingOperationResult,
+  ExtensionStateCurrentBranchReadOperationResult,
+  ExtensionStateCurrentProjectReadOperationResult,
+  ExtensionStateCurrentSessionReadOperationResult,
+  ExtensionStateModelPreferencesReadOperationResult,
   ExtensionStateReadOperationResult,
+  ExtensionStateRecentProjectsReadOperationResult,
 } from './extension-sdk-openwaggle'
 export type {
   ExtensionPackageStorageKindSdk,

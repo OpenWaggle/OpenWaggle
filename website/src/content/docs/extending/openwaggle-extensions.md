@@ -7,7 +7,7 @@ section: "Extending"
 
 OpenWaggle extensions are local packages that can add OpenWaggle desktop contributions and optionally include Pi runtime resources.
 
-The extension host is being implemented under issue #113. This page documents the target author contract so extension packages, QA fixtures, and agents use the same vocabulary while the implementation lands.
+This page is the source of truth for the current extension author contract. Use it when a user or agent needs to create, build, install, trust, update, disable, or remove an extension package. If an extension needs a host capability that is not documented here, the user must update OpenWaggle before the extension can rely on that capability.
 
 ## Basic Extension How-To
 
@@ -21,13 +21,18 @@ my-project/
     extensions/
       example-extension/
         openwaggle.extension.json
+        package.json
+        src/
+          settings.js
+          side-panel.js
         modules/
           settings.js
           side-panel.js
-        package.json
+        docs/
+          README.md
 ```
 
-The directory name must match the manifest `id`. Global extensions are discovered from OpenWaggle's app-data `extensions/` directory and should normally be managed by the Extension Manager when that install UI exists.
+The directory name must match the manifest `id`. Global extensions are discovered from OpenWaggle's app-data `extensions/` directory and should be managed through Settings > Extensions or the approved package workflow, because they can affect every project where they are enabled.
 
 Create the manifest first:
 
@@ -94,17 +99,19 @@ export async function mount(context) {
 }
 ```
 
-The lifecycle for a user or agent is:
+## Lifecycle Checklist
 
-1. Create or generate a complete package proposal with the manifest and every file that should exist in the package directory.
-2. Review the package scope: project-local packages live under `<project>/.openwaggle/extensions/<extension-id>/`; global packages live under OpenWaggle app data `extensions/<extension-id>/` and affect every project unless a project opts out.
-3. If an agent is creating or updating the package, approve the exact proposal before OpenWaggle writes files. The approval is tied to the extension id, scope, operation, file paths, and file contents. Global package writes require a second global-impact confirmation.
-4. Ensure `openwaggle.extension.json` lists every source file, built artifact, capability, network origin, runtime requirement, and contribution.
-5. If `install.source` is `prebuilt`, ship the built files already present in `builtArtifacts`.
-6. If `install.source` is `local-build`, declare `build.command` and `build.outputs`, then use Settings > Extensions to approve and run the build.
+Use this checklist for a basic package:
+
+1. Create a complete package proposal with the manifest and every file that should exist in the package directory.
+2. Choose the package scope. Project-local packages live under `<project>/.openwaggle/extensions/<extension-id>/`. Global packages live under OpenWaggle app data `extensions/<extension-id>/` and affect every project unless a project opts out.
+3. For agent-created or agent-updated packages, approve the exact proposal before OpenWaggle writes files. Approval is tied to the extension id, scope, operation, file paths, and file contents. Global package writes require a second global-impact confirmation.
+4. Ensure `openwaggle.extension.json` lists every source file, built artifact, capability, network origin, runtime requirement, Pi resource root, docs topic, and contribution.
+5. Build the package. If `install.source` is `prebuilt`, ship the built files already present in `builtArtifacts`. If `install.source` is `local-build`, declare `build.command` and `build.outputs`, then use Settings > Extensions to approve and run the build.
+6. Install the package by writing it to the chosen extension root through Settings > Extensions or the approved package workflow. Manual project-local development can place files directly under `.openwaggle/extensions/<extension-id>/`, but user-local trust, enablement, build approval, storage, and project opt-outs are not committed with the package.
 7. Open Settings > Extensions and refresh discovery.
-8. Inspect the package path, SDK range, content hash, install source, build command, capabilities, network origins, trusted local code, and diagnostics.
-9. Trust the extension. Trust pins the current package identity, SDK range, version, and content hash.
+8. Inspect the package path, SDK range, content hash, install source, build command, capabilities, network origins, trusted local code, runtime requirements, docs topics, Pi resource roots, and diagnostics.
+9. Trust the extension. Trust pins the current package identity, SDK range, version, granted privileges, and content hash.
 10. Enable the extension.
 11. Reload the extension registry so eligible contributions can appear on their surfaces.
 12. Update the extension by replacing the package with a new approved proposal and bumping the version. OpenWaggle treats the changed content hash as an explicit update; approve the update, then enable and reload again if the update flow disables runtime loading.
@@ -115,6 +122,8 @@ The lifecycle for a user or agent is:
 ## Model
 
 OpenWaggle is manifest-first. The manifest is the contract the host reads before running extension code. If a contribution, capability, file, network origin, runtime requirement, or build step is not declared in the manifest, OpenWaggle should not treat it as available at runtime.
+
+Static manifest contributions are the current public author path. The host has internal authorization guards for future runtime contribution registration, and those guards only allow registration under contribution families already declared in the manifest. Runtime code cannot request new capabilities, methods, or scopes beyond the manifest declaration. Until a public SDK method for runtime registration exists, authors should express contributions statically in `openwaggle.extension.json`.
 
 An extension package can declare multiple contribution families:
 
@@ -134,6 +143,8 @@ OpenWaggle owns the container: placement, chrome, sizing, docking, fallback beha
 Visual contributions use the federated module runtime. The extension exports `mount(context)` from its entry module. The module can use React, Vue, Preact, Svelte, plain DOM, or another UI stack. The required contract is the mount context, not a framework.
 
 Composer-adjacent contributions are compact actions, slash commands, or launchers. They can open host-owned dialogs, side panels, or interaction surfaces, but they must not inject arbitrary input controls into the composer text flow.
+
+Extensions add to or augment OpenWaggle-owned surfaces. They cannot replace the core shell layout, replace global navigation, or install app-wide OpenWaggle themes. Use `context.theme` and scoped extension styles for mounted content only.
 
 ## Contribution Surfaces At A Glance
 
@@ -170,7 +181,7 @@ The SDK/context boundary is also the safety boundary. A renderer module can requ
 
 ## Optional Shared Author Modules
 
-The required runtime contract is still `mount(context)`. OpenWaggle also exposes shared author modules for extensions that want typed helpers without adopting a UI framework:
+The required runtime contract is still `mount(context)`. OpenWaggle also exposes framework-neutral shared author modules for extensions that want typed helpers:
 
 - `extension-sdk` exports the broker SDK factory, operation result types, storage helpers, OpenWaggle state/actions/settings/docs helpers, and the public `OpenWaggleExtensionMountContext` / `OpenWaggleFederatedModule` types.
 - `extension-theme` exports semantic theme tokens, CSS variable names, fallback token creation, and helpers for serializing host theme values.
@@ -215,7 +226,7 @@ export async function mount(context) {
 }
 ```
 
-The import specifier shown above names the public helper module conceptually. First-party fixtures in this repository can resolve the same helpers from `@shared/extension-ui`; external extension distribution should use the versioned author package or import-map/export path provided by the installed OpenWaggle SDK once that packaging surface exists. The stable part for runtime compatibility is the mount context and brokered SDK capability contract.
+The import specifier shown above names the public helper module conceptually. First-party fixtures in this repository resolve the same helpers from `@shared/extension-ui`. Distributed extensions should either bundle the compatible helper code or resolve the versioned helper module supplied by the installed OpenWaggle SDK. The stable part for runtime compatibility is the mount context and brokered SDK capability contract.
 
 ## How An Extension Appears On Screen
 
@@ -308,7 +319,7 @@ Before trust, OpenWaggle reads the manifest, validates declared files, checks SD
 
 The trust review should make these privileges visible:
 
-- Trusted renderer modules: federated-module entries can run inside OpenWaggle-owned contribution containers after trust, enablement, and reload.
+- Trusted visual modules: federated-module entries can run inside OpenWaggle-owned contribution containers after trust, enablement, and reload.
 - Trusted local main code: manifests may declare trusted local main code when the extension needs host-side behavior. This is privileged local code and should require explicit trust.
 - Network access: `network.origins` declares external origins such as `https://api.github.com`. Undeclared network origins should not be treated as approved.
 - Build scripts: `install.source: "local-build"` plus `build.command` asks the user to run local code during build. Build approval is separate from runtime trust.
@@ -316,6 +327,12 @@ The trust review should make these privileges visible:
 - Brokered capabilities: `capabilities` declares SDK capabilities, methods, and scopes such as `openwaggle.storage` with `get`, `set`, and `list` for `project` scope.
 
 Trust pins the current package content hash. Editing manifest files, source files, built artifacts, or the build plan changes the hash and creates an explicit update path. Extension updates are user-approved; they are not silent runtime swaps.
+
+Current v1 enforcement is capability-specific:
+
+- Frame-mounted visual contributions run with iframe sandboxing and a CSP that restricts network `connect-src` to declared `network.origins`.
+- Trusted main-process code is trusted local Node code. It receives only the public broker SDK for OpenWaggle integration, but OpenWaggle does not provide a process-level network firewall for that code. Declare network origins so the user can review them before trust.
+- `trusted.renderer` is represented as a privileged manifest requirement for user review. The current visual contribution path still uses the federated-module container contract; do not rely on direct imports from renderer internals.
 
 ## Agent-Created And Agent-Updated Packages
 

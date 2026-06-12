@@ -145,4 +145,30 @@ describe('extension runtime requirement discovery diagnostics', () => {
       }),
     ])
   })
+
+  it('diagnoses missing package command runtime requirements before trust', async () => {
+    const { projectPath } = await writeRuntimeRequirementPackage([
+      {
+        kind: 'command',
+        id: 'sample.provider',
+        label: 'Sample provider module',
+        command: 'extensions/provider.js',
+      },
+    ])
+
+    const packages = await discoverExtensionPackages({
+      projectPath,
+      hostSdkVersion: OPENWAGGLE_EXTENSION.SDK_VERSION,
+    })
+
+    expect(packages[0]?.contentHash).toBeNull()
+    expect(packages[0]?.diagnostics).toEqual([
+      expect.objectContaining({
+        severity: OPENWAGGLE_EXTENSION.DIAGNOSTIC.SEVERITY.ERROR,
+        code: OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODE.RUNTIME_REQUIREMENT_MISSING,
+        message: expect.stringContaining('runtime requirement command'),
+        path: expect.stringContaining(path.join('extensions', 'provider.js')),
+      }),
+    ])
+  })
 })

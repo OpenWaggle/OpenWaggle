@@ -1,11 +1,5 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
-import { safeDecodeUnknown } from '@shared/schema'
-import {
-  extensionActionSelectProjectResultSchema,
-  extensionSettingsGetResultSchema,
-  extensionSettingsUpdateResultSchema,
-  extensionStateReadResultSchema,
-} from '@shared/schemas/extension-broker'
+import { extensionActionSelectProjectResultSchema } from '@shared/schemas/extension-broker'
 import {
   extensionDocsDiscoverResultSchema,
   extensionDocsResolveTopicResultSchema,
@@ -19,18 +13,41 @@ import type {
   ExtensionInvokeFailure,
   ExtensionInvokeResult,
   ExtensionInvokeScope,
-  ExtensionSettingsGetResult,
-  ExtensionSettingsUpdatePayload,
-  ExtensionSettingsUpdateResult,
-  ExtensionStateReadResult,
 } from '@shared/types/extension-broker'
 import type { ExtensionOperationSuccess, ExtensionSdkInvoke } from './extension-sdk-core'
-import { invalidOperationResult } from './extension-sdk-core'
+import {
+  decodeWithSchema,
+  openWaggleResultError,
+  toDecodedOperationResult,
+} from './extension-sdk-openwaggle-results'
+import {
+  createOpenWaggleSettingsSdk,
+  type ExtensionOpenWaggleSettingsSdk,
+} from './extension-sdk-openwaggle-settings'
+import {
+  createOpenWaggleStateSdk,
+  type ExtensionOpenWaggleStateSdk,
+} from './extension-sdk-openwaggle-state'
+
+export type {
+  ExtensionOpenWaggleSettingsSdk,
+  ExtensionSettingsGetOperationResult,
+  ExtensionSettingsGetSettingOperationResult,
+  ExtensionSettingsUpdateOperationResult,
+  ExtensionSettingsUpdateSettingOperationResult,
+} from './extension-sdk-openwaggle-settings'
+export type {
+  ExtensionOpenWaggleStateSdk,
+  ExtensionStateCurrentBranchReadOperationResult,
+  ExtensionStateCurrentProjectReadOperationResult,
+  ExtensionStateCurrentSessionReadOperationResult,
+  ExtensionStateModelPreferencesReadOperationResult,
+  ExtensionStateReadOperationResult,
+  ExtensionStateRecentProjectsReadOperationResult,
+} from './extension-sdk-openwaggle-state'
 
 export interface ExtensionOpenWaggleSdk {
-  readonly state: {
-    readonly get: (scope: ExtensionInvokeScope) => Promise<ExtensionStateReadOperationResult>
-  }
+  readonly state: ExtensionOpenWaggleStateSdk
   readonly actions: {
     readonly selectProject: (
       scope: ExtensionInvokeScope,
@@ -38,13 +55,7 @@ export interface ExtensionOpenWaggleSdk {
     ) => Promise<ExtensionSelectProjectOperationResult>
     readonly openExternal: (url: string) => Promise<void>
   }
-  readonly settings: {
-    readonly get: (scope: ExtensionInvokeScope) => Promise<ExtensionSettingsGetOperationResult>
-    readonly update: (
-      scope: ExtensionInvokeScope,
-      settings: ExtensionSettingsUpdatePayload,
-    ) => Promise<ExtensionSettingsUpdateOperationResult>
-  }
+  readonly settings: ExtensionOpenWaggleSettingsSdk
   readonly docs: {
     readonly discover: (
       scope: ExtensionInvokeScope,
@@ -57,26 +68,12 @@ export interface ExtensionOpenWaggleSdk {
   }
 }
 
-export type ExtensionStateReadOperationResult =
-  | ExtensionOperationSuccess<ExtensionStateReadResult>
-  | ExtensionInvokeFailure
-
 export type ExtensionSelectProjectOperationResult =
   | ExtensionOperationSuccess<ExtensionActionSelectProjectResult>
   | ExtensionInvokeFailure
-
-export type ExtensionSettingsGetOperationResult =
-  | ExtensionOperationSuccess<ExtensionSettingsGetResult>
-  | ExtensionInvokeFailure
-
-export type ExtensionSettingsUpdateOperationResult =
-  | ExtensionOperationSuccess<ExtensionSettingsUpdateResult>
-  | ExtensionInvokeFailure
-
 export type ExtensionDocsDiscoverOperationResult =
   | ExtensionOperationSuccess<ExtensionDocsDiscoverResult>
   | ExtensionInvokeFailure
-
 export type ExtensionDocsResolveTopicOperationResult =
   | ExtensionOperationSuccess<ExtensionDocsResolveTopicResult>
   | ExtensionInvokeFailure
@@ -89,120 +86,39 @@ const unsupportedOpenExternal = async () => {
   throw new Error('OpenWaggle external URL action is not available in this extension host context.')
 }
 
-function stateResultError(input: {
-  readonly result: ExtensionInvokeResult & { readonly ok: true }
-  readonly issues: readonly string[]
-}) {
-  return invalidOperationResult({
-    audit: input.result.audit,
-    issues: input.issues,
-    message: 'Extension broker returned an invalid OpenWaggle state result.',
-  })
-}
-
-function actionResultError(input: {
-  readonly result: ExtensionInvokeResult & { readonly ok: true }
-  readonly issues: readonly string[]
-}) {
-  return invalidOperationResult({
-    audit: input.result.audit,
-    issues: input.issues,
-    message: 'Extension broker returned an invalid OpenWaggle action result.',
-  })
-}
-
-function settingsResultError(input: {
-  readonly result: ExtensionInvokeResult & { readonly ok: true }
-  readonly issues: readonly string[]
-}) {
-  return invalidOperationResult({
-    audit: input.result.audit,
-    issues: input.issues,
-    message: 'Extension broker returned an invalid OpenWaggle settings result.',
-  })
-}
-
-function docsResultError(input: {
-  readonly result: ExtensionInvokeResult & { readonly ok: true }
-  readonly issues: readonly string[]
-}) {
-  return invalidOperationResult({
-    audit: input.result.audit,
-    issues: input.issues,
-    message: 'Extension broker returned an invalid OpenWaggle docs result.',
-  })
-}
-
-function toStateReadResult(result: ExtensionInvokeResult): ExtensionStateReadOperationResult {
-  if (!result.ok) {
-    return result
-  }
-
-  const decoded = safeDecodeUnknown(extensionStateReadResultSchema, result.value)
-  return decoded.success
-    ? { ok: true, value: decoded.data, audit: result.audit }
-    : stateResultError({ result, issues: decoded.issues })
-}
+const actionResultError = openWaggleResultError(
+  'Extension broker returned an invalid OpenWaggle action result.',
+)
+const docsResultError = openWaggleResultError(
+  'Extension broker returned an invalid OpenWaggle docs result.',
+)
 
 function toSelectProjectResult(
   result: ExtensionInvokeResult,
 ): ExtensionSelectProjectOperationResult {
-  if (!result.ok) {
-    return result
-  }
-
-  const decoded = safeDecodeUnknown(extensionActionSelectProjectResultSchema, result.value)
-  return decoded.success
-    ? { ok: true, value: decoded.data, audit: result.audit }
-    : actionResultError({ result, issues: decoded.issues })
-}
-
-function toSettingsGetResult(result: ExtensionInvokeResult): ExtensionSettingsGetOperationResult {
-  if (!result.ok) {
-    return result
-  }
-
-  const decoded = safeDecodeUnknown(extensionSettingsGetResultSchema, result.value)
-  return decoded.success
-    ? { ok: true, value: decoded.data, audit: result.audit }
-    : settingsResultError({ result, issues: decoded.issues })
-}
-
-function toSettingsUpdateResult(
-  result: ExtensionInvokeResult,
-): ExtensionSettingsUpdateOperationResult {
-  if (!result.ok) {
-    return result
-  }
-
-  const decoded = safeDecodeUnknown(extensionSettingsUpdateResultSchema, result.value)
-  return decoded.success
-    ? { ok: true, value: decoded.data, audit: result.audit }
-    : settingsResultError({ result, issues: decoded.issues })
+  return toDecodedOperationResult(
+    result,
+    decodeWithSchema(extensionActionSelectProjectResultSchema),
+    actionResultError,
+  )
 }
 
 function toDocsDiscoverResult(result: ExtensionInvokeResult): ExtensionDocsDiscoverOperationResult {
-  if (!result.ok) {
-    return result
-  }
-
-  const decoded = safeDecodeUnknown(extensionDocsDiscoverResultSchema, result.value)
-  return decoded.success
-    ? { ok: true, value: decoded.data, audit: result.audit }
-    : docsResultError({ result, issues: decoded.issues })
+  return toDecodedOperationResult(
+    result,
+    decodeWithSchema(extensionDocsDiscoverResultSchema),
+    docsResultError,
+  )
 }
 
 function toDocsResolveTopicResult(
   result: ExtensionInvokeResult,
 ): ExtensionDocsResolveTopicOperationResult {
-  if (!result.ok) {
-    return result
-  }
-
-  const decoded = safeDecodeUnknown(extensionDocsResolveTopicResultSchema, result.value)
-  return decoded.success
-    ? { ok: true, value: decoded.data, audit: result.audit }
-    : docsResultError({ result, issues: decoded.issues })
+  return toDecodedOperationResult(
+    result,
+    decodeWithSchema(extensionDocsResolveTopicResultSchema),
+    docsResultError,
+  )
 }
 
 export function createOpenWaggleSdk(
@@ -210,17 +126,7 @@ export function createOpenWaggleSdk(
   options: CreateOpenWaggleSdkOptions = {},
 ): ExtensionOpenWaggleSdk {
   return {
-    state: {
-      get: async (scope) =>
-        toStateReadResult(
-          await invoke({
-            capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE,
-            method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_STATE,
-            scope,
-            payload: {},
-          }),
-        ),
-    },
+    state: createOpenWaggleStateSdk(invoke),
     actions: {
       openExternal: options.openExternal ?? unsupportedOpenExternal,
       selectProject: async (scope, projectPath) =>
@@ -233,26 +139,7 @@ export function createOpenWaggleSdk(
           }),
         ),
     },
-    settings: {
-      get: async (scope) =>
-        toSettingsGetResult(
-          await invoke({
-            capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
-            method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTINGS,
-            scope,
-            payload: {},
-          }),
-        ),
-      update: async (scope, settings) =>
-        toSettingsUpdateResult(
-          await invoke({
-            capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
-            method: OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTINGS,
-            scope,
-            payload: settings,
-          }),
-        ),
-    },
+    settings: createOpenWaggleSettingsSdk(invoke),
     docs: {
       discover: async (scope, input = {}) =>
         toDocsDiscoverResult(

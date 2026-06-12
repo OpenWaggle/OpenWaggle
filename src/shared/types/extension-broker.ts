@@ -16,14 +16,31 @@ import type {
   extensionInvokeScopeSchema,
   extensionInvokeSuccessSchema,
   extensionInvokeSuccessValueSchema,
+  extensionModelPreferencesSettingsPatchSchema,
   extensionModelPrefsSchema,
   extensionProjectViewSchema,
   extensionSessionViewSchema,
+  extensionSettingsGetPayloadSchema,
   extensionSettingsGetResultSchema,
+  extensionSettingsGetSettingResultSchema,
+  extensionSettingsKeySchema,
+  extensionSettingsModelPreferencesValueSchema,
+  extensionSettingsProjectDisplayNameValueSchema,
+  extensionSettingsSelectedValueSchema,
   extensionSettingsUpdatePayloadSchema,
   extensionSettingsUpdateResultSchema,
+  extensionSettingsUpdateSettingPayloadSchema,
+  extensionSettingsUpdateSettingResultSchema,
   extensionSettingsViewSchema,
+  extensionStateCurrentBranchReadResultSchema,
+  extensionStateCurrentProjectReadResultSchema,
+  extensionStateCurrentSessionReadResultSchema,
+  extensionStateModelPreferencesReadResultSchema,
+  extensionStateReadPayloadSchema,
   extensionStateReadResultSchema,
+  extensionStateRecentProjectsReadResultSchema,
+  extensionStateSelectedReadResultSchema,
+  extensionStateSelectorSchema,
   extensionStorageDeletePayloadSchema,
   extensionStorageDeleteResultSchema,
   extensionStorageGetPayloadSchema,
@@ -61,7 +78,27 @@ export type ExtensionModelPrefs = SchemaType<typeof extensionModelPrefsSchema>
 export type ExtensionProjectView = SchemaType<typeof extensionProjectViewSchema>
 export type ExtensionSessionView = SchemaType<typeof extensionSessionViewSchema>
 export type ExtensionBranchView = SchemaType<typeof extensionBranchViewSchema>
+export type ExtensionStateSelector = SchemaType<typeof extensionStateSelectorSchema>
+export type ExtensionStateReadPayload = SchemaType<typeof extensionStateReadPayloadSchema>
 export type ExtensionStateReadResult = SchemaType<typeof extensionStateReadResultSchema>
+export type ExtensionStateCurrentProjectReadResult = SchemaType<
+  typeof extensionStateCurrentProjectReadResultSchema
+>
+export type ExtensionStateCurrentSessionReadResult = SchemaType<
+  typeof extensionStateCurrentSessionReadResultSchema
+>
+export type ExtensionStateCurrentBranchReadResult = SchemaType<
+  typeof extensionStateCurrentBranchReadResultSchema
+>
+export type ExtensionStateRecentProjectsReadResult = SchemaType<
+  typeof extensionStateRecentProjectsReadResultSchema
+>
+export type ExtensionStateModelPreferencesReadResult = SchemaType<
+  typeof extensionStateModelPreferencesReadResultSchema
+>
+export type ExtensionStateSelectedReadResult = SchemaType<
+  typeof extensionStateSelectedReadResultSchema
+>
 export type ExtensionActionSelectProjectPayload = SchemaType<
   typeof extensionActionSelectProjectPayloadSchema
 >
@@ -69,9 +106,30 @@ export type ExtensionActionSelectProjectResult = SchemaType<
   typeof extensionActionSelectProjectResultSchema
 >
 export type ExtensionSettingsView = SchemaType<typeof extensionSettingsViewSchema>
+export type ExtensionSettingsKey = SchemaType<typeof extensionSettingsKeySchema>
+export type ExtensionModelPreferencesSettingsPatch = SchemaType<
+  typeof extensionModelPreferencesSettingsPatchSchema
+>
+export type ExtensionSettingsGetPayload = SchemaType<typeof extensionSettingsGetPayloadSchema>
+export type ExtensionSettingsUpdateSettingPayload = SchemaType<
+  typeof extensionSettingsUpdateSettingPayloadSchema
+>
+export type ExtensionSettingsModelPreferencesValue = SchemaType<
+  typeof extensionSettingsModelPreferencesValueSchema
+>
+export type ExtensionSettingsProjectDisplayNameValue = SchemaType<
+  typeof extensionSettingsProjectDisplayNameValueSchema
+>
+export type ExtensionSettingsSelectedValue = SchemaType<typeof extensionSettingsSelectedValueSchema>
 export type ExtensionSettingsUpdatePayload = SchemaType<typeof extensionSettingsUpdatePayloadSchema>
 export type ExtensionSettingsGetResult = SchemaType<typeof extensionSettingsGetResultSchema>
 export type ExtensionSettingsUpdateResult = SchemaType<typeof extensionSettingsUpdateResultSchema>
+export type ExtensionSettingsGetSettingResult = SchemaType<
+  typeof extensionSettingsGetSettingResultSchema
+>
+export type ExtensionSettingsUpdateSettingResult = SchemaType<
+  typeof extensionSettingsUpdateSettingResultSchema
+>
 export type ExtensionInvokeSuccessValue = SchemaType<typeof extensionInvokeSuccessValueSchema>
 export type ExtensionInvokeSuccess = SchemaType<typeof extensionInvokeSuccessSchema>
 export type ExtensionInvokeFailure = SchemaType<typeof extensionInvokeFailureSchema>

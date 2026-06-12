@@ -12,7 +12,10 @@ function extensionInvokeResultMutatesPreferences(result: ExtensionInvokeResult) 
   }
 
   if (result.value.capability === OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS) {
-    return result.value.method === OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTINGS
+    return (
+      result.value.method === OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTINGS ||
+      result.value.method === OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTING
+    )
   }
 
   return false

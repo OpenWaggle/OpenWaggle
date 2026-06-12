@@ -6,43 +6,27 @@ import {
   extensionDocsResolveTopicResultSchema,
 } from '@shared/schemas/extension-broker-docs'
 import { jsonValueSchema } from '@shared/schemas/validation'
-import { THINKING_LEVELS } from '@shared/types/settings'
+import { extensionInvokeScopeSchema, nonEmptyStringSchema } from './extension-broker-core'
+import {
+  extensionActionSelectProjectResultSchema,
+  extensionSettingsGetResultSchema,
+  extensionSettingsGetSettingResultSchema,
+  extensionSettingsUpdateResultSchema,
+  extensionSettingsUpdateSettingResultSchema,
+  extensionStateReadResultSchema,
+  extensionStateSelectedReadResultSchema,
+} from './extension-broker-openwaggle'
 import { extensionContributionIdSchema, extensionIdSchema } from './extensions'
 
-const nonEmptyStringSchema = Schema.String.pipe(Schema.filter((value) => value.trim().length > 0))
+export * from './extension-broker-core'
+export * from './extension-broker-openwaggle'
+
 const extensionStorageKeySchema = Schema.String.pipe(
   Schema.filter((value) => value.trim().length > 0 || 'Must not be empty.'),
   Schema.filter(
     (value) => value === value.trim() || 'Must not have leading or trailing whitespace.',
   ),
   Schema.maxLength(OPENWAGGLE_EXTENSION.STORAGE.KEY_MAX_LENGTH),
-)
-
-export const extensionInvokeAppScopeSchema = Schema.Struct({ kind: Schema.Literal('app') })
-
-export const extensionInvokeProjectScopeSchema = Schema.Struct({
-  kind: Schema.Literal('project'),
-  projectPath: nonEmptyStringSchema,
-})
-
-export const extensionInvokeSessionScopeSchema = Schema.Struct({
-  kind: Schema.Literal('session'),
-  projectPath: nonEmptyStringSchema,
-  sessionId: nonEmptyStringSchema,
-})
-
-export const extensionInvokeBranchScopeSchema = Schema.Struct({
-  kind: Schema.Literal('branch'),
-  projectPath: nonEmptyStringSchema,
-  sessionId: nonEmptyStringSchema,
-  branchId: nonEmptyStringSchema,
-})
-
-export const extensionInvokeScopeSchema = Schema.Union(
-  extensionInvokeAppScopeSchema,
-  extensionInvokeProjectScopeSchema,
-  extensionInvokeSessionScopeSchema,
-  extensionInvokeBranchScopeSchema,
 )
 
 export const extensionInvokeInputSchema = Schema.Struct({
@@ -92,7 +76,6 @@ export const extensionHostContextResultSchema = Schema.Struct({
 export const extensionStorageScopeSelectorSchema = Schema.Literal(
   ...OPENWAGGLE_EXTENSION.STORAGE.SCOPE_KINDS,
 )
-
 export const extensionStorageKindSchema = Schema.Literal(...OPENWAGGLE_EXTENSION.STORAGE.KINDS)
 
 export const extensionStorageGetPayloadSchema = Schema.Struct({
@@ -129,24 +112,24 @@ export const extensionStorageScopeSchema = Schema.Union(
   extensionStorageProjectScopeSchema,
 )
 
-export const extensionStorageGetResultSchema = Schema.Struct({
+const extensionStorageResultFields = {
   extensionId: extensionIdSchema,
   contributionId: extensionContributionIdSchema,
   capability: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE),
-  method: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.METHOD.GET),
   storageKind: extensionStorageKindSchema,
   storageScope: extensionStorageScopeSchema,
+}
+
+export const extensionStorageGetResultSchema = Schema.Struct({
+  ...extensionStorageResultFields,
+  method: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.METHOD.GET),
   key: extensionStorageKeySchema,
   value: Schema.NullOr(jsonValueSchema),
 })
 
 export const extensionStorageSetResultSchema = Schema.Struct({
-  extensionId: extensionIdSchema,
-  contributionId: extensionContributionIdSchema,
-  capability: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE),
+  ...extensionStorageResultFields,
   method: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.METHOD.SET),
-  storageKind: extensionStorageKindSchema,
-  storageScope: extensionStorageScopeSchema,
   key: extensionStorageKeySchema,
   value: jsonValueSchema,
   createdAt: Schema.Number,
@@ -154,118 +137,16 @@ export const extensionStorageSetResultSchema = Schema.Struct({
 })
 
 export const extensionStorageDeleteResultSchema = Schema.Struct({
-  extensionId: extensionIdSchema,
-  contributionId: extensionContributionIdSchema,
-  capability: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE),
+  ...extensionStorageResultFields,
   method: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.METHOD.DELETE),
-  storageKind: extensionStorageKindSchema,
-  storageScope: extensionStorageScopeSchema,
   key: extensionStorageKeySchema,
   deleted: Schema.Literal(true),
 })
 
 export const extensionStorageListResultSchema = Schema.Struct({
-  extensionId: extensionIdSchema,
-  contributionId: extensionContributionIdSchema,
-  capability: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE),
+  ...extensionStorageResultFields,
   method: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST),
-  storageKind: extensionStorageKindSchema,
-  storageScope: extensionStorageScopeSchema,
   keys: Schema.Array(extensionStorageKeySchema),
-})
-
-export const extensionModelPrefsSchema = Schema.Struct({
-  selectedModel: Schema.String,
-  favoriteModels: Schema.Array(Schema.String),
-  enabledModels: Schema.Array(Schema.String),
-  thinkingLevel: Schema.Literal(...THINKING_LEVELS),
-})
-
-export const extensionProjectViewSchema = Schema.Struct({
-  projectPath: nonEmptyStringSchema,
-  displayName: Schema.NullOr(Schema.String),
-  active: Schema.Boolean,
-})
-
-export const extensionSessionViewSchema = Schema.Struct({
-  sessionId: nonEmptyStringSchema,
-  title: Schema.String,
-  projectPath: Schema.NullOr(nonEmptyStringSchema),
-})
-
-export const extensionBranchViewSchema = Schema.Struct({
-  branchId: nonEmptyStringSchema,
-  sessionId: nonEmptyStringSchema,
-  name: Schema.String,
-  main: Schema.Boolean,
-  archived: Schema.Boolean,
-})
-
-export const extensionStateReadResultSchema = Schema.Struct({
-  extensionId: extensionIdSchema,
-  contributionId: extensionContributionIdSchema,
-  capability: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE),
-  method: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_STATE),
-  scope: extensionInvokeScopeSchema,
-  activeProjectPath: Schema.NullOr(nonEmptyStringSchema),
-  currentProject: Schema.NullOr(extensionProjectViewSchema),
-  currentSession: Schema.NullOr(extensionSessionViewSchema),
-  currentBranch: Schema.NullOr(extensionBranchViewSchema),
-  recentProjects: Schema.Array(nonEmptyStringSchema),
-  modelPreferences: extensionModelPrefsSchema,
-})
-
-export const extensionActionSelectProjectPayloadSchema = Schema.Struct({
-  projectPath: nonEmptyStringSchema,
-})
-
-export const extensionActionSelectProjectResultSchema = Schema.Struct({
-  extensionId: extensionIdSchema,
-  contributionId: extensionContributionIdSchema,
-  capability: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.ACTIONS),
-  method: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.METHOD.SELECT_PROJECT),
-  previousProjectPath: Schema.NullOr(nonEmptyStringSchema),
-  projectPath: nonEmptyStringSchema,
-  recentProjects: Schema.Array(nonEmptyStringSchema),
-})
-
-export const extensionSettingsViewSchema = Schema.Struct({
-  modelPreferences: extensionModelPrefsSchema,
-  projectDisplayNames: Schema.Record({
-    key: Schema.String,
-    value: Schema.String,
-  }),
-})
-
-export const extensionSettingsUpdatePayloadSchema = Schema.Struct({
-  selectedModel: Schema.optional(Schema.String),
-  favoriteModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
-  enabledModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
-  thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
-  projectDisplayNames: Schema.optional(
-    Schema.mutable(
-      Schema.Record({
-        key: Schema.String,
-        value: Schema.String,
-      }),
-    ),
-  ),
-})
-
-export const extensionSettingsGetResultSchema = Schema.Struct({
-  extensionId: extensionIdSchema,
-  contributionId: extensionContributionIdSchema,
-  capability: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS),
-  method: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTINGS),
-  settings: extensionSettingsViewSchema,
-})
-
-export const extensionSettingsUpdateResultSchema = Schema.Struct({
-  extensionId: extensionIdSchema,
-  contributionId: extensionContributionIdSchema,
-  capability: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS),
-  method: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTINGS),
-  settings: extensionSettingsViewSchema,
 })
 
 export const extensionInvokeSuccessValueSchema = Schema.Union(
@@ -275,9 +156,12 @@ export const extensionInvokeSuccessValueSchema = Schema.Union(
   extensionStorageDeleteResultSchema,
   extensionStorageListResultSchema,
   extensionStateReadResultSchema,
+  extensionStateSelectedReadResultSchema,
   extensionActionSelectProjectResultSchema,
   extensionSettingsGetResultSchema,
   extensionSettingsUpdateResultSchema,
+  extensionSettingsGetSettingResultSchema,
+  extensionSettingsUpdateSettingResultSchema,
   extensionDocsDiscoverResultSchema,
   extensionDocsResolveTopicResultSchema,
 )

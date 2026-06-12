@@ -44,7 +44,10 @@ function makeOpenWaggleBrokerPackage() {
     capabilities: [
       {
         id: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE,
-        methods: [OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_STATE],
+        methods: [
+          OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_STATE,
+          OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE,
+        ],
         scopes: ['app', 'project', 'session', 'branch'],
       },
       {
@@ -57,6 +60,8 @@ function makeOpenWaggleBrokerPackage() {
         methods: [
           OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTINGS,
           OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTINGS,
+          OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTING,
+          OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTING,
         ],
         scopes: ['app', 'project'],
       },
@@ -67,7 +72,10 @@ function makeOpenWaggleBrokerPackage() {
           id: STATE_CONTRIBUTION_ID,
           title: 'Read OpenWaggle State',
           capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE,
-          method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_STATE,
+          methods: [
+            OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_STATE,
+            OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE,
+          ],
         },
         {
           id: ACTION_CONTRIBUTION_ID,
@@ -82,6 +90,8 @@ function makeOpenWaggleBrokerPackage() {
           methods: [
             OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTINGS,
             OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTINGS,
+            OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTING,
+            OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTING,
           ],
         },
       ],
