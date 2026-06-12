@@ -52,7 +52,7 @@
     "website:test": "pnpm --filter @openwaggle/website test",
     "docs:generate": "tsx scripts/generate-installed-docs.ts"
   },
-  "packageManager": "pnpm@10.32.1",
+  "packageManager": "pnpm@11.6.0",
   "pnpm": {
     "onlyBuiltDependencies": [
       "better-sqlite3",
@@ -89,7 +89,7 @@
     "url": "https://github.com/OpenWaggle/OpenWaggle.git"
   },
   "dependencies": {
-    "@diegogbrisa/ts-match": "1.4.0",
+    "@diegogbrisa/ts-match": "1.6.1",
     "@earendil-works/pi-coding-agent": "0.78.1",
     "@lexical/react": "0.45.0",
     "@lobehub/icons-static-svg": "1.91.0",

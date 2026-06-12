@@ -28,8 +28,8 @@ importers:
   .:
     dependencies:
       '@diegogbrisa/ts-match':
-        specifier: 1.4.0
-        version: 1.4.0
+        specifier: 1.6.1
+        version: 1.6.1
       '@earendil-works/pi-coding-agent':
         specifier: 0.78.1
         version: 0.78.1(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(ws@8.21.0)(zod@4.4.3)
@@ -728,8 +728,8 @@ packages:
     resolution: {integrity: sha512-0cp4PsWQ/9avqTVMCtZ+GirikIA36ikvjtHweU4/j8yLtgObI0+JUPhYFScgwlteveGB1rt3Cm8UhN04XayDig==}
     engines: {node: '>= 8.9.0'}
 
-  '@diegogbrisa/ts-match@1.4.0':
-    resolution: {integrity: sha512-bzwjiYnZjs8jJ9NYp8zEb/ytOdvhnZTCmAMK4h0a70mVYvaqzqMm/bIYgB9yHEw/XzYkRAK6HcRhCrcd5BbZfw==}
+  '@diegogbrisa/ts-match@1.6.1':
+    resolution: {integrity: sha512-CJCALxChEbr8gCmdAPHOQv0kilTfrRfAGwg8MS64iIO/vWPBBvQQ2qyk3pb7xosUelkmdLCRD+zJvWkjGJEq/A==}
     engines: {node: '>=20'}
 
   '@earendil-works/pi-agent-core@0.78.1':
@@ -7500,7 +7500,7 @@ snapshots:
       ajv: 6.15.0
       ajv-keywords: 3.5.2(ajv@6.15.0)
 
-  '@diegogbrisa/ts-match@1.4.0': {}
+  '@diegogbrisa/ts-match@1.6.1': {}
 
   '@earendil-works/pi-agent-core@0.78.1(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(ws@8.21.0)(zod@4.4.3)':
     dependencies:
