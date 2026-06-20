@@ -123,7 +123,9 @@ Use this checklist for a basic package:
 
 OpenWaggle is manifest-first. The manifest is the contract the host reads before running extension code. If a contribution, capability, file, network origin, runtime requirement, or build step is not declared in the manifest, OpenWaggle should not treat it as available at runtime.
 
-Static manifest contributions are the current public author path. The host has internal authorization guards for future runtime contribution registration, and those guards only allow registration under contribution families already declared in the manifest. Runtime code cannot request new capabilities, methods, or scopes beyond the manifest declaration. Until a public SDK method for runtime registration exists, authors should express contributions statically in `openwaggle.extension.json`.
+Static manifest contributions remain the simplest public author path. Runtime code can also call `context.sdk.runtime.registerContribution(scope, registration)` and `context.sdk.runtime.unregisterContribution(scope, unregistration)` through the broker to add or remove contributions without an app restart. The manifest must declare the `openwaggle.runtime` capability with `register-contribution` and/or `unregister-contribution`, and it must declare the contribution families that runtime code may use, even if those family arrays start empty.
+
+Dynamic registration uses the same contribution schemas as the manifest. Runtime code cannot request new capabilities, methods, or scopes beyond the manifest declaration, cannot replace static manifest contributions, and cannot unregister static manifest contributions. Project and session scoped runtime calls are constrained to that invocation scope so a project-scoped dynamic contribution does not leak into another project. Branch-scoped dynamic registrations fail closed until branch targets are represented in the contribution registry.
 
 An extension package can declare multiple contribution families:
 
@@ -163,16 +165,18 @@ Choose the surface by the job the extension is doing, not by the framework used 
 
 The same extension can contribute to multiple surfaces. Shared package state can coordinate those live surfaces, while the transcript remains the durable audit trail for agent-loop activity.
 
-## Federated Modules, SDK Context, And Theme
+## Visual Runtimes, SDK Context, And Theme
 
-Some early design notes called the visual path a "module-federation lane." The public author contract is now the `federated-module` runtime. OpenWaggle may implement that runtime with module federation, import maps, versioned runtime URLs, or another loader, but extension authors target the same framework-neutral `mount(context)` entry point.
+Some early design notes called the visual path a "module-federation lane." The default public author contract is the `federated-module` runtime. OpenWaggle may implement that runtime with module federation, import maps, versioned runtime URLs, or another loader, but extension authors target the same framework-neutral `mount(context)` entry point.
+
+OpenWaggle can represent `trusted.renderer` as privileged manifest metadata. `runtime: "trusted-renderer"` visual contributions are mounted through OpenWaggle's sandboxed extension frame boundary, not imported into the app renderer global, so they use the same brokered SDK/context path as `federated-module` contributions instead of direct renderer globals, writable stores, Electron IPC helpers, or Pi SDK internals.
 
 `mount(context)` receives the only OpenWaggle objects a visual contribution should use:
 
 - `context.root`: the host-owned DOM root where the extension attaches content.
 - `context.contribution`: package id, contribution id, contribution family, and manifest-declared metadata for the mounted contribution.
 - `context.surface`: surface-specific data such as the active settings section, side panel container, transcript record, tool event, or pending interaction.
-- `context.sdk`: typed capability calls for package storage, selected OpenWaggle state/actions/settings/docs discovery, and surface behavior such as sending surface actions or responding to pending interactions.
+- `context.sdk`: typed capability calls for package storage, selected OpenWaggle state/actions/settings/docs discovery, runtime contribution registration/unregistration, and surface behavior such as sending surface actions or responding to pending interactions.
 - `context.theme`: semantic host theme data, including tokens and CSS-variable-shaped values for color, typography, spacing, radius, focus, and elevation.
 
 Use theme tokens from `context.theme` instead of importing OpenWaggle CSS internals or hard-coding app colors. The host owns token values and can adapt them to user settings, high-contrast modes, and future themes. The extension owns only its mounted content and should keep styles scoped to that content.
@@ -320,6 +324,7 @@ Before trust, OpenWaggle reads the manifest, validates declared files, checks SD
 The trust review should make these privileges visible:
 
 - Trusted visual modules: federated-module entries can run inside OpenWaggle-owned contribution containers after trust, enablement, and reload.
+- Trusted renderer declarations: `trusted.renderer` is reviewed as privileged metadata, and `trusted-renderer` entries are still mounted through the isolated extension frame boundary.
 - Trusted local main code: manifests may declare trusted local main code when the extension needs host-side behavior. This is privileged local code and should require explicit trust.
 - Network access: `network.origins` declares external origins such as `https://api.github.com`. Undeclared network origins should not be treated as approved.
 - Build scripts: `install.source: "local-build"` plus `build.command` asks the user to run local code during build. Build approval is separate from runtime trust.
@@ -331,8 +336,8 @@ Trust pins the current package content hash. Editing manifest files, source file
 Current v1 enforcement is capability-specific:
 
 - Frame-mounted visual contributions run with iframe sandboxing and a CSP that restricts network `connect-src` to declared `network.origins`.
-- Trusted main-process code is trusted local Node code. It receives only the public broker SDK for OpenWaggle integration, but OpenWaggle does not provide a process-level network firewall for that code. Declare network origins so the user can review them before trust.
-- `trusted.renderer` is represented as a privileged manifest requirement for user review. The current visual contribution path still uses the federated-module container contract; do not rely on direct imports from renderer internals.
+- Trusted main-process code receives only the public broker SDK for OpenWaggle integration. Direct `fetch`, `node:http`, `node:https`, `electron.net`, raw `node:net`, raw `node:tls`, UDP sockets, direct DNS resolution, `node:http2`, child processes, cluster forks, and worker threads are guarded while the trusted main module activates and cleans up. Only exact HTTPS origins declared in `network.origins` are allowed; redirects are not followed through the guard, unresolved targets fail closed, custom fetch agents/dispatchers, custom Node HTTP agents/connection factories/DNS lookup functions, Unix socket paths, raw sockets, and process/isolate escape hatches are rejected.
+- Trusted renderer code is frame-mounted by the current host runtime. Direct app-renderer imports are not supported; extension code must use the brokered SDK/context boundary.
 
 ## Agent-Created And Agent-Updated Packages
 
@@ -516,7 +521,7 @@ Historical transcript entries must be reconstructable from the mount context and
 Extension authors can ship independently when they stay inside the existing public contract:
 
 - Add or change manifest-declared contributions in existing families.
-- Add or update federated-module renderer entries that still export `mount(context)`.
+- Add or update `federated-module` renderer entries that still export `mount(context)`.
 - Add assets, CSS, package-local docs, and built artifacts declared in the manifest.
 - Add or change Pi-native tools, custom messages, resource roots, and runtime behavior supported by Pi and declared in the extension package.
 - Add or change usage of existing brokered SDK capabilities, methods, and scopes already supported by the installed OpenWaggle SDK.

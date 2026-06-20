@@ -17,6 +17,13 @@ function requestedProjectsAreCovered(
   return requestedProjectPaths.every((projectPath) => entry.projectPaths.includes(projectPath))
 }
 
+function entryRuntimeCanServeRuntimeModule(entry: ExtensionContributionRegistryEntry) {
+  return (
+    entry.runtime === OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE ||
+    entry.runtime === OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.TRUSTED_RENDERER
+  )
+}
+
 function entryCanServeRuntimeModule(
   entry: ExtensionContributionRegistryEntry,
   input: ExtensionRuntimeModuleAccessInput,
@@ -24,7 +31,7 @@ function entryCanServeRuntimeModule(
   return (
     entry.packagePath === input.packagePath &&
     entry.contentHash === input.contentHash &&
-    entry.runtime === OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE &&
+    entryRuntimeCanServeRuntimeModule(entry) &&
     entry.entryPath !== undefined &&
     entry.eligibility.runtimeEnabled &&
     entry.eligibility.enabled &&

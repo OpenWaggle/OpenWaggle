@@ -53,6 +53,76 @@ describe('runtime extension contribution authorization', () => {
     ).toEqual({ _tag: 'authorized' })
   })
 
+  it('authorizes trusted renderer runtime registration only when the package declares trusted renderer runtime', () => {
+    const extensionPackage = makePackage({
+      id: 'trusted-renderer-registration-extension',
+      name: 'Trusted Renderer Registration Extension',
+      scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND },
+      trusted: {
+        renderer: 'dist/trusted-renderer.js',
+      },
+      contributions: {
+        toolRenderers: [],
+      },
+    })
+    const registration = decodeRegistration({
+      family: 'toolRenderers',
+      contribution: {
+        id: 'runtime.trusted-tool',
+        title: 'Runtime Trusted Tool',
+        runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.TRUSTED_RENDERER,
+        execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER,
+        entry: 'dist/trusted-tool.js',
+      },
+    })
+
+    expect(
+      authorizeRuntimeContributionRegistration({
+        extensionPackage,
+        registration,
+      }),
+    ).toEqual({ _tag: 'authorized' })
+  })
+
+  it('rejects trusted renderer runtime registration when the package lacks trusted renderer runtime consent metadata', () => {
+    const extensionPackage = makePackage({
+      id: 'untrusted-renderer-registration-extension',
+      name: 'Untrusted Renderer Registration Extension',
+      scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND },
+      contributions: {
+        toolRenderers: [],
+      },
+    })
+    const registration = decodeRegistration({
+      family: 'toolRenderers',
+      contribution: {
+        id: 'runtime.trusted-tool',
+        title: 'Runtime Trusted Tool',
+        runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.TRUSTED_RENDERER,
+        execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER,
+        entry: 'dist/trusted-tool.js',
+      },
+    })
+
+    const authorization = authorizeRuntimeContributionRegistration({
+      extensionPackage,
+      registration,
+    })
+
+    expect(authorization).toEqual({
+      _tag: 'rejected',
+      diagnostics: [
+        expect.objectContaining({
+          severity: OPENWAGGLE_EXTENSION.DIAGNOSTIC.SEVERITY.ERROR,
+          code: OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODE.CONTRIBUTION_REGISTRATION_FAILED,
+          message: expect.stringContaining(
+            'Trusted renderer contributions require trusted.renderer',
+          ),
+        }),
+      ],
+    })
+  })
+
   it('rejects runtime registration for missing manifest-declared families', () => {
     const extensionPackage = makePackage({
       id: 'missing-runtime-family-extension',

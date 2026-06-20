@@ -128,6 +128,7 @@ export function approvedRemoveInput(
 export function makeWorkflowHarness(input: {
   readonly packages: readonly DiscoveredExtensionPackage[]
   readonly lifecycle: ExtensionLifecycleState | null
+  readonly onWritePackage?: () => void
   readonly packageAfterWrite?: DiscoveredExtensionPackage
 }) {
   let storedPackages = [...input.packages]
@@ -167,6 +168,7 @@ export function makeWorkflowHarness(input: {
     Layer.succeed(ExtensionPackageRepository, {
       writePackage: (writeInput) =>
         Effect.sync(() => {
+          input.onWritePackage?.()
           writes.push({
             ...writeInput,
             actor: AGENT_ACTOR,

@@ -99,6 +99,36 @@ describe('extension contribution registration schemas', () => {
     expect(result.success).toBe(true)
   })
 
+  it('accepts runtime contribution registration capability declarations', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      capabilities: [
+        {
+          id: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME,
+          methods: [
+            OPENWAGGLE_EXTENSION_BROKER.METHOD.REGISTER_CONTRIBUTION,
+            OPENWAGGLE_EXTENSION_BROKER.METHOD.UNREGISTER_CONTRIBUTION,
+          ],
+          scopes: ['project'],
+        },
+      ],
+      contributions: {
+        settingsSections: [
+          {
+            id: 'sample.settings',
+            title: 'Sample Settings',
+            runtime: 'federated-module',
+            execution: 'host-renderer',
+            entry: 'dist/settings.js',
+          },
+        ],
+        toolRenderers: [],
+      },
+    })
+
+    expect(result.success).toBe(true)
+  })
+
   it('accepts a dynamic registration envelope for manifest contribution families', () => {
     const result = safeDecodeUnknown(extensionContributionRegistrationSchema, {
       family: 'toolRenderers',

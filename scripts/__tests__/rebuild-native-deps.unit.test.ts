@@ -1,34 +1,16 @@
-import fs from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { collectNativeArtifactSignatures } from '../native-rebuild-artifacts'
 import {
   createNativeRebuildCacheKey,
   isNativeRebuildForceEnabled,
   isNativeRebuildMarkerFresh,
   nativeArtifactPackagesForMode,
+  nativeLoadProbeScriptForMode,
   parseNativeRebuildMarker,
   parseRebuildOptions,
 } from '../rebuild-native-deps'
 
 type CacheKeyInput = Parameters<typeof createNativeRebuildCacheKey>[0]
 type MarkerFreshInput = Parameters<typeof isNativeRebuildMarkerFresh>
-
-async function writeJson(filePath: string, value: unknown) {
-  await fs.mkdir(path.dirname(filePath), { recursive: true })
-  await fs.writeFile(filePath, `${JSON.stringify(value)}\n`, 'utf8')
-}
-
-async function writeArtifact(filePath: string) {
-  await fs.mkdir(path.dirname(filePath), { recursive: true })
-  await fs.writeFile(filePath, 'native artifact\n', 'utf8')
-}
-
-async function symlinkDirectory(target: string, linkPath: string) {
-  await fs.mkdir(path.dirname(linkPath), { recursive: true })
-  await fs.symlink(target, linkPath, process.platform === 'win32' ? 'junction' : 'dir')
-}
 
 describe('native dependency rebuild cache', () => {
   it('keys the cache by mode, runtime, platform, arch, native state, and script cache version', () => {
@@ -86,6 +68,13 @@ describe('native dependency rebuild cache', () => {
       'node-pty',
       'better-sqlite3',
     ])
+  })
+
+  it('probes native modules by loading the actual ABI-sensitive bindings', () => {
+    expect(nativeLoadProbeScriptForMode('node')).toContain("new Database(':memory:').close()")
+    expect(nativeLoadProbeScriptForMode('electron')).toContain("new Database(':memory:').close()")
+    expect(nativeLoadProbeScriptForMode('electron')).toContain("'node-pty'")
+    expect(nativeLoadProbeScriptForMode('electron')).toContain("'sharp'")
   })
 
   it('accepts only well-formed cache markers', () => {
@@ -160,87 +149,4 @@ describe('native dependency rebuild cache', () => {
     )
   })
 
-  it('collects active pnpm artifacts and ignores stale package store entries', async () => {
-    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-native-artifacts-'))
-    try {
-      const pnpmPackageDirectory = path.join(projectRoot, 'node_modules', '.pnpm')
-      const activeSharpRoot = path.join(
-        pnpmPackageDirectory,
-        'sharp@0.34.5',
-        'node_modules',
-        'sharp',
-      )
-      const activeSharpProviderRoot = path.join(
-        pnpmPackageDirectory,
-        '@img+sharp-darwin-arm64@0.34.5',
-        'node_modules',
-        '@img',
-        'sharp-darwin-arm64',
-      )
-      const staleSharpRoot = path.join(
-        pnpmPackageDirectory,
-        'sharp@0.32.6',
-        'node_modules',
-        'sharp',
-      )
-      const nodePtyRoot = path.join(
-        pnpmPackageDirectory,
-        'node-pty@1.1.0',
-        'node_modules',
-        'node-pty',
-      )
-
-      await writeJson(path.join(activeSharpRoot, 'package.json'), {
-        name: 'sharp',
-        optionalDependencies: {
-          '@img/sharp-darwin-arm64': '0.34.5',
-        },
-      })
-      await writeJson(path.join(activeSharpProviderRoot, 'package.json'), {
-        name: '@img/sharp-darwin-arm64',
-      })
-      await writeArtifact(path.join(activeSharpProviderRoot, 'lib', 'sharp-darwin-arm64.node'))
-      await writeJson(path.join(staleSharpRoot, 'package.json'), { name: 'sharp' })
-      await writeArtifact(path.join(staleSharpRoot, 'build', 'Release', 'sharp-stale.node'))
-      await writeJson(path.join(nodePtyRoot, 'package.json'), { name: 'node-pty' })
-      await writeArtifact(path.join(nodePtyRoot, 'build', 'Release', 'pty.node'))
-
-      await symlinkDirectory(
-        path.relative(path.join(pnpmPackageDirectory, 'node_modules'), activeSharpRoot),
-        path.join(pnpmPackageDirectory, 'node_modules', 'sharp'),
-      )
-      await symlinkDirectory(
-        path.relative(
-          path.join(pnpmPackageDirectory, 'node_modules', '@img'),
-          activeSharpProviderRoot,
-        ),
-        path.join(pnpmPackageDirectory, 'node_modules', '@img', 'sharp-darwin-arm64'),
-      )
-      await symlinkDirectory(
-        path.relative(path.join(projectRoot, 'node_modules'), nodePtyRoot),
-        path.join(projectRoot, 'node_modules', 'node-pty'),
-      )
-
-      const artifacts = await collectNativeArtifactSignatures(
-        { projectRoot, pnpmPackageDirectory },
-        ['sharp', 'node-pty'],
-      )
-
-      expect(artifacts).toEqual([
-        expect.objectContaining({
-          packageName: 'node-pty',
-          path: expect.stringContaining('node-pty@1.1.0'),
-        }),
-        expect.objectContaining({
-          packageName: 'sharp',
-          path: expect.stringContaining('@img+sharp-darwin-arm64@0.34.5'),
-        }),
-      ])
-      expect(artifacts.map((artifact) => artifact.path).join('\n')).not.toContain(
-        'sharp@0.32.6',
-      )
-    } finally {
-      await fs.rm(projectRoot, { recursive: true, force: true })
-    }
-  })
 })

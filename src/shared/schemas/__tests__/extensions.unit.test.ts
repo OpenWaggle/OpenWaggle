@@ -107,6 +107,75 @@ describe('openWaggleExtensionManifestSchema', () => {
     }
   })
 
+  it('accepts trusted renderer contributions when privileged renderer runtime is declared', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      trusted: {
+        renderer: 'dist/trusted-renderer.js',
+      },
+      contributions: {
+        settingsSections: [
+          {
+            id: 'sample.trusted-settings',
+            title: 'Trusted Settings',
+            runtime: 'trusted-renderer',
+            execution: 'host-renderer',
+            entry: 'dist/trusted-settings.js',
+          },
+        ],
+      },
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects trusted renderer contributions without privileged renderer declaration', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      contributions: {
+        settingsSections: [
+          {
+            id: 'sample.trusted-settings',
+            title: 'Trusted Settings',
+            runtime: 'trusted-renderer',
+            execution: 'host-renderer',
+            entry: 'dist/trusted-settings.js',
+          },
+        ],
+      },
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.issues.join('\n')).toContain('trusted.renderer')
+    }
+  })
+
+  it('rejects trusted renderer contributions outside host renderer execution', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      trusted: {
+        renderer: 'dist/trusted-renderer.js',
+      },
+      contributions: {
+        settingsSections: [
+          {
+            id: 'sample.trusted-settings',
+            title: 'Trusted Settings',
+            runtime: 'trusted-renderer',
+            execution: 'frame',
+            entry: 'dist/trusted-settings.js',
+          },
+        ],
+      },
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.issues.join('\n')).toContain('host renderer')
+    }
+  })
+
   it('accepts exact https network origins', () => {
     const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
       ...validManifest,

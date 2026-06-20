@@ -1,8 +1,9 @@
-import { readdir, readFile, realpath, stat } from 'node:fs/promises'
+import { readdir, readFile, realpath, rm, stat } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 
 const NODE_MODULES_SEGMENT = 'node_modules'
 const PACKAGE_JSON_FILE = 'package.json'
+const ELECTRON_REBUILD_METADATA_FILE = '.forge-meta'
 
 interface NativePackageMetadata {
   readonly name: string
@@ -92,6 +93,33 @@ export async function collectNativeArtifactSignatures(
   }
 
   return sortArtifactSignatures(signatures)
+}
+
+export async function removeElectronRebuildMetadata(
+  paths: NativeArtifactPaths,
+  packageNames: readonly string[],
+) {
+  for (const packageName of packageNames) {
+    for (const packageRoot of await findNativeArtifactRoots(paths, packageName)) {
+      await rm(join(packageRoot, 'build', 'Release', ELECTRON_REBUILD_METADATA_FILE), {
+        force: true,
+      })
+    }
+  }
+}
+
+export async function removeNativeBuildDirectories(
+  paths: NativeArtifactPaths,
+  packageNames: readonly string[],
+) {
+  for (const packageName of packageNames) {
+    for (const packageRoot of await findNativeArtifactRoots(paths, packageName)) {
+      await rm(join(packageRoot, 'build'), {
+        force: true,
+        recursive: true,
+      })
+    }
+  }
 }
 
 function sortArtifactSignatures(signatures: readonly NativeArtifactSignature[]) {

@@ -1,4 +1,3 @@
-import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import type { JsonValue } from '@shared/types/json'
 import { RefreshCw, ShieldAlert } from 'lucide-react'
@@ -11,7 +10,8 @@ import {
   mountExtensionFrame,
   type ReportedMountStatus,
   supportsExtensionExecutionPlacement,
-  supportsFederatedModuleFrameRuntime,
+  supportsExtensionFrameRuntime,
+  supportsExtensionFrameRuntimeKind,
 } from '../lib/extension-federated-frame-mount'
 import { EXTENSION_FEDERATED_MODULE_IFRAME_SANDBOX } from '../lib/extension-frame-host'
 import { createExtensionModuleUrl } from '../lib/extension-module-url'
@@ -142,7 +142,7 @@ export function ExtensionFederatedModuleHost({
   const [reportedHeight, setReportedHeight] = useState<ReportedFrameHeight | null>(null)
   const [reportedStatus, setReportedStatus] = useState<ReportedMountStatus | null>(null)
   const moduleUrl = createExtensionModuleUrl(entry)
-  const frameRuntimeSupported = supportsFederatedModuleFrameRuntime(entry)
+  const frameRuntimeSupported = supportsExtensionFrameRuntime(entry)
   const surfacePayloadJson = federatedModuleSurfacePayloadJson(surfacePayload)
   const mountKey = federatedModuleMountKey(entry, moduleUrl, surfacePayloadJson)
   const shouldAutoHeight = autoHeight && !fill
@@ -193,7 +193,7 @@ export function ExtensionFederatedModuleHost({
     })
   }, [frameId, frameRuntimeSupported, moduleUrl, mountKey, shouldAutoHeight, surfacePayloadJson])
 
-  if (entry.runtime !== OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE) {
+  if (!supportsExtensionFrameRuntimeKind(entry)) {
     return (
       <div
         role="alert"

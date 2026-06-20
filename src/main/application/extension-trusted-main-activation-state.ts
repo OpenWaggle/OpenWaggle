@@ -4,8 +4,7 @@ import type { TrustedMainExtensionCleanup } from '../extensions/trusted-main-run
 import type { DiscoveredExtensionPackage } from '../extensions/types'
 
 interface ActiveTrustedMainExtension {
-  readonly extensionId: string
-  readonly scope: DiscoveredExtensionPackage['scope']
+  readonly extensionPackage: DiscoveredExtensionPackage
   readonly contentHash: string
   readonly cleanup: TrustedMainExtensionCleanup | null
 }
@@ -33,9 +32,10 @@ function activationMatchesPackage(input: {
   readonly activation: ActiveTrustedMainExtension
   readonly extensionPackage: DiscoveredExtensionPackage
 }) {
+  const activePackage = input.activation.extensionPackage
   return (
-    input.activation.extensionId === input.extensionPackage.id &&
-    scopesMatch(input.activation.scope, input.extensionPackage.scope)
+    activePackage.id === input.extensionPackage.id &&
+    scopesMatch(activePackage.scope, input.extensionPackage.scope)
   )
 }
 
@@ -73,8 +73,7 @@ export function setActiveTrustedMainActivation(input: {
   readonly cleanup: TrustedMainExtensionCleanup | null
 }) {
   activeTrustedMainExtensions.set(input.activationKey, {
-    extensionId: input.extensionPackage.id,
-    scope: input.extensionPackage.scope,
+    extensionPackage: input.extensionPackage,
     contentHash: input.contentHash,
     cleanup: input.cleanup,
   })
@@ -84,26 +83,37 @@ export function listTrustedMainActivationKeys() {
   return [...activeTrustedMainExtensions.keys()]
 }
 
-export function deactivateTrustedMainActivationKeys(activationKeys: readonly string[]) {
-  return Effect.forEach(activationKeys, (activationKey) =>
-    Effect.gen(function* () {
+export function deactivateTrustedMainActivationKeys(
+  activationKeys: readonly string[],
+): Effect.Effect<readonly DiscoveredExtensionPackage[]> {
+  return Effect.gen(function* () {
+    const deactivatedPackages: DiscoveredExtensionPackage[] = []
+
+    for (const activationKey of activationKeys) {
       const activation = deactivateTrustedMainActivationKey(activationKey)
+      if (!activation) {
+        continue
+      }
+
+      deactivatedPackages.push(activation.extensionPackage)
       if (activation?.cleanup) {
         yield* cleanupTrustedMainActivation({ cleanup: activation.cleanup })
       }
-    }),
-  )
+    }
+
+    return deactivatedPackages
+  })
 }
 
 export function deactivateTrustedMainExtensionPackage(
   extensionPackage: DiscoveredExtensionPackage,
-): Effect.Effect<void> {
+): Effect.Effect<readonly DiscoveredExtensionPackage[]> {
   return Effect.gen(function* () {
     const packageActivationKeys = [...activeTrustedMainExtensions.entries()]
       .filter(([, activation]) => activationMatchesPackage({ activation, extensionPackage }))
       .map(([activationKey]) => activationKey)
 
-    yield* deactivateTrustedMainActivationKeys(packageActivationKeys)
+    return yield* deactivateTrustedMainActivationKeys(packageActivationKeys)
   })
 }
 

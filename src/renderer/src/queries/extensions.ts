@@ -14,6 +14,7 @@ import type {
 import type { OpenWaggleApi } from '@shared/types/openwaggle-api'
 import { type QueryClient, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/lib/ipc'
+import { rendererQueryClient } from './query-client'
 import type { OpenWaggleQueryOptions } from './query-options'
 
 type ExtensionApi = Pick<
@@ -107,7 +108,13 @@ function syncExtensionQueriesAfterMutation(input: {
   readonly view: ExtensionManagerView
 }) {
   input.queryClient.setQueryData(extensionPackagesQueryKey(input.projectPaths), input.view)
-  return input.queryClient.invalidateQueries({
+  return invalidateExtensionContributionsQueries(input.queryClient)
+}
+
+export function invalidateExtensionContributionsQueries(
+  queryClient: QueryClient = rendererQueryClient,
+) {
+  return queryClient.invalidateQueries({
     queryKey: [EXTENSION_CONTRIBUTIONS_QUERY_KEY],
   })
 }

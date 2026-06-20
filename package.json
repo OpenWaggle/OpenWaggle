@@ -53,37 +53,6 @@
     "docs:generate": "tsx scripts/generate-installed-docs.ts"
   },
   "packageManager": "pnpm@11.6.0",
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "better-sqlite3",
-      "electron",
-      "esbuild",
-      "node-pty",
-      "sharp"
-    ],
-    "overrides": {
-      "electron-vite>vite": "$vite",
-      "protobufjs": "8.6.0",
-      "@tanstack/history": "1.162.0",
-      "@tanstack/query-core": "5.101.0",
-      "@tanstack/react-hotkeys": "0.10.0",
-      "@tanstack/react-query": "5.101.0",
-      "@tanstack/react-router": "1.170.11",
-      "@tanstack/router-core": "1.171.9",
-      "@tanstack/router-generator": "1.167.13",
-      "@tanstack/router-plugin": "1.168.14",
-      "@tanstack/router-utils": "1.162.1",
-      "@tanstack/virtual-file-routes": "1.162.0"
-    },
-    "peerDependencyRules": {
-      "allowedVersions": {
-        "eslint-plugin-import>eslint": "10.4.1"
-      }
-    },
-    "patchedDependencies": {
-      "better-sqlite3@12.10.0": "patches/better-sqlite3@12.10.0.patch"
-    }
-  },
   "repository": {
     "type": "git",
     "url": "https://github.com/OpenWaggle/OpenWaggle.git"

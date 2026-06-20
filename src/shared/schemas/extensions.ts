@@ -14,6 +14,7 @@ import {
   isRuntimeRequirementBinary,
   isSemverVersion,
 } from './extension-schema-primitives'
+import { validateTrustedRendererRuntimeBoundary } from './extension-trusted-renderer-boundary'
 
 export type {
   ExtensionCapabilityDeclaration,
@@ -249,7 +250,7 @@ export const openWaggleExtensionManifestSchema = Schema.Struct({
   runtimeRequirements: Schema.optional(
     Schema.mutable(Schema.Array(extensionRuntimeRequirementSchema)),
   ),
-})
+}).pipe(Schema.filter(validateTrustedRendererRuntimeBoundary))
 
 export const extensionSetTrustedInputSchema = Schema.Struct({
   extensionId: extensionIdSchema,

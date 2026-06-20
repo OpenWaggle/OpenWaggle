@@ -146,6 +146,31 @@ describe('extension broker schemas', () => {
     expect(result.success).toBe(true)
   })
 
+  it('accepts runtime contribution registration results', () => {
+    const result = safeDecodeUnknown(extensionInvokeResultSchema, {
+      ok: true,
+      value: {
+        extensionId: 'sample-extension',
+        contributionId: 'sample.settings',
+        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME,
+        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.REGISTER_CONTRIBUTION,
+        family: 'toolRenderers',
+        registeredContributionId: 'sample.tool',
+      },
+      audit: {
+        extensionId: 'sample-extension',
+        contributionId: 'sample.settings',
+        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME,
+        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.REGISTER_CONTRIBUTION,
+        scope: { kind: 'project', projectPath: '/tmp/project' },
+        outcome: OPENWAGGLE_EXTENSION_BROKER.OUTCOME.SUCCEEDED,
+        timestamp: 1234,
+      },
+    })
+
+    expect(result.success).toBe(true)
+  })
+
   it('accepts every broker failure code configured in constants', () => {
     const results = Object.values(OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE).map((failureCode) =>
       safeDecodeUnknown(extensionInvokeFailureCodeSchema, failureCode),

@@ -10,7 +10,7 @@ import type {
   ExtensionDialogTarget,
 } from '../lib/extension-dialog-resolution'
 import { resolveExtensionDialogContribution } from '../lib/extension-dialog-resolution'
-import { ExtensionFederatedModuleHost } from './ExtensionFederatedModuleHost'
+import { ExtensionContributionRuntimeHost } from './ExtensionContributionRuntimeHost'
 
 interface ExtensionDialogSurfaceActions {
   readonly onRefresh: () => void
@@ -138,7 +138,7 @@ function ExtensionDialogContribution({
 
   return (
     <PanelErrorBoundary className="flex min-h-0 flex-1" name={`Extension dialog: ${entry.title}`}>
-      <ExtensionFederatedModuleHost
+      <ExtensionContributionRuntimeHost
         chrome="bare"
         entry={entry}
         fill

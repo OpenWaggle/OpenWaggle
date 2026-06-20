@@ -7,7 +7,7 @@ import {
   resolveExtensionAgentLoopAuxiliaryContributions,
 } from '../lib/extension-agent-loop-auxiliary-surfaces'
 import type { ExtensionAgentLoopSurfaceInput } from '../lib/extension-agent-loop-surface-model'
-import { ExtensionFederatedModuleHost } from './ExtensionFederatedModuleHost'
+import { ExtensionContributionRuntimeHost } from './ExtensionContributionRuntimeHost'
 
 const STATUS_WIDGET_MAX_HEIGHT = 160
 const STATUS_WIDGET_MIN_HEIGHT = 72
@@ -28,7 +28,7 @@ function ExtensionAgentLoopStatusWidget({
           <Activity className="size-3.5 shrink-0 text-accent" />
           <span className="truncate font-medium text-text-secondary">{entry.title}</span>
         </div>
-        <ExtensionFederatedModuleHost
+        <ExtensionContributionRuntimeHost
           autoHeight
           chrome="bare"
           entry={entry}

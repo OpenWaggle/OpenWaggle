@@ -24,6 +24,18 @@ const ROUTE_CONTRIBUTIONS = {
   ],
 } satisfies NonNullable<OpenWaggleExtensionManifest['contributions']>
 
+const TRUSTED_RENDERER_ROUTE_CONTRIBUTIONS = {
+  routes: [
+    {
+      id: 'sample.trusted-route',
+      title: 'Sample trusted route',
+      runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.TRUSTED_RENDERER,
+      execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER,
+      entry: 'dist/index.js',
+    },
+  ],
+} satisfies NonNullable<OpenWaggleExtensionManifest['contributions']>
+
 function contentHash(extensionPackage: DiscoveredExtensionPackage) {
   if (extensionPackage.contentHash === null) {
     throw new Error('Expected test package to have a content hash.')
@@ -37,11 +49,13 @@ function runAccessCheck(input: {
   readonly enabled?: boolean
   readonly projectDisabled?: boolean
   readonly contentHash?: string
+  readonly grantedCapabilities?: readonly string[]
   readonly sessionId?: string
 }) {
   const lifecycle = makeLifecycle(input.extensionPackage, {
     trusted: input.trusted,
     enabled: input.enabled,
+    grantedCapabilities: input.grantedCapabilities,
   })
   const projectOverrides =
     input.projectDisabled === true
@@ -82,6 +96,21 @@ describe('isExtensionRuntimeModuleAccessAllowed', () => {
     })
 
     await expect(runAccessCheck({ extensionPackage })).resolves.toBe(true)
+  })
+
+  it('allows eligible trusted renderer package files for isolated frame mounting', async () => {
+    const extensionPackage = makePackage({
+      id: 'sample-extension',
+      name: 'Sample Extension',
+      scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: PROJECT_PATH },
+      trusted: {
+        renderer: 'dist/index.js',
+      },
+      contributions: TRUSTED_RENDERER_ROUTE_CONTRIBUTIONS,
+    })
+
+    await expect(runAccessCheck({ extensionPackage })).resolves.toBe(true)
+    await expect(runAccessCheck({ extensionPackage, grantedCapabilities: [] })).resolves.toBe(false)
   })
 
   it('denies disabled, untrusted, and stale-hash package files', async () => {

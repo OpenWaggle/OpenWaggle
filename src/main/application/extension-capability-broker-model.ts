@@ -8,6 +8,7 @@ import type {
 } from '@shared/types/extension-broker'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import type { DiscoveredExtensionPackage } from '../extensions/types'
+import { contributionMethodIsDeclared } from './extension-contribution-authorization-model'
 
 export function normalizeScope(scope: ExtensionInvokeScope): ExtensionInvokeScope {
   return matchBy(scope, 'kind')
@@ -104,4 +105,29 @@ function isPayloadEmptyObject(payload: unknown) {
 
 export function hostContextPayloadIsValid(payload: unknown) {
   return payload === undefined || isPayloadEmptyObject(payload)
+}
+
+export function contributionEntryDeclaresCapability(input: {
+  readonly entry: ExtensionContributionRegistryEntry | null
+  readonly invocation: ExtensionInvokeInput
+}) {
+  return input.entry === null || input.entry.capability === input.invocation.capability
+}
+
+export function contributionEntryDeclaresMethod(input: {
+  readonly entry: ExtensionContributionRegistryEntry | null
+  readonly invocation: ExtensionInvokeInput
+}) {
+  return input.entry === null || contributionMethodIsDeclared(input.entry, input.invocation.method)
+}
+
+export function contributionEntryIsOutOfScope(input: {
+  readonly entry: ExtensionContributionRegistryEntry | null
+  readonly scopeProjectPath: string | undefined
+}) {
+  return (
+    input.scopeProjectPath !== undefined &&
+    input.entry !== null &&
+    !input.entry.projectPaths.includes(input.scopeProjectPath)
+  )
 }

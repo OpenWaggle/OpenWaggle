@@ -45,7 +45,7 @@ interface MountExtensionFrameInput {
 export function missingEntryPathStatus(): MountStatus {
   return {
     kind: 'error',
-    message: 'Extension contribution is missing its federated module entry path.',
+    message: 'Extension contribution is missing its runtime module entry path.',
   }
 }
 
@@ -56,11 +56,15 @@ export function supportsExtensionExecutionPlacement(entry: ExtensionContribution
   )
 }
 
-export function supportsFederatedModuleFrameRuntime(entry: ExtensionContributionRegistryEntry) {
+export function supportsExtensionFrameRuntimeKind(entry: ExtensionContributionRegistryEntry) {
   return (
-    entry.runtime === OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE &&
-    supportsExtensionExecutionPlacement(entry)
+    entry.runtime === OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE ||
+    entry.runtime === OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.TRUSTED_RENDERER
   )
+}
+
+export function supportsExtensionFrameRuntime(entry: ExtensionContributionRegistryEntry) {
+  return supportsExtensionFrameRuntimeKind(entry) && supportsExtensionExecutionPlacement(entry)
 }
 
 export function federatedModuleMountKey(

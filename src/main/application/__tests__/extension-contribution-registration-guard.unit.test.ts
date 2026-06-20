@@ -131,4 +131,38 @@ describe('extension contribution registration guard', () => {
       }),
     ])
   })
+
+  it('does not register trusted renderer contributions without trusted renderer package consent metadata', async () => {
+    const invalidPackage = makePackage({
+      id: 'untrusted-renderer-extension',
+      name: 'Untrusted Renderer Extension',
+      scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND },
+      contributions: {
+        settingsSections: [
+          {
+            id: 'invalid.trusted-renderer',
+            title: 'Invalid Trusted Renderer',
+            runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.TRUSTED_RENDERER,
+            execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER,
+            entry: 'dist/trusted-renderer.js',
+          },
+        ],
+      },
+    })
+
+    const registry = await loadRegistry({
+      packages: [invalidPackage],
+      lifecycles: [makeLifecycle(invalidPackage)],
+      projectPaths: [PROJECT_PATH],
+    })
+
+    expect(registry.entries).toEqual([])
+    expect(registry.diagnostics).toEqual([
+      expect.objectContaining({
+        severity: OPENWAGGLE_EXTENSION.DIAGNOSTIC.SEVERITY.ERROR,
+        code: OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODE.CONTRIBUTION_REGISTRATION_FAILED,
+        message: expect.stringContaining('Trusted renderer contributions require trusted.renderer'),
+      }),
+    ])
+  })
 })

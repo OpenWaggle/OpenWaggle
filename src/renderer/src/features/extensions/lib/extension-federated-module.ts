@@ -7,7 +7,11 @@ import {
   type OpenWaggleExtensionSurfaceContext,
   type OpenWaggleExtensionSurfaceSdk,
 } from '@shared/extension-context'
-import { createExtensionBrokerSdk, type ExtensionSdkInvokeRequest } from '@shared/extension-sdk'
+import {
+  type CreateOpenWaggleSdkOptions,
+  createExtensionBrokerSdk,
+  type ExtensionSdkInvokeRequest,
+} from '@shared/extension-sdk'
 import type { ExtensionInvokeInput, ExtensionInvokeResult } from '@shared/types/extension-broker'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import type { JsonValue } from '@shared/types/json'
@@ -65,11 +69,16 @@ export function createExtensionMountContext(input: {
   readonly surfacePayload?: JsonValue
   readonly invoke: (input: ExtensionInvokeInput) => Promise<ExtensionInvokeResult>
   readonly surface?: OpenWaggleExtensionSurfaceSdk
+  readonly sdkOptions?: CreateOpenWaggleSdkOptions
 }): OpenWaggleExtensionMountContext {
-  const brokerSdk = createExtensionBrokerSdk(input.invoke, {
+  const identity = {
     extensionId: input.entry.extensionId,
     contributionId: input.entry.contributionId,
-  })
+  }
+  const brokerSdk =
+    input.sdkOptions === undefined
+      ? createExtensionBrokerSdk(input.invoke, identity)
+      : createExtensionBrokerSdk(input.invoke, identity, input.sdkOptions)
   const sdk = {
     ...brokerSdk,
     surface: input.surface ?? createNoopExtensionSurfaceSdk(),

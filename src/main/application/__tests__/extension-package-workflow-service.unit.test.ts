@@ -272,7 +272,6 @@ describe('extension package workflow service', () => {
         }),
       ).pipe(Effect.provide(harness.layer)),
     )
-
     const removedRegistry = await Effect.runPromise(
       listExtensionContributionRegistryView({ projectPaths: [PROJECT_PATH] }).pipe(
         Effect.provide(harness.layer),

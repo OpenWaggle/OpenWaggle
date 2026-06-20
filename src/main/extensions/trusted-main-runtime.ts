@@ -16,6 +16,10 @@ import {
   calculateContentHash,
   resolveSafePackageFilePath,
 } from '../adapters/extensions/package-files'
+import {
+  createTrustedMainNetworkPolicy,
+  runWithTrustedMainNetworkPolicy,
+} from './trusted-main-network-egress'
 import type { DiscoveredExtensionPackage, ExtensionPackageScope } from './types'
 
 export const TRUSTED_MAIN_CONTRIBUTION_ID = 'openwaggle.trusted-main'
@@ -230,13 +234,18 @@ export async function activateTrustedMainExtension(input: {
   readonly loadModule?: TrustedMainExtensionModuleLoader
 }) {
   const loader = input.loadModule ?? importTrustedMainExtensionModule
-  const loaded = await loader(input.extensionPackage, input.contentHash)
-  const context = createTrustedMainExtensionContext({
-    extensionPackage: input.extensionPackage,
-    contentHash: input.contentHash,
-    transport: input.transport,
+  const networkPolicy = createTrustedMainNetworkPolicy(input.extensionPackage)
+  const loaded = await runWithTrustedMainNetworkPolicy(networkPolicy, () =>
+    loader(input.extensionPackage, input.contentHash),
+  )
+  const cleanup = await runWithTrustedMainNetworkPolicy(networkPolicy, () => {
+    const context = createTrustedMainExtensionContext({
+      extensionPackage: input.extensionPackage,
+      contentHash: input.contentHash,
+      transport: input.transport,
+    })
+    return loaded.module.activate(context)
   })
-  const cleanup = await loaded.module.activate(context)
   if (cleanup !== undefined && typeof cleanup !== 'function') {
     throw new Error(
       'Trusted main extension activate(context) must return a cleanup function or void.',
@@ -245,6 +254,9 @@ export async function activateTrustedMainExtension(input: {
 
   return {
     entryPath: loaded.entryPath,
-    cleanup: cleanup ?? null,
+    cleanup:
+      cleanup === undefined
+        ? null
+        : () => runWithTrustedMainNetworkPolicy(networkPolicy, () => cleanup()),
   }
 }

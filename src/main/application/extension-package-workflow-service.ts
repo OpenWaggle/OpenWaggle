@@ -221,6 +221,17 @@ export function createOrUpdateExtensionPackage(input: ExtensionPackageWriteWorkf
     yield* validateWriteModeAgainstPackage({ mode: input.mode, existingPackage })
     const currentLifecycle = existingPackage ? yield* loadCurrentLifecycle(existingPackage) : null
 
+    if (existingPackage) {
+      if (currentLifecycle) {
+        yield* disableLifecycleRuntimeState({
+          extensionPackage: existingPackage,
+          lifecycle: currentLifecycle,
+        })
+      }
+      yield* unregisterPackage(existingPackage)
+      yield* deactivateTrustedMainExtensionPackage(existingPackage)
+    }
+
     yield* packageRepository.writePackage({
       extensionId: input.extensionId,
       scope: input.scope,
@@ -228,17 +239,12 @@ export function createOrUpdateExtensionPackage(input: ExtensionPackageWriteWorkf
       files: input.files,
     })
 
-    if (existingPackage) {
-      yield* unregisterPackage(existingPackage)
-    }
-
     const writtenPackage = yield* loadWorkflowPackage(input)
     if (writtenPackage && currentLifecycle) {
       yield* disableLifecycleRuntimeState({
         extensionPackage: writtenPackage,
         lifecycle: currentLifecycle,
       })
-      yield* deactivateTrustedMainExtensionPackage(writtenPackage)
     }
     if (writtenPackage) {
       yield* unregisterPackage(writtenPackage)

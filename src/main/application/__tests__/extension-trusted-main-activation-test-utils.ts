@@ -60,6 +60,7 @@ export function makeTrustedMainPackage(input: {
   readonly id: string
   readonly scope?: ExtensionPackageScope
   readonly capabilities?: NonNullable<DiscoveredExtensionPackage['manifest']>['capabilities']
+  readonly contributions?: NonNullable<DiscoveredExtensionPackage['manifest']>['contributions']
 }): DiscoveredExtensionPackage {
   const scope = input.scope ?? {
     kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND,
@@ -78,6 +79,7 @@ export function makeTrustedMainPackage(input: {
     sourceFiles: ['src/index.ts'],
     builtArtifacts: ['dist/main.mjs'],
     ...(input.capabilities !== undefined ? { capabilities: input.capabilities } : {}),
+    ...(input.contributions !== undefined ? { contributions: input.contributions } : {}),
     trusted: {
       main: 'dist/main.mjs',
     },

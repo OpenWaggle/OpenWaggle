@@ -10,6 +10,7 @@ export {
   type ExtensionStatusView,
   type ExtensionToolResultView,
 } from './components/ExtensionAgentLoopSurface'
+export { ExtensionContributionRuntimeHost } from './components/ExtensionContributionRuntimeHost'
 export {
   ExtensionDialogSurface,
   ExtensionDialogSurfaceContent,

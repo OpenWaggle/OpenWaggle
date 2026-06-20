@@ -10,6 +10,7 @@ import {
   importTrustedMainExtensionModule,
 } from '../trusted-main-runtime'
 import type { DiscoveredExtensionPackage } from '../types'
+import { listenLocalHttpsServer } from './trusted-main-test-server'
 
 let tmpRoot = ''
 
@@ -32,6 +33,7 @@ function packageContentHash(extensionPackage: DiscoveredExtensionPackage) {
 async function writeTrustedMainPackage(input: {
   readonly mainModuleSource: string
   readonly trustedMainPath?: string
+  readonly networkOrigins?: readonly string[]
 }) {
   const projectPath = path.join(tmpRoot, 'project')
   const packagePath = path.join(projectPath, '.openwaggle', 'extensions', 'sample-extension')
@@ -48,6 +50,7 @@ async function writeTrustedMainPackage(input: {
     trusted: {
       main: trustedMainPath,
     },
+    ...(input.networkOrigins !== undefined ? { network: { origins: input.networkOrigins } } : {}),
   })
   await writeText(path.join(packagePath, 'src', 'index.ts'), 'export const source = true\n')
   await writeText(path.join(packagePath, trustedMainPath), input.mainModuleSource)
@@ -114,6 +117,146 @@ describe('trusted main extension runtime', () => {
     expect(events).toContain('"hasSdkInvoke":true')
     expect(events).toContain('"hasElectronField":false')
     expect(cleanup).toBe('sample-extension')
+  })
+
+  it('allows trusted main HTTPS egress only to declared network origins', async () => {
+    let requestCount = 0
+    const server = await listenLocalHttpsServer({
+      onRequest: () => {
+        requestCount += 1
+      },
+    })
+
+    try {
+      const { extensionPackage } = await writeTrustedMainPackage({
+        networkOrigins: [server.origin],
+        mainModuleSource: `
+          import { request } from 'node:https'
+
+          export async function activate() {
+            await new Promise((resolve, reject) => {
+              const req = request(${JSON.stringify(`${server.origin}/allowed`)}, {
+                rejectUnauthorized: false
+              }, (response) => {
+                response.resume()
+                response.on('end', resolve)
+              })
+              req.on('error', reject)
+              req.end()
+            })
+          }
+        `,
+      })
+
+      await activateTrustedMainExtension({
+        extensionPackage,
+        contentHash: packageContentHash(extensionPackage),
+        transport: unusedTransport,
+      })
+
+      expect(requestCount).toBe(1)
+    } finally {
+      await server.close()
+    }
+  })
+
+  it('denies undeclared trusted main HTTPS egress before opening a socket', async () => {
+    let requestCount = 0
+    const server = await listenLocalHttpsServer({
+      onRequest: () => {
+        requestCount += 1
+      },
+    })
+
+    try {
+      const { extensionPackage } = await writeTrustedMainPackage({
+        mainModuleSource: `
+          import { request } from 'node:https'
+
+          export async function activate() {
+            await new Promise((resolve, reject) => {
+              const req = request(${JSON.stringify(`${server.origin}/denied`)}, {
+                rejectUnauthorized: false
+              }, (response) => {
+                response.resume()
+                response.on('end', resolve)
+              })
+              req.on('error', reject)
+              req.end()
+            })
+          }
+        `,
+      })
+
+      await expect(
+        activateTrustedMainExtension({
+          extensionPackage,
+          contentHash: packageContentHash(extensionPackage),
+          transport: unusedTransport,
+        }),
+      ).rejects.toThrow('undeclared network egress')
+      expect(requestCount).toBe(0)
+    } finally {
+      await server.close()
+    }
+  })
+
+  it('denies trusted main fetch egress when no network origin is declared', async () => {
+    const { extensionPackage } = await writeTrustedMainPackage({
+      mainModuleSource: `
+        export async function activate() {
+          await fetch('https://api.github.com')
+        }
+      `,
+    })
+
+    await expect(
+      activateTrustedMainExtension({
+        extensionPackage,
+        contentHash: packageContentHash(extensionPackage),
+        transport: unusedTransport,
+      }),
+    ).rejects.toThrow('undeclared network egress')
+  })
+
+  it('denies trusted main raw socket egress even with named Node imports', async () => {
+    const { extensionPackage } = await writeTrustedMainPackage({
+      mainModuleSource: `
+        import { connect } from 'node:net'
+
+        export function activate() {
+          connect({ host: '127.0.0.1', port: 443 })
+        }
+      `,
+    })
+
+    await expect(
+      activateTrustedMainExtension({
+        extensionPackage,
+        contentHash: packageContentHash(extensionPackage),
+        transport: unusedTransport,
+      }),
+    ).rejects.toThrow('Raw sockets are not permitted')
+  })
+
+  it('keeps trusted main cleanup callbacks inside the network policy', async () => {
+    const { extensionPackage } = await writeTrustedMainPackage({
+      mainModuleSource: `
+        export function activate() {
+          return () => fetch('https://api.github.com')
+        }
+      `,
+    })
+
+    const activation = await activateTrustedMainExtension({
+      extensionPackage,
+      contentHash: packageContentHash(extensionPackage),
+      transport: unusedTransport,
+    })
+
+    await expect(async () => {
+      await activation.cleanup?.()
+    }).rejects.toThrow('undeclared network egress')
   })
 
   it('rejects trusted main code after its pinned content hash changes', async () => {

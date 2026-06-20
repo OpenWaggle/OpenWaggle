@@ -27,6 +27,7 @@ function makeManifest(input: {
   readonly name: string
   readonly capabilities?: OpenWaggleExtensionManifest['capabilities']
   readonly network?: OpenWaggleExtensionManifest['network']
+  readonly trusted?: OpenWaggleExtensionManifest['trusted']
   readonly contributions: NonNullable<OpenWaggleExtensionManifest['contributions']>
 }): OpenWaggleExtensionManifest {
   return {
@@ -39,6 +40,7 @@ function makeManifest(input: {
     builtArtifacts: ['dist/index.js'],
     ...(input.capabilities !== undefined ? { capabilities: input.capabilities } : {}),
     ...(input.network !== undefined ? { network: input.network } : {}),
+    ...(input.trusted !== undefined ? { trusted: input.trusted } : {}),
     contributions: input.contributions,
   }
 }
@@ -57,6 +59,7 @@ export function makePackage(input: {
   readonly scope: ExtensionPackageScope
   readonly capabilities?: OpenWaggleExtensionManifest['capabilities']
   readonly network?: OpenWaggleExtensionManifest['network']
+  readonly trusted?: OpenWaggleExtensionManifest['trusted']
   readonly contributions: NonNullable<OpenWaggleExtensionManifest['contributions']>
   readonly contentHash?: string
 }): DiscoveredExtensionPackage {
@@ -66,6 +69,7 @@ export function makePackage(input: {
     name: input.name,
     capabilities: input.capabilities,
     network: input.network,
+    trusted: input.trusted,
     contributions: input.contributions,
   })
   const contentHash =

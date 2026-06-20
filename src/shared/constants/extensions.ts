@@ -42,6 +42,7 @@ const EXTENSION_CONTRIBUTION_FAMILIES = Object.freeze([
 
 const EXTENSION_CONTRIBUTION_RUNTIME = {
   FEDERATED_MODULE: 'federated-module',
+  TRUSTED_RENDERER: 'trusted-renderer',
 } as const
 
 const EXTENSION_EXECUTION_PLACEMENT = {

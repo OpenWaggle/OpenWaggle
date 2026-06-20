@@ -1,7 +1,7 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import type { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { ExtensionInvokeInput } from '@shared/types/extension-broker'
-import type { ExtensionPackageScope } from '../extensions/types'
+import type { DiscoveredExtensionPackage, ExtensionPackageScope } from '../extensions/types'
 import { auditedFailure, auditedSuccess } from './extension-capability-broker-audit'
 import { routeDocsCapability } from './extension-capability-broker-docs'
 import { hostContextPayloadIsValid } from './extension-capability-broker-model'
@@ -10,6 +10,7 @@ import {
   routeSettingsCapability,
   routeStateCapability,
 } from './extension-capability-broker-openwaggle'
+import { routeRuntimeContributionCapability } from './extension-capability-broker-runtime'
 import { routeStorageCapability } from './extension-capability-broker-storage-dispatch'
 import {
   EXTENSION_PACKAGE_MUTATION_CAPABILITY_REJECTION,
@@ -18,6 +19,7 @@ import {
 
 export function routeAuthorizedInvocation(input: {
   readonly invocation: ExtensionInvokeInput
+  readonly extensionPackage: DiscoveredExtensionPackage
   readonly packageScope: ExtensionPackageScope
   readonly declaredScopes: readonly (typeof OPENWAGGLE_EXTENSION.CAPABILITY_SCOPES)[number][]
   readonly timestamp: number
@@ -49,6 +51,10 @@ export function routeAuthorizedInvocation(input: {
 
   if (input.invocation.capability === OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.DOCS) {
     return routeDocsCapability(input)
+  }
+
+  if (input.invocation.capability === OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME) {
+    return routeRuntimeContributionCapability(input)
   }
 
   if (input.invocation.capability !== OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT) {

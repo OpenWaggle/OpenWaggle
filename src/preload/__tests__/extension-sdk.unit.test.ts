@@ -217,3 +217,97 @@ describe('createExtensionBrokerSdk storage helpers', () => {
     })
   })
 })
+
+describe('createExtensionBrokerSdk runtime contribution helpers', () => {
+  it('builds dynamic contribution registration calls through the generic broker', async () => {
+    const transport = vi.fn<ExtensionBrokerTransport>(async (input) => ({
+      ok: true,
+      value: {
+        extensionId: input.extensionId,
+        contributionId: input.contributionId,
+        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME,
+        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.REGISTER_CONTRIBUTION,
+        family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.TOOL_RENDERERS,
+        registeredContributionId: 'sample.tool',
+      },
+      audit: auditFor(input),
+    }))
+    const sdk = createExtensionBrokerSdk(transport, {
+      extensionId: 'sample-extension',
+      contributionId: 'sample.settings',
+    })
+    const registration = {
+      family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.TOOL_RENDERERS,
+      contribution: {
+        id: 'sample.tool',
+        title: 'Sample Tool',
+        runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE,
+        execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER,
+        entry: 'dist/tool.js',
+      },
+    } as const
+
+    const result = await sdk.runtime.registerContribution(PROJECT_SCOPE, registration)
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME,
+        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.REGISTER_CONTRIBUTION,
+        registeredContributionId: 'sample.tool',
+      },
+    })
+    expect(transport).toHaveBeenCalledWith({
+      extensionId: 'sample-extension',
+      contributionId: 'sample.settings',
+      capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME,
+      method: OPENWAGGLE_EXTENSION_BROKER.METHOD.REGISTER_CONTRIBUTION,
+      scope: PROJECT_SCOPE,
+      payload: registration,
+    })
+  })
+
+  it('builds dynamic contribution unregistration calls through the generic broker', async () => {
+    const transport = vi.fn<ExtensionBrokerTransport>(async (input) => ({
+      ok: true,
+      value: {
+        extensionId: input.extensionId,
+        contributionId: input.contributionId,
+        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME,
+        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.UNREGISTER_CONTRIBUTION,
+        family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.TOOL_RENDERERS,
+        unregisteredContributionId: 'sample.tool',
+        unregistered: true,
+      },
+      audit: auditFor(input),
+    }))
+    const sdk = createExtensionBrokerSdk(transport, {
+      extensionId: 'sample-extension',
+      contributionId: 'sample.settings',
+    })
+    const unregistration = {
+      family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.TOOL_RENDERERS,
+      contributionId: 'sample.tool',
+    } as const
+
+    const result = await sdk.runtime.unregisterContribution(PROJECT_SCOPE, unregistration)
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME,
+        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.UNREGISTER_CONTRIBUTION,
+        unregisteredContributionId: 'sample.tool',
+        unregistered: true,
+      },
+    })
+    expect(transport).toHaveBeenCalledWith({
+      extensionId: 'sample-extension',
+      contributionId: 'sample.settings',
+      capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME,
+      method: OPENWAGGLE_EXTENSION_BROKER.METHOD.UNREGISTER_CONTRIBUTION,
+      scope: PROJECT_SCOPE,
+      payload: unregistration,
+    })
+  })
+})

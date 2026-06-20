@@ -19,6 +19,10 @@ import type {
   extensionModelPreferencesSettingsPatchSchema,
   extensionModelPrefsSchema,
   extensionProjectViewSchema,
+  extensionRuntimeRegisterContributionPayloadSchema,
+  extensionRuntimeRegisterContributionResultSchema,
+  extensionRuntimeUnregisterContributionPayloadSchema,
+  extensionRuntimeUnregisterContributionResultSchema,
   extensionSessionViewSchema,
   extensionSettingsGetPayloadSchema,
   extensionSettingsGetResultSchema,
@@ -74,6 +78,18 @@ export type ExtensionStorageGetResult = SchemaType<typeof extensionStorageGetRes
 export type ExtensionStorageSetResult = SchemaType<typeof extensionStorageSetResultSchema>
 export type ExtensionStorageDeleteResult = SchemaType<typeof extensionStorageDeleteResultSchema>
 export type ExtensionStorageListResult = SchemaType<typeof extensionStorageListResultSchema>
+export type ExtensionRuntimeRegisterContributionPayload = SchemaType<
+  typeof extensionRuntimeRegisterContributionPayloadSchema
+>
+export type ExtensionRuntimeUnregisterContributionPayload = SchemaType<
+  typeof extensionRuntimeUnregisterContributionPayloadSchema
+>
+export type ExtensionRuntimeRegisterContributionResult = SchemaType<
+  typeof extensionRuntimeRegisterContributionResultSchema
+>
+export type ExtensionRuntimeUnregisterContributionResult = SchemaType<
+  typeof extensionRuntimeUnregisterContributionResultSchema
+>
 export type ExtensionModelPrefs = SchemaType<typeof extensionModelPrefsSchema>
 export type ExtensionProjectView = SchemaType<typeof extensionProjectViewSchema>
 export type ExtensionSessionView = SchemaType<typeof extensionSessionViewSchema>

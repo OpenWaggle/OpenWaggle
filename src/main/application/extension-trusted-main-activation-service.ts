@@ -18,14 +18,15 @@ import type { SessionRepository } from '../ports/session-repository'
 import { AppLogger } from '../services/logger-service'
 import { SettingsService } from '../services/settings-service'
 import { invokeExtensionCapability } from './extension-capability-broker-service'
+import { clearCachedPackageContributionRegistrations } from './extension-contribution-registry-cache'
 import {
   describeTrustedMainActivationCause,
   recordTrustedMainActivationCauseFailureResult,
   recordTrustedMainActivationFailureResult,
 } from './extension-trusted-main-activation-failure'
 import {
-  deactivateTrustedMainActivationKeys,
-  deactivateTrustedMainExtensionPackage,
+  deactivateTrustedMainActivationKeys as deactivateTrustedMainActivationKeysInState,
+  deactivateTrustedMainExtensionPackage as deactivateTrustedMainExtensionPackageInState,
   getActiveTrustedMainActivation,
   listTrustedMainActivationKeys,
   setActiveTrustedMainActivation,
@@ -35,7 +36,6 @@ import { loadRuntimeEnabledTrustedMainPackages } from './extension-trusted-main-
 
 export {
   clearTrustedMainExtensionActivationsForTests,
-  deactivateTrustedMainExtensionPackage,
   getTrustedMainExtensionActivationCountForTests,
 } from './extension-trusted-main-activation-state'
 
@@ -78,6 +78,33 @@ function makeBrokerTransport(
 ): ExtensionBrokerTransport {
   const runBroker = Runtime.runPromise(runtime)
   return (invocation) => runBroker(invokeExtensionCapability(invocation))
+}
+
+function clearTrustedMainContributionRegistrations(
+  extensionPackages: readonly DiscoveredExtensionPackage[],
+) {
+  return Effect.sync(() => {
+    for (const extensionPackage of extensionPackages) {
+      clearCachedPackageContributionRegistrations(extensionPackage)
+    }
+  })
+}
+
+function deactivateTrustedMainActivationKeys(activationKeys: readonly string[]) {
+  return Effect.gen(function* () {
+    const deactivatedPackages = yield* deactivateTrustedMainActivationKeysInState(activationKeys)
+    yield* clearTrustedMainContributionRegistrations(deactivatedPackages)
+  })
+}
+
+export function deactivateTrustedMainExtensionPackage(
+  extensionPackage: DiscoveredExtensionPackage,
+): Effect.Effect<void> {
+  return Effect.gen(function* () {
+    const deactivatedPackages =
+      yield* deactivateTrustedMainExtensionPackageInState(extensionPackage)
+    yield* clearTrustedMainContributionRegistrations(deactivatedPackages)
+  })
 }
 
 export function activateTrustedMainExtensionPackage(
@@ -125,11 +152,14 @@ export function activateTrustedMainExtensionPackage(
       catch: (error) => error,
     }).pipe(
       Effect.catchAll((error) =>
-        recordTrustedMainActivationFailureResult({
-          extensionPackage,
-          lifecycle: input.lifecycle,
-          error,
-          now: currentTimestamp(dependencies),
+        Effect.gen(function* () {
+          yield* clearTrustedMainContributionRegistrations([extensionPackage])
+          return yield* recordTrustedMainActivationFailureResult({
+            extensionPackage,
+            lifecycle: input.lifecycle,
+            error,
+            now: currentTimestamp(dependencies),
+          })
         }),
       ),
     )

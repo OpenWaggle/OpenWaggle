@@ -8,6 +8,7 @@ import type { ExtensionContributionFamily } from '@shared/types/extensions'
 import type { DiscoveredExtensionPackage, ExtensionDiagnostic } from '../extensions/types'
 import {
   getManifestFamilyContributions,
+  isEntryContribution,
   type ManifestContribution,
 } from './extension-contribution-family-model'
 import {
@@ -226,6 +227,32 @@ function capabilityDiagnostics(input: {
     .exhaustive()
 }
 
+function trustedRendererRuntimeDiagnostics(input: {
+  readonly extensionPackage: DiscoveredExtensionPackage
+  readonly family: ExtensionContributionFamily
+  readonly contribution: ManifestContribution
+  readonly index?: number
+}) {
+  if (
+    !isEntryContribution(input.contribution) ||
+    input.contribution.runtime !== OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.TRUSTED_RENDERER ||
+    input.extensionPackage.manifest?.trusted?.renderer !== undefined
+  ) {
+    return []
+  }
+
+  return [
+    contributionDiagnostic({
+      extensionPackage: input.extensionPackage,
+      family: input.family,
+      contributionId: input.contribution.id,
+      index: input.index,
+      message:
+        'Trusted renderer contributions require trusted.renderer so privileged renderer runtime execution is explicitly consented.',
+    }),
+  ]
+}
+
 export function authorizeContributionRegistration(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly family: ExtensionContributionFamily
@@ -240,6 +267,7 @@ export function authorizeContributionRegistration(input: {
       index: input.index,
     }),
     ...capabilityDiagnostics(input),
+    ...trustedRendererRuntimeDiagnostics(input),
   ]
 
   return diagnostics.length === 0 ? { _tag: 'authorized' } : { _tag: 'rejected', diagnostics }

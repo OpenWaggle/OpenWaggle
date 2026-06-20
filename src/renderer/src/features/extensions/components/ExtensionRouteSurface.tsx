@@ -12,7 +12,7 @@ import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { useFullscreen } from '@/shell/useFullscreen'
 import type { ExtensionRouteResolution } from '../lib/extension-route-resolution'
 import { resolveExtensionRouteContribution } from '../lib/extension-route-resolution'
-import { ExtensionFederatedModuleHost } from './ExtensionFederatedModuleHost'
+import { ExtensionContributionRuntimeHost } from './ExtensionContributionRuntimeHost'
 
 function activeProjectPaths(projectPath: string | null) {
   return projectPath ? [projectPath] : []
@@ -158,7 +158,7 @@ function ExtensionRouteContributionCard({
             </span>
           </div>
         </div>
-        <ExtensionFederatedModuleHost className="min-h-[420px]" entry={entry} />
+        <ExtensionContributionRuntimeHost className="min-h-[420px]" entry={entry} />
         <dl className="mt-4 grid gap-3 text-[12px] text-text-tertiary md:grid-cols-2">
           <div className="min-w-0">
             <dt className="text-text-muted">Contribution ID</dt>

@@ -8,6 +8,7 @@ import {
   getCachedPackageContributionRegistrations,
   getExtensionContributionRegistryCacheStatsForTests,
   pruneCachedPackageContributionRegistrations,
+  registerRuntimePackageContribution,
 } from '../extension-contribution-registry-cache'
 import { makePackage } from './extension-contribution-registry-test-utils'
 
@@ -65,5 +66,46 @@ describe('extension contribution registry cache isolation', () => {
       invalidations: 2,
       size: 0,
     })
+  })
+
+  it('does not drop runtime registrations during query-local static cache pruning', () => {
+    const runtimePackage = makePackage({
+      id: 'runtime-cache-extension',
+      name: 'Runtime Cache Extension',
+      scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: '/tmp/project-a' },
+      contributions: {
+        toolRenderers: [],
+      },
+    })
+    const unrelatedPackage = makePackage({
+      id: 'unrelated-cache-extension',
+      name: 'Unrelated Cache Extension',
+      scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: '/tmp/project-b' },
+      contributions: {
+        commands: [{ id: 'unrelated.run', title: 'Run Unrelated' }],
+      },
+    })
+    registerRuntimePackageContribution({
+      extensionPackage: runtimePackage,
+      registration: {
+        family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.TOOL_RENDERERS,
+        contribution: {
+          id: 'runtime.tool',
+          title: 'Runtime Tool',
+          runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE,
+          execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER,
+          entry: 'dist/runtime-tool.js',
+          target: { projectPaths: ['/tmp/project-a'] },
+        },
+      },
+    })
+
+    pruneCachedPackageContributionRegistrations([unrelatedPackage])
+
+    expect(
+      getCachedPackageContributionRegistrations(runtimePackage).registrations.map(
+        (registration) => registration.contribution.id,
+      ),
+    ).toEqual(['runtime.tool'])
   })
 })

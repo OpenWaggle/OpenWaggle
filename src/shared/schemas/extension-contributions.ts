@@ -85,6 +85,20 @@ const extensionContributionMatchBindingSchema = {
   matches: Schema.optional(extensionContributionMatchSchema),
 }
 
+function validateEntryContributionRuntime(input: {
+  readonly runtime: (typeof OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIMES)[number]
+  readonly execution: (typeof OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENTS)[number]
+}) {
+  if (
+    input.runtime === OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.TRUSTED_RENDERER &&
+    input.execution !== OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER
+  ) {
+    return 'Trusted renderer contributions must execute in the host renderer.'
+  }
+
+  return true
+}
+
 export const extensionCommandContributionSchema = Schema.Struct({
   id: extensionContributionIdSchema,
   title: nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH)),
@@ -104,7 +118,7 @@ export const extensionRouteContributionSchema = Schema.Struct({
   ...extensionContributionTargetBindingSchema,
   ...extensionContributionMatchBindingSchema,
   ...extensionContributionBrokerBindingSchema,
-})
+}).pipe(Schema.filter(validateEntryContributionRuntime))
 
 export const extensionSlotContributionSchema = Schema.Struct({
   id: extensionContributionIdSchema,
@@ -115,7 +129,7 @@ export const extensionSlotContributionSchema = Schema.Struct({
   ...extensionContributionTargetBindingSchema,
   ...extensionContributionMatchBindingSchema,
   ...extensionContributionBrokerBindingSchema,
-})
+}).pipe(Schema.filter(validateEntryContributionRuntime))
 
 export const extensionContributionsSchema = Schema.Struct({
   commands: Schema.optional(Schema.mutable(Schema.Array(extensionCommandContributionSchema))),

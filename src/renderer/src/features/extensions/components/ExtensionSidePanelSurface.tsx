@@ -9,7 +9,7 @@ import type {
   ExtensionSidePanelTarget,
 } from '../lib/extension-side-panel-resolution'
 import { resolveExtensionSidePanelContribution } from '../lib/extension-side-panel-resolution'
-import { ExtensionFederatedModuleHost } from './ExtensionFederatedModuleHost'
+import { ExtensionContributionRuntimeHost } from './ExtensionContributionRuntimeHost'
 
 function ExtensionSidePanelShell({
   title,
@@ -99,7 +99,7 @@ function ExtensionSidePanelContribution({
       className="flex min-h-0 flex-1"
       name={`Extension side panel: ${entry.title}`}
     >
-      <ExtensionFederatedModuleHost
+      <ExtensionContributionRuntimeHost
         chrome="bare"
         entry={entry}
         fill

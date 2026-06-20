@@ -16,7 +16,13 @@ import {
   extensionStateReadResultSchema,
   extensionStateSelectedReadResultSchema,
 } from './extension-broker-openwaggle'
-import { extensionContributionIdSchema, extensionIdSchema } from './extensions'
+import {
+  extensionContributionFamilySchema,
+  extensionContributionIdSchema,
+  extensionContributionRegistrationSchema,
+  extensionContributionUnregistrationSchema,
+  extensionIdSchema,
+} from './extensions'
 
 export * from './extension-broker-core'
 export * from './extension-broker-openwaggle'
@@ -149,6 +155,31 @@ export const extensionStorageListResultSchema = Schema.Struct({
   keys: Schema.Array(extensionStorageKeySchema),
 })
 
+export const extensionRuntimeRegisterContributionPayloadSchema =
+  extensionContributionRegistrationSchema
+export const extensionRuntimeUnregisterContributionPayloadSchema =
+  extensionContributionUnregistrationSchema
+
+const extensionRuntimeContributionResultFields = {
+  extensionId: extensionIdSchema,
+  contributionId: extensionContributionIdSchema,
+  capability: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME),
+  family: extensionContributionFamilySchema,
+}
+
+export const extensionRuntimeRegisterContributionResultSchema = Schema.Struct({
+  ...extensionRuntimeContributionResultFields,
+  method: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.METHOD.REGISTER_CONTRIBUTION),
+  registeredContributionId: extensionContributionIdSchema,
+})
+
+export const extensionRuntimeUnregisterContributionResultSchema = Schema.Struct({
+  ...extensionRuntimeContributionResultFields,
+  method: Schema.Literal(OPENWAGGLE_EXTENSION_BROKER.METHOD.UNREGISTER_CONTRIBUTION),
+  unregisteredContributionId: extensionContributionIdSchema,
+  unregistered: Schema.Boolean,
+})
+
 export const extensionInvokeSuccessValueSchema = Schema.Union(
   extensionHostContextResultSchema,
   extensionStorageGetResultSchema,
@@ -164,6 +195,8 @@ export const extensionInvokeSuccessValueSchema = Schema.Union(
   extensionSettingsUpdateSettingResultSchema,
   extensionDocsDiscoverResultSchema,
   extensionDocsResolveTopicResultSchema,
+  extensionRuntimeRegisterContributionResultSchema,
+  extensionRuntimeUnregisterContributionResultSchema,
 )
 
 export const extensionInvokeSuccessSchema = Schema.Struct({

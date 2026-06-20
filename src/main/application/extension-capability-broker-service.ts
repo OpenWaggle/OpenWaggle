@@ -15,6 +15,9 @@ import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
 import { auditedFailure } from './extension-capability-broker-audit'
 import {
+  contributionEntryDeclaresCapability,
+  contributionEntryDeclaresMethod,
+  contributionEntryIsOutOfScope,
   entryMatchesPackage,
   getScopeProjectPath,
   normalizeInput,
@@ -22,7 +25,6 @@ import {
 } from './extension-capability-broker-model'
 import { routeAuthorizedInvocation } from './extension-capability-broker-results'
 import {
-  contributionMethodIsDeclared,
   findManifestCapabilityDeclaration,
   getDeclaredScopes,
   methodIsDeclared,
@@ -204,17 +206,6 @@ function contributionInvocationIsKnown(input: {
   )
 }
 
-function contributionEntryIsOutOfScope(input: {
-  readonly entry: ExtensionContributionRegistryEntry | null
-  readonly scopeProjectPath: string | undefined
-}) {
-  return (
-    input.scopeProjectPath !== undefined &&
-    input.entry !== null &&
-    !input.entry.projectPaths.includes(input.scopeProjectPath)
-  )
-}
-
 export function invokeExtensionCapability(
   rawInput: ExtensionInvokeInput,
   dependencies: InvokeExtensionCapabilityDependencies = {},
@@ -291,7 +282,7 @@ export function invokeExtensionCapability(
       manifest: extensionPackage.manifest,
       capability: input.capability,
     })
-    if (!declaration || (entry && entry.capability !== input.capability)) {
+    if (!declaration || !contributionEntryDeclaresCapability({ entry, invocation: input })) {
       return yield* auditedFailure({
         invocation: input,
         code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.UNDECLARED_CAPABILITY,
@@ -301,7 +292,7 @@ export function invokeExtensionCapability(
     }
 
     if (
-      (entry && !contributionMethodIsDeclared(entry, input.method)) ||
+      !contributionEntryDeclaresMethod({ entry, invocation: input }) ||
       !methodIsDeclared(declaration, input.method)
     ) {
       return yield* auditedFailure({
@@ -324,6 +315,7 @@ export function invokeExtensionCapability(
 
     return yield* routeAuthorizedInvocation({
       invocation: input,
+      extensionPackage,
       packageScope: extensionPackage.scope,
       declaredScopes,
       timestamp,

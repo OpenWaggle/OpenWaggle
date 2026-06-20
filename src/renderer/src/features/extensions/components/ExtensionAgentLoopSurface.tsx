@@ -26,7 +26,7 @@ import {
   surfaceTarget,
 } from '../lib/extension-agent-loop-surface-model'
 import { ExtensionAgentLoopFallback } from './ExtensionAgentLoopFallback'
-import { ExtensionFederatedModuleHost } from './ExtensionFederatedModuleHost'
+import { ExtensionContributionRuntimeHost } from './ExtensionContributionRuntimeHost'
 
 export type {
   ExtensionAgentLoopSurfaceInput,
@@ -85,7 +85,7 @@ function ExtensionRenderer({
   const entry = contribution.entry
   return (
     <PanelErrorBoundary name={`Extension renderer: ${entry.title}`} className="min-h-0">
-      <ExtensionFederatedModuleHost
+      <ExtensionContributionRuntimeHost
         autoHeight
         chrome="bare"
         entry={entry}
