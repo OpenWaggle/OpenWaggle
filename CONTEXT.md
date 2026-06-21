@@ -12,6 +12,10 @@ _Avoid_: plugin, addon
 An extension package used only for local QA, tests, or demos and never shipped as product content.
 _Avoid_: bundled extension
 
+**Extension authoring root**:
+A user-writable extension package directory exposed by installed OpenWaggle so users and agents can create or modify extension packages.
+_Avoid_: development fixture directory, bundled extension directory
+
 **OpenWaggle desktop contribution**:
 A declared addition to an OpenWaggle-owned product surface.
 _Avoid_: widget, plugin component
@@ -92,6 +96,110 @@ _Avoid_: hidden prompt
 The intentional public API exposed to extension code for capability calls, UI mounting context, theme data, and contribution behavior.
 _Avoid_: OpenWaggle internals, renderer internals
 
+**Extension SDK package**:
+The author-facing OpenWaggle publishable package that distributes extension mount context types, broker SDK helpers, public schemas, theme helpers, UI helpers, and agent-loop DTOs.
+_Avoid_: renderer component library, Electron IPC package, OpenWaggle internals package
+
+**Extension React package**:
+The optional OpenWaggle publishable package that provides React component primitives for extension authors.
+_Avoid_: core extension SDK package, required UI dependency
+
+**Extension React primitive**:
+A small theme-aligned React component exported by the Extension React package for extension settings, forms, status, or surface layout.
+_Avoid_: OpenWaggle renderer component, full design-system replacement
+
+**Extension UI style contract**:
+The framework-neutral class, data-attribute, CSS-variable, and stylesheet contract shared by Extension SDK helpers and Extension React primitives.
+_Avoid_: OpenWaggle app CSS import, Tailwind dependency
+
+**Canonical package source**:
+The single source location that both OpenWaggle itself and package consumers use for a publishable package's public API.
+_Avoid_: copied package source, app-only source mirror
+
+**Public boundary schema**:
+A runtime validation schema for a public OpenWaggle package contract that consumers can use to validate values before sending them to OpenWaggle or Pi.
+_Avoid_: internal service schema, app store schema
+
+**Package runtime dependency**:
+A dependency that is required when a published OpenWaggle package runs in a consumer project.
+_Avoid_: hidden peer requirement, bundled app dependency
+
+**Package peer dependency**:
+A dependency that a consumer project must provide for an OpenWaggle publishable package integration to run correctly.
+_Avoid_: bundled dependency
+
+**Package engine baseline**:
+The minimum Node.js version supported by OpenWaggle publishable packages.
+_Avoid_: desktop app Node constraint
+
+**Package namespace**:
+The npm scope that owns OpenWaggle publishable package names.
+_Avoid_: temporary publish scope, personal npm scope
+
+**Package publish validation**:
+The required checks that prove a publishable package can be built, packed, installed, imported, and safely published.
+_Avoid_: app release validation
+
+**Package provenance gate**:
+A publish validation gate that proves the workflow is using expected GitHub OIDC/trusted-publishing identity before any package is staged.
+_Avoid_: ambiguous npm auth state
+
+**Package staged publish**:
+An npm publishing step where CI stages a validated package through trusted publishing and a maintainer approves it before it becomes publicly installable.
+_Avoid_: direct automated public publish
+
+**Local package publish**:
+A package publish run from a maintainer workstation instead of the trusted GitHub Actions workflow.
+_Avoid_: emergency npm publish, manual maintainer publish
+
+**Package publish event**:
+The Release Please-created release or package tag event that authorizes a real package staged publish workflow.
+_Avoid_: arbitrary manual publish run
+
+**Package manager smoke test**:
+A package publish validation check that installs a packed package with a supported package manager and verifies imports, requires, and types.
+_Avoid_: workspace-only import test
+
+**Package API snapshot**:
+A committed snapshot of a publishable package's public TypeScript declaration surface used to detect unintended API changes.
+_Avoid_: informal API review only
+
+**Package API snapshot check**:
+The validation step that compares built package declarations against committed Package API snapshots.
+_Avoid_: manual declaration diff
+
+**Package changelog**:
+A changelog scoped to one OpenWaggle publishable package and maintained by the package publishing workflow.
+_Avoid_: root app changelog entry for package-only changes
+
+**Package README**:
+A concise, hand-maintained package-local consumer entry point with install commands, imports, quick examples, and links to canonical docs.
+_Avoid_: full product docs
+
+**Package release tag**:
+A short package-name Git tag scoped to one OpenWaggle publishable package version, such as `extension-sdk-v0.1.0`.
+_Avoid_: desktop app release tag
+
+**Package GitHub release**:
+A GitHub Release scoped to one OpenWaggle publishable package version and its package release tag.
+_Avoid_: combined package release, desktop app GitHub release
+
+**Package documentation page**:
+A website documentation page that comprehensively explains an OpenWaggle publishable package.
+_Avoid_: package README as the only documentation
+
+**Packages documentation section**:
+The openwaggle.ai documentation section under `website/src/content/docs/packages/` that explains available OpenWaggle publishable packages and how to use them.
+_Avoid_: hiding package docs inside unrelated extension docs
+
+**Waggle core package**:
+The runtime-agnostic OpenWaggle publishable package for Waggle mode policy that can be reused outside Pi.
+_Avoid_: Pi adapter package, desktop app package
+
+**Pi Waggle package**:
+The Pi-specific OpenWaggle publishable package that includes Waggle core policy and exposes Waggle mode to Pi users through one installable package.
+_Avoid_: core policy package, desktop app package
+
 **Extension author documentation**:
 User-facing documentation for humans building OpenWaggle extension packages.
 _Avoid_: ADR-only extension docs
@@ -123,6 +231,66 @@ _Avoid_: hidden self-knowledge
 **OpenWaggle shared extension module**:
 An optional host-provided module an extension can import for SDK, theme, or UI convenience when using a federated module runtime.
 _Avoid_: required framework dependency
+
+**OpenWaggle publishable package**:
+A public npm package maintained by OpenWaggle for extension authors, runtime integrations, or reusable Waggle policy.
+_Avoid_: app artifact, development fixture, internal workspace-only package
+
+**Package publishing workflow**:
+The shared release path used to validate, package, and publish OpenWaggle publishable packages.
+_Avoid_: ad hoc publish, one-off package release
+
+**Release Please package workflow**:
+The Package publishing workflow based on Release Please manifest mode, conventional commits, package-specific changelogs, validated tarballs, npm trusted publishing, and npm staged publish approval.
+_Avoid_: Changesets workflow
+
+**App release workflow**:
+The release path that publishes OpenWaggle desktop app artifacts and update metadata.
+_Avoid_: npm package publishing workflow
+
+**Dual package output**:
+A package distribution shape that publishes both ESM imports and CommonJS require entry points, plus TypeScript declarations.
+_Avoid_: raw TypeScript exports, ESM-only package output
+
+**Plain TypeScript package build**:
+A package build that uses TypeScript project builds to emit ESM, CommonJS, and declarations without bundling dependencies.
+_Avoid_: tsup build, Rollup build, Vite library build
+
+**Package export boundary**:
+The explicit `package.json` exports that define every supported public import path for an OpenWaggle publishable package.
+_Avoid_: deep dist import, deep source import, undocumented subpath import
+
+**Package side-effect metadata**:
+The `package.json` tree-shaking hint that marks whether package imports can be removed safely when unused.
+_Avoid_: implicit bundler behavior
+
+**Package publish access**:
+The `package.json` `publishConfig.access` declaration that marks a scoped OpenWaggle publishable package as public.
+_Avoid_: implicit scoped package access
+
+**Package tarball contents**:
+The files intentionally included in a published npm tarball for an OpenWaggle publishable package.
+_Avoid_: repository source tree, workspace package directory
+
+**Package import boundary check**:
+A repository standards check that rejects forbidden imports inside OpenWaggle publishable package source.
+_Avoid_: review-only package boundary
+
+**Independent package version**:
+A package-specific semver version that advances only when that package's public contract changes.
+_Avoid_: lockstep app version
+
+**Dependent package bump**:
+A package version change caused by updating its dependency on another OpenWaggle publishable package.
+_Avoid_: unrelated lockstep release
+
+**Published package dependency range**:
+The semver range written into a packed or published OpenWaggle package manifest for another OpenWaggle publishable package.
+_Avoid_: workspace dependency in npm tarball, exact lockstep dependency
+
+**Initial public package version**:
+The first npm-published semver version for an OpenWaggle publishable package.
+_Avoid_: workspace placeholder version
 
 **Extension capability broker**:
 The main-process authorization boundary for extension calls into OpenWaggle capabilities.
@@ -156,6 +324,8 @@ _Avoid_: extension-local pending prompt
 
 - An **OpenWaggle extension package** declares zero or more **OpenWaggle desktop contributions** across one or more **Extension contribution surfaces**.
 - A **Development extension fixture** may be copied into a project for manual QA, but it is not an installed or bundled product extension.
+- An installed OpenWaggle app exposes **Extension authoring roots** for user-authored and agent-authored OpenWaggle extension packages.
+- A **Development extension fixture** must not be published as an npm package or shipped as production app content.
 - An **OpenWaggle desktop contribution** has exactly one **Extension contribution surface**.
 - An **Agent-loop contribution** is driven by Pi-native agent-loop events and rendered inside OpenWaggle-owned contribution containers.
 - A **Display-only agent-loop contribution** observes Pi agent-loop events without returning feedback.
@@ -176,6 +346,62 @@ _Avoid_: extension-local pending prompt
 - A **Federated module runtime** receives an **Extension SDK surface** instead of importing OpenWaggle internals.
 - A **Federated module runtime** may use **OpenWaggle shared extension modules**, but the required contract is the **Extension mount context**.
 - A **Federated module runtime** starts by calling the extension module with an **Extension mount context**.
+- An **OpenWaggle shared extension module** may be distributed through an **OpenWaggle publishable package**.
+- The **Extension SDK package** is the **OpenWaggle publishable package** for the **Extension SDK surface**.
+- The **Extension SDK package** must not expose OpenWaggle renderer components, Electron IPC internals, writable stores, main-process services, Pi SDK package types, or development fixtures.
+- The **Extension SDK package** is browser-safe and must not import Electron, Node built-ins, main-process services, renderer stores, or Pi SDK packages.
+- The **Extension SDK package** owns the **Canonical package source** for author-facing extension SDK APIs, and OpenWaggle app code should consume that package source through the workspace.
+- The **Extension SDK package** exports **Public boundary schemas** alongside TypeScript types for public manifests, contributions, broker payloads, docs discovery, and agent-loop interactions.
+- The **Extension SDK package** exposes helper APIs around **Public boundary schemas** for common author workflows such as defining and validating extension manifests.
+- A **Public boundary schema** must not expose internal lifecycle stores, application services, or renderer implementation state.
+- Exporting **Public boundary schemas** makes `effect` a **Package runtime dependency** of the Extension SDK package.
+- Effect Schema is the primary **Public boundary schema** format for the first Extension SDK package release; generated JSON Schema may be added later as a secondary artifact.
+- The **Extension SDK package** stays free of React.
+- The **Extension React package** depends on the **Extension SDK package** and carries React plus React DOM as explicit peer dependencies.
+- `react` and `react-dom` at `^19.0.0` are the initial **Package peer dependency** ranges for the Extension React package.
+- The first Extension React package release includes Extension React primitives for buttons, inputs, textareas, checkboxes, selects, badges, panels, stacks, fields, and alerts.
+- Extension React primitives use the **Extension UI style contract** instead of importing OpenWaggle app CSS.
+- The first public publishing scope includes the Extension SDK package, Extension React package, Waggle core package, and Pi Waggle package.
+- The **Pi Waggle package** depends on the **Waggle core package** so Pi users can install one package for Waggle mode.
+- The **Pi Waggle package** declares explicit Pi package **Package peer dependency** ranges instead of wildcard peers.
+- The **Pi Waggle package** may re-export commonly used stable **Waggle core package** types and helpers, but it is not a full mirror of every core API.
+- The **Waggle core package** can be used without the **Pi Waggle package** when another tool wants Waggle mode without Pi-specific integration.
+- The **Waggle core package** is runtime-neutral and must not import Pi SDK packages, Electron, Node built-ins, OpenWaggle renderer stores, or app services.
+- An **OpenWaggle publishable package** is distinct from the OpenWaggle desktop app artifact and from a **Development extension fixture**.
+- Multiple **OpenWaggle publishable packages** can share one **Package publishing workflow** while remaining separate packages.
+- An **OpenWaggle publishable package** has an **Independent package version** even when it uses the shared **Package publishing workflow**.
+- The **Release Please package workflow** is the selected **Package publishing workflow** for OpenWaggle publishable packages.
+- The **Release Please package workflow** is separate from the **App release workflow** even though both live in the same repository.
+- An **OpenWaggle publishable package** ships **Dual package output**.
+- **Dual package output** is produced by a **Plain TypeScript package build** unless a future package has a documented reason to bundle.
+- An **OpenWaggle publishable package** exposes public imports only through its **Package export boundary**.
+- Changing a **Package export boundary** is a public package contract change.
+- An **OpenWaggle publishable package** declares **Package side-effect metadata** explicitly.
+- An **OpenWaggle publishable package** declares **Package publish access** as `public`.
+- **Package tarball contents** include built outputs and package docs, not TypeScript source files, tests, fixtures, local scripts, configs, or caches.
+- **Package import boundary checks** enforce browser-safe, runtime-neutral, and adapter-layer package boundaries during `pnpm check`.
+- The **Release Please package workflow** requires **Package publish validation**, not full desktop app release validation, unless app code changed.
+- The **Release Please package workflow** uses **Package staged publish** instead of direct automated public publish.
+- Real **Package staged publish** runs only from a **Package publish event**; manual workflow dispatch is limited to dry-run validation.
+- **Local package publish** is not an allowed fallback for OpenWaggle publishable packages.
+- **Package publish validation** includes a **Package provenance gate** before package staging.
+- **Package publish validation** includes **Package manager smoke tests** for npm, pnpm, Yarn, and Bun where practical.
+- **Package publish validation** includes **Package API snapshots** for public package exports.
+- **Package API snapshot checks** should use API Extractor-style declaration reports if practical, otherwise a deterministic repository-owned declaration snapshot script.
+- An **OpenWaggle publishable package** has its own **Package changelog** and **Package release tag**.
+- An **OpenWaggle publishable package** has its own **Package GitHub release**.
+- An **OpenWaggle publishable package** has a **Package README** and a comprehensive **Package documentation page** on openwaggle.ai.
+- **Package API snapshots** are internal validation artifacts and are not explained in user-facing **Package documentation pages** or **Package READMEs**.
+- Package documentation pages live in the **Packages documentation section**.
+- The initial **Packages documentation section** contains overview, Extension SDK, Extension React, Waggle core, and Pi Waggle pages.
+- An **OpenWaggle publishable package** may require a **Dependent package bump** when one of its OpenWaggle package dependencies changes.
+- A **Published package dependency range** uses a caret semver range for the released dependency version.
+- The **Pi Waggle package** receives a **Dependent package bump** whenever the **Waggle core package** changes.
+- The **Extension React package** receives a **Dependent package bump** whenever the **Extension SDK package** changes.
+- Each **OpenWaggle publishable package** uses semver for its public contract.
+- The initial **Package engine baseline** is Node.js `>=20` unless a package dependency such as Pi requires a stricter range.
+- The **Initial public package version** for the Extension SDK package, Extension React package, Waggle core package, and Pi Waggle package is `0.1.0`.
+- The first public package release requires the `@openwaggle` **Package namespace** to be owned and configured; OpenWaggle publishable packages do not use a temporary scope.
 - The **Extension capability broker** authorizes calls made through the **Extension SDK surface**.
 - **Extension author documentation** is the source of truth for the public **Extension SDK surface**.
 - **Agent-facing installed documentation** is derived from user-facing OpenWaggle documentation at build or packaging time and exposed through a Pi-style package-local `docs/` directory.
@@ -202,6 +428,9 @@ _Avoid_: extension-local pending prompt
 > **Dev:** "Should this extension add a route or a side panel?"
 > **Domain expert:** "That is the **Extension contribution surface** decision; both can still use the same **Federated module runtime**."
 
+> **Dev:** "Can we ship the GitHub Issues Overview fixture as a built-in extension?"
+> **Domain expert:** "No — it is a **Development extension fixture**. Installed apps should expose **Extension authoring roots** for users and agents to create their own packages."
+
 > **Dev:** "Should this extension register its own OpenWaggle tool loop?"
 > **Domain expert:** "No — it registers Pi-native tools and can add **Agent-loop contributions** so OpenWaggle renders progress, results, approvals, or feedback in desktop surfaces."
 
@@ -210,6 +439,51 @@ _Avoid_: extension-local pending prompt
 
 > **Dev:** "Can the same Pi tool show a card in the transcript and details in a side panel?"
 > **Domain expert:** "Yes — those are separate **Agent-loop contributions** sharing one **Agent-loop binding identity**, with the **Transcript agent-loop surface** preserving the durable record."
+
+> **Dev:** "Can I import OpenWaggle renderer components from the extension SDK package?"
+> **Domain expert:** "No — the **Extension SDK package** exposes author contracts and helpers, not app internals or renderer components."
+
+> **Dev:** "Can the Extension SDK package import Electron, Node built-ins, renderer stores, or Pi packages?"
+> **Domain expert:** "No — the **Extension SDK package** is browser-safe and communicates through the brokered **Extension SDK surface**."
+
+> **Dev:** "Where do React UI primitives for extensions live?"
+> **Domain expert:** "In the optional **Extension React package**, not in the core **Extension SDK package**."
+
+> **Dev:** "Is Extension React the full OpenWaggle design system?"
+> **Domain expert:** "No — it starts with **Extension React primitives** for common extension forms and surfaces."
+
+> **Dev:** "Should Extension React import OpenWaggle Tailwind or renderer CSS?"
+> **Domain expert:** "No — Extension React primitives use the **Extension UI style contract**."
+
+> **Dev:** "Should the app keep its own copy of extension SDK helpers under shared source?"
+> **Domain expert:** "No — the **Extension SDK package** is the **Canonical package source**, and the app consumes it through the workspace."
+
+> **Dev:** "Should extension authors get runtime schemas or only TypeScript types?"
+> **Domain expert:** "They should get **Public boundary schemas** for values they send to or receive from OpenWaggle."
+
+> **Dev:** "Should the Extension SDK hide Effect Schema behind helpers?"
+> **Domain expert:** "No — expose **Public boundary schemas** directly and also provide helper APIs for the common path."
+
+> **Dev:** "Is `effect` only an app dependency?"
+> **Domain expert:** "No — exported **Public boundary schemas** make it a **Package runtime dependency** for the Extension SDK package."
+
+> **Dev:** "Should the Extension SDK replace Effect Schema exports with JSON Schema for `0.1.0`?"
+> **Domain expert:** "No — Effect Schema remains the primary **Public boundary schema** format; JSON Schema can be generated later as a secondary artifact."
+
+> **Dev:** "If I use Pi, should I install both Waggle packages?"
+> **Domain expert:** "No — install the **Pi Waggle package**; it includes the **Waggle core package** as its policy dependency."
+
+> **Dev:** "Can the Pi Waggle package use wildcard Pi peer dependencies?"
+> **Domain expert:** "No — the **Pi Waggle package** declares explicit Pi package **Package peer dependency** ranges for the Pi API line it was built against."
+
+> **Dev:** "Should Pi users import every core helper through the Pi package?"
+> **Domain expert:** "No — the **Pi Waggle package** can re-export common stable core types, but advanced core APIs should come from the **Waggle core package**."
+
+> **Dev:** "Can another runtime use Waggle mode without Pi?"
+> **Domain expert:** "Yes — use the **Waggle core package** without the **Pi Waggle package**."
+
+> **Dev:** "Can Waggle core import Pi, Electron, Node built-ins, renderer stores, or app services?"
+> **Domain expert:** "No — the **Waggle core package** is runtime-neutral reusable policy; Pi integration belongs in the **Pi Waggle package**."
 
 > **Dev:** "Can a renderer approve a tool call by mutating Pi state directly?"
 > **Domain expert:** "No — an **Interactive agent-loop contribution** returns a typed response to the pending Pi interaction through the **Extension capability broker**."
@@ -231,6 +505,105 @@ _Avoid_: extension-local pending prompt
 
 > **Dev:** "Can an extension renderer import Pi SDK types directly?"
 > **Domain expert:** "No — it consumes **Agent-loop event DTOs** that preserve Pi semantics through public OpenWaggle schemas."
+
+> **Dev:** "Should `@openwaggle/extension-sdk`, `@openwaggle/waggle-core`, and `@openwaggle/pi-waggle` be one package?"
+> **Domain expert:** "No — they are separate **OpenWaggle publishable packages**, but they should use the same **Package publishing workflow**."
+
+> **Dev:** "Should package publishing use Changesets?"
+> **Domain expert:** "No — use the **Release Please package workflow** to match the existing ts-match publishing model."
+
+> **Dev:** "Should npm package versions follow the desktop app version?"
+> **Domain expert:** "No — **OpenWaggle publishable packages** use the **Release Please package workflow**, while desktop artifacts use the separate **App release workflow**."
+
+> **Dev:** "Can a publishable package export raw TypeScript source?"
+> **Domain expert:** "No — an **OpenWaggle publishable package** ships **Dual package output** with built JavaScript and TypeScript declarations."
+
+> **Dev:** "Should package builds use tsup, Rollup, or Vite library mode?"
+> **Domain expert:** "No — use a **Plain TypeScript package build** like `ts-match` unless a specific package has a documented bundling need."
+
+> **Dev:** "Can consumers deep-import files from `src/`, `dist/`, or `dist-cjs/`?"
+> **Domain expert:** "No — consumers use only the **Package export boundary** documented in `package.json` exports."
+
+> **Dev:** "Can package side effects be left implicit?"
+> **Domain expert:** "No — each package declares **Package side-effect metadata**; only the Extension React stylesheet is side-effectful."
+
+> **Dev:** "Can scoped package public access be left to npm defaults?"
+> **Domain expert:** "No — each package declares **Package publish access** with `publishConfig.access: public`."
+
+> **Dev:** "Can package tarballs include `src/**/*.ts`?"
+> **Domain expert:** "No — **Package tarball contents** include built outputs and package docs, not source files or local development artifacts."
+
+> **Dev:** "Are package import boundaries enforced only by code review?"
+> **Domain expert:** "No — **Package import boundary checks** fail `pnpm check` when a publishable package imports forbidden host/runtime internals."
+
+> **Dev:** "Can packed package manifests keep `workspace:*` dependencies?"
+> **Domain expert:** "No — packed manifests use a **Published package dependency range** such as `^0.1.0`."
+
+> **Dev:** "Should every package publish run Electron E2E?"
+> **Domain expert:** "No — package publish uses **Package publish validation**; app release validation is separate unless the change touches app behavior."
+
+> **Dev:** "Is passing workspace imports enough to publish?"
+> **Domain expert:** "No — use **Package manager smoke tests** against packed tarballs."
+
+> **Dev:** "Can API compatibility be checked only by export smoke tests?"
+> **Domain expert:** "No — include **Package API snapshots** so unintended public declaration changes fail validation."
+
+> **Dev:** "Must Package API snapshots use one specific third-party tool?"
+> **Domain expert:** "Prefer API Extractor-style reports when practical, but a deterministic repo-owned **Package API snapshot check** is acceptable if API Extractor adds friction."
+
+> **Dev:** "Should user-facing package docs explain API snapshot tooling?"
+> **Domain expert:** "No — **Package API snapshots** are internal validation artifacts; user-facing docs explain package purpose, installation, documented exports, and examples."
+
+> **Dev:** "Should package-only changes go into the desktop app changelog?"
+> **Domain expert:** "No — each **OpenWaggle publishable package** has its own **Package changelog** and **Package release tag**."
+
+> **Dev:** "Should package release tags include the npm scope?"
+> **Domain expert:** "No — use short **Package release tags** such as `extension-sdk-v0.1.0`, not scoped tags with `@openwaggle/`."
+
+> **Dev:** "Should multiple package releases share one GitHub Release?"
+> **Domain expert:** "No — each released package gets its own **Package GitHub release**, even if one Release Please PR released multiple packages."
+
+> **Dev:** "Do public package engines follow the Electron app's Node 24 requirement?"
+> **Domain expert:** "No — publishable packages use the **Package engine baseline** unless a package has a stricter technical dependency."
+
+> **Dev:** "Is the package README enough documentation?"
+> **Domain expert:** "No — each publishable package also needs a comprehensive **Package documentation page** on openwaggle.ai."
+
+> **Dev:** "Should package READMEs be generated from openwaggle.ai docs?"
+> **Domain expert:** "No — keep a concise hand-maintained **Package README**, and keep comprehensive guidance in the **Package documentation page**."
+
+> **Dev:** "Where do users learn which OpenWaggle packages exist?"
+> **Domain expert:** "In the **Packages documentation section** on openwaggle.ai."
+
+> **Dev:** "Should package install/API/versioning docs live inside extension authoring guides?"
+> **Domain expert:** "No — keep package install and API usage docs in the **Packages documentation section** and link from extension authoring guides where needed."
+
+> **Dev:** "Should every package release whenever the app releases?"
+> **Domain expert:** "No — each publishable package has an **Independent package version**, and the shared workflow publishes only packages whose public contract changed."
+
+> **Dev:** "If Waggle core changes, does Pi Waggle publish too?"
+> **Domain expert:** "Yes — the **Pi Waggle package** gets a **Dependent package bump** because it depends on the changed **Waggle core package**."
+
+> **Dev:** "If the Extension SDK changes, does Extension React publish too?"
+> **Domain expert:** "Yes — the **Extension React package** gets a **Dependent package bump** because it depends on the changed **Extension SDK package**."
+
+> **Dev:** "Should the packages start at the desktop app version?"
+> **Domain expert:** "No — their **Initial public package version** is `0.1.0`, separate from the app release train."
+
+> **Dev:** "Can we publish first under a temporary npm scope if `@openwaggle` is blocked?"
+> **Domain expert:** "No — the first public release waits until the `@openwaggle` **Package namespace** is owned and configured."
+
+> **Dev:** "Should CI publish packages directly once validation passes?"
+> **Domain expert:** "No — use **Package staged publish** so CI stages the package and a maintainer approves the public release."
+
+> **Dev:** "Can a maintainer manually dispatch a workflow to stage or publish any package version?"
+> **Domain expert:** "No — real staging uses a **Package publish event**; manual dispatch is dry-run validation only."
+
+> **Dev:** "Can a maintainer publish locally if GitHub Actions fails?"
+> **Domain expert:** "No — **Local package publish** is not allowed; fix or rerun the trusted GitHub Actions release path."
+
+> **Dev:** "Can the publish workflow discover npm auth problems only when staging?"
+> **Domain expert:** "No — use a **Package provenance gate** before staging so missing OIDC or trusted-publisher setup fails early."
 
 > **Dev:** "Should we maintain separate human and agent docs in the repo?"
 > **Domain expert:** "No — user-facing docs are the source of truth, and **Agent-facing installed documentation** is generated from them into a Pi-style package-local docs directory for installed builds."
@@ -261,6 +634,14 @@ _Avoid_: extension-local pending prompt
 - "fallback" can imply best-effort logging only. Resolved: standard Pi interactions need functional **Agent-loop fallback renderers**; custom interactions without renderers fail explicitly instead of hanging.
 - "shared extension state" can imply durable transcript state. Resolved: **Agent-loop durable state** comes from Pi session data; extension-owned state is reconstructable UI enhancement unless explicitly persisted through storage capabilities.
 - "raw Pi event" can imply renderer imports from Pi packages. Resolved: renderer extension code consumes **Agent-loop event DTOs** with Pi-native identifiers preserved.
+- "extension SDK package" can imply all OpenWaggle extension implementation code. Resolved: the **Extension SDK package** exposes author-facing contracts and helpers only.
+- "extension UI" can imply either framework-neutral style helpers or React components. Resolved: React components belong in the optional **Extension React package**.
+- "extract package" can imply copying app source into publish output. Resolved: a publishable package owns **Canonical package source**.
+- "Waggle package" can imply either runtime-agnostic policy or Pi integration. Resolved: **Waggle core package** is reusable policy; **Pi Waggle package** is the Pi-specific one-package install path.
+- "package publishing workflow" can imply Changesets because it supports independent versions. Resolved: use the **Release Please package workflow** to match ts-match.
+- "OpenWaggle release" can mean npm packages or desktop app artifacts. Resolved: **Release Please package workflow** handles npm packages; **App release workflow** handles desktop artifacts.
+- "package build" can imply publishing repository TypeScript files. Resolved: publish **Dual package output** instead.
+- "publish the packages together" can imply bundling separate package APIs into one artifact or forcing lockstep versions. Resolved: publish separate **OpenWaggle publishable packages** with **Independent package versions** through one **Package publishing workflow**.
 - "agent docs" can imply a second hand-maintained documentation tree. Resolved: **Agent-facing installed documentation** is generated from the user-facing docs and installed runtime docs.
 - "installed docs" can imply a copied folder with no entry point. Resolved: installed docs must include an **Installed docs index** with predictable topic routing.
 - "docs path" can imply a fixed filesystem location. Resolved: agents should use the **Docs discovery capability** instead of hardcoding packaged paths.

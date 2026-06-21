@@ -58,6 +58,16 @@ OpenWaggle is a UI and product shell over Pi, not a parallel runtime.
 
 Load `.agents/skills/pi-integration/SKILL.md` before Pi adapter, session projection, provider/auth/model, resource loading, MCP adapter, or run orchestration work.
 
+## Publishable Package Boundaries
+
+OpenWaggle publishable packages must preserve their public contract boundaries.
+
+- `packages/extension-sdk/**` must stay browser-safe. Do not import Electron, Node built-ins, Pi SDK packages, renderer stores, main-process services, or OpenWaggle app internals.
+- `packages/waggle-core/**` must stay runtime-neutral reusable policy. Do not import Pi SDK packages, Electron, Node built-ins, renderer stores, or app services.
+- `packages/extension-react/**` may depend on `@openwaggle/extension-sdk` and React peers, but must not import OpenWaggle renderer components, app CSS, Tailwind internals, Electron, or app services.
+- `packages/pi-waggle/**` may import Pi SDK packages, but must not import Electron, renderer stores, or OpenWaggle app services.
+- These import boundaries must be enforced by `pnpm check:repository-standards`, not only by review.
+
 ## Electron Runtime
 
 - Main-process environment access is centralized in `src/main/env.ts`.

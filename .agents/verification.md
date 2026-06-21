@@ -88,6 +88,8 @@ Use quick E2E only when the built app is already current or the test intentional
 
 ## Release Work
 
+For publishable package work, `pnpm check` should include package import-boundary checks and package API snapshot checks. Snapshot drift must be fixed by either correcting the public API change or intentionally updating the committed package API snapshot in the same PR.
+
 Load `.agents/skills/release/SKILL.md` before release/version/update-track work.
 
 Before publishing a release, verify from the exact CI artifacts whenever possible. Post-publish installer checks are too late to prevent shipping broken installers.
