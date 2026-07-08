@@ -25,6 +25,7 @@
     "dist",
     "dist-cjs",
     "styles.css",
+    "CHANGELOG.md",
     "README.md"
   ],
   "exports": {
