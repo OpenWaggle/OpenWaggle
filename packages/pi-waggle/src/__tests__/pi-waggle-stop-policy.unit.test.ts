@@ -5,7 +5,7 @@ import {
   createPiWaggleStopPolicyState,
   evaluatePiWaggleStopPolicy,
   summarizePiWaggleTurnMessages,
-} from '../stop-policy'
+} from '../stop-policy.js'
 
 const MAX_TURNS = 2
 

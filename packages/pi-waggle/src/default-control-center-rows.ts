@@ -1,9 +1,9 @@
 import type { ExtensionCommandContext, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { isWaggleInheritedModel, type WaggleConfig } from '@openwaggle/waggle-core'
-import { type ActiveWaggleState, latestActiveState } from './default-command-runtime'
-import { modelReferenceForCurrentModel } from './default-config-editors'
-import type { WaggleControlCenterRow, WaggleMenuAction } from './default-control-center-view'
-import type { PiWaggleResolvedPreset } from './presets'
+import { type ActiveWaggleState, latestActiveState } from './default-command-runtime.js'
+import { modelReferenceForCurrentModel } from './default-config-editors.js'
+import type { WaggleControlCenterRow, WaggleMenuAction } from './default-control-center-view.js'
+import type { PiWaggleResolvedPreset } from './presets.js'
 
 const DETAILS_PREVIEW_MAX_LENGTH = 78
 const WAGGLE_OFF_LABEL = 'Waggle Off — disable Waggle for this branch'

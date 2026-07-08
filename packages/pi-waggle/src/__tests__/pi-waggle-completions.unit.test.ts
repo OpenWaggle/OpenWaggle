@@ -11,17 +11,17 @@ vi.mock('node:os', async (importOriginal) => ({
   homedir: () => userHomeDir,
 }))
 
-import { defaultWaggleCommandCompletions } from '../default-commands'
+import { defaultWaggleCommandCompletions } from '../default-commands.js'
 import {
   getPiWaggleProjectPresetsPath,
   getPiWaggleUserPresetsPath,
   writePiWagglePresetsFile,
-} from '../preset-storage'
+} from '../preset-storage.js'
 import {
   customPreset,
   projectDir,
   resetPiWaggleCommandTestFiles,
-} from './pi-waggle-command-harness'
+} from './pi-waggle-command-harness.js'
 
 describe('pi-waggle command completions', () => {
   beforeEach(resetPiWaggleCommandTestFiles)

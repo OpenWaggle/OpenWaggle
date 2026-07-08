@@ -2,31 +2,31 @@ import { randomUUID } from 'node:crypto'
 import type { ExtensionAPI, ExtensionContext, InputEvent } from '@earendil-works/pi-coding-agent'
 import type { WaggleConfig, WaggleTurn } from '@openwaggle/waggle-core'
 import { buildWaggleTurnPrompt, getWaggleTurn } from '@openwaggle/waggle-core'
-import type { StartDefaultPiWaggleRun } from './default-command-types'
+import type { StartDefaultPiWaggleRun } from './default-command-types.js'
 import {
   type DefaultPiWaggleModel,
   effectiveAgentModelReference,
   modelReferenceForModel,
   resolveTurnModel,
   setTurnModel,
-} from './default-run-model'
+} from './default-run-model.js'
 import {
   createPiWaggleTurnCompletionHandlers,
   type PiWaggleAgentEndHandler,
   type PiWaggleCustomMessage,
   type PiWaggleTurnEndHandler,
-} from './loop'
+} from './loop.js'
 import {
   createPiWaggleTurnDetails,
   PI_WAGGLE_TURN_CUSTOM_TYPE,
   PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE,
-} from './protocol'
+} from './protocol.js'
 import {
   createPiWaggleStopPolicyState,
   evaluatePiWaggleStopPolicy,
   type PiWaggleStopPolicyState,
   summarizePiWaggleTurnMessages,
-} from './stop-policy'
+} from './stop-policy.js'
 
 const INITIAL_TURN_NUMBER = 0
 const NEXT_TURN_DISPLAY_OFFSET = 1

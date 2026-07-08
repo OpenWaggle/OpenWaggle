@@ -9,15 +9,15 @@ import {
   type WaggleConfig,
   type WagglePreset,
 } from '@openwaggle/waggle-core'
-import type { DefaultWaggleCommandInput } from './default-command-types'
-import { modelReferenceForCurrentModel } from './default-config-editors'
+import type { DefaultWaggleCommandInput } from './default-command-types.js'
+import { modelReferenceForCurrentModel } from './default-config-editors.js'
 import {
   appendPiWaggleModeState,
   disabledPiWaggleModeState,
   enabledPiWaggleModeState,
   latestPiWaggleModeStateFromBranch,
-} from './mode-state'
-import { loadPiWagglePresetLayers, resolvedPresetsForUi } from './presets'
+} from './mode-state.js'
+import { loadPiWagglePresetLayers, resolvedPresetsForUi } from './presets.js'
 
 const FIRST_PROVIDER_CHARACTER_INDEX = 0
 const MODEL_ID_START_OFFSET = 1

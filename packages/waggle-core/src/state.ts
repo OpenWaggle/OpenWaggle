@@ -1,12 +1,12 @@
-import type { WaggleConfig } from './config'
-import type { WaggleTurnMetadata } from './events'
-import { metadataForWaggleTurn } from './events'
+import type { WaggleConfig } from './config.js'
+import type { WaggleTurnMetadata } from './events.js'
+import { metadataForWaggleTurn } from './events.js'
 import {
   decideNextWaggleTurn,
   getWaggleTurn,
   type WaggleStopReason,
   type WaggleTurnCompletion,
-} from './turn-policy'
+} from './turn-policy.js'
 
 const INITIAL_TURN_NUMBER = 0
 

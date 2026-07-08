@@ -6,8 +6,11 @@ import {
   type WaggleAgentColor,
   type WaggleAgentSlot,
 } from '@openwaggle/waggle-core'
-import { modelReferenceForCurrentModel, selectConcreteModelReference } from './default-model-picker'
-import { promptPrefilledText } from './default-prefilled-input'
+import {
+  modelReferenceForCurrentModel,
+  selectConcreteModelReference,
+} from './default-model-picker.js'
+import { promptPrefilledText } from './default-prefilled-input.js'
 
 const PROMPT_PREVIEW_MAX_LENGTH = 72
 

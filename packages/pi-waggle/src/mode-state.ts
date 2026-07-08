@@ -5,7 +5,7 @@ import {
   PI_WAGGLE_MODE_STATE_CUSTOM_TYPE,
   type PiWaggleModeState,
   parsePiWaggleModeState,
-} from './protocol'
+} from './protocol.js'
 
 export interface PiWaggleModeStateWriter {
   readonly appendCustomEntry: (customType: string, data?: unknown) => string | undefined

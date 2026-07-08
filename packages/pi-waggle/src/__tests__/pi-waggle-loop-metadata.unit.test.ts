@@ -8,7 +8,7 @@ import {
   type PiWaggleExtensionContext,
   type PiWaggleModel,
   registerPiWaggleLoop,
-} from '../extension'
+} from '../extension.js'
 
 const FIRST_PROVIDER_CHARACTER_INDEX = 0
 const MODEL_ID_START_OFFSET = 1

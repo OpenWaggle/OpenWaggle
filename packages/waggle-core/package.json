@@ -1,16 +1,69 @@
 {
   "name": "@openwaggle/waggle-core",
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "Runtime-neutral Waggle policy, prompts, state, presets, and turn orchestration primitives.",
   "type": "module",
-  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OpenWaggle/OpenWaggle.git",
+    "directory": "packages/waggle-core"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "dist-cjs",
+    "README.md"
+  ],
   "exports": {
-    ".": "./src/index.ts",
-    "./config": "./src/config.ts",
-    "./consensus": "./src/consensus.ts",
-    "./events": "./src/events.ts",
-    "./presets": "./src/presets.ts",
-    "./prompts": "./src/prompts.ts",
-    "./state": "./src/state.ts",
-    "./turn-policy": "./src/turn-policy.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist-cjs/index.js"
+    },
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "import": "./dist/config.js",
+      "require": "./dist-cjs/config.js"
+    },
+    "./consensus": {
+      "types": "./dist/consensus.d.ts",
+      "import": "./dist/consensus.js",
+      "require": "./dist-cjs/consensus.js"
+    },
+    "./events": {
+      "types": "./dist/events.d.ts",
+      "import": "./dist/events.js",
+      "require": "./dist-cjs/events.js"
+    },
+    "./presets": {
+      "types": "./dist/presets.d.ts",
+      "import": "./dist/presets.js",
+      "require": "./dist-cjs/presets.js"
+    },
+    "./prompts": {
+      "types": "./dist/prompts.d.ts",
+      "import": "./dist/prompts.js",
+      "require": "./dist-cjs/prompts.js"
+    },
+    "./state": {
+      "types": "./dist/state.d.ts",
+      "import": "./dist/state.js",
+      "require": "./dist-cjs/state.js"
+    },
+    "./turn-policy": {
+      "types": "./dist/turn-policy.d.ts",
+      "import": "./dist/turn-policy.js",
+      "require": "./dist-cjs/turn-policy.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.cjs.json && tsx ../../scripts/write-cjs-package-json.ts",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "pack:check": "pnpm build && pnpm pack --pack-destination .pack --json"
   }
 }

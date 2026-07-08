@@ -1,6 +1,11 @@
-import path from 'node:path'
 import { readFile } from 'node:fs/promises'
+import path from 'node:path'
 import fg from 'fast-glob'
+import {
+  collectPackageBoundaryViolations,
+  packageBoundarySourceGlobs,
+  type RepositoryViolation,
+} from './repository-package-boundaries.js'
 
 interface Violation {
   readonly detail?: string
@@ -41,6 +46,9 @@ const ignoreGlobs: string[] = [
   'node_modules/**',
   '**/node_modules/**',
   'out/**',
+  'packages/**/.pack/**',
+  'packages/**/dist/**',
+  'packages/**/dist-cjs/**',
   'release/**',
   'website/.astro/**',
   'website/dist/**',
@@ -108,7 +116,8 @@ async function collectViolationsForFile(file: string) {
     ...collectForbiddenReferenceViolations(file, contents),
     ...collectTsconfigViolations(file, contents),
     ...collectToolingConfigViolations(file),
-  ]
+    ...collectPackageBoundaryViolations(file, contents),
+  ] satisfies readonly RepositoryViolation[]
 }
 
 function printViolations(violations: readonly Violation[]) {
@@ -119,7 +128,7 @@ function printViolations(violations: readonly Violation[]) {
 }
 
 async function main() {
-  const files = await fg(scanGlobs, {
+  const files = await fg([...scanGlobs, ...packageBoundarySourceGlobs], {
     dot: true,
     ignore: ignoreGlobs,
     onlyFiles: true,

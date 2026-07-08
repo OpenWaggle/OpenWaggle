@@ -14,7 +14,7 @@ import {
   activeModeStateEntry,
   createHarness,
   resetPiWaggleCommandTestFiles,
-} from './pi-waggle-command-harness'
+} from './pi-waggle-command-harness.js'
 
 const PINNED_MODEL = 'anthropic/claude-sonnet-4'
 

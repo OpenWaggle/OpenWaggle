@@ -1,0 +1,57 @@
+{
+  "name": "@openwaggle/extension-react",
+  "version": "0.1.0",
+  "description": "React UI primitives for OpenWaggle extensions that follow the host extension theme contract.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OpenWaggle/OpenWaggle.git",
+    "directory": "packages/extension-react"
+  },
+  "keywords": [
+    "openwaggle",
+    "extensions",
+    "react",
+    "ui"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": [
+    "./styles.css"
+  ],
+  "files": [
+    "dist",
+    "dist-cjs",
+    "styles.css",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist-cjs/index.js"
+    },
+    "./styles.css": "./styles.css"
+  },
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "pnpm --filter @openwaggle/extension-sdk build && tsc -p tsconfig.build.json && tsc -p tsconfig.cjs.json && tsx ../../scripts/write-cjs-package-json.ts",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "pack:check": "pnpm build && pnpm pack --pack-destination .pack --json"
+  },
+  "dependencies": {
+    "@openwaggle/extension-sdk": "workspace:^"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.16",
+    "@types/react-dom": "19.2.3",
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

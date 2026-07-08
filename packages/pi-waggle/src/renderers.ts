@@ -3,8 +3,8 @@ import {
   PI_WAGGLE_TURN_CUSTOM_TYPE,
   PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE,
   parsePiWaggleTurnDetails,
-} from './protocol'
-import { truncateTerminalLine } from './terminal-text'
+} from './protocol.js'
+import { truncateTerminalLine } from './terminal-text.js'
 
 type MessageRendererRegistrar = Pick<ExtensionAPI, 'registerMessageRenderer'>
 

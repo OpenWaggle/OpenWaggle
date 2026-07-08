@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { WaggleConfig } from '../config'
-import { parseWaggleConfig, WAGGLE_INHERIT_MODEL } from '../config'
-import { evaluateConsensus } from '../consensus'
-import { BUILT_IN_WAGGLE_PRESETS, mergeWagglePresets } from '../presets'
-import { buildWaggleTurnPrompt } from '../prompts'
-import { completeWaggleTurn, startWaggleRun } from '../state'
-import { decideNextWaggleTurn, getWaggleTurnAgentIndex } from '../turn-policy'
+import type { WaggleConfig } from '../config.js'
+import { parseWaggleConfig, WAGGLE_INHERIT_MODEL } from '../config.js'
+import { evaluateConsensus } from '../consensus.js'
+import { BUILT_IN_WAGGLE_PRESETS, mergeWagglePresets } from '../presets.js'
+import { buildWaggleTurnPrompt } from '../prompts.js'
+import { completeWaggleTurn, startWaggleRun } from '../state.js'
+import { decideNextWaggleTurn, getWaggleTurnAgentIndex } from '../turn-policy.js'
 
 const FIRST_AGENT_INDEX = 0
 const MAX_TURNS_SAFETY = 3

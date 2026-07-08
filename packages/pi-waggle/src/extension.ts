@@ -1,4 +1,4 @@
-import defaultPiWaggleExtension from './default-extension'
+import defaultPiWaggleExtension from './default-extension.js'
 
-export * from './loop'
+export * from './loop.js'
 export default defaultPiWaggleExtension

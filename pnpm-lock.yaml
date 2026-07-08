@@ -19,9 +19,7 @@ overrides:
   '@tanstack/virtual-file-routes': 1.162.0
 
 patchedDependencies:
-  better-sqlite3@12.10.0:
-    hash: 1a2d4c6488e757ade4709fff82fd061953c879f634597d2c5099932191c46ade
-    path: patches/better-sqlite3@12.10.0.patch
+  better-sqlite3@12.10.0: 1a2d4c6488e757ade4709fff82fd061953c879f634597d2c5099932191c46ade
 
 importers:
 
@@ -39,6 +37,9 @@ importers:
       '@lobehub/icons-static-svg':
         specifier: 1.91.0
         version: 1.91.0
+      '@openwaggle/extension-sdk':
+        specifier: workspace:*
+        version: link:packages/extension-sdk
       '@openwaggle/pi-waggle':
         specifier: workspace:*
         version: link:packages/pi-waggle
@@ -293,18 +294,39 @@ importers:
         specifier: 5.0.14
         version: 5.0.14(@types/react@19.2.16)(react@19.2.7)(use-sync-external-store@1.6.0(react@19.2.7))
 
+  packages/extension-react:
+    dependencies:
+      '@openwaggle/extension-sdk':
+        specifier: workspace:^
+        version: link:../extension-sdk
+    devDependencies:
+      '@types/react':
+        specifier: 19.2.16
+        version: 19.2.16
+      '@types/react-dom':
+        specifier: 19.2.3
+        version: 19.2.3(@types/react@19.2.16)
+      react:
+        specifier: 19.2.7
+        version: 19.2.7
+      react-dom:
+        specifier: 19.2.7
+        version: 19.2.7(react@19.2.7)
+
+  packages/extension-sdk: {}
+
   packages/pi-waggle:
     dependencies:
-      '@earendil-works/pi-coding-agent':
-        specifier: '*'
-        version: 0.78.1(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(ws@8.21.0)(zod@4.4.3)
-      '@earendil-works/pi-tui':
-        specifier: '*'
-        version: 0.78.1
       '@openwaggle/waggle-core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../waggle-core
     devDependencies:
+      '@earendil-works/pi-coding-agent':
+        specifier: 0.78.1
+        version: 0.78.1(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(ws@8.21.0)(zod@4.4.3)
+      '@earendil-works/pi-tui':
+        specifier: 0.78.1
+        version: 0.78.1
       '@total-typescript/shoehorn':
         specifier: 0.1.2
         version: 0.1.2

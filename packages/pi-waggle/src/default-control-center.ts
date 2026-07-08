@@ -4,20 +4,20 @@ import {
   activatePreset,
   disableWaggle,
   latestActiveState,
-} from './default-command-runtime'
-import type { DefaultWaggleCommandInput } from './default-command-types'
-import { editActiveConfig } from './default-config-editors'
-import { buildWaggleMenuRows, menuTitle } from './default-control-center-rows'
-import type { WaggleControlCenterRow, WaggleMenuAction } from './default-control-center-view'
+} from './default-command-runtime.js'
+import type { DefaultWaggleCommandInput } from './default-command-types.js'
+import { editActiveConfig } from './default-config-editors.js'
+import { buildWaggleMenuRows, menuTitle } from './default-control-center-rows.js'
+import type { WaggleControlCenterRow, WaggleMenuAction } from './default-control-center-view.js'
 import {
   createPresetFromEditor,
   editConfigBeforeEnabling,
   editPresetFromEditor,
   saveConfigAsPreset,
   viewAdvancedJson,
-} from './default-editors'
-import { managePresets } from './default-preset-management'
-import { loadPiWagglePresetLayers, resolvedPresetsForUi } from './presets'
+} from './default-editors.js'
+import { managePresets } from './default-preset-management.js'
+import { loadPiWagglePresetLayers, resolvedPresetsForUi } from './presets.js'
 
 const FIRST_PRESET_INDEX = 0
 const ENABLE_PRESET_LABEL = 'Enable preset'

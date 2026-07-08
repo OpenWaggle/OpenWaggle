@@ -5,9 +5,9 @@ import type { ExtensionAPI, ExtensionCommandContext } from '@earendil-works/pi-c
 import { WAGGLE_INHERIT_MODEL } from '@openwaggle/waggle-core'
 import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import { vi } from 'vitest'
-import type { WaggleMenuAction } from '../default-control-center-view'
-import type { PiWaggleModel } from '../extension'
-import defaultPiWaggleExtension from '../extension'
+import type { WaggleMenuAction } from '../default-control-center-view.js'
+import type { PiWaggleModel } from '../extension.js'
+import defaultPiWaggleExtension from '../extension.js'
 
 const TEST_HOME_PREFIX = '/tmp/pi-waggle-'
 const fallbackUserHomeDir = `/tmp/pi-waggle-commands-home-${randomUUID()}`

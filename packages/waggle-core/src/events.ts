@@ -1,5 +1,5 @@
-import type { WaggleAgentColor, WaggleCollaborationMode } from './config'
-import type { WaggleStopReason, WaggleTurn } from './turn-policy'
+import type { WaggleAgentColor, WaggleCollaborationMode } from './config.js'
+import type { WaggleStopReason, WaggleTurn } from './turn-policy.js'
 
 export interface WaggleTurnMetadata {
   readonly turnNumber: number

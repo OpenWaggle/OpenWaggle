@@ -1,6 +1,8 @@
 node_modules/
 out/
 dist/
+dist-cjs/
+.pack/
 coverage/
 playwright-report/
 test-results/

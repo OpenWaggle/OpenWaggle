@@ -1,0 +1,84 @@
+{
+  "name": "@openwaggle/extension-sdk",
+  "version": "0.1.0",
+  "description": "Browser-safe OpenWaggle extension SDK types, constants, broker helpers, theme tokens, and federated-module context helpers.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OpenWaggle/OpenWaggle.git",
+    "directory": "packages/extension-sdk"
+  },
+  "keywords": [
+    "openwaggle",
+    "extensions",
+    "sdk"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "dist-cjs",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist-cjs/index.js"
+    },
+    "./agent-loop": {
+      "types": "./dist/agent-loop.d.ts",
+      "import": "./dist/agent-loop.js",
+      "require": "./dist-cjs/agent-loop.js"
+    },
+    "./broker": {
+      "types": "./dist/broker.d.ts",
+      "import": "./dist/broker.js",
+      "require": "./dist-cjs/broker.js"
+    },
+    "./constants": {
+      "types": "./dist/constants.d.ts",
+      "import": "./dist/constants.js",
+      "require": "./dist-cjs/constants.js"
+    },
+    "./context": {
+      "types": "./dist/context.d.ts",
+      "import": "./dist/context.js",
+      "require": "./dist-cjs/context.js"
+    },
+    "./json": {
+      "types": "./dist/json.d.ts",
+      "import": "./dist/json.js",
+      "require": "./dist-cjs/json.js"
+    },
+    "./manifest": {
+      "types": "./dist/manifest.d.ts",
+      "import": "./dist/manifest.js",
+      "require": "./dist-cjs/manifest.js"
+    },
+    "./theme": {
+      "types": "./dist/theme.d.ts",
+      "import": "./dist/theme.js",
+      "require": "./dist-cjs/theme.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js",
+      "require": "./dist-cjs/types.js"
+    },
+    "./ui": {
+      "types": "./dist/ui.d.ts",
+      "import": "./dist/ui.js",
+      "require": "./dist-cjs/ui.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.cjs.json && tsx ../../scripts/write-cjs-package-json.ts",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "pack:check": "pnpm build && pnpm pack --pack-destination .pack --json"
+  }
+}

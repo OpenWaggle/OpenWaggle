@@ -2,7 +2,7 @@ import type { ExtensionCommandContext, Theme, ThemeColor } from '@earendil-works
 import type { Component, Keybinding, KeybindingsManager, TUI } from '@earendil-works/pi-tui'
 import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
-import { promptPrefilledText } from '../default-prefilled-input'
+import { promptPrefilledText } from '../default-prefilled-input.js'
 
 type CustomFactory<T> = (
   tui: TUI,

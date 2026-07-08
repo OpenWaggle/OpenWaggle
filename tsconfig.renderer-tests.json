@@ -14,7 +14,10 @@
     "paths": {
       "*": ["./*"],
       "@/*": ["./src/renderer/src/*"],
-      "@shared/*": ["./src/shared/*"]
+      "@shared/*": ["./src/shared/*"],
+      "@openwaggle/extension-sdk": ["./packages/extension-sdk/src/index.ts"],
+      "@openwaggle/extension-sdk/*": ["./packages/extension-sdk/src/*"],
+      "@openwaggle/extension-react": ["./packages/extension-react/src/index.tsx"]
     },
     "types": ["vite/client", "vitest/globals"]
   },

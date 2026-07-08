@@ -9,7 +9,7 @@ vi.mock('node:os', async (importOriginal) => ({
   homedir: () => userHomeDir,
 }))
 
-import { createHarness, resetPiWaggleCommandTestFiles } from './pi-waggle-command-harness'
+import { createHarness, resetPiWaggleCommandTestFiles } from './pi-waggle-command-harness.js'
 
 describe('pi-waggle non-interactive command fallback', () => {
   beforeEach(resetPiWaggleCommandTestFiles)

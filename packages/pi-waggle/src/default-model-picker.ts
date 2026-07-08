@@ -1,6 +1,6 @@
 import type { ExtensionCommandContext, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { decodeKittyPrintable, Key, matchesKey, parseKey } from '@earendil-works/pi-tui'
-import { singleTerminalLine, truncateTerminalLine } from './terminal-text'
+import { singleTerminalLine, truncateTerminalLine } from './terminal-text.js'
 
 const MODEL_PICKER_VISIBLE_ROWS = 10
 const MODEL_PICKER_DETAILS_ROWS = 3

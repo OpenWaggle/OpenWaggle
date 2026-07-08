@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { blankConfig } from '../default-config-editors'
-import { createHarness } from './pi-waggle-command-harness'
+import { blankConfig } from '../default-config-editors.js'
+import { createHarness } from './pi-waggle-command-harness.js'
 
 function configWithThirdAgentJson() {
   const config = blankConfig()

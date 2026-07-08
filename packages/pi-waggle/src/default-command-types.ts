@@ -5,7 +5,7 @@ import type {
   InputEvent,
 } from '@earendil-works/pi-coding-agent'
 import type { WaggleConfig } from '@openwaggle/waggle-core'
-import type { DefaultPiWaggleRunState } from './default-run'
+import type { DefaultPiWaggleRunState } from './default-run.js'
 
 export type SetDefaultPiWaggleRun = (run: DefaultPiWaggleRunState | null) => void
 

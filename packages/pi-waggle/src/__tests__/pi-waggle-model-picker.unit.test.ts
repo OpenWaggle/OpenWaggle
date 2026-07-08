@@ -2,7 +2,10 @@ import type { ExtensionCommandContext } from '@earendil-works/pi-coding-agent'
 import { visibleWidth } from '@earendil-works/pi-tui'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
-import { createModelPickerComponent, selectConcreteModelReference } from '../default-model-picker'
+import {
+  createModelPickerComponent,
+  selectConcreteModelReference,
+} from '../default-model-picker.js'
 
 const items = [
   { provider: 'anthropic', id: 'alpha', name: 'Alpha Model', reference: 'anthropic/alpha' },
