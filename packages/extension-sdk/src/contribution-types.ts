@@ -30,20 +30,22 @@ export interface ExtensionContributionMatchView {
 
 export interface ExtensionContributionRegistration {
   readonly family: ExtensionContributionFamily
-  readonly contributionId: string
-  readonly title: string
-  readonly label?: string
-  readonly category?: string
-  readonly capability?: string
-  readonly method?: string
-  readonly methods?: readonly string[]
-  readonly declaredScopes?: readonly ExtensionCapabilityScope[]
-  readonly networkOrigins?: readonly string[]
-  readonly target?: ExtensionContributionTargetView
-  readonly matches?: ExtensionContributionMatchView
-  readonly runtime?: ExtensionContributionRuntime
-  readonly execution?: ExtensionExecutionPlacement
-  readonly entryPath?: string
+  readonly contribution: {
+    readonly id: string
+    readonly title: string
+    readonly label?: string
+    readonly category?: string
+    readonly capability?: string
+    readonly method?: string
+    readonly methods?: readonly string[]
+    readonly declaredScopes?: readonly ExtensionCapabilityScope[]
+    readonly networkOrigins?: readonly string[]
+    readonly target?: ExtensionContributionTargetView
+    readonly matches?: ExtensionContributionMatchView
+    readonly runtime?: ExtensionContributionRuntime
+    readonly execution?: ExtensionExecutionPlacement
+    readonly entry?: string
+  }
 }
 
 export interface ExtensionContributionUnregistration {

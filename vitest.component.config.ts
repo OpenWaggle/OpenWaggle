@@ -31,6 +31,7 @@ export default defineConfig({
     alias: {
       '@': resolve('src/renderer/src'),
       '@shared': resolve('src/shared'),
+      '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src/index.ts'),
     },
   },
   test: {

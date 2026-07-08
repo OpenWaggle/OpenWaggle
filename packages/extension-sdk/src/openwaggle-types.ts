@@ -134,12 +134,12 @@ export interface ExtensionSettingsUpdateSettingResult {
 }
 
 export interface ExtensionDocsDiscoverPayload {
-  readonly query?: string
-  readonly limit?: number
+  readonly projectPaths?: readonly string[]
+  readonly includeExtensions?: boolean
 }
 
 export interface ExtensionDocsResolveTopicPayload {
-  readonly id: string
+  readonly topic: string
 }
 
 export interface ExtensionDocsDiscoverResult {
