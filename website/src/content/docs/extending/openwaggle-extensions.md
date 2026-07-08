@@ -195,6 +195,8 @@ These modules are plain TypeScript and DOM helpers. They do not import React, Re
 
 The modules are optional. Extension modules can ignore them and use only the objects passed in `context`. If an extension build consumes the helpers, keep them bundled into the extension artifact or resolve them through the OpenWaggle-provided author-module mechanism for that installed SDK version. Do not import source paths from an arbitrary OpenWaggle checkout as a runtime dependency for a distributed extension.
 
+For npm install commands, package entry points, and concrete import examples, see [Packages](/docs/packages/overview), especially [`@openwaggle/extension-sdk`](/docs/packages/extension-sdk) and [`@openwaggle/extension-react`](/docs/packages/extension-react).
+
 Plain DOM example:
 
 ```js

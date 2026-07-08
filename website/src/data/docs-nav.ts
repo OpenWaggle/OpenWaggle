@@ -54,6 +54,16 @@ export const docsNav: NavSection[] = [
     ],
   },
   {
+    title: 'Packages',
+    items: [
+      { title: 'Overview', slug: 'packages/overview' },
+      { title: 'Extension SDK', slug: 'packages/extension-sdk' },
+      { title: 'Extension React', slug: 'packages/extension-react' },
+      { title: 'Waggle Core', slug: 'packages/waggle-core' },
+      { title: 'Pi Waggle', slug: 'packages/pi-waggle' },
+    ],
+  },
+  {
     title: 'Configuration',
     items: [
       { title: 'App Settings', slug: 'configuration/app-settings' },
