@@ -13,6 +13,7 @@
     "dev:debug": "pnpm docs:generate && pnpm prepare:native:electron && env -u ELECTRON_RUN_AS_NODE ELECTRON_ENABLE_LOGGING=1 electron-vite dev -- --remote-debugging-port=9222",
     "build": "pnpm docs:generate && pnpm prepare:native:electron && electron-vite build",
     "build:packages": "pnpm --filter @openwaggle/waggle-core build && pnpm --filter @openwaggle/pi-waggle build && pnpm --filter @openwaggle/extension-sdk build && pnpm --filter @openwaggle/extension-react build",
+    "package:smoke": "tsx scripts/package-smoke.ts",
     "preview": "pnpm prepare:native:electron && electron-vite preview",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "pnpm build && electron-builder --dir",
