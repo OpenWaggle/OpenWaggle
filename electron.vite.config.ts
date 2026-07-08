@@ -34,6 +34,7 @@ const BUNDLED_DEPS = [
   '@effect/sql',
   '@effect/sql-sqlite-node',
   '@diegogbrisa/ts-match',
+  '@openwaggle/extension-sdk',
   '@openwaggle/pi-waggle',
   '@openwaggle/waggle-core',
   '@earendil-works/pi-coding-agent',
@@ -201,6 +202,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@shared': resolve('src/shared'),
+        '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src/index.ts'),
         '@openwaggle/pi-waggle': resolve('packages/pi-waggle/src'),
         '@openwaggle/waggle-core': resolve('packages/waggle-core/src'),
       }
@@ -209,7 +211,8 @@ export default defineConfig({
   preload: {
     resolve: {
       alias: {
-        '@shared': resolve('src/shared')
+        '@shared': resolve('src/shared'),
+        '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src/index.ts')
       }
     }
   },
@@ -234,7 +237,8 @@ export default defineConfig({
     resolve: {
       alias: {
         '@': resolve('src/renderer/src'),
-        '@shared': resolve('src/shared')
+        '@shared': resolve('src/shared'),
+        '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src/index.ts')
       }
     },
     plugins: [

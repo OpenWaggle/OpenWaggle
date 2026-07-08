@@ -1,4 +1,19 @@
+import { toDecodedOperationResult } from './broker-validation.js'
 import { OPENWAGGLE_EXTENSION_BROKER } from './constants.js'
+import { isDocsDiscoverResult, isDocsResolveTopicResult } from './docs-validation.js'
+import {
+  isActionSelectProjectResult,
+  isSettingsGetResult,
+  isSettingsGetSettingResult,
+  isSettingsUpdateResult,
+  isSettingsUpdateSettingResult,
+  isStateCurrentBranchReadResult,
+  isStateCurrentProjectReadResult,
+  isStateCurrentSessionReadResult,
+  isStateModelPreferencesReadResult,
+  isStateReadResult,
+  isStateRecentProjectsReadResult,
+} from './openwaggle-validation.js'
 import type {
   CreateOpenWaggleSdkOptions,
   ExtensionOpenWaggleSdk,
@@ -6,21 +21,11 @@ import type {
   ExtensionOpenWaggleStateSdk,
   ExtensionSdkInvoke,
 } from './sdk-types.js'
-import type {
-  ExtensionActionSelectProjectResult,
-  ExtensionDocsDiscoverResult,
-  ExtensionDocsResolveTopicResult,
-  ExtensionSettingsGetResult,
-  ExtensionSettingsGetSettingResult,
-  ExtensionSettingsUpdateResult,
-  ExtensionSettingsUpdateSettingResult,
-  ExtensionStateCurrentBranchReadResult,
-  ExtensionStateCurrentProjectReadResult,
-  ExtensionStateCurrentSessionReadResult,
-  ExtensionStateModelPreferencesReadResult,
-  ExtensionStateReadResult,
-  ExtensionStateRecentProjectsReadResult,
-} from './types.js'
+
+const ACTION_RESULT_ERROR = 'Extension broker returned an invalid OpenWaggle action result.'
+const DOCS_RESULT_ERROR = 'Extension broker returned an invalid OpenWaggle docs result.'
+const SETTINGS_RESULT_ERROR = 'Extension broker returned an invalid OpenWaggle settings result.'
+const STATE_RESULT_ERROR = 'Extension broker returned an invalid OpenWaggle state result.'
 
 const unsupportedOpenExternal = async () => {
   throw new Error('OpenWaggle external URL action is not available in this extension host context.')
@@ -28,102 +33,150 @@ const unsupportedOpenExternal = async () => {
 
 function createOpenWaggleStateSdk(invoke: ExtensionSdkInvoke): ExtensionOpenWaggleStateSdk {
   return {
-    get: (scope) =>
-      invoke<ExtensionStateReadResult>({
-        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE,
-        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_STATE,
-        scope,
-        payload: {},
-      }),
-    readCurrentProject: (scope) =>
-      invoke<ExtensionStateCurrentProjectReadResult>({
-        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE,
-        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE,
-        scope,
-        payload: { selector: OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR.CURRENT_PROJECT },
-      }),
-    readCurrentSession: (scope) =>
-      invoke<ExtensionStateCurrentSessionReadResult>({
-        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE,
-        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE,
-        scope,
-        payload: { selector: OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR.CURRENT_SESSION },
-      }),
-    readCurrentBranch: (scope) =>
-      invoke<ExtensionStateCurrentBranchReadResult>({
-        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE,
-        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE,
-        scope,
-        payload: { selector: OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR.CURRENT_BRANCH },
-      }),
-    readRecentProjects: (scope) =>
-      invoke<ExtensionStateRecentProjectsReadResult>({
-        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE,
-        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE,
-        scope,
-        payload: { selector: OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR.RECENT_PROJECTS },
-      }),
-    readModelPreferences: (scope) =>
-      invoke<ExtensionStateModelPreferencesReadResult>({
-        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE,
-        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE,
-        scope,
-        payload: { selector: OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR.MODEL_PREFERENCES },
-      }),
+    get: async (scope) =>
+      toDecodedOperationResult(
+        await invoke({
+          capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE,
+          method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_STATE,
+          scope,
+          payload: {},
+        }),
+        isStateReadResult,
+        STATE_RESULT_ERROR,
+      ),
+    readCurrentProject: async (scope) =>
+      toDecodedOperationResult(
+        await invoke({
+          capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE,
+          method: OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE,
+          scope,
+          payload: { selector: OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR.CURRENT_PROJECT },
+        }),
+        isStateCurrentProjectReadResult,
+        STATE_RESULT_ERROR,
+      ),
+    readCurrentSession: async (scope) =>
+      toDecodedOperationResult(
+        await invoke({
+          capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE,
+          method: OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE,
+          scope,
+          payload: { selector: OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR.CURRENT_SESSION },
+        }),
+        isStateCurrentSessionReadResult,
+        STATE_RESULT_ERROR,
+      ),
+    readCurrentBranch: async (scope) =>
+      toDecodedOperationResult(
+        await invoke({
+          capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE,
+          method: OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE,
+          scope,
+          payload: { selector: OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR.CURRENT_BRANCH },
+        }),
+        isStateCurrentBranchReadResult,
+        STATE_RESULT_ERROR,
+      ),
+    readRecentProjects: async (scope) =>
+      toDecodedOperationResult(
+        await invoke({
+          capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE,
+          method: OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE,
+          scope,
+          payload: { selector: OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR.RECENT_PROJECTS },
+        }),
+        isStateRecentProjectsReadResult,
+        STATE_RESULT_ERROR,
+      ),
+    readModelPreferences: async (scope) =>
+      toDecodedOperationResult(
+        await invoke({
+          capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE,
+          method: OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE,
+          scope,
+          payload: { selector: OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR.MODEL_PREFERENCES },
+        }),
+        isStateModelPreferencesReadResult,
+        STATE_RESULT_ERROR,
+      ),
   }
 }
 
 function createOpenWaggleSettingsSdk(invoke: ExtensionSdkInvoke): ExtensionOpenWaggleSettingsSdk {
   return {
-    get: (scope) =>
-      invoke<ExtensionSettingsGetResult>({
-        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
-        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTINGS,
-        scope,
-        payload: {},
-      }),
-    getModelPreferences: (scope) =>
-      invoke<ExtensionSettingsGetSettingResult>({
-        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
-        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTING,
-        scope,
-        payload: { key: OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.MODEL_PREFERENCES },
-      }),
-    updateModelPreferences: (scope, value) =>
-      invoke<ExtensionSettingsUpdateSettingResult>({
-        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
-        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTING,
-        scope,
-        payload: { key: OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.MODEL_PREFERENCES, value },
-      }),
-    getProjectDisplayName: (scope, projectPath) =>
-      invoke<ExtensionSettingsGetSettingResult>({
-        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
-        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTING,
-        scope,
-        payload: {
-          key: OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.PROJECT_DISPLAY_NAME,
-          projectPath,
-        },
-      }),
-    setProjectDisplayName: (scope, projectPath, value) =>
-      invoke<ExtensionSettingsUpdateSettingResult>({
-        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
-        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTING,
-        scope,
-        payload: {
-          key: OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.PROJECT_DISPLAY_NAME,
-          projectPath,
-          value,
-        },
-      }),
-    update: (scope, settings) =>
-      invoke<ExtensionSettingsUpdateResult>({
-        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
-        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTINGS,
-        scope,
-        payload: settings,
-      }),
+    get: async (scope) =>
+      toDecodedOperationResult(
+        await invoke({
+          capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
+          method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTINGS,
+          scope,
+          payload: {},
+        }),
+        isSettingsGetResult,
+        SETTINGS_RESULT_ERROR,
+      ),
+    getModelPreferences: async (scope) =>
+      toDecodedOperationResult(
+        await invoke({
+          capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
+          method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTING,
+          scope,
+          payload: { key: OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.MODEL_PREFERENCES },
+        }),
+        isSettingsGetSettingResult,
+        SETTINGS_RESULT_ERROR,
+      ),
+    updateModelPreferences: async (scope, value) =>
+      toDecodedOperationResult(
+        await invoke({
+          capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
+          method: OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTING,
+          scope,
+          payload: { key: OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.MODEL_PREFERENCES, value },
+        }),
+        isSettingsUpdateSettingResult,
+        SETTINGS_RESULT_ERROR,
+      ),
+    getProjectDisplayName: async (scope, projectPath) =>
+      toDecodedOperationResult(
+        await invoke({
+          capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
+          method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTING,
+          scope,
+          payload: {
+            key: OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.PROJECT_DISPLAY_NAME,
+            projectPath,
+          },
+        }),
+        isSettingsGetSettingResult,
+        SETTINGS_RESULT_ERROR,
+      ),
+    setProjectDisplayName: async (scope, projectPath, value) =>
+      toDecodedOperationResult(
+        await invoke({
+          capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
+          method: OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTING,
+          scope,
+          payload: {
+            key: OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.PROJECT_DISPLAY_NAME,
+            projectPath,
+            value,
+          },
+        }),
+        isSettingsUpdateSettingResult,
+        SETTINGS_RESULT_ERROR,
+      ),
+    update: async (scope, settings) =>
+      toDecodedOperationResult(
+        await invoke({
+          capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
+          method: OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTINGS,
+          scope,
+          payload: settings,
+        }),
+        isSettingsUpdateResult,
+        SETTINGS_RESULT_ERROR,
+      ),
   }
 }
 
@@ -135,30 +188,42 @@ export function createOpenWaggleSdk(
     state: createOpenWaggleStateSdk(invoke),
     actions: {
       openExternal: options.openExternal ?? unsupportedOpenExternal,
-      selectProject: (scope, projectPath) =>
-        invoke<ExtensionActionSelectProjectResult>({
-          capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.ACTIONS,
-          method: OPENWAGGLE_EXTENSION_BROKER.METHOD.SELECT_PROJECT,
-          scope,
-          payload: { projectPath },
-        }),
+      selectProject: async (scope, projectPath) =>
+        toDecodedOperationResult(
+          await invoke({
+            capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.ACTIONS,
+            method: OPENWAGGLE_EXTENSION_BROKER.METHOD.SELECT_PROJECT,
+            scope,
+            payload: { projectPath },
+          }),
+          isActionSelectProjectResult,
+          ACTION_RESULT_ERROR,
+        ),
     },
     settings: createOpenWaggleSettingsSdk(invoke),
     docs: {
-      discover: (scope, input = {}) =>
-        invoke<ExtensionDocsDiscoverResult>({
-          capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.DOCS,
-          method: OPENWAGGLE_EXTENSION_BROKER.METHOD.DISCOVER_DOCS,
-          scope,
-          payload: input,
-        }),
-      resolveTopic: (scope, input) =>
-        invoke<ExtensionDocsResolveTopicResult>({
-          capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.DOCS,
-          method: OPENWAGGLE_EXTENSION_BROKER.METHOD.RESOLVE_DOCS_TOPIC,
-          scope,
-          payload: input,
-        }),
+      discover: async (scope, input = {}) =>
+        toDecodedOperationResult(
+          await invoke({
+            capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.DOCS,
+            method: OPENWAGGLE_EXTENSION_BROKER.METHOD.DISCOVER_DOCS,
+            scope,
+            payload: input,
+          }),
+          isDocsDiscoverResult,
+          DOCS_RESULT_ERROR,
+        ),
+      resolveTopic: async (scope, input) =>
+        toDecodedOperationResult(
+          await invoke({
+            capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.DOCS,
+            method: OPENWAGGLE_EXTENSION_BROKER.METHOD.RESOLVE_DOCS_TOPIC,
+            scope,
+            payload: input,
+          }),
+          isDocsResolveTopicResult,
+          DOCS_RESULT_ERROR,
+        ),
     },
   }
 }
