@@ -14,6 +14,7 @@
     "build": "pnpm docs:generate && pnpm prepare:native:electron && electron-vite build",
     "build:packages": "pnpm --filter @openwaggle/waggle-core build && pnpm --filter @openwaggle/pi-waggle build && pnpm --filter @openwaggle/extension-sdk build && pnpm --filter @openwaggle/extension-react build",
     "package:smoke": "tsx scripts/package-smoke.ts",
+    "packaged-app:smoke": "tsx scripts/packaged-app-smoke.ts",
     "preview": "pnpm prepare:native:electron && electron-vite preview",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "pnpm build && electron-builder --dir",
