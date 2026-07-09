@@ -21,6 +21,7 @@ const EMPTY_COUNT = 0
 const CONFIG_PATH = 'release-please-config.json'
 const MANIFEST_PATH = '.release-please-manifest.json'
 const WORKFLOW_PATH = '.github/workflows/package-release.yml'
+const ROOT_PACKAGE_PATH = 'package.json'
 const SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 
 const EXPECTED_PACKAGES: readonly ExpectedPackage[] = [
@@ -219,6 +220,19 @@ async function validatePackageMetadata(
   }
 }
 
+function validateRootPackageScripts(packageJson: JsonObject | undefined, violations: string[]) {
+  const scripts = packageJson ? getObject(packageJson, 'scripts') : undefined
+  const checkScript = scripts?.check
+  if (typeof checkScript !== 'string') {
+    violations.push(`${ROOT_PACKAGE_PATH} scripts.check must exist.`)
+    return
+  }
+
+  if (!checkScript.includes('pnpm package:smoke')) {
+    violations.push(`${ROOT_PACKAGE_PATH} scripts.check must run pnpm package:smoke.`)
+  }
+}
+
 function validateWorkflowText(workflowText: string, violations: string[]) {
   const requiredSnippets = [
     'workflow_dispatch:',
@@ -267,9 +281,11 @@ export async function validatePackageReleaseFiles(
     readJsonFile(projectRoot, CONFIG_PATH, violations),
     readJsonFile(projectRoot, MANIFEST_PATH, violations),
   ])
+  const rootPackageJson = await readJsonFile(projectRoot, ROOT_PACKAGE_PATH, violations)
 
   validateReleasePleaseConfig(config, violations)
   validateReleasePleaseManifest(manifest, violations)
+  validateRootPackageScripts(rootPackageJson, violations)
   await validatePackageMetadata(projectRoot, manifest, violations)
   await validateWorkflow(projectRoot, violations)
 

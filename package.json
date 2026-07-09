@@ -49,7 +49,7 @@
     "api:snapshot:update:dry-run": "pnpm build:packages && tsx scripts/package-api-snapshots.ts --update --dry-run",
     "package-release:validate": "tsx scripts/package-release-validator.ts",
     "check:fast": "pnpm typecheck && pnpm lint",
-    "check": "pnpm typecheck && pnpm lint && pnpm package-release:validate && pnpm api:snapshot:check",
+    "check": "pnpm typecheck && pnpm lint && pnpm package-release:validate && pnpm api:snapshot:check && pnpm package:smoke",
     "prepush:main": "pnpm check && pnpm format && pnpm test:all",
     "website:capture-screenshots": "pnpm prepare:native:electron && tsx scripts/capture-website-screenshots.ts",
     "prepare": "husky",

@@ -66,6 +66,11 @@ async function writeMinimalPackageReleaseProject(
     'packages/waggle-core': version,
     'packages/pi-waggle': version,
   })
+  await writeJson(path.join(projectRoot, 'package.json'), {
+    scripts: {
+      check: 'pnpm typecheck && pnpm package:smoke',
+    },
+  })
   await writeFile(path.join(projectRoot, '.github/workflows/package-release.yml'), workflowText)
 
   for (const [index, packageDirectory] of packageDirectories.entries()) {
@@ -131,6 +136,51 @@ jobs:
           '.github/workflows/package-release.yml must use npm staged publishing, not direct npm publish.',
         ]),
       )
+    } finally {
+      await fs.rm(projectRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects a root check script that skips package smoke validation', async () => {
+    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
+    try {
+      await writeMinimalPackageReleaseProject(
+        projectRoot,
+        `
+name: Package Release
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        type: boolean
+  push:
+    branches: [main]
+permissions:
+  id-token: write
+jobs:
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+      - run: pnpm package-release:validate
+      - run: pnpm check
+      - run: pnpm build:packages
+      - run: echo "$ACTIONS_ID_TOKEN_REQUEST_TOKEN"
+      - run: npm stage publish
+`,
+      )
+      await writeJson(path.join(projectRoot, 'package.json'), {
+        scripts: {
+          check: 'pnpm typecheck && pnpm lint',
+        },
+      })
+
+      const result = await validatePackageReleaseFiles(projectRoot)
+
+      expect(result.violations).toContain('package.json scripts.check must run pnpm package:smoke.')
     } finally {
       await fs.rm(projectRoot, { recursive: true, force: true })
     }
