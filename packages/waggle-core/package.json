@@ -16,6 +16,7 @@
   "files": [
     "dist",
     "dist-cjs",
+    "CHANGELOG.md",
     "README.md"
   ],
   "exports": {

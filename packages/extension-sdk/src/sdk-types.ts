@@ -5,9 +5,11 @@ import type {
   ExtensionDocsDiscoverResult,
   ExtensionDocsResolveTopicPayload,
   ExtensionDocsResolveTopicResult,
+  ExtensionInvokeFailure,
   ExtensionInvokeInput,
   ExtensionInvokeResult,
   ExtensionInvokeScope,
+  ExtensionInvokeSuccess,
   ExtensionModelPreferencesSettingsPatch,
   ExtensionRuntimeRegisterContributionPayload,
   ExtensionRuntimeRegisterContributionResult,
@@ -30,6 +32,65 @@ import type {
   ExtensionStorageSetResult,
 } from './types.js'
 
+export type ExtensionOperationSuccess<TValue> = ExtensionInvokeSuccess<TValue>
+export type ExtensionStorageGetOperationResult =
+  | ExtensionOperationSuccess<ExtensionStorageGetResult>
+  | ExtensionInvokeFailure
+export type ExtensionStorageSetOperationResult =
+  | ExtensionOperationSuccess<ExtensionStorageSetResult>
+  | ExtensionInvokeFailure
+export type ExtensionStorageDeleteOperationResult =
+  | ExtensionOperationSuccess<ExtensionStorageDeleteResult>
+  | ExtensionInvokeFailure
+export type ExtensionStorageListOperationResult =
+  | ExtensionOperationSuccess<ExtensionStorageListResult>
+  | ExtensionInvokeFailure
+export type ExtensionRuntimeRegisterContributionOperationResult =
+  | ExtensionOperationSuccess<ExtensionRuntimeRegisterContributionResult>
+  | ExtensionInvokeFailure
+export type ExtensionRuntimeUnregisterContributionOperationResult =
+  | ExtensionOperationSuccess<ExtensionRuntimeUnregisterContributionResult>
+  | ExtensionInvokeFailure
+export type ExtensionStateReadOperationResult =
+  | ExtensionOperationSuccess<ExtensionStateReadResult>
+  | ExtensionInvokeFailure
+export type ExtensionStateCurrentProjectReadOperationResult =
+  | ExtensionOperationSuccess<ExtensionStateCurrentProjectReadResult>
+  | ExtensionInvokeFailure
+export type ExtensionStateCurrentSessionReadOperationResult =
+  | ExtensionOperationSuccess<ExtensionStateCurrentSessionReadResult>
+  | ExtensionInvokeFailure
+export type ExtensionStateCurrentBranchReadOperationResult =
+  | ExtensionOperationSuccess<ExtensionStateCurrentBranchReadResult>
+  | ExtensionInvokeFailure
+export type ExtensionStateRecentProjectsReadOperationResult =
+  | ExtensionOperationSuccess<ExtensionStateRecentProjectsReadResult>
+  | ExtensionInvokeFailure
+export type ExtensionStateModelPreferencesReadOperationResult =
+  | ExtensionOperationSuccess<ExtensionStateModelPreferencesReadResult>
+  | ExtensionInvokeFailure
+export type ExtensionSelectProjectOperationResult =
+  | ExtensionOperationSuccess<ExtensionActionSelectProjectResult>
+  | ExtensionInvokeFailure
+export type ExtensionDocsDiscoverOperationResult =
+  | ExtensionOperationSuccess<ExtensionDocsDiscoverResult>
+  | ExtensionInvokeFailure
+export type ExtensionDocsResolveTopicOperationResult =
+  | ExtensionOperationSuccess<ExtensionDocsResolveTopicResult>
+  | ExtensionInvokeFailure
+export type ExtensionSettingsGetOperationResult =
+  | ExtensionOperationSuccess<ExtensionSettingsGetResult>
+  | ExtensionInvokeFailure
+export type ExtensionSettingsGetSettingOperationResult =
+  | ExtensionOperationSuccess<ExtensionSettingsGetSettingResult>
+  | ExtensionInvokeFailure
+export type ExtensionSettingsUpdateOperationResult =
+  | ExtensionOperationSuccess<ExtensionSettingsUpdateResult>
+  | ExtensionInvokeFailure
+export type ExtensionSettingsUpdateSettingOperationResult =
+  | ExtensionOperationSuccess<ExtensionSettingsUpdateSettingResult>
+  | ExtensionInvokeFailure
+
 export interface ExtensionSdkIdentity {
   readonly extensionId: string
   readonly contributionId: string
@@ -42,13 +103,13 @@ export interface ExtensionSdkInvokeRequest {
   readonly payload?: unknown
 }
 
-export type ExtensionBrokerTransport = <TValue = unknown>(
+export type ExtensionBrokerTransport = (
   input: ExtensionInvokeInput,
-) => Promise<ExtensionInvokeResult<TValue>>
+) => Promise<ExtensionInvokeResult>
 
-export type ExtensionSdkInvoke = <TValue = unknown>(
+export type ExtensionSdkInvoke = (
   request: ExtensionSdkInvokeRequest,
-) => Promise<ExtensionInvokeResult<TValue>>
+) => Promise<ExtensionInvokeResult>
 
 export interface ExtensionStorageScopeSdk {
   readonly get: (

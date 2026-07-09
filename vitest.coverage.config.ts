@@ -28,6 +28,7 @@ export default defineConfig({
     alias: {
       '@': resolve('src/renderer/src'),
       '@shared': resolve('src/shared'),
+      '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src/index.ts'),
       '@openwaggle/pi-waggle': resolve('packages/pi-waggle/src'),
       '@openwaggle/waggle-core': resolve('packages/waggle-core/src'),
     },

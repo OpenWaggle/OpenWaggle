@@ -40,3 +40,16 @@ Do not rely on commit subjects alone for large product changes such as Session T
 ## Validation
 
 Use `.agents/verification.md` for baseline validation. For release work, prefer exact CI artifacts where possible. Post-publish installer checks are too late to prevent shipping broken installers.
+
+## Npm Package Release Workflow
+
+OpenWaggle npm packages use Release Please manifest mode through `release-please-config.json`, `.release-please-manifest.json`, and `.github/workflows/package-release.yml`.
+
+- Release Please owns package-local version PRs, package-local `CHANGELOG.md` files, package-specific GitHub Releases, and short component tags such as `extension-sdk-v0.1.0`.
+- `@openwaggle/extension-react` is dependency-bumped when `@openwaggle/extension-sdk` changes, and `@openwaggle/pi-waggle` is dependency-bumped when `@openwaggle/waggle-core` changes, via the Release Please `node-workspace` plugin.
+- Manual `workflow_dispatch` is validation-only. It must not stage or publish packages.
+- Real package staging runs only after Release Please creates package releases from a `main` push. The staging job requires GitHub OIDC with `id-token: write`, verifies the version is unpublished, and uses `npm stage publish` for maintainer approval.
+- Do not add `NPM_TOKEN`, `NODE_AUTH_TOKEN`, direct `npm publish`, or local maintainer publish fallback paths.
+- Publishing remains blocked until maintainers own/configure the `@openwaggle` npm namespace, trusted publishing, stage-only permissions, and the protected `npm` environment.
+
+For package release workflow changes, run `pnpm package-release:validate`, `pnpm check`, package build/pack dry-runs, and a Release Please dry-run where credentials allow it.
