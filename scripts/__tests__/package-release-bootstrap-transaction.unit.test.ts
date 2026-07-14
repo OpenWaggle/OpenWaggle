@@ -71,8 +71,8 @@ describe('package release namespace bootstrap package transaction', () => {
     expect(requests.filter((request) => request.mutates).map(commandKey)).toEqual([
       'npm publish --tag bootstrap --access public --ignore-scripts',
       `npm access set mfa=publish ${firstPackage}`,
-      `npm trust github ${firstPackage} --file package-release.yml --repository OpenWaggle/OpenWaggle --environment npm --allow-publish --yes`,
       `npm deprecate ${firstPackage}@0.0.0-bootstrap.0 Namespace bootstrap placeholder; use a released version.`,
+      `npm trust github ${firstPackage} --file package-release.yml --repository OpenWaggle/OpenWaggle --environment npm --allow-publish --yes`,
       'npm publish --tag bootstrap --access public --ignore-scripts',
       `npm access set mfa=publish ${secondPackage}`,
       `npm access set mfa=publish ${secondPackage}`,

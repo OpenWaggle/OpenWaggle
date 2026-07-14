@@ -21,7 +21,6 @@ import {
   type JsonObject,
 } from './package-release-bootstrap-model'
 import {
-  AUTOMATIC_LATEST_REPAIR_BY_CONTINUATION,
   NEXT_CONFIGURE,
   NEXT_FINALIZE,
   NEXT_PUBLISH,
@@ -153,16 +152,7 @@ async function inspectPublishedPlaceholder(
     }),
     `npm view ${packageName} dist-tags`,
   )
-  const hasAutomaticLatest = isJsonObject(tags) && tags.latest === BOOTSTRAP_VERSION
-  if (hasAutomaticLatest) {
-    const tagsWithoutAutomaticLatest = Object.fromEntries(
-      Object.entries(tags).filter(([tag]) => tag !== 'latest'),
-    )
-    if (!hasCompatibleTags(tagsWithoutAutomaticLatest)) {
-      return conflict(packageName, 'resolve conflicting bootstrap dist-tags')
-    }
-  }
-  if (!hasAutomaticLatest && !hasCompatibleTags(tags)) {
+  if (!hasCompatibleTags(tags)) {
     return conflict(packageName, 'resolve conflicting bootstrap dist-tags')
   }
   const access = await runRequired(dependencies, {
@@ -185,7 +175,7 @@ async function inspectPublishedPlaceholder(
     return conflict(packageName, 'resolve conflicting bootstrap deprecation metadata')
   }
   if (Array.isArray(trust) && trust.length === 0) {
-    return pendingPackage(packageName, NEXT_CONFIGURE, hasAutomaticLatest)
+    return pendingPackage(packageName, NEXT_CONFIGURE)
   }
   if (!isCompatibleTrustConfiguration(trust)) {
     return conflict(
@@ -194,22 +184,15 @@ async function inspectPublishedPlaceholder(
     )
   }
   if (requiresDeprecation) {
-    return pendingPackage(packageName, NEXT_FINALIZE, hasAutomaticLatest)
+    return pendingPackage(packageName, NEXT_FINALIZE)
   }
-  return pendingPackage(packageName, NEXT_REASSERT_MFA, hasAutomaticLatest)
+  return pendingPackage(packageName, NEXT_REASSERT_MFA)
 }
 
 function pendingPackage(
   packageName: string,
-  continuation: string,
-  hasAutomaticLatest: boolean,
+  nextAction: string,
 ): BootstrapPackageProgress {
-  const nextAction = hasAutomaticLatest
-    ? AUTOMATIC_LATEST_REPAIR_BY_CONTINUATION.get(continuation)
-    : continuation
-  if (nextAction === undefined) {
-    throw new Error(`${packageName} has an unsupported automatic latest repair action.`)
-  }
   return { name: packageName, nextAction, state: 'pending' }
 }
 
@@ -230,6 +213,21 @@ async function inspectPackage(
     throw new Error(
       `npm view ${packageName} failed: ${redactBootstrapDiagnostic(packageResult.stderr)}`,
     )
+  }
+  const versions = parseJson(
+    await runRequired(dependencies, {
+      args: ['view', packageName, 'versions', '--json'],
+      command: 'npm',
+      cwd: projectRoot,
+    }),
+    `npm view ${packageName} versions`,
+  )
+  if (
+    !Array.isArray(versions) ||
+    versions.length !== 1 ||
+    versions[0] !== BOOTSTRAP_VERSION
+  ) {
+    return conflict(packageName, 'refuse occupied package name with non-bootstrap versions')
   }
   const metadataResult = await runCommand(dependencies, {
     args: ['view', `${packageName}@${BOOTSTRAP_VERSION}`, '--json'],
