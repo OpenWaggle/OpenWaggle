@@ -8,13 +8,13 @@ import {
   isCompatibleBootstrapMetadata,
   isCompatibleBootstrapRecord,
   isCompatibleTrustConfiguration,
-  isJsonObject,
   isPublicAccess,
   PACKAGE_NAMES,
   parseJson,
   parseJsonObject,
 } from './package-release-bootstrap-model'
 import type { BootstrapDependencies } from './package-release-bootstrap-types'
+import { readTrustConfiguration } from './package-release-bootstrap-trust'
 
 const JSON_INDENT_SPACES = 2
 
@@ -110,7 +110,9 @@ export async function verifyPublishedPlaceholder(
     `npm view ${packageName} dist-tags`,
   )
   if (!hasCompatibleTags(tags)) {
-    throw new Error(`${packageName} must use only the bootstrap tag for the bootstrap version.`)
+    throw new Error(
+      `${packageName} bootstrap version has unsupported dist-tags.`,
+    )
   }
   const access = await runRequired(dependencies, {
     args: ['access', 'get', 'status', packageName, '--json'],
@@ -120,40 +122,6 @@ export async function verifyPublishedPlaceholder(
   if (!isPublicAccess(access, packageName)) {
     throw new Error(`${packageName} must be publicly visible.`)
   }
-}
-
-export async function removeAutomaticBootstrapLatestTag(
-  projectRoot: string,
-  packageName: string,
-  dependencies: BootstrapDependencies,
-) {
-  const tags = parseJson(
-    await runRequired(dependencies, {
-      args: ['view', packageName, 'dist-tags', '--json'],
-      command: 'npm',
-      cwd: projectRoot,
-    }),
-    `npm view ${packageName} dist-tags`,
-  )
-  if (!isJsonObject(tags)) {
-    throw new Error(`${packageName} dist-tags metadata is incompatible.`)
-  }
-  if (tags.latest !== BOOTSTRAP_VERSION) {
-    if (hasCompatibleTags(tags)) return
-    throw new Error(`${packageName} has conflicting bootstrap dist-tags.`)
-  }
-  const tagsWithoutAutomaticLatest = Object.fromEntries(
-    Object.entries(tags).filter(([tag]) => tag !== 'latest'),
-  )
-  if (!hasCompatibleTags(tagsWithoutAutomaticLatest)) {
-    throw new Error(`${packageName} has conflicting bootstrap dist-tags.`)
-  }
-  dependencies.writeLine(`[dist-tag] ${packageName} remove automatic latest`)
-  await runMutation(dependencies, {
-    args: ['dist-tag', 'rm', packageName, 'latest'],
-    command: 'npm',
-    cwd: projectRoot,
-  })
 }
 
 async function createTrust(
@@ -186,14 +154,7 @@ async function verifyTrust(
   packageName: string,
   dependencies: BootstrapDependencies,
 ) {
-  const trust = parseJson(
-    await runRequired(dependencies, {
-      args: ['trust', 'list', packageName, '--json'],
-      command: 'npm',
-      cwd: projectRoot,
-    }),
-    `npm trust list ${packageName}`,
-  )
+  const trust = await readTrustConfiguration(projectRoot, packageName, dependencies)
   if (!isCompatibleTrustConfiguration(trust)) {
     throw new Error(`${packageName} trusted publisher verification failed.`)
   }
@@ -244,8 +205,6 @@ export async function configureAndVerifyPackage(
   if (!options.publishingRestricted) {
     await restrictPackagePublishing(projectRoot, packageName, dependencies)
   }
-  if (options.createTrust) await createTrust(projectRoot, packageName, dependencies)
-  await verifyTrust(projectRoot, packageName, dependencies)
   if (options.deprecate) {
     dependencies.writeLine(`[deprecate] ${packageName}@${BOOTSTRAP_VERSION}`)
     await runMutation(dependencies, {
@@ -254,5 +213,7 @@ export async function configureAndVerifyPackage(
       cwd: projectRoot,
     })
   }
+  if (options.createTrust) await createTrust(projectRoot, packageName, dependencies)
+  await verifyTrust(projectRoot, packageName, dependencies)
   await verifyPackage(projectRoot, packageName, dependencies)
 }

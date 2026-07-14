@@ -9,8 +9,8 @@ import {
   successful,
 } from './package-release-bootstrap-test-helpers'
 
-describe('package release namespace bootstrap tag repair', () => {
-  it('repairs automatic latest after MFA without recreating compatible trust', async () => {
+describe('package release namespace bootstrap automatic latest handling', () => {
+  it('accepts automatic latest until the first real release replaces it', async () => {
     const overrides = new Map<string, BootstrapCommandResult>([
       ['pnpm check', successful()],
       [
@@ -26,21 +26,16 @@ describe('package release namespace bootstrap tag repair', () => {
       overrides.set(`npm access set mfa=publish ${packageName}`, successful())
     }
     const firstPackage = PACKAGE_NAMES[0]
-    overrides.set(`npm dist-tag rm ${firstPackage} latest`, successful())
-    const automaticLatest = successful(
-      JSON.stringify({
-        bootstrap: '0.0.0-bootstrap.0',
-        latest: '0.0.0-bootstrap.0',
-      }),
+    overrides.set(
+      `npm view ${firstPackage} dist-tags --json`,
+      successful(
+        JSON.stringify({
+          bootstrap: '0.0.0-bootstrap.0',
+          latest: '0.0.0-bootstrap.0',
+        }),
+      ),
     )
-    const bootstrapOnly = successful(JSON.stringify({ bootstrap: '0.0.0-bootstrap.0' }))
-    const sequenceOverrides = new Map<string, BootstrapCommandResult[]>([
-      [
-        `npm view ${firstPackage} dist-tags --json`,
-        [automaticLatest, automaticLatest, automaticLatest, bootstrapOnly, bootstrapOnly],
-      ],
-    ])
-    const { dependencies, requests } = createDependencies(overrides, sequenceOverrides)
+    const { dependencies, requests } = createDependencies(overrides)
 
     const result = await runPackageReleaseBootstrap(
       { args: ['--execute'], projectRoot: '/workspace/OpenWaggle' },
@@ -50,10 +45,15 @@ describe('package release namespace bootstrap tag repair', () => {
     expect(result.blockers).toEqual([])
     expect(result.ok).toBe(true)
     expect(result.packages.every((item) => item.state === 'complete')).toBe(true)
-    expect(requests.filter((request) => request.mutates).map(commandKey)).toEqual([
-      `npm access set mfa=publish ${firstPackage}`,
-      `npm dist-tag rm ${firstPackage} latest`,
-      ...PACKAGE_NAMES.slice(1).map((name) => `npm access set mfa=publish ${name}`),
-    ])
+    expect(requests.filter((request) => request.mutates).map(commandKey)).toEqual(
+      PACKAGE_NAMES.map((name) => `npm access set mfa=publish ${name}`),
+    )
+    expect(
+      requests
+        .filter((request) => commandKey(request).startsWith('npm trust list'))
+        .every(
+          (request) => request.interactive === true && request.captureOutput === true,
+        ),
+    ).toBe(true)
   })
 })

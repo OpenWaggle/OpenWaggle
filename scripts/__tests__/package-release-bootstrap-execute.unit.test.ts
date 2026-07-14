@@ -45,70 +45,7 @@ describe('package release namespace bootstrap execution', () => {
     expect(requests.filter((request) => request.mutates)).toEqual([])
   })
 
-  it('repairs automatic latest and stops if registry verification still reports it', async () => {
-    const packageName = PACKAGE_NAMES[0]
-    const overrides = new Map<string, BootstrapCommandResult>([
-      ['pnpm check', successful()],
-      ['npm publish --tag bootstrap --access public --ignore-scripts', successful()],
-      [
-        'npm access list packages maintainer --json',
-        successful(
-          JSON.stringify(Object.fromEntries(PACKAGE_NAMES.map((name) => [name, 'read-write']))),
-        ),
-      ],
-      [
-        `npm trust github ${packageName} --file package-release.yml --repository OpenWaggle/OpenWaggle --environment npm --allow-publish --yes`,
-        successful(),
-      ],
-      [`npm access set mfa=publish ${packageName}`, successful()],
-      [
-        `npm deprecate ${packageName}@0.0.0-bootstrap.0 Namespace bootstrap placeholder; use a released version.`,
-        successful(),
-      ],
-      [
-        `npm trust list ${packageName} --json`,
-        successful(JSON.stringify(compatibleTrustConfiguration())),
-      ],
-      [
-        `npm view ${packageName}@0.0.0-bootstrap.0 --json`,
-        successful(
-          JSON.stringify({
-            deprecated: 'Namespace bootstrap placeholder; use a released version.',
-            files: [],
-            name: packageName,
-            openwaggleNamespaceBootstrap: true,
-            version: '0.0.0-bootstrap.0',
-          }),
-        ),
-      ],
-      [
-        `npm view ${packageName} dist-tags --json`,
-        successful(
-          JSON.stringify({
-            bootstrap: '0.0.0-bootstrap.0',
-            latest: '0.0.0-bootstrap.0',
-          }),
-        ),
-      ],
-      [`npm access get status ${packageName} --json`, publicAccess(packageName)],
-    ])
-    const { dependencies, requests } = createDependencies(overrides)
-
-    const result = await runPackageReleaseBootstrap(
-      { args: ['--execute'], projectRoot: '/workspace/OpenWaggle' },
-      dependencies,
-    )
-
-    expect(result.ok).toBe(false)
-    expect(requests.filter((request) => request.mutates).map(commandKey)).toEqual([
-      'npm publish --tag bootstrap --access public --ignore-scripts',
-      `npm access set mfa=publish ${packageName}`,
-      `npm dist-tag rm ${packageName} latest`,
-      `npm access set mfa=publish ${packageName}`,
-    ])
-  })
-
-  it('executes the complete bootstrap without publishing runtime code or latest tags', async () => {
+  it('executes the complete bootstrap with npm automatic latest and no runtime code', async () => {
     const overrides = new Map<string, BootstrapCommandResult>([
       ['pnpm check', successful()],
       [
@@ -175,7 +112,12 @@ describe('package release namespace bootstrap execution', () => {
       )
       overrides.set(
         `npm view ${packageName} dist-tags --json`,
-        successful(JSON.stringify({ bootstrap: '0.0.0-bootstrap.0' })),
+        successful(
+          JSON.stringify({
+            bootstrap: '0.0.0-bootstrap.0',
+            latest: '0.0.0-bootstrap.0',
+          }),
+        ),
       )
       overrides.set(`npm access get status ${packageName} --json`, publicAccess(packageName))
     }

@@ -226,4 +226,28 @@ describe('package release namespace bootstrap preflight', () => {
     expect(requests.filter((request) => request.mutates)).toEqual([])
   })
 
+  it('sanitizes npm browser authentication URLs from command failures', async () => {
+    const authId = 'browser-auth-secret'
+    const overrides = new Map<string, BootstrapCommandResult>([
+      [
+        'npm whoami',
+        {
+          exitCode: 1,
+          stderr: [
+            `https://www.npmjs.com/auth/cli/${authId}`,
+            `https://registry.npmjs.org/-/v1/done?authId=${authId}`,
+          ].join('\n'),
+          stdout: '',
+        },
+      ],
+    ])
+    const { dependencies } = createDependencies(overrides)
+
+    await expect(
+      runPackageReleaseBootstrap(
+        { args: ['--execute'], projectRoot: '/workspace/OpenWaggle' },
+        dependencies,
+      ),
+    ).rejects.not.toThrow(authId)
+  })
 })

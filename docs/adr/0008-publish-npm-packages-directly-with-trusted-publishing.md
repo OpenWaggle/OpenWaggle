@@ -9,4 +9,4 @@ OpenWaggle will publish validated package tarballs directly from `package-releas
 - Package releases are driven only by release-eligible Conventional Commits that touch their `packages/<name>/` path; desktop app release intent remains separate.
 - `extension-sdk` and `waggle-core` publish before their dependents, while Release Please patch-bumps dependents when their OpenWaggle dependency changes.
 - The trusted workflow is pinned to the `npm` GitHub environment, runs only from `main`, publishes exact validated tarballs, and has an exact-tag recovery dispatch.
-- The bootstrap placeholder is never assigned npm's `latest` tag and is not a public API release.
+- npm temporarily assigns `latest` to the sole bootstrap version and refuses removing it. The placeholder is deprecated, and the first trusted `0.1.0` publish atomically replaces `latest` with the real release.

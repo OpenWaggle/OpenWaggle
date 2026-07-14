@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { spawn as spawnPseudoterminal } from 'node-pty'
 import { isCredentialEnvironmentKey } from './package-release-bootstrap-commands'
 import type {
   BootstrapCommandRequest,
@@ -12,6 +13,8 @@ import type {
 } from './package-release-bootstrap-types'
 
 const COMMAND_FAILURE_EXIT_CODE = 1
+const DEFAULT_TERMINAL_COLUMNS = 80
+const DEFAULT_TERMINAL_ROWS = 24
 const PRIVATE_FILE_MODE = 0o600
 export const BOOTSTRAP_SECURITY_RECOVERY_TIMEOUT_MS = 120_000
 const BOOTSTRAP_SIGNALS = ['SIGINT', 'SIGTERM'] as const
@@ -129,10 +132,62 @@ function childEnvironment(source: NodeJS.ProcessEnv) {
   return environment
 }
 
+function pseudoterminalEnvironment(source: NodeJS.ProcessEnv) {
+  return {
+    ...Object.fromEntries(
+      Object.entries(childEnvironment(source)).filter(
+        (entry): entry is [string, string] => entry[1] !== undefined,
+      ),
+    ),
+    NPM_CONFIG_PROGRESS: 'false',
+  }
+}
+
+function executePseudoterminalCommand(
+  request: BootstrapCommandRequest,
+  interruptions: BootstrapInterruptionCoordinator,
+): Promise<BootstrapCommandResult> {
+  return new Promise((resolve) => {
+    const child = spawnPseudoterminal(request.command, [...request.args], {
+      cols: process.stdout.columns ?? DEFAULT_TERMINAL_COLUMNS,
+      cwd: request.cwd,
+      env: pseudoterminalEnvironment(process.env),
+      name: 'xterm-color',
+      rows: process.stdout.rows ?? DEFAULT_TERMINAL_ROWS,
+    })
+    const untrackChild = interruptions.trackChild({
+      kill: (signal) => {
+        child.kill(signal)
+        return true
+      },
+    })
+    const stdinWasFlowing = process.stdin.readableFlowing === true
+    let output = ''
+
+    const forwardInput = (chunk: Buffer | string) => child.write(String(chunk))
+    process.stdin.on('data', forwardInput)
+    process.stdin.resume()
+
+    child.onData((chunk) => {
+      output += chunk
+      process.stdout.write(chunk)
+    })
+    child.onExit(({ exitCode }) => {
+      process.stdin.off('data', forwardInput)
+      if (!stdinWasFlowing) process.stdin.pause()
+      untrackChild()
+      resolve({ exitCode, stderr: '', stdout: output })
+    })
+  })
+}
+
 function executeCommand(
   request: BootstrapCommandRequest,
   interruptions: BootstrapInterruptionCoordinator,
 ): Promise<BootstrapCommandResult> {
+  if (request.interactive === true && request.captureOutput === true) {
+    return executePseudoterminalCommand(request, interruptions)
+  }
   return new Promise((resolve) => {
     const child = spawn(request.command, request.args, {
       cwd: request.cwd,
