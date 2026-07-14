@@ -21,7 +21,6 @@ const BOOTSTRAP_FORBIDDEN_FIELDS = [
   'typings',
   'bin',
   'man',
-  'directories',
   'scripts',
   'dependencies',
   'devDependencies',
@@ -179,9 +178,13 @@ export function isCompatibleBootstrapRecord(value: unknown, packageName: string)
     hasCompatibleDistMetadata
   const registryMetadataHasOnlyManifest =
     value.files === undefined && distFileCount === 1
+  const hasCompatibleDirectories =
+    value.directories === undefined ||
+    (isJsonObject(value.directories) && Object.keys(value.directories).length === 0)
 
   return (
     (manifestHasNoFiles || registryMetadataHasOnlyManifest) &&
+    hasCompatibleDirectories &&
     BOOTSTRAP_FORBIDDEN_FIELDS.every((field) => value[field] === undefined)
   )
 }
