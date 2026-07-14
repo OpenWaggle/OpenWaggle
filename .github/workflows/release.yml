@@ -478,6 +478,11 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: ${{ runner.temp }}/release/${{ matrix.platform }}
 
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        if: matrix.platform == 'windows'
+        with:
+          node-version: 24.14.0
+
       - name: Verify Linux installer
         if: matrix.platform == 'linux'
         shell: bash
@@ -549,21 +554,9 @@ jobs:
       - name: Verify Windows installer
         if: matrix.platform == 'windows'
         shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $version = '${{ needs.version.outputs.new_version }}'
-          $artifactDir = Join-Path "$env:RUNNER_TEMP\release" 'windows'
-          $asset = "openwaggle-$version-x64.exe"
-          $installer = Join-Path $artifactDir $asset
-          if (-not (Test-Path $installer)) { throw 'Installer download failed' }
-
-          Start-Process -FilePath $installer -ArgumentList '/S' -Wait
-          $paths = @(
-            "$env:LOCALAPPDATA\Programs\OpenWaggle\OpenWaggle.exe",
-            "$env:ProgramFiles\OpenWaggle\OpenWaggle.exe"
-          )
-          $found = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
-          if (-not $found) { throw 'Installed executable not found after silent install' }
+        env:
+          INSTALLER_PATH: ${{ runner.temp }}\release\windows\openwaggle-${{ needs.version.outputs.new_version }}-x64.exe
+        run: node scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"
 
   release:
     name: Create GitHub Release
