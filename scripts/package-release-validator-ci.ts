@@ -1,4 +1,5 @@
 import { parsePackageReleaseWorkflow } from './package-release-validator-workflow-structure'
+import { validateReleaseCiPolicy } from './release-ci-policy'
 import {
   jobExactNamedActionStepWithInputsIndex,
   jobExactNamedRunStepIndex,
@@ -82,11 +83,18 @@ function validateWorkflowExecutionContext(workflowRoot: unknown, violations: str
   )
 }
 
+function validateGeneralReleasePolicy(ciWorkflowText: string, violations: string[]) {
+  for (const violation of validateReleaseCiPolicy(ciWorkflowText)) {
+    violations.push(`${CI_WORKFLOW_PATH}: ${violation}`)
+  }
+}
+
 export function validateCiWorkflowText(ciWorkflowText: string, violations: string[]) {
   const workflow = parsePackageReleaseWorkflow(ciWorkflowText)
   for (const error of workflow.errors) {
     violations.push(`${CI_WORKFLOW_PATH} must contain valid YAML: ${error}`)
   }
+  validateGeneralReleasePolicy(ciWorkflowText, violations)
   validateWorkflowExecutionContext(workflow.root, violations)
   requireText(
     ciWorkflowText,

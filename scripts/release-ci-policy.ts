@@ -1,19 +1,21 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
+import {
+  readReleaseCiWorkflowJobs,
+  type ReleaseCiWorkflowJob,
+} from './release-ci-policy-workflow'
 
 export const REQUIRED_CI_CHECKS = [
   'Commit Policy',
   'Typecheck & Lint',
   'Unit & Component Tests',
 ] as const
-
-interface WorkflowJob {
-  readonly block: string
-  readonly name: string
-}
+const PACKAGE_CONSUMER_CI_JOB = 'Package Consumer Tools (Node ${{ matrix.node }})'
+const EXPECTED_CI_JOBS = [PACKAGE_CONSUMER_CI_JOB, ...REQUIRED_CI_CHECKS] as const
 
 const CI_WORKFLOW_PATH = '.github/workflows/ci.yml'
 const CONCURRENCY_POLICY_FIELD_COUNT = 2
+const REQUIRED_JOB_KEYS = ['name', 'runs-on', 'steps'] as const
 const ACTION_CHECKOUT = 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6'
 const ACTION_SETUP_NODE = 'actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6'
 const PNPM_ACTION_SETUP = 'pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4'
@@ -90,25 +92,11 @@ function hasMainBranchTrigger(workflow: string, trigger: string) {
   return new RegExp(`^ {2}${trigger}:\\s*\\n {4}branches: \\[main\\]$`, 'm').test(workflow)
 }
 
-function readJobs(workflow: string) {
-  const jobsMarker = 'jobs:\n'
-  const jobsStart = workflow.indexOf(jobsMarker)
-  if (jobsStart === -1) return []
-
-  const jobsSection = workflow.slice(jobsStart + jobsMarker.length)
-  const jobStarts = [...jobsSection.matchAll(/^ {2}[A-Za-z0-9_-]+:\s*$/gm)].flatMap((match) =>
-    match.index === undefined ? [] : [match.index],
-  )
-
-  return jobStarts.flatMap((start, index) => {
-    const block = jobsSection.slice(start, jobStarts[index + 1] ?? jobsSection.length).trimEnd()
-    const name = /^ {4}name: (.+)$/m.exec(block)?.[1]
-
-    return name === undefined ? [] : [{ block, name } satisfies WorkflowJob]
-  })
+function readJobKeys(job: ReleaseCiWorkflowJob) {
+  return job.keys
 }
 
-function readSteps(job: WorkflowJob) {
+function readSteps(job: ReleaseCiWorkflowJob) {
   const starts = [...job.block.matchAll(/^ {6}- /gm)].flatMap((match) =>
     match.index === undefined ? [] : [match.index],
   )
@@ -144,7 +132,11 @@ function validateTriggers(workflow: string, violations: string[]) {
   }
 }
 
-function validateDispatchSupport(workflow: string, jobs: readonly WorkflowJob[], violations: string[]) {
+function validateDispatchSupport(
+  workflow: string,
+  jobs: readonly ReleaseCiWorkflowJob[],
+  violations: string[],
+) {
   const dispatchInput = /^ {2}workflow_dispatch:\s*\n {4}inputs:\s*\n {6}head_sha:\s*\n(?: {8}.+\n)*? {8}required: true\s*\n {8}type: string$/m
   if (!dispatchInput.test(workflow)) {
     violations.push('CI must accept a required workflow_dispatch head_sha input.')
@@ -200,7 +192,11 @@ function validateConcurrency(workflow: string, violations: string[]) {
   }
 }
 
-function validateSecurity(workflow: string, jobs: readonly WorkflowJob[], violations: string[]) {
+function validateSecurity(
+  workflow: string,
+  jobs: readonly ReleaseCiWorkflowJob[],
+  violations: string[],
+) {
   const permissions = readTopLevelSection(workflow, 'permissions')
   if (permissions.length !== 1 || permissions[0] !== 'contents: read') {
     violations.push('CI must grant only read access to repository contents.')
@@ -230,14 +226,32 @@ function validateSecurity(workflow: string, jobs: readonly WorkflowJob[], violat
   }
 }
 
-function validateRequiredChecks(workflow: string, jobs: readonly WorkflowJob[], violations: string[]) {
+function validateRequiredJobContract(job: ReleaseCiWorkflowJob, violations: string[]) {
+  if (!isRequiredCheck(job.name)) return
+  const jobKeys = readJobKeys(job)
+  const hasExactJobContract =
+    jobKeys.length === REQUIRED_JOB_KEYS.length &&
+    REQUIRED_JOB_KEYS.every((key) => jobKeys.includes(key)) &&
+    /^ {4}runs-on: ubuntu-latest$/m.test(job.block)
+  if (!hasExactJobContract) {
+    violations.push(
+      `CI job ${job.name} must keep the exact blocking job contract: name, ubuntu-latest runner, and steps only.`,
+    )
+  }
+}
+
+function validateRequiredChecks(
+  workflow: string,
+  jobs: readonly ReleaseCiWorkflowJob[],
+  violations: string[],
+) {
   const jobNames = jobs.map((job) => job.name)
   if (
-    jobNames.length !== REQUIRED_CI_CHECKS.length ||
-    REQUIRED_CI_CHECKS.some((checkName) => !jobNames.includes(checkName))
+    jobNames.length !== EXPECTED_CI_JOBS.length ||
+    EXPECTED_CI_JOBS.some((checkName) => !jobNames.includes(checkName))
   ) {
     violations.push(
-      `CI must expose exactly these required job names: ${REQUIRED_CI_CHECKS.join(', ')}.`,
+      `CI must expose exactly these stable job names: ${EXPECTED_CI_JOBS.join(', ')}.`,
     )
   }
   if (/^ {4}if:/m.test(workflow)) {
@@ -251,6 +265,7 @@ function validateRequiredChecks(workflow: string, jobs: readonly WorkflowJob[], 
   }
 
   for (const job of jobs) {
+    validateRequiredJobContract(job, violations)
     const expected = EXPECTED_STEPS.get(job.name)
     if (expected === undefined) continue
     const actual = readSteps(job)
@@ -276,7 +291,7 @@ function validateRequiredChecks(workflow: string, jobs: readonly WorkflowJob[], 
 
 export function validateReleaseCiPolicy(workflow: string) {
   const violations: string[] = []
-  const jobs = readJobs(workflow)
+  const jobs = readReleaseCiWorkflowJobs(workflow)
 
   validateTriggers(workflow, violations)
   validateDispatchSupport(workflow, jobs, violations)

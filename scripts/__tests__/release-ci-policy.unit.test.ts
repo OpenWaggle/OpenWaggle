@@ -34,8 +34,14 @@ concurrency:
   group: ci-\${{ github.workflow }}-\${{ github.event.pull_request.number || inputs.head_sha || github.ref }}
   cancel-in-progress: true
 jobs:
+  package-consumer-tools:
+    name: Package Consumer Tools (Node \${{ matrix.node }})
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo validated-by-package-release-policy
   commit-policy:
     name: Commit Policy
+    runs-on: ubuntu-latest
     steps:
 ${dispatchIdentityGuard}      - uses: ${ACTION_CHECKOUT}
         with:
@@ -56,6 +62,7 @@ ${dispatchIdentityGuard}      - uses: ${ACTION_CHECKOUT}
         run: pnpm exec tsx scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"
   check:
     name: Typecheck & Lint
+    runs-on: ubuntu-latest
     steps:
 ${dispatchIdentityGuard}      - uses: ${ACTION_CHECKOUT}
         with:
@@ -69,6 +76,7 @@ ${dispatchIdentityGuard}      - uses: ${ACTION_CHECKOUT}
       - run: pnpm check
   test:
     name: Unit & Component Tests
+    runs-on: ubuntu-latest
     steps:
 ${dispatchIdentityGuard}      - uses: ${ACTION_CHECKOUT}
         with:
@@ -113,7 +121,7 @@ describe('release CI policy', () => {
     )
   })
 
-  it('rejects job names beyond the three stable required checks', () => {
+  it('rejects job names beyond the stable CI jobs', () => {
     const workflowWithExtraJob = `${compliantWorkflow}
   optional-smoke:
     name: Optional Smoke
@@ -122,7 +130,7 @@ describe('release CI policy', () => {
 `
 
     expect(validateReleaseCiPolicy(workflowWithExtraJob)).toContain(
-      'CI must expose exactly these required job names: Commit Policy, Typecheck & Lint, Unit & Component Tests.',
+      'CI must expose exactly these stable job names: Package Consumer Tools (Node ${{ matrix.node }}), Commit Policy, Typecheck & Lint, Unit & Component Tests.',
     )
   })
 
@@ -162,6 +170,52 @@ describe('release CI policy', () => {
 
     expect(validateReleaseCiPolicy(conditionallySkippedWorkflow)).toContain(
       'CI required jobs must run unconditionally for every configured trigger.',
+    )
+  })
+
+  it('rejects required job-level execution and privilege overrides', () => {
+    const weakenedWorkflow = compliantWorkflow.replace(
+      '  check:\n    name: Typecheck & Lint\n    runs-on: ubuntu-latest',
+      '  check:\n    name: Typecheck & Lint\n    runs-on: ubuntu-latest\n    continue-on-error: true\n    env:\n      NODE_OPTIONS: --import=attacker.js\n    permissions:\n      contents: write',
+    )
+
+    expect(validateReleaseCiPolicy(weakenedWorkflow)).toContain(
+      'CI job Typecheck & Lint must keep the exact blocking job contract: name, ubuntu-latest runner, and steps only.',
+    )
+  })
+
+  it('rejects quoted required job control keys', () => {
+    const weakenedWorkflow = compliantWorkflow.replace(
+      '  check:\n    name: Typecheck & Lint\n    runs-on: ubuntu-latest',
+      "  check:\n    name: Typecheck & Lint\n    runs-on: ubuntu-latest\n    'if': false\n    'env':\n      NODE_OPTIONS: --import=attacker.js",
+    )
+
+    expect(validateReleaseCiPolicy(weakenedWorkflow)).toContain(
+      'CI job Typecheck & Lint must keep the exact blocking job contract: name, ubuntu-latest runner, and steps only.',
+    )
+  })
+
+  it('rejects unnamed jobs outside the stable job set', () => {
+    const workflowWithUnnamedJob = `${compliantWorkflow}
+  unnamed-job:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo bypass
+`
+
+    expect(validateReleaseCiPolicy(workflowWithUnnamedJob)).toContain(
+      'CI must expose exactly these stable job names: Package Consumer Tools (Node ${{ matrix.node }}), Commit Policy, Typecheck & Lint, Unit & Component Tests.',
+    )
+  })
+
+  it('rejects quoted job IDs outside the stable job set', () => {
+    const workflowWithQuotedJob = compliantWorkflow.replace(
+      'jobs:\n',
+      "jobs:\n  'attacker-job':\n    permissions:\n      contents: write\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo bypass\n",
+    )
+
+    expect(validateReleaseCiPolicy(workflowWithQuotedJob)).toContain(
+      'CI must expose exactly these stable job names: Package Consumer Tools (Node ${{ matrix.node }}), Commit Policy, Typecheck & Lint, Unit & Component Tests.',
     )
   })
 
