@@ -268,6 +268,10 @@ export function createDependencies(
 
   for (const packageName of PACKAGE_NAMES) {
     defaults.set(`npm view ${packageName} --json`, missingPackage())
+    defaults.set(
+      `npm view ${packageName} versions --json`,
+      successful(JSON.stringify(['0.0.0-bootstrap.0'])),
+    )
   }
 
   return {
