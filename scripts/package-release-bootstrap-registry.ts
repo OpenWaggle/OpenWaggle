@@ -14,6 +14,7 @@ import {
   parseJsonObject,
 } from './package-release-bootstrap-model'
 import type { BootstrapDependencies } from './package-release-bootstrap-types'
+import { readTrustConfiguration } from './package-release-bootstrap-trust'
 
 const JSON_INDENT_SPACES = 2
 
@@ -153,14 +154,7 @@ async function verifyTrust(
   packageName: string,
   dependencies: BootstrapDependencies,
 ) {
-  const trust = parseJson(
-    await runRequired(dependencies, {
-      args: ['trust', 'list', packageName, '--json'],
-      command: 'npm',
-      cwd: projectRoot,
-    }),
-    `npm trust list ${packageName}`,
-  )
+  const trust = await readTrustConfiguration(projectRoot, packageName, dependencies)
   if (!isCompatibleTrustConfiguration(trust)) {
     throw new Error(`${packageName} trusted publisher verification failed.`)
   }

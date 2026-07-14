@@ -27,6 +27,11 @@ export function redactBootstrapDiagnostic(value: string) {
     .replace(/(gh[opsu]_[A-Za-z0-9_]{20,})/gu, '[redacted]')
     .replace(/(github_pat_[A-Za-z0-9_]{20,})/gu, '[redacted]')
     .replace(/(Bearer\s+)[^\s]+/giu, '$1[redacted]')
+    .replace(/(https:\/\/www\.npmjs\.com\/auth\/cli\/)[^\s"']+/giu, '$1[redacted]')
+    .replace(
+      /(https:\/\/registry\.npmjs\.org\/-\/v1\/done\?authId=)[^\s"']+/giu,
+      '$1[redacted]',
+    )
     .trim()
 }
 
