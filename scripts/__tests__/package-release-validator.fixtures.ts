@@ -21,24 +21,10 @@ export const validWorkflow = readFileSync(
   'utf8',
 )
 
-const validCiWorkflow = `
-name: CI
-on:
-  workflow_dispatch:
-    inputs:
-      head_sha:
-        required: true
-        type: string
-jobs:
-  check:
-    steps:
-      - name: Verify dispatched commit identity
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          DISPATCHED_SHA: \${{ github.sha }}
-          EXPECTED_SHA: \${{ inputs.head_sha }}
-        run: test "$DISPATCHED_SHA" = "$EXPECTED_SHA"
-`
+export const validCiWorkflow = readFileSync(
+  path.join(process.cwd(), '.github/workflows/ci.yml'),
+  'utf8',
+)
 
 async function writeFile(filePath: string, contents: string) {
   await fs.mkdir(path.dirname(filePath), { recursive: true })
@@ -54,6 +40,7 @@ export async function writeMinimalPackageReleaseProject(
   workflowText: string,
   version = '0.1.0',
   manifestState: 'released' | 'bootstrap' = 'released',
+  ciWorkflowText = validCiWorkflow,
 ) {
   await writeJson(path.join(projectRoot, 'release-please-config.json'), {
     'release-type': 'node',
@@ -105,7 +92,7 @@ export async function writeMinimalPackageReleaseProject(
     },
   })
   await writeFile(path.join(projectRoot, '.github/workflows/package-release.yml'), workflowText)
-  await writeFile(path.join(projectRoot, '.github/workflows/ci.yml'), validCiWorkflow)
+  await writeFile(path.join(projectRoot, '.github/workflows/ci.yml'), ciWorkflowText)
 
   for (const [index, packageDirectory] of packageDirectories.entries()) {
     const dependencies =

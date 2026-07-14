@@ -284,9 +284,11 @@ describe('package release workflow validation', () => {
     try {
       const invalidWorkflow = validWorkflow
         .replace('          - 22.19.0\n', '')
-        .replace('npm install --global npm@11.18.0', 'npm install --global npm@latest')
+        .replace(
+          'node .release-tooling/scripts/package-consumer-tools.ts install --tool-root "$RUNNER_TEMP/package-managers" --github-path "$GITHUB_PATH"',
+          'echo skipped-package-consumer-install',
+        )
         .replaceAll('version: 11.6.0', 'version: latest')
-        .replace('corepack install --global yarn@4.17.1', 'true')
         .replace('oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6', 'true')
         .replace(
           "OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun'",
@@ -299,9 +301,7 @@ describe('package release workflow validation', () => {
       expect(result.violations).toEqual(
         expect.arrayContaining([
           '.github/workflows/package-release.yml release-qa must smoke consumers on Node 22.19.0 and Node 24.',
-          '.github/workflows/package-release.yml release-qa must pin npm 11.18.0.',
           '.github/workflows/package-release.yml release-qa must pin pnpm 11.6.0.',
-          '.github/workflows/package-release.yml release-qa must install Yarn 4.17.1.',
           '.github/workflows/package-release.yml must execute oven-sh/setup-bun at its approved immutable v2 SHA.',
           '.github/workflows/package-release.yml release-qa must require npm, pnpm, Yarn, and Bun package consumers.',
         ]),
@@ -311,22 +311,4 @@ describe('package release workflow validation', () => {
     }
   })
 
-  it('rejects Yarn version checks that run inside the pnpm workspace', async () => {
-    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
-    try {
-      const invalidWorkflow = validWorkflow.replace(
-        'test "$(cd "$RUNNER_TEMP" && yarn --version)" = "4.17.1"',
-        'test "$(yarn --version)" = "4.17.1"',
-      )
-      await writeMinimalPackageReleaseProject(projectRoot, invalidWorkflow)
-
-      const result = await validatePackageReleaseFiles(projectRoot)
-
-      expect(result.violations).toContain(
-        '.github/workflows/package-release.yml release-qa must verify Yarn 4.17.1 outside the pnpm workspace before smoke testing.',
-      )
-    } finally {
-      await fs.rm(projectRoot, { recursive: true, force: true })
-    }
-  })
 })

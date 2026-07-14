@@ -5,16 +5,16 @@ import {
   executableWorkflowText,
   parsePackageReleaseWorkflow,
   runsCommandFragment,
-  runsExactCommand,
   workflowActionUses,
   workflowRunCommands,
   validatePublicationBoundary,
 } from './package-release-validator-workflow-structure'
 import {
   jobHasDedicatedExactRunStep,
-  jobHasDedicatedExactRunStepWithEnv,
 } from './package-release-validator-workflow-steps'
 import { validateWorkflowRecovery } from './package-release-validator-recovery'
+import { validateWorkflowConsumerSmoke } from './package-release-validator-consumers'
+import { validateCiWorkflowText } from './package-release-validator-ci'
 
 type JsonObject = { readonly [key: string]: unknown }
 interface ExpectedPackage { readonly component: string; readonly dependency?: string; readonly name: string; readonly path: string }
@@ -185,25 +185,6 @@ function validateWorkflowPermissions(workflowText: string, violations: string[])
   }
 }
 
-function validateWorkflowConsumerSmoke(workflowRoot: unknown, workflowText: string, violations: string[]) {
-  const job = workflowJobBlock(workflowText, 'release-qa')
-  addViolation(!job.includes('- 22.19.0') || !job.includes('- 24'), `${WORKFLOW_PATH} release-qa must smoke consumers on Node 22.19.0 and Node 24.`, violations)
-  const exactCommands = [
-    ['npm install --global npm@11.18.0', `${WORKFLOW_PATH} release-qa must pin npm 11.18.0.`], ['corepack install --global yarn@4.17.1', `${WORKFLOW_PATH} release-qa must install Yarn 4.17.1.`],
-    ['test "$(npm --version)" = "11.18.0"', `${WORKFLOW_PATH} release-qa must verify npm 11.18.0 before smoke testing.`], ['test "$(pnpm --version)" = "11.6.0"', `${WORKFLOW_PATH} release-qa must verify pnpm 11.6.0 before smoke testing.`],
-    ['test "$(cd "$RUNNER_TEMP" && yarn --version)" = "4.17.1"', `${WORKFLOW_PATH} release-qa must verify Yarn 4.17.1 outside the pnpm workspace before smoke testing.`], ['test "$(bun --version)" = "1.3.14"', `${WORKFLOW_PATH} release-qa must verify Bun 1.3.14 before smoke testing.`],
-    ['pnpm build:packages && pnpm package:smoke', `${WORKFLOW_PATH} release-qa must smoke exact packed consumers on every Node matrix entry.`],
-  ] as const
-  for (const [command, message] of exactCommands) addViolation(!runsExactCommand(job, command), message, violations)
-  addViolation(!job.includes('version: 11.6.0'), `${WORKFLOW_PATH} release-qa must pin pnpm 11.6.0.`, violations)
-  addViolation(!job.includes('bun-version: 1.3.14'), `${WORKFLOW_PATH} release-qa must install Bun 1.3.14.`, violations)
-  const browserInstall = jobHasDedicatedExactRunStep(workflowRoot, 'release-qa', 'pnpm exec playwright install chromium')
-  addViolation(!browserInstall, `${WORKFLOW_PATH} release-qa must install Chromium with pinned project Playwright tooling.`, violations)
-  const browserSmoke = jobHasDedicatedExactRunStepWithEnv(workflowRoot, 'release-qa', 'pnpm build:packages && pnpm package:smoke', 'OPENWAGGLE_PACKAGE_BROWSER_SMOKE', '1')
-  addViolation(!browserSmoke, `${WORKFLOW_PATH} release-qa must run browser-enabled package smoke on every Node matrix entry.`, violations)
-  addViolation(!job.includes("OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun'"), `${WORKFLOW_PATH} release-qa must require npm, pnpm, Yarn, and Bun package consumers.`, violations)
-}
-
 function validateWorkflowPathsAndDispatch(workflowText: string, violations: string[]) {
   for (const expected of EXPECTED_PACKAGES) {
     addViolation(!workflowText.includes(`${expected.path}/**`), `${WORKFLOW_PATH} must scope push releases to ${expected.path}/**.`, violations)
@@ -278,15 +259,8 @@ function validateWorkflowText(workflowText: string, violations: string[]) {
   validateWorkflowPathsAndDispatch(executableText, violations); validateWorkflowPublication(workflow.root, executableText, violations)
   validateWorkflowRecovery(workflow.root, executableText, violations)
   for (const command of ['pnpm package-release:validate', 'pnpm check', 'pnpm build:packages']) addViolation(!jobHasDedicatedExactRunStep(workflow.root, 'validate-dry-run', command), `${WORKFLOW_PATH} must execute ${command}.`, violations)
-  const snippets = ['workflow_dispatch:', 'package_tag:', "inputs.package_tag == ''", "inputs.package_tag != ''", `config-file: ${CONFIG_PATH}`, `manifest-file: ${MANIFEST_PATH}`, 'id-token: write', 'environment: npm', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN', 'ACTIONS_ID_TOKEN_REQUEST_URL', 'npm install --global npm@11.18.0', 'node scripts/package-release-publish.ts "$TARBALL"', 'node-version: 24.14.0', 'test "$(npm --version)" = "11.9.0"', 'paths_released', "matrix.released == 'true'", 'fail-fast: false', 'tar -xOf "$TARBALL" package/package.json', 'npm view "$PACKAGE_NAME@$PACKAGE_VERSION" version', 'npm view "$DEPENDENCY_NAME@$DEPENDENCY_VERSION" version', 'pnpm package-release:validate', 'pnpm check', 'pnpm build:packages', "github.event_name == 'push'", "github.ref == 'refs/heads/main'", 'group: package-release', 'cancel-in-progress: false']
+  const snippets = ['workflow_dispatch:', 'package_tag:', "inputs.package_tag == ''", "inputs.package_tag != ''", `config-file: ${CONFIG_PATH}`, `manifest-file: ${MANIFEST_PATH}`, 'id-token: write', 'environment: npm', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN', 'ACTIONS_ID_TOKEN_REQUEST_URL', 'package-consumer-tools.ts install', 'node scripts/package-release-publish.ts "$TARBALL"', 'node-version: 24.14.0', 'test "$(npm --version)" = "11.9.0"', 'paths_released', "matrix.released == 'true'", 'fail-fast: false', 'tar -xOf "$TARBALL" package/package.json', 'npm view "$PACKAGE_NAME@$PACKAGE_VERSION" version', 'npm view "$DEPENDENCY_NAME@$DEPENDENCY_VERSION" version', 'pnpm package-release:validate', 'pnpm check', 'pnpm build:packages', "github.event_name == 'push'", "github.ref == 'refs/heads/main'", 'group: package-release', 'cancel-in-progress: false']
   requireText(executableText, snippets.map((snippet) => [snippet, `${WORKFLOW_PATH} must contain ${snippet}.`]), violations)
-}
-
-function validateCiWorkflowText(ciWorkflowText: string, violations: string[]) {
-  requireText(ciWorkflowText, [
-    ['workflow_dispatch:', `${CI_WORKFLOW_PATH} must accept release PR CI dispatches.`], ['head_sha:', `${CI_WORKFLOW_PATH} must accept the exact release PR head SHA as input head_sha.`],
-    ['DISPATCHED_SHA: ${{ github.sha }}', `${CI_WORKFLOW_PATH} must read the dispatched SHA.`], ['EXPECTED_SHA: ${{ inputs.head_sha }}', `${CI_WORKFLOW_PATH} must read the expected release PR SHA.`], ['test "$DISPATCHED_SHA" = "$EXPECTED_SHA"', `${CI_WORKFLOW_PATH} must fail closed when the dispatched branch moved from the release PR SHA.`],
-  ], violations)
 }
 
 async function validateTextFile(projectRoot: string, filePath: string, validate: (text: string, violations: string[]) => void, violations: string[]) {
