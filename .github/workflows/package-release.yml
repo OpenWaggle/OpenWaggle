@@ -60,7 +60,7 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-      - name: Dispatch CI for the exact release PR head
+      - name: Validate CI for the exact release PR head
         if: ${{ steps.release.outputs.prs_created == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -82,11 +82,72 @@ jobs:
             exit 1
           fi
 
-          jq -n --arg ref "$HEAD_REF" --arg sha "$HEAD_SHA" \
-            '{ref: $ref, inputs: {head_sha: $sha}}' |
-            gh api --method POST \
-              "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches" \
-              --input -
+          RUN_ID=""
+          for RUN_ATTEMPT in $(seq 1 12); do
+            RUNS=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?event=pull_request&branch=${HEAD_REF}&per_page=20")
+            if RUN_ID=$(jq -er --arg sha "$HEAD_SHA" \
+              '.workflow_runs | map(select(.head_sha == $sha and .event == "pull_request")) | first | .id' <<<"$RUNS"); then
+              break
+            fi
+            echo "Waiting for Release Please PR CI run (${RUN_ATTEMPT}/12)."
+            sleep 5
+          done
+
+          if [ -z "$RUN_ID" ]; then
+            DISPATCHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            jq -n --arg ref "$HEAD_REF" --arg sha "$HEAD_SHA" \
+              '{ref: $ref, inputs: {head_sha: $sha}}' |
+              gh api --method POST \
+                "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches" \
+                --input -
+
+            for DISPATCH_ATTEMPT in $(seq 1 60); do
+              RUNS=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?event=workflow_dispatch&branch=${HEAD_REF}&per_page=20")
+              if RUN_ID=$(jq -er --arg sha "$HEAD_SHA" --arg created "$DISPATCHED_AT" \
+                '.workflow_runs | map(select(.head_sha == $sha and .event == "workflow_dispatch" and .created_at >= $created)) | first | .id' <<<"$RUNS"); then
+                break
+              fi
+              echo "Waiting for dispatched Release Please PR CI (${DISPATCH_ATTEMPT}/60)."
+              sleep 5
+            done
+          fi
+          test -n "$RUN_ID"
+
+          RUN_DETAILS=$(gh run view "$RUN_ID" --json attempt,conclusion,event,headSha,status)
+          RUN_EVENT=$(jq -er '.event' <<<"$RUN_DETAILS")
+          RUN_STATUS=$(jq -er '.status' <<<"$RUN_DETAILS")
+          RUN_CONCLUSION=$(jq -r '.conclusion // ""' <<<"$RUN_DETAILS")
+          if [ "$RUN_EVENT" != "pull_request" ] && [ "$RUN_EVENT" != "workflow_dispatch" ]; then
+            echo "Unexpected Release Please CI event: $RUN_EVENT"
+            exit 1
+          fi
+          test "$(jq -er '.headSha' <<<"$RUN_DETAILS")" = "$HEAD_SHA"
+
+          if [ "$RUN_STATUS" = "completed" ] && [ "$RUN_CONCLUSION" = "action_required" ]; then
+            PREVIOUS_ATTEMPT=$(jq -er '.attempt' <<<"$RUN_DETAILS")
+            gh run rerun "$RUN_ID"
+            for RERUN_ATTEMPT in $(seq 1 30); do
+              CURRENT_ATTEMPT=$(gh run view "$RUN_ID" --json attempt --jq '.attempt')
+              if [ "$CURRENT_ATTEMPT" -gt "$PREVIOUS_ATTEMPT" ]; then
+                break
+              fi
+              echo "Waiting for Release Please PR CI rerun (${RERUN_ATTEMPT}/30)."
+              sleep 2
+            done
+            test "$CURRENT_ATTEMPT" -gt "$PREVIOUS_ATTEMPT"
+            gh run watch "$RUN_ID" --exit-status
+          elif [ "$RUN_STATUS" != "completed" ]; then
+            gh run watch "$RUN_ID" --exit-status
+          elif [ "$RUN_CONCLUSION" != "success" ]; then
+            echo "Release Please PR CI failed with conclusion: $RUN_CONCLUSION"
+            exit 1
+          fi
+
+          FINAL_DETAILS=$(gh run view "$RUN_ID" --json conclusion,event,headSha,status)
+          test "$(jq -er '.headSha' <<<"$FINAL_DETAILS")" = "$HEAD_SHA"
+          test "$(jq -er '.status' <<<"$FINAL_DETAILS")" = "completed"
+          FINAL_CONCLUSION=$(jq -er '.conclusion' <<<"$FINAL_DETAILS")
+          test "$FINAL_CONCLUSION" = "success"
 
   validate-dry-run:
     name: Dry-run package release validation
@@ -420,7 +481,7 @@ jobs:
         run: |
           test "$(npm --version)" = "11.18.0"
           test "$(pnpm --version)" = "11.6.0"
-          test "$(yarn --version)" = "4.17.1"
+          test "$(cd "$RUNNER_TEMP" && yarn --version)" = "4.17.1"
           test "$(bun --version)" = "1.3.14"
 
       - name: Run full release checks on Node 24
@@ -433,6 +494,7 @@ jobs:
       - name: Smoke packed consumers
         env:
           OPENWAGGLE_PACKAGE_BROWSER_SMOKE: '1'
+          OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun'
         run: pnpm build:packages && pnpm package:smoke
 
   prepare-artifacts:

@@ -18,7 +18,14 @@ import {
   supportsPackageSmokeNodeVersion,
 } from './package-smoke-assertions'
 import { runPackageBrowserSmoke } from './package-browser-smoke'
-import { readPackageSmokeEnvironment } from './package-smoke-env'
+import {
+  readPackageSmokeEnvironment,
+  type PackageManagerName,
+} from './package-smoke-env'
+import {
+  assertRequiredPackageManagers,
+  availablePackageManagers,
+} from './package-smoke-package-managers'
 
 const execFile = promisify(execFileCallback)
 const JSON_INDENT_SPACES = 2
@@ -32,10 +39,6 @@ interface PackageSpec { readonly name: string; readonly directory: string }
 interface PackedPackage extends PackedPackageReference { readonly manifest: unknown }
 
 interface PackedPackageReference { readonly name: string; readonly tarballPath: string }
-
-type PackageManagerName = 'npm' | 'pnpm' | 'yarn' | 'bun'
-
-interface PackageManager { readonly name: PackageManagerName; readonly command: string }
 
 interface SmokeDependencyVersion { readonly name: string; readonly version: string }
 
@@ -61,7 +64,7 @@ const SMOKE_REGISTRY_DEPENDENCIES = [
 const PACKAGE_MANAGER_INSTALL_ARGS = {
   npm: ['--ignore-scripts'],
   pnpm: ['--ignore-scripts'],
-  yarn: ['--mode=skip-build'],
+  yarn: ['--mode=skip-build', '--no-immutable'],
   bun: ['--ignore-scripts'],
 } as const satisfies Record<PackageManagerName, readonly string[]>
 
@@ -244,27 +247,6 @@ async function prepareSmokeProject(
   return smokeProjectRoot
 }
 
-async function availablePackageManagers() {
-  const candidates: readonly PackageManager[] = [
-    { name: 'npm', command: 'npm' },
-    { name: 'pnpm', command: 'pnpm' },
-    { name: 'yarn', command: 'yarn' },
-    { name: 'bun', command: 'bun' },
-  ]
-  const available: PackageManager[] = []
-
-  for (const candidate of candidates) {
-    try {
-      await execFile(candidate.command, ['--version'], { maxBuffer: EXEC_MAX_BUFFER_BYTES })
-      available.push(candidate)
-    } catch {
-      console.log(`skipping ${candidate.name} package consumer: command is not available`)
-    }
-  }
-
-  return available
-}
-
 async function runPackedPackageSmoke(root: string, packages: readonly PackedPackage[]) {
   if (!supportsPackageSmokeNodeVersion(process.versions.node)) {
     throw new Error(
@@ -272,8 +254,9 @@ async function runPackedPackageSmoke(root: string, packages: readonly PackedPack
     )
   }
 
-  const packageManagers = await availablePackageManagers()
   const environment = readPackageSmokeEnvironment()
+  const packageManagers = await availablePackageManagers()
+  assertRequiredPackageManagers(packageManagers, environment.requiredPackageManagers)
   if (packageManagers.length === 0) {
     throw new Error('Package consumer smoke requires npm, pnpm, Yarn, or Bun.')
   }

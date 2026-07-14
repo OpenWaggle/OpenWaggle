@@ -148,11 +148,13 @@ describe('package release workflow validation', () => {
     }
   })
 
-  it('rejects workflows that omit package path filters or exact release PR CI dispatch', async () => {
+  it('rejects workflows that omit package paths or either exact-head release PR CI path', async () => {
     const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
     try {
       const invalidWorkflow = validWorkflow
         .replace('      - packages/pi-waggle/**\n', '')
+        .replace('event=pull_request&branch=${HEAD_REF}', 'event=workflow_dispatch&branch=${HEAD_REF}')
+        .replace('.head_sha == $sha and .event == "pull_request"', '.head_sha == $sha')
         .replace('actions/workflows/ci.yml/dispatches', 'actions/workflows/other.yml/dispatches')
         .replace('inputs: {head_sha: $sha}', 'inputs: {head_sha: $ref}')
       await writeMinimalPackageReleaseProject(projectRoot, invalidWorkflow)
@@ -162,9 +164,30 @@ describe('package release workflow validation', () => {
       expect(result.violations).toEqual(
         expect.arrayContaining([
           '.github/workflows/package-release.yml must scope push releases to packages/pi-waggle/**.',
-          '.github/workflows/package-release.yml must dispatch ci.yml for Release Please PRs.',
-          '.github/workflows/package-release.yml must dispatch CI with the exact release PR head SHA.',
+          '.github/workflows/package-release.yml must find PR-associated ci.yml runs for Release Please PRs.',
+          '.github/workflows/package-release.yml must select PR-associated CI by the exact release PR head SHA.',
+          '.github/workflows/package-release.yml must fall back to dispatching ci.yml for Release Please PRs.',
+          '.github/workflows/package-release.yml must dispatch fallback CI with the exact release PR head SHA.',
         ]),
+      )
+    } finally {
+      await fs.rm(projectRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects release PR CI handling that is not idempotent across valid run states', async () => {
+    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
+    try {
+      const invalidWorkflow = validWorkflow
+        .replace('RUN_CONCLUSION" = "action_required"', 'RUN_CONCLUSION" = "success"')
+        .replace('RUN_STATUS" != "completed"', 'RUN_STATUS" = "completed"')
+        .replace('FINAL_CONCLUSION" = "success"', 'FINAL_CONCLUSION" = "failure"')
+      await writeMinimalPackageReleaseProject(projectRoot, invalidWorkflow)
+
+      const result = await validatePackageReleaseFiles(projectRoot)
+
+      expect(result.violations).toContain(
+        '.github/workflows/package-release.yml must safely rerun, watch, or accept exact-head release PR CI based on its current state.',
       )
     } finally {
       await fs.rm(projectRoot, { recursive: true, force: true })
@@ -265,6 +288,10 @@ describe('package release workflow validation', () => {
         .replaceAll('version: 11.6.0', 'version: latest')
         .replace('corepack install --global yarn@4.17.1', 'true')
         .replace('oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6', 'true')
+        .replace(
+          "OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun'",
+          "OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm'",
+        )
       await writeMinimalPackageReleaseProject(projectRoot, invalidWorkflow)
 
       const result = await validatePackageReleaseFiles(projectRoot)
@@ -276,7 +303,27 @@ describe('package release workflow validation', () => {
           '.github/workflows/package-release.yml release-qa must pin pnpm 11.6.0.',
           '.github/workflows/package-release.yml release-qa must install Yarn 4.17.1.',
           '.github/workflows/package-release.yml must execute oven-sh/setup-bun at its approved immutable v2 SHA.',
+          '.github/workflows/package-release.yml release-qa must require npm, pnpm, Yarn, and Bun package consumers.',
         ]),
+      )
+    } finally {
+      await fs.rm(projectRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects Yarn version checks that run inside the pnpm workspace', async () => {
+    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
+    try {
+      const invalidWorkflow = validWorkflow.replace(
+        'test "$(cd "$RUNNER_TEMP" && yarn --version)" = "4.17.1"',
+        'test "$(yarn --version)" = "4.17.1"',
+      )
+      await writeMinimalPackageReleaseProject(projectRoot, invalidWorkflow)
+
+      const result = await validatePackageReleaseFiles(projectRoot)
+
+      expect(result.violations).toContain(
+        '.github/workflows/package-release.yml release-qa must verify Yarn 4.17.1 outside the pnpm workspace before smoke testing.',
       )
     } finally {
       await fs.rm(projectRoot, { recursive: true, force: true })
