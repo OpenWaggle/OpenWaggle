@@ -1,17 +1,35 @@
-import { createAgentSessionFromServices, SessionManager } from '@mariozechner/pi-coding-agent'
+import {
+  type AgentSessionServices,
+  createAgentSessionFromServices,
+  SessionManager,
+} from '@earendil-works/pi-coding-agent'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
+import { loadWithRuntimeFailureIsolation } from '../../extensions/runtime-load-isolation'
 import { createLogger } from '../../logger'
+import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
+import { ExtensionManagerService } from '../../ports/extension-manager-service'
+import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
 import { type ProviderProbeInput, ProviderProbeService } from '../../ports/provider-probe-service'
+import {
+  getRuntimeEnabledPackagesPiResourceRoots,
+  listRuntimeEnabledPackages,
+  type OpenWagglePiExtensionSelectionServices,
+  type RuntimeEnabledOpenWaggleExtensionPackage,
+} from './openwaggle-pi-extension-selection'
+import { recordRuntimeLoadFailure } from './openwaggle-pi-runtime-failure-recording'
+import type { OpenWaggleExtensionPiResourceRoot } from './openwaggle-pi-settings-resources'
 import { createPiRuntimeServices } from './pi-provider-catalog'
+import {
+  getPiRuntimeExtensionLoadErrors,
+  rejectMatchingOpenWaggleExtensionLoadErrors,
+} from './pi-runtime-extension-load-errors'
 
 const logger = createLogger('pi-provider-probe')
 const PROVIDER_PROBE_PROMPT = 'Reply with exactly OK and nothing else.'
 const PROVIDER_PROBE_TIMEOUT_MS = 15_000
 
-async function runPiPromptProbe(input: ProviderProbeInput) {
-  const cwd = input.projectPath ?? process.cwd()
-  const services = await createPiRuntimeServices(cwd, { loadMcpAdapter: false })
+async function runPiPromptProbe(input: ProviderProbeInput, services: AgentSessionServices) {
   if (input.apiKey) {
     services.authStorage.setRuntimeApiKey(input.providerId, input.apiKey)
   }
@@ -55,17 +73,96 @@ async function runPiPromptProbe(input: ProviderProbeInput) {
   }
 }
 
-async function probeProviderCredentials(input: ProviderProbeInput) {
-  await runPiPromptProbe(input)
+async function createProbeRuntimeServices(
+  input: ProviderProbeInput,
+  enabledOpenWaggleExtensionPackagePaths: readonly string[],
+  enabledOpenWaggleExtensionResourceRoots: readonly OpenWaggleExtensionPiResourceRoot[],
+) {
+  const cwd = input.projectPath ?? process.cwd()
+  const services = await createPiRuntimeServices(cwd, {
+    enabledOpenWaggleExtensionPackagePaths,
+    enabledOpenWaggleExtensionResourceRoots,
+    loadMcpAdapter: false,
+  })
+  return rejectMatchingOpenWaggleExtensionLoadErrors({
+    result: services,
+    errors: getPiRuntimeExtensionLoadErrors(services),
+    enabledOpenWaggleExtensionPackagePaths,
+  })
 }
 
-export const PiProviderProbeLive = Layer.succeed(
+function loadEnabledOpenWaggleExtensionPackages(
+  projectPath: string | null | undefined,
+  extensionSelectionServices: OpenWagglePiExtensionSelectionServices,
+) {
+  return projectPath
+    ? listRuntimeEnabledPackages(projectPath, extensionSelectionServices).pipe(
+        Effect.catchAll((error) =>
+          Effect.sync(() => {
+            logger.warn('Failed to resolve OpenWaggle extension runtime allowlist', {
+              projectPath,
+              error: error instanceof Error ? error.message : String(error),
+            })
+            return []
+          }),
+        ),
+      )
+    : Effect.succeed([])
+}
+
+function getProbeResourceRoots(
+  enabledOpenWaggleExtensionPackages: readonly RuntimeEnabledOpenWaggleExtensionPackage[],
+  enabledOpenWaggleExtensionPackagePaths: readonly string[],
+) {
+  return getRuntimeEnabledPackagesPiResourceRoots(
+    enabledOpenWaggleExtensionPackages,
+    enabledOpenWaggleExtensionPackagePaths,
+  )
+}
+
+export const PiProviderProbeLive = Layer.effect(
   ProviderProbeService,
-  ProviderProbeService.of({
-    probeCredentials: (input) =>
-      Effect.tryPromise({
-        try: () => probeProviderCredentials(input),
-        catch: (error) => (error instanceof Error ? error : new Error(String(error))),
-      }),
+  Effect.gen(function* () {
+    const extensionSelectionServices = {
+      manager: yield* ExtensionManagerService,
+      lifecycleRepository: yield* ExtensionLifecycleRepository,
+      projectOverridesRepository: yield* ExtensionProjectOverridesRepository,
+    } satisfies OpenWagglePiExtensionSelectionServices
+
+    return ProviderProbeService.of({
+      probeCredentials: (input) =>
+        Effect.gen(function* () {
+          const enabledOpenWaggleExtensionPackages = yield* loadEnabledOpenWaggleExtensionPackages(
+            input.projectPath,
+            extensionSelectionServices,
+          )
+          return yield* Effect.tryPromise({
+            try: async () => {
+              const services = await loadWithRuntimeFailureIsolation({
+                selections: enabledOpenWaggleExtensionPackages,
+                load: (enabledOpenWaggleExtensionPackagePaths) =>
+                  createProbeRuntimeServices(
+                    input,
+                    enabledOpenWaggleExtensionPackagePaths,
+                    getProbeResourceRoots(
+                      enabledOpenWaggleExtensionPackages,
+                      enabledOpenWaggleExtensionPackagePaths,
+                    ),
+                  ),
+                recordFailure: (selection, error) =>
+                  recordRuntimeLoadFailure({
+                    selection,
+                    error,
+                    extensionSelectionServices,
+                    logger,
+                    operation: 'Pi provider probe',
+                  }),
+              })
+              await runPiPromptProbe(input, services)
+            },
+            catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+          })
+        }),
+    })
   }),
 )

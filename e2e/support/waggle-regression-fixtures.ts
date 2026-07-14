@@ -19,40 +19,43 @@ export const WAGGLE_REGRESSION_TURN_CONTENTS = [
   'Advocate turn 5: Final position keeps Waggle as the signature capability.',
 ] as const
 
+const ADVOCATE_MODEL = 'anthropic/claude-opus-4-6'
+const CRITIC_MODEL = 'anthropic/claude-sonnet-4-6'
+
 const WAGGLE_REGRESSION_AGENT_METAS = [
   {
     agentIndex: 0,
     agentLabel: 'Advocate',
     agentColor: 'blue',
-    agentModel: 'claude-opus-4-6',
+    agentModel: ADVOCATE_MODEL,
     turnNumber: 0,
   },
   {
     agentIndex: 1,
     agentLabel: 'Critic',
     agentColor: 'amber',
-    agentModel: 'claude-sonnet-4-6',
+    agentModel: CRITIC_MODEL,
     turnNumber: 1,
   },
   {
     agentIndex: 0,
     agentLabel: 'Advocate',
     agentColor: 'blue',
-    agentModel: 'claude-opus-4-6',
+    agentModel: ADVOCATE_MODEL,
     turnNumber: 2,
   },
   {
     agentIndex: 1,
     agentLabel: 'Critic',
     agentColor: 'amber',
-    agentModel: 'claude-sonnet-4-6',
+    agentModel: CRITIC_MODEL,
     turnNumber: 3,
   },
   {
     agentIndex: 0,
     agentLabel: 'Advocate',
     agentColor: 'blue',
-    agentModel: 'claude-opus-4-6',
+    agentModel: ADVOCATE_MODEL,
     turnNumber: 4,
   },
 ] as const
@@ -62,13 +65,13 @@ const WAGGLE_REGRESSION_CONFIG = {
   agents: [
     {
       label: 'Advocate',
-      model: 'claude-opus-4-6',
+      model: ADVOCATE_MODEL,
       roleDescription: 'Argues for the strongest technical case',
       color: 'blue',
     },
     {
       label: 'Critic',
-      model: 'claude-sonnet-4-6',
+      model: CRITIC_MODEL,
       roleDescription: 'Challenges assumptions and validates evidence',
       color: 'amber',
     },

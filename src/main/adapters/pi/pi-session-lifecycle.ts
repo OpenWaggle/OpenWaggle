@@ -1,11 +1,14 @@
 import type {
   AgentSession,
-  CreateAgentSessionFromServicesOptions,
   CreateAgentSessionResult,
   SessionShutdownEvent,
-} from '@mariozechner/pi-coding-agent'
-import { createAgentSessionFromServices } from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
+import { createAgentSessionFromServices } from '@earendil-works/pi-coding-agent'
 import { createLogger } from '../../logger'
+import {
+  createPiInteractionUiContext,
+  type PiInteractionUiContextInput,
+} from './agent-kernel/interaction-ui-context'
 import {
   getOpenWaggleMcpRuntimeContextForServices,
   type OpenWaggleMcpRuntimeContext,
@@ -15,21 +18,36 @@ import {
 const logger = createLogger('pi-session-lifecycle')
 const mcpRuntimeContextsBySession = new WeakMap<AgentSession, OpenWaggleMcpRuntimeContext>()
 
-async function bindSessionExtensions(session: AgentSession) {
-  await session.bindExtensions({})
+type PiAgentSessionFromServicesOptions = Parameters<typeof createAgentSessionFromServices>[0]
+
+export type OpenWaggleAgentSessionOptions = PiAgentSessionFromServicesOptions & {
+  readonly openWaggleUi?: PiInteractionUiContextInput
+}
+
+async function bindSessionExtensions(
+  session: AgentSession,
+  input: Pick<OpenWaggleAgentSessionOptions, 'openWaggleUi'>,
+) {
+  const baseUiContext = session.extensionRunner.getUIContext()
+  await session.bindExtensions({
+    ...(input.openWaggleUi
+      ? { uiContext: createPiInteractionUiContext(input.openWaggleUi, baseUiContext) }
+      : {}),
+  })
 }
 
 export async function createOpenWaggleAgentSessionFromServices(
-  options: CreateAgentSessionFromServicesOptions,
+  options: OpenWaggleAgentSessionOptions,
 ): Promise<CreateAgentSessionResult> {
+  const { openWaggleUi, ...piOptions } = options
   const context = getOpenWaggleMcpRuntimeContextForServices(options.services)
   return withOpenWaggleMcpAdapterProcessContext(context, async () => {
-    const result = await createAgentSessionFromServices(options)
+    const result = await createAgentSessionFromServices(piOptions)
     if (context) {
       mcpRuntimeContextsBySession.set(result.session, context)
     }
     try {
-      await bindSessionExtensions(result.session)
+      await bindSessionExtensions(result.session, { openWaggleUi })
       return result
     } catch (error) {
       await disposeOpenWagglePiSession(result.session)

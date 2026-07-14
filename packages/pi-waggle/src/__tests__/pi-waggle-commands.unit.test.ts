@@ -15,7 +15,7 @@ import {
   getPiWaggleProjectPresetsPath,
   getPiWaggleUserPresetsPath,
   writePiWagglePresetsFile,
-} from '../preset-storage'
+} from '../preset-storage.js'
 import {
   activeModeStateEntry,
   configEditorJson,
@@ -24,7 +24,7 @@ import {
   PROJECT_SCOPE_LABEL,
   projectDir,
   resetPiWaggleCommandTestFiles,
-} from './pi-waggle-command-harness'
+} from './pi-waggle-command-harness.js'
 
 const EXPECTED_MAX_TURNS_SAFETY = 7
 const UPDATED_PRESET_MAX_TURNS_SAFETY = 6

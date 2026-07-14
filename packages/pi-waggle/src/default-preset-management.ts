@@ -1,4 +1,4 @@
-import type { ExtensionCommandContext, ExtensionContext } from '@mariozechner/pi-coding-agent'
+import type { ExtensionCommandContext, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import {
   deletePiWaggleCustomPreset,
   hiddenBuiltInPresetsForUi,
@@ -10,7 +10,7 @@ import {
   resolvedPresetsForUi,
   restorePiWaggleBuiltInPreset,
   suppressPiWaggleBuiltInPreset,
-} from './presets'
+} from './presets.js'
 
 const PROJECT_SCOPE_LABEL = 'Project (.pi/waggle-presets.json)'
 const USER_SCOPE_LABEL = 'User (~/.pi/agent/waggle-presets.json)'

@@ -75,6 +75,24 @@ export async function writeProviderPackage(
   )
 }
 
+export async function writeThrowingProviderPackage(baseDir: string, packageSource: string) {
+  const packageDir = path.join(baseDir, packageSource)
+  await writeJson(path.join(packageDir, 'package.json'), {
+    pi: {
+      extensions: ['extensions/provider.js'],
+    },
+  })
+  await fs.mkdir(path.join(packageDir, 'extensions'), { recursive: true })
+  await fs.writeFile(
+    path.join(packageDir, 'extensions', 'provider.js'),
+    `export default function extension() {
+  throw new Error('OpenWaggle test extension activation failed')
+}
+`,
+    'utf8',
+  )
+}
+
 export function loadedSkillPaths(projectPath: string) {
   return createPiRuntimeServices(projectPath).then((services) =>
     services.resourceLoader.getSkills().skills.map((skill) => skill.filePath),

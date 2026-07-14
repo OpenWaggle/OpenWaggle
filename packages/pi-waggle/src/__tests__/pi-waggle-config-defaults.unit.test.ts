@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { blankConfig } from '../default-config-editors'
+import { blankConfig } from '../default-config-editors.js'
 
 describe('pi-waggle config defaults', () => {
   it('uses generic labels for new custom preset agents until users rename them', () => {

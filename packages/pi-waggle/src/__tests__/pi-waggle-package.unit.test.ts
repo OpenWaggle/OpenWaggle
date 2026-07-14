@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionCommandContext } from '@mariozechner/pi-coding-agent'
+import type { ExtensionAPI, ExtensionCommandContext } from '@earendil-works/pi-coding-agent'
 import { WAGGLE_INHERIT_MODEL } from '@openwaggle/waggle-core'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
@@ -10,9 +10,9 @@ vi.mock('node:os', async (importOriginal) => ({
   homedir: () => userHomeDir,
 }))
 
-import type { PiWaggleModel } from '../extension'
-import defaultPiWaggleExtension from '../extension'
-import { latestPiWaggleModeStateFromEntries } from '../mode-state'
+import type { PiWaggleModel } from '../extension.js'
+import defaultPiWaggleExtension from '../extension.js'
+import { latestPiWaggleModeStateFromEntries } from '../mode-state.js'
 
 const FIRST_PROVIDER_CHARACTER_INDEX = 0
 const MODEL_ID_START_OFFSET = 1

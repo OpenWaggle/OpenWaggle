@@ -1,4 +1,4 @@
-import type { AgentEndEvent } from '@mariozechner/pi-coding-agent'
+import type { AgentEndEvent } from '@earendil-works/pi-coding-agent'
 import type { WaggleConfig } from '@openwaggle/waggle-core'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
@@ -8,7 +8,7 @@ import {
   type PiWaggleExtensionContext,
   type PiWaggleModel,
   registerPiWaggleLoop,
-} from '../extension'
+} from '../extension.js'
 
 const FIRST_PROVIDER_CHARACTER_INDEX = 0
 const MODEL_ID_START_OFFSET = 1

@@ -23,7 +23,7 @@ React Doctor is a CLI diagnostic tool that scans React codebases for security, p
 For tasks on a feature branch (most common):
 
 ```bash
-npx -y react-doctor@latest . --verbose --diff main
+npx -y react-doctor@latest . --verbose --scope changed --base main
 ```
 
 For full project audit:

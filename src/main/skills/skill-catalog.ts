@@ -123,7 +123,7 @@ export async function loadSkillInstructions(
         instructions: parsed.body,
       }
     } catch (error) {
-      throw new Error(formatSkillError(projectPath, folderName, error))
+      throw new Error(formatSkillError(projectPath, folderName, error), { cause: error })
     }
   }
 

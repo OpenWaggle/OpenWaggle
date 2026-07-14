@@ -23,7 +23,7 @@ Implementation must stay faithful to:
   - Waggle and standard mode differ only because Waggle runs two models sequentially per user turn.
   - Branch navigation, draft creation, materialization, archive/restore, composer behavior, git, diffs, and active-run semantics apply equally to standard and Waggle.
   - Mirror Pi TUI behavior by default.
-- Pi package/extension model from `@mariozechner/pi-coding-agent@0.70.2`
+- Pi package/extension model from `@earendil-works/pi-coding-agent@0.80.6`
   - Extensions are normal TypeScript modules.
   - Packages can declare resources through `package.json#pi`.
   - Extensions can register commands, flags, message renderers, event handlers, custom entries, and custom messages.
@@ -90,9 +90,9 @@ packages/pi-waggle/
     "@openwaggle/waggle-core": "workspace:*"
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*",
-    "@mariozechner/pi-ai": "*",
-    "@mariozechner/pi-tui": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-tui": "*",
     "typebox": "*"
   }
 }

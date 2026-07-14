@@ -69,6 +69,11 @@ const {
       sendWaggleMessage: vi.fn(async () => undefined),
       cancelAgent: vi.fn(async () => undefined),
       steerAgent: vi.fn(async () => ({ preserved: true })),
+      respondAgentInteraction: vi.fn(async () => ({
+        ok: true,
+        interactionId: 'interaction-1',
+        status: 'resolved',
+      })),
     },
     runRenderSnapshots,
     getRunRenderSnapshotMock,
@@ -208,6 +213,12 @@ export function installUseAgentChatTestLifecycle() {
     apiMock.cancelAgent.mockReset()
     apiMock.cancelAgent.mockResolvedValue(undefined)
     apiMock.steerAgent.mockReset()
+    apiMock.respondAgentInteraction.mockReset()
+    apiMock.respondAgentInteraction.mockResolvedValue({
+      ok: true,
+      interactionId: 'interaction-1',
+      status: 'resolved',
+    })
     getRunRenderSnapshotMock.mockClear()
     hasActiveRunMock.mockReset()
     hasActiveRunMock.mockReturnValue(false)

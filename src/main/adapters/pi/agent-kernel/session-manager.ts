@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { SessionManager } from '@mariozechner/pi-coding-agent'
+import { SessionManager } from '@earendil-works/pi-coding-agent'
 import type { SessionDetail } from '@shared/types/session'
 
 export function resolveSessionProjectPath(session: SessionDetail) {

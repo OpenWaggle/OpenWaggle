@@ -15,7 +15,11 @@ export function createOptionalCommandPaletteAction(
 }
 
 export function insertCompactCommand() {
-  const commandText = `${compactCommandText()} `
+  insertComposerCommandText(compactCommandText())
+}
+
+export function insertComposerCommandText(command: string) {
+  const commandText = `${command} `
   const composerStore = useComposerStore.getState()
   const editor = composerStore.lexicalEditor
 

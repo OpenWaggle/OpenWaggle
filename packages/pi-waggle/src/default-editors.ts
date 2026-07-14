@@ -1,12 +1,12 @@
-import type { ExtensionCommandContext, ExtensionContext } from '@mariozechner/pi-coding-agent'
+import type { ExtensionCommandContext, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import type { WaggleConfig, WagglePreset } from '@openwaggle/waggle-core'
 import {
   blankConfig,
   editWaggleConfigGuided,
   promptFullWaggleConfig,
-} from './default-config-editors'
-import { promptPrefilledText } from './default-prefilled-input'
-import { latestPiWaggleModeStateFromBranch } from './mode-state'
+} from './default-config-editors.js'
+import { promptPrefilledText } from './default-prefilled-input.js'
+import { latestPiWaggleModeStateFromBranch } from './mode-state.js'
 import {
   buildEditablePreset,
   loadPiWagglePresetLayers,
@@ -16,9 +16,9 @@ import {
   presetScopeLabel,
   resolvedPresetsForUi,
   savePiWagglePreset,
-} from './presets'
+} from './presets.js'
 
-export { viewAdvancedJson } from './default-json-editor'
+export { viewAdvancedJson } from './default-json-editor.js'
 
 const DEFAULT_NEW_PRESET_NAME = 'New Waggle Preset'
 const DEFAULT_NEW_PRESET_DESCRIPTION = 'Describe what this Waggle preset is for.'

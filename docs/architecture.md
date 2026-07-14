@@ -4,6 +4,7 @@ This file is the entrypoint for OpenWaggle architecture documentation. It is int
 
 ## Core Documents
 
+- `CONTEXT.md` defines canonical OpenWaggle product-domain language.
 - `docs/first-principles.md` defines the stable product and architecture principles.
 - `docs/system-architecture.md` describes the current whole-system shape.
 - `docs/hexagonal-architecture.md` defines main-process layering rules.
@@ -17,6 +18,10 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 - `docs/adr/0002-migrate-runtime-to-pi.md`
 - `docs/adr/0003-adopt-feature-first-renderer-architecture.md`
 - `docs/adr/0004-split-portable-waggle-core-from-pi-adapter.md`
+- `docs/adr/0005-adopt-openwaggle-extension-contribution-host.md`
+- `docs/adr/0006-adopt-federated-module-runtime-for-extension-ui.md`
+- `docs/adr/0007-adopt-release-please-for-openwaggle-npm-packages.md`
+- `docs/adr/0008-publish-npm-packages-directly-with-trusted-publishing.md`
 
 ## Specs
 
@@ -24,6 +29,7 @@ Specs capture planned or in-progress product/runtime work. They may be more deta
 
 - `docs/specs/pi-migration-remaining-work.md`
 - `docs/specs/pi-waggle-extension-package-spec.md`
+- `docs/specs/issue-113-extension-host-ac-mapping.md`
 - `docs/specs/waggle-composer-wireframes.md`
 
 ## User-Facing Docs

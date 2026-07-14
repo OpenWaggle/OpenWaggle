@@ -1,5 +1,5 @@
-import { resolve } from 'path'
 import { readFileSync } from 'fs'
+import { resolve } from 'path'
 import type { Plugin } from 'vite'
 import { defineConfig } from 'electron-vite'
 import react, { reactCompilerPreset } from '@vitejs/plugin-react'
@@ -9,7 +9,7 @@ import tailwindcss from '@tailwindcss/vite'
 import svgr from 'vite-plugin-svgr'
 
 const ALWAYS_EXTERNAL = ['electron', 'bufferutil', 'utf-8-validate', 'node-pty']
-const PI_EXTENSION_LOADER_PATH = '@mariozechner/pi-coding-agent/dist/core/extensions/loader.js'
+const PI_EXTENSION_LOADER_PATH = '@earendil-works/pi-coding-agent/dist/core/extensions/loader.js'
 const PI_EXTENSION_IMPORT_META_RESOLVE_LINE =
   'return fileURLToPath(import.meta.resolve(specifier));'
 const PI_EXTENSION_BUNDLED_RESOLVE_LINE = 'return specifier;'
@@ -17,6 +17,9 @@ const PI_EXTENSION_NODE_ALIAS_BRANCH =
   '...(isBunBinary ? { virtualModules: VIRTUAL_MODULES, tryNative: false } : { alias: getAliases() }),'
 const PI_EXTENSION_VIRTUAL_MODULE_BRANCH =
   '...{ virtualModules: VIRTUAL_MODULES, tryNative: false },'
+const UNPDF_DIST_PATH = 'unpdf/dist/index.mjs'
+const UNPDF_IMPORT_META_RESOLVE_LINE = 'import.meta.resolve("pdfjs-dist/package.json")'
+const UNPDF_CJS_RESOLVE_LINE = 'require.resolve("pdfjs-dist/package.json")'
 const MCP_CONFIG_WATCH_IGNORES = [
   '**/.mcp.json',
   '**/.agents/mcp.json',
@@ -31,13 +34,14 @@ const BUNDLED_DEPS = [
   '@effect/sql',
   '@effect/sql-sqlite-node',
   '@diegogbrisa/ts-match',
+  '@openwaggle/extension-sdk',
   '@openwaggle/pi-waggle',
   '@openwaggle/waggle-core',
-  '@mariozechner/pi-coding-agent',
-  '@mariozechner/pi-agent-core',
-  '@mariozechner/pi-ai',
-  '@mariozechner/pi-tui',
-  '@mariozechner/jiti',
+  '@earendil-works/pi-coding-agent',
+  '@earendil-works/pi-agent-core',
+  '@earendil-works/pi-ai',
+  '@earendil-works/pi-tui',
+  'jiti',
   '@modelcontextprotocol/sdk',
   '@electron-toolkit/utils',
   'fast-glob',
@@ -67,7 +71,7 @@ function dependencyNamesFromPackageJson(value: unknown) {
 /**
  * Vite 8 (Rolldown) only accepts `string[]` for `external`, not RegExp.
  * electron-vite's `externalizeDepsPlugin` and preset plugin both add RegExp
- * patterns to `rollupOptions.external`, which Rolldown silently ignores in
+ * patterns to `rolldownOptions.external`, which Rolldown silently ignores in
  * SSR mode (`ssr.noExternal: true`). This plugin runs last and replaces the
  * external array with a pure-string list derived from package.json deps.
  */
@@ -78,16 +82,23 @@ function rolldownExternalFixPlugin(): Plugin {
     configResolved(config) {
       const packageJson: unknown = JSON.parse(readFileSync(resolve('package.json'), 'utf-8'))
       const allDeps = dependencyNamesFromPackageJson(packageJson)
-      const externalDeps = allDeps.filter(d => !BUNDLED_DEPS.some(b => d === b || d.startsWith(b + '/')))
+      const externalDeps = allDeps.filter((dependency) =>
+        !BUNDLED_DEPS.some(
+          (bundledDependency) =>
+            dependency === bundledDependency || dependency.startsWith(`${bundledDependency}/`),
+        ),
+      )
       const external = [...new Set([...ALWAYS_EXTERNAL, ...externalDeps])]
 
       // Strip RegExp entries from the resolved external array and ensure all
       // deps are present as plain strings (Rolldown only accepts string[]).
-      const resolved = config.build.rollupOptions.external
-      const existing = Array.isArray(resolved) ? resolved.filter((e): e is string => typeof e === 'string') : []
+      const resolved = config.build.rolldownOptions.external
+      const existing = Array.isArray(resolved)
+        ? resolved.filter((entry): entry is string => typeof entry === 'string')
+        : []
       const merged = [...new Set([...existing, ...external])]
 
-      config.build.rollupOptions.external = merged
+      config.build.rolldownOptions.external = merged
     },
   }
 }
@@ -122,24 +133,76 @@ function piExtensionLoaderBundlePlugin(): Plugin {
   }
 }
 
+/**
+ * `unpdf` is bundled into the Electron main CJS output. Its Node defaults use
+ * `import.meta.resolve`, which Rolldown correctly warns about for non-ESM
+ * output and would otherwise erase to `{}`. Keep the transform scoped to the
+ * known package metadata lookup instead of disabling import.meta diagnostics.
+ */
+function unpdfCjsResolvePlugin(): Plugin {
+  return {
+    name: 'openwaggle:unpdf-cjs-resolve',
+    enforce: 'pre',
+    transform(code, id) {
+      if (!id.includes(UNPDF_DIST_PATH)) {
+        return null
+      }
+
+      if (!code.includes(UNPDF_IMPORT_META_RESOLVE_LINE)) {
+        throw new Error('unpdf bundle shape changed; update OpenWaggle bundler transform.')
+      }
+
+      return code.replace(UNPDF_IMPORT_META_RESOLVE_LINE, UNPDF_CJS_RESOLVE_LINE)
+    },
+  }
+}
+
+function disablePluginTimingWarningsPlugin(): Plugin {
+  return {
+    name: 'openwaggle:disable-plugin-timing-warnings',
+    enforce: 'post',
+    configResolved(config) {
+      const existingChecks = config.build.rolldownOptions.checks ?? {}
+      config.build.rolldownOptions.checks = {
+        ...existingChecks,
+        pluginTimings: false,
+      }
+
+      const existingWorkerOptions = config.worker.rolldownOptions ?? {}
+      const existingWorkerChecks = existingWorkerOptions.checks ?? {}
+      config.worker.rolldownOptions = {
+        ...existingWorkerOptions,
+        checks: {
+          ...existingWorkerChecks,
+          pluginTimings: false,
+        },
+      }
+    },
+  }
+}
+
 export default defineConfig({
   main: {
-    plugins: [piExtensionLoaderBundlePlugin(), rolldownExternalFixPlugin()],
+    plugins: [piExtensionLoaderBundlePlugin(), unpdfCjsResolvePlugin(), rolldownExternalFixPlugin()],
     build: {
       minify: false,
       externalizeDeps: {
         exclude: BUNDLED_DEPS,
       },
-      rollupOptions: {
+      rolldownOptions: {
         external: ALWAYS_EXTERNAL,
+        checks: {
+          pluginTimings: false,
+        },
         output: {
-          inlineDynamicImports: true,
+          codeSplitting: false,
         },
       },
     },
     resolve: {
       alias: {
         '@shared': resolve('src/shared'),
+        '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src/index.ts'),
         '@openwaggle/pi-waggle': resolve('packages/pi-waggle/src'),
         '@openwaggle/waggle-core': resolve('packages/waggle-core/src'),
       }
@@ -148,12 +211,19 @@ export default defineConfig({
   preload: {
     resolve: {
       alias: {
-        '@shared': resolve('src/shared')
+        '@shared': resolve('src/shared'),
+        '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src/index.ts')
       }
     }
   },
   renderer: {
     server: {
+      cors: {
+        origin: '*',
+      },
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+      },
       watch: {
         ignored: MCP_CONFIG_WATCH_IGNORES,
       },
@@ -167,8 +237,12 @@ export default defineConfig({
     resolve: {
       alias: {
         '@': resolve('src/renderer/src'),
-        '@shared': resolve('src/shared')
-      }
+        '@shared': resolve('src/shared'),
+        '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src/index.ts'),
+        '@openwaggle/extension-react': resolve('packages/extension-react/src/index.tsx'),
+        '@openwaggle/pi-waggle': resolve('packages/pi-waggle/src'),
+        '@openwaggle/waggle-core': resolve('packages/waggle-core/src'),
+      },
     },
     plugins: [
       tanstackRouter({
@@ -179,6 +253,7 @@ export default defineConfig({
       react(),
       babel({ presets: [reactCompilerPreset()] }),
       tailwindcss(),
+      disablePluginTimingWarningsPlugin(),
     ]
   }
 })

@@ -20,6 +20,7 @@ export function runAgentKernel(
   preflight: {
     readonly session: SessionDetail
     readonly skillToggles?: Record<string, boolean>
+    readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   },
 ) {
   return Effect.gen(function* () {
@@ -32,6 +33,12 @@ export function runAgentKernel(
       signal: input.signal,
       onEvent: input.onEvent,
       ...(preflight.skillToggles ? { skillToggles: preflight.skillToggles } : {}),
+      ...(preflight.enabledOpenWaggleExtensionPackagePaths
+        ? {
+            enabledOpenWaggleExtensionPackagePaths:
+              preflight.enabledOpenWaggleExtensionPackagePaths,
+          }
+        : {}),
     })
   })
 }

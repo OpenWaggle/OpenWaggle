@@ -1,4 +1,4 @@
-import type { OpenWaggleApi } from '@shared/types/ipc'
+import type { OpenWaggleApi } from '@shared/types/openwaggle-api'
 
 declare global {
   interface Window {

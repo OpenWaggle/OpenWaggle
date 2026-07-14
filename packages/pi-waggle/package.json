@@ -1,36 +1,106 @@
 {
   "name": "@openwaggle/pi-waggle",
   "version": "0.0.0",
+  "description": "Pi-native Waggle package built on top of @openwaggle/waggle-core.",
   "type": "module",
-  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OpenWaggle/OpenWaggle.git",
+    "directory": "packages/pi-waggle"
+  },
   "keywords": [
-    "pi-package"
+    "pi-package",
+    "openwaggle",
+    "waggle"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "dist-cjs",
+    "CHANGELOG.md",
+    "LICENSE",
+    "README.md"
   ],
   "pi": {
     "extensions": [
-      "./src/extension.ts"
+      "./dist/extension.js"
     ]
   },
   "exports": {
-    ".": "./src/index.ts",
-    "./commands": "./src/commands.ts",
-    "./extension": "./src/extension.ts",
-    "./loop": "./src/loop.ts",
-    "./mode-state": "./src/mode-state.ts",
-    "./preset-storage": "./src/preset-storage.ts",
-    "./presets": "./src/presets.ts",
-    "./protocol": "./src/protocol.ts",
-    "./renderers": "./src/renderers.ts",
-    "./stop-policy": "./src/stop-policy.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist-cjs/index.js"
+    },
+    "./commands": {
+      "types": "./dist/commands.d.ts",
+      "import": "./dist/commands.js",
+      "require": "./dist-cjs/commands.js"
+    },
+    "./extension": {
+      "types": "./dist/extension.d.ts",
+      "import": "./dist/extension.js",
+      "require": "./dist-cjs/extension.js"
+    },
+    "./loop": {
+      "types": "./dist/loop.d.ts",
+      "import": "./dist/loop.js",
+      "require": "./dist-cjs/loop.js"
+    },
+    "./mode-state": {
+      "types": "./dist/mode-state.d.ts",
+      "import": "./dist/mode-state.js",
+      "require": "./dist-cjs/mode-state.js"
+    },
+    "./preset-storage": {
+      "types": "./dist/preset-storage.d.ts",
+      "import": "./dist/preset-storage.js",
+      "require": "./dist-cjs/preset-storage.js"
+    },
+    "./presets": {
+      "types": "./dist/presets.d.ts",
+      "import": "./dist/presets.js",
+      "require": "./dist-cjs/presets.js"
+    },
+    "./protocol": {
+      "types": "./dist/protocol.d.ts",
+      "import": "./dist/protocol.js",
+      "require": "./dist-cjs/protocol.js"
+    },
+    "./renderers": {
+      "types": "./dist/renderers.d.ts",
+      "import": "./dist/renderers.js",
+      "require": "./dist-cjs/renderers.js"
+    },
+    "./stop-policy": {
+      "types": "./dist/stop-policy.d.ts",
+      "import": "./dist/stop-policy.js",
+      "require": "./dist-cjs/stop-policy.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "pnpm --filter @openwaggle/waggle-core build && tsc -p tsconfig.build.json && tsc -p tsconfig.cjs.json && tsx ../../scripts/write-cjs-package-json.ts",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "pack:check": "pnpm build && pnpm pack --pack-destination .pack --json"
   },
   "dependencies": {
-    "@openwaggle/waggle-core": "workspace:*"
+    "@openwaggle/waggle-core": "workspace:^"
   },
   "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.80.6",
+    "@earendil-works/pi-tui": "0.80.6",
     "@total-typescript/shoehorn": "0.1.2"
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*",
-    "@mariozechner/pi-tui": "*"
+    "@earendil-works/pi-coding-agent": "^0.80.6",
+    "@earendil-works/pi-tui": "^0.80.6"
   }
 }

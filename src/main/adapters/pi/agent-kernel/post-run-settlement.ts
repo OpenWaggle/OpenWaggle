@@ -1,4 +1,4 @@
-import type { AgentSession } from '@mariozechner/pi-coding-agent'
+import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import { logger } from './constants'
 
 const POST_RUN_SETTLE_POLL_MS = 25

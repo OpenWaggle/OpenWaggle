@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
-import { Archive, Cable, Network, Settings2, Waypoints } from 'lucide-react'
+import { Archive, Cable, Network, PackageOpen, Settings2, Waypoints } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import type { SettingsTab } from '@/shell/ui-store'
@@ -13,6 +13,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: 'general', label: 'General', icon: Settings2 },
   { id: 'waggle', label: 'Waggle Mode', icon: Waypoints },
+  { id: 'extensions', label: 'Extensions', icon: PackageOpen },
   { id: 'mcp', label: 'MCP', icon: Network },
   { id: 'archived', label: 'Archived items', icon: Archive },
   { id: 'connections', label: 'Connections', icon: Cable },
@@ -42,6 +43,8 @@ export function SettingsNav({ activeTab }: SettingsNavProps) {
           <Button
             variant={isActive ? 'accent' : 'row'}
             size="md"
+            align="start"
+            fullWidth
             key={item.id}
             onClick={() => navigateToTab(item.id)}
             className={cn('gap-2.5', isActive ? 'bg-[#17130a] font-medium' : 'text-text-tertiary')}

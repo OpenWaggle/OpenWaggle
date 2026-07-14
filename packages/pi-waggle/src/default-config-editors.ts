@@ -2,7 +2,7 @@ import type {
   ExtensionAPI,
   ExtensionCommandContext,
   ExtensionContext,
-} from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
 import {
   MAX_WAGGLE_MAX_TURNS_SAFETY,
   MIN_WAGGLE_MAX_TURNS_SAFETY,
@@ -12,16 +12,16 @@ import {
   type WaggleConfig,
   type WaggleStopCondition,
 } from '@openwaggle/waggle-core'
-import { agentMenuLabel, editAgentSlot, promptAgentSlot } from './default-agent-editor'
-import { modelReferenceForCurrentModel } from './default-model-picker'
-import { promptPrefilledText } from './default-prefilled-input'
+import { agentMenuLabel, editAgentSlot, promptAgentSlot } from './default-agent-editor.js'
+import { modelReferenceForCurrentModel } from './default-model-picker.js'
+import { promptPrefilledText } from './default-prefilled-input.js'
 import {
   appendPiWaggleModeState,
   enabledPiWaggleModeState,
   latestPiWaggleModeStateFromBranch,
-} from './mode-state'
+} from './mode-state.js'
 
-export { modelReferenceForCurrentModel } from './default-model-picker'
+export { modelReferenceForCurrentModel } from './default-model-picker.js'
 
 const EDITOR_JSON_INDENT_SPACES = 2
 const DEFAULT_FIRST_AGENT_LABEL = 'Agent 1'

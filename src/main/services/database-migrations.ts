@@ -1,4 +1,13 @@
-import { CURRENT_SESSION_SCHEMA_STATEMENTS } from './database-schema'
+import {
+  CURRENT_EXTENSION_PROJECT_OVERRIDE_SCHEMA_STATEMENTS,
+  CURRENT_EXTENSION_STORAGE_SCHEMA_STATEMENTS,
+  CURRENT_SESSION_SCHEMA_STATEMENTS,
+  EXTENSION_LIFECYCLE_BUILD_APPROVAL_MIGRATION_STATEMENTS,
+  EXTENSION_LIFECYCLE_BUILD_RUN_MIGRATION_STATEMENTS,
+  EXTENSION_LIFECYCLE_PACKAGE_VERSION_MIGRATION_STATEMENTS,
+  EXTENSION_LIFECYCLE_RELOAD_STATE_MIGRATION_STATEMENTS,
+  EXTENSION_LIFECYCLE_SCHEMA_V1_STATEMENTS,
+} from './database-schema'
 
 export interface AppMigration {
   readonly id: number
@@ -164,5 +173,40 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
       `DROP TABLE IF EXISTS sessions`,
       ...CURRENT_SESSION_SCHEMA_STATEMENTS,
     ],
+  },
+  {
+    id: 12,
+    name: 'extension-lifecycle-state',
+    statements: [...EXTENSION_LIFECYCLE_SCHEMA_V1_STATEMENTS],
+  },
+  {
+    id: 13,
+    name: 'extension-project-overrides',
+    statements: [...CURRENT_EXTENSION_PROJECT_OVERRIDE_SCHEMA_STATEMENTS],
+  },
+  {
+    id: 14,
+    name: 'extension-lifecycle-package-version',
+    statements: [...EXTENSION_LIFECYCLE_PACKAGE_VERSION_MIGRATION_STATEMENTS],
+  },
+  {
+    id: 15,
+    name: 'extension-lifecycle-build-approval',
+    statements: [...EXTENSION_LIFECYCLE_BUILD_APPROVAL_MIGRATION_STATEMENTS],
+  },
+  {
+    id: 16,
+    name: 'extension-lifecycle-build-run',
+    statements: [...EXTENSION_LIFECYCLE_BUILD_RUN_MIGRATION_STATEMENTS],
+  },
+  {
+    id: 17,
+    name: 'extension-lifecycle-reload-state',
+    statements: [...EXTENSION_LIFECYCLE_RELOAD_STATE_MIGRATION_STATEMENTS],
+  },
+  {
+    id: 18,
+    name: 'extension-storage-items',
+    statements: [...CURRENT_EXTENSION_STORAGE_SCHEMA_STATEMENTS],
   },
 ]

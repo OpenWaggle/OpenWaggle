@@ -1,13 +1,19 @@
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
+import { extensionSlashCommandText } from '@/features/composer/commands'
+import { refreshPreferencesAfterExtensionInvoke } from '@/features/extensions'
 import { usePreferencesStore } from '@/features/settings/state'
 import { useWaggleStore } from '@/features/waggle/state'
+import { extensionContributionsQueryOptions } from '@/queries/extensions'
 import { wagglePresetsQueryOptions } from '@/queries/waggle-presets'
-import { useUIStore } from '@/shell/ui-store'
+import { api } from '@/shared/lib/ipc'
+import { createRendererLogger } from '@/shared/lib/logger'
+import { EXTENSION_SIDE_PANEL_ROUTE_PANEL, useUIStore } from '@/shell/ui-store'
 import {
   createOptionalCommandPaletteAction,
   insertCompactCommand,
+  insertComposerCommandText,
 } from '../lib/command-palette-actions'
 import {
   createBaseCommands,
@@ -17,7 +23,37 @@ import {
   filterBaseCommands,
 } from '../lib/command-palette-items'
 import { normalizeCommandQuery } from '../lib/command-palette-text'
+import {
+  createExtensionCommandItems,
+  createExtensionSidePanelItems,
+  createExtensionSlashCommandItems,
+  type ExtensionCommandActionInput,
+  type ExtensionSidePanelActionInput,
+  type ExtensionSlashCommandActionInput,
+  resolveExtensionCommandInvocationScope,
+} from '../lib/extension-command-items'
 import type { CommandPaletteActionHandlers, CommandPaletteCallbacks } from '../model'
+
+const logger = createRendererLogger('command-palette')
+
+function currentHashPathname() {
+  const hash = window.location.hash
+  if (!hash.startsWith('#')) {
+    return window.location.pathname
+  }
+
+  const [pathname] = hash.slice(1).split('?')
+  return pathname && pathname.length > 0 ? pathname : '/'
+}
+
+function sessionIdFromPathname(pathname: string) {
+  if (!pathname.startsWith('/sessions/')) {
+    return null
+  }
+
+  const [, sessionsSegment, sessionId] = pathname.split('/')
+  return sessionsSegment === 'sessions' && sessionId ? sessionId : null
+}
 
 interface UseCommandPaletteItemsInput extends CommandPaletteCallbacks {
   readonly query: string
@@ -35,8 +71,14 @@ export function useCommandPaletteItems({
 }: UseCommandPaletteItemsInput) {
   const navigate = useNavigate()
   const closeCommandPalette = useUIStore((s) => s.closeCommandPalette)
+  const setLastRightSidebarPanel = useUIStore((s) => s.setLastRightSidebarPanel)
   const projectPath = usePreferencesStore((state) => state.settings.projectPath)
-  const wagglePresetsQuery = useQuery(wagglePresetsQueryOptions(projectPath))
+  const projectPaths = projectPath ? [projectPath] : []
+  const sessionId = sessionIdFromPathname(currentHashPathname())
+  const { data: wagglePresets = [] } = useQuery(wagglePresetsQueryOptions(projectPath))
+  const { data: extensionContributions = null } = useQuery(
+    extensionContributionsQueryOptions(projectPaths, { sessionId }),
+  )
   const lowerQuery = normalizeCommandQuery(query)
   const configureWaggle = () => {
     closeCommandPalette()
@@ -70,11 +112,112 @@ export function useCommandPaletteItems({
       closeCommandPalette()
     },
   }
+  const invokeExtensionCommand = ({ entry }: ExtensionCommandActionInput) => {
+    if (!entry.capability || !entry.method) {
+      return
+    }
+    const scope = resolveExtensionCommandInvocationScope({ entry, projectPath, sessionId })
+    if (scope === null) {
+      logger.warn('Extension command has no command-palette invocation scope', {
+        extensionId: entry.extensionId,
+        contributionId: entry.contributionId,
+        declaredScopes: entry.declaredScopes,
+      })
+      return
+    }
+
+    closeCommandPalette()
+    void api
+      .invokeExtension({
+        extensionId: entry.extensionId,
+        contributionId: entry.contributionId,
+        capability: entry.capability,
+        method: entry.method,
+        scope,
+        payload: {},
+      })
+      .then(async (result) => {
+        if (!result.ok) {
+          logger.warn('Extension command rejected', {
+            extensionId: entry.extensionId,
+            contributionId: entry.contributionId,
+            code: result.error.code,
+          })
+          return
+        }
+
+        await refreshPreferencesAfterExtensionInvoke(result)
+      })
+      .catch((error: unknown) => {
+        logger.warn('Extension command failed', { error: String(error) })
+      })
+  }
+  const insertExtensionSlashCommand = ({ entry }: ExtensionSlashCommandActionInput) => {
+    insertComposerCommandText(extensionSlashCommandText(entry))
+    closeCommandPalette()
+  }
+  const openExtensionSidePanel = ({ entry }: ExtensionSidePanelActionInput) => {
+    const target = {
+      kind: 'extension-side-panel',
+      extensionId: entry.extensionId,
+      sidePanelId: entry.contributionId,
+      packagePath: entry.packagePath,
+      contentHash: entry.contentHash,
+    } as const
+    setLastRightSidebarPanel(target)
+    closeCommandPalette()
+
+    if (sessionId) {
+      void navigate({
+        to: '/sessions/$sessionId',
+        params: { sessionId },
+        search: (previous) => ({
+          ...previous,
+          diff: undefined,
+          panel: EXTENSION_SIDE_PANEL_ROUTE_PANEL,
+          sidePanelExtensionId: target.extensionId,
+          sidePanelId: target.sidePanelId,
+          sidePanelPackagePath: target.packagePath,
+          sidePanelContentHash: target.contentHash,
+        }),
+      })
+      return
+    }
+
+    void navigate({
+      to: '/',
+      search: {
+        diff: undefined,
+        panel: EXTENSION_SIDE_PANEL_ROUTE_PANEL,
+        sidePanelExtensionId: target.extensionId,
+        sidePanelId: target.sidePanelId,
+        sidePanelPackagePath: target.packagePath,
+        sidePanelContentHash: target.contentHash,
+      },
+    })
+  }
 
   return [
     ...filterBaseCommands(createBaseCommands(actions), lowerQuery),
     ...createSkillItems(slashSkills, lowerQuery, actions.selectSkill),
-    ...createPresetItems(wagglePresetsQuery.data ?? [], lowerQuery, actions.selectPreset),
+    ...createPresetItems(wagglePresets, lowerQuery, actions.selectPreset),
+    ...createExtensionSlashCommandItems({
+      registry: extensionContributions,
+      lowerQuery,
+      insertCommand: insertExtensionSlashCommand,
+    }),
+    ...createExtensionSidePanelItems({
+      registry: extensionContributions,
+      lowerQuery,
+      openSidePanel: openExtensionSidePanel,
+    }),
+    ...createExtensionCommandItems({
+      registry: extensionContributions,
+      lowerQuery,
+      invokeCommand: invokeExtensionCommand,
+      canInvokeCommand: (entry) =>
+        resolveExtensionCommandInvocationScope({ entry, projectPath, sessionId }) !== null,
+    }),
     ...createConfigureWaggleItem(lowerQuery, actions.configureWaggle),
   ]
 }

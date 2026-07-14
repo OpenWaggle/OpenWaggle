@@ -1,5 +1,5 @@
-import type { WaggleConfig } from './config'
-import { getWaggleTurn } from './turn-policy'
+import type { WaggleConfig } from './config.js'
+import { getWaggleTurn } from './turn-policy.js'
 
 const FIRST_TURN_NUMBER = 0
 const FIRST_AGENT_INDEX = 0

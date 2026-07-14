@@ -3,18 +3,18 @@ import type {
   ExtensionAPI,
   ExtensionContext,
   InputEvent,
-} from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
 import { buildWaggleTurnPrompt } from '@openwaggle/waggle-core'
-import { defaultWaggleCommandCompletions, handleDefaultWaggleCommand } from './default-commands'
+import { defaultWaggleCommandCompletions, handleDefaultWaggleCommand } from './default-commands.js'
 import {
   clearRunStatus,
   createStartDefaultWaggleRun,
   type DefaultPiWaggleRunState,
   setWaggleStatus,
-} from './default-run'
-import { latestPiWaggleModeStateFromBranch } from './mode-state'
-import { PI_WAGGLE_TURN_CUSTOM_TYPE, PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE } from './protocol'
-import { registerPiWaggleRenderers } from './renderers'
+} from './default-run.js'
+import { latestPiWaggleModeStateFromBranch } from './mode-state.js'
+import { PI_WAGGLE_TURN_CUSTOM_TYPE, PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE } from './protocol.js'
+import { registerPiWaggleRenderers } from './renderers.js'
 
 function notify(ctx: ExtensionContext, message: string, type: 'info' | 'warning' | 'error') {
   if (ctx.hasUI) ctx.ui.notify(message, type)

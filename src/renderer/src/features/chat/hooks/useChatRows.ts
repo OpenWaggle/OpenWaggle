@@ -9,6 +9,8 @@ import { buildChatRows } from './useBuildChatRows'
 
 export function useChatRows(inputs: {
   messages: UIMessage[]
+  customMessages?: Parameters<typeof buildChatRows>[0]['customMessages']
+  interactionEvents?: Parameters<typeof buildChatRows>[0]['interactionEvents']
   isLoading: boolean
   error: Error | undefined
   lastUserMessage: string | null
@@ -21,6 +23,8 @@ export function useChatRows(inputs: {
 }): ChatRow[] {
   return buildChatRows({
     messages: inputs.messages,
+    customMessages: inputs.customMessages ?? [],
+    interactionEvents: inputs.interactionEvents ?? [],
     isLoading: inputs.isLoading,
     error: inputs.error,
     lastUserMessage: inputs.lastUserMessage,

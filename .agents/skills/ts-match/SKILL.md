@@ -13,7 +13,7 @@ Use ts-match when code benefits from:
 
 - exhaustive closed-union handling;
 - narrowed handler parameters without casts;
-- structural object/tuple/array/record matching;
+- structural object/tuple/array/record/map/set matching;
 - reusable runtime validators at boundaries;
 - promise-backed inputs with one normalized terminal promise;
 - discriminant/path dispatch through `matchBy`.
@@ -59,7 +59,7 @@ Root import for normal usage:
 
 ```ts
 import { assertMatching, group, isMatching, match, matchBy, P } from '@diegogbrisa/ts-match'
-import type { MatchByPath, MatchedValue, MatchPromiseResult } from '@diegogbrisa/ts-match'
+import type { MatchByPath, MatchedValue, MatchPromiseResult, TemporalInstantValue } from '@diegogbrisa/ts-match'
 ```
 
 Focused subpaths:
@@ -67,13 +67,15 @@ Focused subpaths:
 ```ts
 import { match } from '@diegogbrisa/ts-match/match'
 import { matchBy } from '@diegogbrisa/ts-match/match-by'
-import { P, pString } from '@diegogbrisa/ts-match/patterns'
+import { P, pCollect, pRegex, pString } from '@diegogbrisa/ts-match/patterns'
 import { isMatching, assertMatching } from '@diegogbrisa/ts-match/assertions'
 import { NonExhaustiveMatchError, PatternMismatchError } from '@diegogbrisa/ts-match/errors'
 import { group } from '@diegogbrisa/ts-match/group'
 ```
 
 There is no default export.
+
+The package is ESM-first. CommonJS `require(...)` and no-`type` `tsx` scripts are supported through the package export map for scripts and tooling, but normal TypeScript examples should prefer ESM imports.
 
 ### Focused subpath type exports
 
@@ -206,6 +208,19 @@ match(user).with(
 ```
 
 Do not mix anonymous and named selections in one successful pattern.
+
+### Collection captures
+
+Use `P.collect(name, pattern)` inside repeated containers when the handler should receive many matched values as a named array. It is valid inside `P.array(...)`, `P.nonEmptyArray(...)`, `P.record(...)`, `P.nonEmptyRecord(...)`, `P.map(...)`, and `P.set(...)`.
+
+```ts
+match(['u1', 42, 'u2']).with(
+  P.array(P.union(P.collect('ids', P.string), P.collect('counts', P.number))),
+  ({ ids, counts }) => ({ ids, counts }),
+)
+```
+
+`P.collect(...)` is not a filter. The inner pattern must match; use `P.union(...)` when repeated values can have several allowed shapes. Empty repeated containers that match provide empty arrays for known collection names. Duplicate collection names append and union their element types. Collection captures can mix with named `P.select(...)`, but not anonymous `P.select()`, and collection names cannot collide with named selection names.
 
 ### Rendering UI from typed data
 
@@ -543,19 +558,29 @@ Array-form groups remain supported and are often more readable because `group` k
 - `P._`, `P.any` — wildcard helpers that match anything.
 - `P.string`, `P.number`, `P.boolean`, `P.bigint`, `P.symbol`, `P.null`, `P.undefined` — primitive helpers.
 - `P.nan`, `P.finite`, `P.integer` — numeric helpers.
+- `P.regex(regex)` — string-only regular expression matching; restores `regex.lastIndex`.
+- `P.date`, `P.error`, `P.regexp` — valid `Date`, `Error`, and `RegExp` instance helpers.
+- `P.nullish`, `P.falsy`, `P.truthy` — JavaScript nullish/truthiness helpers.
+- `P.temporal`, `P.temporalInstant`, `P.temporalPlainDate`, `P.temporalPlainTime`, `P.temporalPlainDateTime`, `P.temporalZonedDateTime`, `P.temporalDuration`, `P.temporalPlainYearMonth`, `P.temporalPlainMonthDay` — Temporal helpers. They match nothing when `globalThis.Temporal` is unavailable and do not polyfill Temporal.
+- `P.literal(value)` — exact primitive value or object/function/array reference identity matching.
 - `P.union(...patterns)` — matches any listed pattern; requires at least one pattern.
-- `P.exclude(pattern)` — matches values that do not match the nested pattern; cannot contain selections.
+- `P.exclude(pattern)` — matches values that do not match the nested pattern; cannot contain selections or collection captures.
 - `P.optional(pattern)` — matches an absent object property, `undefined`, or the nested pattern.
 - `P.array(pattern)` — variable-length arrays where every item matches; selections inside are rejected.
 - `P.nonEmptyArray(pattern)` — same as `P.array(...)` but requires at least one item.
+- `P.map(keyPattern, valuePattern)` — actual `Map` instances where every entry matches homogeneous key/value patterns.
+- `P.map([keyPattern, valuePattern], ...)` — actual `Map` instances with distinct required entries; partial by default, exact with `P.exact(...)`.
+- `P.set(valuePattern)` — actual `Set` instances where every value matches one pattern.
+- `P.set(valuePattern, ...moreValuePatterns)` — actual `Set` instances with distinct required values; partial by default, exact with `P.exact(...)`.
 - `P.tuple([...])` — explicit exact tuple pattern.
 - `P.rest(pattern)` — remaining tuple items; valid only as the final tuple item.
-- `P.exact(pattern)` — deep exact object pattern rejecting enumerable own extra value keys.
+- `P.exact(pattern)` — deep exact object pattern rejecting enumerable own extra value keys; with required Map/Set mode it rejects extra unconsumed entries/values.
 - `P.when(predicate)` — nested predicate or type guard pattern.
 - `P.instanceOf(Constructor)` — `instanceof` pattern for classes/errors.
 - `P.select()` — anonymous selection.
 - `P.select(name)` — named selection of the current value.
 - `P.select(name, pattern)` — named selection after nested validation.
+- `P.collect(name, pattern)` — collection capture for repeated containers; handler receives `name: T[]`.
 - `P.record(keyPattern, valuePattern)` — plain record-like objects; empty records match.
 - `P.nonEmptyRecord(keyPattern, valuePattern)` — plain record-like objects with at least one key.
 
@@ -563,11 +588,15 @@ Named helper exports mirror `P` helpers:
 
 - `pWildcard`, `pAny`, `pString`, `pNumber`, `pBoolean`, `pBigint`, `pSymbol`, `pNull`, `pUndefined`
 - `pNan`, `pFinite`, `pInteger`
-- `pUnion`, `pExclude`, `pOptional`
-- `pArray`, `pNonEmptyArray`, `pTuple`, `pRest`
-- `pExact`, `pWhen`, `pInstanceOf`, `pSelect`, `pRecord`, `pNonEmptyRecord`
+- `pRegex`, `pDate`, `pError`, `pRegexp`, `pNullish`, `pFalsy`, `pTruthy`
+- `pTemporal`, `pTemporalInstant`, `pTemporalPlainDate`, `pTemporalPlainTime`, `pTemporalPlainDateTime`, `pTemporalZonedDateTime`, `pTemporalDuration`, `pTemporalPlainYearMonth`, `pTemporalPlainMonthDay`
+- `pLiteral`, `pUnion`, `pExclude`, `pOptional`
+- `pArray`, `pNonEmptyArray`, `pMap`, `pSet`, `pTuple`, `pRest`
+- `pExact`, `pWhen`, `pInstanceOf`, `pSelect`, `pCollect`, `pRecord`, `pNonEmptyRecord`
 
 Use named helpers when codebases prefer focused imports or want helper usage visible to bundlers.
+
+Use `P.regex(regex)` instead of hand-written `P.when(...)` for string regex checks. Use `P.nullish` only for `null | undefined`; wrap it in `P.optional(...)` when an absent object property should also match. Use `P.date` for valid dates and `P.instanceOf(Date)` only when invalid `Date` instances should still match. Temporal helpers depend on runtime constructors supplied by the environment or the application; they are safe to import in projects that do not include TypeScript's `ESNext.Temporal` lib.
 
 ## Runtime guards and assertions
 
@@ -619,25 +648,29 @@ Common diagnostic fixes:
 - `ts-match: object-map cases are missing required key(s)` — add missing handlers or change to `.partial(...).otherwise(...)`.
 - `ts-match: object-map case contains an extra key` — remove the extra key or fix the discriminant path.
 - `ts-match: object-map cases cannot represent null or undefined tags` / key collision diagnostics — use tuple-entry cases or callback grouped cases instead of an object map.
-- `ts-match: repeated container patterns cannot contain P.select(...)` — move the selection outside `P.array(...)`, `P.nonEmptyArray(...)`, `P.record(...)`, or `P.nonEmptyRecord(...)`.
-- `ts-match: P.exclude(pattern) cannot contain P.select(...)` — remove the selection or move it outside the excluded pattern.
+- `ts-match: repeated container patterns cannot contain P.select(...)` — move the selection outside `P.array(...)`, `P.nonEmptyArray(...)`, `P.record(...)`, `P.nonEmptyRecord(...)`, `P.map(...)`, or `P.set(...)`; use `P.collect(...)` for repeated captures.
+- `ts-match: invalid P.collect(...) usage` — use `P.collect(name, pattern)` only inside repeated containers, do not mix it with anonymous `P.select()`, and do not reuse a named selection name.
+- `ts-match: P.exclude(pattern) cannot contain P.select(...)` / `P.collect(...)` — remove the capture or move it outside the excluded pattern.
 - `ts-match: invalid P.rest(...) usage` — use `P.rest(...)` only as the final tuple pattern item.
 
 If grouped-case handler inference is weak and variadic `.with(tag1, tag2, handler)` cannot express the needed structure cleanly, prefer callback-local `.cases((group) => [...])` or `.partial((group) => [...])` so the handler is typed from the active `matchBy` path. Use variadic callback groups (`group('a', 'b', handler)`) when editor tag suggestions matter; array-form groups (`group(['a', 'b'], handler)`) are supported without `as const` but may not get the same in-array literal completions. Use exported `group(...)` for reusable groups whose handlers do not need contextual variant inference.
 
 ## Important limitations
 
-- `P.array(...)`, `P.nonEmptyArray(...)`, `P.record(...)`, and `P.nonEmptyRecord(...)` reject `P.select(...)` because captures may repeat ambiguously.
-- `P.exclude(...)` cannot contain selections.
+- `P.array(...)`, `P.nonEmptyArray(...)`, `P.record(...)`, `P.nonEmptyRecord(...)`, `P.map(...)`, and `P.set(...)` reject `P.select(...)` because captures may repeat ambiguously; use `P.collect(...)` for repeated captures.
+- `P.collect(...)` is a matching capture, not a filter. Use `P.union(...)` for mixed repeated values.
+- `P.exclude(...)` cannot contain selections or collection captures.
 - `P.rest(...)` is valid only as the final tuple pattern item.
 - `P.record(...)` and `P.nonEmptyRecord(...)` target plain record-like objects, not arrays, class instances, maps, sets, dates, regexps, or primitives.
+- `P.map(...)` and `P.set(...)` target actual `Map`/`Set` instances only. They do not match plain objects, entry arrays, arrays, or duck-typed collection-like values.
+- Values typed as `ReadonlyMap` or `ReadonlySet` narrow to readonly handler types, but runtime matching still requires actual `Map`/`Set` instances.
+- Top-level array pairs in `P.map(...)` are required-entry clauses. Use `P.tuple(...)` for homogeneous tuple keys or tuple values.
 - Dot paths always mean nesting. Use tuple paths for symbols and literal segments containing dots.
 - Object patterns use normal JavaScript property lookup, so getters can run or throw and inherited properties can match.
-- `P.exact(...)` rejects enumerable own extra keys on values, but it is not a cyclic graph matcher.
+- `P.exact(...)` rejects object extra keys and required Map/Set extra entries or values, but it is not a cyclic graph matcher.
 - Object-map `.cases({...})` cannot represent `null`, `undefined`, or normalized key collisions. Avoid bare `__proto__:` object-literal syntax; use computed `['__proto__']`, tuple/grouped entries, or callback grouped cases.
 - Standalone exported `group(...)` cannot always infer handler parameter types from a later `.cases(...)` or `.partial(...)` call. Use callback-local `group` for annotation-free grouped handlers.
-- No structural `Map`/`Set` helper exists. Use `P.instanceOf(Map)` / `P.instanceOf(Set)` plus `P.when(...)` for custom checks.
-- No RegExp string helper exists. Use `P.when(...)`.
+- Temporal helpers do not polyfill `globalThis.Temporal`; they match nothing until the runtime or application provides Temporal constructors.
 
 ## Anti-patterns
 
@@ -651,7 +684,7 @@ If grouped-case handler inference is weak and variadic `.with(tag1, tag2, handle
 - Using `group(tag, handler)` for one-to-one cases where `.with(tag, handler)` is simpler.
 - Recommending hoisted case maps that require manual handler annotations as normal user-facing code.
 - Using object-map `.cases({...})` for `null`, `undefined`, bare `__proto__:` syntax, or normalized key collisions.
-- Selecting inside repeated contexts such as arrays or records.
+- Selecting inside repeated contexts such as arrays or records instead of using `P.collect(...)` for repeated captures.
 - Writing examples that are not compiled against the installed package.
 - Writing examples that depend on one app's private domain, IPC payloads, or tool/event names instead of generic product/application scenarios.
 

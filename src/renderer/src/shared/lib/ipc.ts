@@ -1,4 +1,4 @@
-import type { OpenWaggleApi } from '@shared/types/ipc'
+import type { OpenWaggleApi } from '@shared/types/openwaggle-api'
 
 /**
  * Type-safe access to the preload API.

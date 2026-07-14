@@ -1,5 +1,5 @@
 import { MessageId, SupportedModelId } from '@shared/types/brand'
-import type { SessionDetail } from '@shared/types/session'
+import type { SessionDetail, SessionTree } from '@shared/types/session'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
@@ -17,6 +17,7 @@ import {
   runServiceSessionId,
   runServiceSessionTree,
 } from './agent-run-service.test-utils'
+import { EmptyExtensionRuntimeLayer } from './extension-runtime-test-layer'
 
 const runMock = vi.fn()
 const updateTitleMock = vi.fn()
@@ -35,7 +36,7 @@ const session = runServiceSession
 const newSession = runServiceNewSession
 
 let projectionSession: SessionDetail = session
-
+let projectionTree: SessionTree = runServiceSessionTree
 const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   get: () => Effect.succeed(projectionSession),
   getOptional: () => Effect.succeed(projectionSession),
@@ -51,14 +52,12 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
       updateTitleMock(id, title)
     }),
 })
-
 const TestProviderLayer = Layer.succeed(ProviderService, {
   get: () => Effect.succeed(undefined),
   getAll: () => Effect.succeed([]),
   getProviderForModel: () => Effect.dieMessage('getProviderForModel is not used'),
   isKnownModel: () => Effect.succeed(true),
 })
-
 const TestSettingsLayer = Layer.succeed(SettingsService, {
   get: () => Effect.succeed(DEFAULT_SETTINGS),
   update: () => Effect.void,
@@ -69,7 +68,7 @@ const TestSettingsLayer = Layer.succeed(SettingsService, {
 const TestSessionLayer = Layer.succeed(SessionRepository, {
   list: () => Effect.succeed([]),
   listArchivedBranches: () => Effect.succeed([]),
-  getTree: () => Effect.succeed(runServiceSessionTree),
+  getTree: () => Effect.succeed(projectionTree),
   getWorkspace: () => Effect.succeed(null),
   persistSnapshot: (input: PersistSessionSnapshotInput) =>
     Effect.sync(() => {
@@ -172,11 +171,13 @@ const TestLayer = Layer.mergeAll(
   TestSettingsLayer,
   TestSessionLayer,
   TestAgentKernelLayer,
+  EmptyExtensionRuntimeLayer,
 )
 
 describe('executeAgentRun', () => {
   beforeEach(() => {
     projectionSession = session
+    projectionTree = runServiceSessionTree
     runMock.mockReset()
     updateTitleMock.mockReset()
     persistSnapshotMock.mockReset()
@@ -269,6 +270,7 @@ describe('executeAgentRun', () => {
     expect(getSessionSnapshotMock).toHaveBeenCalledWith({
       session,
       model,
+      enabledOpenWaggleExtensionPackagePaths: [],
     })
     expect(persistSnapshotMock).toHaveBeenCalledWith({
       sessionId,

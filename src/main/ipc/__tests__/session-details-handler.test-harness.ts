@@ -2,6 +2,7 @@ import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { type Mock, vi } from 'vitest'
+import { EmptyExtensionRuntimeLayer } from '../../application/__tests__/extension-runtime-test-layer'
 import { SessionProjectionRepositoryError } from '../../errors'
 import { AgentKernelService } from '../../ports/agent-kernel-service'
 import { ProviderService } from '../../ports/provider-service'
@@ -221,6 +222,7 @@ const TestRuntimeLayer = Layer.mergeAll(
   TestSessionRepoLayer,
   TestProviderLayer,
   TestSettingsLayer,
+  EmptyExtensionRuntimeLayer,
 )
 
 export function getInvokeHandler(name: string) {

@@ -4,6 +4,10 @@ import * as Effect from 'effect/Effect'
 import type { Exit as ExitType } from 'effect/Exit'
 import * as Layer from 'effect/Layer'
 import * as ManagedRuntime from 'effect/ManagedRuntime'
+import { ExtensionBuildRunnerLive } from './adapters/extension-build-runner'
+import { FilesystemDocsBundleLive } from './adapters/filesystem-docs-bundle-service'
+import { FilesystemExtensionManagerLive } from './adapters/filesystem-extension-manager-service'
+import { FilesystemExtensionPackageRepositoryLive } from './adapters/filesystem-extension-package-repository'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
 import { PiMcpConfigServiceLive } from './adapters/pi/pi-mcp-config-service'
 import { PiProviderAuthLive } from './adapters/pi/pi-provider-auth-service'
@@ -12,28 +16,74 @@ import { PiProviderProbeLive } from './adapters/pi/pi-provider-probe-adapter'
 import { ProviderServiceLive } from './adapters/pi/pi-provider-service'
 import { PiSessionTreePreferencesLive } from './adapters/pi/pi-session-tree-preferences-service'
 import { SettingsWagglePresetsRepositoryLive } from './adapters/settings-waggle-presets-repository'
+import { SqliteExtensionLifecycleRepositoryLive } from './adapters/sqlite-extension-lifecycle-repository'
+import { SqliteExtensionProjectOverridesRepositoryLive } from './adapters/sqlite-extension-project-overrides-repository'
+import { SqliteExtensionStorageRepositoryLive } from './adapters/sqlite-extension-storage-repository'
 import { SqliteSessionProjectionRepositoryLive } from './adapters/sqlite-session-projection-repository'
 import { SqliteSessionRepositoryLive } from './adapters/sqlite-session-repository'
 import { FilesystemStandardsLive } from './adapters/standards-adapter'
+import { ActiveProjectChangeServiceLive } from './application/active-project-change-service'
 import { AppDatabaseLive } from './services/database-service'
 import { AppLogger } from './services/logger-service'
 import { SettingsService } from './services/settings-service'
 import { setStoreEffectRunner } from './store/store-runtime'
+
+const ExtensionLifecycleRepositoryLive = SqliteExtensionLifecycleRepositoryLive.pipe(
+  Layer.provide(AppDatabaseLive),
+)
+const ExtensionProjectOverridesRepositoryLive = SqliteExtensionProjectOverridesRepositoryLive.pipe(
+  Layer.provide(AppDatabaseLive),
+)
+const ExtensionStorageRepositoryLive = SqliteExtensionStorageRepositoryLive.pipe(
+  Layer.provide(AppDatabaseLive),
+)
+const ExtensionRuntimeSelectionLive = Layer.mergeAll(
+  ExtensionLifecycleRepositoryLive,
+  ExtensionProjectOverridesRepositoryLive,
+  FilesystemExtensionManagerLive,
+  FilesystemExtensionPackageRepositoryLive,
+  ExtensionBuildRunnerLive,
+)
+const ProviderServiceWithExtensionSelectionLive = ProviderServiceLive.pipe(
+  Layer.provide(ExtensionRuntimeSelectionLive),
+)
+const PiProviderProbeWithExtensionSelectionLive = PiProviderProbeLive.pipe(
+  Layer.provide(ExtensionRuntimeSelectionLive),
+)
+const PiAgentKernelWithExtensionSelectionLive = PiAgentKernelLive.pipe(
+  Layer.provide(ExtensionRuntimeSelectionLive),
+)
+const ActiveProjectChangeDependenciesLive = Layer.mergeAll(
+  AppLogger.Live,
+  SettingsService.Live,
+  FilesystemDocsBundleLive,
+  ExtensionRuntimeSelectionLive,
+  ExtensionStorageRepositoryLive,
+  SqliteSessionProjectionRepositoryLive,
+  SqliteSessionRepositoryLive,
+)
+const ActiveProjectChangeWithDependenciesLive = ActiveProjectChangeServiceLive.pipe(
+  Layer.provide(ActiveProjectChangeDependenciesLive),
+)
 
 const AppLayer = Layer.mergeAll(
   NodeContext.layer,
   AppLogger.Live,
   AppDatabaseLive,
   SettingsService.Live,
+  ActiveProjectChangeWithDependenciesLive,
+  FilesystemDocsBundleLive,
+  ExtensionRuntimeSelectionLive,
+  ExtensionStorageRepositoryLive,
   SqliteSessionProjectionRepositoryLive,
   SqliteSessionRepositoryLive,
   FilesystemStandardsLive,
-  PiAgentKernelLive,
+  PiAgentKernelWithExtensionSelectionLive,
   PiMcpConfigServiceLive,
   PiProviderAuthLive,
-  PiProviderProbeLive,
+  PiProviderProbeWithExtensionSelectionLive,
   PiProviderOAuthLive,
-  ProviderServiceLive,
+  ProviderServiceWithExtensionSelectionLive,
   PiSessionTreePreferencesLive,
   SettingsWagglePresetsRepositoryLive,
 )

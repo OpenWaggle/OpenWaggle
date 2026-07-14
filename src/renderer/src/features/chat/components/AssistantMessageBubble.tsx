@@ -1,6 +1,7 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
+import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { WaggleAgentColor } from '@shared/types/waggle'
 import { GitBranch } from 'lucide-react'
@@ -72,25 +73,40 @@ function BranchFromMessageButton({
 
 interface AssistantMessageBubbleProps {
   message: UIMessage
-  isStreaming?: boolean
-  isRunActive?: boolean
-  assistantModel?: SupportedModelId
-  sessionId: SessionId | null
+  runtime: {
+    readonly sessionId: SessionId | null
+    readonly extensions: {
+      readonly registry: ExtensionContributionRegistryView | null
+      readonly projectPaths: readonly string[]
+    }
+  }
+  run?: {
+    readonly isStreaming?: boolean
+    readonly isRunActive?: boolean
+    readonly assistantModel?: SupportedModelId
+  }
   waggle?: WaggleInfo
-  hideAgentLabel?: boolean
-  onBranchFromMessage?: (messageId: string) => void
+  presentation?: {
+    readonly hideAgentLabel?: boolean
+  }
+  actions?: {
+    readonly onBranchFromMessage?: (messageId: string) => void
+  }
 }
 
 export function AssistantMessageBubble({
   message,
-  isStreaming,
-  isRunActive,
-  assistantModel,
-  sessionId,
+  runtime,
+  run,
   waggle,
-  hideAgentLabel,
-  onBranchFromMessage,
+  presentation,
+  actions,
 }: AssistantMessageBubbleProps) {
+  const isStreaming = run?.isStreaming
+  const isRunActive = run?.isRunActive
+  const assistantModel = run?.assistantModel
+  const hideAgentLabel = presentation?.hideAgentLabel
+  const onBranchFromMessage = actions?.onBranchFromMessage
   const collapse = useMessageCollapse(message, isStreaming, isRunActive, !!waggle)
 
   const toolResults = new Map<
@@ -166,8 +182,10 @@ export function AssistantMessageBubble({
                       key={`tool-${value.id}`}
                       part={value}
                       toolResults={toolResults}
-                      sessionId={sessionId}
+                      sessionId={runtime.sessionId}
                       isStreaming={!!isStreaming}
+                      extensionRegistry={runtime.extensions.registry}
+                      extensionProjectPaths={runtime.extensions.projectPaths}
                       onBranchFromMessage={onBranchFromMessage}
                     />
                   ))

@@ -1,0 +1,28 @@
+diff --git a/src/better_sqlite3.cpp b/src/better_sqlite3.cpp
+index 13f054a641f63dda3ebbf71ea5613cf12b054fad..f3f856a87f9652fce674b3bdfa4f9c7a26ffb184 100644
+--- a/src/better_sqlite3.cpp
++++ b/src/better_sqlite3.cpp
+@@ -60 +60 @@ NODE_MODULE_INIT(/* exports, context */) {
+-	v8::Local<v8::External> data = v8::External::New(isolate, addon);
++    v8::Local<v8::External> data = NewExternalPointer(isolate, addon);
+diff --git a/src/util/helpers.cpp b/src/util/helpers.cpp
+index f7771520075e2dc871d1d60b801bbbb540c6c23d..db7fd9f563b3984f88b3c452e30b8c9eca2bf106 100644
+--- a/src/util/helpers.cpp
++++ b/src/util/helpers.cpp
+@@ -92 +92 @@ void SetPrototypeGetter(
+-		0,
++        nullptr,
+diff --git a/src/util/macros.cpp b/src/util/macros.cpp
+index e75d53763e575cb1ec5f560d1303100ebb380249..27e21fbfbd4097af5c4d1d31414783c1c5b4e550 100644
+--- a/src/util/macros.cpp
++++ b/src/util/macros.cpp
+@@ -30 +30,8 @@
+-#define OnlyAddon static_cast<Addon*>(info.Data().As<v8::External>()->Value())
++#if defined(NODE_MODULE_VERSION) && NODE_MODULE_VERSION >= 146
++#define ExternalPointerValue(external) (external)->Value(v8::kExternalPointerTypeTagDefault)
++#define NewExternalPointer(isolate, value) v8::External::New((isolate), (value), v8::kExternalPointerTypeTagDefault)
++#else
++#define ExternalPointerValue(external) (external)->Value()
++#define NewExternalPointer(isolate, value) v8::External::New((isolate), (value))
++#endif
++#define OnlyAddon static_cast<Addon*>(ExternalPointerValue(info.Data().As<v8::External>()))

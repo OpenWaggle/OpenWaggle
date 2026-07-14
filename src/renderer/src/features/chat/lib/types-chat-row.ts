@@ -1,8 +1,17 @@
 import type { RunMode } from '@shared/types/background-run'
 import type { SessionBranchId, SupportedModelId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
+import type {
+  AgentTransportCustomEvent,
+  AgentTransportInteractionRequestEvent,
+  AgentTransportInteractionResolvedEvent,
+} from '@shared/types/stream'
 import type { WaggleAgentColor, WaggleMessageMetadata } from '@shared/types/waggle'
 import type { CompletedPhase } from '@/features/chat/hooks/useStreamingPhase'
+
+export type AgentInteractionEvent =
+  | AgentTransportInteractionRequestEvent
+  | AgentTransportInteractionResolvedEvent
 
 // ─── Turn Divider Props ──────────────────────────────────────
 
@@ -53,6 +62,8 @@ export type ChatRow =
     }
   | MessageChatRow
   | WaggleTurnChatRow
+  | { type: 'agent-loop-custom-message'; event: AgentTransportCustomEvent }
+  | { type: 'agent-loop-interaction-event'; event: AgentInteractionEvent }
   | { type: 'branch-summary'; id: string; summary: string }
   | { type: 'compaction-summary'; id: string; summary: string; tokensBefore: number }
   | { type: 'phase-indicator'; label: string; elapsedMs: number }

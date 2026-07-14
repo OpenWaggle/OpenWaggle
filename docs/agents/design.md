@@ -29,7 +29,7 @@ Important surfaces:
 - Preserve existing visual language unless the task explicitly asks for redesign.
 - Keep agent/tool/runtime state truthful and inspectable.
 - Prefer in-context controls over modal flows unless the task needs focused decision-making.
-- Do not duplicate user-facing docs in `docs/agents/`; link to `website/src/content/docs/`.
+- Do not duplicate user-facing docs in `docs/agents/`; link to `website/src/content/docs/`. OpenWaggle docs are still single-source in website docs; packaged builds may generate Pi-style package-local agent-facing docs from the full docs set and installed Pi docs.
 - For renderer changes, follow `.agents/standards.md` and validate with `.agents/verification.md`.
 - For high-impact UI changes, use `frontend-design` or `interface-design` only when the task asks for design work or a new interface.
 

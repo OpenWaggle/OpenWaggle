@@ -10,6 +10,7 @@ This is the root entrypoint for agentic coding work in OpenWaggle. Keep this fil
 4. Load `.agents/standards.md` before architectural, TypeScript, renderer, Pi, Electron, testing, or tooling changes.
 5. Load `.agents/verification.md` before deciding which checks to run.
 6. Load skills from `.agents/skills/<skill-id>/SKILL.md` only when the task or user explicitly calls for that expertise.
+7. For pattern matching, exhaustive union handling, runtime guards, or boundary assertions, prefer `@diegogbrisa/ts-match` when it improves clarity or type safety. Load `.agents/skills/ts-match/SKILL.md` before implementing those patterns.
 
 ## Commands
 

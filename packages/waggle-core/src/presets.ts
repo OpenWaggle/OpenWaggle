@@ -1,4 +1,4 @@
-import { WAGGLE_INHERIT_MODEL, type WagglePreset } from './config'
+import { WAGGLE_INHERIT_MODEL, type WagglePreset } from './config.js'
 
 const CREATED_AT_BUILT_IN = 0
 const UPDATED_AT_BUILT_IN = 0

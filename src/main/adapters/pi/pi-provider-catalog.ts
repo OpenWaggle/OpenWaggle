@@ -6,7 +6,7 @@ import {
   type ExtensionFactory,
   getAgentDir,
   ModelRegistry,
-} from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
 import { MCP_ADAPTER_PACKAGE_SOURCES } from '@shared/constants/mcp'
 import { createModelRef } from '@shared/types/llm'
 import { withNpmCompatibleProcessEnv } from '../../env'
@@ -24,6 +24,7 @@ import {
   type PiRuntimeServicesOptions,
 } from './pi-provider-resources'
 import { getPiModelAvailableThinkingLevels } from './pi-provider-thinking'
+import { getPiRuntimeExtensionLoadErrors } from './pi-runtime-extension-load-errors'
 
 export { getPiModelAvailableThinkingLevels } from './pi-provider-thinking'
 
@@ -123,16 +124,16 @@ function buildOAuthProviderNameMap(authStorage: AuthStorage) {
 }
 
 function createPiProviderCatalogSnapshotFromRuntime(
-  modelRegistry: ModelRegistry,
-  authStorage: AuthStorage,
+  services: Pick<AgentSessionServices, 'modelRegistry' | 'authStorage' | 'resourceLoader'>,
 ) {
   return {
-    providers: listPiProvidersFromModels(listPiProviderModelsFromRegistry(modelRegistry)),
-    oauthProviders: buildOAuthProviderSet(authStorage),
-    oauthProviderNames: buildOAuthProviderNameMap(authStorage),
-    credentials: buildAuthCredentialMap(authStorage),
-    configuredAuthProviders: buildConfiguredAuthProviderSet(modelRegistry),
+    providers: listPiProvidersFromModels(listPiProviderModelsFromRegistry(services.modelRegistry)),
+    oauthProviders: buildOAuthProviderSet(services.authStorage),
+    oauthProviderNames: buildOAuthProviderNameMap(services.authStorage),
+    credentials: buildAuthCredentialMap(services.authStorage),
+    configuredAuthProviders: buildConfiguredAuthProviderSet(services.modelRegistry),
     builtInModelProviders: getBuiltInPiModelProviderIds(),
+    extensionLoadErrors: getPiRuntimeExtensionLoadErrors(services),
   }
 }
 
@@ -142,15 +143,16 @@ export async function createPiRuntimeServices(
 ): Promise<AgentSessionServices> {
   const authStorage = createPiRuntimeAuthStorage()
   const loadMcpAdapter = options.loadMcpAdapter ?? true
-  const settingsManager = createOpenWagglePiSettingsManager(
-    projectPath,
-    loadMcpAdapter
+  const settingsManager = createOpenWagglePiSettingsManager(projectPath, {
+    enabledOpenWaggleExtensionPackagePaths: options.enabledOpenWaggleExtensionPackagePaths ?? [],
+    enabledOpenWaggleExtensionResourceRoots: options.enabledOpenWaggleExtensionResourceRoots ?? [],
+    ...(loadMcpAdapter
       ? {}
       : {
           excludedGlobalPackageSources: MCP_ADAPTER_PACKAGE_SOURCES,
           excludedProjectPackageSources: MCP_ADAPTER_PACKAGE_SOURCES,
-        },
-  )
+        }),
+  })
   const mcpRuntimeContext = loadMcpAdapter
     ? options.mcpRuntimeContext === undefined
       ? await prepareOpenWaggleMcpRuntimeContext(projectPath)
@@ -202,15 +204,23 @@ async function createPiGlobalProviderCatalogServices() {
 
 export async function createPiProviderCatalogSnapshot(
   projectPath?: string | null,
+  options: Pick<
+    PiRuntimeServicesOptions,
+    'enabledOpenWaggleExtensionPackagePaths' | 'enabledOpenWaggleExtensionResourceRoots'
+  > = {},
 ): Promise<ProviderCatalogSnapshot> {
   const normalizedProjectPath = projectPath?.trim()
   if (!normalizedProjectPath) {
     const services = await createPiGlobalProviderCatalogServices()
-    return createPiProviderCatalogSnapshotFromRuntime(services.modelRegistry, services.authStorage)
+    return createPiProviderCatalogSnapshotFromRuntime(services)
   }
 
-  const services = await createPiRuntimeServices(normalizedProjectPath, { loadMcpAdapter: false })
-  return createPiProviderCatalogSnapshotFromRuntime(services.modelRegistry, services.authStorage)
+  const services = await createPiRuntimeServices(normalizedProjectPath, {
+    enabledOpenWaggleExtensionPackagePaths: options.enabledOpenWaggleExtensionPackagePaths ?? [],
+    enabledOpenWaggleExtensionResourceRoots: options.enabledOpenWaggleExtensionResourceRoots ?? [],
+    loadMcpAdapter: false,
+  })
+  return createPiProviderCatalogSnapshotFromRuntime(services)
 }
 
 export function setPiProviderApiKey(providerId: string, apiKey: string): void {
@@ -256,10 +266,18 @@ export async function createPiProjectModelRuntime(input: {
   readonly projectPath: string
   readonly modelReference: string
   readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
+  readonly enabledOpenWaggleExtensionResourceRoots?: PiRuntimeServicesOptions['enabledOpenWaggleExtensionResourceRoots']
   readonly extensionFactories?: readonly ExtensionFactory[]
 }): Promise<PiProjectModelRuntime> {
   const services = await createPiRuntimeServices(input.projectPath, {
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
+    ...(input.enabledOpenWaggleExtensionPackagePaths
+      ? { enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths }
+      : {}),
+    ...(input.enabledOpenWaggleExtensionResourceRoots
+      ? { enabledOpenWaggleExtensionResourceRoots: input.enabledOpenWaggleExtensionResourceRoots }
+      : {}),
     ...(input.extensionFactories ? { extensionFactories: input.extensionFactories } : {}),
   })
   const model = findPiModel(services.modelRegistry, input.modelReference)

@@ -29,8 +29,24 @@ export interface FakeModel {
 }
 
 export interface RuntimeFactoryInput {
+  readonly projectPath: string
   readonly modelReference: string
+  readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
+  readonly enabledOpenWaggleExtensionResourceRoots?: readonly {
+    readonly packagePath: string
+    readonly resourceRoot: string
+  }[]
   readonly extensionFactories?: readonly ((pi: FakePi) => void)[]
+}
+
+export function fakeRuntimeServices() {
+  return {
+    diagnostics: { records: [] },
+    resourceLoader: {
+      getExtensions: () => ({ errors: [] }),
+    },
+  }
 }
 
 export interface FakePi {

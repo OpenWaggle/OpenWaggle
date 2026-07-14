@@ -1,11 +1,11 @@
-import type { SessionEntry } from '@mariozechner/pi-coding-agent'
+import type { SessionEntry } from '@earendil-works/pi-coding-agent'
 import type { WaggleConfig } from '@openwaggle/waggle-core'
 import {
   createPiWaggleModeState,
   PI_WAGGLE_MODE_STATE_CUSTOM_TYPE,
   type PiWaggleModeState,
   parsePiWaggleModeState,
-} from './protocol'
+} from './protocol.js'
 
 export interface PiWaggleModeStateWriter {
   readonly appendCustomEntry: (customType: string, data?: unknown) => string | undefined

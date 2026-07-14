@@ -1,6 +1,6 @@
 import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
-import { useEffect, useRef, useState } from 'react'
+import { type RefObject, useEffect, useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 
 const FONT_SIZE = 14
@@ -39,7 +39,7 @@ function createTerminal() {
 }
 
 function setTerminalReady(
-  terminalIdRef: React.MutableRefObject<string | null>,
+  terminalIdRef: RefObject<string | null>,
   id: string,
   term: Terminal,
   setTerminalStatus: (status: {

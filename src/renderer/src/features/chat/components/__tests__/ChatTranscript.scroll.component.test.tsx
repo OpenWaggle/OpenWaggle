@@ -4,6 +4,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChatTranscriptSectionState } from '../../model'
 
 const REQUEST_ANIMATION_FRAME_DELAY_MS = 16
+const PROJECT_PATH = '/repo'
+
+const apiMock = vi.hoisted(() => ({
+  registerExtensionFrame: vi.fn((input: { readonly frameId: string }) =>
+    Promise.resolve({
+      frameUrl: `openwaggle-extension-frame://frame/frames/${encodeURIComponent(input.frameId)}/index.html`,
+      registrationId: `registration-${input.frameId}`,
+    }),
+  ),
+  unregisterExtensionFrame: vi.fn(() => Promise.resolve(undefined)),
+}))
 
 vi.mock('../ChatRowRenderer', () => ({
   ChatRowRenderer: ({ row }: { row: ChatRow }) => (
@@ -24,6 +35,10 @@ vi.mock('../WelcomeScreen', () => ({
 
 vi.mock('@/shared/lib/cn', () => ({
   cn: (...classes: unknown[]) => classes.filter(Boolean).join(' '),
+}))
+
+vi.mock('@/shared/lib/ipc', () => ({
+  api: apiMock,
 }))
 
 import type { ChatRow } from '../../lib/types-chat-row'
@@ -53,10 +68,12 @@ function createSection(overrides: Partial<ChatTranscriptSectionState> = {}) {
   return {
     messages: [defaultMessage],
     isLoading: false,
-    projectPath: '/repo',
+    projectPath: PROJECT_PATH,
     recentProjects: [],
     activeSessionId: null,
     chatRows: [createMessageChatRow(defaultMessage)],
+    extensionRegistry: null,
+    extensionProjectPaths: [],
     lastUserMessageId: 'msg-1',
     streamSignalVersion: 0,
     userDidSend: false,
@@ -120,6 +137,8 @@ function configureScrollableElement(scroller: HTMLElement) {
 
 describe('ChatTranscript t3-style scroll behavior', () => {
   beforeEach(() => {
+    apiMock.registerExtensionFrame.mockClear()
+    apiMock.unregisterExtensionFrame.mockClear()
     vi.stubGlobal(
       'ResizeObserver',
       class {

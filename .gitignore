@@ -1,6 +1,8 @@
 node_modules/
 out/
 dist/
+dist-cjs/
+.pack/
 coverage/
 playwright-report/
 test-results/
@@ -10,6 +12,7 @@ test-results/
 __pycache__/
 .openwaggle/settings.json
 .openwaggle/mcp.json
+.openwaggle/extensions/
 .pi/settings.json
 .pi/mcp.json
 .pi/.npm-cache/
@@ -19,6 +22,8 @@ __pycache__/
 .tmp-*
 tmp/
 .tmp/
+
+build/openwaggle-docs/
 
 .playwright-mcp/
 

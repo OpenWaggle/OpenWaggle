@@ -2,6 +2,10 @@ import { registerAgentHandlers } from './agent-handler'
 import { registerAttachmentHandlers } from './attachments-handler'
 import { registerAuthHandlers } from './auth-handler'
 import { registerComposerHandlers } from './composer-handler'
+import { registerDocsHandlers } from './docs-handler'
+import { registerExtensionBrokerHandlers } from './extension-broker-handler'
+import { registerExtensionFrameHandlers } from './extension-frame-handler'
+import { registerExtensionsHandlers } from './extensions-handler'
 import { registerFeedbackHandlers } from './feedback-handler'
 import { registerGitHandlers } from './git'
 import { registerMcpHandlers } from './mcp-handler'
@@ -28,6 +32,9 @@ export function registerAllIpcHandlers(): void {
   registerSessionDetailsHandlers()
   registerAttachmentHandlers()
   registerGitHandlers()
+  registerExtensionsHandlers()
+  registerExtensionBrokerHandlers()
+  registerExtensionFrameHandlers()
   registerMcpHandlers()
   registerProjectHandlers()
   registerProvidersHandlers()
@@ -40,4 +47,5 @@ export function registerAllIpcHandlers(): void {
   registerFeedbackHandlers()
   registerUpdaterHandlers()
   registerComposerHandlers()
+  registerDocsHandlers()
 }

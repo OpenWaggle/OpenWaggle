@@ -1,0 +1,32 @@
+:root {
+  color-scheme: dark;
+  font-family: var(--ow-font-family-sans, ui-sans-serif, system-ui, sans-serif);
+  background: transparent;
+  color: var(--ow-color-text, #e6edf3);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#openwaggle-extension-root {
+  height: 100%;
+  min-height: 0;
+}
+
+body {
+  margin: 0;
+  background: transparent;
+}
+
+#openwaggle-extension-root {
+  min-width: 0;
+}
+
+[role='alert'] {
+  padding: 12px;
+  color: var(--ow-color-danger, #ff6b6b);
+  font: 12px var(--ow-font-family-sans, ui-sans-serif, system-ui, sans-serif);
+}

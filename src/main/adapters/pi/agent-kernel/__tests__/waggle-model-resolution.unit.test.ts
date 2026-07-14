@@ -4,6 +4,7 @@ import { runPiWaggle } from '../waggle-run'
 import {
   createFakePi,
   createFakeSession,
+  fakeRuntimeServices,
   modelFromReference,
   PRIMARY_MODEL,
   payload,
@@ -77,7 +78,7 @@ describe('Pi Waggle runtime model resolution', () => {
     const turnEvents: unknown[] = []
     runMocks.createPiProjectModelRuntime.mockImplementation(async (input: RuntimeFactoryInput) => {
       for (const factory of input.extensionFactories ?? []) factory(fakePi.pi)
-      return { model: modelFromReference(input.modelReference), services: {} }
+      return { model: modelFromReference(input.modelReference), services: fakeRuntimeServices() }
     })
     runMocks.createOpenWaggleAgentSessionFromServices.mockResolvedValue({ session })
 

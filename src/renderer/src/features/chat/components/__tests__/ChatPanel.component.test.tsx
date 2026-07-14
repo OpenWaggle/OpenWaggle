@@ -14,6 +14,7 @@ import type { ChatPanelSections } from '../../model'
 import { ChatPanel } from '../ChatPanel'
 
 const useChatPanelSectionsMock = vi.hoisted(() => vi.fn<() => ChatPanelSections>())
+const projectPath = '/test/project'
 
 vi.mock('../../hooks/use-chat-panel-controller', () => ({
   useChatPanelSections: useChatPanelSectionsMock,
@@ -51,10 +52,12 @@ function createSections(
   const transcript = {
     messages: [],
     isLoading: false,
-    projectPath: '/test/project',
+    projectPath,
     recentProjects: [],
     activeSessionId: SessionId('session-1'),
     chatRows: [],
+    extensionRegistry: null,
+    extensionProjectPaths: [projectPath],
     lastUserMessageId: null,
     streamSignalVersion: 0,
     userDidSend: false,
@@ -103,6 +106,12 @@ function createSections(
       projectPath: transcript.projectPath,
       onSendMessage: transcript.onRetryText,
     },
+    agentInteractions: [],
+    agentCustomMessages: [],
+    agentInteractionEvents: [],
+    extensionRegistry: transcript.extensionRegistry,
+    extensionProjectPaths: transcript.extensionProjectPaths,
+    onRespondAgentInteraction: vi.fn().mockResolvedValue(undefined),
   }
 }
 
