@@ -29,6 +29,7 @@ const BOOTSTRAP_FORBIDDEN_FIELDS = [
   'bundledDependencies',
   'bundleDependencies',
 ] as const
+const BOOTSTRAP_WITH_LATEST_TAG_COUNT = 2
 
 export const PACKAGE_NAMES = [
   '@openwaggle/extension-sdk',
@@ -203,8 +204,10 @@ export function needsBootstrapDeprecation(value: unknown) {
 
 export function hasCompatibleTags(value: unknown) {
   if (!isJsonObject(value) || value.bootstrap !== BOOTSTRAP_VERSION) return false
-  return Object.entries(value).every(
-    ([tag, version]) => tag === BOOTSTRAP_TAG || version !== BOOTSTRAP_VERSION,
+  const tagCount = Object.keys(value).length
+  return (
+    tagCount === 1 ||
+    (tagCount === BOOTSTRAP_WITH_LATEST_TAG_COUNT && value.latest === BOOTSTRAP_VERSION)
   )
 }
 

@@ -175,10 +175,10 @@ npm does not provide a reliable read API for the per-package `mfa=publish` polic
 The execution mode:
 
 1. Runs full package validation before changing external state.
-2. Publishes minimal `0.0.0-bootstrap.0` package records under the non-default `bootstrap` dist-tag. These placeholders are not public API releases and never receive `latest`.
-3. Configures each package with `npm trust github`, pinned to `OpenWaggle/OpenWaggle`, `package-release.yml`, environment `npm`, and direct publish permission only.
-4. Sets package publishing access to `mfa=publish`, which requires interactive 2FA and disallows automation-token publication while retaining OIDC publishing.
-5. Deprecates the bootstrap placeholder and verifies the trust relationship.
+2. Publishes minimal `0.0.0-bootstrap.0` package records under the non-default `bootstrap` dist-tag. npm also assigns `latest` when the first package record is created and does not allow that sole-version tag to be removed.
+3. Sets package publishing access to `mfa=publish`, which requires interactive 2FA and disallows automation-token publication while retaining OIDC publishing.
+4. Deprecates the bootstrap placeholder before configuring trust. The first trusted `0.1.0` publish replaces `latest` with the real release.
+5. Configures and verifies each package with `npm trust github`, pinned to `OpenWaggle/OpenWaggle`, `package-release.yml`, environment `npm`, and direct publish permission only.
 6. Creates or verifies the GitHub `npm` environment and additive `main` ruleset, then enforces merge commits off with squash and rebase on. The repository update sends only those three merge-mode fields and verifies the resulting state, so unrelated repository settings are not overwritten.
 
 Source package manifests stay at the unpublished `0.0.0` baseline until Release Please creates the canonical `0.1.0` release PR. Every real package version, including `0.1.0`, is then published by CI with provenance.
