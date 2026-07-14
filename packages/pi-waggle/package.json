@@ -1,6 +1,6 @@
 {
   "name": "@openwaggle/pi-waggle",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Pi-native Waggle package built on top of @openwaggle/waggle-core.",
   "type": "module",
   "license": "MIT",

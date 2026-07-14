@@ -1,6 +1,6 @@
 {
   "name": "@openwaggle/extension-sdk",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Browser-safe OpenWaggle extension SDK schemas, types, broker helpers, theme tokens, and federated-module context helpers.",
   "type": "module",
   "license": "MIT",
