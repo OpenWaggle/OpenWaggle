@@ -20,6 +20,7 @@ import {
   parseJsonObject,
   type JsonObject,
 } from './package-release-bootstrap-model'
+import { readTrustConfiguration } from './package-release-bootstrap-trust'
 import {
   NEXT_CONFIGURE,
   NEXT_FINALIZE,
@@ -163,13 +164,7 @@ async function inspectPublishedPlaceholder(
   if (!isPublicAccess(access, packageName)) {
     return conflict(packageName, 'make the existing bootstrap package public')
   }
-  const trustOutput = await runRequired(dependencies, {
-    args: ['trust', 'list', packageName, '--json'],
-    command: 'npm',
-    cwd: projectRoot,
-  })
-  const trust =
-    trustOutput.length === 0 ? [] : parseJson(trustOutput, `npm trust list ${packageName}`)
+  const trust = await readTrustConfiguration(projectRoot, packageName, dependencies)
   const requiresDeprecation = needsBootstrapDeprecation(metadata)
   if (!requiresDeprecation && !isCompatibleBootstrapMetadata(metadata, packageName)) {
     return conflict(packageName, 'resolve conflicting bootstrap deprecation metadata')

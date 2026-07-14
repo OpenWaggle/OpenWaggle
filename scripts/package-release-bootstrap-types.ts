@@ -1,5 +1,6 @@
 export interface BootstrapCommandRequest {
   readonly args: readonly string[]
+  readonly captureOutput?: boolean
   readonly command: string
   readonly cwd?: string
   readonly input?: string

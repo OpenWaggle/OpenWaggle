@@ -48,5 +48,12 @@ describe('package release namespace bootstrap automatic latest handling', () => 
     expect(requests.filter((request) => request.mutates).map(commandKey)).toEqual(
       PACKAGE_NAMES.map((name) => `npm access set mfa=publish ${name}`),
     )
+    expect(
+      requests
+        .filter((request) => commandKey(request).startsWith('npm trust list'))
+        .every(
+          (request) => request.interactive === true && request.captureOutput === true,
+        ),
+    ).toBe(true)
   })
 })
