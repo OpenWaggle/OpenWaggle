@@ -267,4 +267,5 @@ describe('Conventional Commit policy', () => {
       await fs.rm(cwd, { force: true, recursive: true })
     }
   })
+
 })

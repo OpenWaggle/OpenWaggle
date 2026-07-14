@@ -150,17 +150,32 @@ async function readCommitSubjects(cwd: string, from: string, to: string) {
     }
 
     const normalizedHash = hash.trim()
+    const parentHashes = parents.trim().split(' ').filter((parentHash) => parentHash.length > 0)
+    const firstParent = parentHashes[0]
+    const changedPathsArgs =
+      parentHashes.length > 1 && firstParent !== undefined
+        ? ['diff', '--no-renames', '--name-only', '-z', firstParent, normalizedHash]
+        : [
+            'diff-tree',
+            '--no-commit-id',
+            '--no-renames',
+            '--name-only',
+            '--root',
+            '-r',
+            '-z',
+            normalizedHash,
+          ]
     const { stdout: changedPathsOutput } = await execFile(
       'git',
-      ['diff-tree', '--no-commit-id', '--name-only', '-r', '-m', normalizedHash],
+      changedPathsArgs,
       { cwd, maxBuffer: GIT_LOG_MAX_BUFFER_BYTES },
     )
 
     commits.push({
       body,
-      changedPaths: [...new Set(changedPathsOutput.split('\n').filter((entry) => entry.length > 0))],
+      changedPaths: [...new Set(changedPathsOutput.split('\0').filter((entry) => entry.length > 0))],
       hash: normalizedHash,
-      parentHashes: parents.trim().split(' ').filter((parentHash) => parentHash.length > 0),
+      parentHashes,
       subject,
     })
   }
