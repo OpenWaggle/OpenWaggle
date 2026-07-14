@@ -10,7 +10,7 @@ Husky is configured with a `pre-push` hook that runs only when pushing to `main`
 
 ## CI/CD
 
-Every push to `main` and every PR runs CI for typechecking, linting, and tests. The current release workflow is still Conventional Commit derived: when release-eligible commits land on `main`, CI determines the version bump, updates `package.json`, creates a tag, builds platform artifacts, and publishes a GitHub Release with checksums.
+Every push to `main` and every PR runs CI for typechecking, linting, and tests. The current release workflow is still Conventional Commit derived: when release-eligible commits land on `main`, CI determines the version bump and opens a generated version PR. The workflow dispatches CI for that PR's exact head, waits for all required checks, and squash-merges through normal `main` protection. If `main` advances, it updates the release branch and repeats exact-head CI before retrying the merge. The same run verifies the protected merge SHA and version, pushes only its tag, builds platform artifacts, and publishes a GitHub Release with checksums. Reruns adopt compatible existing release branches, PRs, protected merge commits, and tags while rejecting conflicting state.
 
 The workflow currently publishes unsigned platform artifacts. Public distribution still depends on platform trust work such as macOS notarization and Windows code signing.
 
@@ -25,6 +25,10 @@ OpenWaggle uses semver with prerelease stages. The current release train is `0.3
 | Stable | `0.3.0` | `fix:` increments patch, `feat:` increments minor, breaking changes increment major. |
 
 To transition stages, manually set the version in `package.json` and commit as `chore(release): <message>`.
+
+### Protected release recovery
+
+The failed `0.3.0-alpha.44` direct-push attempt created a remote tag whose commit never reached protected `main`. Recovery intentionally sets the root version on `main` to `0.3.0-alpha.44` in a `chore(release):` reconciliation commit. That subject skips both release-PR generation and tag publication. The existing orphan tag is preserved for auditability; the next release-eligible change increments the reconciled root version and publishes `0.3.0-alpha.45` from a version PR that passed exact-head CI. Do not delete, move, or reuse the orphan tag.
 
 ## Release Notes
 
@@ -150,7 +154,7 @@ Package publishing should follow the `ts-match` release model:
 - Publish `extension-sdk` and `waggle-core` before `extension-react` and `pi-waggle`, respectively, and verify each base version is resolvable before publishing its dependent.
 - The release job runs on Node 24 with pinned npm `11.18.0` until that pin is deliberately updated. Do not install `npm@latest` during a release.
 - The protected GitHub `npm` environment has no npm secrets or required reviewers, accepts deployments only from `main`, and prevents concurrent package release runs.
-- The additive `main` ruleset requires pull requests and green CI, allows only squash and rebase, blocks force pushes and deletion, and retains an administrator emergency bypass. Repository settings also disable merge commits so GitHub cannot synthesize a package-changing merge subject that passes PR checks but fails the commit policy on `main`. Release Please-created branches receive automatically dispatched CI through `workflow_dispatch`, avoiding a PAT or GitHub App key.
+- The additive `main` ruleset requires pull requests and green CI, allows only squash and rebase, blocks force pushes and deletion, and retains only an administrator emergency bypass. The app release workflow creates a version PR, dispatches CI for its exact head, waits for that run, and merges through the normal ruleset before tagging the protected commit. Repository settings also disable merge commits so GitHub cannot synthesize a package-changing merge subject that passes PR checks but fails the commit policy on `main`. Release Please-created branches receive automatically dispatched CI through `workflow_dispatch`, avoiding a PAT or GitHub App key.
 - A manual recovery dispatch may publish one missing package version only when given its exact canonical package tag. Recovery checks out and revalidates that tag, verifies dependency availability and registry state, and refuses to replace a version that already exists.
 - A bad published version is deprecated and followed by a corrected patch. Do not overwrite or routinely unpublish immutable package history.
 - Normal package releases are stable semver versions published to `latest`. The workflow does not support `next`, `beta`, or `rc` channels until a separate prerelease policy is accepted; the setup-only `bootstrap` tag is the sole exception.
@@ -179,7 +183,7 @@ The execution mode:
 3. Sets package publishing access to `mfa=publish`, which requires interactive 2FA and disallows automation-token publication while retaining OIDC publishing.
 4. Deprecates the bootstrap placeholder before configuring trust. The first trusted `0.1.0` publish replaces `latest` with the real release.
 5. Configures and verifies each package with `npm trust github`, pinned to `OpenWaggle/OpenWaggle`, `package-release.yml`, environment `npm`, and direct publish permission only.
-6. Creates or verifies the GitHub `npm` environment and additive `main` ruleset, then enforces merge commits off with squash and rebase on. The repository update sends only those three merge-mode fields and verifies the resulting state, so unrelated repository settings are not overwritten.
+6. Creates or verifies the GitHub `npm` environment and additive `main` ruleset with only the administrator emergency bypass, then enforces merge commits off with squash and rebase on. The repository update sends only those three merge-mode fields and verifies the resulting state, so unrelated repository settings are not overwritten.
 
 Source package manifests stay at the unpublished `0.0.0` baseline until Release Please creates the canonical `0.1.0` release PR. Every real package version, including `0.1.0`, is then published by CI with provenance.
 

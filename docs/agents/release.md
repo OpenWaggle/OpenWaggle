@@ -10,7 +10,9 @@ Release automation is GitHub-based:
 
 - CI runs typecheck, lint, and tests on PRs and pushes to `main`.
 - Release workflow derives version bumps from Conventional Commit-style release-eligible commits.
-- Release workflow updates `package.json`, creates a tag, builds platform artifacts, publishes a GitHub Release, and attaches checksums.
+- Release workflow opens a generated version PR, dispatches and waits for exact-head CI, and merges through normal `main` protection. Strict-base drift updates the branch and repeats CI before another merge attempt. The same run verifies the resulting protected merge commit, creates only its tag, then builds platform artifacts, publishes a GitHub Release, and attaches checksums. Reruns resume only compatible existing branch, PR, merge, and tag state; conflicting durable state fails closed.
+
+The `0.3.0-alpha.44` recovery is intentionally exceptional: an earlier blocked direct push left that tag pointing to an unreachable commit. The reconciliation commit records `0.3.0-alpha.44` on `main` with a non-version `chore(release):` subject so no tag or build runs. Preserve the orphan tag; the next generated version PR must advance to `0.3.0-alpha.45`.
 
 Published artifacts are currently unsigned. macOS notarization and Windows signing are release/distribution trust work, not routine implementation tasks.
 
