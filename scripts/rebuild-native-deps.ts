@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { access } from 'node:fs/promises'
 import { dirname, join, posix, win32 } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
@@ -49,6 +50,18 @@ type RebuildOptions = {
 type CommandInvocation = {
   readonly command: string
   readonly args: readonly string[]
+}
+
+type NativeProbeRuntimeOptions = {
+  readonly projectRoot?: string
+  readonly platform?: NodeJS.Platform
+  readonly nodeExecutable?: string
+  readonly accessPath?: (filePath: string) => Promise<void>
+  readonly runInstall?: (
+    command: string,
+    args: readonly string[],
+    extraEnvironment?: NodeJS.ProcessEnv,
+  ) => Promise<void>
 }
 
 export function commandInvocationForPlatform(
@@ -175,6 +188,43 @@ function electronExecutablePath(projectRoot: string, platform: NodeJS.Platform) 
   )
 }
 
+export function electronRuntimeInstallCommandForPlatform(
+  projectRoot: string = PROJECT_ROOT,
+  platform: NodeJS.Platform = process.platform,
+  nodeExecutable: string = process.execPath,
+): CommandInvocation {
+  const path = platform === 'win32' ? win32 : posix
+  return {
+    command: nodeExecutable,
+    args: [path.join(projectRoot, 'node_modules', 'electron', 'install.js')],
+  }
+}
+
+export async function ensureNativeProbeRuntime(
+  mode: RebuildMode,
+  options: NativeProbeRuntimeOptions = {},
+) {
+  if (mode === 'node') return
+  const projectRoot = options.projectRoot ?? PROJECT_ROOT
+  const platform = options.platform ?? process.platform
+  const accessPath = options.accessPath ?? access
+  const runInstall = options.runInstall ?? runCommand
+  try {
+    await accessPath(electronExecutablePath(projectRoot, platform))
+  } catch {
+    const install = electronRuntimeInstallCommandForPlatform(
+      projectRoot,
+      platform,
+      options.nodeExecutable ?? process.execPath,
+    )
+    await runInstall(
+      install.command,
+      install.args,
+      suppressDependencyDeprecationWarnings(),
+    )
+  }
+}
+
 export function nativeLoadProbeCommandForMode(
   mode: RebuildMode,
   projectRoot: string = PROJECT_ROOT,
@@ -197,11 +247,13 @@ export function nativeLoadProbeCommandForMode(
 }
 
 async function nativeLoadProbeSucceeds(mode: RebuildMode) {
+  await ensureNativeProbeRuntime(mode)
   const probe = nativeLoadProbeCommandForMode(mode)
   return commandSucceeds(probe.command, probe.args, probe.environment)
 }
 
 async function assertNativeLoadProbe(mode: RebuildMode) {
+  await ensureNativeProbeRuntime(mode)
   const probe = nativeLoadProbeCommandForMode(mode)
   await runCommand(probe.command, probe.args, probe.environment)
 }

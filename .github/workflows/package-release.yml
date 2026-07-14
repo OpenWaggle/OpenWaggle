@@ -444,7 +444,7 @@ jobs:
   release-qa:
     name: Package release QA (Node ${{ matrix.node }})
     needs: release-plan
-    if: ${{ needs.release-plan.result == 'success' }}
+    if: ${{ always() && needs.release-plan.result == 'success' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -502,7 +502,7 @@ jobs:
     needs:
       - release-plan
       - release-qa
-    if: ${{ needs.release-plan.result == 'success' && needs.release-qa.result == 'success' }}
+    if: ${{ always() && needs.release-plan.result == 'success' && needs.release-qa.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -642,7 +642,7 @@ jobs:
     needs:
       - release-plan
       - prepare-artifacts
-    if: ${{ needs.release-plan.result == 'success' && needs.prepare-artifacts.result == 'success' && needs.release-plan.outputs.has_bases == 'true' }}
+    if: ${{ always() && needs.release-plan.result == 'success' && needs.prepare-artifacts.result == 'success' && needs.release-plan.outputs.has_bases == 'true' }}
     runs-on: ubuntu-latest
     environment: npm
     permissions:
@@ -922,3 +922,52 @@ jobs:
           done
           echo "$PACKAGE_NAME@$PACKAGE_VERSION did not become readable from npm."
           exit 1
+
+  verify-release-outcome:
+    name: Verify package release outcome
+    needs:
+      - release-plan
+      - release-qa
+      - prepare-artifacts
+      - publish-bases
+      - publish-dependents
+    if: ${{ always() && needs.release-plan.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail closed on skipped or failed release jobs
+        env:
+          HAS_BASES: ${{ needs.release-plan.outputs.has_bases }}
+          HAS_DEPENDENTS: ${{ needs.release-plan.outputs.has_dependents }}
+          RELEASE_QA_RESULT: ${{ needs.release-qa.result }}
+          PREPARE_ARTIFACTS_RESULT: ${{ needs.prepare-artifacts.result }}
+          PUBLISH_BASES_RESULT: ${{ needs.publish-bases.result }}
+          PUBLISH_DEPENDENTS_RESULT: ${{ needs.publish-dependents.result }}
+        run: |
+          set -euo pipefail
+          case "$HAS_BASES" in
+            true|false) ;;
+            *) echo "Invalid has_bases release-plan output: $HAS_BASES"; exit 1 ;;
+          esac
+          case "$HAS_DEPENDENTS" in
+            true|false) ;;
+            *) echo "Invalid has_dependents release-plan output: $HAS_DEPENDENTS"; exit 1 ;;
+          esac
+          if [ "$HAS_BASES" != "true" ] && [ "$HAS_DEPENDENTS" != "true" ]; then
+            echo "Release plan did not select a package family."
+            exit 1
+          fi
+
+          test "$RELEASE_QA_RESULT" = "success"
+          test "$PREPARE_ARTIFACTS_RESULT" = "success"
+
+          if [ "$HAS_BASES" = "true" ]; then
+            test "$PUBLISH_BASES_RESULT" = "success"
+          else
+            test "$PUBLISH_BASES_RESULT" = "skipped"
+          fi
+
+          if [ "$HAS_DEPENDENTS" = "true" ]; then
+            test "$PUBLISH_DEPENDENTS_RESULT" = "success"
+          else
+            test "$PUBLISH_DEPENDENTS_RESULT" = "skipped"
+          fi

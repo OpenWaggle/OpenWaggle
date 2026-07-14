@@ -14,12 +14,13 @@ import {
   jobHasDedicatedExactRunStep,
   jobHasDedicatedExactRunStepWithEnv,
 } from './package-release-validator-workflow-steps'
+import { validateWorkflowRecovery } from './package-release-validator-recovery'
 
 type JsonObject = { readonly [key: string]: unknown }
 interface ExpectedPackage { readonly component: string; readonly dependency?: string; readonly name: string; readonly path: string }
 export interface PackageReleaseValidationResult { readonly violations: readonly string[] }
 
-const FAILURE_EXIT_CODE = 1; const EMPTY_COUNT = 0; const EXPECTED_PUBLISH_COMMAND_COUNT = 2
+const FAILURE_EXIT_CODE = 1; const EMPTY_COUNT = 0
 const JOB_INDENT_WIDTH = 2; const BOOTSTRAP_SOURCE_VERSION = '0.0.0'; const INITIAL_PUBLIC_PACKAGE_VERSION = '0.1.0'
 const CONFIG_PATH = 'release-please-config.json'; const MANIFEST_PATH = '.release-please-manifest.json'
 const WORKFLOW_PATH = '.github/workflows/package-release.yml'; const CI_WORKFLOW_PATH = '.github/workflows/ci.yml'; const ROOT_PACKAGE_PATH = 'package.json'
@@ -268,19 +269,6 @@ function validateWorkflowPublication(workflowRoot: unknown, workflowText: string
   addViolation(!runsCommandFragment(dependents, 'npm view "$DEPENDENCY_NAME@$DEPENDENCY_VERSION" version'), `${WORKFLOW_PATH} must verify base package availability before dependent publication.`, violations)
 }
 
-function validateWorkflowRecovery(workflowText: string, violations: string[]) {
-  const canonicalTag = runsCommandFragment(workflowText, '^(extension-sdk|extension-react|waggle-core|pi-waggle)-v(0|[1-9][0-9]*)')
-  const resolvesTag = runsCommandFragment(workflowText, 'git rev-parse "refs/tags/${tag}^{commit}"') || runsCommandFragment(workflowText, 'git rev-parse "refs/tags/${RECOVERY_TAG}^{commit}"')
-  addViolation(!canonicalTag || !resolvesTag, `${WORKFLOW_PATH} must recover only one exact canonical package tag.`, violations)
-  addViolation(!/^\s+ref: refs\/tags\/\$\{\{ inputs\.package_tag \}\}\s*$/m.test(workflowText), `${WORKFLOW_PATH} recovery must checkout the exact tag ref.`, violations)
-  const remoteTagVerified = runsCommandFragment(workflowText, 'git ls-remote --exit-code origin "refs/tags/$RECOVERY_TAG"') && (runsCommandFragment(workflowText, '"$REMOTE_TAG_SHA" != "$SOURCE_SHA"') || runsCommandFragment(workflowText, 'test "$REMOTE_TAG_SHA" = "$SOURCE_SHA"'))
-  addViolation(!remoteTagVerified, `${WORKFLOW_PATH} recovery must verify the remote GitHub tag SHA.`, violations)
-  const sourceVersionVerified = workflowText.includes('test "$actual_version" = "$RECOVERY_VERSION"') || (workflowText.includes('actual_version=$(node') && workflowText.includes('"$actual_version" != "$version"'))
-  addViolation(!sourceVersionVerified, `${WORKFLOW_PATH} recovery must verify source package version correspondence.`, violations)
-  addViolation(!runsCommandFragment(workflowText, 'gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag"'), `${WORKFLOW_PATH} recovery must verify the exact GitHub Release.`, violations)
-  addViolation((workflowText.match(/is already published\./g)?.length ?? EMPTY_COUNT) < EXPECTED_PUBLISH_COMMAND_COUNT, `${WORKFLOW_PATH} recovery must refuse already-published versions.`, violations)
-}
-
 function validateWorkflowText(workflowText: string, violations: string[]) {
   const workflow = parsePackageReleaseWorkflow(workflowText)
   for (const error of workflow.errors) violations.push(`${WORKFLOW_PATH} must contain valid YAML: ${error}`)
@@ -288,7 +276,7 @@ function validateWorkflowText(workflowText: string, violations: string[]) {
   validateWorkflowActions(workflow.root, violations); validateNoFailOpenSteps(executableText, violations)
   validateWorkflowPermissions(executableText, violations); validateWorkflowConsumerSmoke(workflow.root, executableText, violations)
   validateWorkflowPathsAndDispatch(executableText, violations); validateWorkflowPublication(workflow.root, executableText, violations)
-  validateWorkflowRecovery(executableText, violations)
+  validateWorkflowRecovery(workflow.root, executableText, violations)
   for (const command of ['pnpm package-release:validate', 'pnpm check', 'pnpm build:packages']) addViolation(!jobHasDedicatedExactRunStep(workflow.root, 'validate-dry-run', command), `${WORKFLOW_PATH} must execute ${command}.`, violations)
   const snippets = ['workflow_dispatch:', 'package_tag:', "inputs.package_tag == ''", "inputs.package_tag != ''", `config-file: ${CONFIG_PATH}`, `manifest-file: ${MANIFEST_PATH}`, 'id-token: write', 'environment: npm', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN', 'ACTIONS_ID_TOKEN_REQUEST_URL', 'npm install --global npm@11.18.0', 'node scripts/package-release-publish.ts "$TARBALL"', 'node-version: 24.14.0', 'test "$(npm --version)" = "11.9.0"', 'paths_released', "matrix.released == 'true'", 'fail-fast: false', 'tar -xOf "$TARBALL" package/package.json', 'npm view "$PACKAGE_NAME@$PACKAGE_VERSION" version', 'npm view "$DEPENDENCY_NAME@$DEPENDENCY_VERSION" version', 'pnpm package-release:validate', 'pnpm check', 'pnpm build:packages', "github.event_name == 'push'", "github.ref == 'refs/heads/main'", 'group: package-release', 'cancel-in-progress: false']
   requireText(executableText, snippets.map((snippet) => [snippet, `${WORKFLOW_PATH} must contain ${snippet}.`]), violations)

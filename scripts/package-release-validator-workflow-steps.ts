@@ -13,6 +13,37 @@ function workflowJobSteps(workflowRoot: unknown, jobName: string) {
   return isSeq(steps) ? steps.items : []
 }
 
+function scalarString(node: unknown): string | undefined {
+  return isScalar(node) && typeof node.value === 'string' ? node.value : undefined
+}
+
+export function workflowJobCondition(
+  workflowRoot: unknown,
+  jobName: string,
+): string | undefined {
+  return scalarString(mapValue(mapValue(mapValue(workflowRoot, 'jobs'), jobName), 'if'))
+}
+
+export function workflowJobNeeds(workflowRoot: unknown, jobName: string): readonly string[] {
+  const needs = mapValue(mapValue(mapValue(workflowRoot, 'jobs'), jobName), 'needs')
+  if (isScalar(needs) && typeof needs.value === 'string') return [needs.value]
+  if (!isSeq(needs)) return []
+  return needs.items.flatMap((item) => {
+    const name = scalarString(item)
+    return name === undefined ? [] : [name]
+  })
+}
+
+export function workflowJobRunCommands(
+  workflowRoot: unknown,
+  jobName: string,
+): readonly string[] {
+  return workflowJobSteps(workflowRoot, jobName).flatMap((step) => {
+    const command = scalarString(mapValue(step, 'run'))
+    return command === undefined ? [] : [command]
+  })
+}
+
 function isDedicatedExactRunStep(step: unknown, command: string) {
   const run = mapValue(step, 'run')
   return (
