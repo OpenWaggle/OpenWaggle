@@ -9,12 +9,14 @@ import {
 import {
   configureAndVerifyPackage,
   publishPlaceholder,
+  removeAutomaticBootstrapLatestTag,
   restrictPackagePublishing,
   verifyPublishedPlaceholder,
   verifyWriteAccess,
 } from './package-release-bootstrap-registry'
 import { inspectBootstrapPreflight } from './package-release-bootstrap-preflight'
 import {
+  CONTINUATION_BY_AUTOMATIC_LATEST_REPAIR,
   NEXT_CONFIGURE,
   NEXT_FINALIZE,
   NEXT_PUBLISH,
@@ -93,9 +95,29 @@ async function securePackage(
         restrictPackagePublishing(projectRoot, packageProgress.name, dependencies),
       )
       publishingRestricted = true
+      await removeAutomaticBootstrapLatestTag(
+        projectRoot,
+        packageProgress.name,
+        dependencies,
+      )
       await verifyPublishedPlaceholder(projectRoot, packageProgress.name, dependencies)
       await verifyWriteAccess(projectRoot, username, dependencies, [packageProgress.name])
       packageProgress.nextAction = NEXT_CONFIGURE
+    }
+    const continuationAfterTagRepair = CONTINUATION_BY_AUTOMATIC_LATEST_REPAIR.get(
+      packageProgress.nextAction,
+    )
+    if (continuationAfterTagRepair !== undefined) {
+      await restrictPackagePublishing(projectRoot, packageProgress.name, dependencies)
+      publishingRestricted = true
+      await removeAutomaticBootstrapLatestTag(
+        projectRoot,
+        packageProgress.name,
+        dependencies,
+      )
+      await verifyPublishedPlaceholder(projectRoot, packageProgress.name, dependencies)
+      await verifyWriteAccess(projectRoot, username, dependencies, [packageProgress.name])
+      packageProgress.nextAction = continuationAfterTagRepair
     }
     const createTrust = packageProgress.nextAction === NEXT_CONFIGURE
     const deprecate = createTrust || packageProgress.nextAction === NEXT_FINALIZE

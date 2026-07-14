@@ -21,6 +21,7 @@ import {
   type JsonObject,
 } from './package-release-bootstrap-model'
 import {
+  AUTOMATIC_LATEST_REPAIR_BY_CONTINUATION,
   NEXT_CONFIGURE,
   NEXT_FINALIZE,
   NEXT_PUBLISH,
@@ -152,10 +153,16 @@ async function inspectPublishedPlaceholder(
     }),
     `npm view ${packageName} dist-tags`,
   )
-  if (isJsonObject(tags) && tags.latest === BOOTSTRAP_VERSION) {
-    return conflict(packageName, 'remove the conflicting latest tag before continuing')
+  const hasAutomaticLatest = isJsonObject(tags) && tags.latest === BOOTSTRAP_VERSION
+  if (hasAutomaticLatest) {
+    const tagsWithoutAutomaticLatest = Object.fromEntries(
+      Object.entries(tags).filter(([tag]) => tag !== 'latest'),
+    )
+    if (!hasCompatibleTags(tagsWithoutAutomaticLatest)) {
+      return conflict(packageName, 'resolve conflicting bootstrap dist-tags')
+    }
   }
-  if (!hasCompatibleTags(tags)) {
+  if (!hasAutomaticLatest && !hasCompatibleTags(tags)) {
     return conflict(packageName, 'resolve conflicting bootstrap dist-tags')
   }
   const access = await runRequired(dependencies, {
@@ -173,8 +180,12 @@ async function inspectPublishedPlaceholder(
   })
   const trust =
     trustOutput.length === 0 ? [] : parseJson(trustOutput, `npm trust list ${packageName}`)
+  const requiresDeprecation = needsBootstrapDeprecation(metadata)
+  if (!requiresDeprecation && !isCompatibleBootstrapMetadata(metadata, packageName)) {
+    return conflict(packageName, 'resolve conflicting bootstrap deprecation metadata')
+  }
   if (Array.isArray(trust) && trust.length === 0) {
-    return { name: packageName, nextAction: NEXT_CONFIGURE, state: 'pending' }
+    return pendingPackage(packageName, NEXT_CONFIGURE, hasAutomaticLatest)
   }
   if (!isCompatibleTrustConfiguration(trust)) {
     return conflict(
@@ -182,13 +193,24 @@ async function inspectPublishedPlaceholder(
       'resolve conflicting trusted publisher without revoking it automatically',
     )
   }
-  if (needsBootstrapDeprecation(metadata)) {
-    return { name: packageName, nextAction: NEXT_FINALIZE, state: 'pending' }
+  if (requiresDeprecation) {
+    return pendingPackage(packageName, NEXT_FINALIZE, hasAutomaticLatest)
   }
-  if (!isCompatibleBootstrapMetadata(metadata, packageName)) {
-    return conflict(packageName, 'resolve conflicting bootstrap deprecation metadata')
+  return pendingPackage(packageName, NEXT_REASSERT_MFA, hasAutomaticLatest)
+}
+
+function pendingPackage(
+  packageName: string,
+  continuation: string,
+  hasAutomaticLatest: boolean,
+): BootstrapPackageProgress {
+  const nextAction = hasAutomaticLatest
+    ? AUTOMATIC_LATEST_REPAIR_BY_CONTINUATION.get(continuation)
+    : continuation
+  if (nextAction === undefined) {
+    throw new Error(`${packageName} has an unsupported automatic latest repair action.`)
   }
-  return { name: packageName, nextAction: NEXT_REASSERT_MFA, state: 'pending' }
+  return { name: packageName, nextAction, state: 'pending' }
 }
 
 async function inspectPackage(

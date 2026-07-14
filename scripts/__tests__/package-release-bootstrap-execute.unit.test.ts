@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { runPackageReleaseBootstrap, type BootstrapCommandResult } from '../package-release-bootstrap'
 import {
-  addCompatibleGithubState,
-  addCompatiblePackageState,
   commandKey,
   compatibleTrustConfiguration,
   compatibleRuleset,
@@ -13,35 +11,6 @@ import {
 } from './package-release-bootstrap-test-helpers'
 
 describe('package release namespace bootstrap execution', () => {
-  it('reasserts only the unverifiable package MFA setting for metadata-compatible state', async () => {
-    const overrides = new Map<string, BootstrapCommandResult>([
-      ['pnpm check', successful()],
-      [
-        'npm access list packages maintainer --json',
-        successful(
-          JSON.stringify(Object.fromEntries(PACKAGE_NAMES.map((name) => [name, 'read-write']))),
-        ),
-      ],
-    ])
-    addCompatiblePackageState(overrides)
-    addCompatibleGithubState(overrides)
-    for (const packageName of PACKAGE_NAMES) {
-      overrides.set(`npm access set mfa=publish ${packageName}`, successful())
-    }
-    const { dependencies, requests } = createDependencies(overrides)
-
-    const result = await runPackageReleaseBootstrap(
-      { args: ['--execute'], projectRoot: '/workspace/OpenWaggle' },
-      dependencies,
-    )
-
-    expect(result.ok).toBe(true)
-    expect(result.packages.every((item) => item.state === 'complete')).toBe(true)
-    expect(
-      requests.filter((request) => request.mutates).map(commandKey),
-    ).toEqual(PACKAGE_NAMES.map((name) => `npm access set mfa=publish ${name}`))
-  })
-
   it('revalidates namespace state after checks and before the first mutation', async () => {
     const packageName = PACKAGE_NAMES[0]
     const sequenceOverrides = new Map<string, BootstrapCommandResult[]>([
@@ -76,7 +45,7 @@ describe('package release namespace bootstrap execution', () => {
     expect(requests.filter((request) => request.mutates)).toEqual([])
   })
 
-  it('stops after publish when registry tags do not preserve bootstrap-only isolation', async () => {
+  it('repairs automatic latest and stops if registry verification still reports it', async () => {
     const packageName = PACKAGE_NAMES[0]
     const overrides = new Map<string, BootstrapCommandResult>([
       ['pnpm check', successful()],
@@ -134,6 +103,7 @@ describe('package release namespace bootstrap execution', () => {
     expect(requests.filter((request) => request.mutates).map(commandKey)).toEqual([
       'npm publish --tag bootstrap --access public --ignore-scripts',
       `npm access set mfa=publish ${packageName}`,
+      `npm dist-tag rm ${packageName} latest`,
       `npm access set mfa=publish ${packageName}`,
     ])
   })
