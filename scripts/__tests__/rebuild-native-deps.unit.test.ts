@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   createNativeRebuildCacheKey,
   commandInvocationForPlatform,
+  electronRuntimeInstallCommandForPlatform,
+  ensureNativeProbeRuntime,
   isNativeRebuildForceEnabled,
   isNativeRebuildMarkerFresh,
   nativeArtifactPackagesForMode,
@@ -85,6 +87,99 @@ describe('native dependency rebuild cache', () => {
       args: ['--import', 'tsx', 'C:\\workspace\\scripts\\native-load-probe.ts', 'electron'],
       environment: expect.objectContaining({ ELECTRON_RUN_AS_NODE: '1' }),
     })
+  })
+
+  it('installs a missing Electron runtime with Node and no shell wrapper', () => {
+    expect(
+      electronRuntimeInstallCommandForPlatform('C:\\workspace', 'win32', 'C:\\node.exe'),
+    ).toEqual({
+      command: 'C:\\node.exe',
+      args: ['C:\\workspace\\node_modules\\electron\\install.js'],
+    })
+  })
+
+  it.each([
+    [
+      'darwin',
+      '/workspace/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron',
+      '/workspace/node_modules/electron/install.js',
+    ],
+    [
+      'linux',
+      '/workspace/node_modules/electron/dist/electron',
+      '/workspace/node_modules/electron/install.js',
+    ],
+    [
+      'win32',
+      'C:\\workspace\\node_modules\\electron\\dist\\electron.exe',
+      'C:\\workspace\\node_modules\\electron\\install.js',
+    ],
+  ] as const)(
+    'installs a missing Electron runtime on %s',
+    async (platform, expectedExecutable, expectedInstaller) => {
+      const projectRoot = platform === 'win32' ? 'C:\\workspace' : '/workspace'
+      const accesses: string[] = []
+      const invocations: { readonly command: string; readonly args: readonly string[] }[] = []
+
+      await ensureNativeProbeRuntime('electron', {
+        projectRoot,
+        platform,
+        nodeExecutable: platform === 'win32' ? 'C:\\node.exe' : '/usr/bin/node',
+        accessPath: async (filePath) => {
+          accesses.push(filePath)
+          throw new Error('missing')
+        },
+        runInstall: async (command, args) => {
+          invocations.push({ command, args })
+        },
+      })
+
+      expect(accesses).toEqual([expectedExecutable])
+      expect(invocations).toEqual([
+        {
+          command: platform === 'win32' ? 'C:\\node.exe' : '/usr/bin/node',
+          args: [expectedInstaller],
+        },
+      ])
+    },
+  )
+
+  it('does not install Electron when its runtime exists or the probe targets Node', async () => {
+    const accesses: string[] = []
+    const installs: string[] = []
+    const options = {
+      projectRoot: '/workspace',
+      platform: 'linux' as const,
+      nodeExecutable: '/usr/bin/node',
+      accessPath: async (filePath: string) => {
+        accesses.push(filePath)
+      },
+      runInstall: async (command: string) => {
+        installs.push(command)
+      },
+    }
+
+    await ensureNativeProbeRuntime('electron', options)
+    await ensureNativeProbeRuntime('node', options)
+
+    expect(accesses).toEqual(['/workspace/node_modules/electron/dist/electron'])
+    expect(installs).toEqual([])
+  })
+
+  it('propagates Electron runtime installation failures', async () => {
+    await expect(
+      ensureNativeProbeRuntime('electron', {
+        projectRoot: '/workspace',
+        platform: 'linux',
+        nodeExecutable: '/usr/bin/node',
+        accessPath: async () => {
+          throw new Error('missing')
+        },
+        runInstall: async () => {
+          throw new Error('download failed')
+        },
+      }),
+    ).rejects.toThrow('download failed')
   })
 
   it('invokes Windows command wrappers explicitly without enabling spawn shell parsing', () => {

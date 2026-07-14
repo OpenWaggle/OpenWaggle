@@ -168,7 +168,7 @@ const PACKAGE_MANAGER_SETUP_ACTION = 'pnpm/action-setup@'
 const INSTALL_COMMAND_PATTERN = /(?:^|\s)(?:npm|pnpm|yarn|bun)\s+(?:add|install)(?:\s|$)/
 
 const PUBLICATION_JOB_HASHES = {
-  'publish-bases': 'cde731bc4794b22c5e858c2a88e24540ae712d6cb18d199a55ab20a940259c82',
+  'publish-bases': 'e0b23bd2bf7cc82f4450de40132ea50dfc96be6fa5fa4c124322544e2abe6814',
   'publish-dependents': 'e434cbd3c68d8fbcc79387897abdfbcd5cf09c175379b208341be7bed815f717',
 } as const
 
