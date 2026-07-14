@@ -170,9 +170,18 @@ export function isCompatibleBootstrapRecord(value: unknown, packageName: string)
     return false
   }
 
-  return (
+  const hasDistMetadata = value.dist !== undefined
+  const distFileCount = isJsonObject(value.dist) ? value.dist.fileCount : undefined
+  const hasCompatibleDistMetadata = !hasDistMetadata || distFileCount === 1
+  const manifestHasNoFiles =
     isUnknownArray(value.files) &&
     value.files.length === 0 &&
+    hasCompatibleDistMetadata
+  const registryMetadataHasOnlyManifest =
+    value.files === undefined && distFileCount === 1
+
+  return (
+    (manifestHasNoFiles || registryMetadataHasOnlyManifest) &&
     BOOTSTRAP_FORBIDDEN_FIELDS.every((field) => value[field] === undefined)
   )
 }

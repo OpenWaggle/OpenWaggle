@@ -8,6 +8,7 @@ import {
   isCompatibleBootstrapMetadata,
   isCompatibleBootstrapRecord,
   isCompatibleTrustConfiguration,
+  isJsonObject,
   isPublicAccess,
   PACKAGE_NAMES,
   parseJson,
@@ -119,6 +120,40 @@ export async function verifyPublishedPlaceholder(
   if (!isPublicAccess(access, packageName)) {
     throw new Error(`${packageName} must be publicly visible.`)
   }
+}
+
+export async function removeAutomaticBootstrapLatestTag(
+  projectRoot: string,
+  packageName: string,
+  dependencies: BootstrapDependencies,
+) {
+  const tags = parseJson(
+    await runRequired(dependencies, {
+      args: ['view', packageName, 'dist-tags', '--json'],
+      command: 'npm',
+      cwd: projectRoot,
+    }),
+    `npm view ${packageName} dist-tags`,
+  )
+  if (!isJsonObject(tags)) {
+    throw new Error(`${packageName} dist-tags metadata is incompatible.`)
+  }
+  if (tags.latest !== BOOTSTRAP_VERSION) {
+    if (hasCompatibleTags(tags)) return
+    throw new Error(`${packageName} has conflicting bootstrap dist-tags.`)
+  }
+  const tagsWithoutAutomaticLatest = Object.fromEntries(
+    Object.entries(tags).filter(([tag]) => tag !== 'latest'),
+  )
+  if (!hasCompatibleTags(tagsWithoutAutomaticLatest)) {
+    throw new Error(`${packageName} has conflicting bootstrap dist-tags.`)
+  }
+  dependencies.writeLine(`[dist-tag] ${packageName} remove automatic latest`)
+  await runMutation(dependencies, {
+    args: ['dist-tag', 'rm', packageName, 'latest'],
+    command: 'npm',
+    cwd: projectRoot,
+  })
 }
 
 async function createTrust(

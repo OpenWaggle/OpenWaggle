@@ -70,3 +70,21 @@ export const NEXT_PUBLISH = 'publish bootstrap placeholder'
 export const NEXT_CONFIGURE = 'configure trusted publisher and finalize bootstrap'
 export const NEXT_FINALIZE = 'finalize bootstrap security settings'
 export const NEXT_REASSERT_MFA = 'reassert unverifiable package MFA setting'
+export const NEXT_REMOVE_LATEST_AND_CONFIGURE =
+  'remove automatic bootstrap latest tag, then configure trusted publisher'
+export const NEXT_REMOVE_LATEST_AND_FINALIZE =
+  'remove automatic bootstrap latest tag, then finalize security settings'
+export const NEXT_REMOVE_LATEST_AND_REASSERT_MFA =
+  'remove automatic bootstrap latest tag, then reassert package MFA'
+
+export const AUTOMATIC_LATEST_REPAIR_BY_CONTINUATION = new Map([
+  [NEXT_CONFIGURE, NEXT_REMOVE_LATEST_AND_CONFIGURE],
+  [NEXT_FINALIZE, NEXT_REMOVE_LATEST_AND_FINALIZE],
+  [NEXT_REASSERT_MFA, NEXT_REMOVE_LATEST_AND_REASSERT_MFA],
+])
+
+export const CONTINUATION_BY_AUTOMATIC_LATEST_REPAIR = new Map([
+  [NEXT_REMOVE_LATEST_AND_CONFIGURE, NEXT_CONFIGURE],
+  [NEXT_REMOVE_LATEST_AND_FINALIZE, NEXT_FINALIZE],
+  [NEXT_REMOVE_LATEST_AND_REASSERT_MFA, NEXT_REASSERT_MFA],
+])
