@@ -9,8 +9,6 @@ const WORKFLOW = fs.readFileSync(
   path.join(PROJECT_ROOT, '.github/workflows/release.yml'),
   'utf8',
 )
-const ROOT_PACKAGE = fs.readFileSync(path.join(PROJECT_ROOT, 'package.json'), 'utf8')
-
 describe('desktop app release workflow', () => {
   it('grants write permissions only to orchestration and publication jobs', () => {
     const parsed: unknown = parse(WORKFLOW)
@@ -79,8 +77,7 @@ describe('desktop app release workflow', () => {
     )
   })
 
-  it('keeps the alpha.44 orphan-tag recovery from creating another release', () => {
-    expect(ROOT_PACKAGE).toContain('"version": "0.3.0-alpha.44"')
+  it('skips release orchestration commits and increments prerelease versions', () => {
     expect(WORKFLOW).toContain(
       `if: "!startsWith(github.event.head_commit.message, 'chore(release):')"`,
     )
