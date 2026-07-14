@@ -40,7 +40,12 @@ function issueFromValue(value) {
     title: typeof object.title === 'string' ? object.title : 'Untitled issue',
     url: typeof object.html_url === 'string' ? object.html_url : '',
     updatedAt: object.updated_at,
-    labels: Array.isArray(object.labels) ? object.labels.map(labelName).filter(Boolean) : [],
+    labels: Array.isArray(object.labels)
+      ? object.labels.flatMap((label) => {
+          const name = labelName(label)
+          return name === null ? [] : [name]
+        })
+      : [],
   }
 }
 
@@ -82,7 +87,10 @@ async function fetchIssuePage(config, page) {
 
   return {
     rawCount: payload.length,
-    issues: payload.map(issueFromValue).filter(Boolean),
+    issues: payload.flatMap((value) => {
+      const issue = issueFromValue(value)
+      return issue === null ? [] : [issue]
+    }),
   }
 }
 
@@ -99,10 +107,10 @@ async function fetchOpenIssues(config) {
 }
 
 export function normalizeLabels(value) {
-  return value
-    .split(',')
-    .map((label) => label.trim())
-    .filter((label) => label.length > 0)
+  return value.split(',').flatMap((label) => {
+    const trimmedLabel = label.trim()
+    return trimmedLabel.length > 0 ? [trimmedLabel] : []
+  })
 }
 
 export function normalizeConfig(value) {
@@ -115,9 +123,13 @@ export function normalizeConfig(value) {
   const repo =
     typeof value.repo === 'string' && value.repo.trim() ? value.repo.trim() : 'OpenWaggle'
   const labels = Array.isArray(value.labels)
-    ? value.labels
-        .filter((label) => typeof label === 'string' && label.trim())
-        .map((label) => label.trim())
+    ? value.labels.flatMap((label) => {
+        if (typeof label !== 'string') {
+          return []
+        }
+        const trimmedLabel = label.trim()
+        return trimmedLabel ? [trimmedLabel] : []
+      })
     : DEFAULT_CONFIG.labels
 
   return { owner, repo, labels: labels.length > 0 ? labels : DEFAULT_CONFIG.labels }
@@ -158,7 +170,10 @@ export function normalizeSummary(value) {
       ? object.labels.filter((label) => typeof label === 'string')
       : DEFAULT_CONFIG.labels,
     issues: Array.isArray(object.issues)
-      ? object.issues.map(normalizeIssueSummaryItem).filter(Boolean)
+      ? object.issues.flatMap((value) => {
+          const issue = normalizeIssueSummaryItem(value)
+          return issue === null ? [] : [issue]
+        })
       : [],
     updatedAt: typeof object.updatedAt === 'string' ? object.updatedAt : 'Not fetched yet',
   }

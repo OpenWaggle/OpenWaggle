@@ -258,4 +258,49 @@ describe('ChatComposerExtensionDialogs', () => {
       ).not.toBeInTheDocument()
     })
   })
+
+  it('ignores duplicate surface responses while the interaction response is pending', async () => {
+    const interaction = pendingInteraction()
+    let resolveResponse: (() => void) | undefined
+    const onRespond = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveResponse = resolve
+        }),
+    )
+
+    render(
+      <ChatComposerExtensionDialogs
+        agentInteractions={[interaction]}
+        extensionProjectPaths={[PROJECT_PATH]}
+        extensionRegistry={extensionDialogRegistry('confirm')}
+        onRespond={onRespond}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /extensions/i }))
+    fireEvent.click(screen.getByRole('button', { name: /github approval dialog/i }))
+
+    const frame = extensionFrame('GitHub approval dialog')
+    await waitFor(() => {
+      expect(frame).toHaveAttribute('src', expect.stringContaining(EXTENSION_FRAME_URL_PREFIX))
+    })
+
+    dispatchSurfaceAction(frame, CUSTOM_INTERACTION_RESPONSE_ACTION_ID, {
+      kind: 'confirm',
+      accepted: true,
+    })
+    dispatchSurfaceAction(frame, CUSTOM_INTERACTION_RESPONSE_ACTION_ID, {
+      kind: 'confirm',
+      accepted: false,
+    })
+
+    expect(onRespond).toHaveBeenCalledTimes(1)
+    resolveResponse?.()
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('dialog', { name: 'GitHub approval dialog' }),
+      ).not.toBeInTheDocument()
+    })
+  })
 })

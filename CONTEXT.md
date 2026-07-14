@@ -141,20 +141,20 @@ The required checks that prove a publishable package can be built, packed, insta
 _Avoid_: app release validation
 
 **Package provenance gate**:
-A publish validation gate that proves the workflow is using expected GitHub OIDC/trusted-publishing identity before any package is staged.
+A publish validation gate that proves the workflow is using the expected GitHub OIDC trusted-publishing identity before any package is published.
 _Avoid_: ambiguous npm auth state
 
-**Package staged publish**:
-An npm publishing step where CI stages a validated package through trusted publishing and a maintainer approves it before it becomes publicly installable.
-_Avoid_: direct automated public publish
+**Trusted package publish**:
+The direct publication of an exact validated package tarball through the authorized GitHub OIDC workflow.
+_Avoid_: staged package publish, token publish
 
-**Local package publish**:
-A package publish run from a maintainer workstation instead of the trusted GitHub Actions workflow.
-_Avoid_: emergency npm publish, manual maintainer publish
+**Package namespace bootstrap**:
+The one-time creation of non-default npm package placeholders required before Trusted Publishing can be configured.
+_Avoid_: initial public package release, local release fallback
 
 **Package publish event**:
-The Release Please-created release or package tag event that authorizes a real package staged publish workflow.
-_Avoid_: arbitrary manual publish run
+The Release Please-created release or exact recovery tag that authorizes a Trusted package publish.
+_Avoid_: arbitrary manual publish run, branch-head publish
 
 **Package manager smoke test**:
 A package publish validation check that installs a packed package with a supported package manager and verifies imports, requires, and types.
@@ -171,6 +171,14 @@ _Avoid_: manual declaration diff
 **Package changelog**:
 A changelog scoped to one OpenWaggle publishable package and maintained by the package publishing workflow.
 _Avoid_: root app changelog entry for package-only changes
+
+**Package release commit**:
+A release-eligible Conventional Commit that touches one OpenWaggle publishable package path.
+_Avoid_: app release intent, scope-only package claim
+
+**Package release PR**:
+The coordinated Release Please pull request that records pending versions and changelogs for one or more independently versioned packages.
+_Avoid_: ordinary feature PR, desktop release PR
 
 **Package README**:
 A concise, hand-maintained package-local consumer entry point with install commands, imports, quick examples, and links to canonical docs.
@@ -241,7 +249,7 @@ The shared release path used to validate, package, and publish OpenWaggle publis
 _Avoid_: ad hoc publish, one-off package release
 
 **Release Please package workflow**:
-The Package publishing workflow based on Release Please manifest mode, conventional commits, package-specific changelogs, validated tarballs, npm trusted publishing, and npm staged publish approval.
+The Package publishing workflow based on Release Please manifest mode, path-scoped Conventional Commits, package-specific changelogs, validated tarballs, and Trusted package publish.
 _Avoid_: Changesets workflow
 
 **App release workflow**:
@@ -381,10 +389,12 @@ _Avoid_: extension-local pending prompt
 - **Package tarball contents** include built outputs and package docs, not TypeScript source files, tests, fixtures, local scripts, configs, or caches.
 - **Package import boundary checks** enforce browser-safe, runtime-neutral, and adapter-layer package boundaries during `pnpm check`.
 - The **Release Please package workflow** requires **Package publish validation**, not full desktop app release validation, unless app code changed.
-- The **Release Please package workflow** uses **Package staged publish** instead of direct automated public publish.
-- Real **Package staged publish** runs only from a **Package publish event**; manual workflow dispatch is limited to dry-run validation.
-- **Local package publish** is not an allowed fallback for OpenWaggle publishable packages.
-- **Package publish validation** includes a **Package provenance gate** before package staging.
+- A **Package release commit** affects only the OpenWaggle publishable package paths it touches directly.
+- The **Package release PR** is the explicit human gate before automated package publication.
+- The **Release Please package workflow** uses **Trusted package publish** after the Package release PR is merged.
+- A **Trusted package publish** runs only from a **Package publish event**; recovery dispatch must name one exact Package release tag.
+- A **Package namespace bootstrap** creates setup-only placeholders and is not a real package release or a local release fallback.
+- **Package publish validation** includes a **Package provenance gate** before package publication.
 - **Package publish validation** includes **Package manager smoke tests** for npm, pnpm, Yarn, and Bun where practical.
 - **Package publish validation** includes **Package API snapshots** for public package exports.
 - **Package API snapshot checks** should use API Extractor-style declaration reports if practical, otherwise a deterministic repository-owned declaration snapshot script.
@@ -399,7 +409,7 @@ _Avoid_: extension-local pending prompt
 - The **Pi Waggle package** receives a **Dependent package bump** whenever the **Waggle core package** changes.
 - The **Extension React package** receives a **Dependent package bump** whenever the **Extension SDK package** changes.
 - Each **OpenWaggle publishable package** uses semver for its public contract.
-- The initial **Package engine baseline** is Node.js `>=20` unless a package dependency such as Pi requires a stricter range.
+- The initial **Package engine baseline** is Node.js `>=22.19.0` for every OpenWaggle publishable package.
 - The **Initial public package version** for the Extension SDK package, Extension React package, Waggle core package, and Pi Waggle package is `0.1.0`.
 - The first public package release requires the `@openwaggle` **Package namespace** to be owned and configured; OpenWaggle publishable packages do not use a temporary scope.
 - The **Extension capability broker** authorizes calls made through the **Extension SDK surface**.
@@ -564,7 +574,7 @@ _Avoid_: extension-local pending prompt
 > **Domain expert:** "No — each released package gets its own **Package GitHub release**, even if one Release Please PR released multiple packages."
 
 > **Dev:** "Do public package engines follow the Electron app's Node 24 requirement?"
-> **Domain expert:** "No — publishable packages use the **Package engine baseline** unless a package has a stricter technical dependency."
+> **Domain expert:** "No — every publishable package uses the shared Node.js `>=22.19.0` **Package engine baseline**."
 
 > **Dev:** "Is the package README enough documentation?"
 > **Domain expert:** "No — each publishable package also needs a comprehensive **Package documentation page** on openwaggle.ai."
@@ -594,16 +604,16 @@ _Avoid_: extension-local pending prompt
 > **Domain expert:** "No — the first public release waits until the `@openwaggle` **Package namespace** is owned and configured."
 
 > **Dev:** "Should CI publish packages directly once validation passes?"
-> **Domain expert:** "No — use **Package staged publish** so CI stages the package and a maintainer approves the public release."
+> **Domain expert:** "Only after the **Package release PR** is merged — then use **Trusted package publish** with the exact validated tarball."
 
-> **Dev:** "Can a maintainer manually dispatch a workflow to stage or publish any package version?"
-> **Domain expert:** "No — real staging uses a **Package publish event**; manual dispatch is dry-run validation only."
+> **Dev:** "Can a maintainer manually dispatch a workflow to publish any package version?"
+> **Domain expert:** "No — recovery requires an exact **Package release tag**, and ordinary publication comes from the Release Please-created **Package publish event**."
 
-> **Dev:** "Can a maintainer publish locally if GitHub Actions fails?"
-> **Domain expert:** "No — **Local package publish** is not allowed; fix or rerun the trusted GitHub Actions release path."
+> **Dev:** "Why does bootstrap publish a placeholder locally?"
+> **Domain expert:** "npm requires an existing package record before trust can be configured; the **Package namespace bootstrap** is setup-only, while every real version uses **Trusted package publish**."
 
-> **Dev:** "Can the publish workflow discover npm auth problems only when staging?"
-> **Domain expert:** "No — use a **Package provenance gate** before staging so missing OIDC or trusted-publisher setup fails early."
+> **Dev:** "Can the publish workflow discover npm auth problems only when publishing?"
+> **Domain expert:** "No — use a **Package provenance gate** before publication so missing OIDC or trusted-publisher setup fails early."
 
 > **Dev:** "Should we maintain separate human and agent docs in the repo?"
 > **Domain expert:** "No — user-facing docs are the source of truth, and **Agent-facing installed documentation** is generated from them into a Pi-style package-local docs directory for installed builds."
@@ -640,6 +650,8 @@ _Avoid_: extension-local pending prompt
 - "Waggle package" can imply either runtime-agnostic policy or Pi integration. Resolved: **Waggle core package** is reusable policy; **Pi Waggle package** is the Pi-specific one-package install path.
 - "package publishing workflow" can imply Changesets because it supports independent versions. Resolved: use the **Release Please package workflow** to match ts-match.
 - "OpenWaggle release" can mean npm packages or desktop app artifacts. Resolved: **Release Please package workflow** handles npm packages; **App release workflow** handles desktop artifacts.
+- "fully automated package release" can imply that every merge publishes immediately. Resolved: merging the **Package release PR** is the explicit gate, after which **Trusted package publish** is unattended.
+- "local bootstrap publish" can imply a supported release fallback. Resolved: **Package namespace bootstrap** creates setup-only placeholders; real versions publish only through **Trusted package publish**.
 - "package build" can imply publishing repository TypeScript files. Resolved: publish **Dual package output** instead.
 - "publish the packages together" can imply bundling separate package APIs into one artifact or forcing lockstep versions. Resolved: publish separate **OpenWaggle publishable packages** with **Independent package versions** through one **Package publishing workflow**.
 - "agent docs" can imply a second hand-maintained documentation tree. Resolved: **Agent-facing installed documentation** is generated from the user-facing docs and installed runtime docs.

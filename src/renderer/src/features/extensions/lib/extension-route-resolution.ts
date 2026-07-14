@@ -53,16 +53,16 @@ function disabledForRequestedProject(
   entry: ExtensionContributionRegistryEntry,
   requestedProjectPaths: readonly string[],
 ) {
-  return requestedProjectPaths.some((projectPath) =>
-    entry.eligibility.disabledProjectPaths.includes(projectPath),
-  )
+  const disabledProjectPaths = new Set(entry.eligibility.disabledProjectPaths)
+  return requestedProjectPaths.some((projectPath) => disabledProjectPaths.has(projectPath))
 }
 
 function missingRequestedProject(
   entry: ExtensionContributionRegistryEntry,
   requestedProjectPaths: readonly string[],
 ) {
-  return requestedProjectPaths.some((projectPath) => !entry.projectPaths.includes(projectPath))
+  const availableProjectPaths = new Set(entry.projectPaths)
+  return requestedProjectPaths.some((projectPath) => !availableProjectPaths.has(projectPath))
 }
 
 function isBlockedRouteEntry(

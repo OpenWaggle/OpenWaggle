@@ -221,6 +221,23 @@ export const OPENWAGGLE_EXTENSION = {
     BUILD_LOG_MAX_LENGTH: 4_000,
     BUILD_COMMAND_TIMEOUT_MS: TEN_MINUTES_MS,
   },
+  PATTERNS: {
+    WINDOWS_ABSOLUTE_PATH: /^[A-Za-z]:[\\/]/,
+    ID: /^[a-z0-9][a-z0-9._-]*$/,
+    CONTRIBUTION_ID: /^[a-z0-9][a-z0-9._/-]*$/,
+    SEMVER_VERSION:
+      /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/,
+  },
+  PATH: {
+    NUL_CHARACTER: '\0',
+    POSIX_SEPARATOR: '/',
+    WINDOWS_SEPARATOR: '\\',
+    RELATIVE_PARENT_SEGMENT: '..',
+    CURRENT_DIRECTORY_SEGMENT: '.',
+  },
+  RUNTIME_MODULE_PROTOCOL: {
+    MODULE_CONTEXT_SEGMENT: '__context__',
+  },
   CAPABILITY_SCOPES: ['app', 'project', 'session', 'branch'] as const,
   CONTRIBUTION_FAMILY: EXTENSION_CONTRIBUTION_FAMILY,
   CONTRIBUTION_FAMILIES: EXTENSION_CONTRIBUTION_FAMILIES,

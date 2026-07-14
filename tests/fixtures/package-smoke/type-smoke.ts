@@ -1,8 +1,13 @@
 import {
+  defineExtensionManifest,
   OPENWAGGLE_EXTENSION,
+  openWaggleExtensionManifestSchema,
   openWaggleExtensionClassName,
   type OpenWaggleExtensionManifest,
+  validateExtensionManifest,
 } from '@openwaggle/extension-sdk'
+import { extensionDocsDiscoverPayloadSchema } from '@openwaggle/extension-sdk/docs'
+import { extensionContributionRegistrationSchema } from '@openwaggle/extension-sdk/runtime'
 import { Button, type ButtonProps } from '@openwaggle/extension-react'
 import {
   BUILT_IN_WAGGLE_PRESETS,
@@ -16,7 +21,7 @@ import {
 } from '@openwaggle/pi-waggle'
 import defaultPiWaggleExtension from '@openwaggle/pi-waggle/extension'
 
-const manifest: OpenWaggleExtensionManifest = {
+const manifest: OpenWaggleExtensionManifest = defineExtensionManifest({
   manifestVersion: 1,
   id: 'package-smoke',
   name: 'Package smoke',
@@ -25,10 +30,22 @@ const manifest: OpenWaggleExtensionManifest = {
     openwaggle: '0.1.0',
   },
   sourceFiles: [],
-  builtArtifacts: [],
+  builtArtifacts: ['dist/settings.js'],
   capabilities: [],
-  contributions: {},
-}
+  contributions: {
+    settingsSections: [
+      {
+        id: 'package-smoke.settings',
+        title: 'Package smoke settings',
+        runtime: 'federated-module',
+        execution: 'host-renderer',
+        entry: 'dist/settings.js',
+        capability: 'openwaggle.storage',
+        methods: ['get', 'set'],
+      },
+    ],
+  },
+})
 const config: WaggleConfig = {
   mode: 'sequential',
   agents: [
@@ -61,6 +78,10 @@ const turnDetails = createPiWaggleTurnDetails({
 })
 
 void manifest
+void openWaggleExtensionManifestSchema
+void validateExtensionManifest(manifest)
+void extensionDocsDiscoverPayloadSchema
+void extensionContributionRegistrationSchema
 void Button(buttonProps)
 void startWaggleRun({ config, sessionId: 'session-smoke' })
 void BUILT_IN_WAGGLE_PRESETS

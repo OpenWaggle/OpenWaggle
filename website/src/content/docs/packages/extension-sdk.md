@@ -7,7 +7,7 @@ section: "Packages"
 
 `@openwaggle/extension-sdk` is the browser-safe author package for OpenWaggle extension surfaces.
 
-Use it in extension modules that mount into OpenWaggle-owned containers. The package gives you the public `mount(context)` types, broker SDK helpers, manifest/contribution types, theme helpers, UI class names, and stylesheet generation helpers without importing OpenWaggle renderer internals.
+Use it in extension modules that mount into OpenWaggle-owned containers. The package gives you the public `mount(context)` types, Effect Schema boundary values, manifest validation helpers, broker SDK helpers, theme helpers, UI class names, and stylesheet generation helpers without importing OpenWaggle renderer internals.
 
 ## Install
 
@@ -37,7 +37,9 @@ Supported public subpaths include:
 | `@openwaggle/extension-sdk` | Primary types and helpers. |
 | `@openwaggle/extension-sdk/context` | Mount context and shared-module helpers. |
 | `@openwaggle/extension-sdk/broker` | Broker SDK creation and invoke input helpers. |
-| `@openwaggle/extension-sdk/manifest` | Extension manifest and contribution declaration types. |
+| `@openwaggle/extension-sdk/manifest` | Manifest schemas, definition/validation helpers, and contribution declarations. |
+| `@openwaggle/extension-sdk/runtime` | Runtime contribution schemas, types, and SDK creation. |
+| `@openwaggle/extension-sdk/docs` | Documentation discovery schemas and DTOs. |
 | `@openwaggle/extension-sdk/theme` | Theme token and CSS-variable helpers. |
 | `@openwaggle/extension-sdk/ui` | Framework-neutral UI class names and stylesheet helpers. |
 | `@openwaggle/extension-sdk/agent-loop` | Agent-loop DTO and interaction types. |
@@ -93,8 +95,11 @@ Extension code should call OpenWaggle through the broker SDK on the mount contex
 import type { OpenWaggleExtensionMountContext } from '@openwaggle/extension-sdk'
 
 export async function saveSettings(context: OpenWaggleExtensionMountContext) {
+  const projectPath = context.projectPaths[0]
+  if (!projectPath) return
+
   await context.sdk.storage.packageConfig.project.set(
-    'project',
+    { kind: 'project', projectPath },
     'github-token-source',
     'keychain',
   )
@@ -134,6 +139,8 @@ export default {
         runtime: 'federated-module',
         execution: 'host-renderer',
         entry: 'dist/settings.js',
+        capability: 'openwaggle.storage',
+        methods: ['get', 'set'],
       },
     ],
   },

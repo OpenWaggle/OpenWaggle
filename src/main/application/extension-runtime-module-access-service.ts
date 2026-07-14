@@ -14,7 +14,8 @@ function requestedProjectsAreCovered(
   entry: ExtensionContributionRegistryEntry,
   requestedProjectPaths: readonly string[],
 ) {
-  return requestedProjectPaths.every((projectPath) => entry.projectPaths.includes(projectPath))
+  const availableProjectPaths = new Set(entry.projectPaths)
+  return requestedProjectPaths.every((projectPath) => availableProjectPaths.has(projectPath))
 }
 
 function entryRuntimeCanServeRuntimeModule(entry: ExtensionContributionRegistryEntry) {

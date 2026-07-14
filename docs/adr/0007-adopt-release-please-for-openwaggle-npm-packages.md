@@ -1,10 +1,12 @@
 # Adopt Release Please For OpenWaggle Npm Packages
 
-Status: accepted
+Status: superseded in part by ADR-0008
+
+ADR-0008 supersedes this decision's staged-publishing, dry-run-only dispatch, and maintainer-configuration details. The choice of Release Please, independent package versions, package dependency propagation, and monorepo ownership remains accepted.
 
 OpenWaggle will publish `@openwaggle/extension-sdk`, `@openwaggle/extension-react`, `@openwaggle/waggle-core`, and `@openwaggle/pi-waggle` as separate npm packages through a shared Release Please package workflow, matching the existing `ts-match` release model instead of introducing Changesets. Each package keeps an independent semver version, `@openwaggle/pi-waggle` receives a dependent package bump whenever `@openwaggle/waggle-core` changes, `@openwaggle/extension-react` receives a dependent package bump whenever `@openwaggle/extension-sdk` changes, OpenWaggle-to-OpenWaggle dependencies publish as caret semver ranges, and the OpenWaggle desktop app release train remains separate from npm package publishing.
 
-Release Please manifest mode should drive package version PRs, package-local changelogs, short package-name tags such as `extension-sdk-v0.1.0`, and separate GitHub Releases for each package. The publish path should validate public API snapshots, built tarballs, smoke-install package exports, verify GitHub OIDC/trusted-publishing provenance before staging, and use npm staged publishing with trusted publishing/provenance from GitHub Actions so a maintainer approves each package before it becomes publicly installable. Real staging and publishing should run only from Release Please-created release or tag events; manual workflow dispatch is limited to dry-run validation. Local maintainer publish is not an emergency fallback.
+Release Please manifest mode drives package version PRs, package-local changelogs, short package-name tags such as `extension-sdk-v0.1.0`, and separate GitHub Releases for each package. This ADR originally selected staged publication after package validation. ADR-0008 replaces that publication path with direct npm Trusted Publishing from the release workflow while preserving the Release Please ownership and package-versioning decisions recorded here.
 
 The first public publish must use the `@openwaggle` npm organization scope. If npm keeps that namespace unavailable after the deleted-account state, publishing remains blocked until the maintainer recovers or unblocks the namespace with npm support; the packages should not ship under a temporary personal scope.
 

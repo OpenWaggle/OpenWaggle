@@ -45,11 +45,14 @@ export type ContributionRegistrationAuthorization =
 
 function uniqueMethods(binding: ContributionBrokerBinding) {
   const methods: string[] = []
+  const seenMethods = new Set<string>()
   if (binding.method !== undefined) {
+    seenMethods.add(binding.method)
     methods.push(binding.method)
   }
   for (const method of binding.methods ?? []) {
-    if (!methods.includes(method)) {
+    if (!seenMethods.has(method)) {
+      seenMethods.add(method)
       methods.push(method)
     }
   }
@@ -162,17 +165,21 @@ function undeclaredMethodDiagnostics(input: {
   readonly declaration: ExtensionCapabilityDeclaration
   readonly methods: readonly string[]
 }) {
-  return input.methods
-    .filter((method) => !methodIsDeclared(input.declaration, method))
-    .map((method) =>
-      contributionDiagnostic({
-        extensionPackage: input.extensionPackage,
-        family: input.family,
-        contributionId: input.contributionId,
-        index: input.index,
-        message: `Contribution requests method "${method}" for capability "${input.capability}", but the manifest capability does not declare that method.`,
-      }),
-    )
+  const diagnostics: ExtensionDiagnostic[] = []
+  for (const method of input.methods) {
+    if (!methodIsDeclared(input.declaration, method)) {
+      diagnostics.push(
+        contributionDiagnostic({
+          extensionPackage: input.extensionPackage,
+          family: input.family,
+          contributionId: input.contributionId,
+          index: input.index,
+          message: `Contribution requests method "${method}" for capability "${input.capability}", but the manifest capability does not declare that method.`,
+        }),
+      )
+    }
+  }
+  return diagnostics
 }
 
 function capabilityDiagnostics(input: {

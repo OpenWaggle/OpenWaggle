@@ -1,9 +1,12 @@
-import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import { Schema, type SchemaType } from '@shared/schema'
 import {
-  extensionCapabilityDeclarationSchema,
+  type ExtensionDocsTopicDeclaration as PublicExtensionDocsTopicDeclaration,
+  type OpenWaggleExtensionManifest as PublicOpenWaggleExtensionManifest,
+  openWaggleExtensionManifestSchema as publicOpenWaggleExtensionManifestSchema,
+} from '@openwaggle/extension-sdk'
+import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import { Schema } from '@shared/schema'
+import {
   extensionContributionIdSchema,
-  extensionContributionsSchema,
   extensionRelativePathSchema,
 } from './extension-contributions'
 import { isNetworkOrigin } from './extension-network-origin'
@@ -14,7 +17,6 @@ import {
   isRuntimeRequirementBinary,
   isSemverVersion,
 } from './extension-schema-primitives'
-import { validateTrustedRendererRuntimeBoundary } from './extension-trusted-renderer-boundary'
 
 export type {
   ExtensionCapabilityDeclaration,
@@ -217,40 +219,7 @@ export const extensionDocsSchema = Schema.Struct({
   topics: Schema.optional(Schema.mutable(Schema.Array(extensionDocsTopicDeclarationSchema))),
 })
 
-export const openWaggleExtensionManifestSchema = Schema.Struct({
-  manifestVersion: Schema.Literal(1),
-  id: extensionIdSchema,
-  name: nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH)),
-  version: extensionSemverVersionSchema,
-  description: Schema.optional(
-    nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.DESCRIPTION_MAX_LENGTH)),
-  ),
-  sdk: Schema.Struct({
-    openwaggle: nonEmptyStringSchema,
-  }),
-  sourceFiles: Schema.mutable(Schema.Array(extensionRelativePathSchema)),
-  builtArtifacts: Schema.mutable(Schema.Array(extensionRelativePathSchema)),
-  install: Schema.optional(extensionInstallSchema),
-  build: Schema.optional(extensionBuildSchema),
-  docs: Schema.optional(extensionDocsSchema),
-  network: Schema.optional(extensionNetworkSchema),
-  capabilities: Schema.optional(Schema.mutable(Schema.Array(extensionCapabilityDeclarationSchema))),
-  contributions: Schema.optional(extensionContributionsSchema),
-  pi: Schema.optional(
-    Schema.Struct({
-      resourceRoots: Schema.optional(Schema.mutable(Schema.Array(extensionRelativePathSchema))),
-    }),
-  ),
-  trusted: Schema.optional(
-    Schema.Struct({
-      main: Schema.optional(extensionRelativePathSchema),
-      renderer: Schema.optional(extensionRelativePathSchema),
-    }),
-  ),
-  runtimeRequirements: Schema.optional(
-    Schema.mutable(Schema.Array(extensionRuntimeRequirementSchema)),
-  ),
-}).pipe(Schema.filter(validateTrustedRendererRuntimeBoundary))
+export const openWaggleExtensionManifestSchema = publicOpenWaggleExtensionManifestSchema
 
 export const extensionSetTrustedInputSchema = Schema.Struct({
   extensionId: extensionIdSchema,
@@ -292,5 +261,5 @@ export const extensionReloadInputSchema = Schema.Struct({
   viewProjectPaths: Schema.optional(extensionViewProjectPathsSchema),
 })
 
-export type OpenWaggleExtensionManifest = SchemaType<typeof openWaggleExtensionManifestSchema>
-export type ExtensionDocsTopicDeclaration = SchemaType<typeof extensionDocsTopicDeclarationSchema>
+export type OpenWaggleExtensionManifest = PublicOpenWaggleExtensionManifest
+export type ExtensionDocsTopicDeclaration = PublicExtensionDocsTopicDeclaration

@@ -5,7 +5,7 @@ import type {
 } from '@shared/types/agent-loop-interaction'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { JsonObject, JsonValue } from '@shared/types/json'
-import { useRef, useState } from 'react'
+import { useReducer, useRef } from 'react'
 import {
   type ComposerExtensionActionLauncher,
   ComposerExtensionActions,
@@ -52,6 +52,42 @@ interface ActiveComposerExtensionSidePanel {
 type ActiveComposerExtensionSurface =
   | ActiveComposerExtensionDialog
   | ActiveComposerExtensionSidePanel
+
+interface ComposerExtensionDialogState {
+  readonly activeSurface: ActiveComposerExtensionSurface | null
+  readonly error: string | null
+}
+
+type ComposerExtensionDialogAction =
+  | { readonly type: 'open'; readonly surface: ActiveComposerExtensionSurface }
+  | { readonly type: 'close' }
+  | { readonly type: 'response-started' }
+  | { readonly type: 'response-succeeded'; readonly surface: ActiveComposerExtensionSurface }
+  | { readonly type: 'response-failed'; readonly message: string }
+
+const INITIAL_DIALOG_STATE: ComposerExtensionDialogState = {
+  activeSurface: null,
+  error: null,
+}
+
+function reduceComposerExtensionDialogState(
+  state: ComposerExtensionDialogState,
+  action: ComposerExtensionDialogAction,
+): ComposerExtensionDialogState {
+  if (action.type === 'open') {
+    return { activeSurface: action.surface, error: null }
+  }
+  if (action.type === 'close') {
+    return { ...state, activeSurface: null }
+  }
+  if (action.type === 'response-started') {
+    return { ...state, error: null }
+  }
+  if (action.type === 'response-succeeded') {
+    return state.activeSurface === action.surface ? INITIAL_DIALOG_STATE : state
+  }
+  return { ...state, error: action.message }
+}
 
 interface ChatComposerExtensionDialogsProps {
   readonly agentInteractions: readonly AgentLoopInteraction[]
@@ -199,13 +235,14 @@ export function ChatComposerExtensionDialogs({
   extensionProjectPaths,
   onRespond,
 }: ChatComposerExtensionDialogsProps) {
-  const [activeSurface, setActiveSurface] = useState<ActiveComposerExtensionSurface | null>(null)
+  const [{ activeSurface, error }, dispatch] = useReducer(
+    reduceComposerExtensionDialogState,
+    INITIAL_DIALOG_STATE,
+  )
   const busyInteractionIdRef = useRef<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
 
   function openSurface(surface: ActiveComposerExtensionSurface) {
-    setError(null)
-    setActiveSurface(surface)
+    dispatch({ type: 'open', surface })
   }
 
   function handleSurfaceAction(actionId: string, payload?: JsonValue) {
@@ -223,14 +260,17 @@ export function ChatComposerExtensionDialogs({
     }
 
     const surface = activeSurface
-    setError(null)
+    dispatch({ type: 'response-started' })
     busyInteractionIdRef.current = surface.interaction.interactionId
     onRespond(surface.interaction, response)
       .then(() => {
-        setActiveSurface((current) => (current === surface ? null : current))
+        dispatch({ type: 'response-succeeded', surface })
       })
       .catch((cause: unknown) => {
-        setError(cause instanceof Error ? cause.message : String(cause))
+        dispatch({
+          type: 'response-failed',
+          message: cause instanceof Error ? cause.message : String(cause),
+        })
       })
       .finally(() => {
         busyInteractionIdRef.current = null
@@ -251,7 +291,7 @@ export function ChatComposerExtensionDialogs({
       {activeSurface?.kind === 'dialog' ? (
         <ExtensionDialogSurfaceContent
           actions={{
-            onClose: () => setActiveSurface(null),
+            onClose: () => dispatch({ type: 'close' }),
             onRefresh: noOp,
             onSurfaceAction: handleSurfaceAction,
           }}
@@ -268,7 +308,7 @@ export function ChatComposerExtensionDialogs({
           activeSurface={activeSurface}
           extensionProjectPaths={extensionProjectPaths}
           extensionRegistry={extensionRegistry}
-          onClose={() => setActiveSurface(null)}
+          onClose={() => dispatch({ type: 'close' })}
           onSurfaceAction={handleSurfaceAction}
         />
       ) : null}

@@ -31,7 +31,7 @@ For any `src/renderer/` change:
 ```bash
 pnpm lint
 pnpm test:component
-npx -y react-doctor@latest . --verbose --diff main
+npx -y react-doctor@latest . --verbose --scope changed --base main
 ```
 
 Fix React Doctor errors. Warnings require judgment and should be reported if not fixed.

@@ -109,9 +109,12 @@ export function deactivateTrustedMainExtensionPackage(
   extensionPackage: DiscoveredExtensionPackage,
 ): Effect.Effect<readonly DiscoveredExtensionPackage[]> {
   return Effect.gen(function* () {
-    const packageActivationKeys = [...activeTrustedMainExtensions.entries()]
-      .filter(([, activation]) => activationMatchesPackage({ activation, extensionPackage }))
-      .map(([activationKey]) => activationKey)
+    const packageActivationKeys: string[] = []
+    for (const [activationKey, activation] of activeTrustedMainExtensions) {
+      if (activationMatchesPackage({ activation, extensionPackage })) {
+        packageActivationKeys.push(activationKey)
+      }
+    }
 
     return yield* deactivateTrustedMainActivationKeys(packageActivationKeys)
   })

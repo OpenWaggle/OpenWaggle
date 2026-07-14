@@ -30,8 +30,10 @@ function decodeSchema<A, I>(schema: Schema.Schema<A, I, never>, value: unknown) 
 
 function dedupeProjectPaths(projectPaths: readonly string[]) {
   const deduped: string[] = []
+  const seenProjectPaths = new Set<string>()
   for (const projectPath of projectPaths) {
-    if (!deduped.includes(projectPath)) {
+    if (!seenProjectPaths.has(projectPath)) {
+      seenProjectPaths.add(projectPath)
       deduped.push(projectPath)
     }
   }

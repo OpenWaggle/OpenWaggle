@@ -41,15 +41,7 @@ function mergedSignal(input: {
   readonly interactionSignal?: AbortSignal
 }) {
   if (!input.interactionSignal) return input.runSignal
-
-  const controller = new AbortController()
-  const abort = () => controller.abort()
-  input.runSignal.addEventListener('abort', abort, { once: true })
-  input.interactionSignal.addEventListener('abort', abort, { once: true })
-  if (input.runSignal.aborted || input.interactionSignal.aborted) {
-    controller.abort()
-  }
-  return controller.signal
+  return AbortSignal.any([input.runSignal, input.interactionSignal])
 }
 
 function baseInteraction(input: {

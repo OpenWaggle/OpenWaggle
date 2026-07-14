@@ -37,8 +37,10 @@ import { validateProjectPath, validateRequiredProjectPath } from './project-path
 
 function dedupeProjectPaths(projectPaths: readonly string[]) {
   const deduped: string[] = []
+  const seenProjectPaths = new Set<string>()
   for (const projectPath of projectPaths) {
-    if (!deduped.includes(projectPath)) {
+    if (!seenProjectPaths.has(projectPath)) {
+      seenProjectPaths.add(projectPath)
       deduped.push(projectPath)
     }
   }

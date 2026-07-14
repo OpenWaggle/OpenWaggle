@@ -29,7 +29,7 @@ pnpm add @openwaggle/waggle-core
 pnpm add @openwaggle/pi-waggle @earendil-works/pi-coding-agent @earendil-works/pi-tui
 ```
 
-The first public npm publish waits until the `@openwaggle` npm namespace is owned and configured. OpenWaggle does not publish these packages under a temporary personal scope.
+The `@openwaggle` npm namespace is reserved for these packages. Install commands will work after their first public `0.1.0` releases; OpenWaggle does not publish them under a temporary personal scope.
 
 ## Import Boundaries
 

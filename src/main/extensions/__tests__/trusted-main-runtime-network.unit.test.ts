@@ -206,6 +206,32 @@ describe('trusted main extension runtime network policy', () => {
     ).rejects.toThrow('Child processes can bypass declared network origins')
   })
 
+  it('keeps externally emitted trusted main callbacks inside the network policy', async () => {
+    const eventName = 'openwaggle-test-trusted-main-external-callback'
+    const extensionPackage = await writeTrustedMainPackage({
+      networkOrigins: ['https://api.github.com'],
+      mainModuleSource: `
+        import { spawnSync } from 'node:child_process'
+
+        export function activate() {
+          process.once(${JSON.stringify(eventName)}, () => {
+            spawnSync(process.execPath, ['-e', ''])
+          })
+        }
+      `,
+    })
+
+    await activateTrustedMainExtension({
+      extensionPackage,
+      contentHash: packageContentHash(extensionPackage),
+      transport: unusedTransport,
+    })
+
+    expect(() => process.emit(eventName)).toThrow(
+      'Child processes can bypass declared network origins',
+    )
+  })
+
   it('denies trusted main UDP socket network escape hatches', async () => {
     const extensionPackage = await writeTrustedMainPackage({
       networkOrigins: ['https://api.github.com'],

@@ -4,9 +4,11 @@ packages:
 
 minimumReleaseAgeExclude:
   - "@diegogbrisa/*"
+  - hono@4.12.30
 
 overrides:
   electron-vite>vite: 8.0.16
+  hono: 4.12.30
   protobufjs: 8.6.0
   "@tanstack/history": 1.162.0
   "@tanstack/query-core": 5.101.0

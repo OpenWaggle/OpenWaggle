@@ -52,10 +52,13 @@ function getDiscoveryRoots(options: ExtensionDiscoveryOptions): readonly Extensi
 async function listPackageDirectories(rootPath: string) {
   try {
     const entries = await readdir(rootPath, { withFileTypes: true })
-    return entries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-      .sort((left, right) => left.localeCompare(right))
+    const directoryNames: string[] = []
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        directoryNames.push(entry.name)
+      }
+    }
+    return directoryNames.sort((left, right) => left.localeCompare(right))
   } catch (error) {
     if (isEnoent(error)) {
       return []
@@ -91,15 +94,16 @@ function sdkDiagnostics(compatibility: ExtensionSdkCompatibility): readonly Exte
 }
 
 function runtimeRequirementDiagnosticPaths(diagnostics: readonly ExtensionDiagnostic[]) {
-  return new Set(
-    diagnostics
-      .filter(
-        (diagnostic) =>
-          diagnostic.code === OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODE.RUNTIME_REQUIREMENT_MISSING &&
-          diagnostic.path !== undefined,
-      )
-      .map((diagnostic) => diagnostic.path ?? ''),
-  )
+  const paths = new Set<string>()
+  for (const diagnostic of diagnostics) {
+    if (
+      diagnostic.code === OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODE.RUNTIME_REQUIREMENT_MISSING &&
+      diagnostic.path !== undefined
+    ) {
+      paths.add(diagnostic.path)
+    }
+  }
+  return paths
 }
 
 function contentHashDiagnosticsForView(input: {
@@ -142,56 +146,52 @@ async function discoverPackage(
     }
   }
 
-  if (manifestResult.manifest.id !== packageDirectoryName) {
+  const { manifest, rawManifest } = manifestResult
+
+  if (manifest.id !== packageDirectoryName) {
     baseDiagnostics.push({
       severity: 'error',
       code: 'manifest-id-mismatch',
-      message: `Manifest id "${manifestResult.manifest.id}" must match extension directory "${packageDirectoryName}".`,
+      message: `Manifest id "${manifest.id}" must match extension directory "${packageDirectoryName}".`,
       path: manifestPath,
     })
   }
 
-  const sourceDiagnostics = await validateDeclaredFiles({
-    packagePath,
-    relativePaths: manifestResult.manifest.sourceFiles,
-    label: OPENWAGGLE_EXTENSION.LABELS.SOURCE_FILE,
-    missingCode: 'source-file-missing',
-  })
-  const artifactDiagnostics = await validateDeclaredFiles({
-    packagePath,
-    relativePaths: manifestResult.manifest.builtArtifacts,
-    label: OPENWAGGLE_EXTENSION.LABELS.BUILT_ARTIFACT,
-    missingCode: 'built-artifact-missing',
-  })
-  const contentHash = await calculateContentHash(
-    packagePath,
-    manifestResult.rawManifest,
-    getManifestContentHashInput(manifestResult.manifest),
-  )
-  const sdkCompatibility = getSdkCompatibility(
-    manifestResult.manifest.sdk.openwaggle,
-    hostSdkVersion,
-  )
-  const buildPlan = await getExtensionBuildPlan(
-    packagePath,
-    manifestResult.rawManifest,
-    manifestResult.manifest,
-  )
-  const runtimeRequirementDiagnostics = await diagnoseRuntimeRequirements({
-    packagePath,
-    manifest: manifestResult.manifest,
-  })
+  const [
+    sourceDiagnostics,
+    artifactDiagnostics,
+    contentHash,
+    buildPlan,
+    runtimeRequirementDiagnostics,
+  ] = await Promise.all([
+    validateDeclaredFiles({
+      packagePath,
+      relativePaths: manifest.sourceFiles,
+      label: OPENWAGGLE_EXTENSION.LABELS.SOURCE_FILE,
+      missingCode: 'source-file-missing',
+    }),
+    validateDeclaredFiles({
+      packagePath,
+      relativePaths: manifest.builtArtifacts,
+      label: OPENWAGGLE_EXTENSION.LABELS.BUILT_ARTIFACT,
+      missingCode: 'built-artifact-missing',
+    }),
+    calculateContentHash(packagePath, rawManifest, getManifestContentHashInput(manifest)),
+    getExtensionBuildPlan(packagePath, rawManifest, manifest),
+    diagnoseRuntimeRequirements({ packagePath, manifest }),
+  ])
+  const sdkCompatibility = getSdkCompatibility(manifest.sdk.openwaggle, hostSdkVersion)
   const contentHashDiagnostics = contentHashDiagnosticsForView({
     contentHashDiagnostics: contentHash.diagnostics,
     runtimeRequirementDiagnostics,
   })
 
   return {
-    id: manifestResult.manifest.id,
+    id: manifest.id,
     scope: root.scope,
     packagePath,
     manifestPath,
-    manifest: manifestResult.manifest,
+    manifest,
     buildPlan: buildPlan.buildPlan,
     contentHash: contentHash.contentHash,
     sdkCompatibility,

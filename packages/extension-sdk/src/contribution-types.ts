@@ -1,4 +1,8 @@
 import type { OPENWAGGLE_EXTENSION } from './constants.js'
+import type {
+  ExtensionContributionRegistration as ManifestContributionRegistration,
+  ExtensionContributionUnregistration as ManifestContributionUnregistration,
+} from './manifest.js'
 
 type ConstantValue<TObject> = TObject[keyof TObject]
 
@@ -28,30 +32,5 @@ export interface ExtensionContributionMatchView {
   readonly interactionKinds?: readonly string[]
 }
 
-export interface ExtensionContributionRegistration {
-  readonly family: ExtensionContributionFamily
-  readonly contribution: {
-    readonly id: string
-    readonly title: string
-    readonly label?: string
-    readonly category?: string
-    readonly capability?: string
-    readonly method?: string
-    readonly methods?: readonly string[]
-    readonly declaredScopes?: readonly ExtensionCapabilityScope[]
-    readonly networkOrigins?: readonly string[]
-    readonly target?: ExtensionContributionTargetView
-    readonly matches?: ExtensionContributionMatchView
-    readonly runtime?: ExtensionContributionRuntime
-    readonly execution?: ExtensionExecutionPlacement
-    readonly entry?: string
-  }
-}
-
-export interface ExtensionContributionUnregistration {
-  readonly family: ExtensionContributionFamily
-  readonly contributionId: string
-}
-
-export type ExtensionRuntimeRegisterContributionPayload = ExtensionContributionRegistration
-export type ExtensionRuntimeUnregisterContributionPayload = ExtensionContributionUnregistration
+export type ExtensionRuntimeRegisterContributionPayload = ManifestContributionRegistration
+export type ExtensionRuntimeUnregisterContributionPayload = ManifestContributionUnregistration

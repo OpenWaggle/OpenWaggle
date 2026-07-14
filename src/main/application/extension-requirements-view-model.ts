@@ -101,8 +101,10 @@ function uniqueNetworkAccessModes(
   modes: readonly ExtensionNetworkAccessMode[],
 ): readonly ExtensionNetworkAccessMode[] {
   const uniqueModes: ExtensionNetworkAccessMode[] = []
+  const seenModes = new Set<ExtensionNetworkAccessMode>()
   for (const mode of modes) {
-    if (!uniqueModes.includes(mode)) {
+    if (!seenModes.has(mode)) {
+      seenModes.add(mode)
       uniqueModes.push(mode)
     }
   }
@@ -269,13 +271,17 @@ export function requirementsToView(
   }
 
   const privileges = privilegeRequirementsToView(extensionPackage, lifecycle)
+  const missingGrantIds: string[] = []
+  for (const requirement of privileges) {
+    if (!requirement.granted) {
+      missingGrantIds.push(requirement.grantId)
+    }
+  }
 
   return {
     runtime: runtimeRequirementsToView(extensionPackage.manifest),
     privileges,
     consentRequired: privileges.length > 0,
-    missingGrantIds: privileges
-      .filter((requirement) => !requirement.granted)
-      .map((requirement) => requirement.grantId),
+    missingGrantIds,
   }
 }

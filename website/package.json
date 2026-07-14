@@ -16,7 +16,7 @@
     "@fontsource/inter": "5.2.8",
     "@fontsource/space-grotesk": "5.2.10",
     "@lucide/astro": "1.17.0",
-    "astro": "6.4.4",
+    "astro": "6.4.6",
     "rehype-external-links": "3.0.0"
   },
   "devDependencies": {

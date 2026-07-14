@@ -15,13 +15,11 @@ interface LoadAttemptFailure {
 type LoadAttemptResult<Result> = LoadAttemptSuccess<Result> | LoadAttemptFailure
 
 function packagePaths(selections: readonly RuntimeLoadSelection[]) {
-  const paths: string[] = []
+  const paths = new Set<string>()
   for (const selection of selections) {
-    if (!paths.includes(selection.packagePath)) {
-      paths.push(selection.packagePath)
-    }
+    paths.add(selection.packagePath)
   }
-  return paths
+  return [...paths]
 }
 
 async function captureLoadResult<Result>(
@@ -40,9 +38,17 @@ async function recordFailures<Selection extends RuntimeLoadSelection>(
   error: unknown,
   recordFailure: (selection: Selection, error: unknown) => Promise<void>,
 ) {
-  for (const selection of selections) {
+  async function recordAt(index: number): Promise<void> {
+    const selection = selections[index]
+    if (selection === undefined) {
+      return
+    }
+
     await recordFailureSafely(selection, error, recordFailure)
+    await recordAt(index + 1)
   }
+
+  await recordAt(0)
 }
 
 async function recordFailureSafely<Selection extends RuntimeLoadSelection>(
@@ -64,16 +70,60 @@ async function findViableSelections<Selection extends RuntimeLoadSelection, Resu
 ) {
   const viableSelections: Selection[] = []
 
-  for (const selection of selections) {
+  async function inspectAt(index: number): Promise<void> {
+    const selection = selections[index]
+    if (selection === undefined) {
+      return
+    }
+
     const isolatedAttempt = await captureLoadResult([selection], load)
     if (isolatedAttempt.ok) {
       viableSelections.push(selection)
-      continue
+    } else {
+      await recordFailureSafely(selection, isolatedAttempt.error, recordFailure)
     }
-    await recordFailureSafely(selection, isolatedAttempt.error, recordFailure)
+
+    await inspectAt(index + 1)
   }
 
+  await inspectAt(0)
   return viableSelections
+}
+
+async function loadWithoutFailingSelection<Selection extends RuntimeLoadSelection, Result>({
+  error,
+  index,
+  load,
+  recordFailure,
+  viableSelections,
+}: {
+  readonly error: unknown
+  readonly index: number
+  readonly load: (packagePaths: readonly string[]) => Promise<Result>
+  readonly recordFailure: (selection: Selection, error: unknown) => Promise<void>
+  readonly viableSelections: readonly Selection[]
+}): Promise<LoadAttemptResult<Result>> {
+  const selection = viableSelections[index]
+  if (selection === undefined) {
+    return { ok: false, error }
+  }
+
+  const withoutSelection = viableSelections.filter(
+    (candidate) => candidate.packagePath !== selection.packagePath,
+  )
+  const attempt = await captureLoadResult(withoutSelection, load)
+  if (!attempt.ok) {
+    return loadWithoutFailingSelection({
+      error,
+      index: index + 1,
+      load,
+      recordFailure,
+      viableSelections,
+    })
+  }
+
+  await recordFailureSafely(selection, error, recordFailure)
+  return attempt
 }
 
 async function loadWithViableSelections<Selection extends RuntimeLoadSelection, Result>({
@@ -96,17 +146,15 @@ async function loadWithViableSelections<Selection extends RuntimeLoadSelection, 
     return viableAttempt.result
   }
 
-  for (const selection of viableSelections) {
-    const withoutSelection = viableSelections.filter(
-      (candidate) => candidate.packagePath !== selection.packagePath,
-    )
-    const withoutSelectionAttempt = await captureLoadResult(withoutSelection, load)
-    if (!withoutSelectionAttempt.ok) {
-      continue
-    }
-
-    await recordFailureSafely(selection, viableAttempt.error, recordFailure)
-    return withoutSelectionAttempt.result
+  const withoutFailingSelectionAttempt = await loadWithoutFailingSelection({
+    error: viableAttempt.error,
+    index: 0,
+    load,
+    recordFailure,
+    viableSelections,
+  })
+  if (withoutFailingSelectionAttempt.ok) {
+    return withoutFailingSelectionAttempt.result
   }
 
   await recordFailures(viableSelections, viableAttempt.error, recordFailure)

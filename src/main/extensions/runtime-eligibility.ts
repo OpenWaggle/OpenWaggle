@@ -7,8 +7,10 @@ function hasErrorDiagnostics(extensionPackage: DiscoveredExtensionPackage) {
 
 function uniqueGrantIds(grantIds: readonly string[]) {
   const uniqueIds: string[] = []
+  const seenIds = new Set<string>()
   for (const grantId of grantIds) {
-    if (!uniqueIds.includes(grantId)) {
+    if (!seenIds.has(grantId)) {
+      seenIds.add(grantId)
       uniqueIds.push(grantId)
     }
   }
@@ -44,9 +46,8 @@ export function getMissingExtensionGrantIds(input: {
   readonly lifecycle: ExtensionLifecycleState
 }) {
   const requiredGrantIds = getExtensionGrantIds(input.extensionPackage)
-  return requiredGrantIds.filter(
-    (grantId) => !input.lifecycle.grantedCapabilities.includes(grantId),
-  )
+  const grantedCapabilities = new Set(input.lifecycle.grantedCapabilities)
+  return requiredGrantIds.filter((grantId) => !grantedCapabilities.has(grantId))
 }
 
 function hasRequiredGrants(input: {

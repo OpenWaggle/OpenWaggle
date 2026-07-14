@@ -34,6 +34,10 @@ async function writeTrustedMainPackage(input: {
   readonly mainModuleSource: string
   readonly trustedMainPath?: string
   readonly networkOrigins?: readonly string[]
+  readonly additionalFiles?: readonly {
+    readonly relativePath: string
+    readonly contents: string
+  }[]
 }) {
   const projectPath = path.join(tmpRoot, 'project')
   const packagePath = path.join(projectPath, '.openwaggle', 'extensions', 'sample-extension')
@@ -46,7 +50,10 @@ async function writeTrustedMainPackage(input: {
     version: '1.0.0',
     sdk: { openwaggle: '>=0.1.0 <0.2.0' },
     sourceFiles: ['src/index.ts'],
-    builtArtifacts: [trustedMainPath],
+    builtArtifacts: [
+      trustedMainPath,
+      ...(input.additionalFiles?.map((file) => file.relativePath) ?? []),
+    ],
     trusted: {
       main: trustedMainPath,
     },
@@ -54,6 +61,9 @@ async function writeTrustedMainPackage(input: {
   })
   await writeText(path.join(packagePath, 'src', 'index.ts'), 'export const source = true\n')
   await writeText(path.join(packagePath, trustedMainPath), input.mainModuleSource)
+  for (const file of input.additionalFiles ?? []) {
+    await writeText(path.join(packagePath, file.relativePath), file.contents)
+  }
 
   const packages = await discoverExtensionPackages({
     projectPath,
@@ -270,6 +280,50 @@ describe('trusted main extension runtime', () => {
     await expect(importTrustedMainExtensionModule(extensionPackage, pinnedHash)).rejects.toThrow(
       'Trusted main runtime entry for "sample-extension" is unavailable.',
     )
+  })
+
+  it('reloads changed transitive trusted main modules with the new content hash', async () => {
+    const eventsPath = path.join(tmpRoot, 'transitive-events.txt')
+    const helperPath = 'dist/helper.js'
+    const { extensionPackage, packagePath, projectPath } = await writeTrustedMainPackage({
+      trustedMainPath: 'dist/main.js',
+      mainModuleSource: `
+        import { appendFile } from 'node:fs/promises'
+        import { value } from './helper.js'
+
+        export async function activate() {
+          await appendFile(${JSON.stringify(eventsPath)}, value + '\\n')
+        }
+      `,
+      additionalFiles: [
+        { relativePath: 'package.json', contents: '{"type":"module"}\n' },
+        { relativePath: helperPath, contents: "export const value = 'old'\n" },
+      ],
+    })
+
+    await activateTrustedMainExtension({
+      extensionPackage,
+      contentHash: packageContentHash(extensionPackage),
+      transport: unusedTransport,
+    })
+
+    await writeText(path.join(packagePath, helperPath), "export const value = 'new'\n")
+    const updatedPackages = await discoverExtensionPackages({
+      projectPath,
+      hostSdkVersion: OPENWAGGLE_EXTENSION.SDK_VERSION,
+    })
+    const updatedPackage = updatedPackages[0]
+    if (!updatedPackage) {
+      throw new Error('Expected rediscovered extension package.')
+    }
+
+    await activateTrustedMainExtension({
+      extensionPackage: updatedPackage,
+      contentHash: packageContentHash(updatedPackage),
+      transport: unusedTransport,
+    })
+
+    await expect(fs.readFile(eventsPath, 'utf8')).resolves.toBe('old\nnew\n')
   })
 
   it('rejects modules that do not export activate(context)', async () => {

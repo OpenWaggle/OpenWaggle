@@ -101,9 +101,11 @@ export function getRuntimeEnabledPackagesPiResourceRoots(
   packagePaths: readonly string[],
 ) {
   const selectedPaths = new Set(packagePaths)
-  return selections
-    .filter((selection) => selectedPaths.has(selection.packagePath))
-    .flatMap(getRuntimeEnabledPackagePiResourceRoots)
+  return selections.flatMap((selection) =>
+    selectedPaths.has(selection.packagePath)
+      ? getRuntimeEnabledPackagePiResourceRoots(selection)
+      : [],
+  )
 }
 
 export function upsertRuntimeLoadFailure(

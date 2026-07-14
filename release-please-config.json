@@ -1,8 +1,11 @@
 {
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
   "release-type": "node",
+  "initial-version": "0.1.0",
+  "bump-minor-pre-major": true,
   "include-component-in-tag": true,
   "include-v-in-tag": true,
+  "separate-pull-requests": false,
   "always-link-local": true,
   "packages": {
     "packages/extension-sdk": {

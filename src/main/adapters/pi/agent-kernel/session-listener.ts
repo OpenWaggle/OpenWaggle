@@ -164,6 +164,8 @@ function handleSessionEvent(state: SessionListenerState, event: AgentSessionEven
   matchBy(event, 'type')
     .with('agent_start', () => emitAgentStart(state))
     .with('agent_end', (value) => emitAgentEnd(state, value))
+    .with('agent_settled', () => undefined)
+    .with('entry_appended', () => undefined)
     .with('session_info_changed', () => undefined)
     .with('thinking_level_changed', () => undefined)
     .with('turn_start', () => undefined)

@@ -1,9 +1,12 @@
 {
   "name": "@openwaggle/waggle-core",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Runtime-neutral Waggle policy, prompts, state, presets, and turn orchestration primitives.",
   "type": "module",
   "license": "MIT",
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/OpenWaggle/OpenWaggle.git",
@@ -17,6 +20,7 @@
     "dist",
     "dist-cjs",
     "CHANGELOG.md",
+    "LICENSE",
     "README.md"
   ],
   "exports": {

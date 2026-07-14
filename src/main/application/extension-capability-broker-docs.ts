@@ -105,9 +105,11 @@ function docsResolveTopicPayload(input: BrokerDocsRouteInput) {
 function validateDocsListProjectPaths(projectPaths: readonly string[]) {
   return Effect.gen(function* () {
     const validatedProjectPaths: string[] = []
+    const seenProjectPaths = new Set<string>()
     for (const projectPath of projectPaths) {
       const validatedProjectPath = yield* validateRequiredProjectPath(projectPath)
-      if (!validatedProjectPaths.includes(validatedProjectPath)) {
+      if (!seenProjectPaths.has(validatedProjectPath)) {
+        seenProjectPaths.add(validatedProjectPath)
         validatedProjectPaths.push(validatedProjectPath)
       }
     }

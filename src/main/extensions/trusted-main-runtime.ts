@@ -1,4 +1,6 @@
-import { basename } from 'node:path'
+import { copyFile, mkdir, mkdtemp } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { basename, dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import {
   createExtensionBrokerSdkFromInvoke,
@@ -23,6 +25,9 @@ import {
 import type { DiscoveredExtensionPackage, ExtensionPackageScope } from './types'
 
 export const TRUSTED_MAIN_CONTRIBUTION_ID = 'openwaggle.trusted-main'
+const TRUSTED_MAIN_CONTENT_HASH_QUERY = 'openwaggleExtensionContentHash'
+
+let trustedMainRuntimeCacheRootPromise: Promise<string> | null = null
 
 export interface TrustedMainExtensionIdentity {
   readonly id: string
@@ -109,7 +114,7 @@ function trustedMainModuleImport(moduleUrl: string): Promise<unknown> {
 
 function trustedMainModuleUrl(filePath: string, contentHash: string) {
   const url = pathToFileURL(filePath)
-  url.searchParams.set('openwaggleExtensionContentHash', contentHash)
+  url.searchParams.set(TRUSTED_MAIN_CONTENT_HASH_QUERY, contentHash)
   return url.toString()
 }
 
@@ -122,6 +127,44 @@ function exportSummary(value: unknown) {
 
 function trustedMainEntry(extensionPackage: DiscoveredExtensionPackage) {
   return extensionPackage.manifest?.trusted?.main ?? null
+}
+
+function trustedMainRuntimeCacheRoot() {
+  trustedMainRuntimeCacheRootPromise ??= mkdtemp(join(tmpdir(), 'openwaggle-trusted-main-'))
+  return trustedMainRuntimeCacheRootPromise
+}
+
+async function stageTrustedMainRuntimeFiles(input: {
+  readonly extensionPackage: DiscoveredExtensionPackage
+  readonly contentHash: string
+}) {
+  const manifest = input.extensionPackage.manifest
+  const relativeEntryPath = trustedMainEntry(input.extensionPackage)
+  if (!manifest || !relativeEntryPath) {
+    return null
+  }
+
+  const packageCachePath = join(
+    await trustedMainRuntimeCacheRoot(),
+    input.extensionPackage.id,
+    input.contentHash,
+  )
+  for (const relativePath of getContentHashRelativePaths(getManifestContentHashInput(manifest))) {
+    const normalizedRelativePath = normalizeManifestRelativePath(relativePath)
+    const sourcePath = await resolveSafePackageFilePath(
+      input.extensionPackage.packagePath,
+      normalizedRelativePath,
+    )
+    if (!sourcePath) {
+      return null
+    }
+
+    const stagedPath = join(packageCachePath, normalizedRelativePath)
+    await mkdir(dirname(stagedPath), { recursive: true })
+    await copyFile(sourcePath, stagedPath)
+  }
+
+  return join(packageCachePath, normalizeManifestRelativePath(relativeEntryPath))
 }
 
 function assertTrustedMainEntryIsHashCovered(input: {
@@ -185,8 +228,13 @@ export async function importTrustedMainExtensionModule(
     throw new Error(`Trusted main runtime entry for "${extensionPackage.id}" is unavailable.`)
   }
 
+  const stagedEntryPath = await stageTrustedMainRuntimeFiles({ extensionPackage, contentHash })
+  if (!stagedEntryPath) {
+    throw new Error(`Trusted main runtime entry for "${extensionPackage.id}" is unavailable.`)
+  }
+
   const moduleNamespace = await trustedMainModuleImport(
-    trustedMainModuleUrl(entryPath, contentHash),
+    trustedMainModuleUrl(stagedEntryPath, contentHash),
   )
   const module = trustedMainExtensionModule(moduleNamespace)
   if (!module) {

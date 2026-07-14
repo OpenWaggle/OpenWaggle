@@ -94,9 +94,13 @@ export function findPackage(
 }
 
 function getPackageErrorCodes(extensionPackage: DiscoveredExtensionPackage) {
-  return extensionPackage.diagnostics
-    .filter((diagnostic) => diagnostic.severity === 'error')
-    .map((diagnostic) => diagnostic.code)
+  const errorCodes: string[] = []
+  for (const diagnostic of extensionPackage.diagnostics) {
+    if (diagnostic.severity === 'error') {
+      errorCodes.push(diagnostic.code)
+    }
+  }
+  return errorCodes
 }
 
 function getBuildPlanReadinessError(

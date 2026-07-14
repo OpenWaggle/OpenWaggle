@@ -101,6 +101,34 @@ describe('loadWithRuntimeFailureIsolation', () => {
     expect(recordFailure).not.toHaveBeenCalledWith(SECOND_SELECTION, expect.any(Error))
   })
 
+  it('records an isolated failure before attempting the next runtime selection', async () => {
+    const events: string[] = []
+
+    const result = await loadWithRuntimeFailureIsolation({
+      selections: [FIRST_SELECTION, SECOND_SELECTION],
+      load: async (paths) => {
+        events.push(`load:${paths.join(',') || 'baseline'}`)
+        if (paths.includes(FIRST_SELECTION.packagePath)) {
+          throw new Error('first extension failed')
+        }
+        return paths.join(',') || 'baseline'
+      },
+      recordFailure: async (selection) => {
+        events.push(`record:${selection.id}`)
+      },
+    })
+
+    expect(result).toBe(SECOND_SELECTION.packagePath)
+    expect(events).toEqual([
+      `load:${FIRST_SELECTION.packagePath},${SECOND_SELECTION.packagePath}`,
+      'load:baseline',
+      `load:${FIRST_SELECTION.packagePath}`,
+      'record:first',
+      `load:${SECOND_SELECTION.packagePath}`,
+      `load:${SECOND_SELECTION.packagePath}`,
+    ])
+  })
+
   it('disables one package when individually valid packages fail together', async () => {
     const combinedFailure = new Error('combined extension failure')
     const recordFailure = vi.fn<RecordFailure>()

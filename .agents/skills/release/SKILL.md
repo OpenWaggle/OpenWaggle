@@ -16,7 +16,16 @@ Before changing release, versioning, updater, changelog, GitHub workflow, or upd
 3. Inspect the current release workflow, updater service, updater IPC/preload API, Settings About/Updates UI, and sidebar logo/footer version UI before editing.
 4. Preserve the project rules in `AGENTS.md`, especially branch workflow, no commits without approval, no unknown-work reverts, no casts, and Electron QA for renderer/preload/IPC changes.
 
-## Core policy
+## Release domains
+
+OpenWaggle has two independent release domains:
+
+- The **app release workflow** publishes desktop artifacts and update metadata. Its release intent comes from `.release/changes/*` files and explicit `release:none` classification.
+- The **npm package workflow** publishes the packages under `packages/*`. Its release intent comes from path-scoped Conventional Commits interpreted by Release Please.
+
+Do not apply the app release-intent policy to npm package versions, and do not let package Conventional Commits drive the desktop app version.
+
+## App release core policy
 
 Keep automation, but make release intent explicit.
 
@@ -30,7 +39,7 @@ Keep release policy independent of any one runtime, CLI, or SDK. The current v1 
 - If a future CLI/SDK becomes part of OpenWaggle, apply the same Alpha/Beta/RC/Stable, release-intent, changelog, updater, and UI policies to that integration.
 
 
-- Stop using commit messages as the source of truth for version bumps.
+- For desktop app releases, stop using commit messages as the source of truth for version bumps.
 - Require every PR to be release-classified:
   - product/user-impacting PRs include one or more `.release/changes/<slug>.md` files;
   - internal-only PRs carry an explicit `release:none` classification;
@@ -39,6 +48,24 @@ Keep release policy independent of any one runtime, CLI, or SDK. The current v1 
 - Consume release-intent files into `CHANGELOG.md` and GitHub Release notes during publication, then delete consumed files in the release commit.
 - Keep one root `CHANGELOG.md` as canonical permanent release history.
 - Generate GitHub Release notes from the same source as the changelog.
+
+## Npm package policy
+
+The canonical package policy lives in `docs/release-and-versioning.md` and ADR-0008.
+
+- Publish `@openwaggle/extension-sdk`, `@openwaggle/extension-react`, `@openwaggle/waggle-core`, and `@openwaggle/pi-waggle` with independent semver versions through one Release Please manifest workflow.
+- Use one coordinated Release Please PR, package-specific changelogs, component-qualified tags, and one GitHub Release per package version.
+- Treat only release-eligible Conventional Commits that touch `packages/<name>/**` as direct package release intent. App, website, documentation, fixture, and workflow-only changes do not release npm packages.
+- Require Conventional Commit pull request titles for squash safety. Keep repository merge commits disabled while preserving squash for one-intent PRs and rebase for mixed-intent PRs whose commits carry separate release impacts. Do not exempt generated revert subjects from explicit release intent; write reverts as `revert(scope): ...`.
+- Let the Release Please `node-workspace` plugin patch-bump `extension-react` when `extension-sdk` changes and `pi-waggle` when `waggle-core` changes.
+- Keep the Release Please PR merge as the explicit release gate. After that merge, validation, tagging, GitHub Releases, and npm publication are unattended.
+- Publish the exact validated tarball directly with npm Trusted Publishing and GitHub OIDC. Do not use `npm stage publish`, `NPM_TOKEN`, `NODE_AUTH_TOKEN`, or another long-lived npm credential.
+- Publish base packages before dependents: `extension-sdk` before `extension-react`, and `waggle-core` before `pi-waggle`.
+- Require Node.js `>=22.19.0` for all four packages. Validate consumers on Node 22.19+ and Node 24; publish with Node 24 and a pinned npm CLI that supports trusted publishing.
+- Bootstrap npm package records only through the documented one-time `0.0.0-bootstrap.0` flow. Real versions, beginning with `0.1.0`, publish only through GitHub OIDC with provenance.
+- Recovery dispatches must name one exact package tag, rebuild and revalidate that tag, and publish only a missing matching version.
+- The namespace bootstrap must verify repository merge modes, patch only the three owned merge-mode fields when they drift, and verify merge commits are disabled while squash and rebase remain enabled.
+- Deprecate a bad published version and release a fix. Do not overwrite or routinely unpublish immutable package history.
 
 ## Version train
 

@@ -42,9 +42,11 @@ interface ContributionRegistryPackageResult {
 
 function normalizeProjectPaths(projectPaths: readonly string[] | undefined) {
   const normalizedProjectPaths: string[] = []
+  const seenProjectPaths = new Set<string>()
   for (const projectPath of projectPaths ?? []) {
     const normalized = projectPath.trim()
-    if (normalized.length > 0 && !normalizedProjectPaths.includes(normalized)) {
+    if (normalized.length > 0 && !seenProjectPaths.has(normalized)) {
+      seenProjectPaths.add(normalized)
       normalizedProjectPaths.push(normalized)
     }
   }

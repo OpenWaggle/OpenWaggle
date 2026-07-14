@@ -101,11 +101,13 @@ function decodeProjectPaths(projectPathsContext: string) {
   }
 
   const projectPaths: string[] = []
+  const seenProjectPaths = new Set<string>()
   for (const projectPath of parsedContext) {
     if (typeof projectPath !== 'string' || projectPath.length === 0) {
       return null
     }
-    if (!projectPaths.includes(projectPath)) {
+    if (!seenProjectPaths.has(projectPath)) {
+      seenProjectPaths.add(projectPath)
       projectPaths.push(projectPath)
     }
   }

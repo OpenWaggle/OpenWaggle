@@ -92,9 +92,11 @@ function runtimeRegistrations(
 
 function uniqueTrimmedValues(values: readonly string[] | undefined) {
   const normalized: string[] = []
+  const seen = new Set<string>()
   for (const value of values ?? []) {
     const trimmed = value.trim()
-    if (trimmed.length > 0 && !normalized.includes(trimmed)) {
+    if (trimmed.length > 0 && !seen.has(trimmed)) {
+      seen.add(trimmed)
       normalized.push(trimmed)
     }
   }

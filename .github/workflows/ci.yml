@@ -5,26 +5,80 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      head_sha:
+        description: Exact release PR head SHA to validate.
+        required: true
+        type: string
+
+permissions:
+  contents: read
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || inputs.head_sha || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  check:
-    name: Typecheck & Lint
-    # Skip automated version-bump commits
-    if: "!startsWith(github.event.head_commit.message, 'chore(release):')"
+  commit-policy:
+    name: Commit Policy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Verify dispatched commit identity
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          DISPATCHED_SHA: ${{ github.sha }}
+          EXPECTED_SHA: ${{ inputs.head_sha }}
+        run: |
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$DISPATCHED_SHA" = "$EXPECTED_SHA"
 
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
 
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm exec tsx scripts/release-ci-policy.ts
+
+      - name: Validate Conventional Commits
+        env:
+          COMMIT_POLICY_FROM: ${{ github.event_name == 'push' && github.event.before || github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
+          COMMIT_POLICY_TO: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          PR_TITLE: ${{ github.event_name == 'pull_request' && github.event.pull_request.title || '' }}
+        run: pnpm exec tsx scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"
+
+  check:
+    name: Typecheck & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify dispatched commit identity
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          DISPATCHED_SHA: ${{ github.sha }}
+          EXPECTED_SHA: ${{ inputs.head_sha }}
+        run: |
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$DISPATCHED_SHA" = "$EXPECTED_SHA"
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24
           cache: pnpm
@@ -35,14 +89,24 @@ jobs:
 
   test:
     name: Unit & Component Tests
-    if: "!startsWith(github.event.head_commit.message, 'chore(release):')"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Verify dispatched commit identity
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          DISPATCHED_SHA: ${{ github.sha }}
+          EXPECTED_SHA: ${{ inputs.head_sha }}
+        run: |
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$DISPATCHED_SHA" = "$EXPECTED_SHA"
 
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
 
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24
           cache: pnpm

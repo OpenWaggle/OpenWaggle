@@ -1,6 +1,11 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import type { EventEmitter } from 'node:events'
 import type { ClientRequestConstructorOptions } from 'electron'
 import * as electronRuntime from 'electron'
+import {
+  installTrustedMainNetworkCallbackGuard,
+  type TrustedMainEventListener,
+} from './trusted-main-network-callback-guard'
 import { installTrustedMainNetworkEscapeGuard } from './trusted-main-network-escape-guard'
 import { installTrustedMainHttpNetworkGuard } from './trusted-main-network-http-guard'
 import { installTrustedMainSocketNetworkGuard } from './trusted-main-network-socket-guard'
@@ -36,10 +41,7 @@ let trustedMainNetworkGuardInstalled = false
 let internalSocketBypassDepth = 0
 
 export class TrustedMainNetworkEgressError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'TrustedMainNetworkEgressError'
-  }
+  override name = 'TrustedMainNetworkEgressError'
 }
 
 export function createTrustedMainNetworkPolicy(
@@ -61,6 +63,19 @@ export function runWithTrustedMainNetworkPolicy<T>(
 
 function currentPolicy() {
   return trustedMainNetworkPolicyStorage.getStore() ?? null
+}
+
+function bindEventListenerToCurrentPolicy(listener: TrustedMainEventListener) {
+  const policy = currentPolicy()
+  if (!policy) {
+    return listener
+  }
+
+  const boundListener = function policyBoundEventListener(this: EventEmitter, ...args: unknown[]) {
+    return trustedMainNetworkPolicyStorage.run(policy, () => listener.apply(this, args))
+  }
+  Object.defineProperty(boundListener, 'listener', { configurable: true, value: listener })
+  return boundListener
 }
 
 function trustedMainNetworkError(input: {
@@ -322,6 +337,7 @@ export function installTrustedMainNetworkGuard() {
     return
   }
 
+  installTrustedMainNetworkCallbackGuard({ bindListener: bindEventListenerToCurrentPolicy })
   installFetchGuard()
   installTrustedMainHttpNetworkGuard({
     enforceTarget: enforceNetworkTarget,

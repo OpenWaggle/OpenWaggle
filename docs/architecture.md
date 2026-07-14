@@ -20,6 +20,8 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 - `docs/adr/0004-split-portable-waggle-core-from-pi-adapter.md`
 - `docs/adr/0005-adopt-openwaggle-extension-contribution-host.md`
 - `docs/adr/0006-adopt-federated-module-runtime-for-extension-ui.md`
+- `docs/adr/0007-adopt-release-please-for-openwaggle-npm-packages.md`
+- `docs/adr/0008-publish-npm-packages-directly-with-trusted-publishing.md`
 
 ## Specs
 

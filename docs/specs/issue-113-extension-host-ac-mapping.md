@@ -48,15 +48,17 @@ The current agreed direction:
 
 - Packages use independent semver versions and a shared Release Please package workflow.
 - Initial public package versions are `0.1.0`.
+- Source manifests remain at the unpublished `0.0.0` baseline until Release Please creates the first `0.1.0` release PR.
+- Every package declares Node.js `>=22.19.0`; release consumers are tested on Node 22.19+ and Node 24.
 - All public package source lives under `packages/*`: `packages/extension-sdk`, `packages/extension-react`, `packages/waggle-core`, and `packages/pi-waggle`.
 - Existing `packages/waggle-core` and `packages/pi-waggle` must be converted from private raw-TS workspace packages into real publishable packages instead of duplicated elsewhere.
 - `@openwaggle/waggle-core` is runtime-neutral and must not import Pi SDK packages, Electron, Node built-ins, renderer stores, or app services.
 - `@openwaggle/pi-waggle` depends on `@openwaggle/waggle-core` and receives a dependent package bump whenever Waggle core changes.
-- `@openwaggle/pi-waggle` replaces wildcard Pi peer dependencies with explicit initial peer ranges: `@earendil-works/pi-coding-agent: ^0.78.1` and `@earendil-works/pi-tui: ^0.78.1`.
+- `@openwaggle/pi-waggle` replaces wildcard Pi peer dependencies with explicit initial peer ranges: `@earendil-works/pi-coding-agent: ^0.80.6` and `@earendil-works/pi-tui: ^0.80.6`.
 - `@openwaggle/extension-react` depends on `@openwaggle/extension-sdk` and receives a dependent package bump whenever the extension SDK changes.
 - `@openwaggle/extension-react` declares `react` and `react-dom` as `^19.0.0` peer dependencies, uses package-local React/React DOM dev dependencies for build/tests, and must not bundle React.
 - Packed and published package manifests rewrite local `workspace:*` OpenWaggle dependencies to caret semver ranges such as `^0.1.0`.
-- Packages ship dual ESM/CommonJS output plus TypeScript declarations from plain TypeScript builds, not a bundler, unless a package has a documented reason to diverge.
+- Packages ship dual ESM/CommonJS output plus TypeScript declarations from plain TypeScript builds, not a bundler, unless a package has a documented reason to diverge. Authored package and package-smoke sources remain TypeScript; CommonJS export conditions are tested through a typed `createRequire` probe rather than checked-in `.cjs` source.
 - Public imports are limited to explicit package export maps; deep imports into source or build output are unsupported.
 - Initial explicit export maps are: `@openwaggle/extension-sdk`, `@openwaggle/extension-sdk/manifest`, `@openwaggle/extension-sdk/broker`, `@openwaggle/extension-sdk/runtime`, `@openwaggle/extension-sdk/theme`, `@openwaggle/extension-sdk/ui`, `@openwaggle/extension-sdk/agent-loop`, `@openwaggle/extension-sdk/docs`, `@openwaggle/extension-react`, `@openwaggle/extension-react/styles.css`, `@openwaggle/waggle-core`, `@openwaggle/waggle-core/config`, `@openwaggle/waggle-core/consensus`, `@openwaggle/waggle-core/events`, `@openwaggle/waggle-core/presets`, `@openwaggle/waggle-core/prompts`, `@openwaggle/waggle-core/state`, `@openwaggle/waggle-core/turn-policy`, `@openwaggle/pi-waggle`, `@openwaggle/pi-waggle/commands`, `@openwaggle/pi-waggle/extension`, `@openwaggle/pi-waggle/loop`, `@openwaggle/pi-waggle/mode-state`, `@openwaggle/pi-waggle/preset-storage`, `@openwaggle/pi-waggle/presets`, `@openwaggle/pi-waggle/protocol`, `@openwaggle/pi-waggle/renderers`, and `@openwaggle/pi-waggle/stop-policy`.
 - Package manifests declare explicit `sideEffects` metadata: `false` for code-only packages and `["./styles.css"]` for `@openwaggle/extension-react`.
@@ -71,17 +73,25 @@ The current agreed direction:
 - Each publishable package ships a concise hand-maintained README, and comprehensive package guidance lives on openwaggle.ai package docs.
 - Package docs live under `website/src/content/docs/packages/` with overview, Extension SDK, Extension React, Waggle core, and Pi Waggle pages; extension authoring guides link to those pages for install/API usage details.
 - User-facing package docs and package READMEs do not explain API snapshot tooling; snapshots remain internal validation artifacts.
-- Package publishing follows the Release Please model used by `ts-match`, with package-local changelogs, package-specific tags, API snapshots, tarball validation, smoke installs, npm trusted publishing/provenance, and npm staged publish approval before packages become public.
+- Package publishing follows the Release Please model used by `ts-match`, with one coordinated release PR, independent package versions, package-local changelogs, package-specific tags, API snapshots, strict tarball validation, consumer smoke installs, and direct npm Trusted Publishing with provenance.
+- Direct package release intent comes only from release-eligible Conventional Commits that touch `packages/<name>/**`; changes limited to the app, website, general docs, fixtures, or workflows do not publish npm packages.
+- Pull request titles retain Conventional Commit release intent for squash merges. Repository settings disable merge commits while retaining squash for one-intent PRs and rebase for mixed-intent PRs that need separate release impacts. Reverts use `revert(scope): ...` instead of generated revert subjects.
 - Package release tags use short package-name tags such as `extension-sdk-v0.1.0`, `extension-react-v0.1.0`, `waggle-core-v0.1.0`, and `pi-waggle-v0.1.0`, not scoped npm names.
 - Each package release gets its own GitHub Release, even when multiple packages are released from the same Release Please PR.
-- Real package staging/publishing runs only from Release Please-created release or tag events; manual workflow dispatch is dry-run validation only.
-- Local maintainer `npm publish` is not an allowed fallback; failed publishes should be fixed and rerun through trusted GitHub Actions.
-- Publish validation includes an early provenance/OIDC gate before staging: expected GitHub event, `id-token: write`, trusted-publishing identity, no npm token fallback, and unpublished package version.
+- Merging the Release Please PR is the explicit release gate; validation, tags, GitHub Releases, and npm publication are automatic afterward.
+- Real versions publish only from Release Please-created release events or exact-tag recovery dispatches. A recovery run validates one canonical tag and refuses to replace an existing npm version.
+- CI publishes the exact validated tarball with `npm publish`, `id-token: write`, and automatic provenance. It must not use `npm stage publish`, `NPM_TOKEN`, or `NODE_AUTH_TOKEN`.
+- `extension-sdk` and `waggle-core` publish before `extension-react` and `pi-waggle`, respectively.
+- A resumable one-time bootstrap may publish deprecated `0.0.0-bootstrap.0` placeholders under the non-default `bootstrap` dist-tag, then configure `npm trust` and package `mfa=publish`; this is not a real package release or local fallback.
+- The bootstrap command has read-only default behavior and requires `--execute` for external changes.
+- The GitHub `npm` environment has no npm secrets or required reviewers, permits `main` only, and is paired with an additive `main` ruleset requiring PRs and green CI while blocking force pushes and deletion. Bootstrap fails compatibility when repository merge modes drift, patches only the owned merge-mode fields, and verifies merge commits off with squash and rebase on.
+- Release Please-generated PR branches receive automatically dispatched CI without a PAT or GitHub App secret.
+- Bad versions are deprecated and followed by a corrected patch rather than overwritten or routinely unpublished.
 - The OpenWaggle desktop app release workflow remains separate from npm package publishing.
-- First public package publishing is blocked until the maintainer owns and configures the `@openwaggle` npm organization namespace; the packages should not be temporarily published under a personal scope.
+- First public package publishing uses the maintainer-owned `@openwaggle` npm organization namespace; the packages must not be published under a personal scope.
 - Packaged-app QA must prove project-local `.openwaggle/extensions/<extension-id>/` and global app-data `extensions/<extension-id>/` roots remain discoverable for user-authored and agent-authored packages, while development fixtures are not shipped as production content.
 
-The issue should add explicit package-publishing AC after the grilling session finishes so the final AC reflect the actual implementation plan.
+Issue #113 includes explicit package-publishing AC. Keep those criteria aligned with ADR-0008 and this specification as the release implementation evolves.
 
 ## Package Publishing Implementation Slices
 
@@ -89,7 +99,7 @@ Package publishing should be implemented as parallel-safe slices with one sequen
 
 1. Package extraction/build: create `packages/extension-sdk` and `packages/extension-react`; convert `packages/waggle-core` and `packages/pi-waggle` from private raw-TS workspace packages into built publishable packages.
 2. Validation: export smoke tests, tarball checks, API snapshots, import-boundary checks, and package-manager smoke installs.
-3. Release workflow: Release Please config, GitHub Actions, trusted publishing and staged-publish dry-run path, package tag conventions, and package GitHub Release behavior.
+3. Release workflow: Release Please config, path-scoped release intent, dependency-ordered direct Trusted Publishing, exact-tag recovery, bootstrap automation, repository protections, package tag conventions, and package GitHub Release behavior.
 4. Docs: package READMEs, website package docs, and issue #113 AC update.
 
 Slice 1 should start first because it defines package manifests and export maps. Slices 2 and 3 can begin once slice 1 defines the package manifests/exports. Slice 4 can start from the documented decisions, but examples must be checked against the final slice 1 exports before merge.
@@ -133,7 +143,7 @@ pnpm check
 pnpm test
 pnpm build
 pnpm website:build
-npx -y react-doctor@latest . --verbose --diff main
+npx -y react-doctor@latest . --verbose --scope changed --base main
 pnpm test:e2e:headless:quick e2e/extension-host.e2e.test.ts
 pnpm test:e2e:headless
 ```

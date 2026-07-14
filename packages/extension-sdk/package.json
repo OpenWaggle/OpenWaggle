@@ -1,9 +1,12 @@
 {
   "name": "@openwaggle/extension-sdk",
-  "version": "0.1.0",
-  "description": "Browser-safe OpenWaggle extension SDK types, constants, broker helpers, theme tokens, and federated-module context helpers.",
+  "version": "0.0.0",
+  "description": "Browser-safe OpenWaggle extension SDK schemas, types, broker helpers, theme tokens, and federated-module context helpers.",
   "type": "module",
   "license": "MIT",
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/OpenWaggle/OpenWaggle.git",
@@ -18,10 +21,14 @@
     "access": "public"
   },
   "sideEffects": false,
+  "dependencies": {
+    "effect": "3.21.2"
+  },
   "files": [
     "dist",
     "dist-cjs",
     "CHANGELOG.md",
+    "LICENSE",
     "README.md"
   ],
   "exports": {
@@ -50,6 +57,11 @@
       "import": "./dist/context.js",
       "require": "./dist-cjs/context.js"
     },
+    "./docs": {
+      "types": "./dist/docs.d.ts",
+      "import": "./dist/docs.js",
+      "require": "./dist-cjs/docs.js"
+    },
     "./json": {
       "types": "./dist/json.d.ts",
       "import": "./dist/json.js",
@@ -59,6 +71,11 @@
       "types": "./dist/manifest.d.ts",
       "import": "./dist/manifest.js",
       "require": "./dist-cjs/manifest.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "import": "./dist/runtime.js",
+      "require": "./dist-cjs/runtime.js"
     },
     "./theme": {
       "types": "./dist/theme.d.ts",

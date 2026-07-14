@@ -1,6 +1,13 @@
 import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js'
 import type { ExtensionInvokeScope, ExtensionStateSelector } from './core-types.js'
 
+export type {
+  ExtensionDocsDiscoverPayload,
+  ExtensionDocsDiscoverResult,
+  ExtensionDocsResolveTopicPayload,
+  ExtensionDocsResolveTopicResult,
+} from './docs.js'
+
 export interface ExtensionModelPrefs {
   readonly selectedModel: string
   readonly favoriteModels: readonly string[]
@@ -131,29 +138,4 @@ export interface ExtensionSettingsUpdateSettingResult {
   readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS
   readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTING
   readonly setting: ExtensionSettingsSelectedValue
-}
-
-export interface ExtensionDocsDiscoverPayload {
-  readonly projectPaths?: readonly string[]
-  readonly includeExtensions?: boolean
-}
-
-export interface ExtensionDocsResolveTopicPayload {
-  readonly topic: string
-}
-
-export interface ExtensionDocsDiscoverResult {
-  readonly extensionId: string
-  readonly contributionId: string
-  readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.DOCS
-  readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.DISCOVER_DOCS
-  readonly docs: unknown
-}
-
-export interface ExtensionDocsResolveTopicResult {
-  readonly extensionId: string
-  readonly contributionId: string
-  readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.DOCS
-  readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.RESOLVE_DOCS_TOPIC
-  readonly resolvedTopic: unknown
 }

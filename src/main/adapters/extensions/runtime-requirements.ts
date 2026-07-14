@@ -55,12 +55,8 @@ async function canAccessExecutable(filePath: string) {
 }
 
 async function isBinaryAvailable(binary: string) {
-  for (const candidate of executableCandidates(binary)) {
-    if (await canAccessExecutable(candidate)) {
-      return true
-    }
-  }
-  return false
+  const availability = await Promise.all(executableCandidates(binary).map(canAccessExecutable))
+  return availability.some(Boolean)
 }
 
 function missingRuntimeRequirementDiagnostic(
@@ -94,18 +90,27 @@ function diagnosePackageRuntimeRequirementCommands(input: DiagnoseRuntimeRequire
   })
 }
 
+async function diagnoseRuntimeRequirementBinaries(
+  manifest: OpenWaggleExtensionManifest,
+): Promise<readonly ExtensionDiagnostic[]> {
+  const results = await Promise.all(
+    (manifest.runtimeRequirements ?? []).map(async (requirement) => {
+      const binary = runtimeRequirementBinary(requirement)
+      if (binary === null || (await isBinaryAvailable(binary))) {
+        return null
+      }
+      return missingRuntimeRequirementDiagnostic(requirement, binary)
+    }),
+  )
+  return results.flatMap((diagnostic) => (diagnostic === null ? [] : [diagnostic]))
+}
+
 export async function diagnoseRuntimeRequirements(
   input: DiagnoseRuntimeRequirementsInput,
 ): Promise<readonly ExtensionDiagnostic[]> {
-  const diagnostics: ExtensionDiagnostic[] = []
-
-  for (const requirement of input.manifest.runtimeRequirements ?? []) {
-    const binary = runtimeRequirementBinary(requirement)
-    if (binary === null || (await isBinaryAvailable(binary))) {
-      continue
-    }
-    diagnostics.push(missingRuntimeRequirementDiagnostic(requirement, binary))
-  }
-
-  return [...diagnostics, ...(await diagnosePackageRuntimeRequirementCommands(input))]
+  const [binaryDiagnostics, commandDiagnostics] = await Promise.all([
+    diagnoseRuntimeRequirementBinaries(input.manifest),
+    diagnosePackageRuntimeRequirementCommands(input),
+  ])
+  return [...binaryDiagnostics, ...commandDiagnostics]
 }

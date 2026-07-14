@@ -174,13 +174,15 @@ function normalizedNetworkOrigins(origins: readonly string[] | undefined) {
   }
 
   const normalized: string[] = []
+  const seenOrigins = new Set<string>()
   for (const origin of origins) {
     const validation = isNetworkOrigin(origin)
     if (validation !== true) {
       throw new Error(`Extension frame network origin "${origin}" is invalid: ${validation}`)
     }
 
-    if (!normalized.includes(origin)) {
+    if (!seenOrigins.has(origin)) {
+      seenOrigins.add(origin)
       normalized.push(origin)
     }
   }

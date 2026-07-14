@@ -10,7 +10,7 @@ import type { SessionDetail } from '@shared/types/session'
 import type { ThinkingLevel } from '@shared/types/settings'
 import type { AgentTransportCustomEvent } from '@shared/types/stream'
 import type { WaggleConfig } from '@shared/types/waggle'
-import { useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useChatStore } from '@/features/chat/state/chat-store'
 import {
@@ -39,6 +39,29 @@ import { useOptimisticSteeredTurn } from './useOptimisticSteeredTurn'
 
 export type { AgentChatStatus, AgentCompactionStatus } from './useAgentChat.types'
 
+class StreamSignalVersionStore extends EventTarget {
+  private value = 0
+
+  get current() {
+    return this.value
+  }
+
+  set current(value: number) {
+    if (this.value === value) {
+      return
+    }
+    this.value = value
+    this.dispatchEvent(new Event('change'))
+  }
+
+  readonly getSnapshot = () => this.value
+
+  readonly subscribe = (listener: () => void) => {
+    this.addEventListener('change', listener)
+    return () => this.removeEventListener('change', listener)
+  }
+}
+
 function valueForSession<T extends readonly unknown[]>(
   valuesBySessionId: ReadonlyMap<SessionId, T>,
   sessionId: SessionId | null,
@@ -49,6 +72,22 @@ function valueForSession<T extends readonly unknown[]>(
   }
 
   return valuesBySessionId.get(sessionId) ?? empty
+}
+
+async function respondAgentInteraction(
+  interaction: AgentLoopInteraction,
+  response: AgentLoopInteractionResponse,
+) {
+  const result = await api.respondAgentInteraction({
+    sessionId: interaction.sessionId,
+    runId: interaction.runId,
+    interactionId: interaction.interactionId,
+    kind: interaction.kind,
+    response,
+  })
+  if (!result.ok) {
+    throw new Error(result.error.message)
+  }
 }
 
 export function useAgentChat(
@@ -85,38 +124,30 @@ export function useAgentChat(
   const [backgroundStreaming, setBackgroundStreaming] = useState(false)
   const [compactionStatus, setCompactionStatus] = useState<AgentCompactionStatus | null>(null)
   const messagesBySessionIdRef = useRef(messagesBySessionId)
-  messagesBySessionIdRef.current = messagesBySessionId
   const agentInteractionsBySessionIdRef = useRef(agentInteractionsBySessionId)
-  agentInteractionsBySessionIdRef.current = agentInteractionsBySessionId
   const agentCustomMessagesBySessionIdRef = useRef(agentCustomMessagesBySessionId)
-  agentCustomMessagesBySessionIdRef.current = agentCustomMessagesBySessionId
   const agentInteractionEventsBySessionIdRef = useRef(agentInteractionEventsBySessionId)
-  agentInteractionEventsBySessionIdRef.current = agentInteractionEventsBySessionId
   const messages = valueForSession(messagesBySessionId, sessionId, EMPTY_UI_MESSAGES)
   const agentInteractions = valueForSession(agentInteractionsBySessionId, sessionId, [])
   const agentCustomMessages = valueForSession(agentCustomMessagesBySessionId, sessionId, [])
   const agentInteractionEvents = valueForSession(agentInteractionEventsBySessionId, sessionId, [])
-  const isLoading =
-    status === 'submitted' ||
-    status === 'streaming' ||
-    status === 'compacting' ||
-    status === 'retrying' ||
-    backgroundStreaming
+  const isLoading = backgroundStreaming || (status !== 'ready' && status !== 'error')
   const isSessionIdle = !isLoading
 
   const currentSessionIdRef = useRef(sessionId)
-  currentSessionIdRef.current = sessionId
   const statusRef = useRef(status)
-  statusRef.current = status
   const backgroundStreamingRef = useRef(backgroundStreaming)
-  backgroundStreamingRef.current = backgroundStreaming
   const messagesRef = useRef(messages)
-  messagesRef.current = messages
   const foregroundStreamActiveRef = useRef(false)
   const foregroundSessionIdRef = useRef<SessionId | null>(null)
   const terminalRunErrorRef = useRef<Error | undefined>(undefined)
   const backgroundReconnectSessionIdRef = useRef<SessionId | null>(null)
-  const streamSignalVersionRef = useRef(0)
+  const [streamSignalVersionRef] = useState(() => new StreamSignalVersionStore())
+  const streamSignalVersion = useSyncExternalStore(
+    streamSignalVersionRef.subscribe,
+    streamSignalVersionRef.getSnapshot,
+    streamSignalVersionRef.getSnapshot,
+  )
   const deferredRefreshSessionIdRef = useRef<SessionId | null>(null)
   const deferredSnapshotRefreshCountRef = useRef(0)
   const lastHydratedSessionIdRef = useRef<SessionId | null>(null)
@@ -124,6 +155,26 @@ export function useAgentChat(
   const lastHydratedOptimisticKeyRef = useRef<string | null>(null)
   const pendingRunWaiterRef = useRef<PendingRunWaiter | null>(null)
   const agentRunActionsRef = useRef<AgentRunActions | null>(null)
+
+  useLayoutEffect(() => {
+    messagesBySessionIdRef.current = messagesBySessionId
+    agentInteractionsBySessionIdRef.current = agentInteractionsBySessionId
+    agentCustomMessagesBySessionIdRef.current = agentCustomMessagesBySessionId
+    agentInteractionEventsBySessionIdRef.current = agentInteractionEventsBySessionId
+    currentSessionIdRef.current = sessionId
+    statusRef.current = status
+    backgroundStreamingRef.current = backgroundStreaming
+    messagesRef.current = messages
+  }, [
+    messagesBySessionId,
+    agentInteractionsBySessionId,
+    agentCustomMessagesBySessionId,
+    agentInteractionEventsBySessionId,
+    sessionId,
+    status,
+    backgroundStreaming,
+    messages,
+  ])
 
   const { visibleMessages, previewSteeredUserTurn } = useOptimisticSteeredTurn(
     messages,
@@ -158,38 +209,33 @@ export function useAgentChat(
     addOptimisticUserMessage,
     upsertSession,
   })
-  agentRunActionsRef.current = runControls.runActions
+  useLayoutEffect(() => {
+    agentRunActionsRef.current = runControls.runActions
+  }, [runControls.runActions])
 
-  const hydrationContextRef = useRef<SessionHydrationContext | null>(null)
-  if (!hydrationContextRef.current) {
-    hydrationContextRef.current = {
-      currentSessionIdRef,
-      foregroundStreamActiveRef,
-      foregroundSessionIdRef,
-      pendingRunWaiterRef,
-      terminalRunErrorRef,
-      streamSignalVersionRef,
-      lastHydratedSessionIdRef,
-      lastHydratedSnapshotKeyRef,
-      lastHydratedOptimisticKeyRef,
-      backgroundStreamingRef,
-      backgroundReconnectSessionIdRef,
-      messagesBySessionIdRef,
-      setMessagesBySessionId,
-      setRunRenderMessages,
-      setBackgroundStreaming,
-      setCompactionStatus,
-      setStatus,
-      setError,
-    }
-  }
-  const hydrationContext = hydrationContextRef.current
+  const [hydrationContext] = useState<SessionHydrationContext>(() => ({
+    currentSessionIdRef,
+    foregroundStreamActiveRef,
+    foregroundSessionIdRef,
+    pendingRunWaiterRef,
+    terminalRunErrorRef,
+    streamSignalVersionRef,
+    lastHydratedSessionIdRef,
+    lastHydratedSnapshotKeyRef,
+    lastHydratedOptimisticKeyRef,
+    backgroundStreamingRef,
+    backgroundReconnectSessionIdRef,
+    messagesBySessionIdRef,
+    setMessagesBySessionId,
+    setRunRenderMessages,
+    setBackgroundStreaming,
+    setCompactionStatus,
+    setStatus,
+    setError,
+  }))
 
-  const streamEventContextRef = useRef<Omit<AgentStreamEventContext, 'subscribedSessionId'> | null>(
-    null,
-  )
-  if (!streamEventContextRef.current) {
-    streamEventContextRef.current = {
+  const [streamEventContext] = useState<Omit<AgentStreamEventContext, 'subscribedSessionId'>>(
+    () => ({
       currentSessionIdRef,
       foregroundStreamActiveRef,
       backgroundStreamingRef,
@@ -209,29 +255,24 @@ export function useAgentChat(
       setStatus,
       setCompactionStatus,
       setBackgroundStreaming,
-    }
-  }
-  const streamEventContext = streamEventContextRef.current
+    }),
+  )
 
-  const runCompletionContextRef = useRef<RunCompletionEffectContext | null>(null)
-  if (!runCompletionContextRef.current) {
-    runCompletionContextRef.current = {
-      currentSessionIdRef,
-      foregroundStreamActiveRef,
-      foregroundSessionIdRef,
-      terminalRunErrorRef,
-      backgroundStreamingRef,
-      backgroundReconnectSessionIdRef,
-      deferredRefreshSessionIdRef,
-      deferredSnapshotRefreshCountRef,
-      statusRef,
-      setBackgroundStreaming,
-      setCompactionStatus,
-      setStatus,
-      agentRunActionsRef,
-    }
-  }
-  const runCompletionContext = runCompletionContextRef.current
+  const [runCompletionContext] = useState<RunCompletionEffectContext>(() => ({
+    currentSessionIdRef,
+    foregroundStreamActiveRef,
+    foregroundSessionIdRef,
+    terminalRunErrorRef,
+    backgroundStreamingRef,
+    backgroundReconnectSessionIdRef,
+    deferredRefreshSessionIdRef,
+    deferredSnapshotRefreshCountRef,
+    statusRef,
+    setBackgroundStreaming,
+    setCompactionStatus,
+    setStatus,
+    agentRunActionsRef,
+  }))
 
   useSessionHydrationEffects({
     sessionId,
@@ -248,22 +289,6 @@ export function useAgentChat(
     streamEventContext,
     runCompletionContext,
   })
-
-  async function respondAgentInteraction(
-    interaction: AgentLoopInteraction,
-    response: AgentLoopInteractionResponse,
-  ) {
-    const result = await api.respondAgentInteraction({
-      sessionId: interaction.sessionId,
-      runId: interaction.runId,
-      interactionId: interaction.interactionId,
-      kind: interaction.kind,
-      response,
-    })
-    if (!result.ok) {
-      throw new Error(result.error.message)
-    }
-  }
 
   return {
     messages: visibleMessages,
@@ -283,7 +308,7 @@ export function useAgentChat(
     withDeferredSnapshotRefresh: runControls.withDeferredSnapshotRefresh,
     previewSteeredUserTurn,
     backgroundStreaming,
-    streamSignalVersion: streamSignalVersionRef.current,
+    streamSignalVersion,
     compactionStatus,
     agentInteractions,
     agentCustomMessages,

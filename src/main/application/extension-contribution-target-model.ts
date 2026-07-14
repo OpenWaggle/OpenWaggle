@@ -15,10 +15,12 @@ interface ResolveContributionTargetInput {
 
 function uniqueTrimmedValues(values: readonly string[]) {
   const normalizedValues: string[] = []
+  const seenValues = new Set<string>()
 
   for (const value of values) {
     const trimmed = value.trim()
-    if (trimmed.length > 0 && !normalizedValues.includes(trimmed)) {
+    if (trimmed.length > 0 && !seenValues.has(trimmed)) {
+      seenValues.add(trimmed)
       normalizedValues.push(trimmed)
     }
   }
@@ -78,8 +80,9 @@ function targetProjectPaths(input: {
     return input.eligibilityProjectPaths
   }
 
+  const targetProjectPathSet = new Set(targetProjectPaths)
   const projectPaths = input.eligibilityProjectPaths.filter((projectPath) =>
-    targetProjectPaths.includes(projectPath),
+    targetProjectPathSet.has(projectPath),
   )
 
   return projectPaths.length > 0 ? projectPaths : null

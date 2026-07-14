@@ -95,23 +95,22 @@ async function collectMarkdownEntries(
   parent = '',
 ): Promise<string[]> {
   const directoryEntries = await fs.readdir(directory, { withFileTypes: true });
-  const markdownEntries: string[] = [];
-
-  for (const directoryEntry of directoryEntries) {
+  const entryGroups = await Promise.all(directoryEntries.map(async (directoryEntry) => {
     const relativePath = parent ? path.join(parent, directoryEntry.name) : directoryEntry.name;
     const absolutePath = path.join(directory, directoryEntry.name);
 
     if (directoryEntry.isDirectory()) {
-      markdownEntries.push(...(await collectMarkdownEntries(fs, path, absolutePath, relativePath)));
-      continue;
+      return collectMarkdownEntries(fs, path, absolutePath, relativePath);
     }
 
     if (/\.(md|mdx)$/u.test(directoryEntry.name)) {
-      markdownEntries.push(relativePath);
+      return [relativePath];
     }
-  }
 
-  return markdownEntries;
+    return [];
+  }));
+
+  return entryGroups.flat();
 }
 
 function docsMarkdownLoader(): Loader {
@@ -128,29 +127,35 @@ function docsMarkdownLoader(): Loader {
 
       store.clear();
 
-      for (const entry of entries.sort()) {
+      const loadedEntries = await Promise.all(entries.sort().map(async (entry) => {
         const filePath = path.join(docsPath, entry);
         const source = await fs.readFile(filePath, 'utf8');
         const parsed = parseMarkdownFrontmatter(source);
         const id = entryIdFromPath(entry);
         const normalizedFilePath = toPosixPath(path.relative(rootPath, filePath));
-        const data = await parseData({
-          id,
-          data: parsed.data,
-          filePath: normalizedFilePath,
-        });
-        const rendered = await renderMarkdown(parsed.content, {
-          fileURL: url.pathToFileURL(filePath),
-        });
+        const [data, rendered] = await Promise.all([
+          parseData({
+            id,
+            data: parsed.data,
+            filePath: normalizedFilePath,
+          }),
+          renderMarkdown(parsed.content, {
+            fileURL: url.pathToFileURL(filePath),
+          }),
+        ]);
 
-        store.set({
+        return {
           id,
           data,
           body: parsed.content,
           filePath: normalizedFilePath,
           digest: generateDigest(source),
           rendered,
-        });
+        };
+      }));
+
+      for (const entry of loadedEntries) {
+        store.set(entry);
       }
     },
   };

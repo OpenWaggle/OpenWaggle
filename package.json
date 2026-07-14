@@ -47,6 +47,9 @@
     "api:snapshot:check": "pnpm build:packages && tsx scripts/package-api-snapshots.ts --check",
     "api:snapshot:update": "pnpm build:packages && tsx scripts/package-api-snapshots.ts --update",
     "api:snapshot:update:dry-run": "pnpm build:packages && tsx scripts/package-api-snapshots.ts --update --dry-run",
+    "check:commits": "tsx scripts/check-conventional-commits.ts",
+    "package-release:bootstrap": "tsx scripts/package-release-bootstrap.ts",
+    "package-release:publish": "node scripts/package-release-publish.ts",
     "package-release:validate": "tsx scripts/package-release-validator.ts",
     "check:fast": "pnpm typecheck && pnpm lint",
     "check": "pnpm typecheck && pnpm lint && pnpm package-release:validate && pnpm api:snapshot:check && pnpm package:smoke",
@@ -66,7 +69,7 @@
   },
   "dependencies": {
     "@diegogbrisa/ts-match": "1.6.1",
-    "@earendil-works/pi-coding-agent": "0.78.1",
+    "@earendil-works/pi-coding-agent": "0.80.6",
     "@lexical/react": "0.45.0",
     "@lobehub/icons-static-svg": "1.91.0",
     "@openwaggle/extension-sdk": "workspace:*",
@@ -155,6 +158,7 @@
     "vite": "8.0.16",
     "vite-plugin-svgr": "5.2.0",
     "vitest": "4.1.8",
+    "yaml": "2.9.0",
     "zustand": "5.0.14"
   }
 }

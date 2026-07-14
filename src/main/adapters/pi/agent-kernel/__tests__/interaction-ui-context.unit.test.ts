@@ -1,3 +1,4 @@
+import { getEventListeners } from 'node:events'
 import type { ExtensionUIContext } from '@earendil-works/pi-coding-agent'
 import { OPENWAGGLE_AGENT_LOOP } from '@shared/constants/agent-loop'
 import { SessionId } from '@shared/types/brand'
@@ -12,13 +13,13 @@ import { createPiInteractionUiContext } from '../interaction-ui-context'
 
 const sessionId = SessionId('pi-ui-session')
 
-function createContext() {
+function createContext(signal = new AbortController().signal) {
   const emitted: AgentTransportEvent[] = []
   const ui = createPiInteractionUiContext(
     {
       sessionId,
       runId: 'run-pi-ui',
-      signal: new AbortController().signal,
+      signal,
       onEvent: (event) => emitted.push(event),
     },
     fromPartial<ExtensionUIContext>({}),
@@ -102,5 +103,31 @@ describe('Pi interaction UI context', () => {
       status: 'resolved',
       response: { kind: 'custom', value: { approved: true } },
     })
+  })
+
+  it('releases parent abort listeners after an interaction settles', async () => {
+    const runController = new AbortController()
+    const interactionController = new AbortController()
+    const { emitted, ui } = createContext(runController.signal)
+
+    const confirmed = ui.confirm('Proceed?', 'Run the extension tool?', {
+      signal: interactionController.signal,
+    })
+    const request = emitted[0]
+    if (request?.type !== 'agent_interaction_request') {
+      throw new Error('Expected pending interaction request')
+    }
+
+    submitAgentLoopInteractionResponse({
+      sessionId,
+      runId: 'run-pi-ui',
+      interactionId: request.interaction.interactionId,
+      kind: 'confirm',
+      response: { kind: 'confirm', accepted: true },
+    })
+
+    await expect(confirmed).resolves.toBe(true)
+    expect(getEventListeners(runController.signal, 'abort')).toHaveLength(0)
+    expect(getEventListeners(interactionController.signal, 'abort')).toHaveLength(0)
   })
 })
