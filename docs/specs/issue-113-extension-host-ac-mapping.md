@@ -84,7 +84,7 @@ The current agreed direction:
 - `extension-sdk` and `waggle-core` publish before `extension-react` and `pi-waggle`, respectively.
 - A resumable one-time bootstrap may publish deprecated `0.0.0-bootstrap.0` placeholders under the non-default `bootstrap` dist-tag, then configure `npm trust` and package `mfa=publish`; this is not a real package release or local fallback.
 - The bootstrap command has read-only default behavior and requires `--execute` for external changes.
-- The GitHub `npm` environment has no npm secrets or required reviewers, permits `main` only, and is paired with an additive `main` ruleset requiring PRs and green CI while blocking force pushes and deletion. Bootstrap fails compatibility when repository merge modes drift, patches only the owned merge-mode fields, and verifies merge commits off with squash and rebase on.
+- The GitHub `npm` environment has no npm secrets or required reviewers, permits `main` only, and is paired with an additive `main` ruleset requiring PRs and green CI while blocking force pushes and deletion. The ruleset grants only the administrator emergency bypass; automated app version commits use a separately validated release PR instead of bypassing protection. Bootstrap fails compatibility when repository merge modes drift, patches only the owned merge-mode fields, and verifies merge commits off with squash and rebase on.
 - Release Please-generated PR branches receive automatically dispatched CI without a PAT or GitHub App secret.
 - Bad versions are deprecated and followed by a corrected patch rather than overwritten or routinely unpublished.
 - The OpenWaggle desktop app release workflow remains separate from npm package publishing.
