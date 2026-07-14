@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   createNativeRebuildCacheKey,
+  commandInvocationForPlatform,
   isNativeRebuildForceEnabled,
   isNativeRebuildMarkerFresh,
   nativeArtifactPackagesForMode,
-  nativeLoadProbeScriptForMode,
+  nativeLoadProbeCommandForMode,
   parseNativeRebuildMarker,
   parseRebuildOptions,
 } from '../rebuild-native-deps'
@@ -70,11 +71,38 @@ describe('native dependency rebuild cache', () => {
     ])
   })
 
-  it('probes native modules by loading the actual ABI-sensitive bindings', () => {
-    expect(nativeLoadProbeScriptForMode('node')).toContain("new Database(':memory:').close()")
-    expect(nativeLoadProbeScriptForMode('electron')).toContain("new Database(':memory:').close()")
-    expect(nativeLoadProbeScriptForMode('electron')).toContain("'node-pty'")
-    expect(nativeLoadProbeScriptForMode('electron')).toContain("'sharp'")
+  it('runs native probes from TypeScript without sending source through a shell', () => {
+    expect(
+      nativeLoadProbeCommandForMode('node', 'C:\\workspace', 'win32', 'C:\\node.exe'),
+    ).toMatchObject({
+      command: 'C:\\node.exe',
+      args: ['--import', 'tsx', 'C:\\workspace\\scripts\\native-load-probe.ts', 'node'],
+    })
+    expect(
+      nativeLoadProbeCommandForMode('electron', 'C:\\workspace', 'win32', 'C:\\node.exe'),
+    ).toMatchObject({
+      command: 'C:\\workspace\\node_modules\\electron\\dist\\electron.exe',
+      args: ['--import', 'tsx', 'C:\\workspace\\scripts\\native-load-probe.ts', 'electron'],
+      environment: expect.objectContaining({ ELECTRON_RUN_AS_NODE: '1' }),
+    })
+  })
+
+  it('invokes Windows command wrappers explicitly without enabling spawn shell parsing', () => {
+    expect(
+      commandInvocationForPlatform(
+        'pnpm',
+        ['rebuild', 'better-sqlite3'],
+        'win32',
+        'C:\\Windows\\System32\\cmd.exe',
+      ),
+    ).toEqual({
+      command: 'C:\\Windows\\System32\\cmd.exe',
+      args: ['/d', '/c', 'pnpm', 'rebuild', 'better-sqlite3'],
+    })
+    expect(commandInvocationForPlatform('pnpm', ['rebuild'], 'linux')).toEqual({
+      command: 'pnpm',
+      args: ['rebuild'],
+    })
   })
 
   it('accepts only well-formed cache markers', () => {

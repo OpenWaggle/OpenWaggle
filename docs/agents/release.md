@@ -10,7 +10,7 @@ Release automation is GitHub-based:
 
 - CI runs typecheck, lint, and tests on PRs and pushes to `main`.
 - Release workflow derives version bumps from Conventional Commit-style release-eligible commits.
-- Release workflow opens a generated version PR, dispatches and waits for exact-head CI, and merges through normal `main` protection. Strict-base drift updates the branch and repeats CI before another merge attempt. The same run verifies the resulting protected merge commit, creates only its tag, then builds platform artifacts, publishes a GitHub Release, and attaches checksums. Reruns resume only compatible existing branch, PR, merge, and tag state; conflicting durable state fails closed.
+- Release workflow opens a generated version PR, reruns GitHub's approval-required PR-associated CI for the exact head, and merges through normal `main` protection. Strict-base drift updates the branch and repeats CI before another merge attempt. The same run verifies the resulting protected merge commit, creates only its tag, then builds platform artifacts, publishes a GitHub Release, and attaches checksums. Reruns resume only compatible existing branch, PR, merge, and tag state; conflicting durable state fails closed.
 
 The `0.3.0-alpha.44` recovery is intentionally exceptional: an earlier blocked direct push left that tag pointing to an unreachable commit. The reconciliation commit records `0.3.0-alpha.44` on `main` with a non-version `chore(release):` subject so no tag or build runs. Preserve the orphan tag; the next generated version PR must advance to `0.3.0-alpha.45`.
 
@@ -49,6 +49,7 @@ OpenWaggle npm packages use Release Please manifest mode through `release-please
 
 - This workflow is separate from the desktop app release workflow. Package versions use path-scoped Conventional Commits; app versions use app release-intent files.
 - Release Please owns one coordinated package release PR, package-local `CHANGELOG.md` files, package-specific GitHub Releases, and short component tags such as `extension-sdk-v0.1.0`.
+- Package release automation validates the exact generated PR head. It reruns a PR-associated approval-required CI run when GitHub creates one; when a `GITHUB_TOKEN`-created PR has no PR run, it dispatches the same exact-head CI workflow as a bounded fallback. Running and already-successful exact-head runs are reused.
 - Only release-eligible commits that touch `packages/<name>/**` directly release that package. Changes limited to the app, website, general docs, fixtures, or workflows do not publish npm packages.
 - Pull request titles must be Conventional Commit subjects so squash merges retain package release intent. Repository policy disables merge commits and preserves squash and rebase: squash a one-intent PR, and rebase a mixed-intent PR when separate commits carry distinct release impacts. Reverts use `revert(scope): ...` rather than generated `Revert "..."` subjects.
 - `@openwaggle/extension-react` is dependency-bumped when `@openwaggle/extension-sdk` changes, and `@openwaggle/pi-waggle` is dependency-bumped when `@openwaggle/waggle-core` changes, via the Release Please `node-workspace` plugin.

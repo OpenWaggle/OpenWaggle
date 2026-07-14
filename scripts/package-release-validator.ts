@@ -190,7 +190,7 @@ function validateWorkflowConsumerSmoke(workflowRoot: unknown, workflowText: stri
   const exactCommands = [
     ['npm install --global npm@11.18.0', `${WORKFLOW_PATH} release-qa must pin npm 11.18.0.`], ['corepack install --global yarn@4.17.1', `${WORKFLOW_PATH} release-qa must install Yarn 4.17.1.`],
     ['test "$(npm --version)" = "11.18.0"', `${WORKFLOW_PATH} release-qa must verify npm 11.18.0 before smoke testing.`], ['test "$(pnpm --version)" = "11.6.0"', `${WORKFLOW_PATH} release-qa must verify pnpm 11.6.0 before smoke testing.`],
-    ['test "$(yarn --version)" = "4.17.1"', `${WORKFLOW_PATH} release-qa must verify Yarn 4.17.1 before smoke testing.`], ['test "$(bun --version)" = "1.3.14"', `${WORKFLOW_PATH} release-qa must verify Bun 1.3.14 before smoke testing.`],
+    ['test "$(cd "$RUNNER_TEMP" && yarn --version)" = "4.17.1"', `${WORKFLOW_PATH} release-qa must verify Yarn 4.17.1 outside the pnpm workspace before smoke testing.`], ['test "$(bun --version)" = "1.3.14"', `${WORKFLOW_PATH} release-qa must verify Bun 1.3.14 before smoke testing.`],
     ['pnpm build:packages && pnpm package:smoke', `${WORKFLOW_PATH} release-qa must smoke exact packed consumers on every Node matrix entry.`],
   ] as const
   for (const [command, message] of exactCommands) addViolation(!runsExactCommand(job, command), message, violations)
@@ -200,6 +200,7 @@ function validateWorkflowConsumerSmoke(workflowRoot: unknown, workflowText: stri
   addViolation(!browserInstall, `${WORKFLOW_PATH} release-qa must install Chromium with pinned project Playwright tooling.`, violations)
   const browserSmoke = jobHasDedicatedExactRunStepWithEnv(workflowRoot, 'release-qa', 'pnpm build:packages && pnpm package:smoke', 'OPENWAGGLE_PACKAGE_BROWSER_SMOKE', '1')
   addViolation(!browserSmoke, `${WORKFLOW_PATH} release-qa must run browser-enabled package smoke on every Node matrix entry.`, violations)
+  addViolation(!job.includes("OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun'"), `${WORKFLOW_PATH} release-qa must require npm, pnpm, Yarn, and Bun package consumers.`, violations)
 }
 
 function validateWorkflowPathsAndDispatch(workflowText: string, violations: string[]) {
@@ -208,10 +209,13 @@ function validateWorkflowPathsAndDispatch(workflowText: string, violations: stri
     const prefix = `steps.release.outputs['${expected.path}--`
     addViolation(!['release_created', 'tag_name', 'version', 'sha'].every((suffix) => workflowText.includes(`${prefix}${suffix}']`)), `${WORKFLOW_PATH} must use Release Please tag/version/SHA outputs for ${expected.path}.`, violations)
   }
-  addViolation(!workflowText.includes('actions/workflows/ci.yml/dispatches'), `${WORKFLOW_PATH} must dispatch ci.yml for Release Please PRs.`, violations)
-  addViolation(!(workflowText.includes('--arg sha "$HEAD_SHA"') && workflowText.includes('inputs: {head_sha: $sha}')), `${WORKFLOW_PATH} must dispatch CI with the exact release PR head SHA.`, violations)
-  addViolation(!workflowText.includes('--arg ref "$HEAD_REF"'), `${WORKFLOW_PATH} must dispatch CI against the exact release PR head ref.`, violations)
-  addViolation(!workflowText.includes('actions: write') || !workflowText.includes('github.token'), `${WORKFLOW_PATH} must dispatch CI with the scoped GITHUB_TOKEN.`, violations)
+  addViolation(!workflowText.includes('event=pull_request&branch=${HEAD_REF}'), `${WORKFLOW_PATH} must find PR-associated ci.yml runs for Release Please PRs.`, violations)
+  addViolation(!(workflowText.includes('--arg sha "$HEAD_SHA"') && workflowText.includes('.head_sha == $sha and .event == "pull_request"')), `${WORKFLOW_PATH} must select PR-associated CI by the exact release PR head SHA.`, violations)
+  addViolation(!workflowText.includes('actions/workflows/ci.yml/dispatches'), `${WORKFLOW_PATH} must fall back to dispatching ci.yml for Release Please PRs.`, violations)
+  addViolation(!workflowText.includes('inputs: {head_sha: $sha}'), `${WORKFLOW_PATH} must dispatch fallback CI with the exact release PR head SHA.`, violations)
+  addViolation(!workflowText.includes('gh run rerun "$RUN_ID"') || !workflowText.includes('gh run watch "$RUN_ID" --exit-status'), `${WORKFLOW_PATH} must rerun and wait for approval-required Release Please PR CI.`, violations)
+  addViolation(!(workflowText.includes('RUN_CONCLUSION" = "action_required"') && workflowText.includes('RUN_STATUS" != "completed"') && workflowText.includes('FINAL_CONCLUSION" = "success"')), `${WORKFLOW_PATH} must safely rerun, watch, or accept exact-head release PR CI based on its current state.`, violations)
+  addViolation(!workflowText.includes('actions: write') || !workflowText.includes('github.token'), `${WORKFLOW_PATH} must rerun CI with the scoped GITHUB_TOKEN.`, violations)
 }
 
 function validatePublicationJob(workflowText: string, jobName: string, violations: string[]) {

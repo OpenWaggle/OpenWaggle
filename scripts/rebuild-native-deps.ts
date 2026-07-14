@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { dirname, join } from 'node:path'
+import { dirname, join, posix, win32 } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   removeElectronRebuildMetadata,
@@ -32,10 +32,7 @@ const MODE_ARG_INDEX = 2
 const FORCE_FLAG_START_INDEX = 3
 const FORCE_REBUILD_FLAG = '--force'
 const SUPPRESS_DEPENDENCY_DEPRECATIONS_OPTION = '--no-deprecation'
-const BETTER_SQLITE_LOAD_PROBE =
-  "const Database = require('better-sqlite3'); new Database(':memory:').close()"
-const ELECTRON_NATIVE_LOAD_PROBE =
-  `${BETTER_SQLITE_LOAD_PROBE}; for (const packageName of ['node-pty', 'sharp']) require(packageName)`
+const WINDOWS_COMMAND_PROCESSOR = 'cmd.exe'
 const NATIVE_REBUILD_CACHE_PATHS = {
   projectRoot: PROJECT_ROOT,
   electronPackageJsonPath: join(PROJECT_ROOT, 'node_modules', 'electron', 'package.json'),
@@ -49,12 +46,33 @@ type RebuildOptions = {
   readonly force: boolean
 }
 
+type CommandInvocation = {
+  readonly command: string
+  readonly args: readonly string[]
+}
+
+export function commandInvocationForPlatform(
+  command: string,
+  args: readonly string[],
+  platform: NodeJS.Platform = process.platform,
+  windowsCommandProcessor: string | undefined = process.env['ComSpec'],
+): CommandInvocation {
+  if (platform !== 'win32' || command !== 'pnpm') {
+    return { command, args }
+  }
+
+  return {
+    command: windowsCommandProcessor ?? WINDOWS_COMMAND_PROCESSOR,
+    args: ['/d', '/c', command, ...args],
+  }
+}
+
 function runCommand(command: string, args: readonly string[], extraEnvironment: NodeJS.ProcessEnv = {}) {
   return new Promise<void>((resolve, reject) => {
-    const child = spawn(command, args, {
+    const invocation = commandInvocationForPlatform(command, args)
+    const child = spawn(invocation.command, invocation.args, {
       cwd: PROJECT_ROOT,
       stdio: 'inherit',
-      shell: process.platform === 'win32',
       env: { ...process.env, ...extraEnvironment },
     })
 
@@ -75,10 +93,10 @@ function commandSucceeds(
   extraEnvironment: NodeJS.ProcessEnv = {},
 ) {
   return new Promise<boolean>((resolve) => {
-    const child = spawn(command, args, {
+    const invocation = commandInvocationForPlatform(command, args)
+    const child = spawn(invocation.command, invocation.args, {
       cwd: PROJECT_ROOT,
       stdio: 'ignore',
-      shell: process.platform === 'win32',
       env: { ...process.env, ...extraEnvironment },
     })
 
@@ -133,31 +151,58 @@ export function parseRebuildOptions(
   return { mode, force: isNativeRebuildForceEnabled(flags, environment) }
 }
 
-export function nativeLoadProbeScriptForMode(mode: RebuildMode) {
-  return mode === 'node' ? BETTER_SQLITE_LOAD_PROBE : ELECTRON_NATIVE_LOAD_PROBE
+function electronExecutablePath(projectRoot: string, platform: NodeJS.Platform) {
+  const path = platform === 'win32' ? win32 : posix
+  if (platform === 'darwin') {
+    return path.join(
+      projectRoot,
+      'node_modules',
+      'electron',
+      'dist',
+      'Electron.app',
+      'Contents',
+      'MacOS',
+      'Electron',
+    )
+  }
+
+  return path.join(
+    projectRoot,
+    'node_modules',
+    'electron',
+    'dist',
+    platform === 'win32' ? 'electron.exe' : 'electron',
+  )
 }
 
-function nativeLoadProbeCommand(mode: RebuildMode) {
+export function nativeLoadProbeCommandForMode(
+  mode: RebuildMode,
+  projectRoot: string = PROJECT_ROOT,
+  platform: NodeJS.Platform = process.platform,
+  nodeExecutable: string = process.execPath,
+) {
+  const path = platform === 'win32' ? win32 : posix
+  const probeScriptPath = path.join(projectRoot, 'scripts', 'native-load-probe.ts')
   return mode === 'node'
     ? {
-        command: process.execPath,
-        args: ['-e', nativeLoadProbeScriptForMode(mode)],
+        command: nodeExecutable,
+        args: ['--import', 'tsx', probeScriptPath, mode],
         environment: suppressDependencyDeprecationWarnings(),
       }
     : {
-        command: 'pnpm',
-        args: ['exec', 'electron', '-e', nativeLoadProbeScriptForMode(mode)],
+        command: electronExecutablePath(projectRoot, platform),
+        args: ['--import', 'tsx', probeScriptPath, mode],
         environment: suppressDependencyDeprecationWarnings({ ELECTRON_RUN_AS_NODE: '1' }),
       }
 }
 
 async function nativeLoadProbeSucceeds(mode: RebuildMode) {
-  const probe = nativeLoadProbeCommand(mode)
+  const probe = nativeLoadProbeCommandForMode(mode)
   return commandSucceeds(probe.command, probe.args, probe.environment)
 }
 
 async function assertNativeLoadProbe(mode: RebuildMode) {
-  const probe = nativeLoadProbeCommand(mode)
+  const probe = nativeLoadProbeCommandForMode(mode)
   await runCommand(probe.command, probe.args, probe.environment)
 }
 

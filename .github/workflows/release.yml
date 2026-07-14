@@ -253,18 +253,39 @@ jobs:
               test "$(git rev-parse "origin/${RELEASE_BRANCH}")" = "$HEAD_SHA"
               verify_version_only_tree "origin/main" "origin/${RELEASE_BRANCH}"
 
-              gh workflow run ci.yml --ref "$RELEASE_BRANCH" -f "head_sha=${HEAD_SHA}"
               RUN_ID=""
               for RUN_ATTEMPT in $(seq 1 60); do
-                RUNS=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?event=workflow_dispatch&branch=${RELEASE_BRANCH}&per_page=20")
+                RUNS=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?event=pull_request&branch=${RELEASE_BRANCH}&per_page=20")
                 if RUN_ID=$(jq -er --arg sha "$HEAD_SHA" \
-                  '.workflow_runs | map(select(.head_sha == $sha)) | first | .id' <<<"$RUNS"); then
+                  '.workflow_runs | map(select(.head_sha == $sha and .event == "pull_request")) | first | .id' <<<"$RUNS"); then
                   break
                 fi
-                echo "Waiting for exact-head CI run (${RUN_ATTEMPT}/60)."
+                echo "Waiting for PR-associated exact-head CI run (${RUN_ATTEMPT}/60)."
                 sleep 5
               done
               test -n "$RUN_ID"
+
+              RUN_DETAILS=$(gh run view "$RUN_ID" --json attempt,conclusion,event,headSha,status)
+              test "$(jq -er '.event' <<<"$RUN_DETAILS")" = "pull_request"
+              test "$(jq -er '.headSha' <<<"$RUN_DETAILS")" = "$HEAD_SHA"
+              RUN_STATUS=$(jq -er '.status' <<<"$RUN_DETAILS")
+              RUN_CONCLUSION=$(jq -r '.conclusion // ""' <<<"$RUN_DETAILS")
+              if [ "$RUN_STATUS" = "completed" ] && [ "$RUN_CONCLUSION" = "action_required" ]; then
+                PREVIOUS_ATTEMPT=$(jq -er '.attempt' <<<"$RUN_DETAILS")
+                gh run rerun "$RUN_ID"
+                for RERUN_ATTEMPT in $(seq 1 30); do
+                  CURRENT_ATTEMPT=$(gh run view "$RUN_ID" --json attempt --jq '.attempt')
+                  if [ "$CURRENT_ATTEMPT" -gt "$PREVIOUS_ATTEMPT" ]; then
+                    break
+                  fi
+                  echo "Waiting for PR-associated CI rerun (${RERUN_ATTEMPT}/30)."
+                  sleep 2
+                done
+                test "$CURRENT_ATTEMPT" -gt "$PREVIOUS_ATTEMPT"
+              elif [ "$RUN_STATUS" = "completed" ] && [ "$RUN_CONCLUSION" != "success" ]; then
+                echo "PR-associated CI is in terminal state: ${RUN_CONCLUSION}."
+                exit 1
+              fi
               gh run watch "$RUN_ID" --exit-status
 
               if gh pr merge "$PR_URL" \

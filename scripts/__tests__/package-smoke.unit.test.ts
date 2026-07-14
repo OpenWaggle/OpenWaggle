@@ -10,9 +10,40 @@ import {
   parsePnpmPackTarballPath,
   supportsPackageSmokeNodeVersion,
 } from '../package-smoke-assertions'
-import { createSmokePackageJson, packageManagerInstallArgs } from '../package-smoke'
+import {
+  createSmokePackageJson,
+  packageManagerInstallArgs,
+} from '../package-smoke'
+import {
+  assertRequiredPackageManagers,
+  availablePackageManagers,
+} from '../package-smoke-package-managers'
 
 describe('package smoke tarball assertions', () => {
+  it('probes package managers outside the repository and fails closed for required managers', async () => {
+    const probeDirectories: string[] = []
+    const available = await availablePackageManagers(
+      [
+        { name: 'npm', command: 'npm' },
+        { name: 'yarn', command: 'yarn' },
+      ],
+      async (_candidate, cwd) => {
+        probeDirectories.push(cwd)
+      },
+      '/tmp/openwaggle-package-manager-probe',
+    )
+
+    expect(available.map(({ name }) => name)).toEqual(['npm', 'yarn'])
+    expect(probeDirectories).toEqual([
+      '/tmp/openwaggle-package-manager-probe',
+      '/tmp/openwaggle-package-manager-probe',
+    ])
+    expect(() => assertRequiredPackageManagers(available, ['npm', 'yarn'])).not.toThrow()
+    expect(() => assertRequiredPackageManagers(available, ['npm', 'pnpm', 'yarn'])).toThrow(
+      'Required package consumers are unavailable: pnpm.',
+    )
+  })
+
   it('creates a self-contained TypeScript consumer project manifest', () => {
     const manifest = createSmokePackageJson(
       [{ name: '@openwaggle/extension-sdk', tarballPath: '/tmp/extension-sdk.tgz' }],
@@ -45,7 +76,7 @@ describe('package smoke tarball assertions', () => {
   it('uses portable install arguments for each package manager', () => {
     expect(packageManagerInstallArgs('npm')).toEqual(['--ignore-scripts'])
     expect(packageManagerInstallArgs('pnpm')).toEqual(['--ignore-scripts'])
-    expect(packageManagerInstallArgs('yarn')).toEqual(['--mode=skip-build'])
+    expect(packageManagerInstallArgs('yarn')).toEqual(['--mode=skip-build', '--no-immutable'])
     expect(packageManagerInstallArgs('bun')).toEqual(['--ignore-scripts'])
   })
 
