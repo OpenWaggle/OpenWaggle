@@ -12,67 +12,72 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   version:
-    name: Determine Version
-    # Skip version-bump commits to avoid infinite loop
+    name: Prepare Protected Version
     if: "!startsWith(github.event.head_commit.message, 'chore(release):')"
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
     outputs:
-      new_version: ${{ steps.bump.outputs.new_version }}
-      new_tag: ${{ steps.bump.outputs.new_tag }}
-      should_release: ${{ steps.bump.outputs.should_release }}
+      new_version: ${{ steps.release.outputs.new_version }}
+      new_tag: ${{ steps.release.outputs.new_tag }}
+      should_release: ${{ steps.release.outputs.should_release }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Determine bump from conventional commits
         id: bump
         run: |
-          # Find the last version tag (or use initial commit if none)
-          LAST_TAG=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo "")
-          if [ -z "$LAST_TAG" ]; then
-            RANGE="HEAD"
-          else
+          set -euo pipefail
+          if LAST_TAG=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null); then
             RANGE="${LAST_TAG}..HEAD"
+          else
+            LAST_TAG=""
+            RANGE="HEAD"
           fi
 
           echo "Last tag: ${LAST_TAG:-none}"
           echo "Commit range: ${RANGE}"
-
-          # Read commit subjects since last tag
-          COMMITS=$(git log --format='%s' ${RANGE} 2>/dev/null || git log --format='%s')
-
-          # Determine bump type from conventional commit prefixes
+          COMMITS=$(git log --format='%s' "$RANGE")
+          BODIES=$(git log --format='%b' "$RANGE")
           HAS_BREAKING=false
           HAS_FEAT=false
           HAS_FIX=false
 
-          while IFS= read -r msg; do
-            # Skip empty lines
-            [ -z "$msg" ] && continue
-            # Check for breaking change marker
-            if echo "$msg" | grep -qiE '^[a-z]+(\(.+\))?!:'; then
+          while IFS= read -r message; do
+            [ -z "$message" ] && continue
+            if grep -qiE '^[a-z]+(\(.+\))?!:' <<<"$message"; then
               HAS_BREAKING=true
             fi
-            if echo "$msg" | grep -qE '^feat(\(.+\))?:'; then
+            if grep -qE '^feat(\(.+\))?:' <<<"$message"; then
               HAS_FEAT=true
             fi
-            if echo "$msg" | grep -qE '^fix(\(.+\))?:'; then
+            if grep -qE '^fix(\(.+\))?:' <<<"$message"; then
               HAS_FIX=true
             fi
-          done <<< "$COMMITS"
+          done <<<"$COMMITS"
 
-          # Also check commit bodies for BREAKING CHANGE
-          BODIES=$(git log --format='%b' ${RANGE} 2>/dev/null || git log --format='%b')
-          if echo "$BODIES" | grep -q 'BREAKING CHANGE'; then
+          if grep -q 'BREAKING CHANGE' <<<"$BODIES"; then
             HAS_BREAKING=true
           fi
 
-          # Determine bump type
           if [ "$HAS_BREAKING" = true ]; then
             BUMP="major"
           elif [ "$HAS_FEAT" = true ]; then
@@ -80,25 +85,19 @@ jobs:
           elif [ "$HAS_FIX" = true ]; then
             BUMP="patch"
           else
-            echo "No feat: or fix: commits since last release — skipping"
+            echo "No feat: or fix: commits since last release; skipping."
             echo "should_release=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # Get current version from package.json
-          CURRENT=$(node -e "console.log(require('./package.json').version)")
-          echo "Current version: ${CURRENT}"
-
-          # Extract base version and prerelease counter
-          # Format: X.Y.Z-alpha.N or X.Y.Z-beta.N → bump N+1
-          # Format: X.Y.Z (no prerelease) → use standard semver bumps
-          if echo "$CURRENT" | grep -qE 'alpha|beta'; then
+          CURRENT=$(node -p "require('./package.json').version")
+          if grep -qE 'alpha|beta' <<<"$CURRENT"; then
             BASE_VERSION="${CURRENT%%-*}"
-            PRERELEASE_TAG=$(echo "$CURRENT" | sed 's/.*-\(alpha\|beta\)\..*/\1/')
-            PRERELEASE_NUM=$(echo "$CURRENT" | sed 's/.*\(alpha\|beta\)\.\([0-9]*\).*/\2/')
+            PRERELEASE_TAG=$(sed 's/.*-\(alpha\|beta\)\..*/\1/' <<<"$CURRENT")
+            PRERELEASE_NUM=$(sed 's/.*\(alpha\|beta\)\.\([0-9]*\).*/\2/' <<<"$CURRENT")
             NEW_VERSION="${BASE_VERSION}-${PRERELEASE_TAG}.$((PRERELEASE_NUM + 1))"
           else
-            IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+            IFS='.' read -r MAJOR MINOR PATCH <<<"$CURRENT"
             case "$BUMP" in
               major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
               minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
@@ -106,32 +105,230 @@ jobs:
             esac
             NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
           fi
-          echo "New version: ${NEW_VERSION}"
 
           echo "new_version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "new_tag=v${NEW_VERSION}" >> "$GITHUB_OUTPUT"
           echo "should_release=true" >> "$GITHUB_OUTPUT"
 
-      - name: Bump package.json and push tag
+      - name: Create, validate, and merge release PR
         if: steps.bump.outputs.should_release == 'true'
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.bump.outputs.new_version }}
         run: |
-          VERSION="${{ steps.bump.outputs.new_version }}"
-          TAG="${{ steps.bump.outputs.new_tag }}"
+          set -euo pipefail
+          RELEASE_BRANCH="app-release-v${VERSION}"
+          TAG="v${VERSION}"
 
-          # Bump version in package.json (no npm dependencies needed)
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            pkg.version = '${VERSION}';
-            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-          "
+          verify_version_only_tree() {
+            local base_ref="$1"
+            local candidate_ref="$2"
+            test "$(git diff --name-only "${base_ref}...${candidate_ref}")" = "package.json"
+            git show "${base_ref}:package.json" > "$RUNNER_TEMP/base-package.json"
+            git show "${candidate_ref}:package.json" > "$RUNNER_TEMP/candidate-package.json"
+            pnpm exec tsx scripts/app-release-state.ts expected-manifest \
+              --base "$RUNNER_TEMP/base-package.json" \
+              --output "$RUNNER_TEMP/expected-package.json" \
+              --version "$VERSION"
+            cmp "$RUNNER_TEMP/expected-package.json" "$RUNNER_TEMP/candidate-package.json"
+          }
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json
-          git commit -m "chore(release): v${VERSION}"
-          git tag -a "${TAG}" -m "Release ${TAG}"
-          git push origin main --follow-tags
+          verify_release_commit() {
+            local commit_sha="$1"
+            [[ "$commit_sha" =~ ^[0-9a-f]{40}$ ]]
+            git fetch origin \
+              "+refs/heads/main:refs/remotes/origin/main"
+            git merge-base --is-ancestor "$commit_sha" origin/main
+            test "$(git show -s --format=%s "$commit_sha")" = "chore(release): v${VERSION}"
+            local parent_sha
+            parent_sha=$(git rev-parse "${commit_sha}^")
+            verify_version_only_tree "$parent_sha" "$commit_sha"
+          }
+
+          write_release_outputs() {
+            echo "new_version=${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "new_tag=${TAG}" >> "$GITHUB_OUTPUT"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+          }
+
+          if git ls-remote --exit-code origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            git fetch origin "refs/tags/${TAG}:refs/tags/${TAG}"
+            TAG_COMMIT=$(git rev-list -n 1 "$TAG")
+            verify_release_commit "$TAG_COMMIT"
+            write_release_outputs
+            exit 0
+          fi
+
+          ALL_PRS=$(gh pr list --state all --head "$RELEASE_BRANCH" --limit 100 \
+            --json baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner,isCrossRepository,mergeCommit,number,state,title,url)
+          PRS=$(pnpm exec tsx scripts/app-release-state.ts filter-prs \
+            --branch "$RELEASE_BRANCH" \
+            --owner "$GITHUB_REPOSITORY_OWNER" \
+            --repository "${GITHUB_REPOSITORY#*/}" \
+            <<<"$ALL_PRS")
+          PR_COUNT=$(jq -er 'length' <<<"$PRS")
+          if [ "$PR_COUNT" -gt 1 ]; then
+            echo "Multiple release PRs use ${RELEASE_BRANCH}."
+            exit 1
+          fi
+
+          PR_URL=""
+          PR_STATE=""
+          MERGE_SHA=""
+          if [ "$PR_COUNT" -eq 1 ]; then
+            PR_URL=$(jq -er '.[0].url' <<<"$PRS")
+            PR_STATE=$(jq -er '.[0].state' <<<"$PRS")
+            test "$(jq -er '.[0].baseRefName' <<<"$PRS")" = "main"
+            test "$(jq -er '.[0].headRefName' <<<"$PRS")" = "$RELEASE_BRANCH"
+            test "$(jq -er '.[0].title' <<<"$PRS")" = "chore(release): v${VERSION}"
+            if [ "$PR_STATE" = "MERGED" ]; then
+              MERGE_SHA=$(jq -er '.[0].mergeCommit.oid' <<<"$PRS")
+            elif [ "$PR_STATE" != "OPEN" ]; then
+              echo "Release PR is closed without being merged: ${PR_URL}"
+              exit 1
+            fi
+          fi
+
+          if [ -z "$PR_URL" ]; then
+            if git ls-remote --exit-code origin "refs/heads/${RELEASE_BRANCH}" >/dev/null 2>&1; then
+              git fetch origin "refs/heads/${RELEASE_BRANCH}:refs/remotes/origin/${RELEASE_BRANCH}"
+              git switch --detach "origin/${RELEASE_BRANCH}"
+            else
+              pnpm exec tsx scripts/app-release-state.ts expected-manifest \
+                --base package.json \
+                --output package.json \
+                --version "$VERSION"
+              git config user.name "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              git switch -c "$RELEASE_BRANCH"
+              git add package.json
+              git commit -m "chore(release): v${VERSION}"
+              git push origin "$RELEASE_BRANCH"
+            fi
+
+            git fetch origin \
+              "+refs/heads/main:refs/remotes/origin/main" \
+              "+refs/heads/${RELEASE_BRANCH}:refs/remotes/origin/${RELEASE_BRANCH}"
+            verify_version_only_tree "origin/main" "origin/${RELEASE_BRANCH}"
+            PR_URL=$(gh pr create \
+              --base main \
+              --head "$RELEASE_BRANCH" \
+              --title "chore(release): v${VERSION}" \
+              --body "Automated desktop app version release. CI must pass for this exact commit before merge.")
+            PR_STATE="OPEN"
+          fi
+
+          if [ "$PR_STATE" = "OPEN" ]; then
+            PR_NUMBER=$(gh pr view "$PR_URL" --json number --jq '.number')
+            for MERGE_ATTEMPT in $(seq 1 3); do
+              PR_DETAILS=$(gh pr view "$PR_URL" \
+                --json baseRefName,headRefName,headRefOid,mergeStateStatus,state,title)
+              test "$(jq -er '.state' <<<"$PR_DETAILS")" = "OPEN"
+              test "$(jq -er '.baseRefName' <<<"$PR_DETAILS")" = "main"
+              test "$(jq -er '.headRefName' <<<"$PR_DETAILS")" = "$RELEASE_BRANCH"
+              test "$(jq -er '.title' <<<"$PR_DETAILS")" = "chore(release): v${VERSION}"
+              HEAD_SHA=$(jq -er '.headRefOid' <<<"$PR_DETAILS")
+              MERGE_STATE=$(jq -er '.mergeStateStatus' <<<"$PR_DETAILS")
+              [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+              if [ "$MERGE_STATE" = "BEHIND" ]; then
+                gh api --method PUT \
+                  "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/update-branch" \
+                  -f "expected_head_sha=${HEAD_SHA}" >/dev/null
+                for UPDATE_ATTEMPT in $(seq 1 30); do
+                  UPDATED_SHA=$(gh pr view "$PR_URL" --json headRefOid --jq '.headRefOid')
+                  if [ "$UPDATED_SHA" != "$HEAD_SHA" ]; then
+                    HEAD_SHA="$UPDATED_SHA"
+                    break
+                  fi
+                  echo "Waiting for release branch update (${UPDATE_ATTEMPT}/30)."
+                  sleep 2
+                done
+                test "$HEAD_SHA" != "$(jq -er '.headRefOid' <<<"$PR_DETAILS")"
+              fi
+
+              git fetch origin \
+                "+refs/heads/main:refs/remotes/origin/main" \
+                "+refs/heads/${RELEASE_BRANCH}:refs/remotes/origin/${RELEASE_BRANCH}"
+              test "$(git rev-parse "origin/${RELEASE_BRANCH}")" = "$HEAD_SHA"
+              verify_version_only_tree "origin/main" "origin/${RELEASE_BRANCH}"
+
+              gh workflow run ci.yml --ref "$RELEASE_BRANCH" -f "head_sha=${HEAD_SHA}"
+              RUN_ID=""
+              for RUN_ATTEMPT in $(seq 1 60); do
+                RUNS=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?event=workflow_dispatch&branch=${RELEASE_BRANCH}&per_page=20")
+                if RUN_ID=$(jq -er --arg sha "$HEAD_SHA" \
+                  '.workflow_runs | map(select(.head_sha == $sha)) | first | .id' <<<"$RUNS"); then
+                  break
+                fi
+                echo "Waiting for exact-head CI run (${RUN_ATTEMPT}/60)."
+                sleep 5
+              done
+              test -n "$RUN_ID"
+              gh run watch "$RUN_ID" --exit-status
+
+              if gh pr merge "$PR_URL" \
+                --squash \
+                --delete-branch \
+                --match-head-commit "$HEAD_SHA" \
+                --subject "chore(release): v${VERSION}" \
+                --body ""; then
+                break
+              fi
+              RETRY_STATE=""
+              for STATE_ATTEMPT in $(seq 1 30); do
+                AFTER_MERGE=$(gh pr view "$PR_URL" --json mergeCommit,mergeStateStatus,state)
+                AFTER_STATE=$(jq -er '.state' <<<"$AFTER_MERGE")
+                AFTER_MERGE_STATE=$(jq -er '.mergeStateStatus' <<<"$AFTER_MERGE")
+                RECOVERY_ACTION=$(pnpm exec tsx scripts/app-release-state.ts merge-action \
+                  --state "$AFTER_STATE" \
+                  --merge-state "$AFTER_MERGE_STATE")
+                case "$RECOVERY_ACTION" in
+                  complete)
+                    MERGE_SHA=$(jq -er '.mergeCommit.oid' <<<"$AFTER_MERGE")
+                    RETRY_STATE="MERGED"
+                    break
+                    ;;
+                  retry)
+                    RETRY_STATE="BEHIND"
+                    break
+                    ;;
+                  poll)
+                    echo "Waiting for merge state (${STATE_ATTEMPT}/30): ${AFTER_MERGE_STATE}."
+                    sleep 2
+                    ;;
+                  conflict)
+                    echo "Release PR merge failed in terminal state: ${AFTER_STATE}/${AFTER_MERGE_STATE}."
+                    exit 1
+                    ;;
+                esac
+              done
+              if [ "$RETRY_STATE" = "MERGED" ]; then
+                break
+              fi
+              if [ "$MERGE_ATTEMPT" -eq 3 ] || [ "$RETRY_STATE" != "BEHIND" ]; then
+                echo "Release PR did not merge after strict-base retries."
+                exit 1
+              fi
+            done
+
+            if [ -z "$MERGE_SHA" ]; then
+              MERGE_SHA=$(gh pr view "$PR_URL" --json mergeCommit,mergedAt \
+                --jq 'select(.mergedAt != null) | .mergeCommit.oid')
+            fi
+          fi
+
+          verify_release_commit "$MERGE_SHA"
+          if git ls-remote --exit-code origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            git fetch origin "refs/tags/${TAG}:refs/tags/${TAG}"
+            test "$(git rev-list -n 1 "$TAG")" = "$MERGE_SHA"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" "$MERGE_SHA" -m "Release ${TAG}"
+            git push origin "refs/tags/${TAG}"
+          fi
+          write_release_outputs
 
   build-macos:
     name: Build macOS
@@ -139,13 +336,13 @@ jobs:
     if: needs.version.outputs.should_release == 'true'
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ needs.version.outputs.new_tag }}
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24
           cache: pnpm
@@ -159,7 +356,7 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: macos-artifacts
           path: |
@@ -174,13 +371,13 @@ jobs:
     if: needs.version.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ needs.version.outputs.new_tag }}
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24
           cache: pnpm
@@ -192,7 +389,7 @@ jobs:
       - name: Build Linux AppImage
         run: pnpm exec electron-builder --linux --publish never
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: linux-artifacts
           path: |
@@ -206,13 +403,13 @@ jobs:
     if: needs.version.outputs.should_release == 'true'
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ needs.version.outputs.new_tag }}
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24
           cache: pnpm
@@ -224,7 +421,7 @@ jobs:
       - name: Build Windows NSIS installer
         run: pnpm exec electron-builder --win --publish never
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: windows-artifacts
           path: |
@@ -251,11 +448,11 @@ jobs:
             artifact_name: windows-artifacts
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ needs.version.outputs.new_tag }}
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: ${{ matrix.artifact_name }}
           path: ${{ runner.temp }}/release/${{ matrix.platform }}
@@ -352,12 +549,14 @@ jobs:
     needs: [version, verify-installers]
     if: needs.version.outputs.should_release == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ needs.version.outputs.new_tag }}
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: artifacts
 
@@ -368,7 +567,7 @@ jobs:
           cd release && sha256sum * > SHA256SUMS.txt
 
       - name: Create draft release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ needs.version.outputs.new_tag }}
           name: ${{ needs.version.outputs.new_tag }}
