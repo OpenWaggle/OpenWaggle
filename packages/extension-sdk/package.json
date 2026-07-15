@@ -12,10 +12,16 @@
     "url": "https://github.com/OpenWaggle/OpenWaggle.git",
     "directory": "packages/extension-sdk"
   },
+  "homepage": "https://openwaggle.ai/docs/packages/extension-sdk/0.1/",
+  "bugs": {
+    "url": "https://github.com/OpenWaggle/OpenWaggle/issues"
+  },
   "keywords": [
     "openwaggle",
-    "extensions",
-    "sdk"
+    "extension",
+    "sdk",
+    "typescript",
+    "module-federation"
   ],
   "publishConfig": {
     "access": "public"

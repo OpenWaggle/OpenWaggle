@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   assertDualModuleExports,
-  assertBrowserBundleContent,
   assertPackedPackageMetadata,
   assertPackedPackageFiles,
   assertPackedWorkspaceDependencyRanges,
-  assertReactPeerDependencies,
   collectManifestPackagePaths,
   parsePnpmPackTarballPath,
-  supportsPackageSmokeNodeVersion,
 } from '../package-smoke-assertions'
+import {
+  assertBrowserBundleContent,
+} from '../package-smoke-runtime-assertions'
 import {
   createSmokePackageJson,
   packageManagerInstallArgs,
@@ -242,6 +242,9 @@ describe('package smoke tarball assertions', () => {
     const manifest = {
       name: '@openwaggle/extension-react',
       version: '0.0.0',
+      homepage: 'https://openwaggle.ai/docs/packages/extension-react/0.0/',
+      bugs: { url: 'https://github.com/OpenWaggle/OpenWaggle/issues' },
+      keywords: ['openwaggle', 'extension', 'react', 'ui'],
       license: 'MIT',
       engines: { node: '>=22.19.0' },
       repository: {
@@ -293,26 +296,5 @@ describe('package smoke tarball assertions', () => {
         { name: '@openwaggle/extension-sdk', version: '0.4.0' },
       ]),
     ).toThrow('must pack @openwaggle/extension-sdk as a caret range')
-  })
-
-  it('requires React to remain a runtime peer and accepts supported package consumer Node versions', () => {
-    expect(() =>
-      assertReactPeerDependencies({
-        peerDependencies: { react: '^19.0.0', 'react-dom': '^19.0.0' },
-      }),
-    ).not.toThrow()
-    expect(supportsPackageSmokeNodeVersion('22.19.0')).toBe(true)
-    expect(supportsPackageSmokeNodeVersion('24.0.0')).toBe(true)
-    expect(supportsPackageSmokeNodeVersion('22.18.9')).toBe(false)
-    expect(supportsPackageSmokeNodeVersion('21.99.0')).toBe(false)
-  })
-
-  it('rejects React as a bundled runtime dependency', () => {
-    expect(() =>
-      assertReactPeerDependencies({
-        dependencies: { react: '^19.0.0' },
-        peerDependencies: { 'react-dom': '^19.0.0' },
-      }),
-    ).toThrow('must declare react as a peer dependency')
   })
 })

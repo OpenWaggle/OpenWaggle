@@ -34,8 +34,8 @@ concurrency:
   group: ci-\${{ github.workflow }}-\${{ github.event.pull_request.number || inputs.head_sha || github.ref }}
   cancel-in-progress: true
 jobs:
-  package-consumer-tools:
-    name: Package Consumer Tools (Node \${{ matrix.node }})
+  package-release-rehearsal:
+    name: Package release rehearsal (Node \${{ matrix.node }})
     runs-on: ubuntu-latest
     steps:
       - run: echo validated-by-package-release-policy
@@ -48,9 +48,11 @@ ${dispatchIdentityGuard}      - uses: ${ACTION_CHECKOUT}
           fetch-depth: 0
           ref: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
       - uses: ${PNPM_ACTION_SETUP}
+        with:
+          version: 11.6.0
       - uses: ${ACTION_SETUP_NODE}
         with:
-          node-version: 24
+          node-version: 24.14.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec tsx scripts/release-ci-policy.ts
@@ -68,9 +70,11 @@ ${dispatchIdentityGuard}      - uses: ${ACTION_CHECKOUT}
         with:
           ref: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
       - uses: ${PNPM_ACTION_SETUP}
+        with:
+          version: 11.6.0
       - uses: ${ACTION_SETUP_NODE}
         with:
-          node-version: 24
+          node-version: 24.14.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
@@ -82,12 +86,32 @@ ${dispatchIdentityGuard}      - uses: ${ACTION_CHECKOUT}
         with:
           ref: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
       - uses: ${PNPM_ACTION_SETUP}
+        with:
+          version: 11.6.0
       - uses: ${ACTION_SETUP_NODE}
         with:
-          node-version: 24
+          node-version: 24.14.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
+  prepare-package-release:
+    name: Prepare immutable package release artifacts
+    if: \${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo prepared
+  package-release-gate:
+    name: Package Release Gate
+    needs:
+      - commit-policy
+      - check
+      - test
+      - package-release-rehearsal
+      - prepare-package-release
+    if: \${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo gated
 `
 
 describe('release CI policy', () => {
@@ -118,19 +142,6 @@ describe('release CI policy', () => {
 
     expect(violations).toContain(
       'CI workflow_dispatch must verify github.sha matches the immutable inputs.head_sha SHA.',
-    )
-  })
-
-  it('rejects job names beyond the stable CI jobs', () => {
-    const workflowWithExtraJob = `${compliantWorkflow}
-  optional-smoke:
-    name: Optional Smoke
-    steps:
-      - run: pnpm test
-`
-
-    expect(validateReleaseCiPolicy(workflowWithExtraJob)).toContain(
-      'CI must expose exactly these stable job names: Package Consumer Tools (Node ${{ matrix.node }}), Commit Policy, Typecheck & Lint, Unit & Component Tests.',
     )
   })
 
@@ -195,27 +206,23 @@ describe('release CI policy', () => {
     )
   })
 
-  it('rejects unnamed jobs outside the stable job set', () => {
-    const workflowWithUnnamedJob = `${compliantWorkflow}
+  it.each([
+    ['unnamed', `${compliantWorkflow}
   unnamed-job:
     runs-on: ubuntu-latest
     steps:
       - run: echo bypass
-`
-
-    expect(validateReleaseCiPolicy(workflowWithUnnamedJob)).toContain(
-      'CI must expose exactly these stable job names: Package Consumer Tools (Node ${{ matrix.node }}), Commit Policy, Typecheck & Lint, Unit & Component Tests.',
-    )
-  })
-
-  it('rejects quoted job IDs outside the stable job set', () => {
-    const workflowWithQuotedJob = compliantWorkflow.replace(
-      'jobs:\n',
-      "jobs:\n  'attacker-job':\n    permissions:\n      contents: write\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo bypass\n",
-    )
-
-    expect(validateReleaseCiPolicy(workflowWithQuotedJob)).toContain(
-      'CI must expose exactly these stable job names: Package Consumer Tools (Node ${{ matrix.node }}), Commit Policy, Typecheck & Lint, Unit & Component Tests.',
+`],
+    [
+      'quoted',
+      compliantWorkflow.replace(
+        'jobs:\n',
+        "jobs:\n  'attacker-job':\n    permissions:\n      contents: write\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo bypass\n",
+      ),
+    ],
+  ])('rejects %s jobs outside the stable job set', (_kind, workflow) => {
+    expect(validateReleaseCiPolicy(workflow)).toContain(
+      'CI must expose exactly these stable job names: Commit Policy, Typecheck & Lint, Unit & Component Tests, Package release rehearsal (Node ${{ matrix.node }}), Prepare immutable package release artifacts, Package Release Gate.',
     )
   })
 

@@ -7,6 +7,8 @@ const ALL_ZERO_SHA_PATTERN = /^0+$/
 const CLI_ARGUMENT_START_INDEX = 2
 const CONVENTIONAL_COMMIT_SUBJECT_PATTERN =
   /^(?:feat|fix|docs|test|chore|refactor|ci|build|revert)(?:\([^()\r\n]+\))?!?: \S.*$/
+const PACKAGE_RELEASE_INTENT_PATTERN =
+  /^(?:(?:feat|fix|revert)(?:\([^()\r\n]+\))?!?: \S.*|chore\(main\): release \S.*)$/
 const COMMIT_BODY_FIELD_OFFSET = 3
 const COMMIT_FIELD_COUNT = 4
 const COMMIT_PARENTS_FIELD_OFFSET = 1
@@ -200,11 +202,25 @@ export async function validateConventionalCommits(options: ConventionalCommitVal
             `Pull request title "${options.prTitle}" is not an allowed Conventional Commit subject.`,
           ]
 
+  const packageReleaseIntentViolations =
+    options.prTitle !== undefined &&
+    options.prTitle.length > 0 &&
+    commits.some(affectsPublishablePackage) &&
+    !PACKAGE_RELEASE_INTENT_PATTERN.test(options.prTitle)
+      ? [
+          `Pull request title ${JSON.stringify(options.prTitle)} changes a publishable package but would not create a Release Please version bump.`,
+        ]
+      : []
+
   return {
     commits,
     effectiveFrom,
     to,
-    violations: [...validateConventionalCommitSubjects(commits), ...prTitleViolations],
+    violations: [
+      ...validateConventionalCommitSubjects(commits),
+      ...prTitleViolations,
+      ...packageReleaseIntentViolations,
+    ],
   }
 }
 

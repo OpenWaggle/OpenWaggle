@@ -5,18 +5,25 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import {
-  assertBrowserBundleContent,
   assertDualModuleExports,
-  assertNoWorkspaceProtocols,
   assertPackedPackageFiles,
   assertPackedPackageMetadata,
   assertPackedWorkspaceDependencyRanges,
-  assertReactPeerDependencies,
-  findPackageDependencyVersion,
   isObject,
   parsePnpmPackTarballPath,
-  supportsPackageSmokeNodeVersion,
 } from './package-smoke-assertions'
+import {
+  assertBrowserBundleContent,
+  assertNoWorkspaceProtocols,
+  assertReactPeerDependencies,
+  findPackageDependencyVersion,
+  isPackageSmokeDevDependency,
+  supportsPackageSmokeNodeVersion,
+} from './package-smoke-runtime-assertions'
+import {
+  assertPackedDocumentationMetadata,
+  assertPackedPackageReadme,
+} from './package-smoke-documentation-assertions'
 import { runPackageBrowserSmoke } from './package-browser-smoke'
 import {
   readPackageSmokeEnvironment,
@@ -91,6 +98,15 @@ async function readPackedManifest(tarballPath: string) {
   return parsed
 }
 
+async function readPackedTextFile(tarballPath: string, relativePath: string) {
+  const result = await execFile(
+    'tar',
+    ['-xOf', tarballPath, `${PACKAGE_TARBALL_PREFIX}${relativePath}`],
+    { maxBuffer: EXEC_MAX_BUFFER_BYTES },
+  )
+  return result.stdout
+}
+
 async function listTarballPackageFiles(tarballPath: string) {
   const result = await execFile('tar', ['-tf', tarballPath], { maxBuffer: EXEC_MAX_BUFFER_BYTES })
   return result.stdout
@@ -110,11 +126,14 @@ async function packPackage(projectRoot: string, spec: PackageSpec, packDir: stri
   )
   const tarballPath = parsePnpmPackTarballPath(result.stdout)
   const manifest = await readPackedManifest(tarballPath)
+  const readme = await readPackedTextFile(tarballPath, 'README.md')
   const files = await listTarballPackageFiles(tarballPath)
 
   assertPackedPackageFiles({ packageName: spec.name, manifest, files })
   assertNoWorkspaceProtocols(spec.name, manifest)
   assertPackedPackageMetadata(manifest, spec.directory)
+  assertPackedDocumentationMetadata(manifest, spec.directory)
+  assertPackedPackageReadme({ packageName: spec.name, readme })
   assertDualModuleExports(spec.name, manifest)
   if (spec.name === '@openwaggle/extension-react') {
     assertReactPeerDependencies(manifest)
@@ -151,15 +170,6 @@ async function smokeDependencyVersion(projectRoot: string, dependencyName: strin
   throw new Error(`Cannot find smoke dependency version for ${dependencyName}.`)
 }
 
-function smokeDevDependency(dependencyName: string) {
-  return (
-    dependencyName === 'typescript' ||
-    dependencyName === 'tsx' ||
-    dependencyName === 'vite' ||
-    dependencyName.startsWith('@types/')
-  )
-}
-
 export function createSmokePackageJson(
   packedPackages: readonly PackedPackageReference[],
   smokeDependencyVersions: readonly SmokeDependencyVersion[],
@@ -177,7 +187,7 @@ export function createSmokePackageJson(
       (candidate) => candidate.name === dependencyName,
     )
     if (!dependency) throw new Error(`Cannot find smoke dependency version for ${dependencyName}.`)
-    if (smokeDevDependency(dependencyName)) {
+    if (isPackageSmokeDevDependency(dependencyName)) {
       devDependencies[dependencyName] = dependency.version
     } else {
       dependencies[dependencyName] = dependency.version
@@ -311,7 +321,6 @@ async function main() {
     await fs.rm(smokeRoot, { recursive: true, force: true })
   }
 }
-
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((error: unknown) => {
     console.error(error)

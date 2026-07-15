@@ -9,11 +9,9 @@ section: "Packages"
 
 Use it in extension modules that mount into OpenWaggle-owned containers. The package gives you the public `mount(context)` types, Effect Schema boundary values, manifest validation helpers, broker SDK helpers, theme helpers, UI class names, and stylesheet generation helpers without importing OpenWaggle renderer internals.
 
-## Install
+<package-install packages="@openwaggle/extension-sdk"></package-install>
 
-```bash
-pnpm add @openwaggle/extension-sdk
-```
+The package supports Node.js 22.19 and newer. Its runtime exports are browser-safe; Node.js is required for extension build tooling and package consumers.
 
 ## Main Imports
 
@@ -157,3 +155,20 @@ export default {
 - Bundle compatible helper code into your extension artifact or resolve the versioned package supplied by the installed SDK path.
 
 For the full extension package lifecycle and manifest model, see [OpenWaggle Extensions](/docs/extending/openwaggle-extensions).
+
+## Reference And Support
+
+- [Complete API reference](./api-reference)
+- [npm package](https://www.npmjs.com/package/@openwaggle/extension-sdk)
+- [Package changelog](https://github.com/OpenWaggle/OpenWaggle/blob/main/packages/extension-sdk/CHANGELOG.md)
+- [Report an issue](https://github.com/OpenWaggle/OpenWaggle/issues/new)
+
+## Troubleshooting
+
+**A capability call fails with an undeclared error.** Confirm the capability, method, and scope are declared in `openwaggle.extension.json`. The broker rejects privileges that are not declared.
+
+**An import from `src` or `dist` fails.** Import only the documented root and subpath exports. Build directories and source paths are intentionally private.
+
+**Styles do not match the host.** Use `context.theme`, `createOpenWaggleExtensionUiStylesheet`, and the exported UI class names instead of copying OpenWaggle renderer CSS.
+
+There are no migrations within the `0.1` documentation line. Future incompatible changes will receive a new versioned documentation line and migration guide.

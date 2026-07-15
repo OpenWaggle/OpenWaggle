@@ -1,6 +1,8 @@
 # Publish Npm Packages Directly With Trusted Publishing
 
-Status: accepted
+Status: superseded in part by ADR-0009
+
+ADR-0009 supersedes post-merge validation/rebuild ordering and tag-first recovery. Direct npm Trusted Publishing, GitHub OIDC, no long-lived token, dependency ordering, and the explicit Release Please merge decision remain accepted.
 
 OpenWaggle will publish validated package tarballs directly from `package-release.yml` through npm Trusted Publishing and GitHub OIDC, rather than using staged publishing or long-lived npm tokens. A one-time resumable bootstrap publishes non-default, deprecated `0.0.0-bootstrap.0` placeholders so npm package records exist, then configures each trusted publisher with `npm trust`, disables token-based publication, and leaves every real release beginning with `0.1.0` to the provenance-bearing CI path. One coordinated Release Please PR remains the explicit human release gate; after it is merged, package-specific tags, GitHub Releases, dependency-ordered publication, and verification are automatic.
 

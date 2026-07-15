@@ -26,6 +26,7 @@ import {
   WEBSITE_DOCS_ROOT,
   withoutMarkdownExtension,
 } from './installed-docs-generator-model'
+import { renderPackageInstallElements } from './package-documentation-renderer'
 
 interface GenerateInstalledDocsOptions {
   readonly outputRoot?: string
@@ -75,7 +76,8 @@ async function buildOpenWaggleTopics(outputRoot: string) {
     const relativePath = posixPath(path.relative(rootPath, filePath))
     const slug = withoutMarkdownExtension(relativePath)
     const rawContent = await readFile(filePath, 'utf8')
-    const parsed = parseFrontmatter(rawContent)
+    const installedContent = renderPackageInstallElements(rawContent)
+    const parsed = parseFrontmatter(installedContent)
     const title = parsed.fields.get('title') ?? titleFromSlug(slug)
     const description = parsed.fields.get('description')
     const section = parsed.fields.get('section')
@@ -94,9 +96,9 @@ async function buildOpenWaggleTopics(outputRoot: string) {
       bundlePath,
       aliases: aliasesFor({ slug, title, section, source: OPENWAGGLE_GROUP.id }),
       keywords: keywordsFor({ slug, title, description, section }),
-      contentHash: hashContent(rawContent),
+      contentHash: hashContent(installedContent),
     })
-    await writeTopicFile(outputRoot, bundlePath, rawContent)
+    await writeTopicFile(outputRoot, bundlePath, installedContent)
   }
 
   return topics.sort(compareTopics)

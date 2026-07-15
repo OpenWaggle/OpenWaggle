@@ -49,17 +49,21 @@ OpenWaggle npm packages use Release Please manifest mode through `release-please
 
 - This workflow is separate from the desktop app release workflow. Package versions use path-scoped Conventional Commits; app versions use app release-intent files.
 - Release Please owns one coordinated package release PR, package-local `CHANGELOG.md` files, package-specific GitHub Releases, and short component tags such as `extension-sdk-v0.1.0`.
-- Package release automation validates the exact generated PR head. It reruns a PR-associated approval-required CI run when GitHub creates one; when a `GITHUB_TOKEN`-created PR has no PR run, it dispatches the same exact-head CI workflow as a bounded fallback. Running and already-successful exact-head runs are reused.
-- Only release-eligible commits that touch `packages/<name>/**` directly release that package. Changes limited to the app, website, general docs, fixtures, or workflows do not publish npm packages.
+- Package release automation validates the exact generated PR head through the normal pull-request CI path and retains the attested final tarballs for post-merge promotion.
+- Release-eligible commits that touch `packages/<name>/**` or an affected package's canonical generated documentation source directly release that package. Unrelated app, website, general docs, fixture, or workflow changes do not publish npm packages.
 - Pull request titles must be Conventional Commit subjects so squash merges retain package release intent. Repository policy disables merge commits and preserves squash and rebase: squash a one-intent PR, and rebase a mixed-intent PR when separate commits carry distinct release impacts. Reverts use `revert(scope): ...` rather than generated `Revert "..."` subjects.
 - `@openwaggle/extension-react` is dependency-bumped when `@openwaggle/extension-sdk` changes, and `@openwaggle/pi-waggle` is dependency-bumped when `@openwaggle/waggle-core` changes, via the Release Please `node-workspace` plugin.
-- Merging the Release Please PR is the explicit release gate. The workflow then validates and publishes exact tarballs through npm Trusted Publishing with `id-token: write` and automatic provenance.
+- `Package Release Gate` is always reported. Relevant PRs run the full Node 22.19/24, four-package-manager, browser, tarball, docs, and API rehearsal; Release Please PRs also build and attest final tarballs.
+- Merging the Release Please PR is an explicit maintainer or authorized-agent action. Never auto-merge it and do not rely on a ruleset bypass.
+- Post-merge publication performs no build, test, or docs generation. It verifies the successful PR artifact's Git tree, SHA-256, provenance, OIDC identity, dependency state, and unpublished version, then publishes that exact tarball through npm Trusted Publishing.
+- Create immutable package tags only after npm accepts the version, and publish the GitHub Release only after the npm version is resolvable.
 - Publish `extension-sdk` and `waggle-core` before `extension-react` and `pi-waggle`, respectively.
 - Do not add `NPM_TOKEN`, `NODE_AUTH_TOKEN`, `npm stage publish`, or a local fallback for real package versions.
-- Manual recovery dispatch is allowed only for one exact canonical package tag. It must check out, validate, and publish that tag's missing package version without replacing an existing artifact.
+- Recovery resumes one exact attested release-candidate artifact. It must not rebuild or replace an existing npm version.
+- A PR that changes `packages/**` needs a `fix`, `feat`, or `revert` squash title so Release Please creates the required version. Package-changing `docs`, `chore`, and `refactor` titles fail CI; generated Release Please titles are allowed.
 - All packages require Node.js `>=22.19.0`. Release validation covers Node 22.19+ and Node 24; publication uses Node 24 and pinned npm `11.18.0` until deliberately updated.
 - The one-time `pnpm package-release:bootstrap --execute` path may publish deprecated `0.0.0-bootstrap.0` namespace placeholders under the `bootstrap` dist-tag, configure `npm trust`, and disable token publication. It must never publish a real package version.
 - Bootstrap verifies repository merge settings and fails compatibility when they drift. Execution patches only `allow_merge_commit=false`, `allow_squash_merge=true`, and `allow_rebase_merge=true`, then reads the settings back before continuing.
 - Bad published versions are deprecated and replaced with a new patch; they are not overwritten or routinely unpublished.
 
-For package release workflow changes, run `pnpm package-release:validate`, `pnpm check`, package build/pack checks, API snapshot checks, packed consumer smoke tests, and a Release Please dry-run where credentials allow it.
+For package release workflow changes, run `pnpm package-release:validate`, `pnpm check`, package build/pack checks, package-doc drift checks, API snapshot checks, packed consumer smoke tests, and a Release Please dry-run where credentials allow it.

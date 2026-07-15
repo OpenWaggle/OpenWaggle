@@ -80,4 +80,23 @@ describe('installed docs generator output', () => {
       ),
     ).toBe(true)
   })
+
+  it('expands website-only package install elements for agent-readable Markdown', async () => {
+    const packageGuide = await lifecycleFs.readFile(
+      lifecyclePath.join(
+        outputRoot(),
+        'topics',
+        'openwaggle',
+        'packages',
+        'extension-sdk',
+        '0.1',
+        'index.md',
+      ),
+      'utf8',
+    )
+
+    expect(packageGuide).toContain('npm install @openwaggle/extension-sdk')
+    expect(packageGuide).toContain('pnpm add @openwaggle/extension-sdk')
+    expect(packageGuide).not.toContain('<package-install')
+  })
 })

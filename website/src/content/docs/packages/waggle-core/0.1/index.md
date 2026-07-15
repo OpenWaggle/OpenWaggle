@@ -9,11 +9,7 @@ section: "Packages"
 
 Use it when you need Waggle configuration, built-in presets, prompt construction, state parsing, consensus checks, metadata helpers, or turn decisions without depending on Pi or the OpenWaggle desktop app.
 
-## Install
-
-```bash
-pnpm add @openwaggle/waggle-core
-```
+<package-install packages="@openwaggle/waggle-core"></package-install>
 
 ## Main Imports
 
@@ -115,3 +111,29 @@ export function nextPrompt(config: WaggleConfig, userPrompt: string, turnNumber:
 ## Runtime Boundary
 
 `@openwaggle/waggle-core` is runtime-neutral. It should not import Pi, Electron, OpenWaggle renderer stores, app services, or Node-specific APIs. Use [`@openwaggle/pi-waggle`](/docs/packages/pi-waggle) when you want Pi commands, Pi renderers, Pi mode state, or Pi session integration.
+
+## Compatibility
+
+| Requirement | Supported line |
+|-------------|----------------|
+| Node.js | 22.19 and newer |
+| Runtime | Browser-safe or server-side JavaScript |
+| Module format | ESM and CommonJS |
+| Waggle documentation | 0.1 |
+
+## Reference And Support
+
+- [Complete API reference](./api-reference)
+- [npm package](https://www.npmjs.com/package/@openwaggle/waggle-core)
+- [Package changelog](https://github.com/OpenWaggle/OpenWaggle/blob/main/packages/waggle-core/CHANGELOG.md)
+- [Report an issue](https://github.com/OpenWaggle/OpenWaggle/issues/new)
+
+## Troubleshooting
+
+**External configuration does not parse.** Use `parseWaggleConfig` and surface every returned issue instead of coercing unknown input into `WaggleConfig`.
+
+**A host needs Pi commands or renderers.** Keep core runtime-neutral and integrate through `@openwaggle/pi-waggle` or a host-specific adapter.
+
+**Turn execution does not stop.** Always honor both the primary stop policy and `maxTurnsSafety`; the safety limit is the final bounded-loop guard.
+
+There are no migrations within the `0.1` documentation line. Future incompatible changes will receive a new versioned documentation line and migration guide.

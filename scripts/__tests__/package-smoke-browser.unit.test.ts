@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { assertStableBrowserRuntime } from '../package-browser-smoke'
-import { assertBrowserRuntimeResult } from '../package-smoke-assertions'
+import { assertBrowserRuntimeResult } from '../package-smoke-runtime-assertions'
 import { packageBrowserSmokeEnabled } from '../package-smoke-env'
 
 describe('package browser smoke', () => {

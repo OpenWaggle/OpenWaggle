@@ -1,314 +1,114 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+
 import { validatePackageReleaseFiles } from '../package-release-validator'
 import {
+  validCiWorkflow,
   validWorkflow,
   writeMinimalPackageReleaseProject,
 } from './package-release-validator.fixtures'
 
+const temporaryDirectories: string[] = []
+
+async function temporaryProject(workflow = validWorkflow, ciWorkflow = validCiWorkflow) {
+  const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
+  temporaryDirectories.push(projectRoot)
+  await writeMinimalPackageReleaseProject(projectRoot, workflow, '0.1.0', 'released', ciWorkflow)
+  return projectRoot
+}
+
+afterEach(async () => {
+  await Promise.all(
+    temporaryDirectories.splice(0).map((directory) =>
+      fs.rm(directory, { force: true, recursive: true }),
+    ),
+  )
+})
+
 describe('package release workflow validation', () => {
-  it('rejects mutable uses references hidden in flow-style steps', async () => {
-    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
-    try {
-      const invalidWorkflow = validWorkflow.replace(
-        '    steps:\n      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6',
-        "    steps:\n      - { uses: 'attacker/action@main' }\n      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6",
-      )
-      await writeMinimalPackageReleaseProject(projectRoot, invalidWorkflow)
+  it('rejects CI that weakens the always-present, exact-runtime package gate', async () => {
+    const invalidCi = validCiWorkflow
+      .replace('name: Package Release Gate', 'name: Optional package checks')
+      .replace('          - 22.19.0\n', '')
+      .replace('pnpm website:build', 'echo skipped-website')
+      .replace("OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun'", "OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm'")
+      .replace('if: ${{ always() }}', 'if: ${{ success() }}')
+    const result = await validatePackageReleaseFiles(await temporaryProject(validWorkflow, invalidCi))
 
-      const result = await validatePackageReleaseFiles(projectRoot)
-
-      expect(result.violations).toContain(
-        '.github/workflows/package-release.yml must pin every uses reference to a full 40-character lowercase commit SHA: attacker/action@main.',
-      )
-    } finally {
-      await fs.rm(projectRoot, { recursive: true, force: true })
-    }
+    expect(result.violations).toEqual(expect.arrayContaining([
+      '.github/workflows/ci.yml must expose the always-present Package Release Gate status.',
+      '.github/workflows/ci.yml must rehearse exact Node 22.19.0 and 24.14.0 runtimes.',
+      '.github/workflows/ci.yml must build versioned package documentation before merge.',
+      '.github/workflows/ci.yml must rehearse npm, pnpm, Yarn, and Bun consumers.',
+      '.github/workflows/ci.yml Package Release Gate must always report a conclusion.',
+    ]))
   })
 
-  it('rejects required QA commands wrapped in multiline exit steps', async () => {
-    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
-    try {
-      const invalidWorkflow = validWorkflow.replace(
-        '      - run: pnpm check',
-        '      - run: |\n          pnpm check\n          exit 0',
+  it('rejects dispatched Release Please validation that skips artifact preparation', async () => {
+    const invalidCi = validCiWorkflow
+      .replace(
+        " || (github.event_name == 'workflow_dispatch' && startsWith(github.ref_name, 'release-please--branches--main'))",
+        '',
       )
-      await writeMinimalPackageReleaseProject(projectRoot, invalidWorkflow)
+      .replace('${{ github.head_ref || github.ref_name }}', '${{ github.head_ref }}')
+    const result = await validatePackageReleaseFiles(await temporaryProject(validWorkflow, invalidCi))
 
-      const result = await validatePackageReleaseFiles(projectRoot)
-
-      expect(result.violations).toContain(
-        '.github/workflows/package-release.yml must execute pnpm check.',
-      )
-    } finally {
-      await fs.rm(projectRoot, { recursive: true, force: true })
-    }
+    expect(result.violations).toEqual(expect.arrayContaining([
+      '.github/workflows/ci.yml must prepare artifacts for exact-head Release Please dispatches.',
+      '.github/workflows/ci.yml Package Release Gate must classify pull-request and dispatched Release Please branches.',
+    ]))
   })
 
-  it('does not accept required QA commands from a different job', async () => {
-    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
-    try {
-      const invalidWorkflow = validWorkflow.replace(
-        '      - run: pnpm package-release:validate',
-        '      - run: echo skipped-validator',
-      )
-      await writeMinimalPackageReleaseProject(projectRoot, invalidWorkflow)
+  it('rejects release artifacts without tree planning, hash validation, and provenance', async () => {
+    const invalidCi = validCiWorkflow
+      .replace('scripts/package-release-plan.ts', 'scripts/skipped-plan.ts')
+      .replace('scripts/package-release-artifacts.ts prepare', 'scripts/skipped-artifacts.ts')
+      .replace('actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a', 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10')
+    const result = await validatePackageReleaseFiles(await temporaryProject(validWorkflow, invalidCi))
 
-      const result = await validatePackageReleaseFiles(projectRoot)
-
-      expect(result.violations).toContain(
-        '.github/workflows/package-release.yml must execute pnpm package-release:validate.',
-      )
-    } finally {
-      await fs.rm(projectRoot, { recursive: true, force: true })
-    }
+    expect(result.violations).toEqual(expect.arrayContaining([
+      '.github/workflows/ci.yml must resolve the exact Release Please tree plan.',
+      '.github/workflows/ci.yml must build and verify immutable tarballs before merge.',
+      '.github/workflows/ci.yml must attest package tarballs and their manifest.',
+    ]))
   })
 
-  it('rejects conditional, shell-overridden, or fail-open required QA steps', async () => {
-    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
-    try {
-      const invalidWorkflow = validWorkflow
-        .replace('      - run: pnpm package-release:validate', '      - run: pnpm package-release:validate\n        if: always()')
-        .replace('      - run: pnpm check', '      - run: pnpm check\n        shell: bash')
-        .replace('      - run: pnpm build:packages', '      - run: pnpm build:packages\n        continue-on-error: false')
-      await writeMinimalPackageReleaseProject(projectRoot, invalidWorkflow)
+  it('rejects post-merge rebuilding, testing, or docs generation', async () => {
+    const invalidWorkflow = validWorkflow.replace(
+      '      - name: Install and verify pinned trusted-publishing npm',
+      '      - run: pnpm install --frozen-lockfile\n      - run: pnpm check\n      - run: pnpm build:packages\n      - run: pnpm docs:generate\n\n      - name: Install and verify pinned trusted-publishing npm',
+    )
+    const result = await validatePackageReleaseFiles(await temporaryProject(invalidWorkflow))
 
-      const result = await validatePackageReleaseFiles(projectRoot)
-
-      expect(result.violations).toEqual(expect.arrayContaining([
-        '.github/workflows/package-release.yml must execute pnpm package-release:validate.',
-        '.github/workflows/package-release.yml must execute pnpm check.',
-        '.github/workflows/package-release.yml must execute pnpm build:packages.',
-      ]))
-    } finally {
-      await fs.rm(projectRoot, { recursive: true, force: true })
-    }
+    expect(result.violations).toEqual(expect.arrayContaining([
+      '.github/workflows/package-release.yml post-merge publication must not execute pnpm install.',
+      '.github/workflows/package-release.yml post-merge publication must not execute pnpm check.',
+      '.github/workflows/package-release.yml post-merge publication must not execute build:packages.',
+      '.github/workflows/package-release.yml post-merge publication must not execute docs:generate.',
+    ]))
   })
 
-  it('rejects malformed package release workflow YAML', async () => {
-    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
-    try {
-      await writeMinimalPackageReleaseProject(projectRoot, `${validWorkflow}\njobs: [unterminated`)
+  it('rejects shallow post-merge release planning', async () => {
+    const invalidWorkflow = validWorkflow.replace(
+      '          fetch-depth: 0\n          ref: ${{ github.sha }}',
+      '          fetch-depth: 2\n          ref: ${{ github.sha }}',
+    )
+    const result = await validatePackageReleaseFiles(await temporaryProject(invalidWorkflow))
 
-      const result = await validatePackageReleaseFiles(projectRoot)
-
-      expect(result.violations.some((violation) => violation.startsWith(
-        '.github/workflows/package-release.yml must contain valid YAML:',
-      ))).toBe(true)
-    } finally {
-      await fs.rm(projectRoot, { recursive: true, force: true })
-    }
+    expect(result.violations).toContain(
+      '.github/workflows/package-release.yml release planning must fetch full history for multi-commit rebase merges.',
+    )
   })
 
-  it('rejects release QA without pinned Chromium and browser-enabled package smoke', async () => {
-    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
-    try {
-      const invalidWorkflow = validWorkflow
-        .replace('pnpm exec playwright install chromium', 'pnpm exec playwright install firefox')
-        .replace("OPENWAGGLE_PACKAGE_BROWSER_SMOKE: '1'", "OPENWAGGLE_PACKAGE_BROWSER_SMOKE: '0'")
-      await writeMinimalPackageReleaseProject(projectRoot, invalidWorkflow)
+  it('rejects malformed workflow YAML', async () => {
+    const result = await validatePackageReleaseFiles(
+      await temporaryProject(`${validWorkflow}\njobs: [unterminated`),
+    )
 
-      const result = await validatePackageReleaseFiles(projectRoot)
-
-      expect(result.violations).toEqual(expect.arrayContaining([
-        '.github/workflows/package-release.yml release-qa must install Chromium with pinned project Playwright tooling.',
-        '.github/workflows/package-release.yml release-qa must run browser-enabled package smoke on every Node matrix entry.',
-      ]))
-    } finally {
-      await fs.rm(projectRoot, { recursive: true, force: true })
-    }
+    expect(result.violations.some((violation) =>
+      violation.startsWith('.github/workflows/package-release.yml must contain valid YAML:'),
+    )).toBe(true)
   })
-
-  it('rejects workflow and publication permissions beyond least privilege', async () => {
-    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
-    try {
-      const invalidWorkflow = validWorkflow
-        .replace(
-          'permissions:\n  contents: read',
-          'permissions:\n  contents: read\n  actions: write',
-        )
-        .replace(
-          '    permissions:\n      id-token: write',
-          '    permissions:\n      id-token: write\n      packages: write',
-        )
-      await writeMinimalPackageReleaseProject(projectRoot, invalidWorkflow)
-
-      const result = await validatePackageReleaseFiles(projectRoot)
-
-      expect(result.violations).toEqual(
-        expect.arrayContaining([
-          '.github/workflows/package-release.yml must grant only contents: read by default.',
-          '.github/workflows/package-release.yml publish-bases must grant only id-token: write.',
-        ]),
-      )
-    } finally {
-      await fs.rm(projectRoot, { recursive: true, force: true })
-    }
-  })
-
-  it('rejects workflows that omit package paths or either exact-head release PR CI path', async () => {
-    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
-    try {
-      const invalidWorkflow = validWorkflow
-        .replace('      - packages/pi-waggle/**\n', '')
-        .replace('event=pull_request&branch=${HEAD_REF}', 'event=workflow_dispatch&branch=${HEAD_REF}')
-        .replace('.head_sha == $sha and .event == "pull_request"', '.head_sha == $sha')
-        .replace('actions/workflows/ci.yml/dispatches', 'actions/workflows/other.yml/dispatches')
-        .replace('inputs: {head_sha: $sha}', 'inputs: {head_sha: $ref}')
-      await writeMinimalPackageReleaseProject(projectRoot, invalidWorkflow)
-
-      const result = await validatePackageReleaseFiles(projectRoot)
-
-      expect(result.violations).toEqual(
-        expect.arrayContaining([
-          '.github/workflows/package-release.yml must scope push releases to packages/pi-waggle/**.',
-          '.github/workflows/package-release.yml must find PR-associated ci.yml runs for Release Please PRs.',
-          '.github/workflows/package-release.yml must select PR-associated CI by the exact release PR head SHA.',
-          '.github/workflows/package-release.yml must fall back to dispatching ci.yml for Release Please PRs.',
-          '.github/workflows/package-release.yml must dispatch fallback CI with the exact release PR head SHA.',
-        ]),
-      )
-    } finally {
-      await fs.rm(projectRoot, { recursive: true, force: true })
-    }
-  })
-
-  it('rejects release PR CI handling that is not idempotent across valid run states', async () => {
-    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
-    try {
-      const invalidWorkflow = validWorkflow
-        .replace('RUN_CONCLUSION" = "action_required"', 'RUN_CONCLUSION" = "success"')
-        .replace('RUN_STATUS" != "completed"', 'RUN_STATUS" = "completed"')
-        .replace('FINAL_CONCLUSION" = "success"', 'FINAL_CONCLUSION" = "failure"')
-      await writeMinimalPackageReleaseProject(projectRoot, invalidWorkflow)
-
-      const result = await validatePackageReleaseFiles(projectRoot)
-
-      expect(result.violations).toContain(
-        '.github/workflows/package-release.yml must safely rerun, watch, or accept exact-head release PR CI based on its current state.',
-      )
-    } finally {
-      await fs.rm(projectRoot, { recursive: true, force: true })
-    }
-  })
-
-  it('rejects workflows without exact per-package release, recovery, and tarball gates', async () => {
-    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
-    try {
-      const invalidWorkflow = validWorkflow
-        .replace("steps.release.outputs['packages/extension-react--tag_name']", 'github.ref_name')
-        .replace('sha256sum --check SHA256SUMS', 'echo unchecked')
-        .replace('      - publish-bases', '      - release-plan')
-      await writeMinimalPackageReleaseProject(projectRoot, invalidWorkflow)
-
-      const result = await validatePackageReleaseFiles(projectRoot)
-
-      expect(result.violations).toEqual(
-        expect.arrayContaining([
-          '.github/workflows/package-release.yml must use Release Please tag/version/SHA outputs for packages/extension-react.',
-          '.github/workflows/package-release.yml must checksum the exact tarball before publication.',
-          '.github/workflows/package-release.yml must publish dependent packages after base packages.',
-        ]),
-      )
-    } finally {
-      await fs.rm(projectRoot, { recursive: true, force: true })
-    }
-  })
-
-  it('rejects a publication job that weakens its trusted exact-tarball gate', async () => {
-    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
-    try {
-      const dependentJobStart = validWorkflow.indexOf('  publish-dependents:')
-      if (dependentJobStart === -1) {
-        throw new Error('Expected publish-dependents in the valid workflow fixture.')
-      }
-      const invalidWorkflow = `${validWorkflow.slice(0, dependentJobStart)}${validWorkflow
-        .slice(dependentJobStart)
-        .replace('node-version: 24.14.0', 'node-version: 24.13.0')
-        .replace('ACTIONS_ID_TOKEN_REQUEST_URL', 'MISSING_OIDC_REQUEST_URL')
-        .replace('sha256sum --check SHA256SUMS', 'echo unchecked')}`
-      await writeMinimalPackageReleaseProject(projectRoot, invalidWorkflow)
-
-      const result = await validatePackageReleaseFiles(projectRoot)
-
-      expect(result.violations).toEqual(
-        expect.arrayContaining([
-          '.github/workflows/package-release.yml publish-dependents must pin Node 24.14.0 and verify npm 11.9.0 before publication.',
-          '.github/workflows/package-release.yml publish-dependents must verify the GitHub OIDC environment.',
-          '.github/workflows/package-release.yml publish-dependents must checksum and inspect the exact tarball.',
-        ]),
-      )
-    } finally {
-      await fs.rm(projectRoot, { recursive: true, force: true })
-    }
-  })
-
-  it('rejects replaceable recovery tags and dependent jobs blocked by absent bases', async () => {
-    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
-    try {
-      const invalidWorkflow = validWorkflow
-        .replace('ref: refs/tags/${{ inputs.package_tag }}', 'ref: ${{ inputs.package_tag }}')
-        .replace('git ls-remote --exit-code origin "refs/tags/$RECOVERY_TAG"', 'echo unchecked-tag')
-        .replace('RELEASE_JSON=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag")', 'RELEASE_JSON={}')
-        .replace('"$actual_version" != "$version"', 'false')
-        .replaceAll('is already published.', 'may be replaced.')
-        .replaceAll('always()', 'success()')
-        .replace(
-          "(needs.publish-bases.result == 'success' || needs.publish-bases.result == 'skipped')",
-          'true',
-        )
-      await writeMinimalPackageReleaseProject(projectRoot, invalidWorkflow)
-
-      const result = await validatePackageReleaseFiles(projectRoot)
-
-      expect(result.violations).toEqual(
-        expect.arrayContaining([
-          '.github/workflows/package-release.yml recovery must checkout the exact tag ref.',
-          '.github/workflows/package-release.yml recovery must verify the remote GitHub tag SHA.',
-          '.github/workflows/package-release.yml recovery must verify source package version correspondence.',
-          '.github/workflows/package-release.yml recovery must verify the exact GitHub Release.',
-          '.github/workflows/package-release.yml recovery must refuse already-published versions.',
-          '.github/workflows/package-release.yml dependents must run after skipped base publication jobs.',
-          '.github/workflows/package-release.yml dependents must stop after failed base publication.',
-        ]),
-      )
-    } finally {
-      await fs.rm(projectRoot, { recursive: true, force: true })
-    }
-  })
-
-  it('rejects consumer smoke matrices that can skip a Node line or package manager', async () => {
-    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
-    try {
-      const invalidWorkflow = validWorkflow
-        .replace('          - 22.19.0\n', '')
-        .replace(
-          'node .release-tooling/scripts/package-consumer-tools.ts install --tool-root "$RUNNER_TEMP/package-managers" --github-path "$GITHUB_PATH"',
-          'echo skipped-package-consumer-install',
-        )
-        .replaceAll('version: 11.6.0', 'version: latest')
-        .replace('oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6', 'true')
-        .replace(
-          "OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun'",
-          "OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm'",
-        )
-      await writeMinimalPackageReleaseProject(projectRoot, invalidWorkflow)
-
-      const result = await validatePackageReleaseFiles(projectRoot)
-
-      expect(result.violations).toEqual(
-        expect.arrayContaining([
-          '.github/workflows/package-release.yml release-qa must smoke consumers on Node 22.19.0 and Node 24.',
-          '.github/workflows/package-release.yml release-qa must pin pnpm 11.6.0.',
-          '.github/workflows/package-release.yml must execute oven-sh/setup-bun at its approved immutable v2 SHA.',
-          '.github/workflows/package-release.yml release-qa must require npm, pnpm, Yarn, and Bun package consumers.',
-        ]),
-      )
-    } finally {
-      await fs.rm(projectRoot, { recursive: true, force: true })
-    }
-  })
-
 })

@@ -1,19 +1,37 @@
 ---
 import { getCollection, render } from 'astro:content';
 import DocsLayout from '@/layouts/DocsLayout.astro';
+import { packageDocumentation } from '@/data/package-docs';
 
 export async function getStaticPaths() {
   const docs = await getCollection('docs');
-  return docs.map((entry) => ({
-    params: { slug: entry.id },
-    props: { entry },
-  }));
+  const routes = docs.map((entry) => {
+    const routeSlug = entry.id.replace(/\/index$/u, '');
+    return {
+      params: { slug: routeSlug },
+      props: { entry, routeSlug },
+    };
+  });
+
+  for (const definition of packageDocumentation) {
+    const currentEntryId = `packages/${definition.slug}/${definition.currentVersion}/index`;
+    const currentEntry = docs.find((entry) => entry.id === currentEntryId);
+    if (!currentEntry) {
+      throw new Error(`Missing current package documentation entry: ${currentEntryId}`);
+    }
+    routes.push({
+      params: { slug: `packages/${definition.slug}` },
+      props: { entry: currentEntry, routeSlug: `packages/${definition.slug}` },
+    });
+  }
+
+  return routes;
 }
 
-const { entry } = Astro.props;
+const { entry, routeSlug } = Astro.props;
 const { Content } = await render(entry);
 ---
 
-<DocsLayout title={entry.data.title} description={entry.data.description} slug={entry.id}>
+<DocsLayout title={entry.data.title} description={entry.data.description} slug={routeSlug}>
   <Content />
 </DocsLayout>

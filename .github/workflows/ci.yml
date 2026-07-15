@@ -23,42 +23,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  package-consumer-tools:
-    name: Package Consumer Tools (Node ${{ matrix.node }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        node:
-          - 22.19.0
-          - 24
-    steps:
-      - name: Checkout exact CI revision
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
-
-      - name: Set up pinned pnpm
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-        with:
-          version: 11.6.0
-
-      - name: Set up matrix Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        with:
-          node-version: ${{ matrix.node }}
-
-      - name: Set up pinned Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: 1.3.14
-
-      - name: Install pinned package manager consumers
-        run: node scripts/package-consumer-tools.ts install --tool-root "$RUNNER_TEMP/package-managers" --github-path "$GITHUB_PATH"
-
-      - name: Verify package manager consumer versions
-        run: node scripts/package-consumer-tools.ts verify --tool-root "$RUNNER_TEMP/package-managers"
-
   commit-policy:
     name: Commit Policy
     runs-on: ubuntu-latest
@@ -78,10 +42,12 @@ jobs:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
 
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 11.6.0
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: 24
+          node-version: 24.14.0
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -113,14 +79,15 @@ jobs:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
 
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 11.6.0
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: 24
+          node-version: 24.14.0
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-
       - run: pnpm check
 
   test:
@@ -141,12 +108,150 @@ jobs:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
 
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 11.6.0
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: 24
+          node-version: 24.14.0
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-
       - run: pnpm test
+
+  package-release-rehearsal:
+    name: Package release rehearsal (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node:
+          - 22.19.0
+          - 24.14.0
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
+
+      - name: Checkout immutable package consumer tooling
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          sparse-checkout: scripts/package-consumer-tools.ts
+          sparse-checkout-cone-mode: false
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 11.6.0
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.14
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install pinned package manager consumers
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON .release-tooling/scripts/package-consumer-tools.ts install --tool-root "$RUNNER_TEMP/package-managers" --github-path "$GITHUB_PATH"
+
+      - name: Verify package manager consumer versions
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON .release-tooling/scripts/package-consumer-tools.ts verify --tool-root "$RUNNER_TEMP/package-managers"
+
+      - name: Rehearse static, docs, website, and API gates
+        if: ${{ matrix.node == '24.14.0' }}
+        env:
+          YARN_ENABLE_IMMUTABLE_INSTALLS: 'false'
+        run: |
+          pnpm package-release:validate
+          pnpm check
+          pnpm api:snapshot:check
+          pnpm package-docs:check
+          pnpm website:build
+          pnpm website:test
+          pnpm docs:generate
+
+      - name: Install Chromium for package browser smoke
+        run: pnpm exec playwright install chromium
+
+      - name: Rehearse npm, pnpm, Yarn, Bun, and browser consumers
+        env:
+          OPENWAGGLE_PACKAGE_BROWSER_SMOKE: '1'
+          OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun'
+          YARN_ENABLE_IMMUTABLE_INSTALLS: 'false'
+        run: pnpm build:packages && pnpm package:smoke
+
+  prepare-package-release:
+    name: Prepare immutable package release artifacts
+    needs: package-release-rehearsal
+    if: ${{ (github.event_name == 'pull_request' && startsWith(github.head_ref, 'release-please--branches--main')) || (github.event_name == 'workflow_dispatch' && startsWith(github.ref_name, 'release-please--branches--main')) }}
+    runs-on: ubuntu-latest
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.head_sha }}
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 11.6.0
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:packages
+
+      - name: Resolve exact Release Please package plan
+        id: plan
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-plan.ts "${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || 'origin/main' }}" "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.head_sha }}" "$RUNNER_TEMP/package-release-plan.json"
+
+      - name: Build and verify exact package tarballs
+        run: pnpm exec tsx scripts/package-release-artifacts.ts prepare "$RUNNER_TEMP/package-release-plan.json" "$RUNNER_TEMP/package-release-artifacts"
+
+      - name: Attest package tarballs and release manifest
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: ${{ runner.temp }}/package-release-artifacts/*
+
+      - name: Upload immutable package release artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ${{ steps.plan.outputs.artifact_name }}
+          path: ${{ runner.temp }}/package-release-artifacts
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+  package-release-gate:
+    name: Package Release Gate
+    needs:
+      - commit-policy
+      - check
+      - test
+      - package-release-rehearsal
+      - prepare-package-release
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24.14.0
+          package-manager-cache: false
+
+      - name: Enforce complete package release readiness
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-gate.ts "${{ needs.commit-policy.result }}" "${{ needs.check.result }}" "${{ needs.test.result }}" "${{ needs.package-release-rehearsal.result }}" "${{ needs.prepare-package-release.result }}" "${{ github.head_ref || github.ref_name }}"

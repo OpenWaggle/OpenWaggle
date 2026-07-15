@@ -3,6 +3,9 @@ import BaseLayout from './BaseLayout.astro';
 import Sidebar from '@/components/docs/Sidebar.astro';
 import PrevNext from '@/components/docs/PrevNext.astro';
 import Button from '@/components/ui/Button.astro';
+import PackageInstallTabs from '@/components/docs/PackageInstallTabs.astro';
+import PackageVersionSelect from '@/components/docs/PackageVersionSelect.astro';
+import { packageDocumentationPage } from '@/data/package-docs';
 
 interface Props {
   title: string;
@@ -11,6 +14,8 @@ interface Props {
 }
 
 const { title, description, slug } = Astro.props;
+const packagePage = packageDocumentationPage(slug);
+const navigationSlug = packagePage ? `packages/${packagePage.definition.slug}` : slug;
 ---
 
 <BaseLayout title={`${title} — OpenWaggle Docs`} description={description ?? ''}>
@@ -34,6 +39,13 @@ const { title, description, slug } = Astro.props;
       </div>
 
       <article class="prose-docs">
+        {packagePage && (
+          <PackageVersionSelect
+            definition={packagePage.definition}
+            page={packagePage.page}
+            version={packagePage.version}
+          />
+        )}
         <h1 class="mb-2 font-display text-3xl font-bold text-text-primary">{title}</h1>
         {description && (
           <p class="mb-8 text-base text-text-tertiary">{description}</p>
@@ -41,7 +53,7 @@ const { title, description, slug } = Astro.props;
         <slot />
       </article>
 
-      <PrevNext currentSlug={slug} />
+      <PrevNext currentSlug={navigationSlug} />
     </div>
   </div>
 
@@ -53,4 +65,5 @@ const { title, description, slug } = Astro.props;
       { "@type": "ListItem", "position": 2, "name": title, "item": `https://openwaggle.ai/docs/${slug}` },
     ],
   })} />
+  <PackageInstallTabs />
 </BaseLayout>
