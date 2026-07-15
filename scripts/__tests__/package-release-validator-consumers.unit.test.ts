@@ -198,6 +198,25 @@ describe('package release consumer tool validation', () => {
     }
   })
 
+  it('rejects recovery smoke that allows Yarn CI immutable installs', async () => {
+    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
+    try {
+      const invalidWorkflow = validWorkflow.replace(
+        "          YARN_ENABLE_IMMUTABLE_INSTALLS: 'false'\n",
+        '',
+      )
+      await writeMinimalPackageReleaseProject(projectRoot, invalidWorkflow)
+
+      const result = await validatePackageReleaseFiles(projectRoot)
+
+      expect(result.violations).toContain(
+        '.github/workflows/package-release.yml release-qa must disable Yarn immutable installs for lockfile-free packed consumers.',
+      )
+    } finally {
+      await fs.rm(projectRoot, { recursive: true, force: true })
+    }
+  })
+
   it('rejects CI without the exact Node 22.19 and Node 24 consumer-tool matrix', async () => {
     const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
     try {
