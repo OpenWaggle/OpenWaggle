@@ -2,6 +2,7 @@ import { runsExactCommand } from './package-release-validator-workflow-structure
 import {
   jobExactNamedActionStepWithInputsIndex,
   jobExactNamedRunStepIndex,
+  jobHasConditionalExactRunStepWithEnv,
   jobHasDedicatedExactRunStep,
   jobHasDedicatedExactRunStepWithEnv,
   workflowJobCondition,
@@ -34,10 +35,13 @@ const EXPECTED_RUN_COMMANDS = [
   'pnpm exec playwright install chromium',
   'pnpm build:packages && pnpm package:smoke',
 ] as const
+const EXPECTED_YARN_LOCKFILE_FREE_ENV = {
+  YARN_ENABLE_IMMUTABLE_INSTALLS: 'false',
+} as const
 const EXPECTED_SMOKE_ENV = {
   OPENWAGGLE_PACKAGE_BROWSER_SMOKE: '1',
   OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun',
-  YARN_ENABLE_IMMUTABLE_INSTALLS: 'false',
+  ...EXPECTED_YARN_LOCKFILE_FREE_ENV,
 } as const
 const EXPECTED_RELEASE_QA_STEPS = [
   {
@@ -72,6 +76,7 @@ const EXPECTED_RELEASE_QA_STEPS = [
   {
     name: 'Run full release checks on Node 24',
     if: '${{ matrix.node == 24 }}',
+    env: EXPECTED_YARN_LOCKFILE_FREE_ENV,
     run: 'pnpm check',
   },
   {
@@ -228,6 +233,18 @@ export function validateWorkflowConsumerSmoke(
     `${WORKFLOW_PATH} release-qa must install Chromium with pinned project Playwright tooling.`,
     violations,
   )
+  const fullReleaseChecks = jobHasConditionalExactRunStepWithEnv(
+    workflowRoot,
+    'release-qa',
+    'pnpm check',
+    '${{ matrix.node == 24 }}',
+    EXPECTED_YARN_LOCKFILE_FREE_ENV,
+  )
+  addViolation(
+    !fullReleaseChecks,
+    `${WORKFLOW_PATH} release-qa full checks must disable Yarn immutable installs for lockfile-free packed consumers.`,
+    violations,
+  )
   const browserSmoke = jobHasDedicatedExactRunStepWithEnv(
     workflowRoot,
     'release-qa',
@@ -240,13 +257,13 @@ export function validateWorkflowConsumerSmoke(
     violations,
   )
   addViolation(
-    !job.includes("OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun'"),
-    `${WORKFLOW_PATH} release-qa must require npm, pnpm, Yarn, and Bun package consumers.`,
+    !browserSmoke,
+    `${WORKFLOW_PATH} release-qa must disable Yarn immutable installs for lockfile-free packed consumers.`,
     violations,
   )
   addViolation(
-    !job.includes("YARN_ENABLE_IMMUTABLE_INSTALLS: 'false'"),
-    `${WORKFLOW_PATH} release-qa must disable Yarn immutable installs for lockfile-free packed consumers.`,
+    !job.includes("OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun'"),
+    `${WORKFLOW_PATH} release-qa must require npm, pnpm, Yarn, and Bun package consumers.`,
     violations,
   )
 }
