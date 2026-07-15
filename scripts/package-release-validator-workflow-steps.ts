@@ -264,3 +264,20 @@ export function jobHasDedicatedExactRunStepWithEnv(
     )
   })
 }
+
+export function jobHasConditionalExactRunStepWithEnv(
+  workflowRoot: unknown,
+  jobName: string,
+  command: string,
+  condition: string,
+  expectedEnv: Readonly<Record<string, WorkflowStepScalar>>,
+) {
+  return workflowJobSteps(workflowRoot, jobName).some((step) => {
+    return (
+      hasExactRunCommand(step, command) &&
+      scalarString(mapValue(step, 'if')) === condition &&
+      hasOnlyKeys(step, ['name', 'if', 'env', 'run']) &&
+      matchesExactMapping(mapValue(step, 'env'), expectedEnv)
+    )
+  })
+}
