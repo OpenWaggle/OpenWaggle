@@ -34,6 +34,11 @@ const EXPECTED_RUN_COMMANDS = [
   'pnpm exec playwright install chromium',
   'pnpm build:packages && pnpm package:smoke',
 ] as const
+const EXPECTED_SMOKE_ENV = {
+  OPENWAGGLE_PACKAGE_BROWSER_SMOKE: '1',
+  OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun',
+  YARN_ENABLE_IMMUTABLE_INSTALLS: 'false',
+} as const
 const EXPECTED_RELEASE_QA_STEPS = [
   {
     uses: 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10',
@@ -75,10 +80,7 @@ const EXPECTED_RELEASE_QA_STEPS = [
   },
   {
     name: 'Smoke packed consumers',
-    env: {
-      OPENWAGGLE_PACKAGE_BROWSER_SMOKE: '1',
-      OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun',
-    },
+    env: EXPECTED_SMOKE_ENV,
     run: 'pnpm build:packages && pnpm package:smoke',
   },
 ] as const satisfies readonly WorkflowStepContract[]
@@ -230,10 +232,7 @@ export function validateWorkflowConsumerSmoke(
     workflowRoot,
     'release-qa',
     'pnpm build:packages && pnpm package:smoke',
-    {
-      OPENWAGGLE_PACKAGE_BROWSER_SMOKE: '1',
-      OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun',
-    },
+    EXPECTED_SMOKE_ENV,
   )
   addViolation(
     !browserSmoke,
@@ -243,6 +242,11 @@ export function validateWorkflowConsumerSmoke(
   addViolation(
     !job.includes("OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun'"),
     `${WORKFLOW_PATH} release-qa must require npm, pnpm, Yarn, and Bun package consumers.`,
+    violations,
+  )
+  addViolation(
+    !job.includes("YARN_ENABLE_IMMUTABLE_INSTALLS: 'false'"),
+    `${WORKFLOW_PATH} release-qa must disable Yarn immutable installs for lockfile-free packed consumers.`,
     violations,
   )
 }

@@ -497,6 +497,7 @@ jobs:
         env:
           OPENWAGGLE_PACKAGE_BROWSER_SMOKE: '1'
           OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun'
+          YARN_ENABLE_IMMUTABLE_INSTALLS: 'false'
         run: pnpm build:packages && pnpm package:smoke
 
   prepare-artifacts:
