@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import {
   packageDocumentation,
@@ -28,6 +29,19 @@ describe('package documentation routes', () => {
     for (const definition of packageDocumentation) {
       expect(definition.currentVersion).toMatch(/^\d+\.\d+$/u);
       expect(definition.versions).toContain(definition.currentVersion);
+    }
+  });
+
+  it('catalogues every Alert tone with a rendered example', async () => {
+    const catalogue = await readFile(
+      new URL('../../content/docs/packages/extension-react/0.1/components.md', import.meta.url),
+      'utf8',
+    );
+
+    for (const tone of ['neutral', 'accent', 'success', 'warning', 'danger', 'info']) {
+      expect(catalogue).toContain(
+        `<div class="ow-extension-alert" data-ow-tone="${tone}"`,
+      );
     }
   });
 });

@@ -1,4 +1,7 @@
-import type { PackageDocumentationDefinition } from './package-documentation-model'
+import type {
+  PackageDocumentationDefinition,
+  VersionedPackageDocumentationDefinition,
+} from './package-documentation-model'
 
 export interface PackageManifest {
   readonly bugs?: { readonly url?: string }
@@ -52,7 +55,7 @@ export function packageManifest(value: unknown): PackageManifest {
 
 export function packageManifestDocumentationViolations(
   manifest: PackageManifest,
-  definition: PackageDocumentationDefinition,
+  definition: VersionedPackageDocumentationDefinition,
   docsUrl: string,
 ) {
   const violations: string[] = []

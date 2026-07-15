@@ -15,7 +15,48 @@ Runtime-neutral Waggle configuration, prompts, state, presets, consensus, events
 
 Convenience entry point for the complete runtime-neutral Waggle policy API.
 
-This export contains styles or re-exports the typed modules listed below.
+| Export | Kind |
+|--------|------|
+| `buildWaggleTurnPrompt` | function |
+| `BuildWaggleTurnPromptInput` | interface |
+| `BUILT_IN_WAGGLE_PRESETS` | const |
+| `checkConsensus` | function |
+| `completeWaggleTurn` | function |
+| `decideNextWaggleTurn` | function |
+| `evaluateConsensus` | function |
+| `getWaggleTurn` | function |
+| `getWaggleTurnAgentIndex` | function |
+| `isProviderQualifiedWaggleModel` | function |
+| `isWaggleInheritedModel` | function |
+| `MAX_WAGGLE_MAX_TURNS_SAFETY` | const |
+| `mergeWagglePresets` | function |
+| `metadataForWaggleTurn` | function |
+| `MIN_WAGGLE_MAX_TURNS_SAFETY` | const |
+| `parseWaggleConfig` | function |
+| `parseWagglePreset` | function |
+| `startWaggleRun` | function |
+| `WAGGLE_AGENT_COLORS` | const |
+| `WAGGLE_COLLABORATION_MODES` | const |
+| `WAGGLE_INHERIT_MODEL` | const |
+| `WAGGLE_STOP_CONDITIONS` | const |
+| `WaggleAgentColor` | type |
+| `WaggleAgentSlot` | interface |
+| `WaggleCollaborationMode` | type |
+| `WaggleConfig` | interface |
+| `WaggleConsensusCheckResult` | interface |
+| `WaggleConsensusSignal` | interface |
+| `WaggleEngineEvent` | type |
+| `WagglePreset` | interface |
+| `WaggleRunState` | interface |
+| `WaggleRunStatus` | type |
+| `WaggleStopCondition` | type |
+| `WaggleStopConfig` | interface |
+| `WaggleStopReason` | type |
+| `WaggleTurn` | interface |
+| `WaggleTurnCompletion` | interface |
+| `WaggleTurnDecision` | interface |
+| `WaggleTurnMetadata` | interface |
+| `WaggleValidationResult` | type |
 
 ## `@openwaggle/waggle-core/config`
 

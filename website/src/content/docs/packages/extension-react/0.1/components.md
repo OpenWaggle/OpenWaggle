@@ -76,9 +76,12 @@ import { Button, Field, Input, Panel, Stack } from '@openwaggle/extension-react'
     <span class="ow-extension-badge" data-ow-tone="danger">Danger</span>
     <span class="ow-extension-badge" data-ow-tone="info">Info</span>
   </div>
+  <div class="ow-extension-alert" data-ow-tone="neutral" role="status">No extension status has been reported yet.</div>
+  <div class="ow-extension-alert" data-ow-tone="accent" role="note">This extension can add a project-specific view.</div>
   <div class="ow-extension-alert" data-ow-tone="success" role="status">The extension settings were saved.</div>
   <div class="ow-extension-alert" data-ow-tone="warning" role="note">The next refresh may use cached data.</div>
   <div class="ow-extension-alert" data-ow-tone="danger" role="alert">The configured credential is no longer valid.</div>
+  <div class="ow-extension-alert" data-ow-tone="info" role="status">The extension will refresh when the active project changes.</div>
 </div>
 
 ## Input, Textarea, Select, Checkbox, and Field

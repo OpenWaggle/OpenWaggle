@@ -5,25 +5,16 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import {
-  assertDualModuleExports,
-  assertPackedPackageFiles,
-  assertPackedPackageMetadata,
   assertPackedWorkspaceDependencyRanges,
   isObject,
   parsePnpmPackTarballPath,
 } from './package-smoke-assertions'
 import {
   assertBrowserBundleContent,
-  assertNoWorkspaceProtocols,
-  assertReactPeerDependencies,
   findPackageDependencyVersion,
   isPackageSmokeDevDependency,
   supportsPackageSmokeNodeVersion,
 } from './package-smoke-runtime-assertions'
-import {
-  assertPackedDocumentationMetadata,
-  assertPackedPackageReadme,
-} from './package-smoke-documentation-assertions'
 import { runPackageBrowserSmoke } from './package-browser-smoke'
 import {
   readPackageSmokeEnvironment,
@@ -33,19 +24,24 @@ import {
   assertRequiredPackageManagers,
   availablePackageManagers,
 } from './package-smoke-package-managers'
+import {
+  mergePackedPackageSources,
+  parsePackageSmokeArgs,
+  type PackedPackageReference,
+  readCanonicalPackageTarballs,
+} from './package-smoke-canonical'
+import {
+  type PackedPackage,
+  type PackageSpec,
+  validatePackedPackage,
+} from './package-smoke-tarballs'
 
 const execFile = promisify(execFileCallback)
 const JSON_INDENT_SPACES = 2
 const EXEC_MAX_BUFFER_BYTES = 10_000_000
-const PACKAGE_TARBALL_PREFIX = 'package/'
 const FIXTURE_DIR = 'tests/fixtures/package-smoke'
 const SMOKE_PROJECT_DIR = 'package-smoke-project'
-
-interface PackageSpec { readonly name: string; readonly directory: string }
-
-interface PackedPackage extends PackedPackageReference { readonly manifest: unknown }
-
-interface PackedPackageReference { readonly name: string; readonly tarballPath: string }
+const CLI_ARGUMENT_START_INDEX = 2
 
 interface SmokeDependencyVersion { readonly name: string; readonly version: string }
 
@@ -88,59 +84,28 @@ async function readJsonFile(filePath: string) {
   return parsed
 }
 
-async function readPackedManifest(tarballPath: string) {
-  const result = await execFile(
-    'tar',
-    ['-xOf', tarballPath, `${PACKAGE_TARBALL_PREFIX}package.json`],
-    { maxBuffer: EXEC_MAX_BUFFER_BYTES },
-  )
-  const parsed: unknown = JSON.parse(result.stdout)
-  return parsed
-}
-
-async function readPackedTextFile(tarballPath: string, relativePath: string) {
-  const result = await execFile(
-    'tar',
-    ['-xOf', tarballPath, `${PACKAGE_TARBALL_PREFIX}${relativePath}`],
-    { maxBuffer: EXEC_MAX_BUFFER_BYTES },
-  )
-  return result.stdout
-}
-
-async function listTarballPackageFiles(tarballPath: string) {
-  const result = await execFile('tar', ['-tf', tarballPath], { maxBuffer: EXEC_MAX_BUFFER_BYTES })
-  return result.stdout
-    .split('\n')
-    .filter((entry) => entry.startsWith(PACKAGE_TARBALL_PREFIX))
-    .map((entry) => entry.slice(PACKAGE_TARBALL_PREFIX.length))
-    .filter((entry) => entry.length > 0)
-}
-
 async function packPackage(projectRoot: string, spec: PackageSpec, packDir: string) {
-  const packageRoot = path.join(projectRoot, spec.directory)
-  await runCommand('pnpm', ['--filter', spec.name, 'build'], projectRoot)
   const result = await execFile(
     'pnpm',
     ['pack', '--pack-destination', packDir, '--json'],
-    { cwd: packageRoot, maxBuffer: EXEC_MAX_BUFFER_BYTES },
+    { cwd: path.join(projectRoot, spec.directory), maxBuffer: EXEC_MAX_BUFFER_BYTES },
   )
-  const tarballPath = parsePnpmPackTarballPath(result.stdout)
-  const manifest = await readPackedManifest(tarballPath)
-  const readme = await readPackedTextFile(tarballPath, 'README.md')
-  const files = await listTarballPackageFiles(tarballPath)
+  return validatePackedPackage(spec, parsePnpmPackTarballPath(result.stdout))
+}
 
-  assertPackedPackageFiles({ packageName: spec.name, manifest, files })
-  assertNoWorkspaceProtocols(spec.name, manifest)
-  assertPackedPackageMetadata(manifest, spec.directory)
-  assertPackedDocumentationMetadata(manifest, spec.directory)
-  assertPackedPackageReadme({ packageName: spec.name, readme })
-  assertDualModuleExports(spec.name, manifest)
-  if (spec.name === '@openwaggle/extension-react') {
-    assertReactPeerDependencies(manifest)
-  }
-
-  console.log(`validated ${spec.name} tarball: ${path.basename(tarballPath)}`)
-  return { name: spec.name, tarballPath, manifest }
+async function canonicalPackedPackages(tarballDirectory: string) {
+  const packageNames = new Set(PUBLISHABLE_PACKAGES.map((spec) => spec.name))
+  const tarballs = await readCanonicalPackageTarballs(
+    tarballDirectory,
+    packageNames,
+  )
+  return Promise.all(
+    tarballs.map((tarball) => {
+      const spec = PUBLISHABLE_PACKAGES.find((candidate) => candidate.name === tarball.name)
+      if (spec === undefined) throw new Error(`Unknown canonical package ${tarball.name}.`)
+      return validatePackedPackage(spec, tarball.tarballPath)
+    }),
+  )
 }
 
 function packedPackageVersions(packedPackages: readonly PackedPackage[]) {
@@ -299,30 +264,44 @@ async function runPackedPackageSmoke(root: string, packages: readonly PackedPack
   }
 }
 
-async function main() {
+async function main(args: readonly string[]) {
   const projectRoot = process.cwd()
   const smokeRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-pack-'))
 
   try {
+    const { tarballDirectory } = parsePackageSmokeArgs(args)
+    const canonicalPackages =
+      tarballDirectory === undefined ? [] : await canonicalPackedPackages(tarballDirectory)
+    if (tarballDirectory === undefined) {
+      await runCommand('pnpm', ['build:packages'], projectRoot)
+    }
     const packDir = path.join(smokeRoot, 'tarballs'); await fs.mkdir(packDir, { recursive: true })
     const packedPackages: PackedPackage[] = []
+    const canonicalNames = new Set(canonicalPackages.map((packedPackage) => packedPackage.name))
 
     for (const spec of PUBLISHABLE_PACKAGES) {
-      packedPackages.push(await packPackage(projectRoot, spec, packDir))
+      const canonicalPackage = canonicalPackages.find((candidate) => candidate.name === spec.name)
+      packedPackages.push(
+        canonicalPackage ?? (await packPackage(projectRoot, spec, packDir)),
+      )
+    }
+    if (canonicalNames.size !== canonicalPackages.length) {
+      throw new Error('Canonical package smoke contains duplicate package tarballs.')
     }
 
-    const versions = packedPackageVersions(packedPackages)
-    for (const packedPackage of packedPackages) {
+    const selectedPackages = mergePackedPackageSources(packedPackages, canonicalPackages)
+    const versions = packedPackageVersions(selectedPackages)
+    for (const packedPackage of selectedPackages) {
       assertPackedWorkspaceDependencyRanges(packedPackage.name, packedPackage.manifest, versions)
     }
 
-    await runPackedPackageSmoke(projectRoot, packedPackages)
+    await runPackedPackageSmoke(projectRoot, selectedPackages)
   } finally {
     await fs.rm(smokeRoot, { recursive: true, force: true })
   }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch((error: unknown) => {
+  main(process.argv.slice(CLI_ARGUMENT_START_INDEX)).catch((error: unknown) => {
     console.error(error)
     process.exitCode = 1
   })

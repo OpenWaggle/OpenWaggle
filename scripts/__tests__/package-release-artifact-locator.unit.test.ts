@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
-import { selectPackageReleaseArtifactRun } from '../package-release-artifact-locator'
+import {
+  packageReleaseArtifactRunEnvironment,
+  selectPackageReleaseArtifactRun,
+} from '../package-release-artifact-locator'
 
 describe('package release artifact locator', () => {
+  it('hands the selected CI run identity to subsequent promotion steps', () => {
+    expect(packageReleaseArtifactRunEnvironment({ runId: 123, sourceSha: 'release-head' }))
+      .toBe('EXPECTED_ARTIFACT_RUN_ID=123\n')
+  })
+
   it('selects the newest unexpired artifact from a successful pull-request CI run', async () => {
     const selection = await selectPackageReleaseArtifactRun(
       'package-release-tree',

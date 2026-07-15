@@ -2,45 +2,23 @@ import { createHash } from 'node:crypto'
 import { lstat, readFile, readdir } from 'node:fs/promises'
 import path from 'node:path'
 
+import type {
+  PackageReleaseArtifact,
+  PackageReleaseArtifactManifest,
+} from './package-release-artifact-contract'
+import type { PackageReleasePlan } from './package-release-plan'
+
+export type {
+  PackageReleaseArtifact,
+  PackageReleaseArtifactManifest,
+} from './package-release-artifact-contract'
+export type { PackageReleasePlan, PackageReleasePlanItem } from './package-release-plan'
+
 const ACCEPTANCE_ATTEMPTS = 12
 const PUBLISH_ATTEMPTS = 3
+const REGISTRY_READ_ATTEMPTS = 3
 const REGISTRY_RETRY_DELAY_MS = 5_000
 const TRANSIENT_RETRY_DELAY_MS = 10_000
-
-export interface PackageReleasePlanItem {
-  readonly dependency?: string
-  readonly key: string
-  readonly name: string
-  readonly packagePath: string
-  readonly tag: string
-  readonly version: string
-}
-
-export interface PackageReleasePlan {
-  readonly packages: readonly PackageReleasePlanItem[]
-  readonly schemaVersion: 1
-  readonly sourceSha: string
-  readonly sourceTree: string
-}
-
-export interface PackageReleaseArtifact {
-  readonly dependency?: Readonly<{ name: string; version: string }>
-  readonly file: string
-  readonly integrity: string
-  readonly key: string
-  readonly name: string
-  readonly releaseNotes: string
-  readonly sha256: string
-  readonly tag: string
-  readonly version: string
-}
-
-export interface PackageReleaseArtifactManifest {
-  readonly packages: readonly PackageReleaseArtifact[]
-  readonly schemaVersion: 1
-  readonly sourceSha: string
-  readonly sourceTree: string
-}
 
 export interface PackageReleasePromotionDependencies {
   readonly ensureGitHubRelease: (input: Readonly<{
@@ -54,104 +32,45 @@ export interface PackageReleasePromotionDependencies {
   readonly sleep: (durationMs: number) => Promise<void>
 }
 
+interface ArtifactContractModule {
+  readonly decodePackageReleaseArtifactManifest: (
+    value: unknown,
+  ) => PackageReleaseArtifactManifest
+}
+
+interface PlanModule {
+  readonly decodePackageReleasePlan: (value: unknown) => PackageReleasePlan
+}
+
 function isJsonObject(value: unknown): value is { readonly [key: string]: unknown } {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function decodePlanPackage(value: unknown): PackageReleasePlanItem {
-  if (
-    !isJsonObject(value) ||
-    typeof value.key !== 'string' ||
-    typeof value.name !== 'string' ||
-    typeof value.packagePath !== 'string' ||
-    typeof value.tag !== 'string' ||
-    typeof value.version !== 'string' ||
-    (value.dependency !== undefined && typeof value.dependency !== 'string')
-  ) {
-    throw new Error('Package release plan contains an invalid package.')
-  }
-  return {
-    ...(value.dependency === undefined ? {} : { dependency: value.dependency }),
-    key: value.key,
-    name: value.name,
-    packagePath: value.packagePath,
-    tag: value.tag,
-    version: value.version,
-  }
+function isArtifactContractModule(value: unknown): value is ArtifactContractModule {
+  return isJsonObject(value) &&
+    typeof value.decodePackageReleaseArtifactManifest === 'function'
 }
 
-function decodePlan(value: unknown): PackageReleasePlan {
-  if (
-    !isJsonObject(value) ||
-    value.schemaVersion !== 1 ||
-    typeof value.sourceSha !== 'string' ||
-    typeof value.sourceTree !== 'string' ||
-    !Array.isArray(value.packages)
-  ) {
-    throw new Error('Package release plan is invalid.')
-  }
-  return {
-    packages: value.packages.map(decodePlanPackage),
-    schemaVersion: 1,
-    sourceSha: value.sourceSha,
-    sourceTree: value.sourceTree,
-  }
+function isPlanModule(value: unknown): value is PlanModule {
+  return isJsonObject(value) && typeof value.decodePackageReleasePlan === 'function'
 }
 
-function decodeArtifact(value: unknown): PackageReleaseArtifact {
-  if (
-    !isJsonObject(value) ||
-    typeof value.file !== 'string' ||
-    typeof value.integrity !== 'string' ||
-    typeof value.key !== 'string' ||
-    typeof value.name !== 'string' ||
-    typeof value.releaseNotes !== 'string' ||
-    typeof value.sha256 !== 'string' ||
-    typeof value.tag !== 'string' ||
-    typeof value.version !== 'string'
-  ) {
-    throw new Error('Package release artifact manifest contains an invalid package.')
+async function loadArtifactContractModule() {
+  const moduleUrl = new URL('./package-release-artifact-contract.ts', import.meta.url).href
+  const loaded: unknown = await import(moduleUrl)
+  if (!isArtifactContractModule(loaded)) {
+    throw new Error('Package release artifact contract module is invalid.')
   }
-  let dependency: Readonly<{ name: string; version: string }> | undefined
-  if (value.dependency !== undefined) {
-    if (
-      !isJsonObject(value.dependency) ||
-      typeof value.dependency.name !== 'string' ||
-      typeof value.dependency.version !== 'string'
-    ) {
-      throw new Error('Package release artifact dependency is invalid.')
-    }
-    dependency = { name: value.dependency.name, version: value.dependency.version }
-  }
-  return {
-    ...(dependency === undefined ? {} : { dependency }),
-    file: value.file,
-    integrity: value.integrity,
-    key: value.key,
-    name: value.name,
-    releaseNotes: value.releaseNotes,
-    sha256: value.sha256,
-    tag: value.tag,
-    version: value.version,
-  }
+  return loaded
 }
 
-function decodeManifest(value: unknown): PackageReleaseArtifactManifest {
-  if (
-    !isJsonObject(value) ||
-    value.schemaVersion !== 1 ||
-    typeof value.sourceSha !== 'string' ||
-    typeof value.sourceTree !== 'string' ||
-    !Array.isArray(value.packages)
-  ) {
-    throw new Error('Package release artifact manifest is invalid.')
+async function loadPlanModule() {
+  const moduleUrl = new URL('./package-release-plan.ts', import.meta.url).href
+  const loaded: unknown = await import(moduleUrl)
+  if (!isPlanModule(loaded)) {
+    throw new Error('Package release plan module is invalid.')
   }
-  return {
-    packages: value.packages.map(decodeArtifact),
-    schemaVersion: 1,
-    sourceSha: value.sourceSha,
-    sourceTree: value.sourceTree,
-  }
+  return loaded
 }
 
 async function readJson(filePath: string): Promise<unknown> {
@@ -159,11 +78,15 @@ async function readJson(filePath: string): Promise<unknown> {
 }
 
 export async function readPackageReleasePlan(planPath: string) {
-  return decodePlan(await readJson(planPath))
+  const planModule = await loadPlanModule()
+  return planModule.decodePackageReleasePlan(await readJson(planPath))
 }
 
 export async function verifyPromotionBundle(plan: PackageReleasePlan, artifactRoot: string) {
-  const manifest = decodeManifest(await readJson(path.join(artifactRoot, 'release-artifacts.json')))
+  const artifactContract = await loadArtifactContractModule()
+  const manifest = artifactContract.decodePackageReleaseArtifactManifest(
+    await readJson(path.join(artifactRoot, 'release-artifacts.json')),
+  )
   const packageMismatch = plan.packages.some((plannedPackage, index) => {
     const artifact = manifest.packages[index]
     return artifact === undefined || artifact.key !== plannedPackage.key ||
@@ -203,7 +126,25 @@ export async function verifyPromotionBundle(plan: PackageReleasePlan, artifactRo
 
 function isTransientPublicationFailure(error: unknown) {
   const message = error instanceof Error ? error.message : String(error)
-  return /EAI_AGAIN|ECONNRESET|ETIMEDOUT|E(?:502|503|504)|\b(?:502|503|504)\b|network/i.test(message)
+  return /EAI_AGAIN|ECONNREFUSED|ECONNRESET|ENETUNREACH|EPIPE|ETIMEDOUT|socket hang up|E(?:408|429|500|502|503|504)|\b(?:408|429|500|502|503|504)\b|network/i.test(message)
+}
+
+async function readRegistryIntegrityWithRetry(
+  name: string,
+  version: string,
+  dependencies: PackageReleasePromotionDependencies,
+) {
+  for (let attempt = 0; attempt < REGISTRY_READ_ATTEMPTS; attempt += 1) {
+    try {
+      return await dependencies.readRegistryIntegrity(name, version)
+    } catch (error) {
+      if (!isTransientPublicationFailure(error) || attempt + 1 >= REGISTRY_READ_ATTEMPTS) {
+        throw error
+      }
+      await dependencies.sleep(REGISTRY_RETRY_DELAY_MS)
+    }
+  }
+  throw new Error(`Unable to inspect ${name}@${version} on npm.`)
 }
 
 async function requireAcceptedRegistryArtifact(
@@ -211,7 +152,11 @@ async function requireAcceptedRegistryArtifact(
   dependencies: PackageReleasePromotionDependencies,
 ) {
   for (let attempt = 0; attempt < ACCEPTANCE_ATTEMPTS; attempt += 1) {
-    const integrity = await dependencies.readRegistryIntegrity(artifact.name, artifact.version)
+    const integrity = await readRegistryIntegrityWithRetry(
+      artifact.name,
+      artifact.version,
+      dependencies,
+    )
     if (integrity === artifact.integrity) return
     if (integrity !== null) {
       throw new Error(`${artifact.name}@${artifact.version} has different integrity on npm.`)
@@ -226,7 +171,11 @@ async function publishOrResume(
   artifactRoot: string,
   dependencies: PackageReleasePromotionDependencies,
 ) {
-  const existingIntegrity = await dependencies.readRegistryIntegrity(artifact.name, artifact.version)
+  const existingIntegrity = await readRegistryIntegrityWithRetry(
+    artifact.name,
+    artifact.version,
+    dependencies,
+  )
   if (existingIntegrity !== null) {
     if (existingIntegrity !== artifact.integrity) {
       throw new Error(`${artifact.name}@${artifact.version} has different integrity on npm.`)
@@ -239,7 +188,11 @@ async function publishOrResume(
       await requireAcceptedRegistryArtifact(artifact, dependencies)
       return
     } catch (error) {
-      const acceptedIntegrity = await dependencies.readRegistryIntegrity(artifact.name, artifact.version)
+      const acceptedIntegrity = await readRegistryIntegrityWithRetry(
+        artifact.name,
+        artifact.version,
+        dependencies,
+      )
       if (acceptedIntegrity === artifact.integrity) return
       if (acceptedIntegrity !== null) {
         throw new Error(
@@ -261,7 +214,11 @@ export async function promoteVerifiedPackageRelease(
 ) {
   for (const artifact of manifest.packages) {
     if (artifact.dependency !== undefined &&
-      await dependencies.readRegistryIntegrity(artifact.dependency.name, artifact.dependency.version) === null) {
+      await readRegistryIntegrityWithRetry(
+        artifact.dependency.name,
+        artifact.dependency.version,
+        dependencies,
+      ) === null) {
       throw new Error(`${artifact.dependency.name}@${artifact.dependency.version} is unavailable for ${artifact.name}.`)
     }
     await publishOrResume(artifact, artifactRoot, dependencies)

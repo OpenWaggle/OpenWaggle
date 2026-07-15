@@ -1,6 +1,8 @@
-import { isMap, isScalar, isSeq, parseDocument } from 'yaml'
+import { createHash } from 'node:crypto'
+import { isAlias, isMap, isScalar, isSeq, parseDocument } from 'yaml'
 
 const EMPTY_COUNT = 0
+const CI_WORKFLOW_AST_CONTRACT = '2fab25d2bc032794529184d34888692ecdfbc99be1586fb6eeed59c73f9d78b7'
 
 export interface WorkflowActionUse {
   readonly ref?: string
@@ -94,4 +96,42 @@ export function workflowActionUses(workflowRoot: unknown) {
   const uses: WorkflowActionUse[] = []
   collectWorkflowActionUses(workflowRoot, uses)
   return uses
+}
+
+function contractValue(node: unknown): unknown {
+  if (isMap(node)) {
+    return node.items.map((pair) => [contractValue(pair.key), contractValue(pair.value)])
+  }
+  if (isSeq(node)) return node.items.map(contractValue)
+  if (isScalar(node)) return node.value
+  return null
+}
+
+export function workflowAstContractHash(workflowRoot: unknown) {
+  return createHash('sha256').update(JSON.stringify(contractValue(workflowRoot))).digest('hex')
+}
+
+export function workflowUsesYamlReferences(node: unknown): boolean {
+  if (isAlias(node)) return true
+  if (isMap(node)) {
+    return (
+      Boolean(node.anchor) ||
+      node.items.some(
+        (pair) => workflowUsesYamlReferences(pair.key) || workflowUsesYamlReferences(pair.value),
+      )
+    )
+  }
+  if (isSeq(node)) {
+    return Boolean(node.anchor) || node.items.some(workflowUsesYamlReferences)
+  }
+  return isScalar(node) && Boolean(node.anchor)
+}
+
+export function matchesReleaseCiWorkflowAstContract(workflowText: string) {
+  const parsed = parsePackageReleaseWorkflow(workflowText)
+  return (
+    parsed.errors.length === 0 &&
+    !workflowUsesYamlReferences(parsed.root) &&
+    workflowAstContractHash(parsed.root) === CI_WORKFLOW_AST_CONTRACT
+  )
 }

@@ -53,6 +53,20 @@ export const PACKAGE_RELEASE_DEFINITIONS = [
 
 type ReadPackageVersion = (revision: string, packagePath: string) => Promise<string>
 
+export function assertRequiredDependentReleases(
+  packages: readonly PackageReleasePlanItem[],
+) {
+  const releasedNames = new Set(packages.map(({ name }) => name))
+  for (const definition of PACKAGE_RELEASE_DEFINITIONS) {
+    if (!('dependency' in definition) || !releasedNames.has(definition.dependency)) continue
+    if (!releasedNames.has(definition.name)) {
+      throw new Error(
+        `${definition.dependency} requires a coordinated ${definition.name} release.`,
+      )
+    }
+  }
+}
+
 function stableSemverParts(version: string) {
   const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(version)
   if (match === null) {
@@ -79,12 +93,17 @@ export async function resolvePackageReleasePlan(
   source: Readonly<{ beforeSha: string; sourceSha: string; sourceTree: string }>,
   readPackageVersion: ReadPackageVersion,
 ): Promise<PackageReleasePlan> {
+  const resolvedVersions = await Promise.all(
+    PACKAGE_RELEASE_DEFINITIONS.map(async (definition) => {
+      const [beforeVersion, version] = await Promise.all([
+        readPackageVersion(source.beforeSha, definition.packagePath),
+        readPackageVersion(source.sourceSha, definition.packagePath),
+      ])
+      return { beforeVersion, definition, version }
+    }),
+  )
   const packages: PackageReleasePlanItem[] = []
-  for (const definition of PACKAGE_RELEASE_DEFINITIONS) {
-    const [beforeVersion, version] = await Promise.all([
-      readPackageVersion(source.beforeSha, definition.packagePath),
-      readPackageVersion(source.sourceSha, definition.packagePath),
-    ])
+  for (const { beforeVersion, definition, version } of resolvedVersions) {
     const comparison = compareStableVersions(version, beforeVersion)
     if (comparison < 0) {
       throw new Error(`${definition.name} version must increase, not move from ${beforeVersion} to ${version}.`)
@@ -92,6 +111,7 @@ export async function resolvePackageReleasePlan(
     if (comparison === 0) continue
     packages.push({ ...definition, tag: `${definition.key}-v${version}`, version })
   }
+  assertRequiredDependentReleases(packages)
   return {
     packages,
     schemaVersion: 1,
@@ -154,6 +174,7 @@ export function decodePackageReleasePlan(value: unknown): PackageReleasePlan {
   if (keys.size !== packages.length) {
     throw new Error('Package release plan contains duplicate packages.')
   }
+  assertRequiredDependentReleases(packages)
   return {
     packages,
     schemaVersion: 1,

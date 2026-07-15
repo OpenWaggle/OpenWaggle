@@ -1,12 +1,17 @@
 import {
   executableWorkflowText,
   parsePackageReleaseWorkflow,
+  workflowAstContractHash,
   workflowActionUses,
+  workflowUsesYamlReferences,
 } from './package-release-validator-workflow-structure'
+import { validateReleaseCiPolicy } from './release-ci-policy'
 
 const CI_WORKFLOW_PATH = '.github/workflows/ci.yml'
 const WORKFLOW_PATH = '.github/workflows/package-release.yml'
 const DIRECT_NODE = 'node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON'
+const PACKAGE_RELEASE_WORKFLOW_AST_CONTRACT =
+  '71e43aa77fef1f3e542832d89ec0babba4dde370034157238721c15efcdd5cd6'
 
 const EXPECTED_PACKAGE_PATHS = [
   'packages/extension-sdk',
@@ -83,6 +88,7 @@ function validateYaml(workflowPath: string, workflowText: string, violations: st
 
 function validateCiWorkflow(ciWorkflowText: string, violations: string[]) {
   validateYaml(CI_WORKFLOW_PATH, ciWorkflowText, violations)
+  violations.push(...validateReleaseCiPolicy(ciWorkflowText))
   const rehearsal = workflowJobBlock(ciWorkflowText, 'package-release-rehearsal')
   const artifacts = workflowJobBlock(ciWorkflowText, 'prepare-package-release')
   const gate = workflowJobBlock(ciWorkflowText, 'package-release-gate')
@@ -93,12 +99,13 @@ function validateCiWorkflow(ciWorkflowText: string, violations: string[]) {
     ['pnpm check', `${CI_WORKFLOW_PATH} must run full repository checks before merge.`],
     ['pnpm api:snapshot:check', `${CI_WORKFLOW_PATH} must check package API snapshots before merge.`],
     ['pnpm package-docs:check', `${CI_WORKFLOW_PATH} must check generated package documentation before merge.`],
-    ['pnpm website:build', `${CI_WORKFLOW_PATH} must build versioned package documentation before merge.`],
+    ['pnpm --filter @openwaggle/website build', `${CI_WORKFLOW_PATH} must build versioned package documentation before merge.`],
     ['pnpm website:test', `${CI_WORKFLOW_PATH} must test the package documentation website before merge.`],
     ['pnpm docs:generate', `${CI_WORKFLOW_PATH} must generate installed agent docs before merge.`],
     ['pnpm exec playwright install chromium', `${CI_WORKFLOW_PATH} must install Chromium for browser package rehearsal.`],
     ["OPENWAGGLE_PACKAGE_BROWSER_SMOKE: '1'", `${CI_WORKFLOW_PATH} must enable browser package smoke.`],
     ["OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun'", `${CI_WORKFLOW_PATH} must rehearse npm, pnpm, Yarn, and Bun consumers.`],
+    ["matrix.node == '22.19.0' || !startsWith(github.head_ref || github.ref_name, 'release-please--branches--main')", `${CI_WORKFLOW_PATH} must avoid duplicate Node 24 release-PR rehearsal.`],
     [`${DIRECT_NODE} .release-tooling/scripts/package-consumer-tools.ts install`, `${CI_WORKFLOW_PATH} must install pinned consumer tools without Node module-type warnings.`],
     [`${DIRECT_NODE} .release-tooling/scripts/package-consumer-tools.ts verify`, `${CI_WORKFLOW_PATH} must verify pinned consumer tools without Node module-type warnings.`],
   ], violations)
@@ -109,6 +116,7 @@ function validateCiWorkflow(ciWorkflowText: string, violations: string[]) {
     ['id-token: write', `${CI_WORKFLOW_PATH} package artifact preparation must use GitHub OIDC provenance.`],
     [`${DIRECT_NODE} scripts/package-release-plan.ts`, `${CI_WORKFLOW_PATH} must resolve the exact Release Please tree plan.`],
     ['pnpm exec tsx scripts/package-release-artifacts.ts prepare', `${CI_WORKFLOW_PATH} must build and verify immutable tarballs before merge.`],
+    ['pnpm package:smoke --tarball-dir "$RUNNER_TEMP/package-release-artifacts"', `${CI_WORKFLOW_PATH} must smoke the exact canonical tarballs before attestation.`],
     ['actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a', `${CI_WORKFLOW_PATH} must attest package tarballs and their manifest.`],
     ['subject-path: ${{ runner.temp }}/package-release-artifacts/*', `${CI_WORKFLOW_PATH} must attest every package artifact file.`],
     ['retention-days: 30', `${CI_WORKFLOW_PATH} must retain release artifacts long enough for human review.`],
@@ -135,7 +143,15 @@ function validatePackageReleaseWorkflow(
   locatorSource: string,
   violations: string[],
 ) {
+  const parsed = parsePackageReleaseWorkflow(workflowText)
   validateYaml(WORKFLOW_PATH, workflowText, violations)
+  addViolation(
+    parsed.errors.length > 0 ||
+      workflowUsesYamlReferences(parsed.root) ||
+      workflowAstContractHash(parsed.root) !== PACKAGE_RELEASE_WORKFLOW_AST_CONTRACT,
+    `${WORKFLOW_PATH} must match its exact fail-closed AST contract.`,
+    violations,
+  )
   const releasePlease = workflowJobBlock(workflowText, 'release-please')
   const releasePlan = workflowJobBlock(workflowText, 'release-plan')
   const publish = workflowJobBlock(workflowText, 'publish')
@@ -146,6 +162,12 @@ function validatePackageReleaseWorkflow(
     ['skip-github-release: true', `${WORKFLOW_PATH} Release Please must create version PRs without tags or GitHub Releases.`],
     ['contents: write', `${WORKFLOW_PATH} Release Please must update its coordinated PR.`],
     ['pull-requests: write', `${WORKFLOW_PATH} Release Please must update its coordinated PR.`],
+    ['actions: write', `${WORKFLOW_PATH} Release Please must dispatch exact-head CI when token-created PR checks cannot run.`],
+    ['pnpm package-docs:update', `${WORKFLOW_PATH} Release Please must generate the versioned documentation line before validation.`],
+    ['git commit -m "fix(packages): synchronize release documentation"', `${WORKFLOW_PATH} Release Please must commit generated documentation to its exact head.`],
+    ['git push origin "HEAD:$RELEASE_PR_HEAD"', `${WORKFLOW_PATH} Release Please must validate the generated documentation commit.`],
+    ['repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches', `${WORKFLOW_PATH} Release Please must dispatch immutable exact-head CI.`],
+    ['gh run watch "$RUN_ID" --exit-status', `${WORKFLOW_PATH} Release Please must wait for exact-head CI success.`],
   ], violations)
   requireText(workflowText, [
     [`${DIRECT_NODE} scripts/package-release-plan.ts`, `${WORKFLOW_PATH} must detect version changes through the typed tree plan.`],
@@ -153,6 +175,8 @@ function validatePackageReleaseWorkflow(
   ], violations)
   requireText(releasePlan, [
     ['fetch-depth: 0', `${WORKFLOW_PATH} release planning must fetch full history for multi-commit rebase merges.`],
+    ['node-version: 24.14.0', `${WORKFLOW_PATH} release planning must pin Node 24.14.0.`],
+    ['node --version | grep -Fx v24.14.0', `${WORKFLOW_PATH} release planning must require Node 24.14.0 before executing the plan.`],
   ], violations)
   requireText(publish, [
     ['environment: npm', `${WORKFLOW_PATH} publication must use the protected npm environment.`],

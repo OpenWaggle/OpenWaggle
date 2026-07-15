@@ -12,6 +12,11 @@ import {
 
 const temporaryDirectories: string[] = []
 
+function replaceRequired(source: string, target: string, replacement: string) {
+  expect(source).toContain(target)
+  return source.replace(target, replacement)
+}
+
 async function temporaryProject(workflow = validWorkflow, ciWorkflow = validCiWorkflow) {
   const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
   temporaryDirectories.push(projectRoot)
@@ -28,6 +33,67 @@ afterEach(async () => {
 })
 
 describe('package release workflow validation', () => {
+  it.each([
+    ['actions permission', '      actions: write', '      actions: read'],
+    [
+      'exact-head dispatch',
+      'repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches',
+      'repos/$GITHUB_REPOSITORY/actions/workflows/other.yml/dispatches',
+    ],
+    ['versioned docs synchronization', 'pnpm package-docs:update', 'echo skipped-docs-update'],
+    ['successful completion wait', 'gh run watch "$RUN_ID" --exit-status', 'echo skipped-wait'],
+  ])('rejects weakened Release Please CI coordination through %s', async (_name, target, replacement) => {
+    const invalidWorkflow = replaceRequired(validWorkflow, target, replacement)
+    const result = await validatePackageReleaseFiles(await temporaryProject(invalidWorkflow))
+
+    expect(result.violations).toContain(
+      '.github/workflows/package-release.yml must match its exact fail-closed AST contract.',
+    )
+  })
+
+  it('rejects release planning without its own exact Node 24.14.0 setup and version guard', async () => {
+    const invalidWorkflow = replaceRequired(
+      validWorkflow,
+      'node --version | grep -Fx v24.14.0',
+      'node --version | grep -Fx v24.13.0',
+    )
+    const result = await validatePackageReleaseFiles(await temporaryProject(invalidWorkflow))
+
+    expect(result.violations).toContain(
+      '.github/workflows/package-release.yml must match its exact fail-closed AST contract.',
+    )
+  })
+
+  it('rejects artifact preparation that does not smoke the canonical tarball directory before attestation', async () => {
+    const invalidCi = replaceRequired(
+      validCiWorkflow,
+      'pnpm package:smoke --tarball-dir "$RUNNER_TEMP/package-release-artifacts"',
+      'pnpm package:smoke',
+    )
+    const result = await validatePackageReleaseFiles(
+      await temporaryProject(validWorkflow, invalidCi),
+    )
+
+    expect(result.violations).toContain(
+      'CI workflow must match its exact fail-closed AST contract.',
+    )
+  })
+
+  it('rejects duplicate Node 24 release-PR rehearsal instead of canonical artifact smoke', async () => {
+    const invalidCi = replaceRequired(
+      validCiWorkflow,
+      "matrix.node == '22.19.0' || !startsWith(github.head_ref || github.ref_name, 'release-please--branches--main')",
+      'always()',
+    )
+    const result = await validatePackageReleaseFiles(
+      await temporaryProject(validWorkflow, invalidCi),
+    )
+
+    expect(result.violations).toContain(
+      'CI workflow must match its exact fail-closed AST contract.',
+    )
+  })
+
   it('rejects CI that weakens the always-present, exact-runtime package gate', async () => {
     const invalidCi = validCiWorkflow
       .replace('name: Package Release Gate', 'name: Optional package checks')
@@ -40,8 +106,6 @@ describe('package release workflow validation', () => {
     expect(result.violations).toEqual(expect.arrayContaining([
       '.github/workflows/ci.yml must expose the always-present Package Release Gate status.',
       '.github/workflows/ci.yml must rehearse exact Node 22.19.0 and 24.14.0 runtimes.',
-      '.github/workflows/ci.yml must build versioned package documentation before merge.',
-      '.github/workflows/ci.yml must rehearse npm, pnpm, Yarn, and Bun consumers.',
       '.github/workflows/ci.yml Package Release Gate must always report a conclusion.',
     ]))
   })

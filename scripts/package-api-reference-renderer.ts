@@ -1,5 +1,8 @@
+import path from 'node:path'
+
 const GENERATED_API_MARKER = '<!-- Generated from the checked public package declarations. -->'
 const MATCH_DECLARATION_GROUP = 2
+const NAMED_EXPORT_SOURCE_GROUP = 2
 const SUBPATH_PREFIX_LENGTH = 2
 
 interface ApiSymbol {
@@ -39,32 +42,116 @@ function exportTypesPath(target: unknown) {
   return typeof target.types === 'string' ? target.types : undefined
 }
 
-function exportedSymbols(declaration: string) {
-  if (/^export\s+(?:type\s+)?\*\s+from\s+/mu.test(declaration)) return []
-
+function directExportedSymbols(declaration: string) {
   const symbols = new Map<string, ApiSymbol>()
   const declarationPattern =
-    /^export\s+(?:declare\s+)?(interface|type|function|class|const|enum)\s+([A-Za-z_$][\w$]*)/gmu
+    /^export\s+(?:declare\s+)?(interface|type|function|class|const|let|var|enum|namespace)\s+([A-Za-z_$][\w$]*)/gmu
   for (const match of declaration.matchAll(declarationPattern)) {
     const kind = match[1]
     const name = match[MATCH_DECLARATION_GROUP]
     if (kind && name) symbols.set(name, { kind, name })
   }
 
-  const namedExportPattern =
-    /^export\s+(?:type\s+)?\{([\s\S]*?)\}\s*(?:from\s+['"][^'"]+['"])?;/gmu
-  for (const match of declaration.matchAll(namedExportPattern)) {
-    for (const rawName of match[1]?.split(',') ?? []) {
-      const name = rawName.trim().split(/\s+as\s+/u).at(-1)?.trim()
-      if (name && /^[A-Za-z_$][\w$]*$/u.test(name)) {
-        symbols.set(name, { kind: 're-export', name })
-      }
-    }
-  }
-
-  if (/^export\s+default\s+/mu.test(declaration)) {
+  if (/^export\s+default(?:\s+declare)?\s+/mu.test(declaration)) {
     symbols.set('default', { kind: 'default export', name: 'default' })
   }
+  return symbols
+}
+
+function declarationPathFromSpecifier(sourcePath: string, specifier: string) {
+  if (!specifier.startsWith('.')) return undefined
+  const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(sourcePath), specifier))
+  if (resolved.endsWith('.js')) return `${resolved.slice(0, -'.js'.length)}.d.ts`
+  if (resolved.endsWith('.mjs')) return `${resolved.slice(0, -'.mjs'.length)}.d.mts`
+  if (resolved.endsWith('.cjs')) return `${resolved.slice(0, -'.cjs'.length)}.d.cts`
+  return resolved
+}
+
+function namedExportParts(rawExport: string) {
+  const normalized = rawExport.trim().replace(/^type\s+/u, '')
+  const [importedName, exportedName = importedName] = normalized.split(/\s+as\s+/u)
+  if (
+    importedName === undefined
+    || exportedName === undefined
+    || !/^[A-Za-z_$][\w$]*$/u.test(importedName)
+    || !/^[A-Za-z_$][\w$]*$/u.test(exportedName)
+  ) {
+    return undefined
+  }
+  return { exportedName, importedName }
+}
+
+function mergeStarExports(
+  symbols: Map<string, ApiSymbol>,
+  sections: ReadonlyMap<string, string>,
+  declarationPath: string,
+  declaration: string,
+  visiting: ReadonlySet<string>,
+) {
+  const starExportPattern =
+    /^export\s+(?:type\s+)?\*\s+from\s+['"]([^'"]+)['"]\s*;/gmu
+  for (const match of declaration.matchAll(starExportPattern)) {
+    const specifier = match[1]
+    const targetPath = specifier
+      ? declarationPathFromSpecifier(declarationPath, specifier)
+      : undefined
+    if (targetPath === undefined) continue
+    for (const symbol of exportedSymbols(sections, targetPath, visiting)) {
+      if (symbol.name !== 'default') symbols.set(symbol.name, symbol)
+    }
+  }
+}
+
+function mergeNamedExports(
+  symbols: Map<string, ApiSymbol>,
+  sections: ReadonlyMap<string, string>,
+  declarationPath: string,
+  declaration: string,
+  visiting: ReadonlySet<string>,
+) {
+  const namedExportPattern =
+    /^export\s+(?:type\s+)?\{([\s\S]*?)\}\s*(?:from\s+['"]([^'"]+)['"])?\s*;/gmu
+  for (const match of declaration.matchAll(namedExportPattern)) {
+    const specifier = match[NAMED_EXPORT_SOURCE_GROUP]
+    const targetPath = specifier
+      ? declarationPathFromSpecifier(declarationPath, specifier)
+      : undefined
+    const targetSymbols = specifier === undefined
+      ? [...symbols.values()]
+      : targetPath
+        ? exportedSymbols(sections, targetPath, visiting)
+        : []
+    for (const rawExport of match[1]?.split(',') ?? []) {
+      const parts = namedExportParts(rawExport)
+      if (parts === undefined) continue
+      const targetSymbol = targetSymbols.find(
+        (candidate) => candidate.name === parts.importedName,
+      )
+      symbols.set(parts.exportedName, {
+        kind: targetSymbol?.kind ?? 're-export',
+        name: parts.exportedName,
+      })
+    }
+  }
+}
+
+function exportedSymbols(
+  sections: ReadonlyMap<string, string>,
+  declarationPath: string,
+  visiting: ReadonlySet<string> = new Set(),
+): readonly ApiSymbol[] {
+  if (visiting.has(declarationPath)) return []
+  const declaration = sections.get(declarationPath)
+  if (declaration === undefined) {
+    throw new Error(`Missing ${declarationPath} in the package API snapshot.`)
+  }
+
+  const nextVisiting = new Set(visiting)
+  nextVisiting.add(declarationPath)
+  const symbols = directExportedSymbols(declaration)
+  mergeStarExports(symbols, sections, declarationPath, declaration, nextVisiting)
+  mergeNamedExports(symbols, sections, declarationPath, declaration, nextVisiting)
+
   return [...symbols.values()].sort((left, right) => left.name.localeCompare(right.name))
 }
 
@@ -120,10 +207,7 @@ function renderModule(input: RenderApiReferenceInput, sections: ReadonlyMap<stri
   const typesPath = exportTypesPath(target)
   const symbols = typesPath === undefined
     ? []
-    : exportedSymbols(
-        sections.get(typesPath.replace(/^\.\//u, ''))
-          ?? (() => { throw new Error(`Missing ${typesPath} in the ${input.packageName} API snapshot.`) })(),
-      )
+    : exportedSymbols(sections, typesPath.replace(/^\.\//u, ''))
   const importPath = subpath === '.'
     ? input.packageName
     : `${input.packageName}/${subpath.slice(SUBPATH_PREFIX_LENGTH)}`

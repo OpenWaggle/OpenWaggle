@@ -1,7 +1,18 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+
 import { describe, expect, it, vi } from 'vitest'
 
-import { promoteVerifiedPackageRelease } from '../package-release-promotion'
-import { releaseAssetRepairPlan } from '../package-release-promote'
+import {
+  assertPackageReleaseAttestationIdentity,
+  packageReleaseAttestationVerificationArgs,
+  releaseAssetRepairPlan,
+} from '../package-release-artifact-contract'
+import {
+  promoteVerifiedPackageRelease,
+  readPackageReleasePlan,
+} from '../package-release-promotion'
 import type { PackageReleaseArtifactManifest } from '../package-release-promotion'
 import type { PackageReleasePlan } from '../package-release-promotion'
 
@@ -94,6 +105,72 @@ const manifest: PackageReleaseArtifactManifest = {
 }
 
 describe('package release promotion', () => {
+  it('binds provenance to the CI signer workflow and selected source run', () => {
+    expect(
+      packageReleaseAttestationVerificationArgs(
+        '/artifacts/package.tgz',
+        'OpenWaggle/OpenWaggle',
+        'release-head',
+      ),
+    ).toEqual([
+      'attestation',
+      'verify',
+      '/artifacts/package.tgz',
+      '--repo',
+      'OpenWaggle/OpenWaggle',
+      '--signer-workflow',
+      'OpenWaggle/OpenWaggle/.github/workflows/ci.yml',
+      '--source-digest',
+      'release-head',
+      '--deny-self-hosted-runners',
+      '--format',
+      'json',
+    ])
+
+    const verified = [{
+      verificationResult: {
+        signature: {
+          certificate: {
+            buildConfigURI: 'https://github.com/OpenWaggle/OpenWaggle/.github/workflows/ci.yml@refs/pull/135/merge',
+            runInvocationURI: 'https://github.com/OpenWaggle/OpenWaggle/actions/runs/123/attempts/2',
+            runnerEnvironment: 'github-hosted',
+            sourceRepositoryDigest: 'release-head',
+          },
+        },
+      },
+    }]
+
+    expect(() => assertPackageReleaseAttestationIdentity(verified, {
+      repository: 'OpenWaggle/OpenWaggle',
+      runId: '123',
+      sourceSha: 'release-head',
+    })).not.toThrow()
+    expect(() => assertPackageReleaseAttestationIdentity(verified, {
+      repository: 'OpenWaggle/OpenWaggle',
+      runId: '124',
+      sourceSha: 'release-head',
+    })).toThrow('selected CI run')
+  })
+
+  it('rejects a base-only promotion plan loaded from disk', async () => {
+    const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'openwaggle-promotion-plan-'))
+    const planPath = path.join(temporaryDirectory, 'plan.json')
+    try {
+      await writeFile(planPath, JSON.stringify({
+        packages: [plan.packages[0]],
+        schemaVersion: 1,
+        sourceSha: 'source-sha',
+        sourceTree: 'source-tree',
+      }))
+
+      await expect(readPackageReleasePlan(planPath)).rejects.toThrow(
+        '@openwaggle/extension-sdk requires a coordinated @openwaggle/extension-react release',
+      )
+    } finally {
+      await rm(temporaryDirectory, { force: true, recursive: true })
+    }
+  })
+
   it('repairs missing GitHub Release assets and rejects unexpected durable state', () => {
     expect(
       releaseAssetRepairPlan(

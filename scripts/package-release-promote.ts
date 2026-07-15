@@ -5,8 +5,11 @@ import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import type { PackageReleaseAttestationIdentity } from './package-release-artifact-contract'
+
 const CLI_ARGUMENT_START_INDEX = 2
 const EXPECTED_CLI_ARGUMENT_COUNT = 2
+const GH_ATTESTATION_COMMAND_PREFIX_LENGTH = 2
 
 interface PackageReleasePlan {
   readonly sourceSha: string
@@ -48,6 +51,23 @@ interface PromotionModule {
   ) => Promise<PackageReleaseArtifactManifest>
 }
 
+interface ArtifactContractModule {
+  readonly assertPackageReleaseAttestationIdentity: (
+    value: unknown,
+    identity: PackageReleaseAttestationIdentity,
+  ) => void
+  readonly packageReleaseAttestationVerificationArgs: (
+    file: string,
+    repository: string,
+    sourceSha: string,
+  ) => readonly string[]
+  readonly releaseAssetRepairPlan: (
+    value: unknown,
+    tag: string,
+    expectedNames: readonly string[],
+  ) => Readonly<{ missingNames: readonly string[]; presentNames: readonly string[] }>
+}
+
 interface CommandResult {
   readonly exitCode: number
   readonly stderr: string
@@ -71,37 +91,6 @@ function isJsonObject(value: unknown): value is { readonly [key: string]: unknow
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-export function releaseAssetRepairPlan(
-  value: unknown,
-  tag: string,
-  expectedNames: readonly string[],
-) {
-  if (
-    !isJsonObject(value) ||
-    value.tagName !== tag ||
-    !Array.isArray(value.assets)
-  ) {
-    throw new Error(`GitHub Release ${tag} does not match its immutable tag and assets.`)
-  }
-  const assetNames = value.assets.map((asset) => {
-    if (!isJsonObject(asset) || typeof asset.name !== 'string') {
-      throw new Error(`GitHub Release ${tag} returned an invalid asset.`)
-    }
-    return asset.name
-  })
-  const uniqueNames = new Set(assetNames)
-  if (
-    uniqueNames.size !== assetNames.length ||
-    assetNames.some((name) => !expectedNames.includes(name))
-  ) {
-    throw new Error(`GitHub Release ${tag} contains unexpected or duplicate assets.`)
-  }
-  return {
-    missingNames: expectedNames.filter((name) => !uniqueNames.has(name)),
-    presentNames: expectedNames.filter((name) => uniqueNames.has(name)),
-  }
-}
-
 function isPromotionModule(value: unknown): value is PromotionModule {
   return isJsonObject(value) &&
     typeof value.promoteVerifiedPackageRelease === 'function' &&
@@ -113,6 +102,22 @@ async function loadPromotionModule() {
   const moduleUrl = new URL('./package-release-promotion.ts', import.meta.url).href
   const loaded: unknown = await import(moduleUrl)
   if (!isPromotionModule(loaded)) throw new Error('Package release promotion module is invalid.')
+  return loaded
+}
+
+function isArtifactContractModule(value: unknown): value is ArtifactContractModule {
+  return isJsonObject(value) &&
+    typeof value.assertPackageReleaseAttestationIdentity === 'function' &&
+    typeof value.packageReleaseAttestationVerificationArgs === 'function' &&
+    typeof value.releaseAssetRepairPlan === 'function'
+}
+
+async function loadArtifactContractModule() {
+  const moduleUrl = new URL('./package-release-artifact-contract.ts', import.meta.url).href
+  const loaded: unknown = await import(moduleUrl)
+  if (!isArtifactContractModule(loaded)) {
+    throw new Error('Package release artifact contract module is invalid.')
+  }
   return loaded
 }
 
@@ -169,7 +174,12 @@ async function ensureGitHubRelease({ artifact, artifactRoot }: Readonly<{
   )
   if (existing.exitCode === 0) {
     const response: unknown = JSON.parse(existing.stdout)
-    const repairPlan = releaseAssetRepairPlan(response, artifact.tag, expectedNames)
+    const artifactContract = await loadArtifactContractModule()
+    const repairPlan = artifactContract.releaseAssetRepairPlan(
+      response,
+      artifact.tag,
+      expectedNames,
+    )
     const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'openwaggle-release-assets-'))
     try {
       for (const assetName of repairPlan.presentNames) {
@@ -236,14 +246,23 @@ function verifyPublicationEnvironment(plan: PackageReleasePlan) {
 async function verifyArtifactProvenance(
   artifactRoot: string,
   manifest: PackageReleaseArtifactManifest,
+  identity: PackageReleaseAttestationIdentity,
 ) {
-  const repository = process.env.GITHUB_REPOSITORY
-  if (repository === undefined) throw new Error('GITHUB_REPOSITORY is required.')
+  const artifactContract = await loadArtifactContractModule()
   for (const file of [
     path.join(artifactRoot, 'release-artifacts.json'),
     ...manifest.packages.map(({ file }) => path.join(artifactRoot, file)),
   ]) {
-    await run('gh', ['attestation', 'verify', file, '--repo', repository])
+    const verificationArgs = artifactContract.packageReleaseAttestationVerificationArgs(
+      file,
+      identity.repository,
+      identity.sourceSha,
+    )
+    const verification = await run(
+      'gh', ['attestation', 'verify', ...verificationArgs.slice(GH_ATTESTATION_COMMAND_PREFIX_LENGTH)],
+    )
+    const result: unknown = JSON.parse(verification.stdout)
+    artifactContract.assertPackageReleaseAttestationIdentity(result, identity)
   }
 }
 
@@ -259,10 +278,21 @@ export async function runPackageReleasePromoteCli(args: readonly string[]) {
   const plan = await promotion.readPackageReleasePlan(planPath)
   verifyPublicationEnvironment(plan)
   const manifest = await promotion.verifyPromotionBundle(plan, artifactRoot)
-  if (manifest.sourceSha !== process.env.EXPECTED_ARTIFACT_SOURCE_SHA) {
+  const repository = process.env.GITHUB_REPOSITORY
+  const selectedRunId = process.env.EXPECTED_ARTIFACT_RUN_ID
+  const selectedSourceSha = process.env.EXPECTED_ARTIFACT_SOURCE_SHA
+  if (repository === undefined || selectedRunId === undefined || selectedSourceSha === undefined ||
+    !/^[1-9]\d*$/.test(selectedRunId)) {
+    throw new Error('Selected package artifact CI identity is incomplete.')
+  }
+  if (manifest.sourceSha !== selectedSourceSha) {
     throw new Error('Package artifact source SHA does not match its successful CI run.')
   }
-  await verifyArtifactProvenance(artifactRoot, manifest)
+  await verifyArtifactProvenance(artifactRoot, manifest, {
+    repository,
+    runId: selectedRunId,
+    sourceSha: selectedSourceSha,
+  })
   await promotion.promoteVerifiedPackageRelease(plan, manifest, artifactRoot, {
     ensureGitHubRelease,
     ensureTag,

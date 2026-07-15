@@ -15,7 +15,78 @@ Pi-native Waggle commands, extension lifecycle, loop integration, state, protoco
 
 Convenience entry point for Pi-native Waggle integration.
 
-This export contains styles or re-exports the typed modules listed below.
+| Export | Kind |
+|--------|------|
+| `appendPiWaggleModeState` | function |
+| `buildEditablePreset` | function |
+| `createPiWaggleExtension` | function |
+| `createPiWaggleLoopHandler` | function |
+| `createPiWaggleModeState` | function |
+| `createPiWaggleStopPolicyState` | function |
+| `createPiWaggleTurnCompletionHandlers` | function |
+| `createPiWaggleTurnDetails` | function |
+| `createPiWaggleTurnEndHandler` | function |
+| `deletePiWaggleCustomPreset` | function |
+| `disabledPiWaggleModeState` | function |
+| `enabledPiWaggleModeState` | function |
+| `evaluatePiWaggleStopPolicy` | function |
+| `getPiWaggleProjectPresetsPath` | function |
+| `getPiWaggleUserPresetsPath` | function |
+| `hiddenBuiltInPresetsForUi` | function |
+| `latestPiWaggleModeStateFromBranch` | function |
+| `latestPiWaggleModeStateFromEntries` | function |
+| `loadPiWagglePresetLayers` | function |
+| `mergePiWagglePresetLayers` | function |
+| `parsePiWaggleCommandArgs` | function |
+| `parsePiWaggleModeState` | function |
+| `parsePiWaggleTurnDetails` | function |
+| `PI_WAGGLE_MODE_STATE_CUSTOM_TYPE` | const |
+| `PI_WAGGLE_TURN_CUSTOM_TYPE` | const |
+| `PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE` | const |
+| `PiWaggleAgentEndHandler` | type |
+| `PiWaggleCommandIntent` | type |
+| `PiWaggleCustomMessage` | type |
+| `PiWaggleEditablePresetScope` | type |
+| `PiWaggleExtensionApi` | interface |
+| `PiWaggleExtensionContext` | interface |
+| `PiWaggleExtensionController` | interface |
+| `PiWaggleExtensionInput` | interface |
+| `PiWaggleHiddenBuiltInPreset` | interface |
+| `PiWaggleLoopApi` | interface |
+| `PiWaggleLoopInput` | interface |
+| `PiWaggleModel` | type |
+| `PiWaggleModeState` | interface |
+| `PiWaggleModeStateReader` | interface |
+| `PiWaggleModeStateWriter` | interface |
+| `PiWagglePresetLayers` | interface |
+| `PiWagglePresetScope` | type |
+| `PiWagglePresetsFileData` | interface |
+| `PiWaggleResolvedPreset` | interface |
+| `PiWaggleResolveTurnModelInput` | interface |
+| `PiWaggleSendMessageOptions` | type |
+| `PiWaggleStartNextTurnInput` | interface |
+| `PiWaggleStopPolicyDecision` | interface |
+| `PiWaggleStopPolicyState` | interface |
+| `PiWaggleTurnCompleteInput` | interface |
+| `PiWaggleTurnCompletionHandlers` | interface |
+| `PiWaggleTurnDecision` | interface |
+| `PiWaggleTurnDetails` | interface |
+| `PiWaggleTurnEndHandler` | type |
+| `PiWaggleTurnMessageInput` | interface |
+| `PiWaggleTurnMetadataInput` | interface |
+| `PiWaggleTurnSummary` | interface |
+| `presetScopeLabel` | function |
+| `readPiWagglePresetsFile` | function |
+| `readPiWagglePresetsFileData` | function |
+| `registerPiWaggleLoop` | function |
+| `registerPiWaggleRenderers` | function |
+| `resolvedPresetsForUi` | function |
+| `restorePiWaggleBuiltInPreset` | function |
+| `savePiWagglePreset` | function |
+| `summarizePiWaggleTurnMessages` | function |
+| `suppressPiWaggleBuiltInPreset` | function |
+| `writePiWagglePresetsFile` | function |
+| `writePiWagglePresetsFileData` | function |
 
 ## `@openwaggle/pi-waggle/commands`
 
@@ -30,7 +101,32 @@ Pi command parsing and intent contracts.
 
 Default Pi extension entry point and advanced loop exports.
 
-This export contains styles or re-exports the typed modules listed below.
+| Export | Kind |
+|--------|------|
+| `createPiWaggleExtension` | function |
+| `createPiWaggleLoopHandler` | function |
+| `createPiWaggleTurnCompletionHandlers` | function |
+| `createPiWaggleTurnEndHandler` | function |
+| `default` | default export |
+| `PiWaggleAgentEndHandler` | type |
+| `PiWaggleCustomMessage` | type |
+| `PiWaggleExtensionApi` | interface |
+| `PiWaggleExtensionContext` | interface |
+| `PiWaggleExtensionController` | interface |
+| `PiWaggleExtensionInput` | interface |
+| `PiWaggleLoopApi` | interface |
+| `PiWaggleLoopInput` | interface |
+| `PiWaggleModel` | type |
+| `PiWaggleResolveTurnModelInput` | interface |
+| `PiWaggleSendMessageOptions` | type |
+| `PiWaggleStartNextTurnInput` | interface |
+| `PiWaggleTurnCompleteInput` | interface |
+| `PiWaggleTurnCompletionHandlers` | interface |
+| `PiWaggleTurnDecision` | interface |
+| `PiWaggleTurnEndHandler` | type |
+| `PiWaggleTurnMessageInput` | interface |
+| `PiWaggleTurnMetadataInput` | interface |
+| `registerPiWaggleLoop` | function |
 
 ## `@openwaggle/pi-waggle/loop`
 

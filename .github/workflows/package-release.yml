@@ -22,15 +22,116 @@ jobs:
     name: Maintain coordinated package release PR
     runs-on: ubuntu-latest
     permissions:
+      actions: write
       contents: write
       pull-requests: write
     steps:
       - name: Create or update the coordinated package release PR
+        id: release
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           skip-github-release: true
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        if: ${{ steps.release.outputs.prs_created == 'true' }}
+        with:
+          fetch-depth: 0
+          ref: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        if: ${{ steps.release.outputs.prs_created == 'true' }}
+        with:
+          version: 11.6.0
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        if: ${{ steps.release.outputs.prs_created == 'true' }}
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+
+      - name: Synchronize versioned package documentation
+        if: ${{ steps.release.outputs.prs_created == 'true' }}
+        env:
+          RELEASE_PR_HEAD: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          pnpm package-docs:update
+          if [ -z "$(git status --porcelain --untracked-files=all)" ]; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A -- packages website/src/content
+          git diff --cached --check
+          git commit -m "fix(packages): synchronize release documentation"
+          git push origin "HEAD:$RELEASE_PR_HEAD"
+
+      - name: Validate CI for the exact release PR head
+        if: ${{ steps.release.outputs.prs_created == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_JSON: ${{ steps.release.outputs.pr }}
+        run: |
+          set -euo pipefail
+          PR_NUMBER=$(jq -er '.number' <<<"$PR_JSON")
+          EXPECTED_HEAD_REF=$(jq -er '.headBranchName' <<<"$PR_JSON")
+          PR_DETAILS=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")
+          HEAD_REF=$(jq -er '.head.ref' <<<"$PR_DETAILS")
+          HEAD_SHA=$(jq -er '.head.sha' <<<"$PR_DETAILS")
+          test "$HEAD_REF" = "$EXPECTED_HEAD_REF"
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+          RUN_ID=""
+          for RUN_ATTEMPT in $(seq 1 12); do
+            RUNS=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?event=pull_request&branch=${HEAD_REF}&per_page=20")
+            RUN_ID=$(jq -r --arg sha "$HEAD_SHA" '.workflow_runs | map(select(.head_sha == $sha and .event == "pull_request")) | first | .id // ""' <<<"$RUNS")
+            if [ -n "$RUN_ID" ]; then break; fi
+            echo "Waiting for Release Please PR CI run (${RUN_ATTEMPT}/12)."
+            sleep 5
+          done
+
+          NEEDS_DISPATCH=false
+          if [ -z "$RUN_ID" ]; then
+            NEEDS_DISPATCH=true
+          else
+            RUN_DETAILS=$(gh run view "$RUN_ID" --json conclusion,headSha,status)
+            test "$(jq -er '.headSha' <<<"$RUN_DETAILS")" = "$HEAD_SHA"
+            RUN_STATUS=$(jq -er '.status' <<<"$RUN_DETAILS")
+            RUN_CONCLUSION=$(jq -r '.conclusion // ""' <<<"$RUN_DETAILS")
+            if [ "$RUN_STATUS" = "completed" ] && [ "$RUN_CONCLUSION" = "action_required" ]; then
+              NEEDS_DISPATCH=true
+            elif [ "$RUN_STATUS" != "completed" ]; then
+              gh run watch "$RUN_ID" --exit-status
+            elif [ "$RUN_CONCLUSION" != "success" ]; then
+              echo "Release Please PR CI failed with conclusion: $RUN_CONCLUSION"
+              exit 1
+            fi
+          fi
+
+          if [ "$NEEDS_DISPATCH" = "true" ]; then
+            DISPATCHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            jq -n --arg ref "$HEAD_REF" --arg sha "$HEAD_SHA" \
+              '{ref: $ref, inputs: {head_sha: $sha}}' |
+              gh api --method POST \
+                "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches" \
+                --input -
+            RUN_ID=""
+            for DISPATCH_ATTEMPT in $(seq 1 60); do
+              RUNS=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?event=workflow_dispatch&branch=${HEAD_REF}&per_page=20")
+              RUN_ID=$(jq -r --arg sha "$HEAD_SHA" --arg created "$DISPATCHED_AT" '.workflow_runs | map(select(.head_sha == $sha and .event == "workflow_dispatch" and .created_at >= $created)) | first | .id // ""' <<<"$RUNS")
+              if [ -n "$RUN_ID" ]; then break; fi
+              echo "Waiting for dispatched Release Please PR CI (${DISPATCH_ATTEMPT}/60)."
+              sleep 5
+            done
+            test -n "$RUN_ID"
+            gh run watch "$RUN_ID" --exit-status
+          fi
+
+          FINAL_DETAILS=$(gh run view "$RUN_ID" --json conclusion,headSha,status)
+          test "$(jq -er '.headSha' <<<"$FINAL_DETAILS")" = "$HEAD_SHA"
+          test "$(jq -er '.status' <<<"$FINAL_DETAILS")" = "completed"
+          test "$(jq -er '.conclusion' <<<"$FINAL_DETAILS")" = "success"
 
   release-plan:
     name: Detect merged package versions
@@ -44,6 +145,14 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.sha }}
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24.14.0
+          package-manager-cache: false
+
+      - name: Require exact release planning Node
+        run: node --version | grep -Fx v24.14.0
 
       - name: Resolve exact merged package plan
         id: plan

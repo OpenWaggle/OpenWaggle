@@ -24,8 +24,85 @@ export interface PackageReleaseArtifactManifest {
   readonly sourceTree: string
 }
 
+export interface PackageReleaseAttestationIdentity {
+  readonly repository: string
+  readonly runId: string
+  readonly sourceSha: string
+}
+
 function isJsonObject(value: unknown): value is { readonly [key: string]: unknown } {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+export function packageReleaseAttestationVerificationArgs(
+  file: string,
+  repository: string,
+  sourceSha: string,
+) {
+  return [
+    'attestation', 'verify', file,
+    '--repo', repository,
+    '--signer-workflow', `${repository}/.github/workflows/ci.yml`,
+    '--source-digest', sourceSha,
+    '--deny-self-hosted-runners',
+    '--format', 'json',
+  ]
+}
+
+export function assertPackageReleaseAttestationIdentity(
+  value: unknown,
+  identity: PackageReleaseAttestationIdentity,
+) {
+  const expectedWorkflowPrefix =
+    `https://github.com/${identity.repository}/.github/workflows/ci.yml@`
+  const expectedRunPrefix =
+    `https://github.com/${identity.repository}/actions/runs/${identity.runId}/attempts/`
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error('Artifact attestation verification returned no identity result.')
+  }
+  const hasSelectedIdentity = value.some((entry) => {
+    if (!isJsonObject(entry) || !isJsonObject(entry.verificationResult) ||
+      !isJsonObject(entry.verificationResult.signature) ||
+      !isJsonObject(entry.verificationResult.signature.certificate)) return false
+    const certificate = entry.verificationResult.signature.certificate
+    return typeof certificate.buildConfigURI === 'string' &&
+      certificate.buildConfigURI.startsWith(expectedWorkflowPrefix) &&
+      typeof certificate.runInvocationURI === 'string' &&
+      certificate.runInvocationURI.startsWith(expectedRunPrefix) &&
+      /^\d+$/.test(certificate.runInvocationURI.slice(expectedRunPrefix.length)) &&
+      certificate.runnerEnvironment === 'github-hosted' &&
+      certificate.sourceRepositoryDigest === identity.sourceSha
+  })
+  if (!hasSelectedIdentity) {
+    throw new Error('Artifact attestation does not match the selected CI run and source identity.')
+  }
+}
+
+export function releaseAssetRepairPlan(
+  value: unknown,
+  tag: string,
+  expectedNames: readonly string[],
+) {
+  if (!isJsonObject(value) || value.tagName !== tag || !Array.isArray(value.assets)) {
+    throw new Error(`GitHub Release ${tag} does not match its immutable tag and assets.`)
+  }
+  const assetNames = value.assets.map((asset) => {
+    if (!isJsonObject(asset) || typeof asset.name !== 'string') {
+      throw new Error(`GitHub Release ${tag} returned an invalid asset.`)
+    }
+    return asset.name
+  })
+  const uniqueNames = new Set(assetNames)
+  if (
+    uniqueNames.size !== assetNames.length ||
+    assetNames.some((name) => !expectedNames.includes(name))
+  ) {
+    throw new Error(`GitHub Release ${tag} contains unexpected or duplicate assets.`)
+  }
+  return {
+    missingNames: expectedNames.filter((name) => !uniqueNames.has(name)),
+    presentNames: expectedNames.filter((name) => uniqueNames.has(name)),
+  }
 }
 
 function decodeDependency(value: unknown) {

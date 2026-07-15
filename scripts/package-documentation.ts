@@ -2,10 +2,19 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import {
-  packageDocumentation,
+  packageDocumentationDefinitions,
   packageDocumentationUrl,
+  resolvePackageDocumentationVersions,
+  versionPackageDocumentation,
 } from './package-documentation-model'
-import type { PackageDocumentationDefinition } from './package-documentation-model'
+import type {
+  VersionedPackageDocumentationDefinition,
+} from './package-documentation-model'
+import {
+  availablePackageDocumentationVersions,
+  pendingPackageDocumentationViolations,
+  preparePackageDocumentationLine,
+} from './package-documentation-lines'
 import {
   packageManifest,
   packageManifestDocumentationViolations,
@@ -89,7 +98,7 @@ function auxiliaryPagePath(
 
 export function requiredAuthoredPackageDocumentationFiles(
   projectRoot: string,
-  definition: PackageDocumentationDefinition,
+  definition: VersionedPackageDocumentationDefinition,
 ) {
   return definition.versions.flatMap((version) =>
     definition.pages.flatMap((page) => {
@@ -109,7 +118,7 @@ function apiSnapshotPath(projectRoot: string, slug: string) {
 
 async function generatedFilesForPackage(
   projectRoot: string,
-  definition: (typeof packageDocumentation)[number],
+  definition: VersionedPackageDocumentationDefinition,
 ) {
   const guidePath = canonicalGuidePath(
     projectRoot,
@@ -171,10 +180,47 @@ export async function checkPackageDocumentation(
   const changedFiles: string[] = []
   const violations: string[] = []
 
-  for (const definition of packageDocumentation) {
-    const manifestPath = path.join(packageRoot(projectRoot, definition.slug), 'package.json')
+  for (const baseDefinition of packageDocumentationDefinitions) {
+    const definitionRoot = packageRoot(projectRoot, baseDefinition.slug)
+    const manifestPath = path.join(definitionRoot, 'package.json')
     const rawManifest: unknown = JSON.parse(await readFile(manifestPath, 'utf8'))
     const manifest = packageManifest(rawManifest)
+    if (manifest.version === undefined) {
+      throw new Error(`${baseDefinition.packageName} package manifest must declare a version.`)
+    }
+
+    const historicalVersions = await availablePackageDocumentationVersions(
+      projectRoot,
+      baseDefinition,
+    )
+    const resolvedVersions = resolvePackageDocumentationVersions(
+      historicalVersions,
+      manifest.version,
+    )
+    violations.push(
+      ...(await pendingPackageDocumentationViolations(projectRoot, baseDefinition)),
+    )
+    if (resolvedVersions.versions.at(-1) !== resolvedVersions.currentVersion) {
+      throw new Error(
+        `${baseDefinition.packageName} package version ${manifest.version} precedes its latest documentation line.`,
+      )
+    }
+    if (!historicalVersions.includes(resolvedVersions.currentVersion)) {
+      if (!update) {
+        violations.push(
+          `website/src/content/docs/packages/${baseDefinition.slug}/${resolvedVersions.currentVersion} is missing. Run pnpm package-docs:update.`,
+        )
+        continue
+      }
+      const prepared = await preparePackageDocumentationLine(
+        projectRoot,
+        baseDefinition,
+        manifest.version,
+      )
+      changedFiles.push(...prepared.createdFiles)
+    }
+
+    const definition = versionPackageDocumentation(baseDefinition, resolvedVersions.versions)
     const docsUrl = packageDocumentationUrl(definition.slug, definition.currentVersion)
     const invalidFields = packageManifestDocumentationViolations(manifest, definition, docsUrl)
     if (invalidFields.length > 0) {
@@ -237,3 +283,5 @@ async function runCli() {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   void runCli()
 }
+
+export { preparePackageDocumentationLine } from './package-documentation-lines'

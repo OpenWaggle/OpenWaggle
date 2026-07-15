@@ -4,18 +4,15 @@ import {
   readReleaseCiWorkflowJobs,
   type ReleaseCiWorkflowJob,
 } from './release-ci-policy-workflow'
+import { matchesReleaseCiWorkflowAstContract } from './package-release-validator-workflow-structure'
 
 export const REQUIRED_CI_CHECKS = [
   'Commit Policy',
   'Typecheck & Lint',
   'Unit & Component Tests',
 ] as const
-const EXPECTED_CI_JOBS = [
-  ...REQUIRED_CI_CHECKS,
-  'Package release rehearsal (Node ${{ matrix.node }})',
-  'Prepare immutable package release artifacts',
-  'Package Release Gate',
-] as const
+const EXPECTED_CI_JOBS = [...REQUIRED_CI_CHECKS, 'Package release rehearsal (Node ${{ matrix.node }})',
+  'Prepare immutable package release artifacts', 'Package Release Gate'] as const
 
 const CI_WORKFLOW_PATH = '.github/workflows/ci.yml'
 const CONCURRENCY_POLICY_FIELD_COUNT = 2
@@ -298,6 +295,10 @@ function validateRequiredChecks(
 export function validateReleaseCiPolicy(workflow: string) {
   const violations: string[] = []
   const jobs = readReleaseCiWorkflowJobs(workflow)
+
+  if (!matchesReleaseCiWorkflowAstContract(workflow)) {
+    violations.push('CI workflow must match its exact fail-closed AST contract.')
+  }
 
   validateTriggers(workflow, violations)
   validateDispatchSupport(workflow, jobs, violations)

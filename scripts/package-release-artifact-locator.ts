@@ -22,6 +22,12 @@ export interface PackageReleaseWorkflowRun {
 
 type ReadWorkflowRun = (runId: number) => Promise<PackageReleaseWorkflowRun>
 
+export function packageReleaseArtifactRunEnvironment(
+  selection: Readonly<{ runId: number; sourceSha: string }>,
+) {
+  return `EXPECTED_ARTIFACT_RUN_ID=${String(selection.runId)}\n`
+}
+
 function isPackageReleaseArtifactEvent(event: string) {
   return event === 'pull_request' || event === 'workflow_dispatch'
 }
@@ -118,8 +124,10 @@ export async function locatePackageReleaseArtifact(args: readonly string[]) {
   }
   const sourceTree = args[0]
   const repository = process.env.GITHUB_REPOSITORY
+  const githubEnvironment = process.env.GITHUB_ENV
   const githubOutput = process.env.GITHUB_OUTPUT
-  if (sourceTree === undefined || repository === undefined || githubOutput === undefined) {
+  if (sourceTree === undefined || repository === undefined || githubEnvironment === undefined ||
+    githubOutput === undefined) {
     throw new Error('Package release artifact locator environment is incomplete.')
   }
   const artifactName = `package-release-${sourceTree}`
@@ -135,6 +143,7 @@ export async function locatePackageReleaseArtifact(args: readonly string[]) {
   await appendFile(githubOutput, `run_id=${String(selection.runId)}\n`)
   await appendFile(githubOutput, `source_sha=${selection.sourceSha}\n`)
   await appendFile(githubOutput, `artifact_name=${artifactName}\n`)
+  await appendFile(githubEnvironment, packageReleaseArtifactRunEnvironment(selection))
   return selection
 }
 
