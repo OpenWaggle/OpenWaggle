@@ -26,10 +26,83 @@ import {
   WEBSITE_DOCS_ROOT,
   withoutMarkdownExtension,
 } from './installed-docs-generator-model'
+import { renderPackageInstallElements } from './package-documentation-renderer'
 
 interface GenerateInstalledDocsOptions {
   readonly outputRoot?: string
   readonly generatedAt?: string
+}
+
+interface OpenWaggleSourceFile {
+  readonly bundlePath: string
+  readonly filePath: string
+  readonly slug: string
+}
+
+const PACKAGE_GUIDE_SLUG_PATTERN = /^packages\/([^/]+)\/(\d+\.\d+)\/index$/u
+const PACKAGE_SLUG_GROUP = 1
+const PACKAGE_VERSION_GROUP = 2
+const WEBSITE_DOC_LINK_PATTERN = /(\]\()((?:\/docs(?:\/[^)\s]*|[?#][^)\s]*)?|\.\.?\/[^)\s]+))(\))/gu
+
+function websiteDocumentationRoute(slug: string) {
+  const routeSlug = slug.endsWith('/index') ? slug.slice(0, -'/index'.length) : slug
+  return `/docs/${routeSlug}`
+}
+
+function installedDocumentationRoutes(files: readonly OpenWaggleSourceFile[]) {
+  const routes = new Map<string, string>([['/docs', 'README.md']])
+  const packageGuides = new Map<string, { readonly bundlePath: string; readonly version: string }[]>()
+
+  for (const file of files) {
+    routes.set(websiteDocumentationRoute(file.slug), file.bundlePath)
+    const match = PACKAGE_GUIDE_SLUG_PATTERN.exec(file.slug)
+    const packageSlug = match?.[PACKAGE_SLUG_GROUP]
+    const version = match?.[PACKAGE_VERSION_GROUP]
+    if (packageSlug === undefined || version === undefined) continue
+    const guides = packageGuides.get(packageSlug) ?? []
+    guides.push({ bundlePath: file.bundlePath, version })
+    packageGuides.set(packageSlug, guides)
+  }
+
+  for (const [packageSlug, guides] of packageGuides) {
+    const latest = guides.toSorted((left, right) =>
+      left.version.localeCompare(right.version, 'en', { numeric: true }),
+    ).at(-1)
+    if (latest) routes.set(`/docs/packages/${packageSlug}`, latest.bundlePath)
+  }
+  return routes
+}
+
+export function rewriteInstalledDocumentationLinks(
+  markdown: string,
+  sourceRoute: string,
+  sourceBundlePath: string,
+  routes: ReadonlyMap<string, string>,
+) {
+  return markdown.replaceAll(
+    WEBSITE_DOC_LINK_PATTERN,
+    (_match, prefix: string, destination: string, suffix: string) => {
+      const parsed = new URL(
+        destination,
+        `https://openwaggle.ai${sourceRoute.endsWith('/') ? sourceRoute : `${sourceRoute}/`}`,
+      )
+      const route = parsed.pathname.endsWith('/')
+        ? parsed.pathname.slice(0, -'/'.length)
+        : parsed.pathname
+      const targetBundlePath = routes.get(route)
+      if (targetBundlePath === undefined) {
+        throw new Error(`Installed docs cannot resolve ${destination} from ${sourceBundlePath}.`)
+      }
+      const relativePath = path.posix.relative(
+        path.posix.dirname(sourceBundlePath),
+        targetBundlePath,
+      )
+      const relativeDestination = relativePath.startsWith('.')
+        ? relativePath
+        : `./${relativePath}`
+      return `${prefix}${relativeDestination}${parsed.search}${parsed.hash}${suffix}`
+    },
+  )
 }
 
 async function copyPiAssets(piRoot: string, outputRoot: string) {
@@ -66,37 +139,49 @@ async function writeTopicFile(outputRoot: string, bundlePath: string, rawContent
 
 async function buildOpenWaggleTopics(outputRoot: string) {
   const rootPath = path.resolve(WEBSITE_DOCS_ROOT)
-  const files = (await listFiles(rootPath)).filter((filePath) =>
-    MARKDOWN_EXTENSIONS.has(path.extname(filePath)),
-  )
+  const files = (await listFiles(rootPath))
+    .filter((filePath) => MARKDOWN_EXTENSIONS.has(path.extname(filePath)))
+    .map((filePath) => {
+      const relativePath = posixPath(path.relative(rootPath, filePath))
+      const slug = withoutMarkdownExtension(relativePath)
+      return {
+        bundlePath: markdownOutputPath(OPENWAGGLE_GROUP.id, slug),
+        filePath,
+        slug,
+      } satisfies OpenWaggleSourceFile
+    })
+  const routes = installedDocumentationRoutes(files)
   const topics: InstalledDocTopic[] = []
 
-  for (const filePath of files) {
-    const relativePath = posixPath(path.relative(rootPath, filePath))
-    const slug = withoutMarkdownExtension(relativePath)
-    const rawContent = await readFile(filePath, 'utf8')
-    const parsed = parseFrontmatter(rawContent)
-    const title = parsed.fields.get('title') ?? titleFromSlug(slug)
+  for (const file of files) {
+    const rawContent = await readFile(file.filePath, 'utf8')
+    const installedContent = rewriteInstalledDocumentationLinks(
+      renderPackageInstallElements(rawContent),
+      websiteDocumentationRoute(file.slug),
+      file.bundlePath,
+      routes,
+    )
+    const parsed = parseFrontmatter(installedContent)
+    const title = parsed.fields.get('title') ?? titleFromSlug(file.slug)
     const description = parsed.fields.get('description')
     const section = parsed.fields.get('section')
-    const order = Number(parsed.fields.get('order') ?? docsOrder(slug))
-    const bundlePath = markdownOutputPath(OPENWAGGLE_GROUP.id, slug)
+    const order = Number(parsed.fields.get('order') ?? docsOrder(file.slug))
 
     topics.push({
-      topic: topicId(OPENWAGGLE_GROUP.id, slug),
+      topic: topicId(OPENWAGGLE_GROUP.id, file.slug),
       source: OPENWAGGLE_GROUP.id,
       group: OPENWAGGLE_GROUP.title,
       title,
       ...(description ? { description } : {}),
       ...(section ? { section } : {}),
       order,
-      sourcePath: posixPath(path.relative(process.cwd(), filePath)),
-      bundlePath,
-      aliases: aliasesFor({ slug, title, section, source: OPENWAGGLE_GROUP.id }),
-      keywords: keywordsFor({ slug, title, description, section }),
-      contentHash: hashContent(rawContent),
+      sourcePath: posixPath(path.relative(process.cwd(), file.filePath)),
+      bundlePath: file.bundlePath,
+      aliases: aliasesFor({ slug: file.slug, title, section, source: OPENWAGGLE_GROUP.id }),
+      keywords: keywordsFor({ slug: file.slug, title, description, section }),
+      contentHash: hashContent(installedContent),
     })
-    await writeTopicFile(outputRoot, bundlePath, rawContent)
+    await writeTopicFile(outputRoot, file.bundlePath, installedContent)
   }
 
   return topics.sort(compareTopics)

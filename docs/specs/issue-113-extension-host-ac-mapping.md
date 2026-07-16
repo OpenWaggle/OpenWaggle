@@ -48,7 +48,7 @@ The current agreed direction:
 
 - Packages use independent semver versions and a shared Release Please package workflow.
 - Initial public package versions are `0.1.0`.
-- Source manifests remain at the unpublished `0.0.0` baseline until Release Please creates the first `0.1.0` release PR.
+- The initial Release Please cycle promoted all four source manifests from the bootstrap baseline to `0.1.0`; current versions are maintained by coordinated Release Please PRs.
 - Every package declares Node.js `>=22.19.0`; release consumers are tested on Node 22.19+ and Node 24.
 - All public package source lives under `packages/*`: `packages/extension-sdk`, `packages/extension-react`, `packages/waggle-core`, and `packages/pi-waggle`.
 - Existing `packages/waggle-core` and `packages/pi-waggle` must be converted from private raw-TS workspace packages into real publishable packages instead of duplicated elsewhere.
@@ -70,22 +70,23 @@ The current agreed direction:
 - `pnpm check:repository-standards` must enforce publishable package import boundaries for extension-sdk, waggle-core, extension-react, and pi-waggle.
 - `@openwaggle/extension-sdk` exports both direct public Effect Schema boundary values and helper APIs such as manifest definition and validation helpers; Effect Schema is the primary runtime schema contract for `0.1.0`, with JSON Schema left as a possible secondary artifact later.
 - `@openwaggle/extension-react` owns React 19 component primitives for extension authors and depends on `@openwaggle/extension-sdk`.
-- Each publishable package ships a concise hand-maintained README, and comprehensive package guidance lives on openwaggle.ai package docs.
+- Each publishable package ships a generated README sourced from its canonical versioned website guide, and comprehensive package guidance lives on openwaggle.ai package docs. Generated API references inventory the checked public declarations and export map.
 - Package docs live under `website/src/content/docs/packages/` with overview, Extension SDK, Extension React, Waggle core, and Pi Waggle pages; extension authoring guides link to those pages for install/API usage details.
 - User-facing package docs and package READMEs do not explain API snapshot tooling; snapshots remain internal validation artifacts.
-- Package publishing follows the Release Please model used by `ts-match`, with one coordinated release PR, independent package versions, package-local changelogs, package-specific tags, API snapshots, strict tarball validation, consumer smoke installs, and direct npm Trusted Publishing with provenance.
-- Direct package release intent comes only from release-eligible Conventional Commits that touch `packages/<name>/**`; changes limited to the app, website, general docs, fixtures, or workflows do not publish npm packages.
+- Package publishing follows one coordinated Release Please PR with independent package versions, package-local changelogs, API snapshots, strict tarball validation, consumer smoke installs, and direct npm Trusted Publishing with provenance. Final tarballs are built, validated, hashed, and attested on that pull request, then promoted unchanged after merge.
+- Direct package release intent comes from release-eligible Conventional Commits that touch `packages/<name>/**`, including generated README or metadata changes sourced from canonical package documentation. Unrelated app, website, general docs, fixtures, and workflow-only changes do not publish npm packages.
 - Pull request titles retain Conventional Commit release intent for squash merges. Repository settings disable merge commits while retaining squash for one-intent PRs and rebase for mixed-intent PRs that need separate release impacts. Reverts use `revert(scope): ...` instead of generated revert subjects.
 - Package release tags use short package-name tags such as `extension-sdk-v0.1.0`, `extension-react-v0.1.0`, `waggle-core-v0.1.0`, and `pi-waggle-v0.1.0`, not scoped npm names.
 - Each package release gets its own GitHub Release, even when multiple packages are released from the same Release Please PR.
 - Merging the Release Please PR is the explicit release gate; validation, tags, GitHub Releases, and npm publication are automatic afterward.
-- Real versions publish only from Release Please-created release events or exact-tag recovery dispatches. A recovery run validates one canonical tag and refuses to replace an existing npm version.
+- Real versions publish only from the exact attested candidate produced for an authorized Release Please pull request. Recovery locates and resumes that candidate by release plan, source-tree identity, artifact manifest, and digest; it never rebuilds from a tag and refuses to replace an existing npm version.
 - CI publishes the exact validated tarball with `npm publish`, `id-token: write`, and automatic provenance. It must not use `npm stage publish`, `NPM_TOKEN`, or `NODE_AUTH_TOKEN`.
 - `extension-sdk` and `waggle-core` publish before `extension-react` and `pi-waggle`, respectively.
 - A resumable one-time bootstrap may publish deprecated `0.0.0-bootstrap.0` placeholders under the non-default `bootstrap` dist-tag, then configure `npm trust` and package `mfa=publish`; this is not a real package release or local fallback.
 - The bootstrap command has read-only default behavior and requires `--execute` for external changes.
 - The GitHub `npm` environment has no npm secrets or required reviewers, permits `main` only, and is paired with an additive `main` ruleset requiring PRs and green CI while blocking force pushes and deletion. The ruleset grants only the administrator emergency bypass; automated app version commits use a separately validated release PR instead of bypassing protection. Bootstrap fails compatibility when repository merge modes drift, patches only the owned merge-mode fields, and verifies merge commits off with squash and rebase on.
-- Release Please-generated PR branches receive exact-head CI without a PAT or GitHub App secret: automation reruns an approval-required PR-associated run when present and dispatches exact-head CI when GitHub suppresses the bot-created PR event.
+- Release Please-generated PR branches receive exact-head CI without a PAT or GitHub App secret: automation accepts an already successful PR-associated run, waits for an active one, and dispatches immutable exact-head CI when GitHub suppresses or marks the bot-created run as approval-required.
+- Authors prepare future package documentation outside published routes under `website/src/content/package-docs-next/<package>/`. Before exact-head CI, Release Please automation promotes and commits that pending source into the resolved major.minor line so the validated release candidate includes its final npm README and website documentation without mutating historical lines.
 - Bad versions are deprecated and followed by a corrected patch rather than overwritten or routinely unpublished.
 - The OpenWaggle desktop app release workflow remains separate from npm package publishing.
 - First public package publishing uses the maintainer-owned `@openwaggle` npm organization namespace; the packages must not be published under a personal scope.
@@ -99,8 +100,8 @@ Package publishing should be implemented as parallel-safe slices with one sequen
 
 1. Package extraction/build: create `packages/extension-sdk` and `packages/extension-react`; convert `packages/waggle-core` and `packages/pi-waggle` from private raw-TS workspace packages into built publishable packages.
 2. Validation: export smoke tests, tarball checks, API snapshots, import-boundary checks, and package-manager smoke installs.
-3. Release workflow: Release Please config, path-scoped release intent, dependency-ordered direct Trusted Publishing, exact-tag recovery, bootstrap automation, repository protections, package tag conventions, and package GitHub Release behavior.
-4. Docs: package READMEs, website package docs, and issue #113 AC update.
+3. Release workflow: Release Please config, path-scoped release intent, dependency-ordered promotion of attested artifacts through direct Trusted Publishing, bounded attested-candidate recovery, bootstrap automation, repository protections, package tag conventions, and package GitHub Release behavior.
+4. Docs: canonical major.minor website package guides, generated package READMEs and API references, installed-doc bundles, and issue #113 AC updates.
 
 Slice 1 should start first because it defines package manifests and export maps. Slices 2 and 3 can begin once slice 1 defines the package manifests/exports. Slice 4 can start from the documented decisions, but examples must be checked against the final slice 1 exports before merge.
 
@@ -117,6 +118,7 @@ Slice 1 should start first because it defines package manifests and export maps.
 - The public docs now describe `trusted.renderer` as privileged metadata and state that `trusted-renderer` entries are frame-mounted through the same brokered SDK/context boundary as federated visual contributions.
 - The public docs now describe frame CSP restrictions and trusted-main network egress enforcement.
 - `website/src/content/docs/extending/plugins.md` already points readers to local OpenWaggle extension packages instead of describing desktop extensions only as planned.
+- Package READMEs and current API references are generated from canonical website guides, package manifests, and checked public declarations. New major.minor lines promote an explicitly authored pending source without mutating historical docs.
 - Keep installed docs generated from `website/src/content/docs/**`; do not hand-edit generated `build/openwaggle-docs` output.
 
 ## Integration Reviewer Checklist

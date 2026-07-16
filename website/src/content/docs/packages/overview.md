@@ -20,7 +20,7 @@ These packages are separate from the OpenWaggle desktop app. Use them when you a
 
 ## Install
 
-After the packages are publicly available on npm, install only the packages your project needs:
+Install only the packages your project needs:
 
 ```bash
 pnpm add @openwaggle/extension-sdk
@@ -29,7 +29,19 @@ pnpm add @openwaggle/waggle-core
 pnpm add @openwaggle/pi-waggle @earendil-works/pi-coding-agent @earendil-works/pi-tui
 ```
 
-The `@openwaggle` npm namespace is reserved for these packages. Install commands will work after their first public `0.1.0` releases; OpenWaggle does not publish them under a temporary personal scope.
+The packages are public under the `@openwaggle` npm organization. Package guides and API references are versioned by `major.minor`; the unversioned links above always open the latest documentation line.
+
+## How The Packages Fit Together
+
+```text
+Framework-neutral extension ──> @openwaggle/extension-sdk
+React extension ───────────────> @openwaggle/extension-react ──> @openwaggle/extension-sdk
+
+Any Waggle host ───────────────> @openwaggle/waggle-core
+Pi runtime ────────────────────> @openwaggle/pi-waggle ─────────> @openwaggle/waggle-core
+```
+
+The arrows mean “uses.” Extension packages and Waggle packages solve separate problems; install both only when your project needs both capabilities.
 
 ## Import Boundaries
 

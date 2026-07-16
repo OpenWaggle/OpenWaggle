@@ -1,0 +1,67 @@
+---
+import { packageDocumentationPageRoute } from '@/data/package-docs';
+import type { PackageDocumentationDefinition } from '@/data/package-docs';
+import type { PackageDocumentationPage } from '@/data/package-docs';
+
+interface Props {
+  definition: PackageDocumentationDefinition;
+  version: string;
+  page: PackageDocumentationPage;
+}
+
+const { definition, page, version } = Astro.props;
+const pageLabels = {
+  guide: 'Guide',
+  'api-reference': 'API',
+  components: 'Components',
+} satisfies Record<PackageDocumentationPage, string>;
+---
+
+<div class="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-bg-secondary px-4 py-3">
+  <label class="text-xs font-semibold uppercase tracking-wider text-text-tertiary" for="package-doc-version">
+    Documentation version
+  </label>
+  <select
+    id="package-doc-version"
+    data-package-version-select
+    class="rounded-md border border-border bg-bg px-3 py-1.5 text-sm font-medium text-text-primary"
+    aria-label={`Documentation version for ${definition.packageName}`}
+  >
+    {definition.versions.map((candidate) => (
+      <option
+        value={packageDocumentationPageRoute(definition.slug, candidate, page)}
+        selected={candidate === version}
+      >
+        {candidate}{candidate === definition.currentVersion ? ' (latest)' : ''}
+      </option>
+    ))}
+  </select>
+  <span class="text-xs text-text-tertiary">
+    Applies to {definition.packageName}@{version}.x
+  </span>
+  <nav class="ml-auto flex items-center gap-1" aria-label={`${definition.packageName} documentation`}>
+    {definition.pages.map((candidate) => (
+      <a
+        href={packageDocumentationPageRoute(definition.slug, version, candidate)}
+        class:list={[
+          'rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors',
+          candidate === page
+            ? 'bg-accent/15 text-accent'
+            : 'text-text-tertiary hover:bg-bg-hover hover:text-text-primary',
+        ]}
+        aria-current={candidate === page ? 'page' : undefined}
+      >
+        {pageLabels[candidate]}
+      </a>
+    ))}
+  </nav>
+</div>
+
+<script>
+  for (const element of document.querySelectorAll('[data-package-version-select]')) {
+    if (!(element instanceof HTMLSelectElement)) continue;
+    element.addEventListener('change', () => {
+      window.location.assign(element.value);
+    });
+  }
+</script>

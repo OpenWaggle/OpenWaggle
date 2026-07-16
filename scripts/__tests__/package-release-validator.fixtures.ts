@@ -26,6 +26,31 @@ export const validCiWorkflow = readFileSync(
   'utf8',
 )
 
+const validPromoteSource = readFileSync(
+  path.join(process.cwd(), 'scripts/package-release-promote.ts'),
+  'utf8',
+)
+
+const validPromotionSource = readFileSync(
+  path.join(process.cwd(), 'scripts/package-release-promotion.ts'),
+  'utf8',
+)
+
+const validArtifactsSource = readFileSync(
+  path.join(process.cwd(), 'scripts/package-release-artifacts.ts'),
+  'utf8',
+)
+
+const validArtifactContractSource = readFileSync(
+  path.join(process.cwd(), 'scripts/package-release-artifact-contract.ts'),
+  'utf8',
+)
+
+const validLocatorSource = readFileSync(
+  path.join(process.cwd(), 'scripts/package-release-artifact-locator.ts'),
+  'utf8',
+)
+
 async function writeFile(filePath: string, contents: string) {
   await fs.mkdir(path.dirname(filePath), { recursive: true })
   await fs.writeFile(filePath, contents, 'utf8')
@@ -93,6 +118,11 @@ export async function writeMinimalPackageReleaseProject(
   })
   await writeFile(path.join(projectRoot, '.github/workflows/package-release.yml'), workflowText)
   await writeFile(path.join(projectRoot, '.github/workflows/ci.yml'), ciWorkflowText)
+  await writeFile(path.join(projectRoot, 'scripts/package-release-promote.ts'), validPromoteSource)
+  await writeFile(path.join(projectRoot, 'scripts/package-release-promotion.ts'), validPromotionSource)
+  await writeFile(path.join(projectRoot, 'scripts/package-release-artifacts.ts'), validArtifactsSource)
+  await writeFile(path.join(projectRoot, 'scripts/package-release-artifact-contract.ts'), validArtifactContractSource)
+  await writeFile(path.join(projectRoot, 'scripts/package-release-artifact-locator.ts'), validLocatorSource)
 
   for (const [index, packageDirectory] of packageDirectories.entries()) {
     const dependencies =

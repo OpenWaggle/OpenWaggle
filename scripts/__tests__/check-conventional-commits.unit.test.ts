@@ -142,7 +142,12 @@ describe('Conventional Commit policy', () => {
         'current policy marker\n',
         'ci: introduce commit policy',
       )
-      const head = await commit(cwd, 'fix(extension-sdk): validate manifest ids')
+      const head = await writeAndCommit(
+        cwd,
+        'packages/extension-sdk/src/manifest.ts',
+        'export const manifest = {}\n',
+        'fix(extension-sdk): validate manifest ids',
+      )
 
       const valid = await validateConventionalCommits({
         baseline,
@@ -161,6 +166,46 @@ describe('Conventional Commit policy', () => {
       expect(invalid.violations).toContain(
         'Pull request title "Expose manifest helpers" is not an allowed Conventional Commit subject.',
       )
+
+      const missingReleaseIntent = await validateConventionalCommits({
+        baseline,
+        cwd,
+        prTitle: 'docs(extension-sdk): explain manifest helpers',
+        to: head,
+      })
+      expect(missingReleaseIntent.violations).toContain(
+        'Pull request title "docs(extension-sdk): explain manifest helpers" changes a publishable package but would not create a Release Please version bump.',
+      )
+    } finally {
+      await fs.rm(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it('allows non-release titles when no publishable package changes', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-commit-policy-'))
+    try {
+      await git(cwd, ['init'])
+      const baseline = await writeAndCommit(
+        cwd,
+        POLICY_SCRIPT_PATH,
+        'current policy marker\n',
+        'ci: introduce commit policy',
+      )
+      const head = await writeAndCommit(
+        cwd,
+        'website/src/content/docs/index.md',
+        '# Docs\n',
+        'docs: improve website copy',
+      )
+
+      const result = await validateConventionalCommits({
+        baseline,
+        cwd,
+        prTitle: 'docs: improve website copy',
+        to: head,
+      })
+
+      expect(result.violations).toEqual([])
     } finally {
       await fs.rm(cwd, { force: true, recursive: true })
     }

@@ -12,6 +12,17 @@
     "url": "https://github.com/OpenWaggle/OpenWaggle.git",
     "directory": "packages/waggle-core"
   },
+  "homepage": "https://openwaggle.ai/docs/packages/waggle-core/0.1/",
+  "bugs": {
+    "url": "https://github.com/OpenWaggle/OpenWaggle/issues"
+  },
+  "keywords": [
+    "openwaggle",
+    "waggle",
+    "multi-agent",
+    "orchestration",
+    "typescript"
+  ],
   "publishConfig": {
     "access": "public"
   },

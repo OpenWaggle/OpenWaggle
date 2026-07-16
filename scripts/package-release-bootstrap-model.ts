@@ -39,6 +39,7 @@ export const PACKAGE_NAMES = [
 ] as const
 
 export const REQUIRED_CHECK_CONTEXTS = [
+  'Package Release Gate',
   'Commit Policy',
   'Typecheck & Lint',
   'Unit & Component Tests',

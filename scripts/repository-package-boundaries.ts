@@ -109,6 +109,7 @@ const packageBoundaryRules: readonly PackageBoundaryRule[] = [
 ]
 
 export const packageBoundarySourceGlobs = ['packages/*/src/**/*.{ts,tsx}'] as const
+const packageBoundarySourcePattern = /^packages\/[^/]+\/src\/.*\.tsx?$/u
 
 function normalizePath(filePath: string) {
   return filePath.split(path.sep).join('/')
@@ -217,6 +218,10 @@ function externalBoundaryViolation(input: {
 }
 
 export function collectPackageBoundaryViolations(file: string, contents: string) {
+  if (!packageBoundarySourcePattern.test(file)) {
+    return []
+  }
+
   const rule = packageRuleForFile(file)
   if (rule === undefined) {
     return []

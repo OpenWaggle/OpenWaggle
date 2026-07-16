@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import http from 'node:http'
 import path from 'node:path'
 import { chromium } from '@playwright/test'
-import { assertBrowserRuntimeResult } from './package-smoke-assertions'
+import { assertBrowserRuntimeResult } from './package-smoke-runtime-assertions'
 
 const BROWSER_SMOKE_TIMEOUT_MS = 15_000
 // Covers queued frames and short timers while adding only 250 ms per package-manager consumer.

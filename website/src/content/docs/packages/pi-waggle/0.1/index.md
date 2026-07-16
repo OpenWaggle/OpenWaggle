@@ -9,11 +9,7 @@ section: "Packages"
 
 Use it when you want Waggle mode inside a Pi runtime. It includes the reusable `@openwaggle/waggle-core` policy dependency, registers the default `/waggle` and `/standard` commands, renders Pi-native Waggle messages, and stores Waggle mode state with Pi custom messages.
 
-## Install
-
-```bash
-pnpm add @openwaggle/pi-waggle @earendil-works/pi-coding-agent @earendil-works/pi-tui
-```
+<package-install packages="@openwaggle/pi-waggle @earendil-works/pi-coding-agent @earendil-works/pi-tui"></package-install>
 
 `@earendil-works/pi-coding-agent` and `@earendil-works/pi-tui` are peer dependencies. Install versions compatible with the range in the package manifest.
 
@@ -96,3 +92,30 @@ Most users should start with the default extension export. Reach for loop helper
 `@openwaggle/pi-waggle` is Pi-specific. It may import Pi SDK packages and `@openwaggle/waggle-core`, but it should not be used as an OpenWaggle renderer dependency or browser-only extension UI package.
 
 For runtime-neutral policy, use [`@openwaggle/waggle-core`](/docs/packages/waggle-core). For OpenWaggle visual extensions, use [`@openwaggle/extension-sdk`](/docs/packages/extension-sdk).
+
+## Compatibility
+
+| Requirement | Supported line |
+|-------------|----------------|
+| Node.js | 22.19 and newer |
+| Pi coding agent | Compatible `0.80.x` peer range from the package manifest |
+| Pi TUI | Compatible `0.80.x` peer range from the package manifest |
+| Module format | ESM and CommonJS |
+| Pi Waggle documentation | 0.1 |
+
+## Reference And Support
+
+- [Complete API reference](./api-reference)
+- [npm package](https://www.npmjs.com/package/@openwaggle/pi-waggle)
+- [Package changelog](https://github.com/OpenWaggle/OpenWaggle/blob/main/packages/pi-waggle/CHANGELOG.md)
+- [Report an issue](https://github.com/OpenWaggle/OpenWaggle/issues/new)
+
+## Troubleshooting
+
+**Pi does not discover the extension.** Install the package in the Pi package environment and confirm the package manifest exposes `./dist/extension.js` through its `pi.extensions` entry.
+
+**Commands render but state does not persist.** Preserve the `pi-waggle.*` custom messages in Pi session data and avoid a parallel host-owned state tree.
+
+**Peer dependency warnings appear.** Install Pi coding-agent and TUI versions compatible with the exact peer ranges in the package manifest.
+
+There are no migrations within the `0.1` documentation line. Future incompatible changes will receive a new versioned documentation line and migration guide.

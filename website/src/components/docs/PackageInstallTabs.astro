@@ -1,0 +1,110 @@
+<script>
+  const PACKAGE_MANAGERS = [
+    { id: 'npm', label: 'npm', command: 'npm install' },
+    { id: 'pnpm', label: 'pnpm', command: 'pnpm add' },
+    { id: 'yarn', label: 'Yarn', command: 'yarn add' },
+    { id: 'bun', label: 'Bun', command: 'bun add' },
+  ];
+
+  class OpenWagglePackageInstall extends HTMLElement {
+    connectedCallback() {
+      if (this.dataset.enhanced === 'true') return;
+      const packages = this.getAttribute('packages')?.trim();
+      if (!packages) return;
+
+      this.dataset.enhanced = 'true';
+      const heading = document.createElement('h2');
+      heading.textContent = 'Install';
+      this.append(heading);
+
+      const tabList = document.createElement('div');
+      tabList.className = 'ow-package-tabs';
+      tabList.setAttribute('role', 'tablist');
+      tabList.setAttribute('aria-label', 'Package manager');
+
+      const panels = document.createElement('div');
+      panels.className = 'ow-package-panels';
+      const buttons: HTMLButtonElement[] = [];
+      const panelElements: HTMLDivElement[] = [];
+
+      function selectTab(selectedIndex: number) {
+        buttons.forEach((button, index) => {
+          const selected = index === selectedIndex;
+          button.setAttribute('aria-selected', String(selected));
+          button.tabIndex = selected ? 0 : -1;
+          panelElements[index]?.toggleAttribute('hidden', !selected);
+        });
+      }
+
+      PACKAGE_MANAGERS.forEach((manager, index) => {
+        const tabId = `package-manager-${manager.id}-${String(index)}`;
+        const panelId = `${tabId}-panel`;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.id = tabId;
+        button.className = 'ow-package-tab';
+        button.setAttribute('role', 'tab');
+        button.setAttribute('aria-controls', panelId);
+        button.textContent = manager.label;
+        button.addEventListener('click', () => selectTab(index));
+        buttons.push(button);
+        tabList.append(button);
+
+        const panel = document.createElement('div');
+        panel.id = panelId;
+        panel.className = 'ow-package-panel';
+        panel.setAttribute('role', 'tabpanel');
+        panel.setAttribute('aria-labelledby', tabId);
+        const pre = document.createElement('pre');
+        const code = document.createElement('code');
+        code.textContent = `${manager.command} ${packages}`;
+        pre.append(code);
+        panel.append(pre);
+        panelElements.push(panel);
+        panels.append(panel);
+      });
+
+      this.append(tabList, panels);
+      selectTab(0);
+    }
+  }
+
+  if (!customElements.get('package-install')) {
+    customElements.define('package-install', OpenWagglePackageInstall);
+  }
+</script>
+
+<style is:global>
+  package-install {
+    display: block;
+    margin: 2rem 0;
+  }
+
+  .ow-package-tabs {
+    display: flex;
+    gap: 0.25rem;
+    margin-top: 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .ow-package-tab {
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--color-text-tertiary);
+    cursor: pointer;
+    padding: 0.55rem 0.8rem;
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  .ow-package-tab[aria-selected='true'] {
+    border-bottom-color: var(--color-accent);
+    color: var(--color-text-primary);
+  }
+
+  .ow-package-panel pre {
+    margin-top: 0.75rem;
+  }
+</style>

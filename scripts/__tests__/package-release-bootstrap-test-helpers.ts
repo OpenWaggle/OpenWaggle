@@ -72,6 +72,7 @@ export function successfulFirstPackageTransaction(packageName: string) {
 
 export function compatibleRuleset(
   requiredStatusChecks: unknown[] = [
+    { context: 'Package Release Gate' },
     { context: 'Commit Policy' },
     { context: 'Typecheck & Lint' },
     { context: 'Unit & Component Tests' },

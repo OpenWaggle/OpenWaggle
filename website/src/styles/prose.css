@@ -117,6 +117,35 @@
     border-radius: 8px;
   }
 
+  .prose-docs .ow-docs-component-catalog,
+  .prose-docs .ow-docs-component-row {
+    margin: 1rem 0 2rem;
+  }
+
+  .prose-docs .ow-docs-component-row {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .prose-docs .ow-docs-component-heading {
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+
+  .prose-docs .ow-extension-heading,
+  .prose-docs .ow-extension-text,
+  .prose-docs .ow-extension-muted {
+    margin: 0;
+  }
+
+  .prose-docs .ow-extension-input,
+  .prose-docs .ow-extension-select,
+  .prose-docs .ow-extension-textarea {
+    width: 100%;
+  }
+
   /* Callout blocks */
   .prose-docs .callout {
     padding: 1em;

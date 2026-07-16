@@ -12,10 +12,16 @@
     "url": "https://github.com/OpenWaggle/OpenWaggle.git",
     "directory": "packages/pi-waggle"
   },
+  "homepage": "https://openwaggle.ai/docs/packages/pi-waggle/0.1/",
+  "bugs": {
+    "url": "https://github.com/OpenWaggle/OpenWaggle/issues"
+  },
   "keywords": [
-    "pi-package",
     "openwaggle",
-    "waggle"
+    "waggle",
+    "pi-package",
+    "multi-agent",
+    "orchestration"
   ],
   "publishConfig": {
     "access": "public"

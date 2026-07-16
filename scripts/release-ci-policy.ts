@@ -4,14 +4,15 @@ import {
   readReleaseCiWorkflowJobs,
   type ReleaseCiWorkflowJob,
 } from './release-ci-policy-workflow'
+import { matchesReleaseCiWorkflowAstContract } from './package-release-validator-workflow-structure'
 
 export const REQUIRED_CI_CHECKS = [
   'Commit Policy',
   'Typecheck & Lint',
   'Unit & Component Tests',
 ] as const
-const PACKAGE_CONSUMER_CI_JOB = 'Package Consumer Tools (Node ${{ matrix.node }})'
-const EXPECTED_CI_JOBS = [PACKAGE_CONSUMER_CI_JOB, ...REQUIRED_CI_CHECKS] as const
+const EXPECTED_CI_JOBS = [...REQUIRED_CI_CHECKS, 'Package release rehearsal (Node ${{ matrix.node }})',
+  'Prepare immutable package release artifacts', 'Package Release Gate'] as const
 
 const CI_WORKFLOW_PATH = '.github/workflows/ci.yml'
 const CONCURRENCY_POLICY_FIELD_COUNT = 2
@@ -37,10 +38,12 @@ const COMMIT_POLICY_CHECKOUT_STEP = `      - uses: ${ACTION_CHECKOUT}
         with:
           fetch-depth: 0
           ref: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}`
-const PNPM_SETUP_STEP = `      - uses: ${PNPM_ACTION_SETUP}`
+const PNPM_SETUP_STEP = `      - uses: ${PNPM_ACTION_SETUP}
+        with:
+          version: 11.6.0`
 const NODE_SETUP_STEP = `      - uses: ${ACTION_SETUP_NODE}
         with:
-          node-version: 24
+          node-version: 24.14.0
           cache: pnpm`
 const INSTALL_STEP = '      - run: pnpm install --frozen-lockfile'
 const RELEASE_POLICY_STEP = '      - run: pnpm exec tsx scripts/release-ci-policy.ts'
@@ -90,10 +93,6 @@ const EXPECTED_STEPS = new Map<string, readonly string[]>([
 
 function hasMainBranchTrigger(workflow: string, trigger: string) {
   return new RegExp(`^ {2}${trigger}:\\s*\\n {4}branches: \\[main\\]$`, 'm').test(workflow)
-}
-
-function readJobKeys(job: ReleaseCiWorkflowJob) {
-  return job.keys
 }
 
 function readSteps(job: ReleaseCiWorkflowJob) {
@@ -202,9 +201,13 @@ function validateSecurity(
     violations.push('CI must grant only read access to repository contents.')
   }
 
+  const requiredJobs = jobs.filter((job) => isRequiredCheck(job.name))
   for (const action of IMMUTABLE_ACTIONS) {
     const actionLine = `      - uses: ${action}`
-    if (jobs.flatMap(readSteps).filter((step) => step.startsWith(actionLine)).length !== REQUIRED_CI_CHECKS.length) {
+    if (
+      requiredJobs.flatMap(readSteps).filter((step) => step.startsWith(actionLine)).length !==
+      REQUIRED_CI_CHECKS.length
+    ) {
       violations.push(`CI must use ${action} in every required job.`)
     }
   }
@@ -228,7 +231,7 @@ function validateSecurity(
 
 function validateRequiredJobContract(job: ReleaseCiWorkflowJob, violations: string[]) {
   if (!isRequiredCheck(job.name)) return
-  const jobKeys = readJobKeys(job)
+  const jobKeys = job.keys
   const hasExactJobContract =
     jobKeys.length === REQUIRED_JOB_KEYS.length &&
     REQUIRED_JOB_KEYS.every((key) => jobKeys.includes(key)) &&
@@ -254,7 +257,7 @@ function validateRequiredChecks(
       `CI must expose exactly these stable job names: ${EXPECTED_CI_JOBS.join(', ')}.`,
     )
   }
-  if (/^ {4}if:/m.test(workflow)) {
+  if (jobs.some((job) => isRequiredCheck(job.name) && job.keys.includes('if'))) {
     violations.push('CI required jobs must run unconditionally for every configured trigger.')
   }
   if (/^ {8}continue-on-error:/m.test(workflow)) {
@@ -292,6 +295,10 @@ function validateRequiredChecks(
 export function validateReleaseCiPolicy(workflow: string) {
   const violations: string[] = []
   const jobs = readReleaseCiWorkflowJobs(workflow)
+
+  if (!matchesReleaseCiWorkflowAstContract(workflow)) {
+    violations.push('CI workflow must match its exact fail-closed AST contract.')
+  }
 
   validateTriggers(workflow, violations)
   validateDispatchSupport(workflow, jobs, violations)

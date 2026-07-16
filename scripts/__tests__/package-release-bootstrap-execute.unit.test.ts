@@ -197,6 +197,7 @@ describe('package release namespace bootstrap execution', () => {
           {
             parameters: expect.objectContaining({
               required_status_checks: [
+                { context: 'Package Release Gate' },
                 { context: 'Commit Policy' },
                 { context: 'Typecheck & Lint' },
                 { context: 'Unit & Component Tests' },

@@ -1,6 +1,8 @@
 # Publish Npm Packages Directly With Trusted Publishing
 
-Status: accepted
+Status: superseded in part by ADR-0009
+
+ADR-0009 supersedes post-merge validation/rebuild ordering and tag-first recovery. Direct npm Trusted Publishing, GitHub OIDC, no long-lived token, dependency ordering, and the explicit Release Please merge decision remain accepted. Final tarballs are now built, validated, hashed, and attested on the Release Please pull request, then promoted unchanged after merge.
 
 OpenWaggle will publish validated package tarballs directly from `package-release.yml` through npm Trusted Publishing and GitHub OIDC, rather than using staged publishing or long-lived npm tokens. A one-time resumable bootstrap publishes non-default, deprecated `0.0.0-bootstrap.0` placeholders so npm package records exist, then configures each trusted publisher with `npm trust`, disables token-based publication, and leaves every real release beginning with `0.1.0` to the provenance-bearing CI path. One coordinated Release Please PR remains the explicit human release gate; after it is merged, package-specific tags, GitHub Releases, dependency-ordered publication, and verification are automatic.
 
@@ -8,5 +10,6 @@ OpenWaggle will publish validated package tarballs directly from `package-releas
 
 - Package releases are driven only by release-eligible Conventional Commits that touch their `packages/<name>/` path; desktop app release intent remains separate.
 - `extension-sdk` and `waggle-core` publish before their dependents, while Release Please patch-bumps dependents when their OpenWaggle dependency changes.
-- The trusted workflow is pinned to the `npm` GitHub environment, runs only from `main`, publishes exact validated tarballs, and has an exact-tag recovery dispatch.
+- The trusted workflow is pinned to the `npm` GitHub environment, runs only after an authorized merge to `main`, and publishes the exact attested pull-request tarballs. Recovery resumes the same attested candidate by source-tree identity, artifact manifest, and digest; it does not rebuild from a tag.
+- Canonical versioned website guides generate package READMEs and API references. Authors prepare the next major.minor line under `website/src/content/package-docs-next/<package>/` without editing published lines. Release Please runs `pnpm package-docs:update`, promotes that pending source, and commits its output before exact-head CI; committed historical lines remain unchanged.
 - npm temporarily assigns `latest` to the sole bootstrap version and refuses removing it. The placeholder is deprecated, and the first trusted `0.1.0` publish atomically replaces `latest` with the real release.

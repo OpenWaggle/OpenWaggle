@@ -13,7 +13,3 @@
 * The following workspace dependencies were updated
   * dependencies
     * @openwaggle/extension-sdk bumped to 0.1.0
-
-## Changelog
-
-This package is not published yet. Release Please will maintain future package release notes here.

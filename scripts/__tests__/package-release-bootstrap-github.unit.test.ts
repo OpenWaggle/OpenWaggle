@@ -192,6 +192,7 @@ describe('package release namespace bootstrap GitHub policy', () => {
 
   it('fails closed when required checks contain an untyped extra entry', async () => {
     const ruleset = compatibleRuleset([
+      { context: 'Package Release Gate' },
       { context: 'Commit Policy' },
       { context: 'Typecheck & Lint' },
       { context: 'Unit & Component Tests' },
