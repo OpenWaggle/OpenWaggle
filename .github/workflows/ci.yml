@@ -195,9 +195,41 @@ jobs:
           YARN_ENABLE_IMMUTABLE_INSTALLS: 'false'
         run: pnpm package:smoke
 
+  classify-package-release:
+    name: Classify Package Release Candidate
+    runs-on: ubuntu-latest
+    outputs:
+      prepare: ${{ steps.candidate.outputs.prepare }}
+    steps:
+      - name: Classify package release candidate
+        id: candidate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          REF_NAME: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          branch="$HEAD_REF"
+          if [[ -z "$branch" ]]; then
+            branch="$REF_NAME"
+          fi
+          if [[ "$branch" != "release-please--branches--main" ]]; then
+            echo "prepare=false" >> "$GITHUB_OUTPUT"
+            echo "This pull request does not contain a coordinated package release candidate."
+            exit 0
+          fi
+          if [[ "$EVENT_NAME" == "pull_request" && ( "$HEAD_REPOSITORY" != "$REPOSITORY" || "$PR_AUTHOR" != "github-actions[bot]" ) ]]; then
+            echo "Release candidate pull requests must belong to this repository and the GitHub Actions bot." >&2
+            exit 1
+          fi
+          echo "prepare=true" >> "$GITHUB_OUTPUT"
+
   prepare-package-release:
-    name: Prepare immutable package release artifacts
-    if: ${{ (github.event_name == 'pull_request' && startsWith(github.head_ref, 'release-please--branches--main')) || (github.event_name == 'workflow_dispatch' && startsWith(github.ref_name, 'release-please--branches--main')) }}
+    name: Build and attest package artifacts (Release Please PR only)
+    needs: classify-package-release
+    if: needs.classify-package-release.outputs.prepare == 'true'
     runs-on: ubuntu-latest
     permissions:
       attestations: write
@@ -283,13 +315,10 @@ jobs:
           retention-days: 30
           compression-level: 0
 
-  package-release-gate:
-    name: Package Release Gate
+  package-release-candidate:
+    name: Package Release Candidate
     needs:
-      - commit-policy
-      - check
-      - test
-      - package-release-rehearsal
+      - classify-package-release
       - prepare-package-release
     if: ${{ always() }}
     runs-on: ubuntu-latest
@@ -303,5 +332,28 @@ jobs:
           node-version: 24.14.0
           package-manager-cache: false
 
+      - name: Enforce package release candidate readiness
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-candidate-gate.ts "${{ needs.classify-package-release.result }}" "${{ needs.prepare-package-release.result }}" "${{ github.head_ref || github.ref_name }}"
+
+  package-release-gate:
+    name: Package Release Gate
+    needs:
+      - commit-policy
+      - check
+      - test
+      - package-release-rehearsal
+      - package-release-candidate
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24.14.0
+          package-manager-cache: false
+
       - name: Enforce complete package release readiness
-        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-gate.ts "${{ needs.commit-policy.result }}" "${{ needs.check.result }}" "${{ needs.test.result }}" "${{ needs.package-release-rehearsal.result }}" "${{ needs.prepare-package-release.result }}" "${{ github.head_ref || github.ref_name }}"
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-gate.ts "${{ needs.commit-policy.result }}" "${{ needs.check.result }}" "${{ needs.test.result }}" "${{ needs.package-release-rehearsal.result }}" "${{ needs.package-release-candidate.result }}"

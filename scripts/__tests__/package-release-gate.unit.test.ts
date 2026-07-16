@@ -9,12 +9,11 @@ describe('Package Release Gate', () => {
     testResult: 'success',
   } as const
 
-  it('requires every blocking check and additionally requires artifacts for Release Please PRs', () => {
+  it('requires every blocking check including the release candidate aggregator', () => {
     expect(() =>
       validatePackageReleaseGate({
         ...successfulRequiredChecks,
-        artifactResult: 'skipped',
-        headRef: 'feature/docs',
+        candidateResult: 'success',
         rehearsalResult: 'success',
       }),
     ).not.toThrow()
@@ -22,17 +21,15 @@ describe('Package Release Gate', () => {
     expect(() =>
       validatePackageReleaseGate({
         ...successfulRequiredChecks,
-        artifactResult: 'skipped',
-        headRef: 'release-please--branches--main--components--packages',
+        candidateResult: 'failure',
         rehearsalResult: 'success',
       }),
-    ).toThrow('immutable package artifacts')
+    ).toThrow('package release candidate')
 
     expect(() =>
       validatePackageReleaseGate({
         ...successfulRequiredChecks,
-        artifactResult: 'success',
-        headRef: 'feature/docs',
+        candidateResult: 'success',
         rehearsalResult: 'failure',
       }),
     ).toThrow('rehearsal')
@@ -46,8 +43,7 @@ describe('Package Release Gate', () => {
     expect(() =>
       validatePackageReleaseGate({
         ...results,
-        artifactResult: 'skipped',
-        headRef: 'feature/docs',
+        candidateResult: 'success',
         rehearsalResult: 'success',
       }),
     ).toThrow('did not succeed')

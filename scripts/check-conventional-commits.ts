@@ -32,6 +32,10 @@ export interface ConventionalCommitValidationOptions {
   readonly to?: string
 }
 
+export function hasPackageReleaseIntent(title: string) {
+  return PACKAGE_RELEASE_INTENT_PATTERN.test(title)
+}
+
 function affectsPublishablePackage(commit: CommitSubject) {
   return commit.changedPaths.some((changedPath) => changedPath.startsWith('packages/'))
 }
@@ -206,7 +210,7 @@ export async function validateConventionalCommits(options: ConventionalCommitVal
     options.prTitle !== undefined &&
     options.prTitle.length > 0 &&
     commits.some(affectsPublishablePackage) &&
-    !PACKAGE_RELEASE_INTENT_PATTERN.test(options.prTitle)
+    !hasPackageReleaseIntent(options.prTitle)
       ? [
           `Pull request title ${JSON.stringify(options.prTitle)} changes a publishable package but would not create a Release Please version bump.`,
         ]
