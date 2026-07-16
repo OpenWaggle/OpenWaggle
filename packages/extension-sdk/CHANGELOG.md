@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/OpenWaggle/OpenWaggle/compare/extension-sdk-v0.1.0...extension-sdk-v0.1.1) (2026-07-16)
+
+
+### Bug Fixes
+
+* **packages:** professionalize npm documentation and release automation ([c4cafd1](https://github.com/OpenWaggle/OpenWaggle/commit/c4cafd173694f6d2290c5dfafbdc76eab00c3260))
+
 ## 0.1.0 (2026-07-14)
 
 
