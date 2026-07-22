@@ -5,13 +5,10 @@ import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import type { PackageReleaseAttestationIdentity } from './package-release-artifact-contract'
 import type { PackageReleasePublicationEnvironment } from './package-release-promotion'
 
 const CLI_ARGUMENT_START_INDEX = 2
 const EXPECTED_CLI_ARGUMENT_COUNT = 2
-const GH_ATTESTATION_COMMAND_PREFIX_LENGTH = 2
-
 interface PackageReleasePlan {
   readonly sourceSha: string
 }
@@ -28,6 +25,7 @@ interface PackageReleaseArtifact {
 interface PackageReleaseArtifactManifest {
   readonly packages: readonly PackageReleaseArtifact[]
   readonly sourceSha: string
+  readonly sourceTree: string
 }
 
 interface PromotionDependencies {
@@ -57,20 +55,22 @@ interface PromotionModule {
 }
 
 interface ArtifactContractModule {
-  readonly assertPackageReleaseAttestationIdentity: (
-    value: unknown,
-    identity: PackageReleaseAttestationIdentity,
-  ) => void
-  readonly packageReleaseAttestationVerificationArgs: (
-    file: string,
-    repository: string,
-    sourceSha: string,
-  ) => readonly string[]
   readonly releaseAssetRepairPlan: (
     value: unknown,
     tag: string,
     expectedNames: readonly string[],
   ) => Readonly<{ missingNames: readonly string[]; presentNames: readonly string[] }>
+}
+
+interface ProvenanceModule {
+  readonly verifyPackageReleaseArtifactProvenance: (input: Readonly<{
+    artifactFiles: readonly string[]
+    artifactRoot: string
+    candidateSourceSha: string
+    repository: string
+    runId: string
+    sourceTree: string
+  }>) => Promise<void>
 }
 
 interface CommandResult {
@@ -113,8 +113,6 @@ async function loadPromotionModule() {
 
 function isArtifactContractModule(value: unknown): value is ArtifactContractModule {
   return isJsonObject(value) &&
-    typeof value.assertPackageReleaseAttestationIdentity === 'function' &&
-    typeof value.packageReleaseAttestationVerificationArgs === 'function' &&
     typeof value.releaseAssetRepairPlan === 'function'
 }
 
@@ -123,6 +121,20 @@ async function loadArtifactContractModule() {
   const loaded: unknown = await import(moduleUrl)
   if (!isArtifactContractModule(loaded)) {
     throw new Error('Package release artifact contract module is invalid.')
+  }
+  return loaded
+}
+
+function isProvenanceModule(value: unknown): value is ProvenanceModule {
+  return isJsonObject(value) &&
+    typeof value.verifyPackageReleaseArtifactProvenance === 'function'
+}
+
+async function loadProvenanceModule() {
+  const moduleUrl = new URL('./package-release-provenance.ts', import.meta.url).href
+  const loaded: unknown = await import(moduleUrl)
+  if (!isProvenanceModule(loaded)) {
+    throw new Error('Package release provenance module is invalid.')
   }
   return loaded
 }
@@ -236,29 +248,6 @@ function sleep(durationMs: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, durationMs))
 }
 
-async function verifyArtifactProvenance(
-  artifactRoot: string,
-  manifest: PackageReleaseArtifactManifest,
-  identity: PackageReleaseAttestationIdentity,
-) {
-  const artifactContract = await loadArtifactContractModule()
-  for (const file of [
-    path.join(artifactRoot, 'release-artifacts.json'),
-    ...manifest.packages.map(({ file }) => path.join(artifactRoot, file)),
-  ]) {
-    const verificationArgs = artifactContract.packageReleaseAttestationVerificationArgs(
-      file,
-      identity.repository,
-      identity.sourceSha,
-    )
-    const verification = await run(
-      'gh', ['attestation', 'verify', ...verificationArgs.slice(GH_ATTESTATION_COMMAND_PREFIX_LENGTH)],
-    )
-    const result: unknown = JSON.parse(verification.stdout)
-    artifactContract.assertPackageReleaseAttestationIdentity(result, identity)
-  }
-}
-
 export async function runPackageReleasePromoteCli(args: readonly string[]) {
   if (args.length !== EXPECTED_CLI_ARGUMENT_COUNT) {
     throw new Error('Usage: package-release-promote.ts <plan-json> <artifact-root>.')
@@ -288,10 +277,17 @@ export async function runPackageReleasePromoteCli(args: readonly string[]) {
   if (manifest.sourceSha !== selectedSourceSha) {
     throw new Error('Package artifact source SHA does not match its successful CI run.')
   }
-  await verifyArtifactProvenance(artifactRoot, manifest, {
+  const provenance = await loadProvenanceModule()
+  await provenance.verifyPackageReleaseArtifactProvenance({
+    artifactFiles: [
+      'release-artifacts.json',
+      ...manifest.packages.map(({ file }) => file),
+    ],
+    artifactRoot,
+    candidateSourceSha: selectedSourceSha,
     repository,
     runId: selectedRunId,
-    sourceSha: selectedSourceSha,
+    sourceTree: manifest.sourceTree,
   })
   await promotion.promoteVerifiedPackageRelease(plan, manifest, artifactRoot, {
     ensureGitHubRelease,

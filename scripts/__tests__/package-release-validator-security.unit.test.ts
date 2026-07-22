@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { validatePackageReleaseFiles } from '../package-release-validator'
 import {
+  validProvenanceSource,
   validWorkflow,
   writeMinimalPackageReleaseProject,
 } from './package-release-validator.fixtures'
@@ -15,6 +16,20 @@ async function validateWorkflow(workflow: string) {
   const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
   temporaryDirectories.push(projectRoot)
   await writeMinimalPackageReleaseProject(projectRoot, workflow)
+  return validatePackageReleaseFiles(projectRoot)
+}
+
+async function validateProvenance(provenanceSource: string) {
+  const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
+  temporaryDirectories.push(projectRoot)
+  await writeMinimalPackageReleaseProject(
+    projectRoot,
+    validWorkflow,
+    '0.1.0',
+    'released',
+    undefined,
+    provenanceSource,
+  )
   return validatePackageReleaseFiles(projectRoot)
 }
 
@@ -62,6 +77,15 @@ describe('package release workflow security validation', () => {
       '.github/workflows/package-release.yml must download from the exact successful CI run.',
       '.github/workflows/package-release.yml must bind artifact provenance to its PR head SHA.',
     ]))
+  })
+
+  it('rejects candidate-head digest assumptions for pull-request attestations', async () => {
+    const invalidSource = `${validProvenanceSource}\nconst forbidden = '--source-digest'\n`
+    const result = await validateProvenance(invalidSource)
+
+    expect(result.violations).toContain(
+      'package-release-provenance.ts must not assume a pull-request attestation uses the candidate head digest.',
+    )
   })
 
   it.each([

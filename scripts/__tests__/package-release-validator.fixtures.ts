@@ -58,6 +58,11 @@ const validContextSource = readFileSync(
   'utf8',
 )
 
+export const validProvenanceSource = readFileSync(
+  path.join(process.cwd(), 'scripts/package-release-provenance.ts'),
+  'utf8',
+)
+
 async function writeFile(filePath: string, contents: string) {
   await fs.mkdir(path.dirname(filePath), { recursive: true })
   await fs.writeFile(filePath, contents, 'utf8')
@@ -73,6 +78,7 @@ export async function writeMinimalPackageReleaseProject(
   version = '0.1.0',
   manifestState: 'released' | 'bootstrap' = 'released',
   ciWorkflowText = validCiWorkflow,
+  provenanceSource = validProvenanceSource,
 ) {
   await writeJson(path.join(projectRoot, 'release-please-config.json'), {
     'release-type': 'node',
@@ -135,6 +141,7 @@ export async function writeMinimalPackageReleaseProject(
   await writeFile(path.join(projectRoot, 'scripts/package-release-artifact-contract.ts'), validArtifactContractSource)
   await writeFile(path.join(projectRoot, 'scripts/package-release-artifact-locator.ts'), validLocatorSource)
   await writeFile(path.join(projectRoot, 'scripts/package-release-context.ts'), validContextSource)
+  await writeFile(path.join(projectRoot, 'scripts/package-release-provenance.ts'), provenanceSource)
 
   for (const [index, packageDirectory] of packageDirectories.entries()) {
     const dependencies =
