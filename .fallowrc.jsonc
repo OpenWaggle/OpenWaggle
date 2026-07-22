@@ -1,15 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
   "entry": [
-    "electron.vite.config.ts",
-    "src/main/index.ts",
-    "src/preload/index.ts",
-    "src/renderer/src/main.tsx",
-    "src/renderer/src/**/*.d.ts",
-    "src/shared/types/**/*.d.ts",
-    "scripts/**/*.ts",
-    "vitest.*.config.ts",
-    "playwright.config.ts"
+    "src/renderer/src/main.tsx"
   ],
   "ignorePatterns": ["out/**", "dist/**", "release/**", "node_modules/**"],
   "ignoreDependencies": [
@@ -22,9 +14,7 @@
     "jiti",
     // Packaged Electron updater resolves debug's `require("ms")` from the
     // app-level node_modules inside app.asar.
-    "ms",
-    "node:sqlite",
-    "tailwindcss"
+    "ms"
   ],
   "ignoreDependencyOverrides": [
     { "package": "@tanstack/history", "source": "package.json" },
@@ -49,24 +39,6 @@
     "ignoreImports": true,
     "minTokens": 100
   },
-  "usedClassMembers": [
-    {
-      "extends": "DecoratorNode",
-      "members": [
-        "clone",
-        "createDOM",
-        "decorate",
-        "exportDOM",
-        "exportJSON",
-        "getTextContent",
-        "getType",
-        "importDOM",
-        "importJSON",
-        "isInline",
-        "updateDOM"
-      ]
-    }
-  ],
   "health": {
     "maxCrap": 100
   },

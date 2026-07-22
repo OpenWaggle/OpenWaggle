@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { ContextUsage } from '@mariozechner/pi-coding-agent'
+import type { ContextUsage } from '@earendil-works/pi-coding-agent'
 import type { ContextUsageSnapshot } from '@shared/types/context-usage'
 import {
   AgentKernelMissingEntryError,
@@ -12,6 +12,7 @@ import {
   disposeOpenWagglePiSession,
   withOpenWagglePiSessionLifecycleContext,
 } from '../pi-session-lifecycle'
+import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
 import { createSessionListener } from './session-listener'
 import { projectPiSessionSnapshot } from './session-projection'
 import { createPiSessionRuntime, withPiSession } from './session-runtime'
@@ -28,18 +29,24 @@ function toContextUsageSnapshot(usage: ContextUsage | undefined): ContextUsageSn
   }
 }
 
-export async function getPiContextUsage(input: AgentKernelSessionInput) {
+export async function getPiContextUsage(
+  input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
+) {
   return withPiSession(input, (session) => toContextUsageSnapshot(session.getContextUsage()))
 }
 
-export async function getPiSessionSnapshot(input: AgentKernelSessionInput) {
+export async function getPiSessionSnapshot(
+  input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
+) {
   return withPiSession(input, (session) => ({
     piSessionId: session.sessionId,
     piSessionFile: session.sessionFile,
     sessionSnapshot: projectPiSessionSnapshot(session),
   }))
 }
-export async function compactPiSession(input: CompactAgentKernelSessionInput) {
+export async function compactPiSession(
+  input: CompactAgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
+) {
   return withPiSession(input, async (session) => {
     const unsubscribe = input.onEvent
       ? session.subscribe(
@@ -78,7 +85,9 @@ export async function compactPiSession(input: CompactAgentKernelSessionInput) {
   })
 }
 
-export async function navigatePiSessionTree(input: NavigateAgentKernelSessionInput) {
+export async function navigatePiSessionTree(
+  input: NavigateAgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
+) {
   return withPiSession(input, async (session) => {
     try {
       const result = await session.navigateTree(input.targetNodeId, {
@@ -101,7 +110,9 @@ export async function navigatePiSessionTree(input: NavigateAgentKernelSessionInp
   })
 }
 
-export async function forkPiSession(input: ForkAgentKernelSessionInput) {
+export async function forkPiSession(
+  input: ForkAgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
+) {
   const runtime = await createPiSessionRuntime(input)
   try {
     const result = await withOpenWagglePiSessionLifecycleContext(runtime.session, () =>

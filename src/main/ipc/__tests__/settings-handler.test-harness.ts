@@ -1,6 +1,7 @@
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { type Mock, vi } from 'vitest'
+import { ActiveProjectChangeService } from '../../ports/active-project-change-service'
 import { ProviderProbeService } from '../../ports/provider-probe-service'
 import { ProviderService } from '../../ports/provider-service'
 import { SessionTreePreferencesService } from '../../ports/session-tree-preferences-service'
@@ -15,6 +16,7 @@ interface SettingsHandlerMocks {
   readonly updateSettingsMock: TestMock
   readonly providerServiceGetMock: TestMock
   readonly probeCredentialsMock: TestMock
+  readonly reconcileTrustedMainExtensionsMock: TestMock
   readonly getTreeFilterModeMock: TestMock
   readonly setTreeFilterModeMock: TestMock
   readonly getBranchSummarySkipPromptMock: TestMock
@@ -26,6 +28,7 @@ const mocks: SettingsHandlerMocks = vi.hoisted(() => ({
   updateSettingsMock: vi.fn(),
   providerServiceGetMock: vi.fn(),
   probeCredentialsMock: vi.fn(),
+  reconcileTrustedMainExtensionsMock: vi.fn(),
   getTreeFilterModeMock: vi.fn(),
   setTreeFilterModeMock: vi.fn(),
   getBranchSummarySkipPromptMock: vi.fn(),
@@ -36,6 +39,7 @@ export const getSettingsMock: TestMock = mocks.getSettingsMock
 export const updateSettingsMock: TestMock = mocks.updateSettingsMock
 export const providerServiceGetMock: TestMock = mocks.providerServiceGetMock
 export const probeCredentialsMock: TestMock = mocks.probeCredentialsMock
+export const reconcileTrustedMainExtensionsMock: TestMock = mocks.reconcileTrustedMainExtensionsMock
 export const getTreeFilterModeMock: TestMock = mocks.getTreeFilterModeMock
 export const setTreeFilterModeMock: TestMock = mocks.setTreeFilterModeMock
 export const getBranchSummarySkipPromptMock: TestMock = mocks.getBranchSummarySkipPromptMock
@@ -88,10 +92,16 @@ const TestProviderProbeLayer = Layer.succeed(ProviderProbeService, {
     }),
 })
 
+const TestActiveProjectChangeLayer = Layer.succeed(ActiveProjectChangeService, {
+  reconcileTrustedMainExtensions: (projectPath) =>
+    Effect.sync(() => reconcileTrustedMainExtensionsMock(projectPath)),
+})
+
 const TestLayer = Layer.mergeAll(
   TestSettingsLayer,
   TestProviderServiceLayer,
   TestProviderProbeLayer,
+  TestActiveProjectChangeLayer,
   TestSessionTreePreferencesLayer,
 )
 
@@ -113,6 +123,7 @@ export function resetSettingsHandlerMocks() {
   updateSettingsMock.mockReset()
   providerServiceGetMock.mockReset()
   probeCredentialsMock.mockReset()
+  reconcileTrustedMainExtensionsMock.mockReset()
   getTreeFilterModeMock.mockReset()
   setTreeFilterModeMock.mockReset()
   getBranchSummarySkipPromptMock.mockReset()

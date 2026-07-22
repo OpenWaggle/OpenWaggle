@@ -29,9 +29,9 @@ function makeTree(language: string, code: string): Root {
 /** Get the code element from a tree. */
 function getCodeElement(tree: Root): Element {
   const pre = tree.children[0]
-  if (!pre || pre.type !== 'element') throw new Error('Expected pre element')
+  if (pre?.type !== 'element') throw new Error('Expected pre element')
   const code = pre.children[0]
-  if (!code || code.type !== 'element') throw new Error('Expected code element')
+  if (code?.type !== 'element') throw new Error('Expected code element')
   return code
 }
 

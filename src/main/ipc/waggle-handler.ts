@@ -6,6 +6,7 @@ import type { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { WaggleConfig } from '@shared/types/waggle'
 import * as Effect from 'effect/Effect'
 import { classifyAgentError } from '../agent/error-classifier'
+import { cancelAgentLoopInteractionsForRun } from '../application/agent-loop-interaction-broker'
 import { executeWaggleRun } from '../application/waggle-run-service'
 import { broadcastToWindows } from '../utils/broadcast'
 import {
@@ -77,9 +78,16 @@ function registerSendWaggleMessageHandler() {
 function registerCancelWaggleHandler() {
   typedOn('agent:cancel-waggle', (_event, sessionId: SessionId) =>
     Effect.sync(() => {
-      if (activeWaggleRuns.cancel(sessionId)) finishWaggleRun(sessionId)
+      if (activeWaggleRuns.cancel(sessionId)) {
+        cancelAgentLoopInteractionsForRun({ sessionId, runId: waggleRunId(sessionId) })
+        finishWaggleRun(sessionId)
+      }
     }),
   )
+}
+
+function waggleRunId(sessionId: SessionId) {
+  return `waggle-${sessionId}`
 }
 
 function handleSendWaggleMessage(
@@ -93,7 +101,7 @@ function handleSendWaggleMessage(
     cancelExistingWaggleWork(sessionId)
 
     const abortController = new AbortController()
-    const runId = `waggle-${sessionId}`
+    const runId = waggleRunId(sessionId)
     activeWaggleRuns.register(sessionId, abortController, {})
 
     yield* Effect.ensuring(
@@ -106,6 +114,7 @@ function handleSendWaggleMessage(
         abortController,
       ),
       Effect.sync(() => {
+        cancelAgentLoopInteractionsForRun({ sessionId, runId })
         if (activeWaggleRuns.deleteIfCurrent(sessionId, abortController)) finishWaggleRun(sessionId)
       }),
     )

@@ -14,6 +14,7 @@ import { ProviderService } from '../ports/provider-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
+import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
 
 const logger = createLogger('agent-session-service')
 
@@ -74,9 +75,13 @@ function loadValidatedAgentSession(input: AgentSessionCommandInput) {
   return Effect.gen(function* () {
     const session = yield* loadSessionForCommand(input)
     const skillToggles = yield* getSkillToggles(session.projectPath)
+    const enabledOpenWaggleExtensionPackagePaths = session.projectPath
+      ? yield* listRuntimeEnabledOpenWaggleExtensionPackagePaths(session.projectPath)
+      : undefined
     return {
       session,
       ...(skillToggles ? { skillToggles } : {}),
+      ...(enabledOpenWaggleExtensionPackagePaths ? { enabledOpenWaggleExtensionPackagePaths } : {}),
     }
   })
 }
@@ -114,10 +119,14 @@ export function getAgentContextUsage(input: AgentSessionCommandInput) {
     const skillToggles = session.projectPath
       ? settings.skillTogglesByProject[session.projectPath]
       : undefined
+    const enabledOpenWaggleExtensionPackagePaths = session.projectPath
+      ? yield* listRuntimeEnabledOpenWaggleExtensionPackagePaths(session.projectPath)
+      : undefined
     return yield* agentKernel.getContextUsage({
       session,
       model: input.model,
       ...(skillToggles ? { skillToggles } : {}),
+      ...(enabledOpenWaggleExtensionPackagePaths ? { enabledOpenWaggleExtensionPackagePaths } : {}),
     })
   })
 }
@@ -132,7 +141,8 @@ function getSkillToggles(projectPath: string | null | undefined) {
 
 function copyAgentSessionToNewSession(input: AgentSessionCopyInput) {
   return Effect.gen(function* () {
-    const { session, skillToggles } = yield* loadValidatedAgentSession(input)
+    const { session, skillToggles, enabledOpenWaggleExtensionPackagePaths } =
+      yield* loadValidatedAgentSession(input)
 
     if (!session.projectPath) {
       return yield* Effect.fail(new Error('No project path set on the session.'))
@@ -145,6 +155,7 @@ function copyAgentSessionToNewSession(input: AgentSessionCopyInput) {
       targetNodeId: String(input.targetNodeId),
       position: input.position,
       ...(skillToggles ? { skillToggles } : {}),
+      ...(enabledOpenWaggleExtensionPackagePaths ? { enabledOpenWaggleExtensionPackagePaths } : {}),
     })
 
     if (result.cancelled) {
@@ -181,7 +192,8 @@ export function cloneAgentSessionToNewSession(input: AgentSessionForkInput) {
 
 export function compactAgentSession(input: AgentSessionCompactInput) {
   return Effect.gen(function* () {
-    const { session, skillToggles } = yield* loadValidatedAgentSession(input)
+    const { session, skillToggles, enabledOpenWaggleExtensionPackagePaths } =
+      yield* loadValidatedAgentSession(input)
     const agentKernel = yield* AgentKernelService
     const result = yield* agentKernel.compact({
       session,
@@ -190,6 +202,7 @@ export function compactAgentSession(input: AgentSessionCompactInput) {
       ...(input.signal ? { signal: input.signal } : {}),
       ...(input.onEvent ? { onEvent: input.onEvent } : {}),
       ...(skillToggles ? { skillToggles } : {}),
+      ...(enabledOpenWaggleExtensionPackagePaths ? { enabledOpenWaggleExtensionPackagePaths } : {}),
     })
 
     yield* persistKernelSnapshot(input.sessionId, result)
@@ -204,7 +217,8 @@ export function compactAgentSession(input: AgentSessionCompactInput) {
 
 export function navigateAgentSessionTree(input: AgentSessionNavigateTreeInput) {
   return Effect.gen(function* () {
-    const { session, skillToggles } = yield* loadValidatedAgentSession(input)
+    const { session, skillToggles, enabledOpenWaggleExtensionPackagePaths } =
+      yield* loadValidatedAgentSession(input)
     const agentKernel = yield* AgentKernelService
     const navigation = yield* agentKernel
       .navigateTree({
@@ -214,6 +228,9 @@ export function navigateAgentSessionTree(input: AgentSessionNavigateTreeInput) {
         summarize: input.summarize,
         customInstructions: input.customInstructions,
         ...(skillToggles ? { skillToggles } : {}),
+        ...(enabledOpenWaggleExtensionPackagePaths
+          ? { enabledOpenWaggleExtensionPackagePaths }
+          : {}),
       })
       .pipe(
         Effect.map(

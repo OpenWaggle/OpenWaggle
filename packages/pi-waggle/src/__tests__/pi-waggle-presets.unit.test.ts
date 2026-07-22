@@ -1,6 +1,6 @@
 import { WAGGLE_INHERIT_MODEL, type WagglePreset } from '@openwaggle/waggle-core'
 import { describe, expect, it } from 'vitest'
-import { mergePiWagglePresetLayers } from '../presets'
+import { mergePiWagglePresetLayers } from '../presets.js'
 
 function preset(id: string, name: string): WagglePreset {
   return {

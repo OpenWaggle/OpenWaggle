@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { createHarness, resetPiWaggleCommandTestFiles } from './pi-waggle-command-harness'
+import { createHarness, resetPiWaggleCommandTestFiles } from './pi-waggle-command-harness.js'
 
 const CODE_REVIEW_LABEL = 'Code Review — built-in · 8 turns · openai/gpt-5.5'
 const ENABLE_PRESET_LABEL = 'Enable preset'

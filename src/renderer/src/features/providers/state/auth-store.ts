@@ -2,6 +2,7 @@ import type { OAuthAccountInfo, OAuthFlowStatus, OAuthProvider } from '@shared/t
 import { create } from 'zustand'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
+import { useProviderStore } from './provider-store'
 
 const logger = createRendererLogger('auth')
 
@@ -39,7 +40,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     try {
       await api.startOAuth(provider)
-      const { useProviderStore } = await import('@/features/providers/state/provider-store')
       await useProviderStore.getState().loadProviderModels()
       await get().loadAuthAccount(provider)
       set((state) => ({
@@ -63,7 +63,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   async cancelOAuth(provider: OAuthProvider) {
     await api.cancelOAuth(provider)
-    const { useProviderStore } = await import('@/features/providers/state/provider-store')
     await useProviderStore.getState().loadProviderModels()
     await get().loadAuthAccount(provider)
     set((state) => ({
@@ -73,7 +72,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   async disconnectAuth(provider: OAuthProvider) {
     await api.disconnectAuth(provider)
-    const { useProviderStore } = await import('@/features/providers/state/provider-store')
     await useProviderStore.getState().loadProviderModels()
     await get().loadAuthAccount(provider)
     set((state) => ({

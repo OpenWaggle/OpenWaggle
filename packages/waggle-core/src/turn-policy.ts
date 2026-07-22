@@ -1,4 +1,4 @@
-import type { WaggleAgentSlot, WaggleConfig } from './config'
+import type { WaggleAgentSlot, WaggleConfig } from './config.js'
 
 const FIRST_AGENT_INDEX = 0
 const SECOND_AGENT_INDEX = 1

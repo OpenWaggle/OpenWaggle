@@ -1,5 +1,5 @@
 import { matchBy } from '@diegogbrisa/ts-match'
-import type { SessionEntry } from '@mariozechner/pi-coding-agent'
+import type { SessionEntry } from '@earendil-works/pi-coding-agent'
 import { PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE } from '@openwaggle/pi-waggle/protocol'
 import type { MessageRole } from '@shared/types/agent'
 import { createModelRef } from '@shared/types/llm'

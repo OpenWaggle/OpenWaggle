@@ -1,0 +1,28 @@
+{
+  "manifestVersion": 1,
+  "id": "openwaggle-reload-qa",
+  "name": "OpenWaggle Reload QA",
+  "version": "0.1.0",
+  "description": "Local QA fixture for validating extension trust, enable, reload, and provider refresh behavior.",
+  "sdk": {
+    "openwaggle": ">=0.1.0 <0.2.0"
+  },
+  "sourceFiles": ["src/provider.js"],
+  "builtArtifacts": ["extensions/provider.js"],
+  "install": {
+    "source": "prebuilt"
+  },
+  "capabilities": [
+    {
+      "id": "provider.models",
+      "scopes": ["project"]
+    }
+  ],
+  "runtimeRequirements": [
+    {
+      "id": "openwaggle-reload-qa/provider",
+      "label": "Reload QA provider module",
+      "command": "extensions/provider.js"
+    }
+  ]
+}

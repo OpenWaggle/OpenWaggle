@@ -1,15 +1,8 @@
 import { useRouterState } from '@tanstack/react-router'
 import { AppSettingsView } from '@/features/settings/components'
-import type { SettingsTab } from '@/shell'
+import { SETTINGS_TABS, type SettingsTab } from '@/shell/ui-store'
 
 const SETTINGS_PATH_PREFIX = '/settings/'
-const SETTINGS_TABS: readonly SettingsTab[] = [
-  'general',
-  'waggle',
-  'mcp',
-  'archived',
-  'connections',
-]
 
 interface SettingsRouteSurfaceProps {
   readonly tab: SettingsTab

@@ -221,7 +221,7 @@ describe('OpenWaggle ESLint plugin', () => {
 
   it('reports main-process architecture boundary violations', () => {
     const messages = lint(
-      "import { SessionManager } from '@mariozechner/pi-coding-agent'\nexport const value = SessionManager\n",
+      "import { SessionManager } from '@earendil-works/pi-coding-agent'\nexport const value = SessionManager\n",
       'openwaggle/main-architecture-boundaries',
       'src/main/application/example.ts',
     )
@@ -232,7 +232,7 @@ describe('OpenWaggle ESLint plugin', () => {
 
   it('allows Pi SDK imports inside dedicated Pi packages', () => {
     const messages = lint(
-      "import { SessionManager } from '@mariozechner/pi-coding-agent'\nexport const value = SessionManager\n",
+      "import { SessionManager } from '@earendil-works/pi-coding-agent'\nexport const value = SessionManager\n",
       'openwaggle/main-architecture-boundaries',
       'packages/pi-waggle/src/extension.ts',
     )
@@ -242,7 +242,7 @@ describe('OpenWaggle ESLint plugin', () => {
 
   it('reports Pi SDK imports inside portable Waggle core', () => {
     const messages = lint(
-      "import { SessionManager } from '@mariozechner/pi-coding-agent'\nexport const value = SessionManager\n",
+      "import { SessionManager } from '@earendil-works/pi-coding-agent'\nexport const value = SessionManager\n",
       'openwaggle/main-architecture-boundaries',
       'packages/waggle-core/src/config.ts',
     )
@@ -297,7 +297,7 @@ describe('OpenWaggle ESLint plugin', () => {
 
   it('allows Pi SDK imports inside the Pi adapter boundary', () => {
     const messages = lint(
-      "import { SessionManager } from '@mariozechner/pi-coding-agent'\nexport const value = SessionManager\n",
+      "import { SessionManager } from '@earendil-works/pi-coding-agent'\nexport const value = SessionManager\n",
       'openwaggle/main-architecture-boundaries',
       'src/main/adapters/pi/example.ts',
     )

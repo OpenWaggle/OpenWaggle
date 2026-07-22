@@ -139,7 +139,7 @@ export function useWaggleMetadataLookup(
 
   for (let messageIndex = 0; messageIndex < messages.length; messageIndex += 1) {
     const message = messages[messageIndex]
-    if (!message || message.role !== 'assistant') {
+    if (message?.role !== 'assistant') {
       continue
     }
 

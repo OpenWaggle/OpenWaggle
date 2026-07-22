@@ -33,6 +33,8 @@ export function applyAgentTransportEvent(
       'compaction_end',
       'auto_retry_start',
       'auto_retry_end',
+      'agent_interaction_request',
+      'agent_interaction_resolved',
       'custom',
       cloneMessages,
     )

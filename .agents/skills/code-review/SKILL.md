@@ -39,6 +39,7 @@ python3 .agents/skills/code-review/scripts/code_quality_checker.py --base origin
 - Renderer feature boundaries use public indexes for cross-feature imports.
 - Raw type assertions are forbidden except `as const`; tests may use Shoehorn only in test files.
 - Runtime inputs use Effect Schema or explicit guards.
+- Check whether manual multi-branch discriminant/shape logic, runtime guards, or boundary assertions should use `@diegogbrisa/ts-match`; load `.agents/skills/ts-match/SKILL.md` before recommending changes.
 - No stale legacy instruction files or vendor-specific agent config are reintroduced.
 - UI/IPC changes have Electron QA coverage or a clearly stated gap.
 

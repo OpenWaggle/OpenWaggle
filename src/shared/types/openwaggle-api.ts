@@ -1,9 +1,19 @@
 import type { AgentSendPayload, PreparedAttachment } from './agent'
+import type {
+  AgentLoopInteractionResponseInput,
+  AgentLoopInteractionSubmitResult,
+} from './agent-loop-interaction'
 import type { OAuthAccountInfo, OAuthProvider } from './auth'
 import type { ActiveRunInfo, BackgroundRunSnapshot } from './background-run'
 import type { SessionBranchId, SessionId, SessionNodeId, WagglePresetId } from './brand'
 import type { FileSuggestion } from './composer'
 import type { ContextCompactionResult, ContextUsageSnapshot } from './context-usage'
+import type {
+  DocsDiscoveryView,
+  DocsListInput,
+  DocsResolveTopicInput,
+  FirstPartyDocsTopicSummary,
+} from './docs'
 import type {
   DiagnosticsInfo,
   FeedbackPayload,
@@ -26,6 +36,7 @@ import type {
 import type { IpcEventPayload } from './ipc'
 import type { ProviderInfo, SupportedModelId } from './llm'
 import type { McpSetServerEnabledInput, McpSettingsView, McpWriteSourceConfigInput } from './mcp'
+import type { OpenWaggleExtensionApi } from './openwaggle-extension-api'
 import type { AgentPhaseState } from './phase'
 import type {
   SessionCopyToNewResult,
@@ -48,11 +59,7 @@ import type { UpdateStatus } from './updater'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 import type { WaggleConfig, WagglePreset } from './waggle'
 
-// This is what the preload exposes to the renderer via contextBridge.
-
-// ─── Convenience API (what we actually expose on window.api) ─
-
-export interface OpenWaggleApi {
+export interface OpenWaggleApi extends OpenWaggleExtensionApi {
   // Agent
   sendMessage(
     sessionId: SessionId,
@@ -61,6 +68,9 @@ export interface OpenWaggleApi {
   ): Promise<void>
   cancelAgent(sessionId?: SessionId): Promise<void>
   steerAgent(sessionId: SessionId): Promise<{ preserved: boolean }>
+  respondAgentInteraction(
+    input: AgentLoopInteractionResponseInput,
+  ): Promise<AgentLoopInteractionSubmitResult>
   /** Subscribe to live Pi-shaped runtime events from the main process */
   onAgentEvent(callback: (payload: IpcEventPayload<'agent:event'>) => void): () => void
 
@@ -95,6 +105,8 @@ export interface OpenWaggleApi {
   setMcpAdapterEnabled(enabled: boolean, projectPath?: string | null): Promise<McpSettingsView>
   setMcpServerEnabled(input: McpSetServerEnabledInput): Promise<McpSettingsView>
   writeMcpSourceConfig(input: McpWriteSourceConfigInput): Promise<McpSettingsView>
+  discoverDocs(input?: DocsListInput): Promise<DocsDiscoveryView>
+  resolveDocsTopic(input: DocsResolveTopicInput): Promise<FirstPartyDocsTopicSummary | null>
 
   // Providers
   getProviderModels(projectPath?: string | null): Promise<ProviderInfo[]>

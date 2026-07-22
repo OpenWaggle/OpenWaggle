@@ -1,10 +1,11 @@
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import js from '@eslint/js'
+import eslintComments from '@eslint-community/eslint-plugin-eslint-comments'
 import tanstackQueryPlugin from '@tanstack/eslint-plugin-query'
 import tanstackRouterPlugin from '@tanstack/eslint-plugin-router'
-import importPlugin from 'eslint-plugin-import'
-import eslintComments from 'eslint-plugin-eslint-comments'
+import { createTypeScriptImportResolver } from 'eslint-import-resolver-typescript'
+import importPlugin from 'eslint-plugin-import-x'
 import tseslint, { type Config } from 'typescript-eslint'
 import { openwagglePlugin } from './scripts/eslint/openwaggle-plugin'
 import { tsMatchPlugin } from './scripts/eslint/ts-match-plugin'
@@ -17,6 +18,9 @@ const config: Config = [
       'dist/**',
       'out/**',
       'node_modules/**',
+      'packages/**/.pack/**',
+      'packages/**/dist/**',
+      'packages/**/dist-cjs/**',
       'website/.astro/**',
       'website/dist/**',
       'website/node_modules/**',
@@ -41,7 +45,7 @@ const config: Config = [
         ecmaFeatures: {
           jsx: true,
         },
-        project: './tsconfig.eslint.json',
+        projectService: true,
         sourceType: 'module',
         tsconfigRootDir: ROOT_DIR,
       },
@@ -49,28 +53,48 @@ const config: Config = [
     plugins: {
       '@typescript-eslint': tseslint.plugin,
       'eslint-comments': eslintComments,
-      import: importPlugin,
+      'import-x': importPlugin,
       openwaggle: openwagglePlugin,
       'ts-match': tsMatchPlugin,
       '@tanstack/query': tanstackQueryPlugin,
       '@tanstack/router': tanstackRouterPlugin,
     },
     settings: {
-      'import/resolver': {
-        typescript: {
+      'import-x/resolver-next': [
+        createTypeScriptImportResolver({
           project: ['./tsconfig.node.json', './tsconfig.web.json'],
           noWarnOnMultipleProjects: true,
-        },
-      },
+        }),
+      ],
     },
     rules: {
       complexity: ['error', { max: 15 }],
-      'import/no-cycle': ['error', { ignoreExternal: true }],
+      'import-x/no-cycle': ['error', { ignoreExternal: true }],
       'max-lines': ['error', { max: 300, skipBlankLines: true, skipComments: false }],
       'max-lines-per-function': ['error', { max: 120, skipBlankLines: true, skipComments: false }],
       'no-empty': ['error', { allowEmptyCatch: false }],
       'no-undef': 'off',
       '@typescript-eslint/consistent-type-assertions': ['error', { assertionStyle: 'never' }],
+      '@typescript-eslint/naming-convention': [
+        'error',
+        {
+          selector: 'function',
+          format: ['camelCase', 'PascalCase'],
+          custom: {
+            regex: '^.{1,55}$',
+            match: true,
+          },
+        },
+        {
+          selector: 'variable',
+          types: ['function'],
+          format: ['camelCase', 'PascalCase'],
+          custom: {
+            regex: '^.{1,55}$',
+            match: true,
+          },
+        },
+      ],
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unnecessary-type-assertion': 'error',
       '@typescript-eslint/no-unsafe-argument': 'error',
@@ -79,6 +103,7 @@ const config: Config = [
       '@typescript-eslint/no-unsafe-member-access': 'error',
       '@typescript-eslint/no-unsafe-return': 'error',
       '@typescript-eslint/no-unsafe-type-assertion': 'error',
+      '@typescript-eslint/no-deprecated': 'error',
       '@typescript-eslint/no-unused-vars': 'off',
       'eslint-comments/no-use': 'error',
       'openwaggle/no-architecture-ignore-comments': 'error',

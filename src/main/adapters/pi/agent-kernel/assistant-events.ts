@@ -1,5 +1,5 @@
 import { matchBy } from '@diegogbrisa/ts-match'
-import type { AgentSessionEvent } from '@mariozechner/pi-coding-agent'
+import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import { createStreamingMessageId, toJsonValue } from '../pi-message-mapper'
 import type {
   MessageStartSessionEvent,
@@ -30,7 +30,7 @@ function getToolCallFromAssistantEvent(event: AgentSessionEvent): PiAssistantToo
           }
 
           const content = assistantEvent.partial.content[assistantEvent.contentIndex]
-          if (!content || content.type !== 'toolCall') {
+          if (content?.type !== 'toolCall') {
             return null
           }
 

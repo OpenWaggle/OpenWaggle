@@ -1,11 +1,17 @@
 import type { AgentSendPayload } from '@shared/types/agent'
+import type {
+  AgentLoopInteraction,
+  AgentLoopInteractionResponse,
+} from '@shared/types/agent-loop-interaction'
 import type { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
+import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
+import type { AgentTransportCustomEvent } from '@shared/types/stream'
 import type { WaggleCollaborationStatus, WaggleConfig } from '@shared/types/waggle'
 import type { AgentChatStatus, AgentCompactionStatus } from '../hooks/useAgentChat'
 import type { SessionForkTarget } from '../lib/session-fork-targets'
-import type { ChatRow } from '../lib/types-chat-row'
+import type { AgentInteractionEvent, ChatRow } from '../lib/types-chat-row'
 
 export interface ChatTranscriptSectionState {
   readonly messages: UIMessage[]
@@ -14,6 +20,8 @@ export interface ChatTranscriptSectionState {
   readonly recentProjects: readonly string[]
   readonly activeSessionId: SessionId | null
   readonly chatRows: ChatRow[]
+  readonly extensionRegistry: ExtensionContributionRegistryView | null
+  readonly extensionProjectPaths: readonly string[]
   /** The ID of the last user message used to identify stable session hydration for scroll restore. */
   readonly lastUserMessageId: string | null
   /** Monotonic streaming signal used by scroll-follow without rescanning the full transcript. */
@@ -68,4 +76,13 @@ export interface ChatPanelSections {
   readonly transcript: ChatTranscriptSectionState
   readonly composer: ChatComposerSectionState
   readonly diff: ChatDiffSectionState
+  readonly agentInteractions: readonly AgentLoopInteraction[]
+  readonly agentCustomMessages: readonly AgentTransportCustomEvent[]
+  readonly agentInteractionEvents: readonly AgentInteractionEvent[]
+  readonly extensionRegistry: ExtensionContributionRegistryView | null
+  readonly extensionProjectPaths: readonly string[]
+  onRespondAgentInteraction: (
+    interaction: AgentLoopInteraction,
+    response: AgentLoopInteractionResponse,
+  ) => Promise<void>
 }

@@ -1,6 +1,7 @@
 import { SupportedModelId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS, THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
 import { includes } from '@shared/utils/validation'
+import { useProviderStore } from '@/features/providers/state'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import type { PreferencesActions, PreferencesState } from './preferences-store-types'
@@ -32,7 +33,6 @@ function appendRecentProject(paths: readonly string[], path: string) {
 }
 
 async function refreshProviderModels(set: PreferencesSet, get: PreferencesGet) {
-  const { useProviderStore } = await import('@/features/providers/state')
   const updatedSettings = await useProviderStore.getState().loadProviderModels(get().settings)
   if (updatedSettings) set({ settings: updatedSettings })
 }

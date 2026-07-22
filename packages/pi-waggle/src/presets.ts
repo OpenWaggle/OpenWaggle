@@ -6,7 +6,7 @@ import {
   type PiWagglePresetsFileData,
   readPiWagglePresetsFileData,
   writePiWagglePresetsFileData,
-} from './preset-storage'
+} from './preset-storage.js'
 
 const FIRST_DUPLICATE_PRESET_SUFFIX = 2
 

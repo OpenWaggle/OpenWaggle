@@ -13,10 +13,16 @@ import { AgentKernelService } from '../ports/agent-kernel-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
 import { clearDurableActiveRun, recordDurableActiveRun } from './agent-run/active-run'
+import {
+  appendDurableAgentLoopEvents,
+  type DurableAgentLoopEvent,
+  isDurableAgentLoopEvent,
+} from './agent-run/agent-loop-events'
 import { hydrateAgentRunPayload, runAgentKernel } from './agent-run/kernel'
 import { buildAgentRunOutcome, recoverAgentRunFailure } from './agent-run/outcome'
 import { loadAgentRunPreflight } from './agent-run/preflight'
 import type { ActiveRunIdentity, AgentRunInput, AgentRunResult } from './agent-run/types'
+import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
 
 export type { AgentRunInput, AgentRunResult } from './agent-run/types'
 
@@ -32,6 +38,7 @@ const logger = createLogger('agent-run-service')
 export function executeAgentRun(input: AgentRunInput) {
   let assignedTitle: string | undefined
   let activeRunIdentity: ActiveRunIdentity | null = null
+  const durableAgentLoopEvents: DurableAgentLoopEvent[] = []
 
   return Effect.gen(function* () {
     const preflight = yield* loadAgentRunPreflight(input)
@@ -42,11 +49,30 @@ export function executeAgentRun(input: AgentRunInput) {
     activeRunIdentity = identity
 
     const hydratedPayload = yield* hydrateAgentRunPayload(input.payload)
-    const agentResult = yield* runAgentKernel(input, hydratedPayload, preflight)
+    const agentResult = yield* runAgentKernel(
+      {
+        ...input,
+        onEvent: (event) => {
+          if (isDurableAgentLoopEvent(event)) {
+            durableAgentLoopEvents.push(event)
+          }
+          input.onEvent(event)
+        },
+      },
+      hydratedPayload,
+      preflight,
+    )
+    const existingTree = yield* sessionRepo.getTree(input.sessionId)
+    const sessionSnapshot = appendDurableAgentLoopEvents({
+      snapshot: agentResult.sessionSnapshot,
+      events: durableAgentLoopEvents,
+      runId: input.runId,
+      existingNodes: existingTree?.nodes ?? [],
+    })
     yield* sessionRepo.persistSnapshot({
       sessionId: input.sessionId,
-      nodes: agentResult.sessionSnapshot.nodes,
-      activeNodeId: agentResult.sessionSnapshot.activeNodeId,
+      nodes: sessionSnapshot.nodes,
+      activeNodeId: sessionSnapshot.activeNodeId,
       piSessionId: agentResult.piSessionId,
       piSessionFile: agentResult.piSessionFile,
     })
@@ -91,20 +117,35 @@ export function reconcileInterruptedAgentRuns() {
         yield* sessionRepo.clearActiveRun(identity)
         continue
       }
+      const enabledOpenWaggleExtensionPackagePaths = session.projectPath
+        ? yield* listRuntimeEnabledOpenWaggleExtensionPackagePaths(session.projectPath)
+        : undefined
 
       yield* agentKernel
         .getSessionSnapshot({
           session,
           model: activeRun.model,
+          ...(enabledOpenWaggleExtensionPackagePaths
+            ? { enabledOpenWaggleExtensionPackagePaths }
+            : {}),
         })
         .pipe(
           Effect.flatMap((result) =>
-            sessionRepo.persistSnapshot({
-              sessionId: activeRun.sessionId,
-              nodes: result.sessionSnapshot.nodes,
-              activeNodeId: result.sessionSnapshot.activeNodeId,
-              piSessionId: result.piSessionId,
-              piSessionFile: result.piSessionFile,
+            Effect.gen(function* () {
+              const existingTree = yield* sessionRepo.getTree(activeRun.sessionId)
+              const sessionSnapshot = appendDurableAgentLoopEvents({
+                snapshot: result.sessionSnapshot,
+                events: [],
+                runId: activeRun.runId,
+                existingNodes: existingTree?.nodes ?? [],
+              })
+              yield* sessionRepo.persistSnapshot({
+                sessionId: activeRun.sessionId,
+                nodes: sessionSnapshot.nodes,
+                activeNodeId: sessionSnapshot.activeNodeId,
+                piSessionId: result.piSessionId,
+                piSessionFile: result.piSessionFile,
+              })
             }),
           ),
           Effect.catchAll((error) =>

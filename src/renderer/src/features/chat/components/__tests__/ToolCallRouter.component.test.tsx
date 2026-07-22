@@ -1,5 +1,10 @@
+import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
+import type {
+  ExtensionContributionRegistryEntry,
+  ExtensionContributionRegistryView,
+} from '@shared/types/extensions'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -58,6 +63,44 @@ function resultsWithEntry(
 }
 
 const defaultSessionId = SessionId('session-1')
+const projectPath = '/test/project'
+
+function registryWithToolRenderer(toolName: string): ExtensionContributionRegistryView {
+  const entry = {
+    extensionId: 'github-fixture',
+    extensionName: 'GitHub Fixture',
+    extensionVersion: '1.0.0',
+    scope: {
+      kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND,
+      label: 'Project',
+      projectPath,
+    },
+    packagePath: `${projectPath}/.openwaggle/extensions/github-fixture`,
+    manifestPath: `${projectPath}/.openwaggle/extensions/github-fixture/openwaggle.extension.json`,
+    contentHash: 'abcdef',
+    projectPaths: [projectPath],
+    appliesToAllRequestedProjects: true,
+    family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.TOOL_RENDERERS,
+    contributionId: 'github.tool-card',
+    title: 'GitHub tool card',
+    label: 'GitHub tool card',
+    runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE,
+    execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER,
+    entryPath: 'dist/tool-card.js',
+    matches: { toolNames: [toolName] },
+    eligibility: {
+      runtimeEnabled: true,
+      enabled: true,
+      trusted: true,
+      sdkCompatible: true,
+      updateAvailable: false,
+      disabledProjectPaths: [],
+    },
+    diagnostics: [],
+  } satisfies ExtensionContributionRegistryEntry
+
+  return { projectPaths: [projectPath], entries: [entry] }
+}
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -101,5 +144,39 @@ describe('ToolCallRouter', () => {
     )
     expect(screen.getByTestId('tool-call-block')).toHaveAttribute('data-streaming', 'true')
     expect(screen.getByTestId('tool-call-block')).toHaveTextContent('futurePiTool')
+  })
+
+  it('mounts a matching extension tool renderer from the production registry', () => {
+    const part = makeToolCallPart('read', '{"path":"src/app.ts"}', 'tc-read')
+    render(
+      <ToolCallRouter
+        part={part}
+        toolResults={resultsWithEntry('tc-read', 'file content')}
+        sessionId={defaultSessionId}
+        isStreaming={false}
+        extensionRegistry={registryWithToolRenderer('read')}
+        extensionProjectPaths={[projectPath]}
+      />,
+    )
+
+    expect(screen.getByTitle('Extension module: GitHub tool card')).toBeInTheDocument()
+    expect(screen.queryByTestId('tool-call-block')).toBeNull()
+  })
+
+  it('falls back to the standard tool call block when no extension renderer matches', () => {
+    const part = makeToolCallPart('missing.tool', '{}', 'tc-missing')
+    render(
+      <ToolCallRouter
+        part={part}
+        toolResults={emptyResults()}
+        sessionId={defaultSessionId}
+        isStreaming={false}
+        extensionRegistry={registryWithToolRenderer('read')}
+        extensionProjectPaths={[projectPath]}
+      />,
+    )
+
+    expect(screen.getByTestId('tool-call-block')).toHaveTextContent('missing.tool')
+    expect(screen.queryByText('Tool output · missing.tool')).toBeNull()
   })
 })

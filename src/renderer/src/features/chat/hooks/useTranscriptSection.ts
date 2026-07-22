@@ -1,13 +1,21 @@
 import type { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
+import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionDetail } from '@shared/types/session'
+import type { AgentTransportCustomEvent } from '@shared/types/stream'
 import type { WaggleCollaborationStatus } from '@shared/types/waggle'
 import { useState } from 'react'
 import type { useStreamingPhase } from '@/features/chat/hooks/useStreamingPhase'
 import { useWaggleMetadataLookup } from '@/features/chat/hooks/useWaggleMetadataLookup'
 import { useSessionStore } from '@/features/sessions/state'
+import {
+  mergeCustomMessages,
+  mergeInteractionEvents,
+  readAgentLoopEventsFromWorkspace,
+} from '../lib/agent-loop-transcript-events'
 import { resolveTranscriptMessages } from '../lib/session-workspace-transcript'
+import type { AgentInteractionEvent } from '../lib/types-chat-row'
 import type { ChatTranscriptSectionState } from '../model'
 import { useChatRows } from './useChatRows'
 
@@ -34,6 +42,8 @@ function resolveLastUserMessage(messages: UIMessage[]) {
 
 export interface TranscriptSectionParams {
   readonly messages: UIMessage[]
+  readonly customMessages: readonly AgentTransportCustomEvent[]
+  readonly interactionEvents: readonly AgentInteractionEvent[]
   readonly isLoading: boolean
   readonly isSteering: boolean
   readonly error: Error | undefined
@@ -45,6 +55,8 @@ export interface TranscriptSectionParams {
   readonly model: SupportedModelId
   readonly waggleStatus: WaggleCollaborationStatus
   readonly phase: ReturnType<typeof useStreamingPhase>
+  readonly extensionRegistry: ExtensionContributionRegistryView | null
+  readonly extensionProjectPaths: readonly string[]
   readonly handleOpenProject: () => Promise<void>
   readonly handleSelectProjectPath: (path: string) => void
   readonly handleSendText: (content: string) => Promise<void>
@@ -59,6 +71,8 @@ export interface TranscriptSectionParams {
 export function useTranscriptSection(params: TranscriptSectionParams): ChatTranscriptSectionState {
   const {
     messages,
+    customMessages,
+    interactionEvents,
     isLoading,
     isSteering,
     error,
@@ -69,6 +83,8 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     activeSession,
     model,
     phase,
+    extensionRegistry,
+    extensionProjectPaths,
     handleOpenProject,
     handleSelectProjectPath,
     handleSendText,
@@ -97,6 +113,17 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     messages,
     draftBranchSourceNodeId,
   })
+  const persistedAgentLoopEvents = activeWorkspace
+    ? readAgentLoopEventsFromWorkspace(activeWorkspace)
+    : { customMessages: [], interactionEvents: [] }
+  const mergedCustomMessages = mergeCustomMessages(
+    persistedAgentLoopEvents.customMessages,
+    customMessages,
+  )
+  const mergedInteractionEvents = mergeInteractionEvents(
+    persistedAgentLoopEvents.interactionEvents,
+    interactionEvents,
+  )
   const waggleMetadataLookup = useWaggleMetadataLookup(activeSession, transcriptMessages)
 
   const lastUserMessage = resolveLastUserMessage(transcriptMessages)
@@ -108,6 +135,8 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
 
   const chatRows = useChatRows({
     messages: transcriptMessages,
+    customMessages: mergedCustomMessages,
+    interactionEvents: mergedInteractionEvents,
     isLoading: transcriptLoading,
     error,
     lastUserMessage,
@@ -134,6 +163,8 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     recentProjects,
     activeSessionId,
     chatRows,
+    extensionRegistry,
+    extensionProjectPaths,
     onOpenProject: handleOpenProject,
     onSelectProjectPath: handleSelectProjectPath,
     onRetryText: handleSendText,

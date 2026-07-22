@@ -10,6 +10,7 @@ import { type AgentKernelRunInput, AgentKernelService } from '../../ports/agent-
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { type PersistSessionSnapshotInput, SessionRepository } from '../../ports/session-repository'
 import { SettingsService } from '../../services/settings-service'
+import { EmptyExtensionRuntimeLayer } from './extension-runtime-test-layer'
 
 export const runMock: Mock = vi.fn()
 export const persistSnapshotMock: Mock = vi.fn()
@@ -148,6 +149,16 @@ const TestAgentKernelLayer = Layer.succeed(AgentKernelService, {
         },
         meta,
       )
+      input.waggle.onWaggleEvent(
+        {
+          type: 'custom',
+          timestamp: 11,
+          name: 'openwaggle.github.issues.summary',
+          value: { open: 2 },
+          model: meta.agentModel,
+        },
+        meta,
+      )
       input.waggle.onTurnEvent({
         type: 'turn-start',
         turnNumber: 0,
@@ -219,6 +230,7 @@ export const TestLayer = Layer.mergeAll(
   TestSettingsLayer,
   TestSessionLayer,
   TestAgentKernelLayer,
+  EmptyExtensionRuntimeLayer,
 )
 
 export function resetWaggleRunServiceMocks() {

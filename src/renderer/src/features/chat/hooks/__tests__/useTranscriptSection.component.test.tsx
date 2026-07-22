@@ -11,7 +11,7 @@ import type { SessionNode, SessionWorkspace } from '@shared/types/session'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionStore } from '@/features/sessions/state'
-import { useTranscriptSection } from '../useTranscriptSection'
+import { type TranscriptSectionParams, useTranscriptSection } from '../useTranscriptSection'
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {},
@@ -36,7 +36,7 @@ function sessionNode(
   role: 'user' | 'assistant',
   content: string,
   createdOrder: number,
-) {
+): SessionNode {
   return {
     id: SessionNodeId(id),
     sessionId: SESSION_ID,
@@ -59,18 +59,29 @@ function sessionNode(
   }
 }
 
-function workspaceWithPath(nodes: readonly SessionNode[], activeNodeId: SessionNodeId) {
-  const transcriptPath: SessionWorkspace['transcriptPath'] = []
-  for (const node of nodes) {
-    if (node.createdOrder <= 2) {
-      transcriptPath.push({
-        node,
-        branchId: node.branchId,
-        isActive: node.id === activeNodeId,
-      })
-    }
+function transcriptPathForActiveNode(
+  nodes: readonly SessionNode[],
+  activeNodeId: SessionNodeId,
+): SessionWorkspace['transcriptPath'] {
+  const nodesById = new Map(nodes.map((node) => [String(node.id), node]))
+  const path: SessionNode[] = []
+  const seen = new Set<string>()
+  let current = nodesById.get(String(activeNodeId)) ?? null
+
+  while (current && !seen.has(String(current.id))) {
+    path.unshift(current)
+    seen.add(String(current.id))
+    current = current.parentId ? (nodesById.get(String(current.parentId)) ?? null) : null
   }
 
+  return path.map((node) => ({
+    node,
+    branchId: node.branchId,
+    isActive: node.id === activeNodeId,
+  }))
+}
+
+function workspaceWithPath(nodes: readonly SessionNode[], activeNodeId: SessionNodeId) {
   return {
     tree: {
       session: {
@@ -79,7 +90,7 @@ function workspaceWithPath(nodes: readonly SessionNode[], activeNodeId: SessionN
         projectPath: '/tmp/project',
         createdAt: 1,
         updatedAt: 4,
-        lastActiveNodeId: SessionNodeId('assistant-after-branch'),
+        lastActiveNodeId: activeNodeId,
         lastActiveBranchId: MAIN_BRANCH_ID,
       },
       nodes,
@@ -88,7 +99,7 @@ function workspaceWithPath(nodes: readonly SessionNode[], activeNodeId: SessionN
           id: MAIN_BRANCH_ID,
           sessionId: SESSION_ID,
           sourceNodeId: null,
-          headNodeId: SessionNodeId('assistant-after-branch'),
+          headNodeId: activeNodeId,
           name: 'main',
           isMain: true,
           createdAt: 1,
@@ -100,7 +111,7 @@ function workspaceWithPath(nodes: readonly SessionNode[], activeNodeId: SessionN
     },
     activeBranchId: MAIN_BRANCH_ID,
     activeNodeId,
-    transcriptPath,
+    transcriptPath: transcriptPathForActiveNode(nodes, activeNodeId),
   }
 }
 
@@ -109,6 +120,39 @@ const phase = {
   completed: [],
   totalElapsedMs: 0,
   reset: vi.fn(),
+}
+
+function transcriptParams(
+  overrides: Partial<TranscriptSectionParams> = {},
+): TranscriptSectionParams {
+  return {
+    messages: [],
+    customMessages: [],
+    interactionEvents: [],
+    isLoading: false,
+    isSteering: false,
+    error: undefined,
+    streamSignalVersion: 0,
+    projectPath: '/tmp/project',
+    recentProjects: [],
+    activeSessionId: CONVERSATION_ID,
+    activeSession: null,
+    model: SupportedModelId('openai/gpt-5'),
+    waggleStatus: 'idle',
+    phase,
+    extensionRegistry: null,
+    extensionProjectPaths: [],
+    handleOpenProject: vi.fn(),
+    handleSelectProjectPath: vi.fn(),
+    handleSendText: vi.fn(),
+    openSettings: vi.fn(),
+    handleDismissInterruptedRun: vi.fn(),
+    handleBranchFromMessage: vi.fn(),
+    handleForkFromMessage: vi.fn(),
+    userDidSend: false,
+    onUserDidSendConsumed: vi.fn(),
+    ...overrides,
+  }
 }
 
 describe('useTranscriptSection', () => {
@@ -151,38 +195,20 @@ describe('useTranscriptSection', () => {
     })
 
     const { result } = renderHook(() =>
-      useTranscriptSection({
-        messages: [
-          uiMessage('user-before-branch', 'user', 'Before branch'),
-          uiMessage('assistant-before-branch', 'assistant', 'Answer before branch'),
-          uiMessage('user-branch-point', 'user', 'Branch from here'),
-          uiMessage(
-            'assistant-after-branch',
-            'assistant',
-            'Main branch continuation should be hidden',
-          ),
-        ],
-        isLoading: false,
-        isSteering: false,
-        error: undefined,
-        streamSignalVersion: 0,
-        projectPath: '/tmp/project',
-        recentProjects: [],
-        activeSessionId: CONVERSATION_ID,
-        activeSession: null,
-        model: SupportedModelId('openai/gpt-5'),
-        waggleStatus: 'idle',
-        phase,
-        handleOpenProject: vi.fn(),
-        handleSelectProjectPath: vi.fn(),
-        handleSendText: vi.fn(),
-        openSettings: vi.fn(),
-        handleDismissInterruptedRun: vi.fn(),
-        handleBranchFromMessage: vi.fn(),
-        handleForkFromMessage: vi.fn(),
-        userDidSend: false,
-        onUserDidSendConsumed: vi.fn(),
-      }),
+      useTranscriptSection(
+        transcriptParams({
+          messages: [
+            uiMessage('user-before-branch', 'user', 'Before branch'),
+            uiMessage('assistant-before-branch', 'assistant', 'Answer before branch'),
+            uiMessage('user-branch-point', 'user', 'Branch from here'),
+            uiMessage(
+              'assistant-after-branch',
+              'assistant',
+              'Main branch continuation should be hidden',
+            ),
+          ],
+        }),
+      ),
     )
 
     const renderedMessages: string[] = []

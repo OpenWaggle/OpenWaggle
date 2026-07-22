@@ -2,8 +2,8 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { readPiWagglePresetsFileData } from '../preset-storage'
-import { customPreset } from './pi-waggle-command-harness'
+import { readPiWagglePresetsFileData } from '../preset-storage.js'
+import { customPreset } from './pi-waggle-command-harness.js'
 
 describe('pi-waggle preset storage', () => {
   it('skips manually edited presets with more than two agents', async () => {

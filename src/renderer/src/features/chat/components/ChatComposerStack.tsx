@@ -1,3 +1,8 @@
+import type {
+  AgentLoopInteraction,
+  AgentLoopInteractionResponse,
+} from '@shared/types/agent-loop-interaction'
+import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import { useMessageQueueStore } from '@/features/chat/state'
 import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-store'
 import { CommandPalette } from '@/features/command-palette/components'
@@ -12,16 +17,34 @@ import {
 import { useScopedComposerDrafts } from '@/features/composer/hooks'
 import { WaggleCollaborationStatus as WaggleCollaborationStatusBanner } from '@/features/waggle/components'
 import type { ChatComposerSectionState } from '../model'
+import { ChatComposerExtensionDialogs } from './ChatComposerExtensionDialogs'
 import { SessionForkSelector } from './SessionForkSelector'
 
 interface ChatComposerStackProps {
   readonly section: ChatComposerSectionState
+  readonly agentInteractions?: readonly AgentLoopInteraction[]
+  readonly extensionRegistry?: ExtensionContributionRegistryView | null
+  readonly extensionProjectPaths?: readonly string[]
+  readonly onRespondAgentInteraction: (
+    interaction: AgentLoopInteraction,
+    response: AgentLoopInteractionResponse,
+  ) => Promise<void>
   readonly onOpenSessionTree?: () => void
 }
 
+const EMPTY_AGENT_INTERACTIONS: readonly AgentLoopInteraction[] = []
+const EMPTY_EXTENSION_PROJECT_PATHS: readonly string[] = []
+
 function noOp() {}
 
-export function ChatComposerStack({ section, onOpenSessionTree }: ChatComposerStackProps) {
+export function ChatComposerStack({
+  section,
+  agentInteractions = EMPTY_AGENT_INTERACTIONS,
+  extensionRegistry = null,
+  extensionProjectPaths = EMPTY_EXTENSION_PROJECT_PATHS,
+  onRespondAgentInteraction,
+  onOpenSessionTree,
+}: ChatComposerStackProps) {
   const {
     activeSessionId,
     waggleStatus,
@@ -100,6 +123,12 @@ export function ChatComposerStack({ section, onOpenSessionTree }: ChatComposerSt
           onSummarize={onSummarizeBranch}
           onCustomSummary={onStartCustomBranchSummary}
           onCancel={onCancelBranchSummary}
+        />
+        <ChatComposerExtensionDialogs
+          agentInteractions={agentInteractions}
+          extensionProjectPaths={extensionProjectPaths}
+          extensionRegistry={extensionRegistry}
+          onRespond={onRespondAgentInteraction}
         />
         <Composer
           onSend={onSendWithWaggle}

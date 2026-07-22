@@ -1,8 +1,9 @@
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionInterruptedRun } from '@shared/types/session'
+import type { AgentTransportCustomEvent } from '@shared/types/stream'
 import type { WaggleMessageMetadata } from '@shared/types/waggle'
 import type { StreamingPhaseState } from '@/features/chat/hooks/useStreamingPhase'
-import type { ChatRow, MessageChatRow } from '../lib/types-chat-row'
+import type { AgentInteractionEvent, ChatRow, MessageChatRow } from '../lib/types-chat-row'
 
 type ToolResultPart = Extract<UIMessage['parts'][number], { type: 'tool-result' }>
 type SummaryRow = Extract<ChatRow, { type: 'branch-summary' | 'compaction-summary' }>
@@ -225,8 +226,28 @@ function appendStatusRows(rows: ChatRow[], params: BuildChatRowsParams) {
   }
 }
 
+function appendCustomMessageRows(
+  rows: ChatRow[],
+  customMessages: readonly AgentTransportCustomEvent[],
+) {
+  for (const event of customMessages) {
+    rows.push({ type: 'agent-loop-custom-message', event })
+  }
+}
+
+function appendInteractionEventRows(
+  rows: ChatRow[],
+  interactionEvents: readonly AgentInteractionEvent[],
+) {
+  for (const event of interactionEvents) {
+    rows.push({ type: 'agent-loop-interaction-event', event })
+  }
+}
+
 interface BuildChatRowsParams {
   messages: UIMessage[]
+  customMessages?: readonly AgentTransportCustomEvent[]
+  interactionEvents?: readonly AgentInteractionEvent[]
   isLoading: boolean
   error: Error | undefined
   lastUserMessage: string | null
@@ -286,6 +307,8 @@ export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
     }
   }
 
+  appendCustomMessageRows(rows, params.customMessages ?? [])
+  appendInteractionEventRows(rows, params.interactionEvents ?? [])
   appendStatusRows(rows, params)
   return groupWaggleTurnRows(rows)
 }

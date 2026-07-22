@@ -31,3 +31,46 @@ export class StandardsLoadError extends Data.TaggedError('StandardsLoadError')<{
   readonly message: string
   readonly cause?: unknown
 }> {}
+
+export class ExtensionDiscoveryError extends Data.TaggedError('ExtensionDiscoveryError')<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class ExtensionLifecycleRepositoryError extends Data.TaggedError(
+  'ExtensionLifecycleRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class ExtensionProjectOverrideRepositoryError extends Data.TaggedError(
+  'ExtensionProjectOverrideRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class ExtensionStorageRepositoryError extends Data.TaggedError(
+  'ExtensionStorageRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class ExtensionBuildRunnerError extends Data.TaggedError('ExtensionBuildRunnerError')<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class ExtensionPackageRepositoryError extends Data.TaggedError(
+  'ExtensionPackageRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class DocsBundleError extends Data.TaggedError('DocsBundleError')<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}

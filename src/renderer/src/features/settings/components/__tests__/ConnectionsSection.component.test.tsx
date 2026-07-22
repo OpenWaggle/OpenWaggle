@@ -172,6 +172,41 @@ describe('ConnectionsSection', () => {
     expect(cancelOAuth).toHaveBeenCalledWith('openai-codex')
   })
 
+  it('renders Pi OAuth selection choices and submits the selected option', () => {
+    const submitAuthCode = vi.fn()
+    useAuthStore.setState({
+      authAccounts: {
+        'openai-codex': {
+          provider: 'openai-codex',
+          connected: false,
+          label: 'Not connected',
+        },
+      },
+      oauthStatuses: {
+        'openai-codex': {
+          type: 'awaiting-selection',
+          provider: 'openai-codex',
+          selection: {
+            message: 'Choose a sign-in method',
+            options: [
+              { id: 'browser', label: 'Browser login' },
+              { id: 'device-code', label: 'Device code' },
+            ],
+          },
+        },
+      },
+      submitAuthCode,
+    })
+
+    render(<ConnectionsSection />)
+
+    fireEvent.click(screen.getByRole('button', { name: /OAuth Providers/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Device code' }))
+
+    expect(screen.getByText('Choose a sign-in method')).toBeInTheDocument()
+    expect(submitAuthCode).toHaveBeenCalledWith('openai-codex', 'device-code')
+  })
+
   it('renders all Pi catalog models in settings regardless of availability', () => {
     render(<ConnectionsSection />)
 

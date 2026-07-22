@@ -9,6 +9,7 @@ import { useFullscreen } from '@/shell/useFullscreen'
 import { SettingsNav } from './SettingsNav'
 import { ArchivedSection } from './sections/ArchivedSection'
 import { ConnectionsSection } from './sections/ConnectionsSection'
+import { ExtensionsSection } from './sections/ExtensionsSection'
 import { GeneralSection } from './sections/GeneralSection'
 import { McpSection } from './sections/McpSection'
 import { WaggleSection } from './sections/WaggleSection'
@@ -72,6 +73,7 @@ function SettingsTabContent({ tab }: { tab: SettingsTab }) {
   return match(tab)
     .with('general', () => <GeneralSection />)
     .with('waggle', () => <WaggleSection />)
+    .with('extensions', () => <ExtensionsSection />)
     .with('mcp', () => <McpSection />)
     .with('connections', () => <ConnectionsSection />)
     .with('archived', () => <ArchivedSection />)

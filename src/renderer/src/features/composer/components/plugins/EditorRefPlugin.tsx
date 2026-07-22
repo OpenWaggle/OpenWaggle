@@ -1,10 +1,10 @@
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import type { LexicalEditor } from 'lexical'
-import { type MutableRefObject, useEffect } from 'react'
+import { type RefObject, useEffect } from 'react'
 import { useComposerStore } from '@/features/composer/state/composer-store'
 
 interface EditorRefPluginProps {
-  editorRef: MutableRefObject<LexicalEditor | null>
+  editorRef: RefObject<LexicalEditor | null>
 }
 
 /**

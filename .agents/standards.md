@@ -21,6 +21,14 @@ Mechanical enforcement:
 - `openwaggle/no-shoehorn-outside-tests` keeps Shoehorn test-only.
 - Biome and ESLint ban explicit `any`, non-null assertions, disabled lint comments, and unsafe patterns.
 
+## ts-match
+
+OpenWaggle prefers `@diegogbrisa/ts-match` when pattern matching, exhaustive union handling, runtime guards, or boundary assertions improve clarity or type safety.
+
+Before writing manual multi-branch discriminant/shape logic, runtime shape guards, or boundary assertions, load `.agents/skills/ts-match/SKILL.md` and apply its guidance.
+
+Keep plain TypeScript for simple guard clauses or binary predicates where `ts-match` would add noise.
+
 ## Main Process Architecture
 
 Main process code follows hexagonal architecture.
@@ -49,6 +57,16 @@ OpenWaggle is a UI and product shell over Pi, not a parallel runtime.
 - Portable Waggle policy belongs in `packages/waggle-core` without Pi/OpenWaggle/Electron imports; Pi-specific Waggle behavior belongs in `packages/pi-waggle`.
 
 Load `.agents/skills/pi-integration/SKILL.md` before Pi adapter, session projection, provider/auth/model, resource loading, MCP adapter, or run orchestration work.
+
+## Publishable Package Boundaries
+
+OpenWaggle publishable packages must preserve their public contract boundaries.
+
+- `packages/extension-sdk/**` must stay browser-safe. Do not import Electron, Node built-ins, Pi SDK packages, renderer stores, main-process services, or OpenWaggle app internals.
+- `packages/waggle-core/**` must stay runtime-neutral reusable policy. Do not import Pi SDK packages, Electron, Node built-ins, renderer stores, or app services.
+- `packages/extension-react/**` may depend on `@openwaggle/extension-sdk` and React peers, but must not import OpenWaggle renderer components, app CSS, Tailwind internals, Electron, or app services.
+- `packages/pi-waggle/**` may import Pi SDK packages, but must not import Electron, renderer stores, or OpenWaggle app services.
+- These import boundaries must be enforced by `pnpm check:repository-standards`, not only by review.
 
 ## Electron Runtime
 

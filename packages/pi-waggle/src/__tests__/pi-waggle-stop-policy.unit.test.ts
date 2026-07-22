@@ -1,11 +1,11 @@
-import type { AgentEndEvent } from '@mariozechner/pi-coding-agent'
+import type { AgentEndEvent } from '@earendil-works/pi-coding-agent'
 import type { WaggleConfig } from '@openwaggle/waggle-core'
 import { describe, expect, it } from 'vitest'
 import {
   createPiWaggleStopPolicyState,
   evaluatePiWaggleStopPolicy,
   summarizePiWaggleTurnMessages,
-} from '../stop-policy'
+} from '../stop-policy.js'
 
 const MAX_TURNS = 2
 

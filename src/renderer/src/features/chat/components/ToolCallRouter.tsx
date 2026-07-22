@@ -1,6 +1,11 @@
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
+import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
+import { ExtensionAgentLoopSurface } from '@/features/extensions'
 import { ToolCallBlock } from './ToolCallBlock'
+
+const JSON_STRINGIFY_INDENT = 2
+const EMPTY_PROJECT_PATHS: readonly string[] = []
 
 interface ToolCallRouterProps {
   part: Extract<UIMessage['parts'][number], { type: 'tool-call' }>
@@ -10,7 +15,21 @@ interface ToolCallRouterProps {
   >
   sessionId: SessionId | null
   isStreaming: boolean
+  extensionRegistry?: ExtensionContributionRegistryView | null
+  extensionProjectPaths?: readonly string[]
   onBranchFromMessage?: (messageId: string) => void
+}
+
+function stringifyToolResultContent(content: unknown) {
+  if (typeof content === 'string') {
+    return content
+  }
+
+  try {
+    return JSON.stringify(content, null, JSON_STRINGIFY_INDENT)
+  } catch {
+    return String(content)
+  }
 }
 
 export function ToolCallRouter({
@@ -18,6 +37,8 @@ export function ToolCallRouter({
   toolResults,
   sessionId: _sessionId,
   isStreaming,
+  extensionRegistry = null,
+  extensionProjectPaths = EMPTY_PROJECT_PATHS,
   onBranchFromMessage,
 }: ToolCallRouterProps) {
   const finalResult = toolResults.get(part.id)
@@ -27,7 +48,7 @@ export function ToolCallRouter({
       ? undefined
       : { content: part.partialOutput, state: 'partial' })
 
-  return (
+  const toolCallBlock = (
     <ToolCallBlock
       name={part.name}
       args={part.arguments}
@@ -37,4 +58,29 @@ export function ToolCallRouter({
       onBranchFromMessage={onBranchFromMessage}
     />
   )
+
+  if (extensionRegistry !== null) {
+    return (
+      <ExtensionAgentLoopSurface
+        input={{
+          surface: 'tool',
+          toolCall: part,
+          ...(visibleResult !== undefined
+            ? {
+                toolResult: {
+                  content: stringifyToolResultContent(visibleResult.content),
+                  state: visibleResult.state,
+                  ...(visibleResult.error !== undefined ? { error: visibleResult.error } : {}),
+                },
+              }
+            : {}),
+        }}
+        fallback={toolCallBlock}
+        projectPaths={extensionProjectPaths}
+        registry={extensionRegistry}
+      />
+    )
+  }
+
+  return toolCallBlock
 }

@@ -68,7 +68,7 @@ vi.mock('../CollapsibleDetails', () => ({
 // ---------------------------------------------------------------------------
 // Import under test (after mocks)
 // ---------------------------------------------------------------------------
-import { AssistantMessageBubble } from '../AssistantMessageBubble'
+import { AssistantMessageBubble, type WaggleInfo } from '../AssistantMessageBubble'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -100,6 +100,33 @@ function createMessage(id: string, parts: MessagePart[]) {
 
 const defaultSessionId = SessionId('session-1')
 
+interface RenderAssistantOptions {
+  readonly message: UIMessage
+  readonly waggle?: WaggleInfo
+  readonly assistantModel?: SupportedModelId
+  readonly hideAgentLabel?: boolean
+}
+
+function renderAssistantMessage({
+  message,
+  waggle,
+  assistantModel,
+  hideAgentLabel,
+}: RenderAssistantOptions) {
+  return render(
+    <AssistantMessageBubble
+      message={message}
+      runtime={{
+        sessionId: defaultSessionId,
+        extensions: { registry: null, projectPaths: [] },
+      }}
+      run={assistantModel ? { assistantModel } : undefined}
+      waggle={waggle}
+      presentation={hideAgentLabel ? { hideAgentLabel } : undefined}
+    />,
+  )
+}
+
 function setCollapse(overrides: Partial<UseMessageCollapseResult>) {
   mockCollapse.current = { ...mockCollapse.current, ...overrides }
 }
@@ -125,37 +152,31 @@ describe('AssistantMessageBubble', () => {
 
   it('renders AgentLabel when waggle prop provided', () => {
     const message = createMessage('m1', [textPart('Hello')])
-    render(
-      <AssistantMessageBubble
-        message={message}
-        sessionId={defaultSessionId}
-        waggle={{ agentLabel: 'Architect', agentColor: 'blue' }}
-      />,
-    )
+    renderAssistantMessage({
+      message,
+      waggle: { agentLabel: 'Architect', agentColor: 'blue' },
+    })
     expect(screen.getByTestId('agent-label')).toHaveTextContent('Architect')
   })
 
   it('renders AgentLabel when assistantModel provided', () => {
     const message = createMessage('m1', [textPart('Hello')])
-    render(
-      <AssistantMessageBubble
-        message={message}
-        sessionId={defaultSessionId}
-        assistantModel={SupportedModelId('claude-sonnet-4-5')}
-      />,
-    )
+    renderAssistantMessage({
+      message,
+      assistantModel: SupportedModelId('claude-sonnet-4-5'),
+    })
     expect(screen.getByTestId('agent-label')).toHaveTextContent('claude-sonnet-4-5')
   })
 
   it('renders StreamingText for text parts', () => {
     const message = createMessage('m1', [textPart('Hello world')])
-    render(<AssistantMessageBubble message={message} sessionId={defaultSessionId} />)
+    renderAssistantMessage({ message })
     expect(screen.getByTestId('streaming-text')).toHaveTextContent('Hello world')
   })
 
   it('does not render empty text parts', () => {
     const message = createMessage('m1', [textPart('   '), textPart('Visible')])
-    render(<AssistantMessageBubble message={message} sessionId={defaultSessionId} />)
+    renderAssistantMessage({ message })
     const texts = screen.getAllByTestId('streaming-text')
     expect(texts).toHaveLength(1)
     expect(texts[0]).toHaveTextContent('Visible')
@@ -163,15 +184,13 @@ describe('AssistantMessageBubble', () => {
 
   it('renders ToolCallRouter for tool-call parts', () => {
     const message = createMessage('m1', [toolCallPart('read', 'tc-1'), toolResultPart('tc-1')])
-    render(<AssistantMessageBubble message={message} sessionId={defaultSessionId} />)
+    renderAssistantMessage({ message })
     expect(screen.getByTestId('tool-call-router')).toHaveTextContent('read')
   })
 
   it('renders standalone tool-result parts while keeping matched tool-call results nested', () => {
     const message = createMessage('m1', [textPart('Hello'), toolResultPart('tc-1'), thinkingPart()])
-    const { container } = render(
-      <AssistantMessageBubble message={message} sessionId={defaultSessionId} />,
-    )
+    const { container } = renderAssistantMessage({ message })
     expect(container.querySelectorAll('[data-testid="streaming-text"]')).toHaveLength(3)
     expect(screen.getByText('internal reasoning')).toBeInTheDocument()
     expect(screen.getByText('Tool result · output-available')).toBeInTheDocument()
@@ -184,7 +203,7 @@ describe('AssistantMessageBubble', () => {
       toolCallPart('read', 'tc-1'),
       textPart('Second'),
     ])
-    render(<AssistantMessageBubble message={message} sessionId={defaultSessionId} />)
+    renderAssistantMessage({ message })
     expect(screen.getAllByTestId('streaming-text')).toHaveLength(2)
     expect(screen.getByTestId('tool-call-router')).toBeInTheDocument()
   })
@@ -202,7 +221,7 @@ describe('AssistantMessageBubble', () => {
       toolCallPart('read', 'tc-1'),
       textPart('Final answer'),
     ])
-    render(<AssistantMessageBubble message={message} sessionId={defaultSessionId} />)
+    renderAssistantMessage({ message })
     const texts = screen.getAllByTestId('streaming-text')
     expect(texts).toHaveLength(1)
     expect(texts[0]).toHaveTextContent('Final answer')
@@ -218,19 +237,16 @@ describe('AssistantMessageBubble', () => {
       collapseLabel: 'Show 1 tool call',
     })
     const message = createMessage('m1', [toolCallPart('read', 'tc-1'), textPart('Summary')])
-    render(<AssistantMessageBubble message={message} sessionId={defaultSessionId} />)
+    renderAssistantMessage({ message })
     expect(screen.getByTestId('collapsible-details')).toHaveTextContent('Show 1 tool call')
   })
 
   it('leaves the continuous waggle rail to the turn wrapper', () => {
     const message = createMessage('m1', [textPart('Hello')])
-    const { container } = render(
-      <AssistantMessageBubble
-        message={message}
-        sessionId={defaultSessionId}
-        waggle={{ agentLabel: 'Architect', agentColor: 'blue' }}
-      />,
-    )
+    const { container } = renderAssistantMessage({
+      message,
+      waggle: { agentLabel: 'Architect', agentColor: 'blue' },
+    })
     const outer = container.firstElementChild
     expect(outer?.className).not.toContain('border-l-2')
     expect(screen.getByTestId('agent-label')).toHaveTextContent('Architect')
@@ -238,15 +254,12 @@ describe('AssistantMessageBubble', () => {
 
   it('hides repeated agent label when rendered inside a grouped waggle turn', () => {
     const message = createMessage('m1', [textPart('Hello')])
-    render(
-      <AssistantMessageBubble
-        message={message}
-        sessionId={defaultSessionId}
-        waggle={{ agentLabel: 'Architect', agentColor: 'blue' }}
-        assistantModel={SupportedModelId('gpt-5.5')}
-        hideAgentLabel
-      />,
-    )
+    renderAssistantMessage({
+      message,
+      waggle: { agentLabel: 'Architect', agentColor: 'blue' },
+      assistantModel: SupportedModelId('gpt-5.5'),
+      hideAgentLabel: true,
+    })
     expect(screen.queryByTestId('agent-label')).toBeNull()
     expect(screen.getByTestId('streaming-text')).toHaveTextContent('Hello')
   })

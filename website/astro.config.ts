@@ -1,3 +1,4 @@
+import { unified } from '@astrojs/markdown-remark';
 import mdx from '@astrojs/mdx';
 import sitemap from '@astrojs/sitemap';
 import tailwindcss from '@tailwindcss/vite';
@@ -9,11 +10,16 @@ export default defineConfig({
   output: 'static',
   integrations: [mdx(), sitemap()],
   markdown: {
-    rehypePlugins: [
-      [rehypeExternalLinks, { target: '_blank', rel: ['noopener', 'noreferrer'] }],
-    ],
+    processor: unified({
+      rehypePlugins: [
+        [rehypeExternalLinks, { target: '_blank', rel: ['noopener', 'noreferrer'] }],
+      ],
+    }),
   },
   vite: {
+    resolve: {
+      tsconfigPaths: false,
+    },
     plugins: [tailwindcss()],
   },
 });

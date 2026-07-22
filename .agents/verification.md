@@ -31,7 +31,7 @@ For any `src/renderer/` change:
 ```bash
 pnpm lint
 pnpm test:component
-npx -y react-doctor@latest . --verbose --diff main
+npx -y react-doctor@latest . --verbose --scope changed --base main
 ```
 
 Fix React Doctor errors. Warnings require judgment and should be reported if not fixed.
@@ -87,6 +87,8 @@ pnpm test:e2e:headless:quick
 Use quick E2E only when the built app is already current or the test intentionally avoids a full rebuild.
 
 ## Release Work
+
+For publishable package work, `pnpm check` should include package import-boundary checks and package API snapshot checks. Snapshot drift must be fixed by either correcting the public API change or intentionally updating the committed package API snapshot in the same PR.
 
 Load `.agents/skills/release/SKILL.md` before release/version/update-track work.
 

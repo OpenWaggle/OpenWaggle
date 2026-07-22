@@ -7,8 +7,15 @@ publish:
   owner: OpenWaggle
   repo: OpenWaggle
 files:
+  - out/**/*
+  - node_modules/**/*
+  - package.json
   - '!**/.vscode/*'
   - '!src/*'
+  - '!tests/**/*'
+  - '!fixtures/**/*'
+  - '!packages/**/*'
+  - '!scripts/**/*'
   - '!electron.vite.config.*'
   - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
@@ -29,11 +36,16 @@ files:
   - '!node_modules/**/.eslintrc*'
   - '!node_modules/**/.prettierrc*'
   - '!node_modules/**/tsconfig.json'
+  # Workspace packages are followed through node_modules; ship their built/runtime surface only.
+  - '!node_modules/@openwaggle/*/src/**/*'
+  - '!node_modules/@openwaggle/*/tsconfig*.json'
   # Exclude unused ONNX training WASM files (only inference is needed)
   - '!node_modules/onnxruntime-web/dist/ort-training*'
 extraResources:
   - from: build/icon.png
     to: icon.png
+  - from: build/openwaggle-docs
+    to: openwaggle-docs
 asarUnpack:
   - node_modules/pi-mcp-adapter/**/*
 mac:

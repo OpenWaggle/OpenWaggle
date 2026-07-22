@@ -25,7 +25,7 @@ const runtimeMocks = vi.hoisted(() => ({
   sessionManagerCreate: vi.fn(),
 }))
 
-vi.mock('@mariozechner/pi-coding-agent', () => ({
+vi.mock('@earendil-works/pi-coding-agent', () => ({
   createAgentSessionRuntime: runtimeMocks.createAgentSessionRuntime,
   SessionManager: { create: runtimeMocks.sessionManagerCreate },
 }))
@@ -49,7 +49,12 @@ const SESSION_ID = SessionId('session-runtime')
 const MODEL = SupportedModelId('openai/gpt-5.5')
 const session = { sessionId: 'pi-session-1', sessionFile: '/repo/session.jsonl' }
 const model = { id: 'gpt-5.5', provider: 'openai', input: ['text'] }
-const services = { diagnostics: { records: [] } }
+const services = {
+  diagnostics: { records: [] },
+  resourceLoader: {
+    getExtensions: () => ({ errors: [] }),
+  },
+}
 const sessionManager = { id: 'manager-1' }
 
 function input() {

@@ -1,8 +1,8 @@
-import type { MessageRenderer } from '@mariozechner/pi-coding-agent'
-import { visibleWidth } from '@mariozechner/pi-tui'
+import type { MessageRenderer } from '@earendil-works/pi-coding-agent'
+import { visibleWidth } from '@earendil-works/pi-tui'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it } from 'vitest'
-import { registerPiWaggleRenderers } from '../renderers'
+import { registerPiWaggleRenderers } from '../renderers.js'
 
 function registerHarness() {
   const renderers = new Map<string, MessageRenderer<unknown>>()

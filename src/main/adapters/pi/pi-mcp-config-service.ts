@@ -1,5 +1,5 @@
 import { homedir } from 'node:os'
-import { getAgentDir } from '@mariozechner/pi-coding-agent'
+import { getAgentDir } from '@earendil-works/pi-coding-agent'
 import { Effect, Layer } from 'effect'
 import { McpConfigService } from '../../ports/mcp-config-service'
 import { installMcpAdapterPackage } from './mcp-config/adapter-package'
@@ -10,7 +10,7 @@ import {
   createPiMcpConfigService,
   createPiMcpConfigServiceForTests,
 } from './mcp-config/service-factory'
-export { createPiMcpConfigService, createPiMcpConfigServiceForTests }
+
 export {
   getOpenWaggleMcpRuntimeContextForServices,
   prepareOpenWaggleMcpRuntimeContext,
@@ -21,6 +21,7 @@ export type {
   OpenWaggleMcpRuntimeContext,
   PiMcpConfigServiceForTests,
 } from './mcp-config/types'
+export { createPiMcpConfigService, createPiMcpConfigServiceForTests }
 
 function createLivePiMcpConfigService() {
   return createPiMcpConfigService({

@@ -2,7 +2,7 @@ import path from 'node:path'
 import type { Rule } from 'eslint'
 import { isTestFilename, normalizedFilename, property, sourceValueOf } from '../ast-helpers'
 
-const PI_SDK_PACKAGE = '@mariozechner/pi-coding-agent'
+const PI_SDK_PACKAGE = '@earendil-works/pi-coding-agent'
 const PROVIDER_REGISTRY_IDENTIFIER = 'providerRegistry'
 const MAIN_PROVIDERS_PREFIX = 'src/main/providers/'
 const MAIN_PI_ADAPTER_PREFIX = 'src/main/adapters/pi/'

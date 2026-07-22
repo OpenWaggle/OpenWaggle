@@ -1,4 +1,4 @@
-import type { AgentSession, SessionEntry } from '@mariozechner/pi-coding-agent'
+import type { AgentSession, SessionEntry } from '@earendil-works/pi-coding-agent'
 import {
   PI_WAGGLE_TURN_CUSTOM_TYPE,
   parsePiWaggleTurnDetails,

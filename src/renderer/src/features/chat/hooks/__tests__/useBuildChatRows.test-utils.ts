@@ -126,6 +126,7 @@ function getWaggleTurnRows(
   return rows.filter((row) => row.type === 'waggle-turn')
 }
 
+export type { UIMessage, WaggleMessageMetadata }
 export {
   buildChatRows,
   createAssistantPendingToolMessage,
@@ -139,4 +140,3 @@ export {
   SessionId,
   SupportedModelId,
 }
-export type { UIMessage, WaggleMessageMetadata }

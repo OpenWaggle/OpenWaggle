@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "jsx": "react-jsx",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2022"
+  },
+  "include": [
+    "browser-smoke.ts",
+    "cjs-type-smoke.cts",
+    "import-smoke.ts",
+    "pi-discovery-smoke.ts",
+    "require-smoke.ts",
+    "styles.d.ts",
+    "type-smoke.ts",
+    "vite.config.ts"
+  ]
+}

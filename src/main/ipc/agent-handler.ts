@@ -10,6 +10,10 @@
 import { randomUUID } from 'node:crypto'
 import { matchBy } from '@diegogbrisa/ts-match'
 import { decodeUnknownOrThrow } from '@shared/schema'
+import {
+  agentLoopResponseInputSchema,
+  toAgentLoopResponseInput,
+} from '@shared/schemas/agent-loop-interaction'
 import { agentSendPayloadSchema } from '@shared/schemas/validation'
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
@@ -18,6 +22,10 @@ import type { AgentTransportEvent } from '@shared/types/stream'
 import * as Effect from 'effect/Effect'
 import { getPhaseForSession } from '../agent/phase-tracker'
 import { cleanupSessionRun } from '../agent/session-cleanup'
+import {
+  cancelAgentLoopInteractionsForRun,
+  submitAgentLoopInteractionResponse,
+} from '../application/agent-loop-interaction-broker'
 import { type AgentRunResult, executeAgentRun } from '../application/agent-run-service'
 import { compactAgentSession, getAgentContextUsage } from '../application/agent-session-service'
 import { broadcastToWindows } from '../utils/broadcast'
@@ -113,6 +121,7 @@ function registerAgentRunHandlers() {
         handleRunResult(sessionId, result)
 
         // ─── Transport: cleanup ──────────────────────────
+        cancelAgentLoopInteractionsForRun({ sessionId, runId })
         if (activeRuns.deleteIfCurrent(sessionId, abortController)) {
           clearAgentPhase(sessionId)
           clearStreamBuffer(sessionId)
@@ -133,6 +142,15 @@ function registerAgentRunHandlers() {
           emitCancelledCompletion(id)
         }
       }
+    }),
+  )
+}
+
+function registerAgentInteractionHandlers() {
+  typedHandle('agent:respond-interaction', (_event, input) =>
+    Effect.sync(() => {
+      const decoded = decodeUnknownOrThrow(agentLoopResponseInputSchema, input)
+      return submitAgentLoopInteractionResponse(toAgentLoopResponseInput(decoded))
     }),
   )
 }
@@ -212,6 +230,7 @@ function registerAgentSteeringHandlers() {
 
 export function registerAgentHandlers(): void {
   registerAgentRunHandlers()
+  registerAgentInteractionHandlers()
   registerAgentStateHandlers()
   registerAgentCompactionHandlers()
   registerAgentSteeringHandlers()

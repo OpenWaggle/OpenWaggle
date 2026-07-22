@@ -1,4 +1,4 @@
-import type { AgentSessionEvent } from '@mariozechner/pi-coding-agent'
+import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import type { JsonValue } from '@shared/types/json'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { AgentTransportEvent } from '@shared/types/stream'

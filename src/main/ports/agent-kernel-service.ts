@@ -34,6 +34,7 @@ export interface AgentKernelRunInput {
   readonly payload: HydratedAgentSendPayload
   readonly model: SupportedModelId
   readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly signal: AbortSignal
   readonly onEvent: (event: AgentTransportEvent) => void
   readonly waggle?: AgentKernelWaggleRunOptions
@@ -80,6 +81,7 @@ export interface AgentKernelSessionInput {
   readonly session: SessionDetail
   readonly model: SupportedModelId
   readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
 }
 
 export interface CompactAgentKernelSessionInput extends AgentKernelSessionInput {

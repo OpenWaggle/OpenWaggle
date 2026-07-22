@@ -5,43 +5,26 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AgentKernelMissingEntryError, AgentKernelService } from '../../ports/agent-kernel-service'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { SessionRepository } from '../../ports/session-repository'
+import { compactAgentSession, navigateAgentSessionTree } from '../agent-session-service'
 import {
-  cloneAgentSessionToNewSession,
-  compactAgentSession,
-  forkAgentSessionToNewSession,
-  navigateAgentSessionTree,
-} from '../agent-session-service'
-import {
-  sessionServiceForkedSession,
   sessionServiceProviderLayer,
   sessionServiceSession,
   sessionServiceSettingsLayer,
 } from './agent-session-service.test-utils'
+import { EmptyExtensionRuntimeLayer } from './extension-runtime-test-layer'
 
 const persistSnapshotMock = vi.fn()
 const compactMock = vi.fn()
 const navigateTreeMock = vi.fn()
-const forkSessionMock = vi.fn()
-const createProjectionMock = vi.fn()
-const getProjectionMock = vi.fn()
 
 const session = sessionServiceSession
-const forkedSession = sessionServiceForkedSession
 
 const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
-  get: (id) =>
-    Effect.sync(() => {
-      getProjectionMock(id)
-      return id === forkedSession.id ? forkedSession : session
-    }),
+  get: () => Effect.succeed(session),
   getOptional: () => Effect.succeed(session),
   list: () => Effect.succeed([]),
   listDetails: () => Effect.succeed([]),
-  create: (input) =>
-    Effect.sync(() => {
-      createProjectionMock(input)
-      return forkedSession
-    }),
+  create: () => Effect.succeed(session),
   delete: () => Effect.void,
   archive: () => Effect.void,
   unarchive: () => Effect.void,
@@ -84,11 +67,7 @@ const TestAgentKernelLayer = Layer.succeed(AgentKernelService, {
       try: async () => navigateTreeMock(input),
       catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
     }),
-  forkSession: (input) =>
-    Effect.tryPromise({
-      try: async () => forkSessionMock(input),
-      catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
-    }),
+  forkSession: () => Effect.fail(new Error('forkSession is not used')),
   getSessionSnapshot: () => Effect.fail(new Error('getSessionSnapshot is not used')),
 })
 
@@ -98,6 +77,7 @@ const TestLayer = Layer.mergeAll(
   sessionServiceSettingsLayer,
   TestSessionLayer,
   TestAgentKernelLayer,
+  EmptyExtensionRuntimeLayer,
 )
 
 describe('agent session commands', () => {
@@ -105,9 +85,6 @@ describe('agent session commands', () => {
     persistSnapshotMock.mockReset()
     compactMock.mockReset()
     navigateTreeMock.mockReset()
-    forkSessionMock.mockReset()
-    createProjectionMock.mockReset()
-    getProjectionMock.mockReset()
   })
 
   it('forwards manual compaction lifecycle events while persisting the compacted session snapshot', async () => {
@@ -241,84 +218,5 @@ describe('agent session commands', () => {
       piSessionId: 'pi-session-1',
       piSessionFile: '/tmp/pi-session-1.jsonl',
     })
-  })
-
-  it('forks a previous user message into a new projected session and prefills the editor text', async () => {
-    forkSessionMock.mockResolvedValue({
-      cancelled: false,
-      editorText: 'retry this prompt',
-      piSessionId: 'pi-session-forked',
-      piSessionFile: '/tmp/pi-session-forked.jsonl',
-      sessionSnapshot: {
-        activeNodeId: 'parent-node',
-        nodes: [],
-      },
-    })
-
-    const result = await Effect.runPromise(
-      forkAgentSessionToNewSession({
-        sessionId: SessionId('session-1'),
-        model: SupportedModelId('openai/gpt-5.4'),
-        targetNodeId: SessionNodeId('user-node'),
-      }).pipe(Effect.provide(TestLayer)),
-    )
-
-    expect(result).toEqual({
-      cancelled: false,
-      editorText: 'retry this prompt',
-      session: forkedSession,
-    })
-    expect(forkSessionMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        session,
-        model: SupportedModelId('openai/gpt-5.4'),
-        targetNodeId: 'user-node',
-        position: 'before',
-      }),
-    )
-    expect(createProjectionMock).toHaveBeenCalledWith({
-      projectPath: '/tmp/project',
-      piSessionId: 'pi-session-forked',
-      piSessionFile: '/tmp/pi-session-forked.jsonl',
-    })
-    expect(persistSnapshotMock).toHaveBeenCalledWith({
-      sessionId: SessionId('pi-session-forked'),
-      nodes: [],
-      activeNodeId: 'parent-node',
-      piSessionId: 'pi-session-forked',
-      piSessionFile: '/tmp/pi-session-forked.jsonl',
-    })
-    expect(getProjectionMock).toHaveBeenCalledWith(SessionId('pi-session-forked'))
-  })
-
-  it('clones the current node into a new projected session without editor prefill', async () => {
-    forkSessionMock.mockResolvedValue({
-      cancelled: false,
-      piSessionId: 'pi-session-forked',
-      piSessionFile: '/tmp/pi-session-forked.jsonl',
-      sessionSnapshot: {
-        activeNodeId: 'current-node',
-        nodes: [],
-      },
-    })
-
-    const result = await Effect.runPromise(
-      cloneAgentSessionToNewSession({
-        sessionId: SessionId('session-1'),
-        model: SupportedModelId('openai/gpt-5.4'),
-        targetNodeId: SessionNodeId('current-node'),
-      }).pipe(Effect.provide(TestLayer)),
-    )
-
-    expect(result).toEqual({
-      cancelled: false,
-      session: forkedSession,
-    })
-    expect(forkSessionMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        targetNodeId: 'current-node',
-        position: 'at',
-      }),
-    )
   })
 })

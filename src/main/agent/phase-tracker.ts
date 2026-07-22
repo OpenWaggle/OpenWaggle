@@ -97,6 +97,8 @@ export function updatePhaseFromTransportEvent(
       'auto_retry_start',
       'auto_retry_end',
       'custom',
+      'agent_interaction_request',
+      'agent_interaction_resolved',
       () => ({ changed: false, phase: state.current }),
     )
     .exhaustive()

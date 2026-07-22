@@ -1,4 +1,4 @@
-import type { ExtensionFactory } from '@mariozechner/pi-coding-agent'
+import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { MCP_ADAPTER_PACKAGE_SOURCE } from '@shared/constants/mcp'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -153,7 +153,6 @@ describe('createPiRuntimeServices', () => {
       'skills/custom',
     ])
     expect(projectSettings.extensions).toEqual([
-      path.join('..', '.openwaggle', 'extensions'),
       'extensions',
       path.join('..', '.agents', 'extensions'),
       'extensions/custom',

@@ -43,7 +43,15 @@
     }
   },
   "files": {
-    "includes": ["src/**", "packages/**", "!src/renderer/src/routeTree.gen.ts"]
+    "includes": [
+      "src/**",
+      "packages/**",
+      "fixtures/**",
+      "!src/renderer/src/routeTree.gen.ts",
+      "!packages/**/dist/**",
+      "!packages/**/dist-cjs/**",
+      "!packages/**/.pack/**"
+    ]
   },
   "overrides": [
     {

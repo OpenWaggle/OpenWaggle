@@ -1,0 +1,312 @@
+import { safeDecodeUnknown } from '@shared/schema'
+import { openWaggleExtensionManifestSchema } from '@shared/schemas/extensions'
+import { describe, expect, it } from 'vitest'
+
+const validManifest = {
+  manifestVersion: 1,
+  id: 'sample-extension',
+  name: 'Sample Extension',
+  version: '1.0.0',
+  sdk: {
+    openwaggle: '>=0.1.0 <0.2.0',
+  },
+  sourceFiles: ['src/index.ts'],
+  builtArtifacts: ['dist/index.js'],
+  contributions: {
+    commands: [
+      {
+        id: 'sample.run',
+        title: 'Run Sample',
+        capability: 'sample.invoke',
+      },
+    ],
+  },
+}
+
+describe('openWaggleExtensionManifestSchema', () => {
+  it('accepts a valid v1 extension manifest', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, validManifest)
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.id).toBe('sample-extension')
+      expect(result.data.contributions?.commands?.[0]?.id).toBe('sample.run')
+    }
+  })
+
+  it('accepts extension package docs declarations', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      docs: {
+        topics: [
+          {
+            id: 'guides/getting-started',
+            title: 'Getting Started',
+            path: 'docs/getting-started.md',
+            description: 'Extension package docs.',
+            aliases: ['quickstart'],
+            keywords: ['extension', 'docs'],
+          },
+        ],
+      },
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts optional project and session targets on contributions', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      contributions: {
+        commands: [
+          {
+            id: 'sample.targeted-command',
+            title: 'Run Targeted Command',
+            target: {
+              projectPaths: ['/tmp/project'],
+              sessionIds: ['session-1'],
+            },
+          },
+        ],
+        sidePanels: [
+          {
+            id: 'sample.targeted-panel',
+            title: 'Targeted Panel',
+            runtime: 'federated-module',
+            execution: 'frame',
+            entry: 'dist/panel.js',
+            target: {
+              projectPaths: ['/tmp/project'],
+            },
+          },
+        ],
+        toolRenderers: [
+          {
+            id: 'sample.tool-renderer',
+            title: 'Sample Tool Renderer',
+            runtime: 'federated-module',
+            execution: 'host-renderer',
+            entry: 'dist/tool-renderer.js',
+            matches: {
+              toolNames: ['sample.tool'],
+            },
+          },
+        ],
+      },
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.contributions?.commands?.[0]?.target).toEqual({
+        projectPaths: ['/tmp/project'],
+        sessionIds: ['session-1'],
+      })
+      expect(result.data.contributions?.toolRenderers?.[0]?.matches?.toolNames).toEqual([
+        'sample.tool',
+      ])
+    }
+  })
+
+  it('accepts trusted renderer contributions when privileged renderer runtime is declared', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      trusted: {
+        renderer: 'dist/trusted-renderer.js',
+      },
+      contributions: {
+        settingsSections: [
+          {
+            id: 'sample.trusted-settings',
+            title: 'Trusted Settings',
+            runtime: 'trusted-renderer',
+            execution: 'host-renderer',
+            entry: 'dist/trusted-settings.js',
+          },
+        ],
+      },
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects trusted renderer contributions without privileged renderer declaration', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      contributions: {
+        settingsSections: [
+          {
+            id: 'sample.trusted-settings',
+            title: 'Trusted Settings',
+            runtime: 'trusted-renderer',
+            execution: 'host-renderer',
+            entry: 'dist/trusted-settings.js',
+          },
+        ],
+      },
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.issues.join('\n')).toContain('trusted.renderer')
+    }
+  })
+
+  it('rejects trusted renderer contributions outside host renderer execution', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      trusted: {
+        renderer: 'dist/trusted-renderer.js',
+      },
+      contributions: {
+        settingsSections: [
+          {
+            id: 'sample.trusted-settings',
+            title: 'Trusted Settings',
+            runtime: 'trusted-renderer',
+            execution: 'frame',
+            entry: 'dist/trusted-settings.js',
+          },
+        ],
+      },
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.issues.join('\n')).toContain('host renderer')
+    }
+  })
+
+  it('accepts exact https network origins', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      network: {
+        origins: ['https://api.github.com'],
+      },
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.network?.origins).toEqual(['https://api.github.com'])
+    }
+  })
+
+  it('rejects non-https network origins', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      network: {
+        origins: ['http://api.github.com'],
+      },
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.issues.join('\n')).toContain('network.origins.0')
+    }
+  })
+
+  it('rejects network origins with paths', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      network: {
+        origins: ['https://api.github.com/repos'],
+      },
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.issues.join('\n')).toContain('network.origins.0')
+    }
+  })
+
+  it('rejects obsolete lane-only UI contribution metadata', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      contributions: {
+        routes: [
+          {
+            id: 'sample.legacy',
+            title: 'Legacy Route',
+            lane: 'removed-renderer-lane',
+            entry: 'dist/legacy.js',
+          },
+        ],
+      },
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const issues = result.issues.join('\n')
+      expect(issues).toContain('runtime')
+    }
+  })
+
+  it('rejects invalid package ids', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      id: 'Sample Extension',
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.issues.join('\n')).toContain('id')
+    }
+  })
+
+  it('rejects unsafe relative paths', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      sourceFiles: ['../src/index.ts'],
+      builtArtifacts: ['/tmp/dist/index.js'],
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.issues.join('\n')).toContain('sourceFiles.0')
+    }
+  })
+
+  it('rejects relative paths with leading or trailing whitespace', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      sourceFiles: [' src/index.ts'],
+      builtArtifacts: ['dist/index.js '],
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.issues.join('\n')).toContain('leading or trailing whitespace')
+    }
+  })
+
+  it('accepts local-build install metadata', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      install: { source: 'local-build' },
+      build: {
+        command: 'pnpm build',
+        outputs: ['dist/index.js'],
+      },
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.install?.source).toBe('local-build')
+      expect(result.data.build?.command).toBe('pnpm build')
+    }
+  })
+
+  it('rejects multiline build commands', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      install: { source: 'local-build' },
+      build: {
+        command: 'pnpm build\npnpm test',
+      },
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.issues.join('\n')).toContain('single command line')
+    }
+  })
+})

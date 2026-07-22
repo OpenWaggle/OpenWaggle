@@ -136,6 +136,22 @@ export const ComposerConstants = {
 
 Avoid scattering reusable strings, dimensions, thresholds, labels, and storage keys inline through components.
 
+## Extension UI Surfaces
+
+Renderer extension UI follows ADR-0006. Visual extension contributions are modeled by contribution surface, contribution runtime, and execution placement.
+
+Rules:
+
+- OpenWaggle owns contribution containers: placement, chrome, sizing, docking, and persistence rules.
+- Extensions own only the content mounted inside the contribution container.
+- The default visual runtime is the federated-module runtime with a framework-neutral `mount(context)` entry point.
+- Host-renderer and frame execution placements must use the same mount-context contract when both are available.
+- Extension code uses the public Extension SDK surface and brokered capabilities instead of importing renderer feature internals, writable OpenWaggle stores, Pi SDK objects, Electron APIs, or broad `window.api`.
+- Settings sections, side panels, dialogs, extension routes, transcript cards, status widgets, and compact composer action surfaces should be host-owned containers.
+- Composer extension contributions are compact actions or launchers; they must not inject arbitrary input controls into the composer text flow.
+- Multiple contributions from the same extension package may share extension package state through the SDK; contribution instance state stays scoped to one mounted contribution.
+- Development extension fixtures belong outside the product renderer tree and must not be shipped as product content.
+
 ## Testing
 
 Tests live near the code they validate.

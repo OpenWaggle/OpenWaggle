@@ -3,7 +3,7 @@ import type {
   AuthCredential,
   AuthStorage,
   ModelRegistry,
-} from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
 import type { ThinkingLevel } from '@shared/types/settings'
 
 export interface ProviderModelRecord {
@@ -25,6 +25,11 @@ export interface ProviderCatalogRecord {
   readonly models: readonly ProviderModelRecord[]
 }
 
+export interface PiExtensionLoadErrorRecord {
+  readonly path: string
+  readonly error: string
+}
+
 export interface ProviderCatalogSnapshot {
   readonly providers: readonly ProviderCatalogRecord[]
   readonly oauthProviders: ReadonlySet<string>
@@ -32,6 +37,7 @@ export interface ProviderCatalogSnapshot {
   readonly credentials: ReadonlyMap<string, AuthCredential>
   readonly configuredAuthProviders: ReadonlySet<string>
   readonly builtInModelProviders: ReadonlySet<string>
+  readonly extensionLoadErrors: readonly PiExtensionLoadErrorRecord[]
 }
 
 export type PiModel = NonNullable<ReturnType<ModelRegistry['find']>>

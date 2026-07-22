@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parsePiWaggleCommandArgs } from '../commands'
+import { parsePiWaggleCommandArgs } from '../commands.js'
 
 describe('pi-waggle command parser', () => {
   it('parses Waggle slash command arguments', () => {

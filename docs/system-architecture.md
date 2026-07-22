@@ -66,6 +66,12 @@ Pi's resource loader is the runtime source of truth for skills and context files
 
 MCP support is provided through Pi's extension system using the `pi-mcp-adapter` package source. The main process owns MCP config file reads/writes behind `McpConfigService`; the renderer only sees typed IPC DTOs. The effective MCP config merges global standard, global Pi, project standard, `.agents`, project Pi, and `.openwaggle/agent/mcp.json` sources before being passed to Pi for the next run. The Pi adapter scopes adapter startup and session binding to the generated MCP config and an isolated adapter cwd, then emits `session_shutdown` before disposal so MCP server state follows Pi's extension lifecycle.
 
+## OpenWaggle Extensions
+
+OpenWaggle extension packages are first-class product packages that can contribute desktop UI/behavior and optionally include Pi runtime resources. Pi runtime resources still execute through Pi semantics and adapter boundaries; OpenWaggle-owned desktop contributions execute through the public Extension SDK/API and brokered capabilities.
+
+Visual desktop contributions follow ADR-0006: manifests model contribution surface, contribution runtime, and execution placement. The default visual runtime is a framework-neutral federated module exporting `mount(context)` into an OpenWaggle-owned contribution container. Extension code must not import renderer internals, writable OpenWaggle stores, Pi SDK internals, or Electron app internals as a supported integration path.
+
 ## Security
 
 Electron security remains fail-closed: no renderer Node integration, context isolation on, sandbox on, strict CSP, and IPC through the preload bridge only.

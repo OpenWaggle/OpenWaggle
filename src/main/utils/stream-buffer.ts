@@ -207,6 +207,8 @@ export function applyEventToStreamBuffer(sessionId: SessionId, event: AgentTrans
       'auto_retry_start',
       'auto_retry_end',
       'custom',
+      'agent_interaction_request',
+      'agent_interaction_resolved',
       () => undefined,
     )
     .exhaustive()

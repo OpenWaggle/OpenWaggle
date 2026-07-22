@@ -1,4 +1,4 @@
-import type { AgentEndEvent } from '@mariozechner/pi-coding-agent'
+import type { AgentEndEvent } from '@earendil-works/pi-coding-agent'
 import type { WaggleConfig, WaggleConsensusCheckResult } from '@openwaggle/waggle-core'
 import { checkConsensus, decideNextWaggleTurn } from '@openwaggle/waggle-core'
 

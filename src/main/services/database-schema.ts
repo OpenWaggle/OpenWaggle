@@ -1,3 +1,8 @@
+import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+
+const DEFAULT_EXTENSION_BUILD_STATUS = OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.NOT_RUN
+const DEFAULT_EXTENSION_RELOAD_STATUS = OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED
+
 export const CURRENT_SESSION_SCHEMA_STATEMENTS = [
   `
   CREATE TABLE IF NOT EXISTS sessions (
@@ -89,4 +94,149 @@ export const CURRENT_SESSION_SCHEMA_STATEMENTS = [
     updated_at INTEGER NOT NULL
   )
   `,
+] as const
+
+export const EXTENSION_LIFECYCLE_SCHEMA_V1_STATEMENTS = [
+  `
+  CREATE TABLE IF NOT EXISTS extension_lifecycle_state (
+    extension_id TEXT NOT NULL,
+    scope_kind TEXT NOT NULL,
+    scope_id TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 0,
+    trusted INTEGER NOT NULL DEFAULT 0,
+    granted_capabilities_json TEXT NOT NULL,
+    content_hash TEXT,
+    sdk_range TEXT,
+    sdk_compatible INTEGER NOT NULL DEFAULT 0,
+    diagnostics_json TEXT NOT NULL,
+    installed_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (extension_id, scope_kind, scope_id)
+  )
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_extension_lifecycle_scope
+  ON extension_lifecycle_state (scope_kind, scope_id)
+  `,
+] as const
+
+export const EXTENSION_LIFECYCLE_PACKAGE_VERSION_MIGRATION_STATEMENTS = [
+  `
+  ALTER TABLE extension_lifecycle_state
+  ADD COLUMN package_version TEXT
+  `,
+] as const
+
+export const EXTENSION_LIFECYCLE_BUILD_APPROVAL_MIGRATION_STATEMENTS = [
+  `
+  ALTER TABLE extension_lifecycle_state
+  ADD COLUMN approved_build_plan_hash TEXT
+  `,
+] as const
+
+export const EXTENSION_LIFECYCLE_BUILD_RUN_MIGRATION_STATEMENTS = [
+  `
+  ALTER TABLE extension_lifecycle_state
+  ADD COLUMN build_status TEXT NOT NULL DEFAULT '${DEFAULT_EXTENSION_BUILD_STATUS}'
+  `,
+  `
+  ALTER TABLE extension_lifecycle_state
+  ADD COLUMN build_log TEXT
+  `,
+] as const
+
+export const EXTENSION_LIFECYCLE_RELOAD_STATE_MIGRATION_STATEMENTS = [
+  `
+  ALTER TABLE extension_lifecycle_state
+  ADD COLUMN reload_status TEXT NOT NULL DEFAULT '${DEFAULT_EXTENSION_RELOAD_STATUS}'
+  `,
+  `
+  ALTER TABLE extension_lifecycle_state
+  ADD COLUMN last_reloaded_at INTEGER
+  `,
+] as const
+
+export const CURRENT_EXTENSION_LIFECYCLE_SCHEMA_STATEMENTS = [
+  `
+  CREATE TABLE IF NOT EXISTS extension_lifecycle_state (
+    extension_id TEXT NOT NULL,
+    scope_kind TEXT NOT NULL,
+    scope_id TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 0,
+    trusted INTEGER NOT NULL DEFAULT 0,
+    granted_capabilities_json TEXT NOT NULL,
+    content_hash TEXT,
+    package_version TEXT,
+    approved_build_plan_hash TEXT,
+    build_status TEXT NOT NULL DEFAULT '${DEFAULT_EXTENSION_BUILD_STATUS}',
+    build_log TEXT,
+    reload_status TEXT NOT NULL DEFAULT '${DEFAULT_EXTENSION_RELOAD_STATUS}',
+    last_reloaded_at INTEGER,
+    sdk_range TEXT,
+    sdk_compatible INTEGER NOT NULL DEFAULT 0,
+    diagnostics_json TEXT NOT NULL,
+    installed_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (extension_id, scope_kind, scope_id)
+  )
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_extension_lifecycle_scope
+  ON extension_lifecycle_state (scope_kind, scope_id)
+  `,
+] as const
+
+export const CURRENT_EXTENSION_PROJECT_OVERRIDE_SCHEMA_STATEMENTS = [
+  `
+  CREATE TABLE IF NOT EXISTS extension_project_overrides (
+    extension_id TEXT NOT NULL,
+    scope_kind TEXT NOT NULL,
+    scope_id TEXT NOT NULL,
+    project_path TEXT NOT NULL,
+    disabled INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (extension_id, scope_kind, scope_id, project_path)
+  )
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_extension_project_overrides_project
+  ON extension_project_overrides (project_path, disabled)
+  `,
+] as const
+
+export const CURRENT_EXTENSION_STORAGE_SCHEMA_STATEMENTS = [
+  `
+  CREATE TABLE IF NOT EXISTS extension_storage_items (
+    extension_id TEXT NOT NULL,
+    package_scope_kind TEXT NOT NULL,
+    package_scope_id TEXT NOT NULL,
+    storage_kind TEXT NOT NULL,
+    storage_scope_kind TEXT NOT NULL,
+    storage_scope_id TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value_json TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (
+      extension_id,
+      package_scope_kind,
+      package_scope_id,
+      storage_kind,
+      storage_scope_kind,
+      storage_scope_id,
+      key
+    )
+  )
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_extension_storage_scope
+  ON extension_storage_items (storage_scope_kind, storage_scope_id, extension_id)
+  `,
+] as const
+
+export const CURRENT_EXTENSION_SCHEMA_STATEMENTS = [
+  ...CURRENT_EXTENSION_LIFECYCLE_SCHEMA_STATEMENTS,
+  ...CURRENT_EXTENSION_PROJECT_OVERRIDE_SCHEMA_STATEMENTS,
+  ...CURRENT_EXTENSION_STORAGE_SCHEMA_STATEMENTS,
 ] as const

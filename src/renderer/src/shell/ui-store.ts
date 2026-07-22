@@ -7,8 +7,17 @@ const FEEDBACK_COOLDOWN_MS = 60_000
 export const DIFF_PANEL_MIN = 360
 export const DIFF_PANEL_MAX = 900
 export const CHAT_MIN_WIDTH = 420
+export const EXTENSION_SIDE_PANEL_ROUTE_PANEL = 'extension-side-panel'
 
-export type RightSidebarPanel = 'diff' | 'session-tree'
+export interface ExtensionRightSidebarPanel {
+  readonly kind: 'extension-side-panel'
+  readonly extensionId: string
+  readonly sidePanelId: string
+  readonly packagePath?: string
+  readonly contentHash?: string
+}
+
+export type RightSidebarPanel = 'diff' | 'session-tree' | ExtensionRightSidebarPanel
 
 export interface ToastData {
   message: string
@@ -20,7 +29,16 @@ export interface ToastData {
   action?: { label: string; url?: string; onClick?: () => void }
 }
 
-export type SettingsTab = 'general' | 'waggle' | 'mcp' | 'archived' | 'connections'
+export const SETTINGS_TABS = [
+  'general',
+  'waggle',
+  'extensions',
+  'mcp',
+  'archived',
+  'connections',
+] as const
+
+export type SettingsTab = (typeof SETTINGS_TABS)[number]
 
 interface UIState {
   sidebarOpen: boolean

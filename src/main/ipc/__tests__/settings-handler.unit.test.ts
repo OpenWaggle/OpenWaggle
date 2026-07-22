@@ -1,13 +1,15 @@
+import { mkdtemp, realpath, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   getBranchSummarySkipPromptMock,
   getSettingsMock,
   getTreeFilterModeMock,
   getTypedEffectInvokeHandler,
   loadSettingsHandlers,
-  probeCredentialsMock,
-  providerServiceGetMock,
+  reconcileTrustedMainExtensionsMock,
   resetSettingsHandlerMocks,
   setTreeFilterModeMock,
   typedHandleMock,
@@ -18,10 +20,17 @@ describe('registerSettingsHandlers', () => {
   let registerSettingsHandlers: Awaited<
     ReturnType<typeof loadSettingsHandlers>
   >['registerSettingsHandlers']
+  let tempProjectPaths: string[] = []
 
   beforeEach(async () => {
     resetSettingsHandlerMocks()
     ;({ registerSettingsHandlers } = await loadSettingsHandlers())
+  })
+
+  afterEach(async () => {
+    const paths = tempProjectPaths
+    tempProjectPaths = []
+    await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })))
   })
 
   it('registers all expected IPC channels', () => {
@@ -134,6 +143,34 @@ describe('registerSettingsHandlers', () => {
       expect(updateSettingsMock).toHaveBeenCalledWith(
         expect.objectContaining({ projectPath: null }),
       )
+      expect(reconcileTrustedMainExtensionsMock).toHaveBeenCalledWith(null)
+    })
+
+    it('reconciles trusted main extensions after projectPath updates', async () => {
+      const projectPath = await mkdtemp(join(tmpdir(), 'openwaggle-settings-project-'))
+      const canonicalProjectPath = await realpath(projectPath)
+      tempProjectPaths.push(canonicalProjectPath)
+      registerSettingsHandlers()
+
+      const handler = getTypedEffectInvokeHandler('settings:update')
+      expect(handler).toBeDefined()
+
+      const result = await handler?.({}, { projectPath })
+
+      expect(result).toEqual({ ok: true })
+      expect(reconcileTrustedMainExtensionsMock).toHaveBeenCalledWith(canonicalProjectPath)
+    })
+
+    it('does not reconcile trusted main extensions for unrelated settings updates', async () => {
+      registerSettingsHandlers()
+
+      const handler = getTypedEffectInvokeHandler('settings:update')
+      expect(handler).toBeDefined()
+
+      const result = await handler?.({}, { thinkingLevel: 'high' })
+
+      expect(result).toEqual({ ok: true })
+      expect(reconcileTrustedMainExtensionsMock).not.toHaveBeenCalled()
     })
 
     it('accepts skillTogglesByProject update', async () => {
@@ -199,134 +236,6 @@ describe('registerSettingsHandlers', () => {
       const result = await handler?.({}, null)
       expect(result).toBe(true)
       expect(getBranchSummarySkipPromptMock).toHaveBeenCalledWith(undefined)
-    })
-  })
-
-  describe('settings:test-api-key', () => {
-    it('returns error for unknown provider', async () => {
-      providerServiceGetMock.mockReturnValue(undefined)
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:test-api-key')
-      expect(handler).toBeDefined()
-
-      const result = await handler?.({}, 'nonexistent', 'some-key')
-      expect(result).toEqual({ success: false, error: 'Unknown provider: nonexistent' })
-      expect(probeCredentialsMock).not.toHaveBeenCalled()
-    })
-
-    it('returns success when the probe succeeds', async () => {
-      providerServiceGetMock.mockReturnValue({
-        id: 'anthropic',
-        displayName: 'Anthropic',
-        auth: {
-          configured: false,
-          source: 'none',
-          apiKeyConfigured: false,
-          apiKeySource: 'none',
-          oauthConnected: false,
-          supportsApiKey: true,
-          supportsOAuth: true,
-        },
-        models: [],
-        testModel: 'claude-haiku-3.5',
-      })
-      probeCredentialsMock.mockResolvedValue(undefined)
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:test-api-key')
-      const result = await handler?.({}, 'anthropic', 'sk-ant-test-key')
-
-      expect(result).toEqual({ success: true })
-      expect(probeCredentialsMock).toHaveBeenCalledWith({
-        providerId: 'anthropic',
-        modelId: 'claude-haiku-3.5',
-        apiKey: 'sk-ant-test-key',
-      })
-    })
-
-    it('normalizes empty API keys to undefined for keyless probes', async () => {
-      providerServiceGetMock.mockReturnValue({
-        id: 'ollama',
-        displayName: 'Ollama',
-        auth: {
-          configured: false,
-          source: 'none',
-          apiKeyConfigured: false,
-          apiKeySource: 'none',
-          oauthConnected: false,
-          supportsApiKey: true,
-          supportsOAuth: false,
-        },
-        models: [],
-        testModel: 'llama3.2',
-      })
-      probeCredentialsMock.mockResolvedValue(undefined)
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:test-api-key')
-      const result = await handler?.({}, 'ollama', '')
-
-      expect(result).toEqual({ success: true })
-      expect(probeCredentialsMock).toHaveBeenCalledWith({
-        providerId: 'ollama',
-        modelId: 'llama3.2',
-        apiKey: undefined,
-      })
-    })
-
-    it('tests the selected provider with the supplied API key only', async () => {
-      providerServiceGetMock.mockReturnValue({
-        id: 'openai',
-        displayName: 'OpenAI',
-        auth: {
-          configured: false,
-          source: 'none',
-          apiKeyConfigured: false,
-          apiKeySource: 'none',
-          oauthConnected: false,
-          supportsApiKey: true,
-          supportsOAuth: true,
-        },
-        models: [],
-        testModel: 'gpt-4.1-mini',
-      })
-      probeCredentialsMock.mockResolvedValue(undefined)
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:test-api-key')
-      await handler?.({}, 'openai', 'token')
-
-      expect(probeCredentialsMock).toHaveBeenCalledWith({
-        providerId: 'openai',
-        modelId: 'gpt-4.1-mini',
-        apiKey: 'token',
-      })
-    })
-
-    it('returns a structured failure when the probe throws', async () => {
-      providerServiceGetMock.mockReturnValue({
-        id: 'gemini',
-        displayName: 'Gemini',
-        auth: {
-          configured: false,
-          source: 'none',
-          apiKeyConfigured: false,
-          apiKeySource: 'none',
-          oauthConnected: false,
-          supportsApiKey: true,
-          supportsOAuth: false,
-        },
-        models: [],
-        testModel: 'gemini-2.5-flash',
-      })
-      probeCredentialsMock.mockRejectedValue(new Error('Invalid API key'))
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:test-api-key')
-      const result = await handler?.({}, 'gemini', 'bad-key')
-
-      expect(result).toEqual({ success: false, error: 'Invalid API key' })
     })
   })
 })

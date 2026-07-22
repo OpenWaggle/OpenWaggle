@@ -1,3 +1,6 @@
+import { OPENWAGGLE_AGENT_LOOP } from '@shared/constants/agent-loop'
+import { parseJsonUnknown } from '@shared/schema'
+import { isRecord } from '@shared/utils/validation'
 import type { ProjectedSessionNodeInput } from '../../ports/session-repository'
 import { deriveBranchForHead } from './branch-head'
 import {
@@ -12,6 +15,25 @@ import {
 } from './branch-utils'
 import { EMPTY_INDEX, MAIN_BRANCH_NAME } from './constants'
 import type { DerivedSessionBranch, SessionBranchRow } from './types'
+
+function isAgentLoopAuditNode(node: ProjectedSessionNodeInput) {
+  if (node.kind !== 'custom') {
+    return false
+  }
+
+  try {
+    const content = parseJsonUnknown(node.contentJson)
+    return (
+      isRecord(content) && content.customType === OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE
+    )
+  } catch {
+    return false
+  }
+}
+
+function branchDerivationNodes(nodes: readonly ProjectedSessionNodeInput[]) {
+  return nodes.filter((node) => !isAgentLoopAuditNode(node))
+}
 
 function resolveMainHeadId(input: {
   readonly activeHeadId: string | null
@@ -220,7 +242,10 @@ export function deriveSessionBranchesForSnapshot(input: {
   readonly activeNodeId: string | null
   readonly existingBranches: readonly SessionBranchRow[]
 }) {
-  return normalizeDerivedBranches({ ...deriveSessionBranches(input), sessionId: input.sessionId })
+  return normalizeDerivedBranches({
+    ...deriveSessionBranches({ ...input, nodes: branchDerivationNodes(input.nodes) }),
+    sessionId: input.sessionId,
+  })
 }
 
 export function deriveBranchHints(input: {
@@ -228,7 +253,8 @@ export function deriveBranchHints(input: {
   readonly nodes: readonly ProjectedSessionNodeInput[]
   readonly activeBranchId: string
 }) {
-  const nodeById = new Map(input.nodes.map((node) => [node.id, node]))
+  const nodes = branchDerivationNodes(input.nodes)
+  const nodeById = new Map(nodes.map((node) => [node.id, node]))
   const activeBranch = input.branches.find((branch) => branch.id === input.activeBranchId)
   const activePathIds = new Set(getPathIds(nodeById, activeBranch?.headNodeId ?? null))
   const branchHintByNodeId = new Map<string, string>()

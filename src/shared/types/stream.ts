@@ -5,6 +5,12 @@
  * remaining vendor-free shared types.
  */
 
+import type {
+  AgentLoopInteraction,
+  AgentLoopInteractionKind,
+  AgentLoopInteractionResponse,
+  AgentLoopInteractionStatus,
+} from './agent-loop-interaction'
 import type { JsonValue } from './json'
 
 interface TransportEventBase {
@@ -214,6 +220,21 @@ export interface AgentTransportCustomEvent extends TransportEventBase {
   readonly value?: JsonValue
 }
 
+export interface AgentTransportInteractionRequestEvent extends TransportEventBase {
+  readonly type: 'agent_interaction_request'
+  readonly interaction: AgentLoopInteraction
+}
+
+export interface AgentTransportInteractionResolvedEvent extends TransportEventBase {
+  readonly type: 'agent_interaction_resolved'
+  readonly runId: string
+  readonly interactionId: string
+  readonly kind: AgentLoopInteractionKind
+  readonly status: AgentLoopInteractionStatus
+  readonly response?: AgentLoopInteractionResponse
+  readonly error?: AgentTransportErrorInfo
+}
+
 export type AgentTransportEvent =
   | AgentTransportAgentStartEvent
   | AgentTransportAgentEndEvent
@@ -231,3 +252,5 @@ export type AgentTransportEvent =
   | AgentTransportAutoRetryStartEvent
   | AgentTransportAutoRetryEndEvent
   | AgentTransportCustomEvent
+  | AgentTransportInteractionRequestEvent
+  | AgentTransportInteractionResolvedEvent

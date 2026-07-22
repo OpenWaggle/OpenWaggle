@@ -4,7 +4,7 @@ import type {
   ExtensionContext,
   ExtensionFactory,
   TurnEndEvent,
-} from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
 import type { WaggleConfig, WaggleTurn } from '@openwaggle/waggle-core'
 import { decideNextWaggleTurn, getWaggleTurn } from '@openwaggle/waggle-core'
 
