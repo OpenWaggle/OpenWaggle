@@ -9,6 +9,7 @@ import { RELEASE_PLEASE_CONTRACT } from './release-please-contract'
 import { validateReleaseCiPolicy } from './release-ci-policy'
 
 const CI_WORKFLOW_PATH = '.github/workflows/ci.yml'
+const RELEASE_REHEARSAL_BRANCH_GUARD_COUNT = 11
 const WORKFLOW_PATH = '.github/workflows/package-release.yml'
 const DIRECT_NODE = 'node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON'
 const PACKAGE_RELEASE_WORKFLOW_AST_CONTRACT =
@@ -99,6 +100,19 @@ function validateCiWorkflow(ciWorkflowText: string, violations: string[]) {
   const artifacts = workflowJobBlock(ciWorkflowText, 'prepare-package-release')
   const candidate = workflowJobBlock(ciWorkflowText, 'package-release-candidate')
   const gate = workflowJobBlock(ciWorkflowText, 'package-release-gate')
+  const exactReleaseBranchGuard =
+    "(github.head_ref || github.ref_name) != 'release-please--branches--main'"
+  if (
+    ciWorkflowText.includes(
+      "startsWith(github.head_ref || github.ref_name, 'release-please--branches--main')",
+    ) ||
+    ciWorkflowText.split(exactReleaseBranchGuard).length - 1 !==
+      RELEASE_REHEARSAL_BRANCH_GUARD_COUNT
+  ) {
+    violations.push(
+      `${CI_WORKFLOW_PATH} must use exact branch matching for Release Please rehearsal exclusions.`,
+    )
+  }
   requireText(ciWorkflowText, [
     ['name: Package Release Gate', `${CI_WORKFLOW_PATH} must expose the always-present Package Release Gate status.`],
     ['          - 22.19.0\n          - 24.14.0', `${CI_WORKFLOW_PATH} must rehearse exact Node 22.19.0 and 24.14.0 runtimes.`],
@@ -112,7 +126,7 @@ function validateCiWorkflow(ciWorkflowText: string, violations: string[]) {
     ['pnpm exec playwright install chromium', `${CI_WORKFLOW_PATH} must install Chromium for browser package rehearsal.`],
     ["OPENWAGGLE_PACKAGE_BROWSER_SMOKE: '1'", `${CI_WORKFLOW_PATH} must enable browser package smoke.`],
     ["OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun'", `${CI_WORKFLOW_PATH} must rehearse npm, pnpm, Yarn, and Bun consumers.`],
-    ["matrix.node == '22.19.0' || !startsWith(github.head_ref || github.ref_name, 'release-please--branches--main')", `${CI_WORKFLOW_PATH} must avoid duplicate Node 24 release-PR rehearsal.`],
+    [`matrix.node == '22.19.0' || ${exactReleaseBranchGuard}`, `${CI_WORKFLOW_PATH} must avoid duplicate Node 24 release-PR rehearsal.`],
     [`${DIRECT_NODE} .release-tooling/scripts/package-consumer-tools.ts install`, `${CI_WORKFLOW_PATH} must install pinned consumer tools without Node module-type warnings.`],
     [`${DIRECT_NODE} .release-tooling/scripts/package-consumer-tools.ts verify`, `${CI_WORKFLOW_PATH} must verify pinned consumer tools without Node module-type warnings.`],
   ], violations)

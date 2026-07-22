@@ -82,7 +82,7 @@ describe('package release workflow validation', () => {
   it('rejects duplicate Node 24 release-PR rehearsal instead of canonical artifact smoke', async () => {
     const invalidCi = replaceRequired(
       validCiWorkflow,
-      "matrix.node == '22.19.0' || !startsWith(github.head_ref || github.ref_name, 'release-please--branches--main')",
+      "matrix.node == '22.19.0' || (github.head_ref || github.ref_name) != 'release-please--branches--main'",
       'always()',
     )
     const result = await validatePackageReleaseFiles(
@@ -91,6 +91,21 @@ describe('package release workflow validation', () => {
 
     expect(result.violations).toContain(
       'CI workflow must match its exact fail-closed AST contract.',
+    )
+  })
+
+  it('rejects prefix matching that lets lookalike branches skip release rehearsal', async () => {
+    const invalidCi = replaceRequired(
+      validCiWorkflow,
+      "(github.head_ref || github.ref_name) != 'release-please--branches--main'",
+      "!startsWith(github.head_ref || github.ref_name, 'release-please--branches--main')",
+    )
+    const result = await validatePackageReleaseFiles(
+      await temporaryProject(validWorkflow, invalidCi),
+    )
+
+    expect(result.violations).toContain(
+      '.github/workflows/ci.yml must use exact branch matching for Release Please rehearsal exclusions.',
     )
   })
 
