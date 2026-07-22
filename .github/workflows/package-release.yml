@@ -9,6 +9,12 @@ on:
       - packages/extension-react/**
       - packages/waggle-core/**
       - packages/pi-waggle/**
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Exact merged package release commit to resume
+        required: true
+        type: string
 
 concurrency:
   group: package-release
@@ -20,6 +26,7 @@ permissions:
 jobs:
   release-please:
     name: Maintain coordinated package release PR
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       actions: write
@@ -34,11 +41,21 @@ jobs:
           manifest-file: .release-please-manifest.json
           skip-github-release: true
 
+      - name: Resolve coordinated package release PR
+        id: release-pr
+        if: ${{ steps.release.outputs.prs_created == 'true' }}
+        env:
+          PR_JSON: ${{ steps.release.outputs.pr }}
+        run: |
+          set -euo pipefail
+          HEAD_BRANCH=$(jq -er '.headBranchName' <<<"$PR_JSON")
+          echo "head_branch=$HEAD_BRANCH" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         if: ${{ steps.release.outputs.prs_created == 'true' }}
         with:
           fetch-depth: 0
-          ref: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
+          ref: ${{ steps.release-pr.outputs.head_branch }}
 
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         if: ${{ steps.release.outputs.prs_created == 'true' }}
@@ -54,7 +71,7 @@ jobs:
       - name: Synchronize versioned package documentation
         if: ${{ steps.release.outputs.prs_created == 'true' }}
         env:
-          RELEASE_PR_HEAD: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
+          RELEASE_PR_HEAD: ${{ steps.release-pr.outputs.head_branch }}
         run: |
           set -euo pipefail
           pnpm install --frozen-lockfile
@@ -138,7 +155,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       artifact_name: ${{ steps.plan.outputs.artifact_name }}
+      before_sha: ${{ steps.context.outputs.before_sha }}
       has_release: ${{ steps.plan.outputs.has_release }}
+      source_sha: ${{ steps.context.outputs.source_sha }}
       source_tree: ${{ steps.plan.outputs.source_tree }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -154,9 +173,17 @@ jobs:
       - name: Require exact release planning Node
         run: node --version | grep -Fx v24.14.0
 
+      - name: Resolve immutable package release context
+        id: context
+        env:
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_SHA: ${{ github.sha }}
+          RECOVERY_RELEASE_SHA: ${{ inputs.release_sha }}
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-context.ts "$GITHUB_EVENT_NAME" "$EVENT_BEFORE" "$EVENT_SHA" "$RECOVERY_RELEASE_SHA" "$GITHUB_REF"
+
       - name: Resolve exact merged package plan
         id: plan
-        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-plan.ts "${{ github.event.before }}" "${{ github.sha }}" "$RUNNER_TEMP/package-release-plan.json"
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-plan.ts "${{ steps.context.outputs.before_sha }}" "${{ steps.context.outputs.source_sha }}" "$RUNNER_TEMP/package-release-plan.json"
 
 
   publish:
@@ -164,7 +191,7 @@ jobs:
     needs:
       - release-please
       - release-plan
-    if: ${{ needs.release-plan.outputs.has_release == 'true' }}
+    if: ${{ always() && needs.release-plan.result == 'success' && needs.release-plan.outputs.has_release == 'true' && ((github.event_name == 'push' && needs.release-please.result == 'success') || (github.event_name == 'workflow_dispatch' && needs.release-please.result == 'skipped')) }}
     runs-on: ubuntu-latest
     environment: npm
     permissions:
@@ -189,7 +216,7 @@ jobs:
           test "$(npm --version)" = "11.18.0"
 
       - name: Recreate exact merged package plan
-        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-plan.ts "${{ github.event.before }}" "${{ github.sha }}" "$RUNNER_TEMP/package-release-plan.json"
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-plan.ts "${{ needs.release-plan.outputs.before_sha }}" "${{ needs.release-plan.outputs.source_sha }}" "$RUNNER_TEMP/package-release-plan.json"
 
       - name: Locate successful Release Please PR artifacts
         id: artifact
@@ -210,4 +237,5 @@ jobs:
         env:
           EXPECTED_ARTIFACT_SOURCE_SHA: ${{ steps.artifact.outputs.source_sha }}
           GH_TOKEN: ${{ github.token }}
+          RECOVERY_RELEASE_SHA: ${{ inputs.release_sha }}
         run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-promote.ts "$RUNNER_TEMP/package-release-plan.json" "$RUNNER_TEMP/package-release-artifacts"

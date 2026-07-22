@@ -231,6 +231,7 @@ export async function validatePackageReleaseFiles(
   const [
     workflowText,
     ciWorkflowText,
+    contextSource,
     promoteSource,
     promotionSource,
     artifactsSource,
@@ -239,6 +240,7 @@ export async function validatePackageReleaseFiles(
   ] = await Promise.all([
     readFile(path.join(projectRoot, WORKFLOW_PATH), 'utf8'),
     readFile(path.join(projectRoot, CI_WORKFLOW_PATH), 'utf8'),
+    readFile(path.join(projectRoot, 'scripts/package-release-context.ts'), 'utf8'),
     readFile(path.join(projectRoot, 'scripts/package-release-promote.ts'), 'utf8'),
     readFile(path.join(projectRoot, 'scripts/package-release-promotion.ts'), 'utf8'),
     readFile(path.join(projectRoot, 'scripts/package-release-artifacts.ts'), 'utf8'),
@@ -248,6 +250,7 @@ export async function validatePackageReleaseFiles(
   validatePackageReleasePipelines({
     artifactsSource: `${artifactsSource}\n${contractSource}`,
     ciWorkflowText,
+    contextSource,
     locatorSource,
     promoteSource: `${promoteSource}\n${promotionSource}`,
     workflowText,

@@ -61,7 +61,7 @@ OpenWaggle npm packages use Release Please manifest mode through `release-please
 - Create immutable package tags only after npm accepts the version, and publish the GitHub Release only after the npm version is resolvable.
 - Publish `extension-sdk` and `waggle-core` before `extension-react` and `pi-waggle`, respectively.
 - Do not add `NPM_TOKEN`, `NODE_AUTH_TOKEN`, `npm stage publish`, or a local fallback for real package versions.
-- Recovery resumes one exact attested release-candidate artifact. It must not rebuild or replace an existing npm version.
+- Recovery uses a manual Package Release workflow dispatch from `main` with the exact merged release commit SHA. The typed release context requires that commit to be reachable from `origin/main`, finds the package-version commit on first-parent history and uses its parent as the pre-release baseline, then resumes the exact matching attested release-candidate artifact without rebuilding or replacing an existing npm version.
 - A PR that changes `packages/**` needs a `fix`, `feat`, or `revert` squash title so Release Please creates the required version. Package-changing `docs`, `chore`, and `refactor` titles fail CI; generated Release Please titles are allowed.
 - All packages require Node.js `>=22.19.0`. Release validation covers Node 22.19+ and Node 24; publication uses Node 24 and pinned npm `11.18.0` until deliberately updated.
 - The one-time `pnpm package-release:bootstrap --execute` path may publish deprecated `0.0.0-bootstrap.0` namespace placeholders under the `bootstrap` dist-tag, configure `npm trust`, and disable token publication. It must never publish a real package version.

@@ -33,6 +33,51 @@ afterEach(async () => {
 })
 
 describe('package release workflow validation', () => {
+  it('rejects eager JSON parsing of optional Release Please outputs', async () => {
+    const invalidWorkflow = replaceRequired(
+      validWorkflow,
+      '${{ steps.release-pr.outputs.head_branch }}',
+      '${{ fromJSON(steps.release.outputs.pr).headBranchName }}',
+    )
+    const result = await validatePackageReleaseFiles(await temporaryProject(invalidWorkflow))
+
+    expect(result.violations).toContain(
+      '.github/workflows/package-release.yml must not eagerly parse optional Release Please outputs.',
+    )
+  })
+
+  it('rejects package publication without immutable recovery dispatch guards', async () => {
+    const invalidWorkflow = validWorkflow
+      .replace('  workflow_dispatch:\n', '  disabled_dispatch:\n')
+      .replace('scripts/package-release-context.ts', 'scripts/unsafe-release-context.ts')
+    const result = await validatePackageReleaseFiles(await temporaryProject(invalidWorkflow))
+
+    expect(result.violations).toEqual(expect.arrayContaining([
+      '.github/workflows/package-release.yml must expose an explicit package release recovery dispatch.',
+      '.github/workflows/package-release.yml must resolve push and recovery identity through the typed release context.',
+    ]))
+  })
+
+  it('rejects a recovery resolver that no longer requires origin/main ancestry', async () => {
+    const projectRoot = await temporaryProject()
+    const contextPath = path.join(projectRoot, 'scripts/package-release-context.ts')
+    const contextSource = await fs.readFile(
+      path.join(process.cwd(), 'scripts/package-release-context.ts'),
+      'utf8',
+    )
+    await fs.writeFile(
+      contextPath,
+      replaceRequired(contextSource, "'origin/main'", "'origin/untrusted'"),
+      'utf8',
+    )
+
+    const result = await validatePackageReleaseFiles(projectRoot)
+
+    expect(result.violations).toContain(
+      'package-release-context.ts must require recovery commits to be reachable from origin/main.',
+    )
+  })
+
   it.each([
     ['actions permission', '      actions: write', '      actions: read'],
     [
@@ -167,7 +212,8 @@ describe('package release workflow validation', () => {
   })
 
   it('rejects shallow post-merge release planning', async () => {
-    const invalidWorkflow = validWorkflow.replace(
+    const invalidWorkflow = replaceRequired(
+      validWorkflow,
       '          fetch-depth: 0\n          ref: ${{ github.sha }}',
       '          fetch-depth: 2\n          ref: ${{ github.sha }}',
     )

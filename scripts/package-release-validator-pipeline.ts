@@ -13,7 +13,7 @@ const RELEASE_REHEARSAL_BRANCH_GUARD_COUNT = 11
 const WORKFLOW_PATH = '.github/workflows/package-release.yml'
 const DIRECT_NODE = 'node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON'
 const PACKAGE_RELEASE_WORKFLOW_AST_CONTRACT =
-  '71e43aa77fef1f3e542832d89ec0babba4dde370034157238721c15efcdd5cd6'
+  '5a15daf4fab6201e13379d013b99884439260d1431d3efe00e9eaaaced922a1b'
 
 const EXPECTED_PACKAGE_PATHS = [
   'packages/extension-sdk',
@@ -176,10 +176,8 @@ function validateCiWorkflow(ciWorkflowText: string, violations: string[]) {
 }
 
 function validatePackageReleaseWorkflow(
-  workflowText: string,
-  promoteSource: string,
-  artifactsSource: string,
-  locatorSource: string,
+  workflowText: string, promoteSource: string,
+  artifactsSource: string, locatorSource: string, contextSource: string,
   violations: string[],
 ) {
   const parsed = parsePackageReleaseWorkflow(workflowText)
@@ -197,11 +195,19 @@ function validatePackageReleaseWorkflow(
   for (const packagePath of EXPECTED_PACKAGE_PATHS) {
     addViolation(!workflowText.includes(`${packagePath}/**`), `${WORKFLOW_PATH} must trigger for ${packagePath}/**.`, violations)
   }
+  addViolation(
+    workflowText.includes('fromJSON(steps.release.outputs.pr)'),
+    `${WORKFLOW_PATH} must not eagerly parse optional Release Please outputs.`,
+    violations,
+  )
   requireText(releasePlease, [
+    ["if: github.event_name == 'push'", `${WORKFLOW_PATH} Release Please maintenance must run only for package-changing pushes.`],
     ['skip-github-release: true', `${WORKFLOW_PATH} Release Please must create version PRs without tags or GitHub Releases.`],
     ['contents: write', `${WORKFLOW_PATH} Release Please must update its coordinated PR.`],
     ['pull-requests: write', `${WORKFLOW_PATH} Release Please must update its coordinated PR.`],
     ['actions: write', `${WORKFLOW_PATH} Release Please must dispatch exact-head CI when token-created PR checks cannot run.`],
+    ['PR_JSON: ${{ steps.release.outputs.pr }}', `${WORKFLOW_PATH} Release Please must decode its optional PR output only inside a guarded step.`],
+    ['head_branch=$HEAD_BRANCH', `${WORKFLOW_PATH} Release Please must expose the guarded release branch output.`],
     ['pnpm package-docs:update', `${WORKFLOW_PATH} Release Please must generate the versioned documentation line before validation.`],
     ['git commit -m "fix(packages): synchronize release documentation"', `${WORKFLOW_PATH} Release Please must commit generated documentation to its exact head.`],
     ['git push origin "HEAD:$RELEASE_PR_HEAD"', `${WORKFLOW_PATH} Release Please must validate the generated documentation commit.`],
@@ -209,6 +215,8 @@ function validatePackageReleaseWorkflow(
     ['gh run watch "$RUN_ID" --exit-status', `${WORKFLOW_PATH} Release Please must wait for exact-head CI success.`],
   ], violations)
   requireText(workflowText, [
+    ['workflow_dispatch:', `${WORKFLOW_PATH} must expose an explicit package release recovery dispatch.`],
+    ['release_sha:', `${WORKFLOW_PATH} recovery must require an exact merged release SHA.`],
     [`${DIRECT_NODE} scripts/package-release-plan.ts`, `${WORKFLOW_PATH} must detect version changes through the typed tree plan.`],
     ['cancel-in-progress: false', `${WORKFLOW_PATH} must serialize and preserve in-progress package publication.`],
   ], violations)
@@ -216,8 +224,12 @@ function validatePackageReleaseWorkflow(
     ['fetch-depth: 0', `${WORKFLOW_PATH} release planning must fetch full history for multi-commit rebase merges.`],
     ['node-version: 24.14.0', `${WORKFLOW_PATH} release planning must pin Node 24.14.0.`],
     ['node --version | grep -Fx v24.14.0', `${WORKFLOW_PATH} release planning must require Node 24.14.0 before executing the plan.`],
+    [`${DIRECT_NODE} scripts/package-release-context.ts`, `${WORKFLOW_PATH} must resolve push and recovery identity through the typed release context.`],
+    ['RECOVERY_RELEASE_SHA: ${{ inputs.release_sha }}', `${WORKFLOW_PATH} release planning must bind recovery to the explicit release commit.`],
   ], violations)
   requireText(publish, [
+    ['always() && needs.release-plan.result ==', `${WORKFLOW_PATH} publication must evaluate the successful plan even when recovery skips Release Please maintenance.`],
+    ["github.event_name == 'workflow_dispatch' && needs.release-please.result == 'skipped'", `${WORKFLOW_PATH} recovery publication must require deliberately skipped Release Please maintenance.`],
     ['environment: npm', `${WORKFLOW_PATH} publication must use the protected npm environment.`],
     ['actions: read', `${WORKFLOW_PATH} publication must read the exact successful CI artifact.`],
     ['attestations: read', `${WORKFLOW_PATH} publication must verify GitHub provenance.`],
@@ -231,6 +243,7 @@ function validatePackageReleaseWorkflow(
     ['github-token: ${{ github.token }}', `${WORKFLOW_PATH} must download cross-run artifacts using only GITHUB_TOKEN.`],
     ['run-id: ${{ steps.artifact.outputs.run_id }}', `${WORKFLOW_PATH} must download from the exact successful CI run.`],
     ['EXPECTED_ARTIFACT_SOURCE_SHA: ${{ steps.artifact.outputs.source_sha }}', `${WORKFLOW_PATH} must bind artifact provenance to its PR head SHA.`],
+    ['RECOVERY_RELEASE_SHA: ${{ inputs.release_sha }}', `${WORKFLOW_PATH} recovery promotion must bind to the explicit merged release SHA.`],
     [`${DIRECT_NODE} scripts/package-release-promote.ts`, `${WORKFLOW_PATH} must promote only through the typed artifact promoter.`],
   ], violations)
   const forbiddenWorkflowText = executableWorkflowText(workflowText)
@@ -245,6 +258,8 @@ function validatePackageReleaseWorkflow(
 
   requireText(promoteSource, [
     ['ACTIONS_ID_TOKEN_REQUEST_TOKEN', 'package-release-promote.ts must verify the GitHub OIDC environment.'],
+    ["environment.eventName === 'workflow_dispatch'", 'package-release-promote.ts must recognize only explicit recovery dispatches.'],
+    ['environment.recoveryReleaseSha', 'package-release-promote.ts must bind recovery to the planned source SHA.'],
     ["'gh', ['attestation', 'verify'", 'package-release-promote.ts must verify artifact provenance.'],
     ['has different integrity on npm', 'package-release-promote.ts must fail closed on registry byte substitution.'],
     ['isTransientPublicationFailure', 'package-release-promote.ts must retry only transient publication failures.'],
@@ -264,12 +279,23 @@ function validatePackageReleaseWorkflow(
     ["run.path === '.github/workflows/ci.yml'", 'package-release-artifact-locator.ts must accept only CI workflow artifacts.'],
     ["run.conclusion === 'success'", 'package-release-artifact-locator.ts must accept only successful CI artifacts.'],
   ], violations)
+  requireText(contextSource, [
+    ["input.ref !== 'refs/heads/main'", 'package-release-context.ts must allow package publication only from main.'],
+    ["'origin/main'", 'package-release-context.ts must require recovery commits to be reachable from origin/main.'],
+    ['COMMIT_SHA_PATTERN', 'package-release-context.ts must require canonical immutable commit SHAs.'],
+    ['dependencies.resolveCommit', 'package-release-context.ts must resolve the exact recovery commit object.'],
+    ['dependencies.isAncestorOfMain', 'package-release-context.ts must verify recovery commit ancestry.'],
+    ["'rev-list'", 'package-release-context.ts must locate the package version commit on first-parent history.'],
+    ['PACKAGE_MANIFEST_PATHSPEC', 'package-release-context.ts must derive recovery from package manifests.'],
+    ['dependencies.readReleaseParent', 'package-release-context.ts must derive the pre-release parent.'],
+  ], violations)
 }
 
 
 export function validatePackageReleasePipelines(input: Readonly<{
   artifactsSource: string
   ciWorkflowText: string
+  contextSource: string
   locatorSource: string
   promoteSource: string
   workflowText: string
@@ -280,6 +306,7 @@ export function validatePackageReleasePipelines(input: Readonly<{
     input.promoteSource,
     input.artifactsSource,
     input.locatorSource,
+    input.contextSource,
     violations,
   )
 }
