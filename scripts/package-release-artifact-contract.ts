@@ -24,58 +24,8 @@ export interface PackageReleaseArtifactManifest {
   readonly sourceTree: string
 }
 
-export interface PackageReleaseAttestationIdentity {
-  readonly repository: string
-  readonly runId: string
-  readonly sourceSha: string
-}
-
 function isJsonObject(value: unknown): value is { readonly [key: string]: unknown } {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-export function packageReleaseAttestationVerificationArgs(
-  file: string,
-  repository: string,
-  sourceSha: string,
-) {
-  return [
-    'attestation', 'verify', file,
-    '--repo', repository,
-    '--signer-workflow', `${repository}/.github/workflows/ci.yml`,
-    '--source-digest', sourceSha,
-    '--deny-self-hosted-runners',
-    '--format', 'json',
-  ]
-}
-
-export function assertPackageReleaseAttestationIdentity(
-  value: unknown,
-  identity: PackageReleaseAttestationIdentity,
-) {
-  const expectedWorkflowPrefix =
-    `https://github.com/${identity.repository}/.github/workflows/ci.yml@`
-  const expectedRunPrefix =
-    `https://github.com/${identity.repository}/actions/runs/${identity.runId}/attempts/`
-  if (!Array.isArray(value) || value.length === 0) {
-    throw new Error('Artifact attestation verification returned no identity result.')
-  }
-  const hasSelectedIdentity = value.some((entry) => {
-    if (!isJsonObject(entry) || !isJsonObject(entry.verificationResult) ||
-      !isJsonObject(entry.verificationResult.signature) ||
-      !isJsonObject(entry.verificationResult.signature.certificate)) return false
-    const certificate = entry.verificationResult.signature.certificate
-    return typeof certificate.buildConfigURI === 'string' &&
-      certificate.buildConfigURI.startsWith(expectedWorkflowPrefix) &&
-      typeof certificate.runInvocationURI === 'string' &&
-      certificate.runInvocationURI.startsWith(expectedRunPrefix) &&
-      /^\d+$/.test(certificate.runInvocationURI.slice(expectedRunPrefix.length)) &&
-      certificate.runnerEnvironment === 'github-hosted' &&
-      certificate.sourceRepositoryDigest === identity.sourceSha
-  })
-  if (!hasSelectedIdentity) {
-    throw new Error('Artifact attestation does not match the selected CI run and source identity.')
-  }
 }
 
 export function releaseAssetRepairPlan(

@@ -260,7 +260,7 @@ function validatePackageReleaseWorkflow(
     ['ACTIONS_ID_TOKEN_REQUEST_TOKEN', 'package-release-promote.ts must verify the GitHub OIDC environment.'],
     ["environment.eventName === 'workflow_dispatch'", 'package-release-promote.ts must recognize only explicit recovery dispatches.'],
     ['environment.recoveryReleaseSha', 'package-release-promote.ts must bind recovery to the planned source SHA.'],
-    ["'gh', ['attestation', 'verify'", 'package-release-promote.ts must verify artifact provenance.'],
+    ['verifyPackageReleaseArtifactProvenance', 'package-release-promote.ts must verify artifact provenance.'],
     ['has different integrity on npm', 'package-release-promote.ts must fail closed on registry byte substitution.'],
     ['isTransientPublicationFailure', 'package-release-promote.ts must retry only transient publication failures.'],
     ['await dependencies.ensureTag', 'package-release-promote.ts must create immutable tags after npm acceptance.'],

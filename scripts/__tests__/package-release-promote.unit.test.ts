@@ -5,8 +5,6 @@ import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
-  assertPackageReleaseAttestationIdentity,
-  packageReleaseAttestationVerificationArgs,
   releaseAssetRepairPlan,
 } from '../package-release-artifact-contract'
 import {
@@ -128,53 +126,6 @@ describe('package release promotion', () => {
         sha: 'workflow-definition-sha',
       }),
     ).toThrow('does not match the triggering main commit')
-  })
-
-  it('binds provenance to the CI signer workflow and selected source run', () => {
-    expect(
-      packageReleaseAttestationVerificationArgs(
-        '/artifacts/package.tgz',
-        'OpenWaggle/OpenWaggle',
-        'release-head',
-      ),
-    ).toEqual([
-      'attestation',
-      'verify',
-      '/artifacts/package.tgz',
-      '--repo',
-      'OpenWaggle/OpenWaggle',
-      '--signer-workflow',
-      'OpenWaggle/OpenWaggle/.github/workflows/ci.yml',
-      '--source-digest',
-      'release-head',
-      '--deny-self-hosted-runners',
-      '--format',
-      'json',
-    ])
-
-    const verified = [{
-      verificationResult: {
-        signature: {
-          certificate: {
-            buildConfigURI: 'https://github.com/OpenWaggle/OpenWaggle/.github/workflows/ci.yml@refs/pull/135/merge',
-            runInvocationURI: 'https://github.com/OpenWaggle/OpenWaggle/actions/runs/123/attempts/2',
-            runnerEnvironment: 'github-hosted',
-            sourceRepositoryDigest: 'release-head',
-          },
-        },
-      },
-    }]
-
-    expect(() => assertPackageReleaseAttestationIdentity(verified, {
-      repository: 'OpenWaggle/OpenWaggle',
-      runId: '123',
-      sourceSha: 'release-head',
-    })).not.toThrow()
-    expect(() => assertPackageReleaseAttestationIdentity(verified, {
-      repository: 'OpenWaggle/OpenWaggle',
-      runId: '124',
-      sourceSha: 'release-head',
-    })).toThrow('selected CI run')
   })
 
   it('rejects a base-only promotion plan loaded from disk', async () => {

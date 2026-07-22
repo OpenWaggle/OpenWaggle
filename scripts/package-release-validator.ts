@@ -2,6 +2,7 @@ import { access, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { validatePackageReleasePipelines } from './package-release-validator-pipeline'
+import { validatePackageReleaseProvenance } from './package-release-validator-provenance'
 import { RELEASE_PLEASE_CONTRACT } from './release-please-contract'
 import { validateReleasePleaseRuntimeContract } from './release-please-runtime-contract'
 
@@ -237,6 +238,7 @@ export async function validatePackageReleaseFiles(
     artifactsSource,
     contractSource,
     locatorSource,
+    provenanceSource,
   ] = await Promise.all([
     readFile(path.join(projectRoot, WORKFLOW_PATH), 'utf8'),
     readFile(path.join(projectRoot, CI_WORKFLOW_PATH), 'utf8'),
@@ -246,6 +248,7 @@ export async function validatePackageReleaseFiles(
     readFile(path.join(projectRoot, 'scripts/package-release-artifacts.ts'), 'utf8'),
     readFile(path.join(projectRoot, 'scripts/package-release-artifact-contract.ts'), 'utf8'),
     readFile(path.join(projectRoot, 'scripts/package-release-artifact-locator.ts'), 'utf8'),
+    readFile(path.join(projectRoot, 'scripts/package-release-provenance.ts'), 'utf8'),
   ])
   validatePackageReleasePipelines({
     artifactsSource: `${artifactsSource}\n${contractSource}`,
@@ -255,6 +258,7 @@ export async function validatePackageReleaseFiles(
     promoteSource: `${promoteSource}\n${promotionSource}`,
     workflowText,
   }, violations)
+  validatePackageReleaseProvenance(provenanceSource, violations)
   return { violations }
 }
 
