@@ -12,6 +12,7 @@ import {
 import {
   promoteVerifiedPackageRelease,
   readPackageReleasePlan,
+  verifyPackageReleasePublicationEnvironment,
 } from '../package-release-promotion'
 import type { PackageReleaseArtifactManifest } from '../package-release-promotion'
 import type { PackageReleasePlan } from '../package-release-promotion'
@@ -105,6 +106,30 @@ const manifest: PackageReleaseArtifactManifest = {
 }
 
 describe('package release promotion', () => {
+  it('accepts an explicit recovery only for the exact planned release SHA on main', () => {
+    expect(() =>
+      verifyPackageReleasePublicationEnvironment(plan, {
+        actionsIdTokenRequestToken: 'token',
+        actionsIdTokenRequestUrl: 'https://token.actions.githubusercontent.com',
+        eventName: 'workflow_dispatch',
+        recoveryReleaseSha: 'source-sha',
+        ref: 'refs/heads/main',
+        sha: 'workflow-definition-sha',
+      }),
+    ).not.toThrow()
+
+    expect(() =>
+      verifyPackageReleasePublicationEnvironment(plan, {
+        actionsIdTokenRequestToken: 'token',
+        actionsIdTokenRequestUrl: 'https://token.actions.githubusercontent.com',
+        eventName: 'workflow_dispatch',
+        recoveryReleaseSha: 'different-release-sha',
+        ref: 'refs/heads/main',
+        sha: 'workflow-definition-sha',
+      }),
+    ).toThrow('does not match the triggering main commit')
+  })
+
   it('binds provenance to the CI signer workflow and selected source run', () => {
     expect(
       packageReleaseAttestationVerificationArgs(

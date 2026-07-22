@@ -6,6 +6,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import type { PackageReleaseAttestationIdentity } from './package-release-artifact-contract'
+import type { PackageReleasePublicationEnvironment } from './package-release-promotion'
 
 const CLI_ARGUMENT_START_INDEX = 2
 const EXPECTED_CLI_ARGUMENT_COUNT = 2
@@ -49,6 +50,10 @@ interface PromotionModule {
     plan: PackageReleasePlan,
     artifactRoot: string,
   ) => Promise<PackageReleaseArtifactManifest>
+  readonly verifyPackageReleasePublicationEnvironment: (
+    plan: PackageReleasePlan,
+    environment: PackageReleasePublicationEnvironment,
+  ) => void
 }
 
 interface ArtifactContractModule {
@@ -95,7 +100,8 @@ function isPromotionModule(value: unknown): value is PromotionModule {
   return isJsonObject(value) &&
     typeof value.promoteVerifiedPackageRelease === 'function' &&
     typeof value.readPackageReleasePlan === 'function' &&
-    typeof value.verifyPromotionBundle === 'function'
+    typeof value.verifyPromotionBundle === 'function' &&
+    typeof value.verifyPackageReleasePublicationEnvironment === 'function'
 }
 
 async function loadPromotionModule() {
@@ -230,19 +236,6 @@ function sleep(durationMs: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, durationMs))
 }
 
-function verifyPublicationEnvironment(plan: PackageReleasePlan) {
-  if (process.env.GITHUB_EVENT_NAME !== 'push' || process.env.GITHUB_REF !== 'refs/heads/main') {
-    throw new Error('Package publication is allowed only for a main branch push.')
-  }
-  if (process.env.GITHUB_SHA !== plan.sourceSha) {
-    throw new Error('Package release plan does not match the triggering main commit.')
-  }
-  if (process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN === undefined ||
-    process.env.ACTIONS_ID_TOKEN_REQUEST_URL === undefined) {
-    throw new Error('GitHub OIDC token request environment is unavailable.')
-  }
-}
-
 async function verifyArtifactProvenance(
   artifactRoot: string,
   manifest: PackageReleaseArtifactManifest,
@@ -276,7 +269,14 @@ export async function runPackageReleasePromoteCli(args: readonly string[]) {
   }
   const promotion = await loadPromotionModule()
   const plan = await promotion.readPackageReleasePlan(planPath)
-  verifyPublicationEnvironment(plan)
+  promotion.verifyPackageReleasePublicationEnvironment(plan, {
+    actionsIdTokenRequestToken: process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN,
+    actionsIdTokenRequestUrl: process.env.ACTIONS_ID_TOKEN_REQUEST_URL,
+    eventName: process.env.GITHUB_EVENT_NAME,
+    recoveryReleaseSha: process.env.RECOVERY_RELEASE_SHA,
+    ref: process.env.GITHUB_REF,
+    sha: process.env.GITHUB_SHA,
+  })
   const manifest = await promotion.verifyPromotionBundle(plan, artifactRoot)
   const repository = process.env.GITHUB_REPOSITORY
   const selectedRunId = process.env.EXPECTED_ARTIFACT_RUN_ID

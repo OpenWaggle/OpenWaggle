@@ -53,6 +53,11 @@ const validLocatorSource = readFileSync(
   'utf8',
 )
 
+const validContextSource = readFileSync(
+  path.join(process.cwd(), 'scripts/package-release-context.ts'),
+  'utf8',
+)
+
 async function writeFile(filePath: string, contents: string) {
   await fs.mkdir(path.dirname(filePath), { recursive: true })
   await fs.writeFile(filePath, contents, 'utf8')
@@ -129,6 +134,7 @@ export async function writeMinimalPackageReleaseProject(
   await writeFile(path.join(projectRoot, 'scripts/package-release-artifacts.ts'), validArtifactsSource)
   await writeFile(path.join(projectRoot, 'scripts/package-release-artifact-contract.ts'), validArtifactContractSource)
   await writeFile(path.join(projectRoot, 'scripts/package-release-artifact-locator.ts'), validLocatorSource)
+  await writeFile(path.join(projectRoot, 'scripts/package-release-context.ts'), validContextSource)
 
   for (const [index, packageDirectory] of packageDirectories.entries()) {
     const dependencies =

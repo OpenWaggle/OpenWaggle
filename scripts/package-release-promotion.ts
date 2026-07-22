@@ -20,6 +20,39 @@ const REGISTRY_READ_ATTEMPTS = 3
 const REGISTRY_RETRY_DELAY_MS = 5_000
 const TRANSIENT_RETRY_DELAY_MS = 10_000
 
+export interface PackageReleasePublicationEnvironment {
+  readonly actionsIdTokenRequestToken: string | undefined
+  readonly actionsIdTokenRequestUrl: string | undefined
+  readonly eventName: string | undefined
+  readonly recoveryReleaseSha: string | undefined
+  readonly ref: string | undefined
+  readonly sha: string | undefined
+}
+
+export function verifyPackageReleasePublicationEnvironment(
+  plan: Readonly<{ sourceSha: string }>,
+  environment: PackageReleasePublicationEnvironment,
+) {
+  if (environment.ref !== 'refs/heads/main') {
+    throw new Error('Package publication is allowed only from main.')
+  }
+  const expectedSourceSha =
+    environment.eventName === 'push'
+      ? environment.sha
+      : environment.eventName === 'workflow_dispatch'
+        ? environment.recoveryReleaseSha
+        : undefined
+  if (expectedSourceSha !== plan.sourceSha) {
+    throw new Error('Package release plan does not match the triggering main commit.')
+  }
+  if (
+    environment.actionsIdTokenRequestToken === undefined ||
+    environment.actionsIdTokenRequestUrl === undefined
+  ) {
+    throw new Error('GitHub OIDC token request environment is unavailable.')
+  }
+}
+
 export interface PackageReleasePromotionDependencies {
   readonly ensureGitHubRelease: (input: Readonly<{
     artifact: PackageReleaseArtifact
