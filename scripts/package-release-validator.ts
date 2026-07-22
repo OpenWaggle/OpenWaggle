@@ -1,8 +1,9 @@
 import { access, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-
 import { validatePackageReleasePipelines } from './package-release-validator-pipeline'
+import { RELEASE_PLEASE_CONTRACT } from './release-please-contract'
+import { validateReleasePleaseRuntimeContract } from './release-please-runtime-contract'
 
 const BOOTSTRAP_SOURCE_VERSION = '0.0.0'
 const CI_WORKFLOW_PATH = '.github/workflows/ci.yml'
@@ -11,6 +12,7 @@ const CONFIG_PATH = 'release-please-config.json'
 const EMPTY_COUNT = 0
 const FAILURE_EXIT_CODE = 1
 const INITIAL_PUBLIC_PACKAGE_VERSION = '0.1.0'
+const PACKAGE_RELEASE_TITLE_PATTERN = 'chore(${branch}): release OpenWaggle packages'
 const MANIFEST_PATH = '.release-please-manifest.json'
 const ROOT_PACKAGE_PATH = 'package.json'
 const WORKFLOW_PATH = '.github/workflows/package-release.yml'
@@ -129,6 +131,7 @@ function validateReleasePleaseConfig(config: JsonObject | undefined, violations:
     [config['include-component-in-tag'] !== true || config['include-v-in-tag'] !== true, `${CONFIG_PATH} must produce package-name tags like extension-sdk-v0.1.0.`],
     [config['separate-pull-requests'] !== false, `${CONFIG_PATH} must create one coordinated package release PR.`],
     [config['always-link-local'] !== true, `${CONFIG_PATH} must patch-bump local dependents when base packages release.`],
+    [config['group-pull-request-title-pattern'] !== PACKAGE_RELEASE_TITLE_PATTERN, `${CONFIG_PATH} must generate the policy-compatible coordinated release title.`],
   ]
   for (const [condition, message] of requirements) addViolation(condition, message, violations)
   const plugins = Array.isArray(config.plugins) ? config.plugins.map(pluginType) : []
@@ -188,6 +191,8 @@ async function validatePackageMetadata(
 
 function validateRootPackageScripts(packageJson: JsonObject | undefined, violations: string[]) {
   const scripts = packageJson === undefined ? undefined : getObject(packageJson, 'scripts')
+  const devDependencies =
+    packageJson === undefined ? undefined : getObject(packageJson, 'devDependencies')
   const checkScript = scripts?.check
   if (typeof checkScript !== 'string') {
     violations.push(`${ROOT_PACKAGE_PATH} scripts.check must exist.`)
@@ -195,6 +200,11 @@ function validateRootPackageScripts(packageJson: JsonObject | undefined, violati
   }
   addViolation(!checkScript.includes('pnpm package:smoke'), `${ROOT_PACKAGE_PATH} scripts.check must run pnpm package:smoke.`, violations)
   addViolation(scripts?.['package-release:publish'] !== 'node scripts/package-release-publish.ts', `${ROOT_PACKAGE_PATH} scripts.package-release:publish must execute only the dependency-free typed package release publisher with Node.`, violations)
+  addViolation(
+    devDependencies?.['release-please'] !== RELEASE_PLEASE_CONTRACT.bundledRuntimeVersion,
+    `${ROOT_PACKAGE_PATH} must pin release-please ${RELEASE_PLEASE_CONTRACT.bundledRuntimeVersion} for deterministic preflight contracts.`,
+    violations,
+  )
 }
 
 export async function validatePackageReleaseFiles(
@@ -207,6 +217,13 @@ export async function validatePackageReleaseFiles(
     readJsonFile(projectRoot, ROOT_PACKAGE_PATH, violations),
   ])
   validateReleasePleaseConfig(config, violations)
+  if (typeof config?.['group-pull-request-title-pattern'] === 'string') {
+    violations.push(
+      ...(await validateReleasePleaseRuntimeContract(
+        config['group-pull-request-title-pattern'],
+      )),
+    )
+  }
   validateReleasePleaseManifest(manifest, violations)
   validateRootPackageScripts(packageJson, violations)
   await validatePackageMetadata(projectRoot, manifest, violations)

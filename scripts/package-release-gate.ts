@@ -1,14 +1,12 @@
 import { pathToFileURL } from 'node:url'
 
 const CLI_ARGUMENT_START_INDEX = 2
-const EXPECTED_ARGUMENT_COUNT = 6
-const RELEASE_PLEASE_BRANCH_PREFIX = 'release-please--branches--main'
+const EXPECTED_ARGUMENT_COUNT = 5
 
 export function validatePackageReleaseGate(input: Readonly<{
-  artifactResult: string
+  candidateResult: string
   checkResult: string
   commitPolicyResult: string
-  headRef: string
   rehearsalResult: string
   testResult: string
 }>) {
@@ -17,42 +15,35 @@ export function validatePackageReleaseGate(input: Readonly<{
     ['typecheck and lint', input.checkResult],
     ['unit and component tests', input.testResult],
     ['package release rehearsal', input.rehearsalResult],
+    ['package release candidate', input.candidateResult],
   ] as const
   for (const [name, result] of requiredResults) {
     if (result !== 'success') {
       throw new Error(`${name} did not succeed: ${result}.`)
     }
   }
-  if (
-    input.headRef.startsWith(RELEASE_PLEASE_BRANCH_PREFIX) &&
-    input.artifactResult !== 'success'
-  ) {
-    throw new Error('Release Please PRs require immutable package artifacts and provenance.')
-  }
 }
 
 export function runPackageReleaseGateCli(args: readonly string[]) {
   if (args.length !== EXPECTED_ARGUMENT_COUNT) {
     throw new Error(
-      'Usage: package-release-gate.ts <commit-policy-result> <check-result> <test-result> <rehearsal-result> <artifact-result> <head-ref>.',
+      'Usage: package-release-gate.ts <commit-policy-result> <check-result> <test-result> <rehearsal-result> <candidate-result>.',
     )
   }
-  const [commitPolicyResult, checkResult, testResult, rehearsalResult, artifactResult, headRef] = args
+  const [commitPolicyResult, checkResult, testResult, rehearsalResult, candidateResult] = args
   if (
     commitPolicyResult === undefined ||
     checkResult === undefined ||
     testResult === undefined ||
     rehearsalResult === undefined ||
-    artifactResult === undefined ||
-    headRef === undefined
+    candidateResult === undefined
   ) {
     throw new Error('Package release gate arguments are incomplete.')
   }
   validatePackageReleaseGate({
-    artifactResult,
+    candidateResult,
     checkResult,
     commitPolicyResult,
-    headRef,
     rehearsalResult,
     testResult,
   })

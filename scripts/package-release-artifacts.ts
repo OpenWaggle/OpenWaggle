@@ -73,20 +73,35 @@ function packedDependency(
   return { name: plannedPackage.dependency, version: dependencyRange.slice(1) }
 }
 
+function releaseHeadingVersion(line: string) {
+  const plainHeading = /^## (\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)(?: \([^)]+\))?$/u.exec(line)
+  if (plainHeading?.[1] !== undefined) return plainHeading[1]
+
+  const linkedHeading = /^## \[(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)\]\([^)]+\)(?: \([^)]+\))?$/u.exec(line)
+  return linkedHeading?.[1]
+}
+
+export function extractPackageReleaseNotes(changelog: string, version: string) {
+  const lines = changelog.replaceAll('\r\n', '\n').split('\n')
+  const releaseLine = lines.findIndex((line) => releaseHeadingVersion(line) === version)
+  if (releaseLine < 0) return undefined
+
+  const nextReleaseOffset = lines
+    .slice(releaseLine + 1)
+    .findIndex((line) => releaseHeadingVersion(line) !== undefined)
+  const releaseEnd = nextReleaseOffset < 0
+    ? lines.length
+    : releaseLine + 1 + nextReleaseOffset
+  return lines.slice(releaseLine, releaseEnd).join('\n').trim()
+}
+
 async function packageReleaseNotes(plannedPackage: PackageReleasePlanItem) {
-  const changelog = await readFile(
-    path.join(plannedPackage.packagePath, 'CHANGELOG.md'),
-    'utf8',
-  )
-  const heading = `## ${plannedPackage.version}`
-  const releaseStart = changelog.indexOf(heading)
-  if (releaseStart < 0) {
-    throw new Error(
-      `${plannedPackage.name} changelog has no ${plannedPackage.version} release notes.`,
-    )
+  const changelog = await readFile(path.join(plannedPackage.packagePath, 'CHANGELOG.md'), 'utf8')
+  const releaseNotes = extractPackageReleaseNotes(changelog, plannedPackage.version)
+  if (releaseNotes === undefined) {
+    throw new Error(`${plannedPackage.name} changelog has no ${plannedPackage.version} release notes.`)
   }
-  const nextHeading = changelog.indexOf('\n## ', releaseStart + heading.length)
-  return changelog.slice(releaseStart, nextHeading < 0 ? undefined : nextHeading).trim()
+  return releaseNotes
 }
 
 async function packPlannedPackage(

@@ -150,6 +150,7 @@
     "react-markdown": "10.1.0",
     "react-voice-visualizer": "2.1.0",
     "rehype-sanitize": "6.0.0",
+    "release-please": "17.6.0",
     "remark-gfm": "4.0.1",
     "tailwindcss": "4.3.0",
     "tailwindcss-animate": "1.0.7",

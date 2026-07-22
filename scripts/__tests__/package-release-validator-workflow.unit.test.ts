@@ -82,7 +82,7 @@ describe('package release workflow validation', () => {
   it('rejects duplicate Node 24 release-PR rehearsal instead of canonical artifact smoke', async () => {
     const invalidCi = replaceRequired(
       validCiWorkflow,
-      "matrix.node == '22.19.0' || !startsWith(github.head_ref || github.ref_name, 'release-please--branches--main')",
+      "matrix.node == '22.19.0' || (github.head_ref || github.ref_name) != 'release-please--branches--main'",
       'always()',
     )
     const result = await validatePackageReleaseFiles(
@@ -91,6 +91,21 @@ describe('package release workflow validation', () => {
 
     expect(result.violations).toContain(
       'CI workflow must match its exact fail-closed AST contract.',
+    )
+  })
+
+  it('rejects prefix matching that lets lookalike branches skip release rehearsal', async () => {
+    const invalidCi = replaceRequired(
+      validCiWorkflow,
+      "(github.head_ref || github.ref_name) != 'release-please--branches--main'",
+      "!startsWith(github.head_ref || github.ref_name, 'release-please--branches--main')",
+    )
+    const result = await validatePackageReleaseFiles(
+      await temporaryProject(validWorkflow, invalidCi),
+    )
+
+    expect(result.violations).toContain(
+      '.github/workflows/ci.yml must use exact branch matching for Release Please rehearsal exclusions.',
     )
   })
 
@@ -106,22 +121,19 @@ describe('package release workflow validation', () => {
     expect(result.violations).toEqual(expect.arrayContaining([
       '.github/workflows/ci.yml must expose the always-present Package Release Gate status.',
       '.github/workflows/ci.yml must rehearse exact Node 22.19.0 and 24.14.0 runtimes.',
-      '.github/workflows/ci.yml Package Release Gate must always report a conclusion.',
+      '.github/workflows/ci.yml Package Release Candidate must always report a conclusion.',
     ]))
   })
 
   it('rejects dispatched Release Please validation that skips artifact preparation', async () => {
     const invalidCi = validCiWorkflow
-      .replace(
-        " || (github.event_name == 'workflow_dispatch' && startsWith(github.ref_name, 'release-please--branches--main'))",
-        '',
-      )
+      .replace('          REF_NAME: ${{ github.ref_name }}\n', '')
       .replace('${{ github.head_ref || github.ref_name }}', '${{ github.head_ref }}')
     const result = await validatePackageReleaseFiles(await temporaryProject(validWorkflow, invalidCi))
 
     expect(result.violations).toEqual(expect.arrayContaining([
-      '.github/workflows/ci.yml must prepare artifacts for exact-head Release Please dispatches.',
-      '.github/workflows/ci.yml Package Release Gate must classify pull-request and dispatched Release Please branches.',
+      '.github/workflows/ci.yml must classify exact-head Release Please dispatches.',
+      '.github/workflows/ci.yml Package Release Candidate must classify pull-request and dispatched branches.',
     ]))
   })
 

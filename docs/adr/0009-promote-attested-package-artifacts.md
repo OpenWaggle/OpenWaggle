@@ -4,7 +4,7 @@ Status: accepted
 
 OpenWaggle package releases will build, validate, hash, and attest final package tarballs on the Release Please pull request. After an authorized merge, the release workflow will publish those exact artifacts instead of rebuilding from `main`. Git tree identity connects the validated pull request content to squash- or rebase-merged content even when the commit SHA changes.
 
-The pre-merge `Package Release Gate` is always present and every pull request runs the complete release rehearsal. Release Please pull requests additionally upload the final-version artifact manifest, package tarballs, SHA-256 digests, source tree identity, and GitHub build provenance.
+The pre-merge `Package Release Gate` and `Package Release Candidate` are always present and every pull request runs the complete release rehearsal. An unprivileged classifier makes the artifact job's intentional skip explicit for ordinary pull requests, while the always-present candidate aggregator verifies that outcome. Trusted Release Please pull requests additionally upload the final-version artifact manifest, package tarballs, SHA-256 digests, source tree identity, and GitHub build provenance.
 
 Post-merge publication is deliberately narrow. It verifies artifact provenance, tree identity, digest, package/version plan, GitHub OIDC identity, dependency availability, and unpublished npm state. It performs no build, test, API generation, documentation generation, or package mutation. It publishes bases before dependents, retries transient registry failures, creates immutable package tags only after npm accepts each version, and creates GitHub Releases only after the matching npm version is resolvable.
 

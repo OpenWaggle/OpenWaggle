@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { RELEASE_PLEASE_CONTRACT } from '../release-please-contract'
+
 const packageDirectories = [
   'packages/extension-sdk',
   'packages/extension-react',
@@ -75,6 +77,7 @@ export async function writeMinimalPackageReleaseProject(
     'include-component-in-tag': true,
     'include-v-in-tag': true,
     'always-link-local': true,
+    'group-pull-request-title-pattern': 'chore(${branch}): release OpenWaggle packages',
     packages: {
       'packages/extension-sdk': {
         'package-name': '@openwaggle/extension-sdk',
@@ -111,6 +114,9 @@ export async function writeMinimalPackageReleaseProject(
         },
   )
   await writeJson(path.join(projectRoot, 'package.json'), {
+    devDependencies: {
+      'release-please': RELEASE_PLEASE_CONTRACT.bundledRuntimeVersion,
+    },
     scripts: {
       check: 'pnpm typecheck && pnpm package:smoke',
       'package-release:publish': 'node scripts/package-release-publish.ts',

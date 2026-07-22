@@ -85,6 +85,28 @@ describe('package release validation', () => {
     }
   })
 
+  it('rejects a grouped Release Please title that cannot pass package commit policy', async () => {
+    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
+    try {
+      await writeMinimalPackageReleaseProject(projectRoot, validWorkflow)
+      const configPath = path.join(projectRoot, 'release-please-config.json')
+      const config: unknown = JSON.parse(await fs.readFile(configPath, 'utf8'))
+      if (!isJsonObject(config)) {
+        throw new Error('Expected release config fixture to be an object.')
+      }
+      const { ['group-pull-request-title-pattern']: _, ...invalidConfig } = config
+      await writeJson(configPath, invalidConfig)
+
+      const result = await validatePackageReleaseFiles(projectRoot)
+
+      expect(result.violations).toContain(
+        'release-please-config.json must generate the policy-compatible coordinated release title.',
+      )
+    } finally {
+      await fs.rm(projectRoot, { recursive: true, force: true })
+    }
+  })
+
   it('rejects a root check script that skips package smoke validation', async () => {
     const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
     try {
@@ -93,6 +115,9 @@ describe('package release validation', () => {
         validWorkflow,
       )
       await writeJson(path.join(projectRoot, 'package.json'), {
+        devDependencies: {
+          'release-please': '17.6.0',
+        },
         scripts: {
           check: 'pnpm typecheck && pnpm lint',
         },
@@ -101,6 +126,32 @@ describe('package release validation', () => {
       const result = await validatePackageReleaseFiles(projectRoot)
 
       expect(result.violations).toContain('package.json scripts.check must run pnpm package:smoke.')
+    } finally {
+      await fs.rm(projectRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects an unpinned Release Please runtime', async () => {
+    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
+    try {
+      await writeMinimalPackageReleaseProject(projectRoot, validWorkflow)
+      const packageJsonPath = path.join(projectRoot, 'package.json')
+      const packageJson: unknown = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'))
+      if (!isJsonObject(packageJson)) {
+        throw new Error('Expected package fixture to be an object.')
+      }
+      await writeJson(packageJsonPath, {
+        ...packageJson,
+        devDependencies: {
+          'release-please': '^17.6.0',
+        },
+      })
+
+      const result = await validatePackageReleaseFiles(projectRoot)
+
+      expect(result.violations).toContain(
+        'package.json must pin release-please 17.6.0 for deterministic preflight contracts.',
+      )
     } finally {
       await fs.rm(projectRoot, { recursive: true, force: true })
     }

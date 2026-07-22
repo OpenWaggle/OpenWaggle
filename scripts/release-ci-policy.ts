@@ -12,7 +12,9 @@ export const REQUIRED_CI_CHECKS = [
   'Unit & Component Tests',
 ] as const
 const EXPECTED_CI_JOBS = [...REQUIRED_CI_CHECKS, 'Package release rehearsal (Node ${{ matrix.node }})',
-  'Prepare immutable package release artifacts', 'Package Release Gate'] as const
+  'Classify Package Release Candidate',
+  'Build and attest package artifacts (Release Please PR only)',
+  'Package Release Candidate', 'Package Release Gate'] as const
 
 const CI_WORKFLOW_PATH = '.github/workflows/ci.yml'
 const CONCURRENCY_POLICY_FIELD_COUNT = 2
