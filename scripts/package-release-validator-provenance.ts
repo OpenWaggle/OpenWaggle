@@ -28,7 +28,7 @@ export function validatePackageReleaseProvenance(
     ['git/commits/${attestationSourceSha}', 'package-release-provenance.ts must resolve the exact attested Git commit.'],
   ], violations)
   addViolation(
-    provenanceSource.includes("'--source-digest'"),
+    provenanceSource.includes('--source-digest'),
     'package-release-provenance.ts must not assume a pull-request attestation uses the candidate head digest.',
     violations,
   )

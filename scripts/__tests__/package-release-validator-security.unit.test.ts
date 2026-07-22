@@ -80,7 +80,7 @@ describe('package release workflow security validation', () => {
   })
 
   it('rejects candidate-head digest assumptions for pull-request attestations', async () => {
-    const invalidSource = `${validProvenanceSource}\nconst forbidden = '--source-digest'\n`
+    const invalidSource = `${validProvenanceSource}\nconst forbidden = "--source-digest"\n`
     const result = await validateProvenance(invalidSource)
 
     expect(result.violations).toContain(
