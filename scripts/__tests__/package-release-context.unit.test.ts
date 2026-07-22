@@ -1,12 +1,37 @@
 import { describe, expect, it } from 'vitest'
 
-import { resolvePackageReleaseContext } from '../package-release-context'
+import {
+  readPackageReleaseParent,
+  resolvePackageReleaseContext,
+} from '../package-release-context'
 
 const RELEASE_SHA = 'a'.repeat(40)
 const PARENT_SHA = 'b'.repeat(40)
 const WORKFLOW_SHA = 'c'.repeat(40)
+const VERSION_COMMIT_SHA = 'd'.repeat(40)
 
 describe('package release context', () => {
+  it('finds the pre-release parent before trailing release documentation commits', async () => {
+    const calls: string[][] = []
+    const beforeSha = await readPackageReleaseParent(RELEASE_SHA, async (args) => {
+      calls.push([...args])
+      return args[0] === 'rev-list' ? VERSION_COMMIT_SHA : PARENT_SHA
+    })
+
+    expect(beforeSha).toBe(PARENT_SHA)
+    expect(calls).toEqual([
+      [
+        'rev-list',
+        '--first-parent',
+        '--max-count=1',
+        RELEASE_SHA,
+        '--',
+        'packages/*/package.json',
+      ],
+      ['rev-parse', `${VERSION_COMMIT_SHA}^1`],
+    ])
+  })
+
   it('preserves the immutable before and source SHAs from a main push', async () => {
     const result = await resolvePackageReleaseContext(
       {
@@ -18,7 +43,7 @@ describe('package release context', () => {
       },
       {
         isAncestorOfMain: async () => false,
-        readFirstParent: async () => '',
+        readReleaseParent: async () => '',
         resolveCommit: async () => '',
       },
     )
@@ -37,7 +62,7 @@ describe('package release context', () => {
       },
       {
         isAncestorOfMain: async () => true,
-        readFirstParent: async () => PARENT_SHA,
+        readReleaseParent: async () => PARENT_SHA,
         resolveCommit: async () => RELEASE_SHA,
       },
     )
@@ -67,7 +92,7 @@ describe('package release context', () => {
         },
         {
           isAncestorOfMain: async () => true,
-          readFirstParent: async () => PARENT_SHA,
+          readReleaseParent: async () => PARENT_SHA,
           resolveCommit: async () => RELEASE_SHA,
         },
       ),
@@ -86,7 +111,7 @@ describe('package release context', () => {
         },
         {
           isAncestorOfMain: async () => false,
-          readFirstParent: async () => PARENT_SHA,
+          readReleaseParent: async () => PARENT_SHA,
           resolveCommit: async () => RELEASE_SHA,
         },
       ),

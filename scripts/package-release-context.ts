@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url'
 const CLI_ARGUMENT_START_INDEX = 2
 const EXPECTED_CLI_ARGUMENT_COUNT = 5
 const COMMIT_SHA_PATTERN = /^[0-9a-f]{40}$/
+const PACKAGE_MANIFEST_PATHSPEC = 'packages/*/package.json'
 
 interface PackageReleaseContextInput {
   readonly eventBefore: string
@@ -16,9 +17,11 @@ interface PackageReleaseContextInput {
 
 interface PackageReleaseContextDependencies {
   readonly isAncestorOfMain: (sha: string) => Promise<boolean>
-  readonly readFirstParent: (sha: string) => Promise<string>
+  readonly readReleaseParent: (sha: string) => Promise<string>
   readonly resolveCommit: (sha: string) => Promise<string>
 }
+
+type RunGitCommand = (args: readonly string[]) => Promise<string>
 
 export interface PackageReleaseContext {
   readonly beforeSha: string
@@ -29,6 +32,22 @@ function assertCommitSha(value: string, label: string) {
   if (!COMMIT_SHA_PATTERN.test(value)) {
     throw new Error(`${label} must be a canonical 40-character commit SHA.`)
   }
+}
+
+export async function readPackageReleaseParent(
+  sourceSha: string,
+  runGitCommand: RunGitCommand,
+) {
+  const versionCommitSha = await runGitCommand([
+    'rev-list',
+    '--first-parent',
+    '--max-count=1',
+    sourceSha,
+    '--',
+    PACKAGE_MANIFEST_PATHSPEC,
+  ])
+  assertCommitSha(versionCommitSha, 'Package version commit SHA')
+  return runGitCommand(['rev-parse', `${versionCommitSha}^1`])
 }
 
 export async function resolvePackageReleaseContext(
@@ -54,7 +73,7 @@ export async function resolvePackageReleaseContext(
   if (!(await dependencies.isAncestorOfMain(sourceSha))) {
     throw new Error('Recovery release SHA must be reachable from origin/main.')
   }
-  const beforeSha = await dependencies.readFirstParent(sourceSha)
+  const beforeSha = await dependencies.readReleaseParent(sourceSha)
   assertCommitSha(beforeSha, 'Recovery release parent SHA')
   return { beforeSha, sourceSha }
 }
@@ -71,14 +90,12 @@ function runGit(args: readonly string[], allowFailure = false) {
   })
 }
 
-async function createDependencies(): Promise<PackageReleaseContextDependencies> {
+function createDependencies(): PackageReleaseContextDependencies {
+  const runGitCommand: RunGitCommand = async (args) => (await runGit(args)).stdout
   return {
     isAncestorOfMain: async (sha) =>
       (await runGit(['merge-base', '--is-ancestor', sha, 'origin/main'], true)).exitCode === 0,
-    readFirstParent: async (sha) => {
-      const result = await runGit(['rev-parse', `${sha}^1`])
-      return result.stdout
-    },
+    readReleaseParent: async (sha) => readPackageReleaseParent(sha, runGitCommand),
     resolveCommit: async (sha) => {
       const result = await runGit(['rev-parse', `${sha}^{commit}`])
       return result.stdout
@@ -104,7 +121,7 @@ export async function runPackageReleaseContextCli(args: readonly string[]) {
   }
   const context = await resolvePackageReleaseContext(
     { eventBefore, eventName, eventSha, recoveryReleaseSha, ref },
-    await createDependencies(),
+    createDependencies(),
   )
   const githubOutput = process.env.GITHUB_OUTPUT
   if (githubOutput !== undefined) {

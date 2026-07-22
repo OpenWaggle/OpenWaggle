@@ -176,10 +176,8 @@ function validateCiWorkflow(ciWorkflowText: string, violations: string[]) {
 }
 
 function validatePackageReleaseWorkflow(
-  workflowText: string,
-  promoteSource: string,
-  artifactsSource: string,
-  locatorSource: string, contextSource: string,
+  workflowText: string, promoteSource: string,
+  artifactsSource: string, locatorSource: string, contextSource: string,
   violations: string[],
 ) {
   const parsed = parsePackageReleaseWorkflow(workflowText)
@@ -287,7 +285,9 @@ function validatePackageReleaseWorkflow(
     ['COMMIT_SHA_PATTERN', 'package-release-context.ts must require canonical immutable commit SHAs.'],
     ['dependencies.resolveCommit', 'package-release-context.ts must resolve the exact recovery commit object.'],
     ['dependencies.isAncestorOfMain', 'package-release-context.ts must verify recovery commit ancestry.'],
-    ['dependencies.readFirstParent', 'package-release-context.ts must derive the recovery release parent.'],
+    ["'rev-list'", 'package-release-context.ts must locate the package version commit on first-parent history.'],
+    ['PACKAGE_MANIFEST_PATHSPEC', 'package-release-context.ts must derive recovery from package manifests.'],
+    ['dependencies.readReleaseParent', 'package-release-context.ts must derive the pre-release parent.'],
   ], violations)
 }
 
