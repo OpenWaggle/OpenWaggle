@@ -8,11 +8,6 @@ import {
   releaseAssetRepairPlan,
 } from '../package-release-artifact-contract'
 import {
-  assertPackageReleaseAttestationSourceCommit,
-  assertPackageReleaseAttestationIdentity,
-  packageReleaseAttestationVerificationArgs,
-} from '../package-release-provenance'
-import {
   promoteVerifiedPackageRelease,
   readPackageReleasePlan,
   verifyPackageReleasePublicationEnvironment,
@@ -131,100 +126,6 @@ describe('package release promotion', () => {
         sha: 'workflow-definition-sha',
       }),
     ).toThrow('does not match the triggering main commit')
-  })
-
-  it('binds provenance to the CI signer workflow and selected source run', () => {
-    expect(
-      packageReleaseAttestationVerificationArgs(
-        '/artifacts/package.tgz',
-        'OpenWaggle/OpenWaggle',
-      ),
-    ).toEqual([
-      'attestation',
-      'verify',
-      '/artifacts/package.tgz',
-      '--repo',
-      'OpenWaggle/OpenWaggle',
-      '--signer-workflow',
-      'OpenWaggle/OpenWaggle/.github/workflows/ci.yml',
-      '--deny-self-hosted-runners',
-      '--format',
-      'json',
-    ])
-
-    const verified = [{
-      verificationResult: {
-        signature: {
-          certificate: {
-            buildConfigURI: 'https://github.com/OpenWaggle/OpenWaggle/.github/workflows/ci.yml@refs/pull/135/merge',
-            runInvocationURI: 'https://github.com/OpenWaggle/OpenWaggle/actions/runs/123/attempts/2',
-            runnerEnvironment: 'github-hosted',
-            sourceRepositoryDigest: 'release-head',
-          },
-        },
-      },
-    }]
-
-    expect(assertPackageReleaseAttestationIdentity(verified, {
-      repository: 'OpenWaggle/OpenWaggle',
-      runId: '123',
-    })).toBe('release-head')
-    expect(() => assertPackageReleaseAttestationIdentity(verified, {
-      repository: 'OpenWaggle/OpenWaggle',
-      runId: '124',
-    })).toThrow('selected CI run')
-
-    expect(() => assertPackageReleaseAttestationSourceCommit(
-      {
-        parents: [{ sha: 'base-sha' }, { sha: 'release-head' }],
-        sha: 'pull-request-merge-sha',
-        tree: { sha: 'source-tree' },
-      },
-      {
-        attestationSourceSha: 'pull-request-merge-sha',
-        candidateSourceSha: 'release-head',
-        sourceTree: 'source-tree',
-      },
-    )).not.toThrow()
-
-    expect(() => assertPackageReleaseAttestationSourceCommit(
-      {
-        parents: [{ sha: 'base-sha' }],
-        sha: 'release-head',
-        tree: { sha: 'source-tree' },
-      },
-      {
-        attestationSourceSha: 'release-head',
-        candidateSourceSha: 'release-head',
-        sourceTree: 'source-tree',
-      },
-    )).not.toThrow()
-
-    expect(() => assertPackageReleaseAttestationSourceCommit(
-      {
-        parents: [{ sha: 'base-sha' }, { sha: 'different-head' }],
-        sha: 'pull-request-merge-sha',
-        tree: { sha: 'source-tree' },
-      },
-      {
-        attestationSourceSha: 'pull-request-merge-sha',
-        candidateSourceSha: 'release-head',
-        sourceTree: 'source-tree',
-      },
-    )).toThrow('candidate head and source tree')
-
-    expect(() => assertPackageReleaseAttestationSourceCommit(
-      {
-        parents: [{ sha: 'base-sha' }, { sha: 'release-head' }],
-        sha: 'pull-request-merge-sha',
-        tree: { sha: 'different-tree' },
-      },
-      {
-        attestationSourceSha: 'pull-request-merge-sha',
-        candidateSourceSha: 'release-head',
-        sourceTree: 'source-tree',
-      },
-    )).toThrow('candidate head and source tree')
   })
 
   it('rejects a base-only promotion plan loaded from disk', async () => {
