@@ -17,6 +17,10 @@ const PACKAGE_RELEASE_TITLE_PATTERN = 'chore(${branch}): release OpenWaggle pack
 const MANIFEST_PATH = '.release-please-manifest.json'
 const ROOT_PACKAGE_PATH = 'package.json'
 const WORKFLOW_PATH = '.github/workflows/package-release.yml'
+const PACKAGE_DEPENDENCY_BUILD_SCRIPT =
+  'pnpm --filter @openwaggle/waggle-core build && pnpm --filter @openwaggle/extension-sdk build'
+const PACKAGE_DEPENDENCY_BUILD_PREFIX = 'pnpm build:package-dependencies &&'
+const TYPE_AWARE_LINT_PREREQUISITE = 'pnpm build:package-dependencies && oxlint '
 const SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 
 interface ExpectedPackage {
@@ -200,6 +204,26 @@ function validateRootPackageScripts(packageJson: JsonObject | undefined, violati
     return
   }
   addViolation(!checkScript.includes('pnpm package:smoke'), `${ROOT_PACKAGE_PATH} scripts.check must run pnpm package:smoke.`, violations)
+  addViolation(
+    scripts?.['build:package-dependencies'] !== PACKAGE_DEPENDENCY_BUILD_SCRIPT,
+    `${ROOT_PACKAGE_PATH} scripts.build:package-dependencies must build waggle-core and extension-sdk before type-aware package analysis.`,
+    violations,
+  )
+  const buildPackagesScript = scripts?.['build:packages']
+  addViolation(
+    typeof buildPackagesScript !== 'string' ||
+      !buildPackagesScript.startsWith(PACKAGE_DEPENDENCY_BUILD_PREFIX),
+    `${ROOT_PACKAGE_PATH} scripts.build:packages must build package dependencies first for clean-checkout package builds.`,
+    violations,
+  )
+  for (const scriptName of ['lint', 'lint:fix']) {
+    const script = scripts?.[scriptName]
+    addViolation(
+      typeof script !== 'string' || !script.includes(TYPE_AWARE_LINT_PREREQUISITE),
+      `${ROOT_PACKAGE_PATH} scripts.${scriptName} must build package dependencies immediately before clean-checkout type-aware analysis.`,
+      violations,
+    )
+  }
   addViolation(scripts?.['package-release:publish'] !== 'node scripts/package-release-publish.ts', `${ROOT_PACKAGE_PATH} scripts.package-release:publish must execute only the dependency-free typed package release publisher with Node.`, violations)
   addViolation(
     devDependencies?.['release-please'] !== RELEASE_PLEASE_CONTRACT.bundledRuntimeVersion,
