@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -227,7 +228,7 @@ describe('trusted main extension runtime network policy', () => {
       transport: unusedTransport,
     })
 
-    expect(() => process.emit(eventName)).toThrow(
+    expect(() => Reflect.apply(EventEmitter.prototype.emit, process, [eventName])).toThrow(
       'Child processes can bypass declared network origins',
     )
   })

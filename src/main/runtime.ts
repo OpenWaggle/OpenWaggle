@@ -9,6 +9,7 @@ import { FilesystemDocsBundleLive } from './adapters/filesystem-docs-bundle-serv
 import { FilesystemExtensionManagerLive } from './adapters/filesystem-extension-manager-service'
 import { FilesystemExtensionPackageRepositoryLive } from './adapters/filesystem-extension-package-repository'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
+import { registerPiBundledOAuthFlows } from './adapters/pi/pi-bundled-oauth'
 import { PiMcpConfigServiceLive } from './adapters/pi/pi-mcp-config-service'
 import { PiProviderAuthLive } from './adapters/pi/pi-provider-auth-service'
 import { PiProviderOAuthLive } from './adapters/pi/pi-provider-oauth-service'
@@ -65,6 +66,8 @@ const ActiveProjectChangeDependenciesLive = Layer.mergeAll(
 const ActiveProjectChangeWithDependenciesLive = ActiveProjectChangeServiceLive.pipe(
   Layer.provide(ActiveProjectChangeDependenciesLive),
 )
+
+registerPiBundledOAuthFlows()
 
 const AppLayer = Layer.mergeAll(
   NodeContext.layer,

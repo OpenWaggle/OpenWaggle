@@ -1,9 +1,5 @@
-import type {
-  AgentSessionServices,
-  AuthCredential,
-  AuthStorage,
-  ModelRegistry,
-} from '@earendil-works/pi-coding-agent'
+import type { CredentialInfo } from '@earendil-works/pi-ai'
+import type { AgentSessionServices, ModelRuntime } from '@earendil-works/pi-coding-agent'
 import type { ThinkingLevel } from '@shared/types/settings'
 
 export interface ProviderModelRecord {
@@ -32,20 +28,18 @@ export interface PiExtensionLoadErrorRecord {
 
 export interface ProviderCatalogSnapshot {
   readonly providers: readonly ProviderCatalogRecord[]
+  readonly providerNames: ReadonlyMap<string, string>
+  readonly apiKeyProviders: ReadonlySet<string>
   readonly oauthProviders: ReadonlySet<string>
-  readonly oauthProviderNames: ReadonlyMap<string, string>
-  readonly credentials: ReadonlyMap<string, AuthCredential>
+  readonly credentials: ReadonlyMap<string, CredentialInfo>
   readonly configuredAuthProviders: ReadonlySet<string>
-  readonly builtInModelProviders: ReadonlySet<string>
   readonly extensionLoadErrors: readonly PiExtensionLoadErrorRecord[]
 }
 
-export type PiModel = NonNullable<ReturnType<ModelRegistry['find']>>
+export type PiModel = NonNullable<ReturnType<ModelRuntime['getModel']>>
 
 export interface PiModelRuntime {
   readonly model: PiModel
-  readonly authStorage: AuthStorage
-  readonly modelRegistry: ModelRegistry
 }
 
 export interface PiProjectModelRuntime extends PiModelRuntime {

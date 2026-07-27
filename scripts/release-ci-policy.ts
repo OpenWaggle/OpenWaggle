@@ -42,7 +42,7 @@ const COMMIT_POLICY_CHECKOUT_STEP = `      - uses: ${ACTION_CHECKOUT}
           ref: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}`
 const PNPM_SETUP_STEP = `      - uses: ${PNPM_ACTION_SETUP}
         with:
-          version: 11.6.0`
+          version: 11.15.1`
 const NODE_SETUP_STEP = `      - uses: ${ACTION_SETUP_NODE}
         with:
           node-version: 24.14.0

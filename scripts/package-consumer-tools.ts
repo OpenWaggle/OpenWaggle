@@ -27,7 +27,7 @@ const PACKAGE_TOOLS = [
   },
 ] as const
 const EXISTING_TOOLS = [
-  { name: 'pnpm', version: '11.6.0' },
+  { name: 'pnpm', version: '11.15.1' },
   { name: 'bun', version: '1.3.14' },
 ] as const
 

@@ -7,7 +7,9 @@ publish:
   owner: OpenWaggle
   repo: OpenWaggle
 files:
-  - out/**/*
+  - out/main/**/*
+  - out/preload/**/*
+  - out/renderer/**/*
   - node_modules/**/*
   - package.json
   - '!**/.vscode/*'

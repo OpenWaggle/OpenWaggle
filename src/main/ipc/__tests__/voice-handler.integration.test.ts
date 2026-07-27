@@ -47,7 +47,7 @@ vi.mock('node:fs/promises', () => ({
   mkdir: mkdirMock,
 }))
 
-vi.mock('@xenova/transformers', () => ({
+vi.mock('@huggingface/transformers', () => ({
   env: transformersEnv,
   pipeline: pipelineMock,
 }))
@@ -113,7 +113,7 @@ describe('registerVoiceHandlers', () => {
     expect(pipelineMock).toHaveBeenCalledWith(
       'automatic-speech-recognition',
       'Xenova/whisper-base',
-      { quantized: false },
+      { dtype: 'fp32' },
     )
     expect(transcriber).toHaveBeenCalledOnce()
 

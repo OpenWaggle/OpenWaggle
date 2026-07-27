@@ -116,7 +116,7 @@ describe('package release validation', () => {
       )
       await writeJson(path.join(projectRoot, 'package.json'), {
         devDependencies: {
-          'release-please': '17.6.0',
+          'release-please': '17.6.1',
         },
         scripts: {
           check: 'pnpm typecheck && pnpm lint',
@@ -143,14 +143,14 @@ describe('package release validation', () => {
       await writeJson(packageJsonPath, {
         ...packageJson,
         devDependencies: {
-          'release-please': '^17.6.0',
+          'release-please': '^17.6.1',
         },
       })
 
       const result = await validatePackageReleaseFiles(projectRoot)
 
       expect(result.violations).toContain(
-        'package.json must pin release-please 17.6.0 for deterministic preflight contracts.',
+        'package.json must pin release-please 17.6.1 for deterministic preflight contracts.',
       )
     } finally {
       await fs.rm(projectRoot, { recursive: true, force: true })

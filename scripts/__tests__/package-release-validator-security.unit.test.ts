@@ -55,7 +55,7 @@ describe('package release workflow security validation', () => {
 
   it('rejects mutable or unknown actions and missing version comments', async () => {
     const invalidWorkflow = validWorkflow
-      .replace('googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5', 'googleapis/release-please-action@v5')
+      .replace('googleapis/release-please-action@1afbd760e855a7181e737350c3fe3fe085acd177 # v5', 'googleapis/release-please-action@v5')
       .replace('actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8', 'attacker/download@main # v1')
     const result = await validateWorkflow(invalidWorkflow)
 

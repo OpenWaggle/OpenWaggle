@@ -168,21 +168,20 @@ describe('extension frame protocol', () => {
     ).toThrow('Extension frame bootstrap URL must use the OpenWaggle renderer origin.')
   })
 
-  it.each([
-    'http://api.github.com',
-    'https://api.github.com/repos',
-    'data:text/plain,hi',
-  ])('rejects untrusted network origin %s', async (networkOrigin) => {
-    const { registerExtensionFrame } = await loadExtensionFrameProtocol()
+  it.each(['http://api.github.com', 'https://api.github.com/repos', 'data:text/plain,hi'])(
+    'rejects untrusted network origin %s',
+    async (networkOrigin) => {
+      const { registerExtensionFrame } = await loadExtensionFrameProtocol()
 
-    expect(() =>
-      registerExtensionFrame({
-        frameId: 'frame-1',
-        bootstrapUrl: 'http://localhost:5173/bootstrap.js',
-        networkOrigins: [networkOrigin],
-      }),
-    ).toThrow('Extension frame network origin')
-  })
+      expect(() =>
+        registerExtensionFrame({
+          frameId: 'frame-1',
+          bootstrapUrl: 'http://localhost:5173/bootstrap.js',
+          networkOrigins: [networkOrigin],
+        }),
+      ).toThrow('Extension frame network origin')
+    },
+  )
 
   it('ignores stale unregister calls from superseded frame registrations', async () => {
     const { registerExtensionFrame, registerExtensionFrameProtocolOnce, unregisterExtensionFrame } =

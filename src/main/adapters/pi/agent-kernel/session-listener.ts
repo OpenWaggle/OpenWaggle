@@ -181,6 +181,12 @@ function handleSessionEvent(state: SessionListenerState, event: AgentSessionEven
     .with('compaction_end', (value) => emitCompactionEnd(state, value))
     .with('auto_retry_start', (value) => emitAutoRetryStart(state, value))
     .with('auto_retry_end', (value) => emitAutoRetryEnd(state, value))
+    .with(
+      'summarization_retry_scheduled',
+      'summarization_retry_attempt_start',
+      'summarization_retry_finished',
+      () => undefined,
+    )
     .exhaustive()
 }
 

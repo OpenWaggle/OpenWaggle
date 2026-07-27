@@ -119,11 +119,9 @@ function piServices(loadErrors: readonly PiExtensionLoadErrorFixture[] = []) {
         errors: loadErrors,
       }),
     },
-    authStorage: {
-      setRuntimeApiKey: () => undefined,
-    },
-    modelRegistry: {
-      find: () => ({ id: 'offline-model' }),
+    modelRuntime: {
+      setRuntimeApiKey: async () => undefined,
+      getModel: () => ({ id: 'offline-model' }),
     },
   })
 }

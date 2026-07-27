@@ -82,7 +82,7 @@ After fixing errors, re-run the same diagnostic command from Step 1. Verify:
 
 ## Configuration
 
-The project uses `react-doctor.config.json` at the repo root:
+The project uses `doctor.config.json` at the repo root:
 
 ```json
 {

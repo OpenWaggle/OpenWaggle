@@ -1,5 +1,6 @@
 import type { ESLint } from 'eslint'
 import { astroTemplateProcessor } from './processors/astro-template'
+import { functionNameConventionRule } from './rules/function-name-convention'
 import { jsxMaxPropsRule } from './rules/jsx-max-props'
 import { mainArchitectureBoundariesRule } from './rules/main-architecture-boundaries'
 import { noArchitectureIgnoreCommentsRule } from './rules/no-architecture-ignore-comments'
@@ -21,6 +22,7 @@ export const openwagglePlugin: ESLint.Plugin = {
     'astro-template': astroTemplateProcessor,
   },
   rules: {
+    'function-name-convention': functionNameConventionRule,
     'jsx-max-props': jsxMaxPropsRule,
     'main-architecture-boundaries': mainArchitectureBoundariesRule,
     'no-architecture-ignore-comments': noArchitectureIgnoreCommentsRule,

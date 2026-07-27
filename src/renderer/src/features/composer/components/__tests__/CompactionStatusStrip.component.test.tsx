@@ -9,14 +9,15 @@ const COMPACTION_CASES = [
 ] as const
 
 describe('CompactionStatusStrip', () => {
-  it.each(
-    COMPACTION_CASES,
-  )('renders Pi-style compaction copy for %s compaction', (reason, label) => {
-    render(<CompactionStatusStrip state={{ type: 'compacting', reason }} onCancel={vi.fn()} />)
+  it.each(COMPACTION_CASES)(
+    'renders Pi-style compaction copy for %s compaction',
+    (reason, label) => {
+      render(<CompactionStatusStrip state={{ type: 'compacting', reason }} onCancel={vi.fn()} />)
 
-    expect(screen.getByText(label)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Cancel compaction' })).toBeInTheDocument()
-  })
+      expect(screen.getByText(label)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Cancel compaction' })).toBeInTheDocument()
+    },
+  )
 
   it('renders retry feedback and cancels through the same stop action', () => {
     const cancel = vi.fn()
