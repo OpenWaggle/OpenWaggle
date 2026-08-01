@@ -3,7 +3,7 @@ import { decodeUnknownOrThrow } from '@shared/schema'
 import * as Effect from 'effect/Effect'
 import { typedHandle } from '../typed-ipc'
 import { projectPathSchema } from './shared'
-import { getCachedGitStatus, setCachedGitStatus } from './status-cache'
+import { getCachedGitStatus, getGitStatusCacheToken, setCachedGitStatus } from './status-cache'
 import { getGitDiff, getGitStatus } from './status-service'
 
 export { invalidateGitStatusCache } from './status-cache'
@@ -16,8 +16,9 @@ export function registerGitStatusHandlers() {
       const cached = getCachedGitStatus(projectPath, GIT_CACHE.STATUS_TTL_MS)
       if (cached) return cached
 
+      const cacheToken = getGitStatusCacheToken(projectPath)
       const result = yield* Effect.promise(() => getGitStatus(projectPath))
-      setCachedGitStatus(projectPath, result)
+      setCachedGitStatus(projectPath, result, cacheToken)
       return result
     }),
   )

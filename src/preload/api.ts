@@ -143,6 +143,8 @@ export const api: OpenWaggleApi = {
   getGitStatus: invoke('git:status'),
   commitGit: invoke('git:commit'),
   getGitDiff: invoke('git:diff'),
+  stageAllGitChanges: invoke('git:working-tree:stage-all'),
+  revertAllGitChanges: invoke('git:working-tree:revert-all'),
   listGitBranches: invoke('git:branches:list'),
   checkoutGitBranch: invoke('git:branches:checkout'),
   createGitBranch: invoke('git:branches:create'),

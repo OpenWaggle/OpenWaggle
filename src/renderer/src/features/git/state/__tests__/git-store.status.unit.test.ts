@@ -94,6 +94,26 @@ describe('useGitStore status and branch refresh behavior', () => {
       expect(useGitStore.getState().statusError).toBeNull()
       expect(useGitStore.getState().status?.branch).toBe('dev')
     })
+
+    it('ignores stale status responses after switching projects', async () => {
+      let resolveFirst: ((status: ReturnType<typeof makeGitStatus>) => void) | undefined
+      apiMock.getGitStatus
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveFirst = resolve
+            }),
+        )
+        .mockResolvedValueOnce(makeGitStatus({ branch: 'project-b' }))
+
+      const firstRefresh = useGitStore.getState().refreshStatus('/repo-a')
+      await useGitStore.getState().refreshStatus('/repo-b')
+      resolveFirst?.(makeGitStatus({ branch: 'project-a' }))
+      await firstRefresh
+
+      expect(useGitStore.getState().status?.branch).toBe('project-b')
+      expect(useGitStore.getState().statusProjectPath).toBe('/repo-b')
+    })
   })
 
   describe('refreshBranches', () => {

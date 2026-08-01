@@ -12,6 +12,7 @@ interface ParsedPorcelainEntry {
   readonly path: string
   readonly status: GitFileStatus
   readonly staged: boolean
+  readonly unstaged: boolean
 }
 
 interface LineStats {
@@ -59,7 +60,9 @@ export function buildChangedFiles(
   const byPath = new Map<string, ParsedPorcelainEntry>()
   for (const entry of porcelainEntries) byPath.set(entry.path, entry)
   for (const path of numstat.keys()) {
-    if (!byPath.has(path)) byPath.set(path, { path, status: 'modified', staged: false })
+    if (!byPath.has(path)) {
+      byPath.set(path, { path, status: 'modified', staged: false, unstaged: true })
+    }
   }
 
   return [...byPath.values()]
@@ -125,6 +128,7 @@ function parsePorcelainLine(line: string) {
     path: normalizeGitPath(line.slice(GIT_STATUS_PATH_OFFSET).trim()),
     status: mapStatusCode(x === '?' && y === '?' ? '?' : y !== ' ' ? y : x),
     staged: x !== ' ' && x !== '?',
+    unstaged: y !== ' ',
   }
 }
 
@@ -155,6 +159,7 @@ function buildChangedFile(entry: ParsedPorcelainEntry, lineStats: LineStats | un
     path: entry.path,
     status: entry.status,
     staged: entry.staged,
+    unstaged: entry.unstaged,
     additions: lineStats?.additions ?? 0,
     deletions: lineStats?.deletions ?? 0,
   } satisfies GitChangedFile

@@ -2,6 +2,7 @@ export const PROJECT_PATH = '/tmp/repo'
 
 export const GIT_STORE_RESET_STATE = {
   status: null,
+  statusProjectPath: null,
   branches: null,
   isLoading: false,
   isCommitting: false,

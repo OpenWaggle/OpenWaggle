@@ -34,6 +34,10 @@ Detailed renderer rules live in `docs/renderer-architecture.md`.
 
 Session-tree and branch navigation use typed IPC channels such as `sessions:get-workspace`, `sessions:navigate-tree`, `sessions:rename-branch`, `sessions:archive-branch`, `sessions:restore-branch`, `sessions:update-tree-ui-state`, `pi-settings:get-tree-filter-mode`, `pi-settings:set-tree-filter-mode`, and `pi-settings:get-branch-summary-skip-prompt`.
 
+## Git Working Tree
+
+Diff-panel Git mutations cross typed preload and IPC channels and execute Git with argument arrays, never interpolated shell commands. `Stage all` stages every modified, deleted, and untracked path in the repository, even when the selected project path is a repository subdirectory. `Revert all` requires a main-process-owned native confirmation and an existing `HEAD`; after confirmation it restores tracked and staged changes to `HEAD`, then permanently removes untracked files and directories across the repository. Ignored files and nested Git repositories are retained. Before mutation, the main process refuses the operation without changing files when a retained or otherwise untracked path obstructs restoring a tracked `HEAD` path. A cleanup failure after tracked restoration is reported as a partial revert so the renderer can warn the user and refresh status and diff state.
+
 ## Sessions
 
 Pi sessions and OpenWaggle sessions are projected into:

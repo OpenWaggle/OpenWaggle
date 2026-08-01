@@ -1,7 +1,8 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { GitFileDiff } from '@shared/types/git'
 import type { ReviewComment } from '@shared/types/review'
-import { useEffect, useReducer } from 'react'
+import { useEffect, useReducer, useRef } from 'react'
+import { useDiffPanelGitActions } from '@/features/diff-panel/hooks/useDiffPanelGitActions'
 import type { ReviewCommentLocation } from '@/features/diff-panel/state/review-store'
 import { useReviewStore } from '@/features/diff-panel/state/review-store'
 import { api } from '@/shared/lib/ipc'
@@ -35,9 +36,96 @@ function diffPanelReducer(state: DiffPanelState, action: DiffPanelAction) {
   return matchBy(action, 'type')
     .with('clear', () => ({ fileDiffs: [], isLoading: false }))
     .with('start-loading', () => ({ ...state, isLoading: true }))
-    .with('load-success', (value) => ({ fileDiffs: value.fileDiffs, isLoading: false }))
-    .with('load-failure', () => ({ fileDiffs: [], isLoading: false }))
+    .with('load-success', (value) => ({ ...state, fileDiffs: value.fileDiffs, isLoading: false }))
+    .with('load-failure', () => ({ ...state, fileDiffs: [], isLoading: false }))
     .exhaustive()
+}
+
+function toRenderableDiffs(diffs: readonly GitFileDiff[]) {
+  return diffs.map((diff) => ({
+    ...diff,
+    items: buildDisplayItems(diff.diff),
+  }))
+}
+
+function isStaleDiffRequest(
+  requestId: number,
+  latestRequestId: number,
+  currentProjectPath: string | null,
+  requestedProjectPath: string,
+) {
+  return requestId !== latestRequestId || currentProjectPath !== requestedProjectPath
+}
+
+function useDiffPanelDiffs(projectPath: string | null) {
+  const [state, dispatch] = useReducer(diffPanelReducer, {
+    fileDiffs: [],
+    isLoading: false,
+  })
+  const currentProjectPath = useRef(projectPath)
+  const diffRequestId = useRef(0)
+
+  useEffect(() => {
+    currentProjectPath.current = projectPath
+  }, [projectPath])
+
+  useEffect(() => {
+    diffRequestId.current += 1
+    const requestId = diffRequestId.current
+    if (!projectPath) {
+      dispatch({ type: 'clear' })
+      return
+    }
+
+    dispatch({ type: 'start-loading' })
+    let cancelled = false
+    api
+      .getGitDiff(projectPath)
+      .then((diffs) => {
+        if (cancelled || requestId !== diffRequestId.current) return
+        dispatch({ type: 'load-success', fileDiffs: toRenderableDiffs(diffs) })
+      })
+      .catch(() => {
+        if (cancelled || requestId !== diffRequestId.current) return
+        dispatch({ type: 'load-failure' })
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [projectPath])
+
+  async function refreshDiff(projectPathToRefresh: string) {
+    diffRequestId.current += 1
+    const requestId = diffRequestId.current
+    dispatch({ type: 'start-loading' })
+    try {
+      const diffs = await api.getGitDiff(projectPathToRefresh)
+      if (
+        isStaleDiffRequest(
+          requestId,
+          diffRequestId.current,
+          currentProjectPath.current,
+          projectPathToRefresh,
+        )
+      )
+        return
+      dispatch({ type: 'load-success', fileDiffs: toRenderableDiffs(diffs) })
+    } catch {
+      if (
+        isStaleDiffRequest(
+          requestId,
+          diffRequestId.current,
+          currentProjectPath.current,
+          projectPathToRefresh,
+        )
+      )
+        return
+      dispatch({ type: 'load-failure' })
+    }
+  }
+
+  return { ...state, refreshDiff }
 }
 
 interface DiffPanelContentProps {
@@ -104,48 +192,18 @@ function DiffPanelContent({ fileDiffs, isLoading, review, actions }: DiffPanelCo
 }
 
 export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps) {
-  const [state, dispatch] = useReducer(diffPanelReducer, {
-    fileDiffs: [],
-    isLoading: false,
-  })
-
   const comments = useReviewStore((s) => s.comments)
   const activeCommentLocation = useReviewStore((s) => s.activeCommentLocation)
   const setActiveCommentLocation = useReviewStore((s) => s.setActiveCommentLocation)
   const addComment = useReviewStore((s) => s.addComment)
   const clearComments = useReviewStore((s) => s.clearComments)
+  const { fileDiffs, isLoading, refreshDiff } = useDiffPanelDiffs(projectPath)
 
-  useEffect(() => {
-    if (!projectPath) {
-      dispatch({ type: 'clear' })
-      return
-    }
-
-    dispatch({ type: 'start-loading' })
-    let cancelled = false
-    api
-      .getGitDiff(projectPath)
-      .then((diffs) => {
-        if (cancelled) return
-        dispatch({
-          type: 'load-success',
-          fileDiffs: diffs.map((diff) => ({
-            ...diff,
-            items: buildDisplayItems(diff.diff),
-          })),
-        })
-      })
-      .catch(() => {
-        if (cancelled) return
-        dispatch({ type: 'load-failure' })
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [projectPath])
-
-  const { fileDiffs, isLoading } = state
+  const gitActions = useDiffPanelGitActions({
+    projectPath,
+    fallbackHasChanges: fileDiffs.length > 0,
+    refreshDiff,
+  })
 
   function handleAddSingleComment(
     filePath: string,
@@ -184,14 +242,6 @@ export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps) {
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
-  function handleRevertAll() {
-    // Future: implement git checkout -- . via IPC
-  }
-
-  function handleStageAll() {
-    // Future: implement git add -A via IPC
-  }
-
   return (
     <div className="flex flex-col size-full bg-diff-bg">
       <DiffPanelContent
@@ -207,9 +257,11 @@ export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps) {
         }}
       />
       <DiffBottomBar
-        onRevertAll={handleRevertAll}
-        onStageAll={handleStageAll}
-        hasChanges={fileDiffs.length > 0}
+        onRevertAll={gitActions.handleRevertAll}
+        onStageAll={gitActions.handleStageAll}
+        canRevertAll={gitActions.canRevertAll}
+        canStageAll={gitActions.canStageAll}
+        isActionRunning={gitActions.isActionRunning}
       />
     </div>
   )

@@ -32,6 +32,7 @@ import type {
   GitCommitResult,
   GitFileDiff,
   GitStatusSummary,
+  GitWorkingTreeMutationResult,
 } from './git'
 import type { IpcEventPayload } from './ipc'
 import type { ProviderInfo, SupportedModelId } from './llm'
@@ -176,6 +177,8 @@ export interface OpenWaggleApi extends OpenWaggleExtensionApi {
   getGitStatus(projectPath: string): Promise<GitStatusSummary>
   commitGit(projectPath: string, payload: GitCommitPayload): Promise<GitCommitResult>
   getGitDiff(projectPath: string): Promise<GitFileDiff[]>
+  stageAllGitChanges(projectPath: string): Promise<GitWorkingTreeMutationResult>
+  revertAllGitChanges(projectPath: string): Promise<GitWorkingTreeMutationResult>
   listGitBranches(projectPath: string): Promise<GitBranchListResult>
   checkoutGitBranch(
     projectPath: string,

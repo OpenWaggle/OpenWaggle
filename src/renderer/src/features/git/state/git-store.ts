@@ -18,6 +18,7 @@ import { api } from '@/shared/lib/ipc'
 
 interface GitState {
   status: GitStatusSummary | null
+  statusProjectPath: string | null
   branches: GitBranchListResult | null
   isLoading: boolean
   isCommitting: boolean
@@ -48,6 +49,8 @@ interface GitState {
     payload: GitBranchSetUpstreamPayload,
   ) => Promise<GitBranchMutationResult>
 }
+
+let latestStatusRequestId = 0
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message.trim().length > 0 ? error.message : fallback
@@ -109,6 +112,7 @@ async function resolveGitBranchMutationResult(
 
 export const useGitStore = create<GitState>((set, get) => ({
   status: null,
+  statusProjectPath: null,
   branches: null,
   isLoading: false,
   isCommitting: false,
@@ -117,18 +121,23 @@ export const useGitStore = create<GitState>((set, get) => ({
   branchesError: null,
 
   async refreshStatus(projectPath: string | null) {
+    latestStatusRequestId += 1
+    const requestId = latestStatusRequestId
     if (!projectPath) {
-      set({ status: null, statusError: null, isLoading: false })
+      set({ status: null, statusProjectPath: null, statusError: null, isLoading: false })
       return
     }
 
     set({ isLoading: true, statusError: null })
     try {
       const status = await api.getGitStatus(projectPath)
-      set({ status, isLoading: false, statusError: null })
+      if (requestId !== latestStatusRequestId) return
+      set({ status, statusProjectPath: projectPath, isLoading: false, statusError: null })
     } catch (err) {
+      if (requestId !== latestStatusRequestId) return
       set({
         status: null,
+        statusProjectPath: projectPath,
         isLoading: false,
         statusError: err instanceof Error ? err.message : 'Failed to load Git status.',
       })

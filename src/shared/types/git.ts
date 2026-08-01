@@ -11,6 +11,7 @@ export interface GitChangedFile {
   readonly path: string
   readonly status: GitFileStatus
   readonly staged: boolean
+  readonly unstaged: boolean
   readonly additions: number
   readonly deletions: number
 }
@@ -62,6 +63,32 @@ export interface GitFileDiff {
   readonly additions: number
   readonly deletions: number
 }
+
+export const GIT_WORKING_TREE_ERROR_CODES = [
+  'cancelled',
+  'not-git-repo',
+  'no-head',
+  'partial-revert',
+  'unsafe-revert',
+  'unknown',
+] as const
+
+export type GitWorkingTreeErrorCode = (typeof GIT_WORKING_TREE_ERROR_CODES)[number]
+
+export interface GitWorkingTreeMutationSuccess {
+  readonly ok: true
+  readonly message: string
+}
+
+export interface GitWorkingTreeMutationFailure {
+  readonly ok: false
+  readonly code: GitWorkingTreeErrorCode
+  readonly message: string
+}
+
+export type GitWorkingTreeMutationResult =
+  | GitWorkingTreeMutationSuccess
+  | GitWorkingTreeMutationFailure
 
 export interface GitBranchInfo {
   readonly name: string
