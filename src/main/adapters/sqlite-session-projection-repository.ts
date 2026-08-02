@@ -6,6 +6,8 @@
  * Follows the same dynamic-import pattern as SettingsService.Live to defer
  * module-level side effects until runtime initialization.
  */
+
+import { SessionId } from '@shared/types/brand'
 import { Effect, Layer } from 'effect'
 import { SessionProjectionRepositoryError } from '../errors'
 import {
@@ -15,6 +17,25 @@ import {
 
 export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => {
   const store = await import('../store/session-details')
+  const { pruneSessionWorktree } = await import('../ipc/git/session-worktree-prune')
+  const { deleteTurnCheckpointsForSession } = await import('../store/turn-checkpoints')
+
+  async function pruneWorktreeForSession(id: Parameters<typeof store.getSessionDetail>[0]) {
+    const session = await store.getSessionDetail(id)
+    if (!session) return
+    await pruneSessionWorktree(
+      {
+        sessionId: String(id),
+        projectPath: session.projectPath,
+        worktreePath: session.worktreePath ?? null,
+      },
+      {
+        listWorktreeRefs: () => store.listSessionWorktreeRefs(),
+        clearWorktree: (sessionId) => store.clearSessionWorktree(SessionId(sessionId)),
+        deleteCheckpoints: (sessionId) => deleteTurnCheckpointsForSession(SessionId(sessionId)),
+      },
+    )
+  }
 
   return Layer.succeed(
     SessionProjectionRepository,
@@ -64,13 +85,19 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
 
       delete: (id) =>
         Effect.tryPromise({
-          try: () => store.deleteSession(id),
+          try: async () => {
+            await pruneWorktreeForSession(id)
+            return store.deleteSession(id)
+          },
           catch: (cause) => new SessionProjectionRepositoryError({ operation: 'delete', cause }),
         }),
 
       archive: (id) =>
         Effect.tryPromise({
-          try: () => store.archiveSession(id),
+          try: async () => {
+            await pruneWorktreeForSession(id)
+            return store.archiveSession(id)
+          },
           catch: (cause) => new SessionProjectionRepositoryError({ operation: 'archive', cause }),
         }),
 
