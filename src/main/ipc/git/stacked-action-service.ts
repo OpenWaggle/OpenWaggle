@@ -183,8 +183,9 @@ async function createFeatureBranch(
 
 function fallbackFeatureBranch(existing: readonly string[]) {
   const base = 'feature/update'
-  if (!existing.includes(base)) return base
+  const taken = new Set(existing)
+  if (!taken.has(base)) return base
   let suffix = DUPLICATE_BRANCH_START_SUFFIX
-  while (existing.includes(`${base}-${suffix}`)) suffix += 1
+  while (taken.has(`${base}-${suffix}`)) suffix += 1
   return `${base}-${suffix}`
 }

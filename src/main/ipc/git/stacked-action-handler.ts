@@ -37,7 +37,11 @@ function createStackedActionDeps(): StackedActionDeps {
     },
     listBranchNames: async (projectPath) => {
       const list = await listGitBranches(projectPath)
-      return list.branches.filter((branch) => !branch.isRemote).map((branch) => branch.name)
+      const names: string[] = []
+      for (const branch of list.branches) {
+        if (!branch.isRemote) names.push(branch.name)
+      }
+      return names
     },
     createBranch: async (projectPath, name, baseRef) => {
       const result = await createGitBranch(projectPath, {

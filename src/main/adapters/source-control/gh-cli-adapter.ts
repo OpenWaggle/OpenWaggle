@@ -4,6 +4,7 @@ import type {
   OpenChangeRequestPayload,
   SourceControlAuthResult,
   SourceControlFailure,
+  VcsChangeRequest,
 } from '@shared/types/git'
 import type { SourceControlProvider } from '../../ports/source-control-provider'
 import { parseGhAuthStatus } from './auth-parse'
@@ -81,9 +82,13 @@ export const githubProvider: SourceControlProvider = {
     const result = await runCli('gh', ['pr', 'list', '--json', PR_JSON_FIELDS], projectPath)
     if (result.code !== 0) return classifyFailure(result)
     const parsed = safeJsonParse(result.stdout)
-    const changeRequests = Array.isArray(parsed)
-      ? parsed.map(mapGhPullRequest).filter((cr): cr is NonNullable<typeof cr> => cr !== null)
-      : []
+    const changeRequests: VcsChangeRequest[] = []
+    if (Array.isArray(parsed)) {
+      for (const raw of parsed) {
+        const changeRequest = mapGhPullRequest(raw)
+        if (changeRequest) changeRequests.push(changeRequest)
+      }
+    }
     return { ok: true, changeRequests }
   },
 }

@@ -4,6 +4,7 @@ import type {
   OpenChangeRequestPayload,
   SourceControlAuthResult,
   SourceControlFailure,
+  VcsChangeRequest,
 } from '@shared/types/git'
 import type { SourceControlProvider } from '../../ports/source-control-provider'
 import { parseGlabAuthStatus } from './auth-parse'
@@ -71,9 +72,13 @@ export const gitlabProvider: SourceControlProvider = {
     const result = await runCli('glab', ['mr', 'list', '-F', 'json'], projectPath)
     if (result.code !== 0) return classifyFailure(result)
     const parsed = safeJsonParse(result.stdout)
-    const changeRequests = Array.isArray(parsed)
-      ? parsed.map(mapGlabMergeRequest).filter((cr): cr is NonNullable<typeof cr> => cr !== null)
-      : []
+    const changeRequests: VcsChangeRequest[] = []
+    if (Array.isArray(parsed)) {
+      for (const raw of parsed) {
+        const changeRequest = mapGlabMergeRequest(raw)
+        if (changeRequest) changeRequests.push(changeRequest)
+      }
+    }
     return { ok: true, changeRequests }
   },
 }
