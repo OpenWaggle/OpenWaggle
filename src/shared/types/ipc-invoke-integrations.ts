@@ -72,6 +72,10 @@ export interface IpcIntegrationInvokeChannelMap {
     args: [projectPath: string]
     return: GitFileDiff[]
   }
+  'git:branch-diff': {
+    args: [projectPath: string, baseRef: string]
+    return: GitFileDiff[]
+  }
   'git:working-tree:stage-all': {
     args: [projectPath: string]
     return: GitWorkingTreeMutationResult

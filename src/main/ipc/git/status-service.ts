@@ -42,6 +42,30 @@ export async function getGitDiff(projectPath: string) {
   return hasHead.code === 0 ? getHeadDiff(projectPath) : getInitialCommitDiff(projectPath)
 }
 
+/**
+ * Branch diff: changes on HEAD relative to the merge-base with a base ref
+ * (three-dot diff). Empty base ref falls back to the working-tree diff.
+ */
+export async function getGitBranchDiff(projectPath: string, baseRef: string) {
+  await assertGitRepository(projectPath)
+  const trimmed = baseRef.trim()
+  if (!trimmed) return getGitDiff(projectPath)
+
+  const verify = await runGit(projectPath, ['rev-parse', '--verify', `${trimmed}^{commit}`])
+  if (verify.code !== 0) {
+    throw new Error(`Base ref "${trimmed}" could not be resolved.`)
+  }
+  const result = await runGit(
+    projectPath,
+    ['diff', '--patch', '--find-renames', '--no-ext-diff', `${trimmed}...HEAD`],
+    { maxBuffer: DIFF_GIT_MAX_BUFFER },
+  )
+  if (result.code !== 0) {
+    throw new Error(result.stderr.trim() || 'Failed to load branch diff.')
+  }
+  return result.stdout.trim() ? parseUnifiedDiff(result.stdout) : []
+}
+
 async function assertGitRepository(projectPath: string) {
   if (!(await isGitRepository(projectPath))) {
     throw new Error('Selected folder is not a Git repository.')

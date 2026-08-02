@@ -100,6 +100,7 @@ describe('preload api surface contract', () => {
     'getGitStatus',
     'commitGit',
     'getGitDiff',
+    'getGitBranchDiff',
     'stageAllGitChanges',
     'revertAllGitChanges',
     'listGitBranches',
