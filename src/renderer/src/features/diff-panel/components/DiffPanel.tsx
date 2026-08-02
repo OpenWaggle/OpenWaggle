@@ -5,6 +5,7 @@ import { useEffect, useReducer, useRef } from 'react'
 import { useDiffPanelGitActions } from '@/features/diff-panel/hooks/useDiffPanelGitActions'
 import type { ReviewCommentLocation } from '@/features/diff-panel/state/review-store'
 import { useReviewStore } from '@/features/diff-panel/state/review-store'
+import { useCombinedVcsStatus, useStackedGitActions } from '@/features/git'
 import { api } from '@/shared/lib/ipc'
 import { Spinner } from '@/shared/ui/Spinner'
 import { DiffBottomBar } from './DiffBottomBar'
@@ -205,6 +206,15 @@ export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps) {
     refreshDiff,
   })
 
+  const { status: vcsStatus, refresh: refreshVcsStatus } = useCombinedVcsStatus(projectPath)
+  const stackedActions = useStackedGitActions({
+    projectPath,
+    onCompleted: () => {
+      if (projectPath) void refreshDiff(projectPath)
+      void refreshVcsStatus()
+    },
+  })
+
   function handleAddSingleComment(
     filePath: string,
     startLine: number,
@@ -262,6 +272,16 @@ export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps) {
         canRevertAll={gitActions.canRevertAll}
         canStageAll={gitActions.canStageAll}
         isActionRunning={gitActions.isActionRunning}
+        quickAction={{
+          status: vcsStatus,
+          isBusy: stackedActions.isRunning,
+          onRunAction: (action) => stackedActions.run(action),
+          onPull: () => stackedActions.run('pull'),
+          onOpenChangeRequest: () => {
+            if (vcsStatus?.pr?.url) window.open(vcsStatus.pr.url, '_blank', 'noopener')
+          },
+          onPublish: () => stackedActions.run('push'),
+        }}
       />
     </div>
   )
