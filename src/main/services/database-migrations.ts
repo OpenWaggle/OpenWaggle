@@ -217,4 +217,30 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
       `ALTER TABLE sessions ADD COLUMN worktree_path TEXT`,
     ],
   },
+  {
+    id: 20,
+    name: 'turn-checkpoints',
+    statements: [
+      `
+      CREATE TABLE IF NOT EXISTS turn_checkpoints (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+        turn_id TEXT NOT NULL,
+        turn_index INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        diff TEXT NOT NULL,
+        insertions INTEGER NOT NULL DEFAULT 0,
+        deletions INTEGER NOT NULL DEFAULT 0
+      )
+      `,
+      `
+      CREATE INDEX IF NOT EXISTS idx_turn_checkpoints_session_turn_index
+      ON turn_checkpoints (session_id, turn_index ASC)
+      `,
+      `
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_turn_checkpoints_session_turn_unique
+      ON turn_checkpoints (session_id, turn_id)
+      `,
+    ],
+  },
 ]
