@@ -3,6 +3,11 @@ import type { GitFileDiff } from '@shared/types/git'
 import type { ReviewComment } from '@shared/types/review'
 import { useEffect, useReducer, useRef } from 'react'
 import { useDiffPanelGitActions } from '@/features/diff-panel/hooks/useDiffPanelGitActions'
+import {
+  type DiffScopeSelection,
+  selectThreadDiffScopeSelection,
+  useDiffScopeStore,
+} from '@/features/diff-panel/state/diff-scope-store'
 import type { ReviewCommentLocation } from '@/features/diff-panel/state/review-store'
 import { useReviewStore } from '@/features/diff-panel/state/review-store'
 import { useCombinedVcsStatus, useStackedGitActions } from '@/features/git'
@@ -10,6 +15,7 @@ import { api } from '@/shared/lib/ipc'
 import { Spinner } from '@/shared/ui/Spinner'
 import { DiffBottomBar } from './DiffBottomBar'
 import { DiffFileSection } from './DiffFileSection'
+import { DiffScopeTabs } from './DiffScopeTabs'
 import { buildDisplayItems, type DisplayItem } from './diff-display-items'
 import { FileTree } from './FileTree'
 
@@ -58,17 +64,31 @@ function isStaleDiffRequest(
   return requestId !== latestRequestId || currentProjectPath !== requestedProjectPath
 }
 
-function useDiffPanelDiffs(projectPath: string | null) {
+function fetchDiffsForScope(projectPath: string, selection: DiffScopeSelection) {
+  if (selection.kind === 'branch') {
+    return api.getGitBranchDiff(projectPath, selection.baseRef ?? '')
+  }
+  return api.getGitDiff(projectPath)
+}
+
+function useDiffPanelDiffs(projectPath: string | null, selection: DiffScopeSelection) {
   const [state, dispatch] = useReducer(diffPanelReducer, {
     fileDiffs: [],
     isLoading: false,
   })
   const currentProjectPath = useRef(projectPath)
   const diffRequestId = useRef(0)
+  const selectionRef = useRef(selection)
+  useEffect(() => {
+    selectionRef.current = selection
+  }, [selection])
 
   useEffect(() => {
     currentProjectPath.current = projectPath
   }, [projectPath])
+
+  const scopeKind = selection.kind
+  const branchBaseRef = selection.kind === 'branch' ? (selection.baseRef ?? '') : ''
 
   useEffect(() => {
     diffRequestId.current += 1
@@ -78,10 +98,11 @@ function useDiffPanelDiffs(projectPath: string | null) {
       return
     }
 
+    const scopedSelection: DiffScopeSelection =
+      scopeKind === 'branch' ? { kind: 'branch', baseRef: branchBaseRef } : { kind: 'unstaged' }
     dispatch({ type: 'start-loading' })
     let cancelled = false
-    api
-      .getGitDiff(projectPath)
+    fetchDiffsForScope(projectPath, scopedSelection)
       .then((diffs) => {
         if (cancelled || requestId !== diffRequestId.current) return
         dispatch({ type: 'load-success', fileDiffs: toRenderableDiffs(diffs) })
@@ -94,14 +115,14 @@ function useDiffPanelDiffs(projectPath: string | null) {
     return () => {
       cancelled = true
     }
-  }, [projectPath])
+  }, [projectPath, scopeKind, branchBaseRef])
 
   async function refreshDiff(projectPathToRefresh: string) {
     diffRequestId.current += 1
     const requestId = diffRequestId.current
     dispatch({ type: 'start-loading' })
     try {
-      const diffs = await api.getGitDiff(projectPathToRefresh)
+      const diffs = await fetchDiffsForScope(projectPathToRefresh, selectionRef.current)
       if (
         isStaleDiffRequest(
           requestId,
@@ -198,7 +219,17 @@ export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps) {
   const setActiveCommentLocation = useReviewStore((s) => s.setActiveCommentLocation)
   const addComment = useReviewStore((s) => s.addComment)
   const clearComments = useReviewStore((s) => s.clearComments)
-  const { fileDiffs, isLoading, refreshDiff } = useDiffPanelDiffs(projectPath)
+  const scopeByThreadKey = useDiffScopeStore((s) => s.byThreadKey)
+  const selectGitScope = useDiffScopeStore((s) => s.selectGitScope)
+  const selectBranchBaseRef = useDiffScopeStore((s) => s.selectBranchBaseRef)
+  const scopeKey = projectPath ?? ''
+  const selection: DiffScopeSelection = selectThreadDiffScopeSelection(
+    scopeByThreadKey,
+    scopeKey || null,
+    true,
+  )
+  const branchBaseRef = selection.kind === 'branch' ? selection.baseRef : null
+  const { fileDiffs, isLoading, refreshDiff } = useDiffPanelDiffs(projectPath, selection)
 
   const gitActions = useDiffPanelGitActions({
     projectPath,
@@ -254,6 +285,14 @@ export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps) {
 
   return (
     <div className="flex flex-col size-full bg-diff-bg">
+      {projectPath ? (
+        <DiffScopeTabs
+          selection={selection}
+          baseRef={branchBaseRef}
+          onSelectScope={(scope) => selectGitScope(scopeKey, scope)}
+          onChangeBaseRef={(baseRef) => selectBranchBaseRef(scopeKey, baseRef)}
+        />
+      ) : null}
       <DiffPanelContent
         fileDiffs={fileDiffs}
         isLoading={isLoading}
