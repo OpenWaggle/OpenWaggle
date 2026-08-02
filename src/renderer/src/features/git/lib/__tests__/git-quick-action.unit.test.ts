@@ -88,6 +88,39 @@ describe('resolveQuickAction', () => {
     )
     expect(result.label).toContain('MR')
   })
+
+  it('prefers push (not create PR) when clean, ahead, and a PR is open', () => {
+    expect(resolveQuickAction(status({ aheadCount: 2, pr: pr('open') }), false)).toMatchObject({
+      action: 'push',
+    })
+  })
+
+  it('creates a PR when clean, synced, and ahead of the default ref', () => {
+    expect(resolveQuickAction(status({ aheadOfDefaultCount: 3 }), false)).toMatchObject({
+      action: 'create_pr',
+    })
+  })
+
+  it('falls back to plain commit when dirty with no primary remote', () => {
+    expect(
+      resolveQuickAction(
+        status({ hasWorkingTreeChanges: true, hasPrimaryRemote: false, hasUpstream: false }),
+        false,
+      ),
+    ).toMatchObject({ action: 'commit' })
+  })
+
+  it('pushes & creates a PR when no upstream but commits are ahead', () => {
+    expect(resolveQuickAction(status({ hasUpstream: false, aheadCount: 2 }), false)).toMatchObject({
+      action: 'create_pr',
+    })
+  })
+
+  it('uses push-only (commit_push) on the default ref when no upstream and ahead', () => {
+    expect(
+      resolveQuickAction(status({ hasUpstream: false, aheadCount: 1, isDefaultRef: true }), false),
+    ).toMatchObject({ action: 'commit_push' })
+  })
 })
 
 describe('buildMenuItems', () => {
