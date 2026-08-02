@@ -7,11 +7,11 @@ import {
 } from './run-lifecycle'
 import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
 import { createSessionListener } from './session-listener'
-import { resolveSessionProjectPath } from './session-manager'
+import { ensureSessionWorktreeProjectPath } from './session-worktree-birth'
 import { captureTurnCheckpoint } from './turn-capture'
 
 export async function runPiSession(input: AgentKernelRunInput & PiRuntimeExtensionIsolationInput) {
-  const projectPath = resolveSessionProjectPath(input.session)
+  const projectPath = await ensureSessionWorktreeProjectPath(input.session)
   const { model, session } = await createPiRunSessionRuntime({
     session: input.session,
     projectPath,

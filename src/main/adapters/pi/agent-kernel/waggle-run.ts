@@ -20,7 +20,7 @@ import { logger } from './constants'
 import { createPiRunSessionRuntime, runSubscribedPiOperation } from './run-lifecycle'
 import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
 import { createSessionListener } from './session-listener'
-import { resolveSessionProjectPath } from './session-manager'
+import { ensureSessionWorktreeProjectPath } from './session-worktree-birth'
 import { resolveWaggleRuntimeConfig } from './waggle-model-resolution'
 import {
   buildWaggleTurnCustomMessage,
@@ -81,7 +81,7 @@ async function restoreInitialWaggleModel(input: {
 }
 
 export async function runPiWaggle(input: PiWaggleKernelRunInput) {
-  const projectPath = resolveSessionProjectPath(input.session)
+  const projectPath = await ensureSessionWorktreeProjectPath(input.session)
   const waggleSessionId = randomUUID()
   const runtimeConfig = resolveWaggleRuntimeConfig({
     config: input.waggle.config,
