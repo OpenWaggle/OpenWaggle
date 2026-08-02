@@ -1,5 +1,6 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { SessionId } from '@shared/types/brand'
+import type { SessionEnvironmentMode } from '@shared/types/git'
 import type { SessionDetail, SessionSummary } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { runStoreEffect } from '../store-runtime'
@@ -26,6 +27,8 @@ function hydrateSessionSummary(row: SessionSummaryRow) {
 
 function hydrateSessionDetail(sessionRow: SessionRow, nodeRows: readonly SessionNodeRow[]) {
   try {
+    const environmentMode: SessionEnvironmentMode =
+      sessionRow.environment_mode === 'worktree' ? 'worktree' : 'local'
     return {
       id: SessionId(sessionRow.id),
       title: sessionRow.title,
@@ -37,6 +40,8 @@ function hydrateSessionDetail(sessionRow: SessionRow, nodeRows: readonly Session
       archived: sessionRow.archived === 1 ? true : undefined,
       createdAt: sessionRow.created_at,
       updatedAt: sessionRow.updated_at,
+      environmentMode,
+      worktreePath: sessionRow.worktree_path,
     }
   } catch (error) {
     logSessionHydrationFailure(sessionRow, error)
@@ -61,7 +66,9 @@ function selectSessionRow(sql: SqlClient.SqlClient, id: SessionId) {
       created_at,
       updated_at,
       last_active_node_id,
-      last_active_branch_id
+      last_active_branch_id,
+      environment_mode,
+      worktree_path
     FROM sessions
     WHERE id = ${id}
     LIMIT 1

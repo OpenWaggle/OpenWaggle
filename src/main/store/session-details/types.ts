@@ -14,6 +14,8 @@ export interface SessionRow {
   readonly updated_at: number
   readonly last_active_node_id: string | null
   readonly last_active_branch_id: string | null
+  readonly environment_mode: string | null
+  readonly worktree_path: string | null
 }
 
 export interface SessionSummaryRow {

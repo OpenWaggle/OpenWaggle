@@ -8,6 +8,7 @@ import {
 import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
 import { createSessionListener } from './session-listener'
 import { resolveSessionProjectPath } from './session-manager'
+import { captureTurnCheckpoint } from './turn-capture'
 
 export async function runPiSession(input: AgentKernelRunInput & PiRuntimeExtensionIsolationInput) {
   const projectPath = resolveSessionProjectPath(input.session)
@@ -26,7 +27,7 @@ export async function runPiSession(input: AgentKernelRunInput & PiRuntimeExtensi
   })
 
   const unsubscribe = session.subscribe(createSessionListener(input, input.runId))
-  return runSubscribedPiOperation({
+  const result = await runSubscribedPiOperation({
     runInput: input,
     session,
     unsubscribe,
@@ -35,4 +36,9 @@ export async function runPiSession(input: AgentKernelRunInput & PiRuntimeExtensi
     operation: () => promptPiSession(session, model, input.payload),
     buildErrorMessages: (appended) => buildPiRunNewMessages(input.payload, appended),
   })
+
+  // Best-effort per-turn checkpoint (WS7); never affects the run result.
+  await captureTurnCheckpoint({ session: input.session, projectPath, runId: input.runId })
+
+  return result
 }

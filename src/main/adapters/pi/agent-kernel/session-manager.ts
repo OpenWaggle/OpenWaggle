@@ -7,6 +7,12 @@ export function resolveSessionProjectPath(session: SessionDetail) {
   if (!projectPath) {
     throw new Error('No project path set on the session - cannot run Pi agent')
   }
+  // Worktree-mode sessions run in their dedicated Session worktree (ADR 0010);
+  // local-mode sessions (the default) run in the opened checkout unchanged.
+  const worktreePath = session.worktreePath?.trim()
+  if (session.environmentMode === 'worktree' && worktreePath && existsSync(worktreePath)) {
+    return worktreePath
+  }
   return projectPath
 }
 
