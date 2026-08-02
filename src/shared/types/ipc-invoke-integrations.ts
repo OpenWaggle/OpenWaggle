@@ -22,6 +22,10 @@ import type {
   GitFileDiff,
   GitStatusSummary,
   GitWorkingTreeMutationResult,
+  GitWorktreeCreatePayload,
+  GitWorktreeListResult,
+  GitWorktreeMutationResult,
+  GitWorktreeRemovePayload,
 } from './git'
 import type { SupportedModelId } from './llm'
 import type { AgentPhaseState } from './phase'
@@ -94,6 +98,18 @@ export interface IpcIntegrationInvokeChannelMap {
   'git:branches:set-upstream': {
     args: [projectPath: string, payload: GitBranchSetUpstreamPayload]
     return: GitBranchMutationResult
+  }
+  'git:worktrees:list': {
+    args: [projectPath: string]
+    return: GitWorktreeListResult
+  }
+  'git:worktrees:create': {
+    args: [projectPath: string, payload: GitWorktreeCreatePayload]
+    return: GitWorktreeMutationResult
+  }
+  'git:worktrees:remove': {
+    args: [projectPath: string, payload: GitWorktreeRemovePayload]
+    return: GitWorktreeMutationResult
   }
   'attachments:prepare': {
     args: [projectPath: string, paths: string[]]

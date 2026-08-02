@@ -328,6 +328,52 @@ _Avoid_: renderer-only history
 OpenWaggle-owned live state for a Pi interaction request waiting for user feedback.
 _Avoid_: extension-local pending prompt
 
+### Source control and diff
+
+**Source control provider**:
+An integrated remote hosting service OpenWaggle drives for change requests and remote refs, such as GitHub or GitLab.
+_Avoid_: git remote (that is the plain URL), forge
+
+**Change request**:
+The provider-neutral concept that a GitHub pull request or a GitLab merge request instantiates.
+_Avoid_: PR (as the neutral term), MR (as the neutral term)
+
+**Stacked git action**:
+A single composite git intent that runs an ordered set of steps — for example commit, then push, then open a change request — as one user action.
+_Avoid_: batch commit, macro
+
+**Local VCS status**:
+The network-free part of a repository's git status — repo presence, current ref, default-ref and primary-remote flags, and working-tree changes — that the diff panel can read instantly.
+_Avoid_: git status (unqualified)
+
+**Remote VCS status**:
+The network-derived part of a repository's git status — upstream presence, ahead/behind and ahead-of-default counts, and open change-request state — loaded asynchronously.
+_Avoid_: git status (unqualified)
+
+**Working-tree diff**:
+The diff scope showing staged and unstaged changes in the current working tree.
+_Avoid_: local diff, dirty diff
+
+**Branch diff**:
+The diff scope comparing the current branch against a chosen base ref.
+_Avoid_: PR diff, full diff
+
+**Turn diff**:
+The diff scope showing the file changes produced by one Pi agent turn, computed from per-turn worktree checkpoint snapshots stored by OpenWaggle.
+_Avoid_: message diff, step diff
+
+**Turn checkpoint**:
+A persisted snapshot of a Session worktree's file state captured per Pi agent turn, stored as a diff blob and queryable by turn range to produce Turn diffs.
+_Avoid_: Pi session snapshot (that is conversation state), autosave
+
+**Session worktree**:
+A dedicated git worktree plus its temporary git branch, bound to one session running in worktree environment mode and shared by that session's conversation forks.
+_Avoid_: branch (ambiguous here), session branch, checkout
+
+**Session environment mode**:
+How a session's git work is isolated: `local` runs directly in the opened checkout, `worktree` runs in a dedicated Session worktree; chosen per session with a configurable default.
+_Avoid_: sandbox, isolation level
+
 ## Relationships
 
 - An **OpenWaggle extension package** declares zero or more **OpenWaggle desktop contributions** across one or more **Extension contribution surfaces**.
@@ -658,3 +704,5 @@ _Avoid_: extension-local pending prompt
 - "installed docs" can imply a copied folder with no entry point. Resolved: installed docs must include an **Installed docs index** with predictable topic routing.
 - "docs path" can imply a fixed filesystem location. Resolved: agents should use the **Docs discovery capability** instead of hardcoding packaged paths.
 - "untrusted extension docs" can imply hidden local docs. Resolved: **Extension package documentation** is discoverable with provenance metadata regardless of trust or enablement.
+- "branch" is ambiguous between conversation forks and git. Resolved: a **SessionBranch** is a conversation-tree fork of the Pi message tree; a **Session worktree** (with its own temporary git branch) is the git isolation unit. A session in `worktree` **Session environment mode** owns one **Session worktree** shared across all its **SessionBranches**; a `local`-mode session has none and edits the opened checkout.
+- "turn diff" could imply the git commit range a turn produced. Resolved: a **Turn diff** is computed from persisted per-turn **Turn checkpoints** (worktree snapshots stored as diff blobs), a dedicated OpenWaggle subsystem distinct from Pi session (conversation) snapshots, so it works even for uncommitted in-turn edits.

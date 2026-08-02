@@ -22,6 +22,10 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 - `docs/adr/0006-adopt-federated-module-runtime-for-extension-ui.md`
 - `docs/adr/0007-adopt-release-please-for-openwaggle-npm-packages.md`
 - `docs/adr/0008-publish-npm-packages-directly-with-trusted-publishing.md`
+- `docs/adr/0009-promote-attested-package-artifacts.md`
+- `docs/adr/0010-adopt-worktree-per-session-environment-mode.md`
+- `docs/adr/0011-per-turn-worktree-checkpointing.md`
+- `docs/adr/0012-source-control-provider-cli-adapters-and-stacked-actions.md`
 
 ## Specs
 

@@ -107,6 +107,10 @@ export function useCommandPaletteItems({
     openSessionTree: createOptionalCommandPaletteAction(closeCommandPalette, onOpenSessionTree),
     forkToNewSession: createOptionalCommandPaletteAction(closeCommandPalette, onForkToNewSession),
     cloneToNewSession: createOptionalCommandPaletteAction(closeCommandPalette, onCloneToNewSession),
+    openWorktrees: () => {
+      closeCommandPalette()
+      void navigate({ to: '/settings/$tab', params: { tab: 'worktrees' } })
+    },
     insertCompactCommand: () => {
       insertCompactCommand()
       closeCommandPalette()

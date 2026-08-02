@@ -1,5 +1,6 @@
 import { BASE_TEN, PERCENT_BASE } from '@shared/constants/math'
 import { SupportedModelId } from '@shared/types/brand'
+import { SESSION_ENVIRONMENT_MODES } from '@shared/types/git'
 import { parseModelRef } from '@shared/types/llm'
 import { DEFAULT_SETTINGS, THINKING_LEVELS } from '@shared/types/settings'
 import { includes } from '@shared/utils/validation'
@@ -22,6 +23,14 @@ export function resolveProjectPath(raw: unknown) {
 
 export function resolveThinkingLevel(raw: unknown) {
   return isValidThinkingLevel(raw) ? raw : DEFAULT_SETTINGS.thinkingLevel
+}
+
+export function isValidSessionEnvironmentMode(value: unknown) {
+  return typeof value === 'string' && includes(SESSION_ENVIRONMENT_MODES, value)
+}
+
+export function resolveDefaultSessionEnvironmentMode(raw: unknown) {
+  return isValidSessionEnvironmentMode(raw) ? raw : DEFAULT_SETTINGS.defaultSessionEnvironmentMode
 }
 
 export function normalizeStoredModelRef(raw: string) {

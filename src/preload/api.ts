@@ -151,6 +151,9 @@ export const api: OpenWaggleApi = {
   renameGitBranch: invoke('git:branches:rename'),
   deleteGitBranch: invoke('git:branches:delete'),
   setGitBranchUpstream: invoke('git:branches:set-upstream'),
+  listGitWorktrees: invoke('git:worktrees:list'),
+  createGitWorktree: invoke('git:worktrees:create'),
+  removeGitWorktree: invoke('git:worktrees:remove'),
 
   // Attachments
   prepareAttachments: prepareSelectedAttachments,

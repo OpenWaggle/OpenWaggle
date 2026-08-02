@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
-import { Archive, Cable, Network, PackageOpen, Settings2, Waypoints } from 'lucide-react'
+import { Archive, Cable, GitBranch, Network, PackageOpen, Settings2, Waypoints } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import type { SettingsTab } from '@/shell/ui-store'
@@ -15,6 +15,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'waggle', label: 'Waggle Mode', icon: Waypoints },
   { id: 'extensions', label: 'Extensions', icon: PackageOpen },
   { id: 'mcp', label: 'MCP', icon: Network },
+  { id: 'worktrees', label: 'Worktrees', icon: GitBranch },
   { id: 'archived', label: 'Archived items', icon: Archive },
   { id: 'connections', label: 'Connections', icon: Cable },
 ]

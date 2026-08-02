@@ -1,4 +1,5 @@
 import { SupportedModelId } from './brand'
+import type { SessionEnvironmentMode } from './git'
 
 export type Provider = string
 export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const
@@ -16,6 +17,8 @@ export interface Settings {
   readonly recentProjects: readonly string[]
   readonly skillTogglesByProject: Readonly<Record<string, Readonly<Record<string, boolean>>>>
   readonly projectDisplayNames: Readonly<Record<string, string>>
+  /** Default Session environment mode applied to new sessions (ADR 0010). */
+  readonly defaultSessionEnvironmentMode: SessionEnvironmentMode
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -27,4 +30,5 @@ export const DEFAULT_SETTINGS: Settings = {
   recentProjects: [],
   skillTogglesByProject: {},
   projectDisplayNames: {},
+  defaultSessionEnvironmentMode: 'local',
 }

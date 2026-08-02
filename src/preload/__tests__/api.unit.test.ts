@@ -113,6 +113,9 @@ describe('preload api surface contract', () => {
     'renameGitBranch',
     'deleteGitBranch',
     'setGitBranchUpstream',
+    'listGitWorktrees',
+    'createGitWorktree',
+    'removeGitWorktree',
     // Attachments
     'prepareAttachments',
     'prepareAttachmentFromText',
@@ -165,11 +168,8 @@ describe('preload api surface contract', () => {
     'onUpdateStatus',
   ] as const
 
-  it('has every expected method as a function', () => {
-    for (const method of EXPECTED_METHODS) {
-      expect(api).toHaveProperty(method)
-      expect(typeof api[method]).toBe('function')
-    }
+  it('exposes every expected method as a function', () => {
+    for (const method of EXPECTED_METHODS) expect(typeof api[method]).toBe('function')
   })
 
   it('has no unexpected methods beyond the contract', () => {

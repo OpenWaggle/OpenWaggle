@@ -1,4 +1,5 @@
 import { SupportedModelId } from '@shared/types/brand'
+import type { SessionEnvironmentMode } from '@shared/types/git'
 import { DEFAULT_SETTINGS, THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
 import { includes } from '@shared/utils/validation'
 import { useProviderStore } from '@/features/providers/state'
@@ -152,6 +153,11 @@ export function createPreferencesActions(
       await api.updateSettings({ thinkingLevel: preset })
       set({ settings: { ...settings, thinkingLevel: preset } })
       persistProjectPreference(settings.projectPath, { thinkingLevel: preset })
+    },
+    setDefaultSessionEnvironmentMode: async (mode: SessionEnvironmentMode) => {
+      const { settings } = get()
+      await api.updateSettings({ defaultSessionEnvironmentMode: mode })
+      set({ settings: { ...settings, defaultSessionEnvironmentMode: mode } })
     },
     setEnabledModels: (models) => setEnabledModels(models, set, get),
     setProjectDisplayName: async (path, name) => {

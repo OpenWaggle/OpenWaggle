@@ -1,6 +1,7 @@
 import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
 import {
   SETTINGS_KEY_DEFAULT_MODEL,
+  SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE,
   SETTINGS_KEY_ENABLED_MODELS,
   SETTINGS_KEY_FAVORITE_MODELS,
   SETTINGS_KEY_PROJECT_DISPLAY_NAMES,
@@ -10,7 +11,9 @@ import {
   SETTINGS_KEY_THINKING_LEVEL,
 } from './keys'
 import {
+  isValidSessionEnvironmentMode,
   isValidThinkingLevel,
+  resolveDefaultSessionEnvironmentMode,
   resolveEnabledModels,
   resolveFavoriteModels,
   resolveProjectPath,
@@ -59,6 +62,9 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
     getStoredValue(storedSettings, SETTINGS_KEY_PROJECT_DISPLAY_NAMES) ??
       DEFAULT_SETTINGS.projectDisplayNames,
   )
+  const defaultSessionEnvironmentMode = resolveDefaultSessionEnvironmentMode(
+    getStoredValue(storedSettings, SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE),
+  )
 
   return {
     settings: {
@@ -70,6 +76,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       recentProjects,
       skillTogglesByProject,
       projectDisplayNames,
+      defaultSessionEnvironmentMode,
     } satisfies Settings,
   }
 }
@@ -104,6 +111,11 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
     partial.projectDisplayNames !== undefined
       ? sanitizeProjectDisplayNames(partial.projectDisplayNames)
       : current.projectDisplayNames
+  const defaultSessionEnvironmentMode =
+    partial.defaultSessionEnvironmentMode !== undefined &&
+    isValidSessionEnvironmentMode(partial.defaultSessionEnvironmentMode)
+      ? partial.defaultSessionEnvironmentMode
+      : current.defaultSessionEnvironmentMode
 
   return {
     ...current,
@@ -115,5 +127,6 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
     recentProjects,
     skillTogglesByProject,
     projectDisplayNames,
+    defaultSessionEnvironmentMode,
   } satisfies Settings
 }

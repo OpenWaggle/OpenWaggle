@@ -209,4 +209,12 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
     name: 'extension-storage-items',
     statements: [...CURRENT_EXTENSION_STORAGE_SCHEMA_STATEMENTS],
   },
+  {
+    id: 19,
+    name: 'session-worktree-environment',
+    statements: [
+      `ALTER TABLE sessions ADD COLUMN environment_mode TEXT NOT NULL DEFAULT 'local'`,
+      `ALTER TABLE sessions ADD COLUMN worktree_path TEXT`,
+    ],
+  },
 ]

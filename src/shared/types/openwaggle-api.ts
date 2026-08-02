@@ -33,6 +33,10 @@ import type {
   GitFileDiff,
   GitStatusSummary,
   GitWorkingTreeMutationResult,
+  GitWorktreeCreatePayload,
+  GitWorktreeListResult,
+  GitWorktreeMutationResult,
+  GitWorktreeRemovePayload,
 } from './git'
 import type { IpcEventPayload } from './ipc'
 import type { ProviderInfo, SupportedModelId } from './llm'
@@ -200,6 +204,15 @@ export interface OpenWaggleApi extends OpenWaggleExtensionApi {
     projectPath: string,
     payload: GitBranchSetUpstreamPayload,
   ): Promise<GitBranchMutationResult>
+  listGitWorktrees(projectPath: string): Promise<GitWorktreeListResult>
+  createGitWorktree(
+    projectPath: string,
+    payload: GitWorktreeCreatePayload,
+  ): Promise<GitWorktreeMutationResult>
+  removeGitWorktree(
+    projectPath: string,
+    payload: GitWorktreeRemovePayload,
+  ): Promise<GitWorktreeMutationResult>
 
   // Attachments
   prepareAttachments(projectPath: string, files: readonly File[]): Promise<PreparedAttachment[]>

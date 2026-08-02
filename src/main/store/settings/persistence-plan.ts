@@ -1,6 +1,7 @@
 import type { Settings } from '@shared/types/settings'
 import {
   SETTINGS_KEY_DEFAULT_MODEL,
+  SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE,
   SETTINGS_KEY_ENABLED_MODELS,
   SETTINGS_KEY_FAVORITE_MODELS,
   SETTINGS_KEY_PROJECT_DISPLAY_NAMES,
@@ -87,6 +88,12 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
     partial.projectDisplayNames !== undefined,
     SETTINGS_KEY_PROJECT_DISPLAY_NAMES,
     next.projectDisplayNames,
+  )
+  appendChangedSetting(
+    writes,
+    partial.defaultSessionEnvironmentMode !== undefined,
+    SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE,
+    next.defaultSessionEnvironmentMode,
   )
 
   return writes

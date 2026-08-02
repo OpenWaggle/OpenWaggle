@@ -154,3 +154,69 @@ export interface GitBranchMutationFailure {
 }
 
 export type GitBranchMutationResult = GitBranchMutationSuccess | GitBranchMutationFailure
+
+// --- Session worktrees (ADR 0010) ---
+
+/**
+ * How a session's git work is isolated.
+ * `local` edits the opened checkout; `worktree` uses a dedicated Session worktree.
+ */
+export type SessionEnvironmentMode = 'local' | 'worktree'
+
+export const SESSION_ENVIRONMENT_MODES = ['local', 'worktree'] as const
+
+export interface GitWorktreeInfo {
+  /** Absolute path of the worktree checkout. */
+  readonly path: string
+  /** Branch checked out in the worktree, or null when detached. */
+  readonly branch: string | null
+  /** Commit the worktree points at. */
+  readonly head: string
+  /** True for the repository's primary (main) worktree. */
+  readonly isMain: boolean
+}
+
+export interface GitWorktreeListResult {
+  readonly worktrees: readonly GitWorktreeInfo[]
+}
+
+export interface GitWorktreeCreatePayload {
+  /** Absolute path where the worktree checkout is created. */
+  readonly path: string
+  /** Temporary branch created for the worktree (git worktree add -b). */
+  readonly branch: string
+  /** Base ref the worktree branch starts from. */
+  readonly baseRef: string
+}
+
+export interface GitWorktreeRemovePayload {
+  readonly path: string
+  /** Only pass true on explicit user request; otherwise git refuses dirty removals. */
+  readonly force?: boolean
+}
+
+export const GIT_WORKTREE_ERROR_CODES = [
+  'not-git-repo',
+  'base-ref-not-found',
+  'worktree-exists',
+  'branch-exists',
+  'dirty-worktree',
+  'not-found',
+  'unknown',
+] as const
+
+export type GitWorktreeErrorCode = (typeof GIT_WORKTREE_ERROR_CODES)[number]
+
+export interface GitWorktreeMutationSuccess {
+  readonly ok: true
+  readonly message: string
+  readonly path: string
+}
+
+export interface GitWorktreeMutationFailure {
+  readonly ok: false
+  readonly code: GitWorktreeErrorCode
+  readonly message: string
+}
+
+export type GitWorktreeMutationResult = GitWorktreeMutationSuccess | GitWorktreeMutationFailure

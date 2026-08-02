@@ -13,6 +13,7 @@ import { ExtensionsSection } from './sections/ExtensionsSection'
 import { GeneralSection } from './sections/GeneralSection'
 import { McpSection } from './sections/McpSection'
 import { WaggleSection } from './sections/WaggleSection'
+import { WorktreesSection } from './sections/WorktreesSection'
 
 interface SettingsPageProps {
   readonly activeTab: SettingsTab
@@ -75,6 +76,7 @@ function SettingsTabContent({ tab }: { tab: SettingsTab }) {
     .with('waggle', () => <WaggleSection />)
     .with('extensions', () => <ExtensionsSection />)
     .with('mcp', () => <McpSection />)
+    .with('worktrees', () => <WorktreesSection />)
     .with('connections', () => <ConnectionsSection />)
     .with('archived', () => <ArchivedSection />)
     .otherwise(() => <GeneralSection />)

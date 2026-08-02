@@ -34,6 +34,7 @@ export const SETTINGS_TABS = [
   'waggle',
   'extensions',
   'mcp',
+  'worktrees',
   'archived',
   'connections',
 ] as const
