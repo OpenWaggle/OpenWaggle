@@ -220,3 +220,80 @@ export interface GitWorktreeMutationFailure {
 }
 
 export type GitWorktreeMutationResult = GitWorktreeMutationSuccess | GitWorktreeMutationFailure
+
+// --- VCS status: Local/Remote split (WS2, ADR 0012) ---
+
+export type SourceControlProviderId = 'github' | 'gitlab'
+
+export interface SourceControlProviderInfo {
+  readonly id: SourceControlProviderId
+  readonly host: string
+}
+
+export type ChangeRequestState = 'open' | 'merged' | 'closed' | 'draft'
+
+/** Provider-neutral change request (GitHub PR / GitLab MR). */
+export interface VcsChangeRequest {
+  readonly title: string
+  readonly url: string
+  readonly baseRef: string
+  readonly headRef: string
+  readonly state: ChangeRequestState
+}
+
+export interface VcsWorkingTreeFile {
+  readonly path: string
+  readonly insertions: number
+  readonly deletions: number
+}
+
+export interface VcsWorkingTree {
+  readonly files: readonly VcsWorkingTreeFile[]
+  readonly insertions: number
+  readonly deletions: number
+}
+
+/** Network-free status the diff panel can read instantly. */
+export interface LocalVcsStatus {
+  readonly isRepo: boolean
+  readonly sourceControlProvider: SourceControlProviderInfo | null
+  readonly hasPrimaryRemote: boolean
+  readonly isDefaultRef: boolean
+  readonly refName: string | null
+  readonly hasWorkingTreeChanges: boolean
+  readonly workingTree: VcsWorkingTree
+}
+
+/** Network-derived status loaded asynchronously. */
+export interface RemoteVcsStatus {
+  readonly hasUpstream: boolean
+  readonly aheadCount: number
+  readonly behindCount: number
+  readonly aheadOfDefaultCount: number | null
+  readonly pr: VcsChangeRequest | null
+}
+
+/** Combined view for the git-actions control (Local + Remote). */
+export type VcsStatus = LocalVcsStatus & RemoteVcsStatus
+
+export const VCS_STATUS_ERROR_CODES = ['not-a-repo', 'remote-unreachable', 'unknown'] as const
+export type VcsStatusErrorCode = (typeof VCS_STATUS_ERROR_CODES)[number]
+
+export interface LocalVcsStatusSuccess {
+  readonly ok: true
+  readonly status: LocalVcsStatus
+}
+
+export interface RemoteVcsStatusSuccess {
+  readonly ok: true
+  readonly status: RemoteVcsStatus
+}
+
+export interface VcsStatusFailure {
+  readonly ok: false
+  readonly code: VcsStatusErrorCode
+  readonly message: string
+}
+
+export type LocalVcsStatusResult = LocalVcsStatusSuccess | VcsStatusFailure
+export type RemoteVcsStatusResult = RemoteVcsStatusSuccess | VcsStatusFailure

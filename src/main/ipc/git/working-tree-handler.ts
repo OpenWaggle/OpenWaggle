@@ -5,6 +5,7 @@ import { BrowserWindow, dialog, type IpcMainInvokeEvent, type MessageBoxOptions 
 import { typedHandle } from '../typed-ipc'
 import { projectPathSchema } from './shared'
 import { invalidateGitStatusCache } from './status-handler'
+import { invalidateVcsStatus } from './vcs-status-cache'
 import { revertAllGitChanges, stageAllGitChanges } from './working-tree-service'
 
 const REVERT_ALL_CONFIRMATION_DETAIL =
@@ -18,6 +19,7 @@ function workingTreeActionHandler(
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
       const result = yield* Effect.promise(() => action(projectPath))
       invalidateGitStatusCache()
+      invalidateVcsStatus(projectPath)
       return result
     })
 }
@@ -49,6 +51,7 @@ function revertWorkingTreeHandler(event: IpcMainInvokeEvent, rawPath: unknown) {
 
     const result = yield* Effect.promise(() => revertAllGitChanges(projectPath))
     invalidateGitStatusCache()
+    invalidateVcsStatus(projectPath)
     return result
   })
 }

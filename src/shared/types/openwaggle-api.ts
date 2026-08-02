@@ -37,6 +37,8 @@ import type {
   GitWorktreeListResult,
   GitWorktreeMutationResult,
   GitWorktreeRemovePayload,
+  LocalVcsStatusResult,
+  RemoteVcsStatusResult,
 } from './git'
 import type { IpcEventPayload } from './ipc'
 import type { ProviderInfo, SupportedModelId } from './llm'
@@ -213,6 +215,8 @@ export interface OpenWaggleApi extends OpenWaggleExtensionApi {
     projectPath: string,
     payload: GitWorktreeRemovePayload,
   ): Promise<GitWorktreeMutationResult>
+  getLocalVcsStatus(projectPath: string): Promise<LocalVcsStatusResult>
+  getRemoteVcsStatus(projectPath: string): Promise<RemoteVcsStatusResult>
 
   // Attachments
   prepareAttachments(projectPath: string, files: readonly File[]): Promise<PreparedAttachment[]>

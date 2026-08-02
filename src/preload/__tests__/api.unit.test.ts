@@ -9,9 +9,7 @@ vi.mock('electron', () => ({
     on: vi.fn(),
     removeListener: vi.fn(),
   },
-  webUtils: {
-    getPathForFile: vi.fn(() => '/mock/path'),
-  },
+  webUtils: { getPathForFile: vi.fn(() => '/mock/path') },
 }))
 
 import { ipcRenderer, webUtils } from 'electron'
@@ -116,6 +114,8 @@ describe('preload api surface contract', () => {
     'listGitWorktrees',
     'createGitWorktree',
     'removeGitWorktree',
+    'getLocalVcsStatus',
+    'getRemoteVcsStatus',
     // Attachments
     'prepareAttachments',
     'prepareAttachmentFromText',

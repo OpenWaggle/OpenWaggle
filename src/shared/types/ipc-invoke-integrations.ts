@@ -26,6 +26,8 @@ import type {
   GitWorktreeListResult,
   GitWorktreeMutationResult,
   GitWorktreeRemovePayload,
+  LocalVcsStatusResult,
+  RemoteVcsStatusResult,
 } from './git'
 import type { SupportedModelId } from './llm'
 import type { AgentPhaseState } from './phase'
@@ -110,6 +112,14 @@ export interface IpcIntegrationInvokeChannelMap {
   'git:worktrees:remove': {
     args: [projectPath: string, payload: GitWorktreeRemovePayload]
     return: GitWorktreeMutationResult
+  }
+  'git:vcs-status:local': {
+    args: [projectPath: string]
+    return: LocalVcsStatusResult
+  }
+  'git:vcs-status:remote': {
+    args: [projectPath: string]
+    return: RemoteVcsStatusResult
   }
   'attachments:prepare': {
     args: [projectPath: string, paths: string[]]
