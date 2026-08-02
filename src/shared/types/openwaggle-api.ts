@@ -64,6 +64,7 @@ import type {
   AgentsResolutionResult,
   SkillCatalogResult,
 } from './standards'
+import type { TurnCheckpointSummary, TurnDiff } from './turn-diff'
 import type { UpdateStatus } from './updater'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 import type { WaggleConfig, WagglePreset } from './waggle'
@@ -134,6 +135,8 @@ export interface OpenWaggleApi extends OpenWaggleExtensionApi {
   listSessions(limit?: number): Promise<SessionSummary[]>
   listSessionDetails(limit?: number): Promise<SessionDetail[]>
   getSessionDetail(id: SessionId): Promise<SessionDetail | null>
+  listTurnCheckpoints(id: SessionId): Promise<TurnCheckpointSummary[]>
+  getTurnDiff(id: SessionId, turnId: string): Promise<TurnDiff | null>
   createSession(projectPath: string): Promise<SessionDetail>
   forkSessionToNew(
     sessionId: SessionId,

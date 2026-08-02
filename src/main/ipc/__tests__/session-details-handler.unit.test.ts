@@ -39,6 +39,8 @@ describe('registerSessionDetailsHandlers', () => {
     expect(channels).toEqual([
       'sessions:list-details',
       'sessions:get-detail',
+      'sessions:turn-checkpoints:list',
+      'sessions:turn-diff:get',
       'sessions:create',
       'sessions:fork-to-new',
       'sessions:clone-to-new',

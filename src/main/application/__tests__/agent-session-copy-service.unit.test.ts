@@ -44,6 +44,8 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   unarchive: () => Effect.void,
   listArchived: () => Effect.succeed([]),
   updateTitle: () => Effect.void,
+  listTurnCheckpoints: () => Effect.succeed([]),
+  getTurnDiff: () => Effect.succeed(null),
 })
 
 const TestSessionLayer = Layer.succeed(SessionRepository, {

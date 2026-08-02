@@ -39,6 +39,20 @@ function registerSessionDetailsReadHandlers() {
       return yield* repo.getOptional(id)
     }),
   )
+
+  typedHandle('sessions:turn-checkpoints:list', (_event, id: SessionId) =>
+    Effect.gen(function* () {
+      const repo = yield* SessionProjectionRepository
+      return [...(yield* repo.listTurnCheckpoints(id))]
+    }),
+  )
+
+  typedHandle('sessions:turn-diff:get', (_event, id: SessionId, turnId: string) =>
+    Effect.gen(function* () {
+      const repo = yield* SessionProjectionRepository
+      return yield* repo.getTurnDiff(id, turnId)
+    }),
+  )
 }
 
 function registerSessionCreationHandlers() {

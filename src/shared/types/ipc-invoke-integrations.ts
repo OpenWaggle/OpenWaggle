@@ -38,6 +38,7 @@ import type {
   AgentsResolutionResult,
   SkillCatalogResult,
 } from './standards'
+import type { TurnCheckpointSummary, TurnDiff } from './turn-diff'
 import type { UpdateStatus } from './updater'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 import type { WaggleConfig, WagglePreset } from './waggle'
@@ -281,5 +282,13 @@ export interface IpcIntegrationInvokeChannelMap {
   'app:get-version': {
     args: []
     return: string
+  }
+  'sessions:turn-checkpoints:list': {
+    args: [id: SessionId]
+    return: TurnCheckpointSummary[]
+  }
+  'sessions:turn-diff:get': {
+    args: [id: SessionId, turnId: string]
+    return: TurnDiff | null
   }
 }

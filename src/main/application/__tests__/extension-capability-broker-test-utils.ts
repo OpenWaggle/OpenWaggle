@@ -207,6 +207,8 @@ function makeBrokerLayer(input: {
       unarchive: () => Effect.void,
       listArchived: () => Effect.succeed([]),
       updateTitle: () => Effect.void,
+      listTurnCheckpoints: () => Effect.succeed([]),
+      getTurnDiff: () => Effect.succeed(null),
     }),
     Layer.succeed(SessionRepository, {
       list: () => Effect.succeed([]),

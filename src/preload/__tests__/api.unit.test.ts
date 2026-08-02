@@ -3,12 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
   contextBridge: { exposeInMainWorld: vi.fn() },
-  ipcRenderer: {
-    invoke: vi.fn(),
-    send: vi.fn(),
-    on: vi.fn(),
-    removeListener: vi.fn(),
-  },
+  ipcRenderer: { invoke: vi.fn(), send: vi.fn(), on: vi.fn(), removeListener: vi.fn() },
   webUtils: { getPathForFile: vi.fn(() => '/mock/path') },
 }))
 
@@ -73,6 +68,8 @@ describe('preload api surface contract', () => {
     'listSessions',
     'listSessionDetails',
     'getSessionDetail',
+    'listTurnCheckpoints',
+    'getTurnDiff',
     'createSession',
     'forkSessionToNew',
     'cloneSessionToNew',

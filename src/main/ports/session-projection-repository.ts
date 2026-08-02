@@ -6,6 +6,7 @@
  */
 import type { SessionId } from '@shared/types/brand'
 import type { SessionDetail, SessionSummary } from '@shared/types/session'
+import type { TurnCheckpointSummary, TurnDiff } from '@shared/types/turn-diff'
 import { Context, type Effect } from 'effect'
 import type { SessionProjectionRepositoryError } from '../errors'
 
@@ -36,6 +37,13 @@ export interface SessionProjectionRepositoryShape {
     id: SessionId,
     title: string,
   ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  readonly listTurnCheckpoints: (
+    id: SessionId,
+  ) => Effect.Effect<readonly TurnCheckpointSummary[], SessionProjectionRepositoryError>
+  readonly getTurnDiff: (
+    id: SessionId,
+    turnId: string,
+  ) => Effect.Effect<TurnDiff | null, SessionProjectionRepositoryError>
 }
 
 export class SessionProjectionRepository extends Context.Tag(

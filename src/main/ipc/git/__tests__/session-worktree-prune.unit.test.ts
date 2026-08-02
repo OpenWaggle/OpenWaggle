@@ -1,8 +1,15 @@
+import type { GitWorktreeMutationResult } from '@shared/types/git'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionWorktreeRef } from '../worktree-cleanup'
 
 const { removeGitWorktreeMock } = vi.hoisted(() => ({
-  removeGitWorktreeMock: vi.fn(async () => ({ ok: true, message: 'removed', path: '/wt/x' })),
+  removeGitWorktreeMock: vi.fn(
+    async (): Promise<GitWorktreeMutationResult> => ({
+      ok: true,
+      message: 'removed',
+      path: '/wt/x',
+    }),
+  ),
 }))
 
 vi.mock('../worktree-service', () => ({ removeGitWorktree: removeGitWorktreeMock }))

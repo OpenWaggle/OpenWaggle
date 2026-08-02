@@ -17,6 +17,7 @@ import {
 
 export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => {
   const store = await import('../store/session-details')
+  const turnCheckpoints = await import('../store/turn-checkpoints')
   const { pruneSessionWorktree } = await import('../ipc/git/session-worktree-prune')
   const { deleteTurnCheckpointsForSession } = await import('../store/turn-checkpoints')
 
@@ -119,6 +120,20 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
           try: () => store.updateSessionTitle(id, title),
           catch: (cause) =>
             new SessionProjectionRepositoryError({ operation: 'updateTitle', cause }),
+        }),
+
+      listTurnCheckpoints: (id) =>
+        Effect.tryPromise({
+          try: () => turnCheckpoints.listTurnCheckpoints(id),
+          catch: (cause) =>
+            new SessionProjectionRepositoryError({ operation: 'listTurnCheckpoints', cause }),
+        }),
+
+      getTurnDiff: (id, turnId) =>
+        Effect.tryPromise({
+          try: () => turnCheckpoints.getTurnDiff(id, turnId),
+          catch: (cause) =>
+            new SessionProjectionRepositoryError({ operation: 'getTurnDiff', cause }),
         }),
     } satisfies SessionProjectionRepositoryShape),
   )

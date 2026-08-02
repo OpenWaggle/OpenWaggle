@@ -154,6 +154,8 @@ const TestSessionProjectionRepoLayer = Layer.succeed(
         },
         catch: (cause) => new SessionProjectionRepositoryError({ operation: 'updateTitle', cause }),
       }),
+    listTurnCheckpoints: () => Effect.succeed([]),
+    getTurnDiff: () => Effect.succeed(null),
   }),
 )
 

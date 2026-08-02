@@ -50,6 +50,8 @@ const makeTestSessionProjectionLayer = () =>
       Effect.sync(() => {
         updateTitleMock(id, title)
       }),
+    listTurnCheckpoints: () => Effect.succeed([]),
+    getTurnDiff: () => Effect.succeed(null),
   })
 
 const TestRuntimeLayer = makeTestSessionProjectionLayer()
