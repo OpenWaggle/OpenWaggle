@@ -1,5 +1,6 @@
 import { registerGitBranchHandlers } from './branches-handler'
 import { registerGitCommitHandlers } from './commit-handler'
+import { registerGitStackedActionHandlers } from './stacked-action-handler'
 import { registerGitStatusHandlers } from './status-handler'
 import { registerGitVcsStatusHandlers } from './vcs-status-handler'
 import { registerGitWorkingTreeHandlers } from './working-tree-handler'
@@ -14,4 +15,5 @@ export function registerGitHandlers(): void {
   registerGitWorkingTreeHandlers()
   registerGitWorktreeHandlers()
   registerGitVcsStatusHandlers()
+  registerGitStackedActionHandlers()
 }

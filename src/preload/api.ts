@@ -156,6 +156,7 @@ export const api: OpenWaggleApi = {
   removeGitWorktree: invoke('git:worktrees:remove'),
   getLocalVcsStatus: invoke('git:vcs-status:local'),
   getRemoteVcsStatus: invoke('git:vcs-status:remote'),
+  runStackedGitAction: invoke('git:stacked-action:run'),
 
   // Attachments
   prepareAttachments: prepareSelectedAttachments,

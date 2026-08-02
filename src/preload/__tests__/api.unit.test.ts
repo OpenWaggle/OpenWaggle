@@ -116,6 +116,7 @@ describe('preload api surface contract', () => {
     'removeGitWorktree',
     'getLocalVcsStatus',
     'getRemoteVcsStatus',
+    'runStackedGitAction',
     // Attachments
     'prepareAttachments',
     'prepareAttachmentFromText',

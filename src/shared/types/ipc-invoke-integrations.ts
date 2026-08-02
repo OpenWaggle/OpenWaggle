@@ -20,6 +20,8 @@ import type {
   GitCommitPayload,
   GitCommitResult,
   GitFileDiff,
+  GitRunStackedActionOptions,
+  GitRunStackedActionResult,
   GitStatusSummary,
   GitWorkingTreeMutationResult,
   GitWorktreeCreatePayload,
@@ -120,6 +122,10 @@ export interface IpcIntegrationInvokeChannelMap {
   'git:vcs-status:remote': {
     args: [projectPath: string]
     return: RemoteVcsStatusResult
+  }
+  'git:stacked-action:run': {
+    args: [projectPath: string, options: GitRunStackedActionOptions]
+    return: GitRunStackedActionResult
   }
   'attachments:prepare': {
     args: [projectPath: string, paths: string[]]

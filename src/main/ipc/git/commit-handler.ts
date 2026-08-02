@@ -30,7 +30,10 @@ function mapCommitFailure(stderr: string): GitCommitFailure {
   return commitFailure('unknown', message || 'Git commit failed.')
 }
 
-async function commitGit(projectPath: string, payload: GitCommitPayload): Promise<GitCommitResult> {
+export async function commitGit(
+  projectPath: string,
+  payload: GitCommitPayload,
+): Promise<GitCommitResult> {
   const message = payload.message.trim()
   const preflightFailure = await validateCommitPreflight(projectPath, message)
   if (preflightFailure) return preflightFailure

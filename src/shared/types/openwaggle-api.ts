@@ -31,6 +31,8 @@ import type {
   GitCommitPayload,
   GitCommitResult,
   GitFileDiff,
+  GitRunStackedActionOptions,
+  GitRunStackedActionResult,
   GitStatusSummary,
   GitWorkingTreeMutationResult,
   GitWorktreeCreatePayload,
@@ -217,6 +219,10 @@ export interface OpenWaggleApi extends OpenWaggleExtensionApi {
   ): Promise<GitWorktreeMutationResult>
   getLocalVcsStatus(projectPath: string): Promise<LocalVcsStatusResult>
   getRemoteVcsStatus(projectPath: string): Promise<RemoteVcsStatusResult>
+  runStackedGitAction(
+    projectPath: string,
+    options: GitRunStackedActionOptions,
+  ): Promise<GitRunStackedActionResult>
 
   // Attachments
   prepareAttachments(projectPath: string, files: readonly File[]): Promise<PreparedAttachment[]>
