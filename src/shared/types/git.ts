@@ -297,3 +297,55 @@ export interface VcsStatusFailure {
 
 export type LocalVcsStatusResult = LocalVcsStatusSuccess | VcsStatusFailure
 export type RemoteVcsStatusResult = RemoteVcsStatusSuccess | VcsStatusFailure
+
+// --- Source control provider (WS3, ADR 0012) ---
+
+export interface SourceControlAuthStatus {
+  readonly authenticated: boolean
+  readonly account: string | null
+  readonly host: string | null
+}
+
+export const SOURCE_CONTROL_ERROR_CODES = [
+  'cli-missing',
+  'not-authenticated',
+  'no-change-request',
+  'unknown',
+] as const
+
+export type SourceControlErrorCode = (typeof SOURCE_CONTROL_ERROR_CODES)[number]
+
+export interface SourceControlFailure {
+  readonly ok: false
+  readonly code: SourceControlErrorCode
+  readonly message: string
+}
+
+export interface SourceControlAuthSuccess {
+  readonly ok: true
+  readonly status: SourceControlAuthStatus
+}
+
+export type SourceControlAuthResult = SourceControlAuthSuccess | SourceControlFailure
+
+export interface OpenChangeRequestPayload {
+  readonly headRef: string
+  readonly baseRef: string
+  readonly title: string
+  readonly body?: string
+  readonly draft?: boolean
+}
+
+export interface ChangeRequestSuccess {
+  readonly ok: true
+  readonly changeRequest: VcsChangeRequest
+}
+
+export type ChangeRequestResult = ChangeRequestSuccess | SourceControlFailure
+
+export interface ChangeRequestListSuccess {
+  readonly ok: true
+  readonly changeRequests: readonly VcsChangeRequest[]
+}
+
+export type ChangeRequestListResult = ChangeRequestListSuccess | SourceControlFailure
