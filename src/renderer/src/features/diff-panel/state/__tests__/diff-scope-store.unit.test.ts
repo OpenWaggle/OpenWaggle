@@ -78,4 +78,22 @@ describe('diff-scope-store', () => {
     expect(state.byThreadKey.t1).toBeUndefined()
     expect(state.branchBaseRefByThreadKey.t1).toBeUndefined()
   })
+
+  it('preserves an explicit scope selection when the working-tree state changes', () => {
+    useDiffScopeStore.getState().selectGitScope('t1', 'branch')
+    const { byThreadKey } = useDiffScopeStore.getState()
+    // Even with a dirty working tree, the explicit branch selection stands.
+    expect(selectThreadDiffScopeSelection(byThreadKey, 't1', true)).toEqual({
+      kind: 'branch',
+      baseRef: null,
+    })
+  })
+
+  it('clears incompatible selection fields when switching scopes', () => {
+    const store = useDiffScopeStore.getState()
+    store.selectBranchBaseRef('t1', 'origin/main')
+    store.selectGitScope('t1', 'unstaged')
+    // The unstaged selection carries no baseRef field.
+    expect(useDiffScopeStore.getState().byThreadKey.t1).toEqual({ kind: 'unstaged' })
+  })
 })

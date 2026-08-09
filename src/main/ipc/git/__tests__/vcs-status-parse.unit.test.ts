@@ -36,6 +36,17 @@ describe('vcs-status-parse', () => {
       expect(detectSourceControlProvider('')).toBeNull()
       expect(detectSourceControlProvider(null)).toBeNull()
     })
+
+    it('classifies by hostname while preserving explicit ports', () => {
+      expect(detectSourceControlProvider('https://gitlab.example.com:8443/o/r.git')).toEqual({
+        id: 'gitlab',
+        host: 'gitlab.example.com',
+      })
+      expect(detectSourceControlProvider('ssh://git@github.enterprise.com:2222/o/r.git')).toEqual({
+        id: 'github',
+        host: 'github.enterprise.com',
+      })
+    })
   })
 
   describe('parseAheadBehind / parseCount', () => {

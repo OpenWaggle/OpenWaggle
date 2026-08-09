@@ -29,6 +29,10 @@ function unknownFailure(detail: string): SourceControlFailure {
 
 function classifyFailure(result: CliResult): SourceControlFailure {
   if (result.missing) return cliMissingFailure()
+  const lower = result.stderr.toLowerCase()
+  if (lower.includes('no pull requests found') || lower.includes('not found')) {
+    return { ok: false, code: 'no-change-request', message: 'No pull request found for ref.' }
+  }
   if (/auth|logged in|authentication/i.test(result.stderr)) {
     return notAuthenticatedFailure(result.stderr.trim())
   }

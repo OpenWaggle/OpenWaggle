@@ -37,4 +37,19 @@ describe('parseTurnDiffFilesFromUnifiedDiff', () => {
     expect(parseTurnDiffFilesFromUnifiedDiff('')).toEqual([])
     expect(parseTurnDiffFilesFromUnifiedDiff('   \n  ')).toEqual([])
   })
+
+  it('parses rename-only diffs with zero line changes', () => {
+    const renameDiff = `diff --git a/old.ts b/new.ts\nsimilarity index 100%\nrename from old.ts\nrename to new.ts\n`
+    expect(parseTurnDiffFilesFromUnifiedDiff(renameDiff)).toEqual([
+      { path: 'new.ts', additions: 0, deletions: 0 },
+    ])
+  })
+
+  it('normalizes CRLF input before parsing', () => {
+    const crlf = SAMPLE_DIFF.replace(/\n/g, '\r\n')
+    expect(parseTurnDiffFilesFromUnifiedDiff(crlf)).toEqual([
+      { path: 'src/a.ts', additions: 2, deletions: 0 },
+      { path: 'src/b.ts', additions: 1, deletions: 1 },
+    ])
+  })
 })

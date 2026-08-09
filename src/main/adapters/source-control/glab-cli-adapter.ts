@@ -17,6 +17,10 @@ function cliMissingFailure(): SourceControlFailure {
 
 function classifyFailure(result: CliResult): SourceControlFailure {
   if (result.missing) return cliMissingFailure()
+  const lower = result.stderr.toLowerCase()
+  if (lower.includes('not found') || lower.includes('no merge request')) {
+    return { ok: false, code: 'no-change-request', message: 'No merge request found for ref.' }
+  }
   if (/auth|logged in|authentication/i.test(result.stderr)) {
     return {
       ok: false,

@@ -45,6 +45,24 @@ describe('change-request-parse', () => {
     expect(mapGlabMergeRequest({})).toBeNull()
   })
 
+  it('trims decoded string fields', () => {
+    expect(
+      mapGhPullRequest({
+        title: '  Add feature  ',
+        url: ' https://github.com/o/r/pull/7 ',
+        baseRefName: ' main ',
+        headRefName: ' feat ',
+        state: 'OPEN',
+      }),
+    ).toEqual({
+      title: 'Add feature',
+      url: 'https://github.com/o/r/pull/7',
+      baseRef: 'main',
+      headRef: 'feat',
+      state: 'open',
+    })
+  })
+
   it('maps states with draft precedence', () => {
     expect(mapGhState('OPEN', true)).toBe('draft')
     expect(mapGhState('MERGED', false)).toBe('merged')

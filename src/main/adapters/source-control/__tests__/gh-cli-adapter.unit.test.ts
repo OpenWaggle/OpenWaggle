@@ -67,4 +67,35 @@ describe('github adapter typed failures (never throws)', () => {
       },
     })
   })
+
+  it('maps a not-found PR to a friendly no-change-request failure', async () => {
+    runCliMock.mockResolvedValue(cli({ code: 1, stderr: 'no pull requests found for branch feat' }))
+    const provider = getSourceControlProvider('github')
+    await expect(provider?.resolveChangeRequestForRef('/repo', 'feat')).resolves.toMatchObject({
+      ok: false,
+      code: 'no-change-request',
+    })
+  })
+
+  it('skips invalid entries when listing pull requests', async () => {
+    runCliMock.mockResolvedValue(
+      cli({
+        stdout: JSON.stringify([
+          {
+            title: 'Valid',
+            url: 'https://x/1',
+            baseRefName: 'main',
+            headRefName: 'a',
+            state: 'OPEN',
+          },
+          { title: 'no url' },
+          null,
+        ]),
+      }),
+    )
+    const provider = getSourceControlProvider('github')
+    const result = await provider?.listChangeRequests('/repo')
+    expect(result).toMatchObject({ ok: true })
+    if (result?.ok) expect(result.changeRequests).toHaveLength(1)
+  })
 })

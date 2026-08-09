@@ -48,6 +48,15 @@ describe('worktree cleanup', () => {
       ]
       expect(getOrphanedWorktreePathForSession(withWhitespace, 'a')).toBeNull()
     })
+
+    it('ignores sessions linked to different worktrees when deciding orphan status', () => {
+      const sessions: SessionWorktreeRef[] = [
+        { sessionId: 'a', worktreePath: '/wt/a' },
+        { sessionId: 'b', worktreePath: '/wt/b' },
+        { sessionId: 'c', worktreePath: null },
+      ]
+      expect(getOrphanedWorktreePathForSession(sessions, 'a')).toBe('/wt/a')
+    })
   })
 
   describe('formatWorktreePathForDisplay', () => {
