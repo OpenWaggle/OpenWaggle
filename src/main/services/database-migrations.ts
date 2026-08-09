@@ -243,4 +243,9 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
       `,
     ],
   },
+  {
+    id: 21,
+    name: 'turn-checkpoint-snapshot-ref',
+    statements: [`ALTER TABLE turn_checkpoints ADD COLUMN snapshot_ref TEXT`],
+  },
 ]

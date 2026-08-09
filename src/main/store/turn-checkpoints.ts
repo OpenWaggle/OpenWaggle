@@ -17,6 +17,7 @@ interface TurnCheckpointRow {
   readonly diff: string
   readonly insertions: number
   readonly deletions: number
+  readonly snapshot_ref: string | null
 }
 
 export interface RecordTurnCheckpointInput {
@@ -25,6 +26,8 @@ export interface RecordTurnCheckpointInput {
   readonly turnIndex: number
   /** The incremental unified diff produced during this turn. */
   readonly diff: string
+  /** Snapshot commit (git stash create) of the worktree at this turn, if any. */
+  readonly snapshotRef?: string | null
 }
 
 /** Persist a per-turn worktree checkpoint (diff blob) for a session. */
@@ -37,19 +40,37 @@ export async function recordTurnCheckpoint(input: RecordTurnCheckpointInput): Pr
       const sql = yield* SqlClient.SqlClient
       yield* sql`
         INSERT INTO turn_checkpoints (
-          id, session_id, turn_id, turn_index, created_at, diff, insertions, deletions
+          id, session_id, turn_id, turn_index, created_at, diff, insertions, deletions, snapshot_ref
         )
         VALUES (
           ${randomUUID()}, ${input.sessionId}, ${input.turnId}, ${input.turnIndex},
-          ${Date.now()}, ${input.diff}, ${insertions}, ${deletions}
+          ${Date.now()}, ${input.diff}, ${insertions}, ${deletions}, ${input.snapshotRef ?? null}
         )
         ON CONFLICT(session_id, turn_id) DO UPDATE SET
           turn_index = excluded.turn_index,
           created_at = excluded.created_at,
           diff = excluded.diff,
           insertions = excluded.insertions,
-          deletions = excluded.deletions
+          deletions = excluded.deletions,
+          snapshot_ref = excluded.snapshot_ref
       `
+    }),
+  )
+}
+
+/** The snapshot ref of the most recent checkpoint for a session, if any. */
+export async function getLatestSnapshotRef(sessionId: SessionId): Promise<string | null> {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<{ snapshot_ref: string | null }>`
+        SELECT snapshot_ref
+        FROM turn_checkpoints
+        WHERE session_id = ${sessionId}
+        ORDER BY turn_index DESC
+        LIMIT 1
+      `
+      return rows[0]?.snapshot_ref ?? null
     }),
   )
 }
