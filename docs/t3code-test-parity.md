@@ -24,7 +24,7 @@ Maps each T3Code test file that covers behavior OpenWaggle implemented to its Op
 
 | Area | Status |
 |---|---|
-| Transcript per-turn reveal trigger (WS6b) | Store + IPC + `selectTurn`/`revealRequestId` exist and the Turns scope browses/renders Turn diffs in the panel; the in-transcript "view diff" affordance is NOT wired because OpenWaggle's transcript turn dividers are waggle-oriented and do not map 1:1 to Turn checkpoints (keyed by runId). A reliable correlation needs runId surfaced on messages. |
+| Transcript per-turn reveal trigger (WS6b) | Implemented. Turn checkpoints are anchored to the run's final assistant node id (`turn_checkpoints.anchor_node_id`, migration 23); a per-assistant-message "View turn diff" affordance (`useTurnReveal`) selects the turn and opens the diff panel. Exact correlation (transport message ids differ from persisted node ids, so no runId-on-message stamping). Tested: turn-checkpoints.integration (anchor round-trip), AssistantMessageBubble.component (button renders + fires). |
 | Remote / multi-environment (cloud runners) | Deferred by explicit user decision (planned future work); no OpenWaggle analog today. |
 | `packages/client-runtime/src/state/{vcsAction,sourceControl}.test.ts` | T3Code's optimistic-action state machine; OpenWaggle dispatches through thin hooks + main-process services instead. |
 
