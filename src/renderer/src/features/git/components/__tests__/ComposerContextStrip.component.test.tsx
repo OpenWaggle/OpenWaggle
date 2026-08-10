@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { ComposerContextStripState } from '@/features/git/hooks/useComposerContextStrip'
 import { ComposerContextStrip } from '../ComposerContextStrip'
@@ -45,5 +45,35 @@ describe('ComposerContextStrip', () => {
       />,
     )
     expect(screen.getByRole('alert')).toHaveTextContent('Pick a base')
+  })
+
+  it('loads change requests when the checkout control is clicked', async () => {
+    const loadChangeRequests = vi.fn(async () => {})
+    render(<ComposerContextStrip strip={stripState({ loadChangeRequests })} />)
+    screen.getByRole('button', { name: /checkout change request/i }).click()
+    expect(loadChangeRequests).toHaveBeenCalled()
+  })
+
+  it('checks out a selected change request', () => {
+    const checkoutChangeRequest = vi.fn(async () => true)
+    render(
+      <ComposerContextStrip
+        strip={stripState({
+          checkoutChangeRequest,
+          changeRequests: [
+            {
+              title: 'Fix bug',
+              url: 'https://x/1',
+              baseRef: 'main',
+              headRef: 'fix',
+              state: 'open',
+            },
+          ],
+        })}
+      />,
+    )
+    const select = screen.getByLabelText('Checkout change request')
+    fireEvent.change(select, { target: { value: 'fix' } })
+    expect(checkoutChangeRequest).toHaveBeenCalledWith('fix')
   })
 })

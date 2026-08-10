@@ -2,6 +2,7 @@ import type { SessionEnvironmentMode } from '@shared/types/git'
 import { SESSION_ENVIRONMENT_MODES } from '@shared/types/git'
 import { useId } from 'react'
 import type { ComposerContextStripState } from '@/features/git/hooks/useComposerContextStrip'
+import { Button } from '@/shared/ui/Button'
 import { Select } from '@/shared/ui/Select'
 import { ToggleSwitch } from '@/shared/ui/ToggleSwitch'
 
@@ -70,6 +71,7 @@ export function ComposerContextStrip({ strip }: ComposerContextStripProps) {
             />
             Start from origin
           </label>
+          <ChangeRequestCheckout strip={strip} />
         </>
       ) : null}
 
@@ -79,5 +81,36 @@ export function ComposerContextStrip({ strip }: ComposerContextStripProps) {
         </span>
       ) : null}
     </div>
+  )
+}
+
+function ChangeRequestCheckout({ strip }: { readonly strip: ComposerContextStripState }) {
+  if (strip.changeRequests.length === 0) {
+    return (
+      <Button
+        variant="unstyled"
+        type="button"
+        onClick={() => void strip.loadChangeRequests()}
+        className="h-8 rounded-lg border border-input-card-border px-2.5 text-[13px] text-text-tertiary hover:text-text-secondary"
+      >
+        Checkout change request…
+      </Button>
+    )
+  }
+  return (
+    <Select
+      aria-label="Checkout change request"
+      value=""
+      onChange={(event) => {
+        if (event.target.value) void strip.checkoutChangeRequest(event.target.value)
+      }}
+    >
+      <option value="">Checkout change request…</option>
+      {strip.changeRequests.map((cr) => (
+        <option key={cr.url} value={cr.headRef}>
+          {cr.title}
+        </option>
+      ))}
+    </Select>
   )
 }
