@@ -3,7 +3,6 @@
 Maps each T3Code test file that covers behavior OpenWaggle implemented to its OpenWaggle analog, or records why it is out of scope. Ported cases use OpenWaggle's own harness (vitest), not T3Code's `@effect/vitest`/`it.layer` style. E2E: T3Code has no e2e specs for these areas, so none are ported.
 
 ## Ported (T3Code test → OpenWaggle test)
-
 | T3Code test | OpenWaggle test | Notes |
 |---|---|---|
 | `apps/web/src/components/GitActionsControl.logic.test.ts` (resolveQuickAction / buildMenuItems scenarios) | `src/renderer/src/features/git/lib/__tests__/git-quick-action.unit.test.ts` | 20 cases across the clean/ahead/behind/diverged/upstream/PR/default-ref/dirty/no-remote matrix incl. GitLab MR terminology. |
@@ -16,6 +15,18 @@ Maps each T3Code test file that covers behavior OpenWaggle implemented to its Op
 | `apps/server/src/checkpointing/Diffs.test.ts` | `src/shared/utils/__tests__/turn-diff-parse.unit.test.ts` | Per-file additions/deletions, empty diff, rename-only (zero line changes), CRLF normalization. |
 | `apps/server/src/checkpointing/CheckpointDiffQuery.test.ts`, `CheckpointStore.test.ts` | `src/main/store/__tests__/turn-checkpoints.integration.test.ts` | Record/get/list, query-by-turn-range, retention (prune-to-N), CASCADE delete, upsert. |
 | `packages/client-runtime/src/state/vcs.test.ts` (combined status shaping) | `src/main/ipc/git/__tests__/vcs-status-service.unit.test.ts` + `useCombinedVcsStatus` | Local (no-network) vs Remote (fetch) with distinct not-a-repo / remote-unreachable failures. |
+| `apps/web/src/components/BranchToolbar.logic.test.ts` (env-mode / base-branch / send gating) | `src/renderer/src/features/git/lib/__tests__/worktree-send-plan.unit.test.ts` | Composer-strip send gate: proceed / create-worktree / blocked, default Worktree base ref = current branch (mirrors T3Code ChatView gate + BranchToolbar defaulting). |
+| `apps/web/src/lib/baseRefChoices.test.ts` | `src/renderer/src/features/diff-panel/lib/__tests__/base-ref-choices.unit.test.ts` | buildBaseRefChoices (local/remote pairing, prefer origin) + filterBaseRefChoices for the Branch-diff base-ref combobox. |
+| `apps/server/src/checkpointing/Diffs.test.ts` (per-file split) | `src/shared/utils/__tests__/turn-diff-parse.unit.test.ts` (`splitUnifiedDiffIntoFileDiffs`) | Split a Turn diff's unified diff into per-file GitFileDiff blocks so the Turns scope renders per-file. |
+| checkout-change-request-into-worktree (WS1b item d) | `src/main/adapters/source-control/__tests__/gh-cli-adapter.unit.test.ts` | `gh pr checkout` / `glab mr checkout` typed primitive + composer-strip control (`ComposerContextStrip.component.test.tsx`). |
+
+## Deferred / partial (planned, not fully built)
+
+| Area | Status |
+|---|---|
+| Transcript per-turn reveal trigger (WS6b) | Store + IPC + `selectTurn`/`revealRequestId` exist and the Turns scope browses/renders Turn diffs in the panel; the in-transcript "view diff" affordance is NOT wired because OpenWaggle's transcript turn dividers are waggle-oriented and do not map 1:1 to Turn checkpoints (keyed by runId). A reliable correlation needs runId surfaced on messages. |
+| Remote / multi-environment (cloud runners) | Deferred by explicit user decision (planned future work); no OpenWaggle analog today. |
+| `packages/client-runtime/src/state/{vcsAction,sourceControl}.test.ts` | T3Code's optimistic-action state machine; OpenWaggle dispatches through thin hooks + main-process services instead. |
 
 ## Out of scope — no OpenWaggle analog by design
 
