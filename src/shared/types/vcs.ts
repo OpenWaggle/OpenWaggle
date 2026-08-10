@@ -50,7 +50,7 @@ export interface RemoteVcsStatus {
   readonly aheadCount: number
   readonly behindCount: number
   readonly aheadOfDefaultCount: number | null
-  readonly pr: VcsChangeRequest | null
+  readonly changeRequest: VcsChangeRequest | null
 }
 
 /** Combined view for the git-actions control (Local + Remote). */

@@ -48,7 +48,7 @@ export function resolveQuickAction(status: VcsStatus | null, isBusy: boolean): G
   const terminology = terminologyFor(status)
   const hasBranch = status.refName !== null
   const hasChanges = status.hasWorkingTreeChanges
-  const hasOpenPr = status.pr?.state === 'open'
+  const hasOpenPr = status.changeRequest?.state === 'open'
   const isAhead = status.aheadCount > 0
   const isBehind = status.behindCount > 0
   const isDiverged = isAhead && isBehind
@@ -234,7 +234,7 @@ function buildPushItem(status: VcsStatus, isBusy: boolean): GitActionMenuItem {
 
 function buildChangeRequestItem(status: VcsStatus, isBusy: boolean): GitActionMenuItem {
   const terminology = terminologyFor(status)
-  if (status.pr?.state === 'open') {
+  if (status.changeRequest?.state === 'open') {
     return {
       id: 'pr',
       label: `View ${terminology.shortLabel}`,

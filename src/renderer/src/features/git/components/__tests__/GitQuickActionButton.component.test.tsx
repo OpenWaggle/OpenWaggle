@@ -16,7 +16,7 @@ function status(overrides: Partial<VcsStatus> = {}): VcsStatus {
     aheadCount: 0,
     behindCount: 0,
     aheadOfDefaultCount: 0,
-    pr: null,
+    changeRequest: null,
     ...overrides,
   }
 }
@@ -58,7 +58,7 @@ describe('GitQuickActionButton', () => {
       <GitQuickActionButton
         status={status({
           hasWorkingTreeChanges: false,
-          pr: {
+          changeRequest: {
             title: 'T',
             url: 'https://x/1',
             baseRef: 'main',

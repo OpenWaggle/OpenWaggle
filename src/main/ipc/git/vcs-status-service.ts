@@ -1,4 +1,10 @@
-import type { LocalVcsStatus, LocalVcsStatusResult, RemoteVcsStatusResult } from '@shared/types/git'
+import type {
+  LocalVcsStatus,
+  LocalVcsStatusResult,
+  RemoteVcsStatusResult,
+  VcsChangeRequest,
+} from '@shared/types/git'
+import { getSourceControlProvider } from '../../adapters/source-control'
 import { isGitRepository, runGit } from './shared'
 import { GIT_PARSE_INT_RADIX } from './status-constants'
 import { buildChangedFiles, parseNumstat, parsePorcelain } from './status-parse'
@@ -111,6 +117,7 @@ export async function getRemoteVcsStatus(projectPath: string): Promise<RemoteVcs
 
   const refName = await resolveRefName(projectPath)
   const aheadOfDefaultCount = await resolveAheadOfDefault(projectPath, refName)
+  const changeRequest = await resolveOpenChangeRequest(projectPath, refName)
 
   return {
     ok: true,
@@ -119,8 +126,24 @@ export async function getRemoteVcsStatus(projectPath: string): Promise<RemoteVcs
       aheadCount: aheadBehind.ahead,
       behindCount: aheadBehind.behind,
       aheadOfDefaultCount,
-      // Populated by the source-control provider adapters in WS3.
-      pr: null,
+      changeRequest,
     },
   }
+}
+
+/**
+ * Open change request for the current ref via the source-control provider (WS3).
+ * Never fails the whole remote status: any provider/CLI/auth failure maps to null.
+ */
+async function resolveOpenChangeRequest(
+  projectPath: string,
+  refName: string | null,
+): Promise<VcsChangeRequest | null> {
+  if (!refName) return null
+  const remote = await runGit(projectPath, ['remote', 'get-url', 'origin'])
+  const remoteUrl = remote.code === 0 ? remote.stdout.trim() || null : null
+  const provider = getSourceControlProvider(detectSourceControlProvider(remoteUrl)?.id)
+  if (!provider) return null
+  const result = await provider.resolveChangeRequestForRef(projectPath, refName)
+  return result.ok ? result.changeRequest : null
 }

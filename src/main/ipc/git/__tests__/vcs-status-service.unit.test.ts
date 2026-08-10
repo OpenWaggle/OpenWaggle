@@ -1,12 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { isGitRepositoryMock, runGitMock } = vi.hoisted(() => ({
+const { isGitRepositoryMock, runGitMock, resolveChangeRequestForRefMock } = vi.hoisted(() => ({
   isGitRepositoryMock: vi.fn(async (_path: string) => true),
   runGitMock: vi.fn(async (_path: string, _args: string[]) => ({
     code: 0,
     stdout: '',
     stderr: '',
   })),
+  resolveChangeRequestForRefMock: vi.fn(
+    async (
+      _path: string,
+      _ref: string,
+    ): Promise<
+      | { ok: true; changeRequest: Record<string, unknown> }
+      | { ok: false; code: string; message: string }
+    > => ({ ok: false, code: 'no-change-request', message: 'none' }),
+  ),
+}))
+
+vi.mock('../../../adapters/source-control', () => ({
+  getSourceControlProvider: (id?: string) =>
+    id ? { id, resolveChangeRequestForRef: resolveChangeRequestForRefMock } : undefined,
 }))
 
 vi.mock('../shared', async (importOriginal) => ({
@@ -97,7 +111,7 @@ describe('vcs-status-service', () => {
       })
     })
 
-    it('reports ahead/behind and null PR when the remote is reachable', async () => {
+    it('reports ahead/behind and a null change request when no provider is detected', async () => {
       routeGit({
         fetch: gitResult(0),
         'rev-parse --abbrev-ref @{upstream}': gitResult(0, 'origin/main\n'),
@@ -108,8 +122,55 @@ describe('vcs-status-service', () => {
       const result = await getRemoteVcsStatus('/repo')
       expect(result).toMatchObject({
         ok: true,
-        status: { hasUpstream: true, aheadCount: 1, behindCount: 2, pr: null },
+        status: { hasUpstream: true, aheadCount: 1, behindCount: 2, changeRequest: null },
       })
+    })
+
+    it('surfaces the open change request resolved by the provider for the current ref', async () => {
+      routeGit({
+        fetch: gitResult(0),
+        'rev-parse --abbrev-ref @{upstream}': gitResult(0, 'origin/feature\n'),
+        'rev-list --left-right --count': gitResult(0, '1\t0\n'),
+        'symbolic-ref --quiet --short HEAD': gitResult(0, 'feature\n'),
+        'symbolic-ref --quiet --short refs/remotes/origin/HEAD': gitResult(0, 'origin/main\n'),
+        'remote get-url origin': gitResult(0, 'https://github.com/o/r.git\n'),
+      })
+      resolveChangeRequestForRefMock.mockResolvedValue({
+        ok: true,
+        changeRequest: {
+          title: 'Add feature',
+          url: 'https://github.com/o/r/pull/7',
+          baseRef: 'main',
+          headRef: 'feature',
+          state: 'open',
+        },
+      })
+
+      const result = await getRemoteVcsStatus('/repo')
+      expect(resolveChangeRequestForRefMock).toHaveBeenCalledWith('/repo', 'feature')
+      expect(result).toMatchObject({
+        ok: true,
+        status: { changeRequest: { url: 'https://github.com/o/r/pull/7', state: 'open' } },
+      })
+    })
+
+    it('maps a provider failure to a null change request (never fails remote status)', async () => {
+      routeGit({
+        fetch: gitResult(0),
+        'rev-parse --abbrev-ref @{upstream}': gitResult(0, 'origin/feature\n'),
+        'rev-list --left-right --count': gitResult(0, '0\t0\n'),
+        'symbolic-ref --quiet --short HEAD': gitResult(0, 'feature\n'),
+        'symbolic-ref --quiet --short refs/remotes/origin/HEAD': gitResult(0, 'origin/main\n'),
+        'remote get-url origin': gitResult(0, 'https://github.com/o/r.git\n'),
+      })
+      resolveChangeRequestForRefMock.mockResolvedValue({
+        ok: false,
+        code: 'no-change-request',
+        message: 'none',
+      })
+
+      const result = await getRemoteVcsStatus('/repo')
+      expect(result).toMatchObject({ ok: true, status: { changeRequest: null } })
     })
   })
 })

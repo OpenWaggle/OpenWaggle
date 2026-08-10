@@ -56,5 +56,5 @@ const EMPTY_REMOTE: RemoteVcsStatus = {
   aheadCount: 0,
   behindCount: 0,
   aheadOfDefaultCount: null,
-  pr: null,
+  changeRequest: null,
 }

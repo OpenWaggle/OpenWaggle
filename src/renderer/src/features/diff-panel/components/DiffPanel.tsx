@@ -178,7 +178,8 @@ export function DiffPanel({ projectPath, sessionId = null, onSendMessage }: Diff
           onRunAction: (action) => stackedActions.run(action),
           onPull: () => stackedActions.run('pull'),
           onOpenChangeRequest: () => {
-            if (vcsStatus?.pr?.url) window.open(vcsStatus.pr.url, '_blank', 'noopener')
+            const url = vcsStatus?.changeRequest?.url
+            if (url) window.open(url, '_blank', 'noopener')
           },
           onPublish: () => stackedActions.run('push'),
         }}

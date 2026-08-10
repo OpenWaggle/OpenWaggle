@@ -15,7 +15,7 @@ function status(overrides: Partial<VcsStatus> = {}): VcsStatus {
     aheadCount: 0,
     behindCount: 0,
     aheadOfDefaultCount: 0,
-    pr: null,
+    changeRequest: null,
     ...overrides,
   }
 }
@@ -41,7 +41,7 @@ describe('resolveQuickAction', () => {
 
   it('offers commit & push on a dirty branch with an open PR', () => {
     expect(
-      resolveQuickAction(status({ hasWorkingTreeChanges: true, pr: pr('open') }), false),
+      resolveQuickAction(status({ hasWorkingTreeChanges: true, changeRequest: pr('open') }), false),
     ).toMatchObject({ action: 'commit_push' })
   })
 
@@ -71,7 +71,9 @@ describe('resolveQuickAction', () => {
   })
 
   it('views an open PR when up to date', () => {
-    expect(resolveQuickAction(status({ pr: pr('open') }), false)).toMatchObject({ kind: 'open_pr' })
+    expect(resolveQuickAction(status({ changeRequest: pr('open') }), false)).toMatchObject({
+      kind: 'open_pr',
+    })
   })
 
   it('requires a ref before actions', () => {
@@ -90,7 +92,9 @@ describe('resolveQuickAction', () => {
   })
 
   it('prefers push (not create PR) when clean, ahead, and a PR is open', () => {
-    expect(resolveQuickAction(status({ aheadCount: 2, pr: pr('open') }), false)).toMatchObject({
+    expect(
+      resolveQuickAction(status({ aheadCount: 2, changeRequest: pr('open') }), false),
+    ).toMatchObject({
       action: 'push',
     })
   })
@@ -135,7 +139,7 @@ describe('buildMenuItems', () => {
   })
 
   it('shows View PR when a PR is open', () => {
-    const items = buildMenuItems(status({ pr: pr('open') }), false)
+    const items = buildMenuItems(status({ changeRequest: pr('open') }), false)
     expect(items.find((i) => i.id === 'pr')).toMatchObject({ kind: 'open_pr' })
   })
 
