@@ -248,4 +248,12 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
     name: 'turn-checkpoint-snapshot-ref',
     statements: [`ALTER TABLE turn_checkpoints ADD COLUMN snapshot_ref TEXT`],
   },
+  {
+    id: 22,
+    name: 'session-worktree-birth-plan',
+    statements: [
+      `ALTER TABLE sessions ADD COLUMN worktree_base_ref TEXT`,
+      `ALTER TABLE sessions ADD COLUMN worktree_start_from_origin INTEGER NOT NULL DEFAULT 0`,
+    ],
+  },
 ]

@@ -16,6 +16,8 @@ export interface SessionRow {
   readonly last_active_branch_id: string | null
   readonly environment_mode: string | null
   readonly worktree_path: string | null
+  readonly worktree_base_ref: string | null
+  readonly worktree_start_from_origin: number | null
 }
 
 export interface SessionSummaryRow {

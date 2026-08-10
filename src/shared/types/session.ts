@@ -59,6 +59,10 @@ export interface SessionDetail {
   readonly environmentMode?: SessionEnvironmentMode
   /** Path of this session's Session worktree when in worktree mode. */
   readonly worktreePath?: string | null
+  /** Chosen Worktree base ref for birth (ADR 0010); defaults to current branch. */
+  readonly worktreeBaseRef?: string | null
+  /** When true, the Session worktree is forked from origin/<baseRef>. */
+  readonly worktreeStartFromOrigin?: boolean
 }
 
 export interface SessionNode {

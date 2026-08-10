@@ -24,7 +24,12 @@ vi.mock('../../../../store/session-details', () => ({ setSessionWorktree: setSes
 const { ensureSessionWorktreeProjectPath } = await import('../session-worktree-birth')
 
 function session(
-  extra: { environmentMode?: SessionEnvironmentMode; worktreePath?: string | null } = {},
+  extra: {
+    environmentMode?: SessionEnvironmentMode
+    worktreePath?: string | null
+    worktreeBaseRef?: string | null
+    worktreeStartFromOrigin?: boolean
+  } = {},
 ): SessionDetail {
   return {
     id: SessionId('sess-abcdef12'),
@@ -71,10 +76,43 @@ describe('ensureSessionWorktreeProjectPath', () => {
     expect(result).toContain('/.openwaggle/worktrees/repo/')
   })
 
-  it('falls back to the checkout when worktree creation fails', async () => {
+  it('uses the chosen Worktree base ref when persisted', async () => {
+    await ensureSessionWorktreeProjectPath(
+      session({ environmentMode: 'worktree', worktreeBaseRef: 'develop' }),
+    )
+    expect(createGitWorktreeMock).toHaveBeenCalledWith(
+      '/repo',
+      expect.objectContaining({ baseRef: 'develop' }),
+    )
+  })
+
+  it('forks from origin/<base> when start-from-origin is set', async () => {
+    await ensureSessionWorktreeProjectPath(
+      session({
+        environmentMode: 'worktree',
+        worktreeBaseRef: 'main',
+        worktreeStartFromOrigin: true,
+      }),
+    )
+    expect(createGitWorktreeMock).toHaveBeenCalledWith(
+      '/repo',
+      expect.objectContaining({ baseRef: 'origin/main' }),
+    )
+  })
+
+  it('throws (no silent fallback) when worktree creation fails in worktree mode', async () => {
     createGitWorktreeMock.mockResolvedValue({ ok: false, code: 'unknown', message: 'boom' })
-    const result = await ensureSessionWorktreeProjectPath(session({ environmentMode: 'worktree' }))
-    expect(result).toBe('/repo')
+    await expect(
+      ensureSessionWorktreeProjectPath(session({ environmentMode: 'worktree' })),
+    ).rejects.toThrow(/Could not create a worktree/)
     expect(setSessionWorktreeMock).not.toHaveBeenCalled()
+  })
+
+  it('throws when no base branch is resolvable (detached HEAD)', async () => {
+    runGitMock.mockResolvedValue({ code: 1, stdout: '', stderr: '' })
+    await expect(
+      ensureSessionWorktreeProjectPath(session({ environmentMode: 'worktree' })),
+    ).rejects.toThrow(/no base branch is resolvable/)
+    expect(createGitWorktreeMock).not.toHaveBeenCalled()
   })
 })

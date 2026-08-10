@@ -10,6 +10,7 @@ export {
   deleteSession,
   listSessionWorktreeRefs,
   setSessionWorktree,
+  setSessionWorktreePlan,
   unarchiveSession,
   updateSessionRuntime,
   updateSessionTitle,

@@ -42,6 +42,8 @@ function hydrateSessionDetail(sessionRow: SessionRow, nodeRows: readonly Session
       updatedAt: sessionRow.updated_at,
       environmentMode,
       worktreePath: sessionRow.worktree_path,
+      worktreeBaseRef: sessionRow.worktree_base_ref,
+      worktreeStartFromOrigin: sessionRow.worktree_start_from_origin === 1,
     }
   } catch (error) {
     logSessionHydrationFailure(sessionRow, error)
@@ -68,7 +70,9 @@ function selectSessionRow(sql: SqlClient.SqlClient, id: SessionId) {
       last_active_node_id,
       last_active_branch_id,
       environment_mode,
-      worktree_path
+      worktree_path,
+      worktree_base_ref,
+      worktree_start_from_origin
     FROM sessions
     WHERE id = ${id}
     LIMIT 1

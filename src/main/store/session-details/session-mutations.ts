@@ -32,6 +32,28 @@ export async function setSessionWorktree(
   )
 }
 
+/** Persist the per-session env mode + Worktree base ref plan (before birth). */
+export async function setSessionWorktreePlan(
+  id: SessionId,
+  environmentMode: SessionEnvironmentMode,
+  baseRef: string | null,
+  startFromOrigin: boolean,
+): Promise<void> {
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        UPDATE sessions
+        SET environment_mode = ${environmentMode},
+            worktree_base_ref = ${baseRef},
+            worktree_start_from_origin = ${startFromOrigin ? 1 : 0},
+            updated_at = ${Date.now()}
+        WHERE id = ${id}
+      `
+    }),
+  )
+}
+
 /** Clear a session's Session worktree binding (death). */
 export async function clearSessionWorktree(id: SessionId): Promise<void> {
   await runStoreEffect(
