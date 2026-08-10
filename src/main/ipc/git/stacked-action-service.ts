@@ -35,6 +35,10 @@ export interface StackedActionDeps {
     projectPath: string,
     payload: OpenChangeRequestPayload,
   ) => Promise<ChangeRequestResult>
+  /** Current checked-out branch (head ref for a change request when no feature branch was created). */
+  readonly resolveCurrentRef: (projectPath: string) => Promise<string | null>
+  /** Default branch (base ref for a change request when the caller did not specify one). */
+  readonly resolveDefaultBaseRef: (projectPath: string) => Promise<string | null>
 }
 
 export type ProgressReporter = (event: GitActionProgressEvent) => void
@@ -154,9 +158,21 @@ async function maybeOpenChangeRequest(
 > {
   if (!phases.includes('pr')) return { ok: true, changeRequest: null }
   report('pr', 'Creating change request...')
+  const headRef = (branch.name ?? (await deps.resolveCurrentRef(projectPath)))?.trim() || ''
+  const baseRef = (options.baseRef ?? (await deps.resolveDefaultBaseRef(projectPath)))?.trim() || ''
+  if (!headRef) {
+    return {
+      ok: false,
+      failure: failure(
+        'pr',
+        'change-request-failed',
+        'Could not resolve the head ref for the change request.',
+      ),
+    }
+  }
   const payload: OpenChangeRequestPayload = {
-    headRef: branch.name ?? '',
-    baseRef: options.baseRef ?? '',
+    headRef,
+    baseRef,
     title: options.changeRequestTitle?.trim() || 'Update',
     body: options.changeRequestBody,
     draft: options.draft,

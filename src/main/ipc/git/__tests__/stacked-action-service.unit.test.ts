@@ -23,6 +23,8 @@ function makeDeps(overrides: Partial<StackedActionDeps> = {}): StackedActionDeps
           },
         }) as const,
     ),
+    resolveCurrentRef: vi.fn(async () => 'feature/current'),
+    resolveDefaultBaseRef: vi.fn(async () => 'main'),
     ...overrides,
   }
 }
@@ -63,6 +65,24 @@ describe('runStackedGitAction', () => {
 
     expect(result).toEqual({ ok: false, phase: 'push', code: 'push-failed', message: 'boom' })
     expect(deps.commit).toHaveBeenCalled()
+    expect(deps.openChangeRequest).not.toHaveBeenCalled()
+  })
+
+  it('resolves head/base refs for create_pr when no feature branch was created (no empty --head)', async () => {
+    const deps = makeDeps()
+    const result = await runStackedGitAction(deps, '/repo', { action: 'create_pr' })
+    expect(result.ok).toBe(true)
+    expect(deps.resolveCurrentRef).toHaveBeenCalledWith('/repo')
+    expect(deps.openChangeRequest).toHaveBeenCalledWith(
+      '/repo',
+      expect.objectContaining({ headRef: 'feature/current', baseRef: 'main' }),
+    )
+  })
+
+  it('fails the pr phase when no head ref is resolvable (instead of empty --head)', async () => {
+    const deps = makeDeps({ resolveCurrentRef: vi.fn(async () => null) })
+    const result = await runStackedGitAction(deps, '/repo', { action: 'create_pr' })
+    expect(result).toMatchObject({ ok: false, phase: 'pr', code: 'change-request-failed' })
     expect(deps.openChangeRequest).not.toHaveBeenCalled()
   })
 

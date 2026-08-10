@@ -66,6 +66,16 @@ function createStackedActionDeps(): StackedActionDeps {
       }
       return provider.openChangeRequest(projectPath, payload)
     },
+    resolveCurrentRef: async (projectPath) => {
+      const result = await runGit(projectPath, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
+      return result.code === 0 ? result.stdout.trim() || null : null
+    },
+    resolveDefaultBaseRef: async (projectPath) => {
+      const result = await runGit(projectPath, ['rev-parse', '--abbrev-ref', 'origin/HEAD'])
+      if (result.code !== 0) return null
+      const ref = result.stdout.trim()
+      return ref ? ref.replace(/^origin\//, '') : null
+    },
   }
 }
 
