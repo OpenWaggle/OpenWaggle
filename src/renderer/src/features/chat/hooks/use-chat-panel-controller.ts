@@ -316,6 +316,7 @@ export function useChatPanelSections(): ChatPanelSections {
     onRespondAgentInteraction: respondAgentInteraction,
     diff: {
       projectPath,
+      sessionId: activeSessionId,
       onSendMessage: handleSendText,
     },
   }

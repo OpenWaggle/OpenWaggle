@@ -49,6 +49,7 @@ export function ChatDiffPane({ section, onClose }: ChatDiffPaneProps) {
         <DiffPanel
           key={diffRefreshKey}
           projectPath={section.projectPath}
+          sessionId={section.sessionId}
           onSendMessage={(content) => {
             void section.onSendMessage(content)
           }}

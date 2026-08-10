@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { parseTurnDiffFilesFromUnifiedDiff, sumDeletions, sumInsertions } from '../turn-diff-parse'
+import {
+  parseTurnDiffFilesFromUnifiedDiff,
+  splitUnifiedDiffIntoFileDiffs,
+  sumDeletions,
+  sumInsertions,
+} from '../turn-diff-parse'
 
 const SAMPLE_DIFF = `diff --git a/src/b.ts b/src/b.ts
 index 111..222 100644
@@ -51,5 +56,19 @@ describe('parseTurnDiffFilesFromUnifiedDiff', () => {
       { path: 'src/a.ts', additions: 2, deletions: 0 },
       { path: 'src/b.ts', additions: 1, deletions: 1 },
     ])
+  })
+})
+
+describe('splitUnifiedDiffIntoFileDiffs', () => {
+  it('returns empty for an empty diff', () => {
+    expect(splitUnifiedDiffIntoFileDiffs('')).toEqual([])
+  })
+
+  it('splits into per-file GitFileDiff entries with counts and reconstructed blocks', () => {
+    const result = splitUnifiedDiffIntoFileDiffs(SAMPLE_DIFF)
+    expect(result.map((file) => file.path)).toEqual(['src/a.ts', 'src/b.ts'])
+    expect(result[0]).toMatchObject({ path: 'src/a.ts', additions: 2, deletions: 0 })
+    expect(result[0]?.diff.startsWith('diff --git ')).toBe(true)
+    expect(result[1]).toMatchObject({ path: 'src/b.ts', additions: 1, deletions: 1 })
   })
 })

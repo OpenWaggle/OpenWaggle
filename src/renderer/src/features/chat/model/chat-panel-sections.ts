@@ -72,6 +72,7 @@ export interface ChatComposerSectionState {
 
 export interface ChatDiffSectionState {
   readonly projectPath: string | null
+  readonly sessionId: SessionId | null
   onSendMessage: (content: string) => Promise<void>
 }
 

@@ -1,3 +1,4 @@
+import type { GitFileDiff } from '@shared/types/git'
 import type { TurnDiffFileSummary } from '@shared/types/turn-diff'
 
 /**
@@ -26,6 +27,30 @@ export function sumInsertions(files: readonly TurnDiffFileSummary[]): number {
 
 export function sumDeletions(files: readonly TurnDiffFileSummary[]): number {
   return files.reduce((total, file) => total + file.deletions, 0)
+}
+
+/**
+ * Split a unified diff into per-file GitFileDiff entries (path + that file's
+ * diff block + counts), so a Turn diff can render in the file-oriented panel.
+ */
+export function splitUnifiedDiffIntoFileDiffs(diff: string): GitFileDiff[] {
+  const normalized = diff.replace(/\r\n/g, '\n').trim()
+  if (normalized.length === 0) return []
+
+  const files: GitFileDiff[] = []
+  const chunks = normalized.split(/^diff --git /m).filter((chunk) => chunk.trim().length > 0)
+  for (const chunk of chunks) {
+    const summary = summarizeChunk(chunk)
+    if (summary) {
+      files.push({
+        path: summary.path,
+        diff: `diff --git ${chunk.replace(/\n+$/, '')}\n`,
+        additions: summary.additions,
+        deletions: summary.deletions,
+      })
+    }
+  }
+  return files.toSorted((left, right) => left.path.localeCompare(right.path))
 }
 
 function summarizeChunk(chunk: string): TurnDiffFileSummary | null {
