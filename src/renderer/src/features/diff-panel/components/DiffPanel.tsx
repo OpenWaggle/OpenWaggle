@@ -1,7 +1,4 @@
-import { matchBy } from '@diegogbrisa/ts-match'
-import type { GitFileDiff } from '@shared/types/git'
 import type { ReviewComment } from '@shared/types/review'
-import { useEffect, useReducer, useRef } from 'react'
 import { useDiffPanelGitActions } from '@/features/diff-panel/hooks/useDiffPanelGitActions'
 import {
   type DiffScopeSelection,
@@ -11,143 +8,17 @@ import {
 import type { ReviewCommentLocation } from '@/features/diff-panel/state/review-store'
 import { useReviewStore } from '@/features/diff-panel/state/review-store'
 import { useCombinedVcsStatus, useStackedGitActions } from '@/features/git'
-import { api } from '@/shared/lib/ipc'
 import { Spinner } from '@/shared/ui/Spinner'
+import { useBaseRefChoices } from '../hooks/useBaseRefChoices'
+import { type RenderableDiffFile, useDiffPanelDiffs } from '../hooks/useDiffPanelDiffs'
 import { DiffBottomBar } from './DiffBottomBar'
 import { DiffFileSection } from './DiffFileSection'
 import { DiffScopeTabs } from './DiffScopeTabs'
-import { buildDisplayItems, type DisplayItem } from './diff-display-items'
 import { FileTree } from './FileTree'
 
 interface DiffPanelProps {
   projectPath: string | null
   onSendMessage: (content: string) => void
-}
-
-interface RenderableDiffFile extends GitFileDiff {
-  readonly items: DisplayItem[]
-}
-
-interface DiffPanelState {
-  readonly fileDiffs: readonly RenderableDiffFile[]
-  readonly isLoading: boolean
-}
-
-type DiffPanelAction =
-  | { readonly type: 'clear' }
-  | { readonly type: 'start-loading' }
-  | { readonly type: 'load-success'; readonly fileDiffs: readonly RenderableDiffFile[] }
-  | { readonly type: 'load-failure' }
-
-function diffPanelReducer(state: DiffPanelState, action: DiffPanelAction) {
-  return matchBy(action, 'type')
-    .with('clear', () => ({ fileDiffs: [], isLoading: false }))
-    .with('start-loading', () => ({ ...state, isLoading: true }))
-    .with('load-success', (value) => ({ ...state, fileDiffs: value.fileDiffs, isLoading: false }))
-    .with('load-failure', () => ({ ...state, fileDiffs: [], isLoading: false }))
-    .exhaustive()
-}
-
-function toRenderableDiffs(diffs: readonly GitFileDiff[]) {
-  return diffs.map((diff) => ({
-    ...diff,
-    items: buildDisplayItems(diff.diff),
-  }))
-}
-
-function isStaleDiffRequest(
-  requestId: number,
-  latestRequestId: number,
-  currentProjectPath: string | null,
-  requestedProjectPath: string,
-) {
-  return requestId !== latestRequestId || currentProjectPath !== requestedProjectPath
-}
-
-function fetchDiffsForScope(projectPath: string, selection: DiffScopeSelection) {
-  if (selection.kind === 'branch') {
-    return api.getGitBranchDiff(projectPath, selection.baseRef ?? '')
-  }
-  return api.getGitDiff(projectPath)
-}
-
-function useDiffPanelDiffs(projectPath: string | null, selection: DiffScopeSelection) {
-  const [state, dispatch] = useReducer(diffPanelReducer, {
-    fileDiffs: [],
-    isLoading: false,
-  })
-  const currentProjectPath = useRef(projectPath)
-  const diffRequestId = useRef(0)
-  const selectionRef = useRef(selection)
-  useEffect(() => {
-    selectionRef.current = selection
-  }, [selection])
-
-  useEffect(() => {
-    currentProjectPath.current = projectPath
-  }, [projectPath])
-
-  const scopeKind = selection.kind
-  const branchBaseRef = selection.kind === 'branch' ? (selection.baseRef ?? '') : ''
-
-  useEffect(() => {
-    diffRequestId.current += 1
-    const requestId = diffRequestId.current
-    if (!projectPath) {
-      dispatch({ type: 'clear' })
-      return
-    }
-
-    const scopedSelection: DiffScopeSelection =
-      scopeKind === 'branch' ? { kind: 'branch', baseRef: branchBaseRef } : { kind: 'unstaged' }
-    dispatch({ type: 'start-loading' })
-    let cancelled = false
-    fetchDiffsForScope(projectPath, scopedSelection)
-      .then((diffs) => {
-        if (cancelled || requestId !== diffRequestId.current) return
-        dispatch({ type: 'load-success', fileDiffs: toRenderableDiffs(diffs) })
-      })
-      .catch(() => {
-        if (cancelled || requestId !== diffRequestId.current) return
-        dispatch({ type: 'load-failure' })
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [projectPath, scopeKind, branchBaseRef])
-
-  async function refreshDiff(projectPathToRefresh: string) {
-    diffRequestId.current += 1
-    const requestId = diffRequestId.current
-    dispatch({ type: 'start-loading' })
-    try {
-      const diffs = await fetchDiffsForScope(projectPathToRefresh, selectionRef.current)
-      if (
-        isStaleDiffRequest(
-          requestId,
-          diffRequestId.current,
-          currentProjectPath.current,
-          projectPathToRefresh,
-        )
-      )
-        return
-      dispatch({ type: 'load-success', fileDiffs: toRenderableDiffs(diffs) })
-    } catch {
-      if (
-        isStaleDiffRequest(
-          requestId,
-          diffRequestId.current,
-          currentProjectPath.current,
-          projectPathToRefresh,
-        )
-      )
-        return
-      dispatch({ type: 'load-failure' })
-    }
-  }
-
-  return { ...state, refreshDiff }
 }
 
 interface DiffPanelContentProps {
@@ -229,6 +100,7 @@ export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps) {
     true,
   )
   const branchBaseRef = selection.kind === 'branch' ? selection.baseRef : null
+  const baseRefChoices = useBaseRefChoices(projectPath)
   const { fileDiffs, isLoading, refreshDiff } = useDiffPanelDiffs(projectPath, selection)
 
   const gitActions = useDiffPanelGitActions({
@@ -265,7 +137,6 @@ export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps) {
 
   function handleSendReview() {
     if (comments.length === 0) return
-
     const lines = comments.map((c) => {
       const lineRef =
         c.startLine !== c.endLine
@@ -289,6 +160,7 @@ export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps) {
         <DiffScopeTabs
           selection={selection}
           baseRef={branchBaseRef}
+          baseRefChoices={baseRefChoices}
           onSelectScope={(scope) => selectGitScope(scopeKey, scope)}
           onChangeBaseRef={(baseRef) => selectBranchBaseRef(scopeKey, baseRef)}
         />

@@ -1,20 +1,28 @@
+import type { BaseRefChoice } from '@/features/diff-panel/lib/base-ref-choices'
 import type { DiffScopeSelection } from '@/features/diff-panel/state/diff-scope-store'
 import { Button } from '@/shared/ui/Button'
+import { Select } from '@/shared/ui/Select'
 
 interface DiffScopeTabsProps {
   readonly selection: DiffScopeSelection
   readonly baseRef: string | null
+  readonly baseRefChoices: readonly BaseRefChoice[]
   readonly onSelectScope: (scope: 'branch' | 'unstaged') => void
   readonly onChangeBaseRef: (baseRef: string) => void
 }
 
+const AUTOMATIC_VALUE = ''
+
 /**
- * Diff scope selector (WS6): switch between the working-tree diff and a
- * branch diff against a base ref. The turn scope is driven elsewhere.
+ * Diff scope selector (WS6): switch between the working-tree diff and a branch
+ * diff against a base ref. The base ref is chosen from a combobox with an
+ * "Automatic" default plus the repository's branches (mirrors T3Code
+ * buildBaseRefChoices). The turn scope is driven elsewhere.
  */
 export function DiffScopeTabs({
   selection,
   baseRef,
+  baseRefChoices,
   onSelectScope,
   onChangeBaseRef,
 }: DiffScopeTabsProps) {
@@ -38,13 +46,19 @@ export function DiffScopeTabs({
         Branch
       </Button>
       {isBranch ? (
-        <input
-          type="text"
-          value={baseRef ?? ''}
-          placeholder="base ref (e.g. origin/main)"
+        <Select
+          aria-label="Branch diff base ref"
+          value={baseRef ?? AUTOMATIC_VALUE}
           onChange={(event) => onChangeBaseRef(event.target.value)}
-          className="ml-1 h-[24px] flex-1 min-w-0 max-w-[240px] rounded-[5px] border border-button-border bg-transparent px-2 text-[12px] text-text-secondary"
-        />
+          className="ml-1 max-w-[240px]"
+        >
+          <option value={AUTOMATIC_VALUE}>Automatic</option>
+          {baseRefChoices.map((choice) => (
+            <option key={choice.id} value={choice.label}>
+              {choice.label}
+            </option>
+          ))}
+        </Select>
       ) : null}
     </div>
   )
