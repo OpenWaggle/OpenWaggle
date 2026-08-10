@@ -6,6 +6,7 @@ import { useAgentChat } from '@/features/chat/hooks/useAgentChat'
 import { useAutoSendQueue } from '@/features/chat/hooks/useAutoSendQueue'
 import { useSendMessage } from '@/features/chat/hooks/useSendMessage'
 import { useStreamingPhase } from '@/features/chat/hooks/useStreamingPhase'
+import { useTurnReveal } from '@/features/chat/hooks/useTurnReveal'
 import { createBranchDraftSelection } from '@/features/chat/lib/branch-from-message'
 import { maybeOpenBranchSummaryPrompt } from '@/features/chat/lib/branch-summary-prompt-controller'
 import { useComposerStore } from '@/features/composer/state'
@@ -153,9 +154,7 @@ export function useChatPanelSections(): ChatPanelSections {
     void sessionCopy.forkMessageToNewSession(messageId)
   }
 
-  function handleCloneToNewSession() {
-    void sessionCopy.cloneCurrentSessionToNewSession()
-  }
+  const handleCloneToNewSession = () => void sessionCopy.cloneCurrentSessionToNewSession()
 
   const sendWorkflow = useChatSendWorkflow({
     activeSessionId,
@@ -196,9 +195,8 @@ export function useChatPanelSections(): ChatPanelSections {
     status,
     sendMessage: handleSend,
     paused: isSteering,
-    onSendFailure: (payload, sendError) => {
-      reportAutoSendQueueFailure({ logger, showToast }, activeSessionId, payload, sendError)
-    },
+    onSendFailure: (payload, sendError) =>
+      reportAutoSendQueueFailure({ logger, showToast }, activeSessionId, payload, sendError),
   })
 
   function handleBranchFromMessage(messageId: string) {
@@ -245,6 +243,8 @@ export function useChatPanelSections(): ChatPanelSections {
     void refreshSessionWorkspace(sessionId, { nodeId: selection.routeNodeId })
   }
 
+  const { turnAnchorMessageIds, handleViewTurnDiff } = useTurnReveal(activeSessionId, navigate)
+
   const transcript = useTranscriptSection({
     messages,
     customMessages: agentCustomMessages,
@@ -268,6 +268,8 @@ export function useChatPanelSections(): ChatPanelSections {
     handleDismissInterruptedRun,
     handleBranchFromMessage,
     handleForkFromMessage,
+    handleViewTurnDiff,
+    turnAnchorMessageIds,
     userDidSend,
     onUserDidSendConsumed,
     streamSignalVersion,
@@ -294,9 +296,7 @@ export function useChatPanelSections(): ChatPanelSections {
     handleStartWaggle: sendWorkflow.startWaggle,
     handleStopCollaboration: sendWorkflow.stopCollaboration,
     handleSkipBranchSummary: branchSummary.skipBranchSummary,
-    handleSummarizeBranch: () => {
-      void branchSummary.materializeBranchSummary()
-    },
+    handleSummarizeBranch: () => void branchSummary.materializeBranchSummary(),
     handleStartCustomBranchSummary: branchSummary.startCustomBranchSummary,
     handleCancelBranchSummary: branchSummary.cancelBranchSummary,
     handleOpenForkSelector: sessionCopy.openForkSelector,

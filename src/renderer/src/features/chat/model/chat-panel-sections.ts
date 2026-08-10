@@ -39,6 +39,8 @@ export interface ChatTranscriptSectionState {
   onDismissInterruptedRun: (runId: string, branchId: SessionBranchId) => void
   onBranchFromMessage: (messageId: string) => void
   onForkFromMessage: (messageId: string) => void
+  onViewTurnDiff: (messageId: string) => void
+  readonly turnAnchorMessageIds: ReadonlySet<string>
 }
 
 export interface ChatComposerSectionState {

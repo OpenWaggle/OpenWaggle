@@ -64,6 +64,8 @@ export interface TranscriptSectionParams {
   readonly handleDismissInterruptedRun: (runId: string, branchId: SessionBranchId) => void
   readonly handleBranchFromMessage: (messageId: string) => void
   readonly handleForkFromMessage: (messageId: string) => void
+  readonly handleViewTurnDiff: (messageId: string) => void
+  readonly turnAnchorMessageIds: ReadonlySet<string>
   readonly userDidSend: boolean
   readonly onUserDidSendConsumed: () => void
 }
@@ -173,6 +175,8 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     onDismissInterruptedRun: handleDismissInterruptedRun,
     onBranchFromMessage: handleBranchFromMessage,
     onForkFromMessage: handleForkFromMessage,
+    onViewTurnDiff: params.handleViewTurnDiff,
+    turnAnchorMessageIds: params.turnAnchorMessageIds,
     lastUserMessageId,
     streamSignalVersion,
     userDidSend,

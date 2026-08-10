@@ -11,6 +11,8 @@ export interface ChatRowRenderContext {
   readonly actions: {
     readonly onBranchFromMessage?: (messageId: string) => void
     readonly onForkFromMessage?: (messageId: string) => void
+    readonly onViewTurnDiff?: (messageId: string) => void
+    readonly turnAnchorMessageIds?: ReadonlySet<string>
   }
   readonly onOpenSettings?: () => void
   readonly onRetry?: (content: string) => void
