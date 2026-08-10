@@ -79,6 +79,7 @@ describe('preload api surface contract', () => {
     'unarchiveSession',
     'listArchivedSessions',
     'updateSessionTitle',
+    'setSessionWorktreePlan',
     'listArchivedSessionBranches',
     'getSessionTree',
     'getSessionWorkspace',
@@ -115,6 +116,8 @@ describe('preload api surface contract', () => {
     'getLocalVcsStatus',
     'getRemoteVcsStatus',
     'runStackedGitAction',
+    'listChangeRequests',
+    'checkoutChangeRequest',
     // Attachments
     'prepareAttachments',
     'prepareAttachmentFromText',
@@ -167,11 +170,8 @@ describe('preload api surface contract', () => {
     'onUpdateStatus',
   ] as const
 
-  it('exposes every expected method as a function', () => {
+  it('matches the preload method contract exactly', () => {
     for (const method of EXPECTED_METHODS) expect(typeof api[method]).toBe('function')
-  })
-
-  it('has no unexpected methods beyond the contract', () => {
     const actualKeys = Object.keys(api).sort()
     const expectedKeys = [...EXPECTED_METHODS].sort()
     expect(actualKeys).toEqual(expectedKeys)

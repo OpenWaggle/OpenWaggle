@@ -50,6 +50,7 @@ describe('registerSessionDetailsHandlers', () => {
       'sessions:unarchive',
       'sessions:list-archived',
       'sessions:update-title',
+      'sessions:set-worktree-plan',
     ])
   })
 

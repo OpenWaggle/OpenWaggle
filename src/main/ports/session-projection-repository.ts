@@ -5,7 +5,7 @@
  * Runtime writes still go through SessionRepository.
  */
 import type { SessionId } from '@shared/types/brand'
-import type { SessionDetail, SessionSummary } from '@shared/types/session'
+import type { SessionDetail, SessionSummary, SessionWorktreePlan } from '@shared/types/session'
 import type { TurnCheckpointSummary, TurnDiff } from '@shared/types/turn-diff'
 import { Context, type Effect } from 'effect'
 import type { SessionProjectionRepositoryError } from '../errors'
@@ -36,6 +36,10 @@ export interface SessionProjectionRepositoryShape {
   readonly updateTitle: (
     id: SessionId,
     title: string,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  readonly setWorktreePlan: (
+    id: SessionId,
+    plan: SessionWorktreePlan,
   ) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly listTurnCheckpoints: (
     id: SessionId,

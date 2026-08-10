@@ -1,5 +1,6 @@
 import type { SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
+import type { SessionWorktreePlan } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { cleanupSessionRun } from '../agent/session-cleanup'
 import { dismissInterruptedAgentRun } from '../application/agent-run-service'
@@ -131,6 +132,13 @@ function registerSessionMutationHandlers() {
     Effect.gen(function* () {
       const repo = yield* SessionProjectionRepository
       yield* repo.updateTitle(id, title)
+    }),
+  )
+
+  typedHandle('sessions:set-worktree-plan', (_event, id: SessionId, plan: SessionWorktreePlan) =>
+    Effect.gen(function* () {
+      const repo = yield* SessionProjectionRepository
+      yield* repo.setWorktreePlan(id, plan)
     }),
   )
 }

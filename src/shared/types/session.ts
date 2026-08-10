@@ -65,6 +65,13 @@ export interface SessionDetail {
   readonly worktreeStartFromOrigin?: boolean
 }
 
+/** Per-session worktree birth plan persisted by the composer strip (WS1b). */
+export interface SessionWorktreePlan {
+  readonly environmentMode: SessionEnvironmentMode
+  readonly baseRef: string | null
+  readonly startFromOrigin: boolean
+}
+
 export interface SessionNode {
   readonly id: SessionNodeId
   readonly sessionId: SessionId

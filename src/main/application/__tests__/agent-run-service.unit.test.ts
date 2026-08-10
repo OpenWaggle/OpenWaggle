@@ -51,6 +51,7 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
     Effect.sync(() => {
       updateTitleMock(id, title)
     }),
+  setWorktreePlan: () => Effect.void,
   listTurnCheckpoints: () => Effect.succeed([]),
   getTurnDiff: () => Effect.succeed(null),
 })

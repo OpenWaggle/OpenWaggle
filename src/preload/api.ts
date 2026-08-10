@@ -121,6 +121,7 @@ export const api: OpenWaggleApi = {
   unarchiveSession: invoke('sessions:unarchive'),
   listArchivedSessions: invoke('sessions:list-archived'),
   updateSessionTitle: invoke('sessions:update-title'),
+  setSessionWorktreePlan: invoke('sessions:set-worktree-plan'),
   listArchivedSessionBranches: invoke('sessions:list-archived-branches'),
   getSessionTree: invoke('sessions:get-tree'),
   getSessionWorkspace: invoke('sessions:get-workspace'),
@@ -160,6 +161,8 @@ export const api: OpenWaggleApi = {
   getLocalVcsStatus: invoke('git:vcs-status:local'),
   getRemoteVcsStatus: invoke('git:vcs-status:remote'),
   runStackedGitAction: invoke('git:stacked-action:run'),
+  listChangeRequests: invoke('git:change-request:list'),
+  checkoutChangeRequest: invoke('git:change-request:checkout'),
 
   // Attachments
   prepareAttachments: prepareSelectedAttachments,

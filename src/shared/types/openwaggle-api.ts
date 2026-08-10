@@ -21,6 +21,8 @@ import type {
   GhCliStatus,
 } from './feedback'
 import type {
+  ChangeRequestCheckoutResult,
+  ChangeRequestListResult,
   GitBranchCheckoutPayload,
   GitBranchCreatePayload,
   GitBranchDeletePayload,
@@ -57,6 +59,7 @@ import type {
   SessionTreeUiStatePatch,
   SessionWorkspace,
   SessionWorkspaceSelection,
+  SessionWorktreePlan,
 } from './session'
 import type { Settings } from './settings'
 import type {
@@ -154,6 +157,7 @@ export interface OpenWaggleApi extends OpenWaggleExtensionApi {
   unarchiveSession(id: SessionId): Promise<void>
   listArchivedSessions(): Promise<SessionSummary[]>
   updateSessionTitle(id: SessionId, title: string): Promise<void>
+  setSessionWorktreePlan(id: SessionId, plan: SessionWorktreePlan): Promise<void>
   listArchivedSessionBranches(limit?: number): Promise<SessionSummary[]>
   getSessionTree(sessionId: SessionId): Promise<SessionTree | null>
   getSessionWorkspace(
@@ -227,6 +231,11 @@ export interface OpenWaggleApi extends OpenWaggleExtensionApi {
     projectPath: string,
     options: GitRunStackedActionOptions,
   ): Promise<GitRunStackedActionResult>
+  listChangeRequests(projectPath: string): Promise<ChangeRequestListResult>
+  checkoutChangeRequest(
+    projectPath: string,
+    reference: string,
+  ): Promise<ChangeRequestCheckoutResult>
 
   // Attachments
   prepareAttachments(projectPath: string, files: readonly File[]): Promise<PreparedAttachment[]>
