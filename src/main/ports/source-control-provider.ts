@@ -1,4 +1,5 @@
 import type {
+  ChangeRequestCheckoutResult,
   ChangeRequestListResult,
   ChangeRequestResult,
   OpenChangeRequestPayload,
@@ -23,4 +24,12 @@ export interface SourceControlProvider {
     headRef: string,
   ) => Promise<ChangeRequestResult>
   readonly listChangeRequests: (projectPath: string) => Promise<ChangeRequestListResult>
+  /**
+   * Check a change request out into the working tree at `projectPath` (used to
+   * seed a Session worktree). `reference` is a number, URL, or branch name.
+   */
+  readonly checkoutChangeRequest: (
+    projectPath: string,
+    reference: string,
+  ) => Promise<ChangeRequestCheckoutResult>
 }

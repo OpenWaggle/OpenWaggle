@@ -98,4 +98,22 @@ describe('github adapter typed failures (never throws)', () => {
     expect(result).toMatchObject({ ok: true })
     if (result?.ok) expect(result.changeRequests).toHaveLength(1)
   })
+
+  it('checks a change request out by reference', async () => {
+    runCliMock.mockResolvedValue(cli({ stdout: '' }))
+    const provider = getSourceControlProvider('github')
+    await expect(provider?.checkoutChangeRequest('/repo', '42')).resolves.toEqual({
+      ok: true,
+      reference: '42',
+    })
+    expect(runCliMock).toHaveBeenCalledWith('gh', ['pr', 'checkout', '42'], '/repo')
+  })
+
+  it('maps a failed checkout to a typed failure', async () => {
+    runCliMock.mockResolvedValue(cli({ code: 1, stderr: 'could not find pull request' }))
+    const provider = getSourceControlProvider('github')
+    await expect(provider?.checkoutChangeRequest('/repo', '999')).resolves.toMatchObject({
+      ok: false,
+    })
+  })
 })

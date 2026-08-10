@@ -130,6 +130,14 @@ export interface ChangeRequestListSuccess {
 
 export type ChangeRequestListResult = ChangeRequestListSuccess | SourceControlFailure
 
+export interface ChangeRequestCheckoutSuccess {
+  readonly ok: true
+  readonly reference: string
+}
+
+/** Result of checking a change request out into a working tree / Session worktree. */
+export type ChangeRequestCheckoutResult = ChangeRequestCheckoutSuccess | SourceControlFailure
+
 // --- Stacked git actions (WS4, ADR 0012) ---
 
 export const GIT_STACKED_ACTIONS = [

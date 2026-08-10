@@ -358,6 +358,14 @@ _Avoid_: local diff, dirty diff
 The diff scope comparing the current branch against a chosen base ref.
 _Avoid_: PR diff, full diff
 
+**Branch-diff base ref**:
+The ref the Branch diff compares against; chosen in the diff panel, changeable at any time, and view-only (it never alters the repository or a Session worktree).
+_Avoid_: base ref (unqualified), worktree base ref
+
+**Worktree base ref**:
+The ref a Session worktree is forked from when it is born on first send; chosen before send in worktree mode (defaulting to the current branch), and frozen once the worktree exists.
+_Avoid_: base ref (unqualified), branch-diff base ref, start branch
+
 **Turn diff**:
 The diff scope showing the file changes produced by one Pi agent turn, computed from per-turn worktree checkpoint snapshots stored by OpenWaggle.
 _Avoid_: message diff, step diff

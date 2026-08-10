@@ -95,6 +95,11 @@ export const githubProvider: SourceControlProvider = {
     }
     return { ok: true, changeRequests }
   },
+  checkoutChangeRequest: async (projectPath: string, reference: string) => {
+    const result = await runCli('gh', ['pr', 'checkout', reference], projectPath)
+    if (result.code !== 0) return classifyFailure(result)
+    return { ok: true, reference }
+  },
 }
 
 function safeJsonParse(text: string): unknown {
