@@ -5,7 +5,6 @@ import type {
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import { useMessageQueueStore } from '@/features/chat/state'
 import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-store'
-import { CommandPalette } from '@/features/command-palette/components'
 import {
   ActionDialog,
   BranchSummaryPrompt,
@@ -15,8 +14,11 @@ import {
   QueuedMessages,
 } from '@/features/composer/components'
 import { useScopedComposerDrafts } from '@/features/composer/hooks'
+import { ComposerContextStrip } from '@/features/git'
 import { WaggleCollaborationStatus as WaggleCollaborationStatusBanner } from '@/features/waggle/components'
+import { useComposerSendGate } from '../hooks/useComposerSendGate'
 import type { ChatComposerSectionState } from '../model'
+import { ChatComposerCommandPalette } from './ChatComposerCommandPalette'
 import { ChatComposerExtensionDialogs } from './ChatComposerExtensionDialogs'
 import { SessionForkSelector } from './SessionForkSelector'
 
@@ -71,16 +73,20 @@ export function ChatComposerStack({
     onSelectForkTarget,
     onCloneToNewSession,
   } = section
-
   useScopedComposerDrafts(activeSessionId)
-
+  const { strip, guardedSend } = useComposerSendGate({
+    activeSessionId,
+    session: section.session,
+    isFirstMessage: section.isFirstMessage,
+    onSend: onSendWithWaggle,
+    onToast,
+  })
   const enqueue = useMessageQueueStore((s) => s.enqueue)
   const branchSummaryMode = useBranchSummaryStore((s) => s.prompt?.mode ?? null)
   const composerDisabledForBranchSummary =
     branchSummaryMode === 'choice' || branchSummaryMode === 'summarizing'
   const composerPlaceholder =
     branchSummaryMode === 'custom' ? 'Custom instructions for the branch summary' : undefined
-
   return (
     <>
       <WaggleCollaborationStatusBanner
@@ -88,18 +94,15 @@ export function ChatComposerStack({
         onStop={waggleStatus !== 'idle' ? onStopCollaboration : noOp}
       />
 
-      {commandPaletteOpen && (
-        <div className="mx-auto w-full max-w-[720px] px-5 pb-2">
-          <CommandPalette
-            slashSkills={slashSkills}
-            onSelectSkill={onSelectSkill}
-            onStartWaggle={onStartWaggle}
-            onOpenSessionTree={onOpenSessionTree}
-            onForkToNewSession={onOpenForkSelector}
-            onCloneToNewSession={onCloneToNewSession}
-          />
-        </div>
-      )}
+      <ChatComposerCommandPalette
+        open={commandPaletteOpen}
+        slashSkills={slashSkills}
+        onSelectSkill={onSelectSkill}
+        onStartWaggle={onStartWaggle}
+        onOpenSessionTree={onOpenSessionTree}
+        onForkToNewSession={onOpenForkSelector}
+        onCloneToNewSession={onCloneToNewSession}
+      />
 
       <SessionForkSelector
         open={forkSelectorOpen}
@@ -130,8 +133,9 @@ export function ChatComposerStack({
           extensionRegistry={extensionRegistry}
           onRespond={onRespondAgentInteraction}
         />
+        <ComposerContextStrip strip={strip} />
         <Composer
-          onSend={onSendWithWaggle}
+          onSend={guardedSend}
           onEnqueue={(payload) => {
             if (activeSessionId) {
               enqueue(activeSessionId, payload)

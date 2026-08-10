@@ -43,14 +43,11 @@ export function buildBaseRefChoices(branches: readonly GitBranchInfo[]): readonl
     }
   })
 
-  const remoteOnlyChoices = remotes
-    .filter((remote) => !usedRemotes.has(remote.name))
-    .map((remote) => ({
-      id: `remote:${remote.name}`,
-      label: remote.name,
-      local: null,
-      remote: remote.name,
-    }))
+  const remoteOnlyChoices = remotes.flatMap((remote) =>
+    usedRemotes.has(remote.name)
+      ? []
+      : [{ id: `remote:${remote.name}`, label: remote.name, local: null, remote: remote.name }],
+  )
 
   return [...pairedChoices, ...remoteOnlyChoices]
 }

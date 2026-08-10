@@ -6,6 +6,7 @@ import type {
 import type { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
+import type { SessionDetail } from '@shared/types/session'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import type { AgentTransportCustomEvent } from '@shared/types/stream'
 import type { WaggleCollaborationStatus, WaggleConfig } from '@shared/types/waggle'
@@ -42,6 +43,8 @@ export interface ChatTranscriptSectionState {
 
 export interface ChatComposerSectionState {
   readonly activeSessionId: SessionId | null
+  readonly session: SessionDetail | null
+  readonly isFirstMessage: boolean
   readonly waggleStatus: WaggleCollaborationStatus
   readonly commandPaletteOpen: boolean
   readonly slashSkills: readonly SkillDiscoveryItem[]

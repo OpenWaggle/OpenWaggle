@@ -260,6 +260,8 @@ describe('chat orchestration hooks', () => {
         status: 'ready',
         compactionStatus: null,
         activeSessionId: SESSION_ID,
+        session: null,
+        isFirstMessage: true,
         waggleStatus: 'idle',
         commandPaletteOpen: false,
         slashSkills: [],

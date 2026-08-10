@@ -77,7 +77,7 @@ export function useComposerContextStrip(
       try {
         const result = await api.listGitBranches(projectPath)
         if (cancelled) return
-        setBranchNames(result.branches.filter((b) => !b.isRemote).map((b) => b.name))
+        setBranchNames(result.branches.flatMap((b) => (b.isRemote ? [] : [b.name])))
         setBaseRefState((current) => current ?? resolveDefaultWorktreeBaseRef(result))
       } catch (error) {
         logger.warn('Failed to list branches for context strip', { error: String(error) })

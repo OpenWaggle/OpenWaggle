@@ -281,6 +281,8 @@ export function useChatPanelSections(): ChatPanelSections {
     forkSelectorOpen: sessionCopy.forkSelectorOpen,
     forkTargets: sessionCopy.forkTargets,
     activeSessionId,
+    session: activeSession,
+    isFirstMessage: messages.length === 0,
     waggleStatus,
     commandPaletteOpen,
     slashSkills: catalog?.skills ?? [],
