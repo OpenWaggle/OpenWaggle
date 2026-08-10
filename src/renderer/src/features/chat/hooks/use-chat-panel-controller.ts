@@ -1,5 +1,6 @@
 import { SessionId } from '@shared/types/brand'
 import type { WaggleCollaborationStatus } from '@shared/types/waggle'
+import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useAgentChat } from '@/features/chat/hooks/useAgentChat'
@@ -123,7 +124,6 @@ export function useChatPanelSections(): ChatPanelSections {
   const waggleOwningId = waggleActiveCollaborationId ?? waggleConfigSessionId
   const waggleStatus: WaggleCollaborationStatus =
     waggleOwningId && waggleOwningId !== activeSessionId ? 'idle' : waggleStoreStatus
-
   const sessionCopy = useSessionCopyWorkflow({
     activeSessionId,
     activeWorkspace,
@@ -153,8 +153,6 @@ export function useChatPanelSections(): ChatPanelSections {
   function handleForkFromMessage(messageId: string) {
     void sessionCopy.forkMessageToNewSession(messageId)
   }
-
-  const handleCloneToNewSession = () => void sessionCopy.cloneCurrentSessionToNewSession()
 
   const sendWorkflow = useChatSendWorkflow({
     activeSessionId,
@@ -302,7 +300,7 @@ export function useChatPanelSections(): ChatPanelSections {
     handleOpenForkSelector: sessionCopy.openForkSelector,
     handleCloseForkSelector: sessionCopy.closeForkSelector,
     handleSelectForkTarget: sessionCopy.selectForkTarget,
-    handleCloneToNewSession,
+    handleCloneToNewSession: () => void sessionCopy.cloneCurrentSessionToNewSession(),
   })
 
   return {
@@ -315,7 +313,8 @@ export function useChatPanelSections(): ChatPanelSections {
     extensionProjectPaths,
     onRespondAgentInteraction: respondAgentInteraction,
     diff: {
-      projectPath,
+      // ADR-0010: git ops target the Session worktree in worktree mode (see resolveSessionWorkingDir).
+      projectPath: resolveSessionWorkingDir(activeSession, projectPath),
       sessionId: activeSessionId,
       onSendMessage: handleSendText,
     },
