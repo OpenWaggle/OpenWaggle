@@ -15,7 +15,7 @@ T3Code shells out to the `gh` and `glab` CLIs (not REST/GraphQL), derives auth f
 **Provider access via CLI adapters behind a port.**
 
 - Define a source-control provider port in `src/main/ports`; implement `gh` and `glab` adapters in `src/main/adapters` that shell out through the existing `execFile`/`runGit`-style runner.
-- Capabilities: auth status (parse `auth status`), open change request, resolve/list change requests, and provider detection from the remote URL.
+- Capabilities: auth status (parse `auth status`), open change request, resolve/list change requests, **check a change request out into the working tree / Session worktree** (`gh pr checkout` / `glab mr checkout`, WS1b), and provider detection from the remote URL.
 - All adapter results are discriminated-union results with explicit error codes, matching the existing `GitWorkingTreeMutationResult` style. Auth or CLI failures are surfaced as typed results, never thrown to crash the process.
 - Provider-aware terminology (PR vs MR) is a small presentation map (ported from T3Code `sourceControlPresentation`); the domain term is **Change request**.
 
