@@ -105,6 +105,10 @@ interface RenderAssistantOptions {
   readonly waggle?: WaggleInfo
   readonly assistantModel?: SupportedModelId
   readonly hideAgentLabel?: boolean
+  readonly actions?: {
+    readonly onBranchFromMessage?: (messageId: string) => void
+    readonly onViewTurnDiff?: (messageId: string) => void
+  }
 }
 
 function renderAssistantMessage({
@@ -112,6 +116,7 @@ function renderAssistantMessage({
   waggle,
   assistantModel,
   hideAgentLabel,
+  actions,
 }: RenderAssistantOptions) {
   return render(
     <AssistantMessageBubble
@@ -123,6 +128,7 @@ function renderAssistantMessage({
       run={assistantModel ? { assistantModel } : undefined}
       waggle={waggle}
       presentation={hideAgentLabel ? { hideAgentLabel } : undefined}
+      actions={actions}
     />,
   )
 }
@@ -262,5 +268,24 @@ describe('AssistantMessageBubble', () => {
     })
     expect(screen.queryByTestId('agent-label')).toBeNull()
     expect(screen.getByTestId('streaming-text')).toHaveTextContent('Hello')
+  })
+
+  it('renders a View turn diff button and fires onViewTurnDiff', () => {
+    const onViewTurnDiff = vi.fn()
+    const message = createMessage('m1', [textPart('Hello')])
+    renderAssistantMessage({
+      message,
+      assistantModel: SupportedModelId('gpt-5.5'),
+      actions: { onViewTurnDiff },
+    })
+    const button = screen.getByRole('button', { name: 'View turn diff' })
+    button.click()
+    expect(onViewTurnDiff).toHaveBeenCalledWith('m1')
+  })
+
+  it('omits the View turn diff button when no reveal handler is provided', () => {
+    const message = createMessage('m1', [textPart('Hello')])
+    renderAssistantMessage({ message, assistantModel: SupportedModelId('gpt-5.5') })
+    expect(screen.queryByRole('button', { name: 'View turn diff' })).toBeNull()
   })
 })
