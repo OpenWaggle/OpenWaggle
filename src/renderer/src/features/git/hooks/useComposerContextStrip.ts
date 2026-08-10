@@ -181,7 +181,7 @@ export function useComposerContextStrip(
   )
 
   return {
-    visible: isFirstMessage && !hasWorktree,
+    visible: sessionId !== null && isFirstMessage && !hasWorktree,
     envMode,
     baseRef,
     startFromOrigin,
