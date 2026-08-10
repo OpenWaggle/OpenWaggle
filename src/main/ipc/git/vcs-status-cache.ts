@@ -1,30 +1,46 @@
 import type { LocalVcsStatusResult, RemoteVcsStatusResult } from '@shared/types/git'
 import { getLocalVcsStatus, getRemoteVcsStatus } from './vcs-status-service'
 
-const localCache = new Map<string, Promise<LocalVcsStatusResult>>()
-const remoteCache = new Map<string, Promise<RemoteVcsStatusResult>>()
+/** Short TTL for the network-free local status; longer for remote (runs `git fetch`). */
+const LOCAL_TTL_MS = 2_000
+const REMOTE_TTL_MS = 15_000
 
-export function readLocalVcsStatus(projectPath: string): Promise<LocalVcsStatusResult> {
-  const cached = localCache.get(projectPath)
-  if (cached) return cached
-  const pending = getLocalVcsStatus(projectPath)
-  localCache.set(projectPath, pending)
-  // Drop failed lookups so the next read retries instead of caching the error.
-  void pending.then((result) => {
-    if (!result.ok) localCache.delete(projectPath)
-  })
+interface CacheEntry<T> {
+  readonly pending: Promise<T>
+  readonly expiresAt: number
+}
+
+const localCache = new Map<string, CacheEntry<LocalVcsStatusResult>>()
+const remoteCache = new Map<string, CacheEntry<RemoteVcsStatusResult>>()
+
+function readCached<T extends { readonly ok: boolean }>(
+  cache: Map<string, CacheEntry<T>>,
+  projectPath: string,
+  ttlMs: number,
+  fetch: (projectPath: string) => Promise<T>,
+): Promise<T> {
+  const cached = cache.get(projectPath)
+  if (cached && cached.expiresAt > Date.now()) return cached.pending
+
+  const pending = fetch(projectPath)
+  cache.set(projectPath, { pending, expiresAt: Date.now() + ttlMs })
+  // Drop failed or rejected lookups so the next read retries instead of caching
+  // (and never poisons) the entry. Only the currently-stored entry is cleared.
+  const clearIfCurrent = () => {
+    if (cache.get(projectPath)?.pending === pending) cache.delete(projectPath)
+  }
+  pending.then((result) => {
+    if (!result.ok) clearIfCurrent()
+  }, clearIfCurrent)
   return pending
 }
 
+export function readLocalVcsStatus(projectPath: string): Promise<LocalVcsStatusResult> {
+  return readCached(localCache, projectPath, LOCAL_TTL_MS, getLocalVcsStatus)
+}
+
 export function readRemoteVcsStatus(projectPath: string): Promise<RemoteVcsStatusResult> {
-  const cached = remoteCache.get(projectPath)
-  if (cached) return cached
-  const pending = getRemoteVcsStatus(projectPath)
-  remoteCache.set(projectPath, pending)
-  void pending.then((result) => {
-    if (!result.ok) remoteCache.delete(projectPath)
-  })
-  return pending
+  return readCached(remoteCache, projectPath, REMOTE_TTL_MS, getRemoteVcsStatus)
 }
 
 export function invalidateLocalVcsStatus(projectPath?: string): void {
