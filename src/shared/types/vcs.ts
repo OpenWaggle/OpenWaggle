@@ -168,6 +168,12 @@ export interface GitRunStackedActionOptions {
   readonly changeRequestTitle?: string
   readonly changeRequestBody?: string
   readonly draft?: boolean
+  /**
+   * Repo-relative paths to stage for the commit phase. When omitted the whole
+   * working tree is staged, which in `local` environment mode would sweep in the
+   * user's unrelated in-flight work — callers should pass the user's selection.
+   */
+  readonly paths?: readonly string[]
 }
 
 export const GIT_STACKED_ACTION_ERROR_CODES = [

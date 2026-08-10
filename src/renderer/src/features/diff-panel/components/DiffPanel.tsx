@@ -175,7 +175,10 @@ export function DiffPanel({ projectPath, sessionId = null, onSendMessage }: Diff
         quickAction={{
           status: vcsStatus,
           isBusy: stackedActions.isRunning,
-          onRunAction: (action) => stackedActions.run(action),
+          onRunAction: (action) =>
+            // Stage only what the panel is showing (the user's visible selection),
+            // never the whole repo (review M7).
+            stackedActions.run(action, { paths: fileDiffs.map((file) => file.path) }),
           onPull: () => stackedActions.run('pull'),
           onOpenChangeRequest: () => {
             const url = vcsStatus?.changeRequest?.url

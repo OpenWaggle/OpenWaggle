@@ -22,6 +22,7 @@ const stackedActionOptionsSchema = Schema.Struct({
   changeRequestTitle: Schema.optional(Schema.String),
   changeRequestBody: Schema.optional(Schema.String),
   draft: Schema.optional(Schema.Boolean),
+  paths: Schema.optional(Schema.Array(Schema.String)),
 })
 
 async function resolveProviderRemoteUrl(projectPath: string): Promise<string | null> {
@@ -51,8 +52,16 @@ function createStackedActionDeps(): StackedActionDeps {
       })
       return { ok: result.ok, message: result.message }
     },
-    commit: async (projectPath, message) => {
-      await runGit(projectPath, ['add', '--all', '--', ':/'])
+    commit: async (projectPath, message, paths) => {
+      // Stage the caller's selection when provided; only fall back to staging the
+      // whole working tree when nothing was selected (avoids sweeping in the
+      // user's unrelated in-flight work in `local` environment mode).
+      const selected = paths?.filter((entry) => entry.trim().length > 0) ?? []
+      if (selected.length > 0) {
+        await runGit(projectPath, ['add', '--', ...selected])
+        return commitGit(projectPath, { message, amend: false, paths: [...selected] })
+      }
+      await runGit(projectPath, ['add', '--all'])
       return commitGit(projectPath, { message, amend: false, paths: [] })
     },
     push: (projectPath) => pushCurrentBranch(projectPath),

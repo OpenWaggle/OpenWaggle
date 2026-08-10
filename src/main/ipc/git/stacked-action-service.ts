@@ -28,7 +28,11 @@ export interface StackedActionDeps {
     name: string,
     baseRef: string | undefined,
   ) => Promise<{ ok: boolean; message: string }>
-  readonly commit: (projectPath: string, message: string) => Promise<GitCommitResult>
+  readonly commit: (
+    projectPath: string,
+    message: string,
+    paths?: readonly string[],
+  ) => Promise<GitCommitResult>
   readonly push: (projectPath: string) => Promise<GitPushResult>
   readonly pull: (projectPath: string) => Promise<GitPullResult>
   readonly openChangeRequest: (
@@ -126,7 +130,11 @@ async function maybeCommit(
 ) {
   if (!phases.includes('commit') || (options.action !== 'commit' && !hasChanges)) return null
   report('commit', 'Committing...')
-  const commit = await deps.commit(projectPath, options.commitMessage?.trim() || 'Update')
+  const commit = await deps.commit(
+    projectPath,
+    options.commitMessage?.trim() || 'Update',
+    options.paths,
+  )
   if (commit.ok) return null
   const code = commit.code === 'nothing-to-commit' ? 'nothing-to-commit' : 'unknown'
   return failure('commit', code, commit.message)

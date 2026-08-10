@@ -86,6 +86,15 @@ describe('runStackedGitAction', () => {
     expect(deps.openChangeRequest).not.toHaveBeenCalled()
   })
 
+  it('passes the caller-selected paths through to the commit phase (never whole-repo)', async () => {
+    const deps = makeDeps()
+    await runStackedGitAction(deps, '/repo', {
+      action: 'commit',
+      paths: ['src/a.ts', 'src/b.ts'],
+    })
+    expect(deps.commit).toHaveBeenCalledWith('/repo', 'Update', ['src/a.ts', 'src/b.ts'])
+  })
+
   it('maps a nothing-to-commit failure at the commit phase', async () => {
     const deps = makeDeps({
       commit: vi.fn(
