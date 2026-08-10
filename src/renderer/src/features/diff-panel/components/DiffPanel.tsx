@@ -114,7 +114,7 @@ export function DiffPanel({ projectPath, sessionId = null, onSendMessage }: Diff
 
   function handleSelectScope(scope: 'branch' | 'unstaged' | 'turn') {
     if (scope === 'turn') {
-      const latestTurn = turns[0]
+      const latestTurn = turns.at(-1)
       if (latestTurn) selectTurn(scopeKey, latestTurn.turnId)
       return
     }

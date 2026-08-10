@@ -24,7 +24,6 @@ interface TurnCheckpointRow {
 export interface RecordTurnCheckpointInput {
   readonly sessionId: SessionId
   readonly turnId: string
-  readonly turnIndex: number
   /** The incremental unified diff produced during this turn. */
   readonly diff: string
   /** Snapshot commit (git stash create) of the worktree at this turn, if any. */
@@ -43,12 +42,11 @@ export async function recordTurnCheckpoint(input: RecordTurnCheckpointInput): Pr
         INSERT INTO turn_checkpoints (
           id, session_id, turn_id, turn_index, created_at, diff, insertions, deletions, snapshot_ref
         )
-        VALUES (
-          ${randomUUID()}, ${input.sessionId}, ${input.turnId}, ${input.turnIndex},
+        SELECT
+          ${randomUUID()}, ${input.sessionId}, ${input.turnId},
+          (SELECT COALESCE(MAX(turn_index), -1) + 1 FROM turn_checkpoints WHERE session_id = ${input.sessionId}),
           ${Date.now()}, ${input.diff}, ${insertions}, ${deletions}, ${input.snapshotRef ?? null}
-        )
         ON CONFLICT(session_id, turn_id) DO UPDATE SET
-          turn_index = excluded.turn_index,
           created_at = excluded.created_at,
           diff = excluded.diff,
           insertions = excluded.insertions,

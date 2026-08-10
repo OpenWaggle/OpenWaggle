@@ -12,7 +12,7 @@ const logger = createRendererLogger('diff-panel-turns')
 const EMPTY_TURNS: readonly TurnCheckpointSummary[] = []
 const EMPTY_FILES: readonly RenderableDiffFile[] = []
 
-/** List the session's Turn checkpoints (WS6b/WS7), newest first. */
+/** List the session's Turn checkpoints (WS6b/WS7), oldest first (ascending turn index). */
 export function useSessionTurns(sessionId: SessionId | null): readonly TurnCheckpointSummary[] {
   const [turns, setTurns] = useState<readonly TurnCheckpointSummary[]>(EMPTY_TURNS)
 

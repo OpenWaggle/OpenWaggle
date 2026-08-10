@@ -71,7 +71,7 @@ async function makeSession(suffix: string) {
 describe('turn checkpoints store', () => {
   it('records a checkpoint and computes the turn diff with parsed summary', async () => {
     const sessionId = await makeSession('record')
-    await recordTurnCheckpoint({ sessionId, turnId: 'turn-1', turnIndex: 0, diff: DIFF_B })
+    await recordTurnCheckpoint({ sessionId, turnId: 'turn-1', diff: DIFF_B })
 
     const diff = await getTurnDiff(sessionId, 'turn-1')
     expect(diff).not.toBeNull()
@@ -80,18 +80,28 @@ describe('turn checkpoints store', () => {
     expect(diff?.files).toEqual([{ path: 'b.ts', additions: 1, deletions: 1 }])
   })
 
-  it('lists checkpoints ordered by turn index', async () => {
+  it('lists checkpoints in capture (insertion) order', async () => {
     const sessionId = await makeSession('list')
-    await recordTurnCheckpoint({ sessionId, turnId: 'turn-2', turnIndex: 1, diff: DIFF_B })
-    await recordTurnCheckpoint({ sessionId, turnId: 'turn-1', turnIndex: 0, diff: DIFF_A })
+    await recordTurnCheckpoint({ sessionId, turnId: 'turn-1', diff: DIFF_A })
+    await recordTurnCheckpoint({ sessionId, turnId: 'turn-2', diff: DIFF_B })
 
     const summaries = await listTurnCheckpoints(sessionId)
     expect(summaries.map((s) => s.turnId)).toEqual(['turn-1', 'turn-2'])
+    expect(summaries.map((s) => s.turnIndex)).toEqual([0, 1])
+  })
+
+  it('keeps strictly increasing turn_index across many turns (no collapse after retention)', async () => {
+    const sessionId = await makeSession('idx')
+    for (let i = 0; i < 5; i += 1) {
+      await recordTurnCheckpoint({ sessionId, turnId: `t${String(i)}`, diff: DIFF_A })
+    }
+    const summaries = await listTurnCheckpoints(sessionId)
+    expect(summaries.map((s) => s.turnIndex)).toEqual([0, 1, 2, 3, 4])
   })
 
   it('records and surfaces the transcript anchor node id', async () => {
     const sessionId = await makeSession('anchor')
-    await recordTurnCheckpoint({ sessionId, turnId: 'turn-1', turnIndex: 0, diff: DIFF_A })
+    await recordTurnCheckpoint({ sessionId, turnId: 'turn-1', diff: DIFF_A })
     await setTurnCheckpointAnchor(sessionId, 'turn-1', 'node-42')
     const summaries = await listTurnCheckpoints(sessionId)
     expect(summaries[0]?.anchorNodeId).toBe('node-42')
@@ -99,9 +109,9 @@ describe('turn checkpoints store', () => {
 
   it('prunes to the most recent N checkpoints (retention)', async () => {
     const sessionId = await makeSession('prune')
-    await recordTurnCheckpoint({ sessionId, turnId: 't0', turnIndex: 0, diff: DIFF_A })
-    await recordTurnCheckpoint({ sessionId, turnId: 't1', turnIndex: 1, diff: DIFF_A })
-    await recordTurnCheckpoint({ sessionId, turnId: 't2', turnIndex: 2, diff: DIFF_A })
+    await recordTurnCheckpoint({ sessionId, turnId: 't0', diff: DIFF_A })
+    await recordTurnCheckpoint({ sessionId, turnId: 't1', diff: DIFF_A })
+    await recordTurnCheckpoint({ sessionId, turnId: 't2', diff: DIFF_A })
 
     await pruneTurnCheckpoints(sessionId, 2)
     const summaries = await listTurnCheckpoints(sessionId)
@@ -110,15 +120,15 @@ describe('turn checkpoints store', () => {
 
   it('deletes all checkpoints for a session (retention on delete)', async () => {
     const sessionId = await makeSession('delete')
-    await recordTurnCheckpoint({ sessionId, turnId: 't0', turnIndex: 0, diff: DIFF_A })
+    await recordTurnCheckpoint({ sessionId, turnId: 't0', diff: DIFF_A })
     await deleteTurnCheckpointsForSession(sessionId)
     expect(await listTurnCheckpoints(sessionId)).toEqual([])
   })
 
   it('upserts a checkpoint for a repeated turn id', async () => {
     const sessionId = await makeSession('upsert')
-    await recordTurnCheckpoint({ sessionId, turnId: 't0', turnIndex: 0, diff: DIFF_A })
-    await recordTurnCheckpoint({ sessionId, turnId: 't0', turnIndex: 0, diff: DIFF_B })
+    await recordTurnCheckpoint({ sessionId, turnId: 't0', diff: DIFF_A })
+    await recordTurnCheckpoint({ sessionId, turnId: 't0', diff: DIFF_B })
     const summaries = await listTurnCheckpoints(sessionId)
     expect(summaries).toHaveLength(1)
     expect(summaries[0]).toMatchObject({ turnId: 't0', insertions: 1, deletions: 1 })
@@ -126,8 +136,8 @@ describe('turn checkpoints store', () => {
 
   it('merges diffs across a turn range (query by turn range)', async () => {
     const sessionId = await makeSession('range')
-    await recordTurnCheckpoint({ sessionId, turnId: 't0', turnIndex: 0, diff: DIFF_A })
-    await recordTurnCheckpoint({ sessionId, turnId: 't1', turnIndex: 1, diff: DIFF_B })
+    await recordTurnCheckpoint({ sessionId, turnId: 't0', diff: DIFF_A })
+    await recordTurnCheckpoint({ sessionId, turnId: 't1', diff: DIFF_B })
 
     const range = await getTurnRangeDiff(sessionId, 0, 1)
     expect(range).not.toBeNull()

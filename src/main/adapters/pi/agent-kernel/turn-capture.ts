@@ -4,7 +4,6 @@ import { runGit } from '../../../ipc/git/shared'
 import { createLogger } from '../../../logger'
 import {
   getLatestSnapshotRef,
-  listTurnCheckpoints,
   pruneTurnCheckpoints,
   recordTurnCheckpoint,
 } from '../../../store/turn-checkpoints'
@@ -30,11 +29,9 @@ export async function captureTurnCheckpoint(input: {
     const diff = await computeIncrementalDiff(input.projectPath, previousRef, snapshotRef)
     if (!diff.trim()) return
 
-    const existing = await listTurnCheckpoints(sessionId)
     await recordTurnCheckpoint({
       sessionId,
       turnId: input.runId,
-      turnIndex: existing.length,
       diff,
       snapshotRef,
     })
