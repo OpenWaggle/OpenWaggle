@@ -59,7 +59,9 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
       {
         listWorktreeRefs: () => store.listSessionWorktreeRefs(),
         clearWorktree: (sessionId) => store.clearSessionWorktree(SessionId(sessionId)),
-        deleteCheckpoints: (sessionId) => deleteTurnCheckpointsForSession(SessionId(sessionId)),
+        deleteCheckpoints: async (sessionId) => {
+          await deleteTurnCheckpointsForSession(SessionId(sessionId))
+        },
       },
     )
   }

@@ -174,14 +174,25 @@ export async function getTurnRangeDiff(
   )
 }
 
-/** Retention: keep only the most recent `maxCheckpoints` turns for a session. */
+/** Retention: keep only the most recent `maxCheckpoints` turns for a session. Returns pruned turn ids. */
 export async function pruneTurnCheckpoints(
   sessionId: SessionId,
   maxCheckpoints: number,
-): Promise<void> {
-  await runStoreEffect(
+): Promise<readonly string[]> {
+  return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
+      const doomed = yield* sql<{ turn_id: string }>`
+        SELECT turn_id FROM turn_checkpoints
+        WHERE session_id = ${sessionId}
+          AND turn_id NOT IN (
+            SELECT turn_id FROM turn_checkpoints
+            WHERE session_id = ${sessionId}
+            ORDER BY turn_index DESC
+            LIMIT ${maxCheckpoints}
+          )
+      `
+      if (doomed.length === 0) return []
       yield* sql`
         DELETE FROM turn_checkpoints
         WHERE session_id = ${sessionId}
@@ -192,16 +203,23 @@ export async function pruneTurnCheckpoints(
             LIMIT ${maxCheckpoints}
           )
       `
+      return doomed.map((row) => row.turn_id)
     }),
   )
 }
 
-/** Retention: drop all checkpoints for a session (e.g. on session delete). */
-export async function deleteTurnCheckpointsForSession(sessionId: SessionId): Promise<void> {
-  await runStoreEffect(
+/** Retention: drop all checkpoints for a session (e.g. on session delete). Returns removed turn ids. */
+export async function deleteTurnCheckpointsForSession(
+  sessionId: SessionId,
+): Promise<readonly string[]> {
+  return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<{ turn_id: string }>`
+        SELECT turn_id FROM turn_checkpoints WHERE session_id = ${sessionId}
+      `
       yield* sql`DELETE FROM turn_checkpoints WHERE session_id = ${sessionId}`
+      return rows.map((row) => row.turn_id)
     }),
   )
 }

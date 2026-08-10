@@ -5,6 +5,7 @@ import { DOUBLE_FACTOR } from '@shared/constants/math'
 import { BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { jsonObjectSchema } from '@shared/schemas/validation'
+import { getEnvWithOverrides } from '../../env'
 
 const MODULE_VALUE_5 = 5
 
@@ -19,6 +20,8 @@ export interface GitExecResult {
 
 export interface RunGitOptions {
   readonly maxBuffer?: number
+  /** Extra environment variables (e.g. GIT_INDEX_FILE for a scratch index). */
+  readonly env?: Readonly<Record<string, string>>
 }
 
 function normalizeGitSuccess(output: string | { stdout?: string; stderr?: string }): GitExecResult {
@@ -61,6 +64,7 @@ export async function runGit(
     const output = await execFileAsync('git', args, {
       cwd: projectPath,
       maxBuffer,
+      ...(options.env ? { env: getEnvWithOverrides(options.env) } : {}),
     })
     return normalizeGitSuccess(output)
   } catch (error) {
