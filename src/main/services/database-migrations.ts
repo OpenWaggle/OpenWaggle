@@ -256,4 +256,9 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
       `ALTER TABLE sessions ADD COLUMN worktree_start_from_origin INTEGER NOT NULL DEFAULT 0`,
     ],
   },
+  {
+    id: 23,
+    name: 'turn-checkpoint-anchor-node',
+    statements: [`ALTER TABLE turn_checkpoints ADD COLUMN anchor_node_id TEXT`],
+  },
 ]

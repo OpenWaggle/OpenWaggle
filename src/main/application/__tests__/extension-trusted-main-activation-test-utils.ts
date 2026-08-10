@@ -174,6 +174,7 @@ function makeSessionLayers() {
       setWorktreePlan: () => Effect.void,
       listTurnCheckpoints: () => Effect.succeed([]),
       getTurnDiff: () => Effect.succeed(null),
+      setTurnCheckpointAnchor: () => Effect.void,
     }),
     Layer.succeed(SessionRepository, {
       list: () => Effect.succeed([]),

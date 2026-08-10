@@ -18,6 +18,7 @@ interface TurnCheckpointRow {
   readonly insertions: number
   readonly deletions: number
   readonly snapshot_ref: string | null
+  readonly anchor_node_id: string | null
 }
 
 export interface RecordTurnCheckpointInput {
@@ -58,6 +59,24 @@ export async function recordTurnCheckpoint(input: RecordTurnCheckpointInput): Pr
   )
 }
 
+/** Record the persisted assistant node id a turn's diff is anchored to (for transcript reveal). */
+export async function setTurnCheckpointAnchor(
+  sessionId: SessionId,
+  turnId: string,
+  anchorNodeId: string,
+): Promise<void> {
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        UPDATE turn_checkpoints
+        SET anchor_node_id = ${anchorNodeId}
+        WHERE session_id = ${sessionId} AND turn_id = ${turnId}
+      `
+    }),
+  )
+}
+
 /** The snapshot ref of the most recent checkpoint for a session, if any. */
 export async function getLatestSnapshotRef(sessionId: SessionId): Promise<string | null> {
   return runStoreEffect(
@@ -81,7 +100,7 @@ export async function listTurnCheckpoints(sessionId: SessionId): Promise<TurnChe
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       const rows = yield* sql<TurnCheckpointRow>`
-        SELECT turn_id, turn_index, created_at, diff, insertions, deletions
+        SELECT turn_id, turn_index, created_at, diff, insertions, deletions, anchor_node_id
         FROM turn_checkpoints
         WHERE session_id = ${sessionId}
         ORDER BY turn_index ASC
@@ -92,6 +111,7 @@ export async function listTurnCheckpoints(sessionId: SessionId): Promise<TurnChe
         createdAt: row.created_at,
         insertions: row.insertions,
         deletions: row.deletions,
+        anchorNodeId: row.anchor_node_id ?? null,
       }))
     }),
   )

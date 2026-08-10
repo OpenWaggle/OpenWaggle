@@ -53,6 +53,7 @@ const makeTestSessionProjectionLayer = () =>
     setWorktreePlan: () => Effect.void,
     listTurnCheckpoints: () => Effect.succeed([]),
     getTurnDiff: () => Effect.succeed(null),
+    setTurnCheckpointAnchor: () => Effect.void,
   })
 
 const TestRuntimeLayer = makeTestSessionProjectionLayer()

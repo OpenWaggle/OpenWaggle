@@ -1,12 +1,16 @@
 import type { SessionId } from '@shared/types/brand'
 import type { SessionEnvironmentMode, VcsChangeRequest } from '@shared/types/git'
 import type { SessionDetail } from '@shared/types/session'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   resolveDefaultWorktreeBaseRef,
   resolveWorktreeSendPlan,
   type WorktreeSendPlan,
 } from '@/features/git/lib/worktree-send-plan'
+import {
+  useWorktreePlanStore,
+  type WorktreePlanOverride,
+} from '@/features/git/state/worktree-plan-store'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 
@@ -38,47 +42,61 @@ export interface ComposerContextStripState {
   readonly checkoutChangeRequest: (headRef: string) => Promise<boolean>
 }
 
+interface BranchListState {
+  readonly currentBranch: string | null
+  readonly names: readonly string[]
+}
+
+const EMPTY_BRANCHES: BranchListState = { currentBranch: null, names: [] }
+
+function resolveEffectivePlan(
+  override: WorktreePlanOverride | undefined,
+  session: UseComposerContextStripInput['session'],
+  defaultEnvironmentMode: SessionEnvironmentMode,
+  currentBranch: string | null,
+) {
+  const defaultBaseRef =
+    session?.worktreeBaseRef ?? resolveDefaultWorktreeBaseRef({ currentBranch })
+  return {
+    envMode: override?.envMode ?? session?.environmentMode ?? defaultEnvironmentMode,
+    baseRef: override?.baseRef !== undefined ? override.baseRef : defaultBaseRef,
+    startFromOrigin: override?.startFromOrigin ?? session?.worktreeStartFromOrigin ?? false,
+  }
+}
+
 /**
- * Controller for the composer context strip (WS1b). Holds the per-session
- * worktree plan (env mode + Worktree base ref + start-from-origin), persists it
- * to the backend so birth uses it, and computes the send gate.
+ * Controller for the composer context strip (WS1b). Effective plan values are
+ * computed from per-session overrides layered over the session defaults (no
+ * props-into-state sync), and persisted to the backend so worktree birth uses
+ * them.
  */
 export function useComposerContextStrip(
   input: UseComposerContextStripInput,
 ): ComposerContextStripState {
   const { sessionId, projectPath, isFirstMessage, session, defaultEnvironmentMode } = input
   const hasWorktree = Boolean(session?.worktreePath?.trim())
+  const sessionKey = sessionId ? String(sessionId) : ''
 
-  const [envMode, setEnvModeState] = useState<SessionEnvironmentMode>(
-    session?.environmentMode ?? defaultEnvironmentMode,
-  )
-  const [baseRef, setBaseRefState] = useState<string | null>(session?.worktreeBaseRef ?? null)
-  const [startFromOrigin, setStartFromOriginState] = useState<boolean>(
-    session?.worktreeStartFromOrigin ?? false,
-  )
-  const [branchNames, setBranchNames] = useState<readonly string[]>([])
+  const override = useWorktreePlanStore((s) => (sessionKey ? s.bySessionId[sessionKey] : undefined))
+  const setOverride = useWorktreePlanStore((s) => s.setOverride)
+
+  const [branches, setBranches] = useState<BranchListState>(EMPTY_BRANCHES)
   const [changeRequests, setChangeRequests] = useState<readonly VcsChangeRequest[]>([])
-  const lastSessionRef = useRef<SessionId | null>(null)
 
-  // Reset local plan when the active session changes.
   useEffect(() => {
-    if (lastSessionRef.current === sessionId) return
-    lastSessionRef.current = sessionId
-    setEnvModeState(session?.environmentMode ?? defaultEnvironmentMode)
-    setBaseRefState(session?.worktreeBaseRef ?? null)
-    setStartFromOriginState(session?.worktreeStartFromOrigin ?? false)
-  }, [sessionId, session, defaultEnvironmentMode])
-
-  // Load branch names and seed the default base ref (current branch).
-  useEffect(() => {
-    if (!projectPath) return
+    if (!projectPath) {
+      setBranches(EMPTY_BRANCHES)
+      return
+    }
     let cancelled = false
     void (async () => {
       try {
         const result = await api.listGitBranches(projectPath)
         if (cancelled) return
-        setBranchNames(result.branches.flatMap((b) => (b.isRemote ? [] : [b.name])))
-        setBaseRefState((current) => current ?? resolveDefaultWorktreeBaseRef(result))
+        setBranches({
+          currentBranch: result.currentBranch,
+          names: result.branches.flatMap((b) => (b.isRemote ? [] : [b.name])),
+        })
       } catch (error) {
         logger.warn('Failed to list branches for context strip', { error: String(error) })
       }
@@ -87,6 +105,13 @@ export function useComposerContextStrip(
       cancelled = true
     }
   }, [projectPath])
+
+  const { envMode, baseRef, startFromOrigin } = resolveEffectivePlan(
+    override,
+    session,
+    defaultEnvironmentMode,
+    branches.currentBranch,
+  )
 
   const persist = useCallback(
     (next: {
@@ -108,27 +133,30 @@ export function useComposerContextStrip(
 
   const setEnvMode = useCallback(
     (mode: SessionEnvironmentMode) => {
-      setEnvModeState(mode)
+      if (!sessionKey) return
+      setOverride(sessionKey, { envMode: mode })
       persist({ envMode: mode, baseRef, startFromOrigin })
     },
-    [persist, baseRef, startFromOrigin],
+    [sessionKey, setOverride, persist, baseRef, startFromOrigin],
   )
 
   const setBaseRef = useCallback(
     (nextBaseRef: string) => {
+      if (!sessionKey) return
       const normalized = nextBaseRef.trim() || null
-      setBaseRefState(normalized)
+      setOverride(sessionKey, { baseRef: normalized })
       persist({ envMode, baseRef: normalized, startFromOrigin })
     },
-    [persist, envMode, startFromOrigin],
+    [sessionKey, setOverride, persist, envMode, startFromOrigin],
   )
 
   const setStartFromOrigin = useCallback(
     (next: boolean) => {
-      setStartFromOriginState(next)
+      if (!sessionKey) return
+      setOverride(sessionKey, { startFromOrigin: next })
       persist({ envMode, baseRef, startFromOrigin: next })
     },
-    [persist, envMode, baseRef],
+    [sessionKey, setOverride, persist, envMode, baseRef],
   )
 
   const loadChangeRequests = useCallback(async () => {
@@ -157,7 +185,7 @@ export function useComposerContextStrip(
     envMode,
     baseRef,
     startFromOrigin,
-    branchNames,
+    branchNames: branches.names,
     changeRequests,
     sendPlan,
     setEnvMode,

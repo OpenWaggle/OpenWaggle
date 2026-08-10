@@ -48,6 +48,11 @@ export interface SessionProjectionRepositoryShape {
     id: SessionId,
     turnId: string,
   ) => Effect.Effect<TurnDiff | null, SessionProjectionRepositoryError>
+  readonly setTurnCheckpointAnchor: (
+    id: SessionId,
+    turnId: string,
+    anchorNodeId: string,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
 }
 
 export class SessionProjectionRepository extends Context.Tag(

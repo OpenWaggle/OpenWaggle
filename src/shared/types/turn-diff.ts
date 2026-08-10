@@ -23,4 +23,6 @@ export interface TurnCheckpointSummary {
   readonly createdAt: number
   readonly insertions: number
   readonly deletions: number
+  /** Persisted assistant node id this turn's diff is anchored to (transcript reveal). */
+  readonly anchorNodeId?: string | null
 }

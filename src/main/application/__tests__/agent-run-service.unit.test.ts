@@ -54,6 +54,7 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   setWorktreePlan: () => Effect.void,
   listTurnCheckpoints: () => Effect.succeed([]),
   getTurnDiff: () => Effect.succeed(null),
+  setTurnCheckpointAnchor: () => Effect.void,
 })
 const TestProviderLayer = Layer.succeed(ProviderService, {
   get: () => Effect.succeed(undefined),

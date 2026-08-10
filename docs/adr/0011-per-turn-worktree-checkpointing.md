@@ -24,6 +24,8 @@ Add a main-process **Turn checkpoint** subsystem, distinct from Pi conversation 
 - Provide a query interface that computes a **Turn diff** over a turn range, modeled on `CheckpointDiffQuery`.
 - Reuse a unified-diff summary parser (ported from T3Code `parseTurnDiffFilesFromUnifiedDiff`) to derive per-file additions/deletions.
 
+Turn checkpoints are keyed by the agent **runId** (`turnId === runId`). To let the conversation reveal a specific turn's diff, each turn checkpoint is **anchored to the run's final persisted assistant node id** (recorded at capture time from the post-run projected snapshot). The transcript shows a "view diff" affordance on the message whose id matches a checkpoint's anchor, mapping it to its Turn checkpoint exactly. This is used instead of stamping `runId` onto messages because OpenWaggle rebuilds messages via a Pi-entry→node projection (transport message ids differ from persisted node ids), and instead of fragile chronological ordering (waggle/branch forks make ordering approximate).
+
 Storage growth is a first-class concern: the subsystem must define a retention/pruning policy (for example, prune checkpoints when a session is archived/deleted, and bound per-session checkpoint counts) rather than growing unbounded.
 
 ## Consequences

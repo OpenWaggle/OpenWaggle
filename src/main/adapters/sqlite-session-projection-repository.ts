@@ -29,6 +29,7 @@ type RepoOperation =
   | 'setWorktreePlan'
   | 'listTurnCheckpoints'
   | 'getTurnDiff'
+  | 'setTurnCheckpointAnchor'
 
 function repoOp<A>(operation: RepoOperation, thunk: () => Promise<A>) {
   return Effect.tryPromise({
@@ -124,6 +125,11 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
 
       getTurnDiff: (id, turnId) =>
         repoOp('getTurnDiff', () => turnCheckpoints.getTurnDiff(id, turnId)),
+
+      setTurnCheckpointAnchor: (id, turnId, anchorNodeId) =>
+        repoOp('setTurnCheckpointAnchor', () =>
+          turnCheckpoints.setTurnCheckpointAnchor(id, turnId, anchorNodeId),
+        ),
     } satisfies SessionProjectionRepositoryShape),
   )
 }).pipe(Layer.unwrapEffect)

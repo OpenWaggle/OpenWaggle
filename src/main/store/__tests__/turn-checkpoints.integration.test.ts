@@ -11,6 +11,7 @@ import {
   listTurnCheckpoints,
   pruneTurnCheckpoints,
   recordTurnCheckpoint,
+  setTurnCheckpointAnchor,
 } from '../turn-checkpoints'
 
 const { state, getPathMock } = vi.hoisted(() => ({
@@ -86,6 +87,14 @@ describe('turn checkpoints store', () => {
 
     const summaries = await listTurnCheckpoints(sessionId)
     expect(summaries.map((s) => s.turnId)).toEqual(['turn-1', 'turn-2'])
+  })
+
+  it('records and surfaces the transcript anchor node id', async () => {
+    const sessionId = await makeSession('anchor')
+    await recordTurnCheckpoint({ sessionId, turnId: 'turn-1', turnIndex: 0, diff: DIFF_A })
+    await setTurnCheckpointAnchor(sessionId, 'turn-1', 'node-42')
+    const summaries = await listTurnCheckpoints(sessionId)
+    expect(summaries[0]?.anchorNodeId).toBe('node-42')
   })
 
   it('prunes to the most recent N checkpoints (retention)', async () => {
