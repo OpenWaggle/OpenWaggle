@@ -116,8 +116,10 @@ export async function getRemoteVcsStatus(projectPath: string): Promise<RemoteVcs
     : { ahead: 0, behind: 0 }
 
   const refName = await resolveRefName(projectPath)
-  const aheadOfDefaultCount = await resolveAheadOfDefault(projectPath, refName)
-  const changeRequest = await resolveOpenChangeRequest(projectPath, refName)
+  const [aheadOfDefaultCount, changeRequest] = await Promise.all([
+    resolveAheadOfDefault(projectPath, refName),
+    resolveOpenChangeRequest(projectPath, refName),
+  ])
 
   return {
     ok: true,

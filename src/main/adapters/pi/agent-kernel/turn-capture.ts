@@ -67,16 +67,18 @@ export async function deleteTurnCheckpointRefs(
   sessionId: string,
   turnIds: readonly string[],
 ): Promise<void> {
-  for (const turnId of turnIds) {
-    const result = await runGit(projectPath, [
-      'update-ref',
-      '-d',
-      turnCheckpointRef(sessionId, turnId),
-    ])
-    if (result.code !== 0) {
-      logger.warn('Failed to delete turn snapshot ref', { turnId, stderr: result.stderr })
-    }
-  }
+  await Promise.all(
+    turnIds.map(async (turnId) => {
+      const result = await runGit(projectPath, [
+        'update-ref',
+        '-d',
+        turnCheckpointRef(sessionId, turnId),
+      ])
+      if (result.code !== 0) {
+        logger.warn('Failed to delete turn snapshot ref', { turnId, stderr: result.stderr })
+      }
+    }),
+  )
 }
 
 /** Test seam for the snapshot primitive (see turn-capture.integration.test.ts). */
