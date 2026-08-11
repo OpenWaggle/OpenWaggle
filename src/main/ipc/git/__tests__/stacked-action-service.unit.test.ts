@@ -61,7 +61,10 @@ describe('runStackedGitAction', () => {
     const deps = makeDeps({
       push: vi.fn(async () => ({ ok: false, code: 'push-failed', message: 'boom' }) as const),
     })
-    const result = await runStackedGitAction(deps, '/repo', { action: 'commit_push_pr' })
+    const result = await runStackedGitAction(deps, '/repo', {
+      action: 'commit_push_pr',
+      commitMessage: 'msg',
+    })
 
     expect(result).toEqual({ ok: false, phase: 'push', code: 'push-failed', message: 'boom' })
     expect(deps.commit).toHaveBeenCalled()
@@ -90,9 +93,21 @@ describe('runStackedGitAction', () => {
     const deps = makeDeps()
     await runStackedGitAction(deps, '/repo', {
       action: 'commit',
+      commitMessage: 'msg',
       paths: ['src/a.ts', 'src/b.ts'],
     })
-    expect(deps.commit).toHaveBeenCalledWith('/repo', 'Update', ['src/a.ts', 'src/b.ts'])
+    expect(deps.commit).toHaveBeenCalledWith('/repo', 'msg', ['src/a.ts', 'src/b.ts'])
+  })
+
+  it('refuses to invent a commit message for commit-bearing actions', async () => {
+    const deps = makeDeps()
+    const result = await runStackedGitAction(deps, '/repo', { action: 'commit_push' })
+    expect(result).toMatchObject({
+      ok: false,
+      phase: 'commit',
+      code: 'commit-message-required',
+    })
+    expect(deps.commit).not.toHaveBeenCalled()
   })
 
   it('maps a nothing-to-commit failure at the commit phase', async () => {
@@ -101,7 +116,10 @@ describe('runStackedGitAction', () => {
         async () => ({ ok: false, code: 'nothing-to-commit', message: 'nothing' }) as const,
       ),
     })
-    const result = await runStackedGitAction(deps, '/repo', { action: 'commit' })
+    const result = await runStackedGitAction(deps, '/repo', {
+      action: 'commit',
+      commitMessage: 'msg',
+    })
     expect(result).toMatchObject({ ok: false, phase: 'commit', code: 'nothing-to-commit' })
   })
 

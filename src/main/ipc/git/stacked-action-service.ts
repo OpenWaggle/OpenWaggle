@@ -13,6 +13,7 @@ import type {
 import {
   buildGitActionProgressStages,
   planStackedActionPhases,
+  resolveAutoFeatureBranchName,
 } from '@shared/utils/git-stacked-action'
 import type { GitPullResult, GitPushResult } from './push-service'
 
@@ -46,8 +47,6 @@ export interface StackedActionDeps {
 }
 
 export type ProgressReporter = (event: GitActionProgressEvent) => void
-
-const DUPLICATE_BRANCH_START_SUFFIX = 2
 
 function failure(
   phase: GitActionPhase,
@@ -129,12 +128,18 @@ async function maybeCommit(
   report: (phase: GitActionPhase, label: string) => void,
 ) {
   if (!phases.includes('commit') || (options.action !== 'commit' && !hasChanges)) return null
+  // Never invent a commit message: an unreviewed blanket "Update" commit is not an
+  // acceptable default for a one-click action (review B2).
+  const message = options.commitMessage?.trim()
+  if (!message) {
+    return failure(
+      'commit',
+      'commit-message-required',
+      'A commit message is required for this action.',
+    )
+  }
   report('commit', 'Committing...')
-  const commit = await deps.commit(
-    projectPath,
-    options.commitMessage?.trim() || 'Update',
-    options.paths,
-  )
+  const commit = await deps.commit(projectPath, message, options.paths)
   if (commit.ok) return null
   const code = commit.code === 'nothing-to-commit' ? 'nothing-to-commit' : 'unknown'
   return failure('commit', code, commit.message)
@@ -199,17 +204,8 @@ async function createFeatureBranch(
 ) {
   report('branch', 'Preparing feature ref...')
   const existing = await deps.listBranchNames(projectPath)
-  const name = options.featureBranchName?.trim() || fallbackFeatureBranch(existing)
+  const name = resolveAutoFeatureBranchName(existing, options.featureBranchName)
   const created = await deps.createBranch(projectPath, name, options.baseRef)
   if (!created.ok) return null
   return { status: 'created', name } satisfies GitStackedActionBranchOutcome
-}
-
-function fallbackFeatureBranch(existing: readonly string[]) {
-  const base = 'feature/update'
-  const taken = new Set(existing)
-  if (!taken.has(base)) return base
-  let suffix = DUPLICATE_BRANCH_START_SUFFIX
-  while (taken.has(`${base}-${suffix}`)) suffix += 1
-  return `${base}-${suffix}`
 }

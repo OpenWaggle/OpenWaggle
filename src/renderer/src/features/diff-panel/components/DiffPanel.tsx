@@ -1,5 +1,7 @@
 import type { SessionId } from '@shared/types/brand'
+import type { GitStackedAction } from '@shared/types/git'
 import type { ReviewComment } from '@shared/types/review'
+import { useState } from 'react'
 import { useDiffPanelGitActions } from '@/features/diff-panel/hooks/useDiffPanelGitActions'
 import {
   type DiffScopeSelection,
@@ -14,6 +16,7 @@ import { useBaseRefChoices } from '../hooks/useBaseRefChoices'
 import { type RenderableDiffFile, useDiffPanelDiffs } from '../hooks/useDiffPanelDiffs'
 import { useDiffReviewActions } from '../hooks/useDiffReviewActions'
 import { useSessionTurns, useTurnDiffFiles } from '../hooks/useSessionTurns'
+import { CommitMessageDialog } from './CommitMessageDialog'
 import { DiffBottomBar } from './DiffBottomBar'
 import { DiffFileSection } from './DiffFileSection'
 import { DiffScopeTabs } from './DiffScopeTabs'
@@ -136,13 +139,28 @@ export function DiffPanel({ projectPath, sessionId = null, onSendMessage }: Diff
     },
   })
 
+  const [pendingCommitAction, setPendingCommitAction] = useState<GitStackedAction | null>(null)
+  const selectedPaths = fileDiffs.map((file) => file.path)
+
+  /**
+   * Commit-bearing actions must collect an explicit message first (review B2);
+   * everything else dispatches immediately. Only the visible selection is staged.
+   */
+  function requestStackedAction(action: GitStackedAction) {
+    if (action.startsWith('commit')) {
+      setPendingCommitAction(action)
+      return
+    }
+    void stackedActions.run(action, { paths: selectedPaths })
+  }
+
   function handleFileClick(path: string) {
     const el = document.getElementById(`diff-file-${path}`)
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   return (
-    <div className="flex flex-col size-full bg-diff-bg">
+    <div className="relative flex flex-col size-full bg-diff-bg">
       {projectPath ? (
         <DiffScopeTabs
           selection={selection}
@@ -175,16 +193,23 @@ export function DiffPanel({ projectPath, sessionId = null, onSendMessage }: Diff
         quickAction={{
           status: vcsStatus,
           isBusy: stackedActions.isRunning,
-          onRunAction: (action) =>
-            // Stage only what the panel is showing (the user's visible selection),
-            // never the whole repo (review M7).
-            stackedActions.run(action, { paths: fileDiffs.map((file) => file.path) }),
+          onRunAction: (action) => requestStackedAction(action),
           onPull: () => stackedActions.run('pull'),
           onOpenChangeRequest: () => {
             const url = vcsStatus?.changeRequest?.url
             if (url) window.open(url, '_blank', 'noopener')
           },
           onPublish: () => stackedActions.run('push'),
+        }}
+      />
+      <CommitMessageDialog
+        open={pendingCommitAction !== null}
+        fileCount={selectedPaths.length}
+        onCancel={() => setPendingCommitAction(null)}
+        onConfirm={(commitMessage) => {
+          const action = pendingCommitAction
+          setPendingCommitAction(null)
+          if (action) void stackedActions.run(action, { paths: selectedPaths, commitMessage })
         }}
       />
     </div>

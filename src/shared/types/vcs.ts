@@ -184,6 +184,8 @@ export const GIT_STACKED_ACTION_ERROR_CODES = [
   'pull-failed',
   'branch-failed',
   'change-request-failed',
+  'commit-message-required',
+  'cancelled',
   'unknown',
 ] as const
 export type GitStackedActionErrorCode = (typeof GIT_STACKED_ACTION_ERROR_CODES)[number]

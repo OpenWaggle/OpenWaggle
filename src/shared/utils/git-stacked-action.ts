@@ -95,7 +95,7 @@ export type DefaultBranchConfirmableAction = 'push' | 'create_pr' | 'commit_push
 export function requiresDefaultBranchConfirmation(
   action: GitStackedAction,
   isDefaultRef: boolean,
-): boolean {
+): action is DefaultBranchConfirmableAction {
   if (!isDefaultRef) return false
   return (
     action === 'push' ||
