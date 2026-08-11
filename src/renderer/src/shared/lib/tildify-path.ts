@@ -8,9 +8,18 @@
  * leaves any other path unchanged (never fabricates or hides a non-home path).
  */
 export function tildifyPath(path: string): string {
-  const unix = /^\/(?:Users|home)\/[^/]+(\/.*)?$/.exec(path)
-  if (unix) return `~${unix[1] ?? ''}`
-  const win = /^[A-Za-z]:\\Users\\[^\\]+(\\.*)?$/.exec(path)
-  if (win) return `~${win[1] ?? ''}`
+  const unix = /^\/(?:Users|home)\/([^/]+)(\/.*)?$/.exec(path)
+  if (unix) {
+    const [, name, tail] = unix
+    // /Users/Shared is a macOS system folder, not a home directory.
+    return name === 'Shared' ? path : `~${tail ?? ''}`
+  }
+  const win = /^[A-Za-z]:\\Users\\([^\\]+)(\\.*)?$/.exec(path)
+  if (win) {
+    const [, name, tail] = win
+    // Well-known Windows non-home entries under C:\Users.
+    const winSystem = new Set(['Public', 'Default', 'Default User', 'All Users'])
+    return winSystem.has(name ?? '') ? path : `~${tail ?? ''}`
+  }
   return path
 }

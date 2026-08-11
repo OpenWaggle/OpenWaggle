@@ -25,4 +25,10 @@ describe('tildifyPath', () => {
     expect(tildifyPath('/var/folders/tmp/x')).toBe('/var/folders/tmp/x')
     expect(tildifyPath('relative/path.json')).toBe('relative/path.json')
   })
+
+  it('does not abbreviate system directories that are not home directories', () => {
+    expect(tildifyPath('/Users/Shared/something/mcp.json')).toBe('/Users/Shared/something/mcp.json')
+    expect(tildifyPath('C:\\Users\\Public\\file.json')).toBe('C:\\Users\\Public\\file.json')
+    expect(tildifyPath('C:\\Users\\Default\\AppData\\f')).toBe('C:\\Users\\Default\\AppData\\f')
+  })
 })

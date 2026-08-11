@@ -85,6 +85,7 @@ function disposeAll(ctx: RuntimeStateContext) {
       Effect.zipRight(Ref.set(ctx.handles, new Map())),
       Effect.zipRight(Ref.set(ctx.notices, new Map())),
       Effect.zipRight(Ref.set(ctx.events, new Map())),
+      Effect.zipRight(Ref.set(ctx.eventSubscriptions, new Map())),
       Effect.zipRight(Effect.promise(() => ctx.remoteTasks.setAllDisabled())),
     )
 }

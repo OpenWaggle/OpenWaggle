@@ -9,9 +9,14 @@ function connectionKey(snapshot: McpTurnSnapshot, server: McpTurnSnapshotServer)
   return `${resolveMcpRuntimeNamespace(snapshot)}:${snapshot.revision}:${server.instanceId}`
 }
 
-/** A pending or resolved connection, deduplicated per key via a Deferred. */
+/**
+ * A pending or resolved connection, deduplicated per key via a Deferred. The
+ * connection status lives on the cell so status and lifetime mutate atomically
+ * under one `SynchronizedRef` (no cross-ref check-then-act windows).
+ */
 interface ConnectionCell {
   readonly deferred: Deferred.Deferred<McpClientConnection, McpRuntimeFailure>
+  readonly status: McpRuntimeConnectionStatus
 }
 
 interface ConnectionsCtx {
@@ -19,7 +24,6 @@ interface ConnectionsCtx {
   readonly onClose: (key: string) => Effect.Effect<void>
   readonly onConnected: (runtimeNamespace: string, serverInstanceId: string) => Effect.Effect<void>
   readonly cells: SynchronizedRef.SynchronizedRef<Map<string, ConnectionCell>>
-  readonly statuses: SynchronizedRef.SynchronizedRef<Map<string, McpRuntimeConnectionStatus>>
 }
 
 export interface McpRuntimeConnectionsService {
@@ -38,7 +42,7 @@ export interface McpRuntimeConnectionsService {
   getStatuses(): Effect.Effect<readonly McpRuntimeConnectionStatus[]>
 }
 
-function baseStatus(
+function connectingStatus(
   snapshot: McpTurnSnapshot,
   server: McpTurnSnapshotServer,
 ): McpRuntimeConnectionStatus {
@@ -53,12 +57,23 @@ function baseStatus(
   }
 }
 
-function setStatus(ctx: ConnectionsCtx, key: string, status: McpRuntimeConnectionStatus) {
-  return SynchronizedRef.update(ctx.statuses, (current) => new Map(current).set(key, status))
+function connectedStatus(
+  snapshot: McpTurnSnapshot,
+  server: McpTurnSnapshotServer,
+  connection: McpClientConnection,
+): McpRuntimeConnectionStatus {
+  return {
+    ...connectingStatus(snapshot, server),
+    connectionState: 'connected',
+    ...(connection.negotiatedProtocolVersion
+      ? { negotiatedProtocolVersion: connection.negotiatedProtocolVersion }
+      : {}),
+    capabilities: connection.capabilities,
+  }
 }
 
-function deleteFromMap<V>(ref: SynchronizedRef.SynchronizedRef<Map<string, V>>, key: string) {
-  return SynchronizedRef.update(ref, (current) => {
+function removeCell(ctx: ConnectionsCtx, key: string) {
+  return SynchronizedRef.update(ctx.cells, (current) => {
     const next = new Map(current)
     next.delete(key)
     return next
@@ -78,31 +93,30 @@ function runConnect(
   }).pipe(
     Effect.matchCauseEffect({
       onSuccess: (connection) =>
-        // Only publish "connected" if this cell is still current (not superseded).
-        SynchronizedRef.get(ctx.cells).pipe(
+        // Atomically publish "connected" only if this cell is still current
+        // (not superseded/closed by a concurrent turn). Status + presence check
+        // happen in one modify, so a concurrent close cannot leave a ghost status.
+        SynchronizedRef.modify(ctx.cells, (current) => {
+          const existing = current.get(key)
+          if (!existing) return [false, current] as const
+          return [
+            true,
+            new Map(current).set(key, {
+              ...existing,
+              status: connectedStatus(snapshot, server, connection),
+            }),
+          ] as const
+        }).pipe(
           Effect.flatMap((current) =>
-            current.get(key)
-              ? setStatus(ctx, key, {
-                  ...baseStatus(snapshot, server),
-                  connectionState: 'connected',
-                  ...(connection.negotiatedProtocolVersion
-                    ? { negotiatedProtocolVersion: connection.negotiatedProtocolVersion }
-                    : {}),
-                  capabilities: connection.capabilities,
-                }).pipe(
-                  Effect.zipRight(
-                    ctx.onConnected(resolveMcpRuntimeNamespace(snapshot), server.instanceId),
-                  ),
-                )
+            current
+              ? ctx.onConnected(resolveMcpRuntimeNamespace(snapshot), server.instanceId)
               : Effect.void,
           ),
           Effect.zipRight(Deferred.succeed(deferred, connection)),
         ),
       onFailure: (cause) =>
-        deleteFromMap(ctx.cells, key).pipe(
-          Effect.zipRight(deleteFromMap(ctx.statuses, key)),
-          Effect.zipRight(Deferred.failCause(deferred, cause)),
-        ),
+        // Drop the failed cell so a later turn can reconnect, then fail waiters.
+        removeCell(ctx, key).pipe(Effect.zipRight(Deferred.failCause(deferred, cause))),
     }),
   )
 }
@@ -127,13 +141,15 @@ function getConnection(
         return Deferred.make<McpClientConnection, McpRuntimeFailure>().pipe(
           Effect.map(
             (deferred) =>
-              [{ deferred, fresh: true }, new Map(current).set(key, { deferred })] as const,
+              [
+                { deferred, fresh: true },
+                new Map(current).set(key, { deferred, status: connectingStatus(snapshot, server) }),
+              ] as const,
           ),
         )
       },
     )
     if (decision.fresh) {
-      yield* setStatus(ctx, key, baseStatus(snapshot, server))
       // Fork as a daemon so the Deferred is ALWAYS resolved (success or failure)
       // even if this calling fiber is interrupted (e.g. turn cancellation) before
       // runConnect completes. Otherwise the cell's Deferred would orphan and wedge
@@ -154,9 +170,8 @@ function closeKey(ctx: ConnectionsCtx, key: string) {
       next.delete(key)
       return Effect.succeed([existing, next] as const)
     })
-    yield* deleteFromMap(ctx.statuses, key)
-    yield* ctx.onClose(key)
     if (!cell) return
+    yield* ctx.onClose(key)
     yield* Deferred.await(cell.deferred).pipe(
       Effect.matchCauseEffect({
         onSuccess: (connection) => Effect.promise(() => connection.close().catch(() => undefined)),
@@ -170,9 +185,9 @@ function matchingKeys(
   ctx: ConnectionsCtx,
   predicate: (status: McpRuntimeConnectionStatus, key: string) => boolean,
 ) {
-  return SynchronizedRef.get(ctx.statuses).pipe(
+  return SynchronizedRef.get(ctx.cells).pipe(
     Effect.map((current) =>
-      [...current.entries()].flatMap(([key, status]) => (predicate(status, key) ? [key] : [])),
+      [...current.entries()].flatMap(([key, cell]) => (predicate(cell.status, key) ? [key] : [])),
     ),
   )
 }
@@ -187,10 +202,10 @@ function closeIdle(
   additionalNamespaces: Iterable<string>,
 ) {
   return Effect.gen(function* () {
-    const current = yield* SynchronizedRef.get(ctx.statuses)
+    const current = yield* SynchronizedRef.get(ctx.cells)
     const idleNamespaces = new Set<string>()
-    for (const status of current.values()) {
-      if (!isActive(status.runtimeNamespace)) idleNamespaces.add(status.runtimeNamespace)
+    for (const cell of current.values()) {
+      if (!isActive(cell.status.runtimeNamespace)) idleNamespaces.add(cell.status.runtimeNamespace)
     }
     for (const runtimeNamespace of additionalNamespaces) {
       if (!isActive(runtimeNamespace)) idleNamespaces.add(runtimeNamespace)
@@ -203,9 +218,10 @@ function closeIdle(
 
 /**
  * Build the Effect-native MCP connection pool. All mutable coordination lives in
- * `SynchronizedRef`s; in-flight connects are deduplicated through a per-key
- * `Deferred` so concurrent turns share a single connection. The SDK connect
- * factory is the only Promise edge and is wrapped once via `Effect.tryPromise`.
+ * a single `SynchronizedRef` (cell = deferred + status); in-flight connects are
+ * deduplicated through a per-key `Deferred` so concurrent turns share one
+ * connection. The SDK connect factory is the only Promise edge, wrapped once via
+ * `Effect.tryPromise`.
  */
 export function makeMcpRuntimeConnections(input: {
   readonly connect: McpConnectionFactory
@@ -214,8 +230,7 @@ export function makeMcpRuntimeConnections(input: {
 }): Effect.Effect<McpRuntimeConnectionsService> {
   return Effect.gen(function* () {
     const cells = yield* SynchronizedRef.make(new Map<string, ConnectionCell>())
-    const statuses = yield* SynchronizedRef.make(new Map<string, McpRuntimeConnectionStatus>())
-    const ctx: ConnectionsCtx = { ...input, cells, statuses }
+    const ctx: ConnectionsCtx = { ...input, cells }
     return {
       key: connectionKey,
       get: (snapshot, server) => getConnection(ctx, snapshot, server),
@@ -236,7 +251,9 @@ export function makeMcpRuntimeConnections(input: {
           Effect.flatMap((current) => closeKeys(ctx, [...current.keys()])),
         ),
       getStatuses: () =>
-        SynchronizedRef.get(statuses).pipe(Effect.map((current) => [...current.values()])),
+        SynchronizedRef.get(cells).pipe(
+          Effect.map((current) => [...current.values()].map((cell) => cell.status)),
+        ),
     }
   })
 }
