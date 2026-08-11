@@ -46,6 +46,7 @@ const ignoreGlobs: string[] = [
   'node_modules/**',
   '**/node_modules/**',
   'out/**',
+  '.tsbuild/**',
   'packages/**/.pack/**',
   'packages/**/dist/**',
   'packages/**/dist-cjs/**',

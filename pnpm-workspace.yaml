@@ -2,6 +2,18 @@ packages:
   - "packages/*"
   - "website"
 
+# Supply-chain hardening: delay installs until a release has had time to be
+# vetted, and never accept weakening trust signals (provenance/signatures).
+minimumReleaseAge: 10080
+trustPolicy: no-downgrade
+# Downgrade scrutiny targets fresh takeovers. Combined with minimumReleaseAge
+# (7d), this applies the no-downgrade check to releases 7-30 days old, and
+# exempts long-established transitive pins (semver 5/6, @octokit/endpoint) that
+# predate npm provenance and therefore read as a "downgrade".
+# NOTE: trustPolicyExclude is avoided deliberately - pnpm 11.6.0 silently drops
+# the LAST entry of that list, so it cannot be relied on.
+trustPolicyIgnoreAfter: 43200
+
 minimumReleaseAgeExclude:
   - "@diegogbrisa/*"
   - hono@4.12.30

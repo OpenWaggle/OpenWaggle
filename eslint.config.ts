@@ -17,6 +17,7 @@ const config: Config = [
     ignores: [
       'dist/**',
       'out/**',
+      '.tsbuild/**',
       'node_modules/**',
       'packages/**/.pack/**',
       'packages/**/dist/**',

@@ -1,5 +1,8 @@
 node_modules/
 out/
+# tsc typecheck byproducts (declarations + build info). Kept out of out/ so they
+# are never packaged by electron-builder's `out/**/*` glob.
+.tsbuild/
 dist/
 dist-cjs/
 .pack/

@@ -68,9 +68,6 @@ importers:
       lexical:
         specifier: 0.45.0
         version: 0.45.0
-      ms:
-        specifier: 2.1.3
-        version: 2.1.3
       node-pty:
         specifier: 1.1.0
         version: 1.1.0
@@ -120,9 +117,6 @@ importers:
       '@effect/sql-sqlite-node':
         specifier: 0.52.0
         version: 0.52.0(@effect/experimental@0.60.0(@effect/platform@0.96.1(effect@3.21.2))(effect@3.21.2))(@effect/platform@0.96.1(effect@3.21.2))(@effect/sql@0.51.1(@effect/experimental@0.60.0(@effect/platform@0.96.1(effect@3.21.2))(effect@3.21.2))(@effect/platform@0.96.1(effect@3.21.2))(effect@3.21.2))(effect@3.21.2)
-      '@effect/workflow':
-        specifier: 0.18.2
-        version: 0.18.2(@effect/experimental@0.60.0(@effect/platform@0.96.1(effect@3.21.2))(effect@3.21.2))(@effect/platform@0.96.1(effect@3.21.2))(@effect/rpc@0.75.1(@effect/platform@0.96.1(effect@3.21.2))(effect@3.21.2))(effect@3.21.2)
       '@electron-toolkit/utils':
         specifier: 4.0.0
         version: 4.0.0(electron@42.3.3)
