@@ -18,7 +18,7 @@ interface ArchivedGroupProps {
   readonly onDelete: (id: SessionId) => void
 }
 
-export function ArchivedGroup({ group, onRestore, onDelete }: ArchivedGroupProps) {
+function ArchivedGroup({ group, onRestore, onDelete }: ArchivedGroupProps) {
   const [collapsed, setCollapsed] = useState(false)
   const Chevron = collapsed ? ChevronRight : ChevronDown
 
@@ -102,7 +102,7 @@ interface ArchivedBranchGroupProps {
   readonly onRestoreBranch: (sessionId: SessionId, branchId: SessionBranchId) => void
 }
 
-export function ArchivedBranchGroup({ group, onRestoreBranch }: ArchivedBranchGroupProps) {
+function ArchivedBranchGroup({ group, onRestoreBranch }: ArchivedBranchGroupProps) {
   const [collapsed, setCollapsed] = useState(false)
   const Chevron = collapsed ? ChevronRight : ChevronDown
   const count = archivedBranchCount(group)
