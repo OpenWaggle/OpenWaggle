@@ -26,6 +26,7 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 - `docs/adr/0010-adopt-worktree-per-session-environment-mode.md`
 - `docs/adr/0011-per-turn-worktree-checkpointing.md`
 - `docs/adr/0012-source-control-provider-cli-adapters-and-stacked-actions.md`
+- `docs/adr/0013-single-design-token-contract.md`
 
 ## Specs
 

@@ -382,6 +382,36 @@ _Avoid_: branch (ambiguous here), session branch, checkout
 How a session's git work is isolated: `local` runs directly in the opened checkout, `worktree` runs in a dedicated Session worktree; chosen per session with a configurable default.
 _Avoid_: sandbox, isolation level
 
+### Appearance and design tokens
+
+**Design token contract**:
+The single versioned set of semantic presentation roles — colour, typography, spacing, radius, focus, and elevation — published by the extension SDK and consumed by both the OpenWaggle app and extensions, so host and extension UI cannot drift apart.
+_Avoid_: theme (that is an instance), CSS variables (that is the transport), design system (broader than the token set)
+
+**Appearance**:
+A named instance of the Design token contract that a user can select, such as dark or light.
+_Avoid_: theme (ambiguous with the extension theme object), skin
+
+**Colour scheme**:
+The light-or-dark polarity flag carried inside an Appearance, used by consumers that only need to know the polarity rather than individual role values.
+_Avoid_: appearance (that is the full instance), mode (ambiguous with Session environment mode)
+
+**Semantic role**:
+One named entry in the Design token contract, such as `surfaceRaised` or `textMuted`, defined by the meaning of its use rather than by a literal value.
+_Avoid_: variable, colour name, palette entry
+
+**Derived token**:
+An OpenWaggle-internal presentation value computed from Semantic roles for a specific surface, such as the diff panel's add/remove colours, kept out of the public contract while still re-theming automatically.
+_Avoid_: private token (it is still a CSS variable), one-off colour
+
+**Changed-file navigator**:
+The diff panel's list of files in the active diff scope, used to jump to a file's section and to submit a review.
+_Avoid_: worktree sidebar (worktree means a git worktree here), file tree (it is scoped to changed files, not the repository), sidebar (that is the app-level surface)
+
+**Session context row**:
+The composer-adjacent row of controls stating where the next send will run — Session environment mode, Worktree base ref, and current branch.
+_Avoid_: branch toolbar, composer context strip, Composer extension surface (that is for extension controls)
+
 ## Relationships
 
 - An **OpenWaggle extension package** declares zero or more **OpenWaggle desktop contributions** across one or more **Extension contribution surfaces**.
@@ -486,6 +516,11 @@ _Avoid_: sandbox, isolation level
 - **Extension package state** and **Extension contribution instance state** may enhance live rendering, but they are not **Agent-loop durable state**.
 - OpenWaggle owns each **Extension contribution container**; the extension owns only the content mounted inside it.
 - The **Composer extension surface** is constrained to compact actions and launchers instead of arbitrary composer input injection.
+- The **Design token contract** has exactly one definition, published by the extension SDK; the app consumes it rather than maintaining a parallel token set, so extension UI cannot visually drift from host UI.
+- An **Appearance** supplies a value for every **Semantic role** in the **Design token contract** and carries one **Colour scheme**.
+- A **Derived token** is computed from **Semantic roles**, so it re-themes with an **Appearance** without appearing in the public contract.
+- The **Session context row** states where the next send runs; it reflects **Session environment mode** and the **Worktree base ref**, and it is distinct from the **Branch-diff base ref** chosen in the diff panel.
+- The **Changed-file navigator** lists files within the active diff scope, so its contents change with **Working-tree diff**, **Branch diff**, or **Turn diff** selection.
 
 ## Example dialogue
 
@@ -714,3 +749,6 @@ _Avoid_: sandbox, isolation level
 - "untrusted extension docs" can imply hidden local docs. Resolved: **Extension package documentation** is discoverable with provenance metadata regardless of trust or enablement.
 - "branch" is ambiguous between conversation forks and git. Resolved: a **SessionBranch** is a conversation-tree fork of the Pi message tree; a **Session worktree** (with its own temporary git branch) is the git isolation unit. A session in `worktree` **Session environment mode** owns one **Session worktree** shared across all its **SessionBranches**; a `local`-mode session has none and edits the opened checkout.
 - "turn diff" could imply the git commit range a turn produced. Resolved: a **Turn diff** is computed from persisted per-turn **Turn checkpoints** (worktree snapshots stored as diff blobs), a dedicated OpenWaggle subsystem distinct from Pi session (conversation) snapshots, so it works even for uncommitted in-turn edits.
+- "worktree sidebar" was used for the diff panel's file list, which collides with **Session worktree** (a git worktree). Resolved: that list is the **Changed-file navigator**; it is scoped to the active diff and has no relationship to git worktrees.
+- "theme" is ambiguous between the contract, a selectable instance, and the object handed to extensions. Resolved: the **Design token contract** is the versioned role set, an **Appearance** is a selectable instance of it, and the extension theme object is one projection of an Appearance across the SDK boundary.
+- "mode" is ambiguous between appearance polarity and git isolation. Resolved: **Colour scheme** is light-or-dark polarity; **Session environment mode** is `local` versus `worktree` git isolation.
