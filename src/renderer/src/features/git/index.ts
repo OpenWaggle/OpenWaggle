@@ -19,3 +19,7 @@ export {
   type WorktreeSendPlan,
 } from './lib/worktree-send-plan'
 export { useGitStore } from './state'
+export {
+  flushDraftWorktreePlanToSession,
+  stashDraftWorktreePlan,
+} from './state/worktree-plan-draft'

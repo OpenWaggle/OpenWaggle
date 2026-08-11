@@ -1,4 +1,5 @@
 import type { SessionId } from '@shared/types/brand'
+import type { SessionEnvironmentMode } from '@shared/types/git'
 import type { SessionNode } from '@shared/types/session'
 import type { WaggleConfig } from '@shared/types/waggle'
 
@@ -91,6 +92,8 @@ export interface CreateSessionInput {
   readonly projectPath: string
   readonly piSessionId: string
   readonly piSessionFile?: string
+  /** Environment mode the session is born with (defaults to 'local' when omitted). */
+  readonly environmentMode?: SessionEnvironmentMode
 }
 
 export interface DerivedSessionBranch {

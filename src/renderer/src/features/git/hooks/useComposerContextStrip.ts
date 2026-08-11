@@ -8,6 +8,7 @@ import {
   type WorktreeSendPlan,
 } from '@/features/git/lib/worktree-send-plan'
 import {
+  draftWorktreePlanKey,
   useWorktreePlanStore,
   type WorktreePlanOverride,
 } from '@/features/git/state/worktree-plan-store'
@@ -75,7 +76,14 @@ export function useComposerContextStrip(
 ): ComposerContextStripState {
   const { sessionId, projectPath, isFirstMessage, session, defaultEnvironmentMode } = input
   const hasWorktree = Boolean(session?.worktreePath?.trim())
-  const sessionKey = sessionId ? String(sessionId) : ''
+  // Sessions are created lazily on first send, so before that key the plan on a
+  // draft key derived from the project; the send path flushes it onto the new
+  // session (review renderer-B1). Falls back to the session id once it exists.
+  const sessionKey = sessionId
+    ? String(sessionId)
+    : projectPath
+      ? draftWorktreePlanKey(projectPath)
+      : ''
 
   const override = useWorktreePlanStore((s) => (sessionKey ? s.bySessionId[sessionKey] : undefined))
   const setOverride = useWorktreePlanStore((s) => s.setOverride)
@@ -181,7 +189,7 @@ export function useComposerContextStrip(
   )
 
   return {
-    visible: sessionId !== null && isFirstMessage && !hasWorktree,
+    visible: sessionKey !== '' && isFirstMessage && !hasWorktree,
     envMode,
     baseRef,
     startFromOrigin,

@@ -10,6 +10,7 @@ import {
 } from '../application/agent-session-service'
 import { AgentKernelService } from '../ports/agent-kernel-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
+import { SettingsService } from '../services/settings-service'
 import { clearAgentPhase, clearStreamBuffer, emitRunCompleted } from '../utils/stream-bridge'
 import { cancelSessionRuns } from './active-agent-runs'
 import { validateRequiredProjectPath } from './project-path-validation'
@@ -64,11 +65,13 @@ function registerSessionCreationHandlers() {
       const runtimeSession = yield* agentKernel.createSession({
         projectPath: normalizedProjectPath,
       })
+      const settings = yield* (yield* SettingsService).get()
       const repo = yield* SessionProjectionRepository
       return yield* repo.create({
         projectPath: normalizedProjectPath,
         piSessionId: runtimeSession.piSessionId,
         piSessionFile: runtimeSession.piSessionFile,
+        environmentMode: settings.defaultSessionEnvironmentMode,
       })
     }),
   )

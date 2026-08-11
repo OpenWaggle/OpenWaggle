@@ -5,6 +5,7 @@
  * Runtime writes still go through SessionRepository.
  */
 import type { SessionId } from '@shared/types/brand'
+import type { SessionEnvironmentMode } from '@shared/types/git'
 import type { SessionDetail, SessionSummary, SessionWorktreePlan } from '@shared/types/session'
 import type { TurnCheckpointSummary, TurnDiff } from '@shared/types/turn-diff'
 import { Context, type Effect } from 'effect'
@@ -25,6 +26,7 @@ export interface SessionProjectionRepositoryShape {
     readonly projectPath: string
     readonly piSessionId: string
     readonly piSessionFile?: string
+    readonly environmentMode?: SessionEnvironmentMode
   }) => Effect.Effect<SessionDetail, SessionProjectionRepositoryError>
   readonly delete: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly archive: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>

@@ -1,7 +1,11 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
-import { type ComposerContextStripState, useComposerContextStrip } from '@/features/git'
+import {
+  type ComposerContextStripState,
+  stashDraftWorktreePlan,
+  useComposerContextStrip,
+} from '@/features/git'
 import { usePreferencesStore } from '@/features/settings/state'
 
 interface UseComposerSendGateInput {
@@ -35,6 +39,15 @@ export function useComposerSendGate(input: UseComposerSendGateInput): {
     if (strip.sendPlan.kind === 'blocked') {
       input.onToast(strip.sendPlan.reason)
       return
+    }
+    // Persist the resolved plan onto the draft key so the lazily-created session
+    // (created inside onSend) is born with the user's pre-send choice.
+    if (input.activeSessionId === null && projectPath) {
+      stashDraftWorktreePlan(projectPath, {
+        envMode: strip.envMode,
+        baseRef: strip.baseRef,
+        startFromOrigin: strip.startFromOrigin,
+      })
     }
     await input.onSend(payload)
   }

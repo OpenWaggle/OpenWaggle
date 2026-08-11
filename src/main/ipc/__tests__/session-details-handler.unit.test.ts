@@ -87,6 +87,7 @@ describe('registerSessionDetailsHandlers', () => {
         projectPath: validatedProjectPath,
         piSessionId: 'pi-session-created',
         piSessionFile: '/tmp/pi-session-created.jsonl',
+        environmentMode: 'local',
       })
     } finally {
       await rm(projectPath, { recursive: true, force: true })

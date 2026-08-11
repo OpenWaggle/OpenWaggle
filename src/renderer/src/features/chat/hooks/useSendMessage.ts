@@ -6,6 +6,7 @@ import type { WaggleConfig } from '@shared/types/waggle'
 import { createOptimisticUserMessage } from '@/features/chat/lib/useAgentChat.utils'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useOptimisticUserMessageStore } from '@/features/chat/state/optimistic-user-message-store'
+import { flushDraftWorktreePlanToSession } from '@/features/git'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 
@@ -49,6 +50,7 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
         throw new Error('Select a project before sending.')
       }
       const sessionId = await createSession(projectPath)
+      await flushDraftWorktreePlanToSession(projectPath, sessionId)
       void sendMessageToSession(sessionId, payload, null)
       return
     }
@@ -65,6 +67,7 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
         throw new Error('Select a project before sending.')
       }
       const sessionId = await createSession(projectPath)
+      await flushDraftWorktreePlanToSession(projectPath, sessionId)
       void sendMessageToSession(sessionId, payload, config)
       return
     }
