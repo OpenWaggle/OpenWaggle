@@ -63,9 +63,10 @@ function getAttachmentPathsInsideProject(
   projectPath: string,
   attachments: readonly PreparedAttachment[],
 ) {
-  return attachments
-    .map((attachment) => path.resolve(attachment.path))
-    .filter((attachmentPath) => isPathInside(projectPath, attachmentPath))
+  return attachments.flatMap((attachment) => {
+    const attachmentPath = path.resolve(attachment.path)
+    return isPathInside(projectPath, attachmentPath) ? [attachmentPath] : []
+  })
 }
 
 async function loadCatalogWithWarnings(

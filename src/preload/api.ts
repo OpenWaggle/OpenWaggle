@@ -37,9 +37,10 @@ function on<C extends IpcEventChannel>(
 const invokePrepareAttachments = invoke('attachments:prepare')
 
 function prepareSelectedAttachments(projectPath: string, files: readonly File[]) {
-  const paths = files
-    .map((file) => webUtils.getPathForFile(file))
-    .filter((filePath) => filePath.length > 0)
+  const paths = files.flatMap((file) => {
+    const filePath = webUtils.getPathForFile(file)
+    return filePath.length > 0 ? [filePath] : []
+  })
 
   if (paths.length === 0) {
     return Promise.resolve([])

@@ -13,14 +13,11 @@ export function isActiveSelectableBranch(branch: DerivedSessionBranch) {
 }
 
 export function uniqueHeadIds(headIds: readonly (string | null)[]) {
-  const result: string[] = []
+  const seen = new Set<string>()
   for (const headId of headIds) {
-    if (!headId || result.includes(headId)) {
-      continue
-    }
-    result.push(headId)
+    if (headId) seen.add(headId)
   }
-  return result
+  return [...seen]
 }
 
 export function createdOrderByNodeId(nodes: readonly ProjectedSessionNodeInput[]) {

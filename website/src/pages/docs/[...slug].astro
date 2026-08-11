@@ -13,9 +13,12 @@ export async function getStaticPaths() {
     };
   });
 
+  // Indexed once: a .find() per package would rescan every doc entry.
+  const docsById = new Map(docs.map((entry) => [entry.id, entry]));
+
   for (const definition of packageDocumentation) {
     const currentEntryId = `packages/${definition.slug}/${definition.currentVersion}/index`;
-    const currentEntry = docs.find((entry) => entry.id === currentEntryId);
+    const currentEntry = docsById.get(currentEntryId);
     if (!currentEntry) {
       throw new Error(`Missing current package documentation entry: ${currentEntryId}`);
     }

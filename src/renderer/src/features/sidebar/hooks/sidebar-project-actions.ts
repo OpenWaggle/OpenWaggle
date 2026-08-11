@@ -89,9 +89,9 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
   const projectSessionIds = new Set(projectSessions.map((session) => String(session.id)))
   const activeRuns = await api.listActiveRuns()
   await Promise.all(
-    activeRuns
-      .filter((run) => projectSessionIds.has(String(run.sessionId)))
-      .map((run) => api.cancelAgent(run.sessionId)),
+    activeRuns.flatMap((run) =>
+      projectSessionIds.has(String(run.sessionId)) ? [api.cancelAgent(run.sessionId)] : [],
+    ),
   )
   await Promise.all(projectSessions.map((session) => api.deleteSession(session.id)))
   clearComposerDraftsForSessions(projectSessions)

@@ -51,15 +51,17 @@ function findHeuristicSkillIds(
   const messageTokens = tokenize(text)
   if (messageTokens.size === 0) return []
 
+  // Set lookup: explicitIds is checked once per skill, so Array.includes would
+  // rescan the list every iteration.
+  const explicitIdSet = new Set(explicitIds)
   const scored = skills
-    .filter((skill) => !explicitIds.includes(skill.id))
-    .map((skill) => {
+    .flatMap((skill) => {
+      if (explicitIdSet.has(skill.id)) return []
       const skillTokens = tokenize(`${skill.name} ${skill.description}`)
       const overlap = countOverlap(messageTokens, skillTokens)
       const score = skillTokens.size > 0 ? overlap / skillTokens.size : 0
-      return { skillId: skill.id, score }
+      return score >= SKILL_ACTIVATION.THRESHOLD ? [{ skillId: skill.id, score }] : []
     })
-    .filter((entry) => entry.score >= SKILL_ACTIVATION.THRESHOLD)
     .sort((a, b) => b.score - a.score || a.skillId.localeCompare(b.skillId))
 
   return scored.slice(0, SKILL_ACTIVATION.MAX_MATCHES).map((entry) => entry.skillId)

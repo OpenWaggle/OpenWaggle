@@ -97,15 +97,15 @@ function withExcludedExtensionPatterns(
   }
 
   const extensions = isStringArray(settings.extensions) ? settings.extensions : []
-  const nextExtensions = [...extensions]
+  // Set preserves insertion order and dedupes in one pass, so the pattern list
+  // isn't rescanned for every candidate.
+  const nextExtensions = new Set(extensions)
   for (const pattern of excludedPatterns) {
-    if (!nextExtensions.includes(pattern)) {
-      nextExtensions.push(pattern)
-    }
+    nextExtensions.add(pattern)
   }
   return {
     ...settings,
-    extensions: nextExtensions,
+    extensions: [...nextExtensions],
   }
 }
 

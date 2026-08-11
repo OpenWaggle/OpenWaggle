@@ -65,15 +65,18 @@ function branchElbow(nodeCenter: number, parentCenter: number | null) {
 export function getSessionTreeRowGeometry(row: SessionTreeRow): SessionTreeRowGeometry {
   const nodeCenter = nodeCenterXPx(row.visualDepth)
   const parentCenter = row.parentVisualDepth === null ? null : nodeCenterXPx(row.parentVisualDepth)
-  const ancestorLines = row.gutterDepths
-    .filter((depth) => depth !== row.visualDepth)
-    .map((depth) =>
-      verticalConnector({
-        xPx: nodeCenterXPx(depth),
-        yStartPx: -SESSION_TREE.LAYOUT.CONNECTOR_ROW_OVERLAP_PX,
-        yEndPx: SESSION_TREE.LAYOUT.ROW_HEIGHT_PX + SESSION_TREE.LAYOUT.CONNECTOR_ROW_OVERLAP_PX,
-      }),
-    )
+  const ancestorLines = row.gutterDepths.flatMap((depth) =>
+    depth === row.visualDepth
+      ? []
+      : [
+          verticalConnector({
+            xPx: nodeCenterXPx(depth),
+            yStartPx: -SESSION_TREE.LAYOUT.CONNECTOR_ROW_OVERLAP_PX,
+            yEndPx:
+              SESSION_TREE.LAYOUT.ROW_HEIGHT_PX + SESSION_TREE.LAYOUT.CONNECTOR_ROW_OVERLAP_PX,
+          }),
+        ],
+  )
 
   return {
     gutterWidthPx: nodeCenter + SESSION_TREE.LAYOUT.GUTTER_END_PADDING_PX,

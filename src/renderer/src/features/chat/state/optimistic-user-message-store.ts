@@ -12,10 +12,7 @@ interface OptimisticUserMessageState {
 }
 
 function getTextContent(message: UIMessage) {
-  return message.parts
-    .filter((part) => part.type === 'text')
-    .map((part) => part.content)
-    .join('\n\n')
+  return message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('\n\n')
 }
 
 function buildUserTextCounts(messages: readonly UIMessage[]) {

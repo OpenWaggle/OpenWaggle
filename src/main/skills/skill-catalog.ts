@@ -49,9 +49,11 @@ export async function loadSkillCatalog(
     if (folderEntries === null) continue
 
     const rootSkills = await Promise.all(
-      folderEntries
-        .filter((entry) => entry.isDirectory())
-        .map((entry) => loadSkillMetadata(projectPath, skillsRoot, entry.name, toggles)),
+      folderEntries.flatMap((entry) =>
+        entry.isDirectory()
+          ? [loadSkillMetadata(projectPath, skillsRoot, entry.name, toggles)]
+          : [],
+      ),
     )
 
     for (const skill of rootSkills) {
@@ -86,10 +88,9 @@ export async function loadSkillInstructions(
     const folderEntries = await readDirectoryEntries(skillsRoot)
     if (folderEntries === null) continue
 
-    const matchingFolders = folderEntries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-      .filter((folderName) => normalizeSkillId(folderName) === canonicalSkillId)
+    const matchingFolders = folderEntries.flatMap((entry) =>
+      entry.isDirectory() && normalizeSkillId(entry.name) === canonicalSkillId ? [entry.name] : [],
+    )
 
     if (matchingFolders.length === 0) continue
 

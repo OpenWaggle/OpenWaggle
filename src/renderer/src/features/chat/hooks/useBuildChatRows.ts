@@ -103,7 +103,7 @@ function canNestToolResultMessage(target: UIMessage, toolResults: readonly ToolR
 
 function appendToolResultParts(target: UIMessage, toolResults: readonly ToolResultPart[]) {
   const existingResultIds = new Set(
-    target.parts.filter((part) => part.type === 'tool-result').map((part) => part.toolCallId),
+    target.parts.flatMap((part) => (part.type === 'tool-result' ? [part.toolCallId] : [])),
   )
   const nextResults = toolResults.filter((part) => !existingResultIds.has(part.toolCallId))
   return nextResults.length > 0 ? { ...target, parts: [...target.parts, ...nextResults] } : target
