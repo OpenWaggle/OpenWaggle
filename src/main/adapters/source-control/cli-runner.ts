@@ -35,7 +35,9 @@ function normalizeCliError(error: unknown): CliResult {
   const decoded = safeDecodeUnknown(jsonObjectSchema, error)
   const record = decoded.success ? decoded.data : {}
   const errorCode = typeof record.code === 'string' ? record.code : null
-  const missing = errorCode === 'ENOENT'
+  // ENOENT: binary not found; EACCES: found but not executable — both mean the
+  // provider CLI is unusable, so treat them the same (surface as unavailable).
+  const missing = errorCode === 'ENOENT' || errorCode === 'EACCES'
   return {
     stdout: typeof record.stdout === 'string' ? record.stdout : '',
     stderr:

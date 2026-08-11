@@ -6,12 +6,7 @@ export {
   useComposerContextStrip,
 } from './hooks/useComposerContextStrip'
 export { useStackedGitActions } from './hooks/useStackedGitActions'
-export {
-  buildMenuItems,
-  type GitActionMenuItem,
-  type GitQuickAction,
-  resolveQuickAction,
-} from './lib/git-quick-action'
+export { type GitQuickAction, resolveQuickAction } from './lib/git-quick-action'
 export {
   resolveDefaultWorktreeBaseRef,
   resolveWorktreeSendPlan,

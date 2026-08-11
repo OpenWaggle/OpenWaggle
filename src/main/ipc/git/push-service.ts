@@ -40,6 +40,7 @@ export async function pushCurrentBranch(projectPath: string): Promise<GitPushRes
   if (!branch) {
     return { ok: false, code: 'no-upstream', message: 'Cannot push a detached HEAD.' }
   }
+  // ponytail: hardcoded 'origin'; add remote selection only if multi-remote push is requested.
   const result = await runGit(projectPath, ['push', '-u', 'origin', branch])
   return result.code === 0
     ? { ok: true, code: 'ok', message: `Pushed and set upstream to origin/${branch}.` }

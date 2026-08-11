@@ -1,6 +1,6 @@
 import type { SourceControlProviderId, VcsStatus } from '@shared/types/git'
 import { describe, expect, it } from 'vitest'
-import { buildMenuItems, resolveQuickAction } from '../git-quick-action'
+import { resolveQuickAction } from '../git-quick-action'
 
 function status(overrides: Partial<VcsStatus> = {}): VcsStatus {
   return {
@@ -124,27 +124,6 @@ describe('resolveQuickAction', () => {
     expect(
       resolveQuickAction(status({ hasUpstream: false, aheadCount: 1, isDefaultRef: true }), false),
     ).toMatchObject({ action: 'commit_push' })
-  })
-})
-
-describe('buildMenuItems', () => {
-  it('returns only commit when there is no primary remote', () => {
-    const items = buildMenuItems(status({ hasPrimaryRemote: false }), false)
-    expect(items.map((i) => i.id)).toEqual(['commit'])
-  })
-
-  it('enables push when ahead with upstream and clean', () => {
-    const items = buildMenuItems(status({ aheadCount: 1 }), false)
-    expect(items.find((i) => i.id === 'push')?.disabled).toBe(false)
-  })
-
-  it('shows View PR when a PR is open', () => {
-    const items = buildMenuItems(status({ changeRequest: pr('open') }), false)
-    expect(items.find((i) => i.id === 'pr')).toMatchObject({ kind: 'open_pr' })
-  })
-
-  it('returns nothing without status', () => {
-    expect(buildMenuItems(null, false)).toEqual([])
   })
 })
 
