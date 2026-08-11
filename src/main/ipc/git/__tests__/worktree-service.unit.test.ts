@@ -42,6 +42,7 @@ describe('worktree service', () => {
     it('verifies the base ref then adds the worktree with a new branch', async () => {
       runGitMock
         .mockResolvedValueOnce(gitResult(0)) // rev-parse verify
+        .mockResolvedValueOnce(gitResult(0)) // worktree prune
         .mockResolvedValueOnce(gitResult(0)) // worktree add
       await expect(
         createGitWorktree('/repo', { path: ' /wt/x ', branch: ' feat ', baseRef: ' main ' }),
@@ -52,7 +53,8 @@ describe('worktree service', () => {
         '--verify',
         'main^{commit}',
       ])
-      expect(runGitMock).toHaveBeenNthCalledWith(2, '/repo', [
+      expect(runGitMock).toHaveBeenNthCalledWith(2, '/repo', ['worktree', 'prune'])
+      expect(runGitMock).toHaveBeenNthCalledWith(3, '/repo', [
         'worktree',
         'add',
         '-b',
@@ -75,8 +77,9 @@ describe('worktree service', () => {
 
     it('maps an existing worktree path to worktree-exists', async () => {
       runGitMock
-        .mockResolvedValueOnce(gitResult(0))
-        .mockResolvedValueOnce(gitResult(128, '', "fatal: '/wt/x' already exists"))
+        .mockResolvedValueOnce(gitResult(0)) // rev-parse verify
+        .mockResolvedValueOnce(gitResult(0)) // worktree prune
+        .mockResolvedValueOnce(gitResult(128, '', "fatal: '/wt/x' already exists")) // add
       await expect(
         createGitWorktree('/repo', { path: '/wt/x', branch: 'feat', baseRef: 'main' }),
       ).resolves.toMatchObject({ ok: false, code: 'worktree-exists' })

@@ -115,4 +115,15 @@ describe('ensureSessionWorktreeProjectPath', () => {
     ).rejects.toThrow(/no base branch is resolvable/)
     expect(createGitWorktreeMock).not.toHaveBeenCalled()
   })
+
+  it('serializes concurrent births so the worktree is only created once (M5)', async () => {
+    existsSyncMock.mockReturnValue(false)
+    const s = session({ environmentMode: 'worktree' })
+    const [a, b] = await Promise.all([
+      ensureSessionWorktreeProjectPath(s),
+      ensureSessionWorktreeProjectPath(s),
+    ])
+    expect(a).toBe(b)
+    expect(createGitWorktreeMock).toHaveBeenCalledTimes(1)
+  })
 })

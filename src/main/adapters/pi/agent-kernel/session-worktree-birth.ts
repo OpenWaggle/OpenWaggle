@@ -10,17 +10,26 @@ import { resolveSessionProjectPath } from './session-manager'
 
 const SHORT_ID_LENGTH = 8
 
+/** Serialize birth per session so concurrent runs (classic + waggle, double-send) can't race. */
+const birthInFlight = new Map<string, Promise<string>>()
+
 /**
- * Birth path for a Session worktree (ADR 0010, WS1b). For a worktree-mode
- * session without a worktree yet, create one off the chosen Worktree base ref
- * (persisted by the composer strip; defaults to the current branch) and persist
- * it. When start-from-origin is set, the worktree is forked from origin/<base>.
- *
- * Local-mode sessions return the opened checkout. In worktree mode, a birth
- * failure THROWS (no silent fallback to the checkout) so the run surfaces a
- * blocking error rather than running somewhere the user did not intend.
+ * Birth path for a Session worktree (ADR 0010, WS1b). Serialized per session so
+ * a fast double-send or a classic+waggle overlap cannot both run `worktree add`
+ * (the loser would otherwise throw on "already exists").
  */
-export async function ensureSessionWorktreeProjectPath(session: SessionDetail): Promise<string> {
+export function ensureSessionWorktreeProjectPath(session: SessionDetail): Promise<string> {
+  const key = String(session.id)
+  const existing = birthInFlight.get(key)
+  if (existing) return existing
+  const pending = ensureSessionWorktreeProjectPathUnlocked(session).finally(() => {
+    birthInFlight.delete(key)
+  })
+  birthInFlight.set(key, pending)
+  return pending
+}
+
+async function ensureSessionWorktreeProjectPathUnlocked(session: SessionDetail): Promise<string> {
   const primaryPath = resolveSessionProjectPath(session)
 
   if (session.environmentMode !== 'worktree') return primaryPath

@@ -113,6 +113,10 @@ export async function createGitWorktree(
     return worktreeFailure('base-ref-not-found', `Base ref "${baseRef}" could not be resolved.`)
   }
 
+  // Clear stale registrations (e.g. a worktree directory deleted out-of-band)
+  // so re-creating at the same path doesn't fail with "already registered".
+  await runGit(projectPath, ['worktree', 'prune'])
+
   const result = await runGit(projectPath, ['worktree', 'add', '-b', branch, worktreePath, baseRef])
   if (result.code !== 0) {
     return classifyCreateError(result.stderr)
