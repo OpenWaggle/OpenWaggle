@@ -76,6 +76,36 @@ function isLoopbackHostname(hostname: string) {
   return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1'
 }
 
+function normalizedAllowedHostname(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  try {
+    const url = new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`)
+    if (!['https:', 'wss:', 'http:', 'ws:'].includes(url.protocol)) return null
+    if (url.username || url.password || url.pathname !== '/' || url.search || url.hash) return null
+    return url.hostname.toLowerCase()
+  } catch {
+    return null
+  }
+}
+
+export function normalizeMcpAllowedHosts(values: readonly string[]) {
+  return new Set(
+    values
+      .map(normalizedAllowedHostname)
+      .filter((hostname): hostname is string => hostname !== null),
+  )
+}
+
+function isAllowedHostname(allowedHosts: ReadonlySet<string>, hostname: string) {
+  const normalized = hostname.toLowerCase()
+  if (allowedHosts.has(normalized)) return true
+  for (const allowed of allowedHosts) {
+    if (allowed.startsWith('*.') && normalized.endsWith(allowed.slice(1))) return true
+  }
+  return false
+}
+
 function isPrivateAddress(address: string) {
   const family = isIP(address)
   if (family === IP_FAMILY_V4) return blockedIpv4Addresses.check(address, 'ipv4')
@@ -103,7 +133,7 @@ export async function validateMcpNetworkTarget(input: {
     throw new Error('MCP network URLs cannot contain credentials.')
   }
   assertSecureMcpProtocol(input.url, input.websocket === true)
-  if (!input.allowedHosts.has(input.url.hostname.toLowerCase())) {
+  if (!isAllowedHostname(input.allowedHosts, input.url.hostname)) {
     throw new Error(`MCP redirect target is not allowlisted: ${input.url.hostname}.`)
   }
 
@@ -204,9 +234,10 @@ export function createSecureMcpFetch(input: {
   readonly fetchFn?: PinnedFetch
   readonly resolveHostname?: HostnameResolver
 }): SecureMcpFetch {
-  const allowedHosts = new Set(
-    [input.baseUrl.hostname, ...(input.allowedDomains ?? [])].map((host) => host.toLowerCase()),
-  )
+  const allowedHosts = normalizeMcpAllowedHosts([
+    input.baseUrl.hostname,
+    ...(input.allowedDomains ?? []),
+  ])
   const dispatchers = new Map<string, Agent>()
   const pinnedFetch: PinnedFetch = async (url, init, target) => {
     const requestInit: DispatcherRequestInit = {

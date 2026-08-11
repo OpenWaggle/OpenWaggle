@@ -54,6 +54,12 @@ export class OpenWaggleTaskLeaseCoordinator {
     this.heartbeatTimer = undefined
   }
 
+  async close() {
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer)
+    this.heartbeatTimer = undefined
+    await this.heartbeatOperation?.catch(() => undefined)
+  }
+
   private ensureHeartbeat() {
     if (this.heartbeatTimer) return
     this.heartbeatTimer = setInterval(() => {

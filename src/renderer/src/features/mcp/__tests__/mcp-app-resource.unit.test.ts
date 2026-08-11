@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { describe, expect, it } from 'vitest'
 import { parseMcpAppResource } from '../mcp-app-resource'
 
@@ -57,5 +59,30 @@ describe('MCP App resource sandbox policy', () => {
 
     expect(parsed.csp.resourceDomains).toEqual(['https://legacy.example.com'])
     expect(parsed.requestedPermissions).toEqual(['microphone'])
+  })
+
+  it('prepends CSP to the parser-identified head instead of a decoy in a comment', () => {
+    const parsed = parseMcpAppResource(
+      {
+        attribution: { serverInstanceId: 'server-1', serverLabel: 'untrusted' },
+        contents: [
+          {
+            uri: 'ui://untrusted/app',
+            text: '<!doctype html><!-- <head> --><html><head><script>window.attack()</script></head><body></body></html>',
+          },
+        ],
+      },
+      [],
+    )
+
+    const cspIndex = parsed.html.indexOf('Content-Security-Policy')
+    const scriptIndex = parsed.html.indexOf('<script>')
+    const document_ = new DOMParser().parseFromString(parsed.html, 'text/html')
+    expect(cspIndex).toBeGreaterThan(-1)
+    expect(scriptIndex).toBeGreaterThan(cspIndex)
+    expect(parsed.html).not.toContain('<!-- <head><meta')
+    expect(document_.head.firstElementChild?.getAttribute('http-equiv')).toBe(
+      'Content-Security-Policy',
+    )
   })
 })

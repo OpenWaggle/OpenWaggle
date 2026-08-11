@@ -11,6 +11,7 @@ import {
   assertNotOrigin,
   DEFAULT_WAIT_MS,
   MAX_HANDOFF_SUMMARY_BYTES,
+  MAX_WAIT_MS,
   type OpenWaggleSessionTaskController,
   type SessionToolInput,
 } from './openwaggle-mcp-session-contract'
@@ -31,6 +32,16 @@ export async function messageSession(
   if (steer) {
     cancelSessionRuns(session.id)
     await tasks.cancelSession(session.id)
+    const timeoutMs = input.timeoutMs ?? MAX_WAIT_MS
+    const [desktopIdle, hostedIdle] = await Promise.all([
+      waitForSessionRuns(session.id, timeoutMs),
+      tasks.waitForSession(session.id, timeoutMs),
+    ])
+    if (!desktopIdle || !hostedIdle) {
+      throw new Error(
+        `The target session did not stop within ${timeoutMs} ms, so the steering objective was not started. Wait for cancellation to finish, then retry steer.`,
+      )
+    }
   }
   return toolResult(
     await tasks.start({

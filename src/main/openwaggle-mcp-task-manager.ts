@@ -281,6 +281,7 @@ export class OpenWaggleServerTaskManager {
     )
     for (const task of this.active.values()) task.controller.abort()
     await Promise.allSettled(completions)
+    await this.leases.close()
   }
 }
 

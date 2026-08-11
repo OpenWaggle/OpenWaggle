@@ -121,4 +121,63 @@ describe('hosted MCP session control', () => {
     ).rejects.toThrow('cannot target its own origin session')
     expect(tasks.start).not.toHaveBeenCalled()
   })
+
+  it('waits for hosted cancellation to finish before starting a steering objective', async () => {
+    const metadata = new OpenWaggleMcpSessionMetadataStore(
+      sessionMetadataStorePath(path.join(temporaryRoot, 'tasks.json')),
+    )
+    const cancellation = Promise.withResolvers<boolean>()
+    const start = vi.fn(async () => ({ status: 'queued' }))
+    const tasks = {
+      ...sessionTasks(),
+      start,
+      cancelSession: vi.fn(async () => 1),
+      waitForSession: vi.fn(() => cancellation.promise),
+    }
+    const operation = executeSessionOperation(
+      serveOptions(temporaryRoot, { sessionIds: new Set([SESSION_ID]) }),
+      tasks,
+      metadata,
+      sessionAdapters(temporaryRoot),
+      { operation: 'steer', sessionId: SESSION_ID, objective: 'Use the safer approach.' },
+    )
+
+    await vi.waitFor(() => expect(tasks.waitForSession).toHaveBeenCalledWith(SESSION_ID, 30_000))
+    expect(start).not.toHaveBeenCalled()
+    cancellation.resolve(true)
+    await operation
+
+    expect(start).toHaveBeenCalledWith({
+      projectPath: temporaryRoot,
+      sessionId: SESSION_ID,
+      objective: 'Use the safer approach.',
+    })
+  })
+
+  it('reports an unfinished steering cancellation without starting a replacement task', async () => {
+    const metadata = new OpenWaggleMcpSessionMetadataStore(
+      sessionMetadataStorePath(path.join(temporaryRoot, 'tasks.json')),
+    )
+    const tasks = {
+      ...sessionTasks(),
+      cancelSession: vi.fn(async () => 1),
+      waitForSession: vi.fn(async () => false),
+    }
+
+    await expect(
+      executeSessionOperation(
+        serveOptions(temporaryRoot, { sessionIds: new Set([SESSION_ID]) }),
+        tasks,
+        metadata,
+        sessionAdapters(temporaryRoot),
+        {
+          operation: 'steer',
+          sessionId: SESSION_ID,
+          objective: 'Do not lose this objective.',
+          timeoutMs: 0,
+        },
+      ),
+    ).rejects.toThrow('the steering objective was not started')
+    expect(tasks.start).not.toHaveBeenCalled()
+  })
 })

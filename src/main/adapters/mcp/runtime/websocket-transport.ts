@@ -2,7 +2,11 @@ import type { JSONRPCMessage, Transport, TransportSendOptions } from '@modelcont
 import { parseJSONRPCMessage } from '@modelcontextprotocol/client'
 import { MCP_CONFIG } from '@shared/constants/mcp'
 import WebSocket from 'ws'
-import { createPinnedMcpLookup, validateMcpNetworkTarget } from './secure-fetch'
+import {
+  createPinnedMcpLookup,
+  normalizeMcpAllowedHosts,
+  validateMcpNetworkTarget,
+} from './secure-fetch'
 
 const NORMAL_WEBSOCKET_CLOSE_CODE = 1_000
 const WEBSOCKET_CLOSE_TIMEOUT_MS = 1_000
@@ -26,9 +30,10 @@ export class LegacyWebSocketClientTransport implements Transport {
   }) {
     this.url = input.url
     this.headers = input.headers
-    this.allowedHosts = new Set(
-      [input.url.hostname, ...(input.allowedDomains ?? [])].map((host) => host.toLowerCase()),
-    )
+    this.allowedHosts = normalizeMcpAllowedHosts([
+      input.url.hostname,
+      ...(input.allowedDomains ?? []),
+    ])
     this.allowInsecurePrivateNetwork = input.allowInsecurePrivateNetwork === true
   }
 

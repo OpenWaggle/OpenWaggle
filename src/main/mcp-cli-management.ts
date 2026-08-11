@@ -24,9 +24,12 @@ import {
   parseImportSources,
   projectPath,
   readSecretFromStdin,
-  secretReferences,
   target,
 } from './mcp-cli-arguments'
+import {
+  partitionServerLogoutSecretReferences,
+  secretReferences,
+} from './mcp-cli-secret-references'
 
 type ConfigService = ReturnType<typeof createFilesystemMcpConfigService>
 
@@ -151,8 +154,19 @@ async function runCredentialCommand(input: {
   if (definition.auth?.type === 'oauth') {
     await logoutMcpOAuth({ instanceId: input.server.instanceId, vault })
   }
-  await removeSecretReferences(vault, references)
-  return { removedSecrets: references, oauthRemoved: definition.auth?.type === 'oauth' }
+  const partition = partitionServerLogoutSecretReferences({
+    references,
+    sources: input.view.sources,
+    target: input.server,
+  })
+  await removeSecretReferences(vault, partition.removable)
+  return {
+    removedSecrets: partition.removable,
+    retainedSharedSecrets: partition.retained,
+    retainedUnverifiedSecrets: partition.retainedUnverified,
+    unreadableSources: partition.unreadableSources,
+    oauthRemoved: definition.auth?.type === 'oauth',
+  }
 }
 
 async function runNamedServerCommand(

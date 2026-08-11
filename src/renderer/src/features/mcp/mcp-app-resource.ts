@@ -49,10 +49,6 @@ function allowedDeclaredDomains(declared: readonly string[], granted: readonly s
     .filter((value): value is string => value !== null && grants.has(value))
 }
 
-function escapeAttribute(value: string) {
-  return value.replaceAll('&', '&amp;').replaceAll('"', '&quot;')
-}
-
 function injectCsp(html: string, csp: McpAppCsp) {
   const resourceDomains = csp.resourceDomains.join(' ')
   const connectDomains = csp.connectDomains.join(' ')
@@ -70,11 +66,12 @@ function injectCsp(html: string, csp: McpAppCsp) {
     "base-uri 'none'",
     "form-action 'none'",
   ].join('; ')
-  const meta = `<meta http-equiv="Content-Security-Policy" content="${escapeAttribute(policy)}">`
-  if (/<head(?:\s[^>]*)?>/i.test(html)) {
-    return html.replace(/<head(?:\s[^>]*)?>/i, (head) => `${head}${meta}`)
-  }
-  return `${meta}${html}`
+  const document_ = new DOMParser().parseFromString(html, 'text/html')
+  const meta = document_.createElement('meta')
+  meta.httpEquiv = 'Content-Security-Policy'
+  meta.content = policy
+  document_.head.prepend(meta)
+  return `<!doctype html>${document_.documentElement.outerHTML}`
 }
 
 export function parseMcpAppResource(

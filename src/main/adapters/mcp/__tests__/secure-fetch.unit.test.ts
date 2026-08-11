@@ -72,36 +72,59 @@ describe('secure MCP network policy', () => {
     expect(fetchFn).toHaveBeenCalledOnce()
   })
 
-  it('strips credentials when an allowlisted redirect changes origin', async () => {
+  it.each(['auth.example', 'https://auth.example'])(
+    'strips credentials when a redirect changes to allowlisted domain %s',
+    async (allowedDomain) => {
+      const fetchFn = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          new Response(null, {
+            status: 302,
+            headers: { location: 'https://auth.example/token' },
+          }),
+        )
+        .mockResolvedValueOnce(new Response('ok', { status: 200 }))
+      const secureFetch = createSecureMcpFetch({
+        baseUrl: new URL('https://mcp.example/mcp'),
+        allowedDomains: [allowedDomain],
+        fetchFn,
+        resolveHostname: publicLookup,
+      })
+
+      await secureFetch('https://mcp.example/mcp', {
+        headers: {
+          Authorization: 'Bearer secret',
+          Cookie: 'session=secret',
+          'X-Safe': 'kept',
+        },
+      })
+
+      const secondInit = fetchFn.mock.calls[1]?.[1]
+      const headers = new Headers(secondInit?.headers)
+      expect(headers.get('authorization')).toBeNull()
+      expect(headers.get('cookie')).toBeNull()
+      expect(headers.get('x-safe')).toBe('kept')
+    },
+  )
+
+  it('accepts a granted wildcard origin only for its subdomains', async () => {
     const fetchFn = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(
         new Response(null, {
           status: 302,
-          headers: { location: 'https://auth.example/token' },
+          headers: { location: 'https://login.auth.example/token' },
         }),
       )
       .mockResolvedValueOnce(new Response('ok', { status: 200 }))
     const secureFetch = createSecureMcpFetch({
       baseUrl: new URL('https://mcp.example/mcp'),
-      allowedDomains: ['auth.example'],
+      allowedDomains: ['https://*.auth.example'],
       fetchFn,
       resolveHostname: publicLookup,
     })
 
-    await secureFetch('https://mcp.example/mcp', {
-      headers: {
-        Authorization: 'Bearer secret',
-        Cookie: 'session=secret',
-        'X-Safe': 'kept',
-      },
-    })
-
-    const secondInit = fetchFn.mock.calls[1]?.[1]
-    const headers = new Headers(secondInit?.headers)
-    expect(headers.get('authorization')).toBeNull()
-    expect(headers.get('cookie')).toBeNull()
-    expect(headers.get('x-safe')).toBe('kept')
+    await expect(secureFetch('https://mcp.example/mcp')).resolves.toBeInstanceOf(Response)
   })
 
   it('preserves credentials on same-origin redirects', async () => {

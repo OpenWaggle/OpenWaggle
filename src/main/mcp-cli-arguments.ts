@@ -268,16 +268,6 @@ export function definitionFor(view: McpSettingsView, server: McpServerSummary) {
   return definition
 }
 
-export function secretReferences(definition: McpServerDefinition) {
-  const names = new Set<string>()
-  for (const values of [definition.env, definition.headers]) {
-    for (const value of Object.values(values ?? {})) {
-      if (typeof value !== 'string') names.add(value.secret)
-    }
-  }
-  return [...names].sort()
-}
-
 export async function readSecretFromStdin() {
   if (process.stdin.isTTY)
     throw new Error('Secret input must be piped on stdin; values are never accepted as arguments.')

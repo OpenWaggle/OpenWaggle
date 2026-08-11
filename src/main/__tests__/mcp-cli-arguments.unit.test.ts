@@ -6,6 +6,10 @@ import {
   target,
   validateMcpCliOptions,
 } from '../mcp-cli-arguments'
+import {
+  partitionLogoutSecretReferences,
+  partitionServerLogoutSecretReferences,
+} from '../mcp-cli-secret-references'
 
 describe('MCP CLI arguments', () => {
   it('rejects unknown options for the selected command', () => {
@@ -93,6 +97,76 @@ describe('MCP CLI arguments', () => {
     expect(definition).toMatchObject({
       transport: 'streamable-http',
       compatibility: 'modern-only',
+    })
+  })
+
+  it('retains vault references that are still used by another server during logout', () => {
+    const partition = partitionLogoutSecretReferences(
+      ['only-alpha', 'shared'],
+      [
+        {
+          env: { TOKEN: { secret: 'shared' } },
+          headers: { Authorization: { secret: 'only-beta' } },
+        },
+      ],
+    )
+
+    expect(partition).toEqual({ removable: ['only-alpha'], retained: ['shared'] })
+  })
+
+  it('retains references from shadowed config sources and fails closed on unreadable sources', () => {
+    const sharedInput = {
+      references: ['shared', 'only-alpha'],
+      target: { name: 'alpha', sourceId: 'project-standard' },
+      sources: [
+        {
+          id: 'global-openwaggle',
+          label: 'Global',
+          rawJson: JSON.stringify({
+            mcpServers: { alpha: { env: { TOKEN: { secret: 'shared' } } } },
+          }),
+        },
+        {
+          id: 'project-standard',
+          label: 'Project',
+          rawJson: JSON.stringify({
+            mcpServers: {
+              alpha: {
+                env: {
+                  TOKEN: { secret: 'shared' },
+                  PRIVATE: { secret: 'only-alpha' },
+                },
+              },
+            },
+          }),
+        },
+      ],
+    } as const
+
+    expect(partitionServerLogoutSecretReferences(sharedInput)).toEqual({
+      removable: ['only-alpha'],
+      retained: ['shared'],
+      retainedUnverified: [],
+      unreadableSources: [],
+    })
+    expect(
+      partitionServerLogoutSecretReferences({
+        ...sharedInput,
+        sources: [
+          ...sharedInput.sources,
+          {
+            id: 'project-openwaggle',
+            label: 'Unreadable project config',
+            rawJson: '{',
+            parseError: 'Invalid JSON',
+          },
+        ],
+      }),
+    ).toEqual({
+      removable: [],
+      retained: ['shared'],
+      retainedUnverified: ['only-alpha'],
+      unreadableSources: ['Unreadable project config'],
     })
   })
 })
