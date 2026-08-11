@@ -67,6 +67,10 @@ export function assertProjectAllowed(options: WorkspaceGrantScope, projectPath: 
   return candidate.path
 }
 
+export function canonicalizeExistingProjectPath(projectPath: string) {
+  return assertProjectAllowed({ workspaceRoots: [], sessionIds: new Set() }, projectPath)
+}
+
 export function sessionAllowed(options: WorkspaceGrantScope, session: SessionDetail) {
   if (options.sessionIds.size > 0 && !options.sessionIds.has(session.id)) return false
   if (!session.projectPath) return options.workspaceRoots.length === 0

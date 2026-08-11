@@ -7,7 +7,6 @@ import {
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { z } from 'zod'
-import { ensureSessionWorktreeProjectPath } from './adapters/pi/agent-kernel/session-worktree-birth'
 import { serveDualEraMcpLoopbackHttp } from './mcp-server-http'
 import { serveDualEraMcpStdio } from './mcp-server-stdio'
 import type { OpenWaggleMcpServeOptions } from './openwaggle-mcp-server-policy'
@@ -16,6 +15,10 @@ import {
   sessionMetadataStorePath,
 } from './openwaggle-mcp-session-metadata-store'
 import { registerOpenWaggleSessionTool } from './openwaggle-mcp-session-tool'
+import {
+  materializeHostedSessionWorktree,
+  removeHostedSessionWorktree,
+} from './openwaggle-mcp-session-worktree'
 import { OpenWaggleServerTaskManager } from './openwaggle-mcp-task-manager'
 import { registerOpenWaggleTaskTool } from './openwaggle-mcp-task-tool'
 import { SessionProjectionRepository } from './ports/session-projection-repository'
@@ -131,9 +134,10 @@ function createOpenWaggleMcpServer(
   )
   registerServerResources(server, options, tasks, sessionMetadata)
   registerServerPrompt(server)
-  registerOpenWaggleTaskTool(server, options, tasks)
+  registerOpenWaggleTaskTool(server, options, tasks, sessionMetadata)
   registerOpenWaggleSessionTool(server, options, tasks, sessionMetadata, {
-    materializeWorktree: ensureSessionWorktreeProjectPath,
+    materializeWorktree: materializeHostedSessionWorktree,
+    removeWorktree: removeHostedSessionWorktree,
   })
   return server
 }

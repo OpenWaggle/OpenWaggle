@@ -17,6 +17,9 @@ import {
   worktreePlan,
 } from './openwaggle-mcp-session-contract'
 import type { OpenWaggleMcpSessionMetadataStore } from './openwaggle-mcp-session-metadata-store'
+
+export { createWorktree } from './openwaggle-mcp-session-derivation'
+
 import { AgentKernelService } from './ports/agent-kernel-service'
 import { SessionProjectionRepository } from './ports/session-projection-repository'
 import { runAppEffect } from './runtime'
@@ -27,6 +30,9 @@ export async function createSession(
   input: SessionToolInput,
 ) {
   if (!input.projectPath) throw new Error('create requires projectPath.')
+  if (options.workspaceRoots.length === 0) {
+    throw new Error('Creating a session requires an explicit --workspace grant.')
+  }
   const resolvedProjectPath = assertProjectAllowed(options, input.projectPath)
   const [depth, session] = await Promise.all([
     derivedDepth(options, metadata),
@@ -41,48 +47,48 @@ export async function createSession(
           piSessionFile: runtimeSession.piSessionFile,
         })
         if (input.title?.trim()) yield* sessions.updateTitle(created.id, input.title.trim())
-        if (input.environmentMode) yield* sessions.setWorktreePlan(created.id, worktreePlan(input))
         return yield* sessions.get(created.id)
       }),
     ),
   ])
-  await metadata.setDepth(session.id, depth)
+  await metadata.update(session.id, (current) => ({
+    ...current,
+    depth,
+    ownedSession: {
+      profile: options.profile,
+      projectPath: session.projectPath,
+      createdAt: Date.now(),
+    },
+    updatedAt: Date.now(),
+  }))
   return toolResult({ session: sessionSummary(session), delegationDepth: depth })
 }
 
-export async function planWorktree(session: SessionDetail, input: SessionToolInput) {
-  const plan = worktreePlan(input)
-  await runAppEffect(
-    Effect.gen(function* () {
-      const sessions = yield* SessionProjectionRepository
-      yield* sessions.setWorktreePlan(session.id, plan)
-    }),
-  )
-  return toolResult({ sessionId: session.id, plan, completed: true })
-}
-
-export async function createWorktree(
+export async function planWorktree(
+  metadata: OpenWaggleMcpSessionMetadataStore,
   session: SessionDetail,
   input: SessionToolInput,
-  adapters: OpenWaggleSessionToolAdapters,
 ) {
-  if (input.environmentMode && input.environmentMode !== 'worktree') {
-    throw new Error('create-worktree only accepts environmentMode="worktree".')
-  }
-  if (input.environmentMode) await planWorktree(session, input)
-  const refreshed = adapters.reloadSession
-    ? await adapters.reloadSession(session.id)
-    : await runAppEffect(
-        Effect.gen(function* () {
-          const sessions = yield* SessionProjectionRepository
-          return yield* sessions.get(session.id)
-        }),
+  const plan = worktreePlan(input)
+  if (!session.projectPath) throw new Error('The source session has no project path.')
+  await metadata.withSessionWorktreeLock(session.id, async () => {
+    const current = await metadata.get(session.id)
+    if (
+      current?.derivedWorktree &&
+      (current.derivedWorktree.requestedBaseRef !== plan.baseRef ||
+        current.derivedWorktree.startFromOrigin !== plan.startFromOrigin)
+    ) {
+      throw new Error(
+        'This session already has a materialized hosted worktree. Its base ref and origin policy cannot be changed; create a new source session instead.',
       )
-  if (refreshed.environmentMode !== 'worktree') {
-    throw new Error('create-worktree requires a worktree-mode plan.')
-  }
-  const worktreePath = await adapters.materializeWorktree(refreshed)
-  return toolResult({ sessionId: session.id, worktreePath, completed: true })
+    }
+    await metadata.update(session.id, (value) => ({
+      ...value,
+      worktreePlan: plan,
+      updatedAt: Date.now(),
+    }))
+  })
+  return toolResult({ sessionId: session.id, sourceProjectPath: session.projectPath, plan })
 }
 
 export async function copySession(
@@ -98,7 +104,7 @@ export async function copySession(
   if (!targetNodeId)
     throw new Error(`${input.operation} requires targetNodeId on an empty session.`)
   const [depth, profile] = await Promise.all([
-    derivedDepth(options, metadata),
+    derivedDepth(options, metadata, session.id),
     tasks.getExecutionProfile(session.id),
   ])
   const operation = input.operation === 'fork' ? 'fork' : 'clone'
@@ -118,7 +124,18 @@ export async function copySession(
   const copiedSession = 'session' in result ? result.session : undefined
   if (result.cancelled || !copiedSession) return toolResult({ cancelled: true })
   const editorText = 'editorText' in result ? result.editorText : undefined
-  await metadata.setDepth(copiedSession.id, depth)
+  await metadata.update(copiedSession.id, (current) => ({
+    ...current,
+    depth,
+    ownedSession: {
+      profile: options.profile,
+      projectPath: copiedSession.projectPath,
+      sourceSessionId: session.id,
+      sourceProjectPath: session.projectPath,
+      createdAt: Date.now(),
+    },
+    updatedAt: Date.now(),
+  }))
   return toolResult({
     cancelled: false,
     session: sessionSummary(copiedSession),

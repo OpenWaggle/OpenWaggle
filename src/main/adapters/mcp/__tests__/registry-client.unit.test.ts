@@ -85,15 +85,18 @@ describe('MCP Registry package launchers', () => {
     ['npm', '@example/server', '1.2.3', 'npx', 'npm:@example/server@1.2.3'],
     ['pypi', 'example-server', '1.2.3.post1', 'uvx', 'pypi:example-server==1.2.3.post1'],
     ['nuget', 'Example.Server', '1.2.3', 'dnx', 'nuget:Example.Server@1.2.3'],
-  ] as const)('pins %s to an exact package coordinate without claiming a verified digest', async (registryType, identifier, version, command, coordinate) => {
-    const draft = await createRegistryDraft({
-      server: registryServer(packageEntry(registryType, identifier, version)),
-    })
+  ] as const)(
+    'pins %s to an exact package coordinate without claiming a verified digest',
+    async (registryType, identifier, version, command, coordinate) => {
+      const draft = await createRegistryDraft({
+        server: registryServer(packageEntry(registryType, identifier, version)),
+      })
 
-    expect(draft.definition.command).toBe(command)
-    expect(draft.definition.provenance).toMatchObject({ packageCoordinate: coordinate })
-    expect(draft.definition.provenance).not.toHaveProperty('packageDigest')
-  })
+      expect(draft.definition.command).toBe(command)
+      expect(draft.definition.provenance).toMatchObject({ packageCoordinate: coordinate })
+      expect(draft.definition.provenance).not.toHaveProperty('packageDigest')
+    },
+  )
 
   it('rejects mutable package-manager versions', async () => {
     await expect(

@@ -48,17 +48,14 @@ describe('OpenWaggle MCP stdio protocol compatibility', () => {
     expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual(['echo'])
   })
 
-  it.each([
-    '2025-11-25',
-    '2025-06-18',
-    '2025-03-26',
-    '2024-11-05',
-    '2024-10-07',
-  ])('serves legacy initialize clients using %s', async (version) => {
-    const client = await connect({ versions: [version], mode: 'legacy' })
+  it.each(['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05', '2024-10-07'])(
+    'serves legacy initialize clients using %s',
+    async (version) => {
+      const client = await connect({ versions: [version], mode: 'legacy' })
 
-    expect(client.getProtocolEra()).toBe('legacy')
-    expect(client.getNegotiatedProtocolVersion()).toBe(version)
-    expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual(['echo'])
-  })
+      expect(client.getProtocolEra()).toBe('legacy')
+      expect(client.getNegotiatedProtocolVersion()).toBe(version)
+      expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual(['echo'])
+    },
+  )
 })

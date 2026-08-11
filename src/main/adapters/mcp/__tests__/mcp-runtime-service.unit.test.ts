@@ -224,45 +224,45 @@ describe('MCP protocol compatibility matrix', () => {
     ['legacy-websocket', undefined, 'legacy', 5],
     ['auto', '2024-11-05', 'legacy', 1],
     ['auto', '2026-07-28', 'pin', 1],
-  ] as const)('uses %s with protocol pin %s as %s negotiation', (compatibility, protocolVersion, expectedMode, versionCount) => {
-    const definition: McpTurnSnapshotServer['definition'] = {
-      command: 'mcp',
-      compatibility,
-      ...(protocolVersion ? { protocolVersion } : {}),
-    }
-    const options = getMcpProtocolOptions(server({ definition }))
-    const mode = options.versionNegotiation?.mode
+  ] as const)(
+    'uses %s with protocol pin %s as %s negotiation',
+    (compatibility, protocolVersion, expectedMode, versionCount) => {
+      const definition: McpTurnSnapshotServer['definition'] = {
+        command: 'mcp',
+        compatibility,
+        ...(protocolVersion ? { protocolVersion } : {}),
+      }
+      const options = getMcpProtocolOptions(server({ definition }))
+      const mode = options.versionNegotiation?.mode
 
-    expect(typeof mode === 'object' ? 'pin' : mode).toBe(expectedMode)
-    expect(options.supportedProtocolVersions).toHaveLength(versionCount)
-  })
+      expect(typeof mode === 'object' ? 'pin' : mode).toBe(expectedMode)
+      expect(options.supportedProtocolVersions).toHaveLength(versionCount)
+    },
+  )
 
-  it.each([
-    '2025-11-25',
-    '2025-06-18',
-    '2025-03-26',
-    '2024-11-05',
-    '2024-10-07',
-  ])('connects to a legacy server using the pinned %s initialize handshake', async (protocolVersion) => {
-    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
-    const legacyServer = new McpServer({ name: 'legacy-fixture', version: '1.0.0' })
-    await legacyServer.connect(serverTransport)
-    const definition: McpTurnSnapshotServer['definition'] = {
-      command: 'legacy-mcp',
-      protocolVersion,
-    }
-    const client = new Client(
-      { name: 'OpenWaggle compatibility fixture', version: '1.0.0' },
-      { capabilities: {}, ...getMcpProtocolOptions(server({ definition })) },
-    )
+  it.each(['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05', '2024-10-07'])(
+    'connects to a legacy server using the pinned %s initialize handshake',
+    async (protocolVersion) => {
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+      const legacyServer = new McpServer({ name: 'legacy-fixture', version: '1.0.0' })
+      await legacyServer.connect(serverTransport)
+      const definition: McpTurnSnapshotServer['definition'] = {
+        command: 'legacy-mcp',
+        protocolVersion,
+      }
+      const client = new Client(
+        { name: 'OpenWaggle compatibility fixture', version: '1.0.0' },
+        { capabilities: {}, ...getMcpProtocolOptions(server({ definition })) },
+      )
 
-    try {
-      await client.connect(clientTransport)
-      expect(client.getProtocolEra()).toBe('legacy')
-      expect(client.getNegotiatedProtocolVersion()).toBe(protocolVersion)
-    } finally {
-      await client.close()
-      await legacyServer.close()
-    }
-  })
+      try {
+        await client.connect(clientTransport)
+        expect(client.getProtocolEra()).toBe('legacy')
+        expect(client.getNegotiatedProtocolVersion()).toBe(protocolVersion)
+      } finally {
+        await client.close()
+        await legacyServer.close()
+      }
+    },
+  )
 })

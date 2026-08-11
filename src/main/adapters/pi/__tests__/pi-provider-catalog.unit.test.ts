@@ -107,17 +107,17 @@ describe('createPiProviderCatalogSnapshot', () => {
 })
 
 describe('createPiRuntimeServices', () => {
-  it('uses Pi ModelRegistry membership as the tool-capable model contract', async () => {
+  it('uses Pi ModelRuntime membership as the tool-capable model contract', async () => {
     const projectPath = await createTempProject()
     const providerId = 'contract-provider'
     await writeProviderExtension(projectPath, providerId)
     const services = await createPiRuntimeServices(projectPath)
-    const registryModel = services.modelRegistry.find(providerId, 'offline-model')
+    const runtimeModel = services.modelRuntime.getModel(providerId, 'offline-model')
 
-    expect(findPiToolCapableModel(services.modelRegistry, `${providerId}/offline-model`)).toBe(
-      registryModel,
-    )
-    expect(findPiToolCapableModel(services.modelRegistry, `${providerId}/missing-model`)).toBeNull()
+    expect(
+      findPiToolCapableModel(services.modelRuntime, `${providerId}/offline-model`),
+    ).toStrictEqual(runtimeModel)
+    expect(findPiToolCapableModel(services.modelRuntime, `${providerId}/missing-model`)).toBeNull()
   })
 
   it('prefers .openwaggle resources over Pi-native project resources on name collisions', async () => {

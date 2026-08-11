@@ -81,6 +81,75 @@ async function restoreInitialWaggleModel(input: {
   })
 }
 
+function createConfiguredWaggleExtension(input: {
+  readonly runInput: PiWaggleKernelRunInput
+  readonly runtimeConfig: ReturnType<typeof resolveWaggleRuntimeConfig>
+  readonly waggleSessionId: string
+  readonly onActiveTurnChange: (meta: WaggleStreamMetadata) => void
+}) {
+  let policyState = createPiWaggleStopPolicyState()
+  return createPiWaggleExtension<WaggleStreamMetadata>({
+    config: input.runtimeConfig,
+    createTurnMetadata: ({ turnNumber }) =>
+      buildWaggleTurnMetadata({
+        config: input.runtimeConfig,
+        turnNumber,
+        waggleSessionId: input.waggleSessionId,
+      }),
+    onTurnComplete: ({ meta, messages, turn }) => {
+      const summary = summarizePiWaggleTurnMessages(messages)
+      const evaluation = evaluatePiWaggleStopPolicy({
+        config: input.runtimeConfig,
+        turnNumber: turn.turnNumber,
+        summary,
+        state: policyState,
+        agentLabel: meta.agentLabel,
+      })
+      policyState = evaluation.state
+
+      if (evaluation.turnSucceeded) emitWaggleTurnEnd(input.runInput, meta)
+      if (evaluation.consensus) {
+        input.runInput.waggle.onTurnEvent({
+          type: 'consensus-reached',
+          result: evaluation.consensus,
+        })
+      }
+      if (!evaluation.continue) {
+        const stopReason =
+          evaluation.stop ??
+          ({
+            classification: 'complete',
+            reason: `Reached maximum turns (${String(policyState.successfulTurnCount)})`,
+          } as const)
+        if (stopReason.classification === 'complete') {
+          input.runInput.waggle.onTurnEvent({
+            type: 'collaboration-complete',
+            reason: stopReason.reason,
+            totalTurns: policyState.successfulTurnCount,
+          })
+        } else {
+          input.runInput.waggle.onTurnEvent({
+            type: 'collaboration-stopped',
+            reason: stopReason.reason,
+          })
+        }
+      }
+      return { continue: evaluation.continue }
+    },
+    onActiveTurnChange: input.onActiveTurnChange,
+    onTurnStart: (meta) => emitWaggleTurnStart(input.runInput, meta),
+    canStartNextTurn: () => !input.runInput.signal.aborted,
+    buildTurnMessage: ({ model: turnModel, meta }) =>
+      buildWaggleTurnCustomMessage({
+        model: turnModel,
+        payload: input.runInput.payload,
+        config: input.runtimeConfig,
+        meta,
+        runId: input.runInput.runId,
+      }),
+  })
+}
+
 export async function runPiWaggle(input: PiWaggleKernelRunInput) {
   const projectPath = resolveSessionProjectPath(input.session)
   const waggleSessionId = randomUUID()
@@ -89,70 +158,19 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
     inheritedModel: input.waggle.inheritedModel,
   })
   const initialRuntimeModel = SupportedModelId(runtimeConfig.agents[0].model)
-  let policyState = createPiWaggleStopPolicyState()
   let currentMeta = buildWaggleTurnMetadata({
     config: runtimeConfig,
     turnNumber: 0,
     waggleSessionId,
   })
 
-  const waggleExtension = createPiWaggleExtension<WaggleStreamMetadata>({
-    config: runtimeConfig,
-    createTurnMetadata: ({ turnNumber }) =>
-      buildWaggleTurnMetadata({ config: runtimeConfig, turnNumber, waggleSessionId }),
-    onTurnComplete: ({ meta, messages, turn }) => {
-      const summary = summarizePiWaggleTurnMessages(messages)
-      const evaluation = evaluatePiWaggleStopPolicy({
-        config: runtimeConfig,
-        turnNumber: turn.turnNumber,
-        summary,
-        state: policyState,
-        agentLabel: meta.agentLabel,
-      })
-      policyState = evaluation.state
-
-      if (evaluation.turnSucceeded) {
-        emitWaggleTurnEnd(input, meta)
-      }
-
-      if (evaluation.consensus) {
-        input.waggle.onTurnEvent({ type: 'consensus-reached', result: evaluation.consensus })
-      }
-
-      if (!evaluation.continue) {
-        const stopReason =
-          evaluation.stop ??
-          ({
-            classification: 'complete',
-            reason: `Reached maximum turns (${String(policyState.successfulTurnCount)})`,
-          } as const)
-
-        if (stopReason.classification === 'complete') {
-          input.waggle.onTurnEvent({
-            type: 'collaboration-complete',
-            reason: stopReason.reason,
-            totalTurns: policyState.successfulTurnCount,
-          })
-        } else {
-          input.waggle.onTurnEvent({ type: 'collaboration-stopped', reason: stopReason.reason })
-        }
-      }
-
-      return { continue: evaluation.continue }
-    },
+  const waggleExtension = createConfiguredWaggleExtension({
+    runInput: input,
+    runtimeConfig,
+    waggleSessionId,
     onActiveTurnChange: (meta) => {
       currentMeta = meta
     },
-    onTurnStart: (meta) => emitWaggleTurnStart(input, meta),
-    canStartNextTurn: () => !input.signal.aborted,
-    buildTurnMessage: ({ model: turnModel, meta }) =>
-      buildWaggleTurnCustomMessage({
-        model: turnModel,
-        payload: input.payload,
-        config: runtimeConfig,
-        meta,
-        runId: input.runId,
-      }),
   })
 
   const { model, session } = await createPiRunSessionRuntime({

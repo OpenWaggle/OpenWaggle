@@ -226,7 +226,10 @@ function findExplicitProviderModelReference(modelRuntime: ModelRuntime, modelRef
   return modelRuntime.getModel(provider, modelId) ?? null
 }
 
-export function findPiModel(modelRuntime: ModelRuntime, modelReference: string): PiModel | null {
+export function findPiToolCapableModel(
+  modelRuntime: ModelRuntime,
+  modelReference: string,
+): PiModel | null {
   const trimmedReference = modelReference.trim()
   if (!trimmedReference) {
     return null
@@ -253,7 +256,7 @@ export async function createPiProjectModelRuntime(input: {
       : {}),
     ...(input.extensionFactories ? { extensionFactories: input.extensionFactories } : {}),
   })
-  const model = findPiModel(services.modelRuntime, input.modelReference)
+  const model = findPiToolCapableModel(services.modelRuntime, input.modelReference)
   if (!model) {
     throw new Error(`Pi model registry could not resolve model ${input.modelReference}`)
   }

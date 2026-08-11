@@ -19,20 +19,19 @@ describe('secure MCP network policy', () => {
     ).rejects.toThrow('resolved outside loopback')
   })
 
-  it.each([
-    '100.64.0.1',
-    '192.0.2.1',
-    '::ffff:127.0.0.1',
-  ])('rejects non-public or IPv4-mapped destination %s', async (address) => {
-    await expect(
-      validateMcpNetworkTarget({
-        url: new URL('https://mcp.example/mcp'),
-        allowedHosts: new Set(['mcp.example']),
-        allowInsecurePrivateNetwork: false,
-        resolveHostname: vi.fn(async () => [{ address, family: address.includes(':') ? 6 : 4 }]),
-      }),
-    ).rejects.toThrow('private or reserved address')
-  })
+  it.each(['100.64.0.1', '192.0.2.1', '::ffff:127.0.0.1'])(
+    'rejects non-public or IPv4-mapped destination %s',
+    async (address) => {
+      await expect(
+        validateMcpNetworkTarget({
+          url: new URL('https://mcp.example/mcp'),
+          allowedHosts: new Set(['mcp.example']),
+          allowInsecurePrivateNetwork: false,
+          resolveHostname: vi.fn(async () => [{ address, family: address.includes(':') ? 6 : 4 }]),
+        }),
+      ).rejects.toThrow('private or reserved address')
+    },
+  )
 
   it('pins connectors to the exact address that passed network validation', async () => {
     const target = await validateMcpNetworkTarget({

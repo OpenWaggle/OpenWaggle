@@ -5,7 +5,11 @@ import { sessionAllowed } from './openwaggle-mcp-workspace-policy'
 import { SessionProjectionRepository } from './ports/session-projection-repository'
 import { runAppEffect } from './runtime'
 
-export { assertProjectAllowed, sessionAllowed } from './openwaggle-mcp-workspace-policy'
+export {
+  assertProjectAllowed,
+  canonicalizeExistingProjectPath,
+  sessionAllowed,
+} from './openwaggle-mcp-workspace-policy'
 
 export const OPENWAGGLE_MCP_SERVE_GRANTS = [
   'sessions:discover',

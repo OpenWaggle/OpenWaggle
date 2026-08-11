@@ -166,11 +166,13 @@ Provenance shows the exact package coordinate and shows a digest only after Open
 Server mode never starts with the desktop app by default. Stdio and authenticated loopback Streamable HTTP both serve current and older MCP clients from the same capability factory:
 
 ```bash
-openwaggle mcp serve --stdio --profile local --grant sessions:discover
-printf '%s' "$OPENWAGGLE_MCP_TOKEN" | openwaggle mcp serve --http 0 --token-stdin --grant sessions:discover
+openwaggle mcp serve --stdio --profile local --grant sessions:discover --workspace /path/to/project
+printf '%s' "$OPENWAGGLE_MCP_TOKEN" | openwaggle mcp serve --http 0 --token-stdin --grant sessions:discover --session SESSION_ID
 ```
 
-Loopback HTTP requires a bearer token of at least 32 bytes, validates Host and Origin, and prints its loopback URL without printing the token. Caller profiles separately grant session discovery, reading, creation, messaging, interruption, or organization. A caller cannot inherit desktop approvals or unrestricted access to every session.
+Loopback HTTP requires a bearer token of at least 32 bytes, validates Host and Origin, and prints its loopback URL without printing the token. Every caller profile must name at least one `--workspace` or `--session` scope; an empty scope never means every desktop session. Use `--workspace /` only when you intentionally want to grant every project on the machine. Caller profiles separately grant session discovery, reading, creation, messaging, interruption, or organization. A caller cannot inherit desktop approvals or unrestricted access to every session.
+
+The `openwaggle_sessions` tool supports discovery, status, paginated reading, creation, worktree planning/materialization, fork/clone, message/steer, wait/interrupt, handoff, rename, pin/unpin, and archive/unarchive. Worktree creation requires both `sessions:create` and `sessions:organize`. It leaves the source session unchanged and returns a new derived session rooted at a deterministic Git worktree; the response includes both session IDs, the path, branch, base ref, and delegation depth. Later messages and tasks sent to the derived session execute in that worktree. OpenWaggle revalidates its source-session grant and Git provenance on every access, and refuses changed plans, replaced paths, branches, or repositories instead of silently falling back to the source checkout.
 
 ## When something fails
 

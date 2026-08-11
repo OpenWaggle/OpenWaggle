@@ -7,6 +7,7 @@ import {
   type ParsedArguments,
   parseMcpCliArguments,
   readSecretFromStdin,
+  requireServeScope,
   validateMcpCliOptions,
 } from './mcp-cli-arguments'
 import { runMcpManagementCommand } from './mcp-cli-management'
@@ -35,8 +36,9 @@ Usage:
                        [--origin-session <id>]
   openwaggle mcp serve --http <port> --token-stdin [--profile <name>]
                        [--grant <capability>]... [--workspace <path>]...
-                       [--origin-session <id>]
+                       [--session <id>]... [--origin-session <id>]
 
+Server scope: at least one --workspace <path> or --session <id> is required.
 Common options: --project <path>, --scope global|project, --json`
 }
 
@@ -84,13 +86,14 @@ function parseServeIdentity(arguments_: ParsedArguments, stdio: boolean) {
 async function runServeCommand(arguments_: ParsedArguments) {
   const { stdio, http, httpPort } = parseServeTransport(arguments_)
   const { profile, originSessionId } = parseServeIdentity(arguments_, stdio)
+  const scope = requireServeScope(arguments_)
   await serveOpenWaggleMcpServer({
     transport: stdio ? 'stdio' : 'streamable-http',
     ...(httpPort === undefined ? {} : { httpPort }),
     ...(http ? { bearerToken: await readSecretFromStdin() } : {}),
     grants: parseServeGrants(arguments_.options.get('grant')),
-    workspaceRoots: (arguments_.options.get('workspace') ?? []).map((entry) => path.resolve(entry)),
-    sessionIds: new Set(arguments_.options.get('session') ?? []),
+    workspaceRoots: scope.workspaces.map((entry) => path.resolve(entry)),
+    sessionIds: new Set(scope.sessions),
     ...(originSessionId ? { originSessionId } : {}),
     profile,
     taskStorePath: path.join(app.getPath('userData'), 'mcp-server-tasks.json'),

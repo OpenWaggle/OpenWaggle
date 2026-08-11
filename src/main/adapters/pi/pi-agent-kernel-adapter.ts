@@ -17,6 +17,7 @@ import { McpConfigService, type McpConfigServiceShape } from '../../ports/mcp-co
 import { McpRuntimeService, type McpRuntimeServiceShape } from '../../ports/mcp-runtime-service'
 import { runPiSession } from './agent-kernel/classic-run'
 import type { PiRuntimeExtensionIsolationInput } from './agent-kernel/runtime-extension-isolation'
+import { resolveSessionProjectPath } from './agent-kernel/session-manager'
 import {
   compactPiSession,
   forkPiSession,
@@ -25,7 +26,6 @@ import {
   navigatePiSessionTree,
 } from './agent-kernel/session-operations'
 import { createPiSession } from './agent-kernel/session-runtime'
-import { ensureSessionWorktreeProjectPath } from './agent-kernel/session-worktree-birth'
 import { runPiWaggle } from './agent-kernel/waggle-run'
 import { createMcpGatewayExtension } from './mcp-gateway-extension'
 import {
@@ -153,12 +153,12 @@ export const PiAgentKernelLive = Layer.effect(
             input,
             extensionSelectionServices,
           )
-          const projectPath = yield* Effect.tryPromise({
-            try: () => ensureSessionWorktreeProjectPath(input.session),
+          const projectPath = yield* Effect.try({
+            try: () => resolveSessionProjectPath(input.session),
             catch: toAgentKernelError,
           })
           const mcpTurn = yield* prepareMcpTurn({
-            projectPath: input.session.projectPath ?? projectPath,
+            projectPath,
             executionPath: projectPath,
             sessionId: input.session.id,
             config: mcpConfigService,

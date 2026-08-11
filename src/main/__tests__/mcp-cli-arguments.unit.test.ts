@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   addDefinition,
   parseMcpCliArguments,
+  requireServeScope,
   target,
   validateMcpCliOptions,
 } from '../mcp-cli-arguments'
@@ -19,6 +20,18 @@ describe('MCP CLI arguments', () => {
     expect(() => validateMcpCliOptions('serve', arguments_)).not.toThrow()
   })
 
+  it('requires an explicit workspace or session scope for hosted server mode', () => {
+    expect(() => requireServeScope(parseMcpCliArguments(['--stdio']))).toThrow(
+      'requires at least one explicit --workspace <path> or --session <id>',
+    )
+    expect(() =>
+      requireServeScope(parseMcpCliArguments(['--stdio', '--workspace', '/project'])),
+    ).not.toThrow()
+    expect(() =>
+      requireServeScope(parseMcpCliArguments(['--stdio', '--session', 'session-1'])),
+    ).not.toThrow()
+  })
+
   it('rejects a hosted origin-session option without a value', () => {
     const arguments_ = parseMcpCliArguments(['--stdio', '--origin-session'])
 
@@ -27,16 +40,14 @@ describe('MCP CLI arguments', () => {
     )
   })
 
-  it.each([
-    'workspace',
-    'session',
-    'origin-session',
-    'grant',
-  ])('rejects serve-only --%s on management commands', (name) => {
-    const arguments_ = parseMcpCliArguments([`--${name}`, 'value'])
+  it.each(['workspace', 'session', 'origin-session', 'grant'])(
+    'rejects serve-only --%s on management commands',
+    (name) => {
+      const arguments_ = parseMcpCliArguments([`--${name}`, 'value'])
 
-    expect(() => validateMcpCliOptions('list', arguments_)).toThrow(`Unknown option: --${name}.`)
-  })
+      expect(() => validateMcpCliOptions('list', arguments_)).toThrow(`Unknown option: --${name}.`)
+    },
+  )
 
   it('rejects an invalid scope instead of falling back to project', () => {
     const arguments_ = parseMcpCliArguments(['--scope', 'glboal'])

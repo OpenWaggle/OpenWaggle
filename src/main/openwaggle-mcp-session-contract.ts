@@ -1,6 +1,6 @@
 import { MCP_CONFIG } from '@shared/constants/mcp'
 import type { SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
-import type { SessionDetail, SessionWorktreePlan } from '@shared/types/session'
+import type { SessionDetail } from '@shared/types/session'
 import { z } from 'zod'
 import type { OpenWaggleMcpServeOptions } from './openwaggle-mcp-server-policy'
 import type { OpenWaggleMcpSessionMetadataStore } from './openwaggle-mcp-session-metadata-store'
@@ -38,7 +38,6 @@ export const sessionInputSchema = z.object({
   objective: z.string().optional(),
   handoffSummary: z.string().optional(),
   targetNodeId: z.string().optional(),
-  environmentMode: z.enum(['local', 'worktree']).optional(),
   baseRef: z.string().nullable().optional(),
   startFromOrigin: z.boolean().optional(),
   timeoutMs: z.number().int().min(0).max(MAX_WAIT_MS).optional(),
@@ -49,9 +48,13 @@ export const sessionInputSchema = z.object({
 export type SessionToolInput = z.infer<typeof sessionInputSchema>
 
 export interface OpenWaggleSessionToolAdapters {
-  readonly materializeWorktree: (session: SessionDetail) => Promise<string>
+  readonly materializeWorktree: (input: HostedSessionWorktreeInput) => Promise<HostedWorktreeResult>
+  readonly removeWorktree?: (worktree: HostedWorktreeResult) => Promise<void>
+  readonly createSessionAtProjectPath?: (input: {
+    readonly projectPath: string
+    readonly title?: string
+  }) => Promise<SessionDetail>
   readonly loadSession?: (sessionId: string) => Promise<SessionDetail>
-  readonly reloadSession?: (sessionId: SessionId) => Promise<SessionDetail>
   readonly copySession?: (input: {
     readonly operation: 'fork' | 'clone'
     readonly sessionId: SessionId
@@ -62,6 +65,24 @@ export interface OpenWaggleSessionToolAdapters {
     readonly session?: SessionDetail
     readonly editorText?: string
   }>
+}
+
+export interface HostedSessionWorktreePlan {
+  readonly baseRef: string | null
+  readonly startFromOrigin: boolean
+}
+
+export interface HostedSessionWorktreeInput extends HostedSessionWorktreePlan {
+  readonly sourceProjectPath: string
+  readonly sourceSessionId: string
+}
+
+export interface HostedWorktreeResult {
+  readonly sourceProjectPath: string
+  readonly projectPath: string
+  readonly branch: string
+  readonly baseRef: string
+  readonly created: boolean
 }
 
 export interface OpenWaggleSessionTaskController {
@@ -88,16 +109,19 @@ export function sessionSummary(session: SessionDetail) {
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
     messageCount: session.messages.length,
-    environmentMode: session.environmentMode ?? 'local',
-    ...(session.worktreePath ? { worktreePath: session.worktreePath } : {}),
   }
 }
 
 export async function derivedDepth(
   options: OpenWaggleMcpServeOptions,
   metadata: OpenWaggleMcpSessionMetadataStore,
+  sourceSessionId?: string,
 ) {
-  const depth = (await metadata.depth(options.originSessionId)) + 1
+  const [originDepth, sourceDepth] = await Promise.all([
+    metadata.depth(options.originSessionId),
+    metadata.depth(sourceSessionId),
+  ])
+  const depth = Math.max(originDepth, sourceDepth) + 1
   if (depth > MCP_CONFIG.MAX_ORCHESTRATION_DEPTH) {
     throw new Error(
       `The operation would exceed the maximum hosted session depth of ${MCP_CONFIG.MAX_ORCHESTRATION_DEPTH}.`,
@@ -112,11 +136,8 @@ export function assertNotOrigin(options: OpenWaggleMcpServeOptions, sessionId: s
   }
 }
 
-export function worktreePlan(input: SessionToolInput): SessionWorktreePlan {
-  const environmentMode = input.environmentMode
-  if (!environmentMode) throw new Error(`${input.operation} requires environmentMode.`)
+export function worktreePlan(input: SessionToolInput): HostedSessionWorktreePlan {
   return {
-    environmentMode,
     baseRef: input.baseRef?.trim() || null,
     startFromOrigin: input.startFromOrigin ?? false,
   }

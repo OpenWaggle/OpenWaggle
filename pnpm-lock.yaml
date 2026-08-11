@@ -6,9 +6,10 @@ settings:
 
 overrides:
   '@hono/node-server': 2.0.11
+  '@earendil-works/pi-coding-agent>undici': 8.10.0
   adm-zip: 0.6.0
   electron-vite>vite: 8.1.5
-  hono: 4.12.31
+  hono: 4.12.34
   protobufjs: 8.7.1
   sharp: 0.35.3
   '@tanstack/history': 1.162.0
@@ -52,7 +53,7 @@ importers:
         version: 1.7.5(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.2.0))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(zod@4.2.0)
       '@modelcontextprotocol/node':
         specifier: 2.0.0
-        version: 2.0.0(@modelcontextprotocol/server@2.0.0)(hono@4.12.31)
+        version: 2.0.0(@modelcontextprotocol/server@2.0.0)(hono@4.12.34)
       '@modelcontextprotocol/sdk':
         specifier: 1.30.0
         version: 1.30.0(supports-color@7.2.0)(zod@4.2.0)
@@ -1594,7 +1595,7 @@ packages:
     resolution: {integrity: sha512-bjD221KPLoJTWUwso1J6fGKiTXEUFedG/s0visavY4zakFPkeGURMRNly+FhBHs7T8Dz4qHaZIMX9ZoJHSJtKA==}
     engines: {node: '>=20'}
     peerDependencies:
-      hono: 4.12.31
+      hono: 4.12.34
 
   '@huggingface/jinja@0.5.9':
     resolution: {integrity: sha512-uWTG+l3VJRsl7EXxYizuL3P+cCPoc3cRqbWWRcQN0FhejRfbdq0RNhCmbY/YDtnTcz9icdLYuLDjsnz4d8JMuw==}
@@ -2141,7 +2142,7 @@ packages:
     engines: {node: '>=20'}
     peerDependencies:
       '@modelcontextprotocol/server': ^2.0.0
-      hono: 4.12.31
+      hono: 4.12.34
     peerDependenciesMeta:
       hono:
         optional: true
@@ -4955,8 +4956,8 @@ packages:
   highlight.js@10.7.3:
     resolution: {integrity: sha512-tzcUFauisWKNHaRkN4Wjl/ZA07gENAjFl3J/c480dprkGTg5EQstgaNFqBfUqCq54kZRIEcreTsAgF/m2quD7A==}
 
-  hono@4.12.31:
-    resolution: {integrity: sha512-zJIHFrl6bq3RDd2YusFNCDlM8qUprxKswyi/OPzPyzKDdyBXDqWx8bZlZ7R+saTdSTatUmb3O7K4SspGPaEOQg==}
+  hono@4.12.34:
+    resolution: {integrity: sha512-GqXJqY/xJkJmuloTrnV1ZEXG3fqte+VjkUqoRNZXcrUidiUOP4fMSIHHY4tsqZBK++kVyWmt/AAfSUuy57/eSA==}
     engines: {node: '>=16.9.0'}
 
   hosted-git-info@2.8.9:
@@ -7191,8 +7192,8 @@ packages:
     resolution: {integrity: sha512-IDxfleLmmbSskfWSUATiN1nfn2rDuvnMOqb5CWR92iIfojA0Ud+ulOAAEQ57LPr9rWmsreUyf5lwyao+7GNNVw==}
     engines: {node: '>=20.18.1'}
 
-  undici@8.5.0:
-    resolution: {integrity: sha512-xamtWoB1EshgjpmlXd7GGm2VfdDtw1+rD8uhry8pSNW3If6S8E0m2T2+orSKeZXEn/aPJMviCpDBA65WJt8zhg==}
+  undici@8.10.0:
+    resolution: {integrity: sha512-HvltHd7avK13QIw/oLe4qoOLyoVSoafqJ2jYOrtMRBkbYT31eiBQ8O0ehRKZiEZCMEyLFQNIADpgCWC5fALvYQ==}
     engines: {node: '>=22.19.0'}
 
   unified@11.0.5:
@@ -8464,7 +8465,7 @@ snapshots:
       proper-lockfile: 4.1.2
       semver: 7.8.0
       typebox: 1.1.38
-      undici: 8.5.0
+      undici: 8.10.0
       yaml: 2.9.0
     optionalDependencies:
       '@mariozechner/clipboard': 0.3.9
@@ -8942,9 +8943,9 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@hono/node-server@2.0.11(hono@4.12.31)':
+  '@hono/node-server@2.0.11(hono@4.12.34)':
     dependencies:
-      hono: 4.12.31
+      hono: 4.12.34
 
   '@huggingface/jinja@0.5.9': {}
 
@@ -9490,16 +9491,16 @@ snapshots:
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
 
-  '@modelcontextprotocol/node@2.0.0(@modelcontextprotocol/server@2.0.0)(hono@4.12.31)':
+  '@modelcontextprotocol/node@2.0.0(@modelcontextprotocol/server@2.0.0)(hono@4.12.34)':
     dependencies:
-      '@hono/node-server': 2.0.11(hono@4.12.31)
+      '@hono/node-server': 2.0.11(hono@4.12.34)
       '@modelcontextprotocol/server': 2.0.0
     optionalDependencies:
-      hono: 4.12.31
+      hono: 4.12.34
 
   '@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.2.0)':
     dependencies:
-      '@hono/node-server': 2.0.11(hono@4.12.31)
+      '@hono/node-server': 2.0.11(hono@4.12.34)
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
       content-type: 1.0.5
@@ -9509,7 +9510,7 @@ snapshots:
       eventsource-parser: 3.1.0
       express: 5.2.1(supports-color@7.2.0)
       express-rate-limit: 8.6.2(express@5.2.1(supports-color@7.2.0))(supports-color@7.2.0)
-      hono: 4.12.31
+      hono: 4.12.34
       jose: 6.2.8
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
@@ -9521,7 +9522,7 @@ snapshots:
 
   '@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.4.3)':
     dependencies:
-      '@hono/node-server': 2.0.11(hono@4.12.31)
+      '@hono/node-server': 2.0.11(hono@4.12.34)
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
       content-type: 1.0.5
@@ -9531,7 +9532,7 @@ snapshots:
       eventsource-parser: 3.1.0
       express: 5.2.1(supports-color@7.2.0)
       express-rate-limit: 8.6.2(express@5.2.1(supports-color@7.2.0))(supports-color@7.2.0)
-      hono: 4.12.31
+      hono: 4.12.34
       jose: 6.2.8
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
@@ -12596,7 +12597,7 @@ snapshots:
 
   highlight.js@10.7.3: {}
 
-  hono@4.12.31: {}
+  hono@4.12.34: {}
 
   hosted-git-info@2.8.9: {}
 
@@ -13793,7 +13794,7 @@ snapshots:
 
   node-abi@4.33.0:
     dependencies:
-      semver: 7.7.4
+      semver: 7.8.5
 
   node-addon-api@7.1.1: {}
 
@@ -13801,7 +13802,7 @@ snapshots:
 
   node-api-version@0.2.1:
     dependencies:
-      semver: 7.7.4
+      semver: 7.8.5
 
   node-domexception@1.0.0: {}
 
@@ -13836,7 +13837,7 @@ snapshots:
       graceful-fs: 4.2.11
       nopt: 9.0.0
       proc-log: 6.1.0
-      semver: 7.7.4
+      semver: 7.8.5
       tar: 7.5.22
       tinyglobby: 0.2.17
       undici: 6.28.0
@@ -15261,7 +15262,7 @@ snapshots:
 
   undici@7.29.0: {}
 
-  undici@8.5.0: {}
+  undici@8.10.0: {}
 
   unified@11.0.5:
     dependencies:

@@ -1,6 +1,6 @@
 import { match } from '@diegogbrisa/ts-match'
 import type { OpenWaggleMcpServeOptions, OpenWaggleMcpServer } from './openwaggle-mcp-server-policy'
-import { loadGrantedSession, requireGrant, sessionAllowed } from './openwaggle-mcp-server-policy'
+import { requireGrant } from './openwaggle-mcp-server-policy'
 import {
   handoffSession,
   interruptSession,
@@ -21,7 +21,12 @@ import {
   planWorktree,
 } from './openwaggle-mcp-session-lifecycle'
 import type { OpenWaggleMcpSessionMetadataStore } from './openwaggle-mcp-session-metadata-store'
-import { listSessions, readSession, sessionStatus } from './openwaggle-mcp-session-queries'
+import {
+  listSessions,
+  loadHostedSession,
+  readSession,
+  sessionStatus,
+} from './openwaggle-mcp-session-queries'
 
 export {
   type OpenWaggleSessionTaskController,
@@ -62,14 +67,7 @@ export async function executeSessionOperation(
   }
   if (!input.sessionId) throw new Error(`${input.operation} requires sessionId.`)
   requireSessionOperationGrants(options, input.operation)
-  const session = adapters.loadSession
-    ? await adapters.loadSession(input.sessionId)
-    : await loadGrantedSession(options, input.sessionId)
-  if (!sessionAllowed(options, session)) {
-    throw new Error(
-      `Session ${JSON.stringify(input.sessionId)} was not found in the granted scope.`,
-    )
-  }
+  const session = await loadHostedSession(options, metadata, input.sessionId, adapters.loadSession)
   return match(input.operation)
     .with('status', () => sessionStatus(tasks, metadata, session))
     .with('read', () => readSession(session, input))
@@ -79,8 +77,8 @@ export async function executeSessionOperation(
     )
     .with('wait', () => waitForSession(tasks, session, input))
     .with('interrupt', () => interruptSession(options, tasks, session))
-    .with('plan-worktree', () => planWorktree(session, input))
-    .with('create-worktree', () => createWorktree(session, input, adapters))
+    .with('plan-worktree', () => planWorktree(metadata, session, input))
+    .with('create-worktree', () => createWorktree(options, metadata, session, input, adapters))
     .with('handoff', () => handoffSession(options, metadata, session, input))
     .otherwise(() => organizeSession(metadata, session, input))
 }
@@ -96,6 +94,11 @@ function requireSessionOperationGrants(
   if (operation === 'fork' || operation === 'clone') {
     requireGrant(options, 'sessions:read')
     requireGrant(options, 'sessions:create')
+    return
+  }
+  if (operation === 'create-worktree') {
+    requireGrant(options, 'sessions:create')
+    requireGrant(options, 'sessions:organize')
     return
   }
   if (operation === 'message' || operation === 'steer') {
