@@ -41,6 +41,16 @@ function sandboxCheck(): Effect.Effect<McpDoctorResult['checks'][number]> {
         action: 'Install bwrap before enabling stdio MCP servers.',
       }),
     )
+    .with('win32', () =>
+      Effect.succeed<McpDoctorResult['checks'][number]>({
+        id: 'stdio-sandbox',
+        status: 'warning',
+        message:
+          'Windows has no OS-level sandbox for local (stdio) MCP servers yet (see ADR-0014). Local servers stay blocked unless you explicitly approve unsandboxed execution.',
+        action:
+          'Prefer remote MCP servers (no sandbox needed), or explicitly approve unsandboxed execution to accept full user-level access.',
+      }),
+    )
     .otherwise(() =>
       Effect.succeed<McpDoctorResult['checks'][number]>({
         id: 'stdio-sandbox',

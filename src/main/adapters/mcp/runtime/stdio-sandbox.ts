@@ -216,6 +216,8 @@ export async function createSandboxedStdioCommand(input: {
   }
 
   throw new Error(
-    'This platform has no configured MCP stdio sandbox. Explicitly approve unsandboxed execution to continue.',
+    process.platform === 'win32'
+      ? 'Windows has no OS-level sandbox for local MCP servers yet (ADR-0014). Use a remote MCP server, or explicitly approve unsandboxed execution to accept full user-level access.'
+      : 'This platform has no configured MCP stdio sandbox. Explicitly approve unsandboxed execution to continue.',
   )
 }
