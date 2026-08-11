@@ -128,9 +128,9 @@ export function WaggleCollaborationStatus({ currentSessionId, onStop }: Collabor
       {/* File conflict warnings — only during/after run */}
       {fileConflicts.length > 0 && (
         <div className="space-y-1">
-          {fileConflicts.slice(SLICE_ARG_1).map((conflict, i) => (
+          {fileConflicts.slice(SLICE_ARG_1).map((conflict) => (
             <div
-              key={`${conflict.path}-${String(i)}`}
+              key={`${String(conflict.turnNumber)}-${conflict.path}-${conflict.currentAgent}`}
               className="flex items-center gap-2 rounded-md border border-warning/20 bg-warning/5 px-2.5 py-1.5"
             >
               <AlertTriangle className="size-3 shrink-0 text-warning" />

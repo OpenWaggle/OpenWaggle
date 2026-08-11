@@ -36,9 +36,10 @@ export function RunSummary({ phases, totalMs }: RunSummaryProps) {
       </div>
       {visiblePhases.length > 0 && (
         <div className="flex flex-col gap-0.5 px-4 pt-1">
-          {visiblePhases.map((phase, i) => (
+          {visiblePhases.map((phase) => (
             <div
-              key={`${phase.label}-${String(i)}`}
+              // mergePhasesByLabel guarantees one entry per label.
+              key={phase.label}
               className="flex items-center justify-between text-xs"
             >
               <span className="text-text-tertiary">{phase.label}</span>

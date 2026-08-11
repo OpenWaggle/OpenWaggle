@@ -41,6 +41,32 @@ export interface ComposerSectionParams {
   readonly handleCloneToNewSession: () => void
 }
 
+/** Closes over nothing but the composer store singleton — hoisted to module scope. */
+function handleSelectSkill(skillId: string, skillName?: string) {
+  const composerStore = useComposerStore.getState()
+  const editor = composerStore.lexicalEditor
+
+  if (editor) {
+    editor.update(() => {
+      const root = $getRoot()
+      root.clear()
+      const paragraph = $createParagraphNode()
+      const mentionNode = $createSkillMentionNode(skillId, skillName ?? skillId)
+      paragraph.append(mentionNode)
+      paragraph.append($createTextNode(' '))
+      root.append(paragraph)
+      root.selectEnd()
+    })
+    editor.focus()
+  } else {
+    // Fallback: plain text (no Lexical editor available)
+    const currentInput = composerStore.input
+    const nextInput = currentInput === '/' ? `/${skillId} ` : `/${skillId} ${currentInput}`
+    composerStore.setInput(nextInput)
+    composerStore.setCursorIndex(nextInput.length)
+  }
+}
+
 export function useComposerSection(params: ComposerSectionParams): ChatComposerSectionState {
   const {
     isLoading,
@@ -71,31 +97,6 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
   } = params
 
   const isFirstMessage = params.isFirstMessage
-
-  function handleSelectSkill(skillId: string, skillName?: string) {
-    const composerStore = useComposerStore.getState()
-    const editor = composerStore.lexicalEditor
-
-    if (editor) {
-      editor.update(() => {
-        const root = $getRoot()
-        root.clear()
-        const paragraph = $createParagraphNode()
-        const mentionNode = $createSkillMentionNode(skillId, skillName ?? skillId)
-        paragraph.append(mentionNode)
-        paragraph.append($createTextNode(' '))
-        root.append(paragraph)
-        root.selectEnd()
-      })
-      editor.focus()
-    } else {
-      // Fallback: plain text (no Lexical editor available)
-      const currentInput = composerStore.input
-      const nextInput = currentInput === '/' ? `/${skillId} ` : `/${skillId} ${currentInput}`
-      composerStore.setInput(nextInput)
-      composerStore.setCursorIndex(nextInput.length)
-    }
-  }
 
   return {
     activeSessionId,

@@ -182,8 +182,11 @@ async function loadSkillMetadata(
 }
 
 async function readSkillFileWithinProject(projectPath: string, skillPath: string) {
-  const projectRootReal = await resolveRealPath(projectPath)
-  const skillRealPath = await resolveRealPath(skillPath)
+  // Independent path resolutions — run them concurrently.
+  const [projectRootReal, skillRealPath] = await Promise.all([
+    resolveRealPath(projectPath),
+    resolveRealPath(skillPath),
+  ])
 
   if (!isPathInside(projectRootReal, skillRealPath)) {
     throw new Error('SKILL.md resolves outside the project directory (symlink)')

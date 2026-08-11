@@ -3,9 +3,12 @@ import { SessionProjectionRepositoryError } from '../errors'
 import { SessionRepository, type SessionRepositoryShape } from '../ports/session-repository'
 
 async function loadSessionRepositoryStores() {
-  const store = await import('../store/sessions')
-  const sessionDetailStore = await import('../store/session-details')
-  const { withSessionLock } = await import('../store/session-lock')
+  // Independent dynamic imports — load them concurrently.
+  const [store, sessionDetailStore, { withSessionLock }] = await Promise.all([
+    import('../store/sessions'),
+    import('../store/session-details'),
+    import('../store/session-lock'),
+  ])
 
   return { store, sessionDetailStore, withSessionLock }
 }

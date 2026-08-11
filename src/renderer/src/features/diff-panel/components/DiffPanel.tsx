@@ -92,6 +92,12 @@ function DiffPanelContent({ fileDiffs, isLoading, review, actions }: DiffPanelCo
   )
 }
 
+/** Closes over nothing — module scope keeps a stable identity across renders. */
+function handleFileClick(path: string) {
+  const el = document.getElementById(`diff-file-${path}`)
+  el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
 export function DiffPanel({ projectPath, sessionId = null, onSendMessage }: DiffPanelProps) {
   const comments = useReviewStore((s) => s.comments)
   const activeCommentLocation = useReviewStore((s) => s.activeCommentLocation)
@@ -156,11 +162,6 @@ export function DiffPanel({ projectPath, sessionId = null, onSendMessage }: Diff
       return
     }
     void stackedActions.run(action, { paths: selectedPaths })
-  }
-
-  function handleFileClick(path: string) {
-    const el = document.getElementById(`diff-file-${path}`)
-    el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   return (
