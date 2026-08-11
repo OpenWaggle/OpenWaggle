@@ -50,12 +50,6 @@ export function useVoiceCapture({
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [lastElapsedSeconds, setLastElapsedSeconds] = useState(0)
 
-  const sendComposedRef = useRef(sendComposed)
-  sendComposedRef.current = sendComposed
-
-  const insertTextRef = useRef(insertText)
-  insertTextRef.current = insertText
-
   const pendingSubmitActionRef = useRef<VoiceSubmitAction>('insert')
   const handledBlobRef = useRef<Blob | null>(null)
 
@@ -96,7 +90,7 @@ export function useVoiceCapture({
     const needsLeadingSpace = currentInput.length > 0 && !/\s$/.test(currentInput)
     const inserted = `${needsLeadingSpace ? ' ' : ''}${transcript}`
 
-    insertTextRef.current(inserted)
+    insertText(inserted)
   }
 
   const handleRecordedBlob = useEffectEvent(async (blob: Blob, action: VoiceSubmitAction) => {
@@ -130,7 +124,7 @@ export function useVoiceCapture({
       if (action === 'send') {
         const store = useComposerStore.getState()
         const composedText = [store.input.trim(), transcript].filter(Boolean).join(' ')
-        const submitted = sendComposedRef.current(composedText)
+        const submitted = sendComposed(composedText)
         if (!submitted) {
           insertTranscriptAtCursor(transcript)
         }
