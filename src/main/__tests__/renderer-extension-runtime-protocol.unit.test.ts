@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { runtimeModuleUrl, writeExtensionPackage, writeText } from './renderer-protocol-test-utils'
 
 const HTTP_NOT_FOUND_STATUS = 404
+const MODULE_LOAD_TEST_TIMEOUT_MS = 15_000
 
 interface ProtocolRequest {
   readonly url: string
@@ -91,40 +92,44 @@ describe('extension runtime protocol', () => {
     }
   })
 
-  it('serves hash-covered runtime entries and relative chunks from project packages', async () => {
-    const { EXTENSION_RUNTIME_PROTOCOL, registerExtensionRuntimeProtocolOnce } =
-      await loadRendererProtocol()
-    const projectPath = path.join(tmpRoot, 'project')
-    const extensionPackage = await writeExtensionPackage({
-      projectPath,
-      scope: 'project',
-      builtArtifacts: ['dist/route.js', 'dist/chunk.js'],
-      tmpRoot,
-    })
+  it(
+    'serves hash-covered runtime entries and relative chunks from project packages',
+    async () => {
+      const { EXTENSION_RUNTIME_PROTOCOL, registerExtensionRuntimeProtocolOnce } =
+        await loadRendererProtocol()
+      const projectPath = path.join(tmpRoot, 'project')
+      const extensionPackage = await writeExtensionPackage({
+        projectPath,
+        scope: 'project',
+        builtArtifacts: ['dist/route.js', 'dist/chunk.js'],
+        tmpRoot,
+      })
 
-    const access = allowRuntimeModuleAccess()
-    registerExtensionRuntimeProtocolOnce(access)
+      const access = allowRuntimeModuleAccess()
+      registerExtensionRuntimeProtocolOnce(access)
 
-    const routeUrl = runtimeModuleUrl({
-      packagePath: extensionPackage.packagePath,
-      contentHash: extensionPackage.contentHash,
-      relativePath: 'dist/route.js',
-      projectPaths: [projectPath],
-    })
-    const chunkUrl = new URL('./chunk.js', routeUrl).href
+      const routeUrl = runtimeModuleUrl({
+        packagePath: extensionPackage.packagePath,
+        contentHash: extensionPackage.contentHash,
+        relativePath: 'dist/route.js',
+        projectPaths: [projectPath],
+      })
+      const chunkUrl = new URL('./chunk.js', routeUrl).href
 
-    const routeResponse = await dispatchProtocolRequest(EXTENSION_RUNTIME_PROTOCOL, routeUrl)
-    expect(routeResponse.headers.get('access-control-allow-origin')).toBe('*')
-    expect(await routeResponse.text()).toContain('dist/route.js')
-    expect(
-      await (await dispatchProtocolRequest(EXTENSION_RUNTIME_PROTOCOL, chunkUrl)).text(),
-    ).toContain('dist/chunk.js')
-    expect(access.isExtensionRuntimeModuleAllowed).toHaveBeenCalledWith({
-      packagePath: extensionPackage.packagePath,
-      contentHash: extensionPackage.contentHash,
-      projectPaths: [projectPath],
-    })
-  })
+      const routeResponse = await dispatchProtocolRequest(EXTENSION_RUNTIME_PROTOCOL, routeUrl)
+      expect(routeResponse.headers.get('access-control-allow-origin')).toBe('*')
+      expect(await routeResponse.text()).toContain('dist/route.js')
+      expect(
+        await (await dispatchProtocolRequest(EXTENSION_RUNTIME_PROTOCOL, chunkUrl)).text(),
+      ).toContain('dist/chunk.js')
+      expect(access.isExtensionRuntimeModuleAllowed).toHaveBeenCalledWith({
+        packagePath: extensionPackage.packagePath,
+        contentHash: extensionPackage.contentHash,
+        projectPaths: [projectPath],
+      })
+    },
+    MODULE_LOAD_TEST_TIMEOUT_MS,
+  )
 
   it('serves hash-covered runtime entries from global extension packages', async () => {
     const { EXTENSION_RUNTIME_PROTOCOL, registerExtensionRuntimeProtocolOnce } =

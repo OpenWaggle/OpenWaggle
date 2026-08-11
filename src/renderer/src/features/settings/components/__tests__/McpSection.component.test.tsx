@@ -1,190 +1,204 @@
-import { MCP_ADAPTER_PACKAGE_SOURCE } from '@shared/constants/mcp'
-import type { McpSettingsView } from '@shared/types/mcp'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const {
-  getMcpSettingsMock,
-  setMcpAdapterEnabledMock,
-  setMcpServerEnabledMock,
-  writeMcpSourceConfigMock,
-} = vi.hoisted(() => ({
-  getMcpSettingsMock: vi.fn(),
-  setMcpAdapterEnabledMock: vi.fn(),
-  setMcpServerEnabledMock: vi.fn(),
-  writeMcpSourceConfigMock: vi.fn(),
-}))
-
-Object.defineProperty(window, 'api', {
-  configurable: true,
-  value: {
-    getMcpSettings: getMcpSettingsMock,
-    setMcpAdapterEnabled: setMcpAdapterEnabledMock,
-    setMcpServerEnabled: setMcpServerEnabledMock,
-    writeMcpSourceConfig: writeMcpSourceConfigMock,
-  },
-})
+import { beforeEach, describe, expect, it } from 'vitest'
+import {
+  apiMocks,
+  MCP_VIEW,
+  PROJECT_PATH,
+  resetMcpSectionTestState,
+  SESSION_ID,
+} from './mcp-section-test-utils'
 
 const { McpSection } = await import('../sections/McpSection')
 const { usePreferencesStore } = await import('@/features/settings/state/preferences-store')
+const { useComposerStore } = await import('@/features/composer/state')
 const { useUIStore } = await import('@/shell/ui-store')
-
-const PROJECT_PATH = '/tmp/openwaggle-project'
-
-const MCP_VIEW = {
-  adapter: {
-    enabled: true,
-    packageSource: MCP_ADAPTER_PACKAGE_SOURCE,
-    runtimeConfigPath: '/tmp/pi-agent/openwaggle-mcp/project/mcp.json',
-  },
-  sources: [
-    {
-      id: 'global-standard',
-      label: 'Global standard MCP',
-      path: '/Users/test/.config/mcp/mcp.json',
-      scope: 'global',
-      kind: 'standard',
-      exists: false,
-      editable: true,
-      serverCount: 0,
-      disabledServerCount: 0,
-      rawJson: '{\n  "mcpServers": {}\n}\n',
-    },
-    {
-      id: 'project-standard',
-      label: 'Project standard MCP',
-      path: `${PROJECT_PATH}/.mcp.json`,
-      scope: 'project',
-      kind: 'standard',
-      exists: true,
-      editable: true,
-      serverCount: 1,
-      disabledServerCount: 0,
-      rawJson: '{\n  "mcpServers": {\n    "playwright": { "command": "npx" }\n  }\n}\n',
-    },
-    {
-      id: 'project-openwaggle',
-      label: 'Project OpenWaggle MCP',
-      path: `${PROJECT_PATH}/.openwaggle/agent/mcp.json`,
-      scope: 'project',
-      kind: 'openwaggle',
-      exists: true,
-      editable: true,
-      serverCount: 1,
-      disabledServerCount: 0,
-      rawJson: '{\n  "mcpServers": {\n    "alpha": { "command": "alpha" }\n  }\n}\n',
-    },
-  ],
-  effective: {
-    mcpServers: {
-      playwright: { command: 'npx' },
-      alpha: { command: 'alpha' },
-    },
-    disabledMcpServers: {},
-    settings: {},
-    imports: [],
-  },
-  servers: [
-    {
-      name: 'alpha',
-      enabled: true,
-      sourceId: 'project-openwaggle',
-      sourceLabel: 'Project OpenWaggle MCP',
-      sourcePath: `${PROJECT_PATH}/.openwaggle/agent/mcp.json`,
-      command: 'alpha',
-      transport: 'stdio',
-      directTools: 'inherited',
-    },
-  ],
-  runtimeConfigPath: '/tmp/pi-agent/openwaggle-mcp/project/mcp.json',
-} satisfies McpSettingsView
-
-function sourceAt(index: number) {
-  const source = MCP_VIEW.sources[index]
-  if (!source) {
-    throw new Error(`Expected MCP view source at index ${String(index)}`)
-  }
-  return source
-}
 
 describe('McpSection', () => {
   beforeEach(() => {
-    getMcpSettingsMock.mockReset()
-    setMcpAdapterEnabledMock.mockReset()
-    setMcpServerEnabledMock.mockReset()
-    writeMcpSourceConfigMock.mockReset()
-
-    getMcpSettingsMock.mockResolvedValue(MCP_VIEW)
-    setMcpAdapterEnabledMock.mockResolvedValue({
-      ...MCP_VIEW,
-      adapter: { ...MCP_VIEW.adapter, enabled: false },
-    } satisfies McpSettingsView)
-    setMcpServerEnabledMock.mockResolvedValue(MCP_VIEW)
-    writeMcpSourceConfigMock.mockResolvedValue(MCP_VIEW)
+    resetMcpSectionTestState()
     useUIStore.getState().clearToast()
-
+    useComposerStore.setState({ input: '', attachments: [], lexicalEditor: null, cursorIndex: 0 })
     usePreferencesStore.setState({
       ...usePreferencesStore.getInitialState(),
-      settings: {
-        ...DEFAULT_SETTINGS,
-        projectPath: PROJECT_PATH,
-      },
+      settings: { ...DEFAULT_SETTINGS, projectPath: PROJECT_PATH },
       isLoaded: true,
       loadError: null,
     })
   })
 
-  it('renders the effective MCP sources with the OpenWaggle project config path', async () => {
-    render(<McpSection />)
+  it('shows the effective activation scope and legacy protocol state transparently', async () => {
+    render(<McpSection sessionId={SESSION_ID} />)
 
     expect(await screen.findByText('Project OpenWaggle MCP')).toBeInTheDocument()
-    expect(screen.getByText(`${PROJECT_PATH}/.openwaggle/agent/mcp.json`)).toBeInTheDocument()
-    expect(screen.getByText(/Runtime bridge config:/)).toBeInTheDocument()
+    expect(screen.getByText('Effective source')).toBeInTheDocument()
+    expect(screen.getByText('Legacy compatibility')).toBeInTheDocument()
+    expect(screen.getByText(/MCP 2024-11-05/)).toBeInTheDocument()
+    expect(screen.getByText('alpha cannot start')).toBeInTheDocument()
+    expect(screen.getByText(/Pi's tool-capable model contract/)).toBeInTheDocument()
+    expect(apiMocks.getMcpSettings).toHaveBeenCalledWith({
+      projectPath: PROJECT_PATH,
+      sessionId: SESSION_ID,
+    })
   })
 
-  it('toggles only the effective source entry for a server', async () => {
-    render(<McpSection />)
+  it('sets a session override independently from project and global state', async () => {
+    render(<McpSection sessionId={SESSION_ID} />)
 
-    fireEvent.click(await screen.findByRole('switch', { name: 'Disable alpha' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Set Session scope to Off' }))
 
     await waitFor(() => {
-      expect(setMcpServerEnabledMock).toHaveBeenCalledWith({
+      expect(apiMocks.setMcpScopeState).toHaveBeenCalledWith({
         projectPath: PROJECT_PATH,
-        sourceId: 'project-openwaggle',
-        serverName: 'alpha',
-        enabled: false,
+        sessionId: SESSION_ID,
+        scope: 'session',
+        state: 'off',
       })
     })
   })
 
-  it('writes raw JSON to the selected edit target', async () => {
-    render(<McpSection />)
+  it('previews and imports legacy global and project Pi MCP definitions explicitly', async () => {
+    apiMocks.previewMcpImports.mockResolvedValueOnce({
+      candidates: [
+        {
+          source: 'pi',
+          sourcePath: '/Users/test/.pi/agent/mcp.json',
+          suggestedTarget: 'global',
+          name: 'global-docs',
+          definition: { command: 'global-docs-mcp' },
+          fingerprint: 'global-fingerprint',
+          warnings: [],
+        },
+        {
+          source: 'pi',
+          sourcePath: `${PROJECT_PATH}/.mcp.json`,
+          suggestedTarget: 'project',
+          name: 'disabled-browser',
+          definition: { command: 'browser-mcp' },
+          fingerprint: 'project-fingerprint',
+          warnings: ['The source server is disabled. OpenWaggle imports it disabled.'],
+        },
+      ],
+      unavailableSources: [],
+    })
+    apiMocks.applyMcpImports.mockResolvedValue({
+      imported: [
+        {
+          source: 'pi',
+          sourceName: 'server',
+          targetName: 'server',
+          fingerprint: 'fingerprint',
+        },
+      ],
+      skipped: [],
+      view: MCP_VIEW,
+    })
+    render(<McpSection sessionId={SESSION_ID} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Scan legacy MCP configs' }))
+
+    expect(
+      await screen.findByText('Found 2 legacy MCP server definitions for review.'),
+    ).toBeInTheDocument()
+    expect(apiMocks.previewMcpImports).toHaveBeenCalledWith({
+      projectPath: PROJECT_PATH,
+      sources: ['pi'],
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import 2 legacy servers' }))
+    await waitFor(() => expect(apiMocks.applyMcpImports).toHaveBeenCalledTimes(2))
+    expect(apiMocks.applyMcpImports).toHaveBeenNthCalledWith(1, {
+      projectPath: PROJECT_PATH,
+      sources: ['pi'],
+      fingerprints: ['global-fingerprint'],
+      target: 'global',
+      conflictPolicy: 'skip',
+    })
+    expect(apiMocks.applyMcpImports).toHaveBeenNthCalledWith(2, {
+      projectPath: PROJECT_PATH,
+      sources: ['pi'],
+      fingerprints: ['project-fingerprint'],
+      target: 'project',
+      conflictPolicy: 'skip',
+    })
+    expect(await screen.findByText(/Imported 2 legacy MCP server definitions/)).toBeInTheDocument()
+  })
+
+  it('toggles and trusts the stable server instance', async () => {
+    render(<McpSection sessionId={SESSION_ID} />)
+
+    fireEvent.click(await screen.findByRole('switch', { name: 'Disable alpha' }))
+    await waitFor(() => {
+      expect(apiMocks.setMcpServerEnabled).toHaveBeenCalledWith({
+        projectPath: PROJECT_PATH,
+        sessionId: SESSION_ID,
+        instanceId: 'mcp-server-alpha',
+        enabled: false,
+      })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Review & trust' }))
+    expect(screen.getByText('No project paths')).toBeInTheDocument()
+    expect(screen.getByText('Isolated temporary space only')).toBeInTheDocument()
+    expect(screen.getByText('Denied')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Approve permissions and trust' }))
+    await waitFor(() => {
+      expect(apiMocks.setMcpServerTrust).toHaveBeenCalledWith({
+        projectPath: PROJECT_PATH,
+        sessionId: SESSION_ID,
+        instanceId: 'mcp-server-alpha',
+        trusted: true,
+        permissions: { readRoots: [], writeRoots: [], allowNetwork: false },
+      })
+    })
+  })
+
+  it('writes raw JSON to the selected source', async () => {
+    render(<McpSection sessionId={SESSION_ID} />)
 
     fireEvent.click(await screen.findByRole('button', { name: /Project standard MCP/i }))
-    fireEvent.change(screen.getByRole('textbox'), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'MCP source JSON' }), {
       target: { value: '{\n  "mcpServers": {}\n}\n' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save JSON' }))
 
     await waitFor(() => {
-      expect(writeMcpSourceConfigMock).toHaveBeenCalledWith({
+      expect(apiMocks.writeMcpSourceConfig).toHaveBeenCalledWith({
         projectPath: PROJECT_PATH,
         sourceId: 'project-standard',
         rawJson: '{\n  "mcpServers": {}\n}\n',
       })
     })
-
     expect(useUIStore.getState().toastData).toMatchObject({
       message: 'MCP JSON saved.',
       variant: 'success',
     })
   })
 
-  it('notifies when saving raw JSON fails', async () => {
-    writeMcpSourceConfigMock.mockRejectedValueOnce(new Error('Invalid JSON'))
+  it('stores a named secret without ever reading its value back', async () => {
+    render(<McpSection sessionId={SESSION_ID} />)
 
-    render(<McpSection />)
+    fireEvent.change(await screen.findByRole('textbox', { name: 'MCP secret name' }), {
+      target: { value: 'GITHUB_TOKEN' },
+    })
+    fireEvent.change(screen.getByLabelText('MCP secret value'), {
+      target: { value: 'secret-value' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save secret' }))
+
+    await waitFor(() => {
+      expect(apiMocks.setMcpSecret).toHaveBeenCalledWith({
+        name: 'GITHUB_TOKEN',
+        value: 'secret-value',
+      })
+    })
+    expect(await screen.findByText('GITHUB_TOKEN')).toBeInTheDocument()
+    expect(screen.queryByDisplayValue('secret-value')).not.toBeInTheDocument()
+  })
+
+  it('reports source write failures and preserves the next user action', async () => {
+    apiMocks.writeMcpSourceConfig.mockRejectedValueOnce(new Error('Invalid JSON'))
+    render(<McpSection sessionId={SESSION_ID} />)
 
     fireEvent.click(await screen.findByRole('button', { name: /Project standard MCP/i }))
     fireEvent.click(screen.getByRole('button', { name: 'Save JSON' }))
@@ -196,41 +210,91 @@ describe('McpSection', () => {
     })
   })
 
-  it('disables the adapter package source without touching server config from the renderer', async () => {
-    render(<McpSection />)
+  it('loads prompts lazily and creates an attributed editable composer draft', async () => {
+    apiMocks.listMcpCapabilities.mockResolvedValueOnce({
+      instructions: [],
+      prompts: [
+        {
+          serverInstanceId: 'mcp-server-alpha',
+          serverLabel: 'alpha',
+          name: 'review',
+          description: 'Review a change',
+          arguments: [{ name: 'focus', required: true }],
+        },
+      ],
+      resources: [],
+      resourceTemplates: [],
+      apps: [],
+      tasks: [],
+      skills: [],
+    })
+    apiMocks.getMcpPrompt.mockResolvedValueOnce({
+      description: 'Review a change',
+      messages: [{ role: 'user', content: { type: 'text', text: 'Review security boundaries.' } }],
+      attribution: { serverInstanceId: 'mcp-server-alpha', serverLabel: 'alpha' },
+    })
+    render(<McpSection sessionId={SESSION_ID} />)
 
-    fireEvent.click(await screen.findByRole('switch', { name: 'Disable Pi MCP extension' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Load capabilities' }))
+    expect(await screen.findByText('Review a change')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('focus · required'), { target: { value: 'security' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create editable draft' }))
 
     await waitFor(() => {
-      expect(setMcpAdapterEnabledMock).toHaveBeenCalledWith(false, PROJECT_PATH)
+      expect(apiMocks.getMcpPrompt).toHaveBeenCalledWith({
+        projectPath: PROJECT_PATH,
+        sessionId: SESSION_ID,
+        serverInstanceId: 'mcp-server-alpha',
+        name: 'review',
+        arguments: { focus: 'security' },
+      })
     })
+    expect(useComposerStore.getState().input).toContain('MCP prompt from alpha')
+    expect(useComposerStore.getState().input).toContain('Review security boundaries.')
   })
 
-  it('shows invalid source diagnostics returned by the main process', async () => {
-    getMcpSettingsMock.mockResolvedValueOnce({
+  it('keeps Event Inbox subscriptions opt-in and events out of context until selected', async () => {
+    apiMocks.getMcpSettings.mockResolvedValueOnce({
       ...MCP_VIEW,
-      sources: [
-        {
-          ...sourceAt(0),
-          exists: true,
-          parseError: 'Invalid MCP JSON config at /Users/test/.config/mcp/mcp.json',
-        },
-        ...MCP_VIEW.sources.slice(1),
-      ],
-      adapter: {
-        ...MCP_VIEW.adapter,
-        lastError: 'Invalid Pi settings JSON at /Users/test/.pi/settings.json',
+      servers: MCP_VIEW.servers.map((server) => ({
+        ...server,
+        trusted: 'trusted' as const,
+        connectionState: 'connected' as const,
+        blockedReason: undefined,
+      })),
+    })
+    apiMocks.listMcpEvents.mockResolvedValue([
+      {
+        id: 'event-1',
+        sessionId: SESSION_ID,
+        serverInstanceId: 'mcp-server-alpha',
+        serverLabel: 'alpha',
+        kind: 'resource-updated',
+        receivedAt: 1_786_300_000_000,
+        payload: { uri: 'docs://readme' },
+        read: false,
       },
-    } satisfies McpSettingsView)
+    ])
+    render(<McpSection sessionId={SESSION_ID} />)
 
-    render(<McpSection />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Open inbox' }))
+    expect(await screen.findByText('resource-updated')).toBeInTheDocument()
+    expect(apiMocks.setMcpEventSubscription).not.toHaveBeenCalled()
 
-    expect(await screen.findByText('Invalid')).toBeInTheDocument()
-    expect(
-      screen.getAllByText('Invalid MCP JSON config at /Users/test/.config/mcp/mcp.json'),
-    ).toHaveLength(2)
-    expect(
-      screen.getByText('Invalid Pi settings JSON at /Users/test/.pi/settings.json'),
-    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Start events' }))
+    await waitFor(() => {
+      expect(apiMocks.setMcpEventSubscription).toHaveBeenCalledWith({
+        projectPath: PROJECT_PATH,
+        sessionId: SESSION_ID,
+        serverInstanceId: 'mcp-server-alpha',
+        enabled: true,
+        resourceUris: [],
+      })
+    })
+
+    expect(useComposerStore.getState().input).toBe('')
+    fireEvent.click(screen.getByRole('button', { name: 'Add to editable draft' }))
+    expect(useComposerStore.getState().input).toContain('MCP event from alpha')
+    expect(useComposerStore.getState().input).toContain('docs://readme')
   })
 })

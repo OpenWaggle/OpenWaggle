@@ -30,6 +30,6 @@ For custom provider registration, see Pi's [`pi.registerProvider()` documentatio
 
 ## MCP
 
-MCP is the first user-facing Pi extension-backed runtime capability in OpenWaggle. It uses the `pi-mcp-adapter` package and keeps source configuration in MCP JSON files instead of OpenWaggle's SQLite settings store.
+MCP is not an OpenWaggle or Pi extension. OpenWaggle owns a first-party MCP runtime, then projects its compact `mcp` gateway and optional direct tools into Pi through an internal extension factory. No extension package is installed, copied, or enabled in Pi settings.
 
-OpenWaggle binds Pi session extensions during session creation and emits `session_shutdown` before disposal. Future extension hosting should follow the same boundary: Pi owns runtime extension execution, OpenWaggle owns typed settings/projection UI and passes only explicit adapter inputs across the boundary.
+Keep MCP SDK imports and protocol behavior in `src/main/adapters/mcp/`. Pi-facing projection belongs in `src/main/adapters/pi/`; it must consume the OpenWaggle-owned MCP port instead of owning server lifecycle or configuration.

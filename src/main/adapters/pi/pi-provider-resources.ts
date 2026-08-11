@@ -8,15 +8,12 @@ import type {
 import { normalizeSkillId } from '@shared/utils/skill-id'
 import { isPathInside } from '../../utils/paths'
 import type { OpenWaggleExtensionPiResourceRoot } from './openwaggle-pi-settings-resources'
-import type { OpenWaggleMcpRuntimeContext } from './pi-mcp-config-service'
 
 export interface PiRuntimeServicesOptions {
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly enabledOpenWaggleExtensionResourceRoots?: readonly OpenWaggleExtensionPiResourceRoot[]
   readonly extensionFactories?: readonly ExtensionFactory[]
-  readonly mcpRuntimeContext?: OpenWaggleMcpRuntimeContext | null
-  readonly loadMcpAdapter?: boolean
 }
 
 type PiResourceLoaderOptions = NonNullable<

@@ -1,151 +1,97 @@
-import { matchBy } from '@diegogbrisa/ts-match'
 import type {
   McpConfigSourceId,
-  McpConfigSourceSummary,
+  McpGetSettingsInput,
+  McpScope,
+  McpScopeState,
+  McpServerPermissionGrant,
   McpServerSummary,
-  McpSettingsView,
 } from '@shared/types/mcp'
 import { useEffect, useReducer } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { useUIStore } from '@/shell/ui-store'
+import {
+  getErrorMessage,
+  getSelectedSource,
+  MCP_SECTION_INITIAL_STATE,
+  mcpSectionReducer,
+} from './mcp-section-state'
 
-type LoadState = 'idle' | 'loading' | 'saving'
-
-interface McpSectionState {
-  readonly view: McpSettingsView | null
-  readonly selectedSourceId: McpConfigSourceId
-  readonly rawEdits: Partial<Record<McpConfigSourceId, string>>
-  readonly loadState: LoadState
-  readonly error: string | null
+async function readSupportingState(context: McpGetSettingsInput) {
+  const [doctor, secrets] = await Promise.allSettled([api.doctorMcp(context), api.listMcpSecrets()])
+  return { doctor, secrets }
 }
 
-type McpSectionAction =
-  | { readonly type: 'load:start' }
-  | { readonly type: 'load:success'; readonly view: McpSettingsView }
-  | { readonly type: 'load:error'; readonly error: string }
-  | { readonly type: 'save:start' }
-  | { readonly type: 'mutation:success'; readonly view: McpSettingsView }
-  | {
-      readonly type: 'source-save:success'
-      readonly view: McpSettingsView
-      readonly sourceId: McpConfigSourceId
-    }
-  | { readonly type: 'mutation:error'; readonly error: string }
-  | { readonly type: 'source:select'; readonly sourceId: McpConfigSourceId }
-  | {
-      readonly type: 'raw-edit:change'
-      readonly sourceId: McpConfigSourceId
-      readonly rawJson: string
-    }
-
-const INITIAL_SELECTED_SOURCE_ID: McpConfigSourceId = 'global-standard'
-
-const MCP_SECTION_INITIAL_STATE: McpSectionState = {
-  view: null,
-  selectedSourceId: INITIAL_SELECTED_SOURCE_ID,
-  rawEdits: {},
-  loadState: 'idle',
-  error: null,
-}
-
-function withoutRawEdit(
-  rawEdits: Partial<Record<McpConfigSourceId, string>>,
-  sourceId: McpConfigSourceId,
-): Partial<Record<McpConfigSourceId, string>> {
-  const remainingEdits = { ...rawEdits }
-  delete remainingEdits[sourceId]
-  return remainingEdits
-}
-
-function mcpSectionReducer(state: McpSectionState, action: McpSectionAction): McpSectionState {
-  return matchBy(action, 'type')
-    .with('load:start', () => ({ ...state, loadState: 'loading', error: null }))
-    .with('load:success', (value) => ({
-      ...state,
-      view: value.view,
-      rawEdits: {},
-      loadState: 'idle',
-      error: null,
-    }))
-    .with('load:error', (value) => ({ ...state, loadState: 'idle', error: value.error }))
-    .with('save:start', () => ({ ...state, loadState: 'saving', error: null }))
-    .with('mutation:success', (value) => ({
-      ...state,
-      view: value.view,
-      loadState: 'idle',
-      error: null,
-    }))
-    .with('source-save:success', (value) => ({
-      ...state,
-      view: value.view,
-      rawEdits: withoutRawEdit(state.rawEdits, value.sourceId),
-      loadState: 'idle',
-      error: null,
-    }))
-    .with('mutation:error', (value) => ({ ...state, loadState: 'idle', error: value.error }))
-    .with('source:select', (value) => ({ ...state, selectedSourceId: value.sourceId }))
-    .with('raw-edit:change', (value) => ({
-      ...state,
-      rawEdits: { ...state.rawEdits, [value.sourceId]: value.rawJson },
-    }))
-    .exhaustive()
-}
-
-function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error)
-}
-
-function sourceById(sources: readonly McpConfigSourceSummary[], sourceId: McpConfigSourceId) {
-  return sources.find((source) => source.id === sourceId) ?? null
-}
-
-function getSelectedSource(view: McpSettingsView, selectedSourceId: McpConfigSourceId) {
-  return sourceById(view.sources, selectedSourceId) ?? view.sources[0] ?? null
-}
-
-export function useMcpSectionController(projectPath: string | null) {
+export function useMcpSectionController(projectPath: string | null, sessionId: string | null) {
   const [state, dispatch] = useReducer(mcpSectionReducer, MCP_SECTION_INITIAL_STATE)
-  const showToast = useUIStore((state) => state.showToast)
-  const { view, selectedSourceId, rawEdits, loadState, error } = state
+  const showToast = useUIStore((store) => store.showToast)
+  const { view, selectedSourceId, rawEdits, loadState } = state
+  const context = { projectPath, sessionId }
 
   useEffect(() => {
     let active = true
-
-    async function load() {
-      dispatch({ type: 'load:start' })
-      try {
-        const nextView = await api.getMcpSettings(projectPath)
-        if (active) dispatch({ type: 'load:success', view: nextView })
-      } catch (loadError) {
+    const effectContext = { projectPath, sessionId }
+    dispatch({ type: 'load:start' })
+    void api
+      .getMcpSettings(effectContext)
+      .then(async (nextView) => {
+        if (!active) return
+        dispatch({ type: 'load:success', view: nextView })
+        const supportingState = await readSupportingState(effectContext)
+        if (!active) return
+        if (supportingState.doctor.status === 'fulfilled') {
+          dispatch({ type: 'doctor:success', doctor: supportingState.doctor.value })
+        } else {
+          dispatch({
+            type: 'mutation:error',
+            error: getErrorMessage(supportingState.doctor.reason),
+          })
+        }
+        if (supportingState.secrets.status === 'fulfilled') {
+          dispatch({ type: 'secrets:success', secrets: supportingState.secrets.value })
+        } else {
+          dispatch({
+            type: 'mutation:error',
+            error: getErrorMessage(supportingState.secrets.reason),
+          })
+        }
+      })
+      .catch((loadError: unknown) => {
         if (active) dispatch({ type: 'load:error', error: getErrorMessage(loadError) })
-      }
-    }
-
-    void load()
+      })
     return () => {
       active = false
     }
-  }, [projectPath])
+  }, [projectPath, sessionId])
 
   async function refresh() {
     dispatch({ type: 'load:start' })
     try {
-      dispatch({ type: 'load:success', view: await api.getMcpSettings(projectPath) })
+      dispatch({ type: 'load:success', view: await api.getMcpSettings(context) })
+      const supportingState = await readSupportingState(context)
+      if (supportingState.doctor.status === 'fulfilled') {
+        dispatch({ type: 'doctor:success', doctor: supportingState.doctor.value })
+      } else {
+        dispatch({ type: 'mutation:error', error: getErrorMessage(supportingState.doctor.reason) })
+      }
+      if (supportingState.secrets.status === 'fulfilled') {
+        dispatch({ type: 'secrets:success', secrets: supportingState.secrets.value })
+      } else {
+        dispatch({ type: 'mutation:error', error: getErrorMessage(supportingState.secrets.reason) })
+      }
     } catch (refreshError) {
       dispatch({ type: 'load:error', error: getErrorMessage(refreshError) })
     }
   }
 
-  async function toggleAdapter() {
-    if (!view) return
+  async function setScopeState(scope: McpScope, scopeState: McpScopeState) {
     dispatch({ type: 'save:start' })
     try {
       dispatch({
         type: 'mutation:success',
-        view: await api.setMcpAdapterEnabled(!view.adapter.enabled, projectPath),
+        view: await api.setMcpScopeState({ ...context, scope, state: scopeState }),
       })
-    } catch (toggleError) {
-      dispatch({ type: 'mutation:error', error: getErrorMessage(toggleError) })
+    } catch (scopeError) {
+      dispatch({ type: 'mutation:error', error: getErrorMessage(scopeError) })
     }
   }
 
@@ -153,9 +99,8 @@ export function useMcpSectionController(projectPath: string | null) {
     dispatch({ type: 'save:start' })
     try {
       const nextView = await api.setMcpServerEnabled({
-        projectPath,
-        sourceId: server.sourceId,
-        serverName: server.name,
+        ...context,
+        instanceId: server.instanceId,
         enabled: !server.enabled,
       })
       dispatch({ type: 'mutation:success', view: nextView })
@@ -164,11 +109,75 @@ export function useMcpSectionController(projectPath: string | null) {
     }
   }
 
+  async function setServerTrust(
+    server: McpServerSummary,
+    trusted: boolean,
+    allowUnsandboxed = false,
+    permissions?: McpServerPermissionGrant,
+  ) {
+    dispatch({ type: 'save:start' })
+    try {
+      const nextView = await api.setMcpServerTrust({
+        ...context,
+        instanceId: server.instanceId,
+        trusted,
+        ...(allowUnsandboxed ? { allowUnsandboxed: true } : {}),
+        ...(permissions ? { permissions } : {}),
+      })
+      dispatch({ type: 'mutation:success', view: nextView })
+      showToast(
+        trusted ? `${server.name} is trusted.` : `Trust revoked for ${server.name}.`,
+        'success',
+      )
+    } catch (trustError) {
+      dispatch({ type: 'mutation:error', error: getErrorMessage(trustError) })
+    }
+  }
+
+  async function removeServer(server: McpServerSummary) {
+    dispatch({ type: 'save:start' })
+    try {
+      const nextView = await api.removeMcpServer({ ...context, instanceId: server.instanceId })
+      dispatch({ type: 'mutation:success', view: nextView })
+      showToast(`${server.name} was removed from ${server.sourceLabel}.`, 'success')
+    } catch (removeError) {
+      dispatch({ type: 'mutation:error', error: getErrorMessage(removeError) })
+    }
+  }
+
+  async function authorizeServer(server: McpServerSummary) {
+    dispatch({ type: 'save:start' })
+    try {
+      const result = await api.authorizeMcpServer({ ...context, instanceId: server.instanceId })
+      dispatch({ type: 'load:success', view: await api.getMcpSettings(context) })
+      showToast(
+        result.browserOpened
+          ? `${server.name} authorization completed.`
+          : `${server.name} already has a usable authorization.`,
+        'success',
+      )
+    } catch (authorizationError) {
+      const message = getErrorMessage(authorizationError)
+      dispatch({ type: 'mutation:error', error: message })
+      showToast(`${server.name} authorization needs attention: ${message}`, 'error')
+    }
+  }
+
+  async function logoutServer(server: McpServerSummary) {
+    dispatch({ type: 'save:start' })
+    try {
+      await api.logoutMcpServer({ ...context, instanceId: server.instanceId })
+      dispatch({ type: 'load:success', view: await api.getMcpSettings(context) })
+      showToast(`${server.name} OAuth credentials were removed.`, 'success')
+    } catch (logoutError) {
+      dispatch({ type: 'mutation:error', error: getErrorMessage(logoutError) })
+    }
+  }
+
   async function saveSelectedSource() {
     if (!view) return
     const selectedSource = getSelectedSource(view, selectedSourceId)
     if (!selectedSource) return
-
     dispatch({ type: 'save:start' })
     try {
       const nextView = await api.writeMcpSourceConfig({
@@ -185,19 +194,51 @@ export function useMcpSectionController(projectPath: string | null) {
     }
   }
 
+  async function saveSecret(name: string, value: string) {
+    dispatch({ type: 'save:start' })
+    try {
+      const secrets = await api.setMcpSecret({ name, value })
+      dispatch({ type: 'secrets:success', secrets })
+      dispatch({ type: 'load:success', view: await api.getMcpSettings(context) })
+      showToast(`Secret ${name} saved in the encrypted vault.`, 'success')
+    } catch (secretError) {
+      dispatch({ type: 'mutation:error', error: getErrorMessage(secretError) })
+    }
+  }
+
+  async function removeSecret(name: string) {
+    dispatch({ type: 'save:start' })
+    try {
+      const secrets = await api.removeMcpSecret({ name })
+      dispatch({ type: 'secrets:success', secrets })
+      dispatch({ type: 'load:success', view: await api.getMcpSettings(context) })
+      showToast(`Secret ${name} removed.`, 'success')
+    } catch (secretError) {
+      dispatch({ type: 'mutation:error', error: getErrorMessage(secretError) })
+    }
+  }
+
   const selectedSource = view ? getSelectedSource(view, selectedSourceId) : null
   const rawJson = selectedSource ? (rawEdits[selectedSource.id] ?? selectedSource.rawJson) : ''
 
   return {
     view,
-    error,
+    doctor: state.doctor,
+    secrets: state.secrets,
+    error: state.error,
     selectedSource,
     rawJson,
     busy: loadState !== 'idle',
     refresh,
-    toggleAdapter,
+    setScopeState,
     toggleServer,
+    setServerTrust,
+    removeServer,
+    authorizeServer,
+    logoutServer,
     saveSelectedSource,
+    saveSecret,
+    removeSecret,
     selectSource: (sourceId: McpConfigSourceId) => dispatch({ type: 'source:select', sourceId }),
     updateRawJson: (sourceId: McpConfigSourceId, rawJson: string) =>
       dispatch({ type: 'raw-edit:change', sourceId, rawJson }),

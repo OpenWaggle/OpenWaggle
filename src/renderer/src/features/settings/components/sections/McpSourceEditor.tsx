@@ -45,6 +45,7 @@ export function McpSourceEditor({
         </Button>
       </div>
       <Textarea
+        aria-label="MCP source JSON"
         value={rawJson}
         rows={RAW_EDITOR_ROWS}
         spellCheck={false}
@@ -58,8 +59,9 @@ export function McpSourceEditor({
         }}
       />
       <p className="mt-2 text-[11px] text-text-muted">
-        Advanced config is preserved as JSON so every `pi-mcp-adapter` server and settings field
-        remains available.
+        OpenWaggle preserves unknown fields for forward compatibility and reports any fields the
+        current runtime cannot apply. Protocol pins and legacy compatibility profiles remain
+        available here.
       </p>
     </div>
   )

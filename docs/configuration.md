@@ -14,8 +14,8 @@ your-project/
     extensions/       # OpenWaggle project extensions loaded by Pi when present
     prompts/          # OpenWaggle project prompt templates loaded by Pi when present
     themes/           # OpenWaggle project themes loaded by Pi when present
-    agent/
-      mcp.json        # Optional OpenWaggle-owned project MCP config
+    mcp.json          # Optional OpenWaggle-owned project MCP config
+  .mcp.json           # Standard project MCP config
 ```
 
 Pi's project-local `.pi/settings.json` can also be read by the Pi settings loader. Both real settings files are local runtime configuration and should remain untracked. If a team needs shared defaults, commit an explicit non-secret template/default file instead of a live settings file. `.openwaggle/settings.json` is the user-facing OpenWaggle namespace and wins when both provide the same Pi setting.
@@ -24,20 +24,17 @@ OpenWaggle also injects project resource roots into Pi in `.openwaggle > .pi > .
 
 ## MCP Configuration
 
-MCP support is powered by OpenWaggle's bundled `pi-mcp-adapter@2.9.0` Pi extension package. Settings > MCP enables or disables the local `extensions/pi-mcp-adapter` package source in global Pi settings without deleting installed package files or MCP config files.
+MCP is a first-party OpenWaggle integration. It does not install or enable a Pi extension package. MCP is globally off by default; effective state resolves `session -> project -> global`, and disabling one scope prevents MCP servers and context from entering that scope.
 
 OpenWaggle reads MCP config from all supported project locations and builds the effective runtime config in this order:
 
-1. `~/.config/mcp/mcp.json`
-2. `~/.pi/agent/mcp.json`
-3. `<project>/.mcp.json`
-4. `<project>/.agents/mcp.json`
-5. `<project>/.pi/mcp.json`
-6. `<project>/.openwaggle/agent/mcp.json`
+1. `~/.openwaggle/mcp.json`
+2. `<project>/.mcp.json`
+3. `<project>/.openwaggle/mcp.json`
 
-Later entries override earlier entries by server name and adapter setting key. Disabled server entries are preserved under `openwaggle.disabledMcpServers` in the selected source file, so toggling a server off does not delete its config.
+Later entries override earlier entries by server name. Enablement, trust, unsandboxed approval, and global/project/session state live separately in `~/.openwaggle/mcp/state.json`, so toggling a server never edits or deletes its definition. Secrets are referenced by name and stored in the encrypted vault rather than embedded in config.
 
-OpenWaggle passes a generated effective MCP config to Pi for each project run. The Pi adapter scopes `pi-mcp-adapter` startup to that generated config and an isolated adapter cwd while binding session extensions, so MCP discovery follows the active project instead of the Electron process cwd. Changes apply from the next turn.
+Each run receives an immutable MCP turn snapshot. Settings changes made while idle apply immediately; changes during a run are visible as pending and apply at the next safe boundary. Only enabled, trusted, policy-valid servers enter the snapshot.
 
 ## Shape
 

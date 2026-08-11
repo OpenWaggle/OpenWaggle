@@ -19,6 +19,7 @@ export interface SessionProjectionRepositoryShape {
   ) => Effect.Effect<readonly SessionSummary[], SessionProjectionRepositoryError>
   readonly listDetails: (
     limit?: number,
+    offset?: number,
   ) => Effect.Effect<readonly SessionDetail[], SessionProjectionRepositoryError>
   readonly create: (input: {
     readonly projectPath: string

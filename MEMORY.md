@@ -27,13 +27,20 @@ Load `.agents/skills/pi-integration/SKILL.md` for details.
 - Missing projected Pi entries during clean-cut projection rebuilds should be treated as stale/cancelled navigation, not thrown through IPC.
 - Preserve Pi-created session ids before first prompt by opening the pre-created id correctly instead of allowing a missing JSONL path to create a different id.
 - Build runtime services through Pi's project-scoped service path so extensions/providers are registered before model resolution.
-- MCP/package extension loading must be scoped to the active project and adapter cwd so package extensions do not read Electron's process cwd or leak server processes.
+- Pi package extension loading must be scoped to the active project and adapter cwd so package extensions do not read Electron's process cwd or leak server processes.
 - OpenWaggle-owned Pi extension packages must be bundled/copied locally and `asarUnpack`ed for packaged apps.
 - Pi-native Waggle state belongs to `@openwaggle/pi-waggle`: runtime custom message/state types use the `pi-waggle.*` namespace, branch mode/config is stored as `pi-waggle.mode-state` custom entries, and OpenWaggle should project metadata from those entries instead of seeding a parallel metadata tree.
 - Pi TUI Waggle continuation turns should be scheduled after the current Pi run settles, then append the visible `pi-waggle.turn` custom message and call `sendUserMessage(...)` without `deliverAs`; queuing continuation prompts with `deliverAs: 'followUp'` during `turn_end` can leave them waiting for user confirmation. Accumulate tool-call turns with their `toolResults` before advancing, and use `agent_end` only as a fallback for pending tool-call-only completions.
 - User-authored input during an active Pi TUI Waggle run must stop automatic Waggle continuation and be resent with `sendUserMessage(..., { deliverAs: 'steer' })`; otherwise Pi rejects it with “Agent is already processing” because normal prompts during streaming need an explicit streaming behavior.
 - Pi custom TUI components must use `@earendil-works/pi-tui` keyboard helpers such as `matchesKey`/`parseKey` instead of raw escape-sequence comparisons; Kitty keyboard protocol encodes Enter, Esc, Space, and Ctrl+C as CSI-u sequences, so raw checks can trap users inside custom menus.
 - Pi custom TUI components must never return strings containing embedded `\n`/`\r`; normalize dynamic labels/details to single terminal lines before rendering. They must also truncate rendered lines with `truncateToWidth`/`visibleWidth`, not string length, clamp scroll windows to `items.length - visibleRows`, and reserve fixed blank slots for scrollable lists/details. Embedded newlines, overflowing lines, or shrinking terminal output can corrupt Pi TUI's differential cursor math and leave duplicated-looking rows. Prefer Pi's built-in `ctx.ui.select` for modal menus unless custom rendering is clearly needed, so the Pi footer/status remains visible and interaction steps do not visually jump.
+
+## MCP Runtime Memory
+
+- MCP is an OpenWaggle-owned runtime capability, not a Pi extension. Keep protocol lifecycle, configuration, transport, trust, authentication, capability discovery, and server hosting behind OpenWaggle ports/adapters; Pi receives only the compact gateway tools for an active turn.
+- MCP activation resolves session → project → global and defaults off globally. Disabled servers must not connect, inject instructions/capabilities, or remain attached after the safe turn boundary; the UI must distinguish desired, applied, and pending state.
+- Interoperate with current MCP (`2026-07-28`) and the supported legacy revisions (`2025-11-25`, `2025-06-18`, `2025-03-26`, `2024-11-05`, `2024-10-07`) across both client and hosted-server paths. Preserve protocol/transport negotiation diagnostics instead of silently dropping older servers.
+- Treat remote MCP content as untrusted: require explicit trust and capability opt-ins, keep Event Inbox and server instructions out of context until reviewed, sandbox MCP Apps, isolate sampling, keep roots read-only, validate Remote Skills, and surface every required user or agent follow-up as a durable notice.
 
 ## Electron Runtime Memory
 

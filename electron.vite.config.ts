@@ -22,9 +22,7 @@ const UNPDF_IMPORT_META_RESOLVE_LINE = 'import.meta.resolve("pdfjs-dist/package.
 const UNPDF_CJS_RESOLVE_LINE = 'require.resolve("pdfjs-dist/package.json")'
 const MCP_CONFIG_WATCH_IGNORES = [
   '**/.mcp.json',
-  '**/.agents/mcp.json',
-  '**/.pi/mcp.json',
-  '**/.openwaggle/agent/mcp.json',
+  '**/.openwaggle/mcp.json',
 ]
 
 const BUNDLED_DEPS = [
@@ -42,7 +40,11 @@ const BUNDLED_DEPS = [
   '@earendil-works/pi-ai',
   '@earendil-works/pi-tui',
   'jiti',
-  '@modelcontextprotocol/sdk',
+  '@modelcontextprotocol/client',
+  '@modelcontextprotocol/node',
+  '@modelcontextprotocol/server',
+  '@modelcontextprotocol/ext-apps',
+  'typebox',
   '@electron-toolkit/utils',
   'fast-glob',
   'diff',

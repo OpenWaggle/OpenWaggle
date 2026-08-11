@@ -82,7 +82,6 @@ async function createProbeRuntimeServices(
   const services = await createPiRuntimeServices(cwd, {
     enabledOpenWaggleExtensionPackagePaths,
     enabledOpenWaggleExtensionResourceRoots,
-    loadMcpAdapter: false,
   })
   return rejectMatchingOpenWaggleExtensionLoadErrors({
     result: services,

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { AgentSession } from '@earendil-works/pi-coding-agent'
+import type { AgentSession, ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { createPiWaggleExtension } from '@openwaggle/pi-waggle/loop'
 import { appendPiWaggleModeState, enabledPiWaggleModeState } from '@openwaggle/pi-waggle/mode-state'
 import {
@@ -30,6 +30,7 @@ import {
 
 type PiWaggleKernelRunInput = AgentKernelRunInput & {
   readonly waggle: AgentKernelWaggleRunOptions
+  readonly mcpExtensionFactory?: ExtensionFactory
 } & PiRuntimeExtensionIsolationInput
 
 function appendEnabledWaggleModeState(input: {
@@ -167,7 +168,10 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
     enabledOpenWaggleExtensionPackages: input.enabledOpenWaggleExtensionPackages,
     enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths,
     recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure,
-    extensionFactories: [waggleExtension.factory],
+    extensionFactories: [
+      ...(input.mcpExtensionFactory ? [input.mcpExtensionFactory] : []),
+      waggleExtension.factory,
+    ],
   })
 
   const unsubscribe = session.subscribe(

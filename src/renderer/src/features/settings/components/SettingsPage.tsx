@@ -62,19 +62,28 @@ export function SettingsPage({ activeTab }: SettingsPageProps) {
 
         {/* Content area — fills available width */}
         <div className="flex-1 overflow-y-auto px-10 py-8">
-          <SettingsTabContent tab={activeTab} />
+          <SettingsTabContent
+            tab={activeTab}
+            activeSessionId={activeSessionId ? String(activeSessionId) : null}
+          />
         </div>
       </div>
     </div>
   )
 }
 
-function SettingsTabContent({ tab }: { tab: SettingsTab }) {
+function SettingsTabContent({
+  tab,
+  activeSessionId,
+}: {
+  readonly tab: SettingsTab
+  readonly activeSessionId: string | null
+}) {
   return match(tab)
     .with('general', () => <GeneralSection />)
     .with('waggle', () => <WaggleSection />)
     .with('extensions', () => <ExtensionsSection />)
-    .with('mcp', () => <McpSection />)
+    .with('mcp', () => <McpSection sessionId={activeSessionId} />)
     .with('connections', () => <ConnectionsSection />)
     .with('archived', () => <ArchivedSection />)
     .otherwise(() => <GeneralSection />)

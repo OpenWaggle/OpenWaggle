@@ -19,7 +19,7 @@ OpenWaggle is one product domain: an Electron desktop coding-agent workspace bui
 
 ### Pi Runtime Kernel
 
-Pi owns runtime execution, session continuity, native tool events, provider/model/auth metadata, MCP extension execution, thinking levels, and compaction behavior. OpenWaggle owns UI, product projection, persistence read models, and adapter boundaries.
+Pi owns runtime execution, session continuity, native tool events, provider/model/auth metadata, thinking levels, and compaction behavior. OpenWaggle owns the first-party MCP runtime, UI, product projection, persistence read models, and adapter boundaries.
 
 Load `.agents/skills/pi-integration/SKILL.md` before changing Pi adapters, provider/auth/model flows, session projection, MCP/resource loading, compaction, or run orchestration.
 
@@ -48,7 +48,7 @@ Provider, model, auth, OAuth, and thinking-level metadata come from Pi through O
 
 Pi resource loading is the runtime source of truth. OpenWaggle injects project roots in `.openwaggle > .pi > .agents` order for skills, extensions, prompts, and themes, then strips implicit roots when Pi persists settings.
 
-MCP config precedence is documented in `docs/configuration.md`.
+OpenWaggle's first-party MCP runtime owns protocol negotiation, transports, trust, auth, lifecycle, and context policy. Pi receives only the MCP tool projection for a run. MCP config precedence is documented in `docs/configuration.md`.
 
 ### OpenWaggle Extensions
 
@@ -72,7 +72,7 @@ Load `.agents/skills/release/SKILL.md` for versioning, release workflow, update-
 
 ## Glossary
 
-- **Pi**: Runtime kernel and source of truth for agent execution, native tools, sessions, providers, models, auth, MCP extensions, and compaction.
+- **Pi**: Runtime kernel and source of truth for agent execution, native tools, sessions, providers, models, auth, and compaction.
 - **OpenWaggle projection**: SQLite read model and UI state over Pi sessions, nodes, branches, and product metadata.
 - **Session Tree**: Product navigation over projected Pi session nodes and branches.
 - **Branch-scoped config**: Composer and mode configuration attached to a branch, inherited by child branches unless overridden.
