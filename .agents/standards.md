@@ -16,8 +16,8 @@ Type safety is stricter than convenience.
 
 Mechanical enforcement:
 
-- `@typescript-eslint/consistent-type-assertions` bans raw assertions while allowing `as const`.
-- Type-aware `@typescript-eslint/no-unsafe-*` rules catch unsafe flow from dependencies and tests.
+- Oxlint's `typescript/consistent-type-assertions` bans raw assertions while allowing `as const`.
+- Oxlint's tsgolint-powered, type-aware `typescript/no-unsafe-*` rules catch unsafe flow from dependencies; intentional test and boundary exceptions stay narrowly scoped in `oxlint.config.mts`.
 - `openwaggle/no-shoehorn-outside-tests` keeps Shoehorn test-only.
 - Biome and ESLint ban explicit `any`, non-null assertions, disabled lint comments, and unsafe patterns.
 

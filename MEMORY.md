@@ -14,7 +14,7 @@ Durable OpenWaggle project memory. Keep this compact and technical. Do not add p
 - OpenWaggle is an Electron desktop coding-agent UI on top of Pi.
 - Main-process architecture is hexagonal: domain, ports, adapters, application services, IPC, stores.
 - Pi SDK imports belong in `src/main/adapters/pi/` only.
-- Provider/model/auth metadata must mirror Pi through `AuthStorage`, `ModelRegistry`, project-scoped runtime services, and OpenWaggle-owned ports.
+- Provider/model/auth metadata must mirror Pi through `ModelRuntime`, project-scoped runtime services, and OpenWaggle-owned ports.
 - OpenWaggle must not maintain a parallel `src/main/providers/` registry.
 - OpenWaggle extension UI direction is ADR-0006: model visual contributions as surface/runtime/execution, default to a framework-neutral federated-module runtime with `mount(context)`, and do not expand placeholder route/content experiments as a parallel legacy runtime.
 
@@ -74,7 +74,8 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Package manager: `pnpm`.
 - TypeScript-first tooling is preferred; do not add JavaScript configs when `.ts` is practical.
 - No TypeScript `baseUrl`; preserve aliases through explicit `paths` entries.
-- `exactOptionalPropertyTypes` and `noUncheckedIndexedAccess` are the target strictness posture, but enabling them in build or lint tsconfigs requires a dedicated source-modeling pass across the active Pi/session refactor; lint-only enablement can create TypeScript `error` types that surface as noisy `@typescript-eslint/no-unsafe-*` diagnostics.
+- `exactOptionalPropertyTypes` and `noUncheckedIndexedAccess` are the target strictness posture, but enabling them in build or lint tsconfigs requires a dedicated source-modeling pass across the active Pi/session refactor; lint-only enablement can create TypeScript `error` types that surface as noisy Oxlint `typescript/no-unsafe-*` diagnostics.
+- TypeScript 7 uses Oxlint with tsgolint for type-aware TypeScript rules. ESLint remains for repository-specific, TanStack, and import-cycle rules; transitive `@typescript-eslint/*` utilities come from those third-party plugins and are not OpenWaggle's TypeScript parser.
 - Unit, integration, and component tests belong in nearby `__tests__/`; E2E stays under `e2e/`.
 - Do not suppress Fallow complexity findings; refactor instead.
 - Do not add legacy compatibility for removed pre-Pi surfaces unless explicitly requested.

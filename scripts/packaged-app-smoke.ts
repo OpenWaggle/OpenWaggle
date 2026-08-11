@@ -15,6 +15,7 @@ const ASAR_HEADER_PREFIX_BYTES = 16
 const ASAR_JSON_SIZE_OFFSET = 12
 const FIRST_USER_ARGUMENT_INDEX = 2
 const PREVIEW_LIMIT = 20
+const ALLOWED_OUT_ROOTS = ['/out/main', '/out/preload', '/out/renderer'] as const
 
 const REQUIRED_ASAR_ROOTS = [NODE_MODULES_DIR, OUT_DIR, PACKAGE_JSON]
 const REQUIRED_DOCS_FILES = ['README.md', 'index.json']
@@ -139,6 +140,11 @@ function isWorkspacePackageSourceOrConfig(entry: string) {
   return basename.startsWith('tsconfig') && basename.endsWith('.json')
 }
 
+function isUnexpectedOutEntry(entry: string) {
+  if (!entry.startsWith(`/${OUT_DIR}/`)) return false
+  return !ALLOWED_OUT_ROOTS.some((root) => entry === root || entry.startsWith(`${root}/`))
+}
+
 function assertAsarRoots(header: AsarNode) {
   const rootNames = Object.keys(header.files ?? {}).sort((left, right) => left.localeCompare(right))
   const missingRoots = REQUIRED_ASAR_ROOTS.filter((root) => !rootNames.includes(root))
@@ -154,12 +160,14 @@ function assertAsarRoots(header: AsarNode) {
 }
 
 function assertAsarEntries(header: AsarNode) {
-  const forbiddenEntries = collectAsarEntries(header).filter(isWorkspacePackageSourceOrConfig)
+  const forbiddenEntries = collectAsarEntries(header).filter(
+    (entry) => isWorkspacePackageSourceOrConfig(entry) || isUnexpectedOutEntry(entry),
+  )
 
   if (forbiddenEntries.length > 0) {
     const preview = forbiddenEntries.slice(0, PREVIEW_LIMIT).join(', ')
     throw new Error(
-      `Packaged app asar contains workspace package source/config files: ${preview}.`,
+      `Packaged app asar contains non-runtime source, config, or output files: ${preview}.`,
     )
   }
 }

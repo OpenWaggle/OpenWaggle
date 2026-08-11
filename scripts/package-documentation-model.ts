@@ -98,7 +98,8 @@ export const packageDocumentationDefinitions = [
   {
     apiDescription:
       'Pi-native Waggle commands, extension lifecycle, loop integration, state, protocol, renderers, presets, and stop policies.',
-    description: 'Pi-native Waggle package built on top of @openwaggle/waggle-core.',
+    description:
+      'Run two configurable Pi agents in alternating turns until they reach consensus or a safety limit.',
     installPackages:
       '@openwaggle/pi-waggle @earendil-works/pi-coding-agent @earendil-works/pi-tui',
     keywords: ['openwaggle', 'waggle', 'pi-package', 'multi-agent', 'orchestration'],

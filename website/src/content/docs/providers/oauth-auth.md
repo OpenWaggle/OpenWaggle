@@ -5,9 +5,9 @@ order: 3
 section: "Providers"
 ---
 
-OAuth providers come directly from Pi `AuthStorage.getOAuthProviders()`. OpenWaggle does not keep a separate OAuth provider list.
+OAuth providers come directly from Pi `ModelRuntime` provider metadata. OpenWaggle does not keep a separate OAuth provider list.
 
-Pi documents browser-based authentication through `/login` in [Providers > Subscriptions](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/providers.md#subscriptions). Use that Pi reference for the current provider set and provider-specific behavior.
+Pi documents browser-based authentication through `/login` in [Providers > Subscriptions](https://pi.dev/docs/latest/providers#subscriptions). Use that Pi reference for the current provider set and provider-specific behavior.
 
 ## Connecting
 

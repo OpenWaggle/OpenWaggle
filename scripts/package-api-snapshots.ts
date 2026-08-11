@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import ts from 'typescript'
+import { createScanner, LanguageVariant, SyntaxKind } from 'typescript/unstable/ast'
 
 interface JsonObject {
   readonly [key: string]: unknown
@@ -108,26 +108,6 @@ function normalizeDeclarationContents(contents: string) {
   return contents.replace(/\r\n/g, '\n').trimEnd()
 }
 
-function moduleSpecifierText(moduleSpecifier: ts.Expression | undefined) {
-  if (!moduleSpecifier) {
-    return undefined
-  }
-
-  if (ts.isStringLiteral(moduleSpecifier) || ts.isNoSubstitutionTemplateLiteral(moduleSpecifier)) {
-    return moduleSpecifier.text
-  }
-
-  return undefined
-}
-
-function moduleSpecifierTextFromImportType(argument: ts.TypeNode) {
-  if (!ts.isLiteralTypeNode(argument)) {
-    return undefined
-  }
-
-  return ts.isStringLiteral(argument.literal) ? argument.literal.text : undefined
-}
-
 function declarationPathForModuleSpecifier(moduleSpecifier: string) {
   if (!moduleSpecifier.startsWith('.')) {
     return undefined
@@ -144,34 +124,30 @@ function declarationPathForModuleSpecifier(moduleSpecifier: string) {
   return `${moduleSpecifier}.d.ts`
 }
 
-function relativeDeclarationDependencies(contents: string, filePath: string) {
-  const sourceFile = ts.createSourceFile(filePath, contents, ts.ScriptTarget.Latest, true)
+function relativeDeclarationDependencies(contents: string) {
   const declarations: string[] = []
+  const scanner = createScanner(true, LanguageVariant.Standard, contents)
+  let previousToken: SyntaxKind | null = null
+  let tokenBeforePrevious: SyntaxKind | null = null
+  let token = scanner.scan()
 
-  function addModuleSpecifier(moduleSpecifier: string | undefined) {
-    if (!moduleSpecifier) {
-      return
+  while (token !== SyntaxKind.EndOfFile) {
+    const followsFrom = previousToken === SyntaxKind.FromKeyword
+    const followsBareImport = previousToken === SyntaxKind.ImportKeyword
+    const followsImportCall =
+      previousToken === SyntaxKind.OpenParenToken && tokenBeforePrevious === SyntaxKind.ImportKeyword
+
+    if (token === SyntaxKind.StringLiteral && (followsFrom || followsBareImport || followsImportCall)) {
+      const declarationPath = declarationPathForModuleSpecifier(scanner.getTokenValue())
+      if (declarationPath) {
+        declarations.push(declarationPath)
+      }
     }
 
-    const declarationPath = declarationPathForModuleSpecifier(moduleSpecifier)
-    if (declarationPath) {
-      declarations.push(declarationPath)
-    }
+    tokenBeforePrevious = previousToken
+    previousToken = token
+    token = scanner.scan()
   }
-
-  function visit(node: ts.Node) {
-    if (ts.isExportDeclaration(node) || ts.isImportDeclaration(node)) {
-      addModuleSpecifier(moduleSpecifierText(node.moduleSpecifier))
-    }
-
-    if (ts.isImportTypeNode(node)) {
-      addModuleSpecifier(moduleSpecifierTextFromImportType(node.argument))
-    }
-
-    ts.forEachChild(node, visit)
-  }
-
-  visit(sourceFile)
 
   return declarations
 }
@@ -193,7 +169,7 @@ async function collectDeclarationBlocks(packageRoot: string, declarationPath: st
       relativePath: normalizeRelativePath(path.relative(packageRoot, absolutePath)),
     })
 
-    for (const childDeclarationPath of relativeDeclarationDependencies(contents, absolutePath)) {
+    for (const childDeclarationPath of relativeDeclarationDependencies(contents)) {
       await visit(path.normalize(path.join(path.dirname(currentDeclarationPath), childDeclarationPath)))
     }
   }

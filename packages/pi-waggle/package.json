@@ -1,7 +1,7 @@
 {
   "name": "@openwaggle/pi-waggle",
   "version": "0.1.1",
-  "description": "Pi-native Waggle package built on top of @openwaggle/waggle-core.",
+  "description": "Run two configurable Pi agents in alternating turns until they reach consensus or a safety limit.",
   "type": "module",
   "license": "MIT",
   "engines": {
@@ -101,12 +101,12 @@
     "@openwaggle/waggle-core": "workspace:^"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "0.80.6",
-    "@earendil-works/pi-tui": "0.80.6",
+    "@earendil-works/pi-coding-agent": "0.81.1",
+    "@earendil-works/pi-tui": "0.81.1",
     "@total-typescript/shoehorn": "0.1.2"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "^0.80.6",
-    "@earendil-works/pi-tui": "^0.80.6"
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
   }
 }

@@ -1,5 +1,6 @@
 node_modules/
 out/
+.typecheck/
 dist/
 dist-cjs/
 .pack/

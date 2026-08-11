@@ -75,8 +75,8 @@ describe('createPiRuntimeServices OpenWaggle extension loading', () => {
     expect(services.settingsManager.getProjectSettings().packages).toEqual([
       path.join('..', '.openwaggle', 'extensions', 'enabled-extension'),
     ])
-    expect(services.modelRegistry.find('enabled-provider', 'offline-model')).not.toBeNull()
-    expect(services.modelRegistry.find('disabled-provider', 'offline-model')).toBeUndefined()
+    expect(services.modelRuntime.getModel('enabled-provider', 'offline-model')).not.toBeNull()
+    expect(services.modelRuntime.getModel('disabled-provider', 'offline-model')).toBeUndefined()
   })
 
   it('loads runtime-enabled global OpenWaggle extension packages by absolute package path', async () => {
@@ -97,7 +97,7 @@ describe('createPiRuntimeServices OpenWaggle extension loading', () => {
       '!extensions/pi-mcp-adapter/**',
     ])
     expect(services.settingsManager.getProjectSettings().packages).toEqual([globalPackagePath])
-    expect(services.modelRegistry.find('global-provider', 'offline-model')).not.toBeNull()
+    expect(services.modelRuntime.getModel('global-provider', 'offline-model')).not.toBeNull()
   })
 
   it('loads Pi package-declared runtime resources from enabled OpenWaggle extension packages', async () => {
@@ -116,7 +116,7 @@ describe('createPiRuntimeServices OpenWaggle extension loading', () => {
       loadMcpAdapter: false,
     })
 
-    expect(services.modelRegistry.find('resource-provider', 'offline-model')).not.toBeNull()
+    expect(services.modelRuntime.getModel('resource-provider', 'offline-model')).not.toBeNull()
     expect(services.resourceLoader.getSkills().skills.map((skill) => skill.filePath)).toContain(
       skillPath,
     )
@@ -164,7 +164,7 @@ describe('createPiRuntimeServices OpenWaggle extension loading', () => {
       '!extensions/pi-mcp-adapter/**',
     ])
     expect(
-      services.modelRegistry.find('manifest-resource-provider', 'offline-model'),
+      services.modelRuntime.getModel('manifest-resource-provider', 'offline-model'),
     ).not.toBeNull()
     expect(services.resourceLoader.getSkills().skills.map((skill) => skill.filePath)).toContain(
       skillPath,

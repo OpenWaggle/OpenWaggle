@@ -16,9 +16,9 @@ The flagship feature. Configure two AI agents with different models and roles, t
 ## Key Features
 
 ### Pi-Derived Provider Support
-Provider/model/auth metadata comes from Pi `ModelRegistry` and `AuthStorage`:
+Provider/model/auth metadata comes from Pi `ModelRuntime`:
 - API-key providers, environment/custom provider credentials, and cloud providers are surfaced from Pi metadata.
-- OAuth providers are whatever Pi reports through its auth storage.
+- OAuth providers are whatever Pi reports through its provider metadata.
 - Model ids are provider-qualified (`provider/modelId`) so the same hosted model through different providers remains distinct.
 
 ### Pi-Native Coding Agent Toolkit

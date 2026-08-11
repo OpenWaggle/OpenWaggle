@@ -128,28 +128,30 @@ function normalizeDocsListProjectPaths(
 
   const requestedProjectPaths = projectPaths ?? (scopeProjectPath ? [scopeProjectPath] : [])
 
-  return validateDocsListProjectPaths(requestedProjectPaths).pipe(
-    Effect.flatMap((validatedProjectPaths) =>
-      scopeProjectPath
-        ? validateRequiredProjectPath(scopeProjectPath).pipe(
-            Effect.map((allowedProjectPath): DocsListPayloadValidation => {
-              const outOfScopeRequestedProjectPath = validatedProjectPaths.find(
-                (projectPath) => projectPath !== allowedProjectPath,
-              )
-              return outOfScopeRequestedProjectPath
-                ? {
-                    _tag: 'out-of-scope',
-                    allowedProjectPath,
-                    projectPath: outOfScopeRequestedProjectPath,
-                  }
-                : { _tag: 'valid', payload: { projectPaths: [allowedProjectPath] } }
-            }),
-          )
-        : Effect.succeed({
-            _tag: 'valid',
-            payload: { projectPaths: validatedProjectPaths },
-          } satisfies DocsListPayloadValidation),
-    ),
+  return Effect.gen(function* () {
+    const validatedProjectPaths = yield* validateDocsListProjectPaths(requestedProjectPaths)
+    if (scopeProjectPath === undefined) {
+      return {
+        _tag: 'valid',
+        payload: { projectPaths: validatedProjectPaths },
+      } satisfies DocsListPayloadValidation
+    }
+
+    const allowedProjectPath = yield* validateRequiredProjectPath(scopeProjectPath)
+    const outOfScopeRequestedProjectPath = validatedProjectPaths.find(
+      (projectPath) => projectPath !== allowedProjectPath,
+    )
+    return outOfScopeRequestedProjectPath
+      ? ({
+          _tag: 'out-of-scope',
+          allowedProjectPath,
+          projectPath: outOfScopeRequestedProjectPath,
+        } satisfies DocsListPayloadValidation)
+      : ({
+          _tag: 'valid',
+          payload: { projectPaths: [allowedProjectPath] },
+        } satisfies DocsListPayloadValidation)
+  }).pipe(
     Effect.catchAll((error) =>
       Effect.succeed<DocsListPayloadValidation>({
         _tag: 'invalid',

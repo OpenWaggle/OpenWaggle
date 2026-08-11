@@ -31,10 +31,10 @@ const PROVIDER_PROBE_TIMEOUT_MS = 15_000
 
 async function runPiPromptProbe(input: ProviderProbeInput, services: AgentSessionServices) {
   if (input.apiKey) {
-    services.authStorage.setRuntimeApiKey(input.providerId, input.apiKey)
+    await services.modelRuntime.setRuntimeApiKey(input.providerId, input.apiKey)
   }
 
-  const model = services.modelRegistry.find(input.providerId, input.modelId)
+  const model = services.modelRuntime.getModel(input.providerId, input.modelId)
   if (!model) {
     throw new Error(`Unknown provider/model: ${input.providerId}/${input.modelId}`)
   }

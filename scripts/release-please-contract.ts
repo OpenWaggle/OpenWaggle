@@ -1,5 +1,5 @@
 export const RELEASE_PLEASE_CONTRACT = {
-  actionSha: '45996ed1f6d02564a971a2fa1b5860e934307cf7',
+  actionSha: '1afbd760e855a7181e737350c3fe3fe085acd177',
   actionVersion: 'v5',
-  bundledRuntimeVersion: '17.6.0',
+  bundledRuntimeVersion: '17.6.1',
 } as const

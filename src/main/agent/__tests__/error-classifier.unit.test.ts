@@ -107,13 +107,13 @@ describe('classifyErrorMessage', () => {
   })
 
   describe('insufficient credits (generic)', () => {
-    it.each([
-      'out of credits',
-      'purchase credits to continue',
-    ])('classifies generic credit error: %s', (message) => {
-      const info = classifyErrorMessage(message)
-      expect(info.code).toBe('insufficient-credits')
-    })
+    it.each(['out of credits', 'purchase credits to continue'])(
+      'classifies generic credit error: %s',
+      (message) => {
+        const info = classifyErrorMessage(message)
+        expect(info.code).toBe('insufficient-credits')
+      },
+    )
   })
 
   it('does not misclassify billing address errors as credit errors', () => {

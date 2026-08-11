@@ -1,18 +1,16 @@
-import { dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import babelParser from '@babel/eslint-parser'
 import js from '@eslint/js'
 import eslintComments from '@eslint-community/eslint-plugin-eslint-comments'
 import tanstackQueryPlugin from '@tanstack/eslint-plugin-query'
 import tanstackRouterPlugin from '@tanstack/eslint-plugin-router'
 import { createTypeScriptImportResolver } from 'eslint-import-resolver-typescript'
 import importPlugin from 'eslint-plugin-import-x'
-import tseslint, { type Config } from 'typescript-eslint'
 import { openwagglePlugin } from './scripts/eslint/openwaggle-plugin'
 import { tsMatchPlugin } from './scripts/eslint/ts-match-plugin'
 
-const ROOT_DIR = dirname(fileURLToPath(import.meta.url))
-
-const config: Config = [
+// ESLint 10 and TanStack currently expose incompatible plugin type generations.
+// ESLint validates the complete flat config when the lint command loads it.
+const config: object[] = [
   {
     ignores: [
       'dist/**',
@@ -29,7 +27,6 @@ const config: Config = [
     ],
   },
   js.configs.recommended,
-  ...tseslint.configs.recommended,
   {
     files: [
       'src/**/*.{ts,tsx}',
@@ -40,18 +37,21 @@ const config: Config = [
       'playwright.config.ts',
     ],
     languageOptions: {
-      parser: tseslint.parser,
+      parser: babelParser,
       parserOptions: {
+        babelOptions: {
+          parserOpts: {
+            plugins: ['typescript', 'jsx'],
+          },
+        },
         ecmaFeatures: {
           jsx: true,
         },
-        projectService: true,
+        requireConfigFile: false,
         sourceType: 'module',
-        tsconfigRootDir: ROOT_DIR,
       },
     },
     plugins: {
-      '@typescript-eslint': tseslint.plugin,
       'eslint-comments': eslintComments,
       'import-x': importPlugin,
       openwaggle: openwagglePlugin,
@@ -74,38 +74,30 @@ const config: Config = [
       'max-lines-per-function': ['error', { max: 120, skipBlankLines: true, skipComments: false }],
       'no-empty': ['error', { allowEmptyCatch: false }],
       'no-undef': 'off',
-      '@typescript-eslint/consistent-type-assertions': ['error', { assertionStyle: 'never' }],
-      '@typescript-eslint/naming-convention': [
-        'error',
-        {
-          selector: 'function',
-          format: ['camelCase', 'PascalCase'],
-          custom: {
-            regex: '^.{1,55}$',
-            match: true,
-          },
-        },
-        {
-          selector: 'variable',
-          types: ['function'],
-          format: ['camelCase', 'PascalCase'],
-          custom: {
-            regex: '^.{1,55}$',
-            match: true,
-          },
-        },
-      ],
-      '@typescript-eslint/no-explicit-any': 'error',
-      '@typescript-eslint/no-unnecessary-type-assertion': 'error',
-      '@typescript-eslint/no-unsafe-argument': 'error',
-      '@typescript-eslint/no-unsafe-assignment': 'error',
-      '@typescript-eslint/no-unsafe-call': 'error',
-      '@typescript-eslint/no-unsafe-member-access': 'error',
-      '@typescript-eslint/no-unsafe-return': 'error',
-      '@typescript-eslint/no-unsafe-type-assertion': 'error',
-      '@typescript-eslint/no-deprecated': 'error',
-      '@typescript-eslint/no-unused-vars': 'off',
+      'constructor-super': 'off',
+      'getter-return': 'off',
+      'no-class-assign': 'off',
+      'no-const-assign': 'off',
+      'no-dupe-args': 'off',
+      'no-dupe-class-members': 'off',
+      'no-dupe-keys': 'off',
+      'no-func-assign': 'off',
+      'no-import-assign': 'off',
+      'no-new-native-nonconstructor': 'off',
+      'no-obj-calls': 'off',
+      'no-redeclare': 'off',
+      'no-setter-return': 'off',
+      'no-this-before-super': 'off',
+      'no-unreachable': 'off',
+      'no-unsafe-negation': 'off',
+      'no-unused-vars': 'off',
+      'no-var': 'error',
+      'no-with': 'off',
+      'prefer-const': 'error',
+      'prefer-rest-params': 'error',
+      'prefer-spread': 'error',
       'eslint-comments/no-use': 'error',
+      'openwaggle/function-name-convention': 'error',
       'openwaggle/no-architecture-ignore-comments': 'error',
       'openwaggle/main-architecture-boundaries': 'error',
       'openwaggle/no-inline-import-types': 'error',
@@ -143,31 +135,8 @@ const config: Config = [
       'website/**/__tests__/**/*.{ts,tsx}',
     ],
     rules: {
-      '@typescript-eslint/no-unsafe-argument': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-call': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-return': 'off',
       'max-lines': ['error', { max: 300, skipBlankLines: true, skipComments: false }],
       'max-lines-per-function': 'off',
-    },
-  },
-  {
-    files: ['website/**/*.{ts,tsx}'],
-    rules: {
-      '@typescript-eslint/no-unsafe-argument': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-call': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-return': 'off',
-    },
-  },
-  {
-    files: ['src/renderer/src/shared/lib/ipc.ts'],
-    rules: {
-      '@typescript-eslint/no-unsafe-argument': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-return': 'off',
     },
   },
   {

@@ -24,11 +24,11 @@ export * from './turn-policy.js';
 export declare const MIN_WAGGLE_MAX_TURNS_SAFETY = 1;
 export declare const MAX_WAGGLE_MAX_TURNS_SAFETY = 100;
 export declare const WAGGLE_INHERIT_MODEL = "$inherit";
-export declare const WAGGLE_COLLABORATION_MODES: readonly ["sequential"];
+export declare const WAGGLE_COLLABORATION_MODES: readonly ['sequential'];
 export type WaggleCollaborationMode = (typeof WAGGLE_COLLABORATION_MODES)[number];
-export declare const WAGGLE_AGENT_COLORS: readonly ["blue", "amber", "emerald", "violet"];
+export declare const WAGGLE_AGENT_COLORS: readonly ['blue', 'amber', 'emerald', 'violet'];
 export type WaggleAgentColor = (typeof WAGGLE_AGENT_COLORS)[number];
-export declare const WAGGLE_STOP_CONDITIONS: readonly ["consensus", "user-stop"];
+export declare const WAGGLE_STOP_CONDITIONS: readonly ['consensus', 'user-stop'];
 export type WaggleStopCondition = (typeof WAGGLE_STOP_CONDITIONS)[number];
 export interface WaggleAgentSlot {
     readonly label: string;
@@ -197,11 +197,11 @@ Types: `dist/config.d.ts`
 export declare const MIN_WAGGLE_MAX_TURNS_SAFETY = 1;
 export declare const MAX_WAGGLE_MAX_TURNS_SAFETY = 100;
 export declare const WAGGLE_INHERIT_MODEL = "$inherit";
-export declare const WAGGLE_COLLABORATION_MODES: readonly ["sequential"];
+export declare const WAGGLE_COLLABORATION_MODES: readonly ['sequential'];
 export type WaggleCollaborationMode = (typeof WAGGLE_COLLABORATION_MODES)[number];
-export declare const WAGGLE_AGENT_COLORS: readonly ["blue", "amber", "emerald", "violet"];
+export declare const WAGGLE_AGENT_COLORS: readonly ['blue', 'amber', 'emerald', 'violet'];
 export type WaggleAgentColor = (typeof WAGGLE_AGENT_COLORS)[number];
-export declare const WAGGLE_STOP_CONDITIONS: readonly ["consensus", "user-stop"];
+export declare const WAGGLE_STOP_CONDITIONS: readonly ['consensus', 'user-stop'];
 export type WaggleStopCondition = (typeof WAGGLE_STOP_CONDITIONS)[number];
 export interface WaggleAgentSlot {
     readonly label: string;
@@ -303,11 +303,11 @@ export declare function metadataForWaggleTurn(input: {
 export declare const MIN_WAGGLE_MAX_TURNS_SAFETY = 1;
 export declare const MAX_WAGGLE_MAX_TURNS_SAFETY = 100;
 export declare const WAGGLE_INHERIT_MODEL = "$inherit";
-export declare const WAGGLE_COLLABORATION_MODES: readonly ["sequential"];
+export declare const WAGGLE_COLLABORATION_MODES: readonly ['sequential'];
 export type WaggleCollaborationMode = (typeof WAGGLE_COLLABORATION_MODES)[number];
-export declare const WAGGLE_AGENT_COLORS: readonly ["blue", "amber", "emerald", "violet"];
+export declare const WAGGLE_AGENT_COLORS: readonly ['blue', 'amber', 'emerald', 'violet'];
 export type WaggleAgentColor = (typeof WAGGLE_AGENT_COLORS)[number];
-export declare const WAGGLE_STOP_CONDITIONS: readonly ["consensus", "user-stop"];
+export declare const WAGGLE_STOP_CONDITIONS: readonly ['consensus', 'user-stop'];
 export type WaggleStopCondition = (typeof WAGGLE_STOP_CONDITIONS)[number];
 export interface WaggleAgentSlot {
     readonly label: string;
@@ -393,11 +393,11 @@ export declare function mergeWagglePresets(input: {
 export declare const MIN_WAGGLE_MAX_TURNS_SAFETY = 1;
 export declare const MAX_WAGGLE_MAX_TURNS_SAFETY = 100;
 export declare const WAGGLE_INHERIT_MODEL = "$inherit";
-export declare const WAGGLE_COLLABORATION_MODES: readonly ["sequential"];
+export declare const WAGGLE_COLLABORATION_MODES: readonly ['sequential'];
 export type WaggleCollaborationMode = (typeof WAGGLE_COLLABORATION_MODES)[number];
-export declare const WAGGLE_AGENT_COLORS: readonly ["blue", "amber", "emerald", "violet"];
+export declare const WAGGLE_AGENT_COLORS: readonly ['blue', 'amber', 'emerald', 'violet'];
 export type WaggleAgentColor = (typeof WAGGLE_AGENT_COLORS)[number];
-export declare const WAGGLE_STOP_CONDITIONS: readonly ["consensus", "user-stop"];
+export declare const WAGGLE_STOP_CONDITIONS: readonly ['consensus', 'user-stop'];
 export type WaggleStopCondition = (typeof WAGGLE_STOP_CONDITIONS)[number];
 export interface WaggleAgentSlot {
     readonly label: string;
@@ -458,11 +458,11 @@ export declare function buildWaggleTurnPrompt(input: BuildWaggleTurnPromptInput)
 export declare const MIN_WAGGLE_MAX_TURNS_SAFETY = 1;
 export declare const MAX_WAGGLE_MAX_TURNS_SAFETY = 100;
 export declare const WAGGLE_INHERIT_MODEL = "$inherit";
-export declare const WAGGLE_COLLABORATION_MODES: readonly ["sequential"];
+export declare const WAGGLE_COLLABORATION_MODES: readonly ['sequential'];
 export type WaggleCollaborationMode = (typeof WAGGLE_COLLABORATION_MODES)[number];
-export declare const WAGGLE_AGENT_COLORS: readonly ["blue", "amber", "emerald", "violet"];
+export declare const WAGGLE_AGENT_COLORS: readonly ['blue', 'amber', 'emerald', 'violet'];
 export type WaggleAgentColor = (typeof WAGGLE_AGENT_COLORS)[number];
-export declare const WAGGLE_STOP_CONDITIONS: readonly ["consensus", "user-stop"];
+export declare const WAGGLE_STOP_CONDITIONS: readonly ['consensus', 'user-stop'];
 export type WaggleStopCondition = (typeof WAGGLE_STOP_CONDITIONS)[number];
 export interface WaggleAgentSlot {
     readonly label: string;
@@ -533,11 +533,11 @@ export declare function completeWaggleTurn(state: WaggleRunState, completion: Wa
 export declare const MIN_WAGGLE_MAX_TURNS_SAFETY = 1;
 export declare const MAX_WAGGLE_MAX_TURNS_SAFETY = 100;
 export declare const WAGGLE_INHERIT_MODEL = "$inherit";
-export declare const WAGGLE_COLLABORATION_MODES: readonly ["sequential"];
+export declare const WAGGLE_COLLABORATION_MODES: readonly ['sequential'];
 export type WaggleCollaborationMode = (typeof WAGGLE_COLLABORATION_MODES)[number];
-export declare const WAGGLE_AGENT_COLORS: readonly ["blue", "amber", "emerald", "violet"];
+export declare const WAGGLE_AGENT_COLORS: readonly ['blue', 'amber', 'emerald', 'violet'];
 export type WaggleAgentColor = (typeof WAGGLE_AGENT_COLORS)[number];
-export declare const WAGGLE_STOP_CONDITIONS: readonly ["consensus", "user-stop"];
+export declare const WAGGLE_STOP_CONDITIONS: readonly ['consensus', 'user-stop'];
 export type WaggleStopCondition = (typeof WAGGLE_STOP_CONDITIONS)[number];
 export interface WaggleAgentSlot {
     readonly label: string;
@@ -667,11 +667,11 @@ export declare function decideNextWaggleTurn(config: WaggleConfig, completion: W
 export declare const MIN_WAGGLE_MAX_TURNS_SAFETY = 1;
 export declare const MAX_WAGGLE_MAX_TURNS_SAFETY = 100;
 export declare const WAGGLE_INHERIT_MODEL = "$inherit";
-export declare const WAGGLE_COLLABORATION_MODES: readonly ["sequential"];
+export declare const WAGGLE_COLLABORATION_MODES: readonly ['sequential'];
 export type WaggleCollaborationMode = (typeof WAGGLE_COLLABORATION_MODES)[number];
-export declare const WAGGLE_AGENT_COLORS: readonly ["blue", "amber", "emerald", "violet"];
+export declare const WAGGLE_AGENT_COLORS: readonly ['blue', 'amber', 'emerald', 'violet'];
 export type WaggleAgentColor = (typeof WAGGLE_AGENT_COLORS)[number];
-export declare const WAGGLE_STOP_CONDITIONS: readonly ["consensus", "user-stop"];
+export declare const WAGGLE_STOP_CONDITIONS: readonly ['consensus', 'user-stop'];
 export type WaggleStopCondition = (typeof WAGGLE_STOP_CONDITIONS)[number];
 export interface WaggleAgentSlot {
     readonly label: string;
