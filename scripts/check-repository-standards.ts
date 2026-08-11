@@ -41,6 +41,7 @@ const ignoreGlobs: string[] = [
   '.git/**',
   '.fallow/**',
   'build/**',
+  '.pi/**',
   'coverage/**',
   'dist/**',
   'node_modules/**',

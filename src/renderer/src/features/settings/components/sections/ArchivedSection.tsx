@@ -12,7 +12,9 @@ import {
   useUnarchiveSessionMutation,
 } from '@/queries/archived-sessions'
 import { api } from '@/shared/lib/ipc'
-import { ArchivedEmptyState, ArchivedErrorAlert, ArchivedSectionContent } from './ArchivedGroups'
+import { ArchivedEmptyState } from './ArchivedEmptyState'
+import { ArchivedErrorAlert } from './ArchivedErrorAlert'
+import { ArchivedSectionContent } from './ArchivedSectionContent'
 import { groupArchivedBranchesByProject } from './archived-branch-groups'
 
 function describeArchivedError(error: unknown, fallback: string) {

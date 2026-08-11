@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useId, useState } from 'react'
 import { Button } from '@/shared/ui/Button'
+import { ModalDialog } from '@/shared/ui/ModalDialog'
 import { Textarea } from '@/shared/ui/Textarea'
 
 interface CommitMessageDialogProps {
@@ -21,32 +22,12 @@ export function CommitMessageDialog({
   onConfirm,
 }: CommitMessageDialogProps) {
   const headingId = useId()
-  const dialogRef = useRef<HTMLDialogElement>(null)
   const [message, setMessage] = useState('')
-
-  useEffect(() => {
-    const dialog = dialogRef.current
-    if (!dialog) return
-    if (open && !dialog.open) {
-      // jsdom (tests) doesn't implement showModal; fall back to the open attribute.
-      if (typeof dialog.showModal === 'function') dialog.showModal()
-      else dialog.open = true
-      return
-    }
-    if (!open && dialog.open) dialog.close?.()
-  }, [open])
-
   if (!open) return null
   const trimmed = message.trim()
 
   return (
-    <dialog
-      ref={dialogRef}
-      aria-labelledby={headingId}
-      onCancel={onCancel}
-      onClose={onCancel}
-      className="max-w-[420px] rounded-lg border border-border bg-bg-secondary p-4 text-text-primary backdrop:bg-black/40"
-    >
+    <ModalDialog labelledBy={headingId} onClose={onCancel} className="max-w-[420px] p-4">
       <h2 id={headingId} className="text-[13px] font-medium text-text-primary">
         Commit message
       </h2>
@@ -82,6 +63,6 @@ export function CommitMessageDialog({
           Continue
         </Button>
       </div>
-    </dialog>
+    </ModalDialog>
   )
 }

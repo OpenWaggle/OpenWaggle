@@ -129,7 +129,7 @@ export function WelcomeScreen({
                 type="button"
                 key={prompt.label}
                 onClick={() => onRetry?.(prompt.label)}
-                className="group flex min-h-[98px] flex-col rounded-2xl border border-border bg-bg-secondary px-5 py-3.5 text-left transition-all hover:-translate-y-0.5 hover:border-accent/50 hover:bg-bg-hover/45 hover:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]"
+                className="group flex min-h-[98px] flex-col rounded-2xl border border-border bg-bg-secondary px-5 py-3.5 text-left transition-[transform,border-color,background-color,box-shadow] hover:-translate-y-0.5 hover:border-accent/50 hover:bg-bg-hover/45 hover:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]"
               >
                 <span className="mb-2 inline-flex size-5 items-center justify-center rounded-full bg-bg/80">
                   <prompt.icon className="size-3.5 text-text-secondary transition-colors group-hover:text-text-primary" />
