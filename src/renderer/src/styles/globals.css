@@ -135,6 +135,13 @@
   }
 
   /* Diff scroll — thinner than global scrollbars */
+  /* Container context so inline UI (e.g. a review comment) can size against the
+     VISIBLE width instead of the scrollable content width, which is as wide as
+     the longest diff line. */
+  .diff-scroll {
+    container-type: inline-size;
+  }
+
   .diff-scroll::-webkit-scrollbar {
     width: 4px;
     height: 4px;

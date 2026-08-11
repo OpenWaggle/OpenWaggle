@@ -1,5 +1,5 @@
 import { MessageSquare } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { Textarea } from '@/shared/ui/Textarea'
 
@@ -19,6 +19,21 @@ export function InlineComment({
   onCancel,
 }: InlineCommentProps) {
   const [content, setContent] = useState('')
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  // The diff body scrolls horizontally to the width of its longest line, so a
+  // comment opened while scrolled right had its actions far outside the viewport
+  // and could not be submitted. `position: sticky` cannot fix this: the file
+  // section wrapper sets `overflow-x: hidden` (to clip children to its rounded
+  // corners), which becomes the sticky scrollport and is itself unscrollable.
+  // Bringing the diff back to the left edge makes the whole comment reachable.
+  useEffect(() => {
+    const scroller = rootRef.current?.closest('.diff-scroll')
+    // scrollTo is unimplemented in jsdom, and this is a pure convenience.
+    if (typeof scroller?.scrollTo === 'function') {
+      scroller.scrollTo({ left: 0, behavior: 'smooth' })
+    }
+  }, [])
 
   const lineLabel = startLine === endLine ? `line ${startLine}` : `lines ${startLine}-${endLine}`
 
@@ -35,7 +50,14 @@ export function InlineComment({
   }
 
   return (
-    <div className="flex flex-col gap-2 w-full bg-diff-header-bg py-2 px-3 border-y border-border">
+    // Bounded width in container-query units: `w-full`/`100%` resolve against the
+    // scrollable content width (the longest diff line), so the box could be
+    // thousands of pixels wide with its actions off-screen. `100cqw` is the
+    // VISIBLE width of `.diff-scroll`, which declares the container context.
+    <div
+      ref={rootRef}
+      className="flex w-[min(640px,100cqw)] flex-col gap-2 border-y border-border bg-diff-header-bg px-3 py-2"
+    >
       {/* Comment Meta */}
       <div className="flex items-center gap-1.5 h-[18px]">
         <MessageSquare className="size-[11px] text-text-tertiary shrink-0" />

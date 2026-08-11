@@ -2,9 +2,9 @@ import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import {
-  type ComposerContextStripState,
+  type SessionContextRowState,
   stashDraftWorktreePlan,
-  useComposerContextStrip,
+  useSessionContextRow,
 } from '@/features/git'
 import { usePreferencesStore } from '@/features/settings/state'
 
@@ -21,14 +21,14 @@ interface UseComposerSendGateInput {
  * send is blocked (with a toast) until a Worktree base ref is resolvable.
  */
 export function useComposerSendGate(input: UseComposerSendGateInput): {
-  readonly strip: ComposerContextStripState
+  readonly strip: SessionContextRowState
   readonly guardedSend: (payload: AgentSendPayload) => Promise<void>
 } {
   const projectPath = usePreferencesStore((s) => s.settings.projectPath)
   const defaultEnvironmentMode = usePreferencesStore(
     (s) => s.settings.defaultSessionEnvironmentMode,
   )
-  const strip = useComposerContextStrip({
+  const strip = useSessionContextRow({
     sessionId: input.activeSessionId,
     projectPath,
     isFirstMessage: input.isFirstMessage,

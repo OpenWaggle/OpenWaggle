@@ -1,10 +1,10 @@
-export { ComposerContextStrip } from './components/ComposerContextStrip'
 export { GitQuickActionButton } from './components/GitQuickActionButton'
+export { SessionContextRow } from './components/SessionContextRow'
 export { useCombinedVcsStatus } from './hooks/useCombinedVcsStatus'
 export {
-  type ComposerContextStripState,
-  useComposerContextStrip,
-} from './hooks/useComposerContextStrip'
+  type SessionContextRowState,
+  useSessionContextRow,
+} from './hooks/useSessionContextRow'
 export { useStackedGitActions } from './hooks/useStackedGitActions'
 export { type GitQuickAction, resolveQuickAction } from './lib/git-quick-action'
 export {

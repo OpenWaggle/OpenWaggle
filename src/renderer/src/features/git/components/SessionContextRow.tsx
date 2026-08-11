@@ -1,7 +1,7 @@
 import type { SessionEnvironmentMode } from '@shared/types/git'
 import { SESSION_ENVIRONMENT_MODES } from '@shared/types/git'
 import { useId } from 'react'
-import type { ComposerContextStripState } from '@/features/git/hooks/useComposerContextStrip'
+import type { SessionContextRowState } from '@/features/git/hooks/useSessionContextRow'
 import { Button } from '@/shared/ui/Button'
 import { Select } from '@/shared/ui/Select'
 import { ToggleSwitch } from '@/shared/ui/ToggleSwitch'
@@ -15,28 +15,30 @@ function toEnvMode(value: string): SessionEnvironmentMode {
   return value === 'worktree' ? 'worktree' : 'local'
 }
 
-interface ComposerContextStripProps {
-  readonly strip: ComposerContextStripState
+interface SessionContextRowProps {
+  readonly strip: SessionContextRowState
 }
 
 /**
- * Composer context strip (WS1b): per-session env-mode + Worktree base ref +
- * start-from-origin controls, mirroring T3Code's BranchToolbar. Only rendered
- * before a Session worktree is born (first message, worktree not yet created).
+ * Session context row (WS1b): states where the next send will run — Session
+ * environment mode, Worktree base ref, and start-from-origin. Rendered below the
+ * composer alongside the branch picker, using the same chip language as the
+ * composer toolbar controls. Only shown before a Session worktree is born.
  */
-export function ComposerContextStrip({ strip }: ComposerContextStripProps) {
+export function SessionContextRow({ strip }: SessionContextRowProps) {
   const originToggleId = useId()
   if (!strip.visible) return null
   const isWorktree = strip.envMode === 'worktree'
   const blocked = strip.sendPlan.kind === 'blocked'
 
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-1.5 text-[12px]">
-      <span className="text-text-tertiary">Run in</span>
+    <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-text-tertiary">
+      <span>Run in</span>
       <Select
         aria-label="Session environment mode"
         value={strip.envMode}
         onChange={(event) => strip.setEnvMode(toEnvMode(event.target.value))}
+        selectSize="xs"
       >
         {SESSION_ENVIRONMENT_MODES.map((mode) => (
           <option key={mode} value={mode}>
@@ -47,11 +49,12 @@ export function ComposerContextStrip({ strip }: ComposerContextStripProps) {
 
       {isWorktree ? (
         <>
-          <span className="text-text-tertiary">from</span>
+          <span>from</span>
           <Select
             aria-label="Worktree base branch"
             value={strip.baseRef ?? ''}
             onChange={(event) => strip.setBaseRef(event.target.value)}
+            selectSize="xs"
           >
             <option value="" disabled>
               Select a base branch
@@ -62,7 +65,7 @@ export function ComposerContextStrip({ strip }: ComposerContextStripProps) {
               </option>
             ))}
           </Select>
-          <label htmlFor={originToggleId} className="flex items-center gap-1.5 text-text-tertiary">
+          <label htmlFor={originToggleId} className="flex items-center gap-1.5">
             <ToggleSwitch
               checked={strip.startFromOrigin}
               onCheckedChange={strip.setStartFromOrigin}
@@ -84,14 +87,14 @@ export function ComposerContextStrip({ strip }: ComposerContextStripProps) {
   )
 }
 
-function ChangeRequestCheckout({ strip }: { readonly strip: ComposerContextStripState }) {
+function ChangeRequestCheckout({ strip }: { readonly strip: SessionContextRowState }) {
   if (strip.changeRequests.length === 0) {
     return (
       <Button
         variant="unstyled"
         type="button"
         onClick={() => void strip.loadChangeRequests()}
-        className="h-8 rounded-lg border border-input-card-border px-2.5 text-[13px] text-text-tertiary hover:text-text-secondary"
+        className="h-6 rounded-[5px] border border-border px-2 text-[12px] text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
       >
         Checkout change request…
       </Button>
@@ -101,6 +104,7 @@ function ChangeRequestCheckout({ strip }: { readonly strip: ComposerContextStrip
     <Select
       aria-label="Checkout change request"
       value=""
+      selectSize="xs"
       onChange={(event) => {
         if (event.target.value) void strip.checkoutChangeRequest(event.target.value)
       }}

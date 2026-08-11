@@ -17,7 +17,7 @@ import { createRendererLogger } from '@/shared/lib/logger'
 
 const logger = createRendererLogger('composer-context-strip')
 
-interface UseComposerContextStripInput {
+interface UseSessionContextRowInput {
   readonly sessionId: SessionId | null
   readonly projectPath: string | null
   readonly isFirstMessage: boolean
@@ -28,7 +28,7 @@ interface UseComposerContextStripInput {
   readonly defaultEnvironmentMode: SessionEnvironmentMode
 }
 
-export interface ComposerContextStripState {
+export interface SessionContextRowState {
   readonly visible: boolean
   readonly envMode: SessionEnvironmentMode
   readonly baseRef: string | null
@@ -52,7 +52,7 @@ const EMPTY_BRANCHES: BranchListState = { currentBranch: null, names: [] }
 
 function resolveEffectivePlan(
   override: WorktreePlanOverride | undefined,
-  session: UseComposerContextStripInput['session'],
+  session: UseSessionContextRowInput['session'],
   defaultEnvironmentMode: SessionEnvironmentMode,
   currentBranch: string | null,
 ) {
@@ -71,9 +71,7 @@ function resolveEffectivePlan(
  * props-into-state sync), and persisted to the backend so worktree birth uses
  * them.
  */
-export function useComposerContextStrip(
-  input: UseComposerContextStripInput,
-): ComposerContextStripState {
+export function useSessionContextRow(input: UseSessionContextRowInput): SessionContextRowState {
   const { sessionId, projectPath, isFirstMessage, session, defaultEnvironmentMode } = input
   const hasWorktree = Boolean(session?.worktreePath?.trim())
   // Sessions are created lazily on first send, so before that key the plan on a

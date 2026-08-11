@@ -12,9 +12,7 @@ export function ComposerBranchRow({ onToast }: ComposerBranchRowProps) {
     return null
   }
 
-  return (
-    <div className="mt-1 flex h-7 items-center justify-end px-4">
-      <BranchPicker onToast={onToast} />
-    </div>
-  )
+  // Row layout is owned by the parent so this can share one row with the
+  // Session context row.
+  return <BranchPicker onToast={onToast} />
 }

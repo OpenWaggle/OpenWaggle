@@ -46,12 +46,11 @@ describe('ComposerBranchRow', () => {
     })
   })
 
-  it('renders the branch picker in a right-aligned row when a project is selected', () => {
-    const { container } = render(<ComposerBranchRow />)
+  it('renders the branch picker when a project is selected', () => {
+    render(<ComposerBranchRow />)
 
     expect(screen.getByTitle('Manage branches')).toBeInTheDocument()
     expect(screen.getByText('main')).toBeInTheDocument()
-    expect(container.firstElementChild).toHaveClass('justify-end')
   })
 
   it('renders no row when no project is selected', () => {

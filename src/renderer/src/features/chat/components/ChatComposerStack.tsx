@@ -14,7 +14,7 @@ import {
   QueuedMessages,
 } from '@/features/composer/components'
 import { useScopedComposerDrafts } from '@/features/composer/hooks'
-import { ComposerContextStrip } from '@/features/git'
+import { SessionContextRow } from '@/features/git'
 import { WaggleCollaborationStatus as WaggleCollaborationStatusBanner } from '@/features/waggle/components'
 import { useComposerSendGate } from '../hooks/useComposerSendGate'
 import type { ChatComposerSectionState } from '../model'
@@ -133,7 +133,6 @@ export function ChatComposerStack({
           extensionRegistry={extensionRegistry}
           onRespond={onRespondAgentInteraction}
         />
-        <ComposerContextStrip strip={strip} />
         <Composer
           onSend={guardedSend}
           onEnqueue={(payload) => {
@@ -154,7 +153,10 @@ export function ChatComposerStack({
           }}
           onToast={onToast}
         />
-        <ComposerBranchRow onToast={onToast} />
+        <div className="mt-1.5 flex min-h-7 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-1">
+          <SessionContextRow strip={strip} />
+          <ComposerBranchRow onToast={onToast} />
+        </div>
         <ActionDialog onToast={onToast} />
       </div>
     </>
