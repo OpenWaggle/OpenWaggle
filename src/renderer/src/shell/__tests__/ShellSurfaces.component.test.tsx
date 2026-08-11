@@ -82,13 +82,16 @@ describe('shell surfaces', () => {
     shellMocks.unsubscribeFullscreen.mockClear()
   })
 
-  it('opens the feedback callback from the header button', () => {
+  it('opens the feedback callback from the header button without forwarding the click event', () => {
     const onOpen = vi.fn()
 
     render(<FeedbackButton onOpen={onOpen} />)
     fireEvent.click(screen.getByRole('button', { name: 'Report a bug' }))
 
     expect(onOpen).toHaveBeenCalledOnce()
+    // openFeedbackModal takes an optional AgentErrorInfo. Forwarding the click
+    // event made it a truthy non-error object and crashed the modal.
+    expect(onOpen).toHaveBeenCalledWith()
   })
 
   it('mounts workspace chrome, lifecycle hooks, terminal, and feedback modal from store state', () => {

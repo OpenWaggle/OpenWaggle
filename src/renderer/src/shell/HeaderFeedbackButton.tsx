@@ -7,7 +7,10 @@ export function FeedbackButton({ onOpen }: { readonly onOpen: () => void }) {
       variant="unstyled"
       type="button"
       aria-label="Report a bug"
-      onClick={onOpen}
+      // Must not forward the click event: onOpen is openFeedbackModal(errorContext?),
+      // so passing the MouseEvent through made errorContext a truthy non-error
+      // object and crashed the modal on `errorContext.userMessage.trim()`.
+      onClick={() => onOpen()}
       className="no-drag flex items-center gap-1 h-7 px-2 rounded-[5px] border border-button-border transition-colors hover:bg-bg-hover"
       title="Report a bug"
     >
