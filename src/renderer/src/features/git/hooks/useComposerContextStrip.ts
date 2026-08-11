@@ -169,16 +169,30 @@ export function useComposerContextStrip(
 
   const loadChangeRequests = useCallback(async () => {
     if (!projectPath) return
-    const result = await api.listChangeRequests(projectPath)
-    if (result.ok) setChangeRequests(result.changeRequests)
+    try {
+      const result = await api.listChangeRequests(projectPath)
+      if (result.ok) setChangeRequests(result.changeRequests)
+      else logger.warn('Failed to list change requests', { code: result.code })
+    } catch (error) {
+      logger.warn('Failed to list change requests', { error: String(error) })
+    }
   }, [projectPath])
 
   const checkoutChangeRequest = useCallback(
     async (headRef: string) => {
       if (!projectPath) return false
-      const result = await api.checkoutChangeRequest(projectPath, headRef)
-      if (result.ok) setBaseRef(headRef)
-      return result.ok
+      try {
+        const result = await api.checkoutChangeRequest(projectPath, headRef)
+        if (result.ok) {
+          setBaseRef(headRef)
+          return true
+        }
+        logger.warn('Change request checkout failed', { code: result.code })
+        return false
+      } catch (error) {
+        logger.warn('Change request checkout failed', { error: String(error) })
+        return false
+      }
     },
     [projectPath, setBaseRef],
   )

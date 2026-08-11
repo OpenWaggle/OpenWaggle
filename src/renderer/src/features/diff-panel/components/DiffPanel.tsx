@@ -126,7 +126,8 @@ export function DiffPanel({ projectPath, sessionId = null, onSendMessage }: Diff
 
   const gitActions = useDiffPanelGitActions({
     projectPath,
-    fallbackHasChanges: fileDiffs.length > 0,
+    fallbackHasChanges: selection.kind === 'unstaged' && fileDiffs.length > 0,
+    canMutateWorkingTree: selection.kind === 'unstaged',
     refreshDiff,
   })
 

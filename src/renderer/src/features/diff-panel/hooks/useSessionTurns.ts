@@ -13,7 +13,10 @@ const EMPTY_TURNS: readonly TurnCheckpointSummary[] = []
 const EMPTY_FILES: readonly RenderableDiffFile[] = []
 
 /** List the session's Turn checkpoints (WS6b/WS7), oldest first (ascending turn index). */
-export function useSessionTurns(sessionId: SessionId | null): readonly TurnCheckpointSummary[] {
+export function useSessionTurns(
+  sessionId: SessionId | null,
+  refreshToken: number = 0,
+): readonly TurnCheckpointSummary[] {
   const [turns, setTurns] = useState<readonly TurnCheckpointSummary[]>(EMPTY_TURNS)
 
   useEffect(() => {
@@ -27,14 +30,15 @@ export function useSessionTurns(sessionId: SessionId | null): readonly TurnCheck
         const result = await api.listTurnCheckpoints(sessionId)
         if (!cancelled) setTurns(result)
       } catch (error) {
-        logger.warn('Failed to list turn checkpoints', { error: String(error) })
+        // refreshToken forces a refetch when a run completes (review renderer-M2).
+        logger.warn('Failed to list turn checkpoints', { error: String(error), refreshToken })
         if (!cancelled) setTurns(EMPTY_TURNS)
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [sessionId])
+  }, [sessionId, refreshToken])
 
   return turns
 }

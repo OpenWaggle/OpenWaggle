@@ -7,6 +7,8 @@ import { useUIStore } from '@/shell/ui-store'
 interface UseDiffPanelGitActionsOptions {
   readonly projectPath: string | null
   readonly fallbackHasChanges: boolean
+  /** Working-tree mutations are only valid when the panel shows the working tree. */
+  readonly canMutateWorkingTree: boolean
   readonly refreshDiff: (projectPath: string) => Promise<void>
 }
 
@@ -17,6 +19,7 @@ function errorMessage(error: unknown, fallback: string) {
 export function useDiffPanelGitActions({
   projectPath,
   fallbackHasChanges,
+  canMutateWorkingTree,
   refreshDiff,
 }: UseDiffPanelGitActionsOptions) {
   const [isActionRunning, setIsActionRunning] = useState(false)
@@ -75,8 +78,12 @@ export function useDiffPanelGitActions({
   }
 
   return {
-    canRevertAll: projectPath !== null && (gitStatus ? !gitStatus.clean : fallbackHasChanges),
+    canRevertAll:
+      canMutateWorkingTree &&
+      projectPath !== null &&
+      (gitStatus ? !gitStatus.clean : fallbackHasChanges),
     canStageAll:
+      canMutateWorkingTree &&
       projectPath !== null &&
       (gitStatus ? gitStatus.changedFiles.some((file) => file.unstaged) : fallbackHasChanges),
     isActionRunning,

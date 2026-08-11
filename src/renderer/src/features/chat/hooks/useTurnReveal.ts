@@ -13,8 +13,12 @@ type TurnRevealNavigate = (options: {
  * checkpoint via the checkpoint anchor node id, and reveals a turn's diff by
  * selecting it and opening the diff panel.
  */
-export function useTurnReveal(activeSessionId: SessionId | null, navigate: TurnRevealNavigate) {
-  const turns = useSessionTurns(activeSessionId)
+export function useTurnReveal(
+  activeSessionId: SessionId | null,
+  navigate: TurnRevealNavigate,
+  refreshToken = 0,
+) {
+  const turns = useSessionTurns(activeSessionId, refreshToken)
   const turnAnchorMessageIds = useMemo(
     () => new Set(turns.flatMap((turn) => (turn.anchorNodeId ? [turn.anchorNodeId] : []))),
     [turns],

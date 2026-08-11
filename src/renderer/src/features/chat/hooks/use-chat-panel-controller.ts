@@ -150,10 +150,6 @@ export function useChatPanelSections(): ChatPanelSections {
     showToast,
   })
 
-  function handleForkFromMessage(messageId: string) {
-    void sessionCopy.forkMessageToNewSession(messageId)
-  }
-
   const sendWorkflow = useChatSendWorkflow({
     activeSessionId,
     branchSummary,
@@ -198,10 +194,7 @@ export function useChatPanelSections(): ChatPanelSections {
   })
 
   function handleBranchFromMessage(messageId: string) {
-    if (!activeSessionId) {
-      return
-    }
-
+    if (!activeSessionId) return
     const sessionId = SessionId(String(activeSessionId))
     const previousComposerText = useComposerStore.getState().input
     const selection = createBranchDraftSelection({
@@ -241,7 +234,11 @@ export function useChatPanelSections(): ChatPanelSections {
     void refreshSessionWorkspace(sessionId, { nodeId: selection.routeNodeId })
   }
 
-  const { turnAnchorMessageIds, handleViewTurnDiff } = useTurnReveal(activeSessionId, navigate)
+  const { turnAnchorMessageIds, handleViewTurnDiff } = useTurnReveal(
+    activeSessionId,
+    navigate,
+    messages.length,
+  )
 
   const transcript = useTranscriptSection({
     messages,
@@ -265,7 +262,8 @@ export function useChatPanelSections(): ChatPanelSections {
     openSettings,
     handleDismissInterruptedRun,
     handleBranchFromMessage,
-    handleForkFromMessage,
+    handleForkFromMessage: (messageId: string) =>
+      void sessionCopy.forkMessageToNewSession(messageId),
     handleViewTurnDiff,
     turnAnchorMessageIds,
     userDidSend,
