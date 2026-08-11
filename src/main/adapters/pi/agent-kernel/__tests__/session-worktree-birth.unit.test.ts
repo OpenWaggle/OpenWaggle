@@ -15,8 +15,8 @@ const { existsSyncMock, runGitMock, createGitWorktreeMock, setSessionWorktreeMoc
 )
 
 vi.mock('node:fs', () => ({ existsSync: existsSyncMock }))
-vi.mock('../../../../ipc/git/shared', () => ({ runGit: runGitMock }))
-vi.mock('../../../../ipc/git/worktree-service', () => ({
+vi.mock('../../../git/run-git', () => ({ runGit: runGitMock }))
+vi.mock('../../../git/worktree', () => ({
   createGitWorktree: createGitWorktreeMock,
 }))
 vi.mock('../../../../store/session-details', () => ({ setSessionWorktree: setSessionWorktreeMock }))

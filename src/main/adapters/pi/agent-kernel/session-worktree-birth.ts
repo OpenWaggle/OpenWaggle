@@ -3,9 +3,10 @@ import { homedir } from 'node:os'
 import path from 'node:path'
 import { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
-import { runGit } from '../../../ipc/git/shared'
-import { createGitWorktree } from '../../../ipc/git/worktree-service'
+// ponytail: direct store import (persistence); route through a session port if the Pi adapter grows more store touchpoints.
 import { setSessionWorktree } from '../../../store/session-details'
+import { runGit } from '../../git/run-git'
+import { createGitWorktree } from '../../git/worktree'
 import { resolveSessionProjectPath } from './session-manager'
 
 const SHORT_ID_LENGTH = 8

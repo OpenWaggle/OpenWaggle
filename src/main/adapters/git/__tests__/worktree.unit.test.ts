@@ -5,13 +5,13 @@ const { isGitRepositoryMock, runGitMock } = vi.hoisted(() => ({
   runGitMock: vi.fn(async () => ({ code: 0, stdout: '', stderr: '' })),
 }))
 
-vi.mock('../shared', () => ({
+vi.mock('../run-git', () => ({
   isGitRepository: isGitRepositoryMock,
   runGit: runGitMock,
 }))
 
 const { createGitWorktree, removeGitWorktree, listGitWorktrees, parseWorktreeList } = await import(
-  '../worktree-service'
+  '../worktree'
 )
 
 function gitResult(code: number, stdout = '', stderr = '') {

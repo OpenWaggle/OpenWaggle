@@ -3,14 +3,13 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
-import { runGit } from '../../../ipc/git/shared'
-import { DIFF_GIT_MAX_BUFFER } from '../../../ipc/git/status-constants'
 import { createLogger } from '../../../logger'
 import {
   getLatestSnapshotRef,
   pruneTurnCheckpoints,
   recordTurnCheckpoint,
 } from '../../../store/turn-checkpoints'
+import { DIFF_GIT_MAX_BUFFER, runGit } from '../../git/run-git'
 
 const logger = createLogger('turn-capture')
 const MAX_CHECKPOINTS_PER_SESSION = 100
