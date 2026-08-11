@@ -1,6 +1,7 @@
 import type { SessionId } from '@shared/types/brand'
 import type { SessionDetail, SessionSummary } from '@shared/types/session'
 import { useComposerStore } from '@/features/composer/state'
+import { useDiffScopeStore } from '@/features/diff-panel'
 import { useSessionStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
 import {
@@ -161,6 +162,7 @@ async function deleteSession(id: SessionId, set: ChatSet, get: ChatGet) {
   try {
     await api.deleteSession(id)
     useComposerStore.getState().clearScopedDraftsForSession(String(id))
+    useDiffScopeStore.getState().removeThread(String(id))
     void useSessionStore.getState().refreshSessionsAndTree(optionalSessionId(get().activeSessionId))
   } catch (err) {
     set({

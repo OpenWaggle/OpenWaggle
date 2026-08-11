@@ -8,8 +8,6 @@ import type { GitBranchInfo } from '@shared/types/git'
 export interface BaseRefChoice {
   readonly id: string
   readonly label: string
-  readonly local: string | null
-  readonly remote: string | null
 }
 
 function splitRemoteName(
@@ -35,33 +33,12 @@ export function buildBaseRefChoices(branches: readonly GitBranchInfo[]): readonl
       matches[0] ??
       null
     if (remote) usedRemotes.add(remote.name)
-    return {
-      id: `local:${local.name}`,
-      label: local.name,
-      local: local.name,
-      remote: remote?.name ?? null,
-    }
+    return { id: `local:${local.name}`, label: local.name }
   })
 
   const remoteOnlyChoices = remotes.flatMap((remote) =>
-    usedRemotes.has(remote.name)
-      ? []
-      : [{ id: `remote:${remote.name}`, label: remote.name, local: null, remote: remote.name }],
+    usedRemotes.has(remote.name) ? [] : [{ id: `remote:${remote.name}`, label: remote.name }],
   )
 
   return [...pairedChoices, ...remoteOnlyChoices]
-}
-
-export function filterBaseRefChoices(
-  choices: readonly BaseRefChoice[],
-  query: string,
-): readonly BaseRefChoice[] {
-  const normalized = query.trim().toLocaleLowerCase()
-  if (normalized.length === 0) return choices
-  return choices.filter(
-    (choice) =>
-      choice.label.toLocaleLowerCase().includes(normalized) ||
-      choice.local?.toLocaleLowerCase().includes(normalized) === true ||
-      choice.remote?.toLocaleLowerCase().includes(normalized) === true,
-  )
 }

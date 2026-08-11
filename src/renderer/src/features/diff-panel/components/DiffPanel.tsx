@@ -15,6 +15,7 @@ import { Spinner } from '@/shared/ui/Spinner'
 import { useBaseRefChoices } from '../hooks/useBaseRefChoices'
 import { type RenderableDiffFile, useDiffPanelDiffs } from '../hooks/useDiffPanelDiffs'
 import { useDiffReviewActions } from '../hooks/useDiffReviewActions'
+import { useReconcileTurnSelection } from '../hooks/useReconcileTurnSelection'
 import { useSessionTurns, useTurnDiffFiles } from '../hooks/useSessionTurns'
 import { CommitMessageDialog } from './CommitMessageDialog'
 import { DiffBottomBar } from './DiffBottomBar'
@@ -114,6 +115,8 @@ export function DiffPanel({ projectPath, sessionId = null, onSendMessage }: Diff
   const fileDiffs = selection.kind === 'turn' ? turnFiles : branchOrTreeDiffs.fileDiffs
   const isLoading = selection.kind === 'turn' ? false : branchOrTreeDiffs.isLoading
   const refreshDiff = branchOrTreeDiffs.refreshDiff
+
+  useReconcileTurnSelection(scopeKey, turns)
 
   function handleSelectScope(scope: 'branch' | 'unstaged' | 'turn') {
     if (scope === 'turn') {
