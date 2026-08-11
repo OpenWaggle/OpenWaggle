@@ -184,7 +184,7 @@ export async function sessionStatus(
 ) {
   const [control, sessionTasks] = await Promise.all([
     metadata.get(session.id),
-    tasks.listForSession(session.id),
+    Effect.runPromise(tasks.listForSession(session.id)),
   ])
   return toolResult({
     session: sessionSummary(session),

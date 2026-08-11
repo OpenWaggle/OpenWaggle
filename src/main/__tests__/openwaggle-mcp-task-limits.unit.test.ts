@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { MCP_CONFIG } from '@shared/constants/mcp'
 import { SessionId } from '@shared/types/brand'
+import { Effect } from 'effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   OpenWaggleMcpSessionMetadataStore,
@@ -54,20 +55,26 @@ describe('hosted MCP session task limits', () => {
     const taskServices = services()
     const manager = new OpenWaggleServerTaskManager(options, metadata, taskServices)
 
-    const task = await manager.start({
-      projectPath: temporaryRoot,
-      sessionId: SESSION_ID,
-      objective: 'Inspect the target.',
-    })
+    const task = await Effect.runPromise(
+      manager.start({
+        projectPath: temporaryRoot,
+        sessionId: SESSION_ID,
+        objective: 'Inspect the target.',
+      }),
+    )
 
     expect(task).toMatchObject({ model: 'target-provider/target-model', sessionId: SESSION_ID })
     expect(taskServices.resolveExecutionProfile).toHaveBeenCalledWith(SESSION_ID)
     await expect(
-      manager.start({ projectPath: temporaryRoot, sessionId: 'origin', objective: 'self' }),
+      Effect.runPromise(
+        manager.start({ projectPath: temporaryRoot, sessionId: 'origin', objective: 'self' }),
+      ),
     ).rejects.toThrow('cannot target its own origin session')
-    await manager.cancelAll()
-    await manager.waitForSession(SESSION_ID, 1_000)
-    await expect(manager.get(task.id)).resolves.toMatchObject({ status: 'cancelled' })
+    await Effect.runPromise(manager.cancelAll())
+    await Effect.runPromise(manager.waitForSession(SESSION_ID, 1_000))
+    await expect(Effect.runPromise(manager.get(task.id))).resolves.toMatchObject({
+      status: 'cancelled',
+    })
   })
 
   it('hard-caps derived depth and active fan-out', async () => {
@@ -78,7 +85,7 @@ describe('hosted MCP session task limits', () => {
     await metadata.setDepth('origin', MCP_CONFIG.MAX_ORCHESTRATION_DEPTH)
     const manager = new OpenWaggleServerTaskManager(options, metadata, services())
     await expect(
-      manager.start({ projectPath: temporaryRoot, objective: 'too deep' }),
+      Effect.runPromise(manager.start({ projectPath: temporaryRoot, objective: 'too deep' })),
     ).rejects.toThrow('maximum hosted session depth')
 
     const targetOptions = serveOptions(temporaryRoot)
@@ -88,11 +95,13 @@ describe('hosted MCP session task limits', () => {
     await targetMetadata.setDepth(SESSION_ID, MCP_CONFIG.MAX_ORCHESTRATION_DEPTH)
     const targetManager = new OpenWaggleServerTaskManager(targetOptions, targetMetadata, services())
     await expect(
-      targetManager.start({
-        projectPath: temporaryRoot,
-        sessionId: SESSION_ID,
-        objective: 'target chain too deep',
-      }),
+      Effect.runPromise(
+        targetManager.start({
+          projectPath: temporaryRoot,
+          sessionId: SESSION_ID,
+          objective: 'target chain too deep',
+        }),
+      ),
     ).rejects.toThrow('maximum hosted session depth')
 
     const rootOptions = serveOptions(temporaryRoot)
@@ -101,11 +110,15 @@ describe('hosted MCP session task limits', () => {
     )
     const rootManager = new OpenWaggleServerTaskManager(rootOptions, rootMetadata, services())
     for (let index = 0; index < MCP_CONFIG.MAX_SESSION_FAN_OUT; index += 1) {
-      await rootManager.start({ projectPath: temporaryRoot, objective: `task ${index}` })
+      await Effect.runPromise(
+        rootManager.start({ projectPath: temporaryRoot, objective: `task ${index}` }),
+      )
     }
     await expect(
-      rootManager.start({ projectPath: temporaryRoot, objective: 'one too many' }),
+      Effect.runPromise(
+        rootManager.start({ projectPath: temporaryRoot, objective: 'one too many' }),
+      ),
     ).rejects.toThrow(`${MCP_CONFIG.MAX_SESSION_FAN_OUT} active session tasks`)
-    await rootManager.cancelAll()
+    await Effect.runPromise(rootManager.cancelAll())
   })
 })

@@ -1,4 +1,5 @@
 import type { ThinkingLevel } from '@shared/types/settings'
+import { Effect } from 'effect'
 import type { OpenWaggleMcpServeOptions } from './openwaggle-mcp-server-policy'
 import type { OpenWaggleMcpSessionMetadataStore } from './openwaggle-mcp-session-metadata-store'
 import { admitOpenWaggleTask, type OpenWaggleTaskStartInput } from './openwaggle-mcp-task-admission'
@@ -63,8 +64,8 @@ export class OpenWaggleServerTaskManager {
     this.leases = new OpenWaggleTaskLeaseCoordinator(this.store, options, leaseOptions)
   }
 
-  async recoverInterruptedTasks() {
-    await this.reconcileProfileTasks()
+  recoverInterruptedTasks() {
+    return Effect.promise(() => this.reconcileProfileTasks()).pipe(Effect.asVoid)
   }
 
   private async mutate(taskId: string, update: (current: ServerTaskRecord) => ServerTaskRecord) {
@@ -105,57 +106,73 @@ export class OpenWaggleServerTaskManager {
     })
   }
 
-  async list() {
-    const results: ReturnType<typeof taskResult>[] = []
-    for (const task of await this.reconcileProfileTasks()) {
-      if (task.callerProfile === this.options.profile) results.push(taskResult(task))
-    }
-    return results
-  }
-
-  async get(taskId: string) {
-    const task = (await this.reconcileProfileTasks()).find(
-      (candidate) => candidate.id === taskId && candidate.callerProfile === this.options.profile,
+  list() {
+    return Effect.promise(() => this.reconcileProfileTasks()).pipe(
+      Effect.map((tasks) =>
+        tasks
+          .filter((task) => task.callerProfile === this.options.profile)
+          .map((task) => taskResult(task)),
+      ),
     )
-    if (!task) throw new Error(`OpenWaggle task ${JSON.stringify(taskId)} was not found.`)
-    return taskResult(task)
   }
 
-  async listForSession(sessionId: string) {
-    return (await this.list()).filter((task) => task.sessionId === sessionId)
+  get(taskId: string) {
+    return Effect.gen(this, function* () {
+      const task = (yield* Effect.promise(() => this.reconcileProfileTasks())).find(
+        (candidate) => candidate.id === taskId && candidate.callerProfile === this.options.profile,
+      )
+      if (!task)
+        return yield* Effect.fail(
+          new Error(`OpenWaggle task ${JSON.stringify(taskId)} was not found.`),
+        )
+      return taskResult(task)
+    })
+  }
+
+  listForSession(sessionId: string) {
+    return this.list().pipe(
+      Effect.map((tasks) => tasks.filter((task) => task.sessionId === sessionId)),
+    )
   }
 
   hasActiveSessionTask(sessionId: string) {
     return [...this.active.values()].some((task) => task.sessionId === sessionId)
   }
 
-  async getExecutionProfile(sessionId: string) {
-    return this.services.resolveExecutionProfile(sessionId)
+  getExecutionProfile(sessionId: string) {
+    return Effect.promise(() => this.services.resolveExecutionProfile(sessionId))
   }
 
-  async start(input: OpenWaggleTaskStartInput) {
-    const { executionProfile, leaseExpiresAt, task } = await admitOpenWaggleTask({
-      input,
-      leases: this.leases,
-      options: this.options,
-      services: this.services,
-      sessionMetadata: this.sessionMetadata,
-      store: this.store,
-    })
-    const abortController = new AbortController()
-    const activeTask: ActiveServerTask = {
-      controller: abortController,
-      ...(input.sessionId ? { sessionId: input.sessionId } : {}),
-    }
-    this.active.set(task.id, activeTask)
-    this.leases.register(task.id, abortController, leaseExpiresAt)
-    activeTask.completion = this.run(task, executionProfile.thinkingLevel, abortController).finally(
-      () => {
-        this.active.delete(task.id)
-        this.leases.unregister(task.id)
-      },
+  start(input: OpenWaggleTaskStartInput) {
+    return Effect.promise(() =>
+      admitOpenWaggleTask({
+        input,
+        leases: this.leases,
+        options: this.options,
+        services: this.services,
+        sessionMetadata: this.sessionMetadata,
+        store: this.store,
+      }),
+    ).pipe(
+      Effect.map(({ executionProfile, leaseExpiresAt, task }) => {
+        const abortController = new AbortController()
+        const activeTask: ActiveServerTask = {
+          controller: abortController,
+          ...(input.sessionId ? { sessionId: input.sessionId } : {}),
+        }
+        this.active.set(task.id, activeTask)
+        this.leases.register(task.id, abortController, leaseExpiresAt)
+        activeTask.completion = this.run(
+          task,
+          executionProfile.thinkingLevel,
+          abortController,
+        ).finally(() => {
+          this.active.delete(task.id)
+          this.leases.unregister(task.id)
+        })
+        return taskResult(task)
+      }),
     )
-    return taskResult(task)
   }
 
   private async run(task: ServerTaskRecord, thinkingLevel: ThinkingLevel, abort: AbortController) {
@@ -220,71 +237,80 @@ export class OpenWaggleServerTaskManager {
     }
   }
 
-  async cancel(taskId: string) {
-    const now = this.leases.now()
-    const next = await this.mutate(taskId, (current) => {
-      if (!isActiveTaskStatus(current.status)) return current
-      return hasLiveLease(current, now)
-        ? cancellationRequestedTaskRecord(current, now)
-        : cancelledTaskRecord(current, now)
+  cancel(taskId: string) {
+    return Effect.gen(this, function* () {
+      const now = this.leases.now()
+      const next = yield* Effect.promise(() =>
+        this.mutate(taskId, (current) => {
+          if (!isActiveTaskStatus(current.status)) return current
+          return hasLiveLease(current, now)
+            ? cancellationRequestedTaskRecord(current, now)
+            : cancelledTaskRecord(current, now)
+        }),
+      )
+      this.active.get(taskId)?.controller.abort()
+      return taskResult(next)
     })
-    this.active.get(taskId)?.controller.abort()
-    return taskResult(next)
   }
 
-  async cancelSession(sessionId: string) {
+  cancelSession(sessionId: string) {
     const now = this.leases.now()
-    const taskIds = await this.store.update((tasks) => {
-      const matching = tasks.filter(
-        (task) =>
-          task.callerProfile === this.options.profile &&
-          task.sessionId === sessionId &&
-          isActiveTaskStatus(task.status),
-      )
-      const matchingIds = new Set(matching.map((task) => task.id))
-      return {
-        tasks: tasks.map((task) =>
-          matchingIds.has(task.id)
-            ? hasLiveLease(task, now)
-              ? cancellationRequestedTaskRecord(task, now)
-              : cancelledTaskRecord(task, now)
-            : task,
-        ),
-        result: [...matchingIds],
+    return Effect.promise(() =>
+      this.store.update((tasks) => {
+        const matching = tasks.filter(
+          (task) =>
+            task.callerProfile === this.options.profile &&
+            task.sessionId === sessionId &&
+            isActiveTaskStatus(task.status),
+        )
+        const matchingIds = new Set(matching.map((task) => task.id))
+        return {
+          tasks: tasks.map((task) =>
+            matchingIds.has(task.id)
+              ? hasLiveLease(task, now)
+                ? cancellationRequestedTaskRecord(task, now)
+                : cancelledTaskRecord(task, now)
+              : task,
+          ),
+          result: [...matchingIds],
+        }
+      }),
+    ).pipe(
+      Effect.map((taskIds) => {
+        for (const taskId of taskIds) this.active.get(taskId)?.controller.abort()
+        return taskIds.length
+      }),
+    )
+  }
+
+  waitForSession(sessionId: string, timeoutMs: number) {
+    return Effect.gen(this, function* () {
+      const deadline = this.leases.now() + timeoutMs
+      while (true) {
+        const tasks = yield* Effect.promise(() => this.reconcileProfileTasks())
+        const active = tasks.some(
+          (task) =>
+            task.callerProfile === this.options.profile &&
+            task.sessionId === sessionId &&
+            isActiveTaskStatus(task.status) &&
+            hasLiveLease(task, this.leases.now()),
+        )
+        if (!active) return true
+        const remaining = deadline - this.leases.now()
+        if (remaining <= 0) return false
+        yield* Effect.sleep(`${Math.min(TASK_WAIT_POLL_INTERVAL_MS, remaining)} millis`)
       }
     })
-    for (const taskId of taskIds) this.active.get(taskId)?.controller.abort()
-    return taskIds.length
   }
 
-  async waitForSession(sessionId: string, timeoutMs: number) {
-    const deadline = this.leases.now() + timeoutMs
-    while (true) {
-      const tasks = await this.reconcileProfileTasks()
-      const active = tasks.some(
-        (task) =>
-          task.callerProfile === this.options.profile &&
-          task.sessionId === sessionId &&
-          isActiveTaskStatus(task.status) &&
-          hasLiveLease(task, this.leases.now()),
+  cancelAll() {
+    return Effect.promise(async () => {
+      const completions = [...this.active.values()].flatMap((task) =>
+        task.completion ? [task.completion] : [],
       )
-      if (!active) return true
-      const remaining = deadline - this.leases.now()
-      if (remaining <= 0) return false
-      await delay(Math.min(TASK_WAIT_POLL_INTERVAL_MS, remaining))
-    }
+      for (const task of this.active.values()) task.controller.abort()
+      await Promise.allSettled(completions)
+      await this.leases.close()
+    })
   }
-
-  async cancelAll() {
-    const completions = [...this.active.values()].flatMap((task) =>
-      task.completion ? [task.completion] : [],
-    )
-    for (const task of this.active.values()) task.controller.abort()
-    await Promise.allSettled(completions)
-    await this.leases.close()
-  }
-}
-
-function delay(durationMs: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, durationMs))
 }

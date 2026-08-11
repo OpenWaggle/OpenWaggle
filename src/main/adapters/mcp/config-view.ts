@@ -13,6 +13,7 @@ import {
   resolveMcpServerTransport,
   validateMcpServerDefinition,
 } from '../../domain/mcp/server-policy'
+import type { ActiveMcpTurn } from '../../domain/mcp/turn-application-state'
 import { resolveMcpIntegrationState } from '../../domain/mcp/turn-application-state'
 import {
   createMcpRevision,
@@ -241,6 +242,7 @@ export function buildMcpSettingsView(input: {
   readonly context: LoadedMcpContext
   readonly projectPath: string | null
   readonly sessionId: string | null
+  readonly activeTurn?: ActiveMcpTurn | undefined
 }): McpSettingsView {
   const resolution = resolveIntegrationState(
     input.context.state,
@@ -259,8 +261,7 @@ export function buildMcpSettingsView(input: {
           ...eligible.flatMap((server) => [server.state.instanceId, server.configHash]),
         ])
   return {
-    integration: resolveMcpIntegrationState({
-      sessionId: input.sessionId,
+    integration: resolveMcpIntegrationState(input.activeTurn, {
       desired: resolution,
       desiredRevision,
     }),

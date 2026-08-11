@@ -42,7 +42,7 @@ export function createRemoteTaskRecords(input: {
   readonly server: McpTurnSnapshotServer
   readonly connection: McpClientConnection
   readonly tasks: readonly McpJsonValue[]
-  readonly now: () => number
+  readonly now: number
 }): readonly McpTaskRecord[] {
   return input.tasks.map((task) => {
     const object = taskObject(task)
@@ -72,7 +72,7 @@ export function createRemoteTaskRecords(input: {
       schemaHash,
       status: typeof object?.status === 'string' ? object.status : 'unknown',
       ...(progress === undefined ? {} : { progress }),
-      updatedAt: input.now(),
+      updatedAt: input.now,
       disabled: false,
       provenance: {
         sourcePath: input.server.sourcePath,

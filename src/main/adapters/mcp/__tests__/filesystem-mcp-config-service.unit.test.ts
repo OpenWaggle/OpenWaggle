@@ -2,14 +2,11 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import {
-  beginMcpTurn,
-  clearMcpTurnApplications,
-  completeMcpTurn,
-} from '../../../domain/mcp/turn-application-state'
+import { createInMemoryMcpTurnStateTracker } from '../../../domain/mcp/turn-application-state'
 import { createFilesystemMcpConfigServiceForTests } from '../filesystem-mcp-config-service'
 
 const fixtureRoots: string[] = []
+const turnTracker = createInMemoryMcpTurnStateTracker()
 
 async function createFixture() {
   const root = await mkdtemp(path.join(tmpdir(), 'openwaggle-native-mcp-'))
@@ -20,6 +17,7 @@ async function createFixture() {
   const service = createFilesystemMcpConfigServiceForTests({
     homeDir: root,
     createId: () => `mcp-id-${String(++nextId)}`,
+    getActiveTurn: (sessionId) => turnTracker.getActive(sessionId),
   })
   return {
     root,
@@ -29,6 +27,7 @@ async function createFixture() {
       createFilesystemMcpConfigServiceForTests({
         homeDir: root,
         createId: () => `mcp-id-${String(++nextId)}`,
+        getActiveTurn: (sessionId) => turnTracker.getActive(sessionId),
       }),
   }
 }
@@ -39,7 +38,7 @@ async function writeJson(filePath: string, value: unknown) {
 }
 
 afterEach(async () => {
-  clearMcpTurnApplications()
+  turnTracker.clear()
   await Promise.all(
     fixtureRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
   )
@@ -225,7 +224,7 @@ describe('first-party MCP configuration', () => {
     await service.setScopeState({ scope: 'project', state: 'on', projectPath })
     const turn = await service.createTurnSnapshot({ projectPath, sessionId: 'session-pending' })
     expect(turn).not.toBeNull()
-    beginMcpTurn('session-pending', turn?.revision ?? null)
+    turnTracker.begin('session-pending', turn?.revision ?? null)
 
     const pending = await service.setScopeState({
       scope: 'session',
@@ -241,7 +240,7 @@ describe('first-party MCP configuration', () => {
     })
     expect(pending.integration.pendingReason).toContain('active turn')
 
-    completeMcpTurn('session-pending')
+    turnTracker.complete('session-pending')
     const applied = await service.getView({ projectPath, sessionId: 'session-pending' })
     expect(applied.integration).toMatchObject({ applied: 'off', applyState: 'applied' })
   })

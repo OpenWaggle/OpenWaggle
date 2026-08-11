@@ -105,7 +105,7 @@ export async function copySession(
     throw new Error(`${input.operation} requires targetNodeId on an empty session.`)
   const [depth, profile] = await Promise.all([
     derivedDepth(options, metadata, session.id),
-    tasks.getExecutionProfile(session.id),
+    Effect.runPromise(tasks.getExecutionProfile(session.id)),
   ])
   const operation = input.operation === 'fork' ? 'fork' : 'clone'
   const copyInput = {

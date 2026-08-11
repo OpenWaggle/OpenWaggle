@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createMcpRuntimeService } from '../runtime/runtime-service-factory'
 import type { McpClientConnection } from '../runtime/types'
-import { connection, server, snapshot } from './mcp-runtime-test-utils'
+import {
+  connection,
+  createMcpRuntimeServiceForTests as createMcpRuntimeService,
+  server,
+  snapshot,
+} from './mcp-runtime-test-utils'
 
 describe('first-party MCP Apps and Event Inbox runtime', () => {
   it('returns an MCP App launch payload and brokers App-originated calls through the same server connection', async () => {
@@ -88,7 +92,6 @@ describe('first-party MCP Apps and Event Inbox runtime', () => {
             }
           },
         }),
-      now: () => 100,
     })
     const turn = snapshot()
 

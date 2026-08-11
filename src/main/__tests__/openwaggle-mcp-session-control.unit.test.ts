@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { Effect } from 'effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   OpenWaggleMcpSessionMetadataStore,
@@ -127,12 +128,12 @@ describe('hosted MCP session control', () => {
       sessionMetadataStorePath(path.join(temporaryRoot, 'tasks.json')),
     )
     const cancellation = Promise.withResolvers<boolean>()
-    const start = vi.fn(async () => ({ status: 'queued' }))
+    const start = vi.fn(() => Effect.succeed({ status: 'queued' }))
     const tasks = {
       ...sessionTasks(),
       start,
-      cancelSession: vi.fn(async () => 1),
-      waitForSession: vi.fn(() => cancellation.promise),
+      cancelSession: vi.fn(() => Effect.succeed(1)),
+      waitForSession: vi.fn(() => Effect.promise(() => cancellation.promise)),
     }
     const operation = executeSessionOperation(
       serveOptions(temporaryRoot, { sessionIds: new Set([SESSION_ID]) }),
@@ -160,8 +161,8 @@ describe('hosted MCP session control', () => {
     )
     const tasks = {
       ...sessionTasks(),
-      cancelSession: vi.fn(async () => 1),
-      waitForSession: vi.fn(async () => false),
+      cancelSession: vi.fn(() => Effect.succeed(1)),
+      waitForSession: vi.fn(() => Effect.succeed(false)),
     }
 
     await expect(

@@ -6,6 +6,7 @@ import { MCP_CONFIG } from '@shared/constants/mcp'
 import type { McpSecretSummary } from '@shared/types/mcp'
 import { Effect, Layer } from 'effect'
 import { safeStorage } from 'electron'
+import { McpVaultError, toMcpVaultError } from '../../ports/mcp-errors'
 import { McpSecretVaultService } from '../../ports/mcp-secret-vault-service'
 import { withProcessFileLock } from './process-file-lock'
 
@@ -30,9 +31,11 @@ function isEnoent(error: unknown) {
 function validateSecretName(name: string) {
   const normalized = name.trim()
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(normalized)) {
-    throw new Error(
-      'MCP secret names must be 1-128 characters and use letters, numbers, dot, underscore, or dash.',
-    )
+    throw new McpVaultError({
+      reason: 'validation',
+      message:
+        'MCP secret names must be 1-128 characters and use letters, numbers, dot, underscore, or dash.',
+    })
   }
   return normalized
 }
@@ -43,7 +46,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function parseVaultEntry(name: string, value: unknown): VaultEntry {
   if (!isRecord(value)) {
-    throw new Error(`OpenWaggle MCP vault entry ${JSON.stringify(name)} is invalid.`)
+    throw new McpVaultError({
+      reason: 'io',
+      message: `OpenWaggle MCP vault entry ${JSON.stringify(name)} is invalid.`,
+    })
   }
   const { encryptedValue, createdAt, updatedAt } = value
   if (
@@ -51,7 +57,10 @@ function parseVaultEntry(name: string, value: unknown): VaultEntry {
     typeof createdAt !== 'number' ||
     typeof updatedAt !== 'number'
   ) {
-    throw new Error(`OpenWaggle MCP vault entry ${JSON.stringify(name)} is invalid.`)
+    throw new McpVaultError({
+      reason: 'io',
+      message: `OpenWaggle MCP vault entry ${JSON.stringify(name)} is invalid.`,
+    })
   }
   return { encryptedValue, createdAt, updatedAt }
 }
@@ -59,10 +68,16 @@ function parseVaultEntry(name: string, value: unknown): VaultEntry {
 function parseVault(raw: string): VaultFile {
   const parsed: unknown = JSON.parse(raw)
   if (!isRecord(parsed) || parsed.version !== 1) {
-    throw new Error('OpenWaggle MCP vault has an unsupported format.')
+    throw new McpVaultError({
+      reason: 'io',
+      message: 'OpenWaggle MCP vault has an unsupported format.',
+    })
   }
   if (!isRecord(parsed.secrets)) {
-    throw new Error('OpenWaggle MCP vault is missing its encrypted secret map.')
+    throw new McpVaultError({
+      reason: 'io',
+      message: 'OpenWaggle MCP vault is missing its encrypted secret map.',
+    })
   }
   const secrets: Record<string, VaultEntry> = {}
   for (const [name, value] of Object.entries(parsed.secrets)) {
@@ -110,9 +125,11 @@ interface McpVaultEncryption {
 
 function assertEncryptionAvailable(encryption: McpVaultEncryption) {
   if (!encryption.isEncryptionAvailable()) {
-    throw new Error(
-      'Operating-system encryption is unavailable, so OpenWaggle will not read or write MCP secrets.',
-    )
+    throw new McpVaultError({
+      reason: 'encryption-unavailable',
+      message:
+        'Operating-system encryption is unavailable, so OpenWaggle will not read or write MCP secrets.',
+    })
   }
 }
 
@@ -147,19 +164,30 @@ export function createEncryptedMcpSecretVault(
       assertEncryptionAvailable(encryption)
       const normalized = validateSecretName(name)
       const entry = (await readVault(filePath)).secrets[normalized]
-      if (!entry) throw new Error(`MCP secret ${JSON.stringify(normalized)} was not found.`)
+      if (!entry)
+        throw new McpVaultError({
+          reason: 'secret-not-found',
+          secretName: normalized,
+          message: `MCP secret ${JSON.stringify(normalized)} was not found.`,
+        })
       try {
         return encryption.decryptString(Buffer.from(entry.encryptedValue, 'base64'))
       } catch {
-        throw new Error(
-          `MCP secret ${JSON.stringify(normalized)} cannot be decrypted for this operating-system account.`,
-        )
+        throw new McpVaultError({
+          reason: 'decryption-failed',
+          secretName: normalized,
+          message: `MCP secret ${JSON.stringify(normalized)} cannot be decrypted for this operating-system account.`,
+        })
       }
     },
     async set(name: string, value: string) {
       assertEncryptionAvailable(encryption)
       const normalized = validateSecretName(name)
-      if (value.length === 0) throw new Error('MCP secret values cannot be empty.')
+      if (value.length === 0)
+        throw new McpVaultError({
+          reason: 'validation',
+          message: 'MCP secret values cannot be empty.',
+        })
       return mutate((vault) => {
         const timestamp = Date.now()
         const existing = vault.secrets[normalized]
@@ -199,22 +227,22 @@ function getLiveVault() {
   return liveVault
 }
 
-function toError(error: unknown) {
-  return error instanceof Error ? error : new Error(String(error))
+function toVaultError(error: unknown): McpVaultError {
+  return error instanceof McpVaultError ? error : toMcpVaultError('io', error)
 }
 
 export const EncryptedMcpSecretVaultServiceLive = Layer.succeed(
   McpSecretVaultService,
   McpSecretVaultService.of({
-    list: () => Effect.tryPromise({ try: () => getLiveVault().list(), catch: toError }),
+    list: () => Effect.tryPromise({ try: () => getLiveVault().list(), catch: toVaultError }),
     resolve: (name) =>
-      Effect.tryPromise({ try: () => getLiveVault().resolve(name), catch: toError }),
+      Effect.tryPromise({ try: () => getLiveVault().resolve(name), catch: toVaultError }),
     set: (input) =>
       Effect.tryPromise({
         try: () => getLiveVault().set(input.name, input.value),
-        catch: toError,
+        catch: toVaultError,
       }),
     remove: (input) =>
-      Effect.tryPromise({ try: () => getLiveVault().remove(input.name), catch: toError }),
+      Effect.tryPromise({ try: () => getLiveVault().remove(input.name), catch: toVaultError }),
   }),
 )

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { MCP_CONFIG } from '@shared/constants/mcp'
 import { SessionId } from '@shared/types/brand'
+import { Effect } from 'effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OpenWaggleMcpServeOptions } from '../openwaggle-mcp-server-policy'
 import {
@@ -71,7 +72,7 @@ async function waitForTaskStatus(
 ) {
   const deadline = Date.now() + 2_000
   while (Date.now() < deadline) {
-    const task = await manager.get(taskId)
+    const task = await Effect.runPromise(manager.get(taskId))
     if (task.status === status) return task
     await new Promise<void>((resolve) => setTimeout(resolve, 10))
   }
@@ -88,7 +89,9 @@ describe('hosted MCP task cross-process integrity', () => {
       leaseDurationMs: 100,
       heartbeatIntervalMs: 60_000,
     })
-    const task = await owner.start({ projectPath: temporaryRoot, objective: 'keep running' })
+    const task = await Effect.runPromise(
+      owner.start({ projectPath: temporaryRoot, objective: 'keep running' }),
+    )
 
     const sameProfile = new OpenWaggleServerTaskManager(
       options,
@@ -96,8 +99,10 @@ describe('hosted MCP task cross-process integrity', () => {
       hangingServices(),
       { ownerId: 'owner-b', now: () => now },
     )
-    await sameProfile.recoverInterruptedTasks()
-    await expect(sameProfile.get(task.id)).resolves.not.toMatchObject({ status: 'interrupted' })
+    await Effect.runPromise(sameProfile.recoverInterruptedTasks())
+    await expect(Effect.runPromise(sameProfile.get(task.id))).resolves.not.toMatchObject({
+      status: 'interrupted',
+    })
 
     now = 1_101
     const otherOptions = serveOptions('other-profile')
@@ -107,7 +112,7 @@ describe('hosted MCP task cross-process integrity', () => {
       hangingServices(),
       { ownerId: 'owner-c', now: () => now },
     )
-    await otherProfile.recoverInterruptedTasks()
+    await Effect.runPromise(otherProfile.recoverInterruptedTasks())
     const storedBeforeOwnerRecovery = await new OpenWaggleMcpTaskStore(
       options.taskStorePath,
     ).readTasks()
@@ -115,12 +120,12 @@ describe('hosted MCP task cross-process integrity', () => {
       storedBeforeOwnerRecovery.find((candidate) => candidate.id === task.id)?.status,
     ).not.toBe('interrupted')
 
-    await sameProfile.recoverInterruptedTasks()
-    await expect(sameProfile.get(task.id)).resolves.toMatchObject({
+    await Effect.runPromise(sameProfile.recoverInterruptedTasks())
+    await expect(Effect.runPromise(sameProfile.get(task.id))).resolves.toMatchObject({
       status: 'interrupted',
       action: expect.stringContaining('lease expired'),
     })
-    await owner.cancelAll()
+    await Effect.runPromise(owner.cancelAll())
   })
 
   it('enforces fan-out atomically across multiple servers sharing a profile', async () => {
@@ -130,13 +135,15 @@ describe('hosted MCP task cross-process integrity', () => {
 
     for (let index = 0; index < MCP_CONFIG.MAX_SESSION_FAN_OUT; index += 1) {
       const manager = index % 2 === 0 ? first : second
-      await manager.start({ projectPath: temporaryRoot, objective: `task ${index}` })
+      await Effect.runPromise(
+        manager.start({ projectPath: temporaryRoot, objective: `task ${index}` }),
+      )
     }
     await expect(
-      second.start({ projectPath: temporaryRoot, objective: 'one too many' }),
+      Effect.runPromise(second.start({ projectPath: temporaryRoot, objective: 'one too many' })),
     ).rejects.toThrow(`${MCP_CONFIG.MAX_SESSION_FAN_OUT} active session tasks`)
 
-    await Promise.all([first.cancelAll(), second.cancelAll()])
+    await Promise.all([Effect.runPromise(first.cancelAll()), Effect.runPromise(second.cancelAll())])
   })
 
   it('renews a live owner lease before another server performs recovery', async () => {
@@ -148,7 +155,9 @@ describe('hosted MCP task cross-process integrity', () => {
       leaseDurationMs: 100,
       heartbeatIntervalMs: 10,
     })
-    const task = await owner.start({ projectPath: temporaryRoot, objective: 'renew me' })
+    const task = await Effect.runPromise(
+      owner.start({ projectPath: temporaryRoot, objective: 'renew me' }),
+    )
     now = 1_090
     await new Promise<void>((resolve) => setTimeout(resolve, 30))
     now = 1_101
@@ -159,9 +168,11 @@ describe('hosted MCP task cross-process integrity', () => {
       hangingServices(),
       { ownerId: 'owner-b', now: () => now },
     )
-    await recovery.recoverInterruptedTasks()
-    await expect(recovery.get(task.id)).resolves.not.toMatchObject({ status: 'interrupted' })
-    await owner.cancelAll()
+    await Effect.runPromise(recovery.recoverInterruptedTasks())
+    await expect(Effect.runPromise(recovery.get(task.id))).resolves.not.toMatchObject({
+      status: 'interrupted',
+    })
+    await Effect.runPromise(owner.cancelAll())
   })
 
   it('finalizes an unacknowledged cancellation after its owner lease expires', async () => {
@@ -187,9 +198,9 @@ describe('hosted MCP task cross-process integrity', () => {
       { now: () => 101 },
     )
 
-    await recovery.recoverInterruptedTasks()
+    await Effect.runPromise(recovery.recoverInterruptedTasks())
 
-    await expect(recovery.get(expired.id)).resolves.toMatchObject({
+    await expect(Effect.runPromise(recovery.get(expired.id))).resolves.toMatchObject({
       status: 'cancelled',
       cancellationRequestedAt: 90,
       action: expect.stringContaining('No further action'),
@@ -206,22 +217,26 @@ describe('hosted MCP task cross-process integrity', () => {
     const remote = new OpenWaggleServerTaskManager(options, metadata(options), hangingServices(), {
       ownerId: 'owner-b',
     })
-    const task = await owner.start({
-      projectPath: temporaryRoot,
-      sessionId: 'shared-session',
-      objective: 'cancel remotely',
-    })
+    const task = await Effect.runPromise(
+      owner.start({
+        projectPath: temporaryRoot,
+        sessionId: 'shared-session',
+        objective: 'cancel remotely',
+      }),
+    )
 
-    await expect(remote.waitForSession('shared-session', 0)).resolves.toBe(false)
-    await expect(remote.cancel(task.id)).resolves.toMatchObject({
+    await expect(Effect.runPromise(remote.waitForSession('shared-session', 0))).resolves.toBe(false)
+    await expect(Effect.runPromise(remote.cancel(task.id))).resolves.toMatchObject({
       cancellationRequestedAt: expect.any(Number),
       action: expect.stringContaining('owning MCP server'),
     })
     await expect(waitForTaskStatus(remote, task.id, 'cancelled')).resolves.toMatchObject({
       status: 'cancelled',
     })
-    await expect(remote.waitForSession('shared-session', 100)).resolves.toBe(true)
-    await owner.cancelAll()
+    await expect(Effect.runPromise(remote.waitForSession('shared-session', 100))).resolves.toBe(
+      true,
+    )
+    await Effect.runPromise(owner.cancelAll())
   })
 
   it('serializes independent task-store writers without losing records', async () => {

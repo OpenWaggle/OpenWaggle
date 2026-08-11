@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto'
 import type { McpDirectToolDescriptor, McpTurnSnapshot } from '@shared/types/mcp'
-import type { CatalogTool, McpRuntimeState } from './runtime-state'
+import { Effect } from 'effect'
+import type { McpRuntimeFailure } from '../../../ports/mcp-errors'
+import type { CatalogTool, McpRuntimeStateService } from './runtime-state'
 
 const MODEL_TOOL_NAME_MAX_LENGTH = 64
 const IDENTITY_SUFFIX_LENGTH = 8
@@ -35,17 +37,25 @@ function toDescriptor(tool: CatalogTool): McpDirectToolDescriptor {
   }
 }
 
-export async function listMcpDirectTools(state: McpRuntimeState, snapshot: McpTurnSnapshot) {
-  if (snapshot.effectiveState !== 'on') return []
-  const catalog = await state.loadCatalog(
-    snapshot,
-    (server) =>
-      server.definition.directTools === true ||
-      (Array.isArray(server.definition.directTools) && server.definition.directTools.length > 0),
-  )
-  const descriptors: McpDirectToolDescriptor[] = []
-  for (const tool of catalog) {
-    if (requestedDirectTool(tool)) descriptors.push(toDescriptor(tool))
-  }
-  return descriptors
+export function listMcpDirectTools(
+  state: McpRuntimeStateService,
+  snapshot: McpTurnSnapshot,
+): Effect.Effect<readonly McpDirectToolDescriptor[], McpRuntimeFailure> {
+  if (snapshot.effectiveState !== 'on') return Effect.succeed([])
+  return state
+    .loadCatalog(
+      snapshot,
+      (server) =>
+        server.definition.directTools === true ||
+        (Array.isArray(server.definition.directTools) && server.definition.directTools.length > 0),
+    )
+    .pipe(
+      Effect.map((catalog) => {
+        const descriptors: McpDirectToolDescriptor[] = []
+        for (const tool of catalog) {
+          if (requestedDirectTool(tool)) descriptors.push(toDescriptor(tool))
+        }
+        return descriptors
+      }),
+    )
 }

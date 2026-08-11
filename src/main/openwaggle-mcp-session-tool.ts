@@ -1,13 +1,14 @@
 import { match } from '@diegogbrisa/ts-match'
-import type { OpenWaggleMcpServeOptions, OpenWaggleMcpServer } from './openwaggle-mcp-server-policy'
-import { requireGrant } from './openwaggle-mcp-server-policy'
+import * as Effect from 'effect/Effect'
 import {
   handoffSession,
   interruptSession,
   messageSession,
   organizeSession,
   waitForSession,
-} from './openwaggle-mcp-session-actions'
+} from './application/mcp-hosted-session-control'
+import type { OpenWaggleMcpServeOptions, OpenWaggleMcpServer } from './openwaggle-mcp-server-policy'
+import { requireGrant } from './openwaggle-mcp-server-policy'
 import {
   type OpenWaggleSessionTaskController,
   type OpenWaggleSessionToolAdapters,
@@ -73,14 +74,16 @@ export async function executeSessionOperation(
     .with('read', () => readSession(session, input))
     .with('fork', 'clone', () => copySession(options, tasks, metadata, session, input, adapters))
     .with('message', 'steer', () =>
-      messageSession(options, tasks, session, input, input.operation === 'steer'),
+      Effect.runPromise(
+        messageSession(options, tasks, session, input, input.operation === 'steer'),
+      ),
     )
-    .with('wait', () => waitForSession(tasks, session, input))
-    .with('interrupt', () => interruptSession(options, tasks, session))
+    .with('wait', () => Effect.runPromise(waitForSession(tasks, session, input)))
+    .with('interrupt', () => Effect.runPromise(interruptSession(options, tasks, session)))
     .with('plan-worktree', () => planWorktree(metadata, session, input))
     .with('create-worktree', () => createWorktree(options, metadata, session, input, adapters))
-    .with('handoff', () => handoffSession(options, metadata, session, input))
-    .otherwise(() => organizeSession(metadata, session, input))
+    .with('handoff', () => Effect.runPromise(handoffSession(options, metadata, session, input)))
+    .otherwise(() => Effect.runPromise(organizeSession(metadata, session, input)))
 }
 
 function requireSessionOperationGrants(

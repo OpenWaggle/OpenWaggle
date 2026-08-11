@@ -2,6 +2,7 @@ import path from 'node:path'
 import { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import type { ThinkingLevel } from '@shared/types/settings'
+import { Effect } from 'effect'
 import { vi } from 'vitest'
 import type { OpenWaggleMcpServeOptions } from '../openwaggle-mcp-server-policy'
 import type {
@@ -53,15 +54,17 @@ export function session(
 
 export function sessionTasks(): OpenWaggleSessionTaskController {
   return {
-    start: vi.fn(async () => ({ status: 'queued' })),
-    listForSession: vi.fn(async () => []),
+    start: vi.fn(() => Effect.succeed({ status: 'queued' })),
+    listForSession: vi.fn(() => Effect.succeed([])),
     hasActiveSessionTask: vi.fn(() => false),
-    getExecutionProfile: vi.fn(async () => ({
-      model: 'provider/model',
-      thinkingLevel: 'medium' satisfies ThinkingLevel,
-    })),
-    cancelSession: vi.fn(async () => 0),
-    waitForSession: vi.fn(async () => true),
+    getExecutionProfile: vi.fn(() =>
+      Effect.succeed({
+        model: 'provider/model',
+        thinkingLevel: 'medium' satisfies ThinkingLevel,
+      }),
+    ),
+    cancelSession: vi.fn(() => Effect.succeed(0)),
+    waitForSession: vi.fn(() => Effect.succeed(true)),
   }
 }
 

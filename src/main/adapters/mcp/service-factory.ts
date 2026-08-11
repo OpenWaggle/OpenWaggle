@@ -24,9 +24,11 @@ export function createFilesystemMcpConfigService(options: McpFilesystemConfigSer
 export function createFilesystemMcpConfigServiceForTests(options: {
   readonly homeDir: string
   readonly createId?: () => string
+  readonly getActiveTurn?: McpFilesystemConfigServiceOptions['getActiveTurn']
 }) {
   return createFilesystemMcpConfigService({
     homeDir: options.homeDir,
     createId: options.createId ?? randomUUID,
+    ...(options.getActiveTurn ? { getActiveTurn: options.getActiveTurn } : {}),
   })
 }

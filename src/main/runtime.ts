@@ -11,6 +11,7 @@ import { FilesystemExtensionPackageRepositoryLive } from './adapters/filesystem-
 import { EncryptedMcpSecretVaultServiceLive } from './adapters/mcp/encrypted-mcp-secret-vault-service'
 import { FilesystemMcpConfigServiceLive } from './adapters/mcp/filesystem-mcp-config-service'
 import { FirstPartyMcpRuntimeServiceLive } from './adapters/mcp/first-party-mcp-runtime-service'
+import { McpTurnStateServiceLive } from './adapters/mcp/mcp-turn-state-service'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
 import { registerPiBundledOAuthFlows } from './adapters/pi/pi-bundled-oauth'
 import { PiProviderAuthLive } from './adapters/pi/pi-provider-auth-service'
@@ -57,7 +58,7 @@ const McpServicesLive = Layer.mergeAll(
   FilesystemMcpConfigServiceLive,
   EncryptedMcpSecretVaultServiceLive,
   FirstPartyMcpRuntimeServiceLive.pipe(Layer.provide(EncryptedMcpSecretVaultServiceLive)),
-)
+).pipe(Layer.provide(McpTurnStateServiceLive))
 const PiAgentKernelWithExtensionSelectionLive = PiAgentKernelLive.pipe(
   Layer.provide(Layer.mergeAll(ExtensionRuntimeSelectionLive, McpServicesLive)),
 )

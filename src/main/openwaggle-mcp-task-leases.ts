@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { Effect, Fiber } from 'effect'
 import type { AgentRunResult } from './application/agent-run-service'
 import type { OpenWaggleMcpServeOptions } from './openwaggle-mcp-server-policy'
 import type { OpenWaggleMcpTaskStore, ServerTaskRecord } from './openwaggle-mcp-task-store'
@@ -24,7 +25,7 @@ export class OpenWaggleTaskLeaseCoordinator {
   private readonly active = new Map<string, OwnedTaskLease>()
   private readonly leaseDurationMs: number
   private readonly heartbeatIntervalMs: number
-  private heartbeatTimer: ReturnType<typeof setInterval> | undefined
+  private heartbeatFiber: Fiber.RuntimeFiber<void, never> | undefined
   private heartbeatOperation: Promise<void> | undefined
 
   constructor(
@@ -49,23 +50,32 @@ export class OpenWaggleTaskLeaseCoordinator {
 
   unregister(taskId: string) {
     this.active.delete(taskId)
-    if (this.active.size > 0 || !this.heartbeatTimer) return
-    clearInterval(this.heartbeatTimer)
-    this.heartbeatTimer = undefined
+    if (this.active.size > 0 || !this.heartbeatFiber) return
+    const fiber = this.heartbeatFiber
+    this.heartbeatFiber = undefined
+    Effect.runFork(Fiber.interrupt(fiber))
   }
 
   async close() {
-    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer)
-    this.heartbeatTimer = undefined
+    const fiber = this.heartbeatFiber
+    this.heartbeatFiber = undefined
+    // Interrupting the heartbeat fiber awaits any in-flight renewal, draining
+    // the lease write before the owning server exits.
+    if (fiber) await Effect.runPromise(Fiber.interrupt(fiber)).catch(() => undefined)
     await this.heartbeatOperation?.catch(() => undefined)
   }
 
   private ensureHeartbeat() {
-    if (this.heartbeatTimer) return
-    this.heartbeatTimer = setInterval(() => {
-      void this.refreshOwnedTaskLeases()
-    }, this.heartbeatIntervalMs)
-    this.heartbeatTimer.unref()
+    if (this.heartbeatFiber) return
+    // Replaces a manual setInterval: sleep-then-run forever on the runtime Clock,
+    // matching setInterval's delay-first cadence while remaining interruptible.
+    this.heartbeatFiber = Effect.runFork(
+      Effect.forever(
+        Effect.sleep(`${this.heartbeatIntervalMs} millis`).pipe(
+          Effect.zipRight(Effect.promise(() => this.refreshOwnedTaskLeases())),
+        ),
+      ),
+    )
   }
 
   private refreshOwnedTaskLeases() {

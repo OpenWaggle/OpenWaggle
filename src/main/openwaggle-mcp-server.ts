@@ -85,7 +85,11 @@ function registerServerResources(
     },
     async (uri) => ({
       contents: [
-        { uri: uri.href, mimeType: 'application/json', text: JSON.stringify(await tasks.list()) },
+        {
+          uri: uri.href,
+          mimeType: 'application/json',
+          text: JSON.stringify(await runAppEffect(tasks.list())),
+        },
       ],
     }),
   )
@@ -161,7 +165,7 @@ export async function serveOpenWaggleMcpServer(options: OpenWaggleMcpServeOption
     sessionMetadataStorePath(options.taskStorePath),
   )
   const tasks = new OpenWaggleServerTaskManager(options, sessionMetadata)
-  await tasks.recoverInterruptedTasks()
+  await runAppEffect(tasks.recoverInterruptedTasks())
   const factory = () => createOpenWaggleMcpServer(options, tasks, sessionMetadata)
   const reportError = (error: Error) =>
     options.stderr?.write(`OpenWaggle MCP server error: ${error.message}\n`)
@@ -178,7 +182,7 @@ export async function serveOpenWaggleMcpServer(options: OpenWaggleMcpServeOption
     })
     options.stderr?.write(`OpenWaggle MCP listening at ${handle.url}\n`)
     const close = async () => {
-      await tasks.cancelAll()
+      await runAppEffect(tasks.cancelAll())
       await handle.close().catch(() => undefined)
       await disposeAppRuntime().catch(() => undefined)
     }
@@ -193,7 +197,7 @@ export async function serveOpenWaggleMcpServer(options: OpenWaggleMcpServeOption
     onerror: reportError,
   })
   const close = async () => {
-    await tasks.cancelAll()
+    await runAppEffect(tasks.cancelAll())
     await handle.close().catch(() => undefined)
     await disposeAppRuntime().catch(() => undefined)
   }

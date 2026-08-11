@@ -1,4 +1,5 @@
 import { match } from '@diegogbrisa/ts-match'
+import { Effect } from 'effect'
 import { z } from 'zod'
 import type { OpenWaggleMcpServeOptions, OpenWaggleMcpServer } from './openwaggle-mcp-server-policy'
 import {
@@ -52,15 +53,15 @@ async function executeTaskOperation(
   return match(input.operation)
     .with('list', async () => {
       requireGrant(options, 'sessions:discover')
-      return toolResult(await tasks.list())
+      return toolResult(await Effect.runPromise(tasks.list()))
     })
     .with('get', async () => {
       requireGrant(options, 'sessions:read')
-      return toolResult(await tasks.get(requireTaskId(input)))
+      return toolResult(await Effect.runPromise(tasks.get(requireTaskId(input))))
     })
     .with('cancel', async () => {
       requireGrant(options, 'sessions:interrupt')
-      return toolResult(await tasks.cancel(requireTaskId(input)))
+      return toolResult(await Effect.runPromise(tasks.cancel(requireTaskId(input))))
     })
     .with('start', () => startTask(options, tasks, metadata, input))
     .exhaustive()
@@ -97,11 +98,13 @@ async function startTask(
       throw new Error('projectPath must match the target session project path.')
     }
     return toolResult(
-      await tasks.start({
-        projectPath: session.projectPath,
-        objective: input.objective.trim(),
-        sessionId: input.sessionId,
-      }),
+      await Effect.runPromise(
+        tasks.start({
+          projectPath: session.projectPath,
+          objective: input.objective.trim(),
+          sessionId: input.sessionId,
+        }),
+      ),
     )
   } else {
     requireGrant(options, 'sessions:create')
@@ -111,10 +114,12 @@ async function startTask(
   }
   if (!input.projectPath?.trim()) throw new Error('Starting a new session requires projectPath.')
   return toolResult(
-    await tasks.start({
-      projectPath: assertProjectAllowed(options, input.projectPath),
-      objective: input.objective.trim(),
-      ...(input.sessionId ? { sessionId: input.sessionId } : {}),
-    }),
+    await Effect.runPromise(
+      tasks.start({
+        projectPath: assertProjectAllowed(options, input.projectPath),
+        objective: input.objective.trim(),
+        ...(input.sessionId ? { sessionId: input.sessionId } : {}),
+      }),
+    ),
   )
 }

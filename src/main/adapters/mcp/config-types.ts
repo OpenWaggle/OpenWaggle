@@ -7,6 +7,7 @@ import type {
   McpServerDefinition,
   McpServerPermissionGrant,
 } from '@shared/types/mcp'
+import type { ActiveMcpTurn } from '../../domain/mcp/turn-application-state'
 
 export interface McpSourceDefinition {
   readonly id: McpConfigSourceId
@@ -56,4 +57,9 @@ export interface ResolvedMcpServer {
 export interface McpFilesystemConfigServiceOptions {
   readonly homeDir: string
   readonly createId: () => string
+  /**
+   * Reads the active MCP turn for a session so the settings view can report
+   * applied/pending integration state. Defaults to reporting no active turn.
+   */
+  readonly getActiveTurn?: (sessionId: string | null) => ActiveMcpTurn | undefined
 }

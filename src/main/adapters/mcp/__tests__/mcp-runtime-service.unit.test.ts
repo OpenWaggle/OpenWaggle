@@ -3,8 +3,12 @@ import { McpServer } from '@modelcontextprotocol/server'
 import type { McpTurnSnapshotServer } from '@shared/types/mcp'
 import { describe, expect, it, vi } from 'vitest'
 import { getMcpProtocolOptions } from '../runtime/protocol-negotiation'
-import { createMcpRuntimeService } from '../runtime/runtime-service-factory'
-import { connection, server, snapshot } from './mcp-runtime-test-utils'
+import {
+  connection,
+  createMcpRuntimeServiceForTests as createMcpRuntimeService,
+  server,
+  snapshot,
+} from './mcp-runtime-test-utils'
 
 describe('first-party MCP gateway runtime', () => {
   it('keeps server and tool identities out of the model-facing list schema', async () => {
@@ -12,7 +16,6 @@ describe('first-party MCP gateway runtime', () => {
     const service = createMcpRuntimeService({
       connect,
       createHandleKey: () => Buffer.alloc(32, 7),
-      now: () => 100,
     })
 
     const result = await service.executeGateway(snapshot(), { operation: 'list' })
@@ -39,7 +42,6 @@ describe('first-party MCP gateway runtime', () => {
     const service = createMcpRuntimeService({
       connect: async () => connection({ callTool }),
       createHandleKey: () => Buffer.alloc(32, 9),
-      now: () => 100,
     })
     const turn = snapshot()
 
@@ -80,7 +82,6 @@ describe('first-party MCP gateway runtime', () => {
     const service = createMcpRuntimeService({
       connect,
       createHandleKey: () => Buffer.alloc(32, 3),
-      now: () => 100,
     })
     const first = snapshot()
     const firstList = await service.executeGateway(first, { operation: 'list' })

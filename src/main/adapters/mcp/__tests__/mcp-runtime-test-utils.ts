@@ -1,5 +1,85 @@
-import type { McpCapabilityFamily, McpTurnSnapshot, McpTurnSnapshotServer } from '@shared/types/mcp'
+import type {
+  McpCapabilityFamily,
+  McpGatewayInput,
+  McpTaskOperationInput,
+  McpTurnSnapshot,
+  McpTurnSnapshotServer,
+} from '@shared/types/mcp'
+import { Effect } from 'effect'
+import type {
+  McpRuntimeInteractions,
+  McpRuntimeServiceShape,
+} from '../../../ports/mcp-runtime-service'
+import { makeMcpRuntimeService } from '../runtime/runtime-service-factory'
 import type { McpClientConnection, McpRuntimeTool } from '../runtime/types'
+
+/**
+ * Build the Effect-native MCP runtime service and expose the legacy positional
+ * Promise API used by the runtime unit tests. Construction is synchronous (only
+ * Refs are allocated); each method runs its Effect at the test edge via
+ * runPromise, so tagged failures surface as rejected promises (preserving
+ * `rejects.toThrow(message)` assertions).
+ */
+export function createMcpRuntimeServiceForTests(
+  input: Parameters<typeof makeMcpRuntimeService>[0],
+) {
+  const service = Effect.runSync(makeMcpRuntimeService(input))
+  const run = <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(effect)
+  return {
+    prepareTurn: (turn: {
+      readonly sessionId: string
+      readonly snapshot: McpTurnSnapshot | null
+    }) => run(service.prepareTurn(turn)),
+    completeTurn: (turn: {
+      readonly sessionId: string
+      readonly nextSnapshot: McpTurnSnapshot | null
+    }) => run(service.completeTurn(turn)),
+    executeGateway: (
+      snapshot: McpTurnSnapshot,
+      request: McpGatewayInput,
+      signal?: AbortSignal,
+      interactions?: McpRuntimeInteractions,
+    ) =>
+      run(
+        service.executeGateway({
+          snapshot,
+          request,
+          ...(signal ? { signal } : {}),
+          ...(interactions ? { interactions } : {}),
+        }),
+      ),
+    listDirectTools: (snapshot: McpTurnSnapshot) => run(service.listDirectTools(snapshot)),
+    browseCapabilities: (snapshot: McpTurnSnapshot, serverInstanceId?: string) =>
+      run(
+        service.browseCapabilities({
+          snapshot,
+          ...(serverInstanceId ? { serverInstanceId } : {}),
+        }),
+      ),
+    getPrompt: (request: Parameters<McpRuntimeServiceShape['getPrompt']>[0]) =>
+      run(service.getPrompt(request)),
+    readResource: (request: Parameters<McpRuntimeServiceShape['readResource']>[0]) =>
+      run(service.readResource(request)),
+    reviewRemoteSkill: (request: Parameters<McpRuntimeServiceShape['reviewRemoteSkill']>[0]) =>
+      run(service.reviewRemoteSkill(request)),
+    callAppTool: (request: Parameters<McpRuntimeServiceShape['callAppTool']>[0]) =>
+      run(service.callAppTool(request)),
+    operateTask: (snapshot: McpTurnSnapshot | null, request: McpTaskOperationInput) =>
+      run(service.operateTask({ snapshot, request })),
+    setEventSubscription: (
+      request: Parameters<McpRuntimeServiceShape['setEventSubscription']>[0],
+    ) => run(service.setEventSubscription(request)),
+    getEvents: (sessionId?: string | null) => run(service.getEvents(sessionId)),
+    getEventSubscriptions: (sessionId?: string | null) =>
+      run(service.getEventSubscriptions(sessionId)),
+    disposeSession: (sessionId: string) => run(service.disposeSession(sessionId)),
+    reconcileIdleConnections: () => run(service.reconcileIdleConnections()),
+    disposeAll: () => run(service.disposeAll()),
+    getConnectionStatuses: () => run(service.getConnectionStatuses()),
+    getNotices: (sessionId?: string | null) => run(service.getNotices(sessionId)),
+    doctor: () => run(service.doctor()),
+  }
+}
 
 export function server(
   overrides: Partial<McpTurnSnapshotServer> & {

@@ -1,323 +1,174 @@
-import { createHmac, randomBytes, randomUUID } from 'node:crypto'
-import { MCP_CONFIG } from '@shared/constants/mcp'
-import type {
-  McpEventRecord,
-  McpEventSubscriptionState,
-  McpJsonValue,
-  McpRuntimeNotice,
-  McpTurnSnapshot,
-  McpTurnSnapshotServer,
-} from '@shared/types/mcp'
-import { resolveMcpRuntimeNamespace } from '../../../domain/mcp/runtime-namespace'
-import { createRemoteTaskRecords } from './remote-task-records'
+import { randomBytes } from 'node:crypto'
+import type { McpEventRecord, McpRuntimeNotice } from '@shared/types/mcp'
+import { Effect, Ref } from 'effect'
 import { InMemoryMcpRemoteTaskStore, type McpRemoteTaskStore } from './remote-task-store'
-import { McpRuntimeConnections } from './runtime-connections'
-import type { McpClientConnection, McpConnectionFactory, McpRuntimeTool } from './types'
+import {
+  discardSupersededSessionConnections,
+  findHandle,
+  getConnectionForServer,
+  listRemoteTasks,
+  loadCatalog,
+  recordRemoteTasks,
+} from './runtime-catalog'
+import { makeMcpRuntimeConnections } from './runtime-connections'
+import { getEventSubscriptions, getEvents, setEventSubscription } from './runtime-events'
+import { addNotice, getNotices, removeNotice } from './runtime-notices'
+import type {
+  ActiveEventSubscription,
+  CatalogCacheEntry,
+  CatalogTool,
+  McpRuntimeStateService,
+  RuntimeStateContext,
+} from './runtime-state-types'
+import type { McpConnectionFactory } from './types'
+
+export type { CatalogTool, McpRuntimeStateService } from './runtime-state-types'
 
 const HANDLE_KEY_BYTES = 32
-const HANDLE_LENGTH = 24
 
-export interface CatalogTool {
-  readonly handle: string
-  readonly server: McpTurnSnapshotServer
-  readonly connection: McpClientConnection
-  readonly tool: McpRuntimeTool
-  readonly snapshotRevision: string
-  readonly runtimeNamespace: string
+function disposeSession(ctx: RuntimeStateContext, sessionId: string) {
+  return ctx.connections.closeRuntimeNamespace(sessionId).pipe(
+    Effect.zipRight(
+      Ref.update(ctx.handles, (current) => {
+        const next = new Map(current)
+        for (const [handle, tool] of next) {
+          if (tool.runtimeNamespace === sessionId) next.delete(handle)
+        }
+        return next
+      }),
+    ),
+    Effect.zipRight(
+      Ref.update(ctx.notices, (current) => {
+        const next = new Map(current)
+        next.delete(sessionId)
+        return next
+      }),
+    ),
+    Effect.zipRight(
+      Effect.promise(() => ctx.remoteTasks.setDisabled({ sessionId, disabled: true })),
+    ),
+  )
 }
 
-interface CatalogCacheEntry {
-  readonly expiresAt: number
-  readonly tools: readonly CatalogTool[]
-}
-
-interface ActiveEventSubscription {
-  readonly sessionId: string
-  readonly state: McpEventSubscriptionState
-  close(): Promise<void>
-}
-
-export class McpRuntimeState {
-  private readonly handleKey: Buffer
-  private readonly now: () => number
-  private readonly connections: McpRuntimeConnections
-  private readonly catalogs = new Map<string, CatalogCacheEntry>()
-  private readonly handles = new Map<string, CatalogTool>()
-  private readonly notices = new Map<string, McpRuntimeNotice[]>()
-  private readonly eventSubscriptions = new Map<string, ActiveEventSubscription>()
-  private readonly events = new Map<string, McpEventRecord[]>()
-  private readonly remoteTasks: McpRemoteTaskStore
-
-  constructor(
-    private readonly connect: McpConnectionFactory,
-    options: {
-      readonly createHandleKey?: () => Buffer
-      readonly now?: () => number
-      readonly remoteTaskStore?: McpRemoteTaskStore
-    },
-  ) {
-    this.handleKey = options.createHandleKey?.() ?? randomBytes(HANDLE_KEY_BYTES)
-    this.now = options.now ?? Date.now
-    this.remoteTasks = options.remoteTaskStore ?? new InMemoryMcpRemoteTaskStore()
-    this.connections = new McpRuntimeConnections(
-      this.connect,
-      async (key) => {
-        const subscription = this.eventSubscriptions.get(key)
-        this.eventSubscriptions.delete(key)
-        await subscription?.close().catch(() => undefined)
-        this.catalogs.delete(key)
-      },
-      (runtimeNamespace, serverInstanceId) =>
-        this.removeNotice(runtimeNamespace, `runtime:${serverInstanceId}:connect`),
+function reconcileIdleConnections(
+  ctx: RuntimeStateContext,
+  isActive: (runtimeNamespace: string) => boolean,
+) {
+  return Effect.gen(function* () {
+    const handleNamespaces = [...(yield* Ref.get(ctx.handles)).values()].map(
+      (tool) => tool.runtimeNamespace,
     )
-  }
-
-  addNotice(sessionId: string, notice: McpRuntimeNotice) {
-    const current = this.notices.get(sessionId) ?? []
-    this.notices.set(sessionId, [...current.filter((entry) => entry.id !== notice.id), notice])
-  }
-
-  removeNotice(sessionId: string, noticeId: string) {
-    const current = this.notices.get(sessionId)
-    if (!current) return
-    const next = current.filter((entry) => entry.id !== noticeId)
-    if (next.length === 0) this.notices.delete(sessionId)
-    else this.notices.set(sessionId, next)
-  }
-
-  private makeHandle(snapshot: McpTurnSnapshot, server: McpTurnSnapshotServer, toolName: string) {
-    const runtimeNamespace = resolveMcpRuntimeNamespace(snapshot)
-    return `mcp_${createHmac('sha256', this.handleKey)
-      .update(`${runtimeNamespace}\0${snapshot.revision}\0${server.instanceId}\0${toolName}`)
-      .digest('base64url')
-      .slice(0, HANDLE_LENGTH)}`
-  }
-
-  async discardSupersededSessionConnections(snapshot: McpTurnSnapshot) {
-    const runtimeNamespace = resolveMcpRuntimeNamespace(snapshot)
-    await this.connections.closeSuperseded(runtimeNamespace, snapshot.revision)
-    for (const [handle, tool] of this.handles) {
-      if (
-        tool.runtimeNamespace === runtimeNamespace &&
-        tool.snapshotRevision !== snapshot.revision
-      ) {
-        this.handles.delete(handle)
-      }
-    }
-    await this.remoteTasks.setDisabled({
-      sessionId: snapshot.sessionId,
-      enabledServers: snapshot.servers.map((server) => ({
-        instanceId: server.instanceId,
-        configHash: server.configHash,
-      })),
-      disabled: false,
-    })
-  }
-
-  async getConnectionForServer(snapshot: McpTurnSnapshot, serverInstanceId: string) {
-    const server = snapshot.servers.find((candidate) => candidate.instanceId === serverInstanceId)
-    if (!server) throw new Error('The requested MCP server is not enabled in this turn snapshot.')
-    return { server, connection: await this.connections.get(snapshot, server) }
-  }
-
-  private async loadServerCatalog(snapshot: McpTurnSnapshot, server: McpTurnSnapshotServer) {
-    const key = this.connections.key(snapshot, server)
-    const cached = this.catalogs.get(key)
-    if (cached && cached.expiresAt > this.now()) return cached.tools
-    const connection = await this.connections.get(snapshot, server)
-    const listedTools = await connection.listTools()
-    const tools = listedTools.map((tool) => {
-      const runtimeNamespace = resolveMcpRuntimeNamespace(snapshot)
-      const catalogTool: CatalogTool = {
-        handle: this.makeHandle(snapshot, server, tool.name),
-        server,
-        connection,
-        tool,
-        snapshotRevision: snapshot.revision,
-        runtimeNamespace,
-      }
-      this.handles.set(catalogTool.handle, catalogTool)
-      return catalogTool
-    })
-    this.catalogs.set(key, { expiresAt: this.now() + MCP_CONFIG.CATALOG_CACHE_TTL_MS, tools })
-    return tools
-  }
-
-  async loadCatalog(
-    snapshot: McpTurnSnapshot,
-    selectServer: (server: McpTurnSnapshotServer) => boolean = () => true,
-  ) {
-    await this.discardSupersededSessionConnections(snapshot)
-    const selectedServers = snapshot.servers.filter(selectServer)
-    const results = await Promise.allSettled(
-      selectedServers.map((server) => this.loadServerCatalog(snapshot, server)),
-    )
-    const tools: CatalogTool[] = []
-    for (const [index, result] of results.entries()) {
-      const server = selectedServers[index]
-      if (!server) continue
-      if (result.status === 'fulfilled') {
-        tools.push(...result.value)
-        continue
-      }
-      const detail = result.reason instanceof Error ? result.reason.message : String(result.reason)
-      this.addNotice(resolveMcpRuntimeNamespace(snapshot), {
-        id: `runtime:${server.instanceId}:connect`,
-        severity: server.definition.required ? 'error' : 'warning',
-        title: `${server.name} MCP server could not connect`,
-        detail,
-        action: 'Run MCP doctor, review the server configuration, then retry the turn.',
-        serverInstanceId: server.instanceId,
-      })
-      if (server.definition.required) {
-        throw new Error(`Required MCP server ${server.name} could not connect: ${detail}`)
-      }
-    }
-    return tools
-  }
-
-  findHandle(snapshot: McpTurnSnapshot, handle: string) {
-    const tool = this.handles.get(handle)
-    if (
-      !tool ||
-      tool.runtimeNamespace !== resolveMcpRuntimeNamespace(snapshot) ||
-      tool.snapshotRevision !== snapshot.revision
-    ) {
-      throw new Error('Unknown or stale MCP tool handle. Search or list tools again.')
-    }
-    return tool
-  }
-
-  async recordRemoteTasks(input: {
-    readonly snapshot: McpTurnSnapshot
-    readonly server: McpTurnSnapshotServer
-    readonly connection: McpClientConnection
-    readonly tasks: readonly McpJsonValue[]
-  }) {
-    const records = createRemoteTaskRecords({ ...input, now: this.now })
-    return this.remoteTasks.upsert(records)
-  }
-
-  listRemoteTasks(input?: Parameters<McpRemoteTaskStore['list']>[0]) {
-    return this.remoteTasks.list(input)
-  }
-
-  private addEvent(
-    snapshot: McpTurnSnapshot,
-    server: McpTurnSnapshotServer,
-    event: Parameters<Parameters<McpClientConnection['subscribeEvents']>[0]['onEvent']>[0],
-  ) {
-    const current = this.events.get(snapshot.sessionId) ?? []
-    const next: McpEventRecord = {
-      id: randomUUID(),
-      sessionId: snapshot.sessionId,
-      serverInstanceId: server.instanceId,
-      serverLabel: server.name,
-      kind: event.kind,
-      receivedAt: this.now(),
-      payload: event.payload,
-      read: false,
-    }
-    this.events.set(snapshot.sessionId, [...current, next].slice(-MCP_CONFIG.MAX_EVENT_INBOX_ITEMS))
-  }
-
-  async setEventSubscription(input: {
-    readonly snapshot: McpTurnSnapshot
-    readonly serverInstanceId: string
-    readonly enabled: boolean
-    readonly resourceUris: readonly string[]
-  }): Promise<McpEventSubscriptionState> {
-    const server = input.snapshot.servers.find(
-      (candidate) => candidate.instanceId === input.serverInstanceId,
-    )
-    if (!server) throw new Error('The requested MCP server is not enabled in this turn snapshot.')
-    const key = this.connections.key(input.snapshot, server)
-    const current = this.eventSubscriptions.get(key)
-    if (current) {
-      this.eventSubscriptions.delete(key)
-      await current.close()
-    }
-    if (!input.enabled) {
-      return {
-        serverInstanceId: server.instanceId,
-        serverLabel: server.name,
-        active: false,
-        mode: 'inactive',
-        resourceUris: [],
-        detail: 'Event Inbox subscription stopped. Remote work may continue independently.',
-      }
-    }
-    const connection = await this.connections.get(input.snapshot, server)
-    const subscription = await connection.subscribeEvents({
-      resourceUris: input.resourceUris,
-      onEvent: (event) => this.addEvent(input.snapshot, server, event),
-    })
-    const state: McpEventSubscriptionState = {
-      serverInstanceId: server.instanceId,
-      serverLabel: server.name,
-      active: true,
-      mode: subscription.mode,
-      resourceUris: subscription.resourceUris,
-      detail:
-        subscription.mode === 'modern-listen'
-          ? 'Modern subscriptions/listen is active. Events stay in the inbox until selected.'
-          : 'Legacy notifications and explicit resource subscriptions are active.',
-    }
-    this.eventSubscriptions.set(key, {
-      sessionId: input.snapshot.sessionId,
-      state,
-      close: subscription.close,
-    })
-    return state
-  }
-
-  getEvents(sessionId?: string | null) {
-    return sessionId ? (this.events.get(sessionId) ?? []) : [...this.events.values()].flat()
-  }
-
-  getEventSubscriptions(sessionId?: string | null) {
-    const subscriptions = [...this.eventSubscriptions.values()]
-    return sessionId
-      ? subscriptions.flatMap((subscription) =>
-          subscription.sessionId === sessionId ? [subscription.state] : [],
-        )
-      : subscriptions.map((subscription) => subscription.state)
-  }
-
-  async disposeSession(sessionId: string) {
-    await this.connections.closeRuntimeNamespace(sessionId)
-    for (const [handle, tool] of this.handles) {
-      if (tool.runtimeNamespace === sessionId) this.handles.delete(handle)
-    }
-    this.notices.delete(sessionId)
-    await this.remoteTasks.setDisabled({ sessionId, disabled: true })
-  }
-
-  async reconcileIdleConnections(isActive: (runtimeNamespace: string) => boolean) {
-    const handleNamespaces = [...this.handles.values()].map((tool) => tool.runtimeNamespace)
-    const idleNamespaces = await this.connections.closeIdle(isActive, [
-      ...this.notices.keys(),
+    const noticeNamespaces = [...(yield* Ref.get(ctx.notices)).keys()]
+    const idleNamespaces = yield* ctx.connections.closeIdle(isActive, [
+      ...noticeNamespaces,
       ...handleNamespaces,
     ])
-    for (const [handle, tool] of this.handles) {
-      if (idleNamespaces.has(tool.runtimeNamespace)) this.handles.delete(handle)
+    yield* Ref.update(ctx.handles, (current) => {
+      const next = new Map(current)
+      for (const [handle, tool] of next) {
+        if (idleNamespaces.has(tool.runtimeNamespace)) next.delete(handle)
+      }
+      return next
+    })
+    yield* Ref.update(ctx.notices, (current) => {
+      const next = new Map(current)
+      for (const runtimeNamespace of idleNamespaces) next.delete(runtimeNamespace)
+      return next
+    })
+  })
+}
+
+function disposeAll(ctx: RuntimeStateContext) {
+  return ctx.connections
+    .closeAll()
+    .pipe(
+      Effect.zipRight(Ref.set(ctx.handles, new Map())),
+      Effect.zipRight(Ref.set(ctx.notices, new Map())),
+      Effect.zipRight(Ref.set(ctx.events, new Map())),
+      Effect.zipRight(Effect.promise(() => ctx.remoteTasks.setAllDisabled())),
+    )
+}
+
+/**
+ * Build the Effect-native MCP runtime state. All mutable coordination lives in
+ * `Ref`s (see {@link RuntimeStateContext}); the connection pool is an Effect
+ * service. Behaviour is decomposed across runtime-notices/catalog/events.
+ */
+export function makeMcpRuntimeState(input: {
+  readonly connect: McpConnectionFactory
+  readonly createHandleKey?: () => Buffer
+  readonly remoteTaskStore?: McpRemoteTaskStore
+}): Effect.Effect<McpRuntimeStateService> {
+  return Effect.gen(function* () {
+    const catalogs = yield* Ref.make(new Map<string, CatalogCacheEntry>())
+    const handles = yield* Ref.make(new Map<string, CatalogTool>())
+    const notices = yield* Ref.make(new Map<string, McpRuntimeNotice[]>())
+    const eventSubscriptions = yield* Ref.make(new Map<string, ActiveEventSubscription>())
+    const events = yield* Ref.make(new Map<string, McpEventRecord[]>())
+
+    // The connection pool's teardown/connect callbacks touch state Refs directly
+    // (the connection key doubles as the subscription/catalog key).
+    const connections = yield* makeMcpRuntimeConnections({
+      connect: input.connect,
+      onClose: (key) =>
+        Effect.gen(function* () {
+          const subscription = (yield* Ref.get(eventSubscriptions)).get(key)
+          yield* Ref.update(eventSubscriptions, (current) => {
+            const next = new Map(current)
+            next.delete(key)
+            return next
+          })
+          if (subscription) yield* Effect.promise(() => subscription.close().catch(() => undefined))
+          yield* Ref.update(catalogs, (current) => {
+            const next = new Map(current)
+            next.delete(key)
+            return next
+          })
+        }),
+      onConnected: (runtimeNamespace, serverInstanceId) =>
+        Ref.update(notices, (current) => {
+          const existing = current.get(runtimeNamespace)
+          if (!existing) return current
+          const next = new Map(current)
+          const filtered = existing.filter(
+            (entry) => entry.id !== `runtime:${serverInstanceId}:connect`,
+          )
+          if (filtered.length === 0) next.delete(runtimeNamespace)
+          else next.set(runtimeNamespace, filtered)
+          return next
+        }),
+    })
+
+    const ctx: RuntimeStateContext = {
+      catalogs,
+      handles,
+      notices,
+      eventSubscriptions,
+      events,
+      connections,
+      remoteTasks: input.remoteTaskStore ?? new InMemoryMcpRemoteTaskStore(),
+      handleKey: input.createHandleKey?.() ?? randomBytes(HANDLE_KEY_BYTES),
     }
-    for (const runtimeNamespace of idleNamespaces) this.notices.delete(runtimeNamespace)
-  }
 
-  async disposeAll() {
-    await this.connections.closeAll()
-    this.handles.clear()
-    this.notices.clear()
-    this.events.clear()
-    await this.remoteTasks.setAllDisabled()
-  }
-
-  getConnectionStatuses() {
-    return this.connections.getStatuses()
-  }
-
-  getNotices(sessionId?: string | null) {
-    return sessionId ? (this.notices.get(sessionId) ?? []) : [...this.notices.values()].flat()
-  }
+    return {
+      addNotice: (sessionId, notice) => addNotice(ctx, sessionId, notice),
+      removeNotice: (sessionId, noticeId) => removeNotice(ctx, sessionId, noticeId),
+      discardSupersededSessionConnections: (snapshot) =>
+        discardSupersededSessionConnections(ctx, snapshot),
+      getConnectionForServer: (snapshot, serverInstanceId) =>
+        getConnectionForServer(ctx, snapshot, serverInstanceId),
+      loadCatalog: (snapshot, selectServer) => loadCatalog(ctx, snapshot, selectServer),
+      findHandle: (snapshot, handle) => findHandle(ctx, snapshot, handle),
+      recordRemoteTasks: (recordInput) => recordRemoteTasks(ctx, recordInput),
+      listRemoteTasks: (listInput) => listRemoteTasks(ctx, listInput),
+      setEventSubscription: (subscriptionInput) => setEventSubscription(ctx, subscriptionInput),
+      getEvents: (sessionId) => getEvents(ctx, sessionId),
+      getEventSubscriptions: (sessionId) => getEventSubscriptions(ctx, sessionId),
+      disposeSession: (sessionId) => disposeSession(ctx, sessionId),
+      reconcileIdleConnections: (isActive) => reconcileIdleConnections(ctx, isActive),
+      disposeAll: () => disposeAll(ctx),
+      getConnectionStatuses: () => connections.getStatuses(),
+      getNotices: (sessionId) => getNotices(ctx, sessionId),
+    } satisfies McpRuntimeStateService
+  })
 }

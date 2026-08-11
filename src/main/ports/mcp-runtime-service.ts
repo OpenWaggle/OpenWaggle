@@ -18,6 +18,7 @@ import type {
   McpTurnSnapshot,
 } from '@shared/types/mcp'
 import { Context, type Effect } from 'effect'
+import type { McpRuntimeFailure } from './mcp-errors'
 
 export interface McpElicitationResult {
   readonly action: 'accept' | 'decline' | 'cancel'
@@ -82,47 +83,47 @@ export interface McpRuntimeServiceShape {
     readonly request: McpGatewayInput
     readonly signal?: AbortSignal
     readonly interactions?: McpRuntimeInteractions
-  }) => Effect.Effect<McpGatewayResult, Error>
+  }) => Effect.Effect<McpGatewayResult, McpRuntimeFailure>
   readonly listDirectTools: (
     snapshot: McpTurnSnapshot,
-  ) => Effect.Effect<readonly McpDirectToolDescriptor[], Error>
+  ) => Effect.Effect<readonly McpDirectToolDescriptor[], McpRuntimeFailure>
   readonly browseCapabilities: (input: {
     readonly snapshot: McpTurnSnapshot
     readonly serverInstanceId?: string
-  }) => Effect.Effect<McpCapabilityCatalog, Error>
+  }) => Effect.Effect<McpCapabilityCatalog, McpRuntimeFailure>
   readonly getPrompt: (input: {
     readonly snapshot: McpTurnSnapshot
     readonly serverInstanceId: string
     readonly name: string
     readonly arguments?: Readonly<Record<string, string>>
-  }) => Effect.Effect<McpPromptResult, Error>
+  }) => Effect.Effect<McpPromptResult, McpRuntimeFailure>
   readonly readResource: (input: {
     readonly snapshot: McpTurnSnapshot
     readonly serverInstanceId: string
     readonly uri: string
-  }) => Effect.Effect<McpResourceResult, Error>
+  }) => Effect.Effect<McpResourceResult, McpRuntimeFailure>
   readonly reviewRemoteSkill: (input: {
     readonly snapshot: McpTurnSnapshot
     readonly serverInstanceId: string
     readonly uri: string
-  }) => Effect.Effect<McpRemoteSkillReview, Error>
+  }) => Effect.Effect<McpRemoteSkillReview, McpRuntimeFailure>
   readonly callAppTool: (input: {
     readonly snapshot: McpTurnSnapshot
     readonly serverInstanceId: string
     readonly toolName: string
     readonly arguments: Readonly<Record<string, McpJsonValue>>
     readonly signal?: AbortSignal
-  }) => Effect.Effect<McpAppToolCallResult, Error>
+  }) => Effect.Effect<McpAppToolCallResult, McpRuntimeFailure>
   readonly operateTask: (input: {
     readonly snapshot: McpTurnSnapshot | null
     readonly request: McpTaskOperationInput
-  }) => Effect.Effect<readonly McpTaskRecord[], Error>
+  }) => Effect.Effect<readonly McpTaskRecord[], McpRuntimeFailure>
   readonly setEventSubscription: (input: {
     readonly snapshot: McpTurnSnapshot
     readonly serverInstanceId: string
     readonly enabled: boolean
     readonly resourceUris: readonly string[]
-  }) => Effect.Effect<McpEventSubscriptionState, Error>
+  }) => Effect.Effect<McpEventSubscriptionState, McpRuntimeFailure>
   readonly getEvents: (sessionId?: string | null) => Effect.Effect<readonly McpEventRecord[]>
   readonly getEventSubscriptions: (
     sessionId?: string | null,

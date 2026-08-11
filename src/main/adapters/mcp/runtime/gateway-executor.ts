@@ -6,9 +6,15 @@ import type {
   McpToolDescriptor,
   McpTurnSnapshot,
 } from '@shared/types/mcp'
+import { Effect } from 'effect'
+import {
+  McpRuntimeError,
+  type McpRuntimeFailure,
+  toMcpRuntimeError,
+} from '../../../ports/mcp-errors'
 import type { McpRuntimeInteractions } from '../../../ports/mcp-runtime-service'
 import { appResourceUri } from './capability-descriptors'
-import type { CatalogTool, McpRuntimeState } from './runtime-state'
+import type { CatalogTool, McpRuntimeStateService } from './runtime-state'
 
 const EXACT_MATCH_SCORE = 100
 const PREFIX_MATCH_SCORE = 80
@@ -62,115 +68,152 @@ function byteLength(value: unknown) {
   return Buffer.byteLength(JSON.stringify(value), 'utf8')
 }
 
-async function listTools(state: McpRuntimeState, snapshot: McpTurnSnapshot) {
-  const tools = (await state.loadCatalog(snapshot))
-    .sort((left, right) =>
-      (left.tool.title ?? left.tool.name).localeCompare(right.tool.title ?? right.tool.name),
-    )
-    .slice(0, MCP_CONFIG.MAX_GATEWAY_RESULTS)
-  return {
-    operation: 'list' as const,
-    text: `${String(tools.length)} MCP tools available. Describe a handle before calling it.`,
-    tools: tools.map((tool) => toDescriptor(tool, false)),
-  }
+function listTools(state: McpRuntimeStateService, snapshot: McpTurnSnapshot) {
+  return state.loadCatalog(snapshot).pipe(
+    Effect.map((catalog) => {
+      const tools = catalog
+        .slice()
+        .sort((left, right) =>
+          (left.tool.title ?? left.tool.name).localeCompare(right.tool.title ?? right.tool.name),
+        )
+        .slice(0, MCP_CONFIG.MAX_GATEWAY_RESULTS)
+      return {
+        operation: 'list' as const,
+        text: `${String(tools.length)} MCP tools available. Describe a handle before calling it.`,
+        tools: tools.map((tool) => toDescriptor(tool, false)),
+      }
+    }),
+  )
 }
 
-async function searchTools(
-  state: McpRuntimeState,
+function searchTools(
+  state: McpRuntimeStateService,
   snapshot: McpTurnSnapshot,
   request: McpGatewayInput,
 ) {
-  const query = request.query?.trim().toLocaleLowerCase()
-  if (!query) throw new Error('MCP search requires a non-empty query.')
-  const matches: { readonly tool: CatalogTool; readonly score: number }[] = []
-  for (const tool of await state.loadCatalog(snapshot)) {
-    const score = searchScore(tool, query)
-    if (score > 0) matches.push({ tool, score })
-  }
-  matches.sort((left, right) => right.score - left.score)
-  const tools: CatalogTool[] = []
-  for (const match of matches) {
-    if (tools.length >= MCP_CONFIG.MAX_GATEWAY_RESULTS) break
-    tools.push(match.tool)
-  }
-  return {
-    operation: 'search' as const,
-    text: `${String(tools.length)} MCP tools matched ${JSON.stringify(request.query?.trim())}.`,
-    tools: tools.map((tool) => toDescriptor(tool, false)),
-  }
+  return Effect.gen(function* () {
+    const query = request.query?.trim().toLocaleLowerCase()
+    if (!query)
+      return yield* Effect.fail(
+        new McpRuntimeError({
+          operation: 'search',
+          message: 'MCP search requires a non-empty query.',
+        }),
+      )
+    const matches: { readonly tool: CatalogTool; readonly score: number }[] = []
+    for (const tool of yield* state.loadCatalog(snapshot)) {
+      const score = searchScore(tool, query)
+      if (score > 0) matches.push({ tool, score })
+    }
+    matches.sort((left, right) => right.score - left.score)
+    const tools: CatalogTool[] = []
+    for (const match of matches) {
+      if (tools.length >= MCP_CONFIG.MAX_GATEWAY_RESULTS) break
+      tools.push(match.tool)
+    }
+    return {
+      operation: 'search' as const,
+      text: `${String(tools.length)} MCP tools matched ${JSON.stringify(request.query?.trim())}.`,
+      tools: tools.map((tool) => toDescriptor(tool, false)),
+    }
+  })
 }
 
-export async function executeMcpGateway(
-  state: McpRuntimeState,
+export function executeMcpGateway(
+  state: McpRuntimeStateService,
   snapshot: McpTurnSnapshot,
   request: McpGatewayInput,
   signal?: AbortSignal,
   interactions?: McpRuntimeInteractions,
-): Promise<McpGatewayResult> {
-  if (snapshot.effectiveState !== 'on') throw new Error('MCP is off for this turn.')
-  if (request.operation === 'list') return listTools(state, snapshot)
-  if (request.operation === 'search') return searchTools(state, snapshot, request)
-  if (!request.handle) throw new Error(`MCP ${request.operation} requires a tool handle.`)
-  await state.loadCatalog(snapshot)
-  const catalogTool = state.findHandle(snapshot, request.handle)
-  if (request.operation === 'describe') {
+): Effect.Effect<McpGatewayResult, McpRuntimeFailure> {
+  return Effect.gen(function* () {
+    if (snapshot.effectiveState !== 'on')
+      return yield* Effect.fail(
+        new McpRuntimeError({ operation: 'gateway', message: 'MCP is off for this turn.' }),
+      )
+    if (request.operation === 'list') return yield* listTools(state, snapshot)
+    if (request.operation === 'search') return yield* searchTools(state, snapshot, request)
+    if (!request.handle)
+      return yield* Effect.fail(
+        new McpRuntimeError({
+          operation: request.operation,
+          message: `MCP ${request.operation} requires a tool handle.`,
+        }),
+      )
+    yield* state.loadCatalog(snapshot)
+    const catalogTool = yield* state.findHandle(snapshot, request.handle)
+    if (request.operation === 'describe') {
+      return {
+        operation: 'describe',
+        text: 'Tool schema loaded. Use the same handle to call it.',
+        tools: [toDescriptor(catalogTool, true)],
+        attribution: {
+          serverInstanceId: catalogTool.server.instanceId,
+          serverLabel: catalogTool.server.name,
+          toolName: catalogTool.tool.name,
+        },
+      }
+    }
+    if (!isArgumentObject(request.arguments)) {
+      return yield* Effect.fail(
+        new McpRuntimeError({
+          operation: 'call',
+          message: 'MCP tool arguments must be a JSON object.',
+        }),
+      )
+    }
+    const callArguments = request.arguments
+    const result = yield* Effect.tryPromise({
+      try: () =>
+        catalogTool.connection.callTool({
+          name: catalogTool.tool.name,
+          arguments: callArguments,
+          signal,
+          interactions,
+        }),
+      catch: (error) => toMcpRuntimeError('callTool', error),
+    })
+    if (byteLength(result) > MCP_CONFIG.MAX_RESULT_BYTES) {
+      return yield* Effect.fail(
+        new McpRuntimeError({
+          operation: 'call',
+          message: `MCP tool result exceeded the ${String(MCP_CONFIG.MAX_RESULT_BYTES)} byte safety limit.`,
+        }),
+      )
+    }
+    const resourceUri = appResourceUri(catalogTool)
     return {
-      operation: 'describe',
-      text: 'Tool schema loaded. Use the same handle to call it.',
-      tools: [toDescriptor(catalogTool, true)],
+      operation: 'call',
+      text: result.isError ? 'MCP tool returned an error.' : 'MCP tool completed.',
+      result: result.structuredContent ?? result.content,
+      isError: result.isError,
       attribution: {
         serverInstanceId: catalogTool.server.instanceId,
         serverLabel: catalogTool.server.name,
         toolName: catalogTool.tool.name,
       },
+      ...(resourceUri
+        ? {
+            app: {
+              descriptor: {
+                serverInstanceId: catalogTool.server.instanceId,
+                serverLabel: catalogTool.server.name,
+                toolHandle: catalogTool.handle,
+                toolName: catalogTool.tool.name,
+                toolTitle: catalogTool.tool.title ?? catalogTool.tool.name,
+                resourceUri,
+                allowedNetworkDomains: catalogTool.server.definition.security?.networkDomains ?? [],
+              },
+              toolResult: {
+                content: result.content,
+                ...(result.structuredContent === undefined
+                  ? {}
+                  : { structuredContent: result.structuredContent }),
+                isError: result.isError,
+              },
+            },
+          }
+        : {}),
     }
-  }
-  if (!isArgumentObject(request.arguments)) {
-    throw new Error('MCP tool arguments must be a JSON object.')
-  }
-  const result = await catalogTool.connection.callTool({
-    name: catalogTool.tool.name,
-    arguments: request.arguments,
-    signal,
-    interactions,
   })
-  if (byteLength(result) > MCP_CONFIG.MAX_RESULT_BYTES) {
-    throw new Error(
-      `MCP tool result exceeded the ${String(MCP_CONFIG.MAX_RESULT_BYTES)} byte safety limit.`,
-    )
-  }
-  const resourceUri = appResourceUri(catalogTool)
-  return {
-    operation: 'call',
-    text: result.isError ? 'MCP tool returned an error.' : 'MCP tool completed.',
-    result: result.structuredContent ?? result.content,
-    isError: result.isError,
-    attribution: {
-      serverInstanceId: catalogTool.server.instanceId,
-      serverLabel: catalogTool.server.name,
-      toolName: catalogTool.tool.name,
-    },
-    ...(resourceUri
-      ? {
-          app: {
-            descriptor: {
-              serverInstanceId: catalogTool.server.instanceId,
-              serverLabel: catalogTool.server.name,
-              toolHandle: catalogTool.handle,
-              toolName: catalogTool.tool.name,
-              toolTitle: catalogTool.tool.title ?? catalogTool.tool.name,
-              resourceUri,
-              allowedNetworkDomains: catalogTool.server.definition.security?.networkDomains ?? [],
-            },
-            toolResult: {
-              content: result.content,
-              ...(result.structuredContent === undefined
-                ? {}
-                : { structuredContent: result.structuredContent }),
-              isError: result.isError,
-            },
-          },
-        }
-      : {}),
-  }
 }

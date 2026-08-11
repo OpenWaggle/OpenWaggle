@@ -9,8 +9,14 @@ import type {
   McpTurnSnapshot,
   McpTurnSnapshotServer,
 } from '@shared/types/mcp'
+import { Effect } from 'effect'
 import { parse as parseYaml } from 'yaml'
-import type { McpRuntimeState } from './runtime-state'
+import {
+  McpRuntimeError,
+  type McpRuntimeFailure,
+  toMcpRuntimeError,
+} from '../../../ports/mcp-errors'
+import type { McpRuntimeStateService } from './runtime-state'
 
 const YAML_OPENING_MARKER = '---\n'
 const YAML_CLOSING_MARKER = '\n---\n'
@@ -125,61 +131,84 @@ function validateSkillResources(skill: McpRemoteSkillDescriptor) {
   if (!uris.has(skill.uri)) throw new Error('Remote Skill resource list omits SKILL.md.')
 }
 
-export async function reviewMcpRemoteSkill(input: {
-  readonly state: McpRuntimeState
+export function reviewMcpRemoteSkill(input: {
+  readonly state: McpRuntimeStateService
   readonly snapshot: McpTurnSnapshot
   readonly serverInstanceId: string
   readonly uri: string
-}): Promise<McpRemoteSkillReview> {
-  const { server, connection } = await input.state.getConnectionForServer(
-    input.snapshot,
-    input.serverInstanceId,
-  )
-  if (!connection.capabilities.includes('skills')) {
-    throw new Error(
-      'Remote Skills are unavailable. The server must declare SEP-2640 and clientCapabilities.remoteSkills must be true.',
+}): Effect.Effect<McpRemoteSkillReview, McpRuntimeFailure> {
+  const fail = (message: string) =>
+    Effect.fail(new McpRuntimeError({ operation: 'reviewRemoteSkill', message }))
+  return Effect.gen(function* () {
+    const { server, connection } = yield* input.state.getConnectionForServer(
+      input.snapshot,
+      input.serverInstanceId,
     )
-  }
-  const result = await connection.getSkill({ uri: input.uri })
-  const rawSkill = isObject(result) ? result.skill : undefined
-  const skill = mcpRemoteSkillDescriptor(
-    rawSkill,
-    server,
-    connection.skillExtension?.directoryRead === true,
-  )
-  if (!skill || skill.uri !== input.uri)
-    throw new Error('MCP server returned a different Skill entry.')
-  if (skillNameFromUri(skill.uri) !== skill.name) {
-    throw new Error('Remote Skill URI and frontmatter name do not match.')
-  }
-  validateSkillResources(skill)
-  const resource = await connection.readResource({ uri: skill.uri })
-  const bytes = resourceBytes(resource, skill.uri)
-  if (bytes.byteLength > MCP_CONFIG.MAX_RESULT_BYTES) {
-    throw new Error('Remote SKILL.md exceeds the 1 MB safety limit.')
-  }
-  const markdown = bytes.toString('utf8')
-  const actualFrontmatter = parseSkillFrontmatter(markdown)
-  if (stableJson(actualFrontmatter) !== stableJson(skill.frontmatter)) {
-    throw new Error('Remote SKILL.md frontmatter does not match the advertised Skill entry.')
-  }
-  const advertised = skill.resources.find((entry) => entry.uri === skill.uri)
-  const actualDigest = `sha256:${createHash('sha256').update(bytes).digest('hex')}`
-  if (advertised && advertised.digest !== actualDigest) {
-    throw new Error('Remote SKILL.md digest verification failed; the content was not loaded.')
-  }
-  const warnings = [
-    'Remote Skill content is untrusted and has no authority over OpenWaggle policy or approvals.',
-    'Remote scripts and allowed-tools declarations are not executed or granted automatically.',
-    ...(advertised
-      ? []
-      : ['This dynamically generated Skill has no digest manifest; approval cannot persist.']),
-  ]
-  return {
-    skill,
-    markdown,
-    digestVerified: Boolean(advertised),
-    warnings,
-    attribution: { serverInstanceId: server.instanceId, serverLabel: server.name },
-  }
+    if (!connection.capabilities.includes('skills')) {
+      return yield* fail(
+        'Remote Skills are unavailable. The server must declare SEP-2640 and clientCapabilities.remoteSkills must be true.',
+      )
+    }
+    const result = yield* Effect.tryPromise({
+      try: () => connection.getSkill({ uri: input.uri }),
+      catch: (error) => toMcpRuntimeError('getSkill', error),
+    })
+    const rawSkill = isObject(result) ? result.skill : undefined
+    const skill = mcpRemoteSkillDescriptor(
+      rawSkill,
+      server,
+      connection.skillExtension?.directoryRead === true,
+    )
+    if (!skill || skill.uri !== input.uri)
+      return yield* fail('MCP server returned a different Skill entry.')
+    const verifiedSkill = skill
+    yield* Effect.try({
+      try: () => {
+        if (skillNameFromUri(verifiedSkill.uri) !== verifiedSkill.name) {
+          throw new Error('Remote Skill URI and frontmatter name do not match.')
+        }
+        validateSkillResources(verifiedSkill)
+      },
+      catch: (error) => toMcpRuntimeError('reviewRemoteSkill', error),
+    })
+    const resource = yield* Effect.tryPromise({
+      try: () => connection.readResource({ uri: verifiedSkill.uri }),
+      catch: (error) => toMcpRuntimeError('readResource', error),
+    })
+    const bytes = yield* Effect.try({
+      try: () => resourceBytes(resource, verifiedSkill.uri),
+      catch: (error) => toMcpRuntimeError('reviewRemoteSkill', error),
+    })
+    if (bytes.byteLength > MCP_CONFIG.MAX_RESULT_BYTES) {
+      return yield* fail('Remote SKILL.md exceeds the 1 MB safety limit.')
+    }
+    const markdown = bytes.toString('utf8')
+    const frontmatterMatches = yield* Effect.try({
+      try: () =>
+        stableJson(parseSkillFrontmatter(markdown)) === stableJson(verifiedSkill.frontmatter),
+      catch: (error) => toMcpRuntimeError('reviewRemoteSkill', error),
+    })
+    if (!frontmatterMatches) {
+      return yield* fail('Remote SKILL.md frontmatter does not match the advertised Skill entry.')
+    }
+    const advertised = verifiedSkill.resources.find((entry) => entry.uri === verifiedSkill.uri)
+    const actualDigest = `sha256:${createHash('sha256').update(bytes).digest('hex')}`
+    if (advertised && advertised.digest !== actualDigest) {
+      return yield* fail('Remote SKILL.md digest verification failed; the content was not loaded.')
+    }
+    const warnings = [
+      'Remote Skill content is untrusted and has no authority over OpenWaggle policy or approvals.',
+      'Remote scripts and allowed-tools declarations are not executed or granted automatically.',
+      ...(advertised
+        ? []
+        : ['This dynamically generated Skill has no digest manifest; approval cannot persist.']),
+    ]
+    return {
+      skill: verifiedSkill,
+      markdown,
+      digestVerified: Boolean(advertised),
+      warnings,
+      attribution: { serverInstanceId: server.instanceId, serverLabel: server.name },
+    }
+  })
 }

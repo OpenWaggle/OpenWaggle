@@ -1,7 +1,11 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { createMcpRuntimeService } from '../runtime/runtime-service-factory'
-import { connection, server, snapshot } from './mcp-runtime-test-utils'
+import {
+  connection,
+  createMcpRuntimeServiceForTests as createMcpRuntimeService,
+  server,
+  snapshot,
+} from './mcp-runtime-test-utils'
 
 describe('first-party MCP capability runtime', () => {
   it('browses prompts, resources, tasks, and modern and legacy MCP App metadata', async () => {
@@ -146,7 +150,7 @@ describe('first-party MCP capability runtime', () => {
       capabilities: ['tasks'],
       listTasks: async () => ({ tasks: [{ taskId: 'task-durable', status: 'working' }] }),
     })
-    const service = createMcpRuntimeService({ connect: async () => client, now: () => 42 })
+    const service = createMcpRuntimeService({ connect: async () => client })
     const turn = snapshot()
 
     const active = await service.operateTask(turn, {

@@ -71,6 +71,7 @@ export class McpConfigContextStore {
       context: await this.loadContextUnlocked({ projectPath, sessionId }),
       projectPath,
       sessionId,
+      activeTurn: this.options.getActiveTurn?.(sessionId),
     })
   }
 

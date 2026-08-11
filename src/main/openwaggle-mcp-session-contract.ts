@@ -1,6 +1,7 @@
 import { MCP_CONFIG } from '@shared/constants/mcp'
 import type { SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
+import type { Effect } from 'effect'
 import { z } from 'zod'
 import type { OpenWaggleMcpServeOptions } from './openwaggle-mcp-server-policy'
 import type { OpenWaggleMcpSessionMetadataStore } from './openwaggle-mcp-session-metadata-store'
@@ -90,14 +91,14 @@ export interface OpenWaggleSessionTaskController {
     readonly projectPath: string
     readonly objective: string
     readonly sessionId?: string
-  }) => Promise<unknown>
-  readonly listForSession: (sessionId: string) => Promise<readonly unknown[]>
+  }) => Effect.Effect<unknown>
+  readonly listForSession: (sessionId: string) => Effect.Effect<readonly unknown[]>
   readonly hasActiveSessionTask: (sessionId: string) => boolean
   readonly getExecutionProfile: (
     sessionId: string,
-  ) => Promise<{ readonly model: string; readonly thinkingLevel: string }>
-  readonly cancelSession: (sessionId: string) => Promise<number>
-  readonly waitForSession: (sessionId: string, timeoutMs: number) => Promise<boolean>
+  ) => Effect.Effect<{ readonly model: string; readonly thinkingLevel: string }>
+  readonly cancelSession: (sessionId: string) => Effect.Effect<number>
+  readonly waitForSession: (sessionId: string, timeoutMs: number) => Effect.Effect<boolean>
 }
 
 export function sessionSummary(session: SessionDetail) {
