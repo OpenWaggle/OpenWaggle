@@ -66,4 +66,10 @@ The premise is inaccurate: the `.diff-chrome` comment claims each override *belo
 
 `pnpm check` exit 0 · unit **1877** · component **523** · integration **124** · React Doctor **100/100, no issues**.
 
-One caveat on the unit suite: `src/main/store/__tests__/settings.unit.test.ts` intermittently emits `[vitest-pool]: Timeout terminating forks worker`, which truncates the run's reported totals. It is a teardown flake, not a failure — the file passes in isolation and a clean re-run reports 351/351 files and 1877/1877 tests.
+### Caveat on the unit total, stated plainly
+
+`npx vitest run` collects **1877** tests across **351** files. Aggregate runs frequently report **1867 / 350** instead, with `[vitest-pool]: Timeout terminating forks worker for ... settings.unit.test.ts`. Nothing is failing: that file passes **11/11** in isolation. Its worker finishes the tests and then fails to exit, so vitest kills it and its tests drop out of the totals.
+
+This is **pre-existing and not from this PR**: `git log --oneline 34d955ed..HEAD -- src/main/store/__tests__/settings.unit.test.ts src/main/runtime.ts` is empty, and the same `disposeRuntime()` + `vi.resetModules()` lifecycle exists at the merge base. Ruled out: native-module ABI (persists after `pnpm prepare:native:node`), worker/resource exhaustion (persists with `--maxWorkers=2`), and disposing before `vi.resetModules()` (tried, reverted — the leak survives, so an orphaned module instance does not fully explain it).
+
+Tracked as **#151** rather than left as an unexplained caveat, so a future reader comparing suite counts across branches can tell an under-count from a removed test.
