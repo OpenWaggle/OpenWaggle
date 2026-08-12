@@ -1,11 +1,14 @@
 import { join } from 'node:path'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { app, BrowserWindow, shell } from 'electron'
+import { completeAppRuntimeShutdown } from './application/app-runtime-shutdown'
 import { configureApplicationMenu, installDevToolsShortcut } from './application-menu'
 import { env } from './env'
+import { describeError } from './error-description'
 import { registerExtensionFrameProtocolOnce } from './extension-frame-protocol'
 import { registerExtensionRuntimeProtocolOnce } from './extension-runtime-protocol'
 import { createLogger, initFileLogger } from './logger'
+import { startMcpCliIfRequested } from './mcp-cli-entry'
 import {
   devRendererUrl,
   INDEX_HTML,
@@ -56,12 +59,6 @@ let cleanupTerminalsOnce: IpcHandlersModule['cleanupTerminals'] | null = null
 let disposeAutoUpdaterOnce: (() => void) | null = null
 let persistAllActiveRunsOnce: AgentHandlerModule['persistAllActiveRuns'] | null = null
 let runtimeModulePromise: Promise<RuntimeModule> | null = null
-
-function describeError(error: unknown) {
-  return error instanceof Error
-    ? { message: error.message, name: error.name, stack: error.stack }
-    : { message: String(error) }
-}
 
 function startupMark(label: string) {
   if (!app.commandLine.hasSwitch(STARTUP_TIMINGS_SWITCH)) {
@@ -304,10 +301,6 @@ function registerAppLifecycle() {
       app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow()
       })
-
-      app.on('will-quit', () => {
-        void runtimeModulePromise?.then(({ disposeAppRuntime }) => disposeAppRuntime())
-      })
     })
     .catch((error: unknown) => {
       logger.error('App startup failed before ready', describeError(error))
@@ -324,7 +317,10 @@ function registerAppLifecycle() {
     disposeAutoUpdaterOnce?.()
     if (!beforeQuitCleanupDone) {
       e.preventDefault()
-      persistActiveRunsBeforeQuit()
+      completeAppRuntimeShutdown({
+        persistActiveRuns: persistActiveRunsBeforeQuit,
+        disposeRuntime: async () => (await getRuntimeModule()).disposeAppRuntime(),
+      })
         .then(() => {
           beforeQuitCleanupDone = true
           app.quit()
@@ -352,4 +348,4 @@ function startApp() {
   registerAppLifecycle()
 }
 
-startApp()
+if (!startMcpCliIfRequested(process.argv)) startApp()

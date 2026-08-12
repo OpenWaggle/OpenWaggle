@@ -12,7 +12,6 @@ import { ProviderProbeService } from '../../../ports/provider-probe-service'
 
 interface RuntimeServicesOptions {
   readonly enabledOpenWaggleExtensionPackagePaths: readonly string[]
-  readonly loadMcpAdapter: boolean
 }
 
 type RuntimeServicesLoader = (

@@ -23,7 +23,7 @@ Provider/model/auth metadata comes from Pi `ModelRuntime`:
 
 ### Pi-Native Coding Agent Toolkit
 - **Native Pi tools** — read, write, edit, search/listing, and shell activity provided by Pi
-- **MCP through Pi** — optional MCP support powered by the `pi-mcp-adapter` extension
+- **First-party MCP** — optional, scoped MCP with modern and legacy protocol support, trust, Tasks, Apps, prompts, resources, and explicit context control
 - **Tool timeline** — OpenWaggle renders Pi-emitted tool calls without a parallel runtime layer
 - **Session Tree** — Pi session nodes and branches projected into a right-side tree navigation surface
 - **Skills/resources** — Pi-native project resource loading with `.openwaggle > .pi > .agents` precedence

@@ -1,7 +1,7 @@
 ---
 title: "Thinking Levels"
 description: "Pi-native reasoning depth selection in OpenWaggle."
-order: 3
+order: 4
 section: "Configuration"
 ---
 

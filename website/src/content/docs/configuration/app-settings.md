@@ -13,7 +13,7 @@ Open Settings from the sidebar gear icon.
 |---------|-------------|
 | **General** | General application settings. |
 | **Waggle Mode** | Multi-agent Waggle configuration and presets. |
-| **MCP** | Pi extension-backed MCP server configuration, source hierarchy, and toggles. |
+| **MCP** | First-party MCP server configuration, scope, trust, capabilities, and diagnostics. |
 | **Connections** | Pi-backed API-key and OAuth provider authentication, plus enabled model selection. |
 | **Archived items** | Restore archived sessions and non-main session branches, or permanently delete archived sessions. |
 
@@ -33,9 +33,11 @@ The composer only shows enabled models.
 
 ## MCP
 
-Settings > MCP enables OpenWaggle's bundled `pi-mcp-adapter@2.9.0` through the local `extensions/pi-mcp-adapter` Pi extension package source and shows the merged effective MCP view. OpenWaggle reads standard, Pi, `.agents`, and `.openwaggle/agent/mcp.json` config files, then passes Pi a generated effective config for the next turn. Runtime adapter startup is scoped to that generated config and the active project so MCP servers do not depend on the Electron launcher cwd.
+Settings > MCP controls OpenWaggle's first-party MCP runtime. MCP is globally off by default, and effective state resolves from session to project to global. Turning MCP off for one session means that session receives no MCP servers, tools, instructions, subscriptions, or derived context. A change made during a turn is shown as pending and applies at the next safe turn boundary.
 
-Per-server toggles preserve config by moving entries between `mcpServers` and `openwaggle.disabledMcpServers` in the selected source file. The advanced JSON editor remains available for every `pi-mcp-adapter` field.
+OpenWaggle reads `~/.openwaggle/mcp.json`, `<project>/.mcp.json`, and `<project>/.openwaggle/mcp.json`. Server enablement, trust, grants, and scope state are user-owned state, so a checked-in project file can request a server but cannot silently run or trust it. Per-server toggles do not rewrite or delete the server definition.
+
+The Capabilities area connects lazily. Prompts create editable drafts; resources remain attributed; server instructions are never injected automatically; remote Tasks remain visible when a server is disabled; and MCP Apps use an isolated `ui://` host. Experimental remote Skills require `clientCapabilities.remoteSkills: true` for that server, are digest/frontmatter checked where possible, and never execute remote scripts or grant `allowed-tools` automatically.
 
 ## Data Storage
 
@@ -43,7 +45,7 @@ OpenWaggle stores app-owned settings, sessions, and session projections in `open
 
 Provider credentials are resolved by Pi auth storage, environment variables, or project/custom Pi provider configuration. Pi's default auth storage path is `~/.pi/agent/auth.json`.
 
-MCP server config files stay in their standard/project locations and are not stored in the SQLite settings database.
+MCP server config stays in the files above. User-owned MCP state, encrypted secret references, OAuth state, and durable remote Task records live under `~/.openwaggle/mcp/` and are not model-visible.
 
 ## Logs
 

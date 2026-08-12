@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const HTTP_OK_STATUS = 200
 const HTTP_NOT_FOUND_STATUS = 404
+const MODULE_LOAD_TEST_TIMEOUT_MS = 15_000
 
 interface ProtocolRequest {
   readonly url: string
@@ -193,18 +194,22 @@ describe('renderer protocol', () => {
     )
   })
 
-  it('does not register protocol handlers more than once', async () => {
-    const { registerRendererProtocolOnce } = await loadRendererProtocol()
-    const { registerExtensionRuntimeProtocolOnce } = await loadExtensionRuntimeProtocol()
-    const { registerExtensionFrameProtocolOnce } = await loadExtensionFrameProtocol()
+  it(
+    'does not register protocol handlers more than once',
+    async () => {
+      const { registerRendererProtocolOnce } = await loadRendererProtocol()
+      const { registerExtensionRuntimeProtocolOnce } = await loadExtensionRuntimeProtocol()
+      const { registerExtensionFrameProtocolOnce } = await loadExtensionFrameProtocol()
 
-    registerRendererProtocolOnce()
-    registerRendererProtocolOnce()
-    registerExtensionRuntimeProtocolOnce()
-    registerExtensionRuntimeProtocolOnce()
-    registerExtensionFrameProtocolOnce()
-    registerExtensionFrameProtocolOnce()
+      registerRendererProtocolOnce()
+      registerRendererProtocolOnce()
+      registerExtensionRuntimeProtocolOnce()
+      registerExtensionRuntimeProtocolOnce()
+      registerExtensionFrameProtocolOnce()
+      registerExtensionFrameProtocolOnce()
 
-    expect(protocolMocks.handle).toHaveBeenCalledTimes(3)
-  })
+      expect(protocolMocks.handle).toHaveBeenCalledTimes(3)
+    },
+    MODULE_LOAD_TEST_TIMEOUT_MS,
+  )
 })

@@ -32,10 +32,11 @@ function resolveLastUserMessage(messages: UIMessage[]) {
     return null
   }
 
-  const content = lastUserMessage.parts
-    .filter((part) => part.type === 'text')
-    .map((part) => part.content)
-    .join('\n')
+  const textParts: string[] = []
+  for (const part of lastUserMessage.parts) {
+    if (part.type === 'text') textParts.push(part.content)
+  }
+  const content = textParts.join('\n')
 
   return content || null
 }

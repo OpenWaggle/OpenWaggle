@@ -48,8 +48,6 @@ extraResources:
     to: icon.png
   - from: build/openwaggle-docs
     to: openwaggle-docs
-asarUnpack:
-  - node_modules/pi-mcp-adapter/**/*
 mac:
   # Local builds: skip codesigning (no Apple Developer ID).
   # Distribution: remove this, configure CSC_LINK/CSC_KEY_PASSWORD.
@@ -68,6 +66,8 @@ win:
     - target: nsis
       arch:
         - x64
+nsis:
+  include: build/installer.nsh
 linux:
   icon: build/icon.png
   artifactName: ${name}-${version}-${arch}.${ext}

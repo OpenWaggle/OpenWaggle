@@ -24,6 +24,10 @@ describe('Windows installer verification', () => {
       2,
       join('D:\\temp\\openwaggle-install', 'OpenWaggle.exe'),
     )
+    expect(verifyPath).toHaveBeenNthCalledWith(
+      3,
+      join('D:\\temp\\openwaggle-install', 'openwaggle.cmd'),
+    )
   })
 
   it('rejects a nonzero installer exit code before checking the executable', async () => {

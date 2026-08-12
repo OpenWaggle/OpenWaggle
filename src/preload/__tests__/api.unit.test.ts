@@ -16,6 +16,7 @@ vi.mock('electron', () => ({
 
 import { ipcRenderer, webUtils } from 'electron'
 import { api } from '../api'
+import { PRELOAD_MCP_METHODS } from './preload-mcp-methods'
 
 describe('preload api surface contract', () => {
   beforeEach(() => {
@@ -44,10 +45,7 @@ describe('preload api surface contract', () => {
     'setPiTreeFilterMode',
     'getPiBranchSummarySkipPrompt',
     'testApiKey',
-    'getMcpSettings',
-    'setMcpAdapterEnabled',
-    'setMcpServerEnabled',
-    'writeMcpSourceConfig',
+    ...PRELOAD_MCP_METHODS,
     'listExtensionPackages',
     'listExtensionContributions',
     'proposeExtensionPackageWrite',

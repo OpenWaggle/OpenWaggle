@@ -49,9 +49,9 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
           catch: (cause) => new SessionProjectionRepositoryError({ operation: 'list', cause }),
         }),
 
-      listDetails: (limit) =>
+      listDetails: (limit, offset) =>
         Effect.tryPromise({
-          try: () => store.listSessionDetails(limit),
+          try: () => store.listSessionDetails(limit, offset),
           catch: (cause) =>
             new SessionProjectionRepositoryError({ operation: 'listDetails', cause }),
         }),

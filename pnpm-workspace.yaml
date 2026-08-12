@@ -4,7 +4,8 @@ packages:
 
 minimumReleaseAgeExclude:
   - "@diegogbrisa/*"
-  - hono@4.12.31
+  - hono@4.12.34
+  - undici@8.10.0
   - "@aws-sdk/client-bedrock-runtime@3.1092.0"
   - "@aws-sdk/core@3.976.0"
   - "@aws-sdk/credential-provider-env@3.972.60"
@@ -78,9 +79,10 @@ minimumReleaseAgeExclude:
 
 overrides:
   "@hono/node-server": 2.0.11
+  "@earendil-works/pi-coding-agent>undici": 8.10.0
   adm-zip: 0.6.0
   electron-vite>vite: 8.1.5
-  hono: 4.12.31
+  hono: 4.12.34
   protobufjs: 8.7.1
   sharp: 0.35.3
   "@tanstack/history": 1.162.0

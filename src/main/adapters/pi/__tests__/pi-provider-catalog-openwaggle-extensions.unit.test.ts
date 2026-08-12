@@ -63,7 +63,6 @@ describe('createPiRuntimeServices OpenWaggle extension loading', () => {
 
     const services = await createPiRuntimeServices(projectPath, {
       enabledOpenWaggleExtensionPackagePaths: [enabledPackagePath],
-      loadMcpAdapter: false,
     })
 
     expect(services.settingsManager.getProjectSettings().extensions).toEqual([
@@ -87,7 +86,6 @@ describe('createPiRuntimeServices OpenWaggle extension loading', () => {
 
     const services = await createPiRuntimeServices(projectPath, {
       enabledOpenWaggleExtensionPackagePaths: [globalPackagePath],
-      loadMcpAdapter: false,
     })
 
     expect(services.settingsManager.getProjectSettings().extensions).toEqual([
@@ -113,7 +111,6 @@ describe('createPiRuntimeServices OpenWaggle extension loading', () => {
 
     const services = await createPiRuntimeServices(projectPath, {
       enabledOpenWaggleExtensionPackagePaths: [packageDir],
-      loadMcpAdapter: false,
     })
 
     expect(services.modelRuntime.getModel('resource-provider', 'offline-model')).not.toBeNull()
@@ -140,7 +137,6 @@ describe('createPiRuntimeServices OpenWaggle extension loading', () => {
     const services = await createPiRuntimeServices(projectPath, {
       enabledOpenWaggleExtensionPackagePaths: [],
       enabledOpenWaggleExtensionResourceRoots: [{ packagePath: packageDir, resourceRoot: 'pi' }],
-      loadMcpAdapter: false,
     })
 
     expect(services.settingsManager.getProjectSettings().skills).toEqual([

@@ -6,18 +6,13 @@ import {
   getAgentDir,
   ModelRuntime,
 } from '@earendil-works/pi-coding-agent'
-import { MCP_ADAPTER_PACKAGE_SOURCES } from '@shared/constants/mcp'
 import { createModelRef } from '@shared/types/llm'
 import { withNpmCompatibleProcessEnv } from '../../env'
+import { LEGACY_PI_MCP_ADAPTER_PACKAGE_SOURCES } from '../../migrations/legacy-pi-mcp-adapter'
 import {
   createOpenWaggleGlobalPiSettingsManager,
   createOpenWagglePiSettingsManager,
 } from './openwaggle-pi-settings-storage'
-import {
-  prepareOpenWaggleMcpRuntimeContext,
-  rememberOpenWaggleMcpRuntimeContext,
-  withOpenWaggleMcpAdapterProcessContext,
-} from './pi-mcp-config-service'
 import {
   createOpenWagglePiResourceLoaderOptions,
   type PiRuntimeServicesOptions,
@@ -145,51 +140,31 @@ export async function createPiRuntimeServices(
   projectPath: string,
   options: PiRuntimeServicesOptions = {},
 ): Promise<AgentSessionServices> {
-  const loadMcpAdapter = options.loadMcpAdapter ?? true
   const settingsManager = createOpenWagglePiSettingsManager(projectPath, {
     enabledOpenWaggleExtensionPackagePaths: options.enabledOpenWaggleExtensionPackagePaths ?? [],
     enabledOpenWaggleExtensionResourceRoots: options.enabledOpenWaggleExtensionResourceRoots ?? [],
-    ...(loadMcpAdapter
-      ? {}
-      : {
-          excludedGlobalPackageSources: MCP_ADAPTER_PACKAGE_SOURCES,
-          excludedProjectPackageSources: MCP_ADAPTER_PACKAGE_SOURCES,
-        }),
+    excludedGlobalPackageSources: LEGACY_PI_MCP_ADAPTER_PACKAGE_SOURCES,
+    excludedProjectPackageSources: LEGACY_PI_MCP_ADAPTER_PACKAGE_SOURCES,
   })
-  const mcpRuntimeContext = loadMcpAdapter
-    ? options.mcpRuntimeContext === undefined
-      ? await prepareOpenWaggleMcpRuntimeContext(projectPath)
-      : options.mcpRuntimeContext
-    : null
   const services = await withNpmCompatibleProcessEnv(() =>
-    withOpenWaggleMcpAdapterProcessContext(mcpRuntimeContext, () =>
-      createAgentSessionServices({
-        cwd: projectPath,
-        agentDir: getPiAgentDir(),
+    createAgentSessionServices({
+      cwd: projectPath,
+      agentDir: getPiAgentDir(),
+      settingsManager,
+      resourceLoaderOptions: createOpenWagglePiResourceLoaderOptions(
+        projectPath,
+        options,
         settingsManager,
-        ...(mcpRuntimeContext
-          ? {
-              extensionFlagValues: new Map<string, boolean | string>([
-                ['mcp-config', mcpRuntimeContext.configPath],
-              ]),
-            }
-          : {}),
-        resourceLoaderOptions: createOpenWagglePiResourceLoaderOptions(
-          projectPath,
-          options,
-          settingsManager,
-        ),
-      }),
-    ),
+      ),
+    }),
   )
-  rememberOpenWaggleMcpRuntimeContext(services, mcpRuntimeContext)
   return services
 }
 
 async function createPiGlobalProviderCatalogServices() {
   const agentDir = getPiAgentDir()
   const settingsManager = createOpenWaggleGlobalPiSettingsManager({
-    excludedGlobalPackageSources: MCP_ADAPTER_PACKAGE_SOURCES,
+    excludedGlobalPackageSources: LEGACY_PI_MCP_ADAPTER_PACKAGE_SOURCES,
   })
   const services = await withNpmCompatibleProcessEnv(() =>
     createAgentSessionServices({
@@ -198,7 +173,6 @@ async function createPiGlobalProviderCatalogServices() {
       settingsManager,
     }),
   )
-  rememberOpenWaggleMcpRuntimeContext(services, null)
   return services
 }
 
@@ -218,7 +192,6 @@ export async function createPiProviderCatalogSnapshot(
   const services = await createPiRuntimeServices(normalizedProjectPath, {
     enabledOpenWaggleExtensionPackagePaths: options.enabledOpenWaggleExtensionPackagePaths ?? [],
     enabledOpenWaggleExtensionResourceRoots: options.enabledOpenWaggleExtensionResourceRoots ?? [],
-    loadMcpAdapter: false,
   })
   return await createPiProviderCatalogSnapshotFromRuntime(services)
 }
@@ -253,7 +226,10 @@ function findExplicitProviderModelReference(modelRuntime: ModelRuntime, modelRef
   return modelRuntime.getModel(provider, modelId) ?? null
 }
 
-export function findPiModel(modelRuntime: ModelRuntime, modelReference: string): PiModel | null {
+export function findPiToolCapableModel(
+  modelRuntime: ModelRuntime,
+  modelReference: string,
+): PiModel | null {
   const trimmedReference = modelReference.trim()
   if (!trimmedReference) {
     return null
@@ -280,7 +256,7 @@ export async function createPiProjectModelRuntime(input: {
       : {}),
     ...(input.extensionFactories ? { extensionFactories: input.extensionFactories } : {}),
   })
-  const model = findPiModel(services.modelRuntime, input.modelReference)
+  const model = findPiToolCapableModel(services.modelRuntime, input.modelReference)
   if (!model) {
     throw new Error(`Pi model registry could not resolve model ${input.modelReference}`)
   }

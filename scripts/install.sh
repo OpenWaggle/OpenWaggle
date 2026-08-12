@@ -126,6 +126,15 @@ if [ "${PLATFORM}" = "mac" ]; then
   xattr -rd com.apple.quarantine "/Applications/$(basename "${APP_PATH}")" 2>/dev/null || true
   info "Installed to /Applications/$(basename "${APP_PATH}")"
 
+  INSTALL_DIR="${HOME}/.local/bin"
+  mkdir -p "${INSTALL_DIR}"
+  APP_EXECUTABLE="/Applications/$(basename "${APP_PATH}")/Contents/MacOS/OpenWaggle"
+  ln -sf "${APP_EXECUTABLE}" "${INSTALL_DIR}/openwaggle"
+  info "Installed CLI to ${INSTALL_DIR}/openwaggle"
+  if ! echo "${PATH}" | grep -q "${INSTALL_DIR}"; then
+    info "Add ${INSTALL_DIR} to your PATH if not already present"
+  fi
+
 elif [ "${PLATFORM}" = "linux" ]; then
   INSTALL_DIR="${HOME}/.local/bin"
   mkdir -p "${INSTALL_DIR}"

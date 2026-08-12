@@ -1,7 +1,9 @@
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
+import { parseToolArgs } from '@/features/chat/lib/tool-args'
 import { ExtensionAgentLoopSurface } from '@/features/extensions'
+import { getMcpAppLaunch, McpAppHost } from '@/features/mcp'
 import { ToolCallBlock } from './ToolCallBlock'
 
 const JSON_STRINGIFY_INDENT = 2
@@ -35,7 +37,7 @@ function stringifyToolResultContent(content: unknown) {
 export function ToolCallRouter({
   part,
   toolResults,
-  sessionId: _sessionId,
+  sessionId,
   isStreaming,
   extensionRegistry = null,
   extensionProjectPaths = EMPTY_PROJECT_PATHS,
@@ -58,6 +60,23 @@ export function ToolCallRouter({
       onBranchFromMessage={onBranchFromMessage}
     />
   )
+  const appLaunch = finalResult
+    ? getMcpAppLaunch(finalResult.content, parseToolArgs(part.arguments))
+    : null
+  const withMcpApp = appLaunch ? (
+    <div className="space-y-3">
+      {toolCallBlock}
+      <McpAppHost
+        descriptor={appLaunch.descriptor}
+        projectPath={extensionProjectPaths[0] ?? null}
+        sessionId={sessionId}
+        initialArguments={appLaunch.initialArguments}
+        initialResult={appLaunch.initialResult}
+      />
+    </div>
+  ) : (
+    toolCallBlock
+  )
 
   if (extensionRegistry !== null) {
     return (
@@ -75,12 +94,12 @@ export function ToolCallRouter({
               }
             : {}),
         }}
-        fallback={toolCallBlock}
+        fallback={withMcpApp}
         projectPaths={extensionProjectPaths}
         registry={extensionRegistry}
       />
     )
   }
 
-  return toolCallBlock
+  return withMcpApp
 }
