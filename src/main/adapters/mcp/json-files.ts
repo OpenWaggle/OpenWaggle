@@ -101,7 +101,10 @@ export async function readMcpUserState(filePath: string) {
   if (!rawJson?.trim()) return createDefaultMcpUserState()
   try {
     const parsed: unknown = JSON.parse(rawJson)
-    return decodeUnknownOrThrow(mcpUserStateFileSchema, parsed)
+    // Typed result guards against future McpUserStateFile fields drifting out of
+    // the schema: a narrower schema output would fail this assignment.
+    const decoded: McpUserStateFile = decodeUnknownOrThrow(mcpUserStateFileSchema, parsed)
+    return decoded
   } catch (error) {
     throw new Error(`Invalid OpenWaggle MCP state at ${filePath}: ${describeMcpError(error)}`, {
       cause: error,

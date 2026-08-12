@@ -125,13 +125,13 @@ export function McpProjectServerDetail({
             <ServerGroup
               title="Shared (from Global)"
               servers={shared}
-              disabled={busy}
+              disabled={busy || !masterOn}
               onToggle={onToggleServer}
             />
             <ServerGroup
               title={`${label} servers`}
               servers={own}
-              disabled={busy}
+              disabled={busy || !masterOn}
               onToggle={onToggleServer}
             />
           </>

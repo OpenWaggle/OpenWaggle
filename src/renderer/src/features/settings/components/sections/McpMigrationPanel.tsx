@@ -2,6 +2,7 @@ import type { McpImportCandidate, McpImportPreview } from '@shared/types/mcp'
 import { Download, Search } from 'lucide-react'
 import { useState } from 'react'
 import { api } from '@/shared/lib/ipc'
+import { tildifyPath } from '@/shared/lib/tildify-path'
 import { Button } from '@/shared/ui/Button'
 
 interface McpMigrationPanelProps {
@@ -35,8 +36,8 @@ function McpMigrationReview({
             <p className="font-medium text-text-primary">
               {candidate.name} · {candidate.suggestedTarget}
             </p>
-            <p className="truncate text-text-muted" title={candidate.sourcePath}>
-              {candidate.sourcePath}
+            <p className="truncate text-text-muted" title={tildifyPath(candidate.sourcePath)}>
+              {tildifyPath(candidate.sourcePath)}
             </p>
             {candidate.warnings.map((warning) => (
               <p key={warning} className="text-amber-300">

@@ -75,9 +75,9 @@ function findSecretReferenceKeys(
   values: Readonly<Record<string, string | { readonly secret: string }>> | undefined,
 ) {
   if (!values) return []
-  return Object.entries(values)
-    .filter(([, value]) => typeof value === 'object' && value !== null && 'secret' in value)
-    .map(([name]) => name)
+  return Object.entries(values).flatMap(([name, value]) =>
+    typeof value === 'object' && value !== null && 'secret' in value ? [name] : [],
+  )
 }
 
 /**

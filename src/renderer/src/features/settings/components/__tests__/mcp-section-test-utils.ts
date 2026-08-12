@@ -60,7 +60,7 @@ export const SESSION_ID = 'session-1'
 export const MCP_VIEW = {
   integration: {
     desired: {
-      global: 'off',
+      global: 'on',
       project: 'on',
       session: 'inherit',
       effective: 'on',

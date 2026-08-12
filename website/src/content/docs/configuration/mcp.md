@@ -7,13 +7,15 @@ section: "Configuration"
 
 OpenWaggle has a first-party Model Context Protocol client and an optional OpenWaggle MCP server. MCP is not a Pi extension, and installing an MCP server never installs an OpenWaggle extension.
 
-## Scope and disable behavior
+## Activation: global, project, and server
 
-MCP starts globally off. Effective state resolves in this order:
+MCP starts globally off. **Settings → MCP → Activation** exposes three switches:
 
-1. Session (`on`, `off`, or `inherit`)
-2. Project (`on`, `off`, or `inherit`)
-3. Global (`on` or `off`)
+- **Global** is the master switch. When it is off, nothing connects or enters agent context anywhere, regardless of any project or server setting.
+- **Per project** turns MCP on or off for one project. A project follows Global until you turn it off, which disables MCP for that project only and never affects other projects. The Activation panel lists your known projects so you can toggle any of them.
+- **Per server, per project** enables or disables each individual server for the selected project — including servers inherited from your global config. Disabling a server for one project leaves it running in every other project; the override is stored per project (keyed by project path) and cannot leak between projects. Required servers always run and cannot be disabled this way.
+
+Effective state still resolves session → project → global underneath, so a session can override a project and a project can override global; the Activation UI presents this as plain on/off.
 
 Off means no server connection, local process, MCP tool, server instruction, subscription, or MCP-derived context for that scope. Changes made during a running turn are shown as pending and apply at the next safe turn boundary. Disabling a server stops local interaction but cannot prove that remote work stopped; durable remote Tasks stay visible and say when re-enabling is required to request cancellation.
 
@@ -25,7 +27,9 @@ OpenWaggle merges these sources by server name, with later project sources winni
 - `<project>/.mcp.json`
 - `<project>/.openwaggle/mcp.json`
 
-Project config may request a server but cannot enable or trust it. User-owned state is stored separately under `~/.openwaggle/mcp/`. Credentials use vault references such as `{ "secret": "GITHUB_TOKEN" }`; do not put secret values in JSON.
+Project config may request a server but cannot enable or trust it. User-owned state is stored separately under `~/.openwaggle/mcp/`. Credentials use vault references such as `{ "secret": "GITHUB_TOKEN" }`; never put secret values in JSON.
+
+Keep secret references in an OpenWaggle-owned file — `~/.openwaggle/mcp.json` or `<project>/.openwaggle/mcp.json` — not in the shared `<project>/.mcp.json`. The standard `.mcp.json` is also read by other MCP tools (for example Pi's own MCP adapter) that expect plain string values and crash on a `{ "secret": … }` object, so OpenWaggle refuses to save a secret reference into `.mcp.json` and points you to `.openwaggle/mcp.json` instead. Because project sources merge by name with `.openwaggle/mcp.json` winning, you can leave a plain, secret-free (or `${VAR}`) entry in `.mcp.json` for other tools and override it with the secret-bearing definition in `.openwaggle/mcp.json`.
 
 ```json
 {

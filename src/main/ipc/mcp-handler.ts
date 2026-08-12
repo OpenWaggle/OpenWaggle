@@ -13,7 +13,7 @@ import { McpConfigService } from '../ports/mcp-config-service'
 import { McpRuntimeService } from '../ports/mcp-runtime-service'
 import { McpSecretVaultService } from '../ports/mcp-secret-vault-service'
 import { registerMcpCapabilityHandlers } from './mcp-capability-handler'
-import { validateProjectPath } from './project-path-validation'
+import { validateProjectPath, validateRequiredProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
 
 const logger = createLogger('ipc-mcp')
@@ -161,9 +161,9 @@ function registerMcpConfigHandlers() {
         raw,
         'project server toggle',
       )
-      const input = yield* validateInputProjectPath(decoded)
+      const projectPath = yield* validateRequiredProjectPath(decoded.projectPath)
       const service = yield* McpConfigService
-      const view = yield* service.setProjectServerEnabled(input)
+      const view = yield* service.setProjectServerEnabled({ ...decoded, projectPath })
       return yield* reconcileMcpRuntimeSettings(view)
     }),
   )

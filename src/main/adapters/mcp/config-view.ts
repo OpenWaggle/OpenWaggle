@@ -243,7 +243,13 @@ export function buildMcpSettingsView(input: {
   )
   const eligible = input.context.servers.filter(
     (server) =>
-      server.state.enabled && trustState(server) === 'trusted' && server.issues.length === 0,
+      server.state.enabled &&
+      trustState(server) === 'trusted' &&
+      server.issues.length === 0 &&
+      // Match the turn-snapshot gate so a per-project muted server doesn't leave
+      // desired/applied revisions diverging (stuck "applying") for that project.
+      (server.definition.required ||
+        projectServerEnabled(input.context.state, input.projectPath, server.state.instanceId)),
   )
   const desiredRevision =
     resolution.effective === 'off'

@@ -44,6 +44,7 @@ export function McpProjectControl({
 
   if (!view) return null
   const globalOn = view.integration.desired.global === 'on'
+  const gridBusy = busy || !globalOn
 
   return (
     <section aria-labelledby="mcp-projects-heading" className="space-y-3">
@@ -80,7 +81,7 @@ export function McpProjectControl({
             projects={projects}
             currentProject={currentProject}
             projectStates={view.projectStates}
-            busy={busy}
+            busy={gridBusy}
             projectLabel={projectLabel}
             onSelect={setSelected}
             onSetMaster={setProjectMaster}
@@ -91,7 +92,7 @@ export function McpProjectControl({
               projectPath={currentProject}
               servers={detail?.servers ?? []}
               masterOn={projectMasterOn(view.projectStates, currentProject)}
-              busy={busy}
+              busy={gridBusy}
               loading={loading && !detail}
               onSetMaster={(on) => setProjectMaster(currentProject, on)}
               onToggleServer={setServerEnabled}

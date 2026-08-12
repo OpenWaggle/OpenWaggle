@@ -15,6 +15,8 @@ export function useMcpProjectControl(currentProject: string | null, onChanged: (
   useEffect(() => {
     if (!currentProject) return
     let active = true
+    setError(null)
+    setDetail(null)
     setLoading(true)
     void api
       .getMcpSettings({ projectPath: currentProject, sessionId: null })

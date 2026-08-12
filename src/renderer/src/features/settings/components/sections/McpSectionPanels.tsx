@@ -6,6 +6,7 @@ import type {
 } from '@shared/types/mcp'
 import { AlertTriangle, Network, RotateCw } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
+import { tildifyPath } from '@/shared/lib/tildify-path'
 import { Button } from '@/shared/ui/Button'
 import { StatusPill, titleCase } from './McpSectionPanelPrimitives'
 
@@ -131,7 +132,9 @@ export function McpSourcesPanel({
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-[13px] font-medium">{source.label}</div>
-                <div className="mt-1 truncate text-[11px] text-text-muted">{source.path}</div>
+                <div className="mt-1 truncate text-[11px] text-text-muted">
+                  {tildifyPath(source.path)}
+                </div>
               </div>
               <StatusPill
                 tone={source.parseError ? 'error' : source.exists ? 'success' : 'neutral'}
