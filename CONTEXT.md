@@ -412,6 +412,34 @@ _Avoid_: worktree sidebar (worktree means a git worktree here), file tree (it is
 The composer-adjacent row of controls stating where the next send will run — Session environment mode, Worktree base ref, and current branch.
 _Avoid_: branch toolbar, composer context strip, Composer extension surface (that is for extension controls)
 
+**Syntax theme**:
+The token-colour scheme applied to code text inside a diff (keyword, string, comment, and so on), supplied by the diff renderer and selectable by the user. It is deliberately **not** part of the Design token contract: its taxonomy is language grammar scopes, not semantic presentation roles.
+_Avoid_: Appearance (that governs chrome, not code tokens), colour scheme, palette
+
+**Diff chrome**:
+Everything the diff renderer draws around the code text — gutters, line numbers, add/remove backgrounds, word-level emphasis, hover, selection, separators. Unlike the Syntax theme, the diff chrome is driven by OpenWaggle Semantic roles (as Derived tokens), so it always matches the active Appearance.
+_Avoid_: diff theme (ambiguous with Syntax theme), diff style (that is unified-vs-split)
+
+**Hunk**:
+A contiguous block of changed lines within a file diff, introduced by an `@@` header. The unit the renderer groups changes into; used in code and docs but not in button labels.
+_Avoid_: chunk, block, section
+
+**Diff view**:
+The layout the diff is drawn in — unified (one column) or split (side-by-side). A user-selectable Diff view setting.
+_Avoid_: diff mode (ambiguous with Session environment mode), stacked (that is T3Code's word for unified)
+
+**Review comment**:
+A piece of feedback a user anchors to a line or line range in the Changed-file navigator's diff, addressed to the agent rather than to a remote change request. Carries the anchored diff snippet so the agent sees the code being discussed.
+_Avoid_: inline comment (that is the UI affordance), change-request comment (that targets a PR/MR)
+
+**Review**:
+The set of pending Review comments plus an optional Review summary, accumulated in the diff panel and submitted to the agent as one message. Pending until submitted; discarding clears it without sending.
+_Avoid_: batch, PR review (no remote change request is involved)
+
+**Review summary**:
+An optional overall instruction attached to a Review at submit time, framing the individual Review comments for the agent.
+_Avoid_: description, cover letter, global comment
+
 ## Relationships
 
 - An **OpenWaggle extension package** declares zero or more **OpenWaggle desktop contributions** across one or more **Extension contribution surfaces**.
@@ -521,6 +549,9 @@ _Avoid_: branch toolbar, composer context strip, Composer extension surface (tha
 - A **Derived token** is computed from **Semantic roles**, so it re-themes with an **Appearance** without appearing in the public contract.
 - The **Session context row** states where the next send runs; it reflects **Session environment mode** and the **Worktree base ref**, and it is distinct from the **Branch-diff base ref** chosen in the diff panel.
 - The **Changed-file navigator** lists files within the active diff scope, so its contents change with **Working-tree diff**, **Branch diff**, or **Turn diff** selection.
+- The **Diff chrome** is a set of **Derived tokens**, so it always matches the active **Appearance**; the **Syntax theme** is independent and selectable on its own.
+- A **Review comment** anchors to a diff line and carries its **Hunk** snippet; a **Review** gathers pending Review comments plus an optional **Review summary** and submits them to the agent as one message, never touching the composer.
+- A **Review** targets the agent, whereas a **Change request** targets a remote (GitHub/GitLab); they share no state.
 
 ## Example dialogue
 

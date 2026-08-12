@@ -55,3 +55,13 @@ Tailwind's `@theme` remains the source of default values; the `[data-theme]` lay
 **App-internal tokens only, with the extension contract left as a thin projection.** Rejected for the same drift reason, and because the projection would still need every role the app has, reproducing the contract without its guarantees.
 
 **No token layer; hand-tune the affected surfaces.** Rejected. It is cheaper immediately but does not address the cause of the inconsistent rhythm, so each newly-touched surface reintroduces the same drift, and selectable Appearances stay impossible.
+
+## Amendment (PR #145 — diff renderer)
+
+Adopting `@pierre/diffs` as the diff renderer introduces one deliberate, bounded exception to "one contract owns all presentation":
+
+- **The Syntax theme is out of contract.** Code token colours (keyword, string, comment) are a language-grammar taxonomy, not semantic presentation roles. Forcing them into the 18-role contract would be a category error, so the Syntax theme is user-selectable independently and is *not* a Semantic role. This is recorded so a future reader does not read it as a contract violation.
+- **The Diff chrome stays in contract.** The renderer exposes 23 `--diffs-*-override` CSS variables (gutters, add/remove backgrounds, word-level emphasis, hover, selection, separators). These are wired as **Derived tokens** from our Semantic roles, so the chrome always matches the active Appearance even though a third-party theme supplies the syntax colours.
+- **Three interaction colours are anchored.** `--diffs-bg-selection-override`, `--diffs-bg-selection-number-override`, and `--diffs-modified-color-override` are pinned to our accent, because line selection is how a Review comment begins and the renderer's default is blue. The initial Appearance uses the renderer's bundled dark Syntax theme (`pierre-dark`) with these three anchors; a Waggle-authored Syntax theme is a later addition, not a prerequisite.
+
+See ADR 0014 for the renderer-replacement decision itself.
