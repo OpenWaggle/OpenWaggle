@@ -109,9 +109,9 @@ export class OpenWaggleServerTaskManager {
   list() {
     return Effect.promise(() => this.reconcileProfileTasks()).pipe(
       Effect.map((tasks) =>
-        tasks
-          .filter((task) => task.callerProfile === this.options.profile)
-          .map((task) => taskResult(task)),
+        tasks.flatMap((task) =>
+          task.callerProfile === this.options.profile ? [taskResult(task)] : [],
+        ),
       ),
     )
   }

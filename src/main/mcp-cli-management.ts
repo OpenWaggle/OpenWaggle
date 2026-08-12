@@ -162,8 +162,10 @@ async function runImportCommand(
 }
 
 async function runDoctorCommand(service: ConfigService, context: { projectPath: string }) {
-  const view = await service.getView(context)
-  const doctor = await Effect.runPromise(runMcpRuntimeDoctor())
+  const [view, doctor] = await Promise.all([
+    service.getView(context),
+    Effect.runPromise(runMcpRuntimeDoctor()),
+  ])
   return { ...doctor, notices: view.notices, integration: view.integration }
 }
 
