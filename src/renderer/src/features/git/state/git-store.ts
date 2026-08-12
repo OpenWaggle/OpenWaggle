@@ -2,12 +2,9 @@ import { match } from '@diegogbrisa/ts-match'
 import type {
   GitBranchCheckoutPayload,
   GitBranchCreatePayload,
-  GitBranchDeletePayload,
   GitBranchListResult,
   GitBranchMutationFailure,
   GitBranchMutationResult,
-  GitBranchRenamePayload,
-  GitBranchSetUpstreamPayload,
   GitCommitFailure,
   GitCommitPayload,
   GitCommitResult,
@@ -35,18 +32,6 @@ interface GitState {
   createBranch: (
     projectPath: string,
     payload: GitBranchCreatePayload,
-  ) => Promise<GitBranchMutationResult>
-  renameBranch: (
-    projectPath: string,
-    payload: GitBranchRenamePayload,
-  ) => Promise<GitBranchMutationResult>
-  deleteBranch: (
-    projectPath: string,
-    payload: GitBranchDeletePayload,
-  ) => Promise<GitBranchMutationResult>
-  setUpstream: (
-    projectPath: string,
-    payload: GitBranchSetUpstreamPayload,
   ) => Promise<GitBranchMutationResult>
 }
 
@@ -188,40 +173,6 @@ export const useGitStore = create<GitState>((set, get) => ({
     try {
       return await resolveGitBranchMutationResult(api.createGitBranch(projectPath, payload), () =>
         Promise.all([get().refreshStatus(projectPath), get().refreshBranches(projectPath)]),
-      )
-    } finally {
-      set({ isBranchActionRunning: false })
-    }
-  },
-
-  async renameBranch(projectPath: string, payload: GitBranchRenamePayload) {
-    set({ isBranchActionRunning: true })
-    try {
-      return await resolveGitBranchMutationResult(api.renameGitBranch(projectPath, payload), () =>
-        Promise.all([get().refreshStatus(projectPath), get().refreshBranches(projectPath)]),
-      )
-    } finally {
-      set({ isBranchActionRunning: false })
-    }
-  },
-
-  async deleteBranch(projectPath: string, payload: GitBranchDeletePayload) {
-    set({ isBranchActionRunning: true })
-    try {
-      return await resolveGitBranchMutationResult(api.deleteGitBranch(projectPath, payload), () =>
-        Promise.all([get().refreshStatus(projectPath), get().refreshBranches(projectPath)]),
-      )
-    } finally {
-      set({ isBranchActionRunning: false })
-    }
-  },
-
-  async setUpstream(projectPath: string, payload: GitBranchSetUpstreamPayload) {
-    set({ isBranchActionRunning: true })
-    try {
-      return await resolveGitBranchMutationResult(
-        api.setGitBranchUpstream(projectPath, payload),
-        () => Promise.all([get().refreshStatus(projectPath), get().refreshBranches(projectPath)]),
       )
     } finally {
       set({ isBranchActionRunning: false })

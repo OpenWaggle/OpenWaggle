@@ -10,13 +10,7 @@ vi.mock('../shared', () => ({
   runGit: runGitMock,
 }))
 
-const {
-  checkoutGitBranch,
-  createGitBranch,
-  deleteGitBranch,
-  renameGitBranch,
-  setGitBranchUpstream,
-} = await import('../branch-mutations')
+const { checkoutGitBranch, createGitBranch } = await import('../branch-mutations')
 
 function gitResult(code: number, stdout = '', stderr = '') {
   return { code, stdout, stderr }
@@ -77,28 +71,6 @@ describe('git branch mutations', () => {
       ok: false,
       code: 'branch-exists',
       message: 'Local branch "feature" already exists and is not tracking "origin/feature".',
-    })
-  })
-
-  it('maps git failures from rename, delete, and upstream mutations', async () => {
-    runGitMock.mockResolvedValue(gitResult(1, '', 'fatal: not a valid object name: bad'))
-
-    await expect(renameGitBranch('/repo', { from: 'old', to: 'bad name' })).resolves.toEqual({
-      ok: false,
-      code: 'invalid-name',
-      message: 'Branch name is invalid.',
-    })
-    await expect(deleteGitBranch('/repo', { name: 'bad', force: true })).resolves.toEqual({
-      ok: false,
-      code: 'invalid-name',
-      message: 'Branch name is invalid.',
-    })
-    await expect(
-      setGitBranchUpstream('/repo', { name: 'bad', upstream: 'origin/bad' }),
-    ).resolves.toEqual({
-      ok: false,
-      code: 'invalid-name',
-      message: 'Branch name is invalid.',
     })
   })
 })

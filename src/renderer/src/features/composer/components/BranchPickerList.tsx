@@ -1,5 +1,4 @@
 import type { GitBranchInfo } from '@shared/types/git'
-import { Trash2 } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import type { ComposerActionDialogKind } from '../state/composer-action-store'
@@ -98,7 +97,7 @@ interface LocalBranchRowProps {
   readonly onOpenActionDialog: BranchPickerListProps['onOpenActionDialog']
 }
 
-function LocalBranchRow({ branch, onCheckout, onOpenActionDialog }: LocalBranchRowProps) {
+function LocalBranchRow({ branch, onCheckout }: LocalBranchRowProps) {
   return (
     <div
       className={cn(
@@ -107,17 +106,6 @@ function LocalBranchRow({ branch, onCheckout, onOpenActionDialog }: LocalBranchR
       )}
     >
       <BranchCheckoutButton branch={branch} onCheckout={onCheckout} />
-      {!branch.isCurrent ? (
-        <Button
-          variant="unstyled"
-          type="button"
-          onClick={() => onOpenActionDialog('delete-branch', branch.name)}
-          className="flex size-6 items-center justify-center rounded border border-border text-text-tertiary transition-colors hover:bg-error/10 hover:text-error"
-          title={`Delete "${branch.name}"`}
-        >
-          <Trash2 className="size-3" />
-        </Button>
-      ) : null}
     </div>
   )
 }

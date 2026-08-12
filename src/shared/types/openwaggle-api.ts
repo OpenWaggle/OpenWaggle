@@ -25,11 +25,8 @@ import type {
   ChangeRequestListResult,
   GitBranchCheckoutPayload,
   GitBranchCreatePayload,
-  GitBranchDeletePayload,
   GitBranchListResult,
   GitBranchMutationResult,
-  GitBranchRenamePayload,
-  GitBranchSetUpstreamPayload,
   GitCommitPayload,
   GitCommitResult,
   GitFileDiff,
@@ -203,18 +200,6 @@ export interface OpenWaggleApi extends OpenWaggleExtensionApi {
   createGitBranch(
     projectPath: string,
     payload: GitBranchCreatePayload,
-  ): Promise<GitBranchMutationResult>
-  renameGitBranch(
-    projectPath: string,
-    payload: GitBranchRenamePayload,
-  ): Promise<GitBranchMutationResult>
-  deleteGitBranch(
-    projectPath: string,
-    payload: GitBranchDeletePayload,
-  ): Promise<GitBranchMutationResult>
-  setGitBranchUpstream(
-    projectPath: string,
-    payload: GitBranchSetUpstreamPayload,
   ): Promise<GitBranchMutationResult>
   listGitWorktrees(projectPath: string): Promise<GitWorktreeListResult>
   createGitWorktree(

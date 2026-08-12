@@ -96,30 +96,6 @@ describe('BranchPicker', () => {
     expect(screen.getByText('No branches found.')).toBeInTheDocument()
   })
 
-  it('renders action buttons in menu', () => {
-    useComposerStore.setState({ branchMenuOpen: true })
-    render(<BranchPicker />)
-    expect(screen.getByText('Create')).toBeInTheDocument()
-    expect(screen.getByText('Rename')).toBeInTheDocument()
-    expect(screen.getByText('Delete current')).toBeInTheDocument()
-    expect(screen.getByText('Upstream')).toBeInTheDocument()
-  })
-
-  it('opens create-branch dialog on Create click', () => {
-    useComposerStore.setState({ branchMenuOpen: true })
-    render(<BranchPicker />)
-    fireEvent.click(screen.getByText('Create'))
-    expect(useComposerActionStore.getState().actionDialog).toBe('create-branch')
-  })
-
-  it('opens delete dialog for the selected local branch row action', () => {
-    useComposerStore.setState({ branchMenuOpen: true })
-    render(<BranchPicker />)
-    fireEvent.click(screen.getByTitle('Delete "develop"'))
-    expect(useComposerActionStore.getState().actionDialog).toBe('delete-branch')
-    expect(useComposerActionStore.getState().actionDialogInput).toBe('develop')
-  })
-
   it('marks current branch with indicator', () => {
     useComposerStore.setState({ branchMenuOpen: true })
     render(<BranchPicker />)

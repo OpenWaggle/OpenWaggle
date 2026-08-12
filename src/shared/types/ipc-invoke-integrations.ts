@@ -12,11 +12,8 @@ import type {
 import type {
   GitBranchCheckoutPayload,
   GitBranchCreatePayload,
-  GitBranchDeletePayload,
   GitBranchListResult,
   GitBranchMutationResult,
-  GitBranchRenamePayload,
-  GitBranchSetUpstreamPayload,
   GitCommitPayload,
   GitCommitResult,
   GitFileDiff,
@@ -94,18 +91,6 @@ export interface IpcIntegrationInvokeChannelMap {
   }
   'git:branches:create': {
     args: [projectPath: string, payload: GitBranchCreatePayload]
-    return: GitBranchMutationResult
-  }
-  'git:branches:rename': {
-    args: [projectPath: string, payload: GitBranchRenamePayload]
-    return: GitBranchMutationResult
-  }
-  'git:branches:delete': {
-    args: [projectPath: string, payload: GitBranchDeletePayload]
-    return: GitBranchMutationResult
-  }
-  'git:branches:set-upstream': {
-    args: [projectPath: string, payload: GitBranchSetUpstreamPayload]
     return: GitBranchMutationResult
   }
   'git:worktrees:list': {

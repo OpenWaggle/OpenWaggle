@@ -115,21 +115,6 @@ export interface GitBranchCreatePayload {
   readonly checkout?: boolean
 }
 
-export interface GitBranchRenamePayload {
-  readonly from: string
-  readonly to: string
-}
-
-export interface GitBranchDeletePayload {
-  readonly name: string
-  readonly force?: boolean
-}
-
-export interface GitBranchSetUpstreamPayload {
-  readonly name: string
-  readonly upstream: string
-}
-
 export const GIT_BRANCH_ERROR_CODES = [
   'not-git-repo',
   'branch-not-found',

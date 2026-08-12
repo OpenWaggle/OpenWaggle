@@ -7,9 +7,6 @@ const { apiMock } = vi.hoisted(() => ({
     commitGit: vi.fn(),
     checkoutGitBranch: vi.fn(),
     createGitBranch: vi.fn(),
-    renameGitBranch: vi.fn(),
-    deleteGitBranch: vi.fn(),
-    setGitBranchUpstream: vi.fn(),
   },
 }))
 
@@ -70,49 +67,6 @@ describe('useGitStore create and rename branch behavior', () => {
       const result = await useGitStore.getState().createBranch(PROJECT_PATH, { name: 'boom' })
 
       expect(result).toEqual({ ok: false, code: 'unknown', message: 'timeout' })
-      expect(useGitStore.getState().isBranchActionRunning).toBe(false)
-    })
-  })
-
-  describe('renameBranch', () => {
-    it('refreshes status and branches on successful rename', async () => {
-      apiMock.renameGitBranch.mockResolvedValue({ ok: true, message: 'Renamed branch.' })
-      apiMock.getGitStatus.mockResolvedValue(makeGitStatus())
-      apiMock.listGitBranches.mockResolvedValue(makeBranchList())
-
-      const result = await useGitStore.getState().renameBranch(PROJECT_PATH, {
-        from: 'old-name',
-        to: 'new-name',
-      })
-
-      expect(result.ok).toBe(true)
-      expect(apiMock.getGitStatus).toHaveBeenCalledWith(PROJECT_PATH)
-      expect(apiMock.listGitBranches).toHaveBeenCalledWith(PROJECT_PATH)
-      expect(useGitStore.getState().isBranchActionRunning).toBe(false)
-    })
-
-    it('does not refresh when rename fails', async () => {
-      apiMock.renameGitBranch.mockResolvedValue({
-        ok: false,
-        code: 'invalid-name',
-        message: 'Invalid branch name.',
-      })
-
-      const result = await useGitStore
-        .getState()
-        .renameBranch(PROJECT_PATH, { from: 'old', to: '..bad' })
-
-      expect(result.ok).toBe(false)
-      expect(apiMock.getGitStatus).not.toHaveBeenCalled()
-      expect(useGitStore.getState().isBranchActionRunning).toBe(false)
-    })
-
-    it('returns a visible failure result when rename IPC throws', async () => {
-      apiMock.renameGitBranch.mockRejectedValue(new Error('crash'))
-
-      const result = await useGitStore.getState().renameBranch(PROJECT_PATH, { from: 'a', to: 'b' })
-
-      expect(result).toEqual({ ok: false, code: 'unknown', message: 'crash' })
       expect(useGitStore.getState().isBranchActionRunning).toBe(false)
     })
   })

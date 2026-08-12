@@ -7,9 +7,6 @@ const { apiMock } = vi.hoisted(() => ({
     commitGit: vi.fn(),
     checkoutGitBranch: vi.fn(),
     createGitBranch: vi.fn(),
-    renameGitBranch: vi.fn(),
-    deleteGitBranch: vi.fn(),
-    setGitBranchUpstream: vi.fn(),
   },
 }))
 
@@ -101,15 +98,15 @@ describe('useGitStore integration', () => {
   })
 
   it('preserves failed branch mutation responses', async () => {
-    apiMock.deleteGitBranch.mockResolvedValue({
+    apiMock.createGitBranch.mockResolvedValue({
       ok: false,
       code: 'branch-not-found',
       message: 'The requested branch could not be found.',
     })
 
-    const result = await useGitStore.getState().deleteBranch('/tmp/repo', {
+    const result = await useGitStore.getState().createBranch('/tmp/repo', {
       name: 'missing',
-      force: false,
+      checkout: false,
     })
 
     expect(result).toEqual({

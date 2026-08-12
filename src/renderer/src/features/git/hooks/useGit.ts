@@ -14,9 +14,6 @@ export function useGit() {
   const commit = useGitStore((s) => s.commit)
   const checkoutBranch = useGitStore((s) => s.checkoutBranch)
   const createBranch = useGitStore((s) => s.createBranch)
-  const renameBranch = useGitStore((s) => s.renameBranch)
-  const deleteBranch = useGitStore((s) => s.deleteBranch)
-  const setUpstream = useGitStore((s) => s.setUpstream)
 
   return {
     status,
@@ -30,8 +27,5 @@ export function useGit() {
     commit,
     checkoutBranch,
     createBranch,
-    renameBranch,
-    deleteBranch,
-    setUpstream,
   }
 }

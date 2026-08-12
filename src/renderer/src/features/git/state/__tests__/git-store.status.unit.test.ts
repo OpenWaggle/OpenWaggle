@@ -7,9 +7,6 @@ const { apiMock } = vi.hoisted(() => ({
     commitGit: vi.fn(),
     checkoutGitBranch: vi.fn(),
     createGitBranch: vi.fn(),
-    renameGitBranch: vi.fn(),
-    deleteGitBranch: vi.fn(),
-    setGitBranchUpstream: vi.fn(),
   },
 }))
 
