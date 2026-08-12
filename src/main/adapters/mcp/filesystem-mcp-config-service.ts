@@ -23,6 +23,8 @@ export const FilesystemMcpConfigServiceLive = Layer.effect(
       getView: (input) => Effect.promise(() => service.getView(input)),
       setScopeState: (input) => Effect.promise(() => service.setScopeState(input)),
       setServerEnabled: (input) => Effect.promise(() => service.setServerEnabled(input)),
+      setProjectServerEnabled: (input) =>
+        Effect.promise(() => service.setProjectServerEnabled(input)),
       setServerTrust: (input) => Effect.promise(() => service.setServerTrust(input)),
       writeSourceConfig: (input) => Effect.promise(() => service.writeSourceConfig(input)),
       removeServer: (input) => Effect.promise(() => service.removeServer(input)),

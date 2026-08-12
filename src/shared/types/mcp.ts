@@ -195,6 +195,8 @@ export interface McpServerSummary {
   readonly instanceId: string
   readonly name: string
   readonly enabled: boolean
+  /** Whether this server is enabled for the project the view was built for. Default true; false when muted per-project. */
+  readonly projectEnabled: boolean
   readonly trusted: McpTrustState
   readonly required: boolean
   readonly sourceId: McpConfigSourceId
@@ -232,6 +234,8 @@ export interface McpSettingsView {
   readonly sources: readonly McpConfigSourceSummary[]
   readonly servers: readonly McpServerSummary[]
   readonly notices: readonly McpRuntimeNotice[]
+  /** Raw per-project scope overrides (project master switches), keyed by project path. */
+  readonly projectStates: Readonly<Record<string, McpScopeState>>
   readonly projectPath: string | null
   readonly sessionId: string | null
 }
@@ -247,6 +251,11 @@ export interface McpSetScopeStateInput extends McpGetSettingsInput {
 }
 
 export interface McpSetServerEnabledInput extends McpGetSettingsInput {
+  readonly instanceId: string
+  readonly enabled: boolean
+}
+
+export interface McpSetProjectServerEnabledInput extends McpGetSettingsInput {
   readonly instanceId: string
   readonly enabled: boolean
 }

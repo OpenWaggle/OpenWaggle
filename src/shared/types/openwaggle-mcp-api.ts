@@ -25,6 +25,7 @@ import type {
   McpReviewRemoteSkillInput,
   McpSecretSummary,
   McpSetEventSubscriptionInput,
+  McpSetProjectServerEnabledInput,
   McpSetScopeStateInput,
   McpSetSecretInput,
   McpSetServerEnabledInput,
@@ -39,6 +40,7 @@ export interface OpenWaggleMcpApi {
   getMcpSettings(input?: McpGetSettingsInput): Promise<McpSettingsView>
   setMcpScopeState(input: McpSetScopeStateInput): Promise<McpSettingsView>
   setMcpServerEnabled(input: McpSetServerEnabledInput): Promise<McpSettingsView>
+  setMcpProjectServerEnabled(input: McpSetProjectServerEnabledInput): Promise<McpSettingsView>
   setMcpServerTrust(input: McpSetServerTrustInput): Promise<McpSettingsView>
   writeMcpSourceConfig(input: McpWriteSourceConfigInput): Promise<McpSettingsView>
   removeMcpServer(input: McpRemoveServerInput): Promise<McpSettingsView>

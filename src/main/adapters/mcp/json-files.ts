@@ -29,11 +29,21 @@ const mcpScopeStateRecordSchema = Schema.Record({
   value: Schema.Literal('inherit', 'on', 'off'),
 })
 
-const mcpUserStateFileSchema: Schema.Schema<McpUserStateFile> = Schema.Struct({
+const mcpProjectServerStatesSchema = Schema.Record({
+  key: Schema.String,
+  value: Schema.Record({ key: Schema.String, value: Schema.Literal('on', 'off') }),
+})
+
+const mcpUserStateFileSchema = Schema.Struct({
   version: Schema.Number,
   globalState: Schema.Literal('on', 'off'),
   projectStates: mcpScopeStateRecordSchema,
   sessionStates: mcpScopeStateRecordSchema,
+  // Optional for back-compat with state files written before per-project server
+  // overrides existed; defaults to an empty map.
+  projectServerStates: Schema.optionalWith(mcpProjectServerStatesSchema, {
+    default: () => ({}),
+  }),
   servers: Schema.Record({ key: Schema.String, value: mcpServerUserStateSchema }),
 })
 
@@ -81,6 +91,7 @@ export function createDefaultMcpUserState(): McpUserStateFile {
     globalState: 'off',
     projectStates: {},
     sessionStates: {},
+    projectServerStates: {},
     servers: {},
   }
 }

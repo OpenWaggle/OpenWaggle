@@ -7,6 +7,7 @@ import type {
   McpImportPreviewInput,
   McpRemoveServerInput,
   McpServerDefinition,
+  McpSetProjectServerEnabledInput,
   McpSetScopeStateInput,
   McpSetServerEnabledInput,
   McpSetServerTrustInput,
@@ -24,6 +25,9 @@ export interface McpConfigServiceShape {
   readonly getView: (input?: McpGetSettingsInput) => Effect.Effect<McpSettingsView>
   readonly setScopeState: (input: McpSetScopeStateInput) => Effect.Effect<McpSettingsView>
   readonly setServerEnabled: (input: McpSetServerEnabledInput) => Effect.Effect<McpSettingsView>
+  readonly setProjectServerEnabled: (
+    input: McpSetProjectServerEnabledInput,
+  ) => Effect.Effect<McpSettingsView>
   readonly setServerTrust: (input: McpSetServerTrustInput) => Effect.Effect<McpSettingsView>
   readonly writeSourceConfig: (input: McpWriteSourceConfigInput) => Effect.Effect<McpSettingsView>
   readonly removeServer: (input: McpRemoveServerInput) => Effect.Effect<McpSettingsView>

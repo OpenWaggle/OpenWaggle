@@ -11,6 +11,7 @@ export function createFilesystemMcpConfigService(options: McpFilesystemConfigSer
     getView: store.getView.bind(store),
     setScopeState: store.setScopeState.bind(store),
     setServerEnabled: store.setServerEnabled.bind(store),
+    setProjectServerEnabled: store.setProjectServerEnabled.bind(store),
     setServerTrust: store.setServerTrust.bind(store),
     writeSourceConfig: store.writeSourceConfig.bind(store),
     createTurnSnapshot: store.createTurnSnapshot.bind(store),

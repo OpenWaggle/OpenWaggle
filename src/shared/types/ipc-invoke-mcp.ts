@@ -25,6 +25,7 @@ import type {
   McpReviewRemoteSkillInput,
   McpSecretSummary,
   McpSetEventSubscriptionInput,
+  McpSetProjectServerEnabledInput,
   McpSetScopeStateInput,
   McpSetSecretInput,
   McpSetServerEnabledInput,
@@ -40,6 +41,10 @@ export interface IpcMcpInvokeChannelMap {
   'mcp:set-scope-state': { args: [input: McpSetScopeStateInput]; return: McpSettingsView }
   'mcp:set-server-enabled': {
     args: [input: McpSetServerEnabledInput]
+    return: McpSettingsView
+  }
+  'mcp:set-project-server-enabled': {
+    args: [input: McpSetProjectServerEnabledInput]
     return: McpSettingsView
   }
   'mcp:write-source-config': {

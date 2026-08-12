@@ -2,9 +2,6 @@ import type {
   McpConfigSourceId,
   McpConfigSourceSummary,
   McpRuntimeNotice,
-  McpScope,
-  McpScopeResolution,
-  McpScopeState,
   McpSettingsView,
 } from '@shared/types/mcp'
 import { AlertTriangle, Network, RotateCw } from 'lucide-react'
@@ -59,118 +56,6 @@ export function McpErrorAlert({ message }: { readonly message: string | null | u
     >
       {message}
     </p>
-  )
-}
-
-const SCOPE_OPTIONS: Record<McpScope, readonly McpScopeState[]> = {
-  global: ['on', 'off'],
-  project: ['inherit', 'on', 'off'],
-  session: ['inherit', 'on', 'off'],
-}
-
-function currentScopeState(resolution: McpScopeResolution, scope: McpScope) {
-  return scope === 'global' ? resolution.global : resolution[scope]
-}
-
-function ScopeControl({
-  scope,
-  resolution,
-  available,
-  busy,
-  onChange,
-}: {
-  readonly scope: McpScope
-  readonly resolution: McpScopeResolution
-  readonly available: boolean
-  readonly busy: boolean
-  readonly onChange: (scope: McpScope, state: McpScopeState) => void
-}) {
-  const current = currentScopeState(resolution, scope)
-  return (
-    <div className={cn('min-w-0 flex-1 px-4 py-3', !available && 'opacity-50')}>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="text-[12px] font-medium text-text-primary">{titleCase(scope)}</span>
-        {resolution.source === scope && <StatusPill tone="accent">Effective source</StatusPill>}
-      </div>
-      <div className="inline-flex rounded-md border border-border bg-bg p-0.5">
-        {SCOPE_OPTIONS[scope].map((option) => (
-          <Button
-            key={option}
-            variant="unstyled"
-            type="button"
-            aria-pressed={current === option}
-            aria-label={`Set ${titleCase(scope)} scope to ${titleCase(option)}`}
-            disabled={!available || busy}
-            onClick={() => onChange(scope, option)}
-            className={cn(
-              'rounded px-2.5 py-1 text-[11px] transition-colors',
-              current === option
-                ? 'bg-bg-hover text-text-primary'
-                : 'text-text-muted hover:text-text-secondary',
-            )}
-          >
-            {titleCase(option)}
-          </Button>
-        ))}
-      </div>
-      {!available && (
-        <p className="mt-2 text-[10px] text-text-muted">
-          {scope === 'project' ? 'Open a project to configure.' : 'Open a session to configure.'}
-        </p>
-      )}
-    </div>
-  )
-}
-
-export function McpScopeRail({
-  view,
-  busy,
-  onChange,
-}: {
-  readonly view: McpSettingsView | null
-  readonly busy: boolean
-  readonly onChange: (scope: McpScope, state: McpScopeState) => void
-}) {
-  if (!view) return null
-  const { desired } = view.integration
-  return (
-    <section aria-labelledby="mcp-scope-heading" className="space-y-3">
-      <div>
-        <h3 id="mcp-scope-heading" className="text-[15px] font-semibold text-text-primary">
-          Activation scope
-        </h3>
-        <p className="mt-1 text-[12px] text-text-tertiary">
-          Session overrides project; project overrides global. Inherit leaves the decision to the
-          wider scope.
-        </p>
-      </div>
-      <div className="divide-x divide-border overflow-hidden rounded-lg border border-border bg-[#111418]">
-        <div className="flex">
-          {(['global', 'project', 'session'] as const).map((scope) => (
-            <ScopeControl
-              key={scope}
-              scope={scope}
-              resolution={desired}
-              available={
-                scope === 'global' || (scope === 'project' ? !!view.projectPath : !!view.sessionId)
-              }
-              busy={busy}
-              onChange={onChange}
-            />
-          ))}
-        </div>
-        <div className="flex items-center justify-between border-t border-border px-4 py-2.5 text-[11px]">
-          <span className="text-text-tertiary">
-            Desired: <strong className="font-medium text-text-primary">{desired.effective}</strong>
-            {' · '}Applied:{' '}
-            <strong className="font-medium text-text-primary">{view.integration.applied}</strong>
-          </span>
-          {view.integration.applyState === 'pending' && (
-            <StatusPill tone="warning">Applies at next safe turn boundary</StatusPill>
-          )}
-        </div>
-      </div>
-    </section>
   )
 }
 

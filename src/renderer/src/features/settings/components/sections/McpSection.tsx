@@ -1,12 +1,13 @@
 import { useMcpSectionController } from '@/features/settings/hooks/useMcpSectionController'
 import { usePreferences } from '@/features/settings/hooks/useSettings'
+import { projectName } from '@/shared/lib/format'
 import { McpCapabilitiesPanel } from './McpCapabilitiesPanel'
 import { McpMigrationPanel } from './McpMigrationPanel'
+import { McpProjectControl } from './McpProjectControl'
 import {
   McpDoctorPanel,
   McpErrorAlert,
   McpNoticesPanel,
-  McpScopeRail,
   McpSecretVault,
   McpSectionHeading,
   McpServersPanel,
@@ -23,6 +24,8 @@ export function McpSection({ sessionId }: McpSectionProps) {
   const controller = useMcpSectionController(settings.projectPath, sessionId)
   const sources = controller.view?.sources ?? []
   const servers = controller.view?.servers ?? []
+  const projectLabel = (projectPath: string) =>
+    settings.projectDisplayNames[projectPath]?.trim() || projectName(projectPath)
 
   return (
     <div className="space-y-6">
@@ -32,10 +35,13 @@ export function McpSection({ sessionId }: McpSectionProps) {
         onRefresh={() => void controller.refresh()}
       />
       <McpErrorAlert message={controller.error} />
-      <McpScopeRail
+      <McpProjectControl
         view={controller.view}
         busy={controller.busy}
-        onChange={(scope, state) => void controller.setScopeState(scope, state)}
+        recentProjects={settings.recentProjects}
+        projectLabel={projectLabel}
+        onSetGlobal={(on) => void controller.setScopeState('global', on ? 'on' : 'off')}
+        onChanged={() => void controller.refresh()}
       />
       <McpNoticesPanel notices={controller.view?.notices ?? []} />
       <McpMigrationPanel

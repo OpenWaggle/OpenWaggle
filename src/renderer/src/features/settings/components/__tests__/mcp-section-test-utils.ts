@@ -5,6 +5,7 @@ type McpApiMockName =
   | 'getMcpSettings'
   | 'setMcpScopeState'
   | 'setMcpServerEnabled'
+  | 'setMcpProjectServerEnabled'
   | 'setMcpServerTrust'
   | 'writeMcpSourceConfig'
   | 'removeMcpServer'
@@ -29,6 +30,7 @@ export const apiMocks: Readonly<Record<McpApiMockName, Mock>> = {
   getMcpSettings: vi.fn(),
   setMcpScopeState: vi.fn(),
   setMcpServerEnabled: vi.fn(),
+  setMcpProjectServerEnabled: vi.fn(),
   setMcpServerTrust: vi.fn(),
   writeMcpSourceConfig: vi.fn(),
   removeMcpServer: vi.fn(),
@@ -110,6 +112,7 @@ export const MCP_VIEW = {
       instanceId: 'mcp-server-alpha',
       name: 'alpha',
       enabled: true,
+      projectEnabled: true,
       trusted: 'untrusted',
       required: false,
       sourceId: 'project-openwaggle',
@@ -138,6 +141,7 @@ export const MCP_VIEW = {
       serverInstanceId: 'mcp-server-alpha',
     },
   ],
+  projectStates: {},
   projectPath: PROJECT_PATH,
   sessionId: SESSION_ID,
 } satisfies McpSettingsView
@@ -147,6 +151,7 @@ export function resetMcpSectionTestState() {
   apiMocks.getMcpSettings.mockResolvedValue(MCP_VIEW)
   apiMocks.setMcpScopeState.mockResolvedValue(MCP_VIEW)
   apiMocks.setMcpServerEnabled.mockResolvedValue(MCP_VIEW)
+  apiMocks.setMcpProjectServerEnabled.mockResolvedValue(MCP_VIEW)
   apiMocks.setMcpServerTrust.mockResolvedValue(MCP_VIEW)
   apiMocks.writeMcpSourceConfig.mockResolvedValue(MCP_VIEW)
   apiMocks.removeMcpServer.mockResolvedValue(MCP_VIEW)

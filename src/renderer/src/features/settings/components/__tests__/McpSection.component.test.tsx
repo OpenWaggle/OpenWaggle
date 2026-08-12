@@ -31,7 +31,7 @@ describe('McpSection', () => {
     render(<McpSection sessionId={SESSION_ID} />)
 
     expect(await screen.findByText('Project OpenWaggle MCP')).toBeInTheDocument()
-    expect(screen.getByText('Effective source')).toBeInTheDocument()
+    expect(screen.getByText('Global MCP')).toBeInTheDocument()
     expect(screen.getByText('Legacy compatibility')).toBeInTheDocument()
     expect(screen.getByText(/MCP 2024-11-05/)).toBeInTheDocument()
     expect(screen.getByText('alpha cannot start')).toBeInTheDocument()
@@ -42,17 +42,32 @@ describe('McpSection', () => {
     })
   })
 
-  it('sets a session override independently from project and global state', async () => {
+  it('turns MCP off for a single project without touching global or other projects', async () => {
     render(<McpSection sessionId={SESSION_ID} />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Set Session scope to Off' }))
+    fireEvent.click(await screen.findByRole('switch', { name: 'Disable MCP for this project' }))
 
     await waitFor(() => {
       expect(apiMocks.setMcpScopeState).toHaveBeenCalledWith({
         projectPath: PROJECT_PATH,
-        sessionId: SESSION_ID,
-        scope: 'session',
+        sessionId: null,
+        scope: 'project',
         state: 'off',
+      })
+    })
+  })
+
+  it('disables a single server for the selected project only', async () => {
+    render(<McpSection sessionId={SESSION_ID} />)
+
+    fireEvent.click(await screen.findByRole('switch', { name: 'Disable alpha for this project' }))
+
+    await waitFor(() => {
+      expect(apiMocks.setMcpProjectServerEnabled).toHaveBeenCalledWith({
+        projectPath: PROJECT_PATH,
+        sessionId: null,
+        instanceId: 'mcp-server-alpha',
+        enabled: false,
       })
     })
   })

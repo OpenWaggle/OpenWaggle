@@ -41,6 +41,12 @@ export interface McpUserStateFile {
   readonly globalState: 'on' | 'off'
   readonly projectStates: Readonly<Record<string, McpScopeState>>
   readonly sessionStates: Readonly<Record<string, McpScopeState>>
+  /**
+   * Per-project overrides for individual servers, keyed by project path then by
+   * server instanceId. Absent entry = enabled. Only 'off' entries are stored, so
+   * one project's overrides can never affect another (isolation is by key).
+   */
+  readonly projectServerStates: Readonly<Record<string, Readonly<Record<string, 'on' | 'off'>>>>
   readonly servers: Readonly<Record<string, McpServerUserState>>
 }
 

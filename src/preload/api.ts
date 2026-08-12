@@ -81,6 +81,7 @@ export const api: OpenWaggleApi = {
   getMcpSettings: invoke('mcp:get-settings'),
   setMcpScopeState: invoke('mcp:set-scope-state'),
   setMcpServerEnabled: invoke('mcp:set-server-enabled'),
+  setMcpProjectServerEnabled: invoke('mcp:set-project-server-enabled'),
   setMcpServerTrust: invoke('mcp:set-server-trust'),
   writeMcpSourceConfig: invoke('mcp:write-source-config'),
   removeMcpServer: invoke('mcp:remove-server'),

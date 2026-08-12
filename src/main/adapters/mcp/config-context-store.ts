@@ -1,6 +1,7 @@
 import type {
   McpGetSettingsInput,
   McpRemoveServerInput,
+  McpSetProjectServerEnabledInput,
   McpSetScopeStateInput,
   McpSetServerEnabledInput,
   McpSetServerTrustInput,
@@ -18,7 +19,6 @@ import {
   normalizeServerPermissions,
   normalizeSessionId,
   requestedServerPermissions,
-  resolveIntegrationState,
   resolveServers,
   serverByInstanceId,
   serverPermissionsMatch,
@@ -26,6 +26,11 @@ import {
 } from './config-view'
 import { parseMcpConfigFile, readMcpUserState, writeJsonFileAtomic } from './json-files'
 import { withProcessFileLock } from './process-file-lock'
+import {
+  projectServerEnabled,
+  resolveIntegrationState,
+  setProjectServerState,
+} from './project-overrides'
 import { getMcpSourceDefinition, getMcpUserStatePath, loadMcpSources } from './source-definitions'
 
 export class McpConfigContextStore {
@@ -114,6 +119,21 @@ export class McpConfigContextStore {
     })
   }
 
+  setProjectServerEnabled(input: McpSetProjectServerEnabledInput) {
+    return this.runSerialized(async () => {
+      const projectPath = normalizeProjectPath(input.projectPath)
+      if (!projectPath)
+        throw new Error('A project path is required to override a server for a project.')
+      const sessionId = normalizeSessionId(input.sessionId)
+      const context = await this.loadContextUnlocked({ projectPath, sessionId })
+      const server = serverByInstanceId(context, input.instanceId)
+      await this.persistStateUnlocked(
+        setProjectServerState(context.state, projectPath, server.state.instanceId, input.enabled),
+      )
+      return this.getViewUnlocked({ projectPath, sessionId })
+    })
+  }
+
   setServerTrust(input: McpSetServerTrustInput) {
     return this.runSerialized(async () => {
       const context = await this.loadContextUnlocked(input)
@@ -183,7 +203,11 @@ export class McpConfigContextStore {
           server.state.permissions,
           requestedServerPermissions(server.definition),
         ) &&
-        server.issues.length === 0,
+        server.issues.length === 0 &&
+        // Per-project mute gates non-required servers only; required servers
+        // still run so ADR guarantees hold.
+        (server.definition.required ||
+          projectServerEnabled(context.state, projectPath, server.state.instanceId)),
     )
     const eligibleServers = new Set(eligible)
     const requiredBlocked = context.servers.filter(

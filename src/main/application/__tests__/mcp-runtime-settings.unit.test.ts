@@ -20,6 +20,7 @@ const SETTINGS_VIEW: McpSettingsView = {
       instanceId: 'server-1',
       name: 'docs',
       enabled: true,
+      projectEnabled: true,
       trusted: 'trusted',
       required: false,
       sourceId: 'project-standard',
@@ -37,6 +38,7 @@ const SETTINGS_VIEW: McpSettingsView = {
     },
   ],
   notices: [],
+  projectStates: {},
   projectPath: '/project',
   sessionId: 'session-1',
 }

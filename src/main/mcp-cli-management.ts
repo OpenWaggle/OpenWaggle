@@ -65,6 +65,10 @@ function configServiceAdapter(runtime: ManagedRuntime.ManagedRuntime<McpConfigSe
       runtime.runPromise(McpConfigService.pipe(Effect.flatMap((s) => s.setScopeState(input)))),
     setServerEnabled: (input) =>
       runtime.runPromise(McpConfigService.pipe(Effect.flatMap((s) => s.setServerEnabled(input)))),
+    setProjectServerEnabled: (input) =>
+      runtime.runPromise(
+        McpConfigService.pipe(Effect.flatMap((s) => s.setProjectServerEnabled(input))),
+      ),
     setServerTrust: (input) =>
       runtime.runPromise(McpConfigService.pipe(Effect.flatMap((s) => s.setServerTrust(input)))),
     writeSourceConfig: (input) =>

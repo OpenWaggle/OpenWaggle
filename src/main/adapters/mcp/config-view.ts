@@ -6,7 +6,6 @@ import type {
   McpServerSummary,
   McpSettingsView,
 } from '@shared/types/mcp'
-import { resolveMcpScopeState } from '../../domain/mcp/scope-policy'
 import {
   resolveMcpCompatibilityProfile,
   resolveMcpDirectToolsMode,
@@ -26,6 +25,9 @@ import type {
   McpUserStateFile,
   ResolvedMcpServer,
 } from './config-types'
+import { projectServerEnabled, resolveIntegrationState } from './project-overrides'
+
+export { resolveIntegrationState } from './project-overrides'
 
 export interface LoadedMcpContext {
   readonly state: McpUserStateFile
@@ -41,18 +43,6 @@ export function normalizeProjectPath(projectPath?: string | null) {
 export function normalizeSessionId(sessionId?: string | null) {
   const trimmed = sessionId?.trim()
   return trimmed || null
-}
-
-export function resolveIntegrationState(
-  state: McpUserStateFile,
-  projectPath: string | null,
-  sessionId: string | null,
-) {
-  return resolveMcpScopeState({
-    global: state.globalState,
-    ...(projectPath ? { project: state.projectStates[projectPath] ?? 'inherit' } : {}),
-    ...(sessionId ? { session: state.sessionStates[sessionId] ?? 'inherit' } : {}),
-  })
 }
 
 function selectEffectiveSourceServers(sources: readonly LoadedMcpSource[]) {
@@ -172,6 +162,7 @@ export function blockedReason(
 function buildServerSummary(
   server: ResolvedMcpServer,
   effectiveState: 'on' | 'off',
+  projectEnabled: boolean,
 ): McpServerSummary {
   const blocked = blockedReason(server, effectiveState)
   const requestedPermissions = requestedServerPermissions(server.definition)
@@ -179,6 +170,7 @@ function buildServerSummary(
     instanceId: server.state.instanceId,
     name: server.name,
     enabled: server.state.enabled,
+    projectEnabled,
     trusted: trustState(server),
     required: server.definition.required === true,
     sourceId: server.source.definition.id,
@@ -279,9 +271,16 @@ export function buildMcpSettingsView(input: {
       ...(source.parseError ? { parseError: source.parseError } : {}),
     })),
     servers: input.context.servers
-      .map((server) => buildServerSummary(server, resolution.effective))
+      .map((server) =>
+        buildServerSummary(
+          server,
+          resolution.effective,
+          projectServerEnabled(input.context.state, input.projectPath, server.state.instanceId),
+        ),
+      )
       .sort((left, right) => left.name.localeCompare(right.name)),
     notices: buildNotices(input.context, resolution.effective),
+    projectStates: input.context.state.projectStates,
     projectPath: input.projectPath,
     sessionId: input.sessionId,
   }

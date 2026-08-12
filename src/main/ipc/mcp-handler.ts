@@ -37,6 +37,12 @@ const setServerEnabledSchema = Schema.Struct({
   enabled: Schema.Boolean,
 })
 
+const setProjectServerEnabledSchema = Schema.Struct({
+  ...projectAndSessionSchema,
+  instanceId: Schema.String,
+  enabled: Schema.Boolean,
+})
+
 const serverPermissionGrantSchema = Schema.Struct({
   readRoots: Schema.mutable(Schema.Array(Schema.String)),
   writeRoots: Schema.mutable(Schema.Array(Schema.String)),
@@ -144,6 +150,20 @@ function registerMcpConfigHandlers() {
       const input = yield* validateInputProjectPath(decoded)
       const service = yield* McpConfigService
       const view = yield* service.setServerEnabled(input)
+      return yield* reconcileMcpRuntimeSettings(view)
+    }),
+  )
+
+  typedHandle('mcp:set-project-server-enabled', (_event, raw: unknown) =>
+    Effect.gen(function* () {
+      const decoded = yield* decodeInput(
+        setProjectServerEnabledSchema,
+        raw,
+        'project server toggle',
+      )
+      const input = yield* validateInputProjectPath(decoded)
+      const service = yield* McpConfigService
+      const view = yield* service.setProjectServerEnabled(input)
       return yield* reconcileMcpRuntimeSettings(view)
     }),
   )

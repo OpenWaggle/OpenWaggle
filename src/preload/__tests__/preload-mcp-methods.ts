@@ -2,6 +2,7 @@ export const PRELOAD_MCP_METHODS = [
   'getMcpSettings',
   'setMcpScopeState',
   'setMcpServerEnabled',
+  'setMcpProjectServerEnabled',
   'setMcpServerTrust',
   'writeMcpSourceConfig',
   'removeMcpServer',
