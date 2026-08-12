@@ -3,21 +3,16 @@ import type { GitFileDiff } from '@shared/types/git'
 import { useEffect, useReducer, useRef } from 'react'
 import type { DiffScopeSelection } from '@/features/diff-panel/state/diff-scope-store'
 import { api } from '@/shared/lib/ipc'
-import { buildDisplayItems, type DisplayItem } from '../components/diff-display-items'
-
-export interface RenderableDiffFile extends GitFileDiff {
-  readonly items: DisplayItem[]
-}
 
 interface DiffPanelState {
-  readonly fileDiffs: readonly RenderableDiffFile[]
+  readonly fileDiffs: readonly GitFileDiff[]
   readonly isLoading: boolean
 }
 
 type DiffPanelAction =
   | { readonly type: 'clear' }
   | { readonly type: 'start-loading' }
-  | { readonly type: 'load-success'; readonly fileDiffs: readonly RenderableDiffFile[] }
+  | { readonly type: 'load-success'; readonly fileDiffs: readonly GitFileDiff[] }
   | { readonly type: 'load-failure' }
 
 function diffPanelReducer(state: DiffPanelState, action: DiffPanelAction) {
@@ -27,10 +22,6 @@ function diffPanelReducer(state: DiffPanelState, action: DiffPanelAction) {
     .with('load-success', (value) => ({ ...state, fileDiffs: value.fileDiffs, isLoading: false }))
     .with('load-failure', () => ({ ...state, fileDiffs: [], isLoading: false }))
     .exhaustive()
-}
-
-function toRenderableDiffs(diffs: readonly GitFileDiff[]) {
-  return diffs.map((diff) => ({ ...diff, items: buildDisplayItems(diff.diff) }))
 }
 
 function isStaleDiffRequest(
@@ -80,7 +71,7 @@ export function useDiffPanelDiffs(projectPath: string | null, selection: DiffSco
     fetchDiffsForScope(projectPath, scopedSelection)
       .then((diffs) => {
         if (cancelled || requestId !== diffRequestId.current) return
-        dispatch({ type: 'load-success', fileDiffs: toRenderableDiffs(diffs) })
+        dispatch({ type: 'load-success', fileDiffs: diffs })
       })
       .catch(() => {
         if (cancelled || requestId !== diffRequestId.current) return
@@ -106,7 +97,7 @@ export function useDiffPanelDiffs(projectPath: string | null, selection: DiffSco
         )
       )
         return
-      dispatch({ type: 'load-success', fileDiffs: toRenderableDiffs(diffs) })
+      dispatch({ type: 'load-success', fileDiffs: diffs })
     } catch {
       if (
         isStaleDiffRequest(

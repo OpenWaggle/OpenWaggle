@@ -1,16 +1,15 @@
 import type { SessionId } from '@shared/types/brand'
+import type { GitFileDiff } from '@shared/types/git'
 import type { TurnCheckpointSummary } from '@shared/types/turn-diff'
 import { splitUnifiedDiffIntoFileDiffs } from '@shared/utils/turn-diff-parse'
 import { useEffect, useState } from 'react'
-import { buildDisplayItems } from '@/features/diff-panel/components/diff-display-items'
 import type { DiffScopeSelection } from '@/features/diff-panel/state/diff-scope-store'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
-import type { RenderableDiffFile } from './useDiffPanelDiffs'
 
 const logger = createRendererLogger('diff-panel-turns')
 const EMPTY_TURNS: readonly TurnCheckpointSummary[] = []
-const EMPTY_FILES: readonly RenderableDiffFile[] = []
+const EMPTY_FILES: readonly GitFileDiff[] = []
 
 /** List the session's Turn checkpoints (WS6b/WS7), oldest first (ascending turn index). */
 export function useSessionTurns(
@@ -47,8 +46,8 @@ export function useSessionTurns(
 export function useTurnDiffFiles(
   sessionId: SessionId | null,
   selection: DiffScopeSelection,
-): readonly RenderableDiffFile[] {
-  const [files, setFiles] = useState<readonly RenderableDiffFile[]>(EMPTY_FILES)
+): readonly GitFileDiff[] {
+  const [files, setFiles] = useState<readonly GitFileDiff[]>(EMPTY_FILES)
   const turnId = selection.kind === 'turn' ? selection.turnId : null
 
   useEffect(() => {
@@ -64,7 +63,6 @@ export function useTurnDiffFiles(
         const fileDiffs = turnDiff
           ? splitUnifiedDiffIntoFileDiffs(turnDiff.diff).map((diff) => ({
               ...diff,
-              items: buildDisplayItems(diff.diff),
             }))
           : EMPTY_FILES
         setFiles(fileDiffs)

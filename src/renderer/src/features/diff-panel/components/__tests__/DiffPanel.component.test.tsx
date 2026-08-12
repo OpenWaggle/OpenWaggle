@@ -5,15 +5,54 @@ import { useGitStore } from '@/features/git'
 import { api } from '@/shared/lib/ipc'
 import { useUIStore } from '@/shell/ui-store'
 import { useReviewStore } from '../../state/review-store'
-import { DiffFileSection } from '../DiffFileSection'
 import { DiffPanel } from '../DiffPanel'
-import { buildDisplayItems } from '../diff-display-items'
 import { FileTree } from '../FileTree'
+
+/**
+ * CodeView is a measurement-driven renderer (Shiki, virtualization, ResizeObserver)
+ * and does not render meaningfully under jsdom. Stub it so these tests exercise OUR
+ * wiring -- items, annotations, selection plumbing -- and verify the real renderer
+ * in the Electron app instead.
+ */
+vi.mock('@pierre/diffs/react', () => ({
+  CodeView: ({
+    items,
+    renderAnnotation,
+    onSelectedLinesChange,
+  }: {
+    items: readonly { id: string; fileDiff: { name: string }; annotations?: readonly unknown[] }[]
+    renderAnnotation?: (annotation: unknown, item: unknown) => unknown
+    onSelectedLinesChange?: (selection: unknown) => void
+  }) => (
+    <div data-testid="code-view">
+      {items.map((item) => (
+        <div key={item.id}>
+          <button
+            type="button"
+            onClick={() =>
+              onSelectedLinesChange?.({
+                id: item.id,
+                range: { start: 8, end: 8, side: 'additions' },
+              })
+            }
+          >
+            select {item.fileDiff.name}
+          </button>
+          {(item.annotations ?? []).map((annotation, index) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: stub only
+            <div key={index}>{renderAnnotation?.(annotation, item) as never}</div>
+          ))}
+        </div>
+      ))}
+    </div>
+  ),
+}))
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     getGitDiff: vi.fn(),
     getGitStatus: vi.fn(),
+    listGitBranches: vi.fn(),
     stageAllGitChanges: vi.fn(),
     revertAllGitChanges: vi.fn(),
     showConfirm: vi.fn(),
@@ -86,7 +125,7 @@ describe('Diff panel components', () => {
 
     render(<DiffPanel projectPath="/repo" onSendMessage={vi.fn()} />)
 
-    await screen.findByText('src/app.ts')
+    await screen.findByRole('button', { name: /select src\/app.ts/ })
     fireEvent.click(screen.getByRole('button', { name: /Stage all/ }))
 
     await waitFor(() => expect(api.getGitDiff).toHaveBeenCalledTimes(2))
@@ -110,7 +149,7 @@ describe('Diff panel components', () => {
 
     render(<DiffPanel projectPath="/repo" onSendMessage={vi.fn()} />)
 
-    await screen.findByText('src/app.ts')
+    await screen.findByRole('button', { name: /select src\/app.ts/ })
     fireEvent.click(screen.getByRole('button', { name: 'Revert all' }))
 
     await waitFor(() => expect(api.revertAllGitChanges).toHaveBeenCalledWith('/repo'))
@@ -129,10 +168,10 @@ describe('Diff panel components', () => {
 
     render(<DiffPanel projectPath="/repo" onSendMessage={vi.fn()} />)
 
-    await screen.findByText('src/app.ts')
+    await screen.findByRole('button', { name: /select src\/app.ts/ })
     fireEvent.click(screen.getByRole('button', { name: 'Revert all' }))
 
-    await screen.findByText('No uncommitted changes')
+    await screen.findByText('No changes to review')
     expect(api.revertAllGitChanges).toHaveBeenCalledWith('/repo')
     expect(api.getGitDiff).toHaveBeenCalledTimes(2)
     expect(api.getGitStatus).toHaveBeenCalledWith('/repo')
@@ -165,7 +204,7 @@ describe('Diff panel components', () => {
 
     render(<DiffPanel projectPath="/repo" onSendMessage={vi.fn()} />)
 
-    await screen.findByText('src/app.ts')
+    await screen.findByRole('button', { name: /select src\/app.ts/ })
     fireEvent.click(screen.getByRole('button', { name: /Stage all/ }))
 
     await waitFor(() => expect(api.getGitDiff).toHaveBeenCalledTimes(2))
@@ -198,7 +237,7 @@ describe('Diff panel components', () => {
 
     render(<DiffPanel projectPath="/repo" onSendMessage={vi.fn()} />)
 
-    await screen.findByText('src/app.ts')
+    await screen.findByRole('button', { name: /select src\/app.ts/ })
     expect(screen.getByRole('button', { name: /Stage all/ })).toBeEnabled()
   })
 
@@ -214,10 +253,10 @@ describe('Diff panel components', () => {
 
     const { rerender } = render(<DiffPanel projectPath="/repo-a" onSendMessage={vi.fn()} />)
 
-    await screen.findByText('/repo-a')
+    await waitFor(() => expect(api.getGitDiff).toHaveBeenCalledWith('/repo-a'))
     fireEvent.click(screen.getByRole('button', { name: /Stage all/ }))
     rerender(<DiffPanel projectPath="/repo-b" onSendMessage={vi.fn()} />)
-    await screen.findByText('/repo-b')
+    await waitFor(() => expect(api.getGitDiff).toHaveBeenCalledWith('/repo-b'))
     resolveStage?.({ ok: true, message: 'All working-tree changes staged.' })
 
     await waitFor(() => expect(api.stageAllGitChanges).toHaveBeenCalledWith('/repo-a'))
@@ -238,10 +277,10 @@ describe('Diff panel components', () => {
 
     const { rerender } = render(<DiffPanel projectPath="/repo-a" onSendMessage={vi.fn()} />)
 
-    await screen.findByText('/repo-a')
+    await waitFor(() => expect(api.getGitDiff).toHaveBeenCalledWith('/repo-a'))
     fireEvent.click(screen.getByRole('button', { name: /Stage all/ }))
     rerender(<DiffPanel projectPath="/repo-b" onSendMessage={vi.fn()} />)
-    await screen.findByText('/repo-b')
+    await waitFor(() => expect(api.getGitDiff).toHaveBeenCalledWith('/repo-b'))
     rejectStage?.(new Error('obsolete failure'))
 
     await waitFor(() => expect(api.stageAllGitChanges).toHaveBeenCalledWith('/repo-a'))
@@ -255,79 +294,99 @@ describe('Diff panel components', () => {
     render(<DiffPanel projectPath="/repo" onSendMessage={onSendMessage} />)
 
     expect(api.getGitDiff).toHaveBeenCalledWith('/repo')
-    expect(await screen.findByText('src/app.ts')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /select src\/app.ts/ })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('new line'))
+    fireEvent.click(await screen.findByRole('button', { name: /select src\/app.ts/ }))
     fireEvent.change(screen.getByPlaceholderText('Leave feedback on this change…'), {
       target: { value: 'Prefer the new branch guard.' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Add to review' }))
-    fireEvent.click(screen.getByRole('button', { name: /Send review/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start a review' }))
+
+    // The review bar appears only once a review is in progress.
+    expect(screen.getByText('1 pending comment')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Submit review/ }))
+    fireEvent.change(screen.getByPlaceholderText(/Frame the review for the agent/), {
+      target: { value: 'focus on the guard' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Send to agent/ }))
 
     await waitFor(() => expect(onSendMessage).toHaveBeenCalledOnce())
-    expect(onSendMessage.mock.calls[0]?.[0]).toContain('Prefer the new branch guard.')
+    const sent = onSendMessage.mock.calls[0]?.[0] ?? ''
+    expect(sent).toContain('**Code review**')
+    expect(sent).toContain('focus on the guard')
+    expect(sent).toContain('Prefer the new branch guard.')
+    // The structured payload carries the anchored code, not just a line reference.
+    expect(sent).toContain('<review_comment')
+    expect(sent).toContain('filePath="src/app.ts"')
+    expect(useReviewStore.getState().comments).toEqual([])
+  })
+
+  it('discards a pending review without sending it', async () => {
+    vi.mocked(api.getGitDiff).mockResolvedValue([fileDiff()])
+    const onSendMessage = vi.fn()
+
+    render(<DiffPanel projectPath="/repo" onSendMessage={onSendMessage} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /select src\/app.ts/ }))
+    fireEvent.change(screen.getByPlaceholderText('Leave feedback on this change…'), {
+      target: { value: 'needs a test' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Start a review' }))
+    fireEvent.click(screen.getByRole('button', { name: /Discard review/ }))
+
+    expect(useReviewStore.getState().comments).toEqual([])
+    expect(onSendMessage).not.toHaveBeenCalled()
+    expect(screen.queryByText(/pending comment/)).not.toBeInTheDocument()
+  })
+
+  it('sends a single comment immediately without opening a review', async () => {
+    vi.mocked(api.getGitDiff).mockResolvedValue([fileDiff()])
+    const onSendMessage = vi.fn()
+
+    render(<DiffPanel projectPath="/repo" onSendMessage={onSendMessage} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /select src\/app.ts/ }))
+    fireEvent.change(screen.getByPlaceholderText('Leave feedback on this change…'), {
+      target: { value: 'rename this' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add comment' }))
+
+    await waitFor(() => expect(onSendMessage).toHaveBeenCalledOnce())
+    expect(onSendMessage.mock.calls[0]?.[0]).toContain('**Review comment**')
     expect(useReviewStore.getState().comments).toEqual([])
   })
 
   it('renders empty and failed diff states without stale files', async () => {
     const { rerender } = render(<DiffPanel projectPath={null} onSendMessage={vi.fn()} />)
 
-    expect(screen.getByText('No uncommitted changes')).toBeInTheDocument()
+    expect(screen.getByText('No changes to review')).toBeInTheDocument()
 
     vi.mocked(api.getGitDiff).mockRejectedValue(new Error('git unavailable'))
     rerender(<DiffPanel projectPath="/repo" onSendMessage={vi.fn()} />)
 
-    expect(await screen.findByText('No uncommitted changes')).toBeInTheDocument()
+    expect(await screen.findByText('No changes to review')).toBeInTheDocument()
   })
 
-  it('expands collapsed context and emits single-line comments', () => {
-    const onSetActiveComment = vi.fn()
-    const onAddSingleComment = vi.fn()
-
-    render(
-      <DiffFileSection
-        filePath="src/app.ts"
-        items={buildDisplayItems(SAMPLE_DIFF)}
-        additions={1}
-        deletions={1}
-        activeCommentLocation={{ filePath: 'src/app.ts', line: 8, lineType: 'add' }}
-        onSetActiveComment={onSetActiveComment}
-        onAddSingleComment={onAddSingleComment}
-        onAddToReview={vi.fn()}
-      />,
-    )
-
-    fireEvent.click(screen.getByText('1 unmodified line'))
-    expect(screen.getByText('const four = 4')).toBeInTheDocument()
-
-    fireEvent.change(screen.getByPlaceholderText('Leave feedback on this change…'), {
-      target: { value: 'ship it' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Add single comment' }))
-
-    expect(onAddSingleComment).toHaveBeenCalledWith('src/app.ts', 8, 8, 'ship it')
-  })
-
-  it('renders nested file tree controls and bottom action state', () => {
+  it('renders the changed-file navigator with status and line counts', () => {
     const onFileClick = vi.fn()
-    const onSendReview = vi.fn()
 
     render(
       <FileTree
         files={[fileDiff('src/app.ts'), fileDiff('src/components/Button.tsx')]}
-        reviewCount={2}
         onFileClick={onFileClick}
-        onSendReview={onSendReview}
       />,
     )
 
+    // Directory grouping collapses and expands.
     fireEvent.click(screen.getByText('src'))
     expect(screen.queryByText('app.ts')).not.toBeInTheDocument()
     fireEvent.click(screen.getByText('src'))
     fireEvent.click(screen.getByText('app.ts'))
-    fireEvent.click(screen.getByRole('button', { name: /Send review/ }))
-
     expect(onFileClick).toHaveBeenCalledWith('src/app.ts')
-    expect(onSendReview).toHaveBeenCalledOnce()
+
+    // Issue #30: per-file status glyph and change counts.
+    expect(screen.getAllByRole('img', { name: 'modified' }).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('+1').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('-1').length).toBeGreaterThan(0)
   })
 })

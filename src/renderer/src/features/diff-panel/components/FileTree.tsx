@@ -1,5 +1,5 @@
 import type { GitFileDiff } from '@shared/types/git'
-import { Check, ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
@@ -14,6 +14,62 @@ interface TreeNode {
   children: TreeNode[]
   isFile: boolean
   isChanged: boolean
+  /** Change status and line counts, for files only (issue #30). */
+  stats?: FileChangeStats
+}
+
+export type FileChangeStatus = 'added' | 'modified' | 'deleted'
+
+export interface FileChangeStats {
+  readonly status: FileChangeStatus
+  readonly additions: number
+  readonly deletions: number
+}
+
+/**
+ * Git reports add/delete through the patch's mode header rather than a status
+ * field, so derive it from the patch we already have.
+ */
+export function fileChangeStats(file: GitFileDiff): FileChangeStats {
+  const status: FileChangeStatus = file.diff.includes('\nnew file mode ')
+    ? 'added'
+    : file.diff.includes('\ndeleted file mode ')
+      ? 'deleted'
+      : 'modified'
+  return { status, additions: file.additions, deletions: file.deletions }
+}
+
+const STATUS_GLYPH: Record<FileChangeStatus, string> = {
+  added: 'A',
+  modified: 'M',
+  deleted: 'D',
+}
+
+const STATUS_CLASS: Record<FileChangeStatus, string> = {
+  added: 'text-diff-add-mark',
+  modified: 'text-accent',
+  deleted: 'text-diff-remove-text',
+}
+
+function FileChangeBadges({ stats }: { readonly stats: FileChangeStats }) {
+  return (
+    <span className="ml-auto flex shrink-0 items-center gap-1 pr-1.5">
+      {stats.additions > 0 ? (
+        <span className="text-[10px] text-diff-add-mark">+{String(stats.additions)}</span>
+      ) : null}
+      {stats.deletions > 0 ? (
+        <span className="text-[10px] text-diff-remove-text">-{String(stats.deletions)}</span>
+      ) : null}
+      <span
+        role="img"
+        aria-label={stats.status}
+        title={stats.status}
+        className={cn('w-2 text-center text-[10px] font-semibold', STATUS_CLASS[stats.status])}
+      >
+        {STATUS_GLYPH[stats.status]}
+      </span>
+    </span>
+  )
 }
 
 function getChildMap(pathKey: string, childMapsByPath: Map<string, Map<string, TreeNode>>) {
@@ -27,6 +83,7 @@ function getChildMap(pathKey: string, childMapsByPath: Map<string, Map<string, T
 
 function buildTree(files: readonly GitFileDiff[]) {
   const changedPaths = new Set(files.map((f) => f.path))
+  const statsByPath = new Map(files.map((f) => [f.path, fileChangeStats(f)]))
   const root: TreeNode[] = []
   const rootChildrenByName = new Map<string, TreeNode>()
   const childMapsByPath = new Map<string, Map<string, TreeNode>>()
@@ -49,6 +106,7 @@ function buildTree(files: readonly GitFileDiff[]) {
           children: [],
           isFile,
           isChanged: isFile && changedPaths.has(file.path),
+          ...(isFile ? { stats: statsByPath.get(pathSoFar) } : {}),
         }
         current.push(existing)
         currentChildrenByName.set(part, existing)
@@ -85,15 +143,15 @@ function FileTreeNode({ node, depth, onFileClick }: FileTreeNodeProps) {
         )}
         style={{ paddingLeft: `${String(paddingLeft + FILE_TREE_NODE_VALUE_4)}px` }}
       >
-        {node.isChanged && <span className="shrink-0 size-[5px] rounded-full bg-accent" />}
         <span
           className={cn(
-            'text-[12px] truncate',
+            'truncate text-[12px]',
             node.isChanged ? 'text-text-primary' : 'text-text-secondary',
           )}
         >
           {node.name}
         </span>
+        {node.stats ? <FileChangeBadges stats={node.stats} /> : null}
       </Button>
     )
   }
@@ -121,13 +179,11 @@ function FileTreeNode({ node, depth, onFileClick }: FileTreeNodeProps) {
 }
 
 interface FileTreeProps {
-  files: readonly GitFileDiff[]
-  onFileClick: (path: string) => void
-  onSendReview: () => void
-  reviewCount: number
+  readonly files: readonly GitFileDiff[]
+  readonly onFileClick: (path: string) => void
 }
 
-export function FileTree({ files, onFileClick, onSendReview, reviewCount }: FileTreeProps) {
+export function FileTree({ files, onFileClick }: FileTreeProps) {
   const tree = buildTree(files)
 
   return (
@@ -137,25 +193,6 @@ export function FileTree({ files, onFileClick, onSendReview, reviewCount }: File
         {tree.map((node) => (
           <FileTreeNode key={node.path} node={node} depth={0} onFileClick={onFileClick} />
         ))}
-      </div>
-
-      {/* Send Review Dock */}
-      <div className="px-2 pt-1.5 pb-2 border-t border-border">
-        <Button
-          variant="unstyled"
-          type="button"
-          onClick={onSendReview}
-          disabled={reviewCount === 0}
-          className={cn(
-            'flex items-center justify-center gap-1 w-full h-6 rounded bg-gradient-to-b from-accent to-accent-dim border border-accent-dim',
-            'text-[11px] font-semibold text-diff-bg',
-            'disabled:opacity-40 transition-opacity',
-          )}
-        >
-          <Check className="size-[10px]" />
-          Send review
-          {reviewCount > 0 && ` (${String(reviewCount)})`}
-        </Button>
       </div>
     </div>
   )

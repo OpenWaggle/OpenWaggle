@@ -1,27 +1,24 @@
+import type { CodeViewHandle } from '@pierre/diffs/react'
 import type { SessionId } from '@shared/types/brand'
 import type { GitStackedAction } from '@shared/types/git'
-import type { ReviewComment } from '@shared/types/review'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useDiffPanelGitActions } from '@/features/diff-panel/hooks/useDiffPanelGitActions'
+import type { ReviewAnnotationMetadata } from '@/features/diff-panel/lib/code-view-items'
+import { codeViewItemId } from '@/features/diff-panel/lib/code-view-items'
 import {
   type DiffScopeSelection,
   selectThreadDiffScopeSelection,
   useDiffScopeStore,
 } from '@/features/diff-panel/state/diff-scope-store'
-import type { ReviewCommentLocation } from '@/features/diff-panel/state/review-store'
-import { useReviewStore } from '@/features/diff-panel/state/review-store'
 import { useCombinedVcsStatus, useStackedGitActions } from '@/features/git'
-import { Spinner } from '@/shared/ui/Spinner'
 import { useBaseRefChoices } from '../hooks/useBaseRefChoices'
-import { type RenderableDiffFile, useDiffPanelDiffs } from '../hooks/useDiffPanelDiffs'
-import { useDiffReviewActions } from '../hooks/useDiffReviewActions'
+import { useDiffPanelDiffs } from '../hooks/useDiffPanelDiffs'
 import { useReconcileTurnSelection } from '../hooks/useReconcileTurnSelection'
 import { useSessionTurns, useTurnDiffFiles } from '../hooks/useSessionTurns'
 import { CommitMessageDialog } from './CommitMessageDialog'
 import { DiffBottomBar } from './DiffBottomBar'
-import { DiffFileSection } from './DiffFileSection'
-import { DiffScopeTabs } from './DiffScopeTabs'
-import { FileTree } from './FileTree'
+import { DiffPanelHeader } from './DiffPanelHeader'
+import { DiffReviewBody } from './DiffReviewBody'
 
 interface DiffPanelProps {
   projectPath: string | null
@@ -29,80 +26,8 @@ interface DiffPanelProps {
   onSendMessage: (content: string) => void
 }
 
-interface DiffPanelContentProps {
-  readonly fileDiffs: readonly RenderableDiffFile[]
-  readonly isLoading: boolean
-  readonly review: {
-    readonly comments: readonly ReviewComment[]
-    readonly activeCommentLocation: ReviewCommentLocation | null
-  }
-  readonly actions: {
-    readonly onSetActiveComment: (location: ReviewCommentLocation | null) => void
-    readonly onAddSingleComment: (
-      filePath: string,
-      startLine: number,
-      endLine: number,
-      content: string,
-    ) => void
-    readonly onAddToReview: (comment: ReviewComment) => void
-    readonly onSendReview: () => void
-    readonly onFileClick: (path: string) => void
-  }
-}
-
-function DiffPanelContent({ fileDiffs, isLoading, review, actions }: DiffPanelContentProps) {
-  return (
-    <div className="flex flex-1 overflow-hidden">
-      <div className="diff-scroll flex-1 overflow-auto p-2.5">
-        <div className="flex min-w-full w-max flex-col gap-2.5">
-          {isLoading && (
-            <div className="flex items-center justify-center h-20 text-text-tertiary">
-              <Spinner />
-            </div>
-          )}
-          {!isLoading && fileDiffs.length === 0 && (
-            <div className="flex items-center justify-center h-20 text-[12px] text-text-tertiary">
-              No uncommitted changes
-            </div>
-          )}
-          {fileDiffs.map((file) => (
-            <div key={file.path} id={`diff-file-${file.path}`}>
-              <DiffFileSection
-                filePath={file.path}
-                items={file.items}
-                additions={file.additions}
-                deletions={file.deletions}
-                activeCommentLocation={review.activeCommentLocation}
-                onSetActiveComment={actions.onSetActiveComment}
-                onAddSingleComment={actions.onAddSingleComment}
-                onAddToReview={actions.onAddToReview}
-              />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <FileTree
-        files={fileDiffs}
-        onFileClick={actions.onFileClick}
-        onSendReview={actions.onSendReview}
-        reviewCount={review.comments.length}
-      />
-    </div>
-  )
-}
-
-/** Closes over nothing — module scope keeps a stable identity across renders. */
-function handleFileClick(path: string) {
-  const el = document.getElementById(`diff-file-${path}`)
-  el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-}
-
 export function DiffPanel({ projectPath, sessionId = null, onSendMessage }: DiffPanelProps) {
-  const comments = useReviewStore((s) => s.comments)
-  const activeCommentLocation = useReviewStore((s) => s.activeCommentLocation)
-  const setActiveCommentLocation = useReviewStore((s) => s.setActiveCommentLocation)
-  const reviewActions = useDiffReviewActions(onSendMessage)
+  const viewerRef = useRef<CodeViewHandle<ReviewAnnotationMetadata>>(null)
   const scopeByThreadKey = useDiffScopeStore((s) => s.byThreadKey)
   const selectGitScope = useDiffScopeStore((s) => s.selectGitScope)
   const selectBranchBaseRef = useDiffScopeStore((s) => s.selectBranchBaseRef)
@@ -123,6 +48,11 @@ export function DiffPanel({ projectPath, sessionId = null, onSendMessage }: Diff
   const refreshDiff = branchOrTreeDiffs.refreshDiff
 
   useReconcileTurnSelection(scopeKey, turns)
+
+  /** Jump the virtualized list to a file's section. */
+  function handleFileClick(path: string) {
+    viewerRef.current?.scrollTo({ type: 'item', id: codeViewItemId(path), align: 'start' })
+  }
 
   function handleSelectScope(scope: 'branch' | 'unstaged' | 'turn') {
     if (scope === 'turn') {
@@ -167,7 +97,7 @@ export function DiffPanel({ projectPath, sessionId = null, onSendMessage }: Diff
   return (
     <div className="relative flex flex-col size-full bg-diff-bg">
       {projectPath ? (
-        <DiffScopeTabs
+        <DiffPanelHeader
           selection={selection}
           baseRef={branchBaseRef}
           baseRefChoices={baseRefChoices}
@@ -177,17 +107,12 @@ export function DiffPanel({ projectPath, sessionId = null, onSendMessage }: Diff
           onSelectTurn={(turnId) => selectTurn(scopeKey, turnId)}
         />
       ) : null}
-      <DiffPanelContent
-        fileDiffs={fileDiffs}
+      <DiffReviewBody
+        viewerRef={viewerRef}
+        files={fileDiffs}
         isLoading={isLoading}
-        review={{ comments, activeCommentLocation }}
-        actions={{
-          onSetActiveComment: setActiveCommentLocation,
-          onAddSingleComment: reviewActions.onAddSingleComment,
-          onAddToReview: reviewActions.onAddToReview,
-          onSendReview: reviewActions.onSendReview,
-          onFileClick: handleFileClick,
-        }}
+        onSendMessage={onSendMessage}
+        onFileClick={handleFileClick}
       />
       <DiffBottomBar
         onRevertAll={gitActions.handleRevertAll}
