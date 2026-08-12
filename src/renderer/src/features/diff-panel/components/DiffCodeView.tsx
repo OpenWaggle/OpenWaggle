@@ -208,7 +208,7 @@ export function DiffCodeView({
   return (
     <CodeView<ReviewAnnotationMetadata>
       ref={viewerRef}
-      className="diff-chrome diff-scroll min-h-0 flex-1 overflow-auto"
+      className="diff-chrome diff-scroll min-h-0 min-w-0 flex-1 overflow-auto"
       items={items}
       options={options}
       selectedLines={selection}

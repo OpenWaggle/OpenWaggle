@@ -19,6 +19,40 @@ describe('Changed-file navigator', () => {
     expect(screen.getAllByRole('treeitem').length).toBeGreaterThan(0)
   })
 
+  // Regression: the panel mounts before a diff has loaded, and in Branch/Turn
+  // scope the working tree can be clean at mount. The tree library applies
+  // initialState.expandedItems only once, so an empty first render used to leave
+  // the navigator permanently collapsed -- it rendered zero rows while the diff
+  // body showed files. Found in real-Electron QA, not by any existing test.
+  it('lists files that arrive after mounting with an empty diff', () => {
+    const { rerender } = render(<FileTree files={[]} onFileClick={vi.fn()} />)
+    expect(screen.queryAllByRole('treeitem')).toHaveLength(0)
+
+    rerender(
+      <FileTree
+        files={[fileDiff('src/app.ts'), fileDiff('docs/readme.md')]}
+        onFileClick={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('app.ts')).toBeInTheDocument()
+    expect(screen.getByText('readme.md')).toBeInTheDocument()
+  })
+
+  it('keeps a user collapse across an unchanged re-render', () => {
+    const files = [fileDiff('src/app.ts')]
+    const { rerender } = render(<FileTree files={files} onFileClick={vi.fn()} />)
+
+    fireEvent.click(screen.getByText('src'))
+    expect(screen.queryByText('app.ts')).not.toBeInTheDocument()
+
+    // A fresh array with identical content must not remount and re-expand:
+    // the diff poll produces a new array reference on every tick.
+    rerender(<FileTree files={[fileDiff('src/app.ts')]} onFileClick={vi.fn()} />)
+
+    expect(screen.queryByText('app.ts')).not.toBeInTheDocument()
+  })
+
   it('opens a file when its row is activated', () => {
     const onFileClick = vi.fn()
     render(<FileTree files={[fileDiff('src/app.ts')]} onFileClick={onFileClick} />)

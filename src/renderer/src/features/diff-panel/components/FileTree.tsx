@@ -2,7 +2,7 @@ import { hotkeysCoreFeature, selectionFeature, syncDataLoaderFeature } from '@he
 import { AssistiveTreeDescription, useTree } from '@headless-tree/react'
 import type { GitFileDiff } from '@shared/types/git'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import { type MouseEvent, useMemo } from 'react'
+import { type MouseEvent, useMemo, useState } from 'react'
 import { useNavigatorResize } from '@/features/diff-panel/hooks/useNavigatorResize'
 import {
   buildNavigatorTree,
@@ -75,12 +75,24 @@ function FileChangeBadges({ stats }: { readonly stats: FileChangeStats }) {
  * Built on @headless-tree so keyboard navigation, focus management, and the
  * ARIA tree semantics come from a maintained implementation rather than being
  * hand-rolled, while every row is still rendered with our own tokens (ADR 0014).
+ *
+ * Expansion is DERIVED, not stored: every folder is expanded unless the user
+ * explicitly collapsed it. `initialState.expandedItems` is applied only on mount,
+ * so storing it meant a navigator that mounted while the diff was still empty --
+ * routine in Branch and Turn scope, where the working tree is often clean -- kept
+ * an empty expanded set forever and rendered zero rows while the diff body showed
+ * files. Deriving it makes the rendered tree a pure function of the current diff.
  */
-export function FileTree({ files, onFileClick }: FileTreeProps) {
+function useNavigatorTree(files: readonly GitFileDiff[]) {
   const { nodes, childrenByPath } = useMemo(() => buildNavigatorTree(files), [files])
-  const { width, isResizing, startResizing, nudge } = useNavigatorResize()
+  const folderIds = useMemo(() => [...childrenByPath.keys()], [childrenByPath])
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set())
+  const expandedItems = useMemo(
+    () => folderIds.filter((id) => !collapsed.has(id)),
+    [folderIds, collapsed],
+  )
 
-  const tree = useTree<NavigatorNode>({
+  return useTree<NavigatorNode>({
     rootItemId: NAVIGATOR_ROOT_ID,
     getItemName: (item) => item.getItemData().name,
     isItemFolder: (item) => !item.getItemData().isFile,
@@ -89,13 +101,35 @@ export function FileTree({ files, onFileClick }: FileTreeProps) {
       getChildren: (itemId) => [...(childrenByPath.get(itemId) ?? [])],
     },
     indent: INDENT_PX,
-    initialState: { expandedItems: [...childrenByPath.keys()] },
+    // Only expandedItems is controlled; selection and focus stay internal to the
+    // library so its own keyboard handling keeps working.
+    state: { expandedItems },
+    setState: (updater) => {
+      const next = typeof updater === 'function' ? updater({ expandedItems }) : updater
+      if (next.expandedItems === undefined) return
+      const nextExpanded = new Set(next.expandedItems)
+      setCollapsed((prev) => {
+        const computed = folderIds.filter((id) => !nextExpanded.has(id))
+        // Preserve identity when nothing actually changed. Without this the
+        // controlled expandedItems array is new on every sync, the library calls
+        // setState again, and React aborts with "Too many re-renders".
+        if (computed.length === prev.size && computed.every((id) => prev.has(id))) return prev
+        return new Set(computed)
+      })
+    },
     features: [syncDataLoaderFeature, selectionFeature, hotkeysCoreFeature],
   })
+}
+
+export function FileTree({ files, onFileClick }: FileTreeProps) {
+  const tree = useNavigatorTree(files)
+  const { width, isResizing, startResizing, nudge } = useNavigatorResize()
 
   return (
     <div
-      className="relative flex h-full shrink-0 flex-col border-l border-border bg-diff-bg py-2"
+      // max-w guard: the stored width is absolute pixels, so in a narrow docked
+      // panel a wide navigator would starve the diff body and clip the code.
+      className="relative flex h-full max-w-[45%] shrink-0 flex-col border-l border-border bg-diff-bg py-2"
       style={{ width: `${String(width)}px` }}
     >
       {/*
