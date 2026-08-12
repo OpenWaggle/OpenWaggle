@@ -409,8 +409,16 @@ The diff panel's list of files in the active diff scope, used to jump to a file'
 _Avoid_: worktree sidebar (worktree means a git worktree here), file tree (it is scoped to changed files, not the repository), sidebar (that is the app-level surface)
 
 **Session context row**:
-The composer-adjacent row of controls stating where the next send will run — Session environment mode, Worktree base ref, and current branch.
+The composer-adjacent row stating where the next send will run. Its left half owns the **Session environment mode**; its right half is the **Run target picker**. Deliberately one fixed-height row, so changing mode never shifts the composer.
 _Avoid_: branch toolbar, composer context strip, Composer extension surface (that is for extension controls)
+
+**Run target**:
+The ref the next send will run on. In `local` mode that is the checked-out branch; in `worktree` mode it is the **Worktree base ref** the new worktree branches from. One name for one question, because showing the same branch string in two controls left it ambiguous which governed the send.
+_Avoid_: current branch (only true in local mode), base branch (only true in worktree mode), run context
+
+**Run target picker**:
+The single ref chooser in the **Session context row**. Selecting a ref resolves against the **Session environment mode**: it checks the ref out in `local` mode and records it as the **Worktree base ref** in `worktree` mode. It also hosts ref search, create-and-switch, copy-name, start-from-origin, and change-request checkout. It offers no branch administration — see ADR 0015.
+_Avoid_: branch picker (it picks a run target, not a branch to manage), branch manager, Options popover (removed)
 
 **Syntax theme**:
 The token-colour scheme applied to code text inside a diff (keyword, string, comment, and so on), supplied by the diff renderer and selectable by the user. It is deliberately **not** part of the Design token contract: its taxonomy is language grammar scopes, not semantic presentation roles.
@@ -547,7 +555,8 @@ _Avoid_: description, cover letter, global comment
 - The **Design token contract** has exactly one definition, published by the extension SDK; the app consumes it rather than maintaining a parallel token set, so extension UI cannot visually drift from host UI.
 - An **Appearance** supplies a value for every **Semantic role** in the **Design token contract** and carries one **Colour scheme**.
 - A **Derived token** is computed from **Semantic roles**, so it re-themes with an **Appearance** without appearing in the public contract.
-- The **Session context row** states where the next send runs; it reflects **Session environment mode** and the **Worktree base ref**, and it is distinct from the **Branch-diff base ref** chosen in the diff panel.
+- The **Session context row** states where the next send runs: it owns the **Session environment mode**, and its **Run target picker** owns the **Run target**, which resolves to the checked-out branch or the **Worktree base ref** depending on the mode. It is distinct from the **Branch-diff base ref** chosen in the diff panel.
+- The **Run target picker** deliberately excludes branch administration (rename, delete, set upstream); those were removed end to end in ADR 0015, so branch cleanup is asked of the agent or done outside OpenWaggle.
 - The **Changed-file navigator** lists files within the active diff scope, so its contents change with **Working-tree diff**, **Branch diff**, or **Turn diff** selection.
 - The **Diff chrome** is a set of **Derived tokens**, so it always matches the active **Appearance**; the **Syntax theme** is independent and selectable on its own.
 - A **Review comment** anchors to a diff line and carries its **Hunk** snippet; a **Review** gathers pending Review comments plus an optional **Review summary** and submits them to the agent as one message, never touching the composer.
