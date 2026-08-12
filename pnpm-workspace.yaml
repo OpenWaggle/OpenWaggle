@@ -14,6 +14,29 @@ trustPolicy: no-downgrade
 # the LAST entry of that list, so it cannot be relied on.
 trustPolicyIgnoreAfter: 43200
 
+# Investigated exception (PR #145, ADR 0014). @pierre/diffs is the diff renderer;
+# it transitively pins @pierre/theme@2.0.0 and @pierre/theming@1.0.1.
+#
+# Evidence: @pierre/theme published SLSA provenance on every version from 0.0.20
+# through 1.0.3, then stopped at 1.1.0 (2026-06-26) and 2.0.0 (2026-07-24). The
+# drop is scope-wide and consistent across @pierre/* rather than isolated to one
+# version, and the scope publishes @pierre/diffs daily - consistent with a change
+# of publish pipeline, not the single-version takeover this policy hunts.
+# Apache-2.0, and the same renderer T3Code runs in production.
+#
+# trustPolicyIgnoreAfter (30d) would exempt these automatically once 2.0.0 ages
+# past 2026-08-23; this names them explicitly so the reason is recorded rather
+# than the block disappearing silently on a date.
+#
+# The trailing sentinel is load-bearing: pnpm 11.6.0 drops the last entry of this
+# list, so a real pattern must never be last. Verified empirically - see the
+# comment above on trustPolicyExclude.
+trustPolicyExclude:
+  - "@pierre/diffs"
+  - "@pierre/theme"
+  - "@pierre/theming"
+  - "openwaggle-unused-sentinel-do-not-remove"
+
 minimumReleaseAgeExclude:
   - "@diegogbrisa/*"
   - hono@4.12.30
