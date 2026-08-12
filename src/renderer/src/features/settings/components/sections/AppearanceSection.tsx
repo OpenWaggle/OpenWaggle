@@ -96,6 +96,9 @@ export function AppearanceSection() {
             variant="unstyled"
             type="button"
             role="switch"
+            // Without an explicit name the switch is announced as its whole inner
+            // text, description sentence included.
+            aria-label="Wrap long lines"
             aria-checked={diffWrapLines}
             onClick={() => void setDiffWrapLines(!diffWrapLines)}
             className={ROW_CLASS}

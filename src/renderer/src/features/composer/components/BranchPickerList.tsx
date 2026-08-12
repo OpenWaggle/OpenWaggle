@@ -91,7 +91,9 @@ function RefRow({ branch, isSelected, onSelectRef }: RefRowProps) {
       variant="unstyled"
       type="button"
       onClick={() => onSelectRef(branch.name)}
-      aria-current={isSelected}
+      // Omitted rather than "false": aria-current="false" is spec-equivalent to
+      // absent, but some screen readers announce "not current" on every row.
+      aria-current={isSelected || undefined}
       className={cn(
         'flex w-full items-center justify-between border-b border-border px-2.5 py-1.5 text-left text-[12px] transition-colors last:border-b-0 hover:bg-bg-hover',
         isSelected ? 'text-accent' : 'text-text-secondary',

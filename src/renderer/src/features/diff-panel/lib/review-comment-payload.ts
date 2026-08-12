@@ -132,6 +132,16 @@ export interface ReviewCommentWithSnippet extends ReviewComment {
   readonly diff: string
 }
 
+/**
+ * A user can paste or type the closing tag inside their own comment, which would end
+ * the block early and hand the agent a malformed payload. Neutralise it rather than
+ * dropping it, so the text the reviewer wrote still reaches the agent verbatim enough
+ * to read.
+ */
+function escapeClosingTag(content: string) {
+  return content.replaceAll('</review_comment>', '<\\/review_comment>')
+}
+
 /** One structured, machine-parseable comment block. */
 export function formatReviewCommentBlock(comment: ReviewCommentWithSnippet) {
   const open =
@@ -142,7 +152,7 @@ export function formatReviewCommentBlock(comment: ReviewCommentWithSnippet) {
     ` range="${escapeAttribute(formatLineRange(comment.startLine, comment.endLine))}"` +
     '>'
 
-  const parts = [open, comment.content.trim()]
+  const parts = [open, escapeClosingTag(comment.content.trim())]
   if (comment.diff.trim() !== '') parts.push(formatFence('diff', comment.diff))
   parts.push('</review_comment>')
   return parts.join('\n')

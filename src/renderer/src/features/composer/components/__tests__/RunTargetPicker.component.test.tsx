@@ -130,7 +130,8 @@ describe('RunTargetPicker', () => {
     useComposerStore.setState({ branchMenuOpen: true })
     render(<RunTargetPicker strip={stripState({ baseRef: 'develop' })} />)
     expect(screen.getByRole('button', { name: /^develop/ })).toHaveAttribute('aria-current', 'true')
-    expect(screen.getByRole('button', { name: /^main/ })).toHaveAttribute('aria-current', 'false')
+    // Absent rather than "false", so screen readers do not announce every other row.
+    expect(screen.getByRole('button', { name: /^main/ })).not.toHaveAttribute('aria-current')
   })
 
   it('sets the base ref instead of checking out when creating a worktree', () => {
@@ -140,6 +141,20 @@ describe('RunTargetPicker', () => {
     fireEvent.click(screen.getByRole('button', { name: /^develop/ }))
     expect(setBaseRef).toHaveBeenCalledWith('develop')
     expect(useComposerStore.getState().branchMenuOpen).toBe(false)
+  })
+
+  // Guards the mode branch in selectRef: without this, removing the worktree early
+  // return would silently turn every base-ref pick into a checkout with no test failing.
+  it('checks the ref out instead of setting a base ref when running in place', async () => {
+    const setBaseRef = vi.fn()
+    useComposerStore.setState({ branchMenuOpen: true })
+    render(<RunTargetPicker strip={stripState({ envMode: 'local', setBaseRef })} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^develop/ }))
+
+    const { api } = await import('@/shared/lib/ipc')
+    expect(api.checkoutGitBranch).toHaveBeenCalledWith('/test/project', { name: 'develop' })
+    expect(setBaseRef).not.toHaveBeenCalled()
   })
 
   it('opens the create-branch dialog from the menu', () => {

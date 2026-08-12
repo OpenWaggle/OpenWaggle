@@ -65,11 +65,27 @@ function normalizePath(filePath: string) {
   return filePath.split(path.sep).join('/')
 }
 
+/**
+ * The legacy agent directory is a dotted name, so a bare substring search also
+ * matches inside unrelated dotted identifiers -- notably every Bedrock Anthropic
+ * model id (`eu.anthropic.claude-...`), which we legitimately reference when
+ * documenting review tooling. Require the match not to be preceded by an
+ * identifier character, so a real path reference still trips the guard while a
+ * dotted identifier does not.
+ */
+function containsForbiddenReference(contents: string, reference: string) {
+  if (!reference.startsWith('.')) {
+    return contents.includes(reference)
+  }
+  const escaped = reference.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)
+  return new RegExp(String.raw`(?<![0-9A-Za-z])` + escaped).test(contents)
+}
+
 function collectForbiddenReferenceViolations(file: string, contents: string) {
   const violations: Violation[] = []
 
   for (const reference of forbiddenReferences) {
-    if (!contents.includes(reference)) {
+    if (!containsForbiddenReference(contents, reference)) {
       continue
     }
 

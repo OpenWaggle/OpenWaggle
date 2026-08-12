@@ -49,7 +49,6 @@
     broke the add/remove convention every diff tool shares. Greens chosen for
     contrast against --color-diff-add-bg on dark.
   */
-  --color-diff-add-text: #56d364;
   --color-diff-add-mark: #3fb950;
   --color-diff-remove-text: #ef4444;
   --color-diff-remove-num: #ef444466;

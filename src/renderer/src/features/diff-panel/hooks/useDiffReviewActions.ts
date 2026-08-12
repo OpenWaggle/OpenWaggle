@@ -42,7 +42,6 @@ export function useDiffReviewActions(
   const summary = useReviewStore((s) => s.summary)
   const addComment = useReviewStore((s) => s.addComment)
   const removeComment = useReviewStore((s) => s.removeComment)
-  const clearComments = useReviewStore((s) => s.clearComments)
   const setSummary = useReviewStore((s) => s.setSummary)
   const discardReview = useReviewStore((s) => s.discardReview)
   const setActiveCommentLocation = useReviewStore((s) => s.setActiveCommentLocation)
@@ -57,9 +56,15 @@ export function useDiffReviewActions(
   }
 
   function onSubmitReview() {
-    if (comments.length === 0) return
-    onSendMessage(formatReviewSubmission(summary, comments))
-    clearComments()
+    // Read imperatively rather than from the render closure. `comments` here is the
+    // value from the last render, so a rapid double-click (or a key repeat on the
+    // Cmd+Enter shortcut) fires this twice before React re-renders with the cleared
+    // array: both calls pass the emptiness guard and the agent receives the same
+    // review twice.
+    const state = useReviewStore.getState()
+    if (state.comments.length === 0) return
+    onSendMessage(formatReviewSubmission(state.summary, state.comments))
+    state.clearComments()
   }
 
   return {

@@ -75,6 +75,17 @@ describe('review comment payload', () => {
     expect(out.endsWith('````')).toBe(true)
   })
 
+  it('neutralises a closing tag typed inside the comment body', () => {
+    // A pasted </review_comment> would otherwise end the block early and hand the
+    // agent a truncated, malformed payload.
+    const block = formatReviewCommentBlock(comment({ content: 'bad </review_comment> here' }))
+
+    expect(block).toContain('<\\/review_comment>')
+    // Exactly one real closing tag: the structural one at the end.
+    expect(block.split('</review_comment>')).toHaveLength(2)
+    expect(block.trimEnd().endsWith('</review_comment>')).toBe(true)
+  })
+
   it('escapes attributes so a quote in a path cannot break the tag', () => {
     const block = formatReviewCommentBlock(comment({ filePath: 'src/we"ird.ts' }))
     expect(block).toContain('filePath="src/we&quot;ird.ts"')
