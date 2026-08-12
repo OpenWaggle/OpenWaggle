@@ -32,12 +32,6 @@ importers:
       '@earendil-works/pi-coding-agent':
         specifier: 0.80.6
         version: 0.80.6(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(ws@8.21.0)(zod@4.4.3)
-      '@headless-tree/core':
-        specifier: 1.7.0
-        version: 1.7.0
-      '@headless-tree/react':
-        specifier: 1.7.0
-        version: 1.7.0(@headless-tree/core@1.7.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@lexical/react':
         specifier: 0.45.0
         version: 0.45.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(yjs@13.6.31)
@@ -1487,16 +1481,6 @@ packages:
     peerDependenciesMeta:
       '@modelcontextprotocol/sdk':
         optional: true
-
-  '@headless-tree/core@1.7.0':
-    resolution: {integrity: sha512-LxcX7LNepwfOPrZcs4PNfDwCzbi326uCAX5jYBfw94jI+pZQA7ANaE/No3LW0XFgcBcQtK/G2bInbVEhLF1C/Q==}
-
-  '@headless-tree/react@1.7.0':
-    resolution: {integrity: sha512-hcnG4mpTP98KVWZYqKsXNOoiv7ZQqZVM2jWwzEWtF+VDSz+1O/juMI+/Q0G4lZM+ez07/tmBBWjvZub/mLAUXQ==}
-    peerDependencies:
-      '@headless-tree/core': '*'
-      react: '*'
-      react-dom: '*'
 
   '@hono/node-server@1.19.14':
     resolution: {integrity: sha512-GwtvgtXxnWsucXvbQXkRgqksiH2Qed37H9xHZocE5sA3N8O8O8/8FA3uclQXxXVzc9XBZuEOMK7+r02FmSpHtw==}
@@ -8606,14 +8590,6 @@ snapshots:
       - bufferutil
       - supports-color
       - utf-8-validate
-
-  '@headless-tree/core@1.7.0': {}
-
-  '@headless-tree/react@1.7.0(@headless-tree/core@1.7.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
-    dependencies:
-      '@headless-tree/core': 1.7.0
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
 
   '@hono/node-server@1.19.14(hono@4.12.30)':
     dependencies:

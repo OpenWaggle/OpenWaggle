@@ -48,7 +48,7 @@ export function InlineComment({
   }
 
   return (
-    <div className="flex w-[min(640px,100cqw)] flex-col gap-2 border-y border-border bg-diff-header-bg px-3 py-2">
+    <div className="sticky left-0 flex w-[min(640px,calc(100cqw-4rem))] max-w-[calc(100cqw-4rem)] flex-col gap-2 border-y border-border bg-diff-header-bg px-3 py-2">
       <div className="flex items-center gap-1.5">
         <MessageSquare className="size-3 shrink-0 text-text-tertiary" />
         <span className="text-[11px] text-text-tertiary">
@@ -77,7 +77,7 @@ export function InlineComment({
         }}
       />
 
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button
           variant="unstyled"
           type="button"

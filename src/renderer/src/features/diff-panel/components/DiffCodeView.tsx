@@ -7,7 +7,6 @@ import {
   type ReviewAnnotationMetadata,
 } from '@/features/diff-panel/lib/code-view-items'
 import type { ReviewCommentWithSnippet } from '@/features/diff-panel/lib/review-comment-payload'
-import { extractDiffSnippet } from '@/features/diff-panel/lib/review-comment-payload'
 import type { ReviewCommentLocation } from '@/features/diff-panel/state/review-store'
 import { Spinner } from '@/shared/ui/Spinner'
 import { InlineComment } from './InlineComment'
@@ -217,11 +216,4 @@ export function DiffCodeView({
       renderAnnotation={renderAnnotation}
     />
   )
-}
-
-/** Snippet for a location, used when a comment is created. */
-export function snippetForLocation(files: readonly GitFileDiff[], location: ReviewCommentLocation) {
-  const patch = files.find((file) => file.path === location.filePath)?.diff
-  if (patch === undefined) return ''
-  return extractDiffSnippet(patch, location.line, location.endLine ?? location.line)
 }
