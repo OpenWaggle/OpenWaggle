@@ -1,35 +1,40 @@
 import type { GitBranchInfo } from '@shared/types/git'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
-import type { ComposerActionDialogKind } from '../state/composer-action-store'
 
 interface BranchPickerListProps {
   readonly filteredBranches: readonly GitBranchInfo[]
   readonly localBranches: readonly GitBranchInfo[]
   readonly remoteBranches: readonly GitBranchInfo[]
-  readonly onCheckout: (branchName: string) => void
-  readonly onOpenActionDialog: (kind: ComposerActionDialogKind, initialValue?: string) => void
+  readonly selectedRef: string | null
+  readonly onSelectRef: (branchName: string) => void
 }
 
 export function BranchPickerList({
   filteredBranches,
   localBranches,
   remoteBranches,
-  onCheckout,
-  onOpenActionDialog,
+  selectedRef,
+  onSelectRef,
 }: BranchPickerListProps) {
   return (
     <div className="max-h-[220px] overflow-y-auto rounded-md border border-border bg-bg">
       {filteredBranches.length === 0 ? <BranchPickerEmptyState /> : null}
       {localBranches.length > 0 ? (
-        <BranchPickerLocalSection
+        <BranchPickerSection
+          label="Local"
           branches={localBranches}
-          onCheckout={onCheckout}
-          onOpenActionDialog={onOpenActionDialog}
+          selectedRef={selectedRef}
+          onSelectRef={onSelectRef}
         />
       ) : null}
       {remoteBranches.length > 0 ? (
-        <BranchPickerRemoteSection branches={remoteBranches} onCheckout={onCheckout} />
+        <BranchPickerSection
+          label="Remote"
+          branches={remoteBranches}
+          selectedRef={selectedRef}
+          onSelectRef={onSelectRef}
+        />
       ) : null}
     </div>
   )
@@ -40,111 +45,60 @@ function BranchPickerEmptyState() {
 }
 
 interface BranchPickerSectionProps {
+  readonly label: string
   readonly branches: readonly GitBranchInfo[]
-  readonly onCheckout: (branchName: string) => void
+  readonly selectedRef: string | null
+  readonly onSelectRef: (branchName: string) => void
 }
 
-interface BranchPickerLocalSectionProps extends BranchPickerSectionProps {
-  readonly onOpenActionDialog: BranchPickerListProps['onOpenActionDialog']
-}
-
-function BranchPickerLocalSection({
+function BranchPickerSection({
+  label,
   branches,
-  onCheckout,
-  onOpenActionDialog,
-}: BranchPickerLocalSectionProps) {
+  selectedRef,
+  onSelectRef,
+}: BranchPickerSectionProps) {
   return (
     <div>
-      <BranchPickerSectionHeader label="Local" />
+      <div className="border-b border-border px-2.5 py-1 text-[11px] uppercase tracking-wide text-text-muted">
+        {label}
+      </div>
       {branches.map((branch) => (
-        <LocalBranchRow
+        <RefRow
           key={branch.fullName}
           branch={branch}
-          onCheckout={onCheckout}
-          onOpenActionDialog={onOpenActionDialog}
+          isSelected={branch.name === selectedRef}
+          onSelectRef={onSelectRef}
         />
       ))}
     </div>
   )
 }
 
-function BranchPickerRemoteSection({ branches, onCheckout }: BranchPickerSectionProps) {
-  return (
-    <div>
-      <BranchPickerSectionHeader label="Remote" />
-      {branches.map((branch) => (
-        <RemoteBranchRow key={branch.fullName} branch={branch} onCheckout={onCheckout} />
-      ))}
-    </div>
-  )
-}
-
-interface BranchPickerSectionHeaderProps {
-  readonly label: string
-}
-
-function BranchPickerSectionHeader({ label }: BranchPickerSectionHeaderProps) {
-  return (
-    <div className="border-b border-border px-2.5 py-1 text-[11px] uppercase tracking-wide text-text-muted">
-      {label}
-    </div>
-  )
-}
-
-interface LocalBranchRowProps {
+interface RefRowProps {
   readonly branch: GitBranchInfo
-  readonly onCheckout: (branchName: string) => void
-  readonly onOpenActionDialog: BranchPickerListProps['onOpenActionDialog']
+  readonly isSelected: boolean
+  readonly onSelectRef: (branchName: string) => void
 }
 
-function LocalBranchRow({ branch, onCheckout }: LocalBranchRowProps) {
-  return (
-    <div
-      className={cn(
-        'flex items-center gap-1 border-b border-border px-1.5 py-1 last:border-b-0',
-        branch.isCurrent ? 'text-accent' : 'text-text-secondary',
-      )}
-    >
-      <BranchCheckoutButton branch={branch} onCheckout={onCheckout} />
-    </div>
-  )
-}
-
-interface BranchRowProps {
-  readonly branch: GitBranchInfo
-  readonly onCheckout: (branchName: string) => void
-}
-
-function RemoteBranchRow({ branch, onCheckout }: BranchRowProps) {
+/**
+ * Selection is marked against the resolved run target, not against
+ * `branch.isCurrent`: in worktree mode the run starts from the chosen base ref,
+ * which is usually not the checked-out branch.
+ */
+function RefRow({ branch, isSelected, onSelectRef }: RefRowProps) {
   return (
     <Button
       variant="unstyled"
       type="button"
-      onClick={() => onCheckout(branch.name)}
+      onClick={() => onSelectRef(branch.name)}
+      aria-current={isSelected}
       className={cn(
-        'flex w-full items-center justify-between border-b border-border px-2.5 py-1.5 text-left text-[12px] transition-colors hover:bg-bg-hover last:border-b-0',
-        branch.isCurrent ? 'text-accent' : 'text-text-secondary',
+        'flex w-full items-center justify-between border-b border-border px-2.5 py-1.5 text-left text-[12px] transition-colors last:border-b-0 hover:bg-bg-hover',
+        isSelected ? 'text-accent' : 'text-text-secondary',
       )}
     >
       <span className="truncate">{branch.name}</span>
-      {branch.isCurrent ? <span>●</span> : null}
-    </Button>
-  )
-}
-
-function BranchCheckoutButton({ branch, onCheckout }: BranchRowProps) {
-  return (
-    <Button
-      variant="unstyled"
-      type="button"
-      onClick={() => onCheckout(branch.name)}
-      className={cn(
-        'flex min-w-0 flex-1 items-center justify-between rounded px-1 py-0.5 text-left text-[12px] transition-colors hover:bg-bg-hover',
-        branch.isCurrent ? 'text-accent' : 'text-text-secondary',
-      )}
-    >
-      <span className="truncate">{branch.name}</span>
-      {branch.isCurrent ? <span>●</span> : null}
+      {isSelected ? <span aria-hidden="true">●</span> : null}
     </Button>
   )
 }

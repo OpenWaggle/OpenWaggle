@@ -155,7 +155,7 @@ export function ChatComposerStack({
         />
         <div className="mt-1.5 flex h-7 min-w-0 items-center justify-between gap-3 px-1">
           <SessionContextRow strip={strip} />
-          <ComposerBranchRow onToast={onToast} />
+          <ComposerBranchRow strip={strip} onToast={onToast} />
         </div>
         <ActionDialog onToast={onToast} />
       </div>

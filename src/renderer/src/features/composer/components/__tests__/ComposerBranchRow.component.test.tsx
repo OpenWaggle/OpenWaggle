@@ -15,9 +15,6 @@ vi.mock('@/shared/lib/ipc', () => ({
     listGitBranches: vi.fn().mockResolvedValue(null),
     checkoutGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'Checked out' }),
     createGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
-    renameGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
-    deleteGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
-    setGitBranchUpstream: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
   },
 }))
 
@@ -46,11 +43,10 @@ describe('ComposerBranchRow', () => {
     })
   })
 
-  it('renders the branch picker when a project is selected', () => {
-    render(<ComposerBranchRow />)
+  it('renders the single run-target picker when a project is selected', () => {
+    render(<ComposerBranchRow strip={null} />)
 
-    expect(screen.getByTitle('Manage branches')).toBeInTheDocument()
-    expect(screen.getByText('main')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Run target: main' })).toBeInTheDocument()
   })
 
   it('renders no row when no project is selected', () => {
@@ -58,7 +54,7 @@ describe('ComposerBranchRow', () => {
       settings: { ...DEFAULT_SETTINGS, projectPath: null },
     })
 
-    const { container } = render(<ComposerBranchRow />)
+    const { container } = render(<ComposerBranchRow strip={null} />)
 
     expect(container.firstChild).toBeNull()
   })
