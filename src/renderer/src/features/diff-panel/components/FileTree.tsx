@@ -122,6 +122,14 @@ function useNavigatorTree(files: readonly GitFileDiff[]) {
 }
 
 export function FileTree({ files, onFileClick }: FileTreeProps) {
+  // React Compiler must not memoize this component. @headless-tree owns a mutable
+  // tree instance and mutates it in place, so `tree` keeps the same identity while
+  // its visible-item list changes. The compiler therefore cached the mapped rows
+  // and the navigator rendered permanently empty in the packaged/dev app while
+  // every test passed -- vitest does not run the compiler, so the suite is
+  // structurally blind to this class of bug (see MEMORY.md).
+  'use no memo'
+
   const tree = useNavigatorTree(files)
   const { width, isResizing, startResizing, nudge } = useNavigatorResize()
 

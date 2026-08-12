@@ -2,6 +2,7 @@ import type { DiffSyntaxTheme, DiffView } from '@shared/types/settings'
 import { DIFF_SYNTAX_THEMES, DIFF_VIEWS } from '@shared/types/settings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { Button } from '@/shared/ui/Button'
+import { SyntaxThemePreview } from './SyntaxThemePreview'
 
 const SYNTAX_THEME_LABELS: Record<DiffSyntaxTheme, string> = {
   'pierre-dark': 'Default',
@@ -125,6 +126,7 @@ export function AppearanceSection() {
         <p className="text-[12px] text-text-tertiary">
           Colours code text inside diffs. The panel's own colours follow the app appearance.
         </p>
+        <SyntaxThemePreview theme={diffSyntaxTheme} />
         <div className="overflow-hidden rounded-lg border border-border bg-diff-header-bg">
           {DIFF_SYNTAX_THEMES.map((theme) => (
             <Button

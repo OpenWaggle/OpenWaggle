@@ -43,11 +43,17 @@
   --color-diff-header-bg: #111418;
   --color-diff-add-bg: #0d2e1a;
   --color-diff-remove-bg: #2d1214;
-  --color-diff-add-text: #ffd166;
-  --color-diff-add-mark: #f5a623;
+  /*
+    Additions are GREEN, deletions RED. These were amber (#f5a623 / #ffd166), which
+    paired a warm hue against the red of deletions: almost no hue separation, and it
+    broke the add/remove convention every diff tool shares. Greens chosen for
+    contrast against --color-diff-add-bg on dark.
+  */
+  --color-diff-add-text: #56d364;
+  --color-diff-add-mark: #3fb950;
   --color-diff-remove-text: #ef4444;
   --color-diff-remove-num: #ef444466;
-  --color-diff-add-num: #f5a62366;
+  --color-diff-add-num: #3fb95066;
   --color-diff-context-text: #c9cdd6;
   --color-diff-highlight-bg: #17130a;
   --color-diff-stage-bg: #1a2e1a;

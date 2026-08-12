@@ -424,6 +424,10 @@ _Avoid_: branch picker (it picks a run target, not a branch to manage), branch m
 The token-colour scheme applied to code text inside a diff (keyword, string, comment, and so on), supplied by the diff renderer and selectable by the user. It is deliberately **not** part of the Design token contract: its taxonomy is language grammar scopes, not semantic presentation roles.
 _Avoid_: Appearance (that governs chrome, not code tokens), colour scheme, palette
 
+**Syntax theme preview**:
+The live patch rendered inside the Syntax theme picker, using the real renderer and the real Diff chrome, so the choice is made by looking rather than by reading a description.
+_Avoid_: sample, thumbnail (it is a working diff, not an image), swatch
+
 **Diff chrome**:
 Everything the diff renderer draws around the code text — gutters, line numbers, add/remove backgrounds, word-level emphasis, hover, selection, separators. Unlike the Syntax theme, the diff chrome is driven by OpenWaggle Semantic roles (as Derived tokens), so it always matches the active Appearance.
 _Avoid_: diff theme (ambiguous with Syntax theme), diff style (that is unified-vs-split)
