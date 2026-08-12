@@ -1,43 +1,27 @@
+import { hotkeysCoreFeature, selectionFeature, syncDataLoaderFeature } from '@headless-tree/core'
+import { AssistiveTreeDescription, useTree } from '@headless-tree/react'
 import type { GitFileDiff } from '@shared/types/git'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import { useState } from 'react'
+import { type MouseEvent, useMemo } from 'react'
+import { useNavigatorResize } from '@/features/diff-panel/hooks/useNavigatorResize'
+import {
+  buildNavigatorTree,
+  type FileChangeStats,
+  type FileChangeStatus,
+  NAVIGATOR_ROOT_ID,
+  type NavigatorNode,
+} from '@/features/diff-panel/lib/navigator-tree'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 
-const FILE_TREE_NODE_VALUE_12 = 12
-const FILE_TREE_NODE_VALUE_8 = 8
-const FILE_TREE_NODE_VALUE_4 = 4
-
-interface TreeNode {
-  name: string
-  path: string
-  children: TreeNode[]
-  isFile: boolean
-  isChanged: boolean
-  /** Change status and line counts, for files only (issue #30). */
-  stats?: FileChangeStats
+interface FileTreeProps {
+  readonly files: readonly GitFileDiff[]
+  readonly onFileClick: (path: string) => void
 }
 
-export type FileChangeStatus = 'added' | 'modified' | 'deleted'
-
-export interface FileChangeStats {
-  readonly status: FileChangeStatus
-  readonly additions: number
-  readonly deletions: number
-}
-
-/**
- * Git reports add/delete through the patch's mode header rather than a status
- * field, so derive it from the patch we already have.
- */
-export function fileChangeStats(file: GitFileDiff): FileChangeStats {
-  const status: FileChangeStatus = file.diff.includes('\nnew file mode ')
-    ? 'added'
-    : file.diff.includes('\ndeleted file mode ')
-      ? 'deleted'
-      : 'modified'
-  return { status, additions: file.additions, deletions: file.deletions }
-}
+const INDENT_PX = 10
+const NUDGE_STEP = 16
+const ROW_PADDING_PX = 8
 
 const STATUS_GLYPH: Record<FileChangeStatus, string> = {
   added: 'A',
@@ -51,9 +35,22 @@ const STATUS_CLASS: Record<FileChangeStatus, string> = {
   deleted: 'text-diff-remove-text',
 }
 
+type ButtonClickHandler = (event: MouseEvent<HTMLButtonElement>) => void
+
+/**
+ * getProps() from the tree library is loosely typed, so narrow its click handler
+ * at the boundary instead of asserting. Without forwarding it, the library's focus
+ * and selection handling would be lost.
+ */
+function isClickHandler(value: unknown): value is ButtonClickHandler {
+  return typeof value === 'function'
+}
+
+const ROOT_NODE: NavigatorNode = { path: NAVIGATOR_ROOT_ID, name: 'Changed files', isFile: false }
+
 function FileChangeBadges({ stats }: { readonly stats: FileChangeStats }) {
   return (
-    <span className="ml-auto flex shrink-0 items-center gap-1 pr-1.5">
+    <span className="ml-auto flex shrink-0 items-center gap-1 pl-1">
       {stats.additions > 0 ? (
         <span className="text-[10px] text-diff-add-mark">+{String(stats.additions)}</span>
       ) : null}
@@ -72,127 +69,121 @@ function FileChangeBadges({ stats }: { readonly stats: FileChangeStats }) {
   )
 }
 
-function getChildMap(pathKey: string, childMapsByPath: Map<string, Map<string, TreeNode>>) {
-  let childMap = childMapsByPath.get(pathKey)
-  if (!childMap) {
-    childMap = new Map()
-    childMapsByPath.set(pathKey, childMap)
-  }
-  return childMap
-}
-
-function buildTree(files: readonly GitFileDiff[]) {
-  const changedPaths = new Set(files.map((f) => f.path))
-  const statsByPath = new Map(files.map((f) => [f.path, fileChangeStats(f)]))
-  const root: TreeNode[] = []
-  const rootChildrenByName = new Map<string, TreeNode>()
-  const childMapsByPath = new Map<string, Map<string, TreeNode>>()
-
-  for (const file of files) {
-    const parts = file.path.split('/')
-    let current = root
-    let currentChildrenByName = rootChildrenByName
-
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i] ?? ''
-      const isFile = i === parts.length - 1
-      const pathSoFar = parts.slice(0, i + 1).join('/')
-
-      let existing = currentChildrenByName.get(part)
-      if (!existing) {
-        existing = {
-          name: part,
-          path: pathSoFar,
-          children: [],
-          isFile,
-          isChanged: isFile && changedPaths.has(file.path),
-          ...(isFile ? { stats: statsByPath.get(pathSoFar) } : {}),
-        }
-        current.push(existing)
-        currentChildrenByName.set(part, existing)
-      }
-      current = existing.children
-      currentChildrenByName = getChildMap(pathSoFar, childMapsByPath)
-    }
-  }
-
-  return root
-}
-
-interface FileTreeNodeProps {
-  node: TreeNode
-  depth: number
-  onFileClick: (path: string) => void
-}
-
-function FileTreeNode({ node, depth, onFileClick }: FileTreeNodeProps) {
-  const [expanded, setExpanded] = useState(true)
-
-  // Indentation: 12px root, increases by 8px per level
-  const paddingLeft = FILE_TREE_NODE_VALUE_12 + depth * FILE_TREE_NODE_VALUE_8
-
-  if (node.isFile) {
-    return (
-      <Button
-        variant="unstyled"
-        type="button"
-        onClick={() => onFileClick(node.path)}
-        className={cn(
-          'flex items-center gap-1.5 h-5 w-full text-left',
-          node.isChanged && 'bg-diff-highlight-bg',
-        )}
-        style={{ paddingLeft: `${String(paddingLeft + FILE_TREE_NODE_VALUE_4)}px` }}
-      >
-        <span
-          className={cn(
-            'truncate text-[12px]',
-            node.isChanged ? 'text-text-primary' : 'text-text-secondary',
-          )}
-        >
-          {node.name}
-        </span>
-        {node.stats ? <FileChangeBadges stats={node.stats} /> : null}
-      </Button>
-    )
-  }
-
-  const ChevIcon = expanded ? ChevronDown : ChevronRight
-
-  return (
-    <div className="w-full">
-      <Button
-        variant="unstyled"
-        type="button"
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1.5 h-[22px] w-full text-left"
-        style={{ paddingLeft: `${String(paddingLeft)}px` }}
-      >
-        <ChevIcon className="size-[11px] text-text-tertiary shrink-0" />
-        <span className="text-[12px] text-text-secondary">{node.name}</span>
-      </Button>
-      {expanded &&
-        node.children.map((child) => (
-          <FileTreeNode key={child.path} node={child} depth={depth + 1} onFileClick={onFileClick} />
-        ))}
-    </div>
-  )
-}
-
-interface FileTreeProps {
-  readonly files: readonly GitFileDiff[]
-  readonly onFileClick: (path: string) => void
-}
-
+/**
+ * Changed-file navigator.
+ *
+ * Built on @headless-tree so keyboard navigation, focus management, and the
+ * ARIA tree semantics come from a maintained implementation rather than being
+ * hand-rolled, while every row is still rendered with our own tokens (ADR 0014).
+ */
 export function FileTree({ files, onFileClick }: FileTreeProps) {
-  const tree = buildTree(files)
+  const { nodes, childrenByPath } = useMemo(() => buildNavigatorTree(files), [files])
+  const { width, isResizing, startResizing, nudge } = useNavigatorResize()
+
+  const tree = useTree<NavigatorNode>({
+    rootItemId: NAVIGATOR_ROOT_ID,
+    getItemName: (item) => item.getItemData().name,
+    isItemFolder: (item) => !item.getItemData().isFile,
+    dataLoader: {
+      getItem: (itemId) => nodes.get(itemId) ?? ROOT_NODE,
+      getChildren: (itemId) => [...(childrenByPath.get(itemId) ?? [])],
+    },
+    indent: INDENT_PX,
+    initialState: { expandedItems: [...childrenByPath.keys()] },
+    features: [syncDataLoaderFeature, selectionFeature, hotkeysCoreFeature],
+  })
 
   return (
-    <div className="flex flex-col justify-between h-full w-[200px] bg-diff-bg border-l border-border py-3 shrink-0">
-      {/* Tree */}
-      <div className="flex-1 overflow-y-auto">
-        {tree.map((node) => (
-          <FileTreeNode key={node.path} node={node} depth={0} onFileClick={onFileClick} />
-        ))}
+    <div
+      className="relative flex h-full shrink-0 flex-col border-l border-border bg-diff-bg py-2"
+      style={{ width: `${String(width)}px` }}
+    >
+      {/*
+        Resize rail, docked on the left edge of a right-docked panel, so dragging
+        left widens it. Focusable with arrow-key resizing: the app's existing
+        right-sidebar rail is pointer-only (tabIndex -1), which is not reachable
+        for keyboard users.
+      */}
+      <Button
+        variant="unstyled"
+        type="button"
+        aria-label={`Resize changed file list, currently ${String(width)} pixels`}
+        title="Drag or use arrow keys to resize"
+        onPointerDown={(event) => {
+          event.preventDefault()
+          startResizing()
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowLeft') {
+            event.preventDefault()
+            nudge(NUDGE_STEP)
+            return
+          }
+          if (event.key === 'ArrowRight') {
+            event.preventDefault()
+            nudge(-NUDGE_STEP)
+          }
+        }}
+        className={cn(
+          'absolute inset-y-0 left-0 z-10 w-1 cursor-col-resize border-0 bg-transparent p-0 transition-colors',
+          isResizing ? 'bg-accent/60' : 'hover:bg-accent/40 focus-visible:bg-accent/60',
+        )}
+      />
+
+      <div {...tree.getContainerProps()} className="flex-1 overflow-auto outline-none">
+        <AssistiveTreeDescription tree={tree} />
+        {tree.getItems().map((item) => {
+          const data = item.getItemData()
+          if (data.path === NAVIGATOR_ROOT_ID) return null
+          const isFolder = !data.isFile
+          const ChevIcon = item.isExpanded() ? ChevronDown : ChevronRight
+          const itemProps = item.getProps()
+          const libraryOnClick = isClickHandler(itemProps.onClick) ? itemProps.onClick : undefined
+
+          return (
+            <Button
+              variant="unstyled"
+              type="button"
+              {...itemProps}
+              key={item.getId()}
+              onClick={(event) => {
+                // Folders: we own expand/collapse, so the library's handler is not
+                // invoked for them -- calling both toggled twice and cancelled out.
+                if (isFolder) {
+                  if (item.isExpanded()) item.collapse()
+                  else item.expand()
+                  return
+                }
+                libraryOnClick?.(event)
+                onFileClick(data.path)
+              }}
+              style={{
+                paddingLeft: `${String(item.getItemMeta().level * INDENT_PX + ROW_PADDING_PX)}px`,
+              }}
+              className={cn(
+                'flex h-[22px] w-full items-center gap-1.5 pr-1.5 text-left outline-none',
+                item.isFocused() && 'bg-bg-hover',
+                item.isSelected() && 'bg-diff-highlight-bg',
+                'hover:bg-bg-hover',
+              )}
+            >
+              {isFolder ? (
+                <ChevIcon className="size-[11px] shrink-0 text-text-tertiary" />
+              ) : (
+                <span className="size-[11px] shrink-0" />
+              )}
+              <span
+                className={cn(
+                  'truncate text-[12px]',
+                  data.isFile ? 'text-text-primary' : 'text-text-secondary',
+                )}
+              >
+                {data.name}
+              </span>
+              {data.stats ? <FileChangeBadges stats={data.stats} /> : null}
+            </Button>
+          )
+        })}
       </div>
     </div>
   )

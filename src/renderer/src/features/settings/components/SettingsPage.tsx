@@ -7,6 +7,7 @@ import { Button } from '@/shared/ui/Button'
 import type { SettingsTab } from '@/shell/ui-store'
 import { useFullscreen } from '@/shell/useFullscreen'
 import { SettingsNav } from './SettingsNav'
+import { AppearanceSection } from './sections/AppearanceSection'
 import { ArchivedSection } from './sections/ArchivedSection'
 import { ConnectionsSection } from './sections/ConnectionsSection'
 import { ExtensionsSection } from './sections/ExtensionsSection'
@@ -73,6 +74,7 @@ export function SettingsPage({ activeTab }: SettingsPageProps) {
 function SettingsTabContent({ tab }: { tab: SettingsTab }) {
   return match(tab)
     .with('general', () => <GeneralSection />)
+    .with('appearance', () => <AppearanceSection />)
     .with('waggle', () => <WaggleSection />)
     .with('extensions', () => <ExtensionsSection />)
     .with('mcp', () => <McpSection />)

@@ -72,6 +72,8 @@
   "dependencies": {
     "@diegogbrisa/ts-match": "1.6.1",
     "@earendil-works/pi-coding-agent": "0.80.6",
+    "@headless-tree/core": "1.7.0",
+    "@headless-tree/react": "1.7.0",
     "@lexical/react": "0.45.0",
     "@lobehub/icons-static-svg": "1.91.0",
     "@openwaggle/extension-sdk": "workspace:*",

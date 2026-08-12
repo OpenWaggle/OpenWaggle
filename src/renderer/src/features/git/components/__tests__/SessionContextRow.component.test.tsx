@@ -27,15 +27,34 @@ describe('SessionContextRow', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('shows env-mode and base-branch selectors in worktree mode', () => {
+  it('keeps the row to one line, with worktree options behind a popover', () => {
     render(<SessionContextRow strip={stripState()} />)
+
+    // Visible inline: only the mode select and the options trigger. Stacking the
+    // rest inline shifted the composer whenever the mode changed.
     expect(screen.getByLabelText('Session environment mode')).toBeInTheDocument()
-    expect(screen.getByLabelText('Worktree base branch')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Worktree options/ })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Worktree base branch')).not.toBeInTheDocument()
+    expect(screen.queryByText('Start from origin')).not.toBeInTheDocument()
   })
 
-  it('hides the base-branch selector in local mode', () => {
+  it('reveals base branch and start-from-origin inside the popover', () => {
+    render(<SessionContextRow strip={stripState()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Worktree options/ }))
+
+    expect(screen.getByLabelText('Worktree base branch')).toBeInTheDocument()
+    expect(screen.getByText('Start from origin')).toBeInTheDocument()
+  })
+
+  it('shows the base ref on the trigger so the row still states where it runs', () => {
+    render(<SessionContextRow strip={stripState({ baseRef: 'develop' })} />)
+    expect(screen.getByRole('button', { name: /base branch develop/ })).toBeInTheDocument()
+  })
+
+  it('offers no worktree options in local mode', () => {
     render(<SessionContextRow strip={stripState({ envMode: 'local' })} />)
-    expect(screen.queryByLabelText('Worktree base branch')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Worktree options/ })).not.toBeInTheDocument()
   })
 
   it('surfaces the send-block reason', () => {
@@ -50,6 +69,7 @@ describe('SessionContextRow', () => {
   it('loads change requests when the checkout control is clicked', async () => {
     const loadChangeRequests = vi.fn(async () => {})
     render(<SessionContextRow strip={stripState({ loadChangeRequests })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Worktree options/ }))
     screen.getByRole('button', { name: /checkout change request/i }).click()
     expect(loadChangeRequests).toHaveBeenCalled()
   })
@@ -72,6 +92,7 @@ describe('SessionContextRow', () => {
         })}
       />,
     )
+    fireEvent.click(screen.getByRole('button', { name: /Worktree options/ }))
     const select = screen.getByLabelText('Checkout change request')
     fireEvent.change(select, { target: { value: 'fix' } })
     expect(checkoutChangeRequest).toHaveBeenCalledWith('fix')
