@@ -70,6 +70,29 @@ function findPlaintextCredentialKeys(
   return credentialKeys
 }
 
+/** Keys whose value is a secret reference object (`{ secret: "NAME" }`). */
+function findSecretReferenceKeys(
+  values: Readonly<Record<string, string | { readonly secret: string }>> | undefined,
+) {
+  if (!values) return []
+  return Object.entries(values)
+    .filter(([, value]) => typeof value === 'object' && value !== null && 'secret' in value)
+    .map(([name]) => name)
+}
+
+/**
+ * Locations in a server definition that use a secret reference. Secret refs are
+ * OpenWaggle-only; they must never be written to the shared `.mcp.json` that
+ * other MCP tools (e.g. Pi's adapter) also read, because those tools string-
+ * interpolate env values and crash on an object.
+ */
+export function serverDefinitionSecretReferences(definition: McpServerDefinition): string[] {
+  return [
+    ...findSecretReferenceKeys(definition.env).map((key) => `env.${key}`),
+    ...findSecretReferenceKeys(definition.headers).map((key) => `headers.${key}`),
+  ]
+}
+
 function validateRemoteEndpoint(
   definition: McpServerDefinition,
   hasUrl: boolean,

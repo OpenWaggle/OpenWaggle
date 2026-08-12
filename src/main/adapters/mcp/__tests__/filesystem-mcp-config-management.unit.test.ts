@@ -138,4 +138,43 @@ describe('first-party MCP configuration management', () => {
       definition: { command: 'browser-mcp' },
     })
   })
+
+  it('keeps secret references out of the shared .mcp.json but allows them in the OpenWaggle project config', async () => {
+    const { projectPath, service } = await createFixture()
+    const rawWithSecret = JSON.stringify(
+      {
+        mcpServers: {
+          figma: {
+            command: 'npx',
+            args: ['-y', 'figma-developer-mcp', '--stdio'],
+            env: { FIGMA_API_KEY: { secret: 'FIGMA_API_KEY' } },
+          },
+        },
+      },
+      null,
+      2,
+    )
+
+    // Shared standard file (read by other MCP tools) rejects secret objects.
+    await expect(
+      service.writeSourceConfig({
+        projectPath,
+        sourceId: 'project-standard',
+        rawJson: rawWithSecret,
+      }),
+    ).rejects.toThrow(/Secret references cannot be saved/)
+    await expect(readFile(path.join(projectPath, '.mcp.json'), 'utf8')).rejects.toThrow()
+
+    // The OpenWaggle-only project config accepts the same secret reference.
+    const view = await service.writeSourceConfig({
+      projectPath,
+      sourceId: 'project-openwaggle',
+      rawJson: rawWithSecret,
+    })
+    expect(view.servers.some((server) => server.name === 'figma')).toBe(true)
+    const stored = JSON.parse(
+      await readFile(path.join(projectPath, '.openwaggle', 'mcp.json'), 'utf8'),
+    )
+    expect(stored.mcpServers.figma.env.FIGMA_API_KEY).toEqual({ secret: 'FIGMA_API_KEY' })
+  })
 })

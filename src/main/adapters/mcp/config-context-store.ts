@@ -9,6 +9,7 @@ import type {
   McpWriteSourceConfigInput,
 } from '@shared/types/mcp'
 import { validateMcpScopeMutation } from '../../domain/mcp/scope-policy'
+import { serverDefinitionSecretReferences } from '../../domain/mcp/server-policy'
 import { createMcpRevision } from './config-identity'
 import type { McpFilesystemConfigServiceOptions, McpUserStateFile } from './config-types'
 import {
@@ -169,7 +170,25 @@ export class McpConfigContextStore {
     return this.runSerialized(async () => {
       const projectPath = normalizeProjectPath(input.projectPath)
       const definition = getMcpSourceDefinition(this.options, input.sourceId, projectPath)
-      await writeJsonFileAtomic(definition.path, parseMcpConfigFile(input.rawJson))
+      const parsed = parseMcpConfigFile(input.rawJson)
+      // The `standard` .mcp.json is shared with other MCP tools (e.g. Pi's
+      // adapter) that string-interpolate env values and crash on a secret
+      // object. Keep secret references out of it; they belong in the
+      // OpenWaggle-only .openwaggle/mcp.json (kind "openwaggle").
+      if (definition.kind === 'standard') {
+        const servers = parsed.mcpServers ?? parsed.servers ?? {}
+        const offenders = Object.entries(servers).flatMap(([name, serverDefinition]) =>
+          serverDefinitionSecretReferences(serverDefinition).map(
+            (location) => `${name}.${location}`,
+          ),
+        )
+        if (offenders.length > 0) {
+          throw new Error(
+            `Secret references cannot be saved to ${definition.label}: other MCP tools read this shared file and crash on secret objects. Move these to the OpenWaggle project config (.openwaggle/mcp.json): ${offenders.join(', ')}.`,
+          )
+        }
+      }
+      await writeJsonFileAtomic(definition.path, parsed)
       return this.getViewUnlocked({ projectPath })
     })
   }
