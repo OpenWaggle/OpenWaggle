@@ -132,6 +132,7 @@ export const api: OpenWaggleApi = {
   restoreSessionBranch: invoke('sessions:restore-branch'),
   updateSessionTreeUiState: invoke('sessions:update-tree-ui-state'),
   onSessionTitleUpdated: on('sessions:title-updated'),
+  onGitWorkingTreeChanged: on('git:working-tree-changed'),
 
   // Terminal
   createTerminal: invoke('terminal:create'),

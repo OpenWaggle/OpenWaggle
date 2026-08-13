@@ -171,6 +171,9 @@ export interface OpenWaggleApi extends OpenWaggleExtensionApi {
   archiveSessionBranch(sessionId: SessionId, branchId: SessionBranchId): Promise<void>
   restoreSessionBranch(sessionId: SessionId, branchId: SessionBranchId): Promise<void>
   updateSessionTreeUiState(sessionId: SessionId, patch: SessionTreeUiStatePatch): Promise<void>
+  onGitWorkingTreeChanged(
+    callback: (payload: IpcEventPayload<'git:working-tree-changed'>) => void,
+  ): () => void
   onSessionTitleUpdated(
     callback: (payload: IpcEventPayload<'sessions:title-updated'>) => void,
   ): () => void

@@ -18,7 +18,9 @@ function workingTreeActionHandler(
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
       const result = yield* Effect.promise(() => action(projectPath))
-      invalidateGitStatusCache()
+      // Scoped to the tree we mutated: a global invalidation made every other
+      // session's panel re-run a full diff for a change that did not touch it.
+      invalidateGitStatusCache(projectPath)
       invalidateVcsStatus(projectPath)
       return result
     })
@@ -50,7 +52,7 @@ function revertWorkingTreeHandler(event: IpcMainInvokeEvent, rawPath: unknown) {
     }
 
     const result = yield* Effect.promise(() => revertAllGitChanges(projectPath))
-    invalidateGitStatusCache()
+    invalidateGitStatusCache(projectPath)
     invalidateVcsStatus(projectPath)
     return result
   })

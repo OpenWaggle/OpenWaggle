@@ -15,6 +15,7 @@ import { commitGit } from './commit-handler'
 import { pullCurrentBranch, pushCurrentBranch } from './push-service'
 import { projectPathSchema, runGit } from './shared'
 import { runStackedGitAction, type StackedActionDeps } from './stacked-action-service'
+import { invalidateGitStatusCache } from './status-cache'
 import { invalidateVcsStatus, readLocalVcsStatus } from './vcs-status-cache'
 import { detectSourceControlProvider } from './vcs-status-parse'
 
@@ -154,6 +155,8 @@ export function registerGitStackedActionHandlers(): void {
         } satisfies GitRunStackedActionResult
       }
       const result = yield* Effect.promise(() => runStackedGitAction(deps, projectPath, options))
+      // Stacked actions commit and push, so the working tree's status changed too.
+      invalidateGitStatusCache(projectPath)
       invalidateVcsStatus(projectPath)
       return result
     }),

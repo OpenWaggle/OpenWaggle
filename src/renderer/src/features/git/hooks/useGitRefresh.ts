@@ -71,6 +71,21 @@ export function useGitRefresh({
     refreshGitStatus,
   ])
 
+  /*
+   * Converge on invalidations broadcast by the main process. Any window that
+   * mutates a working tree makes every window watching that same tree refetch, so
+   * two windows on one worktree agree without the user pressing anything. Scoped by
+   * path: an unrelated tree's staging must not make this session re-run a diff.
+   */
+  useEffect(() => {
+    return api.onGitWorkingTreeChanged(({ workingPath: changedPath }) => {
+      if (changedPath !== workingPath && changedPath !== repositoryPath) return
+      if (changedPath === workingPath) void refreshGitStatus(workingPath)
+      if (changedPath === repositoryPath) void refreshGitBranches(repositoryPath)
+      bumpDiffRefreshKey()
+    })
+  }, [workingPath, repositoryPath, refreshGitStatus, refreshGitBranches, bumpDiffRefreshKey])
+
   // Refresh git status + diff panel when window regains focus
   useEffect(() => {
     function handleFocus() {

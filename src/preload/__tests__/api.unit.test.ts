@@ -88,6 +88,7 @@ describe('preload api surface contract', () => {
     'archiveSessionBranch',
     'restoreSessionBranch',
     'updateSessionTreeUiState',
+    'onGitWorkingTreeChanged',
     'onSessionTitleUpdated',
     // Terminal
     'createTerminal',
