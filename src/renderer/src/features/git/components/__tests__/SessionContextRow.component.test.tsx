@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { SessionContextRowState } from '@/features/git/hooks/useSessionContextRow'
 import { SessionContextRow } from '../SessionContextRow'
@@ -17,6 +17,8 @@ function stripState(overrides: Partial<SessionContextRowState> = {}): SessionCon
     setStartFromOrigin: vi.fn(),
     loadChangeRequests: vi.fn(async () => {}),
     checkoutChangeRequest: vi.fn(async () => true),
+    recreateWorktree: vi.fn(async () => true),
+    switchToLocalMode: vi.fn(),
     ...overrides,
   }
 }
@@ -47,5 +49,32 @@ describe('SessionContextRow', () => {
       />,
     )
     expect(screen.getByRole('alert')).toHaveTextContent('Pick a base')
+  })
+
+  /**
+   * Criterion 6: a vanished worktree stops the send and offers both ways out. Without
+   * this the agent silently receives a fresh empty tree and the session's earlier work
+   * is gone with no UI signal.
+   */
+  it('offers recreate and use-checkout when the worktree has vanished', () => {
+    const recreateWorktree = vi.fn(async () => true)
+    const switchToLocalMode = vi.fn()
+    render(
+      <SessionContextRow
+        strip={stripState({
+          recreateWorktree,
+          switchToLocalMode,
+          sendPlan: { kind: 'worktree-missing', reason: 'Worktree is gone.' },
+        })}
+      />,
+    )
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Worktree is gone.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Recreate worktree' }))
+    expect(recreateWorktree).toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use current checkout' }))
+    expect(switchToLocalMode).toHaveBeenCalled()
   })
 })

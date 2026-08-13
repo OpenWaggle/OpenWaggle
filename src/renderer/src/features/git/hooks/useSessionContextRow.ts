@@ -32,6 +32,8 @@ export interface SessionContextRowState {
   readonly visible: boolean
   readonly envMode: SessionEnvironmentMode
   readonly baseRef: string | null
+  /** The Session worktree path once it exists, so the run target can show its branch. */
+  readonly worktreePath: string | null
   readonly startFromOrigin: boolean
   readonly branchNames: readonly string[]
   readonly changeRequests: readonly VcsChangeRequest[]
@@ -41,6 +43,10 @@ export interface SessionContextRowState {
   readonly setStartFromOrigin: (startFromOrigin: boolean) => void
   readonly loadChangeRequests: () => Promise<void>
   readonly checkoutChangeRequest: (headRef: string) => Promise<boolean>
+  /** Recreate a vanished Session worktree from its recorded base ref. */
+  readonly recreateWorktree: () => Promise<boolean>
+  /** Abandon the vanished worktree and run this session in the opened checkout. */
+  readonly switchToLocalMode: () => void
 }
 
 interface BranchListState {
@@ -49,6 +55,19 @@ interface BranchListState {
 }
 
 const EMPTY_BRANCHES: BranchListState = { currentBranch: null, names: [] }
+
+const SHORT_SESSION_ID_LENGTH = 8
+
+/**
+ * The temporary branch a Session worktree was created on, derived from the recorded
+ * worktree path so recreation reattaches the same branch rather than orphaning it.
+ * Mirrors the naming used when the worktree is born.
+ */
+function worktreeBranchFromPath(worktreePath: string): string | null {
+  const sessionSegment = worktreePath.replace(/\\/g, '/').replace(/\/+$/, '').split('/').pop()
+  if (sessionSegment === undefined || sessionSegment.length === 0) return null
+  return `ow/session-${sessionSegment.slice(0, SHORT_SESSION_ID_LENGTH)}`
+}
 
 function resolveEffectivePlan(
   override: WorktreePlanOverride | undefined,
@@ -88,6 +107,38 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
 
   const [branches, setBranches] = useState<BranchListState>(EMPTY_BRANCHES)
   const [changeRequests, setChangeRequests] = useState<readonly VcsChangeRequest[]>([])
+  // undefined = not yet checked, so a send is never blocked on an unknown.
+  const [worktreeExists, setWorktreeExists] = useState<boolean | undefined>(undefined)
+
+  /*
+   * A recorded worktree can vanish out-of-band, and the send must stop rather than the
+   * agent silently receiving a fresh empty tree. Re-checked when the recorded path
+   * changes and whenever this session's working tree is reported as changed.
+   */
+  const recordedWorktreePath = session?.worktreePath?.trim() ?? null
+  useEffect(() => {
+    if (recordedWorktreePath === null) {
+      setWorktreeExists(undefined)
+      return
+    }
+    let cancelled = false
+    const check = () => {
+      void api
+        .checkSessionWorktree(recordedWorktreePath)
+        .then((result) => {
+          if (!cancelled) setWorktreeExists(result.exists)
+        })
+        .catch((error) => logger.warn('Failed to check Session worktree', { error: String(error) }))
+    }
+    check()
+    const unsubscribe = api.onGitWorkingTreeChanged(({ workingPath }) => {
+      if (workingPath === recordedWorktreePath) check()
+    })
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
+  }, [recordedWorktreePath])
 
   useEffect(() => {
     if (!projectPath) {
@@ -196,14 +247,50 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
   )
 
   const sendPlan = useMemo(
-    () => resolveWorktreeSendPlan({ isFirstMessage, envMode, hasWorktree, baseRef }),
-    [isFirstMessage, envMode, hasWorktree, baseRef],
+    () =>
+      resolveWorktreeSendPlan({ isFirstMessage, envMode, hasWorktree, baseRef, worktreeExists }),
+    [isFirstMessage, envMode, hasWorktree, baseRef, worktreeExists],
   )
 
+  const recreateWorktree = useCallback(async () => {
+    if (!projectPath || recordedWorktreePath === null) return false
+    const branch = worktreeBranchFromPath(recordedWorktreePath)
+    const forkPoint = baseRef?.trim()
+    if (!branch || !forkPoint) return false
+    try {
+      const result = await api.createGitWorktree(projectPath, {
+        path: recordedWorktreePath,
+        branch,
+        baseRef: forkPoint,
+      })
+      if (result.ok) setWorktreeExists(true)
+      return result.ok
+    } catch (error) {
+      logger.warn('Failed to recreate Session worktree', { error: String(error) })
+      return false
+    }
+  }, [projectPath, recordedWorktreePath, baseRef])
+
+  const switchToLocalMode = useCallback(() => {
+    // Running in the opened checkout is a real change of isolation, so it is recorded
+    // on the session rather than only reflected in this row.
+    const next = { envMode: 'local' as const, baseRef, startFromOrigin }
+    if (sessionKey) setOverride(sessionKey, next)
+    persist(next)
+  }, [baseRef, startFromOrigin, sessionKey, setOverride, persist])
+
   return {
-    visible: sessionKey !== '' && isFirstMessage && !hasWorktree,
+    /*
+     * Normally the row only appears before a worktree exists, because after that there
+     * is nothing left to choose. A vanished worktree is the exception: the row has to
+     * come back to carry the message and the recover/switch actions.
+     */
+    visible:
+      sessionKey !== '' &&
+      ((isFirstMessage && !hasWorktree) || sendPlan.kind === 'worktree-missing'),
     envMode,
     baseRef,
+    worktreePath: recordedWorktreePath,
     startFromOrigin,
     branchNames: branches.names,
     changeRequests,
@@ -213,5 +300,7 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
     setStartFromOrigin,
     loadChangeRequests,
     checkoutChangeRequest,
+    recreateWorktree,
+    switchToLocalMode,
   }
 }

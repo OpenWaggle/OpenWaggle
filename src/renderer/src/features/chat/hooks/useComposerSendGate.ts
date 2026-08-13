@@ -36,7 +36,9 @@ export function useComposerSendGate(input: UseComposerSendGateInput): {
     defaultEnvironmentMode,
   })
   const guardedSend = async (payload: AgentSendPayload) => {
-    if (strip.sendPlan.kind === 'blocked') {
+    // Both blocking outcomes stop the send. 'worktree-missing' additionally offers
+    // recover-or-switch actions in the context row, so the user is not stuck.
+    if (strip.sendPlan.kind === 'blocked' || strip.sendPlan.kind === 'worktree-missing') {
       input.onToast(strip.sendPlan.reason)
       return
     }

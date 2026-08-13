@@ -162,6 +162,7 @@ describe('preload api surface contract', () => {
     'suggestFiles',
     // Auto-updater
     'checkForUpdates',
+    'checkSessionWorktree',
     'installUpdate',
     'getUpdateStatus',
     'getAppVersion',

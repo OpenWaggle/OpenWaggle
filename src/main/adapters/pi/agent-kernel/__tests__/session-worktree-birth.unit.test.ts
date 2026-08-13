@@ -101,21 +101,21 @@ describe('ensureSessionWorktreeProjectPath', () => {
   })
 
   /**
-   * Ground truth for a vanished worktree: the recorded path no longer exists on disk.
-   * The agent must never fall back to the user's opened checkout, which is the
-   * isolation worktree mode exists to provide. A fresh worktree is created instead.
+   * A vanished worktree must not be silently replaced: the fresh tree would not hold
+   * what the old one did, and the user would never be told. The composer blocks the
+   * send and offers recreate-or-switch, so reaching here means that gate was bypassed
+   * and refusing is the only safe answer. It must never resolve to the opened checkout.
    */
-  it('recreates a vanished worktree instead of falling back to the opened checkout', async () => {
+  it('refuses to run when the recorded worktree has vanished', async () => {
     existsSyncMock.mockReturnValue(false)
-    createGitWorktreeMock.mockResolvedValue({ ok: true, message: 'ok', path: '/wt/new' })
 
-    const resolved = await ensureSessionWorktreeProjectPath(
-      session({ environmentMode: 'worktree', worktreePath: '/wt/gone', worktreeBaseRef: 'main' }),
-    )
+    await expect(
+      ensureSessionWorktreeProjectPath(
+        session({ environmentMode: 'worktree', worktreePath: '/wt/gone', worktreeBaseRef: 'main' }),
+      ),
+    ).rejects.toThrow(/no longer exists/)
 
-    expect(resolved).not.toBe('/repo')
-    expect(createGitWorktreeMock).toHaveBeenCalled()
-    expect(setSessionWorktreeMock).toHaveBeenCalled()
+    expect(createGitWorktreeMock).not.toHaveBeenCalled()
   })
 
   it('throws (no silent fallback) when worktree creation fails in worktree mode', async () => {

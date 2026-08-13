@@ -1,12 +1,16 @@
 import type { SessionEnvironmentMode } from '@shared/types/git'
 import { SESSION_ENVIRONMENT_MODES } from '@shared/types/git'
 import type { SessionContextRowState } from '@/features/git/hooks/useSessionContextRow'
+import { Button } from '@/shared/ui/Button'
 import { Select } from '@/shared/ui/Select'
 
 const ENV_MODE_LABELS: Record<SessionEnvironmentMode, string> = {
   local: 'Current checkout',
   worktree: 'New worktree',
 }
+
+const NOTICE_ACTION_CLASS =
+  'shrink-0 whitespace-nowrap rounded-[5px] border border-border px-1.5 py-0.5 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover'
 
 function toEnvMode(value: string): SessionEnvironmentMode {
   return value === 'worktree' ? 'worktree' : 'local'
@@ -24,6 +28,42 @@ interface SessionContextRowProps {
  * twice. Deliberately one fixed-height row that never grows — rendering worktree
  * options inline used to stack the row and shift the composer on every mode change.
  */
+/**
+ * A vanished worktree stops the send and offers the two ways out, rather than the
+ * agent silently receiving a fresh empty tree while the session's earlier work is
+ * gone. Recreate reattaches the session's own branch; switching runs in the opened
+ * checkout, which is a real change of isolation and is recorded on the session.
+ */
+function MissingWorktreeNotice({
+  reason,
+  strip,
+}: {
+  readonly reason: string
+  readonly strip: SessionContextRowState
+}) {
+  return (
+    <span role="alert" className="flex min-w-0 items-center gap-1.5">
+      <span className="min-w-0 truncate text-status-error">{reason}</span>
+      <Button
+        variant="unstyled"
+        type="button"
+        onClick={() => void strip.recreateWorktree()}
+        className={NOTICE_ACTION_CLASS}
+      >
+        Recreate worktree
+      </Button>
+      <Button
+        variant="unstyled"
+        type="button"
+        onClick={strip.switchToLocalMode}
+        className={NOTICE_ACTION_CLASS}
+      >
+        Use current checkout
+      </Button>
+    </span>
+  )
+}
+
 export function SessionContextRow({ strip }: SessionContextRowProps) {
   if (!strip.visible) return null
 
@@ -47,6 +87,10 @@ export function SessionContextRow({ strip }: SessionContextRowProps) {
         <span role="alert" className="min-w-0 truncate text-status-error">
           {strip.sendPlan.reason}
         </span>
+      ) : null}
+
+      {strip.sendPlan.kind === 'worktree-missing' ? (
+        <MissingWorktreeNotice reason={strip.sendPlan.reason} strip={strip} />
       ) : null}
     </div>
   )

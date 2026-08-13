@@ -27,6 +27,7 @@ function stripState(overrides: Partial<SessionContextRowState> = {}): SessionCon
     visible: true,
     envMode: 'worktree',
     baseRef: 'main',
+    worktreePath: null,
     startFromOrigin: false,
     branchNames: ['main', 'develop'],
     changeRequests: [],
@@ -220,5 +221,38 @@ describe('RunTargetPicker', () => {
       target: { value: 'fix' },
     })
     expect(checkoutChangeRequest).toHaveBeenCalledWith('fix')
+  })
+
+  /**
+   * Once a worktree exists the run target is the branch checked out INSIDE it, not the
+   * ref it was forked from. Status is keyed to the session's working path, so
+   * currentBranch already reports that branch.
+   */
+  it('shows the worktree branch once the worktree exists, not the base ref', () => {
+    useGitStore.setState({
+      ...useGitStore.getInitialState(),
+      statusByWorkingPath: {
+        '/wt/session-1': {
+          status: {
+            branch: 'ow/session-abc',
+            additions: 0,
+            deletions: 0,
+            filesChanged: 0,
+            changedFiles: [],
+            clean: true,
+            ahead: 0,
+            behind: 0,
+          },
+          isLoading: false,
+          error: null,
+        },
+      },
+    })
+
+    render(
+      <RunTargetPicker strip={stripState({ baseRef: 'main', worktreePath: '/wt/session-1' })} />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Run target: ow/session-abc' })).toBeInTheDocument()
   })
 })

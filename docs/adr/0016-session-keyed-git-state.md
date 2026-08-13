@@ -42,9 +42,9 @@ So the trigger for "the agent changed something, go look" is built and correctly
 
 **5. No `.git` watcher, no polling.** The existing turn-boundary and window-focus triggers cover the cases that matter once they point at the right path. Polling costs work while idle, is still stale while busy, and guarantees nothing at any instant. A watcher would close the two narrow gaps named in Known limitation — see there for why it is deferred rather than dismissed.
 
-**6. A session whose worktree has vanished is given a replacement, never the primary checkout.** This property already held and is now pinned by a test: `ensureSessionWorktreeProjectPath` runs on both run paths and, when the recorded `worktreePath` no longer exists, creates a fresh worktree rather than resolving to the opened checkout. Falling back would silently drop the isolation worktree mode exists to provide.
+**6. A session whose worktree has vanished blocks the send and offers a choice.** The composer checks the recorded worktree before sending (`git:worktrees:check`). When it is gone the send stops with "This session's worktree no longer exists" and two actions: **Recreate worktree**, which reattaches the session's own branch, or **Use current checkout**, which records `local` mode on the session. Worktree birth in the main process refuses rather than silently replacing, because a fresh tree does not contain what the old one held and falling back to the opened checkout would drop the isolation worktree mode exists to provide.
 
-An earlier draft of this ADR claimed the opposite — that a vanished worktree "quietly starts running the agent in the user's real checkout" — and proposed blocking the send. That was wrong: it read `resolveSessionProjectPath`'s `existsSync` fallback in isolation, without noticing that the run paths call it only to obtain the *repository* to fork from, and then create a worktree. Blocking would have replaced working auto-recovery with a dead end. What was genuinely missing is that the replacement happened **silently**, since the new worktree does not contain whatever the old one held; that is now logged.
+Recovery is preserved — it is now the user's explicit choice instead of something that happens to them silently. A note on process: an earlier revision of this ADR argued the criterion's premise was wrong and rewrote this decision to describe silent recreation as correct. That was a misreading — recreation is one of the two offered actions, so nothing was lost by blocking — and rewriting the spec to match the implementation was the wrong move regardless. The requirement stands as originally written.
 
 ## Known limitation, accepted deliberately
 
@@ -72,7 +72,7 @@ CONTEXT.md defined a **Session worktree** as "a dedicated git worktree *plus its
 
 1. Working-path resolver + map-keyed git store; every renderer git read/write routed through the resolver.
 2. Path-scoped invalidation and broadcast on all OpenWaggle-initiated git mutations.
-3. Pin the vanished-worktree property with a test and surface the replacement (decision 6).
+3. The missing-worktree send guard: pre-send check, blocking plan state, and the recreate / use-checkout actions (decision 6).
 4. Per-session indicators in the session tree (the reason for the map).
 
 ## Alternatives considered

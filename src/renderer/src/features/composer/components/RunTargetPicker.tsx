@@ -1,4 +1,5 @@
 import type { SessionContextRowState } from '@/features/git'
+import { selectWorkingTreeStatus, useGitStore } from '@/features/git'
 import { Popover } from '@/shared/ui/Popover'
 import { useBranchPickerController } from '../hooks/useBranchPickerController'
 import { BranchPickerList } from './BranchPickerList'
@@ -23,11 +24,30 @@ interface RunTargetPickerProps {
  */
 export function RunTargetPicker({ strip, onToast }: RunTargetPickerProps) {
   const controller = useBranchPickerController({ onToast })
+  /*
+   * Read status for THIS strip's worktree rather than relying on the ambient active
+   * session resolution. They agree in the app, but depending on two independent
+   * resolutions of "which tree" is the coupling that produced this bug class.
+   */
+  const worktreeBranch = useGitStore((state) =>
+    strip?.worktreePath == null
+      ? null
+      : (selectWorkingTreeStatus(state, strip.worktreePath).status?.branch ?? null),
+  )
   if (!controller.projectPath) return null
 
   const isWorktree = strip?.envMode === 'worktree'
-  const selectedRef = isWorktree ? (strip?.baseRef ?? null) : controller.currentBranch
-  const isMissing = isWorktree && strip?.baseRef == null
+  /*
+   * Once a worktree exists, the run target is the branch actually checked out inside
+   * it, which `controller.currentBranch` reports because status is keyed to this
+   * session's working path (ADR 0016). Before it exists there is no such branch yet,
+   * so the chip shows the base ref the worktree will be forked from.
+   */
+  const hasWorktree = isWorktree && strip?.worktreePath != null
+  const selectedRef = isWorktree
+    ? (worktreeBranch ?? strip?.baseRef ?? null)
+    : controller.currentBranch
+  const isMissing = isWorktree && !hasWorktree && strip?.baseRef == null
 
   function selectRef(name: string) {
     if (isWorktree && strip) {

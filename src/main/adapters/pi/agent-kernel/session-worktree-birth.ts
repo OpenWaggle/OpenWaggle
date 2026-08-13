@@ -41,14 +41,23 @@ async function ensureSessionWorktreeProjectPathUnlocked(session: SessionDetail):
   if (existing && existsSync(existing)) return existing
 
   if (existing) {
-    // The recorded worktree is gone (removed by hand, pruned, or on a different
-    // machine). A fresh one is created below rather than falling back to the opened
-    // checkout, which would drop the isolation worktree mode exists to provide. Say
-    // so, because the new worktree does not contain whatever the old one held.
-    logger.warn('Session worktree missing; creating a replacement', {
+    /*
+     * The recorded worktree is gone (removed by hand, pruned, or recorded on another
+     * machine). Do NOT silently create a replacement: the new tree would not contain
+     * whatever the old one held, and the user would never be told. The composer blocks
+     * the send for this case and offers to recreate or to switch to the opened
+     * checkout, so reaching here means something bypassed that gate.
+     *
+     * Failing loudly is also the only safe option: falling back to the opened checkout
+     * would drop the isolation worktree mode exists to provide.
+     */
+    logger.warn('Session worktree missing; refusing to run', {
       sessionId: String(session.id),
       missingWorktreePath: existing,
     })
+    throw new Error(
+      "This session's worktree no longer exists. Recreate it, or switch this session to the current checkout.",
+    )
   }
 
   const baseRef = await resolveWorktreeBaseRef(session, primaryPath)

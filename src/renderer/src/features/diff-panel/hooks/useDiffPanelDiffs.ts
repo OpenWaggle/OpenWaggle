@@ -39,27 +39,33 @@ function diffPanelReducer(state: DiffPanelState, action: DiffPanelAction) {
 function isStaleDiffRequest(
   requestId: number,
   latestRequestId: number,
-  currentProjectPath: string | null,
-  requestedProjectPath: string,
+  currentWorkingPath: string | null,
+  requestedWorkingPath: string,
 ) {
-  return requestId !== latestRequestId || currentProjectPath !== requestedProjectPath
+  return requestId !== latestRequestId || currentWorkingPath !== requestedWorkingPath
 }
 
-function fetchDiffsForScope(projectPath: string, selection: DiffScopeSelection) {
+function fetchDiffsForScope(workingPath: string, selection: DiffScopeSelection) {
   if (selection.kind === 'branch') {
-    return api.getGitBranchDiff(projectPath, selection.baseRef ?? '')
+    return api.getGitBranchDiff(workingPath, selection.baseRef ?? '')
   }
-  return api.getGitDiff(projectPath)
+  return api.getGitDiff(workingPath)
 }
 
-/** Load and refresh diffs for the active scope (working tree or branch-vs-base). */
-export function useDiffPanelDiffs(projectPath: string | null, selection: DiffScopeSelection) {
+/**
+ * Load and refresh diffs for the active scope (working tree or branch-vs-base).
+ *
+ * The path is a **working path**, not a project path: for a worktree-mode session it is
+ * the Session worktree. Naming it precisely matters here because reading the project
+ * path instead is exactly the defect ADR 0016 fixed.
+ */
+export function useDiffPanelDiffs(workingPath: string | null, selection: DiffScopeSelection) {
   const [state, dispatch] = useReducer(diffPanelReducer, {
     fileDiffs: [],
     isLoading: false,
     error: null,
   })
-  const currentProjectPath = useRef(projectPath)
+  const currentWorkingPath = useRef(workingPath)
   const diffRequestId = useRef(0)
   const selectionRef = useRef(selection)
   useEffect(() => {
@@ -67,8 +73,8 @@ export function useDiffPanelDiffs(projectPath: string | null, selection: DiffSco
   }, [selection])
 
   useEffect(() => {
-    currentProjectPath.current = projectPath
-  }, [projectPath])
+    currentWorkingPath.current = workingPath
+  }, [workingPath])
 
   const scopeKind = selection.kind
   const branchBaseRef = selection.kind === 'branch' ? (selection.baseRef ?? '') : ''
@@ -76,7 +82,7 @@ export function useDiffPanelDiffs(projectPath: string | null, selection: DiffSco
   useEffect(() => {
     diffRequestId.current += 1
     const requestId = diffRequestId.current
-    if (!projectPath) {
+    if (!workingPath) {
       dispatch({ type: 'clear' })
       return
     }
@@ -84,7 +90,7 @@ export function useDiffPanelDiffs(projectPath: string | null, selection: DiffSco
       scopeKind === 'branch' ? { kind: 'branch', baseRef: branchBaseRef } : { kind: 'unstaged' }
     dispatch({ type: 'start-loading' })
     let cancelled = false
-    fetchDiffsForScope(projectPath, scopedSelection)
+    fetchDiffsForScope(workingPath, scopedSelection)
       .then((result) => {
         if (cancelled || requestId !== diffRequestId.current) return
         dispatch(
@@ -102,7 +108,7 @@ export function useDiffPanelDiffs(projectPath: string | null, selection: DiffSco
     return () => {
       cancelled = true
     }
-  }, [projectPath, scopeKind, branchBaseRef])
+  }, [workingPath, scopeKind, branchBaseRef])
 
   async function refreshDiff(projectPathToRefresh: string) {
     diffRequestId.current += 1
@@ -114,7 +120,7 @@ export function useDiffPanelDiffs(projectPath: string | null, selection: DiffSco
         isStaleDiffRequest(
           requestId,
           diffRequestId.current,
-          currentProjectPath.current,
+          currentWorkingPath.current,
           projectPathToRefresh,
         )
       )
@@ -129,7 +135,7 @@ export function useDiffPanelDiffs(projectPath: string | null, selection: DiffSco
         isStaleDiffRequest(
           requestId,
           diffRequestId.current,
-          currentProjectPath.current,
+          currentWorkingPath.current,
           projectPathToRefresh,
         )
       )

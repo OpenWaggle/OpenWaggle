@@ -197,6 +197,19 @@ export interface GitWorktreeCreatePayload {
   readonly baseRef: string
 }
 
+/**
+ * Whether a session's recorded Session worktree still exists on disk.
+ *
+ * A worktree can vanish out-of-band: removed by hand, pruned, or recorded on another
+ * machine. The send must be blocked when that happens rather than the agent silently
+ * getting a fresh empty worktree, so the renderer needs to ask before sending.
+ */
+export interface SessionWorktreeCheck {
+  readonly exists: boolean
+  /** True when a worktree path is recorded at all (local-mode sessions have none). */
+  readonly recorded: boolean
+}
+
 export interface GitWorktreeRemovePayload {
   readonly path: string
   /** Only pass true on explicit user request; otherwise git refuses dirty removals. */
