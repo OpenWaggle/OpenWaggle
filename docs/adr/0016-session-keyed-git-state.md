@@ -44,7 +44,28 @@ So the trigger for "the agent changed something, go look" is built and correctly
 
 **6. A session whose worktree has vanished blocks the send and offers a choice.** The composer checks the recorded worktree before sending (`git:worktrees:check`). When it is gone the send stops with "This session's worktree no longer exists" and two actions: **Recreate worktree**, which reattaches the session's own branch, or **Use current checkout**, which records `local` mode on the session. Worktree birth in the main process refuses rather than silently replacing, because a fresh tree does not contain what the old one held and falling back to the opened checkout would drop the isolation worktree mode exists to provide.
 
-Recovery is preserved — it is now the user's explicit choice instead of something that happens to them silently. A note on process: an earlier revision of this ADR argued the criterion's premise was wrong and rewrote this decision to describe silent recreation as correct. That was a misreading — recreation is one of the two offered actions, so nothing was lost by blocking — and rewriting the spec to match the implementation was the wrong move regardless. The requirement stands as originally written.
+Recovery is preserved — it is now the user's explicit choice instead of something that happens to them silently. The same refusal applies to the resolver that sets a Pi agent's working directory: a recorded worktree that is missing throws rather than resolving to the opened checkout, because the effect of that fallback was to hand the agent the user's own checkout and delete the isolation worktree mode exists to provide. A note on process: an earlier revision of this ADR argued the criterion's premise was wrong and rewrote this decision to describe silent recreation as correct. That was a misreading — recreation is one of the two offered actions, so nothing was lost by blocking — and rewriting the spec to match the implementation was the wrong move regardless. The requirement stands as originally written.
+
+## What verifying decision 6 in the running app found
+
+The decision was implemented, unit- and component-tested, and green before it was ever
+exercised as a user. Driving it in real Electron then found two defects:
+
+- **The recovery actions could not be clicked.** The notice was rendered inside the
+  composer's fixed-height control row, so flex shrank the alert to zero width and pushed
+  its buttons underneath the run-target picker. jsdom has no layout engine and
+  `fireEvent.click` does no hit-testing, so no component test could have caught it. The
+  vanished-worktree state now replaces that row instead of sharing it.
+- **Recreation stranded the session's commits.** Worktree birth derives the branch from
+  the session id; recreation derived it from the recorded path. When the two disagreed the
+  reattach probe matched nothing and built a divergent branch, leaving the agent's commit
+  on an orphaned branch — the loss the reattach behaviour exists to prevent, defeated by
+  deriving one convention twice. `sessionWorktreeBranch()` in `shared/utils/worktree.ts` is
+  now the single source, and the repository-standards check fails if the branch prefix is
+  templated anywhere else.
+
+Recorded here because the pattern generalises: for this decision, "implemented, tested and
+green" was not evidence that the feature worked.
 
 ## Known limitation, accepted deliberately
 

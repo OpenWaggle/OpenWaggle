@@ -39,6 +39,15 @@ const EMPTY_EXTENSION_PROJECT_PATHS: readonly string[] = []
 
 function noOp() {}
 
+/**
+ * The composer stack.
+ *
+ * The control row below the input uses `min-h-7` with `flex-wrap` rather than a fixed
+ * height. The compact controls are shorter than 28px so the envelope is unchanged, but the
+ * vanished-worktree notice needs room for its message and actions: inside a fixed-height
+ * row flex shrank it to zero width and left its buttons underneath the run-target picker,
+ * unclickable in the app while component tests passed.
+ */
 export function ChatComposerStack({
   section,
   agentInteractions = EMPTY_AGENT_INTERACTIONS,
@@ -153,13 +162,6 @@ export function ChatComposerStack({
           }}
           onToast={onToast}
         />
-        {/*
-          min-h rather than a fixed height: the normal compact controls are shorter than
-          28px so the composer envelope is unchanged, but the vanished-worktree notice
-          needs room for its message and actions. Without flex-wrap that notice is
-          shrunk to zero width and its buttons end up underneath the run-target picker,
-          unclickable.
-        */}
         <div className="mt-1.5 flex min-h-7 min-w-0 flex-wrap items-center justify-between gap-3 px-1">
           <SessionContextRow strip={strip} />
           <ComposerBranchRow strip={strip} onToast={onToast} />

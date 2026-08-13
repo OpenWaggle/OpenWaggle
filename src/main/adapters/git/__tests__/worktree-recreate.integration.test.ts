@@ -28,7 +28,7 @@ async function createRepository(): Promise<string> {
   return repository
 }
 
-function worktreePathFor(repository: string, name: string): string {
+function worktreePathFor(repository: string, name: string) {
   const target = path.join(path.dirname(repository), `${path.basename(repository)}-${name}`)
   createdWorktrees.push(target)
   return target

@@ -208,6 +208,8 @@ const KNOWN_DUPLICATE_EXPORTED_TYPES: readonly string[] = [
   'WorktreeSendPlan',
 ]
 
+const DUPLICATE_DECLARATION_THRESHOLD = 2
+
 const EXPORTED_TYPE_DECLARATION = /^export (?:interface|type) ([A-Za-z0-9_]+)/gmu
 
 function collectDuplicateExportedTypes(
@@ -230,10 +232,19 @@ function collectDuplicateExportedTypes(
     }
   }
 
+  return [
+    ...findUnlistedDuplicates(declarationsByName),
+    ...findStaleDuplicateExemptions(declarationsByName),
+  ]
+}
+
+function findUnlistedDuplicates(
+  declarationsByName: ReadonlyMap<string, readonly string[]>,
+): readonly Violation[] {
   const violations: Violation[] = []
   for (const [name, declaringFiles] of [...declarationsByName].sort()) {
     const unique = [...new Set(declaringFiles)].sort()
-    if (unique.length < 2) continue
+    if (unique.length < DUPLICATE_DECLARATION_THRESHOLD) continue
     if (KNOWN_DUPLICATE_EXPORTED_TYPES.includes(name)) continue
     violations.push({
       file: unique[0] ?? name,
@@ -241,17 +252,21 @@ function collectDuplicateExportedTypes(
       detail: unique.join(', '),
     })
   }
+  return violations
+}
 
-  // A resolved collision must be removed from the list, so it can only shrink.
-  const declaredNames = new Set(declarationsByName.keys())
+/** The exemption list can only shrink: a resolved collision must be removed from it. */
+function findStaleDuplicateExemptions(
+  declarationsByName: ReadonlyMap<string, readonly string[]>,
+): readonly Violation[] {
+  const violations: Violation[] = []
   for (const name of KNOWN_DUPLICATE_EXPORTED_TYPES) {
     const unique = new Set(declarationsByName.get(name) ?? [])
-    if (!declaredNames.has(name) || unique.size < 2) {
-      violations.push({
-        file: 'scripts/check-repository-standards.ts',
-        message: `"${name}" is no longer a duplicate exported type; remove it from KNOWN_DUPLICATE_EXPORTED_TYPES`,
-      })
-    }
+    if (unique.size >= DUPLICATE_DECLARATION_THRESHOLD) continue
+    violations.push({
+      file: 'scripts/check-repository-standards.ts',
+      message: `"${name}" is no longer a duplicate exported type; remove it from KNOWN_DUPLICATE_EXPORTED_TYPES`,
+    })
   }
   return violations
 }

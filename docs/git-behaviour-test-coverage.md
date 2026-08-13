@@ -37,7 +37,28 @@ Which git, diff and worktree behaviours are covered, and by which test. Kept as 
 | Standalone runtime-schema suites for git types | Validation happens at IPC boundaries via `decodeUnknownOrThrow` plus TypeScript types. |
 | Remote-URL canonicalization, owner/repo parsing, status-stream merging | The CLIs own owner/repo resolution, and status is request/response rather than streamed. |
 
+## Fail-fast mechanisms
+
+These exist because a green suite passed through the defect each one now catches. Every one
+was verified by reintroducing the original bug.
+
+| Mechanism | Catches | Where |
+| --- | --- | --- |
+| `sessionWorktreeBranch()` + branch-prefix rule | The Session worktree branch convention being derived twice, so recreation builds a divergent branch and strands commits | `shared/utils/worktree.ts`, `scripts/check-repository-standards.ts` |
+| Duplicate exported type guard | A second exported type with an existing name in a sibling module, the confusion behind editing the wrong `hydrateSessionSummary` | `scripts/check-repository-standards.ts` |
+| `pnpm typecheck:tests` | Test fixtures that do not match the interface they stand for; renderer tests were previously compiled with `noCheck` | `scripts/check-renderer-test-types.ts` |
+| React Compiler in component tests | Components reading from library-owned mutable instances, which render differently compiled than not | `vitest.component.config.ts` |
+| Real-Git worktree recreation tests | Git behaviour our mocks asserted but never exercised (`prune` leaves the branch) | `adapters/git/__tests__/worktree-recreate.integration.test.ts` |
+| Real-Git commit-target test | A commit landing in a tree other than the one it was asked to act on | `ipc/git/__tests__/commit-worktree.integration.test.ts` |
+
+Deliberately not built: a rule preventing a git mutation from receiving a project path.
+Name-based variants either false-positive (`Header.tsx` legitimately needs both paths) or
+leak through indirection (the original bug passed the wrong path through a store action).
+The robust form is branded `WorkingPath` / `RepositoryPath` types, filed as #155.
+
 ## Known gaps
 
 - **Git changes OpenWaggle did not make are not observed** (ADR 0016). No test covers agent-initiated `git checkout -b` reaching the UI, because the behaviour is deliberately absent.
 - **The unit runner can under-report totals** when a worker crashes in a native destructor at teardown (#151). Not a failing test; tracked separately.
+- **Layout and pointer interception are invisible to component tests.** jsdom has no layout engine, so every rect is zero and `fireEvent` dispatches without hit-testing. A button can be unreachable in the app while its test passes — this happened to the vanished-worktree recovery actions. Interactive additions need a real browser check.
+- **330 renderer test type errors across 54 files** are fenced by `scripts/renderer-test-type-exemptions.json` rather than fixed (#154). Files outside that list must stay clean.

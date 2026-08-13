@@ -27,6 +27,10 @@ const execFileAsync = promisify(execFile)
 
 const PROJECT = 'tsconfig.renderer-tests.json'
 const EXEMPTIONS_FILE = 'scripts/renderer-test-type-exemptions.json'
+const JSON_INDENT = 2
+
+const TSC_OUTPUT_MAX_BUFFER_BYTES = 32 * 1024 * 1024
+
 const ERROR_LINE = /^(?<file>[^(]+)\((?<line>\d+),\d+\): error TS\d+:/u
 
 
@@ -36,7 +40,7 @@ async function runTypecheck(): Promise<string> {
     const { stdout } = await execFileAsync(
       'npx',
       ['tsc', '-b', PROJECT, '--force', '--pretty', 'false'],
-      { cwd: process.cwd(), maxBuffer: 32 * 1024 * 1024 },
+      { cwd: process.cwd(), maxBuffer: TSC_OUTPUT_MAX_BUFFER_BYTES },
     )
     return stdout
   } catch (error) {
@@ -63,11 +67,11 @@ function countErrorsByFile(output: string): ErrorCounts {
 
 type ErrorCounts = Readonly<Record<string, number>>
 
-function total(counts: ErrorCounts): number {
+function total(counts: ErrorCounts) {
   return Object.values(counts).reduce((sum, value) => sum + value, 0)
 }
 
-async function readExemptions(): Promise<readonly string[]> {
+async function readExemptions() {
   try {
     const parsed: unknown = JSON.parse(await readFile(EXEMPTIONS_FILE, 'utf8'))
     if (!Array.isArray(parsed)) return []
@@ -83,7 +87,7 @@ async function main() {
   const failingFiles = Object.keys(current).sort()
 
   if (process.argv.includes('--update')) {
-    await writeFile(EXEMPTIONS_FILE, `${JSON.stringify(failingFiles, null, 2)}\n`, 'utf8')
+    await writeFile(EXEMPTIONS_FILE, `${JSON.stringify(failingFiles, null, JSON_INDENT)}\n`, 'utf8')
     console.log(`Updated exemptions: ${failingFiles.length} file(s), ${total(current)} error(s)`)
     return
   }
