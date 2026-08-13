@@ -363,8 +363,8 @@ The ref the Branch diff compares against; chosen in the diff panel, changeable a
 _Avoid_: base ref (unqualified), worktree base ref
 
 **Worktree base ref**:
-The ref a Session worktree is forked from when it is born on first send; chosen before send in worktree mode (defaulting to the current branch), and frozen once the worktree exists.
-_Avoid_: base ref (unqualified), branch-diff base ref, start branch
+The ref a Session worktree is forked from when it is born on first send; chosen before send in worktree mode (defaulting to the current branch). Frozen once the worktree exists, as birth provenance: Turn checkpoints anchor to it, so it records where the worktree came from and is **not** a claim about which branch is checked out now.
+_Avoid_: base ref (unqualified), branch-diff base ref, start branch, current branch
 
 **Turn diff**:
 The diff scope showing the file changes produced by one Pi agent turn, computed from per-turn worktree checkpoint snapshots stored by OpenWaggle.
@@ -375,8 +375,12 @@ A persisted snapshot of a Session worktree's file state captured per Pi agent tu
 _Avoid_: Pi session snapshot (that is conversation state), autosave
 
 **Session worktree**:
-A dedicated git worktree plus its temporary git branch, bound to one session running in worktree environment mode and shared by that session's conversation forks.
+A dedicated git worktree bound to one session running in worktree environment mode and shared by that session's conversation forks. OpenWaggle owns the worktree's existence; the branch checked out inside it is **observed, not owned**, because the agent may switch or create branches there (ADR 0016).
 _Avoid_: branch (ambiguous here), session branch, checkout
+
+**Working path**:
+The working tree a session's git reads and writes target: its Session worktree in worktree mode, the opened checkout in local mode. Distinct from the project path, which identifies the repository and still keys repository-level data such as branch lists, worktree lists and remotes.
+_Avoid_: project path (that is the repository), cwd, workdir
 
 **Session environment mode**:
 How a session's git work is isolated: `local` runs directly in the opened checkout, `worktree` runs in a dedicated Session worktree; chosen per session with a configurable default.
@@ -559,6 +563,7 @@ _Avoid_: description, cover letter, global comment
 - The **Design token contract** has exactly one definition, published by the extension SDK; the app consumes it rather than maintaining a parallel token set, so extension UI cannot visually drift from host UI.
 - An **Appearance** supplies a value for every **Semantic role** in the **Design token contract** and carries one **Colour scheme**.
 - A **Derived token** is computed from **Semantic roles**, so it re-themes with an **Appearance** without appearing in the public contract.
+- A session's git reads and writes target its **Working path**; **Session environment mode** decides whether that is the **Session worktree** or the opened checkout. Repository-level data (branch list, worktree list, remotes) stays keyed to the project, because a linked worktree shares refs with the primary checkout.
 - The **Session context row** states where the next send runs: it owns the **Session environment mode**, and its **Run target picker** owns the **Run target**, which resolves to the checked-out branch or the **Worktree base ref** depending on the mode. It is distinct from the **Branch-diff base ref** chosen in the diff panel.
 - The **Run target picker** deliberately excludes branch administration (rename, delete, set upstream); those were removed end to end in ADR 0015, so branch cleanup is asked of the agent or done outside OpenWaggle.
 - The **Changed-file navigator** lists files within the active diff scope, so its contents change with **Working-tree diff**, **Branch diff**, or **Turn diff** selection.
