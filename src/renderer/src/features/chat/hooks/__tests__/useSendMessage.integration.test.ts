@@ -24,6 +24,7 @@ function makeDeps(overrides: Partial<SendDeps> = {}) {
     sendWaggleMessage: vi
       .fn<(payload: AgentSendPayload) => Promise<void>>()
       .mockResolvedValue(undefined),
+    startWaggleCollaboration: vi.fn<SendDeps['startWaggleCollaboration']>(),
     ...overrides,
   }
 }
@@ -116,6 +117,7 @@ describe('createSendHandlers', () => {
 
       expect(deps.createSession).toHaveBeenCalledWith('/test/project')
       expect(deps.sendMessageToSession).toHaveBeenCalledWith('new-session', payload, config)
+      expect(deps.startWaggleCollaboration).toHaveBeenCalledWith('new-session', config)
       expect(deps.sendWaggleMessage).not.toHaveBeenCalled()
     })
   })

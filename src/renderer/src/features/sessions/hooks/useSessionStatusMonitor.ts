@@ -47,7 +47,7 @@ export function useSessionStatusMonitor(): void {
 
     const unsubWaggleTurn = api.onWaggleTurnEvent(({ sessionId, event }) => {
       matchBy(event, 'type')
-        .with('turn-start', () => {
+        .with('collaboration-pending', 'turn-start', () => {
           activeWaggleSessions.add(sessionId)
           setStatusWithVisitCheck(sessionId, 'waggle-running')
         })

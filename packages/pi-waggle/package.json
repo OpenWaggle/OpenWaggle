@@ -98,7 +98,8 @@
     "pack:check": "pnpm build && pnpm pack --pack-destination .pack --json"
   },
   "dependencies": {
-    "@openwaggle/waggle-core": "workspace:^"
+    "@openwaggle/waggle-core": "workspace:^",
+    "typebox": "1.1.38"
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "0.81.1",

@@ -49,6 +49,7 @@ export function useComposerSubmission({
   hasPreparingTextAttachment,
 }: UseComposerSubmissionInput) {
   const input = useComposerStore((s) => s.input)
+  const selectedWagglePreset = useComposerStore((s) => s.selectedWagglePreset)
   const reset = useComposerStore((s) => s.reset)
   const pushHistory = useComposerStore((s) => s.pushHistory)
   const selectedModel = usePreferencesStore((s) => s.settings.selectedModel)
@@ -84,14 +85,35 @@ export function useComposerSubmission({
       text: (text ?? input).trim(),
       thinkingLevel: effectiveThinkingLevel,
       attachments,
+      ...(selectedWagglePreset
+        ? {
+            waggle: {
+              presetId: selectedWagglePreset.id,
+              presetName: selectedWagglePreset.name,
+              source: 'user',
+              config: selectedWagglePreset.config,
+            },
+          }
+        : {}),
     })
   }
 
   function sendComposed(text: string) {
+    const state = useComposerStore.getState()
     return submitPayload({
       text,
       thinkingLevel: effectiveThinkingLevel,
-      attachments: useComposerStore.getState().attachments,
+      attachments: state.attachments,
+      ...(state.selectedWagglePreset
+        ? {
+            waggle: {
+              presetId: state.selectedWagglePreset.id,
+              presetName: state.selectedWagglePreset.name,
+              source: 'user',
+              config: state.selectedWagglePreset.config,
+            },
+          }
+        : {}),
     })
   }
 
@@ -101,6 +123,16 @@ export function useComposerSubmission({
       text: state.input.trim(),
       thinkingLevel: effectiveThinkingLevel,
       attachments: state.attachments,
+      ...(state.selectedWagglePreset
+        ? {
+            waggle: {
+              presetId: state.selectedWagglePreset.id,
+              presetName: state.selectedWagglePreset.name,
+              source: 'user',
+              config: state.selectedWagglePreset.config,
+            },
+          }
+        : {}),
     })
   }
 

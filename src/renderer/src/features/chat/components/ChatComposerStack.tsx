@@ -48,7 +48,7 @@ export function ChatComposerStack({
   const {
     activeSessionId,
     waggleStatus,
-    commandPaletteOpen,
+    slashCommandMenuOpen,
     slashSkills,
     forkSelectorOpen,
     forkTargets,
@@ -88,7 +88,7 @@ export function ChatComposerStack({
         onStop={waggleStatus !== 'idle' ? onStopCollaboration : noOp}
       />
 
-      {commandPaletteOpen && (
+      {slashCommandMenuOpen && (
         <div className="mx-auto w-full max-w-[720px] px-5 pb-2">
           <CommandPalette
             slashSkills={slashSkills}

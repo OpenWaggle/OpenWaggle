@@ -6,6 +6,7 @@ import type { WaggleConfig } from '@shared/types/waggle'
 import { createOptimisticUserMessage } from '@/features/chat/lib/useAgentChat.utils'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useOptimisticUserMessageStore } from '@/features/chat/state/optimistic-user-message-store'
+import { useWaggleStore } from '@/features/waggle/state'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 
@@ -23,6 +24,7 @@ interface SendMessageDeps {
     config: WaggleConfig | null,
   ) => Promise<void>
   readonly sendWaggleMessage: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
+  readonly startWaggleCollaboration: (sessionId: SessionId, config: WaggleConfig) => void
 }
 
 interface SendMessageHandlers {
@@ -41,6 +43,7 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
     sendMessage,
     sendMessageToSession,
     sendWaggleMessage,
+    startWaggleCollaboration,
   } = deps
 
   async function handleSend(payload: AgentSendPayload) {
@@ -65,6 +68,7 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
         throw new Error('Select a project before sending.')
       }
       const sessionId = await createSession(projectPath)
+      startWaggleCollaboration(sessionId, config)
       void sendMessageToSession(sessionId, payload, config)
       return
     }
@@ -104,6 +108,7 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
         await api.sendMessage(sessionId, payload, model)
       }
     } catch (error) {
+      if (config) useWaggleStore.getState().stopCollaboration()
       useBackgroundRunStore.getState().clearRunRenderSnapshot(sessionId)
       logger.error('First message send failed', {
         sessionId: String(sessionId),
@@ -118,5 +123,6 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
     sendMessage,
     sendMessageToSession,
     sendWaggleMessage,
+    startWaggleCollaboration: useWaggleStore.getState().startCollaboration,
   })
 }

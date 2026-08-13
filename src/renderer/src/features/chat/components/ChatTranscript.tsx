@@ -161,7 +161,7 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
 
   if (messages.length === 0 && rows.length === 0 && !isLoading) {
     return (
-      <div className="flex-1 overflow-y-auto chat-scroll">
+      <div className="flex flex-1 overflow-y-auto chat-scroll">
         <WelcomeScreen
           projectPath={projectPath}
           hasProject={!!projectPath}
@@ -170,13 +170,6 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
             void onOpenProject()
           }}
           onSelectProjectPath={onSelectProjectPath}
-          onRetry={
-            projectPath
-              ? (content) => {
-                  void onRetryText(content)
-                }
-              : undefined
-          }
         />
       </div>
     )

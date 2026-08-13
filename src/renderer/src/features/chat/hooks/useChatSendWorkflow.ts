@@ -36,13 +36,10 @@ interface ChatSendWorkflowParams {
   readonly refreshSessionWorkspace: (sessionId: SessionId) => Promise<void>
   readonly sessionCopy: ReturnType<typeof useSessionCopyWorkflow>
   readonly setUserDidSend: (value: boolean) => void
-  readonly setWaggleConfig: (config: WaggleConfig, sessionId: SessionId | null) => void
   readonly showToast: (message: string) => void
   readonly startWaggleCollaboration: (sessionId: SessionId, config: WaggleConfig) => void
   readonly stop: () => void
   readonly stopWaggleCollaboration: () => void
-  readonly waggleConfig: WaggleConfig | null
-  readonly waggleOwningId: SessionId | null
   readonly waggleStatus: WaggleCollaborationStatus
 }
 
@@ -158,15 +155,8 @@ async function handleSendCommand(params: ChatSendWorkflowParams, text: string) {
   return false
 }
 
-function activeWaggleConfigForSend(params: ChatSendWorkflowParams): WaggleConfig | null {
-  if (!params.waggleConfig) return null
-  if (params.waggleStatus !== 'idle') return null
-  if (params.waggleOwningId && params.waggleOwningId !== params.activeSessionId) return null
-  return params.waggleConfig
-}
-
 async function sendThroughActiveMode(params: ChatSendWorkflowParams, payload: AgentSendPayload) {
-  const waggleConfig = activeWaggleConfigForSend(params)
+  const waggleConfig = payload.waggle?.config ?? null
   if (waggleConfig) {
     if (params.activeSessionId) {
       params.startWaggleCollaboration(params.activeSessionId, waggleConfig)
@@ -193,6 +183,7 @@ export function useChatSendWorkflow(params: ChatSendWorkflowParams) {
         if (params.activeSessionId) params.clearDraftBranchForSession(params.activeSessionId)
       } catch (error) {
         params.setUserDidSend(false)
+        if (payload.waggle?.config) params.stopWaggleCollaboration()
         throw error
       }
     },
@@ -202,9 +193,6 @@ export function useChatSendWorkflow(params: ChatSendWorkflowParams) {
         params.stopWaggleCollaboration()
       }
       params.stop()
-    },
-    startWaggle(config: WaggleConfig) {
-      params.setWaggleConfig(config, params.activeSessionId)
     },
     stopCollaboration() {
       if (params.activeSessionId) api.cancelWaggle(params.activeSessionId)

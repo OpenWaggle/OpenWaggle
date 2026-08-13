@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
 import { SupportedModelId } from '@shared/types/brand'
+import { DEFAULT_SHORTCUT_BINDINGS } from '@shared/types/shortcuts'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -232,6 +233,18 @@ describe('settings store', () => {
     const settings = getSettings()
 
     expect(settings.thinkingLevel).toBe('medium')
+  })
+
+  it('resets corrupt duplicate shortcut bindings before global hotkeys are registered', async () => {
+    await writeRawSetting('shortcutBindings', {
+      ...DEFAULT_SHORTCUT_BINDINGS,
+      'commandPalette.toggle': { key: 'P', mod: true },
+      'filePicker.toggle': { key: 'P', mod: true },
+    })
+
+    const { getSettings } = await loadSettingsModule()
+
+    expect(getSettings().shortcutBindings).toEqual(DEFAULT_SHORTCUT_BINDINGS)
   })
 
   it('sanitizes and limits favorite models from persisted settings', async () => {

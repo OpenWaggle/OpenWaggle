@@ -1,5 +1,6 @@
 import { SupportedModelId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS, THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
+import type { ShortcutBinding, ShortcutBindings, ShortcutCommand } from '@shared/types/shortcuts'
 import { includes } from '@shared/utils/validation'
 import { useProviderStore } from '@/features/providers/state'
 import { api } from '@/shared/lib/ipc'
@@ -100,6 +101,14 @@ async function loadProjectPreferences(
   set({ settings: { ...settings, ...patch } })
 }
 
+async function persistShortcutBindings(shortcutBindings: ShortcutBindings, set: PreferencesSet) {
+  const result = await api.updateSettings({ shortcutBindings })
+  if (!result.ok) throw new Error(result.error)
+
+  const persistedSettings = await api.getSettings()
+  set({ settings: persistedSettings })
+}
+
 export function createPreferencesActions(
   set: PreferencesSet,
   get: PreferencesGet,
@@ -159,6 +168,14 @@ export function createPreferencesActions(
       const projectDisplayNames = { ...settings.projectDisplayNames, [path]: name }
       await api.updateSettings({ projectDisplayNames })
       set({ settings: { ...settings, projectDisplayNames } })
+    },
+    setShortcutBinding: async (command: ShortcutCommand, binding: ShortcutBinding | null) => {
+      const { settings } = get()
+      const shortcutBindings = { ...settings.shortcutBindings, [command]: binding }
+      await persistShortcutBindings(shortcutBindings, set)
+    },
+    resetShortcutBindings: async () => {
+      await persistShortcutBindings(DEFAULT_SETTINGS.shortcutBindings, set)
     },
     clearProjectDisplayName: async (path) => {
       const { settings } = get()

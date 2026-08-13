@@ -1,54 +1,46 @@
-import { FileText } from 'lucide-react'
+import { FileText, Sparkles } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { useOpenWorkspaceFile } from '@/features/workspace-files/hooks'
 import { cn } from '@/shared/lib/cn'
+import { Button } from '@/shared/ui/Button'
 
 const ICON_SIZE = 12
 
 /**
- * Regex to match @file mentions in message text.
- * Matches @followed-by-non-whitespace, e.g. @src/main/index.ts or @AGENTS.md
- * The @ must be at start of string or after whitespace.
+ * Matches composer references at a word boundary. File references accept paths;
+ * skill references use the same identifier grammar as runtime skill activation.
  */
-const MENTION_REGEX = /(?:^|\s)(@\S+)/g
+const COMPOSER_REFERENCE_REGEX = /(?:^|\s)(@\S+|\/[a-z0-9][a-z0-9-_]*)(?=$|\s|[.,!?;:)\]}>'"])/gi
 
 /**
- * Splits text into an array of ReactNode items, replacing @path patterns
- * with inline file mention chips. Plain text segments are returned as strings.
+ * Splits text into an array of ReactNode items, replacing composer references
+ * with inline file or skill chips. Plain text segments are returned as strings.
  */
 export function renderTextWithMentions(text: string): ReactNode[] {
   const parts: ReactNode[] = []
   let lastIndex = 0
   let key = 0
 
-  for (const match of text.matchAll(MENTION_REGEX)) {
+  for (const match of text.matchAll(COMPOSER_REFERENCE_REGEX)) {
     const fullMatch = match[0]
-    const mention = match[1]
-    const matchStart = match.index + (fullMatch.length - mention.length)
+    const reference = match[1]
+    if (!reference) continue
+    const matchStart = match.index + (fullMatch.length - reference.length)
 
     if (matchStart > lastIndex) {
       parts.push(text.slice(lastIndex, matchStart))
     }
 
-    const filePath = mention.slice(1)
-    const slashIndex = filePath.lastIndexOf('/')
-    const basename = slashIndex >= 0 ? filePath.slice(slashIndex + 1) : filePath
     key += 1
     parts.push(
-      <span
-        key={key}
-        className={cn(
-          'bg-accent/10 text-accent rounded px-1.5 py-0.5 text-[13px]',
-          'inline-flex items-center gap-1',
-          'select-none cursor-default',
-        )}
-        title={filePath}
-      >
-        <FileText size={ICON_SIZE} className="shrink-0" />
-        <span>{basename}</span>
-      </span>,
+      reference.startsWith('@') ? (
+        <FileReferenceChip key={key} reference={reference} />
+      ) : (
+        <SkillReferenceChip key={key} reference={reference} />
+      ),
     )
 
-    lastIndex = matchStart + mention.length
+    lastIndex = matchStart + reference.length
   }
 
   if (lastIndex < text.length) {
@@ -56,4 +48,40 @@ export function renderTextWithMentions(text: string): ReactNode[] {
   }
 
   return parts
+}
+
+function FileReferenceChip({ reference }: { readonly reference: string }) {
+  const openWorkspaceFile = useOpenWorkspaceFile()
+  const filePath = reference.slice(1)
+  const slashIndex = filePath.lastIndexOf('/')
+  const basename = slashIndex >= 0 ? filePath.slice(slashIndex + 1) : filePath
+
+  return (
+    <Button
+      variant="unstyled"
+      className={`${referenceChipClassName()} hover:bg-accent/20`}
+      title={`Open ${filePath}`}
+      onClick={() => openWorkspaceFile(filePath)}
+    >
+      <FileText size={ICON_SIZE} className="shrink-0" />
+      <span>{basename}</span>
+    </Button>
+  )
+}
+
+function SkillReferenceChip({ reference }: { readonly reference: string }) {
+  return (
+    <span className={referenceChipClassName()} title={reference}>
+      <Sparkles size={ICON_SIZE} className="shrink-0" />
+      <span>{reference.slice(1)}</span>
+    </span>
+  )
+}
+
+function referenceChipClassName() {
+  return cn(
+    'bg-accent/10 text-accent rounded px-1.5 py-0.5 text-[13px]',
+    'inline-flex items-center gap-1',
+    'select-none cursor-default',
+  )
 }

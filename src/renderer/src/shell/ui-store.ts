@@ -17,7 +17,14 @@ export interface ExtensionRightSidebarPanel {
   readonly contentHash?: string
 }
 
-export type RightSidebarPanel = 'diff' | 'session-tree' | ExtensionRightSidebarPanel
+export type RightSidebarPanel = 'diff' | 'file' | 'session-tree' | ExtensionRightSidebarPanel
+export type CommandSurface = 'commands' | 'files' | 'content' | null
+export type ChatCommand = 'clone-session' | 'fork-session'
+
+export interface ChatCommandRequest {
+  readonly id: number
+  readonly command: ChatCommand
+}
 
 export interface ToastData {
   message: string
@@ -31,6 +38,7 @@ export interface ToastData {
 
 export const SETTINGS_TABS = [
   'general',
+  'shortcuts',
   'waggle',
   'extensions',
   'mcp',
@@ -48,7 +56,9 @@ interface UIState {
   diffRefreshKey: number
   toastMessage: string | null
   toastData: ToastData | null
-  commandPaletteOpen: boolean
+  slashCommandMenuOpen: boolean
+  commandSurface: CommandSurface
+  chatCommandRequest: ChatCommandRequest | null
   feedbackModalOpen: boolean
   feedbackErrorContext: AgentErrorInfo | null
   feedbackCooldownActive: boolean
@@ -63,9 +73,12 @@ interface UIState {
   showToast: (message: string, variant?: ToastData['variant']) => void
   showPersistentToast: (data: ToastData) => void
   clearToast: () => void
-  openCommandPalette: () => void
-  closeCommandPalette: () => void
-  toggleCommandPalette: () => void
+  openSlashCommandMenu: () => void
+  closeSlashCommandMenu: () => void
+  openCommandSurface: (surface: Exclude<CommandSurface, null>) => void
+  closeCommandSurface: () => void
+  requestChatCommand: (command: ChatCommand) => void
+  clearChatCommandRequest: (id: number) => void
   openFeedbackModal: (errorContext?: AgentErrorInfo) => void
   closeFeedbackModal: () => void
   startFeedbackCooldown: () => void
@@ -74,6 +87,7 @@ interface UIState {
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null
 let feedbackCooldownTimer: ReturnType<typeof setTimeout> | null = null
+let nextChatCommandRequestId = 1
 
 export const useUIStore = create<UIState>((set, get) => ({
   sidebarOpen: true,
@@ -83,7 +97,9 @@ export const useUIStore = create<UIState>((set, get) => ({
   diffRefreshKey: 0,
   toastMessage: null,
   toastData: null,
-  commandPaletteOpen: false,
+  slashCommandMenuOpen: false,
+  commandSurface: null,
+  chatCommandRequest: null,
   feedbackModalOpen: false,
   feedbackErrorContext: null,
   feedbackCooldownActive: false,
@@ -138,16 +154,29 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ toastMessage: null, toastData: null })
   },
 
-  openCommandPalette() {
-    set({ commandPaletteOpen: true })
+  openSlashCommandMenu() {
+    if (!get().slashCommandMenuOpen) set({ slashCommandMenuOpen: true })
   },
 
-  closeCommandPalette() {
-    set({ commandPaletteOpen: false })
+  closeSlashCommandMenu() {
+    if (get().slashCommandMenuOpen) set({ slashCommandMenuOpen: false })
   },
 
-  toggleCommandPalette() {
-    set({ commandPaletteOpen: !get().commandPaletteOpen })
+  openCommandSurface(surface) {
+    set({ commandSurface: surface })
+  },
+
+  closeCommandSurface() {
+    if (get().commandSurface !== null) set({ commandSurface: null })
+  },
+
+  requestChatCommand(command) {
+    set({ chatCommandRequest: { id: nextChatCommandRequestId, command } })
+    nextChatCommandRequestId += 1
+  },
+
+  clearChatCommandRequest(id) {
+    if (get().chatCommandRequest?.id === id) set({ chatCommandRequest: null })
   },
 
   openFeedbackModal(errorContext) {

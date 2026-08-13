@@ -99,13 +99,10 @@ function sendWorkflowParams(overrides: Partial<SendWorkflowParams> = {}): SendWo
       selectForkTarget: vi.fn(),
     },
     setUserDidSend: vi.fn(),
-    setWaggleConfig: vi.fn(),
     showToast: vi.fn(),
     startWaggleCollaboration: vi.fn(),
     stop: vi.fn(),
     stopWaggleCollaboration: vi.fn(),
-    waggleConfig: null,
-    waggleOwningId: null,
     waggleStatus: 'idle',
     ...overrides,
   } satisfies SendWorkflowParams

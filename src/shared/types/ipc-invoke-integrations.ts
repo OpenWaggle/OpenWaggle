@@ -32,6 +32,13 @@ import type {
 import type { UpdateStatus } from './updater'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 import type { WaggleConfig, WagglePreset } from './waggle'
+import type {
+  WorkspaceContentMatch,
+  WorkspaceFileEntry,
+  WorkspaceFileReadResult,
+  WorkspaceFileWriteInput,
+  WorkspaceFileWriteResult,
+} from './workspace-files'
 
 // ─── IPC Channel Map ─────────────────────────────────────────
 // Single source of truth for every IPC channel.
@@ -223,6 +230,31 @@ export interface IpcIntegrationInvokeChannelMap {
   'composer:file-suggest': {
     args: [projectPath: string, query: string]
     return: FileSuggestion[]
+  }
+  // Workspace files
+  'workspace-files:search': {
+    args: [projectPath: string, query: string, limit: number]
+    return: WorkspaceFileEntry[]
+  }
+  'workspace-files:search-content': {
+    args: [projectPath: string, query: string, limit: number]
+    return: WorkspaceContentMatch[]
+  }
+  'workspace-files:cancel-content-search': {
+    args: [projectPath: string]
+    return: undefined
+  }
+  'workspace-files:read': {
+    args: [projectPath: string, path: string]
+    return: WorkspaceFileReadResult
+  }
+  'workspace-files:write': {
+    args: [input: WorkspaceFileWriteInput]
+    return: WorkspaceFileWriteResult
+  }
+  'workspace-files:open-external': {
+    args: [projectPath: string, path: string]
+    return: undefined
   }
   // Auto-updater
   'updater:check': {

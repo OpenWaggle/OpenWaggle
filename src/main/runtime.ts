@@ -8,6 +8,7 @@ import { ExtensionBuildRunnerLive } from './adapters/extension-build-runner'
 import { FilesystemDocsBundleLive } from './adapters/filesystem-docs-bundle-service'
 import { FilesystemExtensionManagerLive } from './adapters/filesystem-extension-manager-service'
 import { FilesystemExtensionPackageRepositoryLive } from './adapters/filesystem-extension-package-repository'
+import { FilesystemWorkspaceFileLive } from './adapters/filesystem-workspace-file-service'
 import { EncryptedMcpSecretVaultServiceLive } from './adapters/mcp/encrypted-mcp-secret-vault-service'
 import { FilesystemMcpConfigServiceLive } from './adapters/mcp/filesystem-mcp-config-service'
 import { FirstPartyMcpRuntimeServiceLive } from './adapters/mcp/first-party-mcp-runtime-service'
@@ -97,6 +98,7 @@ const AppLayer = Layer.mergeAll(
   ProviderServiceWithExtensionSelectionLive,
   PiSessionTreePreferencesLive,
   SettingsWagglePresetsRepositoryLive,
+  FilesystemWorkspaceFileLive,
 )
 
 function makeAppRuntime() {

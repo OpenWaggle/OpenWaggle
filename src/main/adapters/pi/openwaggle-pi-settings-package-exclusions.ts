@@ -27,6 +27,21 @@ function getPackageEntries(settings: JsonObject) {
   return Array.isArray(settings.packages) ? [...settings.packages] : []
 }
 
+function getNpmPackageName(source: string) {
+  if (!source.startsWith('npm:')) return null
+  const spec = source.slice('npm:'.length).trim()
+  if (spec.length === 0) return null
+  if (!spec.startsWith('@')) {
+    const versionSeparator = spec.indexOf('@')
+    return versionSeparator > 0 ? spec.slice(0, versionSeparator) : spec
+  }
+
+  const scopeSeparator = spec.indexOf('/')
+  if (scopeSeparator < 0) return spec
+  const versionSeparator = spec.indexOf('@', scopeSeparator)
+  return versionSeparator > scopeSeparator ? spec.slice(0, versionSeparator) : spec
+}
+
 function getExcludedExtensionPatterns(excludedSources: readonly string[]) {
   return excludedSources.flatMap((source) => [`!${source}`, `!${source}/**`])
 }
@@ -47,20 +62,69 @@ function isExcludedPackageSource(value: JsonValue, excludedSources: ReadonlySet<
   return source !== null && excludedSources.has(source)
 }
 
+function isExcludedNpmPackage(value: JsonValue, excludedNames: ReadonlySet<string>) {
+  const source = getPackageSource(value)
+  if (source === null) return false
+  const packageName = getNpmPackageName(source)
+  return packageName !== null && excludedNames.has(packageName)
+}
+
 export function withoutExcludedPackages(
   content: string | undefined,
   excludedSources: readonly string[] | undefined,
+  excludedNpmPackageNames: readonly string[] | undefined = undefined,
 ) {
-  if (!excludedSources || excludedSources.length === 0) return content
+  if (
+    (!excludedSources || excludedSources.length === 0) &&
+    (!excludedNpmPackageNames || excludedNpmPackageNames.length === 0)
+  ) {
+    return content
+  }
   const settings = parseJsonObject(content)
   const packages = getPackageEntries(settings)
-  const excluded = new Set(excludedSources)
-  const visiblePackages = packages.filter((entry) => !isExcludedPackageSource(entry, excluded))
+  const excludedSourceSet = new Set(excludedSources ?? [])
+  const excludedNpmPackageNameSet = new Set(excludedNpmPackageNames ?? [])
+  const visiblePackages = packages.filter(
+    (entry) =>
+      !isExcludedPackageSource(entry, excludedSourceSet) &&
+      !isExcludedNpmPackage(entry, excludedNpmPackageNameSet),
+  )
   const visibleSettings =
     visiblePackages.length === packages.length
       ? settings
       : { ...settings, packages: visiblePackages }
-  return serializeJsonObject(withExcludedExtensionPatterns(visibleSettings, excludedSources))
+  return serializeJsonObject(withExcludedExtensionPatterns(visibleSettings, excludedSources ?? []))
+}
+
+export function withRestoredExcludedNpmPackageEntries(
+  currentContent: string | undefined,
+  nextContent: string | undefined,
+  excludedNpmPackageNames: readonly string[] | undefined,
+) {
+  if (!nextContent || !excludedNpmPackageNames || excludedNpmPackageNames.length === 0) {
+    return nextContent
+  }
+
+  const excludedNames = new Set(excludedNpmPackageNames)
+  const currentSettings = parseJsonObject(currentContent)
+  const excludedEntries = getPackageEntries(currentSettings).flatMap((entry, index) =>
+    isExcludedNpmPackage(entry, excludedNames) ? [{ entry, index }] : [],
+  )
+  if (excludedEntries.length === 0) return nextContent
+
+  const nextSettings = parseJsonObject(nextContent)
+  const restoredPackages = getPackageEntries(nextSettings).filter(
+    (entry) => !isExcludedNpmPackage(entry, excludedNames),
+  )
+  for (const excludedEntry of excludedEntries) {
+    restoredPackages.splice(
+      Math.min(excludedEntry.index, restoredPackages.length),
+      0,
+      excludedEntry.entry,
+    )
+  }
+
+  return serializeJsonObject({ ...nextSettings, packages: restoredPackages })
 }
 
 export function withoutExcludedPackageEntries(

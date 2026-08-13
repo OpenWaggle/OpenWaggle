@@ -74,3 +74,9 @@ export class DocsBundleError extends Data.TaggedError('DocsBundleError')<{
   readonly operation: string
   readonly cause?: unknown
 }> {}
+
+export class WorkspaceFileError extends Data.TaggedError('WorkspaceFileError')<{
+  readonly operation: string
+  readonly message: string
+  readonly cause?: unknown
+}> {}

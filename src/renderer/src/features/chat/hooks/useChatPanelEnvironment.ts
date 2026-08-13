@@ -23,7 +23,7 @@ function reportNavigationError(
 
 export function useChatPanelEnvironment() {
   const navigate = useNavigate()
-  const commandPaletteOpen = useUIStore((s) => s.commandPaletteOpen)
+  const slashCommandMenuOpen = useUIStore((s) => s.slashCommandMenuOpen)
   const setActiveView = useUIStore((s) => s.setActiveView)
   const showToast = useUIStore((s) => s.showToast)
   const model = usePreferencesStore((s) => s.settings.selectedModel)
@@ -93,7 +93,7 @@ export function useChatPanelEnvironment() {
     activeWorkspace,
     chat,
     clearDraftBranchForSession,
-    commandPaletteOpen,
+    slashCommandMenuOpen,
     draftBranch,
     handleDismissInterruptedRun,
     handleOpenProject,

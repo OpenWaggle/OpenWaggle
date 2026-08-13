@@ -24,11 +24,15 @@ Open **Settings > Waggle Mode** and configure:
 - Maximum turns.
 - Consensus behavior.
 
-The command palette can also start a saved Waggle preset.
+The slash command menu can invoke a saved Waggle preset for the current prompt. The preset appears as a composer chip and applies to that send only.
 
 ## Runtime Behavior
 
 Waggle uses the same Pi runtime, tool events, provider metadata, and session projection as standard sessions. A Pi extension drives the two-agent turn loop inside the active Pi session, Pi executes the native tools for each turn, and OpenWaggle stores Waggle attribution metadata in the session projection. Internal collaboration instructions are written through hidden Pi custom messages, so the transcript shows the user request and agent outputs rather than coordination prompts.
+
+The standard agent can also invoke the visible `waggle_invoke` tool when a task materially benefits from two-agent collaboration. The standard turn settles first, then Waggle continues in the same session with the resolved preset and a self-contained handoff prompt. Waggle cannot invoke another Waggle run.
+
+The execution bar above the composer is visible only while the collaboration is starting or running. It disappears on completion, stop, cancellation, or failure.
 
 Waggle runs use the same branch and interruption behavior as standard runs. If the app closes while a Waggle run is active, OpenWaggle refreshes the latest Pi session snapshot on restart, marks the affected branch as interrupted, and waits for you to continue manually.
 

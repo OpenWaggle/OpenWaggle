@@ -12,6 +12,7 @@ import { ConnectionsSection } from './sections/ConnectionsSection'
 import { ExtensionsSection } from './sections/ExtensionsSection'
 import { GeneralSection } from './sections/GeneralSection'
 import { McpSection } from './sections/McpSection'
+import { ShortcutsSection } from './sections/ShortcutsSection'
 import { WaggleSection } from './sections/WaggleSection'
 
 interface SettingsPageProps {
@@ -81,6 +82,7 @@ function SettingsTabContent({
 }) {
   return match(tab)
     .with('general', () => <GeneralSection />)
+    .with('shortcuts', () => <ShortcutsSection />)
     .with('waggle', () => <WaggleSection />)
     .with('extensions', () => <ExtensionsSection />)
     .with('mcp', () => <McpSection sessionId={activeSessionId} />)

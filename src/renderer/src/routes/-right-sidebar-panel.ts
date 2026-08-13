@@ -3,12 +3,16 @@ import type { ChatExtensionSidePanelTarget } from './-route-search'
 
 interface ResolveRightSidebarPanelInput {
   readonly diffOpen: boolean
+  readonly fileOpen?: boolean
   readonly extensionSidePanel: ChatExtensionSidePanelTarget | null
   readonly lastPanel: RightSidebarPanel
   readonly sessionTreeOpen: boolean
 }
 
 export function resolveRightSidebarPanel(input: ResolveRightSidebarPanelInput): RightSidebarPanel {
+  if (input.fileOpen) {
+    return 'file'
+  }
   if (input.sessionTreeOpen) {
     return 'session-tree'
   }

@@ -35,11 +35,9 @@ export function WaggleCollaborationStatus({ currentSessionId, onStop }: Collabor
   const currentAgentIndex = useWaggleStore((s) => s.currentAgentIndex)
   const currentAgentLabel = useWaggleStore((s) => s.currentAgentLabel)
   const fileConflicts = useWaggleStore((s) => s.fileConflicts)
-  const completionReason = useWaggleStore((s) => s.completionReason)
-  const clearConfig = useWaggleStore((s) => s.clearConfig)
   const reset = useWaggleStore((s) => s.reset)
 
-  if (!config) return null
+  if (!config || (status !== 'pending' && status !== 'running')) return null
 
   // Scope: only show for the session that owns the waggle state
   const owningSessionId = activeCollaborationId ?? configSessionId
@@ -48,9 +46,7 @@ export function WaggleCollaborationStatus({ currentSessionId, onStop }: Collabor
   const maxTurns = config.stop.maxTurnsSafety
 
   function handleDismiss() {
-    if (status === 'running') {
-      onStop()
-    }
+    onStop()
     reset()
   }
 
@@ -59,7 +55,7 @@ export function WaggleCollaborationStatus({ currentSessionId, onStop }: Collabor
       <div
         className={cn(
           'flex items-center gap-3 rounded-lg border px-3 py-2',
-          status === 'idle'
+          status === 'pending'
             ? 'border-[#f5a623]/20 bg-[#f5a623]/5'
             : 'border-border bg-bg-secondary',
         )}
@@ -87,9 +83,9 @@ export function WaggleCollaborationStatus({ currentSessionId, onStop }: Collabor
         <div className="h-3 w-px bg-border shrink-0" />
 
         {/* Status-specific content */}
-        {status === 'idle' && (
+        {status === 'pending' && (
           <span className="text-[12px] text-text-tertiary truncate">
-            Waggle ready · Sequential · {turnCountLabel(maxTurns)}: send a message to start
+            Waggle starting · Sequential · {turnCountLabel(maxTurns)}
           </span>
         )}
 
@@ -103,23 +99,12 @@ export function WaggleCollaborationStatus({ currentSessionId, onStop }: Collabor
           </div>
         )}
 
-        {status === 'completed' && (
-          <span className="text-[12px] text-text-secondary truncate">
-            Waggle complete · {completionReason ?? 'Collaboration complete'}
-          </span>
-        )}
-
-        {status === 'stopped' && (
-          <span className="text-[12px] text-text-muted truncate">Stopped by user</span>
-        )}
-
-        {/* Dismiss — always available */}
         <Button
           variant="unstyled"
           type="button"
-          onClick={status === 'idle' ? clearConfig : handleDismiss}
+          onClick={handleDismiss}
           className="ml-auto shrink-0 rounded-md p-1 text-text-muted hover:text-text-primary hover:bg-[#1e2229] transition-colors"
-          title={status === 'running' ? 'Stop & dismiss waggle' : 'Dismiss waggle'}
+          title="Stop & dismiss Waggle"
         >
           <X className="size-3" />
         </Button>

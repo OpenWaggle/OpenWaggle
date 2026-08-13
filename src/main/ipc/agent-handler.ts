@@ -14,7 +14,7 @@ import {
   agentLoopResponseInputSchema,
   toAgentLoopResponseInput,
 } from '@shared/schemas/agent-loop-interaction'
-import { agentSendPayloadSchema } from '@shared/schemas/validation'
+import { agentSendPayloadSchema, toAgentSendPayload } from '@shared/schemas/validation'
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
@@ -28,6 +28,7 @@ import {
 } from '../application/agent-loop-interaction-broker'
 import { type AgentRunResult, executeAgentRun } from '../application/agent-run-service'
 import { compactAgentSession, getAgentContextUsage } from '../application/agent-session-service'
+import { findWaggleHandoffRequest } from '../application/waggle-handoff'
 import { broadcastToWindows } from '../utils/broadcast'
 import {
   clearAgentPhase,
@@ -41,10 +42,12 @@ import {
 import {
   activeCompactions,
   activeRuns,
+  activeWaggleRuns,
   cancelAllSessionRuns,
   cancelSessionRuns,
   hasAnyActiveRun,
 } from './active-agent-runs'
+import { runAgentRequestedWaggle } from './agent-waggle-handoff'
 import { emitErrorAndFinish } from './run-handler-utils'
 import { typedHandle } from './typed-ipc'
 
@@ -86,7 +89,9 @@ function registerAgentRunHandlers() {
     'agent:send-message',
     (_event, sessionId: SessionId, payload: AgentSendPayload, model: SupportedModelId) =>
       Effect.gen(function* () {
-        const validatedPayload = decodeUnknownOrThrow(agentSendPayloadSchema, payload)
+        const validatedPayload = toAgentSendPayload(
+          decodeUnknownOrThrow(agentSendPayloadSchema, payload),
+        )
         // ─── Transport: cancel existing same-session work, register new ────
         if (cancelSessionRuns(sessionId)) {
           clearSessionTransportState(sessionId)
@@ -116,6 +121,25 @@ function registerAgentRunHandlers() {
             broadcastToWindows('sessions:title-updated', { sessionId, title })
           },
         })
+
+        const handoff =
+          result.outcome === 'success' ? findWaggleHandoffRequest(result.newMessages) : null
+        if (handoff && !abortController.signal.aborted) {
+          activeWaggleRuns.register(sessionId, abortController, {})
+          yield* runAgentRequestedWaggle({
+            sessionId,
+            handoff,
+            model,
+            thinkingLevel: validatedPayload.thinkingLevel,
+            abortController,
+          }).pipe(
+            Effect.ensuring(
+              Effect.sync(() => {
+                activeWaggleRuns.deleteIfCurrent(sessionId, abortController)
+              }),
+            ),
+          )
+        }
 
         // ─── Transport: respond based on outcome ─────────
         handleRunResult(sessionId, result)

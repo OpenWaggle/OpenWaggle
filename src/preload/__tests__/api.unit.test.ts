@@ -70,6 +70,12 @@ describe('preload api surface contract', () => {
     'selectProjectFolder',
     'getProjectPreferences',
     'setProjectPreferences',
+    'searchWorkspaceFiles',
+    'searchWorkspaceContent',
+    'cancelWorkspaceContentSearch',
+    'readWorkspaceFile',
+    'writeWorkspaceFile',
+    'openWorkspaceFileExternal',
     'listSessions',
     'listSessionDetails',
     'getSessionDetail',
@@ -163,7 +169,6 @@ describe('preload api surface contract', () => {
 
   it('has every expected method as a function', () => {
     for (const method of EXPECTED_METHODS) {
-      expect(api).toHaveProperty(method)
       expect(typeof api[method]).toBe('function')
     }
   })

@@ -156,6 +156,38 @@ _Avoid_: props, renderer internals
 An OpenWaggle-owned compact composer-adjacent action surface for extension controls such as buttons, selectors, or launchers.
 _Avoid_: arbitrary composer injection
 
+**Slash command menu**:
+The composer-native chooser for skills, one-shot Waggle presets, and slash commands. The `/` invocation character is stable prompt syntax rather than a configurable application shortcut.
+_Avoid_: command palette, search palette
+
+**File mention menu**:
+The composer-native chooser opened by the stable `@` invocation character to reference project files in a prompt.
+_Avoid_: project file picker, configurable application shortcut
+
+**Global command palette**:
+The app-wide modal chooser for navigation and product actions, including session creation, project switching, file/content search, settings, session operations, extension surfaces, recent sessions, and feedback. It does not contain prompt skills, Waggle presets, or slash commands.
+_Avoid_: Slash command menu, composer palette
+
+**Shortcut registry**:
+The persisted, conflict-free mapping from product commands to user-recorded cross-platform key combinations. Core navigation commands remain assigned but can be remapped; optional workspace commands can be cleared or reset.
+_Avoid_: component-local shortcut literal, silent shortcut replacement
+
+**Waggle invocation**:
+An explicit, one-shot user or standard-agent request to run a saved Waggle preset for one prompt. A Waggle invocation cannot start another Waggle while collaboration is already active.
+_Avoid_: hidden mode toggle, implicit collaboration
+
+**Waggle handoff**:
+A terminating transition from the standard agent to a Waggle invocation after the current turn settles. The collaboration reuses the same session context and returns control when it finishes. An agent-triggered handoff is a visible Pi tool invocation and does not add a separate confirmation step.
+_Avoid_: parallel transcript copy, nested Waggle run
+
+**Waggle execution bar**:
+The transient status toolbar above the composer while a Waggle invocation is pending or running. It disappears when the invocation completes, stops, is cancelled, or fails.
+_Avoid_: Waggle mode toolbar, ready banner
+
+**Workspace file surface**:
+The route-backed right-side file browser, preview, and editor opened from project file search or file links. It supports optimistic edits with visible save state while keeping filesystem authority in the main process.
+_Avoid_: read-only attachment preview, renderer filesystem access
+
 **Transcript agent-loop surface**:
 The durable chat-transcript surface for rendering Pi tool progress, tool results, approvals, and custom agent-loop messages.
 _Avoid_: ephemeral-only tool UI

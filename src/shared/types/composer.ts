@@ -1,5 +1,5 @@
-export interface FileSuggestion {
-  readonly path: string
-  readonly basename: string
+import type { WorkspaceFileEntry } from './workspace-files'
+
+export interface FileSuggestion extends WorkspaceFileEntry {
   readonly isDirectory: boolean
 }

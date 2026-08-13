@@ -6,9 +6,8 @@ import {
   COMMAND_PRIORITY_NORMAL,
   KEY_DOWN_COMMAND,
 } from 'lexical'
-import { useEffect } from 'react'
+import { useEffect, useEffectEvent } from 'react'
 import { useComposerStore } from '@/features/composer/state/composer-store'
-import { useUIStore } from '@/shell/ui-store'
 import { setEditorText } from '../../lib/lexical-utils'
 
 interface KeyboardPluginProps {
@@ -17,6 +16,7 @@ interface KeyboardPluginProps {
 
 export function KeyboardPlugin({ onSubmit }: KeyboardPluginProps): null {
   const [editor] = useLexicalComposerContext()
+  const submit = useEffectEvent(onSubmit)
 
   useEffect(() => {
     return editor.registerCommand<KeyboardEvent>(
@@ -26,7 +26,7 @@ export function KeyboardPlugin({ onSubmit }: KeyboardPluginProps): null {
         if (event.key === 'Enter' && !event.shiftKey) {
           event.preventDefault()
           const text = editor.getEditorState().read(() => $getRoot().getTextContent())
-          onSubmit(text)
+          submit(text)
           return true
         }
 
@@ -78,16 +78,6 @@ export function KeyboardPlugin({ onSubmit }: KeyboardPluginProps): null {
       },
       COMMAND_PRIORITY_NORMAL,
     )
-  }, [editor, onSubmit])
-
-  // Slash detection via text content listener
-  useEffect(() => {
-    return editor.registerTextContentListener((text) => {
-      const trimmed = text.trimStart()
-      if (trimmed === '/' || text.endsWith(' /')) {
-        useUIStore.getState().openCommandPalette()
-      }
-    })
   }, [editor])
 
   return null

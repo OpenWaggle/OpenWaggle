@@ -1,4 +1,5 @@
 import { SupportedModelId } from './brand'
+import { DEFAULT_SHORTCUT_BINDINGS, type ShortcutBindings } from './shortcuts'
 
 export type Provider = string
 export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const
@@ -16,6 +17,7 @@ export interface Settings {
   readonly recentProjects: readonly string[]
   readonly skillTogglesByProject: Readonly<Record<string, Readonly<Record<string, boolean>>>>
   readonly projectDisplayNames: Readonly<Record<string, string>>
+  readonly shortcutBindings: ShortcutBindings
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -27,4 +29,5 @@ export const DEFAULT_SETTINGS: Settings = {
   recentProjects: [],
   skillTogglesByProject: {},
   projectDisplayNames: {},
+  shortcutBindings: DEFAULT_SHORTCUT_BINDINGS,
 }

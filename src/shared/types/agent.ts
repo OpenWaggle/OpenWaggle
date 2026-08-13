@@ -2,7 +2,7 @@ import type { MessageId } from './brand'
 import type { SupportedModelId } from './llm'
 import type { ThinkingLevel } from './settings'
 import type { ToolCallRequest, ToolCallResult } from './tools'
-import type { WaggleMessageMetadata } from './waggle'
+import type { WaggleInvocation, WaggleInvocationMetadata, WaggleMessageMetadata } from './waggle'
 
 export type MessageRole = 'user' | 'assistant' | 'system'
 
@@ -73,6 +73,7 @@ export interface AgentSendPayload {
   readonly text: string
   readonly thinkingLevel: ThinkingLevel
   readonly attachments: readonly PreparedAttachment[]
+  readonly waggle?: WaggleInvocation
 }
 
 export interface CompactionSummaryMetadata {
@@ -86,6 +87,7 @@ export interface BranchSummaryMetadata {
 
 export interface MessageMetadata {
   readonly waggle?: WaggleMessageMetadata
+  readonly waggleInvocation?: WaggleInvocationMetadata
   readonly branchSummary?: BranchSummaryMetadata
   readonly compactionSummary?: CompactionSummaryMetadata
 }

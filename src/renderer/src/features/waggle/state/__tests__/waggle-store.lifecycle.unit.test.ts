@@ -46,7 +46,7 @@ describe('waggle-store collaboration lifecycle behavior', () => {
     const state = useWaggleStore.getState()
     expect(state.activeCollaborationId).toBe(sessionId)
     expect(state.activeConfig).toBe(config)
-    expect(state.status).toBe('running')
+    expect(state.status).toBe('pending')
     expect(state.currentTurn).toBe(0)
     expect(state.currentAgentIndex).toBe(0)
     expect(state.currentAgentLabel).toBe('Architect')

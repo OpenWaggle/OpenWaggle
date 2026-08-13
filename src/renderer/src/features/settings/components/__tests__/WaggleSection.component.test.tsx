@@ -1,9 +1,10 @@
 import { SupportedModelId, WagglePresetId } from '@shared/types/brand'
 import type { ProviderInfo } from '@shared/types/llm'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CommandPalette } from '@/features/command-palette/components'
+import { useComposerStore } from '@/features/composer/state'
 import { usePreferencesStore } from '@/features/settings/state/preferences-store'
 import { useWaggleStore } from '@/features/waggle/state'
 import { useUIStore } from '@/shell/ui-store'
@@ -89,6 +90,7 @@ describe('WaggleSection', () => {
     })
     useUIStore.setState(useUIStore.getInitialState())
     useWaggleStore.setState(useWaggleStore.getInitialState())
+    useComposerStore.setState(useComposerStore.getInitialState())
 
     usePreferencesMock.mockReturnValue({
       settings: DEFAULT_SETTINGS,
@@ -267,15 +269,21 @@ describe('WaggleSection', () => {
       expect(listWagglePresetsMock).toHaveBeenCalledWith(PROJECT_PATH)
     })
 
-    fireEvent.change(screen.getByPlaceholderText('Search'), { target: { value: 'review' } })
+    act(() => {
+      useComposerStore.setState({
+        input: '/review',
+        cursorIndex: 7,
+        activeSlashCommand: { query: 'review', token: 'test:0:review' },
+      })
+    })
 
     await waitFor(() => {
-      const presetButtons = screen.getAllByRole('button', { name: /review pair/i })
+      const presetButtons = screen.getAllByRole('menuitem', { name: /review pair/i })
       expect(presetButtons.length).toBeGreaterThan(0)
     })
 
     const paletteButton = screen
-      .getAllByRole('button', { name: /review pair/i })
+      .getAllByRole('menuitem', { name: /review pair/i })
       .find((button) => within(button).queryByText('Sequential'))
 
     expect(paletteButton).toBeTruthy()

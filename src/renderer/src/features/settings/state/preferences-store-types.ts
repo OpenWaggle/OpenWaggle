@@ -1,5 +1,6 @@
 import type { SupportedModelId } from '@shared/types/brand'
 import type { Settings, ThinkingLevel } from '@shared/types/settings'
+import type { ShortcutBinding, ShortcutCommand } from '@shared/types/shortcuts'
 
 export interface PreferencesState {
   settings: Settings
@@ -16,6 +17,8 @@ export interface PreferencesState {
   setThinkingLevel: (preset: ThinkingLevel) => Promise<void>
   setEnabledModels: (models: string[]) => Promise<void>
   setProjectDisplayName: (path: string, name: string) => Promise<void>
+  setShortcutBinding: (command: ShortcutCommand, binding: ShortcutBinding | null) => Promise<void>
+  resetShortcutBindings: () => Promise<void>
   clearProjectDisplayName: (path: string) => Promise<void>
   removeProjectReferences: (path: string) => Promise<void>
   loadProjectPreferences: (projectPath: string) => Promise<void>

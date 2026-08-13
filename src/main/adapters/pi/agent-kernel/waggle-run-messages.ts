@@ -81,7 +81,19 @@ export async function sendInitialWaggleMessages(input: {
       customType: PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE,
       content: piPromptInputToCustomContent(buildPiPromptInput(input.model, input.payload)),
       display: true,
-      details: { source: 'openwaggle', kind: 'waggle-user-request' },
+      details: {
+        source: 'openwaggle',
+        kind: 'waggle-user-request',
+        ...(input.payload.waggle
+          ? {
+              waggleInvocation: {
+                presetId: input.payload.waggle.presetId,
+                presetName: input.payload.waggle.presetName,
+                source: input.payload.waggle.source,
+              },
+            }
+          : {}),
+      },
     },
     { triggerTurn: false },
   )
