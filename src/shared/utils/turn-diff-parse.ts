@@ -2,9 +2,10 @@ import type { GitFileDiff } from '@shared/types/git'
 import type { TurnDiffFileSummary } from '@shared/types/turn-diff'
 
 /**
- * Parse a unified diff into per-file additions/deletions summaries.
- * Ported from T3Code parseTurnDiffFilesFromUnifiedDiff (self-contained: counts
- * +/- hunk lines, ignoring +++/--- headers), sorted by path.
+ * Parse a unified diff into per-file additions/deletions summaries, sorted by path.
+ *
+ * Self-contained by design: counts +/- hunk lines and ignores the +++/--- file
+ * headers, so it needs no git invocation and no diff library.
  */
 export function parseTurnDiffFilesFromUnifiedDiff(diff: string): TurnDiffFileSummary[] {
   const normalized = diff.replace(/\r\n/g, '\n').trim()

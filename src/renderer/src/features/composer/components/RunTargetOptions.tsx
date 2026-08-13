@@ -17,8 +17,9 @@ const OPTION_ROW_CLASS =
 
 /**
  * Everything that used to live in the separate "Options" popover, plus the ref
- * actions T3Code's selector offers. Keeping them here means the row has exactly
- * one popover and the user never has to reconcile two branch controls.
+ * actions that belong beside a ref chooser: create-and-switch, copy name,
+ * start-from-origin, and change-request checkout. Keeping them here means the row
+ * has exactly one popover and the user never has to reconcile two branch controls.
  */
 export function RunTargetOptions({
   strip,

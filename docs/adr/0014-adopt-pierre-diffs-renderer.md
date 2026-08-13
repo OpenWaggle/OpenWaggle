@@ -8,14 +8,14 @@ OpenWaggle replaces its handmade diff renderer with `@pierre/diffs`, and its han
 
 The diff panel is a **feedback channel to the agent**: a user reviews the agent's uncommitted work, anchors comments to lines, and submits them. Git actions (stage, revert, publish) are secondary convenience. QA of the running app surfaced that the panel "looks bad" and is awkward to use — the review controls were unreachable under horizontal scroll, there was no syntax highlighting, no word-level diff, no split view, and no line-wrap.
 
-The handmade renderer is ~480 lines (`DiffFileSection`, `DiffLine`, `diff-display-items`, `CollapsedLines`, plus the unified-diff parser) and a 162-line `FileTree`. Bringing it to production quality means re-implementing word-level diffing, Shiki integration, virtualization, split view, and synchronized scrolling — all of which already exist, tested, in a library the reference implementation (T3Code) already uses.
+The handmade renderer is ~480 lines (`DiffFileSection`, `DiffLine`, `diff-display-items`, `CollapsedLines`, plus the unified-diff parser) and a 162-line `FileTree`. Bringing it to production quality means re-implementing word-level diffing, Shiki integration, virtualization, split view, and synchronized scrolling — all of which already exist, tested, in a library already used in production by a comparable tool.
 
 Investigation of `@pierre/diffs@1.3.2` (Apache-2.0, clears our 7-day `minimumReleaseAge` gate):
 
 - `PatchDiff` accepts a unified patch string — exactly what our git adapter already emits, so no data-pipeline change.
 - Covers every open item in issue #30 natively: word-level diffs, `diffStyle: 'unified' | 'split'`, `ScrollSyncManager`, Shiki (`shiki@4.2.0`, already a dependency), `overflow: 'scroll' | 'wrap'`, and `lineAnnotations`/`renderAnnotation`/`selectedLines`/`renderGutterUtility` purpose-built for review-comment UIs.
 - Exposes 23 `--diffs-*-override` CSS variables for the diff chrome, so our tokens drive appearance (see ADR 0013 amendment).
-- The line-selection force-disable that forced an 85-line patch in T3Code is gone in 1.3.2; we need no patch.
+- The line-selection force-disable that previously obliged consumers to patch the library is gone in 1.3.2; we need no patch.
 
 For the file navigator, `@pierre/trees` was rejected: it renders internally with `preact@11.0.0-beta.0`, so adopting it ships a second VDOM runtime — a beta major — to replace a component whose only gap versus #30 is a status glyph and a change-count badge.
 
@@ -29,7 +29,7 @@ For the file navigator, `@pierre/trees` was rejected: it renders internally with
 
 **Appearance/Diff view settings.** A new Settings → Appearance section holds the persisted defaults (Syntax theme, Diff view, line wrap), write-through: the in-panel header toggles mutate the persisted setting directly, with no ephemeral per-panel copy.
 
-**Per-hunk Stage/Discard is out of scope**, deferred to a follow-up issue. T3Code does not have it, the library only provides a pure in-memory helper (`diffAcceptRejectHunk`), and Discard is a destructive working-tree mutation we would have to write and guard ourselves — the wrong thing to add in a parity PR that is already large.
+**Per-hunk Stage/Discard is out of scope**, deferred to a follow-up issue. It is not established behaviour for this surface, the library only provides a pure in-memory helper (`diffAcceptRejectHunk`) that nothing calls, and Discard is a destructive working-tree mutation we would have to write and guard ourselves — the wrong thing to add in a parity PR that is already large.
 
 ## Consequences
 
@@ -43,7 +43,7 @@ The Syntax theme sits outside the Design token contract by design (ADR 0013 amen
 
 ## Alternatives Considered
 
-**Enhance the handmade renderer in place.** Rejected. Re-implementing word-level diffing, Shiki, virtualization, split view, and synchronized scrolling is a large amount of code to write and maintain, to arrive at what the library already does and T3Code already ships.
+**Enhance the handmade renderer in place.** Rejected. Re-implementing word-level diffing, Shiki, virtualization, split view, and synchronized scrolling is a large amount of code to write and maintain, to arrive at what the library already does and already ships in comparable tools.
 
 **`@pierre/trees` for the file navigator.** Rejected. A beta-major second VDOM (`preact@11.0.0-beta.0`) to replace a 162-line component whose only gap is two affordances worth ~40 lines. Its extra capabilities (drag/drop, rename, search, virtualization) are for a file browser, not a changed-file navigator over one diff.
 
@@ -51,4 +51,4 @@ The Syntax theme sits outside the Design token contract by design (ADR 0013 amen
 
 **Adopt the `pierre-dark` theme wholesale for chrome too.** Rejected — see ADR 0013 amendment. Its blue selection/focus against our amber accent would make the review surface an off-brand island, and would contradict ADR 0013 two days after it was accepted.
 
-**Per-hunk Stage/Discard in this PR.** Rejected as scope. Highest risk (destructive, our own git logic), lowest visual payoff, and beyond T3Code parity. Deferred to its own issue.
+**Per-hunk Stage/Discard in this PR.** Rejected as scope. Highest risk (destructive, our own git logic), lowest visual payoff, and beyond established behaviour. Deferred to its own issue.

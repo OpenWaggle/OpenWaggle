@@ -1,7 +1,7 @@
 /**
  * Pure birth-path policy for Session worktrees (ADR 0010).
  *
- * Mirrors T3Code's ChatView guard ("Select a base branch before sending in New
+ * Main-process copy of the composer's send guard ("Select a base branch before sending in New
  * worktree mode"). Kept pure so it can be unit-tested and reused by the send
  * path without touching git or persistence.
  */

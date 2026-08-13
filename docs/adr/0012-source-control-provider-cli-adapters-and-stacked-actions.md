@@ -2,13 +2,13 @@
 
 Status: accepted
 
-OpenWaggle will reach a remote git lifecycle (push, pull, open/resolve change requests) with full parity to T3Code, supporting GitHub and GitLab through their official CLIs behind a port, and orchestrating multi-step git intents in a main-process workflow service. This records the CLI-vs-API and multi-provider trade-offs.
+OpenWaggle will support a full remote git lifecycle (push, pull, open/resolve change requests) for GitHub and GitLab through their official CLIs behind a port, and orchestrating multi-step git intents in a main-process workflow service. This records the CLI-vs-API and multi-provider trade-offs.
 
 ## Context
 
 OpenWaggle currently has no push, no pull-request/merge-request support, and no remote source-control awareness. Its git surface stops at working-tree status, commit, branch CRUD, stage-all, and revert-all.
 
-T3Code shells out to the `gh` and `glab` CLIs (not REST/GraphQL), derives auth from parsing `gh auth status`, and exposes a **Change request** (provider-neutral PR/MR) concept with provider-aware terminology. It orchestrates composite intents server-side in `GitWorkflowService` via a **Stacked git action** enum (`commit | push | create_pr | commit_push | commit_push_pr | pull`), emitting progress-stage events.
+The established approach shells out to the `gh` and `glab` CLIs rather than REST/GraphQL, derives auth by parsing `gh auth status`, and exposes a **Change request** (provider-neutral PR/MR) concept with provider-aware terminology. Composite intents are orchestrated in one service via a **Stacked git action** enum (`commit | push | create_pr | commit_push | commit_push_pr | pull`), emitting progress-stage events.
 
 ## Decision
 
@@ -17,13 +17,13 @@ T3Code shells out to the `gh` and `glab` CLIs (not REST/GraphQL), derives auth f
 - Define a source-control provider port in `src/main/ports`; implement `gh` and `glab` adapters in `src/main/adapters` that shell out through the existing `execFile`/`runGit`-style runner.
 - Capabilities: auth status (parse `auth status`), open change request, resolve/list change requests, **check a change request out into the working tree / Session worktree** (`gh pr checkout` / `glab mr checkout`, WS1b), and provider detection from the remote URL.
 - All adapter results are discriminated-union results with explicit error codes, matching the existing `GitWorkingTreeMutationResult` style. Auth or CLI failures are surfaced as typed results, never thrown to crash the process.
-- Provider-aware terminology (PR vs MR) is a small presentation map (ported from T3Code `sourceControlPresentation`); the domain term is **Change request**.
+- Provider-aware terminology (PR vs MR) is a small presentation map; the domain term is **Change request**.
 
-Rationale for CLI over REST/GraphQL: the CLIs own authentication (no OpenWaggle-managed token storage), it matches T3Code, and it matches OpenWaggle's existing `execFile`-based git code. Supporting both GitHub and GitLab from day one is a deliberate parity choice; the provider port keeps this from leaking into callers.
+Rationale for CLI over REST/GraphQL: the CLIs own authentication (no OpenWaggle-managed token storage), and it matches OpenWaggle's existing `execFile`-based git code. Supporting both GitHub and GitLab from day one is deliberate; the provider port keeps this from leaking into callers.
 
 **Stacked-action orchestration in a main-process workflow service.**
 
-- A single main-process workflow service (application/service layer) exposes one IPC per **Stacked git action** and emits progress-stage events across phases `branch → commit → push → pr` (stage copy ported from T3Code `GitActionsControl.logic.ts::buildGitActionProgressStages`).
+- A single main-process workflow service (application/service layer) exposes one IPC per **Stacked git action** and emits progress-stage events across phases `branch → commit → push → pr`.
 - It composes the existing commit/branch services plus new push and provider adapters, and is the single place partial-failure and rollback are reasoned about.
 - It includes auto-feature-branch creation and naming, default-branch confirmation gating, and pull.
 - The renderer holds only pure decision logic (`resolveQuickAction`, `buildMenuItems`, confirmation-copy helpers) and presentation, driven by the combined Local + Remote VCS status.

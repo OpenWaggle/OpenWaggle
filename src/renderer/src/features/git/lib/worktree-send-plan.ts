@@ -3,10 +3,10 @@ import type { SessionEnvironmentMode } from '@shared/types/git'
 /**
  * Pure send-gating logic for the composer context strip (WS1b, ADR 0010).
  *
- * Mirrors T3Code's ChatView worktree gate: on the first message of a
- * worktree-mode session that has no Session worktree yet, a Worktree base ref
- * must be resolvable or the send is blocked (never silently falls back to
- * running in the opened checkout).
+ * On the first message of a worktree-mode session that has no Session worktree
+ * yet, a Worktree base ref must be resolvable or the send is blocked. It never
+ * silently falls back to running in the opened checkout: that would put the agent
+ * in the user's real working tree while the UI claims isolation.
  */
 export interface WorktreeSendPlanInput {
   readonly isFirstMessage: boolean

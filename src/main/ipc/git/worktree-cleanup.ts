@@ -1,9 +1,9 @@
 /**
  * Pure Session-worktree orphan/cleanup logic (ADR 0010).
  *
- * Ported and generalized from T3Code `apps/web/src/worktreeCleanup.ts`. A Session
- * worktree is only safe to remove when no other session still points at the same
- * worktree path, so we never delete a checkout another line of work is using.
+ * A Session worktree is only safe to remove when no other session still points at
+ * the same worktree path, so we never delete a checkout another line of work is
+ * using. Generalized to account for conversation forks, which share one worktree.
  */
 
 export interface SessionWorktreeRef {

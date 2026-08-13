@@ -53,7 +53,7 @@ export function resolveAutoFeatureBranchName(
   return `${base}-${suffix}`
 }
 
-/** Ordered progress-stage labels for a stacked action (ported from T3Code). */
+/** Ordered progress-stage labels for a stacked action, shown as it advances. */
 export function buildGitActionProgressStages(input: {
   action: GitStackedAction
   hasCustomCommitMessage: boolean

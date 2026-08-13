@@ -31,6 +31,10 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 - `docs/adr/0015-remove-git-branch-administration-from-composer.md`
 - `docs/adr/0016-session-keyed-git-state.md`
 
+## Testing
+
+- `docs/git-behaviour-test-coverage.md` — which git, diff and worktree behaviours are covered, and by which test.
+
 ## Specs
 
 Specs capture planned or in-progress product/runtime work. They may be more detailed than the stable architecture references and can become stale as implementation completes.

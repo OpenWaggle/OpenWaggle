@@ -20,7 +20,7 @@ This surface was **pre-existing**, not introduced by the diff-panel work. It fir
 
 ### What the reference implementation does
 
-The parity target for this work is T3Code. Its equivalent control, `BranchToolbarBranchSelector.tsx` (845 lines), has **zero** branch management. Grepping it for `rename|deleteBranch|delete current|setUpstream|upstream` returns **0 matches**. Its entire action set is:
+The established behaviour for this control is a ref chooser with **no** branch management. In the mature implementation studied for this work, the equivalent selector runs to 845 lines and grepping it for `rename|deleteBranch|delete current|setUpstream|upstream` returns **0 matches**. Its entire action set is:
 
 - `"Search refs..."`
 - switch ref
@@ -59,7 +59,7 @@ Net effect: 26 files, +21/−704.
 
 - `listGitBranches` — populates the ref chooser and the diff panel's base-ref choices.
 - `checkoutGitBranch` — selecting a ref in `local` mode *is* a checkout.
-- `createGitBranch` — creating a branch in order to run on it is a run-context decision. T3Code keeps create-and-switch for the same reason.
+- `createGitBranch` — creating a branch in order to run on it is a run-context decision, which is why create-and-switch is the one creation action that belongs in a ref chooser.
 
 **Consolidate the two controls into one ref chooser** (`a743b0b1`). The row is now `Run in [mode]` on the left and a single run-target picker on the right. Selecting a ref checks it out in `local` mode and sets the worktree base ref in `worktree` mode — the same control, resolving to whatever the mode makes it mean. The `Options` popover is gone; search, ref list, create-and-switch, copy name, start-from-origin, and checkout-change-request all live in the one popover.
 

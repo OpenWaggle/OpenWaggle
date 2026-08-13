@@ -8,13 +8,13 @@ Supersedes the implicit "no git worktrees" stance currently encoded in the rende
 - `src/renderer/src/features/command-palette/lib/__tests__/command-palette-lib.unit.test.ts` — commands do not contain `new-worktree`
 - `src/renderer/src/routes/__tests__/-route-surfaces.component.test.tsx` — a disabled `'worktrees'` route surface
 
-To reach T3Code-parity for per-session isolation, branch diffs, and per-turn checkpointing, OpenWaggle adopts a **Session environment mode** and **Session worktrees**. This ADR records that reversal and its lifecycle rules.
+To support per-session isolation, branch diffs, and per-turn checkpointing, OpenWaggle adopts a **Session environment mode** and **Session worktrees**. This ADR records that reversal and its lifecycle rules.
 
 ## Context
 
 A **SessionBranch** in OpenWaggle is a conversation-tree fork of the Pi message tree; it is not a git branch. Git actions previously operated on the one working tree at the opened project path, so two divergent lines of agent work would collide in a single working tree and their file changes could not be attributed cleanly.
 
-T3Code isolates each thread with an optional git worktree chosen per thread via an environment mode. That isolation is what makes per-thread change-request state and per-turn diffs well-defined.
+The established approach isolates each session with an optional git worktree, chosen per session via an environment mode. That isolation is what makes per-session change-request state and per-turn diffs well-defined: without it, two sessions editing the same checkout produce diffs that cannot be attributed to either.
 
 ## Decision
 
@@ -26,7 +26,7 @@ Introduce **Session environment mode** on the session model, with a configurable
 Cardinality and relationships:
 
 - A session in `worktree` mode owns exactly one **Session worktree**.
-- All of that session's **SessionBranches** (conversation forks) share the same Session worktree. OpenWaggle does not create a worktree per conversation fork; T3Code has no per-fork worktree concept and inventing one would contradict parity.
+- All of that session's **SessionBranches** (conversation forks) share the same Session worktree. OpenWaggle does not create a worktree per conversation fork: a fork is an alternative conversation over the same working state, so giving each one its own checkout would multiply worktrees without isolating anything meaningful.
 - A `local`-mode session owns no worktree and edits the opened checkout.
 
 Storage:
@@ -35,8 +35,8 @@ Storage:
 
 Lifecycle:
 
-- **Birth** — created on send in `worktree` mode, only after a base ref is chosen. If the mode is `worktree` and no base ref is selected, block the send with a typed error (mirrors T3Code's "Select a base branch before sending in New worktree mode").
-- **Death** — removed on session archive/delete via `git worktree remove`. Rely on git's native refusal to remove a dirty worktree; pass `--force` only on explicit user request. A worktree is only removable when no other session shares its path (orphan guard ported from T3Code `worktreeCleanup.ts`).
+- **Birth** — created on send in `worktree` mode, only after a base ref is chosen. If the mode is `worktree` and no base ref is selected, block the send with a typed error ("Select a base branch before sending in New worktree mode") rather than silently running in the opened checkout.
+- **Death** — removed on session archive/delete via `git worktree remove`. Rely on git's native refusal to remove a dirty worktree; pass `--force` only on explicit user request. A worktree is only removable when no other session shares its path, so cleanup never deletes a checkout another line of work is using.
 
 Re-enable the worktree renderer surface (settings entry, command, route) that the tests above currently assert absent, and update those tests to reflect the new first-class behavior.
 

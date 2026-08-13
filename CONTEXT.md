@@ -442,7 +442,7 @@ _Avoid_: chunk, block, section
 
 **Diff view**:
 The layout the diff is drawn in — unified (one column) or split (side-by-side). A user-selectable Diff view setting.
-_Avoid_: diff mode (ambiguous with Session environment mode), stacked (that is T3Code's word for unified)
+_Avoid_: diff mode (ambiguous with Session environment mode), stacked (reads as a third mode rather than a synonym for unified)
 
 **Review comment**:
 A piece of feedback a user anchors to a line or line range in the Changed-file navigator's diff, addressed to the agent rather than to a remote change request. Carries the anchored diff snippet so the agent sees the code being discussed.

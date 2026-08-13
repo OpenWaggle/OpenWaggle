@@ -7,7 +7,8 @@ export type ThinkingLevel = (typeof THINKING_LEVELS)[number]
 
 /**
  * Diff view layout. "unified" is one column; "split" is side-by-side.
- * Named for the layout rather than T3Code's "stacked", which reads as a third mode.
+ * Named for the layout: "stacked" was rejected because it reads as a third mode
+ * alongside unified and split rather than as a synonym for one of them.
  */
 export const DIFF_VIEWS = ['unified', 'split'] as const
 export type DiffView = (typeof DIFF_VIEWS)[number]

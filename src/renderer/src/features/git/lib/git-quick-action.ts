@@ -18,8 +18,11 @@ function terminologyFor(status: VcsStatus | null): ChangeRequestTerminology {
 
 /**
  * Compute the single next-best git action from combined VCS status.
- * Ported from T3Code GitActionsControl.logic.ts::resolveQuickAction, adapted to
- * OpenWaggle's VcsStatus (isDefaultRef/hasPrimaryRemote read from status).
+ *
+ * One button, one obvious next step, rather than exposing every git verb at once:
+ * publish when there is no remote, open the change request when one exists, pull
+ * when behind, otherwise commit. `isDefaultRef` and `hasPrimaryRemote` are read
+ * from status so the decision needs no extra git calls.
  */
 export function resolveQuickAction(status: VcsStatus | null, isBusy: boolean): GitQuickAction {
   if (isBusy) {

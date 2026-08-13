@@ -12,9 +12,8 @@ interface RunTargetPickerProps {
 }
 
 /**
- * The single ref chooser for the composer row, matching T3Code's
- * BranchToolbarBranchSelector: one control, one question — which ref does the
- * next send run on?
+ * The single ref chooser for the composer row: one control, one question — which
+ * ref does the next send run on?
  *
  * Selecting a ref means different things per environment mode, and that is the
  * point of merging the two old controls: running in place checks the ref out,

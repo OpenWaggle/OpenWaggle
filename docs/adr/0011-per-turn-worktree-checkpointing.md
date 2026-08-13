@@ -6,7 +6,7 @@ OpenWaggle will add a per-turn checkpointing subsystem so the diff panel can sho
 
 ## Context
 
-T3Code backs its per-turn diffs with a checkpointing subsystem: per-turn worktree snapshots stored as diff blobs in SQLite (migration `003_CheckpointDiffBlobs`, `checkpointing/Diffs.ts`, `CheckpointDiffQuery.ts`), queried by turn range.
+Per-turn diffs require a checkpointing subsystem rather than live git state: per-turn worktree snapshots persisted as diff blobs in SQLite and queried by turn range. That is the established approach for this feature, because a turn's changes cannot be recovered from the working tree once a later turn edits the same files.
 
 OpenWaggle has no equivalent:
 
@@ -20,9 +20,9 @@ Deriving Turn diffs from git history alone was considered and rejected: it only 
 Add a main-process **Turn checkpoint** subsystem, distinct from Pi conversation snapshots and from `FileConflictTracker`:
 
 - Capture a snapshot of the **Session worktree** file state per Pi agent turn (ADR 0010 provides the worktree; in `local` mode the opened checkout is the working directory).
-- Persist each snapshot as a diff blob in SQLite, modeled on T3Code migration `003_CheckpointDiffBlobs`.
+- Persist each snapshot as a diff blob in SQLite, so a turn's changes survive later edits to the same files.
 - Provide a query interface that computes a **Turn diff** over a turn range, modeled on `CheckpointDiffQuery`.
-- Reuse a unified-diff summary parser (ported from T3Code `parseTurnDiffFilesFromUnifiedDiff`) to derive per-file additions/deletions.
+- Derive per-file additions/deletions with a self-contained unified-diff summary parser, so no git invocation or diff library is needed to render turn summaries.
 
 Turn checkpoints are keyed by the agent **runId** (`turnId === runId`). To let the conversation reveal a specific turn's diff, each turn checkpoint is **anchored to the run's final persisted assistant node id** (recorded at capture time from the post-run projected snapshot). The transcript shows a "view diff" affordance on the message whose id matches a checkpoint's anchor, mapping it to its Turn checkpoint exactly. This is used instead of stamping `runId` onto messages because OpenWaggle rebuilds messages via a Pi-entry→node projection (transport message ids differ from persisted node ids), and instead of fragile chronological ordering (waggle/branch forks make ordering approximate).
 
