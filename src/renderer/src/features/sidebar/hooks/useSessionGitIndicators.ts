@@ -2,6 +2,7 @@ import type { SessionSummary } from '@shared/types/session'
 import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import { useEffect } from 'react'
 import { selectWorkingTreeStatus, useGitStore } from '@/features/git'
+import { api } from '@/shared/lib/ipc'
 import { buildSessionGitIndicator } from '../lib/session-git-indicator'
 
 /**
@@ -23,6 +24,20 @@ export function useSessionGitIndicators(sessions: readonly SessionSummary[]): vo
     for (const workingPath of workingPathKey.split('\u0000')) {
       if (workingPath.length > 0) void refreshStatus(workingPath)
     }
+  }, [workingPathKey, refreshStatus])
+
+  /*
+   * Keep BACKGROUND sessions current too. The active session is refreshed on its own
+   * turn boundary, but a session the user is not looking at would otherwise keep its
+   * indicator from first load until the list happened to rebuild — which defeats the
+   * point of showing per-session state. Any tracked path that the main process reports
+   * as changed is re-read here.
+   */
+  useEffect(() => {
+    const tracked = new Set(workingPathKey.split('\u0000').filter((path) => path.length > 0))
+    return api.onGitWorkingTreeChanged(({ workingPath }) => {
+      if (tracked.has(workingPath)) void refreshStatus(workingPath)
+    })
   }, [workingPathKey, refreshStatus])
 }
 

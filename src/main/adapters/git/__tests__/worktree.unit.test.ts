@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { isGitRepositoryMock, runGitMock } = vi.hoisted(() => ({
   isGitRepositoryMock: vi.fn(async () => true),
-  runGitMock: vi.fn(async () => ({ code: 0, stdout: '', stderr: '' })),
+  runGitMock: vi.fn(async (_projectPath: string, _args: readonly string[]) => ({
+    code: 0,
+    stdout: '',
+    stderr: '',
+  })),
 }))
 
 vi.mock('../run-git', () => ({
@@ -27,6 +31,49 @@ describe('worktree service', () => {
   })
 
   describe('createGitWorktree', () => {
+    /**
+     * A session whose worktree directory was deleted out-of-band still owns its
+     * branch, because `worktree prune` clears the registration but not the ref.
+     * Creating with -b then fails ("a branch named ... already exists") and the
+     * session can never run again. Attach to the surviving branch instead, which
+     * also preserves any commits already made on it.
+     */
+    it('attaches to a surviving branch instead of failing to recreate it', async () => {
+      runGitMock.mockImplementation(async (_path: string, args: readonly string[]) => {
+        if (args[0] === 'rev-parse') return gitResult(0)
+        if (args[0] === 'worktree' && args[1] === 'prune') return gitResult(0)
+        if (args[0] === 'show-ref') return gitResult(0) // branch exists
+        return gitResult(0)
+      })
+
+      const result = await createGitWorktree('/repo', {
+        path: '/wt/x',
+        branch: 'ow/session-abc',
+        baseRef: 'main',
+      })
+
+      expect(result.ok).toBe(true)
+      const addCall = runGitMock.mock.calls
+        .map((call) => call[1])
+        .find((args: readonly string[]) => args[0] === 'worktree' && args[1] === 'add')
+      expect(addCall).toEqual(['worktree', 'add', '/wt/x', 'ow/session-abc'])
+      expect(addCall).not.toContain('-b')
+    })
+
+    it('creates a new branch when none survives', async () => {
+      runGitMock.mockImplementation(async (_path: string, args: readonly string[]) => {
+        if (args[0] === 'show-ref') return gitResult(1) // branch absent
+        return gitResult(0)
+      })
+
+      await createGitWorktree('/repo', { path: '/wt/x', branch: 'ow/new', baseRef: 'main' })
+
+      const addCall = runGitMock.mock.calls
+        .map((call) => call[1])
+        .find((args: readonly string[]) => args[0] === 'worktree' && args[1] === 'add')
+      expect(addCall).toEqual(['worktree', 'add', '-b', 'ow/new', '/wt/x', 'main'])
+    })
+
     it('rejects non-git repositories before running commands', async () => {
       isGitRepositoryMock.mockResolvedValue(false)
       await expect(
@@ -43,6 +90,7 @@ describe('worktree service', () => {
       runGitMock
         .mockResolvedValueOnce(gitResult(0)) // rev-parse verify
         .mockResolvedValueOnce(gitResult(0)) // worktree prune
+        .mockResolvedValueOnce(gitResult(1)) // show-ref: branch absent, so create it
         .mockResolvedValueOnce(gitResult(0)) // worktree add
       await expect(
         createGitWorktree('/repo', { path: ' /wt/x ', branch: ' feat ', baseRef: ' main ' }),
@@ -54,7 +102,8 @@ describe('worktree service', () => {
         'main^{commit}',
       ])
       expect(runGitMock).toHaveBeenNthCalledWith(2, '/repo', ['worktree', 'prune'])
-      expect(runGitMock).toHaveBeenNthCalledWith(3, '/repo', [
+      // 4th call: rev-parse verify, worktree prune, show-ref branch probe, then add.
+      expect(runGitMock).toHaveBeenNthCalledWith(4, '/repo', [
         'worktree',
         'add',
         '-b',
@@ -79,6 +128,7 @@ describe('worktree service', () => {
       runGitMock
         .mockResolvedValueOnce(gitResult(0)) // rev-parse verify
         .mockResolvedValueOnce(gitResult(0)) // worktree prune
+        .mockResolvedValueOnce(gitResult(1)) // show-ref: branch absent
         .mockResolvedValueOnce(gitResult(128, '', "fatal: '/wt/x' already exists")) // add
       await expect(
         createGitWorktree('/repo', { path: '/wt/x', branch: 'feat', baseRef: 'main' }),

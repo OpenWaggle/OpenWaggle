@@ -123,7 +123,9 @@ function loadSessionsWithArchivedBranches(sql: SqlClient.SqlClient, limit?: numb
       created_at,
       updated_at,
       last_active_node_id,
-      last_active_branch_id
+      last_active_branch_id,
+      environment_mode,
+      worktree_path
     FROM sessions
     WHERE archived = 0
       AND EXISTS (

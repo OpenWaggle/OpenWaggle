@@ -117,7 +117,29 @@ export async function createGitWorktree(
   // so re-creating at the same path doesn't fail with "already registered".
   await runGit(projectPath, ['worktree', 'prune'])
 
-  const result = await runGit(projectPath, ['worktree', 'add', '-b', branch, worktreePath, baseRef])
+  /*
+   * Pruning clears the stale registration but NOT the branch. A session whose
+   * worktree directory was deleted out-of-band (rm -rf, a wiped disk, a checkout
+   * from another machine) still owns its `ow/session-*` branch, and `worktree add -b`
+   * fails with "a branch named ... already exists" — which left that session
+   * permanently unable to run.
+   *
+   * Attach to the surviving branch rather than deleting and recreating it: it may
+   * carry commits the agent already made, and discarding those to obtain a clean
+   * slate would be silent data loss.
+   */
+  const branchExists = await runGit(projectPath, [
+    'show-ref',
+    '--verify',
+    '--quiet',
+    `refs/heads/${branch}`,
+  ])
+  const addArgs =
+    branchExists.code === 0
+      ? ['worktree', 'add', worktreePath, branch]
+      : ['worktree', 'add', '-b', branch, worktreePath, baseRef]
+
+  const result = await runGit(projectPath, addArgs)
   if (result.code !== 0) {
     return classifyCreateError(result.stderr)
   }

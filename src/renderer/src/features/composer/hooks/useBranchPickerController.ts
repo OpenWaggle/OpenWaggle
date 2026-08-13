@@ -28,12 +28,14 @@ export function useBranchPickerController({ onToast }: UseBranchPickerController
   const branches = filterBranches(git.branches?.branches ?? [], branchQuery)
 
   async function checkoutBranch(name: string) {
+    // Checkout runs in the tree this session uses, not the opened checkout.
+    const workingPath = git.workingPath
     await match
       .promise(
         runBranchMutation(
           () =>
-            projectPath
-              ? git.checkoutBranch(projectPath, { name })
+            workingPath
+              ? git.checkoutBranch(workingPath, { name })
               : Promise.resolve(NO_PROJECT_RESULT),
           onToast,
         ),

@@ -69,6 +69,13 @@ async function ensureSessionWorktreeProjectPathUnlocked(session: SessionDetail):
     )
   }
   await setSessionWorktree(SessionId(sessionId), 'worktree', worktreePath)
+  /*
+   * Deliberately does NOT invalidate the git status cache here. This module is a Pi
+   * adapter and must not import from `ipc/`, where the cache lives. The gap is closed
+   * without it: birth only happens part-way through a send, and the renderer refreshes
+   * on the run's terminal transport event, so the new worktree's status is fetched at
+   * turn end. A fresh worktree also has no stale cache entry to begin with.
+   */
   return worktreePath
 }
 

@@ -123,7 +123,6 @@ function createActionDialogMutation(input: ActionDialogMutationInput) {
 
 function createBranchMutation({
   actionDialogInput,
-  projectPath,
   git,
   setActionDialogError,
   onToast,
@@ -133,10 +132,11 @@ function createBranchMutation({
     setActionDialogError('Branch name is required.')
     return null
   }
+  const workingPath = git.workingPath
   return runBranchMutation(
     () =>
-      projectPath
-        ? git.createBranch(projectPath, { name, checkout: true })
+      workingPath
+        ? git.createBranch(workingPath, { name, checkout: true })
         : Promise.resolve(NO_PROJECT_RESULT),
     onToast,
   )

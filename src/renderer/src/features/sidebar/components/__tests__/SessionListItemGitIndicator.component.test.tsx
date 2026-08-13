@@ -4,10 +4,15 @@ import type { SessionSummary } from '@shared/types/session'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useGitStore } from '@/features/git'
+import type { SidebarSessionActions } from '../../model'
 import { SessionListItem } from '../SessionListItem'
 
 vi.mock('@/shared/lib/ipc', () => ({
-  api: { getGitStatus: vi.fn(), listGitBranches: vi.fn() },
+  api: {
+    getGitStatus: vi.fn(),
+    listGitBranches: vi.fn(),
+    onGitWorkingTreeChanged: () => () => {},
+  },
 }))
 
 const PROJECT = '/repo'
@@ -39,15 +44,15 @@ function session(id: string, extra: Partial<SessionSummary> = {}): SessionSummar
   }
 }
 
-function actions() {
+// The real SidebarSessionActions shape. Renderer tests run with noCheck, so a
+// made-up shape would compile and hand the component undefined callbacks.
+function actions(): SidebarSessionActions {
   return {
-    onSelect: vi.fn(),
-    onArchive: vi.fn(),
-    onUnarchive: vi.fn(),
-    onDelete: vi.fn(),
-    onRename: vi.fn(),
-    onDuplicate: vi.fn(),
-    onOpenDiff: vi.fn(),
+    select: vi.fn(),
+    delete: vi.fn(),
+    archive: vi.fn(),
+    markUnread: vi.fn(),
+    clone: vi.fn(),
   }
 }
 

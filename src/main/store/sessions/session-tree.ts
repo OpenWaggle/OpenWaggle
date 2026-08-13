@@ -77,7 +77,9 @@ function loadSessionRows(sql: SqlClient.SqlClient, sessionId: SessionId) {
       created_at,
       updated_at,
       last_active_node_id,
-      last_active_branch_id
+      last_active_branch_id,
+      environment_mode,
+      worktree_path
     FROM sessions
     WHERE id = ${sessionId}
     LIMIT 1
