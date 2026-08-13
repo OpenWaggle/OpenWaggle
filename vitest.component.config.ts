@@ -1,5 +1,6 @@
 import { resolve } from 'node:path'
-import react from '@vitejs/plugin-react'
+import babel from '@rolldown/plugin-babel'
+import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import type { Plugin } from 'vite'
 import { defineConfig } from 'vitest/config'
 
@@ -26,7 +27,14 @@ function svgStubPlugin(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [svgStubPlugin(), react()],
+  /*
+   * The React Compiler runs in the app build, so component tests without it are testing
+   * different output than ships. That gap hid a real defect: a component reading rows
+   * from a library-owned tree instance that mutates in place had its mapped result
+   * memoised by the compiler and rendered zero rows in the app, while the un-compiled
+   * test rendered them correctly and passed.
+   */
+  plugins: [svgStubPlugin(), react(), babel({ presets: [reactCompilerPreset()] })],
   resolve: {
     alias: {
       '@': resolve('src/renderer/src'),

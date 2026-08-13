@@ -101,3 +101,16 @@ against a baseline. A deliberately broken mock in a file that already had errors
 total identical and passed. The check is binary per file instead: files not on
 `scripts/renderer-test-type-exemptions.json` must have zero errors, and an exempt file
 that becomes clean fails as a stale exemption so the list can only shrink.
+
+### The React Compiler now runs in component tests
+
+`vitest.component.config.ts` applies `reactCompilerPreset()` via `@rolldown/plugin-babel`,
+matching `electron.vite.config.ts`. Before this, component tests exercised un-compiled
+output while the app shipped compiled output, so the suite was structurally blind to
+compiler-interaction defects.
+
+Proof it now bites: deleting the scoped `'use no memo'` from `FileTree.tsx` — the directive
+that fixed a navigator rendering zero rows in the app while tests passed — fails 5 tests.
+Before the change, removing it failed none.
+
+The unit config runs in `environment: 'node'` and renders nothing, so it needs no compiler.
