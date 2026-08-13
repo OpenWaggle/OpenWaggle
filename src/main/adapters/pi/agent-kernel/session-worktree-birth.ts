@@ -3,11 +3,14 @@ import { homedir } from 'node:os'
 import path from 'node:path'
 import { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
+import { createLogger } from '../../../logger'
 // ponytail: direct store import (persistence); route through a session port if the Pi adapter grows more store touchpoints.
 import { setSessionWorktree } from '../../../store/session-details'
 import { runGit } from '../../git/run-git'
 import { createGitWorktree } from '../../git/worktree'
 import { resolveSessionProjectPath } from './session-manager'
+
+const logger = createLogger('session-worktree-birth')
 
 const SHORT_ID_LENGTH = 8
 
@@ -36,6 +39,17 @@ async function ensureSessionWorktreeProjectPathUnlocked(session: SessionDetail):
   if (session.environmentMode !== 'worktree') return primaryPath
   const existing = session.worktreePath?.trim()
   if (existing && existsSync(existing)) return existing
+
+  if (existing) {
+    // The recorded worktree is gone (removed by hand, pruned, or on a different
+    // machine). A fresh one is created below rather than falling back to the opened
+    // checkout, which would drop the isolation worktree mode exists to provide. Say
+    // so, because the new worktree does not contain whatever the old one held.
+    logger.warn('Session worktree missing; creating a replacement', {
+      sessionId: String(session.id),
+      missingWorktreePath: existing,
+    })
+  }
 
   const baseRef = await resolveWorktreeBaseRef(session, primaryPath)
   if (!baseRef) {

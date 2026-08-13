@@ -100,6 +100,24 @@ describe('ensureSessionWorktreeProjectPath', () => {
     )
   })
 
+  /**
+   * Ground truth for a vanished worktree: the recorded path no longer exists on disk.
+   * The agent must never fall back to the user's opened checkout, which is the
+   * isolation worktree mode exists to provide. A fresh worktree is created instead.
+   */
+  it('recreates a vanished worktree instead of falling back to the opened checkout', async () => {
+    existsSyncMock.mockReturnValue(false)
+    createGitWorktreeMock.mockResolvedValue({ ok: true, message: 'ok', path: '/wt/new' })
+
+    const resolved = await ensureSessionWorktreeProjectPath(
+      session({ environmentMode: 'worktree', worktreePath: '/wt/gone', worktreeBaseRef: 'main' }),
+    )
+
+    expect(resolved).not.toBe('/repo')
+    expect(createGitWorktreeMock).toHaveBeenCalled()
+    expect(setSessionWorktreeMock).toHaveBeenCalled()
+  })
+
   it('throws (no silent fallback) when worktree creation fails in worktree mode', async () => {
     createGitWorktreeMock.mockResolvedValue({ ok: false, code: 'unknown', message: 'boom' })
     await expect(

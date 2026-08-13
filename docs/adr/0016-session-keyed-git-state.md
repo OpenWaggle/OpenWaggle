@@ -42,7 +42,9 @@ So the trigger for "the agent changed something, go look" is built and correctly
 
 **5. No `.git` watcher, no polling.** The existing turn-boundary and window-focus triggers cover the cases that matter once they point at the right path. Polling costs work while idle, is still stale while busy, and guarantees nothing at any instant. A watcher would close the two narrow gaps named in Known limitation — see there for why it is deferred rather than dismissed.
 
-**6. A session whose worktree has vanished must not silently run in the primary checkout.** Today `session-manager.ts` guards with `existsSync(worktreePath)` and falls through to the project path, so a session whose worktree was removed quietly starts running the agent in the user's real checkout — losing exactly the isolation worktree mode exists to provide, without a word. The send is blocked with a message offering to recreate the worktree or switch to local mode.
+**6. A session whose worktree has vanished is given a replacement, never the primary checkout.** This property already held and is now pinned by a test: `ensureSessionWorktreeProjectPath` runs on both run paths and, when the recorded `worktreePath` no longer exists, creates a fresh worktree rather than resolving to the opened checkout. Falling back would silently drop the isolation worktree mode exists to provide.
+
+An earlier draft of this ADR claimed the opposite — that a vanished worktree "quietly starts running the agent in the user's real checkout" — and proposed blocking the send. That was wrong: it read `resolveSessionProjectPath`'s `existsSync` fallback in isolation, without noticing that the run paths call it only to obtain the *repository* to fork from, and then create a worktree. Blocking would have replaced working auto-recovery with a dead end. What was genuinely missing is that the replacement happened **silently**, since the new worktree does not contain whatever the old one held; that is now logged.
 
 ## Known limitation, accepted deliberately
 
@@ -70,7 +72,7 @@ CONTEXT.md defined a **Session worktree** as "a dedicated git worktree *plus its
 
 1. Working-path resolver + map-keyed git store; every renderer git read/write routed through the resolver.
 2. Path-scoped invalidation and broadcast on all OpenWaggle-initiated git mutations.
-3. The missing-worktree send guard (decision 6).
+3. Pin the vanished-worktree property with a test and surface the replacement (decision 6).
 4. Per-session indicators in the session tree (the reason for the map).
 
 ## Alternatives considered
