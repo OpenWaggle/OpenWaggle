@@ -8,6 +8,7 @@ function stripState(overrides: Partial<SessionContextRowState> = {}): SessionCon
     visible: true,
     envMode: 'worktree',
     baseRef: 'main',
+    worktreePath: null,
     startFromOrigin: false,
     branchNames: ['main', 'develop'],
     changeRequests: [],

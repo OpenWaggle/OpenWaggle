@@ -1,0 +1,7 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { GitBranch } from 'lucide-react';
+import { Button } from '@/shared/ui/Button';
+import { StreamingText } from './StreamingText';
+export function BranchSummaryCard({ id, summary, onBranchFromMessage }) {
+    return (_jsx("section", { className: "group/branch-summary rounded-xl border border-border-light bg-bg-secondary/80 p-3 text-text-secondary shadow-sm", children: _jsxs("div", { className: "flex items-start gap-2", children: [_jsx("span", { className: "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent", children: _jsx(GitBranch, { className: "size-3" }) }), _jsxs("div", { className: "min-w-0 flex-1", children: [_jsxs("div", { className: "flex items-center justify-between gap-2", children: [_jsx("span", { className: "block text-[12px] font-semibold text-text-secondary", children: "Branch summary" }), onBranchFromMessage ? (_jsx(Button, { variant: "unstyled", type: "button", title: "Branch from summary", onClick: () => onBranchFromMessage(id), className: "opacity-0 text-text-muted transition-opacity hover:text-text-secondary group-hover/branch-summary:opacity-100 focus:opacity-100", children: _jsx(GitBranch, { className: "size-3.5" }) })) : null] }), _jsx("div", { className: "mt-2 text-[13px] text-text-secondary", children: _jsx(StreamingText, { text: summary }) })] })] }) }));
+}

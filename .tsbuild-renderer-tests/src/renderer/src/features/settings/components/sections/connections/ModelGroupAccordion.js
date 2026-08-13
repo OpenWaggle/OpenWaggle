@@ -1,0 +1,12 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { ChevronDown, ChevronRight } from 'lucide-react';
+import { Button } from '@/shared/ui/Button';
+import { ModelCheckboxRow } from './ModelCheckboxRow';
+import { getProviderMeta } from './meta';
+export function ModelGroupAccordion({ group, state, actions }) {
+    const providerMeta = getProviderMeta(group.provider);
+    const Icon = providerMeta.icon;
+    const iconColor = providerMeta.color;
+    const enabledCount = group.models.filter((model) => state.enabledSet.has(model.id)).length;
+    return (_jsxs("div", { className: !state.isLast ? 'border-b border-border' : '', children: [_jsxs("div", { className: "flex items-center h-[52px] px-4 gap-3", children: [_jsxs(Button, { variant: "unstyled", type: "button", onClick: () => actions.onToggleExpand(group.key), "aria-expanded": state.isExpanded, className: "flex items-center gap-3 flex-1 min-w-0 text-left", children: [_jsx(Icon, { className: "size-4 shrink-0", style: { color: iconColor } }), _jsxs("div", { className: "flex-1 min-w-0", children: [_jsx("span", { className: "text-[13px] font-medium text-text-primary", children: group.label }), group.models.length > 0 && (_jsxs("span", { className: "ml-2 text-[11px] text-text-muted", children: [enabledCount, "/", group.models.length, " selected"] }))] }), state.isExpanded ? (_jsx(ChevronDown, { className: "size-3.5 shrink-0 text-text-tertiary" })) : (_jsx(ChevronRight, { className: "size-3.5 shrink-0 text-text-tertiary" }))] }), _jsxs("div", { className: "flex gap-2 shrink-0", children: [_jsx(Button, { variant: "unstyled", type: "button", onClick: () => actions.onSelectAll(group), "aria-label": `Select all ${group.label} models`, className: "text-[11px] text-accent hover:text-accent/80 transition-colors", children: "All" }), _jsx(Button, { variant: "unstyled", type: "button", onClick: () => actions.onClear(group), "aria-label": `Deselect all ${group.label} models`, className: "text-[11px] text-text-tertiary hover:text-text-secondary transition-colors", children: "None" })] })] }), state.isExpanded && (_jsx("div", { className: "px-4 pb-2 border-t border-border/50", children: group.models.length === 0 ? (_jsx("p", { className: "py-3 text-[12px] text-text-muted", children: "Loading models\u2026" })) : (_jsx("div", { className: "space-y-px pt-1", children: group.models.map((model) => (_jsx(ModelCheckboxRow, { model: model, checked: state.enabledSet.has(model.id), provider: group.provider, onToggle: actions.onToggleModel }, model.id))) })) }))] }));
+}

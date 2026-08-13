@@ -1,0 +1,21 @@
+import type { SessionBranchId } from '@shared/types/brand';
+export declare function useChatPanelEnvironment(): {
+    activeWorkspace: import("../../../../../shared/types/session").SessionWorkspace | null;
+    chat: import("@/features/chat/hooks/useChat").ChatReturn;
+    clearDraftBranchForSession: (sessionId: import("@shared/types/brand").SessionId) => void;
+    commandPaletteOpen: boolean;
+    draftBranch: import("../../sessions/state/session-store").DraftBranchState | null;
+    handleDismissInterruptedRun: (runId: string, branchId: SessionBranchId) => void;
+    handleOpenProject: () => Promise<void>;
+    handleSelectProjectPath: (path: string) => Promise<void>;
+    loadSessions: () => Promise<void>;
+    model: import("@shared/types/brand").SupportedModelId;
+    navigate: import("@tanstack/router-core").UseNavigateResult<string>;
+    openSettings(): void;
+    projectPath: string | null;
+    recentProjects: readonly string[];
+    refreshSessionWorkspace: (sessionId: import("@shared/types/brand").SessionId | null, selection?: import("../../../../../shared/types/session").SessionWorkspaceSelection) => Promise<void>;
+    setDraftBranch: (draftBranch: import("../../sessions/state/session-store").DraftBranchState | null) => void;
+    showToast: (message: string, variant?: import("@/shell/ui-store").ToastData["variant"]) => void;
+    thinkingLevel: "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
+};

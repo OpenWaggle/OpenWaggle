@@ -1,0 +1,211 @@
+import { sessionWorktreeBranch } from '@shared/utils/worktree';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { resolveDefaultWorktreeBaseRef, resolveWorktreeSendPlan, } from '@/features/git/lib/worktree-send-plan';
+import { draftWorktreePlanKey, useWorktreePlanStore, } from '@/features/git/state/worktree-plan-store';
+import { api } from '@/shared/lib/ipc';
+import { createRendererLogger } from '@/shared/lib/logger';
+const logger = createRendererLogger('composer-context-strip');
+const EMPTY_BRANCHES = { currentBranch: null, names: [] };
+function resolveEffectivePlan(override, session, defaultEnvironmentMode, currentBranch) {
+    const defaultBaseRef = session?.worktreeBaseRef ?? resolveDefaultWorktreeBaseRef({ currentBranch });
+    return {
+        envMode: override?.envMode ?? session?.environmentMode ?? defaultEnvironmentMode,
+        baseRef: override?.baseRef !== undefined ? override.baseRef : defaultBaseRef,
+        startFromOrigin: override?.startFromOrigin ?? session?.worktreeStartFromOrigin ?? false,
+    };
+}
+/**
+ * Controller for the composer context strip (WS1b). Effective plan values are
+ * computed from per-session overrides layered over the session defaults (no
+ * props-into-state sync), and persisted to the backend so worktree birth uses
+ * them.
+ */
+export function useSessionContextRow(input) {
+    const { sessionId, projectPath, isFirstMessage, session, defaultEnvironmentMode } = input;
+    const hasWorktree = Boolean(session?.worktreePath?.trim());
+    // Sessions are created lazily on first send, so before that key the plan on a
+    // draft key derived from the project; the send path flushes it onto the new
+    // session (review renderer-B1). Falls back to the session id once it exists.
+    const sessionKey = sessionId
+        ? String(sessionId)
+        : projectPath
+            ? draftWorktreePlanKey(projectPath)
+            : '';
+    const override = useWorktreePlanStore((s) => (sessionKey ? s.bySessionId[sessionKey] : undefined));
+    const setOverride = useWorktreePlanStore((s) => s.setOverride);
+    const [branches, setBranches] = useState(EMPTY_BRANCHES);
+    const [changeRequests, setChangeRequests] = useState([]);
+    // undefined = not yet checked, so a send is never blocked on an unknown.
+    const [worktreeExists, setWorktreeExists] = useState(undefined);
+    /*
+     * A recorded worktree can vanish out-of-band, and the send must stop rather than the
+     * agent silently receiving a fresh empty tree. Re-checked when the recorded path
+     * changes and whenever this session's working tree is reported as changed.
+     */
+    const recordedWorktreePath = session?.worktreePath?.trim() ?? null;
+    useEffect(() => {
+        if (recordedWorktreePath === null) {
+            setWorktreeExists(undefined);
+            return;
+        }
+        let cancelled = false;
+        const check = () => {
+            void api
+                .checkSessionWorktree(recordedWorktreePath)
+                .then((result) => {
+                if (!cancelled)
+                    setWorktreeExists(result.exists);
+            })
+                .catch((error) => logger.warn('Failed to check Session worktree', { error: String(error) }));
+        };
+        check();
+        const unsubscribe = api.onGitWorkingTreeChanged(({ workingPath }) => {
+            if (workingPath === recordedWorktreePath)
+                check();
+        });
+        return () => {
+            cancelled = true;
+            unsubscribe();
+        };
+    }, [recordedWorktreePath]);
+    useEffect(() => {
+        if (!projectPath) {
+            setBranches(EMPTY_BRANCHES);
+            return;
+        }
+        let cancelled = false;
+        void (async () => {
+            try {
+                const result = await api.listGitBranches(projectPath);
+                if (cancelled)
+                    return;
+                setBranches({
+                    currentBranch: result.currentBranch,
+                    names: result.branches.flatMap((b) => (b.isRemote ? [] : [b.name])),
+                });
+            }
+            catch (error) {
+                logger.warn('Failed to list branches for context strip', { error: String(error) });
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [projectPath]);
+    const { envMode, baseRef, startFromOrigin } = resolveEffectivePlan(override, session, defaultEnvironmentMode, branches.currentBranch);
+    const persist = useCallback((next) => {
+        if (!sessionId)
+            return;
+        void api
+            .setSessionWorktreePlan(sessionId, {
+            environmentMode: next.envMode,
+            baseRef: next.baseRef,
+            startFromOrigin: next.startFromOrigin,
+        })
+            .catch((error) => logger.warn('Failed to persist worktree plan', { error: String(error) }));
+    }, [sessionId]);
+    const setEnvMode = useCallback((mode) => {
+        if (!sessionKey)
+            return;
+        setOverride(sessionKey, { envMode: mode });
+        persist({ envMode: mode, baseRef, startFromOrigin });
+    }, [sessionKey, setOverride, persist, baseRef, startFromOrigin]);
+    const setBaseRef = useCallback((nextBaseRef) => {
+        if (!sessionKey)
+            return;
+        const normalized = nextBaseRef.trim() || null;
+        setOverride(sessionKey, { baseRef: normalized });
+        persist({ envMode, baseRef: normalized, startFromOrigin });
+    }, [sessionKey, setOverride, persist, envMode, startFromOrigin]);
+    const setStartFromOrigin = useCallback((next) => {
+        if (!sessionKey)
+            return;
+        setOverride(sessionKey, { startFromOrigin: next });
+        persist({ envMode, baseRef, startFromOrigin: next });
+    }, [sessionKey, setOverride, persist, envMode, baseRef]);
+    const loadChangeRequests = useCallback(async () => {
+        if (!projectPath)
+            return;
+        try {
+            const result = await api.listChangeRequests(projectPath);
+            if (result.ok)
+                setChangeRequests(result.changeRequests);
+            else
+                logger.warn('Failed to list change requests', { code: result.code });
+        }
+        catch (error) {
+            logger.warn('Failed to list change requests', { error: String(error) });
+        }
+    }, [projectPath]);
+    const checkoutChangeRequest = useCallback(async (headRef) => {
+        if (!projectPath)
+            return false;
+        try {
+            const result = await api.checkoutChangeRequest(projectPath, headRef);
+            if (result.ok) {
+                setBaseRef(headRef);
+                return true;
+            }
+            logger.warn('Change request checkout failed', { code: result.code });
+            return false;
+        }
+        catch (error) {
+            logger.warn('Change request checkout failed', { error: String(error) });
+            return false;
+        }
+    }, [projectPath, setBaseRef]);
+    const sendPlan = useMemo(() => resolveWorktreeSendPlan({ isFirstMessage, envMode, hasWorktree, baseRef, worktreeExists }), [isFirstMessage, envMode, hasWorktree, baseRef, worktreeExists]);
+    const recreateWorktree = useCallback(async () => {
+        if (!projectPath || recordedWorktreePath === null)
+            return false;
+        const branch = sessionId === null ? null : sessionWorktreeBranch(String(sessionId));
+        const forkPoint = baseRef?.trim();
+        if (!branch || !forkPoint)
+            return false;
+        try {
+            const result = await api.createGitWorktree(projectPath, {
+                path: recordedWorktreePath,
+                branch,
+                baseRef: forkPoint,
+            });
+            if (result.ok)
+                setWorktreeExists(true);
+            return result.ok;
+        }
+        catch (error) {
+            logger.warn('Failed to recreate Session worktree', { error: String(error) });
+            return false;
+        }
+    }, [projectPath, recordedWorktreePath, baseRef, sessionId]);
+    const switchToLocalMode = useCallback(() => {
+        // Running in the opened checkout is a real change of isolation, so it is recorded
+        // on the session rather than only reflected in this row.
+        const next = { envMode: 'local', baseRef, startFromOrigin };
+        if (sessionKey)
+            setOverride(sessionKey, next);
+        persist(next);
+    }, [baseRef, startFromOrigin, sessionKey, setOverride, persist]);
+    return {
+        /*
+         * Normally the row only appears before a worktree exists, because after that there
+         * is nothing left to choose. A vanished worktree is the exception: the row has to
+         * come back to carry the message and the recover/switch actions.
+         */
+        visible: sessionKey !== '' &&
+            ((isFirstMessage && !hasWorktree) || sendPlan.kind === 'worktree-missing'),
+        envMode,
+        baseRef,
+        worktreePath: recordedWorktreePath,
+        startFromOrigin,
+        branchNames: branches.names,
+        changeRequests,
+        sendPlan,
+        setEnvMode,
+        setBaseRef,
+        setStartFromOrigin,
+        loadChangeRequests,
+        checkoutChangeRequest,
+        recreateWorktree,
+        switchToLocalMode,
+    };
+}

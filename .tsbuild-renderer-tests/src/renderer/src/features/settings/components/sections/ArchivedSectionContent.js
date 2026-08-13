@@ -1,0 +1,7 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { ArchivedBranchGroup } from './ArchivedBranchGroup';
+import { ArchivedErrorAlert } from './ArchivedErrorAlert';
+import { ArchivedSessionGroup } from './ArchivedSessionGroup';
+export function ArchivedSectionContent({ groups, branchGroups, actionError, queryError, onRestore, onDelete, onRestoreBranch, }) {
+    return (_jsxs("div", { className: "space-y-4", children: [_jsxs("div", { children: [_jsx("h2", { className: "text-[15px] font-medium text-text-primary", children: "Archived sessions and branches" }), _jsx("p", { className: "mt-1 text-[13px] text-text-tertiary", children: "Sessions and branches removed from normal navigation. Restore them to bring them back." })] }), actionError && _jsx(ArchivedErrorAlert, { message: actionError }), queryError && _jsx(ArchivedErrorAlert, { message: queryError, subtle: true }), groups.length > 0 ? (_jsxs("div", { className: "space-y-2", children: [_jsx("h3", { className: "px-2 text-[12px] font-medium text-text-tertiary", children: "Archived sessions" }), groups.map((group) => (_jsx(ArchivedSessionGroup, { group: group, onRestore: onRestore, onDelete: onDelete }, group.path ?? '__none__')))] })) : null, branchGroups.length > 0 ? (_jsxs("div", { className: "space-y-2", children: [_jsx("h3", { className: "px-2 text-[12px] font-medium text-text-tertiary", children: "Archived branches" }), branchGroups.map((group) => (_jsx(ArchivedBranchGroup, { group: group, onRestoreBranch: onRestoreBranch }, group.path ?? '__none__')))] })) : null] }));
+}

@@ -80,3 +80,24 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Unit, integration, and component tests belong in nearby `__tests__/`; E2E stays under `e2e/`.
 - Do not suppress Fallow complexity findings; refactor instead.
 - Do not add legacy compatibility for removed pre-Pi surfaces unless explicitly requested.
+
+### `fromPartial` hides fixture mismatches as well as expressing them
+
+`fromPartial` from `@total-typescript/shoehorn` casts. Wrapping a whole test fixture in it
+makes type errors disappear whether the partiality was intended or not: a field with an
+outright wrong type (`switchToLocalMode: 'not-a-function'` where `() => void` is required)
+compiled silently once the object was wrapped. Verified while building the renderer test
+type guard — the guard passed with the broken fixture until the wrapper was removed.
+
+Use it only where a large type is deliberately stubbed and the test asserts on a subset.
+When a fixture is *meant* to be complete, keep it unwrapped so a missing or wrong field
+is reported. Two of this repository's own fixtures were failing for exactly that reason:
+required fields had been added to `SessionContextRowState` and never added to the fixtures.
+
+### A count-based ratchet is defeated by swapping one error for another
+
+The first version of `scripts/check-renderer-test-types.ts` compared per-file error counts
+against a baseline. A deliberately broken mock in a file that already had errors kept the
+total identical and passed. The check is binary per file instead: files not on
+`scripts/renderer-test-type-exemptions.json` must have zero errors, and an exempt file
+that becomes clean fails as a stale exemption so the list can only shrink.

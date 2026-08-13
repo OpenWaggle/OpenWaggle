@@ -1,0 +1,7 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { RotateCcw } from 'lucide-react';
+import { formatRelativeTime } from '@/shared/lib/format';
+import { Button } from '@/shared/ui/Button';
+export function ArchivedBranchSession({ session, onRestoreBranch }) {
+    return (_jsxs("div", { className: "rounded-md border border-border px-3 py-2", children: [_jsxs("div", { className: "mb-2 min-w-0", children: [_jsx("p", { className: "truncate text-[13px] text-text-secondary", children: session.title }), _jsxs("p", { className: "text-[11px] text-text-muted", children: ["Updated ", formatRelativeTime(session.updatedAt)] })] }), _jsx("div", { className: "space-y-1", children: (session.branches ?? []).map((branch) => (_jsxs("div", { className: "flex items-center gap-3 rounded-md bg-bg-secondary px-2 py-1.5", children: [_jsxs("div", { className: "min-w-0 flex-1", children: [_jsx("p", { className: "truncate text-[12px] text-text-secondary", children: branch.name }), _jsxs("p", { className: "text-[11px] text-text-muted", children: ["Branch \u00B7 ", formatRelativeTime(branch.updatedAt)] })] }), _jsx(Button, { variant: "unstyled", type: "button", onClick: () => onRestoreBranch(session.id, branch.id), className: "shrink-0 rounded-md px-2 py-1 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary", title: "Restore branch", children: _jsx(RotateCcw, { className: "size-3.5" }) })] }, String(branch.id)))) })] }));
+}
