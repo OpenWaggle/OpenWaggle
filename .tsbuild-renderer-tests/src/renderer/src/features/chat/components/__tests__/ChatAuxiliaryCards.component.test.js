@@ -52,4 +52,32 @@ describe('chat auxiliary cards', () => {
         expect(useUIStore.getState().diffRefreshKey).toBe(1);
         expect(onClose).toHaveBeenCalledOnce();
     });
+    /**
+     * Stage all, Revert all and Commit act on whatever this panel is showing. For a
+     * worktree-mode session that is the Session worktree, not the opened checkout, and
+     * ADR 0016 requires the panel to say which — a retargeted destructive action must be
+     * visible rather than something the user infers.
+     */
+    it('names the Session worktree when the working path differs from the repository', () => {
+        useUIStore.setState({ diffRefreshKey: 0 });
+        render(_jsx(ChatDiffPane, { section: {
+                workingPath: '/wt/openwaggle/session-1',
+                repositoryPath: '/repo/openwaggle',
+                sessionId: null,
+                onSendMessage: vi.fn(),
+            }, onClose: vi.fn() }));
+        expect(screen.getByText('Worktree · session-1')).toBeInTheDocument();
+        expect(screen.queryByText('Opened checkout')).not.toBeInTheDocument();
+    });
+    it('says the opened checkout when the session runs in the project itself', () => {
+        useUIStore.setState({ diffRefreshKey: 0 });
+        render(_jsx(ChatDiffPane, { section: {
+                workingPath: '/repo/openwaggle',
+                repositoryPath: '/repo/openwaggle',
+                sessionId: null,
+                onSendMessage: vi.fn(),
+            }, onClose: vi.fn() }));
+        expect(screen.getByText('Opened checkout')).toBeInTheDocument();
+        expect(screen.queryByText(/^Worktree · /)).not.toBeInTheDocument();
+    });
 });
