@@ -9,7 +9,7 @@ import { createLogger } from '../../../logger'
 import { setSessionWorktree } from '../../../store/session-details'
 import { runGit } from '../../git/run-git'
 import { createGitWorktree } from '../../git/worktree'
-import { resolveSessionProjectPath } from './session-manager'
+import { requireSessionProjectPath } from './session-manager'
 
 const logger = createLogger('session-worktree-birth')
 
@@ -33,7 +33,7 @@ export function ensureSessionWorktreeProjectPath(session: SessionDetail): Promis
 }
 
 async function ensureSessionWorktreeProjectPathUnlocked(session: SessionDetail): Promise<string> {
-  const primaryPath = resolveSessionProjectPath(session)
+  const primaryPath = requireSessionProjectPath(session)
 
   if (session.environmentMode !== 'worktree') return primaryPath
   const existing = session.worktreePath?.trim()

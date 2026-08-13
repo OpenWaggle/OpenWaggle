@@ -19,7 +19,7 @@ import {
   type PiProjectRuntimeIsolationOptions,
   type PiRuntimeExtensionIsolationInput,
 } from './runtime-extension-isolation'
-import { createSessionManagerForSession, resolveSessionProjectPath } from './session-manager'
+import { createSessionManagerForSession, resolveSessionWorkingPath } from './session-manager'
 
 export type PiSessionOperation<T> = (session: AgentSession) => T | Promise<T>
 
@@ -67,7 +67,7 @@ export async function withPiSession<T>(
   input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
   operation: PiSessionOperation<T>,
 ) {
-  const projectPath = resolveSessionProjectPath(input.session)
+  const projectPath = resolveSessionWorkingPath(input.session)
   const { session } = await createSessionWithActivationIsolation({
     operation: 'Pi session initialization',
     extensionIsolation: input,
@@ -96,7 +96,7 @@ export async function withPiSession<T>(
 export async function createPiSessionRuntime(
   input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
 ) {
-  const projectPath = resolveSessionProjectPath(input.session)
+  const projectPath = resolveSessionWorkingPath(input.session)
   const initialSessionManager = createSessionManagerForSession(input.session, projectPath)
   const createRuntime: CreateAgentSessionRuntimeFactory = async (options) => {
     const runtimeOptions = {
