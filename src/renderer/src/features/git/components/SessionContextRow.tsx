@@ -42,8 +42,8 @@ function MissingWorktreeNotice({
   readonly strip: SessionContextRowState
 }) {
   return (
-    <span role="alert" className="flex min-w-0 items-center gap-1.5">
-      <span className="min-w-0 truncate text-status-error">{reason}</span>
+    <div role="alert" className="flex flex-wrap items-center gap-x-2 gap-y-1 py-0.5">
+      <span className="text-status-error">{reason}</span>
       <Button
         variant="unstyled"
         type="button"
@@ -60,12 +60,21 @@ function MissingWorktreeNotice({
       >
         Use current checkout
       </Button>
-    </span>
+    </div>
   )
 }
 
 export function SessionContextRow({ strip }: SessionContextRowProps) {
   if (!strip.visible) return null
+
+  /*
+   * A vanished worktree replaces the compact mode row rather than squeezing into it:
+   * the message and its two actions need the full width, and "Use current checkout"
+   * already IS the switch to local mode, so a mode dropdown beside it duplicates it.
+   */
+  if (strip.sendPlan.kind === 'worktree-missing') {
+    return <MissingWorktreeNotice reason={strip.sendPlan.reason} strip={strip} />
+  }
 
   return (
     <div className="flex min-w-0 items-center gap-1.5 text-[12px] text-text-tertiary">
@@ -87,10 +96,6 @@ export function SessionContextRow({ strip }: SessionContextRowProps) {
         <span role="alert" className="min-w-0 truncate text-status-error">
           {strip.sendPlan.reason}
         </span>
-      ) : null}
-
-      {strip.sendPlan.kind === 'worktree-missing' ? (
-        <MissingWorktreeNotice reason={strip.sendPlan.reason} strip={strip} />
       ) : null}
     </div>
   )

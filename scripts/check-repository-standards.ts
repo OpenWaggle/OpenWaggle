@@ -127,6 +127,33 @@ function collectToolingConfigViolations(file: string) {
   ]
 }
 
+/**
+ * The Session worktree branch convention must exist in exactly one place.
+ *
+ * Observed failure: worktree birth derived the branch from the session id while
+ * worktree recreation derived it from the recorded path's last segment. Recreation is
+ * supposed to reattach the surviving branch so commits made in the old tree are kept;
+ * because the two names disagreed it created a divergent branch at the base ref and
+ * stranded the session's commit on the orphaned original. A single source of truth is
+ * only durable if re-deriving the name elsewhere is caught.
+ */
+const SESSION_BRANCH_PREFIX_LITERAL = ['ow', 'session-'].join('/')
+const SESSION_BRANCH_CONVENTION_OWNER = 'src/shared/utils/worktree.ts'
+
+function collectSessionBranchConventionViolations(file: string, contents: string) {
+  const normalized = normalizePath(file)
+  if (normalized === SESSION_BRANCH_CONVENTION_OWNER) return []
+  if (normalized.includes('__tests__') || normalized.includes('/docs/')) return []
+  if (!contents.includes(`\`${SESSION_BRANCH_PREFIX_LITERAL}$`)) return []
+  return [
+    {
+      file: normalized,
+      message: `Session worktree branch names must come from sessionWorktreeBranch() in ${SESSION_BRANCH_CONVENTION_OWNER}`,
+      detail: `found a local "${SESSION_BRANCH_PREFIX_LITERAL}" template literal`,
+    },
+  ]
+}
+
 async function collectViolationsForFile(file: string) {
   const contents = await readFile(file, 'utf8')
 
@@ -135,6 +162,7 @@ async function collectViolationsForFile(file: string) {
     ...collectTsconfigViolations(file, contents),
     ...collectToolingConfigViolations(file),
     ...collectPackageBoundaryViolations(file, contents),
+    ...collectSessionBranchConventionViolations(file, contents),
   ] satisfies readonly RepositoryViolation[]
 }
 

@@ -3,6 +3,7 @@ import { homedir } from 'node:os'
 import path from 'node:path'
 import { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
+import { sessionWorktreeBranch } from '@shared/utils/worktree'
 import { createLogger } from '../../../logger'
 // ponytail: direct store import (persistence); route through a session port if the Pi adapter grows more store touchpoints.
 import { setSessionWorktree } from '../../../store/session-details'
@@ -11,8 +12,6 @@ import { createGitWorktree } from '../../git/worktree'
 import { resolveSessionProjectPath } from './session-manager'
 
 const logger = createLogger('session-worktree-birth')
-
-const SHORT_ID_LENGTH = 8
 
 /** Serialize birth per session so concurrent runs (classic + waggle, double-send) can't race. */
 const birthInFlight = new Map<string, Promise<string>>()
@@ -69,7 +68,7 @@ async function ensureSessionWorktreeProjectPathUnlocked(session: SessionDetail):
 
   const sessionId = String(session.id)
   const worktreePath = worktreePathFor(primaryPath, sessionId)
-  const branch = `ow/session-${sessionId.slice(0, SHORT_ID_LENGTH)}`
+  const branch = sessionWorktreeBranch(sessionId)
 
   const result = await createGitWorktree(primaryPath, { path: worktreePath, branch, baseRef })
   if (!result.ok) {

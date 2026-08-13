@@ -28,3 +28,20 @@ export function resolveSessionWorkingDir(
   }
   return openedProjectPath
 }
+
+/**
+ * Length of the session-id prefix used in a Session worktree's branch name.
+ */
+const SESSION_WORKTREE_SHORT_ID_LENGTH = 8
+
+/**
+ * The branch a Session worktree lives on.
+ *
+ * Single source of truth for this convention: worktree birth and worktree recreation
+ * must agree exactly, because recreation reattaches the surviving branch to preserve
+ * commits made in the old tree. When the two derived the name differently, recreation
+ * silently created a divergent branch and stranded the session's commits on the old one.
+ */
+export function sessionWorktreeBranch(sessionId: string): string {
+  return `ow/session-${sessionId.slice(0, SESSION_WORKTREE_SHORT_ID_LENGTH)}`
+}

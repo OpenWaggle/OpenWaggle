@@ -1,6 +1,7 @@
 import type { SessionId } from '@shared/types/brand'
 import type { SessionEnvironmentMode, VcsChangeRequest } from '@shared/types/git'
 import type { SessionDetail } from '@shared/types/session'
+import { sessionWorktreeBranch } from '@shared/utils/worktree'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   resolveDefaultWorktreeBaseRef,
@@ -55,19 +56,6 @@ interface BranchListState {
 }
 
 const EMPTY_BRANCHES: BranchListState = { currentBranch: null, names: [] }
-
-const SHORT_SESSION_ID_LENGTH = 8
-
-/**
- * The temporary branch a Session worktree was created on, derived from the recorded
- * worktree path so recreation reattaches the same branch rather than orphaning it.
- * Mirrors the naming used when the worktree is born.
- */
-function worktreeBranchFromPath(worktreePath: string): string | null {
-  const sessionSegment = worktreePath.replace(/\\/g, '/').replace(/\/+$/, '').split('/').pop()
-  if (sessionSegment === undefined || sessionSegment.length === 0) return null
-  return `ow/session-${sessionSegment.slice(0, SHORT_SESSION_ID_LENGTH)}`
-}
 
 function resolveEffectivePlan(
   override: WorktreePlanOverride | undefined,
@@ -254,7 +242,7 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
 
   const recreateWorktree = useCallback(async () => {
     if (!projectPath || recordedWorktreePath === null) return false
-    const branch = worktreeBranchFromPath(recordedWorktreePath)
+    const branch = sessionId === null ? null : sessionWorktreeBranch(String(sessionId))
     const forkPoint = baseRef?.trim()
     if (!branch || !forkPoint) return false
     try {
@@ -269,7 +257,7 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
       logger.warn('Failed to recreate Session worktree', { error: String(error) })
       return false
     }
-  }, [projectPath, recordedWorktreePath, baseRef])
+  }, [projectPath, recordedWorktreePath, baseRef, sessionId])
 
   const switchToLocalMode = useCallback(() => {
     // Running in the opened checkout is a real change of isolation, so it is recorded

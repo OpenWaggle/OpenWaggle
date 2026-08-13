@@ -153,7 +153,14 @@ export function ChatComposerStack({
           }}
           onToast={onToast}
         />
-        <div className="mt-1.5 flex h-7 min-w-0 items-center justify-between gap-3 px-1">
+        {/*
+          min-h rather than a fixed height: the normal compact controls are shorter than
+          28px so the composer envelope is unchanged, but the vanished-worktree notice
+          needs room for its message and actions. Without flex-wrap that notice is
+          shrunk to zero width and its buttons end up underneath the run-target picker,
+          unclickable.
+        */}
+        <div className="mt-1.5 flex min-h-7 min-w-0 flex-wrap items-center justify-between gap-3 px-1">
           <SessionContextRow strip={strip} />
           <ComposerBranchRow strip={strip} onToast={onToast} />
         </div>
