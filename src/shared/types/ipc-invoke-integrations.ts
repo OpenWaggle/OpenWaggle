@@ -16,7 +16,7 @@ import type {
   GitBranchMutationResult,
   GitCommitPayload,
   GitCommitResult,
-  GitFileDiff,
+  GitDiffResult,
   GitRunStackedActionOptions,
   GitRunStackedActionResult,
   GitStatusSummary,
@@ -67,11 +67,11 @@ export interface IpcIntegrationInvokeChannelMap {
   }
   'git:diff': {
     args: [projectPath: string]
-    return: GitFileDiff[]
+    return: GitDiffResult
   }
   'git:branch-diff': {
     args: [projectPath: string, baseRef: string]
-    return: GitFileDiff[]
+    return: GitDiffResult
   }
   'git:working-tree:stage-all': {
     args: [projectPath: string]

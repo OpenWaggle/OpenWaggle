@@ -115,6 +115,29 @@ export interface GitBranchCreatePayload {
   readonly checkout?: boolean
 }
 
+export const GIT_DIFF_ERROR_CODES = ['not-git-repo', 'bad-revision', 'unknown'] as const
+
+export type GitDiffErrorCode = (typeof GIT_DIFF_ERROR_CODES)[number]
+
+export interface GitDiffSuccess {
+  readonly ok: true
+  readonly files: readonly GitFileDiff[]
+}
+
+export interface GitDiffFailure {
+  readonly ok: false
+  readonly code: GitDiffErrorCode
+  readonly message: string
+}
+
+/**
+ * Loading a diff fails for ordinary, expected reasons -- a folder that is not a
+ * repository, a base ref the user typed that no longer resolves. Those are results,
+ * not exceptions, so callers branch on `ok` instead of wrapping every call in
+ * try/catch (see ADR-less standard in .agents/standards.md).
+ */
+export type GitDiffResult = GitDiffSuccess | GitDiffFailure
+
 export const GIT_BRANCH_ERROR_CODES = [
   'not-git-repo',
   'branch-not-found',

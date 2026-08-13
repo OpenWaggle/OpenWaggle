@@ -34,7 +34,7 @@ describe('Diff panel review flow', () => {
   })
 
   it('loads project diffs and sends accumulated review comments', async () => {
-    vi.mocked(api.getGitDiff).mockResolvedValue([fileDiff()])
+    vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] })
     const onSendMessage = vi.fn()
 
     render(<DiffPanel projectPath="/repo" onSendMessage={onSendMessage} />)
@@ -68,7 +68,7 @@ describe('Diff panel review flow', () => {
   })
 
   it('discards a pending review without sending it', async () => {
-    vi.mocked(api.getGitDiff).mockResolvedValue([fileDiff()])
+    vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] })
     const onSendMessage = vi.fn()
 
     render(<DiffPanel projectPath="/repo" onSendMessage={onSendMessage} />)
@@ -86,7 +86,7 @@ describe('Diff panel review flow', () => {
   })
 
   it('sends a single comment immediately without opening a review', async () => {
-    vi.mocked(api.getGitDiff).mockResolvedValue([fileDiff()])
+    vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] })
     const onSendMessage = vi.fn()
 
     render(<DiffPanel projectPath="/repo" onSendMessage={onSendMessage} />)

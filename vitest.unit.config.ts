@@ -14,6 +14,17 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.unit.test.ts', 'packages/**/*.unit.test.ts', 'scripts/**/*.unit.test.ts'],
+    /*
+     * Vitest's 5s default is unrealistic for this suite, not generous. The unit
+     * suite spans 365 files whose cumulative import cost is ~576s across workers,
+     * so a test that itself does several dynamic imports (the renderer/extension
+     * protocol tests each load three modules) can exceed 5s purely waiting on
+     * module resolution under parallel load. That produced two timeouts and a
+     * non-zero exit while every assertion passed -- verified as contention, not a
+     * hang: the same tests pass in isolation and the whole suite is green at a
+     * larger deadline.
+     */
+    testTimeout: 15_000,
     coverage: {
       enabled: false,
     },

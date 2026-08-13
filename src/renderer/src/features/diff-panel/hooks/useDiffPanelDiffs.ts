@@ -7,20 +7,32 @@ import { api } from '@/shared/lib/ipc'
 interface DiffPanelState {
   readonly fileDiffs: readonly GitFileDiff[]
   readonly isLoading: boolean
+  /** Message from a typed load failure; null when the last load succeeded. */
+  readonly error: string | null
 }
 
 type DiffPanelAction =
   | { readonly type: 'clear' }
   | { readonly type: 'start-loading' }
   | { readonly type: 'load-success'; readonly fileDiffs: readonly GitFileDiff[] }
-  | { readonly type: 'load-failure' }
+  | { readonly type: 'load-failure'; readonly error: string | null }
 
 function diffPanelReducer(state: DiffPanelState, action: DiffPanelAction) {
   return matchBy(action, 'type')
-    .with('clear', () => ({ fileDiffs: [], isLoading: false }))
+    .with('clear', () => ({ fileDiffs: [], isLoading: false, error: null }))
     .with('start-loading', () => ({ ...state, isLoading: true }))
-    .with('load-success', (value) => ({ ...state, fileDiffs: value.fileDiffs, isLoading: false }))
-    .with('load-failure', () => ({ ...state, fileDiffs: [], isLoading: false }))
+    .with('load-success', (value) => ({
+      ...state,
+      fileDiffs: value.fileDiffs,
+      isLoading: false,
+      error: null,
+    }))
+    .with('load-failure', (value) => ({
+      ...state,
+      fileDiffs: [],
+      isLoading: false,
+      error: value.error,
+    }))
     .exhaustive()
 }
 
@@ -42,7 +54,11 @@ function fetchDiffsForScope(projectPath: string, selection: DiffScopeSelection) 
 
 /** Load and refresh diffs for the active scope (working tree or branch-vs-base). */
 export function useDiffPanelDiffs(projectPath: string | null, selection: DiffScopeSelection) {
-  const [state, dispatch] = useReducer(diffPanelReducer, { fileDiffs: [], isLoading: false })
+  const [state, dispatch] = useReducer(diffPanelReducer, {
+    fileDiffs: [],
+    isLoading: false,
+    error: null,
+  })
   const currentProjectPath = useRef(projectPath)
   const diffRequestId = useRef(0)
   const selectionRef = useRef(selection)
@@ -69,13 +85,19 @@ export function useDiffPanelDiffs(projectPath: string | null, selection: DiffSco
     dispatch({ type: 'start-loading' })
     let cancelled = false
     fetchDiffsForScope(projectPath, scopedSelection)
-      .then((diffs) => {
+      .then((result) => {
         if (cancelled || requestId !== diffRequestId.current) return
-        dispatch({ type: 'load-success', fileDiffs: diffs })
+        dispatch(
+          result.ok
+            ? { type: 'load-success', fileDiffs: result.files }
+            : { type: 'load-failure', error: result.message },
+        )
       })
       .catch(() => {
+        // Only an unexpected transport failure reaches here now; expected git
+        // failures arrive as { ok: false } above.
         if (cancelled || requestId !== diffRequestId.current) return
-        dispatch({ type: 'load-failure' })
+        dispatch({ type: 'load-failure', error: null })
       })
     return () => {
       cancelled = true
@@ -87,7 +109,7 @@ export function useDiffPanelDiffs(projectPath: string | null, selection: DiffSco
     const requestId = diffRequestId.current
     dispatch({ type: 'start-loading' })
     try {
-      const diffs = await fetchDiffsForScope(projectPathToRefresh, selectionRef.current)
+      const result = await fetchDiffsForScope(projectPathToRefresh, selectionRef.current)
       if (
         isStaleDiffRequest(
           requestId,
@@ -97,7 +119,11 @@ export function useDiffPanelDiffs(projectPath: string | null, selection: DiffSco
         )
       )
         return
-      dispatch({ type: 'load-success', fileDiffs: diffs })
+      dispatch(
+        result.ok
+          ? { type: 'load-success', fileDiffs: result.files }
+          : { type: 'load-failure', error: result.message },
+      )
     } catch {
       if (
         isStaleDiffRequest(
@@ -108,7 +134,7 @@ export function useDiffPanelDiffs(projectPath: string | null, selection: DiffSco
         )
       )
         return
-      dispatch({ type: 'load-failure' })
+      dispatch({ type: 'load-failure', error: null })
     }
   }
 

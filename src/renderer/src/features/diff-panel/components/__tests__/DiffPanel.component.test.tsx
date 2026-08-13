@@ -40,7 +40,7 @@ describe('Diff panel components', () => {
   })
 
   it('stages every change and refreshes the diff and Git status', async () => {
-    vi.mocked(api.getGitDiff).mockResolvedValue([fileDiff()])
+    vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] })
     vi.mocked(api.getGitStatus).mockResolvedValue(
       gitStatus([
         {
@@ -75,7 +75,7 @@ describe('Diff panel components', () => {
   })
 
   it('keeps every change when main-process revert confirmation is cancelled', async () => {
-    vi.mocked(api.getGitDiff).mockResolvedValue([fileDiff()])
+    vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] })
     vi.mocked(api.revertAllGitChanges).mockResolvedValue({
       ok: false,
       code: 'cancelled',
@@ -94,7 +94,9 @@ describe('Diff panel components', () => {
   })
 
   it('reverts confirmed changes and refreshes the diff and Git status', async () => {
-    vi.mocked(api.getGitDiff).mockResolvedValueOnce([fileDiff()]).mockResolvedValueOnce([])
+    vi.mocked(api.getGitDiff)
+      .mockResolvedValueOnce({ ok: true, files: [fileDiff()] })
+      .mockResolvedValueOnce({ ok: true, files: [] })
     vi.mocked(api.getGitStatus).mockResolvedValue(gitStatus([]))
     vi.mocked(api.revertAllGitChanges).mockResolvedValue({
       ok: true,
@@ -118,7 +120,7 @@ describe('Diff panel components', () => {
   })
 
   it('surfaces a stage failure and still refreshes potentially changed Git state', async () => {
-    vi.mocked(api.getGitDiff).mockResolvedValue([fileDiff()])
+    vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] })
     vi.mocked(api.getGitStatus).mockResolvedValue(
       gitStatus([
         {
@@ -151,7 +153,7 @@ describe('Diff panel components', () => {
   })
 
   it('keeps Stage all enabled for files with staged and unstaged changes', async () => {
-    vi.mocked(api.getGitDiff).mockResolvedValue([fileDiff()])
+    vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] })
     useGitStore.setState({
       statusProjectPath: '/repo',
       status: gitStatus([
@@ -178,7 +180,10 @@ describe('Diff panel components', () => {
 
   it('does not refresh or toast an action result after switching projects', async () => {
     let resolveStage: ((result: { ok: true; message: string }) => void) | undefined
-    vi.mocked(api.getGitDiff).mockImplementation(async (projectPath) => [fileDiff(projectPath)])
+    vi.mocked(api.getGitDiff).mockImplementation(async (projectPath) => ({
+      ok: true,
+      files: [fileDiff(projectPath)],
+    }))
     vi.mocked(api.stageAllGitChanges).mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -202,7 +207,10 @@ describe('Diff panel components', () => {
 
   it('does not toast an action rejection after switching projects', async () => {
     let rejectStage: ((error: Error) => void) | undefined
-    vi.mocked(api.getGitDiff).mockImplementation(async (projectPath) => [fileDiff(projectPath)])
+    vi.mocked(api.getGitDiff).mockImplementation(async (projectPath) => ({
+      ok: true,
+      files: [fileDiff(projectPath)],
+    }))
     vi.mocked(api.stageAllGitChanges).mockImplementation(
       () =>
         new Promise((_resolve, reject) => {
