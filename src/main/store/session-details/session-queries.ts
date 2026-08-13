@@ -13,7 +13,7 @@ import {
 } from './message-hydration'
 import type { SessionNodeRow, SessionRow, SessionSummaryRow } from './types'
 
-function hydrateSessionSummary(row: SessionSummaryRow): SessionSummary {
+function hydrateSessionSummary(row: SessionSummaryRow) {
   return {
     id: SessionId(row.id),
     title: row.title,
@@ -22,8 +22,6 @@ function hydrateSessionSummary(row: SessionSummaryRow): SessionSummary {
     archived: row.archived === 1 ? true : undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    environmentMode: row.environment_mode === 'worktree' ? 'worktree' : 'local',
-    worktreePath: row.worktree_path,
   }
 }
 
@@ -111,8 +109,6 @@ function summaryCountSql(sql: SqlClient.SqlClient, archived: number, limit: numb
       s.archived,
       s.created_at,
       s.updated_at,
-      s.environment_mode,
-      s.worktree_path,
       (
         SELECT COUNT(*)
         FROM session_nodes sn

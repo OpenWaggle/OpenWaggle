@@ -7,6 +7,9 @@ export interface SessionSummaryRow {
   readonly updated_at: number
   readonly last_active_node_id: string | null
   readonly last_active_branch_id: string | null
+  /** Resolves each session's working path, for per-session git state in lists. */
+  readonly environment_mode: string | null
+  readonly worktree_path: string | null
 }
 
 export interface SessionBranchRow {

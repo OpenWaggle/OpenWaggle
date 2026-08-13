@@ -1,6 +1,5 @@
 import { SessionId } from '@shared/types/brand'
 import type { WaggleCollaborationStatus } from '@shared/types/waggle'
-import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useAgentChat } from '@/features/chat/hooks/useAgentChat'
@@ -16,6 +15,7 @@ import { useWaggleChat } from '@/features/waggle/hooks'
 import { useWaggleStore } from '@/features/waggle/state'
 import { extensionContributionsQueryOptions } from '@/queries/extensions'
 import { createRendererLogger } from '@/shared/lib/logger'
+import { buildDiffSection } from '../lib/diff-section'
 import { reportAutoSendQueueFailure } from '../lib/queue-failure-feedback'
 import type { ChatPanelSections } from '../model'
 import { useBranchSummaryWorkflow } from './useBranchSummaryWorkflow'
@@ -310,11 +310,11 @@ export function useChatPanelSections(): ChatPanelSections {
     extensionRegistry,
     extensionProjectPaths,
     onRespondAgentInteraction: respondAgentInteraction,
-    diff: {
-      // ADR-0010: git ops target the Session worktree in worktree mode (see resolveSessionWorkingDir).
-      projectPath: resolveSessionWorkingDir(activeSession, projectPath),
+    diff: buildDiffSection({
+      activeSession,
+      projectPath,
       sessionId: activeSessionId,
       onSendMessage: handleSendText,
-    },
+    }),
   }
 }

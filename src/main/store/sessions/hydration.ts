@@ -130,7 +130,7 @@ export function hydrateUiState(row: SessionTreeUiStateRow) {
   }
 }
 
-export function hydrateSessionSummary(row: SessionSummaryRow) {
+export function hydrateSessionSummary(row: SessionSummaryRow): SessionSummary {
   return {
     id: SessionId(row.id),
     title: row.title,
@@ -142,6 +142,8 @@ export function hydrateSessionSummary(row: SessionSummaryRow) {
     lastActiveBranchId: row.last_active_branch_id
       ? SessionBranchId(row.last_active_branch_id)
       : null,
+    environmentMode: row.environment_mode === 'worktree' ? 'worktree' : 'local',
+    worktreePath: row.worktree_path,
   }
 }
 
