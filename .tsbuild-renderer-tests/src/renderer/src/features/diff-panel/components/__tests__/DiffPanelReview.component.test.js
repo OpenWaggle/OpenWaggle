@@ -33,7 +33,7 @@ describe('Diff panel review flow', () => {
     it('loads project diffs and sends accumulated review comments', async () => {
         vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] });
         const onSendMessage = vi.fn();
-        render(_jsx(DiffPanel, { projectPath: "/repo", onSendMessage: onSendMessage }));
+        render(_jsx(DiffPanel, { workingPath: "/repo", onSendMessage: onSendMessage }));
         expect(api.getGitDiff).toHaveBeenCalledWith('/repo');
         expect(await screen.findByRole('button', { name: /select src\/app.ts/ })).toBeInTheDocument();
         fireEvent.click(await screen.findByRole('button', { name: /select src\/app.ts/ }));
@@ -61,7 +61,7 @@ describe('Diff panel review flow', () => {
     it('discards a pending review without sending it', async () => {
         vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] });
         const onSendMessage = vi.fn();
-        render(_jsx(DiffPanel, { projectPath: "/repo", onSendMessage: onSendMessage }));
+        render(_jsx(DiffPanel, { workingPath: "/repo", onSendMessage: onSendMessage }));
         fireEvent.click(await screen.findByRole('button', { name: /select src\/app.ts/ }));
         fireEvent.change(screen.getByPlaceholderText('Leave feedback on this change…'), {
             target: { value: 'needs a test' },
@@ -75,7 +75,7 @@ describe('Diff panel review flow', () => {
     it('sends a single comment immediately without opening a review', async () => {
         vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] });
         const onSendMessage = vi.fn();
-        render(_jsx(DiffPanel, { projectPath: "/repo", onSendMessage: onSendMessage }));
+        render(_jsx(DiffPanel, { workingPath: "/repo", onSendMessage: onSendMessage }));
         fireEvent.click(await screen.findByRole('button', { name: /select src\/app.ts/ }));
         fireEvent.change(screen.getByPlaceholderText('Leave feedback on this change…'), {
             target: { value: 'rename this' },

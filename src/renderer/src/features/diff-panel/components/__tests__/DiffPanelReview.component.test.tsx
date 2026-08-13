@@ -37,7 +37,7 @@ describe('Diff panel review flow', () => {
     vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] })
     const onSendMessage = vi.fn()
 
-    render(<DiffPanel projectPath="/repo" onSendMessage={onSendMessage} />)
+    render(<DiffPanel workingPath="/repo" onSendMessage={onSendMessage} />)
 
     expect(api.getGitDiff).toHaveBeenCalledWith('/repo')
     expect(await screen.findByRole('button', { name: /select src\/app.ts/ })).toBeInTheDocument()
@@ -71,7 +71,7 @@ describe('Diff panel review flow', () => {
     vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] })
     const onSendMessage = vi.fn()
 
-    render(<DiffPanel projectPath="/repo" onSendMessage={onSendMessage} />)
+    render(<DiffPanel workingPath="/repo" onSendMessage={onSendMessage} />)
 
     fireEvent.click(await screen.findByRole('button', { name: /select src\/app.ts/ }))
     fireEvent.change(screen.getByPlaceholderText('Leave feedback on this change…'), {
@@ -89,7 +89,7 @@ describe('Diff panel review flow', () => {
     vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] })
     const onSendMessage = vi.fn()
 
-    render(<DiffPanel projectPath="/repo" onSendMessage={onSendMessage} />)
+    render(<DiffPanel workingPath="/repo" onSendMessage={onSendMessage} />)
 
     fireEvent.click(await screen.findByRole('button', { name: /select src\/app.ts/ }))
     fireEvent.change(screen.getByPlaceholderText('Leave feedback on this change…'), {

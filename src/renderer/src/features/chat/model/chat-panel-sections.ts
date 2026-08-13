@@ -74,7 +74,7 @@ export interface ChatComposerSectionState {
 
 export interface ChatDiffSectionState {
   /** The working tree this panel reads and mutates (a Session worktree in worktree mode). */
-  readonly projectPath: string | null
+  readonly workingPath: string | null
   /** The repository the session belongs to, for telling a worktree apart from the checkout. */
   readonly repositoryPath: string | null
   readonly sessionId: SessionId | null

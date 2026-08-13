@@ -8,7 +8,7 @@ import { ChatDiffPane } from '../ChatDiffPane';
 import { InterruptedRunNotice } from '../InterruptedRunNotice';
 import { RunSummary } from '../RunSummary';
 vi.mock('@/features/diff-panel/components', () => ({
-    DiffPanel: ({ projectPath }) => (_jsxs("div", { children: ["Diff for ", projectPath ?? 'none'] })),
+    DiffPanel: ({ workingPath }) => (_jsxs("div", { children: ["Diff for ", workingPath ?? 'none'] })),
 }));
 describe('chat auxiliary cards', () => {
     it('renders branch summaries and delegates branch creation', () => {
@@ -44,7 +44,7 @@ describe('chat auxiliary cards', () => {
         useUIStore.setState({ diffRefreshKey: 0 });
         const onClose = vi.fn();
         const onSendMessage = vi.fn();
-        render(_jsx(ChatDiffPane, { section: { projectPath: '/repo', onSendMessage }, onClose: onClose }));
+        render(_jsx(ChatDiffPane, { section: { workingPath: '/repo', onSendMessage }, onClose: onClose }));
         fireEvent.click(screen.getByRole('button', { name: 'Refresh diff' }));
         fireEvent.click(screen.getByRole('button', { name: 'Close diff sidebar' }));
         expect(screen.getByText('Changes')).toBeInTheDocument();

@@ -14,8 +14,8 @@ interface ChatDiffPaneProps {
 export function ChatDiffPane({ section, onClose }: ChatDiffPaneProps) {
   // A working path that differs from the opened project is a Session worktree.
   const worktreeLabel =
-    section.projectPath !== null && section.projectPath !== section.repositoryPath
-      ? formatWorktreePathForDisplay(section.projectPath)
+    section.workingPath !== null && section.workingPath !== section.repositoryPath
+      ? formatWorktreePathForDisplay(section.workingPath)
       : null
   const diffRefreshKey = useUIStore((s) => s.diffRefreshKey)
   const bumpDiffRefreshKey = useUIStore((s) => s.bumpDiffRefreshKey)
@@ -62,7 +62,7 @@ export function ChatDiffPane({ section, onClose }: ChatDiffPaneProps) {
       <PanelErrorBoundary name="Diff" className="min-h-0 flex-1 overflow-hidden">
         <DiffPanel
           key={diffRefreshKey}
-          projectPath={section.projectPath}
+          workingPath={section.workingPath}
           sessionId={section.sessionId}
           onSendMessage={(content) => {
             void section.onSendMessage(content)

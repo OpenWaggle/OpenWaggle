@@ -8,8 +8,8 @@ import { InterruptedRunNotice } from '../InterruptedRunNotice'
 import { RunSummary } from '../RunSummary'
 
 vi.mock('@/features/diff-panel/components', () => ({
-  DiffPanel: ({ projectPath }: { readonly projectPath: string | null }) => (
-    <div>Diff for {projectPath ?? 'none'}</div>
+  DiffPanel: ({ workingPath }: { readonly workingPath: string | null }) => (
+    <div>Diff for {workingPath ?? 'none'}</div>
   ),
 }))
 
@@ -78,7 +78,7 @@ describe('chat auxiliary cards', () => {
     const onClose = vi.fn()
     const onSendMessage = vi.fn()
 
-    render(<ChatDiffPane section={{ projectPath: '/repo', onSendMessage }} onClose={onClose} />)
+    render(<ChatDiffPane section={{ workingPath: '/repo', onSendMessage }} onClose={onClose} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Refresh diff' }))
     fireEvent.click(screen.getByRole('button', { name: 'Close diff sidebar' }))

@@ -55,7 +55,7 @@ describe('Diff panel components', () => {
             ok: true,
             message: 'All working-tree changes staged.',
         });
-        render(_jsx(DiffPanel, { projectPath: "/repo", onSendMessage: vi.fn() }));
+        render(_jsx(DiffPanel, { workingPath: "/repo", onSendMessage: vi.fn() }));
         await screen.findByRole('button', { name: /select src\/app.ts/ });
         fireEvent.click(screen.getByRole('button', { name: /Stage all/ }));
         await waitFor(() => expect(api.getGitDiff).toHaveBeenCalledTimes(2));
@@ -75,7 +75,7 @@ describe('Diff panel components', () => {
             code: 'cancelled',
             message: 'Revert all cancelled.',
         });
-        render(_jsx(DiffPanel, { projectPath: "/repo", onSendMessage: vi.fn() }));
+        render(_jsx(DiffPanel, { workingPath: "/repo", onSendMessage: vi.fn() }));
         await screen.findByRole('button', { name: /select src\/app.ts/ });
         fireEvent.click(screen.getByRole('button', { name: 'Revert all' }));
         await waitFor(() => expect(api.revertAllGitChanges).toHaveBeenCalledWith('/repo'));
@@ -92,7 +92,7 @@ describe('Diff panel components', () => {
             ok: true,
             message: 'All eligible working-tree changes reverted.',
         });
-        render(_jsx(DiffPanel, { projectPath: "/repo", onSendMessage: vi.fn() }));
+        render(_jsx(DiffPanel, { workingPath: "/repo", onSendMessage: vi.fn() }));
         await screen.findByRole('button', { name: /select src\/app.ts/ });
         fireEvent.click(screen.getByRole('button', { name: 'Revert all' }));
         await screen.findByText('No changes to review');
@@ -122,7 +122,7 @@ describe('Diff panel components', () => {
             code: 'unknown',
             message: 'Git index is locked.',
         });
-        render(_jsx(DiffPanel, { projectPath: "/repo", onSendMessage: vi.fn() }));
+        render(_jsx(DiffPanel, { workingPath: "/repo", onSendMessage: vi.fn() }));
         await screen.findByRole('button', { name: /select src\/app.ts/ });
         fireEvent.click(screen.getByRole('button', { name: /Stage all/ }));
         await waitFor(() => expect(api.getGitDiff).toHaveBeenCalledTimes(2));
@@ -150,7 +150,7 @@ describe('Diff panel components', () => {
             ok: true,
             message: 'All working-tree changes staged.',
         });
-        render(_jsx(DiffPanel, { projectPath: "/repo", onSendMessage: vi.fn() }));
+        render(_jsx(DiffPanel, { workingPath: "/repo", onSendMessage: vi.fn() }));
         await screen.findByRole('button', { name: /select src\/app.ts/ });
         expect(screen.getByRole('button', { name: /Stage all/ })).toBeEnabled();
     });
@@ -163,10 +163,10 @@ describe('Diff panel components', () => {
         vi.mocked(api.stageAllGitChanges).mockImplementation(() => new Promise((resolve) => {
             resolveStage = resolve;
         }));
-        const { rerender } = render(_jsx(DiffPanel, { projectPath: "/repo-a", onSendMessage: vi.fn() }));
+        const { rerender } = render(_jsx(DiffPanel, { workingPath: "/repo-a", onSendMessage: vi.fn() }));
         await waitFor(() => expect(api.getGitDiff).toHaveBeenCalledWith('/repo-a'));
         fireEvent.click(screen.getByRole('button', { name: /Stage all/ }));
-        rerender(_jsx(DiffPanel, { projectPath: "/repo-b", onSendMessage: vi.fn() }));
+        rerender(_jsx(DiffPanel, { workingPath: "/repo-b", onSendMessage: vi.fn() }));
         await waitFor(() => expect(api.getGitDiff).toHaveBeenCalledWith('/repo-b'));
         resolveStage?.({ ok: true, message: 'All working-tree changes staged.' });
         await waitFor(() => expect(api.stageAllGitChanges).toHaveBeenCalledWith('/repo-a'));
@@ -183,20 +183,20 @@ describe('Diff panel components', () => {
         vi.mocked(api.stageAllGitChanges).mockImplementation(() => new Promise((_resolve, reject) => {
             rejectStage = reject;
         }));
-        const { rerender } = render(_jsx(DiffPanel, { projectPath: "/repo-a", onSendMessage: vi.fn() }));
+        const { rerender } = render(_jsx(DiffPanel, { workingPath: "/repo-a", onSendMessage: vi.fn() }));
         await waitFor(() => expect(api.getGitDiff).toHaveBeenCalledWith('/repo-a'));
         fireEvent.click(screen.getByRole('button', { name: /Stage all/ }));
-        rerender(_jsx(DiffPanel, { projectPath: "/repo-b", onSendMessage: vi.fn() }));
+        rerender(_jsx(DiffPanel, { workingPath: "/repo-b", onSendMessage: vi.fn() }));
         await waitFor(() => expect(api.getGitDiff).toHaveBeenCalledWith('/repo-b'));
         rejectStage?.(new Error('obsolete failure'));
         await waitFor(() => expect(api.stageAllGitChanges).toHaveBeenCalledWith('/repo-a'));
         expect(useUIStore.getState().toastData).toBeNull();
     });
     it('renders empty and failed diff states without stale files', async () => {
-        const { rerender } = render(_jsx(DiffPanel, { projectPath: null, onSendMessage: vi.fn() }));
+        const { rerender } = render(_jsx(DiffPanel, { workingPath: null, onSendMessage: vi.fn() }));
         expect(screen.getByText('No changes to review')).toBeInTheDocument();
         vi.mocked(api.getGitDiff).mockRejectedValue(new Error('git unavailable'));
-        rerender(_jsx(DiffPanel, { projectPath: "/repo", onSendMessage: vi.fn() }));
+        rerender(_jsx(DiffPanel, { workingPath: "/repo", onSendMessage: vi.fn() }));
         expect(await screen.findByText('No changes to review')).toBeInTheDocument();
     });
 });

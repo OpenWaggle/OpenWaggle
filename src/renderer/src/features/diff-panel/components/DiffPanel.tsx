@@ -21,27 +21,27 @@ import { DiffPanelHeader } from './DiffPanelHeader'
 import { DiffReviewBody } from './DiffReviewBody'
 
 interface DiffPanelProps {
-  projectPath: string | null
+  workingPath: string | null
   sessionId?: SessionId | null
   onSendMessage: (content: string) => void
 }
 
-export function DiffPanel({ projectPath, sessionId = null, onSendMessage }: DiffPanelProps) {
+export function DiffPanel({ workingPath, sessionId = null, onSendMessage }: DiffPanelProps) {
   const viewerRef = useRef<CodeViewHandle<ReviewAnnotationMetadata>>(null)
   const scopeByThreadKey = useDiffScopeStore((s) => s.byThreadKey)
   const selectGitScope = useDiffScopeStore((s) => s.selectGitScope)
   const selectBranchBaseRef = useDiffScopeStore((s) => s.selectBranchBaseRef)
   const selectTurn = useDiffScopeStore((s) => s.selectTurn)
-  const scopeKey = sessionId ?? projectPath ?? ''
+  const scopeKey = sessionId ?? workingPath ?? ''
   const selection: DiffScopeSelection = selectThreadDiffScopeSelection(
     scopeByThreadKey,
     scopeKey || null,
     true,
   )
   const branchBaseRef = selection.kind === 'branch' ? selection.baseRef : null
-  const baseRefChoices = useBaseRefChoices(projectPath)
+  const baseRefChoices = useBaseRefChoices(workingPath)
   const turns = useSessionTurns(sessionId)
-  const branchOrTreeDiffs = useDiffPanelDiffs(projectPath, selection)
+  const branchOrTreeDiffs = useDiffPanelDiffs(workingPath, selection)
   const turnFiles = useTurnDiffFiles(sessionId, selection)
   const fileDiffs = selection.kind === 'turn' ? turnFiles : branchOrTreeDiffs.fileDiffs
   const isLoading = selection.kind === 'turn' ? false : branchOrTreeDiffs.isLoading
@@ -64,17 +64,17 @@ export function DiffPanel({ projectPath, sessionId = null, onSendMessage }: Diff
   }
 
   const gitActions = useDiffPanelGitActions({
-    projectPath,
+    workingPath,
     fallbackHasChanges: selection.kind === 'unstaged' && fileDiffs.length > 0,
     canMutateWorkingTree: selection.kind === 'unstaged',
     refreshDiff,
   })
 
-  const { status: vcsStatus, refresh: refreshVcsStatus } = useCombinedVcsStatus(projectPath)
+  const { status: vcsStatus, refresh: refreshVcsStatus } = useCombinedVcsStatus(workingPath)
   const stackedActions = useStackedGitActions({
-    projectPath,
+    projectPath: workingPath,
     onCompleted: () => {
-      if (projectPath) void refreshDiff(projectPath)
+      if (workingPath) void refreshDiff(workingPath)
       void refreshVcsStatus()
     },
   })
@@ -96,7 +96,7 @@ export function DiffPanel({ projectPath, sessionId = null, onSendMessage }: Diff
 
   return (
     <div className="relative flex flex-col size-full bg-diff-bg">
-      {projectPath ? (
+      {workingPath ? (
         <DiffPanelHeader
           selection={selection}
           baseRef={branchBaseRef}

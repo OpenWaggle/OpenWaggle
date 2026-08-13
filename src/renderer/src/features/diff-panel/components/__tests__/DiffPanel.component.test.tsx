@@ -63,7 +63,7 @@ describe('Diff panel components', () => {
       message: 'All working-tree changes staged.',
     })
 
-    render(<DiffPanel projectPath="/repo" onSendMessage={vi.fn()} />)
+    render(<DiffPanel workingPath="/repo" onSendMessage={vi.fn()} />)
 
     await screen.findByRole('button', { name: /select src\/app.ts/ })
     fireEvent.click(screen.getByRole('button', { name: /Stage all/ }))
@@ -87,7 +87,7 @@ describe('Diff panel components', () => {
       message: 'Revert all cancelled.',
     })
 
-    render(<DiffPanel projectPath="/repo" onSendMessage={vi.fn()} />)
+    render(<DiffPanel workingPath="/repo" onSendMessage={vi.fn()} />)
 
     await screen.findByRole('button', { name: /select src\/app.ts/ })
     fireEvent.click(screen.getByRole('button', { name: 'Revert all' }))
@@ -108,7 +108,7 @@ describe('Diff panel components', () => {
       message: 'All eligible working-tree changes reverted.',
     })
 
-    render(<DiffPanel projectPath="/repo" onSendMessage={vi.fn()} />)
+    render(<DiffPanel workingPath="/repo" onSendMessage={vi.fn()} />)
 
     await screen.findByRole('button', { name: /select src\/app.ts/ })
     fireEvent.click(screen.getByRole('button', { name: 'Revert all' }))
@@ -144,7 +144,7 @@ describe('Diff panel components', () => {
       message: 'Git index is locked.',
     })
 
-    render(<DiffPanel projectPath="/repo" onSendMessage={vi.fn()} />)
+    render(<DiffPanel workingPath="/repo" onSendMessage={vi.fn()} />)
 
     await screen.findByRole('button', { name: /select src\/app.ts/ })
     fireEvent.click(screen.getByRole('button', { name: /Stage all/ }))
@@ -179,7 +179,7 @@ describe('Diff panel components', () => {
       message: 'All working-tree changes staged.',
     })
 
-    render(<DiffPanel projectPath="/repo" onSendMessage={vi.fn()} />)
+    render(<DiffPanel workingPath="/repo" onSendMessage={vi.fn()} />)
 
     await screen.findByRole('button', { name: /select src\/app.ts/ })
     expect(screen.getByRole('button', { name: /Stage all/ })).toBeEnabled()
@@ -198,11 +198,11 @@ describe('Diff panel components', () => {
         }),
     )
 
-    const { rerender } = render(<DiffPanel projectPath="/repo-a" onSendMessage={vi.fn()} />)
+    const { rerender } = render(<DiffPanel workingPath="/repo-a" onSendMessage={vi.fn()} />)
 
     await waitFor(() => expect(api.getGitDiff).toHaveBeenCalledWith('/repo-a'))
     fireEvent.click(screen.getByRole('button', { name: /Stage all/ }))
-    rerender(<DiffPanel projectPath="/repo-b" onSendMessage={vi.fn()} />)
+    rerender(<DiffPanel workingPath="/repo-b" onSendMessage={vi.fn()} />)
     await waitFor(() => expect(api.getGitDiff).toHaveBeenCalledWith('/repo-b'))
     resolveStage?.({ ok: true, message: 'All working-tree changes staged.' })
 
@@ -225,11 +225,11 @@ describe('Diff panel components', () => {
         }),
     )
 
-    const { rerender } = render(<DiffPanel projectPath="/repo-a" onSendMessage={vi.fn()} />)
+    const { rerender } = render(<DiffPanel workingPath="/repo-a" onSendMessage={vi.fn()} />)
 
     await waitFor(() => expect(api.getGitDiff).toHaveBeenCalledWith('/repo-a'))
     fireEvent.click(screen.getByRole('button', { name: /Stage all/ }))
-    rerender(<DiffPanel projectPath="/repo-b" onSendMessage={vi.fn()} />)
+    rerender(<DiffPanel workingPath="/repo-b" onSendMessage={vi.fn()} />)
     await waitFor(() => expect(api.getGitDiff).toHaveBeenCalledWith('/repo-b'))
     rejectStage?.(new Error('obsolete failure'))
 
@@ -238,12 +238,12 @@ describe('Diff panel components', () => {
   })
 
   it('renders empty and failed diff states without stale files', async () => {
-    const { rerender } = render(<DiffPanel projectPath={null} onSendMessage={vi.fn()} />)
+    const { rerender } = render(<DiffPanel workingPath={null} onSendMessage={vi.fn()} />)
 
     expect(screen.getByText('No changes to review')).toBeInTheDocument()
 
     vi.mocked(api.getGitDiff).mockRejectedValue(new Error('git unavailable'))
-    rerender(<DiffPanel projectPath="/repo" onSendMessage={vi.fn()} />)
+    rerender(<DiffPanel workingPath="/repo" onSendMessage={vi.fn()} />)
 
     expect(await screen.findByText('No changes to review')).toBeInTheDocument()
   })

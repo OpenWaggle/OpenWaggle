@@ -5,56 +5,60 @@ import { useUIStore } from '@/shell/ui-store';
 function errorMessage(error, fallback) {
     return error instanceof Error && error.message.trim() ? error.message : fallback;
 }
-export function useDiffPanelGitActions({ projectPath, fallbackHasChanges, canMutateWorkingTree, refreshDiff, }) {
+export function useDiffPanelGitActions({ workingPath, fallbackHasChanges, canMutateWorkingTree, refreshDiff, }) {
     const [isActionRunning, setIsActionRunning] = useState(false);
-    const currentProjectPath = useRef(projectPath);
+    const currentWorkingPath = useRef(workingPath);
     useEffect(() => {
-        currentProjectPath.current = projectPath;
-    }, [projectPath]);
-    // Status for the tree this panel is actually showing, not for the project.
-    const gitStatus = useGitStore((state) => selectWorkingTreeStatus(state, projectPath).status);
+        currentWorkingPath.current = workingPath;
+    }, [workingPath]);
+    /*
+     * This is a WORKING path: for a worktree-mode session it is the Session worktree, not
+     * the opened checkout. These are the destructive actions, so the distinction is the
+     * difference between staging the agent's work and touching the user's own checkout.
+     */
+    const gitStatus = useGitStore((state) => selectWorkingTreeStatus(state, workingPath).status);
     const refreshGitStatus = useGitStore((state) => state.refreshStatus);
     const showToast = useUIStore((state) => state.showToast);
-    async function executeGitAction(projectPathToMutate, action, fallbackError) {
+    async function executeGitAction(workingPathToMutate, action, fallbackError) {
         try {
-            const result = await action(projectPathToMutate);
-            if (currentProjectPath.current !== projectPathToMutate)
+            const result = await action(workingPathToMutate);
+            if (currentWorkingPath.current !== workingPathToMutate)
                 return;
             if (!result.ok && result.code === 'cancelled')
                 return;
-            await Promise.all([refreshGitStatus(projectPathToMutate), refreshDiff(projectPathToMutate)]);
-            if (currentProjectPath.current !== projectPathToMutate)
+            await Promise.all([refreshGitStatus(workingPathToMutate), refreshDiff(workingPathToMutate)]);
+            if (currentWorkingPath.current !== workingPathToMutate)
                 return;
             showToast(result.message, result.ok ? 'success' : 'error');
         }
         catch (error) {
-            if (currentProjectPath.current !== projectPathToMutate)
+            if (currentWorkingPath.current !== workingPathToMutate)
                 return;
             showToast(errorMessage(error, fallbackError), 'error');
         }
     }
     function handleRevertAll() {
-        if (!projectPath || isActionRunning)
+        if (!workingPath || isActionRunning)
             return;
         setIsActionRunning(true);
-        void executeGitAction(projectPath, api.revertAllGitChanges, 'Failed to revert working-tree changes.').finally(() => {
+        void executeGitAction(workingPath, api.revertAllGitChanges, 'Failed to revert working-tree changes.').finally(() => {
             setIsActionRunning(false);
         });
     }
     function handleStageAll() {
-        if (!projectPath || isActionRunning)
+        if (!workingPath || isActionRunning)
             return;
         setIsActionRunning(true);
-        void executeGitAction(projectPath, api.stageAllGitChanges, 'Failed to stage working-tree changes.').finally(() => {
+        void executeGitAction(workingPath, api.stageAllGitChanges, 'Failed to stage working-tree changes.').finally(() => {
             setIsActionRunning(false);
         });
     }
     return {
         canRevertAll: canMutateWorkingTree &&
-            projectPath !== null &&
+            workingPath !== null &&
             (gitStatus ? !gitStatus.clean : fallbackHasChanges),
         canStageAll: canMutateWorkingTree &&
-            projectPath !== null &&
+            workingPath !== null &&
             (gitStatus ? gitStatus.changedFiles.some((file) => file.unstaged) : fallbackHasChanges),
         isActionRunning,
         handleRevertAll,
