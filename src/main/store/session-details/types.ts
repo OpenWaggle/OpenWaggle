@@ -29,6 +29,9 @@ export interface SessionSummaryRow {
   readonly created_at: number
   readonly updated_at: number
   readonly message_count: number
+  /** Needed to resolve each session's working path for per-session git indicators. */
+  readonly environment_mode: string | null
+  readonly worktree_path: string | null
 }
 
 export interface SessionBranchRow {

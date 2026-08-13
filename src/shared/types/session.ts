@@ -33,6 +33,9 @@ export interface SessionSummary {
   readonly lastActiveBranchId?: SessionBranchId | null
   readonly branches?: readonly SessionBranch[]
   readonly treeUiState?: SessionTreeUiState | null
+  /** Resolves this session's working path, so per-session git state can be shown in lists. */
+  readonly environmentMode?: SessionEnvironmentMode
+  readonly worktreePath?: string | null
 }
 
 export interface SessionInterruptedRun {
