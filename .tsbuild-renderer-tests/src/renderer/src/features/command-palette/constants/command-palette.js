@@ -1,6 +1,0 @@
-export const COMMAND_PALETTE = {
-    DESCRIPTION_LIMIT: 50,
-    WAGGLE_PRESET_DESCRIPTION_LIMIT: 40,
-    WAGGLE_QUERY: 'waggle',
-    WAGGLE_COMMAND_PREFIX: 'waggle ',
-};

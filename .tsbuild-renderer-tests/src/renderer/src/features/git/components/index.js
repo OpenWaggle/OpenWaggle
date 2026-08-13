@@ -1,1 +1,0 @@
-export { CommitDialog } from './CommitDialog';

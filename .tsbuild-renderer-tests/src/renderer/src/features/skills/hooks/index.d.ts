@@ -1,1 +1,0 @@
-export { useSkills } from './useSkills';

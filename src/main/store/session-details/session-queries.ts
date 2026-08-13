@@ -13,7 +13,16 @@ import {
 } from './message-hydration'
 import type { SessionNodeRow, SessionRow, SessionSummaryRow } from './types'
 
-function hydrateSessionSummary(row: SessionSummaryRow) {
+/**
+ * The detail-side summary shape, which carries `messageCount` and deliberately omits the
+ * session-list fields (environment mode, worktree path, last-active ids).
+ *
+ * Named apart from `hydrateSessionSummary` in `store/sessions/hydration.ts` on purpose:
+ * when both were called the same thing, a change intended for the session list was made
+ * here instead. It typechecked, its own test passed, and the feature was simply missing
+ * until the app was opened.
+ */
+function hydrateSessionDetailSummary(row: SessionSummaryRow) {
   return {
     id: SessionId(row.id),
     title: row.title,
@@ -127,7 +136,7 @@ export async function listSessionSummaries(limit?: number): Promise<SessionSumma
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       const rows = yield* summaryCountSql(sql, 0, limit ?? null)
-      return rows.map(hydrateSessionSummary)
+      return rows.map(hydrateSessionDetailSummary)
     }),
   )
 }
@@ -137,7 +146,7 @@ export async function listArchivedSessions(): Promise<SessionSummary[]> {
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       const rows = yield* summaryCountSql(sql, 1, null)
-      return rows.map(hydrateSessionSummary)
+      return rows.map(hydrateSessionDetailSummary)
     }),
   )
 }

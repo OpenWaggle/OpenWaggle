@@ -114,3 +114,22 @@ that fixed a navigator rendering zero rows in the app while tests passed — fai
 Before the change, removing it failed none.
 
 The unit config runs in `environment: 'node'` and renders nothing, so it needs no compiler.
+
+### Two exported types with the same name in sibling modules is a live trap here
+
+`store/sessions/types.ts` and `store/session-details/types.ts` both export
+`SessionSummaryRow` with different shapes, and each module had its own
+`hydrateSessionSummary`. A change meant for the session list was made to the detail-side
+function: it typechecked, its own test passed, and the feature was simply absent until the
+app was opened. The detail-side function is now `hydrateSessionDetailSummary`.
+
+`pnpm check:repository-standards` fails on any *new* duplicate exported type name under
+`src/`, against a checked-in `KNOWN_DUPLICATE_EXPORTED_TYPES` list that can only shrink
+(resolving one without removing it from the list also fails). `packages/extension-sdk`
+deliberately mirrors shared types as its public surface, so the check is scoped to `src/`.
+
+Rules considered and rejected as noise: duplicate *declared* function names (241 existing)
+and duplicate *exported* function names (14). Only the type-name variant was both low-noise
+and pointed at the actual trap. Note the function I edited was not exported at all, so an
+export-only rule would never have caught it — the durable catch for that half is the
+integration test on the live `listSessions` path.

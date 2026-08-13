@@ -6,6 +6,7 @@ out/
 # tsc typecheck byproducts (declarations + build info). Kept out of out/ so they
 # are never packaged by electron-builder's `out/**/*` glob.
 .tsbuild/
+.tsbuild-renderer-tests/
 dist/
 dist-cjs/
 .pack/
