@@ -104,6 +104,21 @@ export async function flushSettingsStoreForTests(): Promise<void> {
   await writeQueue
 }
 
+/**
+ * Clear the module-level cache and its idempotence guard so a test can re-read a
+ * fresh database through `initializeSettingsStore()`.
+ *
+ * Exists so tests do not need `vi.resetModules()` to get a clean cache. Resetting
+ * the module registry also replaced the app runtime module, which orphaned a live
+ * better-sqlite3 Database per test inside a worker vitest reuses across files, and
+ * that accumulation crashed the addon at teardown (#151).
+ */
+export async function resetSettingsStoreForTests(): Promise<void> {
+  await writeQueue
+  initializationPromise = null
+  settingsCache = createDefaultSettingsSnapshot()
+}
+
 export function getSettings(): Settings {
   return settingsCache
 }
