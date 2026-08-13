@@ -1,14 +1,21 @@
-import { useGitStore } from '@/features/git/state/git-store'
+import { selectWorkingTreeStatus, useGitStore } from '@/features/git/state/git-store'
+import { useActiveWorkingPath, useRepositoryPath } from './useActiveWorkingPath'
 
+/**
+ * Git state for the active session's Working path.
+ *
+ * Reads resolve the working tree automatically so callers cannot report on the
+ * wrong one. Mutations still take an explicit path, because the caller knows
+ * whether it is acting on a working tree or on the repository.
+ */
 export function useGit() {
-  const status = useGitStore((s) => s.status)
+  const workingPath = useActiveWorkingPath()
+  const repositoryPath = useRepositoryPath()
+  const workingTree = useGitStore((s) => selectWorkingTreeStatus(s, workingPath))
   const branches = useGitStore((s) => s.branches)
-  const isLoading = useGitStore((s) => s.isLoading)
   const isCommitting = useGitStore((s) => s.isCommitting)
   const isBranchActionRunning = useGitStore((s) => s.isBranchActionRunning)
-  const statusError = useGitStore((s) => s.statusError)
   const branchesError = useGitStore((s) => s.branchesError)
-  const error = statusError ?? branchesError
   const refreshStatus = useGitStore((s) => s.refreshStatus)
   const refreshBranches = useGitStore((s) => s.refreshBranches)
   const commit = useGitStore((s) => s.commit)
@@ -16,12 +23,14 @@ export function useGit() {
   const createBranch = useGitStore((s) => s.createBranch)
 
   return {
-    status,
+    workingPath,
+    repositoryPath,
+    status: workingTree.status,
+    isLoading: workingTree.isLoading,
+    error: workingTree.error ?? branchesError,
     branches,
-    isLoading,
     isCommitting,
     isBranchActionRunning,
-    error,
     refreshStatus,
     refreshBranches,
     commit,

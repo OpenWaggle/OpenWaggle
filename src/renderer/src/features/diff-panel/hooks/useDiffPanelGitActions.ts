@@ -1,6 +1,6 @@
 import type { GitWorkingTreeMutationResult } from '@shared/types/git'
 import { useEffect, useRef, useState } from 'react'
-import { useGitStore } from '@/features/git'
+import { selectWorkingTreeStatus, useGitStore } from '@/features/git'
 import { api } from '@/shared/lib/ipc'
 import { useUIStore } from '@/shell/ui-store'
 
@@ -27,9 +27,8 @@ export function useDiffPanelGitActions({
   useEffect(() => {
     currentProjectPath.current = projectPath
   }, [projectPath])
-  const gitStatus = useGitStore((state) =>
-    state.statusProjectPath === projectPath ? state.status : null,
-  )
+  // Status for the tree this panel is actually showing, not for the project.
+  const gitStatus = useGitStore((state) => selectWorkingTreeStatus(state, projectPath).status)
   const refreshGitStatus = useGitStore((state) => state.refreshStatus)
   const showToast = useUIStore((state) => state.showToast)
 

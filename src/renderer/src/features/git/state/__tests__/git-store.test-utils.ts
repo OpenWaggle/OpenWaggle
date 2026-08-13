@@ -1,17 +1,16 @@
+import type { GitStatusSummary } from '@shared/types/git'
+
 export const PROJECT_PATH = '/tmp/repo'
 
 export const GIT_STORE_RESET_STATE = {
-  status: null,
-  statusProjectPath: null,
+  statusByWorkingPath: {},
   branches: null,
-  isLoading: false,
+  branchesError: null,
   isCommitting: false,
   isBranchActionRunning: false,
-  statusError: null,
-  branchesError: null,
 }
 
-export function makeGitStatus(overrides = {}) {
+export function makeGitStatus(overrides: Partial<GitStatusSummary> = {}): GitStatusSummary {
   return {
     branch: 'main',
     additions: 0,
@@ -31,4 +30,12 @@ export function makeBranchList(overrides = {}) {
     branches: [],
     ...overrides,
   }
+}
+
+/**
+ * Seed one working tree's status. Status is keyed by Working path (ADR 0016), so a
+ * test must say which tree it is describing rather than setting a global slot.
+ */
+export function statusFor(workingPath: string, status: GitStatusSummary | null = makeGitStatus()) {
+  return { [workingPath]: { status, isLoading: false, error: null } }
 }

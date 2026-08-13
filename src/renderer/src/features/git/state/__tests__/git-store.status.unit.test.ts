@@ -12,13 +12,19 @@ const { apiMock } = vi.hoisted(() => ({
 
 vi.mock('@/shared/lib/ipc', () => ({ api: apiMock }))
 
-import { useGitStore } from '../git-store'
+import { selectWorkingTreeStatus, useGitStore } from '../git-store'
 import {
   GIT_STORE_RESET_STATE,
   makeBranchList,
   makeGitStatus,
   PROJECT_PATH,
+  statusFor,
 } from './git-store.test-utils'
+
+/** Status slice for one working tree, via the store's own selector. */
+function sliceFor(workingPath: string) {
+  return selectWorkingTreeStatus(useGitStore.getState(), workingPath)
+}
 
 describe('useGitStore status and branch refresh behavior', () => {
   beforeEach(() => {
@@ -27,31 +33,28 @@ describe('useGitStore status and branch refresh behavior', () => {
   })
 
   describe('refreshStatus', () => {
-    it('clears status and error when projectPath is null', async () => {
-      useGitStore.setState({
-        status: makeGitStatus({ branch: 'old' }),
-        statusError: 'old error',
-        isLoading: true,
-      })
+    it('does not fetch and leaves other trees untouched when the working path is null', async () => {
+      useGitStore.setState({ statusByWorkingPath: statusFor(PROJECT_PATH) })
 
       await useGitStore.getState().refreshStatus(null)
 
-      expect(useGitStore.getState().status).toBeNull()
-      expect(useGitStore.getState().statusError).toBeNull()
-      expect(useGitStore.getState().isLoading).toBe(false)
+      // A null path is "no session selected", not "wipe what other trees know".
+      expect(sliceFor(PROJECT_PATH).status?.branch).toBe('main')
       expect(apiMock.getGitStatus).not.toHaveBeenCalled()
     })
 
     it('sets isLoading true then false on successful fetch', async () => {
       const states: boolean[] = []
-      const unsubscribe = useGitStore.subscribe((state) => states.push(state.isLoading))
+      const unsubscribe = useGitStore.subscribe((state) =>
+        states.push(selectWorkingTreeStatus(state, PROJECT_PATH).isLoading),
+      )
       apiMock.getGitStatus.mockResolvedValue(makeGitStatus())
 
       await useGitStore.getState().refreshStatus(PROJECT_PATH)
 
       unsubscribe()
       expect(states).toContain(true)
-      expect(useGitStore.getState().isLoading).toBe(false)
+      expect(sliceFor(PROJECT_PATH).isLoading).toBe(false)
     })
 
     it('sets statusError when getGitStatus throws an Error', async () => {
@@ -59,9 +62,9 @@ describe('useGitStore status and branch refresh behavior', () => {
 
       await useGitStore.getState().refreshStatus(PROJECT_PATH)
 
-      expect(useGitStore.getState().status).toBeNull()
-      expect(useGitStore.getState().statusError).toBe('git not found')
-      expect(useGitStore.getState().isLoading).toBe(false)
+      expect(sliceFor(PROJECT_PATH).status).toBeNull()
+      expect(sliceFor(PROJECT_PATH).error).toBe('git not found')
+      expect(sliceFor(PROJECT_PATH).isLoading).toBe(false)
     })
 
     it('sets fallback statusError when thrown value is not an Error', async () => {
@@ -69,12 +72,16 @@ describe('useGitStore status and branch refresh behavior', () => {
 
       await useGitStore.getState().refreshStatus(PROJECT_PATH)
 
-      expect(useGitStore.getState().statusError).toBe('Failed to load Git status.')
-      expect(useGitStore.getState().isLoading).toBe(false)
+      expect(sliceFor(PROJECT_PATH).error).toBe('Failed to load Git status.')
+      expect(sliceFor(PROJECT_PATH).isLoading).toBe(false)
     })
 
-    it('clears statusError on subsequent success', async () => {
-      useGitStore.setState({ statusError: 'previous error' })
+    it('clears the error on subsequent success', async () => {
+      useGitStore.setState({
+        statusByWorkingPath: {
+          [PROJECT_PATH]: { status: null, isLoading: false, error: 'previous error' },
+        },
+      })
       apiMock.getGitStatus.mockResolvedValue(
         makeGitStatus({
           branch: 'dev',
@@ -88,11 +95,13 @@ describe('useGitStore status and branch refresh behavior', () => {
 
       await useGitStore.getState().refreshStatus(PROJECT_PATH)
 
-      expect(useGitStore.getState().statusError).toBeNull()
-      expect(useGitStore.getState().status?.branch).toBe('dev')
+      expect(sliceFor(PROJECT_PATH).error).toBeNull()
+      expect(sliceFor(PROJECT_PATH).status?.branch).toBe('dev')
     })
 
-    it('ignores stale status responses after switching projects', async () => {
+    // Two trees now coexist, so a slow response must land on its own key rather than
+    // overwriting whichever tree was refreshed most recently.
+    it('keeps each working tree independent and ignores its own stale responses', async () => {
       let resolveFirst: ((status: ReturnType<typeof makeGitStatus>) => void) | undefined
       apiMock.getGitStatus
         .mockImplementationOnce(
@@ -108,8 +117,10 @@ describe('useGitStore status and branch refresh behavior', () => {
       resolveFirst?.(makeGitStatus({ branch: 'project-a' }))
       await firstRefresh
 
-      expect(useGitStore.getState().status?.branch).toBe('project-b')
-      expect(useGitStore.getState().statusProjectPath).toBe('/repo-b')
+      // Both are retained, each under its own path: this is what a single slot could
+      // not express, and why two sessions on two worktrees used to fight.
+      expect(sliceFor('/repo-b').status?.branch).toBe('project-b')
+      expect(sliceFor('/repo-a').status?.branch).toBe('project-a')
     })
   })
 

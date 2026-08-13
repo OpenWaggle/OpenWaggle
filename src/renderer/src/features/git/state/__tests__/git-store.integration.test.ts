@@ -14,7 +14,12 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: apiMock,
 }))
 
-import { useGitStore } from '../git-store'
+import { selectWorkingTreeStatus, useGitStore } from '../git-store'
+
+/** Status is keyed by working path (ADR 0016), so a read must name the tree. */
+function statusFor(workingPath: string) {
+  return selectWorkingTreeStatus(useGitStore.getState(), workingPath).status
+}
 
 describe('useGitStore integration', () => {
   beforeEach(() => {
@@ -58,7 +63,7 @@ describe('useGitStore integration', () => {
     await useGitStore.getState().refreshStatus('/tmp/repo')
     await useGitStore.getState().refreshBranches('/tmp/repo')
 
-    expect(useGitStore.getState().status?.branch).toBe('main')
+    expect(statusFor('/tmp/repo')?.branch).toBe('main')
     expect(useGitStore.getState().branches?.branches).toHaveLength(1)
   })
 

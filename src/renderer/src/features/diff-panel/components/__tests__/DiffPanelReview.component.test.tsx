@@ -28,7 +28,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 describe('Diff panel review flow', () => {
   beforeEach(() => {
     vi.resetAllMocks()
-    useGitStore.setState({ status: null, statusError: null, isLoading: false })
+    useGitStore.setState({ statusByWorkingPath: {} })
     useReviewStore.setState({ comments: [], activeCommentLocation: null, summary: '' })
     useUIStore.setState({ toastMessage: null, toastData: null })
   })

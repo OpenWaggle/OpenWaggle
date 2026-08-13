@@ -52,15 +52,21 @@ describe('RunTargetPicker', () => {
     })
     useGitStore.setState({
       ...useGitStore.getInitialState(),
-      status: {
-        branch: 'main',
-        additions: 0,
-        deletions: 0,
-        filesChanged: 0,
-        changedFiles: [],
-        clean: true,
-        ahead: 0,
-        behind: 0,
+      statusByWorkingPath: {
+        '/test/project': {
+          status: {
+            branch: 'main',
+            additions: 0,
+            deletions: 0,
+            filesChanged: 0,
+            changedFiles: [],
+            clean: true,
+            ahead: 0,
+            behind: 0,
+          },
+          isLoading: false,
+          error: null,
+        },
       },
       branches: {
         branches: [

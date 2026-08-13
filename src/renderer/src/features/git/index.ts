@@ -13,7 +13,7 @@ export {
   WORKTREE_BASE_REF_REQUIRED,
   type WorktreeSendPlan,
 } from './lib/worktree-send-plan'
-export { useGitStore } from './state'
+export { selectWorkingTreeStatus, useGitStore } from './state'
 export {
   flushDraftWorktreePlanToSession,
   stashDraftWorktreePlan,

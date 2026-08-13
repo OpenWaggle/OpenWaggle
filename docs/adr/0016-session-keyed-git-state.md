@@ -24,32 +24,36 @@ For a session in `worktree` mode this means:
 
 That asymmetry — one scope correct, two pointing at the wrong repository — is why it survived unnoticed. It also explains an observation initially written off as a QA probe artifact: local and worktree mode displayed the same branch, because both were reading the primary checkout.
 
+### The refresh trigger already exists
+
+OpenWaggle already refreshes git state at the right moments, against the wrong path. `useGitRefresh` subscribes to agent events and, on a terminal transport event (`agent_end` with a reason other than `toolUse`, i.e. a turn finishing), debounces 500ms and then calls `refreshGitStatus` / `refreshGitBranches` and bumps `diffRefreshKey`, which remounts the diff panel through `ChatDiffPane`'s `key`. A window-focus listener does the same. Both pass **`projectPath`**.
+
+So the trigger for "the agent changed something, go look" is built and correctly timed. What is broken is only the target it looks at.
+
 ## Decision
 
 **1. Key status, diffs and working-tree mutations to the session's working path.** A renderer-side resolver mirrors `session-manager.ts`: the Session worktree path in `worktree` mode, otherwise the project path. Branch lists, worktree lists and remotes stay **project-keyed** — a linked worktree shares `refs/` with the primary checkout, so those are genuinely repository-level.
 
 **2. Store git state as a map keyed by working path.** Per-session state coexists, which is what makes per-session indicators (dirty, ahead/behind) possible later. A single slot cannot represent two sessions on two worktrees.
 
-**3. Refresh on OpenWaggle-initiated git changes, and push the invalidation.** Every git mutation we perform — commit, stage-all, revert-all, worktree create/remove, branch create/checkout, worktree birth — invalidates and broadcasts for the affected working path, so every window converges without asking. Invalidation carries the working path rather than being a coarse "git changed" signal: coarse events fan out, making session A re-run a full `git diff` because session B's index changed, and diffs here carry an explicit `maxBuffer`. Broadcasting an invalidation rather than computed state keeps the event schema decoupled from every consumer and keeps large diff payloads off the IPC bus; it also reuses the existing `invalidateGitStatusCache` instead of introducing a parallel mechanism.
+**3. Route the existing refresh triggers through the working path, and invalidate per path.** `useGitRefresh` already fires on turn end and window focus; it must refresh the session's working path rather than the project path. Every git mutation we perform — commit, stage-all, revert-all, worktree create/remove, branch create/checkout, worktree birth — invalidates for the affected working path. Invalidation carries the working path rather than being a coarse "git changed" signal: coarse events fan out, making session A re-run a full `git diff` because session B's index changed, and diffs here carry an explicit `maxBuffer`. Invalidating rather than pushing computed state keeps the event schema decoupled from consumers and keeps large diff payloads off the IPC bus; it also reuses the existing `invalidateGitStatusCache` instead of introducing a parallel mechanism.
 
 **4. Record the branch and worktree path we set, at the moment we set them.** `worktreeBaseRef` and `worktreeStartFromOrigin` stay immutable birth provenance, because Turn checkpoints anchor to them (ADR 0011) and overwriting them would strand historical Turn diffs.
 
-**5. No `.git` watcher, no polling.** State changes when we change it, and we already know when that happens. Polling costs work while idle, is still stale while busy, and guarantees nothing at any given instant. A watcher is the only way to catch changes we did not make — see Known limitation for why that is deferred rather than dismissed.
+**5. No `.git` watcher, no polling.** The existing turn-boundary and window-focus triggers cover the cases that matter once they point at the right path. Polling costs work while idle, is still stale while busy, and guarantees nothing at any instant. A watcher would close the two narrow gaps named in Known limitation — see there for why it is deferred rather than dismissed.
 
 **6. A session whose worktree has vanished must not silently run in the primary checkout.** Today `session-manager.ts` guards with `existsSync(worktreePath)` and falls through to the project path, so a session whose worktree was removed quietly starts running the agent in the user's real checkout — losing exactly the isolation worktree mode exists to provide, without a word. The send is blocked with a message offering to recreate the worktree or switch to local mode.
 
 ## Known limitation, accepted deliberately
 
-**Git changes that OpenWaggle did not make are not observed.** If the agent runs `git checkout -b`, `git worktree add` or `git stash` inside its worktree — or you switch branches in a terminal — OpenWaggle will not know until something else triggers a refresh for that working path.
+**Changes are picked up at turn boundaries and on window focus, not continuously.** `useGitRefresh` already fires on `agent_end` and on window focus, so agent-initiated work — including `git checkout -b` or `git stash` inside the worktree — is reflected shortly after the turn that made it, once that refresh is routed through the working-path resolver. What is *not* covered:
 
-This is recorded as a limitation rather than left implied, because it contradicts a reasonable expectation: that a session follows the branch the agent navigated to. It does not. A future reader should see that this was chosen, not overlooked.
+- **Mid-turn changes.** A ten-minute turn that branches at minute two shows nothing until it ends.
+- **Changes made while the window is unfocused and no turn is running** — for example switching branches in a terminal. Focusing the window resolves it.
 
-Two options remain available, in increasing cost, if it becomes a real annoyance:
+A debounced `.git` watcher would close both gaps. One recursive watch root per project suffices, because every linked worktree's `HEAD`, `index` and metadata live under the primary repository's `.git/worktrees/<name>/` (verified against this repository's own worktrees). Debouncing would be mandatory rather than an optimisation: `.git` churns hard during any operation, and `index.lock` create/delete alone fires several events per `git add`.
 
-1. **Refresh once per turn** — a single call beside the existing `captureTurnCheckpoint`, which already runs after every turn in both run paths. Catches everything the agent did during a turn, at turn granularity, with no new machinery. This is the cheap answer to "follow the agent" and requires no watcher.
-2. **A debounced `.git` watcher.** One recursive watch root per project suffices, because every linked worktree's `HEAD`, `index` and metadata live under the primary repository's `.git/worktrees/<name>/` (verified against this repository's own worktrees). This is the only option that also catches changes made entirely outside the app. Debouncing is mandatory rather than an optimisation: `.git` churns hard during any operation, and `index.lock` create/delete alone fires several events per `git add`.
-
-Neither is in scope here.
+Deferred: the remaining gaps are narrow, and the existing turn-boundary refresh already covers the case that motivated this work — seeing what the agent just did.
 
 ## Consequences
 

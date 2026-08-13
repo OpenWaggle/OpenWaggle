@@ -31,10 +31,15 @@ vi.mock('@/shared/lib/ipc', () => ({
   },
 }))
 
+/** Status keyed by working path (ADR 0016). */
+function statusSliceFor(workingPath: string, status: ReturnType<typeof gitStatus>) {
+  return { [workingPath]: { status, isLoading: false, error: null } }
+}
+
 describe('Diff panel components', () => {
   beforeEach(() => {
     vi.resetAllMocks()
-    useGitStore.setState({ status: null, statusError: null, isLoading: false })
+    useGitStore.setState({ statusByWorkingPath: {} })
     useReviewStore.setState({ comments: [], activeCommentLocation: null, summary: '' })
     useUIStore.setState({ toastMessage: null, toastData: null })
   })
@@ -155,17 +160,19 @@ describe('Diff panel components', () => {
   it('keeps Stage all enabled for files with staged and unstaged changes', async () => {
     vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] })
     useGitStore.setState({
-      statusProjectPath: '/repo',
-      status: gitStatus([
-        {
-          path: 'src/app.ts',
-          status: 'modified',
-          staged: true,
-          unstaged: true,
-          additions: 1,
-          deletions: 1,
-        },
-      ]),
+      statusByWorkingPath: statusSliceFor(
+        '/repo',
+        gitStatus([
+          {
+            path: 'src/app.ts',
+            status: 'modified',
+            staged: true,
+            unstaged: true,
+            additions: 1,
+            deletions: 1,
+          },
+        ]),
+      ),
     })
     vi.mocked(api.stageAllGitChanges).mockResolvedValue({
       ok: true,

@@ -19,7 +19,12 @@ export function useWorkspaceLifecycle(): void {
     updateSessionTitle,
   } = useChat()
   const { loadSessions: loadSessionTrees, refreshSessionTree } = useSessions()
-  const { refreshStatus: refreshGitStatus, refreshBranches: refreshGitBranches } = useGit()
+  const {
+    refreshStatus: refreshGitStatus,
+    refreshBranches: refreshGitBranches,
+    workingPath,
+    repositoryPath,
+  } = useGit()
 
   const navigate = useNavigate()
   const toggleTerminal = useUIStore((s) => s.toggleTerminal)
@@ -38,9 +43,11 @@ export function useWorkspaceLifecycle(): void {
   }, [loadChatSessions, loadSessionTrees])
 
   useEffect(() => {
-    void refreshGitStatus(projectPath)
-    void refreshGitBranches(projectPath)
-  }, [projectPath, refreshGitStatus, refreshGitBranches])
+    // Status follows the active session's working tree; the branch list is
+    // repository-level (ADR 0016).
+    void refreshGitStatus(workingPath)
+    void refreshGitBranches(repositoryPath)
+  }, [workingPath, repositoryPath, refreshGitStatus, refreshGitBranches])
 
   // Subscribe to LLM-generated title updates from main process
   useEffect(() => {
@@ -50,7 +57,8 @@ export function useWorkspaceLifecycle(): void {
   }, [updateSessionTitle])
 
   useGitRefresh({
-    projectPath,
+    workingPath,
+    repositoryPath,
     activeSessionId,
     refreshGitStatus,
     refreshGitBranches,
