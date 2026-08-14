@@ -43,6 +43,7 @@ function slashEntry(
       disabledProjectPaths: [],
     },
     diagnostics: [],
+    contentHash: 'content-hash-1',
     ...overrides,
   }
 }
