@@ -14,7 +14,7 @@ const LONG_TEXT = 'x'.repeat(400)
 const REGULAR_ATTACHMENT_NAME = 'notes.md'
 const AUTO_ATTACHMENT_NAME = 'Pasted Text 1.md'
 
-function userMessage(id: string, content: string) {
+function userMessage(id: string, content: string): UIMessage {
   return {
     id,
     role: 'user',

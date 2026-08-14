@@ -66,15 +66,18 @@ describe('useAgentChat hydration', () => {
               id: ToolCallId('tool-1'),
               name: 'read',
               args: { path: 'src/app.ts' },
-              state: 'output-available',
+              state: 'input-complete',
             },
           },
           {
             type: 'tool-result',
             toolResult: {
               id: ToolCallId('tool-1'),
+              name: 'read',
+              args: { path: 'src/app.ts' },
               result: { kind: 'text', text: 'file contents' },
               isError: false,
+              duration: 0,
             },
           },
           {
@@ -122,7 +125,7 @@ describe('useAgentChat hydration', () => {
               id: 'tool-1',
               name: 'read',
               arguments: '{"path":"src/app.ts"}',
-              state: 'output-available',
+              state: 'input-complete',
             },
             {
               type: 'tool-result',
