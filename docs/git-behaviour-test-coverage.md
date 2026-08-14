@@ -51,15 +51,18 @@ was verified by reintroducing the original bug.
 | React Compiler in component tests | Components reading from library-owned mutable instances, which render differently compiled than not | `vitest.component.config.ts` |
 | Real-Git worktree recreation tests | Git behaviour our mocks asserted but never exercised (`prune` leaves the branch) | `adapters/git/__tests__/worktree-recreate.integration.test.ts` |
 | Real-Git commit-target test | A commit landing in a tree other than the one it was asked to act on | `ipc/git/__tests__/commit-worktree.integration.test.ts` |
+| Branded `WorkingPath` / `RepositoryPath` | A git mutation or working-tree read being handed a repository path (the Header-commit-to-primary-checkout bug class). The renderer API and channel contracts brand the two path kinds; `resolveSessionWorkingDir` is the only producer of a `WorkingPath`, so a working-tree mutation can only be fed from the session→tree rule. Passing a repository path to `commitGit`/`stageAllGitChanges`/etc. is a compile error | `shared/types/brand.ts`, `shared/types/openwaggle-api.ts`, `shared/types/ipc-invoke-integrations.ts`, `shared/types/__tests__/git-path-brands.unit.test.ts` |
 
-Deliberately not built: a rule preventing a git mutation from receiving a project path.
-Name-based variants either false-positive (`Header.tsx` legitimately needs both paths) or
-leak through indirection (the original bug passed the wrong path through a store action).
-The robust form is branded `WorkingPath` / `RepositoryPath` types, filed as #155.
+Earlier this was recorded as deliberately not built, because name-based rules either
+false-positive (`Header.tsx` legitimately needs both paths) or leak through indirection
+(the original bug passed the wrong path through a store action). The branded-type form
+(#155) has none of those problems and is now in place, enforced by the compiler with a
+`@ts-expect-error` proof in `git-path-brands.unit.test.ts`. The branch-prefix and
+duplicate-type guards above remain.
 
 ## Known gaps
 
 - **Git changes OpenWaggle did not make are not observed** (ADR 0016). No test covers agent-initiated `git checkout -b` reaching the UI, because the behaviour is deliberately absent.
 - **The unit runner can under-report totals** when a worker crashes in a native destructor at teardown (#151). Not a failing test; tracked separately.
 - **Layout and pointer interception are invisible to component tests.** jsdom has no layout engine, so every rect is zero and `fireEvent` dispatches without hit-testing. A button can be unreachable in the app while its test passes — this happened to the vanished-worktree recovery actions. Interactive additions need a real browser check.
-- **330 renderer test type errors across 54 files** are fenced by `scripts/renderer-test-type-exemptions.json` rather than fixed (#154). Files outside that list must stay clean.
+- **330 renderer test type errors across 54 files** were fenced by `scripts/renderer-test-type-exemptions.json` (#154). This is now closed: every renderer test file typechecks, the exemption list is empty, and the binary per-file guard keeps it that way.

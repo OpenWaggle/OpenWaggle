@@ -151,3 +151,34 @@ its `SessionSummaryRow` is a different type with `message_count` and table alias
 
 Note the detail worth remembering: dropping a column fails the integration test but produces
 **zero** typecheck errors. Types cannot see into a SQL string.
+
+### Working-tree vs repository paths are branded (WorkingPath / RepositoryPath)
+
+`src/shared/types/brand.ts` defines `WorkingPath` and `RepositoryPath`. Working-tree reads
+and mutations (`getGitStatus`, `commitGit`, `getGitDiff`, `stageAllGitChanges`,
+`revertAllGitChanges`, vcs-status, stacked actions, branch checkout/create) take a
+`WorkingPath`; repository-level lists (branches, worktrees) take a `RepositoryPath`. Both
+are erased strings at runtime, so IPC serialization is unaffected.
+
+`resolveSessionWorkingDir` is the ONLY producer of a `WorkingPath` (in local mode it
+rebrands the checkout — same string, correct role); `useRepositoryPath` produces the
+`RepositoryPath`. So a working-tree mutation can only be fed from the session→tree rule,
+and passing a repository/project path to one is a compile error. `git-path-brands.unit.test.ts`
+pins this with `@ts-expect-error` on every wrong pairing — if a brand stops being enforced
+the directive goes unused and the typecheck fails.
+
+Branch checkout/create take BOTH a WorkingPath (git runs in a tree) and a RepositoryPath
+(whose branch list to refresh) — equal only in local mode, which is the only place checkout
+is reachable. The store's `checkoutBranch`/`createBranch` were previously handed one path
+named `workingPath` and used it for both; the branding surfaced that conflation.
+
+### The renderer test type exemption list is empty; keep it that way
+
+`scripts/renderer-test-type-exemptions.json` is `[]`. Every renderer test file typechecks
+under `tsconfig.renderer-tests.json`, enforced by `pnpm typecheck:tests` (part of
+`pnpm check`), which is binary per file: any test file with a type error fails. The
+dominant fix while clearing the original 330 was annotating fixture factory return types
+(`ChatTextPart`, `UIMessage`, `SessionNode`, `MessageChatRow`, `ChatPanelSections`, etc.)
+so a literal like `type: 'text'` or `role: 'assistant'` is checked against the interface
+instead of widening to `string`. Do NOT use `fromPartial` to silence a whole-object
+mismatch — it casts and hides real errors.
