@@ -1,5 +1,4 @@
 [
-  "src/renderer/src/features/chat/components/__tests__/ChatPanel.component.test.tsx",
   "src/renderer/src/features/chat/components/__tests__/ChatTranscript.extensions.component.test.tsx",
   "src/renderer/src/features/chat/components/__tests__/CompactionSummaryCard.component.test.tsx",
   "src/renderer/src/features/chat/hooks/__tests__/chat-orchestration-hooks.component.test.tsx",
