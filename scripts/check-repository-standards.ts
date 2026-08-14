@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import fg from 'fast-glob'
+import { collectDuplicateExportedTypes } from './standards/duplicate-exported-types'
 import {
   collectPackageBoundaryViolations,
   packageBoundarySourceGlobs,
@@ -165,6 +166,7 @@ async function collectViolationsForFile(file: string) {
     ...collectToolingConfigViolations(file),
     ...collectPackageBoundaryViolations(file, contents),
     ...collectSessionBranchConventionViolations(file, contents),
+    ...collectSessionSummaryColumnViolations(file, contents),
   ] satisfies readonly RepositoryViolation[]
 }
 
@@ -176,96 +178,37 @@ function printViolations(violations: readonly Violation[]) {
 }
 
 /**
- * Two exported types with the same name in sibling modules is a trap this repository has
- * already fallen into.
+ * A SELECT column list is invisible to the type checker: `sql<SessionSummaryRow>` asserts
+ * the row shape without verifying the query selects those columns.
  *
- * Observed failure: `SessionSummaryRow` exists in both `store/sessions/types.ts` and
- * `store/session-details/types.ts` with different shapes, and each has its own
- * `hydrateSessionSummary`. A change meant for the session list was made to the
- * detail-side function instead. It typechecked, its own test passed, and the feature was
- * simply absent until the app was opened.
+ * Observed failure: three queries typed that way omitted `environment_mode` and
+ * `worktree_path`, so every session in the list reported local mode with no worktree and
+ * the per-session git indicators were simply absent. Nothing failed — it was found by
+ * opening the app.
  *
- * The existing collisions are listed rather than fixed here: several are legitimate
- * (independent extension enums), and the row-type pairs are a refactor of their own. The
- * value is that the list is checked in — so the traps are visible — and that adding a
- * new collision fails.
+ * The columns now come from one fragment (`sessionSummaryColumns`). This keeps it that way
+ * by rejecting a query that spells them out inline again.
  */
-const KNOWN_DUPLICATE_EXPORTED_TYPES: readonly string[] = [
-  'ExtensionBuildRunStatus',
-  'ExtensionDiagnosticCode',
-  'ExtensionDiagnosticSeverity',
-  'ExtensionInstallSource',
-  'ExtensionReloadStatus',
-  'ExtensionStorageKind',
-  'ExtensionStorageScope',
-  'MutableValueRef',
-  'SessionActiveRunRow',
-  'SessionBranchRow',
-  'SessionBranchStateRow',
-  'SessionSummaryRow',
-  'UpdateSessionRuntimeInput',
-  'WaggleInfo',
-  'WorktreeSendPlan',
+const SESSION_SUMMARY_QUERY_PATTERN = /sql<SessionSummaryRow>`([^`]*)`/gsu
+const SESSION_SUMMARY_COLUMN_FRAGMENT = 'sessionSummaryColumns'
+const SESSION_SUMMARY_INLINE_COLUMN = /\bcreated_at\b/u
+const SESSION_SUMMARY_COLUMN_OWNERS: readonly string[] = [
+  // A different SessionSummaryRow: the detail-side shape with message_count and aliases.
+  'src/main/store/session-details/session-queries.ts',
 ]
 
-const DUPLICATE_DECLARATION_THRESHOLD = 2
-
-const EXPORTED_TYPE_DECLARATION = /^export (?:interface|type) ([A-Za-z0-9_]+)/gmu
-
-function collectDuplicateExportedTypes(
-  filesWithContents: ReadonlyMap<string, string>,
-): readonly Violation[] {
-  const declarationsByName = new Map<string, string[]>()
-  for (const [file, contents] of filesWithContents) {
-    /*
-     * Scoped to src/. packages/extension-sdk deliberately mirrors shared types as its
-     * public surface, so those pairs are by design rather than a trap.
-     */
-    if (!file.startsWith('src/')) continue
-    if (file.includes('__tests__') || !/\.tsx?$/u.test(file)) continue
-    for (const match of contents.matchAll(EXPORTED_TYPE_DECLARATION)) {
-      const name = match[1]
-      if (name === undefined) continue
-      const files = declarationsByName.get(name) ?? []
-      files.push(file)
-      declarationsByName.set(name, files)
-    }
-  }
-
-  return [
-    ...findUnlistedDuplicates(declarationsByName),
-    ...findStaleDuplicateExemptions(declarationsByName),
-  ]
-}
-
-function findUnlistedDuplicates(
-  declarationsByName: ReadonlyMap<string, readonly string[]>,
-): readonly Violation[] {
+function collectSessionSummaryColumnViolations(file: string, contents: string) {
+  if (SESSION_SUMMARY_COLUMN_OWNERS.includes(normalizePath(file))) return []
   const violations: Violation[] = []
-  for (const [name, declaringFiles] of [...declarationsByName].sort()) {
-    const unique = [...new Set(declaringFiles)].sort()
-    if (unique.length < DUPLICATE_DECLARATION_THRESHOLD) continue
-    if (KNOWN_DUPLICATE_EXPORTED_TYPES.includes(name)) continue
+  for (const match of contents.matchAll(SESSION_SUMMARY_QUERY_PATTERN)) {
+    const query = match[1] ?? ''
+    if (query.includes(SESSION_SUMMARY_COLUMN_FRAGMENT)) continue
+    if (!SESSION_SUMMARY_INLINE_COLUMN.test(query)) continue
     violations.push({
-      file: unique[0] ?? name,
-      message: `Exported type "${name}" is declared in ${unique.length} modules; give each a name that says which it is`,
-      detail: unique.join(', '),
-    })
-  }
-  return violations
-}
-
-/** The exemption list can only shrink: a resolved collision must be removed from it. */
-function findStaleDuplicateExemptions(
-  declarationsByName: ReadonlyMap<string, readonly string[]>,
-): readonly Violation[] {
-  const violations: Violation[] = []
-  for (const name of KNOWN_DUPLICATE_EXPORTED_TYPES) {
-    const unique = new Set(declarationsByName.get(name) ?? [])
-    if (unique.size >= DUPLICATE_DECLARATION_THRESHOLD) continue
-    violations.push({
-      file: 'scripts/check-repository-standards.ts',
-      message: `"${name}" is no longer a duplicate exported type; remove it from KNOWN_DUPLICATE_EXPORTED_TYPES`,
+      file: normalizePath(file),
+      message:
+        'SessionSummaryRow queries must interpolate sessionSummaryColumns(sql), not list columns inline',
+      detail: 'an inline list can omit a column the row type promises, and the type checker cannot see it',
     })
   }
   return violations

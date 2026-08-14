@@ -133,3 +133,21 @@ and duplicate *exported* function names (14). Only the type-name variant was bot
 and pointed at the actual trap. Note the function I edited was not exported at all, so an
 export-only rule would never have caught it — the durable catch for that half is the
 integration test on the live `listSessions` path.
+
+### SELECT column lists are invisible to the type checker
+
+`sql<SessionSummaryRow>` asserts the row shape; it does not verify the query selects those
+columns. Three queries typed that way omitted `environment_mode` and `worktree_path`, so
+every session in the list reported local mode with no worktree and the per-session git
+indicators were absent. Typecheck, lint and the whole suite stayed green; it was found by
+opening the app.
+
+The columns now come from `SESSION_SUMMARY_COLUMN_NAMES` in `store/sessions/types.ts`,
+interpolated as a fragment by `sessionSummaryColumns(sql)`. Three layers keep it closed:
+the shared fragment, a repository-standards rule rejecting an inline column list in a
+`sql<SessionSummaryRow>` query, and `store/__tests__/session-summary-columns.integration.test.ts`
+which drives the real SQLite path. The detail-side `session-queries.ts` is exempted by name:
+its `SessionSummaryRow` is a different type with `message_count` and table aliases.
+
+Note the detail worth remembering: dropping a column fails the integration test but produces
+**zero** typecheck errors. Types cannot see into a SQL string.

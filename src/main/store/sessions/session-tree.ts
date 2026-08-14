@@ -14,6 +14,7 @@ import {
   hydrateSessionSummary,
   hydrateUiState,
   interruptedRunsByBranchId,
+  sessionSummaryColumns,
   visibleNodeIdForHead,
 } from './hydration'
 import type {
@@ -70,16 +71,7 @@ function loadSessionTreeRows(sql: SqlClient.SqlClient, sessionId: SessionId) {
 function loadSessionRows(sql: SqlClient.SqlClient, sessionId: SessionId) {
   return sql<SessionSummaryRow>`
     SELECT
-      id,
-      title,
-      project_path,
-      archived,
-      created_at,
-      updated_at,
-      last_active_node_id,
-      last_active_branch_id,
-      environment_mode,
-      worktree_path
+      ${sessionSummaryColumns(sql)}
     FROM sessions
     WHERE id = ${sessionId}
     LIMIT 1

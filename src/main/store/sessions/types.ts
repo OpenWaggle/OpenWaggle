@@ -49,3 +49,29 @@ export interface SessionActiveRunRow {
   readonly runtime_json: string
   readonly updated_at: number
 }
+
+/**
+ * The columns a {@link SessionSummaryRow} needs, as one list.
+ *
+ * A SELECT column list is invisible to the type checker: `sql<SessionSummaryRow>` asserts
+ * the row shape, it does not verify that the query actually selects those columns. Three
+ * queries typed this way once omitted `environment_mode` and `worktree_path`, so every
+ * session in the list silently reported local mode and no worktree — the per-session git
+ * indicators were simply absent, and nothing failed.
+ *
+ * Interpolate this rather than spelling the columns out, so a query cannot select a subset
+ * of what its own type promises. `SESSION_SUMMARY_COLUMN_NAMES` is exported for the test
+ * that pins the two together.
+ */
+export const SESSION_SUMMARY_COLUMN_NAMES: readonly string[] = [
+  'id',
+  'title',
+  'project_path',
+  'archived',
+  'created_at',
+  'updated_at',
+  'last_active_node_id',
+  'last_active_branch_id',
+  'environment_mode',
+  'worktree_path',
+]

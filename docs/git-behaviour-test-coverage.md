@@ -45,6 +45,7 @@ was verified by reintroducing the original bug.
 | Mechanism | Catches | Where |
 | --- | --- | --- |
 | `sessionWorktreeBranch()` + branch-prefix rule | The Session worktree branch convention being derived twice, so recreation builds a divergent branch and strands commits | `shared/utils/worktree.ts`, `scripts/check-repository-standards.ts` |
+| `sessionSummaryColumns(sql)` + inline-column rule + live-SQL test | A `SELECT` column list omitting a column its row type promises. `sql<SessionSummaryRow>` asserts the shape without verifying the query selects it, and three queries once dropped `environment_mode`/`worktree_path`, so every session reported local mode with no worktree | `store/sessions/types.ts`, `store/sessions/hydration.ts`, `scripts/check-repository-standards.ts`, `store/__tests__/session-summary-columns.integration.test.ts` |
 | Duplicate exported type guard | A second exported type with an existing name in a sibling module, the confusion behind editing the wrong `hydrateSessionSummary` | `scripts/check-repository-standards.ts` |
 | `pnpm typecheck:tests` | Test fixtures that do not match the interface they stand for; renderer tests were previously compiled with `noCheck` | `scripts/check-renderer-test-types.ts` |
 | React Compiler in component tests | Components reading from library-owned mutable instances, which render differently compiled than not | `vitest.component.config.ts` |
