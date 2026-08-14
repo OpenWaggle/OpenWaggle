@@ -31,7 +31,7 @@ describe('useDiffReviewActions', () => {
 
     act(() => {
       result.current.onAddToReview(
-        { filePath: 'src/app.ts', startLine: 1, endLine: 1, lineType: 'add' },
+        { filePath: 'src/app.ts', line: 1, endLine: 1, lineType: 'add' },
         'Guard this.',
       )
     })

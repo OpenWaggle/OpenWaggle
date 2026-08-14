@@ -1,10 +1,1 @@
-[
-  "src/renderer/src/features/chat/hooks/__tests__/useIncrementalMarkdown.unit.test.ts",
-  "src/renderer/src/features/chat/hooks/__tests__/useSendMessage.integration.test.ts",
-  "src/renderer/src/features/chat/hooks/__tests__/useStreamingPhase.component.test.tsx",
-  "src/renderer/src/features/composer/components/__tests__/VoiceRecorder.component.test.tsx",
-  "src/renderer/src/features/diff-panel/hooks/__tests__/useDiffReviewActions.component.test.tsx",
-  "src/renderer/src/features/session-tree/hooks/__tests__/session-tree-controller.component.test.tsx",
-  "src/renderer/src/features/settings/components/__tests__/ExtensionPackageCard.requirements.component.test.tsx",
-  "src/renderer/src/routes/__tests__/-chat-route-effects.component.test.tsx"
-]
+[]

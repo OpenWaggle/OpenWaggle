@@ -13,7 +13,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 
 type SendDeps = Parameters<typeof createSendHandlers>[0]
 
-function makeDeps(overrides: Partial<SendDeps> = {}) {
+function makeDeps(overrides: Partial<SendDeps> = {}): SendDeps {
   return {
     activeSessionId: null,
     projectPath: '/test/project',

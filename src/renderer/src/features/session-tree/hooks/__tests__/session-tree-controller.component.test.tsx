@@ -1,5 +1,6 @@
 import { SessionBranchId, SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionTree, SessionWorkspace } from '@shared/types/session'
+import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionStore } from '@/features/sessions/state'
@@ -101,6 +102,7 @@ describe('useSessionTreePanelController', () => {
     useSessionStore.setState({ activeWorkspace: workspace(), draftBranch: null })
     usePreferencesStore.setState({
       settings: {
+        ...DEFAULT_SETTINGS,
         selectedModel: SupportedModelId('openai/gpt-5.5'),
         favoriteModels: [],
         enabledModels: [],
