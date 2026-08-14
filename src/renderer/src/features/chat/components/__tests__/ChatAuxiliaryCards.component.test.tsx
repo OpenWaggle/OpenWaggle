@@ -1,4 +1,4 @@
-import { SessionBranchId, SupportedModelId } from '@shared/types/brand'
+import { RepositoryPath, SessionBranchId, SupportedModelId, WorkingPath } from '@shared/types/brand'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@/shell/ui-store'
@@ -8,7 +8,7 @@ import { InterruptedRunNotice } from '../InterruptedRunNotice'
 import { RunSummary } from '../RunSummary'
 
 vi.mock('@/features/diff-panel/components', () => ({
-  DiffPanel: ({ workingPath }: { readonly workingPath: string | null }) => (
+  DiffPanel: ({ workingPath }: { readonly workingPath: WorkingPath | null }) => (
     <div>Diff for {workingPath ?? 'none'}</div>
   ),
 }))
@@ -78,7 +78,17 @@ describe('chat auxiliary cards', () => {
     const onClose = vi.fn()
     const onSendMessage = vi.fn()
 
-    render(<ChatDiffPane section={{ workingPath: '/repo', onSendMessage }} onClose={onClose} />)
+    render(
+      <ChatDiffPane
+        section={{
+          workingPath: WorkingPath('/repo'),
+          repositoryPath: RepositoryPath('/repo'),
+          sessionId: null,
+          onSendMessage,
+        }}
+        onClose={onClose}
+      />,
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Refresh diff' }))
     fireEvent.click(screen.getByRole('button', { name: 'Close diff sidebar' }))
@@ -101,8 +111,8 @@ describe('chat auxiliary cards', () => {
     render(
       <ChatDiffPane
         section={{
-          workingPath: '/wt/openwaggle/session-1',
-          repositoryPath: '/repo/openwaggle',
+          workingPath: WorkingPath('/wt/openwaggle/session-1'),
+          repositoryPath: RepositoryPath('/repo/openwaggle'),
           sessionId: null,
           onSendMessage: vi.fn(),
         }}
@@ -120,8 +130,8 @@ describe('chat auxiliary cards', () => {
     render(
       <ChatDiffPane
         section={{
-          workingPath: '/repo/openwaggle',
-          repositoryPath: '/repo/openwaggle',
+          workingPath: WorkingPath('/repo/openwaggle'),
+          repositoryPath: RepositoryPath('/repo/openwaggle'),
           sessionId: null,
           onSendMessage: vi.fn(),
         }}

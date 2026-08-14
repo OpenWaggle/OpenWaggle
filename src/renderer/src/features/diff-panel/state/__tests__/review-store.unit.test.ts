@@ -1,4 +1,3 @@
-import type { ReviewComment } from '@shared/types/review'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { ReviewCommentWithSnippet } from '@/features/diff-panel/lib/review-comment-payload'
 import { type ReviewCommentLocation, useReviewStore } from '../review-store'

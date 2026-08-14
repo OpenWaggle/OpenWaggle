@@ -3,7 +3,7 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import type { WaggleAgentColor } from '@shared/types/waggle'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { ChatRow } from '../../lib/types-chat-row'
+import type { ChatRow, MessageChatRow } from '../../lib/types-chat-row'
 
 vi.mock('@/features/waggle/components/TurnDivider', () => ({
   TurnDivider: ({
@@ -49,7 +49,7 @@ vi.mock('../MessageBubble', () => ({
 
 import { ChatRowRenderer } from '../ChatRowRenderer'
 
-function assistantMessage(id: string) {
+function assistantMessage(id: string): UIMessage {
   return {
     id,
     role: 'assistant',
@@ -57,7 +57,7 @@ function assistantMessage(id: string) {
   }
 }
 
-function messageRow(message: UIMessage) {
+function messageRow(message: UIMessage): MessageChatRow {
   return {
     type: 'message',
     message,

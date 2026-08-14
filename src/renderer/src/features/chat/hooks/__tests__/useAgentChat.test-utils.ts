@@ -33,7 +33,7 @@ const {
       updatedAt: Date.now(),
     })
   })
-  const hasActiveRunMock = vi.fn((_id: SessionId): boolean => false)
+  const hasActiveRunMock = vi.fn((_id: SessionId) => false)
   const useBackgroundRunStoreMock = vi.fn(
     (
       selector: (state: {

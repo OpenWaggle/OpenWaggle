@@ -7,6 +7,7 @@ import {
   SessionNodeId,
   SupportedModelId,
 } from '@shared/types/brand'
+import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionNode, SessionWorkspace } from '@shared/types/session'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -21,7 +22,7 @@ const SESSION_ID = SessionId('session-1')
 const CONVERSATION_ID = SessionId('session-1')
 const MAIN_BRANCH_ID = SessionBranchId('session-1:main')
 
-function uiMessage(id: string, role: 'user' | 'assistant', content: string) {
+function uiMessage(id: string, role: 'user' | 'assistant', content: string): UIMessage {
   return {
     id,
     role,
@@ -151,6 +152,8 @@ function transcriptParams(
     handleForkFromMessage: vi.fn(),
     userDidSend: false,
     onUserDidSendConsumed: vi.fn(),
+    handleViewTurnDiff: vi.fn(),
+    turnAnchorMessageIds: new Set<string>(),
     ...overrides,
   }
 }
