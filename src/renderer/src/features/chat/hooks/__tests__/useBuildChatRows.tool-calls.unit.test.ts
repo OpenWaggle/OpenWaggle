@@ -1,3 +1,4 @@
+import type { UIMessage } from '@shared/types/chat-ui'
 import { describe, expect, it } from 'vitest'
 import {
   createAssistantPendingToolMessage,
@@ -12,7 +13,7 @@ import {
 
 describe('buildChatRows tool-call rendering', () => {
   it('renders repeated Pi tool calls within the same user turn', () => {
-    const messages = [
+    const messages: UIMessage[] = [
       createUserMessage('user-1', 'run command'),
       createAssistantToolMessage('assistant-1', 'tool-a'),
       createAssistantToolMessage('assistant-2', 'tool-b'),
@@ -23,7 +24,7 @@ describe('buildChatRows tool-call rendering', () => {
   })
 
   it('visually nests first-class tool-result messages under their matching assistant tool call', () => {
-    const messages = [
+    const messages: UIMessage[] = [
       createUserMessage('user-1', 'run command'),
       {
         id: 'assistant-1',
@@ -56,7 +57,7 @@ describe('buildChatRows tool-call rendering', () => {
   })
 
   it('keeps repeated tool calls when they belong to different user turns', () => {
-    const messages = [
+    const messages: UIMessage[] = [
       createUserMessage('user-1', 'run command'),
       createAssistantToolMessage('assistant-1', 'tool-a'),
       createUserMessage('user-2', 'run command again'),
@@ -68,7 +69,7 @@ describe('buildChatRows tool-call rendering', () => {
   })
 
   it('keeps repeated tool calls when waggle turn metadata indicates different turns', () => {
-    const messages = [
+    const messages: UIMessage[] = [
       createUserMessage('user-1', 'run command'),
       createAssistantToolMessage('assistant-turn-0', 'tool-a'),
       createAssistantToolMessage('assistant-turn-1', 'tool-b'),
@@ -95,7 +96,7 @@ describe('buildChatRows tool-call rendering', () => {
   })
 
   it('renders pending and terminal repeated tool rows independently', () => {
-    const messages = [
+    const messages: UIMessage[] = [
       createUserMessage('user-1', 'create the file'),
       createAssistantPendingToolMessage('assistant-1', 'tool-a', "I'll create that file for you."),
       createAssistantTerminalToolMessage(
