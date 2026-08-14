@@ -13,7 +13,7 @@ const { apiMock } = vi.hoisted(() => ({
 vi.mock('@/shared/lib/ipc', () => ({ api: apiMock }))
 
 import { useGitStore } from '../git-store'
-import { GIT_STORE_RESET_STATE, PROJECT_PATH } from './git-store.test-utils'
+import { GIT_STORE_RESET_STATE, REPOSITORY_PATH, WORKING_PATH } from './git-store.test-utils'
 
 describe('useGitStore branch action behavior', () => {
   beforeEach(() => {
@@ -25,7 +25,9 @@ describe('useGitStore branch action behavior', () => {
     it('returns a visible failure result when checkout IPC throws', async () => {
       apiMock.checkoutGitBranch.mockRejectedValue(new Error('checkout failed'))
 
-      const result = await useGitStore.getState().checkoutBranch(PROJECT_PATH, { name: 'broken' })
+      const result = await useGitStore
+        .getState()
+        .checkoutBranch(WORKING_PATH, REPOSITORY_PATH, { name: 'broken' })
 
       expect(result).toEqual({ ok: false, code: 'unknown', message: 'checkout failed' })
       expect(useGitStore.getState().isBranchActionRunning).toBe(false)
@@ -38,7 +40,9 @@ describe('useGitStore branch action behavior', () => {
         message: 'Uncommitted changes.',
       })
 
-      const result = await useGitStore.getState().checkoutBranch(PROJECT_PATH, { name: 'dirty' })
+      const result = await useGitStore
+        .getState()
+        .checkoutBranch(WORKING_PATH, REPOSITORY_PATH, { name: 'dirty' })
 
       expect(result.ok).toBe(false)
       expect(apiMock.getGitStatus).not.toHaveBeenCalled()

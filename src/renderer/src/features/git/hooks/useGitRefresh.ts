@@ -1,4 +1,4 @@
-import type { SessionId } from '@shared/types/brand'
+import type { RepositoryPath, SessionId, WorkingPath } from '@shared/types/brand'
 import { useEffect } from 'react'
 import { isTerminalTransportEvent } from '@/features/chat/lib'
 import { api } from '@/shared/lib/ipc'
@@ -8,12 +8,12 @@ const DELAY_MS = 500
 
 interface UseGitRefreshOptions {
   /** Working tree whose status is refreshed: the active session's Session worktree in worktree mode. */
-  readonly workingPath: string | null
+  readonly workingPath: WorkingPath | null
   /** Repository the branch list belongs to. */
-  readonly repositoryPath: string | null
+  readonly repositoryPath: RepositoryPath | null
   readonly activeSessionId: SessionId | null
-  readonly refreshGitStatus: (workingPath: string | null) => Promise<void>
-  readonly refreshGitBranches: (repositoryPath: string | null) => Promise<void>
+  readonly refreshGitStatus: (workingPath: WorkingPath | null) => Promise<void>
+  readonly refreshGitBranches: (repositoryPath: RepositoryPath | null) => Promise<void>
   readonly refreshSession: (id: SessionId) => Promise<void>
 }
 

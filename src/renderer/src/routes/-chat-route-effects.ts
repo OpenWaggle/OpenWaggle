@@ -1,4 +1,5 @@
-import { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
+import { RepositoryPath, SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
+import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { useBranchSummaryStore, useChatStore } from '@/features/chat/state'
@@ -113,7 +114,10 @@ export function useChatRouteEffects({
   }, [draftSession, projectPath, routeProjectPath, setProjectPath])
 
   useEffect(() => {
-    void refreshGitStatus(nextProjectPath)
-    void refreshGitBranches(nextProjectPath)
-  }, [nextProjectPath, refreshGitBranches, refreshGitStatus])
+    // Status follows the active session's working tree (its worktree in worktree mode);
+    // the branch list is repository-level. resolveSessionWorkingDir is the sole producer
+    // of a WorkingPath, so status can never be fed a bare repository path here.
+    void refreshGitStatus(resolveSessionWorkingDir(activeSession, nextProjectPath))
+    void refreshGitBranches(nextProjectPath === null ? null : RepositoryPath(nextProjectPath))
+  }, [activeSession, nextProjectPath, refreshGitBranches, refreshGitStatus])
 }

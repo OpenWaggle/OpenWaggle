@@ -1,3 +1,4 @@
+import { WorkingPath } from '@shared/types/brand'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { apiMock } = vi.hoisted(() => ({
@@ -18,7 +19,9 @@ import {
   makeBranchList,
   makeGitStatus,
   PROJECT_PATH,
+  REPOSITORY_PATH,
   statusFor,
+  WORKING_PATH,
 } from './git-store.test-utils'
 
 /** Status slice for one working tree, via the store's own selector. */
@@ -50,7 +53,7 @@ describe('useGitStore status and branch refresh behavior', () => {
       )
       apiMock.getGitStatus.mockResolvedValue(makeGitStatus())
 
-      await useGitStore.getState().refreshStatus(PROJECT_PATH)
+      await useGitStore.getState().refreshStatus(WORKING_PATH)
 
       unsubscribe()
       expect(states).toContain(true)
@@ -60,7 +63,7 @@ describe('useGitStore status and branch refresh behavior', () => {
     it('sets statusError when getGitStatus throws an Error', async () => {
       apiMock.getGitStatus.mockRejectedValue(new Error('git not found'))
 
-      await useGitStore.getState().refreshStatus(PROJECT_PATH)
+      await useGitStore.getState().refreshStatus(WORKING_PATH)
 
       expect(sliceFor(PROJECT_PATH).status).toBeNull()
       expect(sliceFor(PROJECT_PATH).error).toBe('git not found')
@@ -70,7 +73,7 @@ describe('useGitStore status and branch refresh behavior', () => {
     it('sets fallback statusError when thrown value is not an Error', async () => {
       apiMock.getGitStatus.mockRejectedValue('string error')
 
-      await useGitStore.getState().refreshStatus(PROJECT_PATH)
+      await useGitStore.getState().refreshStatus(WORKING_PATH)
 
       expect(sliceFor(PROJECT_PATH).error).toBe('Failed to load Git status.')
       expect(sliceFor(PROJECT_PATH).isLoading).toBe(false)
@@ -93,7 +96,7 @@ describe('useGitStore status and branch refresh behavior', () => {
         }),
       )
 
-      await useGitStore.getState().refreshStatus(PROJECT_PATH)
+      await useGitStore.getState().refreshStatus(WORKING_PATH)
 
       expect(sliceFor(PROJECT_PATH).error).toBeNull()
       expect(sliceFor(PROJECT_PATH).status?.branch).toBe('dev')
@@ -112,8 +115,8 @@ describe('useGitStore status and branch refresh behavior', () => {
         )
         .mockResolvedValueOnce(makeGitStatus({ branch: 'project-b' }))
 
-      const firstRefresh = useGitStore.getState().refreshStatus('/repo-a')
-      await useGitStore.getState().refreshStatus('/repo-b')
+      const firstRefresh = useGitStore.getState().refreshStatus(WorkingPath('/repo-a'))
+      await useGitStore.getState().refreshStatus(WorkingPath('/repo-b'))
       resolveFirst?.(makeGitStatus({ branch: 'project-a' }))
       await firstRefresh
 
@@ -138,7 +141,7 @@ describe('useGitStore status and branch refresh behavior', () => {
     it('sets branchesError when listGitBranches throws an Error', async () => {
       apiMock.listGitBranches.mockRejectedValue(new Error('permission denied'))
 
-      await useGitStore.getState().refreshBranches(PROJECT_PATH)
+      await useGitStore.getState().refreshBranches(REPOSITORY_PATH)
 
       expect(useGitStore.getState().branches).toBeNull()
       expect(useGitStore.getState().branchesError).toBe('permission denied')
@@ -147,7 +150,7 @@ describe('useGitStore status and branch refresh behavior', () => {
     it('sets fallback branchesError when thrown value is not an Error', async () => {
       apiMock.listGitBranches.mockRejectedValue(42)
 
-      await useGitStore.getState().refreshBranches(PROJECT_PATH)
+      await useGitStore.getState().refreshBranches(REPOSITORY_PATH)
 
       expect(useGitStore.getState().branchesError).toBe('Failed to load Git branches.')
     })
@@ -156,7 +159,7 @@ describe('useGitStore status and branch refresh behavior', () => {
       useGitStore.setState({ branchesError: 'previous' })
       apiMock.listGitBranches.mockResolvedValue(makeBranchList())
 
-      await useGitStore.getState().refreshBranches(PROJECT_PATH)
+      await useGitStore.getState().refreshBranches(REPOSITORY_PATH)
 
       expect(useGitStore.getState().branchesError).toBeNull()
       expect(useGitStore.getState().branches).toEqual(makeBranchList())

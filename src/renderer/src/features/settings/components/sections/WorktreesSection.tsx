@@ -1,3 +1,4 @@
+import { RepositoryPath } from '@shared/types/brand'
 import type { GitWorktreeInfo } from '@shared/types/git'
 import { SESSION_ENVIRONMENT_MODES } from '@shared/types/git'
 import { formatWorktreePathForDisplay } from '@shared/utils/worktree'
@@ -19,18 +20,18 @@ const MODE_DESCRIPTIONS: Record<(typeof SESSION_ENVIRONMENT_MODES)[number], stri
   worktree: 'Each session runs in a dedicated Session worktree isolated from the checkout.',
 }
 
-function useProjectWorktrees(projectPath: string | null) {
+function useProjectWorktrees(repositoryPath: RepositoryPath | null) {
   const [worktrees, setWorktrees] = useState<readonly GitWorktreeInfo[]>([])
   const [isLoading, setIsLoading] = useState(false)
 
   const refresh = useCallback(async () => {
-    if (!projectPath) {
+    if (!repositoryPath) {
       setWorktrees([])
       return
     }
     setIsLoading(true)
     try {
-      const result = await api.listGitWorktrees(projectPath)
+      const result = await api.listGitWorktrees(repositoryPath)
       setWorktrees(result.worktrees)
     } catch (error) {
       logger.warn('Failed to list worktrees', { error: String(error) })
@@ -38,7 +39,7 @@ function useProjectWorktrees(projectPath: string | null) {
     } finally {
       setIsLoading(false)
     }
-  }, [projectPath])
+  }, [repositoryPath])
 
   useEffect(() => {
     void refresh()
@@ -53,14 +54,15 @@ export function WorktreesSection() {
     (state) => state.setDefaultSessionEnvironmentMode,
   )
   const projectPath = settings.projectPath
-  const { worktrees, isLoading, refresh } = useProjectWorktrees(projectPath)
+  const repositoryPath = projectPath === null ? null : RepositoryPath(projectPath)
+  const { worktrees, isLoading, refresh } = useProjectWorktrees(repositoryPath)
   const [removingPath, setRemovingPath] = useState<string | null>(null)
 
   async function handleRemove(worktreePath: string) {
-    if (!projectPath) return
+    if (!repositoryPath) return
     setRemovingPath(worktreePath)
     try {
-      const result = await api.removeGitWorktree(projectPath, { path: worktreePath })
+      const result = await api.removeGitWorktree(repositoryPath, { path: worktreePath })
       if (!result.ok) {
         logger.warn('Failed to remove worktree', { code: result.code, message: result.message })
       }

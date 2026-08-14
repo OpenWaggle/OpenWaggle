@@ -45,7 +45,6 @@
   "src/renderer/src/features/diff-panel/hooks/__tests__/useDiffReviewActions.component.test.tsx",
   "src/renderer/src/features/diff-panel/state/__tests__/review-store.unit.test.ts",
   "src/renderer/src/features/git/components/__tests__/CommitDialog.component.test.tsx",
-  "src/renderer/src/features/git/state/__tests__/git-store.integration.test.ts",
   "src/renderer/src/features/session-tree/hooks/__tests__/session-tree-controller.component.test.tsx",
   "src/renderer/src/features/session-tree/hooks/__tests__/session-tree-panel-rows.unit.test.ts",
   "src/renderer/src/features/session-tree/hooks/__tests__/session-tree-selection.component.test.tsx",

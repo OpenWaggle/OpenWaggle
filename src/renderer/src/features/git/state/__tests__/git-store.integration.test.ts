@@ -1,3 +1,4 @@
+import { RepositoryPath, WorkingPath } from '@shared/types/brand'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { apiMock } = vi.hoisted(() => ({
@@ -21,16 +22,18 @@ function statusFor(workingPath: string) {
   return selectWorkingTreeStatus(useGitStore.getState(), workingPath).status
 }
 
+const WORKING_PATH = WorkingPath('/tmp/repo')
+const REPOSITORY_PATH = RepositoryPath('/tmp/repo')
+
 describe('useGitStore integration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useGitStore.setState({
-      status: null,
+      statusByWorkingPath: {},
       branches: null,
-      isLoading: false,
+      branchesError: null,
       isCommitting: false,
       isBranchActionRunning: false,
-      error: null,
     })
   })
 
@@ -60,8 +63,8 @@ describe('useGitStore integration', () => {
       ],
     })
 
-    await useGitStore.getState().refreshStatus('/tmp/repo')
-    await useGitStore.getState().refreshBranches('/tmp/repo')
+    await useGitStore.getState().refreshStatus(WORKING_PATH)
+    await useGitStore.getState().refreshBranches(REPOSITORY_PATH)
 
     expect(statusFor('/tmp/repo')?.branch).toBe('main')
     expect(useGitStore.getState().branches?.branches).toHaveLength(1)
@@ -94,7 +97,9 @@ describe('useGitStore integration', () => {
       ],
     })
 
-    const result = await useGitStore.getState().checkoutBranch('/tmp/repo', { name: 'feature' })
+    const result = await useGitStore.getState().checkoutBranch(WORKING_PATH, REPOSITORY_PATH, {
+      name: 'feature',
+    })
 
     expect(result).toEqual({ ok: true, message: 'Switched to feature.' })
     expect(apiMock.getGitStatus).toHaveBeenCalledWith('/tmp/repo')
@@ -109,7 +114,7 @@ describe('useGitStore integration', () => {
       message: 'The requested branch could not be found.',
     })
 
-    const result = await useGitStore.getState().createBranch('/tmp/repo', {
+    const result = await useGitStore.getState().createBranch(WORKING_PATH, REPOSITORY_PATH, {
       name: 'missing',
       checkout: false,
     })

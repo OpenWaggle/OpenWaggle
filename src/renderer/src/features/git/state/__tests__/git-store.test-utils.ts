@@ -1,6 +1,10 @@
+import { RepositoryPath, WorkingPath } from '@shared/types/brand'
 import type { GitStatusSummary } from '@shared/types/git'
 
 export const PROJECT_PATH = '/tmp/repo'
+/** The same path in its two roles, branded so store actions accept them (ADR 0016). */
+export const WORKING_PATH = WorkingPath(PROJECT_PATH)
+export const REPOSITORY_PATH = RepositoryPath(PROJECT_PATH)
 
 export const GIT_STORE_RESET_STATE = {
   statusByWorkingPath: {},

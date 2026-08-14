@@ -1,4 +1,5 @@
 import { matchBy } from '@diegogbrisa/ts-match'
+import type { WorkingPath } from '@shared/types/brand'
 import type { GitFileDiff } from '@shared/types/git'
 import { useEffect, useReducer, useRef } from 'react'
 import type { DiffScopeSelection } from '@/features/diff-panel/state/diff-scope-store'
@@ -45,7 +46,7 @@ function isStaleDiffRequest(
   return requestId !== latestRequestId || currentWorkingPath !== requestedWorkingPath
 }
 
-function fetchDiffsForScope(workingPath: string, selection: DiffScopeSelection) {
+function fetchDiffsForScope(workingPath: WorkingPath, selection: DiffScopeSelection) {
   if (selection.kind === 'branch') {
     return api.getGitBranchDiff(workingPath, selection.baseRef ?? '')
   }
@@ -59,7 +60,7 @@ function fetchDiffsForScope(workingPath: string, selection: DiffScopeSelection) 
  * the Session worktree. Naming it precisely matters here because reading the project
  * path instead is exactly the defect ADR 0016 fixed.
  */
-export function useDiffPanelDiffs(workingPath: string | null, selection: DiffScopeSelection) {
+export function useDiffPanelDiffs(workingPath: WorkingPath | null, selection: DiffScopeSelection) {
   const [state, dispatch] = useReducer(diffPanelReducer, {
     fileDiffs: [],
     isLoading: false,
@@ -110,18 +111,18 @@ export function useDiffPanelDiffs(workingPath: string | null, selection: DiffSco
     }
   }, [workingPath, scopeKind, branchBaseRef])
 
-  async function refreshDiff(projectPathToRefresh: string) {
+  async function refreshDiff(workingPathToRefresh: WorkingPath) {
     diffRequestId.current += 1
     const requestId = diffRequestId.current
     dispatch({ type: 'start-loading' })
     try {
-      const result = await fetchDiffsForScope(projectPathToRefresh, selectionRef.current)
+      const result = await fetchDiffsForScope(workingPathToRefresh, selectionRef.current)
       if (
         isStaleDiffRequest(
           requestId,
           diffRequestId.current,
           currentWorkingPath.current,
-          projectPathToRefresh,
+          workingPathToRefresh,
         )
       )
         return
@@ -136,7 +137,7 @@ export function useDiffPanelDiffs(workingPath: string | null, selection: DiffSco
           requestId,
           diffRequestId.current,
           currentWorkingPath.current,
-          projectPathToRefresh,
+          workingPathToRefresh,
         )
       )
         return

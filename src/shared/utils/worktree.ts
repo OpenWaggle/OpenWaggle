@@ -1,3 +1,5 @@
+import { WorkingPath } from '../types/brand'
+
 /**
  * Pure display helper for Session worktree paths, shared between the main
  * process worktree service and the renderer worktree surface (ADR 0010).
@@ -15,6 +17,11 @@ export function formatWorktreePathForDisplay(worktreePath: string): string {
  * The effective working directory for a session's git operations (ADR 0010):
  * the Session worktree in worktree mode, otherwise the opened checkout. Used so
  * diff/status/revert/stage/stacked actions never target the wrong tree.
+ *
+ * The sole producer of a {@link WorkingPath}: branding the result here means a
+ * working-tree read or mutation can only be fed from this rule, never from a raw
+ * repository path. In local mode the working tree is the checkout itself, so the
+ * repository path is rebranded as the working path — same string, correct role.
  */
 export function resolveSessionWorkingDir(
   session: {
@@ -22,11 +29,11 @@ export function resolveSessionWorkingDir(
     readonly worktreePath?: string | null
   } | null,
   openedProjectPath: string | null,
-): string | null {
+): WorkingPath | null {
   if (session?.environmentMode === 'worktree' && session.worktreePath) {
-    return session.worktreePath
+    return WorkingPath(session.worktreePath)
   }
-  return openedProjectPath
+  return openedProjectPath === null ? null : WorkingPath(openedProjectPath)
 }
 
 /**

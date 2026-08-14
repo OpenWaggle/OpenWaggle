@@ -1,3 +1,4 @@
+import type { WorkingPath } from '@shared/types/brand'
 import type { GitWorkingTreeMutationResult } from '@shared/types/git'
 import { useEffect, useRef, useState } from 'react'
 import { selectWorkingTreeStatus, useGitStore } from '@/features/git'
@@ -5,11 +6,11 @@ import { api } from '@/shared/lib/ipc'
 import { useUIStore } from '@/shell/ui-store'
 
 interface UseDiffPanelGitActionsOptions {
-  readonly workingPath: string | null
+  readonly workingPath: WorkingPath | null
   readonly fallbackHasChanges: boolean
   /** Working-tree mutations are only valid when the panel shows the working tree. */
   readonly canMutateWorkingTree: boolean
-  readonly refreshDiff: (workingPath: string) => Promise<void>
+  readonly refreshDiff: (workingPath: WorkingPath) => Promise<void>
 }
 
 function errorMessage(error: unknown, fallback: string) {
@@ -37,8 +38,8 @@ export function useDiffPanelGitActions({
   const showToast = useUIStore((state) => state.showToast)
 
   async function executeGitAction(
-    workingPathToMutate: string,
-    action: (path: string) => Promise<GitWorkingTreeMutationResult>,
+    workingPathToMutate: WorkingPath,
+    action: (path: WorkingPath) => Promise<GitWorkingTreeMutationResult>,
     fallbackError: string,
   ) {
     try {

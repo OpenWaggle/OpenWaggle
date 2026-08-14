@@ -13,7 +13,12 @@ const { apiMock } = vi.hoisted(() => ({
 vi.mock('@/shared/lib/ipc', () => ({ api: apiMock }))
 
 import { useGitStore } from '../git-store'
-import { GIT_STORE_RESET_STATE, makeGitStatus, PROJECT_PATH } from './git-store.test-utils'
+import {
+  GIT_STORE_RESET_STATE,
+  makeGitStatus,
+  PROJECT_PATH,
+  WORKING_PATH,
+} from './git-store.test-utils'
 
 describe('useGitStore commit behavior', () => {
   beforeEach(() => {
@@ -29,7 +34,7 @@ describe('useGitStore commit behavior', () => {
     })
     apiMock.getGitStatus.mockResolvedValue(makeGitStatus({ ahead: 1 }))
 
-    const result = await useGitStore.getState().commit(PROJECT_PATH, {
+    const result = await useGitStore.getState().commit(WORKING_PATH, {
       message: 'test commit',
       amend: false,
       paths: ['file.ts'],
@@ -47,7 +52,7 @@ describe('useGitStore commit behavior', () => {
       message: 'Nothing to commit.',
     })
 
-    const result = await useGitStore.getState().commit(PROJECT_PATH, {
+    const result = await useGitStore.getState().commit(WORKING_PATH, {
       message: 'empty commit',
       amend: false,
       paths: [],
@@ -61,7 +66,7 @@ describe('useGitStore commit behavior', () => {
   it('returns a visible failure result when commitGit throws', async () => {
     apiMock.commitGit.mockRejectedValue(new Error('IPC failure'))
 
-    const result = await useGitStore.getState().commit(PROJECT_PATH, {
+    const result = await useGitStore.getState().commit(WORKING_PATH, {
       message: 'fail',
       amend: false,
       paths: [],

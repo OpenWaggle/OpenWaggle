@@ -1,6 +1,7 @@
+import type { WorkingPath } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import { resolveSessionWorkingDir } from '@shared/utils/worktree'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { selectWorkingTreeStatus, useGitStore } from '@/features/git'
 import { api } from '@/shared/lib/ipc'
 import { buildSessionGitIndicator } from '../lib/session-git-indicator'
@@ -16,15 +17,22 @@ import { buildSessionGitIndicator } from '../lib/session-git-indicator'
 export function useSessionGitIndicators(sessions: readonly SessionSummary[]): void {
   const refreshStatus = useGitStore((s) => s.refreshStatus)
 
-  // Join the distinct working paths so the effect re-runs when the set changes, not
-  // when the array identity does: session lists are rebuilt on every poll.
-  const workingPathKey = distinctWorkingPaths(sessions).join('\u0000')
+  // Distinct branded working paths, all produced by resolveSessionWorkingDir, memoised
+  // by the path set so the effects re-run on a set change rather than on every list
+  // rebuild. The map also recovers the branded value for the change event's plain path
+  // without re-branding it, so the producer stays the only source of a WorkingPath.
+  const brandByPath = useMemo(() => {
+    const map = new Map<string, WorkingPath>()
+    for (const session of sessions) {
+      const workingPath = sessionWorkingPath(session)
+      if (workingPath !== null) map.set(String(workingPath), workingPath)
+    }
+    return map
+  }, [sessions])
 
   useEffect(() => {
-    for (const workingPath of workingPathKey.split('\u0000')) {
-      if (workingPath.length > 0) void refreshStatus(workingPath)
-    }
-  }, [workingPathKey, refreshStatus])
+    for (const branded of brandByPath.values()) void refreshStatus(branded)
+  }, [brandByPath, refreshStatus])
 
   /*
    * Keep BACKGROUND sessions current too. The active session is refreshed on its own
@@ -34,15 +42,15 @@ export function useSessionGitIndicators(sessions: readonly SessionSummary[]): vo
    * as changed is re-read here.
    */
   useEffect(() => {
-    const tracked = new Set(workingPathKey.split('\u0000').filter((path) => path.length > 0))
     return api.onGitWorkingTreeChanged(({ workingPath }) => {
-      if (tracked.has(workingPath)) void refreshStatus(workingPath)
+      const branded = brandByPath.get(workingPath)
+      if (branded !== undefined) void refreshStatus(branded)
     })
-  }, [workingPathKey, refreshStatus])
+  }, [brandByPath, refreshStatus])
 }
 
 /** The working tree a session row describes, or null when it has no project. */
-export function sessionWorkingPath(session: SessionSummary): string | null {
+export function sessionWorkingPath(session: SessionSummary): WorkingPath | null {
   return resolveSessionWorkingDir(
     { environmentMode: session.environmentMode, worktreePath: session.worktreePath ?? null },
     session.projectPath,
@@ -54,13 +62,4 @@ export function useSessionGitIndicator(session: SessionSummary) {
   const workingPath = sessionWorkingPath(session)
   const status = useGitStore((s) => selectWorkingTreeStatus(s, workingPath).status)
   return buildSessionGitIndicator(status)
-}
-
-function distinctWorkingPaths(sessions: readonly SessionSummary[]): string[] {
-  const paths = new Set<string>()
-  for (const session of sessions) {
-    const workingPath = sessionWorkingPath(session)
-    if (workingPath !== null) paths.add(workingPath)
-  }
-  return [...paths].sort()
 }

@@ -133,10 +133,11 @@ function createBranchMutation({
     return null
   }
   const workingPath = git.workingPath
+  const repositoryPath = git.repositoryPath
   return runBranchMutation(
     () =>
-      workingPath
-        ? git.createBranch(workingPath, { name, checkout: true })
+      workingPath && repositoryPath
+        ? git.createBranch(workingPath, repositoryPath, { name, checkout: true })
         : Promise.resolve(NO_PROJECT_RESULT),
     onToast,
   )

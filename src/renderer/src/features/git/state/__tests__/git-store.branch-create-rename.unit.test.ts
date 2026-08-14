@@ -18,6 +18,8 @@ import {
   makeBranchList,
   makeGitStatus,
   PROJECT_PATH,
+  REPOSITORY_PATH,
+  WORKING_PATH,
 } from './git-store.test-utils'
 
 describe('useGitStore create and rename branch behavior', () => {
@@ -35,7 +37,7 @@ describe('useGitStore create and rename branch behavior', () => {
       apiMock.getGitStatus.mockResolvedValue(makeGitStatus())
       apiMock.listGitBranches.mockResolvedValue(makeBranchList())
 
-      const result = await useGitStore.getState().createBranch(PROJECT_PATH, {
+      const result = await useGitStore.getState().createBranch(WORKING_PATH, REPOSITORY_PATH, {
         name: 'feature/new',
         checkout: true,
       })
@@ -53,7 +55,9 @@ describe('useGitStore create and rename branch behavior', () => {
         message: 'Branch already exists.',
       })
 
-      const result = await useGitStore.getState().createBranch(PROJECT_PATH, { name: 'existing' })
+      const result = await useGitStore
+        .getState()
+        .createBranch(WORKING_PATH, REPOSITORY_PATH, { name: 'existing' })
 
       expect(result.ok).toBe(false)
       expect(apiMock.getGitStatus).not.toHaveBeenCalled()
@@ -64,7 +68,9 @@ describe('useGitStore create and rename branch behavior', () => {
     it('returns a visible failure result when create IPC throws', async () => {
       apiMock.createGitBranch.mockRejectedValue(new Error('timeout'))
 
-      const result = await useGitStore.getState().createBranch(PROJECT_PATH, { name: 'boom' })
+      const result = await useGitStore
+        .getState()
+        .createBranch(WORKING_PATH, REPOSITORY_PATH, { name: 'boom' })
 
       expect(result).toEqual({ ok: false, code: 'unknown', message: 'timeout' })
       expect(useGitStore.getState().isBranchActionRunning).toBe(false)

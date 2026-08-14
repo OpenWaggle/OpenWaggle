@@ -1,4 +1,5 @@
 import type { SessionId } from '@shared/types/brand'
+import { RepositoryPath } from '@shared/types/brand'
 import type { SessionEnvironmentMode, VcsChangeRequest } from '@shared/types/git'
 import type { SessionDetail } from '@shared/types/session'
 import { sessionWorktreeBranch } from '@shared/utils/worktree'
@@ -136,7 +137,7 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
     let cancelled = false
     void (async () => {
       try {
-        const result = await api.listGitBranches(projectPath)
+        const result = await api.listGitBranches(RepositoryPath(projectPath))
         if (cancelled) return
         setBranches({
           currentBranch: result.currentBranch,
@@ -246,7 +247,7 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
     const forkPoint = baseRef?.trim()
     if (!branch || !forkPoint) return false
     try {
-      const result = await api.createGitWorktree(projectPath, {
+      const result = await api.createGitWorktree(RepositoryPath(projectPath), {
         path: recordedWorktreePath,
         branch,
         baseRef: forkPoint,

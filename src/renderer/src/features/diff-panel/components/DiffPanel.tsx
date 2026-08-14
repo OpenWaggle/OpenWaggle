@@ -1,5 +1,5 @@
 import type { CodeViewHandle } from '@pierre/diffs/react'
-import type { SessionId } from '@shared/types/brand'
+import type { RepositoryPath, SessionId, WorkingPath } from '@shared/types/brand'
 import type { GitStackedAction } from '@shared/types/git'
 import { useRef, useState } from 'react'
 import { useDiffPanelGitActions } from '@/features/diff-panel/hooks/useDiffPanelGitActions'
@@ -21,12 +21,18 @@ import { DiffPanelHeader } from './DiffPanelHeader'
 import { DiffReviewBody } from './DiffReviewBody'
 
 interface DiffPanelProps {
-  workingPath: string | null
+  workingPath: WorkingPath | null
+  repositoryPath: RepositoryPath | null
   sessionId?: SessionId | null
   onSendMessage: (content: string) => void
 }
 
-export function DiffPanel({ workingPath, sessionId = null, onSendMessage }: DiffPanelProps) {
+export function DiffPanel({
+  workingPath,
+  repositoryPath,
+  sessionId = null,
+  onSendMessage,
+}: DiffPanelProps) {
   const viewerRef = useRef<CodeViewHandle<ReviewAnnotationMetadata>>(null)
   const scopeByThreadKey = useDiffScopeStore((s) => s.byThreadKey)
   const selectGitScope = useDiffScopeStore((s) => s.selectGitScope)
@@ -39,7 +45,7 @@ export function DiffPanel({ workingPath, sessionId = null, onSendMessage }: Diff
     true,
   )
   const branchBaseRef = selection.kind === 'branch' ? selection.baseRef : null
-  const baseRefChoices = useBaseRefChoices(workingPath)
+  const baseRefChoices = useBaseRefChoices(repositoryPath)
   const turns = useSessionTurns(sessionId)
   const branchOrTreeDiffs = useDiffPanelDiffs(workingPath, selection)
   const turnFiles = useTurnDiffFiles(sessionId, selection)
@@ -72,7 +78,7 @@ export function DiffPanel({ workingPath, sessionId = null, onSendMessage }: Diff
 
   const { status: vcsStatus, refresh: refreshVcsStatus } = useCombinedVcsStatus(workingPath)
   const stackedActions = useStackedGitActions({
-    projectPath: workingPath,
+    workingPath,
     onCompleted: () => {
       if (workingPath) void refreshDiff(workingPath)
       void refreshVcsStatus()

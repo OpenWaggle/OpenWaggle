@@ -1,7 +1,7 @@
 import type { AgentSendPayload, PreparedAttachment } from './agent'
 import type { OAuthAccountInfo, OAuthProvider } from './auth'
 import type { ActiveRunInfo, BackgroundRunSnapshot } from './background-run'
-import type { SessionId, WagglePresetId } from './brand'
+import type { RepositoryPath, SessionId, WagglePresetId, WorkingPath } from './brand'
 import type { FileSuggestion } from './composer'
 import type {
   DiagnosticsInfo,
@@ -59,51 +59,51 @@ export interface IpcIntegrationInvokeChannelMap {
     return: undefined
   }
   'git:status': {
-    args: [projectPath: string]
+    args: [workingPath: WorkingPath]
     return: GitStatusSummary
   }
   'git:commit': {
-    args: [projectPath: string, payload: GitCommitPayload]
+    args: [workingPath: WorkingPath, payload: GitCommitPayload]
     return: GitCommitResult
   }
   'git:diff': {
-    args: [projectPath: string]
+    args: [workingPath: WorkingPath]
     return: GitDiffResult
   }
   'git:branch-diff': {
-    args: [projectPath: string, baseRef: string]
+    args: [workingPath: WorkingPath, baseRef: string]
     return: GitDiffResult
   }
   'git:working-tree:stage-all': {
-    args: [projectPath: string]
+    args: [workingPath: WorkingPath]
     return: GitWorkingTreeMutationResult
   }
   'git:working-tree:revert-all': {
-    args: [projectPath: string]
+    args: [workingPath: WorkingPath]
     return: GitWorkingTreeMutationResult
   }
   'git:branches:list': {
-    args: [projectPath: string]
+    args: [repositoryPath: RepositoryPath]
     return: GitBranchListResult
   }
   'git:branches:checkout': {
-    args: [projectPath: string, payload: GitBranchCheckoutPayload]
+    args: [workingPath: WorkingPath, payload: GitBranchCheckoutPayload]
     return: GitBranchMutationResult
   }
   'git:branches:create': {
-    args: [projectPath: string, payload: GitBranchCreatePayload]
+    args: [workingPath: WorkingPath, payload: GitBranchCreatePayload]
     return: GitBranchMutationResult
   }
   'git:worktrees:list': {
-    args: [projectPath: string]
+    args: [repositoryPath: RepositoryPath]
     return: GitWorktreeListResult
   }
   'git:worktrees:create': {
-    args: [projectPath: string, payload: GitWorktreeCreatePayload]
+    args: [repositoryPath: RepositoryPath, payload: GitWorktreeCreatePayload]
     return: GitWorktreeMutationResult
   }
   'git:worktrees:remove': {
-    args: [projectPath: string, payload: GitWorktreeRemovePayload]
+    args: [repositoryPath: RepositoryPath, payload: GitWorktreeRemovePayload]
     return: GitWorktreeMutationResult
   }
   'git:worktrees:check': {
@@ -111,15 +111,15 @@ export interface IpcIntegrationInvokeChannelMap {
     return: SessionWorktreeCheck
   }
   'git:vcs-status:local': {
-    args: [projectPath: string]
+    args: [workingPath: WorkingPath]
     return: LocalVcsStatusResult
   }
   'git:vcs-status:remote': {
-    args: [projectPath: string]
+    args: [workingPath: WorkingPath]
     return: RemoteVcsStatusResult
   }
   'git:stacked-action:run': {
-    args: [projectPath: string, options: GitRunStackedActionOptions]
+    args: [workingPath: WorkingPath, options: GitRunStackedActionOptions]
     return: GitRunStackedActionResult
   }
   'attachments:prepare': {

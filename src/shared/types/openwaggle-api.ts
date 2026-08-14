@@ -5,7 +5,14 @@ import type {
 } from './agent-loop-interaction'
 import type { OAuthAccountInfo, OAuthProvider } from './auth'
 import type { ActiveRunInfo, BackgroundRunSnapshot } from './background-run'
-import type { SessionBranchId, SessionId, SessionNodeId, WagglePresetId } from './brand'
+import type {
+  RepositoryPath,
+  SessionBranchId,
+  SessionId,
+  SessionNodeId,
+  WagglePresetId,
+  WorkingPath,
+} from './brand'
 import type { FileSuggestion } from './composer'
 import type { ContextCompactionResult, ContextUsageSnapshot } from './context-usage'
 import type {
@@ -190,35 +197,35 @@ export interface OpenWaggleApi extends OpenWaggleExtensionApi {
   onFullscreenChanged(callback: (isFullscreen: boolean) => void): () => void
 
   // Git
-  getGitStatus(projectPath: string): Promise<GitStatusSummary>
-  commitGit(projectPath: string, payload: GitCommitPayload): Promise<GitCommitResult>
-  getGitDiff(projectPath: string): Promise<GitDiffResult>
-  getGitBranchDiff(projectPath: string, baseRef: string): Promise<GitDiffResult>
-  stageAllGitChanges(projectPath: string): Promise<GitWorkingTreeMutationResult>
-  revertAllGitChanges(projectPath: string): Promise<GitWorkingTreeMutationResult>
-  listGitBranches(projectPath: string): Promise<GitBranchListResult>
+  getGitStatus(workingPath: WorkingPath): Promise<GitStatusSummary>
+  commitGit(workingPath: WorkingPath, payload: GitCommitPayload): Promise<GitCommitResult>
+  getGitDiff(workingPath: WorkingPath): Promise<GitDiffResult>
+  getGitBranchDiff(workingPath: WorkingPath, baseRef: string): Promise<GitDiffResult>
+  stageAllGitChanges(workingPath: WorkingPath): Promise<GitWorkingTreeMutationResult>
+  revertAllGitChanges(workingPath: WorkingPath): Promise<GitWorkingTreeMutationResult>
+  listGitBranches(repositoryPath: RepositoryPath): Promise<GitBranchListResult>
   checkoutGitBranch(
-    projectPath: string,
+    workingPath: WorkingPath,
     payload: GitBranchCheckoutPayload,
   ): Promise<GitBranchMutationResult>
   createGitBranch(
-    projectPath: string,
+    workingPath: WorkingPath,
     payload: GitBranchCreatePayload,
   ): Promise<GitBranchMutationResult>
   checkSessionWorktree(worktreePath: string | null): Promise<SessionWorktreeCheck>
-  listGitWorktrees(projectPath: string): Promise<GitWorktreeListResult>
+  listGitWorktrees(repositoryPath: RepositoryPath): Promise<GitWorktreeListResult>
   createGitWorktree(
-    projectPath: string,
+    repositoryPath: RepositoryPath,
     payload: GitWorktreeCreatePayload,
   ): Promise<GitWorktreeMutationResult>
   removeGitWorktree(
-    projectPath: string,
+    repositoryPath: RepositoryPath,
     payload: GitWorktreeRemovePayload,
   ): Promise<GitWorktreeMutationResult>
-  getLocalVcsStatus(projectPath: string): Promise<LocalVcsStatusResult>
-  getRemoteVcsStatus(projectPath: string): Promise<RemoteVcsStatusResult>
+  getLocalVcsStatus(workingPath: WorkingPath): Promise<LocalVcsStatusResult>
+  getRemoteVcsStatus(workingPath: WorkingPath): Promise<RemoteVcsStatusResult>
   runStackedGitAction(
-    projectPath: string,
+    workingPath: WorkingPath,
     options: GitRunStackedActionOptions,
   ): Promise<GitRunStackedActionResult>
   listChangeRequests(projectPath: string): Promise<ChangeRequestListResult>

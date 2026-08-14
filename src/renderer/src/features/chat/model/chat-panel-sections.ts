@@ -3,7 +3,7 @@ import type {
   AgentLoopInteraction,
   AgentLoopInteractionResponse,
 } from '@shared/types/agent-loop-interaction'
-import type { SessionBranchId, SessionId } from '@shared/types/brand'
+import type { RepositoryPath, SessionBranchId, SessionId, WorkingPath } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { SessionDetail } from '@shared/types/session'
@@ -74,9 +74,9 @@ export interface ChatComposerSectionState {
 
 export interface ChatDiffSectionState {
   /** The working tree this panel reads and mutates (a Session worktree in worktree mode). */
-  readonly workingPath: string | null
+  readonly workingPath: WorkingPath | null
   /** The repository the session belongs to, for telling a worktree apart from the checkout. */
-  readonly repositoryPath: string | null
+  readonly repositoryPath: RepositoryPath | null
   readonly sessionId: SessionId | null
   onSendMessage: (content: string) => Promise<void>
 }

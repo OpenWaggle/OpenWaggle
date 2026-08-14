@@ -1,3 +1,4 @@
+import type { WorkingPath } from '@shared/types/brand'
 import type { GitRunStackedActionOptions, GitStackedAction } from '@shared/types/git'
 import { useState } from 'react'
 import { api } from '@/shared/lib/ipc'
@@ -7,7 +8,7 @@ import { useUIStore } from '@/shell/ui-store'
 const logger = createRendererLogger('git')
 
 interface UseStackedGitActionsOptions {
-  readonly projectPath: string | null
+  readonly workingPath: WorkingPath | null
   readonly onCompleted?: () => void
 }
 
@@ -16,15 +17,15 @@ interface UseStackedGitActionsOptions {
  * surfaces the outcome as a toast. Decision logic lives in resolveQuickAction;
  * this hook only runs the chosen action.
  */
-export function useStackedGitActions({ projectPath, onCompleted }: UseStackedGitActionsOptions) {
+export function useStackedGitActions({ workingPath, onCompleted }: UseStackedGitActionsOptions) {
   const [isRunning, setIsRunning] = useState(false)
   const showToast = useUIStore((state) => state.showToast)
 
   async function run(action: GitStackedAction, options?: Partial<GitRunStackedActionOptions>) {
-    if (!projectPath || isRunning || typeof api.runStackedGitAction !== 'function') return
+    if (!workingPath || isRunning || typeof api.runStackedGitAction !== 'function') return
     setIsRunning(true)
     try {
-      const result = await api.runStackedGitAction(projectPath, { action, ...options })
+      const result = await api.runStackedGitAction(workingPath, { action, ...options })
       if (result.ok) {
         showToast(
           result.changeRequest ? `Opened ${result.changeRequest.url}` : 'Git action completed.',

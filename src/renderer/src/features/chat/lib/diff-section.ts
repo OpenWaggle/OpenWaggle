@@ -1,3 +1,4 @@
+import { RepositoryPath } from '@shared/types/brand'
 import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import type { ChatDiffSectionState } from '../model'
 
@@ -18,7 +19,7 @@ export function buildDiffSection(input: {
 }): ChatDiffSectionState {
   return {
     workingPath: resolveSessionWorkingDir(input.activeSession, input.projectPath),
-    repositoryPath: input.projectPath,
+    repositoryPath: input.projectPath === null ? null : RepositoryPath(input.projectPath),
     sessionId: input.sessionId,
     onSendMessage: input.onSendMessage,
   }

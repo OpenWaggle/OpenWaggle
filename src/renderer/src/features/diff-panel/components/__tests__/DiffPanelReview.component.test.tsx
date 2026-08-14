@@ -1,3 +1,4 @@
+import { RepositoryPath, WorkingPath } from '@shared/types/brand'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useGitStore } from '@/features/git'
@@ -37,7 +38,13 @@ describe('Diff panel review flow', () => {
     vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] })
     const onSendMessage = vi.fn()
 
-    render(<DiffPanel workingPath="/repo" onSendMessage={onSendMessage} />)
+    render(
+      <DiffPanel
+        workingPath={WorkingPath('/repo')}
+        repositoryPath={RepositoryPath('/repo')}
+        onSendMessage={onSendMessage}
+      />,
+    )
 
     expect(api.getGitDiff).toHaveBeenCalledWith('/repo')
     expect(await screen.findByRole('button', { name: /select src\/app.ts/ })).toBeInTheDocument()
@@ -71,7 +78,13 @@ describe('Diff panel review flow', () => {
     vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] })
     const onSendMessage = vi.fn()
 
-    render(<DiffPanel workingPath="/repo" onSendMessage={onSendMessage} />)
+    render(
+      <DiffPanel
+        workingPath={WorkingPath('/repo')}
+        repositoryPath={RepositoryPath('/repo')}
+        onSendMessage={onSendMessage}
+      />,
+    )
 
     fireEvent.click(await screen.findByRole('button', { name: /select src\/app.ts/ }))
     fireEvent.change(screen.getByPlaceholderText('Leave feedback on this change…'), {
@@ -89,7 +102,13 @@ describe('Diff panel review flow', () => {
     vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] })
     const onSendMessage = vi.fn()
 
-    render(<DiffPanel workingPath="/repo" onSendMessage={onSendMessage} />)
+    render(
+      <DiffPanel
+        workingPath={WorkingPath('/repo')}
+        repositoryPath={RepositoryPath('/repo')}
+        onSendMessage={onSendMessage}
+      />,
+    )
 
     fireEvent.click(await screen.findByRole('button', { name: /select src\/app.ts/ }))
     fireEvent.change(screen.getByPlaceholderText('Leave feedback on this change…'), {

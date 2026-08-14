@@ -1,4 +1,5 @@
 import { match } from '@diegogbrisa/ts-match'
+import type { RepositoryPath, WorkingPath } from '@shared/types/brand'
 import type {
   GitBranchCheckoutPayload,
   GitBranchCreatePayload,
@@ -41,15 +42,17 @@ interface GitState {
   branchesError: string | null
   isCommitting: boolean
   isBranchActionRunning: boolean
-  refreshStatus: (workingPath: string | null) => Promise<void>
-  refreshBranches: (repositoryPath: string | null) => Promise<void>
-  commit: (workingPath: string, payload: GitCommitPayload) => Promise<GitCommitResult>
+  refreshStatus: (workingPath: WorkingPath | null) => Promise<void>
+  refreshBranches: (repositoryPath: RepositoryPath | null) => Promise<void>
+  commit: (workingPath: WorkingPath, payload: GitCommitPayload) => Promise<GitCommitResult>
   checkoutBranch: (
-    workingPath: string,
+    workingPath: WorkingPath,
+    repositoryPath: RepositoryPath,
     payload: GitBranchCheckoutPayload,
   ) => Promise<GitBranchMutationResult>
   createBranch: (
-    workingPath: string,
+    workingPath: WorkingPath,
+    repositoryPath: RepositoryPath,
     payload: GitBranchCreatePayload,
   ) => Promise<GitBranchMutationResult>
 }
@@ -137,7 +140,7 @@ export const useGitStore = create<GitState>((set, get) => ({
   isCommitting: false,
   isBranchActionRunning: false,
 
-  async refreshStatus(workingPath: string | null) {
+  async refreshStatus(workingPath: WorkingPath | null) {
     if (workingPath === null) return
     const requestId = nextStatusRequestId(workingPath)
     patchWorkingTree(set, workingPath, { isLoading: true, error: null })
@@ -156,7 +159,7 @@ export const useGitStore = create<GitState>((set, get) => ({
     }
   },
 
-  async refreshBranches(repositoryPath: string | null) {
+  async refreshBranches(repositoryPath: RepositoryPath | null) {
     if (repositoryPath === null) {
       set({ branches: null, branchesError: null })
       return
@@ -173,7 +176,7 @@ export const useGitStore = create<GitState>((set, get) => ({
     }
   },
 
-  async commit(workingPath: string, payload: GitCommitPayload) {
+  async commit(workingPath: WorkingPath, payload: GitCommitPayload) {
     set({ isCommitting: true })
     try {
       return await resolveGitCommitResult(api.commitGit(workingPath, payload), () =>
@@ -184,18 +187,26 @@ export const useGitStore = create<GitState>((set, get) => ({
     }
   },
 
-  async checkoutBranch(workingPath: string, payload: GitBranchCheckoutPayload) {
+  async checkoutBranch(
+    workingPath: WorkingPath,
+    repositoryPath: RepositoryPath,
+    payload: GitBranchCheckoutPayload,
+  ) {
     return runBranchMutation(set, () =>
       resolveGitBranchMutationResult(api.checkoutGitBranch(workingPath, payload), () =>
-        refreshAfterBranchMutation(get, workingPath),
+        refreshAfterBranchMutation(get, workingPath, repositoryPath),
       ),
     )
   },
 
-  async createBranch(workingPath: string, payload: GitBranchCreatePayload) {
+  async createBranch(
+    workingPath: WorkingPath,
+    repositoryPath: RepositoryPath,
+    payload: GitBranchCreatePayload,
+  ) {
     return runBranchMutation(set, () =>
       resolveGitBranchMutationResult(api.createGitBranch(workingPath, payload), () =>
-        refreshAfterBranchMutation(get, workingPath),
+        refreshAfterBranchMutation(get, workingPath, repositoryPath),
       ),
     )
   },
@@ -226,8 +237,12 @@ function patchWorkingTree(
  * checkout, so the list is identical and the working path is the one guaranteed to
  * exist for this session.
  */
-async function refreshAfterBranchMutation(get: () => GitState, workingPath: string) {
-  await Promise.all([get().refreshStatus(workingPath), get().refreshBranches(workingPath)])
+async function refreshAfterBranchMutation(
+  get: () => GitState,
+  workingPath: WorkingPath,
+  repositoryPath: RepositoryPath,
+) {
+  await Promise.all([get().refreshStatus(workingPath), get().refreshBranches(repositoryPath)])
 }
 
 async function runBranchMutation(

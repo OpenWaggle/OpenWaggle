@@ -1,3 +1,4 @@
+import type { WorkingPath } from '@shared/types/brand'
 import type { LocalVcsStatus, RemoteVcsStatus, VcsStatus } from '@shared/types/git'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
@@ -10,21 +11,21 @@ const logger = createRendererLogger('git')
  * Remote status loads asynchronously and is merged in when it arrives. Returns
  * null until the local half is available.
  */
-export function useCombinedVcsStatus(projectPath: string | null) {
+export function useCombinedVcsStatus(workingPath: WorkingPath | null) {
   const [local, setLocal] = useState<LocalVcsStatus | null>(null)
   const [remote, setRemote] = useState<RemoteVcsStatus | null>(null)
-  const requestedPath = useRef(projectPath)
+  const requestedPath = useRef(workingPath)
 
   const refresh = useCallback(async () => {
-    requestedPath.current = projectPath
-    if (!projectPath || typeof api.getLocalVcsStatus !== 'function') {
+    requestedPath.current = workingPath
+    if (!workingPath || typeof api.getLocalVcsStatus !== 'function') {
       setLocal(null)
       setRemote(null)
       return
     }
     try {
-      const localResult = await api.getLocalVcsStatus(projectPath)
-      if (requestedPath.current !== projectPath) return
+      const localResult = await api.getLocalVcsStatus(workingPath)
+      if (requestedPath.current !== workingPath) return
       setLocal(localResult.ok ? localResult.status : null)
     } catch (error) {
       logger.warn('Failed to load local VCS status', { error: String(error) })
@@ -33,14 +34,14 @@ export function useCombinedVcsStatus(projectPath: string | null) {
 
     if (typeof api.getRemoteVcsStatus !== 'function') return
     try {
-      const remoteResult = await api.getRemoteVcsStatus(projectPath)
-      if (requestedPath.current !== projectPath) return
+      const remoteResult = await api.getRemoteVcsStatus(workingPath)
+      if (requestedPath.current !== workingPath) return
       setRemote(remoteResult.ok ? remoteResult.status : null)
     } catch (error) {
       logger.warn('Failed to load remote VCS status', { error: String(error) })
       setRemote(null)
     }
-  }, [projectPath])
+  }, [workingPath])
 
   useEffect(() => {
     void refresh()
