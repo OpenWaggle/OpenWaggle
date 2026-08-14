@@ -123,6 +123,7 @@ describe('useWaggleChat', () => {
         type: 'message_start',
         messageId: MessageId('m1'),
         role: 'assistant',
+        timestamp: 0,
       },
       meta: waggleMeta(),
     })

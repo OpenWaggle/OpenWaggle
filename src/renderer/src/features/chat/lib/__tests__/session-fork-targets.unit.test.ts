@@ -5,7 +5,7 @@ import { getVisibleForkTargets } from '../session-fork-targets'
 
 const SESSION_ID = SessionId('session-1')
 
-function node(id: string, role: 'user' | 'assistant', text: string) {
+function node(id: string, role: 'user' | 'assistant', text: string): SessionNode {
   return {
     id: SessionNodeId(id),
     sessionId: SESSION_ID,

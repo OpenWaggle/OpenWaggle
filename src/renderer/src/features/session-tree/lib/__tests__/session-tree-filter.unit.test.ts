@@ -8,7 +8,7 @@ function message(input: {
   readonly id: string
   readonly role: Message['role']
   readonly text: string
-}) {
+}): Message {
   return {
     id: MessageId(input.id),
     role: input.role,

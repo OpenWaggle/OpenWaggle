@@ -1,21 +1,10 @@
 [
-  "src/renderer/src/features/chat/components/__tests__/ChatTranscript.extensions.component.test.tsx",
-  "src/renderer/src/features/chat/components/__tests__/CompactionSummaryCard.component.test.tsx",
   "src/renderer/src/features/chat/hooks/__tests__/useIncrementalMarkdown.unit.test.ts",
   "src/renderer/src/features/chat/hooks/__tests__/useSendMessage.integration.test.ts",
   "src/renderer/src/features/chat/hooks/__tests__/useStreamingPhase.component.test.tsx",
-  "src/renderer/src/features/chat/lib/__tests__/session-fork-targets.unit.test.ts",
-  "src/renderer/src/features/chat/state/__tests__/chat-store.integration.test.ts",
-  "src/renderer/src/features/chat/state/__tests__/chat-store.unit.test.ts",
-  "src/renderer/src/features/composer/components/__tests__/ComposerBranchRow.component.test.tsx",
   "src/renderer/src/features/composer/components/__tests__/VoiceRecorder.component.test.tsx",
-  "src/renderer/src/features/composer/state/__tests__/composer-action-store.unit.test.ts",
   "src/renderer/src/features/diff-panel/hooks/__tests__/useDiffReviewActions.component.test.tsx",
-  "src/renderer/src/features/git/components/__tests__/CommitDialog.component.test.tsx",
   "src/renderer/src/features/session-tree/hooks/__tests__/session-tree-controller.component.test.tsx",
-  "src/renderer/src/features/session-tree/hooks/__tests__/session-tree-selection.component.test.tsx",
-  "src/renderer/src/features/session-tree/lib/__tests__/session-tree-filter.unit.test.ts",
   "src/renderer/src/features/settings/components/__tests__/ExtensionPackageCard.requirements.component.test.tsx",
-  "src/renderer/src/features/waggle/hooks/__tests__/useWaggleChat.component.test.tsx",
   "src/renderer/src/routes/__tests__/-chat-route-effects.component.test.tsx"
 ]

@@ -45,7 +45,7 @@ describe('ComposerBranchRow', () => {
           error: null,
         },
       },
-      branches: { branches: [] },
+      branches: { currentBranch: null, branches: [] },
     })
   })
 

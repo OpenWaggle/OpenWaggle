@@ -1,5 +1,10 @@
-import { SessionBranchId, SessionId, SupportedModelId } from '@shared/types/brand'
-import type { SessionBranch, SessionTree, SessionWorkspace } from '@shared/types/session'
+import { MessageId, SessionBranchId, SessionId, SupportedModelId } from '@shared/types/brand'
+import type {
+  SessionBranch,
+  SessionNode,
+  SessionTree,
+  SessionWorkspace,
+} from '@shared/types/session'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBranchSummaryStore } from '@/features/chat/state'
@@ -27,12 +32,11 @@ vi.mock('@/shared/lib/ipc', () => ({
 
 const SESSION_ID = SessionId('session-1')
 const ROOT_NODE = node({ id: 'root', depth: 0, order: 1 })
-const USER_NODE = {
-  ...node({ id: 'user', parentId: 'root', depth: 1, order: 2 }),
-  kind: 'user_message',
+const USER_NODE: SessionNode = {
+  ...node({ id: 'user', parentId: 'root', depth: 1, order: 2, kind: 'user_message' }),
   role: 'user',
   message: {
-    id: 'user',
+    id: MessageId('user'),
     role: 'user',
     parts: [{ type: 'text', text: 'Use this prompt' }],
     createdAt: 2,

@@ -113,6 +113,8 @@ function createSection(): ChatTranscriptSectionState {
     onDismissInterruptedRun: vi.fn(),
     onBranchFromMessage: vi.fn(),
     onForkFromMessage: vi.fn(),
+    onViewTurnDiff: vi.fn(),
+    turnAnchorMessageIds: new Set<string>(),
   }
 }
 
