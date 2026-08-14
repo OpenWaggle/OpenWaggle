@@ -41,10 +41,10 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: apiMock,
 }))
 
-import type { ChatRow } from '../../lib/types-chat-row'
+import type { ChatRow, MessageChatRow } from '../../lib/types-chat-row'
 import { ChatTranscript } from '../ChatTranscript'
 
-function createTextMessage(id: string, role: UIMessage['role'], content: string) {
+function createTextMessage(id: string, role: UIMessage['role'], content: string): UIMessage {
   return {
     id,
     role,
@@ -52,7 +52,7 @@ function createTextMessage(id: string, role: UIMessage['role'], content: string)
   }
 }
 
-function createMessageChatRow(message: UIMessage) {
+function createMessageChatRow(message: UIMessage): MessageChatRow {
   return {
     type: 'message',
     message,
@@ -62,7 +62,9 @@ function createMessageChatRow(message: UIMessage) {
   }
 }
 
-function createSection(overrides: Partial<ChatTranscriptSectionState> = {}) {
+function createSection(
+  overrides: Partial<ChatTranscriptSectionState> = {},
+): ChatTranscriptSectionState {
   const defaultMessage = createTextMessage('msg-1', 'user', 'hello')
 
   return {
@@ -86,6 +88,8 @@ function createSection(overrides: Partial<ChatTranscriptSectionState> = {}) {
     onDismissInterruptedRun: vi.fn(),
     onBranchFromMessage: vi.fn(),
     onForkFromMessage: vi.fn(),
+    onViewTurnDiff: vi.fn(),
+    turnAnchorMessageIds: new Set<string>(),
     ...overrides,
   }
 }
@@ -128,7 +132,7 @@ function configureScrollableElement(scroller: HTMLElement) {
   })
 
   return {
-    setNaturalScrollHeight: (height) => {
+    setNaturalScrollHeight: (height: number) => {
       naturalScrollHeight = height
     },
     getScrollTop: () => scrollTop,

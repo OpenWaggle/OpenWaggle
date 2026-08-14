@@ -23,7 +23,7 @@ function node(input: {
   readonly role?: SessionNode['role']
   readonly parentId?: string | null
   readonly contentText?: string
-}) {
+}): SessionNode {
   return {
     id: SessionNodeId(input.id),
     sessionId: SessionId('session-1'),

@@ -12,7 +12,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 
 import { UserMessageBubble } from '../UserMessageBubble'
 
-function createUserMessage(id: string, parts: UIMessage['parts']) {
+function createUserMessage(id: string, parts: UIMessage['parts']): UIMessage {
   return { id, role: 'user', parts }
 }
 

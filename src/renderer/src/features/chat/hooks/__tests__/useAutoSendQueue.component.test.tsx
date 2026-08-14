@@ -1,8 +1,10 @@
+import type { AgentSendPayload } from '@shared/types/agent'
 import { SessionId } from '@shared/types/brand'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMessageQueueStore } from '../../state/message-queue-store'
+import type { AgentChatStatus } from '../useAgentChat.types'
 import { useAutoSendQueue } from '../useAutoSendQueue'
 
 const CONV_A = SessionId('session-a')
@@ -42,9 +44,9 @@ describe('useAutoSendQueue', () => {
     useMessageQueueStore.getState().enqueue(CONV_A, makePayload('queued'))
 
     const { rerender } = renderHook(
-      ({ status }: { status: 'ready' | 'streaming' }) =>
+      ({ status }: { status: AgentChatStatus }) =>
         useAutoSendQueue({ sessionId: CONV_A, status, sendMessage: send }),
-      { initialProps: { status: 'streaming' as const } },
+      { initialProps: { status: 'streaming' } },
     )
 
     rerender({ status: 'ready' })
@@ -57,9 +59,9 @@ describe('useAutoSendQueue', () => {
     const send = vi.fn().mockResolvedValue(undefined)
 
     const { rerender } = renderHook(
-      ({ status }: { status: 'ready' | 'streaming' }) =>
+      ({ status }: { status: AgentChatStatus }) =>
         useAutoSendQueue({ sessionId: CONV_A, status, sendMessage: send }),
-      { initialProps: { status: 'streaming' as const } },
+      { initialProps: { status: 'streaming' } },
     )
 
     rerender({ status: 'ready' })
@@ -72,9 +74,9 @@ describe('useAutoSendQueue', () => {
     useMessageQueueStore.getState().enqueue(CONV_A, makePayload('test'))
 
     const { rerender } = renderHook(
-      ({ status }: { status: 'ready' | 'streaming' }) =>
+      ({ status }: { status: AgentChatStatus }) =>
         useAutoSendQueue({ sessionId: null, status, sendMessage: send }),
-      { initialProps: { status: 'streaming' as const } },
+      { initialProps: { status: 'streaming' } },
     )
 
     rerender({ status: 'ready' })
@@ -87,9 +89,9 @@ describe('useAutoSendQueue', () => {
     useMessageQueueStore.getState().enqueue(CONV_A, makePayload('test'))
 
     const { rerender } = renderHook(
-      ({ status, paused }: { status: 'ready' | 'streaming'; paused: boolean }) =>
+      ({ status, paused }: { status: AgentChatStatus; paused: boolean }) =>
         useAutoSendQueue({ sessionId: CONV_A, status, sendMessage: send, paused }),
-      { initialProps: { status: 'streaming' as const, paused: true } },
+      { initialProps: { status: 'streaming', paused: true } },
     )
 
     rerender({ status: 'ready', paused: true })
@@ -102,9 +104,9 @@ describe('useAutoSendQueue', () => {
     useMessageQueueStore.getState().enqueue(CONV_A, makePayload('delayed'))
 
     const { rerender } = renderHook(
-      ({ status, paused }: { status: 'ready' | 'submitted' | 'streaming'; paused: boolean }) =>
+      ({ status, paused }: { status: AgentChatStatus; paused: boolean }) =>
         useAutoSendQueue({ sessionId: CONV_A, status, sendMessage: send, paused }),
-      { initialProps: { status: 'streaming' as const, paused: false } },
+      { initialProps: { status: 'streaming', paused: false } },
     )
 
     // Steer transition: status goes ready but paused
@@ -126,9 +128,9 @@ describe('useAutoSendQueue', () => {
     useMessageQueueStore.getState().enqueue(CONV_A, makePayload('preserved'))
 
     const { rerender } = renderHook(
-      ({ status, paused }: { status: 'ready' | 'submitted' | 'streaming'; paused: boolean }) =>
+      ({ status, paused }: { status: AgentChatStatus; paused: boolean }) =>
         useAutoSendQueue({ sessionId: CONV_A, status, sendMessage: send, paused }),
-      { initialProps: { status: 'streaming' as const, paused: false } },
+      { initialProps: { status: 'streaming', paused: false } },
     )
 
     // Pause during streaming
@@ -167,14 +169,14 @@ describe('useAutoSendQueue', () => {
     useMessageQueueStore.getState().enqueue(CONV_A, makePayload('retry me'))
 
     const { rerender } = renderHook(
-      ({ status }: { status: 'ready' | 'streaming' }) =>
+      ({ status }: { status: AgentChatStatus }) =>
         useAutoSendQueue({
           sessionId: CONV_A,
           status,
           sendMessage: send,
           onSendFailure,
         }),
-      { initialProps: { status: 'streaming' as const } },
+      { initialProps: { status: 'streaming' } },
     )
 
     rerender({ status: 'ready' })
@@ -206,8 +208,8 @@ describe('useAutoSendQueue', () => {
         onSendFailure,
       }: {
         sessionId: SessionId | null
-        status: 'ready' | 'streaming'
-        onSendFailure?: (payload: ReturnType<typeof makePayload>, error: unknown) => void
+        status: AgentChatStatus
+        onSendFailure?: (payload: AgentSendPayload, error: unknown) => void
       }) =>
         useAutoSendQueue({
           sessionId,
@@ -218,7 +220,7 @@ describe('useAutoSendQueue', () => {
       {
         initialProps: {
           sessionId: CONV_A,
-          status: 'streaming' as const,
+          status: 'streaming',
           onSendFailure: onSendFailureA,
         },
       },
