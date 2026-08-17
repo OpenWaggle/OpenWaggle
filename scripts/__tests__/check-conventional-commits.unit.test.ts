@@ -79,6 +79,19 @@ describe('Conventional Commit policy', () => {
         parentHashes: ['parent'],
         subject: 'revert(extension-sdk): restore optional extension ids',
       },
+      {
+        /*
+         * `perf` is part of the Conventional Commits set and was missing from the allowed
+         * types, so a legitimately named performance commit was rejected. It deliberately
+         * does NOT carry package release intent (that stays feat/fix/revert), so a perf
+         * commit touching a package still has to be accompanied by an intent-bearing title.
+         */
+        body: '',
+        changedPaths: ['src/renderer/src/features/session-tree/lib/session-tree-filter.ts'],
+        hash: 'b3c4d5e6',
+        parentHashes: ['parent'],
+        subject: 'perf(session-tree): single-pass filtering',
+      },
     ])
 
     expect(violations).toEqual([])

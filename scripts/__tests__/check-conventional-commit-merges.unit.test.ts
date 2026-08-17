@@ -53,6 +53,75 @@ async function merge(cwd: string, branch: string, message: string) {
 }
 
 describe('Conventional Commit merge attribution', () => {
+  it('exempts a feature branch that merges an already-released base branch', async () => {
+    const { baseline, cwd } = await createRepository()
+    try {
+      // The base branch releases a package change of its own.
+      await writeAndCommit(
+        cwd,
+        'packages/extension-sdk/package.json',
+        '{"version":"0.2.0"}\n',
+        'fix(extension-sdk): update package metadata',
+      )
+      const baseRef = await git(cwd, ['rev-parse', 'HEAD'])
+
+      // A feature branch forked earlier syncs with the base branch.
+      await git(cwd, ['checkout', '-b', 'feature', baseline])
+      await writeAndCommit(cwd, 'src/feature.ts', 'export {}\n', 'feat(app): add a feature')
+      const updateMerge = await merge(cwd, 'main', "Merge branch 'main' into feature")
+
+      const result = await validateConventionalCommits({
+        baseline,
+        cwd,
+        from: baseRef,
+        to: updateMerge,
+      })
+
+      /*
+       * The merge does carry `packages/` paths relative to its first parent, but every one
+       * of them is already on the base branch with its own release commit, so this branch
+       * owes no version bump for them.
+       */
+      expect(result.violations).toEqual([])
+    } finally {
+      await fs.rm(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it('still rejects a merge that brings package changes not yet on the base', async () => {
+    const { baseline, cwd } = await createRepository()
+    try {
+      const baseRef = await git(cwd, ['rev-parse', 'HEAD'])
+      await git(cwd, ['checkout', '-b', 'package-change'])
+      await writeAndCommit(
+        cwd,
+        'packages/extension-sdk/package.json',
+        '{"version":"0.1.0"}\n',
+        'fix(extension-sdk): update package metadata',
+      )
+      await git(cwd, ['checkout', 'main'])
+      const packageMerge = await merge(
+        cwd,
+        'package-change',
+        'Merge pull request #123 from OpenWaggle/package-change',
+      )
+
+      const result = await validateConventionalCommits({
+        baseline,
+        cwd,
+        from: baseRef,
+        to: packageMerge,
+      })
+
+      // The incoming parent is NOT contained in the base, so the exemption must not apply.
+      expect(result.violations).toContain(
+        `${packageMerge}: "Merge pull request #123 from OpenWaggle/package-change" affects a publishable package and must carry explicit Conventional Commit release intent.`,
+      )
+    } finally {
+      await fs.rm(cwd, { force: true, recursive: true })
+    }
+  })
+
   it('attributes update-branch merges against their first parent', async () => {
     const { baseline, cwd } = await createRepository()
     try {
