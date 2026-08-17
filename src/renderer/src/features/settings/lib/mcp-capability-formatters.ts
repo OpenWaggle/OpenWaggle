@@ -58,10 +58,6 @@ export function remoteSkillDraftText(review: McpRemoteSkillReview) {
   ].join('\n\n')
 }
 
-export function taskField(task: McpJsonValue, key: string) {
-  return isObject(task) && typeof task[key] === 'string' ? task[key] : null
-}
-
 export function eventDraftText(event: McpEventRecord) {
   return [
     `MCP event from ${event.serverLabel}`,
