@@ -37,10 +37,11 @@ function on<C extends IpcEventChannel>(
 const invokePrepareAttachments = invoke('attachments:prepare')
 
 function prepareSelectedAttachments(projectPath: string, files: readonly File[]) {
-  const paths = files.flatMap((file) => {
+  const paths: string[] = []
+  for (const file of files) {
     const filePath = webUtils.getPathForFile(file)
-    return filePath.length > 0 ? [filePath] : []
-  })
+    if (filePath.length > 0) paths.push(filePath)
+  }
 
   if (paths.length === 0) {
     return Promise.resolve([])
@@ -78,9 +79,30 @@ export const api: OpenWaggleApi = {
   getPiBranchSummarySkipPrompt: invoke('pi-settings:get-branch-summary-skip-prompt'),
   testApiKey: invoke('settings:test-api-key'),
   getMcpSettings: invoke('mcp:get-settings'),
-  setMcpAdapterEnabled: invoke('mcp:set-adapter-enabled'),
+  setMcpScopeState: invoke('mcp:set-scope-state'),
   setMcpServerEnabled: invoke('mcp:set-server-enabled'),
+  setMcpProjectServerEnabled: invoke('mcp:set-project-server-enabled'),
+  setMcpServerTrust: invoke('mcp:set-server-trust'),
   writeMcpSourceConfig: invoke('mcp:write-source-config'),
+  removeMcpServer: invoke('mcp:remove-server'),
+  authorizeMcpServer: invoke('mcp:authorize-server'),
+  logoutMcpServer: invoke('mcp:logout-server'),
+  addMcpServer: invoke('mcp:add-server'),
+  previewMcpImports: invoke('mcp:preview-imports'),
+  applyMcpImports: invoke('mcp:apply-imports'),
+  doctorMcp: invoke('mcp:doctor'),
+  listMcpSecrets: invoke('mcp:list-secrets'),
+  setMcpSecret: invoke('mcp:set-secret'),
+  removeMcpSecret: invoke('mcp:remove-secret'),
+  listMcpCapabilities: invoke('mcp:list-capabilities'),
+  getMcpPrompt: invoke('mcp:get-prompt'),
+  readMcpResource: invoke('mcp:read-resource'),
+  reviewMcpRemoteSkill: invoke('mcp:review-remote-skill'),
+  operateMcpTask: invoke('mcp:operate-task'),
+  callMcpAppTool: invoke('mcp:call-app-tool'),
+  setMcpEventSubscription: invoke('mcp:set-event-subscription'),
+  listMcpEvents: invoke('mcp:list-events'),
+  listMcpEventSubscriptions: invoke('mcp:list-event-subscriptions'),
   listExtensionPackages: invoke('extensions:list-packages'),
   listExtensionContributions: invoke('extensions:list-contributions'),
   proposeExtensionPackageWrite: invoke('extensions:propose-package-write'),

@@ -109,7 +109,12 @@ function selectSessionNodeRows(sql: SqlClient.SqlClient, id: SessionId) {
   `
 }
 
-function summaryCountSql(sql: SqlClient.SqlClient, archived: number, limit: number | null) {
+function summaryCountSql(
+  sql: SqlClient.SqlClient,
+  archived: number,
+  limit: number | null,
+  offset = 0,
+) {
   return sql<SessionSummaryRow>`
     SELECT
       s.id,
@@ -128,14 +133,15 @@ function summaryCountSql(sql: SqlClient.SqlClient, archived: number, limit: numb
     WHERE s.archived = ${archived}
     ORDER BY s.updated_at DESC
     LIMIT ${limit ?? -1}
+    OFFSET ${offset}
   `
 }
 
-export async function listSessionSummaries(limit?: number): Promise<SessionSummary[]> {
+export async function listSessionSummaries(limit?: number, offset = 0): Promise<SessionSummary[]> {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      const rows = yield* summaryCountSql(sql, 0, limit ?? null)
+      const rows = yield* summaryCountSql(sql, 0, limit ?? null, offset)
       return rows.map(hydrateSessionDetailSummary)
     }),
   )
@@ -151,8 +157,8 @@ export async function listArchivedSessions(): Promise<SessionSummary[]> {
   )
 }
 
-export async function listSessionDetails(limit?: number): Promise<SessionDetail[]> {
-  const summaries = await listSessionSummaries(limit)
+export async function listSessionDetails(limit?: number, offset = 0): Promise<SessionDetail[]> {
+  const summaries = await listSessionSummaries(limit, offset)
   const sessions = await Promise.all(summaries.map((summary) => getSessionDetail(summary.id)))
   return sessions.filter(isSessionDetail)
 }

@@ -44,7 +44,7 @@ function RadioDot({ active }: { readonly active: boolean }) {
 /**
  * Appearance settings.
  *
- * The Syntax theme sits deliberately outside the Design token contract (ADR 0013
+ * The Syntax theme sits deliberately outside the Design token contract (ADR 0015
  * amendment): it colours language grammar scopes, not semantic roles, which is
  * why it is user-selectable on its own while the diff chrome follows the app's
  * Appearance. The colour-blind-safe variants are the main reason this is a real

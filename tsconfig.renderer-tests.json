@@ -2,8 +2,16 @@
   "extends": "./tsconfig.web.json",
   "compilerOptions": {
     "composite": true,
-    "outDir": "./.tsbuild-renderer-tests",
+    "outDir": "./.typecheck/renderer-tests",
     "rootDir": ".",
+    /*
+     * Renderer tests execute under vitest (Node + jsdom), not the shipped renderer
+     * target, so they legitimately reach APIs newer than tsconfig.web.json's ES2022
+     * contract (e.g. `Promise.withResolvers`). Declaring the test runtime's real lib
+     * here keeps that honest without widening what renderer *source* may use.
+     */
+    "target": "ES2024",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "types": ["vite/client", "vitest/globals"]
   },
   "include": ["src/renderer/src/**/*", "src/shared/**/*"],

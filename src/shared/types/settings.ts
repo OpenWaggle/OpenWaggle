@@ -16,7 +16,7 @@ export type DiffView = (typeof DIFF_VIEWS)[number]
 /**
  * Selectable Syntax themes, bundled with @pierre/diffs. Deliberately outside the
  * Design token contract: these colour language grammar scopes, not semantic roles
- * (ADR 0013 amendment). The colour-blind-safe variants are why the list is curated
+ * (ADR 0015 amendment). The colour-blind-safe variants are why the list is curated
  * rather than free-form.
  */
 export const DIFF_SYNTAX_THEMES = [
@@ -42,7 +42,7 @@ export interface Settings {
   readonly projectDisplayNames: Readonly<Record<string, string>>
   /** Default Session environment mode applied to new sessions (ADR 0010). */
   readonly defaultSessionEnvironmentMode: SessionEnvironmentMode
-  /** Syntax theme for diff code text (ADR 0014). */
+  /** Syntax theme for diff code text (ADR 0016). */
   readonly diffSyntaxTheme: DiffSyntaxTheme
   /** Diff view layout: unified or split. */
   readonly diffView: DiffView

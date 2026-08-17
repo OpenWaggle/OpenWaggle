@@ -33,7 +33,7 @@ vi.mock('@/shared/lib/ipc', () => ({
   },
 }))
 
-/** Status keyed by working path (ADR 0016). */
+/** Status keyed by working path (ADR 0018). */
 function statusSliceFor(workingPath: string, status: ReturnType<typeof gitStatus>) {
   return { [workingPath]: { status, isLoading: false, error: null } }
 }

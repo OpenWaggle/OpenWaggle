@@ -20,7 +20,7 @@ function build(
 
 describe('buildDiffSection', () => {
   /**
-   * The defect ADR 0016 fixed: the agent edits files in its Session worktree while the
+   * The defect ADR 0018 fixed: the agent edits files in its Session worktree while the
    * panel read the opened checkout, so the diff reported "No changes to review" during a
    * turn that was actively writing files. The working path must be the worktree.
    */

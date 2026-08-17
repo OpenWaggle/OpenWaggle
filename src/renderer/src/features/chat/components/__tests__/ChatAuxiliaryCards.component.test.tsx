@@ -102,7 +102,7 @@ describe('chat auxiliary cards', () => {
   /**
    * Stage all, Revert all and Commit act on whatever this panel is showing. For a
    * worktree-mode session that is the Session worktree, not the opened checkout, and
-   * ADR 0016 requires the panel to say which — a retargeted destructive action must be
+   * ADR 0018 requires the panel to say which — a retargeted destructive action must be
    * visible rather than something the user infers.
    */
   it('names the Session worktree when the working path differs from the repository', () => {

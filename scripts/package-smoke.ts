@@ -25,6 +25,10 @@ import {
   availablePackageManagers,
 } from './package-smoke-package-managers'
 import {
+  createYarnTrustPolicy,
+  parseMinimumReleaseAgeExclusions,
+} from './package-smoke-trust-policy'
+import {
   mergePackedPackageSources,
   parsePackageSmokeArgs,
   type PackedPackageReference,
@@ -210,6 +214,16 @@ async function writeSmokeWorkspaceConfig(
   await fs.writeFile(path.join(smokeProjectRoot, 'pnpm-workspace.yaml'), workspaceConfig, 'utf8')
 }
 
+async function writeYarnTrustPolicy(projectRoot: string, smokeProjectRoot: string) {
+  const workspaceConfig = await fs.readFile(path.join(projectRoot, 'pnpm-workspace.yaml'), 'utf8')
+  const exclusions = parseMinimumReleaseAgeExclusions(workspaceConfig)
+  await fs.writeFile(
+    path.join(smokeProjectRoot, '.yarnrc.yml'),
+    createYarnTrustPolicy(exclusions),
+    'utf8',
+  )
+}
+
 async function prepareSmokeProject(
   projectRoot: string,
   smokeRoot: string,
@@ -219,6 +233,7 @@ async function prepareSmokeProject(
   await fs.cp(path.join(projectRoot, FIXTURE_DIR), smokeProjectRoot, { recursive: true })
   await writeSmokePackageJson(projectRoot, smokeProjectRoot, packedPackages)
   await writeSmokeWorkspaceConfig(smokeProjectRoot, packedPackages)
+  await writeYarnTrustPolicy(projectRoot, smokeProjectRoot)
   return smokeProjectRoot
 }
 

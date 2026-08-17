@@ -1,5 +1,6 @@
 import type { McpConfigSourceId, McpConfigSourceSummary } from '@shared/types/mcp'
 import { FileJson2 } from 'lucide-react'
+import { tildifyPath } from '@/shared/lib/tildify-path'
 import { Button } from '@/shared/ui/Button'
 import { Textarea } from '@/shared/ui/Textarea'
 
@@ -29,7 +30,7 @@ export function McpSourceEditor({
             <h3 className="text-[16px] font-semibold text-text-primary">Edit selected source</h3>
           </div>
           <p className="mt-1 truncate text-[12px] text-text-tertiary">
-            {selectedSource ? selectedSource.path : 'Select a source'}
+            {selectedSource ? tildifyPath(selectedSource.path) : 'Select a source'}
           </p>
           {selectedSource?.parseError && (
             <p
@@ -45,6 +46,7 @@ export function McpSourceEditor({
         </Button>
       </div>
       <Textarea
+        aria-label="MCP source JSON"
         value={rawJson}
         rows={RAW_EDITOR_ROWS}
         spellCheck={false}
@@ -58,8 +60,9 @@ export function McpSourceEditor({
         }}
       />
       <p className="mt-2 text-[11px] text-text-muted">
-        Advanced config is preserved as JSON so every `pi-mcp-adapter` server and settings field
-        remains available.
+        OpenWaggle preserves unknown fields for forward compatibility and reports any fields the
+        current runtime cannot apply. Protocol pins and legacy compatibility profiles remain
+        available here.
       </p>
     </div>
   )

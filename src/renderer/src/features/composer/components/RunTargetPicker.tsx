@@ -40,7 +40,7 @@ export function RunTargetPicker({ strip, onToast }: RunTargetPickerProps) {
   /*
    * Once a worktree exists, the run target is the branch actually checked out inside
    * it, which `controller.currentBranch` reports because status is keyed to this
-   * session's working path (ADR 0016). Before it exists there is no such branch yet,
+   * session's working path (ADR 0018). Before it exists there is no such branch yet,
    * so the chip shows the base ref the worktree will be forked from.
    */
   const hasWorktree = isWorktree && strip?.worktreePath != null

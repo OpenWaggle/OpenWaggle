@@ -48,7 +48,7 @@ The renderer reads the session projection through OpenWaggle-owned IPC DTOs. Ses
 
 ## Provider And Model Metadata
 
-Provider/model/auth data comes from Pi `ModelRegistry` and `AuthStorage`. OpenWaggle exposes that metadata through ports and IPC DTOs so the settings UI can curate enabled models.
+Provider/model/auth data comes from Pi `ModelRuntime`. OpenWaggle exposes that metadata through ports and IPC DTOs so the settings UI can curate enabled models.
 
 ## Tool Surface
 
@@ -62,7 +62,7 @@ OpenWaggle injects project resource roots into Pi with `.openwaggle > .pi > .age
 
 | Layer | Technology |
 |-------|------------|
-| Framework | Electron 40 + electron-vite |
+| Framework | Electron 43 + electron-vite |
 | Runtime | Pi SDK behind OpenWaggle ports/adapters |
 | Main orchestration | Effect |
 | UI | React 19, Zustand, Tailwind CSS v4 |

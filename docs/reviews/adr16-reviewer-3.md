@@ -110,7 +110,7 @@ for paths in its set, or re-fetch on agent_end for any session in the list.
 
 ────────────────────────────────────────────────────────────────────────────────
 
-### ADR 0016 ACCURACY
+### ADR 0018 ACCURACY
 
 The ADR has been corrected and is substantially accurate post-implementation.
 Remaining notes:

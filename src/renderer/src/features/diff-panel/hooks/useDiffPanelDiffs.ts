@@ -58,7 +58,7 @@ function fetchDiffsForScope(workingPath: WorkingPath, selection: DiffScopeSelect
  *
  * The path is a **working path**, not a project path: for a worktree-mode session it is
  * the Session worktree. Naming it precisely matters here because reading the project
- * path instead is exactly the defect ADR 0016 fixed.
+ * path instead is exactly the defect ADR 0018 fixed.
  */
 export function useDiffPanelDiffs(workingPath: WorkingPath | null, selection: DiffScopeSelection) {
   const [state, dispatch] = useReducer(diffPanelReducer, {

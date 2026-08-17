@@ -9,7 +9,7 @@
     "resolveJsonModule": true,
     "strict": true,
     "skipLibCheck": true,
-    "outDir": "./.tsbuild",
+    "outDir": "./.typecheck/node",
     "rootDir": ".",
     "paths": {
       "*": ["./*"],

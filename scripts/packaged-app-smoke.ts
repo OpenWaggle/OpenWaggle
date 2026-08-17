@@ -5,20 +5,18 @@ const DIST_DIR = 'dist'
 const APP_NAME = 'OpenWaggle.app'
 const RESOURCES_PATH = ['Contents', 'Resources'] as const
 const ASAR_FILE = 'app.asar'
-const ASAR_UNPACKED_DIR = 'app.asar.unpacked'
 const DOCS_DIR = 'openwaggle-docs'
 const PACKAGE_JSON = 'package.json'
 const NODE_MODULES_DIR = 'node_modules'
 const OUT_DIR = 'out'
-const PI_MCP_ADAPTER_DIR = 'pi-mcp-adapter'
 const ASAR_HEADER_PREFIX_BYTES = 16
 const ASAR_JSON_SIZE_OFFSET = 12
 const FIRST_USER_ARGUMENT_INDEX = 2
 const PREVIEW_LIMIT = 20
+const ALLOWED_OUT_ROOTS = ['/out/main', '/out/preload', '/out/renderer'] as const
 
 const REQUIRED_ASAR_ROOTS = [NODE_MODULES_DIR, OUT_DIR, PACKAGE_JSON]
 const REQUIRED_DOCS_FILES = ['README.md', 'index.json']
-const REQUIRED_PI_MCP_ADAPTER_FILES = [PACKAGE_JSON, 'cli.js', 'index.ts']
 const ALLOWED_ASAR_ROOTS = new Set(REQUIRED_ASAR_ROOTS)
 
 interface AsarNode {
@@ -139,6 +137,11 @@ function isWorkspacePackageSourceOrConfig(entry: string) {
   return basename.startsWith('tsconfig') && basename.endsWith('.json')
 }
 
+function isUnexpectedOutEntry(entry: string) {
+  if (!entry.startsWith(`/${OUT_DIR}/`)) return false
+  return !ALLOWED_OUT_ROOTS.some((root) => entry === root || entry.startsWith(`${root}/`))
+}
+
 function assertAsarRoots(header: AsarNode) {
   const rootNames = Object.keys(header.files ?? {}).sort((left, right) => left.localeCompare(right))
   const missingRoots = REQUIRED_ASAR_ROOTS.filter((root) => !rootNames.includes(root))
@@ -154,12 +157,17 @@ function assertAsarRoots(header: AsarNode) {
 }
 
 function assertAsarEntries(header: AsarNode) {
-  const forbiddenEntries = collectAsarEntries(header).filter(isWorkspacePackageSourceOrConfig)
+  const forbiddenEntries = collectAsarEntries(header).filter(
+    (entry) =>
+      isWorkspacePackageSourceOrConfig(entry) ||
+      isUnexpectedOutEntry(entry) ||
+      entry.includes('/node_modules/pi-mcp-adapter/'),
+  )
 
   if (forbiddenEntries.length > 0) {
     const preview = forbiddenEntries.slice(0, PREVIEW_LIMIT).join(', ')
     throw new Error(
-      `Packaged app asar contains workspace package source/config files: ${preview}.`,
+      `Packaged app asar contains non-runtime source, config, output, or legacy MCP adapter files: ${preview}.`,
     )
   }
 }
@@ -188,10 +196,6 @@ async function main() {
   assertAsarRoots(asarHeader)
   assertAsarEntries(asarHeader)
   await assertRequiredFiles(path.join(resourcesPath, DOCS_DIR), REQUIRED_DOCS_FILES)
-  await assertRequiredFiles(
-    path.join(resourcesPath, ASAR_UNPACKED_DIR, NODE_MODULES_DIR, PI_MCP_ADAPTER_DIR),
-    REQUIRED_PI_MCP_ADAPTER_FILES,
-  )
 
   console.log(`packaged app smoke passed: ${appPath}`)
 }

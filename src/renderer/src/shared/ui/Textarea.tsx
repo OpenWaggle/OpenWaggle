@@ -21,7 +21,7 @@ interface HighlightedLine {
 }
 
 const TEXTAREA_BASE_CLASS =
-  'w-full rounded-lg border border-input-card-border bg-bg px-3 py-2 text-text-secondary outline-none transition-colors placeholder:text-text-muted focus:border-border-light'
+  'block w-full rounded-lg border border-input-card-border bg-bg px-3 py-2 text-text-secondary outline-none transition-colors [scrollbar-width:none] [&::-webkit-scrollbar]:hidden placeholder:text-text-muted focus:border-border-light'
 
 const TEXTAREA_VARIANT_CLASS: Record<TextareaVariant, string> = {
   default: 'text-[13px]',
@@ -193,7 +193,10 @@ export function Textarea({
           ref={overlayRef}
           aria-hidden="true"
           className={cn(
-            'pointer-events-none absolute inset-0 z-0 m-0 overflow-hidden rounded-lg border border-transparent px-3 py-2 text-text-secondary',
+            // Decorative highlight layer beneath the transparent textarea. Both layers
+            // hide their scrollbars (scrolling still works via wheel/keyboard) so no
+            // scrollbar can paint through the highlighted text; scroll is kept in sync.
+            'pointer-events-none absolute inset-0 z-0 m-0 overflow-hidden rounded-lg border border-transparent px-3 py-2 text-text-secondary [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
             TEXTAREA_VARIANT_CLASS[variant],
           )}
         >

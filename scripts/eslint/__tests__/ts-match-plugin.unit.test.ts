@@ -1,5 +1,5 @@
+import babelParser from '@babel/eslint-parser'
 import { Linter } from 'eslint'
-import tseslint from 'typescript-eslint'
 import { describe, expect, it } from 'vitest'
 import { tsMatchPlugin } from '../ts-match-plugin'
 
@@ -10,7 +10,11 @@ function lint(code: string, ruleName: string) {
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
-      parser: tseslint.parser,
+      parser: babelParser,
+      parserOptions: {
+        babelOptions: { parserOpts: { plugins: ['typescript', 'jsx'] } },
+        requireConfigFile: false,
+      },
     },
     plugins: {
       'ts-match': tsMatchPlugin,

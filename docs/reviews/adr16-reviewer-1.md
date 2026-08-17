@@ -92,7 +92,7 @@ This is pre-existing, not introduced here, but the new event is the first consum
 that matters semantically (stale UI on typo). | Consider a typed broadcast helper
 parameterized on IpcEventChannelMap (deferred; not a blocker for this PR).
 
-MINOR | ADR docs/adr/0016-session-keyed-git-state.md | "Staging" section lists step 2
+MINOR | ADR docs/adr/0018-session-keyed-git-state.md | "Staging" section lists step 2
 as "Path-scoped invalidation and broadcast on all OpenWaggle-initiated git mutations"
 — worktree birth is not fully covered (see MAJOR above). The ADR should either
 acknowledge the gap or be updated once fixed. | Update ADR after addressing the birth

@@ -126,7 +126,7 @@ describe('useWorkspaceLifecycle', () => {
 
     await waitFor(() => expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce())
     expect(lifecycleMocks.loadSessionTrees).toHaveBeenCalledOnce()
-    // Status must target the session's worktree, not the opened checkout (ADR 0016).
+    // Status must target the session's worktree, not the opened checkout (ADR 0018).
     expect(lifecycleMocks.refreshGitStatus).toHaveBeenCalledWith('/repo/.worktrees/session-1')
     expect(lifecycleMocks.refreshGitBranches).toHaveBeenCalledWith('/repo')
     expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledWith(SessionId('session-1'))

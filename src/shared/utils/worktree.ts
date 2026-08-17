@@ -42,6 +42,21 @@ export function resolveSessionWorkingDir(
 const SESSION_WORKTREE_SHORT_ID_LENGTH = 8
 
 /**
+ * The single owner of the Session worktree branch namespace.
+ *
+ * Two independent features mint branches here: ADR 0010/0018 Session worktrees (keyed by a
+ * session-id prefix) and MCP session-control worktrees (keyed by a content hash that also
+ * names their directory). Their ids differ on purpose, but the namespace must be defined
+ * once so renaming it cannot leave one feature behind.
+ */
+export const SESSION_WORKTREE_BRANCH_PREFIX = 'ow/session-'
+
+/** Branch for an already-derived worktree id, whatever scheme produced it. */
+export function sessionWorktreeBranchForId(worktreeId: string): string {
+  return `${SESSION_WORKTREE_BRANCH_PREFIX}${worktreeId}`
+}
+
+/**
  * The branch a Session worktree lives on.
  *
  * Single source of truth for this convention: worktree birth and worktree recreation
@@ -50,5 +65,5 @@ const SESSION_WORKTREE_SHORT_ID_LENGTH = 8
  * silently created a divergent branch and stranded the session's commits on the old one.
  */
 export function sessionWorktreeBranch(sessionId: string): string {
-  return `ow/session-${sessionId.slice(0, SESSION_WORKTREE_SHORT_ID_LENGTH)}`
+  return sessionWorktreeBranchForId(sessionId.slice(0, SESSION_WORKTREE_SHORT_ID_LENGTH))
 }

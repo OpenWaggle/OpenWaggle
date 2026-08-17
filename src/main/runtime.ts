@@ -8,8 +8,12 @@ import { ExtensionBuildRunnerLive } from './adapters/extension-build-runner'
 import { FilesystemDocsBundleLive } from './adapters/filesystem-docs-bundle-service'
 import { FilesystemExtensionManagerLive } from './adapters/filesystem-extension-manager-service'
 import { FilesystemExtensionPackageRepositoryLive } from './adapters/filesystem-extension-package-repository'
+import { EncryptedMcpSecretVaultServiceLive } from './adapters/mcp/encrypted-mcp-secret-vault-service'
+import { FilesystemMcpConfigServiceLive } from './adapters/mcp/filesystem-mcp-config-service'
+import { FirstPartyMcpRuntimeServiceLive } from './adapters/mcp/first-party-mcp-runtime-service'
+import { McpTurnStateServiceLive } from './adapters/mcp/mcp-turn-state-service'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
-import { PiMcpConfigServiceLive } from './adapters/pi/pi-mcp-config-service'
+import { registerPiBundledOAuthFlows } from './adapters/pi/pi-bundled-oauth'
 import { PiProviderAuthLive } from './adapters/pi/pi-provider-auth-service'
 import { PiProviderOAuthLive } from './adapters/pi/pi-provider-oauth-service'
 import { PiProviderProbeLive } from './adapters/pi/pi-provider-probe-adapter'
@@ -50,8 +54,13 @@ const ProviderServiceWithExtensionSelectionLive = ProviderServiceLive.pipe(
 const PiProviderProbeWithExtensionSelectionLive = PiProviderProbeLive.pipe(
   Layer.provide(ExtensionRuntimeSelectionLive),
 )
+const McpServicesLive = Layer.mergeAll(
+  FilesystemMcpConfigServiceLive,
+  EncryptedMcpSecretVaultServiceLive,
+  FirstPartyMcpRuntimeServiceLive.pipe(Layer.provide(EncryptedMcpSecretVaultServiceLive)),
+).pipe(Layer.provide(McpTurnStateServiceLive))
 const PiAgentKernelWithExtensionSelectionLive = PiAgentKernelLive.pipe(
-  Layer.provide(ExtensionRuntimeSelectionLive),
+  Layer.provide(Layer.mergeAll(ExtensionRuntimeSelectionLive, McpServicesLive)),
 )
 const ActiveProjectChangeDependenciesLive = Layer.mergeAll(
   AppLogger.Live,
@@ -66,6 +75,8 @@ const ActiveProjectChangeWithDependenciesLive = ActiveProjectChangeServiceLive.p
   Layer.provide(ActiveProjectChangeDependenciesLive),
 )
 
+registerPiBundledOAuthFlows()
+
 const AppLayer = Layer.mergeAll(
   NodeContext.layer,
   AppLogger.Live,
@@ -79,7 +90,7 @@ const AppLayer = Layer.mergeAll(
   SqliteSessionRepositoryLive,
   FilesystemStandardsLive,
   PiAgentKernelWithExtensionSelectionLive,
-  PiMcpConfigServiceLive,
+  McpServicesLive,
   PiProviderAuthLive,
   PiProviderProbeWithExtensionSelectionLive,
   PiProviderOAuthLive,

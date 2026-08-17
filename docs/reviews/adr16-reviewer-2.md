@@ -80,7 +80,7 @@ checkout' : ....
 The ADR's revised text is substantially correct on the architecture and its
 limitations. One claim is not yet delivered:
 
-MAJOR | docs/adr/0016-session-keyed-git-state.md Staging step 1 | "every renderer
+MAJOR | docs/adr/0018-session-keyed-git-state.md Staging step 1 | "every renderer
 git read/write routed through the resolver" | Header commit, branch picker checkout,
 and action dialog branch-create are not routed — they still use
 useProject().projectPath. The ADR's own Consequences section ("Stage / Revert /

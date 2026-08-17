@@ -1,3 +1,4 @@
+import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import type { AgentKernelRunInput } from '../../../ports/agent-kernel-service'
 import { buildPiRunNewMessages } from '../pi-run-result'
 import {
@@ -10,7 +11,10 @@ import { createSessionListener } from './session-listener'
 import { ensureSessionWorktreeProjectPath } from './session-worktree-birth'
 import { captureTurnCheckpoint } from './turn-capture'
 
-export async function runPiSession(input: AgentKernelRunInput & PiRuntimeExtensionIsolationInput) {
+export async function runPiSession(
+  input: AgentKernelRunInput &
+    PiRuntimeExtensionIsolationInput & { readonly mcpExtensionFactory?: ExtensionFactory },
+) {
   const projectPath = await ensureSessionWorktreeProjectPath(input.session)
   const { model, session } = await createPiRunSessionRuntime({
     session: input.session,
@@ -24,6 +28,7 @@ export async function runPiSession(input: AgentKernelRunInput & PiRuntimeExtensi
     enabledOpenWaggleExtensionPackages: input.enabledOpenWaggleExtensionPackages,
     enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths,
     recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure,
+    ...(input.mcpExtensionFactory ? { extensionFactories: [input.mcpExtensionFactory] } : {}),
   })
 
   const unsubscribe = session.subscribe(createSessionListener(input, input.runId))

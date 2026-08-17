@@ -54,7 +54,7 @@ The current agreed direction:
 - Existing `packages/waggle-core` and `packages/pi-waggle` must be converted from private raw-TS workspace packages into real publishable packages instead of duplicated elsewhere.
 - `@openwaggle/waggle-core` is runtime-neutral and must not import Pi SDK packages, Electron, Node built-ins, renderer stores, or app services.
 - `@openwaggle/pi-waggle` depends on `@openwaggle/waggle-core` and receives a dependent package bump whenever Waggle core changes.
-- `@openwaggle/pi-waggle` replaces wildcard Pi peer dependencies with explicit initial peer ranges: `@earendil-works/pi-coding-agent: ^0.80.6` and `@earendil-works/pi-tui: ^0.80.6`.
+- `@openwaggle/pi-waggle` follows Pi's package contract: Pi-bundled SDKs are unbundled peer dependencies with `"*"` ranges, while exact package-local dev dependencies pin the Pi line exercised by build and package QA.
 - `@openwaggle/extension-react` depends on `@openwaggle/extension-sdk` and receives a dependent package bump whenever the extension SDK changes.
 - `@openwaggle/extension-react` declares `react` and `react-dom` as `^19.0.0` peer dependencies, uses package-local React/React DOM dev dependencies for build/tests, and must not bundle React.
 - Packed and published package manifests rewrite local `workspace:*` OpenWaggle dependencies to caret semver ranges such as `^0.1.0`.

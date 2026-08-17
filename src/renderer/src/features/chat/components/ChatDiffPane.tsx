@@ -30,7 +30,7 @@ export function ChatDiffPane({ section, onClose }: ChatDiffPaneProps) {
             Name the tree, not just the scope. Stage all, Revert all and Commit act on
             whatever this panel is showing, and for a worktree-mode session that is the
             Session worktree rather than the opened checkout — which must not be
-            something the user has to infer (ADR 0016).
+            something the user has to infer (ADR 0018).
           */}
           <span className="no-drag truncate text-[11px] text-text-tertiary">
             {worktreeLabel === null ? 'Opened checkout' : `Worktree · ${worktreeLabel}`}

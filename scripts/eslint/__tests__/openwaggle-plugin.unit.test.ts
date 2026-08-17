@@ -1,5 +1,5 @@
 import { Linter } from 'eslint'
-import tseslint from 'typescript-eslint'
+import babelParser from '@babel/eslint-parser'
 import { describe, expect, it } from 'vitest'
 import { openwagglePlugin } from '../openwaggle-plugin'
 
@@ -17,9 +17,15 @@ function lint(
       languageOptions: {
         ecmaVersion: 'latest',
         sourceType: 'module',
-        parser: tseslint.parser,
+        parser: babelParser,
         parserOptions: {
+          babelOptions: {
+            parserOpts: {
+              plugins: ['typescript', 'jsx'],
+            },
+          },
           ecmaFeatures: { jsx: true },
+          requireConfigFile: false,
         },
       },
       plugins: {

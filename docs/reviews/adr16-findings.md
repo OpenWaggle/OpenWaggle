@@ -1,4 +1,4 @@
-# ADR 0016 — independent review findings and disposition
+# ADR 0018 — independent review findings and disposition
 
 Three independent reviewers on scoped briefs against commits `e4b06d73..HEAD`. Raw reports: [reviewer 1](./adr16-reviewer-1.md) (main process), [reviewer 2](./adr16-reviewer-2.md) (renderer), [reviewer 3](./adr16-reviewer-3.md) (sidebar, tests, ADR accuracy).
 
@@ -11,7 +11,7 @@ Totals: **2 BLOCKER, 7 MAJOR, 5 MINOR.** They found two defects that both my own
 
 `worktree prune` clears a stale worktree *registration* but not its branch. So when a worktree directory disappeared out-of-band, `git worktree add -b ow/session-<id>` failed with `fatal: a branch named ... already exists`, birth threw, and that session could **never run again**.
 
-This directly falsified ADR 0016 decision 6 ("given a replacement, never the primary checkout") — the replacement path was a dead end. My task-3 test had missed it because it mocked `createGitWorktree` as succeeding.
+This directly falsified ADR 0018 decision 6 ("given a replacement, never the primary checkout") — the replacement path was a dead end. My task-3 test had missed it because it mocked `createGitWorktree` as succeeding.
 
 Reproduced in a scratch repository before fixing: create worktree, `rm -rf` it, `worktree prune`, retry → `fatal: a branch named 'ow/session-abc' already exists`.
 

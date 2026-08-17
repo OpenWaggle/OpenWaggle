@@ -14,10 +14,7 @@ import {
   type OpenWagglePiExtensionSelectionServices,
 } from './openwaggle-pi-extension-selection'
 import { recordRuntimeLoadFailure } from './openwaggle-pi-runtime-failure-recording'
-import {
-  createPiProviderCatalogSnapshot,
-  getBuiltInPiModelProviderIds,
-} from './pi-provider-catalog'
+import { createPiProviderCatalogSnapshot } from './pi-provider-catalog'
 import { rejectMatchingOpenWaggleExtensionLoadErrors } from './pi-runtime-extension-load-errors'
 
 const logger = createLogger('pi-provider-service')
@@ -54,70 +51,26 @@ function toModelCapabilities(model: {
   }
 }
 
-// Pi's TUI exposes OAuth providers from AuthStorage, but keeps the built-in API-key
-// login provider names in the interactive layer. Until Pi exposes that list through
-// the SDK, this adapter-local mirror is intentionally kept aligned with Pi TUI.
-const PI_API_KEY_AUTH_PROVIDER_DISPLAY_NAMES: ReadonlyMap<string, string> = new Map([
-  ['amazon-bedrock', 'Amazon Bedrock'],
-  ['anthropic', 'Anthropic'],
-  ['azure-openai-responses', 'Azure OpenAI Responses'],
-  ['cerebras', 'Cerebras'],
-  ['deepseek', 'DeepSeek'],
-  ['fireworks', 'Fireworks'],
-  ['google', 'Google Gemini'],
-  ['google-vertex', 'Google Vertex AI'],
-  ['groq', 'Groq'],
-  ['huggingface', 'Hugging Face'],
-  ['kimi-coding', 'Kimi For Coding'],
-  ['minimax', 'MiniMax'],
-  ['minimax-cn', 'MiniMax (China)'],
-  ['mistral', 'Mistral'],
-  ['opencode', 'OpenCode Zen'],
-  ['opencode-go', 'OpenCode Go'],
-  ['openai', 'OpenAI'],
-  ['openrouter', 'OpenRouter'],
-  ['vercel-ai-gateway', 'Vercel AI Gateway'],
-  ['xai', 'xAI'],
-  ['zai', 'ZAI'],
-])
-
-function getPiProviderDisplayName(
-  providerId: string,
-  oauthProviderNames: ReadonlyMap<string, string>,
-) {
-  return (
-    oauthProviderNames.get(providerId) ??
-    PI_API_KEY_AUTH_PROVIDER_DISPLAY_NAMES.get(providerId) ??
-    toDisplayName(providerId)
-  )
+function getPiProviderDisplayName(providerId: string, providerNames: ReadonlyMap<string, string>) {
+  return providerNames.get(providerId) ?? toDisplayName(providerId)
 }
 
 export function supportsPiApiKeyAuthProvider(
   providerId: string,
   apiKeySource: ProviderApiKeyAuthSource,
-  oauthProviders: ReadonlySet<string> = new Set(),
-  builtInModelProviders: ReadonlySet<string> = getBuiltInPiModelProviderIds(),
+  apiKeyProviders: ReadonlySet<string>,
 ): boolean {
-  if (apiKeySource !== 'none') {
-    return true
-  }
-  if (PI_API_KEY_AUTH_PROVIDER_DISPLAY_NAMES.has(providerId)) {
-    return true
-  }
-  if (builtInModelProviders.has(providerId)) {
-    return false
-  }
-  return !oauthProviders.has(providerId)
+  return apiKeySource !== 'none' || apiKeyProviders.has(providerId)
 }
 
 function toCapabilities(provider: {
   readonly provider: string
   readonly models: readonly Parameters<typeof toModelCapabilities>[0][]
+  readonly providerNames: ReadonlyMap<string, string>
+  readonly apiKeyProviders: ReadonlySet<string>
   readonly oauthProviders: ReadonlySet<string>
-  readonly oauthProviderNames: ReadonlyMap<string, string>
   readonly credentials: ReadonlyMap<string, { readonly type: string }>
   readonly configuredAuthProviders: ReadonlySet<string>
-  readonly builtInModelProviders: ReadonlySet<string>
 }) {
   const credential = provider.credentials.get(provider.provider)
   const hasConfiguredAuth = provider.configuredAuthProviders.has(provider.provider)
@@ -125,7 +78,7 @@ function toCapabilities(provider: {
   const apiKeySource = getProviderApiKeyAuthSource(credential?.type, hasConfiguredAuth)
   return {
     id: provider.provider,
-    displayName: getPiProviderDisplayName(provider.provider, provider.oauthProviderNames),
+    displayName: getPiProviderDisplayName(provider.provider, provider.providerNames),
     auth: {
       configured: source !== 'none',
       source,
@@ -135,8 +88,7 @@ function toCapabilities(provider: {
       supportsApiKey: supportsPiApiKeyAuthProvider(
         provider.provider,
         apiKeySource,
-        provider.oauthProviders,
-        provider.builtInModelProviders,
+        provider.apiKeyProviders,
       ),
       supportsOAuth: provider.oauthProviders.has(provider.provider),
     },
@@ -232,11 +184,11 @@ export const ProviderServiceLive = Layer.effect(
             .map((provider) =>
               toCapabilities({
                 ...provider,
+                providerNames: snapshot.providerNames,
+                apiKeyProviders: snapshot.apiKeyProviders,
                 oauthProviders: snapshot.oauthProviders,
-                oauthProviderNames: snapshot.oauthProviderNames,
                 credentials: snapshot.credentials,
                 configuredAuthProviders: snapshot.configuredAuthProviders,
-                builtInModelProviders: snapshot.builtInModelProviders,
               }),
             )
             .find((provider) => provider.id === providerId)
@@ -251,11 +203,11 @@ export const ProviderServiceLive = Layer.effect(
           return snapshot.providers.map((provider) =>
             toCapabilities({
               ...provider,
+              providerNames: snapshot.providerNames,
+              apiKeyProviders: snapshot.apiKeyProviders,
               oauthProviders: snapshot.oauthProviders,
-              oauthProviderNames: snapshot.oauthProviderNames,
               credentials: snapshot.credentials,
               configuredAuthProviders: snapshot.configuredAuthProviders,
-              builtInModelProviders: snapshot.builtInModelProviders,
             }),
           )
         }),
@@ -272,11 +224,11 @@ export const ProviderServiceLive = Layer.effect(
           return provider
             ? toCapabilities({
                 ...provider,
+                providerNames: snapshot.providerNames,
+                apiKeyProviders: snapshot.apiKeyProviders,
                 oauthProviders: snapshot.oauthProviders,
-                oauthProviderNames: snapshot.oauthProviderNames,
                 credentials: snapshot.credentials,
                 configuredAuthProviders: snapshot.configuredAuthProviders,
-                builtInModelProviders: snapshot.builtInModelProviders,
               })
             : undefined
         }).pipe(

@@ -216,9 +216,9 @@ export declare const extensionCapabilityAuditEntrySchema: Schema.Struct<{
         sessionId: Schema.filter<typeof Schema.String>;
         branchId: Schema.filter<typeof Schema.String>;
     }>]>;
-    outcome: Schema.SchemaClass<"succeeded" | "rejected", "succeeded" | "rejected", never>;
+    outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
     timestamp: typeof Schema.Number;
-    failureCode: Schema.optional<Schema.SchemaClass<"invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", "invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", never>>;
+    failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
 }>;
 export declare const extensionInvokeInputSchema: Schema.Struct<{
     extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -243,7 +243,7 @@ export declare const extensionInvokeInputSchema: Schema.Struct<{
     payload: Schema.optional<typeof Schema.Unknown>;
 }>;
 export declare const extensionInvokeErrorSchema: Schema.Struct<{
-    code: Schema.SchemaClass<"invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", "invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", never>;
+    code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
     message: Schema.filter<typeof Schema.String>;
     issues: Schema.optional<Schema.Array$<typeof Schema.String>>;
 }>;
@@ -270,15 +270,15 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
             sessionId: Schema.filter<typeof Schema.String>;
             branchId: Schema.filter<typeof Schema.String>;
         }>]>;
-        outcome: Schema.SchemaClass<"succeeded" | "rejected", "succeeded" | "rejected", never>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
         timestamp: typeof Schema.Number;
-        failureCode: Schema.optional<Schema.SchemaClass<"invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", "invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", never>>;
+        failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
     }>;
 }>;
 export declare const extensionInvokeFailureSchema: Schema.Struct<{
     ok: Schema.Literal<[false]>;
     error: Schema.Struct<{
-        code: Schema.SchemaClass<"invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", "invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", never>;
+        code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
         message: Schema.filter<typeof Schema.String>;
         issues: Schema.optional<Schema.Array$<typeof Schema.String>>;
     }>;
@@ -302,9 +302,9 @@ export declare const extensionInvokeFailureSchema: Schema.Struct<{
             sessionId: Schema.filter<typeof Schema.String>;
             branchId: Schema.filter<typeof Schema.String>;
         }>]>;
-        outcome: Schema.SchemaClass<"succeeded" | "rejected", "succeeded" | "rejected", never>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
         timestamp: typeof Schema.Number;
-        failureCode: Schema.optional<Schema.SchemaClass<"invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", "invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", never>>;
+        failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
     }>>;
 }>;
 export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
@@ -330,14 +330,14 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
             sessionId: Schema.filter<typeof Schema.String>;
             branchId: Schema.filter<typeof Schema.String>;
         }>]>;
-        outcome: Schema.SchemaClass<"succeeded" | "rejected", "succeeded" | "rejected", never>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
         timestamp: typeof Schema.Number;
-        failureCode: Schema.optional<Schema.SchemaClass<"invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", "invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", never>>;
+        failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
     }>;
 }>, Schema.Struct<{
     ok: Schema.Literal<[false]>;
     error: Schema.Struct<{
-        code: Schema.SchemaClass<"invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", "invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", never>;
+        code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
         message: Schema.filter<typeof Schema.String>;
         issues: Schema.optional<Schema.Array$<typeof Schema.String>>;
     }>;
@@ -361,9 +361,9 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
             sessionId: Schema.filter<typeof Schema.String>;
             branchId: Schema.filter<typeof Schema.String>;
         }>]>;
-        outcome: Schema.SchemaClass<"succeeded" | "rejected", "succeeded" | "rejected", never>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
         timestamp: typeof Schema.Number;
-        failureCode: Schema.optional<Schema.SchemaClass<"invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", "invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", never>>;
+        failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
     }>>;
 }>]>;
 export declare function toInvokeInput(identity: ExtensionSdkIdentity, request: ExtensionSdkInvokeRequest): ExtensionInvokeInput;
@@ -510,15 +510,15 @@ export {};
 ```ts
 export declare const OPENWAGGLE_EXTENSION_BROKER: {
     readonly CAPABILITY: {
-        readonly HOST_CONTEXT: "openwaggle.host.context";
-        readonly STORAGE: "openwaggle.storage";
-        readonly STATE: "openwaggle.state";
-        readonly ACTIONS: "openwaggle.actions";
-        readonly SETTINGS: "openwaggle.settings";
-        readonly DOCS: "openwaggle.docs";
-        readonly RUNTIME: "openwaggle.runtime";
+        readonly HOST_CONTEXT: 'openwaggle.host.context';
+        readonly STORAGE: 'openwaggle.storage';
+        readonly STATE: 'openwaggle.state';
+        readonly ACTIONS: 'openwaggle.actions';
+        readonly SETTINGS: 'openwaggle.settings';
+        readonly DOCS: 'openwaggle.docs';
+        readonly RUNTIME: 'openwaggle.runtime';
     };
-    readonly CAPABILITIES: readonly ("openwaggle.host.context" | "openwaggle.storage" | "openwaggle.state" | "openwaggle.actions" | "openwaggle.settings" | "openwaggle.docs" | "openwaggle.runtime")[];
+    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
     readonly CAPABILITY_METHODS: readonly [{
         readonly capability: "openwaggle.host.context";
         readonly methods: readonly ["get-scope"];
@@ -542,67 +542,67 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly methods: readonly ["register-contribution", "unregister-contribution"];
     }];
     readonly METHOD: {
-        readonly GET_SCOPE: "get-scope";
-        readonly GET: "get";
-        readonly SET: "set";
-        readonly DELETE: "delete";
-        readonly LIST: "list";
-        readonly GET_STATE: "get-state";
-        readonly READ_STATE: "read-state";
-        readonly SELECT_PROJECT: "select-project";
-        readonly GET_SETTINGS: "get-settings";
-        readonly UPDATE_SETTINGS: "update-settings";
-        readonly GET_SETTING: "get-setting";
-        readonly UPDATE_SETTING: "update-setting";
-        readonly DISCOVER_DOCS: "discover-docs";
-        readonly RESOLVE_DOCS_TOPIC: "resolve-docs-topic";
-        readonly REGISTER_CONTRIBUTION: "register-contribution";
-        readonly UNREGISTER_CONTRIBUTION: "unregister-contribution";
+        readonly GET_SCOPE: 'get-scope';
+        readonly GET: 'get';
+        readonly SET: 'set';
+        readonly DELETE: 'delete';
+        readonly LIST: 'list';
+        readonly GET_STATE: 'get-state';
+        readonly READ_STATE: 'read-state';
+        readonly SELECT_PROJECT: 'select-project';
+        readonly GET_SETTINGS: 'get-settings';
+        readonly UPDATE_SETTINGS: 'update-settings';
+        readonly GET_SETTING: 'get-setting';
+        readonly UPDATE_SETTING: 'update-setting';
+        readonly DISCOVER_DOCS: 'discover-docs';
+        readonly RESOLVE_DOCS_TOPIC: 'resolve-docs-topic';
+        readonly REGISTER_CONTRIBUTION: 'register-contribution';
+        readonly UNREGISTER_CONTRIBUTION: 'unregister-contribution';
     };
-    readonly METHODS: readonly ("get-scope" | "get" | "set" | "delete" | "list" | "get-state" | "read-state" | "select-project" | "get-settings" | "update-settings" | "get-setting" | "update-setting" | "discover-docs" | "resolve-docs-topic" | "register-contribution" | "unregister-contribution")[];
+    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
     readonly FAILURE_CODE: {
-        readonly INVALID_INPUT: "invalid-input";
-        readonly INVALID_PAYLOAD: "invalid-payload";
-        readonly UNKNOWN_EXTENSION: "unknown-extension";
-        readonly DISABLED_EXTENSION: "disabled-extension";
-        readonly UNKNOWN_CONTRIBUTION: "unknown-contribution";
-        readonly UNDECLARED_CAPABILITY: "undeclared-capability";
-        readonly UNDECLARED_METHOD: "undeclared-method";
-        readonly UNDECLARED_SCOPE: "undeclared-scope";
-        readonly OUT_OF_SCOPE: "out-of-scope";
-        readonly UNSUPPORTED_CAPABILITY: "unsupported-capability";
-        readonly UNSUPPORTED_METHOD: "unsupported-method";
-        readonly TRANSPORT_FAILED: "transport-failed";
+        readonly INVALID_INPUT: 'invalid-input';
+        readonly INVALID_PAYLOAD: 'invalid-payload';
+        readonly UNKNOWN_EXTENSION: 'unknown-extension';
+        readonly DISABLED_EXTENSION: 'disabled-extension';
+        readonly UNKNOWN_CONTRIBUTION: 'unknown-contribution';
+        readonly UNDECLARED_CAPABILITY: 'undeclared-capability';
+        readonly UNDECLARED_METHOD: 'undeclared-method';
+        readonly UNDECLARED_SCOPE: 'undeclared-scope';
+        readonly OUT_OF_SCOPE: 'out-of-scope';
+        readonly UNSUPPORTED_CAPABILITY: 'unsupported-capability';
+        readonly UNSUPPORTED_METHOD: 'unsupported-method';
+        readonly TRANSPORT_FAILED: 'transport-failed';
     };
-    readonly FAILURE_CODES: readonly ("invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed")[];
+    readonly FAILURE_CODES: readonly ("disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method")[];
     readonly OUTCOME: {
-        readonly SUCCEEDED: "succeeded";
-        readonly REJECTED: "rejected";
+        readonly SUCCEEDED: 'succeeded';
+        readonly REJECTED: 'rejected';
     };
-    readonly OUTCOMES: readonly ("succeeded" | "rejected")[];
+    readonly OUTCOMES: readonly ("rejected" | "succeeded")[];
     readonly STATE_SELECTOR: {
-        readonly CURRENT_PROJECT: "current-project";
-        readonly CURRENT_SESSION: "current-session";
-        readonly CURRENT_BRANCH: "current-branch";
-        readonly RECENT_PROJECTS: "recent-projects";
-        readonly MODEL_PREFERENCES: "model-preferences";
+        readonly CURRENT_PROJECT: 'current-project';
+        readonly CURRENT_SESSION: 'current-session';
+        readonly CURRENT_BRANCH: 'current-branch';
+        readonly RECENT_PROJECTS: 'recent-projects';
+        readonly MODEL_PREFERENCES: 'model-preferences';
     };
-    readonly STATE_SELECTORS: readonly ("current-project" | "current-session" | "current-branch" | "recent-projects" | "model-preferences")[];
+    readonly STATE_SELECTORS: readonly ("current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects")[];
     readonly SETTING_KEY: {
-        readonly MODEL_PREFERENCES: "model-preferences";
-        readonly PROJECT_DISPLAY_NAME: "project-display-name";
+        readonly MODEL_PREFERENCES: 'model-preferences';
+        readonly PROJECT_DISPLAY_NAME: 'project-display-name';
     };
     readonly SETTING_KEYS: readonly ("model-preferences" | "project-display-name")[];
 };
 export declare const OPENWAGGLE_EXTENSION: {
-    readonly MANIFEST_FILE: "openwaggle.extension.json";
-    readonly SDK_VERSION: "0.1.0";
-    readonly PROJECT_ROOT_SEGMENTS: readonly [".openwaggle", "extensions"];
-    readonly GLOBAL_EXTENSIONS_DIR: "extensions";
+    readonly MANIFEST_FILE: 'openwaggle.extension.json';
+    readonly SDK_VERSION: '0.1.0';
+    readonly PROJECT_ROOT_SEGMENTS: readonly ['.openwaggle', 'extensions'];
+    readonly GLOBAL_EXTENSIONS_DIR: 'extensions';
     readonly SCOPE: {
-        readonly GLOBAL_KIND: "global";
-        readonly PROJECT_KIND: "project";
-        readonly GLOBAL_ID: "global";
+        readonly GLOBAL_KIND: 'global';
+        readonly PROJECT_KIND: 'project';
+        readonly GLOBAL_ID: 'global';
     };
     readonly LIMITS: {
         readonly ID_MAX_LENGTH: 96;
@@ -623,51 +623,51 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly SEMVER_VERSION: RegExp;
     };
     readonly PATH: {
-        readonly NUL_CHARACTER: "\0";
-        readonly POSIX_SEPARATOR: "/";
-        readonly WINDOWS_SEPARATOR: "\\";
-        readonly RELATIVE_PARENT_SEGMENT: "..";
-        readonly CURRENT_DIRECTORY_SEGMENT: ".";
+        readonly NUL_CHARACTER: '\0';
+        readonly POSIX_SEPARATOR: '/';
+        readonly WINDOWS_SEPARATOR: '\\';
+        readonly RELATIVE_PARENT_SEGMENT: '..';
+        readonly CURRENT_DIRECTORY_SEGMENT: '.';
     };
     readonly RUNTIME_MODULE_PROTOCOL: {
-        readonly MODULE_CONTEXT_SEGMENT: "__context__";
+        readonly MODULE_CONTEXT_SEGMENT: '__context__';
     };
-    readonly CAPABILITY_SCOPES: readonly ["app", "project", "session", "branch"];
+    readonly CAPABILITY_SCOPES: readonly ['app', 'project', 'session', 'branch'];
     readonly CONTRIBUTION_FAMILY: {
-        readonly COMMANDS: "commands";
-        readonly SLASH_COMMANDS: "slashCommands";
-        readonly ROUTES: "routes";
-        readonly SETTINGS_SECTIONS: "settingsSections";
-        readonly SIDE_PANELS: "sidePanels";
-        readonly DIALOGS: "dialogs";
-        readonly TRANSCRIPT_RENDERERS: "transcriptRenderers";
-        readonly TOOL_RENDERERS: "toolRenderers";
-        readonly CUSTOM_MESSAGE_RENDERERS: "customMessageRenderers";
-        readonly INTERACTION_RENDERERS: "interactionRenderers";
-        readonly STATUS_WIDGETS: "statusWidgets";
+        readonly COMMANDS: 'commands';
+        readonly SLASH_COMMANDS: 'slashCommands';
+        readonly ROUTES: 'routes';
+        readonly SETTINGS_SECTIONS: 'settingsSections';
+        readonly SIDE_PANELS: 'sidePanels';
+        readonly DIALOGS: 'dialogs';
+        readonly TRANSCRIPT_RENDERERS: 'transcriptRenderers';
+        readonly TOOL_RENDERERS: 'toolRenderers';
+        readonly CUSTOM_MESSAGE_RENDERERS: 'customMessageRenderers';
+        readonly INTERACTION_RENDERERS: 'interactionRenderers';
+        readonly STATUS_WIDGETS: 'statusWidgets';
     };
     readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly COMMAND_CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands"];
     readonly CONTRIBUTION_RUNTIME: {
-        readonly FEDERATED_MODULE: "federated-module";
-        readonly TRUSTED_RENDERER: "trusted-renderer";
+        readonly FEDERATED_MODULE: 'federated-module';
+        readonly TRUSTED_RENDERER: 'trusted-renderer';
     };
     readonly CONTRIBUTION_RUNTIMES: readonly ("federated-module" | "trusted-renderer")[];
     readonly EXECUTION_PLACEMENT: {
-        readonly HOST_RENDERER: "host-renderer";
-        readonly FRAME: "frame";
+        readonly HOST_RENDERER: 'host-renderer';
+        readonly FRAME: 'frame';
     };
-    readonly EXECUTION_PLACEMENTS: readonly ("host-renderer" | "frame")[];
+    readonly EXECUTION_PLACEMENTS: readonly ("frame" | "host-renderer")[];
     readonly STORAGE: {
         readonly KIND: {
-            readonly STATE: "state";
-            readonly CONFIG: "config";
+            readonly STATE: 'state';
+            readonly CONFIG: 'config';
         };
-        readonly KINDS: readonly ("state" | "config")[];
+        readonly KINDS: readonly ("config" | "state")[];
         readonly SCOPE: {
-            readonly GLOBAL_KIND: "global";
-            readonly PROJECT_KIND: "project";
-            readonly GLOBAL_ID: "global";
+            readonly GLOBAL_KIND: 'global';
+            readonly PROJECT_KIND: 'project';
+            readonly GLOBAL_ID: 'global';
         };
         readonly SCOPE_KINDS: readonly ("global" | "project")[];
         readonly KEY_MAX_LENGTH: 160;
@@ -675,21 +675,21 @@ export declare const OPENWAGGLE_EXTENSION: {
     readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly INSTALL_SOURCE: {
-        readonly PREBUILT: "prebuilt";
-        readonly LOCAL_BUILD: "local-build";
+        readonly PREBUILT: 'prebuilt';
+        readonly LOCAL_BUILD: 'local-build';
     };
-    readonly INSTALL_SOURCES: readonly ("prebuilt" | "local-build")[];
+    readonly INSTALL_SOURCES: readonly ("local-build" | "prebuilt")[];
     readonly RUNTIME_REQUIREMENT_TYPE: {
-        readonly BINARY: "binary";
-        readonly COMMAND: "command";
+        readonly BINARY: 'binary';
+        readonly COMMAND: 'command';
     };
     readonly RUNTIME_REQUIREMENT_TYPES: readonly ("binary" | "command")[];
     readonly NETWORK_ACCESS_MODE: {
-        readonly BROKERED: "brokered";
-        readonly RESTRICTED: "restricted";
-        readonly DIRECT: "direct";
+        readonly BROKERED: 'brokered';
+        readonly RESTRICTED: 'restricted';
+        readonly DIRECT: 'direct';
     };
-    readonly NETWORK_ACCESS_MODES: readonly ("brokered" | "restricted" | "direct")[];
+    readonly NETWORK_ACCESS_MODES: readonly ("brokered" | "direct" | "restricted")[];
 };
 ```
 
@@ -709,9 +709,9 @@ export declare const extensionRuntimeRequirementSchema: Schema.filter<Schema.Str
     command: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
     binary: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
 }>>;
-export declare const extensionInstallSourceSchema: Schema.SchemaClass<"prebuilt" | "local-build", "prebuilt" | "local-build", never>;
+export declare const extensionInstallSourceSchema: Schema.SchemaClass<"local-build" | "prebuilt", "local-build" | "prebuilt", never>;
 export declare const extensionInstallSchema: Schema.Struct<{
-    source: Schema.SchemaClass<"prebuilt" | "local-build", "prebuilt" | "local-build", never>;
+    source: Schema.SchemaClass<"local-build" | "prebuilt", "local-build" | "prebuilt", never>;
 }>;
 export declare const extensionBuildSchema: Schema.Struct<{
     command: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -750,7 +750,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
     sourceFiles: Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>;
     builtArtifacts: Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>;
     install: Schema.optional<Schema.Struct<{
-        source: Schema.SchemaClass<"prebuilt" | "local-build", "prebuilt" | "local-build", never>;
+        source: Schema.SchemaClass<"local-build" | "prebuilt", "local-build" | "prebuilt", never>;
     }>>;
     build: Schema.optional<Schema.Struct<{
         command: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -806,7 +806,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -825,7 +825,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -844,7 +844,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -863,7 +863,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -882,7 +882,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -901,7 +901,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -920,7 +920,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -939,7 +939,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -958,7 +958,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1048,7 +1048,7 @@ export declare const extensionRouteContributionSchema: Schema.filter<Schema.Stru
     id: Schema.filter<Schema.filter<typeof Schema.String>>;
     title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-    execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+    execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
     entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     target: Schema.optional<Schema.Struct<{
         projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1067,7 +1067,7 @@ export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struc
     id: Schema.filter<Schema.filter<typeof Schema.String>>;
     title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-    execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+    execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
     entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     target: Schema.optional<Schema.Struct<{
         projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1111,7 +1111,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1130,7 +1130,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1149,7 +1149,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1168,7 +1168,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1187,7 +1187,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1206,7 +1206,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1225,7 +1225,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1244,7 +1244,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1263,7 +1263,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1300,7 +1300,7 @@ export declare const extensionRouteContributionRegistrationSchema: Schema.Struct
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1322,7 +1322,7 @@ export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1358,7 +1358,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1379,7 +1379,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1423,7 +1423,7 @@ export declare const extensionRelativePathSchema: Schema.filter<Schema.filter<ty
 export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
 export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
 export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
 export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
 export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
 export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
@@ -2105,130 +2105,130 @@ export interface CreateOpenWaggleExtensionThemeOptions {
 ```ts
 export declare const OPENWAGGLE_EXTENSION_THEME_CSS_VARIABLES: {
     readonly color: {
-        readonly background: "--ow-color-background";
-        readonly surface: "--ow-color-surface";
-        readonly surfaceRaised: "--ow-color-surface-raised";
-        readonly surfaceHover: "--ow-color-surface-hover";
-        readonly surfaceActive: "--ow-color-surface-active";
-        readonly border: "--ow-color-border";
-        readonly borderStrong: "--ow-color-border-strong";
-        readonly text: "--ow-color-text";
-        readonly textSubtle: "--ow-color-text-subtle";
-        readonly textMuted: "--ow-color-text-muted";
-        readonly textDim: "--ow-color-text-dim";
-        readonly accent: "--ow-color-accent";
-        readonly accentDim: "--ow-color-accent-dim";
-        readonly success: "--ow-color-success";
-        readonly danger: "--ow-color-danger";
-        readonly warning: "--ow-color-warning";
-        readonly info: "--ow-color-info";
+        readonly background: '--ow-color-background';
+        readonly surface: '--ow-color-surface';
+        readonly surfaceRaised: '--ow-color-surface-raised';
+        readonly surfaceHover: '--ow-color-surface-hover';
+        readonly surfaceActive: '--ow-color-surface-active';
+        readonly border: '--ow-color-border';
+        readonly borderStrong: '--ow-color-border-strong';
+        readonly text: '--ow-color-text';
+        readonly textSubtle: '--ow-color-text-subtle';
+        readonly textMuted: '--ow-color-text-muted';
+        readonly textDim: '--ow-color-text-dim';
+        readonly accent: '--ow-color-accent';
+        readonly accentDim: '--ow-color-accent-dim';
+        readonly success: '--ow-color-success';
+        readonly danger: '--ow-color-danger';
+        readonly warning: '--ow-color-warning';
+        readonly info: '--ow-color-info';
     };
     readonly typography: {
-        readonly sansFamily: "--ow-font-family-sans";
-        readonly monoFamily: "--ow-font-family-mono";
+        readonly sansFamily: '--ow-font-family-sans';
+        readonly monoFamily: '--ow-font-family-mono';
     };
     readonly spacing: {
-        readonly xs: "--ow-space-xs";
-        readonly sm: "--ow-space-sm";
-        readonly md: "--ow-space-md";
-        readonly lg: "--ow-space-lg";
-        readonly xl: "--ow-space-xl";
+        readonly xs: '--ow-space-xs';
+        readonly sm: '--ow-space-sm';
+        readonly md: '--ow-space-md';
+        readonly lg: '--ow-space-lg';
+        readonly xl: '--ow-space-xl';
     };
     readonly radius: {
-        readonly sm: "--ow-radius-sm";
-        readonly md: "--ow-radius-md";
-        readonly lg: "--ow-radius-lg";
-        readonly panel: "--ow-radius-panel";
+        readonly sm: '--ow-radius-sm';
+        readonly md: '--ow-radius-md';
+        readonly lg: '--ow-radius-lg';
+        readonly panel: '--ow-radius-panel';
     };
     readonly focus: {
-        readonly ring: "--ow-focus-ring";
-        readonly shadow: "--ow-focus-shadow";
+        readonly ring: '--ow-focus-ring';
+        readonly shadow: '--ow-focus-shadow';
     };
     readonly elevation: {
-        readonly card: "--ow-elevation-card";
-        readonly overlay: "--ow-elevation-overlay";
+        readonly card: '--ow-elevation-card';
+        readonly overlay: '--ow-elevation-overlay';
     };
 };
 export declare const DEFAULT_EXTENSION_THEME_TOKENS: {
     readonly color: {
-        readonly background: "#141619";
-        readonly surface: "#1a1d22";
-        readonly surfaceRaised: "#1f232a";
-        readonly surfaceHover: "#262b33";
-        readonly surfaceActive: "#1d1a10";
-        readonly border: "#1e2229";
-        readonly borderStrong: "#2a3240";
-        readonly text: "#e7e9ee";
-        readonly textSubtle: "#c9cdd6";
-        readonly textMuted: "#9098a8";
-        readonly textDim: "#666f7d";
-        readonly accent: "#f5a623";
-        readonly accentDim: "#b87410";
-        readonly success: "#4caf72";
-        readonly danger: "#ef4444";
-        readonly warning: "#f5a623";
-        readonly info: "#61a8ff";
+        readonly background: '#141619';
+        readonly surface: '#1a1d22';
+        readonly surfaceRaised: '#1f232a';
+        readonly surfaceHover: '#262b33';
+        readonly surfaceActive: '#1d1a10';
+        readonly border: '#1e2229';
+        readonly borderStrong: '#2a3240';
+        readonly text: '#e7e9ee';
+        readonly textSubtle: '#c9cdd6';
+        readonly textMuted: '#9098a8';
+        readonly textDim: '#666f7d';
+        readonly accent: '#f5a623';
+        readonly accentDim: '#b87410';
+        readonly success: '#4caf72';
+        readonly danger: '#ef4444';
+        readonly warning: '#f5a623';
+        readonly info: '#61a8ff';
     };
     readonly typography: {
-        readonly sansFamily: "Inter, \"SF Pro Text\", \"SF Pro Display\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif";
-        readonly monoFamily: "\"SF Mono\", \"JetBrains Mono\", \"Cascadia Mono\", ui-monospace, monospace";
+        readonly sansFamily: 'Inter, "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+        readonly monoFamily: '"SF Mono", "JetBrains Mono", "Cascadia Mono", ui-monospace, monospace';
     };
     readonly spacing: {
-        readonly xs: "4px";
-        readonly sm: "8px";
-        readonly md: "12px";
-        readonly lg: "16px";
-        readonly xl: "24px";
+        readonly xs: '4px';
+        readonly sm: '8px';
+        readonly md: '12px';
+        readonly lg: '16px';
+        readonly xl: '24px';
     };
     readonly radius: {
-        readonly sm: "6px";
-        readonly md: "9px";
-        readonly lg: "12px";
-        readonly panel: "22px";
+        readonly sm: '6px';
+        readonly md: '9px';
+        readonly lg: '12px';
+        readonly panel: '22px';
     };
     readonly focus: {
-        readonly ring: "#9aa3b2";
-        readonly shadow: "0 0 0 1px color-mix(in srgb, #9aa3b2 76%, transparent), 0 0 0 3px color-mix(in srgb, #9aa3b2 15%, transparent)";
+        readonly ring: '#9aa3b2';
+        readonly shadow: '0 0 0 1px color-mix(in srgb, #9aa3b2 76%, transparent), 0 0 0 3px color-mix(in srgb, #9aa3b2 15%, transparent)';
     };
     readonly elevation: {
-        readonly card: "inset 0 1px 0 rgba(255, 255, 255, 0.02)";
-        readonly overlay: "0 24px 80px rgba(0, 0, 0, 0.45)";
+        readonly card: 'inset 0 1px 0 rgba(255, 255, 255, 0.02)';
+        readonly overlay: '0 24px 80px rgba(0, 0, 0, 0.45)';
     };
 };
 export declare const SOURCE_EXTENSION_THEME_CSS_VARIABLES: {
     readonly color: {
-        readonly background: "--color-bg";
-        readonly surface: "--color-bg-secondary";
-        readonly surfaceRaised: "--color-bg-tertiary";
-        readonly surfaceHover: "--color-bg-hover";
-        readonly surfaceActive: "--color-bg-active";
-        readonly border: "--color-border";
-        readonly borderStrong: "--color-border-light";
-        readonly text: "--color-text-primary";
-        readonly textSubtle: "--color-text-secondary";
-        readonly textMuted: "--color-text-tertiary";
-        readonly textDim: "--color-text-muted";
-        readonly accent: "--color-accent";
-        readonly accentDim: "--color-accent-dim";
-        readonly success: "--color-success";
-        readonly danger: "--color-error";
-        readonly warning: "--color-warning";
-        readonly info: "--color-info";
+        readonly background: '--color-bg';
+        readonly surface: '--color-bg-secondary';
+        readonly surfaceRaised: '--color-bg-tertiary';
+        readonly surfaceHover: '--color-bg-hover';
+        readonly surfaceActive: '--color-bg-active';
+        readonly border: '--color-border';
+        readonly borderStrong: '--color-border-light';
+        readonly text: '--color-text-primary';
+        readonly textSubtle: '--color-text-secondary';
+        readonly textMuted: '--color-text-tertiary';
+        readonly textDim: '--color-text-muted';
+        readonly accent: '--color-accent';
+        readonly accentDim: '--color-accent-dim';
+        readonly success: '--color-success';
+        readonly danger: '--color-error';
+        readonly warning: '--color-warning';
+        readonly info: '--color-info';
     };
     readonly typography: {
-        readonly sansFamily: "--font-sans";
-        readonly monoFamily: "--font-mono";
+        readonly sansFamily: '--font-sans';
+        readonly monoFamily: '--font-mono';
     };
     readonly radius: {
-        readonly panel: "--radius-panel";
+        readonly panel: '--radius-panel';
     };
 };
-export declare const EXTENSION_THEME_COLOR_KEYS: readonly ["background", "surface", "surfaceRaised", "surfaceHover", "surfaceActive", "border", "borderStrong", "text", "textSubtle", "textMuted", "textDim", "accent", "accentDim", "success", "danger", "warning", "info"];
-export declare const EXTENSION_THEME_TYPOGRAPHY_KEYS: readonly ["sansFamily", "monoFamily"];
-export declare const EXTENSION_THEME_SPACING_KEYS: readonly ["xs", "sm", "md", "lg", "xl"];
-export declare const EXTENSION_THEME_RADIUS_KEYS: readonly ["sm", "md", "lg", "panel"];
-export declare const EXTENSION_THEME_FOCUS_KEYS: readonly ["ring", "shadow"];
-export declare const EXTENSION_THEME_ELEVATION_KEYS: readonly ["card", "overlay"];
+export declare const EXTENSION_THEME_COLOR_KEYS: readonly ['background', 'surface', 'surfaceRaised', 'surfaceHover', 'surfaceActive', 'border', 'borderStrong', 'text', 'textSubtle', 'textMuted', 'textDim', 'accent', 'accentDim', 'success', 'danger', 'warning', 'info'];
+export declare const EXTENSION_THEME_TYPOGRAPHY_KEYS: readonly ['sansFamily', 'monoFamily'];
+export declare const EXTENSION_THEME_SPACING_KEYS: readonly ['xs', 'sm', 'md', 'lg', 'xl'];
+export declare const EXTENSION_THEME_RADIUS_KEYS: readonly ['sm', 'md', 'lg', 'panel'];
+export declare const EXTENSION_THEME_FOCUS_KEYS: readonly ['ring', 'shadow'];
+export declare const EXTENSION_THEME_ELEVATION_KEYS: readonly ['card', 'overlay'];
 ```
 
 ### Declarations from `dist/ui.d.ts`
@@ -2246,26 +2246,26 @@ export { createOpenWaggleExtensionUiStylesheet, extensionThemeCssVariableDeclara
 
 ```ts
 export declare const OPENWAGGLE_EXTENSION_UI_CLASS_NAMES: {
-    readonly root: "ow-extension-root";
-    readonly panel: "ow-extension-panel";
-    readonly stack: "ow-extension-stack";
-    readonly row: "ow-extension-row";
-    readonly heading: "ow-extension-heading";
-    readonly text: "ow-extension-text";
-    readonly muted: "ow-extension-muted";
-    readonly divider: "ow-extension-divider";
-    readonly button: "ow-extension-button";
-    readonly input: "ow-extension-input";
-    readonly textarea: "ow-extension-textarea";
-    readonly select: "ow-extension-select";
-    readonly checkbox: "ow-extension-checkbox";
-    readonly badge: "ow-extension-badge";
-    readonly field: "ow-extension-field";
-    readonly alert: "ow-extension-alert";
+    readonly root: 'ow-extension-root';
+    readonly panel: 'ow-extension-panel';
+    readonly stack: 'ow-extension-stack';
+    readonly row: 'ow-extension-row';
+    readonly heading: 'ow-extension-heading';
+    readonly text: 'ow-extension-text';
+    readonly muted: 'ow-extension-muted';
+    readonly divider: 'ow-extension-divider';
+    readonly button: 'ow-extension-button';
+    readonly input: 'ow-extension-input';
+    readonly textarea: 'ow-extension-textarea';
+    readonly select: 'ow-extension-select';
+    readonly checkbox: 'ow-extension-checkbox';
+    readonly badge: 'ow-extension-badge';
+    readonly field: 'ow-extension-field';
+    readonly alert: 'ow-extension-alert';
 };
 export declare const OPENWAGGLE_EXTENSION_UI_ATTRIBUTES: {
-    readonly tone: "data-ow-tone";
-    readonly variant: "data-ow-variant";
+    readonly tone: 'data-ow-tone';
+    readonly variant: 'data-ow-variant';
 };
 export type OpenWaggleExtensionUiTone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger' | 'info';
 export type OpenWaggleExtensionUiButtonVariant = 'primary' | 'secondary' | 'ghost';
@@ -2516,9 +2516,9 @@ export declare const extensionCapabilityAuditEntrySchema: Schema.Struct<{
         sessionId: Schema.filter<typeof Schema.String>;
         branchId: Schema.filter<typeof Schema.String>;
     }>]>;
-    outcome: Schema.SchemaClass<"succeeded" | "rejected", "succeeded" | "rejected", never>;
+    outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
     timestamp: typeof Schema.Number;
-    failureCode: Schema.optional<Schema.SchemaClass<"invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", "invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", never>>;
+    failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
 }>;
 export declare const extensionInvokeInputSchema: Schema.Struct<{
     extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -2543,7 +2543,7 @@ export declare const extensionInvokeInputSchema: Schema.Struct<{
     payload: Schema.optional<typeof Schema.Unknown>;
 }>;
 export declare const extensionInvokeErrorSchema: Schema.Struct<{
-    code: Schema.SchemaClass<"invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", "invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", never>;
+    code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
     message: Schema.filter<typeof Schema.String>;
     issues: Schema.optional<Schema.Array$<typeof Schema.String>>;
 }>;
@@ -2570,15 +2570,15 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
             sessionId: Schema.filter<typeof Schema.String>;
             branchId: Schema.filter<typeof Schema.String>;
         }>]>;
-        outcome: Schema.SchemaClass<"succeeded" | "rejected", "succeeded" | "rejected", never>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
         timestamp: typeof Schema.Number;
-        failureCode: Schema.optional<Schema.SchemaClass<"invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", "invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", never>>;
+        failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
     }>;
 }>;
 export declare const extensionInvokeFailureSchema: Schema.Struct<{
     ok: Schema.Literal<[false]>;
     error: Schema.Struct<{
-        code: Schema.SchemaClass<"invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", "invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", never>;
+        code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
         message: Schema.filter<typeof Schema.String>;
         issues: Schema.optional<Schema.Array$<typeof Schema.String>>;
     }>;
@@ -2602,9 +2602,9 @@ export declare const extensionInvokeFailureSchema: Schema.Struct<{
             sessionId: Schema.filter<typeof Schema.String>;
             branchId: Schema.filter<typeof Schema.String>;
         }>]>;
-        outcome: Schema.SchemaClass<"succeeded" | "rejected", "succeeded" | "rejected", never>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
         timestamp: typeof Schema.Number;
-        failureCode: Schema.optional<Schema.SchemaClass<"invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", "invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", never>>;
+        failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
     }>>;
 }>;
 export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
@@ -2630,14 +2630,14 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
             sessionId: Schema.filter<typeof Schema.String>;
             branchId: Schema.filter<typeof Schema.String>;
         }>]>;
-        outcome: Schema.SchemaClass<"succeeded" | "rejected", "succeeded" | "rejected", never>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
         timestamp: typeof Schema.Number;
-        failureCode: Schema.optional<Schema.SchemaClass<"invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", "invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", never>>;
+        failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
     }>;
 }>, Schema.Struct<{
     ok: Schema.Literal<[false]>;
     error: Schema.Struct<{
-        code: Schema.SchemaClass<"invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", "invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", never>;
+        code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
         message: Schema.filter<typeof Schema.String>;
         issues: Schema.optional<Schema.Array$<typeof Schema.String>>;
     }>;
@@ -2661,9 +2661,9 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
             sessionId: Schema.filter<typeof Schema.String>;
             branchId: Schema.filter<typeof Schema.String>;
         }>]>;
-        outcome: Schema.SchemaClass<"succeeded" | "rejected", "succeeded" | "rejected", never>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
         timestamp: typeof Schema.Number;
-        failureCode: Schema.optional<Schema.SchemaClass<"invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", "invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", never>>;
+        failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
     }>>;
 }>]>;
 export declare function toInvokeInput(identity: ExtensionSdkIdentity, request: ExtensionSdkInvokeRequest): ExtensionInvokeInput;
@@ -2824,15 +2824,15 @@ export {};
 ```ts
 export declare const OPENWAGGLE_EXTENSION_BROKER: {
     readonly CAPABILITY: {
-        readonly HOST_CONTEXT: "openwaggle.host.context";
-        readonly STORAGE: "openwaggle.storage";
-        readonly STATE: "openwaggle.state";
-        readonly ACTIONS: "openwaggle.actions";
-        readonly SETTINGS: "openwaggle.settings";
-        readonly DOCS: "openwaggle.docs";
-        readonly RUNTIME: "openwaggle.runtime";
+        readonly HOST_CONTEXT: 'openwaggle.host.context';
+        readonly STORAGE: 'openwaggle.storage';
+        readonly STATE: 'openwaggle.state';
+        readonly ACTIONS: 'openwaggle.actions';
+        readonly SETTINGS: 'openwaggle.settings';
+        readonly DOCS: 'openwaggle.docs';
+        readonly RUNTIME: 'openwaggle.runtime';
     };
-    readonly CAPABILITIES: readonly ("openwaggle.host.context" | "openwaggle.storage" | "openwaggle.state" | "openwaggle.actions" | "openwaggle.settings" | "openwaggle.docs" | "openwaggle.runtime")[];
+    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
     readonly CAPABILITY_METHODS: readonly [{
         readonly capability: "openwaggle.host.context";
         readonly methods: readonly ["get-scope"];
@@ -2856,67 +2856,67 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly methods: readonly ["register-contribution", "unregister-contribution"];
     }];
     readonly METHOD: {
-        readonly GET_SCOPE: "get-scope";
-        readonly GET: "get";
-        readonly SET: "set";
-        readonly DELETE: "delete";
-        readonly LIST: "list";
-        readonly GET_STATE: "get-state";
-        readonly READ_STATE: "read-state";
-        readonly SELECT_PROJECT: "select-project";
-        readonly GET_SETTINGS: "get-settings";
-        readonly UPDATE_SETTINGS: "update-settings";
-        readonly GET_SETTING: "get-setting";
-        readonly UPDATE_SETTING: "update-setting";
-        readonly DISCOVER_DOCS: "discover-docs";
-        readonly RESOLVE_DOCS_TOPIC: "resolve-docs-topic";
-        readonly REGISTER_CONTRIBUTION: "register-contribution";
-        readonly UNREGISTER_CONTRIBUTION: "unregister-contribution";
+        readonly GET_SCOPE: 'get-scope';
+        readonly GET: 'get';
+        readonly SET: 'set';
+        readonly DELETE: 'delete';
+        readonly LIST: 'list';
+        readonly GET_STATE: 'get-state';
+        readonly READ_STATE: 'read-state';
+        readonly SELECT_PROJECT: 'select-project';
+        readonly GET_SETTINGS: 'get-settings';
+        readonly UPDATE_SETTINGS: 'update-settings';
+        readonly GET_SETTING: 'get-setting';
+        readonly UPDATE_SETTING: 'update-setting';
+        readonly DISCOVER_DOCS: 'discover-docs';
+        readonly RESOLVE_DOCS_TOPIC: 'resolve-docs-topic';
+        readonly REGISTER_CONTRIBUTION: 'register-contribution';
+        readonly UNREGISTER_CONTRIBUTION: 'unregister-contribution';
     };
-    readonly METHODS: readonly ("get-scope" | "get" | "set" | "delete" | "list" | "get-state" | "read-state" | "select-project" | "get-settings" | "update-settings" | "get-setting" | "update-setting" | "discover-docs" | "resolve-docs-topic" | "register-contribution" | "unregister-contribution")[];
+    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
     readonly FAILURE_CODE: {
-        readonly INVALID_INPUT: "invalid-input";
-        readonly INVALID_PAYLOAD: "invalid-payload";
-        readonly UNKNOWN_EXTENSION: "unknown-extension";
-        readonly DISABLED_EXTENSION: "disabled-extension";
-        readonly UNKNOWN_CONTRIBUTION: "unknown-contribution";
-        readonly UNDECLARED_CAPABILITY: "undeclared-capability";
-        readonly UNDECLARED_METHOD: "undeclared-method";
-        readonly UNDECLARED_SCOPE: "undeclared-scope";
-        readonly OUT_OF_SCOPE: "out-of-scope";
-        readonly UNSUPPORTED_CAPABILITY: "unsupported-capability";
-        readonly UNSUPPORTED_METHOD: "unsupported-method";
-        readonly TRANSPORT_FAILED: "transport-failed";
+        readonly INVALID_INPUT: 'invalid-input';
+        readonly INVALID_PAYLOAD: 'invalid-payload';
+        readonly UNKNOWN_EXTENSION: 'unknown-extension';
+        readonly DISABLED_EXTENSION: 'disabled-extension';
+        readonly UNKNOWN_CONTRIBUTION: 'unknown-contribution';
+        readonly UNDECLARED_CAPABILITY: 'undeclared-capability';
+        readonly UNDECLARED_METHOD: 'undeclared-method';
+        readonly UNDECLARED_SCOPE: 'undeclared-scope';
+        readonly OUT_OF_SCOPE: 'out-of-scope';
+        readonly UNSUPPORTED_CAPABILITY: 'unsupported-capability';
+        readonly UNSUPPORTED_METHOD: 'unsupported-method';
+        readonly TRANSPORT_FAILED: 'transport-failed';
     };
-    readonly FAILURE_CODES: readonly ("invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed")[];
+    readonly FAILURE_CODES: readonly ("disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method")[];
     readonly OUTCOME: {
-        readonly SUCCEEDED: "succeeded";
-        readonly REJECTED: "rejected";
+        readonly SUCCEEDED: 'succeeded';
+        readonly REJECTED: 'rejected';
     };
-    readonly OUTCOMES: readonly ("succeeded" | "rejected")[];
+    readonly OUTCOMES: readonly ("rejected" | "succeeded")[];
     readonly STATE_SELECTOR: {
-        readonly CURRENT_PROJECT: "current-project";
-        readonly CURRENT_SESSION: "current-session";
-        readonly CURRENT_BRANCH: "current-branch";
-        readonly RECENT_PROJECTS: "recent-projects";
-        readonly MODEL_PREFERENCES: "model-preferences";
+        readonly CURRENT_PROJECT: 'current-project';
+        readonly CURRENT_SESSION: 'current-session';
+        readonly CURRENT_BRANCH: 'current-branch';
+        readonly RECENT_PROJECTS: 'recent-projects';
+        readonly MODEL_PREFERENCES: 'model-preferences';
     };
-    readonly STATE_SELECTORS: readonly ("current-project" | "current-session" | "current-branch" | "recent-projects" | "model-preferences")[];
+    readonly STATE_SELECTORS: readonly ("current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects")[];
     readonly SETTING_KEY: {
-        readonly MODEL_PREFERENCES: "model-preferences";
-        readonly PROJECT_DISPLAY_NAME: "project-display-name";
+        readonly MODEL_PREFERENCES: 'model-preferences';
+        readonly PROJECT_DISPLAY_NAME: 'project-display-name';
     };
     readonly SETTING_KEYS: readonly ("model-preferences" | "project-display-name")[];
 };
 export declare const OPENWAGGLE_EXTENSION: {
-    readonly MANIFEST_FILE: "openwaggle.extension.json";
-    readonly SDK_VERSION: "0.1.0";
-    readonly PROJECT_ROOT_SEGMENTS: readonly [".openwaggle", "extensions"];
-    readonly GLOBAL_EXTENSIONS_DIR: "extensions";
+    readonly MANIFEST_FILE: 'openwaggle.extension.json';
+    readonly SDK_VERSION: '0.1.0';
+    readonly PROJECT_ROOT_SEGMENTS: readonly ['.openwaggle', 'extensions'];
+    readonly GLOBAL_EXTENSIONS_DIR: 'extensions';
     readonly SCOPE: {
-        readonly GLOBAL_KIND: "global";
-        readonly PROJECT_KIND: "project";
-        readonly GLOBAL_ID: "global";
+        readonly GLOBAL_KIND: 'global';
+        readonly PROJECT_KIND: 'project';
+        readonly GLOBAL_ID: 'global';
     };
     readonly LIMITS: {
         readonly ID_MAX_LENGTH: 96;
@@ -2937,51 +2937,51 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly SEMVER_VERSION: RegExp;
     };
     readonly PATH: {
-        readonly NUL_CHARACTER: "\0";
-        readonly POSIX_SEPARATOR: "/";
-        readonly WINDOWS_SEPARATOR: "\\";
-        readonly RELATIVE_PARENT_SEGMENT: "..";
-        readonly CURRENT_DIRECTORY_SEGMENT: ".";
+        readonly NUL_CHARACTER: '\0';
+        readonly POSIX_SEPARATOR: '/';
+        readonly WINDOWS_SEPARATOR: '\\';
+        readonly RELATIVE_PARENT_SEGMENT: '..';
+        readonly CURRENT_DIRECTORY_SEGMENT: '.';
     };
     readonly RUNTIME_MODULE_PROTOCOL: {
-        readonly MODULE_CONTEXT_SEGMENT: "__context__";
+        readonly MODULE_CONTEXT_SEGMENT: '__context__';
     };
-    readonly CAPABILITY_SCOPES: readonly ["app", "project", "session", "branch"];
+    readonly CAPABILITY_SCOPES: readonly ['app', 'project', 'session', 'branch'];
     readonly CONTRIBUTION_FAMILY: {
-        readonly COMMANDS: "commands";
-        readonly SLASH_COMMANDS: "slashCommands";
-        readonly ROUTES: "routes";
-        readonly SETTINGS_SECTIONS: "settingsSections";
-        readonly SIDE_PANELS: "sidePanels";
-        readonly DIALOGS: "dialogs";
-        readonly TRANSCRIPT_RENDERERS: "transcriptRenderers";
-        readonly TOOL_RENDERERS: "toolRenderers";
-        readonly CUSTOM_MESSAGE_RENDERERS: "customMessageRenderers";
-        readonly INTERACTION_RENDERERS: "interactionRenderers";
-        readonly STATUS_WIDGETS: "statusWidgets";
+        readonly COMMANDS: 'commands';
+        readonly SLASH_COMMANDS: 'slashCommands';
+        readonly ROUTES: 'routes';
+        readonly SETTINGS_SECTIONS: 'settingsSections';
+        readonly SIDE_PANELS: 'sidePanels';
+        readonly DIALOGS: 'dialogs';
+        readonly TRANSCRIPT_RENDERERS: 'transcriptRenderers';
+        readonly TOOL_RENDERERS: 'toolRenderers';
+        readonly CUSTOM_MESSAGE_RENDERERS: 'customMessageRenderers';
+        readonly INTERACTION_RENDERERS: 'interactionRenderers';
+        readonly STATUS_WIDGETS: 'statusWidgets';
     };
     readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly COMMAND_CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands"];
     readonly CONTRIBUTION_RUNTIME: {
-        readonly FEDERATED_MODULE: "federated-module";
-        readonly TRUSTED_RENDERER: "trusted-renderer";
+        readonly FEDERATED_MODULE: 'federated-module';
+        readonly TRUSTED_RENDERER: 'trusted-renderer';
     };
     readonly CONTRIBUTION_RUNTIMES: readonly ("federated-module" | "trusted-renderer")[];
     readonly EXECUTION_PLACEMENT: {
-        readonly HOST_RENDERER: "host-renderer";
-        readonly FRAME: "frame";
+        readonly HOST_RENDERER: 'host-renderer';
+        readonly FRAME: 'frame';
     };
-    readonly EXECUTION_PLACEMENTS: readonly ("host-renderer" | "frame")[];
+    readonly EXECUTION_PLACEMENTS: readonly ("frame" | "host-renderer")[];
     readonly STORAGE: {
         readonly KIND: {
-            readonly STATE: "state";
-            readonly CONFIG: "config";
+            readonly STATE: 'state';
+            readonly CONFIG: 'config';
         };
-        readonly KINDS: readonly ("state" | "config")[];
+        readonly KINDS: readonly ("config" | "state")[];
         readonly SCOPE: {
-            readonly GLOBAL_KIND: "global";
-            readonly PROJECT_KIND: "project";
-            readonly GLOBAL_ID: "global";
+            readonly GLOBAL_KIND: 'global';
+            readonly PROJECT_KIND: 'project';
+            readonly GLOBAL_ID: 'global';
         };
         readonly SCOPE_KINDS: readonly ("global" | "project")[];
         readonly KEY_MAX_LENGTH: 160;
@@ -2989,21 +2989,21 @@ export declare const OPENWAGGLE_EXTENSION: {
     readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly INSTALL_SOURCE: {
-        readonly PREBUILT: "prebuilt";
-        readonly LOCAL_BUILD: "local-build";
+        readonly PREBUILT: 'prebuilt';
+        readonly LOCAL_BUILD: 'local-build';
     };
-    readonly INSTALL_SOURCES: readonly ("prebuilt" | "local-build")[];
+    readonly INSTALL_SOURCES: readonly ("local-build" | "prebuilt")[];
     readonly RUNTIME_REQUIREMENT_TYPE: {
-        readonly BINARY: "binary";
-        readonly COMMAND: "command";
+        readonly BINARY: 'binary';
+        readonly COMMAND: 'command';
     };
     readonly RUNTIME_REQUIREMENT_TYPES: readonly ("binary" | "command")[];
     readonly NETWORK_ACCESS_MODE: {
-        readonly BROKERED: "brokered";
-        readonly RESTRICTED: "restricted";
-        readonly DIRECT: "direct";
+        readonly BROKERED: 'brokered';
+        readonly RESTRICTED: 'restricted';
+        readonly DIRECT: 'direct';
     };
-    readonly NETWORK_ACCESS_MODES: readonly ("brokered" | "restricted" | "direct")[];
+    readonly NETWORK_ACCESS_MODES: readonly ("brokered" | "direct" | "restricted")[];
 };
 ```
 
@@ -3023,9 +3023,9 @@ export declare const extensionRuntimeRequirementSchema: Schema.filter<Schema.Str
     command: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
     binary: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
 }>>;
-export declare const extensionInstallSourceSchema: Schema.SchemaClass<"prebuilt" | "local-build", "prebuilt" | "local-build", never>;
+export declare const extensionInstallSourceSchema: Schema.SchemaClass<"local-build" | "prebuilt", "local-build" | "prebuilt", never>;
 export declare const extensionInstallSchema: Schema.Struct<{
-    source: Schema.SchemaClass<"prebuilt" | "local-build", "prebuilt" | "local-build", never>;
+    source: Schema.SchemaClass<"local-build" | "prebuilt", "local-build" | "prebuilt", never>;
 }>;
 export declare const extensionBuildSchema: Schema.Struct<{
     command: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -3064,7 +3064,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
     sourceFiles: Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>;
     builtArtifacts: Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>;
     install: Schema.optional<Schema.Struct<{
-        source: Schema.SchemaClass<"prebuilt" | "local-build", "prebuilt" | "local-build", never>;
+        source: Schema.SchemaClass<"local-build" | "prebuilt", "local-build" | "prebuilt", never>;
     }>>;
     build: Schema.optional<Schema.Struct<{
         command: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -3120,7 +3120,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3139,7 +3139,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3158,7 +3158,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3177,7 +3177,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3196,7 +3196,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3215,7 +3215,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3234,7 +3234,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3253,7 +3253,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3272,7 +3272,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3362,7 +3362,7 @@ export declare const extensionRouteContributionSchema: Schema.filter<Schema.Stru
     id: Schema.filter<Schema.filter<typeof Schema.String>>;
     title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-    execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+    execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
     entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     target: Schema.optional<Schema.Struct<{
         projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3381,7 +3381,7 @@ export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struc
     id: Schema.filter<Schema.filter<typeof Schema.String>>;
     title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-    execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+    execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
     entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     target: Schema.optional<Schema.Struct<{
         projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3425,7 +3425,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3444,7 +3444,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3463,7 +3463,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3482,7 +3482,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3501,7 +3501,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3520,7 +3520,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3539,7 +3539,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3558,7 +3558,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3577,7 +3577,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3614,7 +3614,7 @@ export declare const extensionRouteContributionRegistrationSchema: Schema.Struct
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3636,7 +3636,7 @@ export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3672,7 +3672,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3693,7 +3693,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3737,7 +3737,7 @@ export declare const extensionRelativePathSchema: Schema.filter<Schema.filter<ty
 export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
 export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
 export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
 export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
 export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
 export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
@@ -4275,15 +4275,15 @@ Types: `dist/constants.d.ts`
 ```ts
 export declare const OPENWAGGLE_EXTENSION_BROKER: {
     readonly CAPABILITY: {
-        readonly HOST_CONTEXT: "openwaggle.host.context";
-        readonly STORAGE: "openwaggle.storage";
-        readonly STATE: "openwaggle.state";
-        readonly ACTIONS: "openwaggle.actions";
-        readonly SETTINGS: "openwaggle.settings";
-        readonly DOCS: "openwaggle.docs";
-        readonly RUNTIME: "openwaggle.runtime";
+        readonly HOST_CONTEXT: 'openwaggle.host.context';
+        readonly STORAGE: 'openwaggle.storage';
+        readonly STATE: 'openwaggle.state';
+        readonly ACTIONS: 'openwaggle.actions';
+        readonly SETTINGS: 'openwaggle.settings';
+        readonly DOCS: 'openwaggle.docs';
+        readonly RUNTIME: 'openwaggle.runtime';
     };
-    readonly CAPABILITIES: readonly ("openwaggle.host.context" | "openwaggle.storage" | "openwaggle.state" | "openwaggle.actions" | "openwaggle.settings" | "openwaggle.docs" | "openwaggle.runtime")[];
+    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
     readonly CAPABILITY_METHODS: readonly [{
         readonly capability: "openwaggle.host.context";
         readonly methods: readonly ["get-scope"];
@@ -4307,67 +4307,67 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly methods: readonly ["register-contribution", "unregister-contribution"];
     }];
     readonly METHOD: {
-        readonly GET_SCOPE: "get-scope";
-        readonly GET: "get";
-        readonly SET: "set";
-        readonly DELETE: "delete";
-        readonly LIST: "list";
-        readonly GET_STATE: "get-state";
-        readonly READ_STATE: "read-state";
-        readonly SELECT_PROJECT: "select-project";
-        readonly GET_SETTINGS: "get-settings";
-        readonly UPDATE_SETTINGS: "update-settings";
-        readonly GET_SETTING: "get-setting";
-        readonly UPDATE_SETTING: "update-setting";
-        readonly DISCOVER_DOCS: "discover-docs";
-        readonly RESOLVE_DOCS_TOPIC: "resolve-docs-topic";
-        readonly REGISTER_CONTRIBUTION: "register-contribution";
-        readonly UNREGISTER_CONTRIBUTION: "unregister-contribution";
+        readonly GET_SCOPE: 'get-scope';
+        readonly GET: 'get';
+        readonly SET: 'set';
+        readonly DELETE: 'delete';
+        readonly LIST: 'list';
+        readonly GET_STATE: 'get-state';
+        readonly READ_STATE: 'read-state';
+        readonly SELECT_PROJECT: 'select-project';
+        readonly GET_SETTINGS: 'get-settings';
+        readonly UPDATE_SETTINGS: 'update-settings';
+        readonly GET_SETTING: 'get-setting';
+        readonly UPDATE_SETTING: 'update-setting';
+        readonly DISCOVER_DOCS: 'discover-docs';
+        readonly RESOLVE_DOCS_TOPIC: 'resolve-docs-topic';
+        readonly REGISTER_CONTRIBUTION: 'register-contribution';
+        readonly UNREGISTER_CONTRIBUTION: 'unregister-contribution';
     };
-    readonly METHODS: readonly ("get-scope" | "get" | "set" | "delete" | "list" | "get-state" | "read-state" | "select-project" | "get-settings" | "update-settings" | "get-setting" | "update-setting" | "discover-docs" | "resolve-docs-topic" | "register-contribution" | "unregister-contribution")[];
+    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
     readonly FAILURE_CODE: {
-        readonly INVALID_INPUT: "invalid-input";
-        readonly INVALID_PAYLOAD: "invalid-payload";
-        readonly UNKNOWN_EXTENSION: "unknown-extension";
-        readonly DISABLED_EXTENSION: "disabled-extension";
-        readonly UNKNOWN_CONTRIBUTION: "unknown-contribution";
-        readonly UNDECLARED_CAPABILITY: "undeclared-capability";
-        readonly UNDECLARED_METHOD: "undeclared-method";
-        readonly UNDECLARED_SCOPE: "undeclared-scope";
-        readonly OUT_OF_SCOPE: "out-of-scope";
-        readonly UNSUPPORTED_CAPABILITY: "unsupported-capability";
-        readonly UNSUPPORTED_METHOD: "unsupported-method";
-        readonly TRANSPORT_FAILED: "transport-failed";
+        readonly INVALID_INPUT: 'invalid-input';
+        readonly INVALID_PAYLOAD: 'invalid-payload';
+        readonly UNKNOWN_EXTENSION: 'unknown-extension';
+        readonly DISABLED_EXTENSION: 'disabled-extension';
+        readonly UNKNOWN_CONTRIBUTION: 'unknown-contribution';
+        readonly UNDECLARED_CAPABILITY: 'undeclared-capability';
+        readonly UNDECLARED_METHOD: 'undeclared-method';
+        readonly UNDECLARED_SCOPE: 'undeclared-scope';
+        readonly OUT_OF_SCOPE: 'out-of-scope';
+        readonly UNSUPPORTED_CAPABILITY: 'unsupported-capability';
+        readonly UNSUPPORTED_METHOD: 'unsupported-method';
+        readonly TRANSPORT_FAILED: 'transport-failed';
     };
-    readonly FAILURE_CODES: readonly ("invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed")[];
+    readonly FAILURE_CODES: readonly ("disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method")[];
     readonly OUTCOME: {
-        readonly SUCCEEDED: "succeeded";
-        readonly REJECTED: "rejected";
+        readonly SUCCEEDED: 'succeeded';
+        readonly REJECTED: 'rejected';
     };
-    readonly OUTCOMES: readonly ("succeeded" | "rejected")[];
+    readonly OUTCOMES: readonly ("rejected" | "succeeded")[];
     readonly STATE_SELECTOR: {
-        readonly CURRENT_PROJECT: "current-project";
-        readonly CURRENT_SESSION: "current-session";
-        readonly CURRENT_BRANCH: "current-branch";
-        readonly RECENT_PROJECTS: "recent-projects";
-        readonly MODEL_PREFERENCES: "model-preferences";
+        readonly CURRENT_PROJECT: 'current-project';
+        readonly CURRENT_SESSION: 'current-session';
+        readonly CURRENT_BRANCH: 'current-branch';
+        readonly RECENT_PROJECTS: 'recent-projects';
+        readonly MODEL_PREFERENCES: 'model-preferences';
     };
-    readonly STATE_SELECTORS: readonly ("current-project" | "current-session" | "current-branch" | "recent-projects" | "model-preferences")[];
+    readonly STATE_SELECTORS: readonly ("current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects")[];
     readonly SETTING_KEY: {
-        readonly MODEL_PREFERENCES: "model-preferences";
-        readonly PROJECT_DISPLAY_NAME: "project-display-name";
+        readonly MODEL_PREFERENCES: 'model-preferences';
+        readonly PROJECT_DISPLAY_NAME: 'project-display-name';
     };
     readonly SETTING_KEYS: readonly ("model-preferences" | "project-display-name")[];
 };
 export declare const OPENWAGGLE_EXTENSION: {
-    readonly MANIFEST_FILE: "openwaggle.extension.json";
-    readonly SDK_VERSION: "0.1.0";
-    readonly PROJECT_ROOT_SEGMENTS: readonly [".openwaggle", "extensions"];
-    readonly GLOBAL_EXTENSIONS_DIR: "extensions";
+    readonly MANIFEST_FILE: 'openwaggle.extension.json';
+    readonly SDK_VERSION: '0.1.0';
+    readonly PROJECT_ROOT_SEGMENTS: readonly ['.openwaggle', 'extensions'];
+    readonly GLOBAL_EXTENSIONS_DIR: 'extensions';
     readonly SCOPE: {
-        readonly GLOBAL_KIND: "global";
-        readonly PROJECT_KIND: "project";
-        readonly GLOBAL_ID: "global";
+        readonly GLOBAL_KIND: 'global';
+        readonly PROJECT_KIND: 'project';
+        readonly GLOBAL_ID: 'global';
     };
     readonly LIMITS: {
         readonly ID_MAX_LENGTH: 96;
@@ -4388,51 +4388,51 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly SEMVER_VERSION: RegExp;
     };
     readonly PATH: {
-        readonly NUL_CHARACTER: "\0";
-        readonly POSIX_SEPARATOR: "/";
-        readonly WINDOWS_SEPARATOR: "\\";
-        readonly RELATIVE_PARENT_SEGMENT: "..";
-        readonly CURRENT_DIRECTORY_SEGMENT: ".";
+        readonly NUL_CHARACTER: '\0';
+        readonly POSIX_SEPARATOR: '/';
+        readonly WINDOWS_SEPARATOR: '\\';
+        readonly RELATIVE_PARENT_SEGMENT: '..';
+        readonly CURRENT_DIRECTORY_SEGMENT: '.';
     };
     readonly RUNTIME_MODULE_PROTOCOL: {
-        readonly MODULE_CONTEXT_SEGMENT: "__context__";
+        readonly MODULE_CONTEXT_SEGMENT: '__context__';
     };
-    readonly CAPABILITY_SCOPES: readonly ["app", "project", "session", "branch"];
+    readonly CAPABILITY_SCOPES: readonly ['app', 'project', 'session', 'branch'];
     readonly CONTRIBUTION_FAMILY: {
-        readonly COMMANDS: "commands";
-        readonly SLASH_COMMANDS: "slashCommands";
-        readonly ROUTES: "routes";
-        readonly SETTINGS_SECTIONS: "settingsSections";
-        readonly SIDE_PANELS: "sidePanels";
-        readonly DIALOGS: "dialogs";
-        readonly TRANSCRIPT_RENDERERS: "transcriptRenderers";
-        readonly TOOL_RENDERERS: "toolRenderers";
-        readonly CUSTOM_MESSAGE_RENDERERS: "customMessageRenderers";
-        readonly INTERACTION_RENDERERS: "interactionRenderers";
-        readonly STATUS_WIDGETS: "statusWidgets";
+        readonly COMMANDS: 'commands';
+        readonly SLASH_COMMANDS: 'slashCommands';
+        readonly ROUTES: 'routes';
+        readonly SETTINGS_SECTIONS: 'settingsSections';
+        readonly SIDE_PANELS: 'sidePanels';
+        readonly DIALOGS: 'dialogs';
+        readonly TRANSCRIPT_RENDERERS: 'transcriptRenderers';
+        readonly TOOL_RENDERERS: 'toolRenderers';
+        readonly CUSTOM_MESSAGE_RENDERERS: 'customMessageRenderers';
+        readonly INTERACTION_RENDERERS: 'interactionRenderers';
+        readonly STATUS_WIDGETS: 'statusWidgets';
     };
     readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly COMMAND_CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands"];
     readonly CONTRIBUTION_RUNTIME: {
-        readonly FEDERATED_MODULE: "federated-module";
-        readonly TRUSTED_RENDERER: "trusted-renderer";
+        readonly FEDERATED_MODULE: 'federated-module';
+        readonly TRUSTED_RENDERER: 'trusted-renderer';
     };
     readonly CONTRIBUTION_RUNTIMES: readonly ("federated-module" | "trusted-renderer")[];
     readonly EXECUTION_PLACEMENT: {
-        readonly HOST_RENDERER: "host-renderer";
-        readonly FRAME: "frame";
+        readonly HOST_RENDERER: 'host-renderer';
+        readonly FRAME: 'frame';
     };
-    readonly EXECUTION_PLACEMENTS: readonly ("host-renderer" | "frame")[];
+    readonly EXECUTION_PLACEMENTS: readonly ("frame" | "host-renderer")[];
     readonly STORAGE: {
         readonly KIND: {
-            readonly STATE: "state";
-            readonly CONFIG: "config";
+            readonly STATE: 'state';
+            readonly CONFIG: 'config';
         };
-        readonly KINDS: readonly ("state" | "config")[];
+        readonly KINDS: readonly ("config" | "state")[];
         readonly SCOPE: {
-            readonly GLOBAL_KIND: "global";
-            readonly PROJECT_KIND: "project";
-            readonly GLOBAL_ID: "global";
+            readonly GLOBAL_KIND: 'global';
+            readonly PROJECT_KIND: 'project';
+            readonly GLOBAL_ID: 'global';
         };
         readonly SCOPE_KINDS: readonly ("global" | "project")[];
         readonly KEY_MAX_LENGTH: 160;
@@ -4440,21 +4440,21 @@ export declare const OPENWAGGLE_EXTENSION: {
     readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly INSTALL_SOURCE: {
-        readonly PREBUILT: "prebuilt";
-        readonly LOCAL_BUILD: "local-build";
+        readonly PREBUILT: 'prebuilt';
+        readonly LOCAL_BUILD: 'local-build';
     };
-    readonly INSTALL_SOURCES: readonly ("prebuilt" | "local-build")[];
+    readonly INSTALL_SOURCES: readonly ("local-build" | "prebuilt")[];
     readonly RUNTIME_REQUIREMENT_TYPE: {
-        readonly BINARY: "binary";
-        readonly COMMAND: "command";
+        readonly BINARY: 'binary';
+        readonly COMMAND: 'command';
     };
     readonly RUNTIME_REQUIREMENT_TYPES: readonly ("binary" | "command")[];
     readonly NETWORK_ACCESS_MODE: {
-        readonly BROKERED: "brokered";
-        readonly RESTRICTED: "restricted";
-        readonly DIRECT: "direct";
+        readonly BROKERED: 'brokered';
+        readonly RESTRICTED: 'restricted';
+        readonly DIRECT: 'direct';
     };
-    readonly NETWORK_ACCESS_MODES: readonly ("brokered" | "restricted" | "direct")[];
+    readonly NETWORK_ACCESS_MODES: readonly ("brokered" | "direct" | "restricted")[];
 };
 ```
 
@@ -4576,9 +4576,9 @@ export declare const extensionCapabilityAuditEntrySchema: Schema.Struct<{
         sessionId: Schema.filter<typeof Schema.String>;
         branchId: Schema.filter<typeof Schema.String>;
     }>]>;
-    outcome: Schema.SchemaClass<"succeeded" | "rejected", "succeeded" | "rejected", never>;
+    outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
     timestamp: typeof Schema.Number;
-    failureCode: Schema.optional<Schema.SchemaClass<"invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", "invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", never>>;
+    failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
 }>;
 export declare const extensionInvokeInputSchema: Schema.Struct<{
     extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -4603,7 +4603,7 @@ export declare const extensionInvokeInputSchema: Schema.Struct<{
     payload: Schema.optional<typeof Schema.Unknown>;
 }>;
 export declare const extensionInvokeErrorSchema: Schema.Struct<{
-    code: Schema.SchemaClass<"invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", "invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", never>;
+    code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
     message: Schema.filter<typeof Schema.String>;
     issues: Schema.optional<Schema.Array$<typeof Schema.String>>;
 }>;
@@ -4630,15 +4630,15 @@ export declare const extensionInvokeSuccessSchema: Schema.Struct<{
             sessionId: Schema.filter<typeof Schema.String>;
             branchId: Schema.filter<typeof Schema.String>;
         }>]>;
-        outcome: Schema.SchemaClass<"succeeded" | "rejected", "succeeded" | "rejected", never>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
         timestamp: typeof Schema.Number;
-        failureCode: Schema.optional<Schema.SchemaClass<"invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", "invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", never>>;
+        failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
     }>;
 }>;
 export declare const extensionInvokeFailureSchema: Schema.Struct<{
     ok: Schema.Literal<[false]>;
     error: Schema.Struct<{
-        code: Schema.SchemaClass<"invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", "invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", never>;
+        code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
         message: Schema.filter<typeof Schema.String>;
         issues: Schema.optional<Schema.Array$<typeof Schema.String>>;
     }>;
@@ -4662,9 +4662,9 @@ export declare const extensionInvokeFailureSchema: Schema.Struct<{
             sessionId: Schema.filter<typeof Schema.String>;
             branchId: Schema.filter<typeof Schema.String>;
         }>]>;
-        outcome: Schema.SchemaClass<"succeeded" | "rejected", "succeeded" | "rejected", never>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
         timestamp: typeof Schema.Number;
-        failureCode: Schema.optional<Schema.SchemaClass<"invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", "invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", never>>;
+        failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
     }>>;
 }>;
 export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
@@ -4690,14 +4690,14 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
             sessionId: Schema.filter<typeof Schema.String>;
             branchId: Schema.filter<typeof Schema.String>;
         }>]>;
-        outcome: Schema.SchemaClass<"succeeded" | "rejected", "succeeded" | "rejected", never>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
         timestamp: typeof Schema.Number;
-        failureCode: Schema.optional<Schema.SchemaClass<"invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", "invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", never>>;
+        failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
     }>;
 }>, Schema.Struct<{
     ok: Schema.Literal<[false]>;
     error: Schema.Struct<{
-        code: Schema.SchemaClass<"invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", "invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", never>;
+        code: Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>;
         message: Schema.filter<typeof Schema.String>;
         issues: Schema.optional<Schema.Array$<typeof Schema.String>>;
     }>;
@@ -4721,9 +4721,9 @@ export declare const extensionInvokeResultSchema: Schema.Union<[Schema.Struct<{
             sessionId: Schema.filter<typeof Schema.String>;
             branchId: Schema.filter<typeof Schema.String>;
         }>]>;
-        outcome: Schema.SchemaClass<"succeeded" | "rejected", "succeeded" | "rejected", never>;
+        outcome: Schema.SchemaClass<"rejected" | "succeeded", "rejected" | "succeeded", never>;
         timestamp: typeof Schema.Number;
-        failureCode: Schema.optional<Schema.SchemaClass<"invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", "invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed", never>>;
+        failureCode: Schema.optional<Schema.SchemaClass<"disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", "disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method", never>>;
     }>>;
 }>]>;
 export declare function toInvokeInput(identity: ExtensionSdkIdentity, request: ExtensionSdkInvokeRequest): ExtensionInvokeInput;
@@ -4884,15 +4884,15 @@ export {};
 ```ts
 export declare const OPENWAGGLE_EXTENSION_BROKER: {
     readonly CAPABILITY: {
-        readonly HOST_CONTEXT: "openwaggle.host.context";
-        readonly STORAGE: "openwaggle.storage";
-        readonly STATE: "openwaggle.state";
-        readonly ACTIONS: "openwaggle.actions";
-        readonly SETTINGS: "openwaggle.settings";
-        readonly DOCS: "openwaggle.docs";
-        readonly RUNTIME: "openwaggle.runtime";
+        readonly HOST_CONTEXT: 'openwaggle.host.context';
+        readonly STORAGE: 'openwaggle.storage';
+        readonly STATE: 'openwaggle.state';
+        readonly ACTIONS: 'openwaggle.actions';
+        readonly SETTINGS: 'openwaggle.settings';
+        readonly DOCS: 'openwaggle.docs';
+        readonly RUNTIME: 'openwaggle.runtime';
     };
-    readonly CAPABILITIES: readonly ("openwaggle.host.context" | "openwaggle.storage" | "openwaggle.state" | "openwaggle.actions" | "openwaggle.settings" | "openwaggle.docs" | "openwaggle.runtime")[];
+    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
     readonly CAPABILITY_METHODS: readonly [{
         readonly capability: "openwaggle.host.context";
         readonly methods: readonly ["get-scope"];
@@ -4916,67 +4916,67 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly methods: readonly ["register-contribution", "unregister-contribution"];
     }];
     readonly METHOD: {
-        readonly GET_SCOPE: "get-scope";
-        readonly GET: "get";
-        readonly SET: "set";
-        readonly DELETE: "delete";
-        readonly LIST: "list";
-        readonly GET_STATE: "get-state";
-        readonly READ_STATE: "read-state";
-        readonly SELECT_PROJECT: "select-project";
-        readonly GET_SETTINGS: "get-settings";
-        readonly UPDATE_SETTINGS: "update-settings";
-        readonly GET_SETTING: "get-setting";
-        readonly UPDATE_SETTING: "update-setting";
-        readonly DISCOVER_DOCS: "discover-docs";
-        readonly RESOLVE_DOCS_TOPIC: "resolve-docs-topic";
-        readonly REGISTER_CONTRIBUTION: "register-contribution";
-        readonly UNREGISTER_CONTRIBUTION: "unregister-contribution";
+        readonly GET_SCOPE: 'get-scope';
+        readonly GET: 'get';
+        readonly SET: 'set';
+        readonly DELETE: 'delete';
+        readonly LIST: 'list';
+        readonly GET_STATE: 'get-state';
+        readonly READ_STATE: 'read-state';
+        readonly SELECT_PROJECT: 'select-project';
+        readonly GET_SETTINGS: 'get-settings';
+        readonly UPDATE_SETTINGS: 'update-settings';
+        readonly GET_SETTING: 'get-setting';
+        readonly UPDATE_SETTING: 'update-setting';
+        readonly DISCOVER_DOCS: 'discover-docs';
+        readonly RESOLVE_DOCS_TOPIC: 'resolve-docs-topic';
+        readonly REGISTER_CONTRIBUTION: 'register-contribution';
+        readonly UNREGISTER_CONTRIBUTION: 'unregister-contribution';
     };
-    readonly METHODS: readonly ("get-scope" | "get" | "set" | "delete" | "list" | "get-state" | "read-state" | "select-project" | "get-settings" | "update-settings" | "get-setting" | "update-setting" | "discover-docs" | "resolve-docs-topic" | "register-contribution" | "unregister-contribution")[];
+    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
     readonly FAILURE_CODE: {
-        readonly INVALID_INPUT: "invalid-input";
-        readonly INVALID_PAYLOAD: "invalid-payload";
-        readonly UNKNOWN_EXTENSION: "unknown-extension";
-        readonly DISABLED_EXTENSION: "disabled-extension";
-        readonly UNKNOWN_CONTRIBUTION: "unknown-contribution";
-        readonly UNDECLARED_CAPABILITY: "undeclared-capability";
-        readonly UNDECLARED_METHOD: "undeclared-method";
-        readonly UNDECLARED_SCOPE: "undeclared-scope";
-        readonly OUT_OF_SCOPE: "out-of-scope";
-        readonly UNSUPPORTED_CAPABILITY: "unsupported-capability";
-        readonly UNSUPPORTED_METHOD: "unsupported-method";
-        readonly TRANSPORT_FAILED: "transport-failed";
+        readonly INVALID_INPUT: 'invalid-input';
+        readonly INVALID_PAYLOAD: 'invalid-payload';
+        readonly UNKNOWN_EXTENSION: 'unknown-extension';
+        readonly DISABLED_EXTENSION: 'disabled-extension';
+        readonly UNKNOWN_CONTRIBUTION: 'unknown-contribution';
+        readonly UNDECLARED_CAPABILITY: 'undeclared-capability';
+        readonly UNDECLARED_METHOD: 'undeclared-method';
+        readonly UNDECLARED_SCOPE: 'undeclared-scope';
+        readonly OUT_OF_SCOPE: 'out-of-scope';
+        readonly UNSUPPORTED_CAPABILITY: 'unsupported-capability';
+        readonly UNSUPPORTED_METHOD: 'unsupported-method';
+        readonly TRANSPORT_FAILED: 'transport-failed';
     };
-    readonly FAILURE_CODES: readonly ("invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed")[];
+    readonly FAILURE_CODES: readonly ("disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method")[];
     readonly OUTCOME: {
-        readonly SUCCEEDED: "succeeded";
-        readonly REJECTED: "rejected";
+        readonly SUCCEEDED: 'succeeded';
+        readonly REJECTED: 'rejected';
     };
-    readonly OUTCOMES: readonly ("succeeded" | "rejected")[];
+    readonly OUTCOMES: readonly ("rejected" | "succeeded")[];
     readonly STATE_SELECTOR: {
-        readonly CURRENT_PROJECT: "current-project";
-        readonly CURRENT_SESSION: "current-session";
-        readonly CURRENT_BRANCH: "current-branch";
-        readonly RECENT_PROJECTS: "recent-projects";
-        readonly MODEL_PREFERENCES: "model-preferences";
+        readonly CURRENT_PROJECT: 'current-project';
+        readonly CURRENT_SESSION: 'current-session';
+        readonly CURRENT_BRANCH: 'current-branch';
+        readonly RECENT_PROJECTS: 'recent-projects';
+        readonly MODEL_PREFERENCES: 'model-preferences';
     };
-    readonly STATE_SELECTORS: readonly ("current-project" | "current-session" | "current-branch" | "recent-projects" | "model-preferences")[];
+    readonly STATE_SELECTORS: readonly ("current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects")[];
     readonly SETTING_KEY: {
-        readonly MODEL_PREFERENCES: "model-preferences";
-        readonly PROJECT_DISPLAY_NAME: "project-display-name";
+        readonly MODEL_PREFERENCES: 'model-preferences';
+        readonly PROJECT_DISPLAY_NAME: 'project-display-name';
     };
     readonly SETTING_KEYS: readonly ("model-preferences" | "project-display-name")[];
 };
 export declare const OPENWAGGLE_EXTENSION: {
-    readonly MANIFEST_FILE: "openwaggle.extension.json";
-    readonly SDK_VERSION: "0.1.0";
-    readonly PROJECT_ROOT_SEGMENTS: readonly [".openwaggle", "extensions"];
-    readonly GLOBAL_EXTENSIONS_DIR: "extensions";
+    readonly MANIFEST_FILE: 'openwaggle.extension.json';
+    readonly SDK_VERSION: '0.1.0';
+    readonly PROJECT_ROOT_SEGMENTS: readonly ['.openwaggle', 'extensions'];
+    readonly GLOBAL_EXTENSIONS_DIR: 'extensions';
     readonly SCOPE: {
-        readonly GLOBAL_KIND: "global";
-        readonly PROJECT_KIND: "project";
-        readonly GLOBAL_ID: "global";
+        readonly GLOBAL_KIND: 'global';
+        readonly PROJECT_KIND: 'project';
+        readonly GLOBAL_ID: 'global';
     };
     readonly LIMITS: {
         readonly ID_MAX_LENGTH: 96;
@@ -4997,51 +4997,51 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly SEMVER_VERSION: RegExp;
     };
     readonly PATH: {
-        readonly NUL_CHARACTER: "\0";
-        readonly POSIX_SEPARATOR: "/";
-        readonly WINDOWS_SEPARATOR: "\\";
-        readonly RELATIVE_PARENT_SEGMENT: "..";
-        readonly CURRENT_DIRECTORY_SEGMENT: ".";
+        readonly NUL_CHARACTER: '\0';
+        readonly POSIX_SEPARATOR: '/';
+        readonly WINDOWS_SEPARATOR: '\\';
+        readonly RELATIVE_PARENT_SEGMENT: '..';
+        readonly CURRENT_DIRECTORY_SEGMENT: '.';
     };
     readonly RUNTIME_MODULE_PROTOCOL: {
-        readonly MODULE_CONTEXT_SEGMENT: "__context__";
+        readonly MODULE_CONTEXT_SEGMENT: '__context__';
     };
-    readonly CAPABILITY_SCOPES: readonly ["app", "project", "session", "branch"];
+    readonly CAPABILITY_SCOPES: readonly ['app', 'project', 'session', 'branch'];
     readonly CONTRIBUTION_FAMILY: {
-        readonly COMMANDS: "commands";
-        readonly SLASH_COMMANDS: "slashCommands";
-        readonly ROUTES: "routes";
-        readonly SETTINGS_SECTIONS: "settingsSections";
-        readonly SIDE_PANELS: "sidePanels";
-        readonly DIALOGS: "dialogs";
-        readonly TRANSCRIPT_RENDERERS: "transcriptRenderers";
-        readonly TOOL_RENDERERS: "toolRenderers";
-        readonly CUSTOM_MESSAGE_RENDERERS: "customMessageRenderers";
-        readonly INTERACTION_RENDERERS: "interactionRenderers";
-        readonly STATUS_WIDGETS: "statusWidgets";
+        readonly COMMANDS: 'commands';
+        readonly SLASH_COMMANDS: 'slashCommands';
+        readonly ROUTES: 'routes';
+        readonly SETTINGS_SECTIONS: 'settingsSections';
+        readonly SIDE_PANELS: 'sidePanels';
+        readonly DIALOGS: 'dialogs';
+        readonly TRANSCRIPT_RENDERERS: 'transcriptRenderers';
+        readonly TOOL_RENDERERS: 'toolRenderers';
+        readonly CUSTOM_MESSAGE_RENDERERS: 'customMessageRenderers';
+        readonly INTERACTION_RENDERERS: 'interactionRenderers';
+        readonly STATUS_WIDGETS: 'statusWidgets';
     };
     readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly COMMAND_CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands"];
     readonly CONTRIBUTION_RUNTIME: {
-        readonly FEDERATED_MODULE: "federated-module";
-        readonly TRUSTED_RENDERER: "trusted-renderer";
+        readonly FEDERATED_MODULE: 'federated-module';
+        readonly TRUSTED_RENDERER: 'trusted-renderer';
     };
     readonly CONTRIBUTION_RUNTIMES: readonly ("federated-module" | "trusted-renderer")[];
     readonly EXECUTION_PLACEMENT: {
-        readonly HOST_RENDERER: "host-renderer";
-        readonly FRAME: "frame";
+        readonly HOST_RENDERER: 'host-renderer';
+        readonly FRAME: 'frame';
     };
-    readonly EXECUTION_PLACEMENTS: readonly ("host-renderer" | "frame")[];
+    readonly EXECUTION_PLACEMENTS: readonly ("frame" | "host-renderer")[];
     readonly STORAGE: {
         readonly KIND: {
-            readonly STATE: "state";
-            readonly CONFIG: "config";
+            readonly STATE: 'state';
+            readonly CONFIG: 'config';
         };
-        readonly KINDS: readonly ("state" | "config")[];
+        readonly KINDS: readonly ("config" | "state")[];
         readonly SCOPE: {
-            readonly GLOBAL_KIND: "global";
-            readonly PROJECT_KIND: "project";
-            readonly GLOBAL_ID: "global";
+            readonly GLOBAL_KIND: 'global';
+            readonly PROJECT_KIND: 'project';
+            readonly GLOBAL_ID: 'global';
         };
         readonly SCOPE_KINDS: readonly ("global" | "project")[];
         readonly KEY_MAX_LENGTH: 160;
@@ -5049,21 +5049,21 @@ export declare const OPENWAGGLE_EXTENSION: {
     readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly INSTALL_SOURCE: {
-        readonly PREBUILT: "prebuilt";
-        readonly LOCAL_BUILD: "local-build";
+        readonly PREBUILT: 'prebuilt';
+        readonly LOCAL_BUILD: 'local-build';
     };
-    readonly INSTALL_SOURCES: readonly ("prebuilt" | "local-build")[];
+    readonly INSTALL_SOURCES: readonly ("local-build" | "prebuilt")[];
     readonly RUNTIME_REQUIREMENT_TYPE: {
-        readonly BINARY: "binary";
-        readonly COMMAND: "command";
+        readonly BINARY: 'binary';
+        readonly COMMAND: 'command';
     };
     readonly RUNTIME_REQUIREMENT_TYPES: readonly ("binary" | "command")[];
     readonly NETWORK_ACCESS_MODE: {
-        readonly BROKERED: "brokered";
-        readonly RESTRICTED: "restricted";
-        readonly DIRECT: "direct";
+        readonly BROKERED: 'brokered';
+        readonly RESTRICTED: 'restricted';
+        readonly DIRECT: 'direct';
     };
-    readonly NETWORK_ACCESS_MODES: readonly ("brokered" | "restricted" | "direct")[];
+    readonly NETWORK_ACCESS_MODES: readonly ("brokered" | "direct" | "restricted")[];
 };
 ```
 
@@ -5083,9 +5083,9 @@ export declare const extensionRuntimeRequirementSchema: Schema.filter<Schema.Str
     command: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
     binary: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
 }>>;
-export declare const extensionInstallSourceSchema: Schema.SchemaClass<"prebuilt" | "local-build", "prebuilt" | "local-build", never>;
+export declare const extensionInstallSourceSchema: Schema.SchemaClass<"local-build" | "prebuilt", "local-build" | "prebuilt", never>;
 export declare const extensionInstallSchema: Schema.Struct<{
-    source: Schema.SchemaClass<"prebuilt" | "local-build", "prebuilt" | "local-build", never>;
+    source: Schema.SchemaClass<"local-build" | "prebuilt", "local-build" | "prebuilt", never>;
 }>;
 export declare const extensionBuildSchema: Schema.Struct<{
     command: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -5124,7 +5124,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
     sourceFiles: Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>;
     builtArtifacts: Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>;
     install: Schema.optional<Schema.Struct<{
-        source: Schema.SchemaClass<"prebuilt" | "local-build", "prebuilt" | "local-build", never>;
+        source: Schema.SchemaClass<"local-build" | "prebuilt", "local-build" | "prebuilt", never>;
     }>>;
     build: Schema.optional<Schema.Struct<{
         command: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -5180,7 +5180,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5199,7 +5199,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5218,7 +5218,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5237,7 +5237,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5256,7 +5256,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5275,7 +5275,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5294,7 +5294,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5313,7 +5313,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5332,7 +5332,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5422,7 +5422,7 @@ export declare const extensionRouteContributionSchema: Schema.filter<Schema.Stru
     id: Schema.filter<Schema.filter<typeof Schema.String>>;
     title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-    execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+    execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
     entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     target: Schema.optional<Schema.Struct<{
         projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5441,7 +5441,7 @@ export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struc
     id: Schema.filter<Schema.filter<typeof Schema.String>>;
     title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-    execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+    execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
     entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     target: Schema.optional<Schema.Struct<{
         projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5485,7 +5485,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5504,7 +5504,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5523,7 +5523,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5542,7 +5542,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5561,7 +5561,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5580,7 +5580,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5599,7 +5599,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5618,7 +5618,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5637,7 +5637,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5674,7 +5674,7 @@ export declare const extensionRouteContributionRegistrationSchema: Schema.Struct
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5696,7 +5696,7 @@ export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5732,7 +5732,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5753,7 +5753,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5797,7 +5797,7 @@ export declare const extensionRelativePathSchema: Schema.filter<Schema.filter<ty
 export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
 export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
 export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
 export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
 export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
 export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
@@ -6408,130 +6408,130 @@ export interface CreateOpenWaggleExtensionThemeOptions {
 ```ts
 export declare const OPENWAGGLE_EXTENSION_THEME_CSS_VARIABLES: {
     readonly color: {
-        readonly background: "--ow-color-background";
-        readonly surface: "--ow-color-surface";
-        readonly surfaceRaised: "--ow-color-surface-raised";
-        readonly surfaceHover: "--ow-color-surface-hover";
-        readonly surfaceActive: "--ow-color-surface-active";
-        readonly border: "--ow-color-border";
-        readonly borderStrong: "--ow-color-border-strong";
-        readonly text: "--ow-color-text";
-        readonly textSubtle: "--ow-color-text-subtle";
-        readonly textMuted: "--ow-color-text-muted";
-        readonly textDim: "--ow-color-text-dim";
-        readonly accent: "--ow-color-accent";
-        readonly accentDim: "--ow-color-accent-dim";
-        readonly success: "--ow-color-success";
-        readonly danger: "--ow-color-danger";
-        readonly warning: "--ow-color-warning";
-        readonly info: "--ow-color-info";
+        readonly background: '--ow-color-background';
+        readonly surface: '--ow-color-surface';
+        readonly surfaceRaised: '--ow-color-surface-raised';
+        readonly surfaceHover: '--ow-color-surface-hover';
+        readonly surfaceActive: '--ow-color-surface-active';
+        readonly border: '--ow-color-border';
+        readonly borderStrong: '--ow-color-border-strong';
+        readonly text: '--ow-color-text';
+        readonly textSubtle: '--ow-color-text-subtle';
+        readonly textMuted: '--ow-color-text-muted';
+        readonly textDim: '--ow-color-text-dim';
+        readonly accent: '--ow-color-accent';
+        readonly accentDim: '--ow-color-accent-dim';
+        readonly success: '--ow-color-success';
+        readonly danger: '--ow-color-danger';
+        readonly warning: '--ow-color-warning';
+        readonly info: '--ow-color-info';
     };
     readonly typography: {
-        readonly sansFamily: "--ow-font-family-sans";
-        readonly monoFamily: "--ow-font-family-mono";
+        readonly sansFamily: '--ow-font-family-sans';
+        readonly monoFamily: '--ow-font-family-mono';
     };
     readonly spacing: {
-        readonly xs: "--ow-space-xs";
-        readonly sm: "--ow-space-sm";
-        readonly md: "--ow-space-md";
-        readonly lg: "--ow-space-lg";
-        readonly xl: "--ow-space-xl";
+        readonly xs: '--ow-space-xs';
+        readonly sm: '--ow-space-sm';
+        readonly md: '--ow-space-md';
+        readonly lg: '--ow-space-lg';
+        readonly xl: '--ow-space-xl';
     };
     readonly radius: {
-        readonly sm: "--ow-radius-sm";
-        readonly md: "--ow-radius-md";
-        readonly lg: "--ow-radius-lg";
-        readonly panel: "--ow-radius-panel";
+        readonly sm: '--ow-radius-sm';
+        readonly md: '--ow-radius-md';
+        readonly lg: '--ow-radius-lg';
+        readonly panel: '--ow-radius-panel';
     };
     readonly focus: {
-        readonly ring: "--ow-focus-ring";
-        readonly shadow: "--ow-focus-shadow";
+        readonly ring: '--ow-focus-ring';
+        readonly shadow: '--ow-focus-shadow';
     };
     readonly elevation: {
-        readonly card: "--ow-elevation-card";
-        readonly overlay: "--ow-elevation-overlay";
+        readonly card: '--ow-elevation-card';
+        readonly overlay: '--ow-elevation-overlay';
     };
 };
 export declare const DEFAULT_EXTENSION_THEME_TOKENS: {
     readonly color: {
-        readonly background: "#141619";
-        readonly surface: "#1a1d22";
-        readonly surfaceRaised: "#1f232a";
-        readonly surfaceHover: "#262b33";
-        readonly surfaceActive: "#1d1a10";
-        readonly border: "#1e2229";
-        readonly borderStrong: "#2a3240";
-        readonly text: "#e7e9ee";
-        readonly textSubtle: "#c9cdd6";
-        readonly textMuted: "#9098a8";
-        readonly textDim: "#666f7d";
-        readonly accent: "#f5a623";
-        readonly accentDim: "#b87410";
-        readonly success: "#4caf72";
-        readonly danger: "#ef4444";
-        readonly warning: "#f5a623";
-        readonly info: "#61a8ff";
+        readonly background: '#141619';
+        readonly surface: '#1a1d22';
+        readonly surfaceRaised: '#1f232a';
+        readonly surfaceHover: '#262b33';
+        readonly surfaceActive: '#1d1a10';
+        readonly border: '#1e2229';
+        readonly borderStrong: '#2a3240';
+        readonly text: '#e7e9ee';
+        readonly textSubtle: '#c9cdd6';
+        readonly textMuted: '#9098a8';
+        readonly textDim: '#666f7d';
+        readonly accent: '#f5a623';
+        readonly accentDim: '#b87410';
+        readonly success: '#4caf72';
+        readonly danger: '#ef4444';
+        readonly warning: '#f5a623';
+        readonly info: '#61a8ff';
     };
     readonly typography: {
-        readonly sansFamily: "Inter, \"SF Pro Text\", \"SF Pro Display\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif";
-        readonly monoFamily: "\"SF Mono\", \"JetBrains Mono\", \"Cascadia Mono\", ui-monospace, monospace";
+        readonly sansFamily: 'Inter, "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+        readonly monoFamily: '"SF Mono", "JetBrains Mono", "Cascadia Mono", ui-monospace, monospace';
     };
     readonly spacing: {
-        readonly xs: "4px";
-        readonly sm: "8px";
-        readonly md: "12px";
-        readonly lg: "16px";
-        readonly xl: "24px";
+        readonly xs: '4px';
+        readonly sm: '8px';
+        readonly md: '12px';
+        readonly lg: '16px';
+        readonly xl: '24px';
     };
     readonly radius: {
-        readonly sm: "6px";
-        readonly md: "9px";
-        readonly lg: "12px";
-        readonly panel: "22px";
+        readonly sm: '6px';
+        readonly md: '9px';
+        readonly lg: '12px';
+        readonly panel: '22px';
     };
     readonly focus: {
-        readonly ring: "#9aa3b2";
-        readonly shadow: "0 0 0 1px color-mix(in srgb, #9aa3b2 76%, transparent), 0 0 0 3px color-mix(in srgb, #9aa3b2 15%, transparent)";
+        readonly ring: '#9aa3b2';
+        readonly shadow: '0 0 0 1px color-mix(in srgb, #9aa3b2 76%, transparent), 0 0 0 3px color-mix(in srgb, #9aa3b2 15%, transparent)';
     };
     readonly elevation: {
-        readonly card: "inset 0 1px 0 rgba(255, 255, 255, 0.02)";
-        readonly overlay: "0 24px 80px rgba(0, 0, 0, 0.45)";
+        readonly card: 'inset 0 1px 0 rgba(255, 255, 255, 0.02)';
+        readonly overlay: '0 24px 80px rgba(0, 0, 0, 0.45)';
     };
 };
 export declare const SOURCE_EXTENSION_THEME_CSS_VARIABLES: {
     readonly color: {
-        readonly background: "--color-bg";
-        readonly surface: "--color-bg-secondary";
-        readonly surfaceRaised: "--color-bg-tertiary";
-        readonly surfaceHover: "--color-bg-hover";
-        readonly surfaceActive: "--color-bg-active";
-        readonly border: "--color-border";
-        readonly borderStrong: "--color-border-light";
-        readonly text: "--color-text-primary";
-        readonly textSubtle: "--color-text-secondary";
-        readonly textMuted: "--color-text-tertiary";
-        readonly textDim: "--color-text-muted";
-        readonly accent: "--color-accent";
-        readonly accentDim: "--color-accent-dim";
-        readonly success: "--color-success";
-        readonly danger: "--color-error";
-        readonly warning: "--color-warning";
-        readonly info: "--color-info";
+        readonly background: '--color-bg';
+        readonly surface: '--color-bg-secondary';
+        readonly surfaceRaised: '--color-bg-tertiary';
+        readonly surfaceHover: '--color-bg-hover';
+        readonly surfaceActive: '--color-bg-active';
+        readonly border: '--color-border';
+        readonly borderStrong: '--color-border-light';
+        readonly text: '--color-text-primary';
+        readonly textSubtle: '--color-text-secondary';
+        readonly textMuted: '--color-text-tertiary';
+        readonly textDim: '--color-text-muted';
+        readonly accent: '--color-accent';
+        readonly accentDim: '--color-accent-dim';
+        readonly success: '--color-success';
+        readonly danger: '--color-error';
+        readonly warning: '--color-warning';
+        readonly info: '--color-info';
     };
     readonly typography: {
-        readonly sansFamily: "--font-sans";
-        readonly monoFamily: "--font-mono";
+        readonly sansFamily: '--font-sans';
+        readonly monoFamily: '--font-mono';
     };
     readonly radius: {
-        readonly panel: "--radius-panel";
+        readonly panel: '--radius-panel';
     };
 };
-export declare const EXTENSION_THEME_COLOR_KEYS: readonly ["background", "surface", "surfaceRaised", "surfaceHover", "surfaceActive", "border", "borderStrong", "text", "textSubtle", "textMuted", "textDim", "accent", "accentDim", "success", "danger", "warning", "info"];
-export declare const EXTENSION_THEME_TYPOGRAPHY_KEYS: readonly ["sansFamily", "monoFamily"];
-export declare const EXTENSION_THEME_SPACING_KEYS: readonly ["xs", "sm", "md", "lg", "xl"];
-export declare const EXTENSION_THEME_RADIUS_KEYS: readonly ["sm", "md", "lg", "panel"];
-export declare const EXTENSION_THEME_FOCUS_KEYS: readonly ["ring", "shadow"];
-export declare const EXTENSION_THEME_ELEVATION_KEYS: readonly ["card", "overlay"];
+export declare const EXTENSION_THEME_COLOR_KEYS: readonly ['background', 'surface', 'surfaceRaised', 'surfaceHover', 'surfaceActive', 'border', 'borderStrong', 'text', 'textSubtle', 'textMuted', 'textDim', 'accent', 'accentDim', 'success', 'danger', 'warning', 'info'];
+export declare const EXTENSION_THEME_TYPOGRAPHY_KEYS: readonly ['sansFamily', 'monoFamily'];
+export declare const EXTENSION_THEME_SPACING_KEYS: readonly ['xs', 'sm', 'md', 'lg', 'xl'];
+export declare const EXTENSION_THEME_RADIUS_KEYS: readonly ['sm', 'md', 'lg', 'panel'];
+export declare const EXTENSION_THEME_FOCUS_KEYS: readonly ['ring', 'shadow'];
+export declare const EXTENSION_THEME_ELEVATION_KEYS: readonly ['card', 'overlay'];
 ```
 
 ### Declarations from `dist/ui.d.ts`
@@ -6549,26 +6549,26 @@ export { createOpenWaggleExtensionUiStylesheet, extensionThemeCssVariableDeclara
 
 ```ts
 export declare const OPENWAGGLE_EXTENSION_UI_CLASS_NAMES: {
-    readonly root: "ow-extension-root";
-    readonly panel: "ow-extension-panel";
-    readonly stack: "ow-extension-stack";
-    readonly row: "ow-extension-row";
-    readonly heading: "ow-extension-heading";
-    readonly text: "ow-extension-text";
-    readonly muted: "ow-extension-muted";
-    readonly divider: "ow-extension-divider";
-    readonly button: "ow-extension-button";
-    readonly input: "ow-extension-input";
-    readonly textarea: "ow-extension-textarea";
-    readonly select: "ow-extension-select";
-    readonly checkbox: "ow-extension-checkbox";
-    readonly badge: "ow-extension-badge";
-    readonly field: "ow-extension-field";
-    readonly alert: "ow-extension-alert";
+    readonly root: 'ow-extension-root';
+    readonly panel: 'ow-extension-panel';
+    readonly stack: 'ow-extension-stack';
+    readonly row: 'ow-extension-row';
+    readonly heading: 'ow-extension-heading';
+    readonly text: 'ow-extension-text';
+    readonly muted: 'ow-extension-muted';
+    readonly divider: 'ow-extension-divider';
+    readonly button: 'ow-extension-button';
+    readonly input: 'ow-extension-input';
+    readonly textarea: 'ow-extension-textarea';
+    readonly select: 'ow-extension-select';
+    readonly checkbox: 'ow-extension-checkbox';
+    readonly badge: 'ow-extension-badge';
+    readonly field: 'ow-extension-field';
+    readonly alert: 'ow-extension-alert';
 };
 export declare const OPENWAGGLE_EXTENSION_UI_ATTRIBUTES: {
-    readonly tone: "data-ow-tone";
-    readonly variant: "data-ow-variant";
+    readonly tone: 'data-ow-tone';
+    readonly variant: 'data-ow-variant';
 };
 export type OpenWaggleExtensionUiTone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger' | 'info';
 export type OpenWaggleExtensionUiButtonVariant = 'primary' | 'secondary' | 'ghost';
@@ -6883,9 +6883,9 @@ export declare const extensionRuntimeRequirementSchema: Schema.filter<Schema.Str
     command: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
     binary: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
 }>>;
-export declare const extensionInstallSourceSchema: Schema.SchemaClass<"prebuilt" | "local-build", "prebuilt" | "local-build", never>;
+export declare const extensionInstallSourceSchema: Schema.SchemaClass<"local-build" | "prebuilt", "local-build" | "prebuilt", never>;
 export declare const extensionInstallSchema: Schema.Struct<{
-    source: Schema.SchemaClass<"prebuilt" | "local-build", "prebuilt" | "local-build", never>;
+    source: Schema.SchemaClass<"local-build" | "prebuilt", "local-build" | "prebuilt", never>;
 }>;
 export declare const extensionBuildSchema: Schema.Struct<{
     command: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -6924,7 +6924,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
     sourceFiles: Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>;
     builtArtifacts: Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>;
     install: Schema.optional<Schema.Struct<{
-        source: Schema.SchemaClass<"prebuilt" | "local-build", "prebuilt" | "local-build", never>;
+        source: Schema.SchemaClass<"local-build" | "prebuilt", "local-build" | "prebuilt", never>;
     }>>;
     build: Schema.optional<Schema.Struct<{
         command: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -6980,7 +6980,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -6999,7 +6999,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7018,7 +7018,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7037,7 +7037,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7056,7 +7056,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7075,7 +7075,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7094,7 +7094,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7113,7 +7113,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7132,7 +7132,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7180,15 +7180,15 @@ export declare function validateExtensionManifest(value: unknown): ExtensionMani
 ```ts
 export declare const OPENWAGGLE_EXTENSION_BROKER: {
     readonly CAPABILITY: {
-        readonly HOST_CONTEXT: "openwaggle.host.context";
-        readonly STORAGE: "openwaggle.storage";
-        readonly STATE: "openwaggle.state";
-        readonly ACTIONS: "openwaggle.actions";
-        readonly SETTINGS: "openwaggle.settings";
-        readonly DOCS: "openwaggle.docs";
-        readonly RUNTIME: "openwaggle.runtime";
+        readonly HOST_CONTEXT: 'openwaggle.host.context';
+        readonly STORAGE: 'openwaggle.storage';
+        readonly STATE: 'openwaggle.state';
+        readonly ACTIONS: 'openwaggle.actions';
+        readonly SETTINGS: 'openwaggle.settings';
+        readonly DOCS: 'openwaggle.docs';
+        readonly RUNTIME: 'openwaggle.runtime';
     };
-    readonly CAPABILITIES: readonly ("openwaggle.host.context" | "openwaggle.storage" | "openwaggle.state" | "openwaggle.actions" | "openwaggle.settings" | "openwaggle.docs" | "openwaggle.runtime")[];
+    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
     readonly CAPABILITY_METHODS: readonly [{
         readonly capability: "openwaggle.host.context";
         readonly methods: readonly ["get-scope"];
@@ -7212,67 +7212,67 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly methods: readonly ["register-contribution", "unregister-contribution"];
     }];
     readonly METHOD: {
-        readonly GET_SCOPE: "get-scope";
-        readonly GET: "get";
-        readonly SET: "set";
-        readonly DELETE: "delete";
-        readonly LIST: "list";
-        readonly GET_STATE: "get-state";
-        readonly READ_STATE: "read-state";
-        readonly SELECT_PROJECT: "select-project";
-        readonly GET_SETTINGS: "get-settings";
-        readonly UPDATE_SETTINGS: "update-settings";
-        readonly GET_SETTING: "get-setting";
-        readonly UPDATE_SETTING: "update-setting";
-        readonly DISCOVER_DOCS: "discover-docs";
-        readonly RESOLVE_DOCS_TOPIC: "resolve-docs-topic";
-        readonly REGISTER_CONTRIBUTION: "register-contribution";
-        readonly UNREGISTER_CONTRIBUTION: "unregister-contribution";
+        readonly GET_SCOPE: 'get-scope';
+        readonly GET: 'get';
+        readonly SET: 'set';
+        readonly DELETE: 'delete';
+        readonly LIST: 'list';
+        readonly GET_STATE: 'get-state';
+        readonly READ_STATE: 'read-state';
+        readonly SELECT_PROJECT: 'select-project';
+        readonly GET_SETTINGS: 'get-settings';
+        readonly UPDATE_SETTINGS: 'update-settings';
+        readonly GET_SETTING: 'get-setting';
+        readonly UPDATE_SETTING: 'update-setting';
+        readonly DISCOVER_DOCS: 'discover-docs';
+        readonly RESOLVE_DOCS_TOPIC: 'resolve-docs-topic';
+        readonly REGISTER_CONTRIBUTION: 'register-contribution';
+        readonly UNREGISTER_CONTRIBUTION: 'unregister-contribution';
     };
-    readonly METHODS: readonly ("get-scope" | "get" | "set" | "delete" | "list" | "get-state" | "read-state" | "select-project" | "get-settings" | "update-settings" | "get-setting" | "update-setting" | "discover-docs" | "resolve-docs-topic" | "register-contribution" | "unregister-contribution")[];
+    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
     readonly FAILURE_CODE: {
-        readonly INVALID_INPUT: "invalid-input";
-        readonly INVALID_PAYLOAD: "invalid-payload";
-        readonly UNKNOWN_EXTENSION: "unknown-extension";
-        readonly DISABLED_EXTENSION: "disabled-extension";
-        readonly UNKNOWN_CONTRIBUTION: "unknown-contribution";
-        readonly UNDECLARED_CAPABILITY: "undeclared-capability";
-        readonly UNDECLARED_METHOD: "undeclared-method";
-        readonly UNDECLARED_SCOPE: "undeclared-scope";
-        readonly OUT_OF_SCOPE: "out-of-scope";
-        readonly UNSUPPORTED_CAPABILITY: "unsupported-capability";
-        readonly UNSUPPORTED_METHOD: "unsupported-method";
-        readonly TRANSPORT_FAILED: "transport-failed";
+        readonly INVALID_INPUT: 'invalid-input';
+        readonly INVALID_PAYLOAD: 'invalid-payload';
+        readonly UNKNOWN_EXTENSION: 'unknown-extension';
+        readonly DISABLED_EXTENSION: 'disabled-extension';
+        readonly UNKNOWN_CONTRIBUTION: 'unknown-contribution';
+        readonly UNDECLARED_CAPABILITY: 'undeclared-capability';
+        readonly UNDECLARED_METHOD: 'undeclared-method';
+        readonly UNDECLARED_SCOPE: 'undeclared-scope';
+        readonly OUT_OF_SCOPE: 'out-of-scope';
+        readonly UNSUPPORTED_CAPABILITY: 'unsupported-capability';
+        readonly UNSUPPORTED_METHOD: 'unsupported-method';
+        readonly TRANSPORT_FAILED: 'transport-failed';
     };
-    readonly FAILURE_CODES: readonly ("invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed")[];
+    readonly FAILURE_CODES: readonly ("disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method")[];
     readonly OUTCOME: {
-        readonly SUCCEEDED: "succeeded";
-        readonly REJECTED: "rejected";
+        readonly SUCCEEDED: 'succeeded';
+        readonly REJECTED: 'rejected';
     };
-    readonly OUTCOMES: readonly ("succeeded" | "rejected")[];
+    readonly OUTCOMES: readonly ("rejected" | "succeeded")[];
     readonly STATE_SELECTOR: {
-        readonly CURRENT_PROJECT: "current-project";
-        readonly CURRENT_SESSION: "current-session";
-        readonly CURRENT_BRANCH: "current-branch";
-        readonly RECENT_PROJECTS: "recent-projects";
-        readonly MODEL_PREFERENCES: "model-preferences";
+        readonly CURRENT_PROJECT: 'current-project';
+        readonly CURRENT_SESSION: 'current-session';
+        readonly CURRENT_BRANCH: 'current-branch';
+        readonly RECENT_PROJECTS: 'recent-projects';
+        readonly MODEL_PREFERENCES: 'model-preferences';
     };
-    readonly STATE_SELECTORS: readonly ("current-project" | "current-session" | "current-branch" | "recent-projects" | "model-preferences")[];
+    readonly STATE_SELECTORS: readonly ("current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects")[];
     readonly SETTING_KEY: {
-        readonly MODEL_PREFERENCES: "model-preferences";
-        readonly PROJECT_DISPLAY_NAME: "project-display-name";
+        readonly MODEL_PREFERENCES: 'model-preferences';
+        readonly PROJECT_DISPLAY_NAME: 'project-display-name';
     };
     readonly SETTING_KEYS: readonly ("model-preferences" | "project-display-name")[];
 };
 export declare const OPENWAGGLE_EXTENSION: {
-    readonly MANIFEST_FILE: "openwaggle.extension.json";
-    readonly SDK_VERSION: "0.1.0";
-    readonly PROJECT_ROOT_SEGMENTS: readonly [".openwaggle", "extensions"];
-    readonly GLOBAL_EXTENSIONS_DIR: "extensions";
+    readonly MANIFEST_FILE: 'openwaggle.extension.json';
+    readonly SDK_VERSION: '0.1.0';
+    readonly PROJECT_ROOT_SEGMENTS: readonly ['.openwaggle', 'extensions'];
+    readonly GLOBAL_EXTENSIONS_DIR: 'extensions';
     readonly SCOPE: {
-        readonly GLOBAL_KIND: "global";
-        readonly PROJECT_KIND: "project";
-        readonly GLOBAL_ID: "global";
+        readonly GLOBAL_KIND: 'global';
+        readonly PROJECT_KIND: 'project';
+        readonly GLOBAL_ID: 'global';
     };
     readonly LIMITS: {
         readonly ID_MAX_LENGTH: 96;
@@ -7293,51 +7293,51 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly SEMVER_VERSION: RegExp;
     };
     readonly PATH: {
-        readonly NUL_CHARACTER: "\0";
-        readonly POSIX_SEPARATOR: "/";
-        readonly WINDOWS_SEPARATOR: "\\";
-        readonly RELATIVE_PARENT_SEGMENT: "..";
-        readonly CURRENT_DIRECTORY_SEGMENT: ".";
+        readonly NUL_CHARACTER: '\0';
+        readonly POSIX_SEPARATOR: '/';
+        readonly WINDOWS_SEPARATOR: '\\';
+        readonly RELATIVE_PARENT_SEGMENT: '..';
+        readonly CURRENT_DIRECTORY_SEGMENT: '.';
     };
     readonly RUNTIME_MODULE_PROTOCOL: {
-        readonly MODULE_CONTEXT_SEGMENT: "__context__";
+        readonly MODULE_CONTEXT_SEGMENT: '__context__';
     };
-    readonly CAPABILITY_SCOPES: readonly ["app", "project", "session", "branch"];
+    readonly CAPABILITY_SCOPES: readonly ['app', 'project', 'session', 'branch'];
     readonly CONTRIBUTION_FAMILY: {
-        readonly COMMANDS: "commands";
-        readonly SLASH_COMMANDS: "slashCommands";
-        readonly ROUTES: "routes";
-        readonly SETTINGS_SECTIONS: "settingsSections";
-        readonly SIDE_PANELS: "sidePanels";
-        readonly DIALOGS: "dialogs";
-        readonly TRANSCRIPT_RENDERERS: "transcriptRenderers";
-        readonly TOOL_RENDERERS: "toolRenderers";
-        readonly CUSTOM_MESSAGE_RENDERERS: "customMessageRenderers";
-        readonly INTERACTION_RENDERERS: "interactionRenderers";
-        readonly STATUS_WIDGETS: "statusWidgets";
+        readonly COMMANDS: 'commands';
+        readonly SLASH_COMMANDS: 'slashCommands';
+        readonly ROUTES: 'routes';
+        readonly SETTINGS_SECTIONS: 'settingsSections';
+        readonly SIDE_PANELS: 'sidePanels';
+        readonly DIALOGS: 'dialogs';
+        readonly TRANSCRIPT_RENDERERS: 'transcriptRenderers';
+        readonly TOOL_RENDERERS: 'toolRenderers';
+        readonly CUSTOM_MESSAGE_RENDERERS: 'customMessageRenderers';
+        readonly INTERACTION_RENDERERS: 'interactionRenderers';
+        readonly STATUS_WIDGETS: 'statusWidgets';
     };
     readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly COMMAND_CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands"];
     readonly CONTRIBUTION_RUNTIME: {
-        readonly FEDERATED_MODULE: "federated-module";
-        readonly TRUSTED_RENDERER: "trusted-renderer";
+        readonly FEDERATED_MODULE: 'federated-module';
+        readonly TRUSTED_RENDERER: 'trusted-renderer';
     };
     readonly CONTRIBUTION_RUNTIMES: readonly ("federated-module" | "trusted-renderer")[];
     readonly EXECUTION_PLACEMENT: {
-        readonly HOST_RENDERER: "host-renderer";
-        readonly FRAME: "frame";
+        readonly HOST_RENDERER: 'host-renderer';
+        readonly FRAME: 'frame';
     };
-    readonly EXECUTION_PLACEMENTS: readonly ("host-renderer" | "frame")[];
+    readonly EXECUTION_PLACEMENTS: readonly ("frame" | "host-renderer")[];
     readonly STORAGE: {
         readonly KIND: {
-            readonly STATE: "state";
-            readonly CONFIG: "config";
+            readonly STATE: 'state';
+            readonly CONFIG: 'config';
         };
-        readonly KINDS: readonly ("state" | "config")[];
+        readonly KINDS: readonly ("config" | "state")[];
         readonly SCOPE: {
-            readonly GLOBAL_KIND: "global";
-            readonly PROJECT_KIND: "project";
-            readonly GLOBAL_ID: "global";
+            readonly GLOBAL_KIND: 'global';
+            readonly PROJECT_KIND: 'project';
+            readonly GLOBAL_ID: 'global';
         };
         readonly SCOPE_KINDS: readonly ("global" | "project")[];
         readonly KEY_MAX_LENGTH: 160;
@@ -7345,21 +7345,21 @@ export declare const OPENWAGGLE_EXTENSION: {
     readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly INSTALL_SOURCE: {
-        readonly PREBUILT: "prebuilt";
-        readonly LOCAL_BUILD: "local-build";
+        readonly PREBUILT: 'prebuilt';
+        readonly LOCAL_BUILD: 'local-build';
     };
-    readonly INSTALL_SOURCES: readonly ("prebuilt" | "local-build")[];
+    readonly INSTALL_SOURCES: readonly ("local-build" | "prebuilt")[];
     readonly RUNTIME_REQUIREMENT_TYPE: {
-        readonly BINARY: "binary";
-        readonly COMMAND: "command";
+        readonly BINARY: 'binary';
+        readonly COMMAND: 'command';
     };
     readonly RUNTIME_REQUIREMENT_TYPES: readonly ("binary" | "command")[];
     readonly NETWORK_ACCESS_MODE: {
-        readonly BROKERED: "brokered";
-        readonly RESTRICTED: "restricted";
-        readonly DIRECT: "direct";
+        readonly BROKERED: 'brokered';
+        readonly RESTRICTED: 'restricted';
+        readonly DIRECT: 'direct';
     };
-    readonly NETWORK_ACCESS_MODES: readonly ("brokered" | "restricted" | "direct")[];
+    readonly NETWORK_ACCESS_MODES: readonly ("brokered" | "direct" | "restricted")[];
 };
 ```
 
@@ -7410,7 +7410,7 @@ export declare const extensionRouteContributionSchema: Schema.filter<Schema.Stru
     id: Schema.filter<Schema.filter<typeof Schema.String>>;
     title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-    execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+    execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
     entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     target: Schema.optional<Schema.Struct<{
         projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7429,7 +7429,7 @@ export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struc
     id: Schema.filter<Schema.filter<typeof Schema.String>>;
     title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-    execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+    execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
     entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     target: Schema.optional<Schema.Struct<{
         projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7473,7 +7473,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7492,7 +7492,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7511,7 +7511,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7530,7 +7530,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7549,7 +7549,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7568,7 +7568,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7587,7 +7587,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7606,7 +7606,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7625,7 +7625,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7662,7 +7662,7 @@ export declare const extensionRouteContributionRegistrationSchema: Schema.Struct
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7684,7 +7684,7 @@ export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7720,7 +7720,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7741,7 +7741,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7785,7 +7785,7 @@ export declare const extensionRelativePathSchema: Schema.filter<Schema.filter<ty
 export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
 export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
 export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
 export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
 export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
 export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
@@ -7838,9 +7838,9 @@ export declare const extensionRuntimeRequirementSchema: Schema.filter<Schema.Str
     command: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
     binary: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
 }>>;
-export declare const extensionInstallSourceSchema: Schema.SchemaClass<"prebuilt" | "local-build", "prebuilt" | "local-build", never>;
+export declare const extensionInstallSourceSchema: Schema.SchemaClass<"local-build" | "prebuilt", "local-build" | "prebuilt", never>;
 export declare const extensionInstallSchema: Schema.Struct<{
-    source: Schema.SchemaClass<"prebuilt" | "local-build", "prebuilt" | "local-build", never>;
+    source: Schema.SchemaClass<"local-build" | "prebuilt", "local-build" | "prebuilt", never>;
 }>;
 export declare const extensionBuildSchema: Schema.Struct<{
     command: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -7879,7 +7879,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
     sourceFiles: Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>;
     builtArtifacts: Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>;
     install: Schema.optional<Schema.Struct<{
-        source: Schema.SchemaClass<"prebuilt" | "local-build", "prebuilt" | "local-build", never>;
+        source: Schema.SchemaClass<"local-build" | "prebuilt", "local-build" | "prebuilt", never>;
     }>>;
     build: Schema.optional<Schema.Struct<{
         command: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -7935,7 +7935,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7954,7 +7954,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7973,7 +7973,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7992,7 +7992,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8011,7 +8011,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8030,7 +8030,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8049,7 +8049,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8068,7 +8068,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8087,7 +8087,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8135,15 +8135,15 @@ export declare function validateExtensionManifest(value: unknown): ExtensionMani
 ```ts
 export declare const OPENWAGGLE_EXTENSION_BROKER: {
     readonly CAPABILITY: {
-        readonly HOST_CONTEXT: "openwaggle.host.context";
-        readonly STORAGE: "openwaggle.storage";
-        readonly STATE: "openwaggle.state";
-        readonly ACTIONS: "openwaggle.actions";
-        readonly SETTINGS: "openwaggle.settings";
-        readonly DOCS: "openwaggle.docs";
-        readonly RUNTIME: "openwaggle.runtime";
+        readonly HOST_CONTEXT: 'openwaggle.host.context';
+        readonly STORAGE: 'openwaggle.storage';
+        readonly STATE: 'openwaggle.state';
+        readonly ACTIONS: 'openwaggle.actions';
+        readonly SETTINGS: 'openwaggle.settings';
+        readonly DOCS: 'openwaggle.docs';
+        readonly RUNTIME: 'openwaggle.runtime';
     };
-    readonly CAPABILITIES: readonly ("openwaggle.host.context" | "openwaggle.storage" | "openwaggle.state" | "openwaggle.actions" | "openwaggle.settings" | "openwaggle.docs" | "openwaggle.runtime")[];
+    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
     readonly CAPABILITY_METHODS: readonly [{
         readonly capability: "openwaggle.host.context";
         readonly methods: readonly ["get-scope"];
@@ -8167,67 +8167,67 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly methods: readonly ["register-contribution", "unregister-contribution"];
     }];
     readonly METHOD: {
-        readonly GET_SCOPE: "get-scope";
-        readonly GET: "get";
-        readonly SET: "set";
-        readonly DELETE: "delete";
-        readonly LIST: "list";
-        readonly GET_STATE: "get-state";
-        readonly READ_STATE: "read-state";
-        readonly SELECT_PROJECT: "select-project";
-        readonly GET_SETTINGS: "get-settings";
-        readonly UPDATE_SETTINGS: "update-settings";
-        readonly GET_SETTING: "get-setting";
-        readonly UPDATE_SETTING: "update-setting";
-        readonly DISCOVER_DOCS: "discover-docs";
-        readonly RESOLVE_DOCS_TOPIC: "resolve-docs-topic";
-        readonly REGISTER_CONTRIBUTION: "register-contribution";
-        readonly UNREGISTER_CONTRIBUTION: "unregister-contribution";
+        readonly GET_SCOPE: 'get-scope';
+        readonly GET: 'get';
+        readonly SET: 'set';
+        readonly DELETE: 'delete';
+        readonly LIST: 'list';
+        readonly GET_STATE: 'get-state';
+        readonly READ_STATE: 'read-state';
+        readonly SELECT_PROJECT: 'select-project';
+        readonly GET_SETTINGS: 'get-settings';
+        readonly UPDATE_SETTINGS: 'update-settings';
+        readonly GET_SETTING: 'get-setting';
+        readonly UPDATE_SETTING: 'update-setting';
+        readonly DISCOVER_DOCS: 'discover-docs';
+        readonly RESOLVE_DOCS_TOPIC: 'resolve-docs-topic';
+        readonly REGISTER_CONTRIBUTION: 'register-contribution';
+        readonly UNREGISTER_CONTRIBUTION: 'unregister-contribution';
     };
-    readonly METHODS: readonly ("get-scope" | "get" | "set" | "delete" | "list" | "get-state" | "read-state" | "select-project" | "get-settings" | "update-settings" | "get-setting" | "update-setting" | "discover-docs" | "resolve-docs-topic" | "register-contribution" | "unregister-contribution")[];
+    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
     readonly FAILURE_CODE: {
-        readonly INVALID_INPUT: "invalid-input";
-        readonly INVALID_PAYLOAD: "invalid-payload";
-        readonly UNKNOWN_EXTENSION: "unknown-extension";
-        readonly DISABLED_EXTENSION: "disabled-extension";
-        readonly UNKNOWN_CONTRIBUTION: "unknown-contribution";
-        readonly UNDECLARED_CAPABILITY: "undeclared-capability";
-        readonly UNDECLARED_METHOD: "undeclared-method";
-        readonly UNDECLARED_SCOPE: "undeclared-scope";
-        readonly OUT_OF_SCOPE: "out-of-scope";
-        readonly UNSUPPORTED_CAPABILITY: "unsupported-capability";
-        readonly UNSUPPORTED_METHOD: "unsupported-method";
-        readonly TRANSPORT_FAILED: "transport-failed";
+        readonly INVALID_INPUT: 'invalid-input';
+        readonly INVALID_PAYLOAD: 'invalid-payload';
+        readonly UNKNOWN_EXTENSION: 'unknown-extension';
+        readonly DISABLED_EXTENSION: 'disabled-extension';
+        readonly UNKNOWN_CONTRIBUTION: 'unknown-contribution';
+        readonly UNDECLARED_CAPABILITY: 'undeclared-capability';
+        readonly UNDECLARED_METHOD: 'undeclared-method';
+        readonly UNDECLARED_SCOPE: 'undeclared-scope';
+        readonly OUT_OF_SCOPE: 'out-of-scope';
+        readonly UNSUPPORTED_CAPABILITY: 'unsupported-capability';
+        readonly UNSUPPORTED_METHOD: 'unsupported-method';
+        readonly TRANSPORT_FAILED: 'transport-failed';
     };
-    readonly FAILURE_CODES: readonly ("invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed")[];
+    readonly FAILURE_CODES: readonly ("disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method")[];
     readonly OUTCOME: {
-        readonly SUCCEEDED: "succeeded";
-        readonly REJECTED: "rejected";
+        readonly SUCCEEDED: 'succeeded';
+        readonly REJECTED: 'rejected';
     };
-    readonly OUTCOMES: readonly ("succeeded" | "rejected")[];
+    readonly OUTCOMES: readonly ("rejected" | "succeeded")[];
     readonly STATE_SELECTOR: {
-        readonly CURRENT_PROJECT: "current-project";
-        readonly CURRENT_SESSION: "current-session";
-        readonly CURRENT_BRANCH: "current-branch";
-        readonly RECENT_PROJECTS: "recent-projects";
-        readonly MODEL_PREFERENCES: "model-preferences";
+        readonly CURRENT_PROJECT: 'current-project';
+        readonly CURRENT_SESSION: 'current-session';
+        readonly CURRENT_BRANCH: 'current-branch';
+        readonly RECENT_PROJECTS: 'recent-projects';
+        readonly MODEL_PREFERENCES: 'model-preferences';
     };
-    readonly STATE_SELECTORS: readonly ("current-project" | "current-session" | "current-branch" | "recent-projects" | "model-preferences")[];
+    readonly STATE_SELECTORS: readonly ("current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects")[];
     readonly SETTING_KEY: {
-        readonly MODEL_PREFERENCES: "model-preferences";
-        readonly PROJECT_DISPLAY_NAME: "project-display-name";
+        readonly MODEL_PREFERENCES: 'model-preferences';
+        readonly PROJECT_DISPLAY_NAME: 'project-display-name';
     };
     readonly SETTING_KEYS: readonly ("model-preferences" | "project-display-name")[];
 };
 export declare const OPENWAGGLE_EXTENSION: {
-    readonly MANIFEST_FILE: "openwaggle.extension.json";
-    readonly SDK_VERSION: "0.1.0";
-    readonly PROJECT_ROOT_SEGMENTS: readonly [".openwaggle", "extensions"];
-    readonly GLOBAL_EXTENSIONS_DIR: "extensions";
+    readonly MANIFEST_FILE: 'openwaggle.extension.json';
+    readonly SDK_VERSION: '0.1.0';
+    readonly PROJECT_ROOT_SEGMENTS: readonly ['.openwaggle', 'extensions'];
+    readonly GLOBAL_EXTENSIONS_DIR: 'extensions';
     readonly SCOPE: {
-        readonly GLOBAL_KIND: "global";
-        readonly PROJECT_KIND: "project";
-        readonly GLOBAL_ID: "global";
+        readonly GLOBAL_KIND: 'global';
+        readonly PROJECT_KIND: 'project';
+        readonly GLOBAL_ID: 'global';
     };
     readonly LIMITS: {
         readonly ID_MAX_LENGTH: 96;
@@ -8248,51 +8248,51 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly SEMVER_VERSION: RegExp;
     };
     readonly PATH: {
-        readonly NUL_CHARACTER: "\0";
-        readonly POSIX_SEPARATOR: "/";
-        readonly WINDOWS_SEPARATOR: "\\";
-        readonly RELATIVE_PARENT_SEGMENT: "..";
-        readonly CURRENT_DIRECTORY_SEGMENT: ".";
+        readonly NUL_CHARACTER: '\0';
+        readonly POSIX_SEPARATOR: '/';
+        readonly WINDOWS_SEPARATOR: '\\';
+        readonly RELATIVE_PARENT_SEGMENT: '..';
+        readonly CURRENT_DIRECTORY_SEGMENT: '.';
     };
     readonly RUNTIME_MODULE_PROTOCOL: {
-        readonly MODULE_CONTEXT_SEGMENT: "__context__";
+        readonly MODULE_CONTEXT_SEGMENT: '__context__';
     };
-    readonly CAPABILITY_SCOPES: readonly ["app", "project", "session", "branch"];
+    readonly CAPABILITY_SCOPES: readonly ['app', 'project', 'session', 'branch'];
     readonly CONTRIBUTION_FAMILY: {
-        readonly COMMANDS: "commands";
-        readonly SLASH_COMMANDS: "slashCommands";
-        readonly ROUTES: "routes";
-        readonly SETTINGS_SECTIONS: "settingsSections";
-        readonly SIDE_PANELS: "sidePanels";
-        readonly DIALOGS: "dialogs";
-        readonly TRANSCRIPT_RENDERERS: "transcriptRenderers";
-        readonly TOOL_RENDERERS: "toolRenderers";
-        readonly CUSTOM_MESSAGE_RENDERERS: "customMessageRenderers";
-        readonly INTERACTION_RENDERERS: "interactionRenderers";
-        readonly STATUS_WIDGETS: "statusWidgets";
+        readonly COMMANDS: 'commands';
+        readonly SLASH_COMMANDS: 'slashCommands';
+        readonly ROUTES: 'routes';
+        readonly SETTINGS_SECTIONS: 'settingsSections';
+        readonly SIDE_PANELS: 'sidePanels';
+        readonly DIALOGS: 'dialogs';
+        readonly TRANSCRIPT_RENDERERS: 'transcriptRenderers';
+        readonly TOOL_RENDERERS: 'toolRenderers';
+        readonly CUSTOM_MESSAGE_RENDERERS: 'customMessageRenderers';
+        readonly INTERACTION_RENDERERS: 'interactionRenderers';
+        readonly STATUS_WIDGETS: 'statusWidgets';
     };
     readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly COMMAND_CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands"];
     readonly CONTRIBUTION_RUNTIME: {
-        readonly FEDERATED_MODULE: "federated-module";
-        readonly TRUSTED_RENDERER: "trusted-renderer";
+        readonly FEDERATED_MODULE: 'federated-module';
+        readonly TRUSTED_RENDERER: 'trusted-renderer';
     };
     readonly CONTRIBUTION_RUNTIMES: readonly ("federated-module" | "trusted-renderer")[];
     readonly EXECUTION_PLACEMENT: {
-        readonly HOST_RENDERER: "host-renderer";
-        readonly FRAME: "frame";
+        readonly HOST_RENDERER: 'host-renderer';
+        readonly FRAME: 'frame';
     };
-    readonly EXECUTION_PLACEMENTS: readonly ("host-renderer" | "frame")[];
+    readonly EXECUTION_PLACEMENTS: readonly ("frame" | "host-renderer")[];
     readonly STORAGE: {
         readonly KIND: {
-            readonly STATE: "state";
-            readonly CONFIG: "config";
+            readonly STATE: 'state';
+            readonly CONFIG: 'config';
         };
-        readonly KINDS: readonly ("state" | "config")[];
+        readonly KINDS: readonly ("config" | "state")[];
         readonly SCOPE: {
-            readonly GLOBAL_KIND: "global";
-            readonly PROJECT_KIND: "project";
-            readonly GLOBAL_ID: "global";
+            readonly GLOBAL_KIND: 'global';
+            readonly PROJECT_KIND: 'project';
+            readonly GLOBAL_ID: 'global';
         };
         readonly SCOPE_KINDS: readonly ("global" | "project")[];
         readonly KEY_MAX_LENGTH: 160;
@@ -8300,21 +8300,21 @@ export declare const OPENWAGGLE_EXTENSION: {
     readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly INSTALL_SOURCE: {
-        readonly PREBUILT: "prebuilt";
-        readonly LOCAL_BUILD: "local-build";
+        readonly PREBUILT: 'prebuilt';
+        readonly LOCAL_BUILD: 'local-build';
     };
-    readonly INSTALL_SOURCES: readonly ("prebuilt" | "local-build")[];
+    readonly INSTALL_SOURCES: readonly ("local-build" | "prebuilt")[];
     readonly RUNTIME_REQUIREMENT_TYPE: {
-        readonly BINARY: "binary";
-        readonly COMMAND: "command";
+        readonly BINARY: 'binary';
+        readonly COMMAND: 'command';
     };
     readonly RUNTIME_REQUIREMENT_TYPES: readonly ("binary" | "command")[];
     readonly NETWORK_ACCESS_MODE: {
-        readonly BROKERED: "brokered";
-        readonly RESTRICTED: "restricted";
-        readonly DIRECT: "direct";
+        readonly BROKERED: 'brokered';
+        readonly RESTRICTED: 'restricted';
+        readonly DIRECT: 'direct';
     };
-    readonly NETWORK_ACCESS_MODES: readonly ("brokered" | "restricted" | "direct")[];
+    readonly NETWORK_ACCESS_MODES: readonly ("brokered" | "direct" | "restricted")[];
 };
 ```
 
@@ -8365,7 +8365,7 @@ export declare const extensionRouteContributionSchema: Schema.filter<Schema.Stru
     id: Schema.filter<Schema.filter<typeof Schema.String>>;
     title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-    execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+    execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
     entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     target: Schema.optional<Schema.Struct<{
         projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8384,7 +8384,7 @@ export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struc
     id: Schema.filter<Schema.filter<typeof Schema.String>>;
     title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-    execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+    execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
     entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     target: Schema.optional<Schema.Struct<{
         projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8428,7 +8428,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8447,7 +8447,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8466,7 +8466,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8485,7 +8485,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8504,7 +8504,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8523,7 +8523,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8542,7 +8542,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8561,7 +8561,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8580,7 +8580,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8617,7 +8617,7 @@ export declare const extensionRouteContributionRegistrationSchema: Schema.Struct
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8639,7 +8639,7 @@ export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8675,7 +8675,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8696,7 +8696,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8740,7 +8740,7 @@ export declare const extensionRelativePathSchema: Schema.filter<Schema.filter<ty
 export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
 export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
 export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
 export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
 export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
 export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
@@ -9510,130 +9510,130 @@ export interface CreateOpenWaggleExtensionThemeOptions {
 ```ts
 export declare const OPENWAGGLE_EXTENSION_THEME_CSS_VARIABLES: {
     readonly color: {
-        readonly background: "--ow-color-background";
-        readonly surface: "--ow-color-surface";
-        readonly surfaceRaised: "--ow-color-surface-raised";
-        readonly surfaceHover: "--ow-color-surface-hover";
-        readonly surfaceActive: "--ow-color-surface-active";
-        readonly border: "--ow-color-border";
-        readonly borderStrong: "--ow-color-border-strong";
-        readonly text: "--ow-color-text";
-        readonly textSubtle: "--ow-color-text-subtle";
-        readonly textMuted: "--ow-color-text-muted";
-        readonly textDim: "--ow-color-text-dim";
-        readonly accent: "--ow-color-accent";
-        readonly accentDim: "--ow-color-accent-dim";
-        readonly success: "--ow-color-success";
-        readonly danger: "--ow-color-danger";
-        readonly warning: "--ow-color-warning";
-        readonly info: "--ow-color-info";
+        readonly background: '--ow-color-background';
+        readonly surface: '--ow-color-surface';
+        readonly surfaceRaised: '--ow-color-surface-raised';
+        readonly surfaceHover: '--ow-color-surface-hover';
+        readonly surfaceActive: '--ow-color-surface-active';
+        readonly border: '--ow-color-border';
+        readonly borderStrong: '--ow-color-border-strong';
+        readonly text: '--ow-color-text';
+        readonly textSubtle: '--ow-color-text-subtle';
+        readonly textMuted: '--ow-color-text-muted';
+        readonly textDim: '--ow-color-text-dim';
+        readonly accent: '--ow-color-accent';
+        readonly accentDim: '--ow-color-accent-dim';
+        readonly success: '--ow-color-success';
+        readonly danger: '--ow-color-danger';
+        readonly warning: '--ow-color-warning';
+        readonly info: '--ow-color-info';
     };
     readonly typography: {
-        readonly sansFamily: "--ow-font-family-sans";
-        readonly monoFamily: "--ow-font-family-mono";
+        readonly sansFamily: '--ow-font-family-sans';
+        readonly monoFamily: '--ow-font-family-mono';
     };
     readonly spacing: {
-        readonly xs: "--ow-space-xs";
-        readonly sm: "--ow-space-sm";
-        readonly md: "--ow-space-md";
-        readonly lg: "--ow-space-lg";
-        readonly xl: "--ow-space-xl";
+        readonly xs: '--ow-space-xs';
+        readonly sm: '--ow-space-sm';
+        readonly md: '--ow-space-md';
+        readonly lg: '--ow-space-lg';
+        readonly xl: '--ow-space-xl';
     };
     readonly radius: {
-        readonly sm: "--ow-radius-sm";
-        readonly md: "--ow-radius-md";
-        readonly lg: "--ow-radius-lg";
-        readonly panel: "--ow-radius-panel";
+        readonly sm: '--ow-radius-sm';
+        readonly md: '--ow-radius-md';
+        readonly lg: '--ow-radius-lg';
+        readonly panel: '--ow-radius-panel';
     };
     readonly focus: {
-        readonly ring: "--ow-focus-ring";
-        readonly shadow: "--ow-focus-shadow";
+        readonly ring: '--ow-focus-ring';
+        readonly shadow: '--ow-focus-shadow';
     };
     readonly elevation: {
-        readonly card: "--ow-elevation-card";
-        readonly overlay: "--ow-elevation-overlay";
+        readonly card: '--ow-elevation-card';
+        readonly overlay: '--ow-elevation-overlay';
     };
 };
 export declare const DEFAULT_EXTENSION_THEME_TOKENS: {
     readonly color: {
-        readonly background: "#141619";
-        readonly surface: "#1a1d22";
-        readonly surfaceRaised: "#1f232a";
-        readonly surfaceHover: "#262b33";
-        readonly surfaceActive: "#1d1a10";
-        readonly border: "#1e2229";
-        readonly borderStrong: "#2a3240";
-        readonly text: "#e7e9ee";
-        readonly textSubtle: "#c9cdd6";
-        readonly textMuted: "#9098a8";
-        readonly textDim: "#666f7d";
-        readonly accent: "#f5a623";
-        readonly accentDim: "#b87410";
-        readonly success: "#4caf72";
-        readonly danger: "#ef4444";
-        readonly warning: "#f5a623";
-        readonly info: "#61a8ff";
+        readonly background: '#141619';
+        readonly surface: '#1a1d22';
+        readonly surfaceRaised: '#1f232a';
+        readonly surfaceHover: '#262b33';
+        readonly surfaceActive: '#1d1a10';
+        readonly border: '#1e2229';
+        readonly borderStrong: '#2a3240';
+        readonly text: '#e7e9ee';
+        readonly textSubtle: '#c9cdd6';
+        readonly textMuted: '#9098a8';
+        readonly textDim: '#666f7d';
+        readonly accent: '#f5a623';
+        readonly accentDim: '#b87410';
+        readonly success: '#4caf72';
+        readonly danger: '#ef4444';
+        readonly warning: '#f5a623';
+        readonly info: '#61a8ff';
     };
     readonly typography: {
-        readonly sansFamily: "Inter, \"SF Pro Text\", \"SF Pro Display\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif";
-        readonly monoFamily: "\"SF Mono\", \"JetBrains Mono\", \"Cascadia Mono\", ui-monospace, monospace";
+        readonly sansFamily: 'Inter, "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+        readonly monoFamily: '"SF Mono", "JetBrains Mono", "Cascadia Mono", ui-monospace, monospace';
     };
     readonly spacing: {
-        readonly xs: "4px";
-        readonly sm: "8px";
-        readonly md: "12px";
-        readonly lg: "16px";
-        readonly xl: "24px";
+        readonly xs: '4px';
+        readonly sm: '8px';
+        readonly md: '12px';
+        readonly lg: '16px';
+        readonly xl: '24px';
     };
     readonly radius: {
-        readonly sm: "6px";
-        readonly md: "9px";
-        readonly lg: "12px";
-        readonly panel: "22px";
+        readonly sm: '6px';
+        readonly md: '9px';
+        readonly lg: '12px';
+        readonly panel: '22px';
     };
     readonly focus: {
-        readonly ring: "#9aa3b2";
-        readonly shadow: "0 0 0 1px color-mix(in srgb, #9aa3b2 76%, transparent), 0 0 0 3px color-mix(in srgb, #9aa3b2 15%, transparent)";
+        readonly ring: '#9aa3b2';
+        readonly shadow: '0 0 0 1px color-mix(in srgb, #9aa3b2 76%, transparent), 0 0 0 3px color-mix(in srgb, #9aa3b2 15%, transparent)';
     };
     readonly elevation: {
-        readonly card: "inset 0 1px 0 rgba(255, 255, 255, 0.02)";
-        readonly overlay: "0 24px 80px rgba(0, 0, 0, 0.45)";
+        readonly card: 'inset 0 1px 0 rgba(255, 255, 255, 0.02)';
+        readonly overlay: '0 24px 80px rgba(0, 0, 0, 0.45)';
     };
 };
 export declare const SOURCE_EXTENSION_THEME_CSS_VARIABLES: {
     readonly color: {
-        readonly background: "--color-bg";
-        readonly surface: "--color-bg-secondary";
-        readonly surfaceRaised: "--color-bg-tertiary";
-        readonly surfaceHover: "--color-bg-hover";
-        readonly surfaceActive: "--color-bg-active";
-        readonly border: "--color-border";
-        readonly borderStrong: "--color-border-light";
-        readonly text: "--color-text-primary";
-        readonly textSubtle: "--color-text-secondary";
-        readonly textMuted: "--color-text-tertiary";
-        readonly textDim: "--color-text-muted";
-        readonly accent: "--color-accent";
-        readonly accentDim: "--color-accent-dim";
-        readonly success: "--color-success";
-        readonly danger: "--color-error";
-        readonly warning: "--color-warning";
-        readonly info: "--color-info";
+        readonly background: '--color-bg';
+        readonly surface: '--color-bg-secondary';
+        readonly surfaceRaised: '--color-bg-tertiary';
+        readonly surfaceHover: '--color-bg-hover';
+        readonly surfaceActive: '--color-bg-active';
+        readonly border: '--color-border';
+        readonly borderStrong: '--color-border-light';
+        readonly text: '--color-text-primary';
+        readonly textSubtle: '--color-text-secondary';
+        readonly textMuted: '--color-text-tertiary';
+        readonly textDim: '--color-text-muted';
+        readonly accent: '--color-accent';
+        readonly accentDim: '--color-accent-dim';
+        readonly success: '--color-success';
+        readonly danger: '--color-error';
+        readonly warning: '--color-warning';
+        readonly info: '--color-info';
     };
     readonly typography: {
-        readonly sansFamily: "--font-sans";
-        readonly monoFamily: "--font-mono";
+        readonly sansFamily: '--font-sans';
+        readonly monoFamily: '--font-mono';
     };
     readonly radius: {
-        readonly panel: "--radius-panel";
+        readonly panel: '--radius-panel';
     };
 };
-export declare const EXTENSION_THEME_COLOR_KEYS: readonly ["background", "surface", "surfaceRaised", "surfaceHover", "surfaceActive", "border", "borderStrong", "text", "textSubtle", "textMuted", "textDim", "accent", "accentDim", "success", "danger", "warning", "info"];
-export declare const EXTENSION_THEME_TYPOGRAPHY_KEYS: readonly ["sansFamily", "monoFamily"];
-export declare const EXTENSION_THEME_SPACING_KEYS: readonly ["xs", "sm", "md", "lg", "xl"];
-export declare const EXTENSION_THEME_RADIUS_KEYS: readonly ["sm", "md", "lg", "panel"];
-export declare const EXTENSION_THEME_FOCUS_KEYS: readonly ["ring", "shadow"];
-export declare const EXTENSION_THEME_ELEVATION_KEYS: readonly ["card", "overlay"];
+export declare const EXTENSION_THEME_COLOR_KEYS: readonly ['background', 'surface', 'surfaceRaised', 'surfaceHover', 'surfaceActive', 'border', 'borderStrong', 'text', 'textSubtle', 'textMuted', 'textDim', 'accent', 'accentDim', 'success', 'danger', 'warning', 'info'];
+export declare const EXTENSION_THEME_TYPOGRAPHY_KEYS: readonly ['sansFamily', 'monoFamily'];
+export declare const EXTENSION_THEME_SPACING_KEYS: readonly ['xs', 'sm', 'md', 'lg', 'xl'];
+export declare const EXTENSION_THEME_RADIUS_KEYS: readonly ['sm', 'md', 'lg', 'panel'];
+export declare const EXTENSION_THEME_FOCUS_KEYS: readonly ['ring', 'shadow'];
+export declare const EXTENSION_THEME_ELEVATION_KEYS: readonly ['card', 'overlay'];
 ```
 
 ## Export `./types`
@@ -9682,15 +9682,15 @@ export {};
 ```ts
 export declare const OPENWAGGLE_EXTENSION_BROKER: {
     readonly CAPABILITY: {
-        readonly HOST_CONTEXT: "openwaggle.host.context";
-        readonly STORAGE: "openwaggle.storage";
-        readonly STATE: "openwaggle.state";
-        readonly ACTIONS: "openwaggle.actions";
-        readonly SETTINGS: "openwaggle.settings";
-        readonly DOCS: "openwaggle.docs";
-        readonly RUNTIME: "openwaggle.runtime";
+        readonly HOST_CONTEXT: 'openwaggle.host.context';
+        readonly STORAGE: 'openwaggle.storage';
+        readonly STATE: 'openwaggle.state';
+        readonly ACTIONS: 'openwaggle.actions';
+        readonly SETTINGS: 'openwaggle.settings';
+        readonly DOCS: 'openwaggle.docs';
+        readonly RUNTIME: 'openwaggle.runtime';
     };
-    readonly CAPABILITIES: readonly ("openwaggle.host.context" | "openwaggle.storage" | "openwaggle.state" | "openwaggle.actions" | "openwaggle.settings" | "openwaggle.docs" | "openwaggle.runtime")[];
+    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
     readonly CAPABILITY_METHODS: readonly [{
         readonly capability: "openwaggle.host.context";
         readonly methods: readonly ["get-scope"];
@@ -9714,67 +9714,67 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly methods: readonly ["register-contribution", "unregister-contribution"];
     }];
     readonly METHOD: {
-        readonly GET_SCOPE: "get-scope";
-        readonly GET: "get";
-        readonly SET: "set";
-        readonly DELETE: "delete";
-        readonly LIST: "list";
-        readonly GET_STATE: "get-state";
-        readonly READ_STATE: "read-state";
-        readonly SELECT_PROJECT: "select-project";
-        readonly GET_SETTINGS: "get-settings";
-        readonly UPDATE_SETTINGS: "update-settings";
-        readonly GET_SETTING: "get-setting";
-        readonly UPDATE_SETTING: "update-setting";
-        readonly DISCOVER_DOCS: "discover-docs";
-        readonly RESOLVE_DOCS_TOPIC: "resolve-docs-topic";
-        readonly REGISTER_CONTRIBUTION: "register-contribution";
-        readonly UNREGISTER_CONTRIBUTION: "unregister-contribution";
+        readonly GET_SCOPE: 'get-scope';
+        readonly GET: 'get';
+        readonly SET: 'set';
+        readonly DELETE: 'delete';
+        readonly LIST: 'list';
+        readonly GET_STATE: 'get-state';
+        readonly READ_STATE: 'read-state';
+        readonly SELECT_PROJECT: 'select-project';
+        readonly GET_SETTINGS: 'get-settings';
+        readonly UPDATE_SETTINGS: 'update-settings';
+        readonly GET_SETTING: 'get-setting';
+        readonly UPDATE_SETTING: 'update-setting';
+        readonly DISCOVER_DOCS: 'discover-docs';
+        readonly RESOLVE_DOCS_TOPIC: 'resolve-docs-topic';
+        readonly REGISTER_CONTRIBUTION: 'register-contribution';
+        readonly UNREGISTER_CONTRIBUTION: 'unregister-contribution';
     };
-    readonly METHODS: readonly ("get-scope" | "get" | "set" | "delete" | "list" | "get-state" | "read-state" | "select-project" | "get-settings" | "update-settings" | "get-setting" | "update-setting" | "discover-docs" | "resolve-docs-topic" | "register-contribution" | "unregister-contribution")[];
+    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
     readonly FAILURE_CODE: {
-        readonly INVALID_INPUT: "invalid-input";
-        readonly INVALID_PAYLOAD: "invalid-payload";
-        readonly UNKNOWN_EXTENSION: "unknown-extension";
-        readonly DISABLED_EXTENSION: "disabled-extension";
-        readonly UNKNOWN_CONTRIBUTION: "unknown-contribution";
-        readonly UNDECLARED_CAPABILITY: "undeclared-capability";
-        readonly UNDECLARED_METHOD: "undeclared-method";
-        readonly UNDECLARED_SCOPE: "undeclared-scope";
-        readonly OUT_OF_SCOPE: "out-of-scope";
-        readonly UNSUPPORTED_CAPABILITY: "unsupported-capability";
-        readonly UNSUPPORTED_METHOD: "unsupported-method";
-        readonly TRANSPORT_FAILED: "transport-failed";
+        readonly INVALID_INPUT: 'invalid-input';
+        readonly INVALID_PAYLOAD: 'invalid-payload';
+        readonly UNKNOWN_EXTENSION: 'unknown-extension';
+        readonly DISABLED_EXTENSION: 'disabled-extension';
+        readonly UNKNOWN_CONTRIBUTION: 'unknown-contribution';
+        readonly UNDECLARED_CAPABILITY: 'undeclared-capability';
+        readonly UNDECLARED_METHOD: 'undeclared-method';
+        readonly UNDECLARED_SCOPE: 'undeclared-scope';
+        readonly OUT_OF_SCOPE: 'out-of-scope';
+        readonly UNSUPPORTED_CAPABILITY: 'unsupported-capability';
+        readonly UNSUPPORTED_METHOD: 'unsupported-method';
+        readonly TRANSPORT_FAILED: 'transport-failed';
     };
-    readonly FAILURE_CODES: readonly ("invalid-input" | "invalid-payload" | "unknown-extension" | "disabled-extension" | "unknown-contribution" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "out-of-scope" | "unsupported-capability" | "unsupported-method" | "transport-failed")[];
+    readonly FAILURE_CODES: readonly ("disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method")[];
     readonly OUTCOME: {
-        readonly SUCCEEDED: "succeeded";
-        readonly REJECTED: "rejected";
+        readonly SUCCEEDED: 'succeeded';
+        readonly REJECTED: 'rejected';
     };
-    readonly OUTCOMES: readonly ("succeeded" | "rejected")[];
+    readonly OUTCOMES: readonly ("rejected" | "succeeded")[];
     readonly STATE_SELECTOR: {
-        readonly CURRENT_PROJECT: "current-project";
-        readonly CURRENT_SESSION: "current-session";
-        readonly CURRENT_BRANCH: "current-branch";
-        readonly RECENT_PROJECTS: "recent-projects";
-        readonly MODEL_PREFERENCES: "model-preferences";
+        readonly CURRENT_PROJECT: 'current-project';
+        readonly CURRENT_SESSION: 'current-session';
+        readonly CURRENT_BRANCH: 'current-branch';
+        readonly RECENT_PROJECTS: 'recent-projects';
+        readonly MODEL_PREFERENCES: 'model-preferences';
     };
-    readonly STATE_SELECTORS: readonly ("current-project" | "current-session" | "current-branch" | "recent-projects" | "model-preferences")[];
+    readonly STATE_SELECTORS: readonly ("current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects")[];
     readonly SETTING_KEY: {
-        readonly MODEL_PREFERENCES: "model-preferences";
-        readonly PROJECT_DISPLAY_NAME: "project-display-name";
+        readonly MODEL_PREFERENCES: 'model-preferences';
+        readonly PROJECT_DISPLAY_NAME: 'project-display-name';
     };
     readonly SETTING_KEYS: readonly ("model-preferences" | "project-display-name")[];
 };
 export declare const OPENWAGGLE_EXTENSION: {
-    readonly MANIFEST_FILE: "openwaggle.extension.json";
-    readonly SDK_VERSION: "0.1.0";
-    readonly PROJECT_ROOT_SEGMENTS: readonly [".openwaggle", "extensions"];
-    readonly GLOBAL_EXTENSIONS_DIR: "extensions";
+    readonly MANIFEST_FILE: 'openwaggle.extension.json';
+    readonly SDK_VERSION: '0.1.0';
+    readonly PROJECT_ROOT_SEGMENTS: readonly ['.openwaggle', 'extensions'];
+    readonly GLOBAL_EXTENSIONS_DIR: 'extensions';
     readonly SCOPE: {
-        readonly GLOBAL_KIND: "global";
-        readonly PROJECT_KIND: "project";
-        readonly GLOBAL_ID: "global";
+        readonly GLOBAL_KIND: 'global';
+        readonly PROJECT_KIND: 'project';
+        readonly GLOBAL_ID: 'global';
     };
     readonly LIMITS: {
         readonly ID_MAX_LENGTH: 96;
@@ -9795,51 +9795,51 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly SEMVER_VERSION: RegExp;
     };
     readonly PATH: {
-        readonly NUL_CHARACTER: "\0";
-        readonly POSIX_SEPARATOR: "/";
-        readonly WINDOWS_SEPARATOR: "\\";
-        readonly RELATIVE_PARENT_SEGMENT: "..";
-        readonly CURRENT_DIRECTORY_SEGMENT: ".";
+        readonly NUL_CHARACTER: '\0';
+        readonly POSIX_SEPARATOR: '/';
+        readonly WINDOWS_SEPARATOR: '\\';
+        readonly RELATIVE_PARENT_SEGMENT: '..';
+        readonly CURRENT_DIRECTORY_SEGMENT: '.';
     };
     readonly RUNTIME_MODULE_PROTOCOL: {
-        readonly MODULE_CONTEXT_SEGMENT: "__context__";
+        readonly MODULE_CONTEXT_SEGMENT: '__context__';
     };
-    readonly CAPABILITY_SCOPES: readonly ["app", "project", "session", "branch"];
+    readonly CAPABILITY_SCOPES: readonly ['app', 'project', 'session', 'branch'];
     readonly CONTRIBUTION_FAMILY: {
-        readonly COMMANDS: "commands";
-        readonly SLASH_COMMANDS: "slashCommands";
-        readonly ROUTES: "routes";
-        readonly SETTINGS_SECTIONS: "settingsSections";
-        readonly SIDE_PANELS: "sidePanels";
-        readonly DIALOGS: "dialogs";
-        readonly TRANSCRIPT_RENDERERS: "transcriptRenderers";
-        readonly TOOL_RENDERERS: "toolRenderers";
-        readonly CUSTOM_MESSAGE_RENDERERS: "customMessageRenderers";
-        readonly INTERACTION_RENDERERS: "interactionRenderers";
-        readonly STATUS_WIDGETS: "statusWidgets";
+        readonly COMMANDS: 'commands';
+        readonly SLASH_COMMANDS: 'slashCommands';
+        readonly ROUTES: 'routes';
+        readonly SETTINGS_SECTIONS: 'settingsSections';
+        readonly SIDE_PANELS: 'sidePanels';
+        readonly DIALOGS: 'dialogs';
+        readonly TRANSCRIPT_RENDERERS: 'transcriptRenderers';
+        readonly TOOL_RENDERERS: 'toolRenderers';
+        readonly CUSTOM_MESSAGE_RENDERERS: 'customMessageRenderers';
+        readonly INTERACTION_RENDERERS: 'interactionRenderers';
+        readonly STATUS_WIDGETS: 'statusWidgets';
     };
     readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly COMMAND_CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands"];
     readonly CONTRIBUTION_RUNTIME: {
-        readonly FEDERATED_MODULE: "federated-module";
-        readonly TRUSTED_RENDERER: "trusted-renderer";
+        readonly FEDERATED_MODULE: 'federated-module';
+        readonly TRUSTED_RENDERER: 'trusted-renderer';
     };
     readonly CONTRIBUTION_RUNTIMES: readonly ("federated-module" | "trusted-renderer")[];
     readonly EXECUTION_PLACEMENT: {
-        readonly HOST_RENDERER: "host-renderer";
-        readonly FRAME: "frame";
+        readonly HOST_RENDERER: 'host-renderer';
+        readonly FRAME: 'frame';
     };
-    readonly EXECUTION_PLACEMENTS: readonly ("host-renderer" | "frame")[];
+    readonly EXECUTION_PLACEMENTS: readonly ("frame" | "host-renderer")[];
     readonly STORAGE: {
         readonly KIND: {
-            readonly STATE: "state";
-            readonly CONFIG: "config";
+            readonly STATE: 'state';
+            readonly CONFIG: 'config';
         };
-        readonly KINDS: readonly ("state" | "config")[];
+        readonly KINDS: readonly ("config" | "state")[];
         readonly SCOPE: {
-            readonly GLOBAL_KIND: "global";
-            readonly PROJECT_KIND: "project";
-            readonly GLOBAL_ID: "global";
+            readonly GLOBAL_KIND: 'global';
+            readonly PROJECT_KIND: 'project';
+            readonly GLOBAL_ID: 'global';
         };
         readonly SCOPE_KINDS: readonly ("global" | "project")[];
         readonly KEY_MAX_LENGTH: 160;
@@ -9847,21 +9847,21 @@ export declare const OPENWAGGLE_EXTENSION: {
     readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly INSTALL_SOURCE: {
-        readonly PREBUILT: "prebuilt";
-        readonly LOCAL_BUILD: "local-build";
+        readonly PREBUILT: 'prebuilt';
+        readonly LOCAL_BUILD: 'local-build';
     };
-    readonly INSTALL_SOURCES: readonly ("prebuilt" | "local-build")[];
+    readonly INSTALL_SOURCES: readonly ("local-build" | "prebuilt")[];
     readonly RUNTIME_REQUIREMENT_TYPE: {
-        readonly BINARY: "binary";
-        readonly COMMAND: "command";
+        readonly BINARY: 'binary';
+        readonly COMMAND: 'command';
     };
     readonly RUNTIME_REQUIREMENT_TYPES: readonly ("binary" | "command")[];
     readonly NETWORK_ACCESS_MODE: {
-        readonly BROKERED: "brokered";
-        readonly RESTRICTED: "restricted";
-        readonly DIRECT: "direct";
+        readonly BROKERED: 'brokered';
+        readonly RESTRICTED: 'restricted';
+        readonly DIRECT: 'direct';
     };
-    readonly NETWORK_ACCESS_MODES: readonly ("brokered" | "restricted" | "direct")[];
+    readonly NETWORK_ACCESS_MODES: readonly ("brokered" | "direct" | "restricted")[];
 };
 ```
 
@@ -9881,9 +9881,9 @@ export declare const extensionRuntimeRequirementSchema: Schema.filter<Schema.Str
     command: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
     binary: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
 }>>;
-export declare const extensionInstallSourceSchema: Schema.SchemaClass<"prebuilt" | "local-build", "prebuilt" | "local-build", never>;
+export declare const extensionInstallSourceSchema: Schema.SchemaClass<"local-build" | "prebuilt", "local-build" | "prebuilt", never>;
 export declare const extensionInstallSchema: Schema.Struct<{
-    source: Schema.SchemaClass<"prebuilt" | "local-build", "prebuilt" | "local-build", never>;
+    source: Schema.SchemaClass<"local-build" | "prebuilt", "local-build" | "prebuilt", never>;
 }>;
 export declare const extensionBuildSchema: Schema.Struct<{
     command: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -9922,7 +9922,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
     sourceFiles: Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>;
     builtArtifacts: Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>;
     install: Schema.optional<Schema.Struct<{
-        source: Schema.SchemaClass<"prebuilt" | "local-build", "prebuilt" | "local-build", never>;
+        source: Schema.SchemaClass<"local-build" | "prebuilt", "local-build" | "prebuilt", never>;
     }>>;
     build: Schema.optional<Schema.Struct<{
         command: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -9978,7 +9978,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -9997,7 +9997,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10016,7 +10016,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10035,7 +10035,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10054,7 +10054,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10073,7 +10073,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10092,7 +10092,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10111,7 +10111,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10130,7 +10130,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
             entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10220,7 +10220,7 @@ export declare const extensionRouteContributionSchema: Schema.filter<Schema.Stru
     id: Schema.filter<Schema.filter<typeof Schema.String>>;
     title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-    execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+    execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
     entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     target: Schema.optional<Schema.Struct<{
         projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10239,7 +10239,7 @@ export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struc
     id: Schema.filter<Schema.filter<typeof Schema.String>>;
     title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-    execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+    execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
     entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     target: Schema.optional<Schema.Struct<{
         projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10283,7 +10283,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10302,7 +10302,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10321,7 +10321,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10340,7 +10340,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10359,7 +10359,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10378,7 +10378,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10397,7 +10397,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10416,7 +10416,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10435,7 +10435,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10472,7 +10472,7 @@ export declare const extensionRouteContributionRegistrationSchema: Schema.Struct
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10494,7 +10494,7 @@ export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10530,7 +10530,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10551,7 +10551,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
         entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10595,7 +10595,7 @@ export declare const extensionRelativePathSchema: Schema.filter<Schema.filter<ty
 export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
 export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
 export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"host-renderer" | "frame", "host-renderer" | "frame", never>;
+export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
 export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
 export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
 export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
@@ -11157,26 +11157,26 @@ export { createOpenWaggleExtensionUiStylesheet, extensionThemeCssVariableDeclara
 
 ```ts
 export declare const OPENWAGGLE_EXTENSION_UI_CLASS_NAMES: {
-    readonly root: "ow-extension-root";
-    readonly panel: "ow-extension-panel";
-    readonly stack: "ow-extension-stack";
-    readonly row: "ow-extension-row";
-    readonly heading: "ow-extension-heading";
-    readonly text: "ow-extension-text";
-    readonly muted: "ow-extension-muted";
-    readonly divider: "ow-extension-divider";
-    readonly button: "ow-extension-button";
-    readonly input: "ow-extension-input";
-    readonly textarea: "ow-extension-textarea";
-    readonly select: "ow-extension-select";
-    readonly checkbox: "ow-extension-checkbox";
-    readonly badge: "ow-extension-badge";
-    readonly field: "ow-extension-field";
-    readonly alert: "ow-extension-alert";
+    readonly root: 'ow-extension-root';
+    readonly panel: 'ow-extension-panel';
+    readonly stack: 'ow-extension-stack';
+    readonly row: 'ow-extension-row';
+    readonly heading: 'ow-extension-heading';
+    readonly text: 'ow-extension-text';
+    readonly muted: 'ow-extension-muted';
+    readonly divider: 'ow-extension-divider';
+    readonly button: 'ow-extension-button';
+    readonly input: 'ow-extension-input';
+    readonly textarea: 'ow-extension-textarea';
+    readonly select: 'ow-extension-select';
+    readonly checkbox: 'ow-extension-checkbox';
+    readonly badge: 'ow-extension-badge';
+    readonly field: 'ow-extension-field';
+    readonly alert: 'ow-extension-alert';
 };
 export declare const OPENWAGGLE_EXTENSION_UI_ATTRIBUTES: {
-    readonly tone: "data-ow-tone";
-    readonly variant: "data-ow-variant";
+    readonly tone: 'data-ow-tone';
+    readonly variant: 'data-ow-variant';
 };
 export type OpenWaggleExtensionUiTone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger' | 'info';
 export type OpenWaggleExtensionUiButtonVariant = 'primary' | 'secondary' | 'ghost';

@@ -36,7 +36,6 @@ import type {
   ExtensionSetTrustedInput,
 } from './extensions'
 import type { ProviderInfo, SupportedModelId } from './llm'
-import type { McpSetServerEnabledInput, McpSettingsView, McpWriteSourceConfigInput } from './mcp'
 import type {
   SessionCopyToNewResult,
   SessionDetail,
@@ -107,22 +106,6 @@ export interface IpcCoreInvokeChannelMap {
   'settings:test-api-key': {
     args: [provider: string, apiKey: string, projectPath?: string | null]
     return: { success: boolean; error?: string }
-  }
-  'mcp:get-settings': {
-    args: [projectPath?: string | null]
-    return: McpSettingsView
-  }
-  'mcp:set-adapter-enabled': {
-    args: [enabled: boolean, projectPath?: string | null]
-    return: McpSettingsView
-  }
-  'mcp:set-server-enabled': {
-    args: [input: McpSetServerEnabledInput]
-    return: McpSettingsView
-  }
-  'mcp:write-source-config': {
-    args: [input: McpWriteSourceConfigInput]
-    return: McpSettingsView
   }
   'extensions:list-packages': {
     args: [input?: ExtensionListPackagesInput]

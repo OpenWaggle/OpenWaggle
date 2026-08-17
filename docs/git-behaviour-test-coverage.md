@@ -62,7 +62,7 @@ duplicate-type guards above remain.
 
 ## Known gaps
 
-- **Git changes OpenWaggle did not make are not observed** (ADR 0016). No test covers agent-initiated `git checkout -b` reaching the UI, because the behaviour is deliberately absent.
+- **Git changes OpenWaggle did not make are not observed** (ADR 0018). No test covers agent-initiated `git checkout -b` reaching the UI, because the behaviour is deliberately absent.
 - **The unit runner can under-report totals** when a worker crashes in a native destructor at teardown (#151). Not a failing test; tracked separately.
 - **Layout and pointer interception are invisible to component tests.** jsdom has no layout engine, so every rect is zero and `fireEvent` dispatches without hit-testing. A button can be unreachable in the app while its test passes — this happened to the vanished-worktree recovery actions. Interactive additions need a real browser check.
 - **330 renderer test type errors across 54 files** were fenced by `scripts/renderer-test-type-exemptions.json` (#154). This is now closed: every renderer test file typechecks, the exemption list is empty, and the binary per-file guard keeps it that way.

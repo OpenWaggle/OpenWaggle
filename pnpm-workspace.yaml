@@ -14,7 +14,7 @@ trustPolicy: no-downgrade
 # the LAST entry of that list, so it cannot be relied on.
 trustPolicyIgnoreAfter: 43200
 
-# Investigated exception (PR #145, ADR 0014). @pierre/diffs is the diff renderer;
+# Investigated exception (PR #145, ADR 0016). @pierre/diffs is the diff renderer;
 # it transitively pins @pierre/theme@2.0.0 and @pierre/theming@1.0.1.
 #
 # Evidence: @pierre/theme published SLSA provenance on every version from 0.0.20
@@ -40,29 +40,106 @@ trustPolicyExclude:
 
 minimumReleaseAgeExclude:
   - "@diegogbrisa/*"
-  - hono@4.12.30
+  - hono@4.12.34
+  - undici@8.10.0
+  - "@aws-sdk/client-bedrock-runtime@3.1092.0"
+  - "@aws-sdk/core@3.976.0"
+  - "@aws-sdk/credential-provider-env@3.972.60"
+  - "@aws-sdk/credential-provider-http@3.972.62"
+  - "@aws-sdk/credential-provider-ini@3.973.5"
+  - "@aws-sdk/credential-provider-login@3.972.67"
+  - "@aws-sdk/credential-provider-node@3.972.71"
+  - "@aws-sdk/credential-provider-process@3.972.60"
+  - "@aws-sdk/credential-provider-sso@3.973.4"
+  - "@aws-sdk/credential-provider-web-identity@3.972.66"
+  - "@aws-sdk/middleware-websocket@3.972.42"
+  - "@aws-sdk/nested-clients@3.997.34"
+  - "@aws-sdk/token-providers@3.1092.0"
+  - "@earendil-works/pi-agent-core@0.81.1"
+  - "@earendil-works/pi-ai@0.81.1"
+  - "@earendil-works/pi-coding-agent@0.81.1"
+  - "@earendil-works/pi-tui@0.81.1"
+  - "@hono/node-server@2.0.11"
+  - "@huggingface/transformers@4.2.0"
+  - adm-zip@0.6.0
+  - "@eslint-community/eslint-utils@4.10.0"
+  - "@oxlint-tsgolint/darwin-arm64@7.0.2001"
+  - "@oxlint-tsgolint/darwin-x64@7.0.2001"
+  - "@oxlint-tsgolint/linux-arm64@7.0.2001"
+  - "@oxlint-tsgolint/linux-x64@7.0.2001"
+  - "@oxlint-tsgolint/win32-arm64@7.0.2001"
+  - "@oxlint-tsgolint/win32-x64@7.0.2001"
+  - "@oxlint/binding-android-arm-eabi@1.75.0"
+  - "@oxlint/binding-android-arm64@1.75.0"
+  - "@oxlint/binding-darwin-arm64@1.75.0"
+  - "@oxlint/binding-darwin-x64@1.75.0"
+  - "@oxlint/binding-freebsd-x64@1.75.0"
+  - "@oxlint/binding-linux-arm-gnueabihf@1.75.0"
+  - "@oxlint/binding-linux-arm-musleabihf@1.75.0"
+  - "@oxlint/binding-linux-arm64-gnu@1.75.0"
+  - "@oxlint/binding-linux-arm64-musl@1.75.0"
+  - "@oxlint/binding-linux-ppc64-gnu@1.75.0"
+  - "@oxlint/binding-linux-riscv64-gnu@1.75.0"
+  - "@oxlint/binding-linux-riscv64-musl@1.75.0"
+  - "@oxlint/binding-linux-s390x-gnu@1.75.0"
+  - "@oxlint/binding-linux-x64-gnu@1.75.0"
+  - "@oxlint/binding-linux-x64-musl@1.75.0"
+  - "@oxlint/binding-openharmony-arm64@1.75.0"
+  - "@oxlint/binding-win32-arm64-msvc@1.75.0"
+  - "@oxlint/binding-win32-ia32-msvc@1.75.0"
+  - "@oxlint/binding-win32-x64-msvc@1.75.0"
+  - "@smithy/core@3.29.7"
+  - "@smithy/credential-provider-imds@4.4.12"
+  - "@smithy/fetch-http-handler@5.6.9"
+  - "@smithy/node-http-handler@4.9.9"
+  - "@smithy/signature-v4@5.6.8"
+  - "@tanstack/eslint-plugin-query@5.101.4"
+  - "@tanstack/query-core@5.101.4"
+  - "@tanstack/react-query@5.101.4"
+  - "@vitejs/plugin-react@6.0.4"
+  - bare-url@2.4.6
+  - baseline-browser-mapping@2.11.0
+  - browserslist@4.28.7
+  - electron-to-chromium@1.5.395
+  - electron@43.2.0
+  - jose@6.2.4
+  - own-keys@1.0.2
+  - oxlint-tsgolint@7.0.2001
+  - oxlint@1.75.0
+  - postcss@8.5.22
+  - react-dom@19.2.8
+  - react@19.2.8
+  - release-please@17.10.4
+  - tar@7.5.21
+  - sharp@0.35.3
 
 overrides:
-  electron-vite>vite: 8.0.16
-  hono: 4.12.30
-  protobufjs: 8.6.0
+  "@hono/node-server": 2.0.11
+  "@earendil-works/pi-coding-agent>undici": 8.10.0
+  adm-zip: 0.6.0
+  electron-vite>vite: 8.1.5
+  hono: 4.12.34
+  protobufjs: 8.7.1
+  sharp: 0.35.3
   "@tanstack/history": 1.162.0
-  "@tanstack/query-core": 5.101.0
+  "@tanstack/query-core": 5.101.4
   "@tanstack/react-hotkeys": 0.10.0
-  "@tanstack/react-query": 5.101.0
-  "@tanstack/react-router": 1.170.11
-  "@tanstack/router-core": 1.171.9
-  "@tanstack/router-generator": 1.167.13
-  "@tanstack/router-plugin": 1.168.14
-  "@tanstack/router-utils": 1.162.1
+  "@tanstack/react-query": 5.101.4
+  "@tanstack/react-router": 1.170.18
+  "@tanstack/router-core": 1.171.15
+  "@tanstack/router-generator": 1.167.21
+  "@tanstack/router-plugin": 1.168.23
+  "@tanstack/router-utils": 1.162.2
   "@tanstack/virtual-file-routes": 1.162.0
 
 peerDependencyRules:
   allowedVersions:
-    eslint-plugin-import>eslint: 10.4.1
-
-patchedDependencies:
-  better-sqlite3@12.10.0: patches/better-sqlite3@12.10.0.patch
+    eslint-plugin-import>eslint: 10.7.0
+    "@tanstack/eslint-plugin-query>typescript": 7.0.2
+    "@typescript-eslint/project-service>typescript": 7.0.2
+    "@typescript-eslint/tsconfig-utils>typescript": 7.0.2
+    "@typescript-eslint/typescript-estree>typescript": 7.0.2
+    "@typescript-eslint/utils>typescript": 7.0.2
 
 allowBuilds:
   "@google/genai": false
@@ -74,6 +151,7 @@ allowBuilds:
   koffi: false
   msgpackr-extract: false
   node-pty: true
+  onnxruntime-node: true
   sharp: true
   tesseract.js: false
   unrs-resolver: false

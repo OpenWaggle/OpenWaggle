@@ -1,47 +1,31 @@
-import { AuthStorage, ModelRegistry } from '@earendil-works/pi-coding-agent'
+import type { Model } from '@earendil-works/pi-ai'
 import type { HydratedAgentSendPayload } from '@shared/types/agent'
 import { describe, expect, it } from 'vitest'
 import { buildPiPromptInput } from '../pi-runtime-input'
 
-function makeRegistry() {
-  const authStorage = AuthStorage.inMemory()
-  const modelRegistry = ModelRegistry.inMemory(authStorage)
-  modelRegistry.registerProvider('test-provider', {
-    api: 'openai-responses',
+function makeModel(
+  id: string,
+  input: Model<'openai-responses'>['input'],
+): Model<'openai-responses'> {
+  return {
+    id,
+    provider: 'test-provider',
     baseUrl: 'https://example.test',
-    apiKey: 'TEST_PROVIDER_API_KEY',
-    models: [
-      {
-        id: 'image-model',
-        name: 'Image Model',
-        api: 'openai-responses',
-        reasoning: false,
-        input: ['text', 'image'],
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-        contextWindow: 128_000,
-        maxTokens: 16_384,
-      },
-      {
-        id: 'text-model',
-        name: 'Text Model',
-        api: 'openai-responses',
-        reasoning: false,
-        input: ['text'],
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-        contextWindow: 128_000,
-        maxTokens: 16_384,
-      },
-    ],
-  })
-  return modelRegistry
+    api: 'openai-responses',
+    name: id === 'image-model' ? 'Image Model' : 'Text Model',
+    reasoning: false,
+    input,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: 128_000,
+    maxTokens: 16_384,
+  }
 }
 
-function requireModel(modelRegistry: ModelRegistry, modelId: string) {
-  const model = modelRegistry.find('test-provider', modelId)
-  if (!model) {
-    throw new Error(`Missing test model ${modelId}`)
+function makeModels() {
+  return {
+    image: makeModel('image-model', ['text', 'image']),
+    text: makeModel('text-model', ['text']),
   }
-  return model
 }
 
 function makePayload(overrides?: Partial<HydratedAgentSendPayload>): HydratedAgentSendPayload {
@@ -80,8 +64,8 @@ function makePayload(overrides?: Partial<HydratedAgentSendPayload>): HydratedAge
 
 describe('buildPiPromptInput', () => {
   it('includes image attachments as Pi images when the selected Pi model supports them', () => {
-    const modelRegistry = makeRegistry()
-    const result = buildPiPromptInput(requireModel(modelRegistry, 'image-model'), makePayload())
+    const models = makeModels()
+    const result = buildPiPromptInput(models.image, makePayload())
 
     expect(result.images).toEqual([
       {
@@ -96,8 +80,8 @@ describe('buildPiPromptInput', () => {
   })
 
   it('keeps attachment summaries in text when the selected Pi model is text-only', () => {
-    const modelRegistry = makeRegistry()
-    const result = buildPiPromptInput(requireModel(modelRegistry, 'text-model'), makePayload())
+    const models = makeModels()
+    const result = buildPiPromptInput(models.text, makePayload())
 
     expect(result.images).toEqual([])
     expect(result.text).toContain('[Attachment: diagram.png]')
@@ -105,11 +89,8 @@ describe('buildPiPromptInput', () => {
   })
 
   it('supports attachment-only prompts', () => {
-    const modelRegistry = makeRegistry()
-    const result = buildPiPromptInput(
-      requireModel(modelRegistry, 'image-model'),
-      makePayload({ text: '   ' }),
-    )
+    const models = makeModels()
+    const result = buildPiPromptInput(models.image, makePayload({ text: '   ' }))
 
     expect(result.text).toContain('[Attachment: diagram.png]')
     expect(result.text.length).toBeGreaterThan(0)

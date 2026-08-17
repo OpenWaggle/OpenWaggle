@@ -72,7 +72,7 @@ These packages use the MIT license, independent semver versions, Node.js `>=22.1
 
 `@openwaggle/extension-react` must not bundle React. It declares `react` and `react-dom` as peer dependencies with initial ranges of `^19.0.0`, while `@openwaggle/extension-sdk` is a normal dependency that publishes as a caret semver range. The package should also list React, React DOM, and their type packages as package-local dev dependencies for build and test coverage; those dev dependencies must not appear in the published runtime dependency graph.
 
-`@openwaggle/pi-waggle` must not publish wildcard Pi peer dependencies. It declares explicit Pi peer ranges for the Pi API line it was built against. The initial ranges are `@earendil-works/pi-coding-agent: ^0.80.6` and `@earendil-works/pi-tui: ^0.80.6`, with exact package-local dev dependencies on `0.80.6` for build and test coverage.
+`@openwaggle/pi-waggle` follows Pi's package contract for host-provided SDKs: imported Pi SDK packages are peer dependencies with a `"*"` range and are not bundled. Exact package-local dev dependencies pin the Pi version used for build and test coverage; the current tested line is `0.81.x`. This keeps a Pi-installed package on the host's single SDK instance while making compatibility changes visible through package QA.
 
 `@openwaggle/waggle-core` must remain runtime-neutral reusable policy. It must not import Pi SDK packages, Electron, Node built-ins, OpenWaggle renderer stores, or app services. Pi-specific bindings, renderers, commands, and extension registration belong in `@openwaggle/pi-waggle`.
 

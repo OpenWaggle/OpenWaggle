@@ -5,13 +5,43 @@
 
 [![npm version](https://img.shields.io/npm/v/@openwaggle/pi-waggle?color=f5a623)](https://www.npmjs.com/package/@openwaggle/pi-waggle) [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.19-43853d)](https://openwaggle.ai/docs/packages/pi-waggle/0.1/) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/OpenWaggle/OpenWaggle/blob/main/LICENSE)
 
-Pi-native Waggle package built on top of @openwaggle/waggle-core.
+Run two configurable Pi agents in alternating turns until they reach consensus or a safety limit.
 
 [Full documentation](https://openwaggle.ai/docs/packages/pi-waggle/0.1/) · [OpenWaggle](https://openwaggle.ai/) · [Issues](https://github.com/OpenWaggle/OpenWaggle/issues)
 
-`@openwaggle/pi-waggle` is the Pi-native Waggle package.
+`@openwaggle/pi-waggle` adds a structured two-agent collaboration loop to Pi.
 
-Use it when you want Waggle mode inside a Pi runtime. It includes the reusable `@openwaggle/waggle-core` policy dependency, registers the default `/waggle` and `/standard` commands, renders Pi-native Waggle messages, and stores Waggle mode state with Pi custom messages.
+## What Waggle Mode Does
+
+Waggle mode gives the same task to two configurable agents and lets them alternate turns in one Pi session. Each agent sees the work already produced, can use Pi's normal tools, and contributes from a different role. The loop stops when the agents reach consensus, the configured turn safety limit is reached, the user stops it, or an error prevents another turn.
+
+For example, one agent can implement a change while another reviews it, an attacker can probe a design while a defender hardens it, or an advocate and critic can test competing approaches. Use Waggle mode when a task benefits from iteration and opposing viewpoints. Standard Pi mode is usually faster and cheaper for simple questions or one-step edits.
+
+The package includes `@openwaggle/waggle-core`, registers `/waggle` and `/standard`, renders each turn with Pi-native UI, and persists mode state as Pi custom messages.
+
+## Install In Pi
+
+Install the extension for your user:
+
+```bash
+pi install npm:@openwaggle/pi-waggle
+```
+
+Install it only for the current project:
+
+```bash
+pi install npm:@openwaggle/pi-waggle -l
+```
+
+Try it for one run without keeping it installed:
+
+```bash
+pi -e npm:@openwaggle/pi-waggle
+```
+
+Pi installs the package and provides its Pi SDK peer dependencies. After installation, run `/waggle` to choose or configure a preset.
+
+If you are importing the package APIs into another project instead of installing the Pi extension, use your package manager:
 
 ## Install
 
@@ -39,7 +69,7 @@ yarn add @openwaggle/pi-waggle @earendil-works/pi-coding-agent @earendil-works/p
 bun add @openwaggle/pi-waggle @earendil-works/pi-coding-agent @earendil-works/pi-tui
 ```
 
-`@earendil-works/pi-coding-agent` and `@earendil-works/pi-tui` are peer dependencies. Install versions compatible with the range in the package manifest.
+`@earendil-works/pi-coding-agent` and `@earendil-works/pi-tui` are host-provided peer dependencies. Application developers should install the Pi versions used by their host.
 
 Pi users normally install `@openwaggle/pi-waggle` alone for Waggle mode. Install `@openwaggle/waggle-core` directly only when your code imports core helpers itself.
 
@@ -126,8 +156,8 @@ For runtime-neutral policy, use [`@openwaggle/waggle-core`](https://openwaggle.a
 | Requirement | Supported line |
 |-------------|----------------|
 | Node.js | 22.19 and newer |
-| Pi coding agent | Compatible `0.80.x` peer range from the package manifest |
-| Pi TUI | Compatible `0.80.x` peer range from the package manifest |
+| Pi coding agent | Host-provided peer; tested with `0.81.x` |
+| Pi TUI | Host-provided peer; tested with `0.81.x` |
 | Module format | ESM and CommonJS |
 | Pi Waggle documentation | 0.1 |
 

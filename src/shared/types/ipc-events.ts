@@ -67,7 +67,7 @@ export interface IpcEventChannelMap {
    *
    * Path-scoped on purpose: a coarse "git changed" signal would make every open
    * session re-run a full `git diff` when one unrelated tree was staged, and diffs
-   * here are expensive enough to carry an explicit maxBuffer (ADR 0016). Carries an
+   * here are expensive enough to carry an explicit maxBuffer (ADR 0018). Carries an
    * invalidation rather than computed state, so the schema stays decoupled from
    * consumers and large diffs stay off the IPC bus.
    */

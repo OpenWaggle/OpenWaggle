@@ -16,64 +16,36 @@ async function createTempProject() {
 }
 
 describe('Pi session lifecycle', () => {
-  it('binds session_start with the MCP adapter runtime context and emits session_shutdown on dispose', async () => {
+  it('binds session_start and emits session_shutdown on dispose', async () => {
     const projectPath = await createTempProject()
-    const adapterCwd = path.join(projectPath, 'generated-adapter-cwd')
-    const configPath = path.join(projectPath, 'generated-mcp.json')
-    await fs.mkdir(adapterCwd, { recursive: true })
-    await fs.writeFile(configPath, '{"mcpServers":{}}\n', 'utf8')
-
     const events: {
-      readonly sessionStartCwds: string[]
-      readonly sessionStartConfigs: string[]
-      readonly sessionShutdownCwds: string[]
-      readonly sessionShutdownConfigs: string[]
+      starts: number
       shutdowns: number
     } = {
-      sessionStartCwds: [],
-      sessionStartConfigs: [],
-      sessionShutdownCwds: [],
-      sessionShutdownConfigs: [],
+      starts: 0,
       shutdowns: 0,
     }
     const factory: ExtensionFactory = (pi) => {
-      pi.registerFlag('mcp-config', {
-        description: 'Path to MCP config file',
-        type: 'string',
-      })
       pi.on('session_start', () => {
-        events.sessionStartCwds.push(process.cwd())
-        const config = pi.getFlag('mcp-config')
-        if (typeof config === 'string') {
-          events.sessionStartConfigs.push(config)
-        }
+        events.starts += 1
       })
       pi.on('session_shutdown', () => {
-        events.sessionShutdownCwds.push(process.cwd())
-        const config = pi.getFlag('mcp-config')
-        if (typeof config === 'string') {
-          events.sessionShutdownConfigs.push(config)
-        }
         events.shutdowns += 1
       })
     }
 
     const services = await createPiRuntimeServices(projectPath, {
       extensionFactories: [factory],
-      mcpRuntimeContext: { configPath, adapterCwd },
     })
     const { session } = await createOpenWaggleAgentSessionFromServices({
       services,
       sessionManager: SessionManager.inMemory(projectPath),
     })
 
-    expect(events.sessionStartCwds).toEqual([adapterCwd])
-    expect(events.sessionStartConfigs).toEqual([configPath])
+    expect(events.starts).toBe(1)
 
     await disposeOpenWagglePiSession(session)
     expect(events.shutdowns).toBe(1)
-    expect(events.sessionShutdownCwds).toEqual([adapterCwd])
-    expect(events.sessionShutdownConfigs).toEqual([configPath])
   })
 
   it('does not let shutdown hook failures escape disposal', async () => {
@@ -85,7 +57,6 @@ describe('Pi session lifecycle', () => {
     }
     const services = await createPiRuntimeServices(projectPath, {
       extensionFactories: [factory],
-      mcpRuntimeContext: null,
     })
     const { session } = await createOpenWaggleAgentSessionFromServices({
       services,
@@ -95,44 +66,19 @@ describe('Pi session lifecycle', () => {
     await expect(disposeOpenWagglePiSession(session)).resolves.toBeUndefined()
   })
 
-  it('scopes raw lifecycle operations to the MCP adapter runtime context', async () => {
+  it('executes raw lifecycle operations without process-global mutation', async () => {
     const projectPath = await createTempProject()
-    const adapterCwd = path.join(projectPath, 'generated-adapter-cwd')
-    const configPath = path.join(projectPath, 'generated-mcp.json')
-    await fs.mkdir(adapterCwd, { recursive: true })
-    await fs.writeFile(configPath, '{"mcpServers":{}}\n', 'utf8')
-
-    const shutdownCwds: string[] = []
-    const shutdownConfigs: string[] = []
-    const factory: ExtensionFactory = (pi) => {
-      pi.registerFlag('mcp-config', {
-        description: 'Path to MCP config file',
-        type: 'string',
-      })
-      pi.on('session_shutdown', () => {
-        shutdownCwds.push(process.cwd())
-        const config = pi.getFlag('mcp-config')
-        if (typeof config === 'string') {
-          shutdownConfigs.push(config)
-        }
-      })
-    }
-
-    const services = await createPiRuntimeServices(projectPath, {
-      extensionFactories: [factory],
-      mcpRuntimeContext: { configPath, adapterCwd },
-    })
+    const services = await createPiRuntimeServices(projectPath)
     const { session } = await createOpenWaggleAgentSessionFromServices({
       services,
       sessionManager: SessionManager.inMemory(projectPath),
     })
 
-    await withOpenWagglePiSessionLifecycleContext(session, () =>
-      session.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' }),
+    const result = await withOpenWagglePiSessionLifecycleContext(session, async () =>
+      Promise.resolve({ cwd: process.cwd(), argv: [...process.argv] }),
     )
 
-    expect(shutdownCwds).toEqual([adapterCwd])
-    expect(shutdownConfigs).toEqual([configPath])
+    expect(result).toEqual({ cwd: process.cwd(), argv: [...process.argv] })
 
     await disposeOpenWagglePiSession(session)
   })

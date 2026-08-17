@@ -44,7 +44,7 @@ export function useWorkspaceLifecycle(): void {
 
   useEffect(() => {
     // Status follows the active session's working tree; the branch list is
-    // repository-level (ADR 0016).
+    // repository-level (ADR 0018).
     void refreshGitStatus(workingPath)
     void refreshGitBranches(repositoryPath)
   }, [workingPath, repositoryPath, refreshGitStatus, refreshGitBranches])

@@ -51,8 +51,8 @@ import type {
 } from './git'
 import type { IpcEventPayload } from './ipc'
 import type { ProviderInfo, SupportedModelId } from './llm'
-import type { McpSetServerEnabledInput, McpSettingsView, McpWriteSourceConfigInput } from './mcp'
 import type { OpenWaggleExtensionApi } from './openwaggle-extension-api'
+import type { OpenWaggleMcpApi } from './openwaggle-mcp-api'
 import type { AgentPhaseState } from './phase'
 import type {
   SessionCopyToNewResult,
@@ -77,7 +77,7 @@ import type { UpdateStatus } from './updater'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 import type { WaggleConfig, WagglePreset } from './waggle'
 
-export interface OpenWaggleApi extends OpenWaggleExtensionApi {
+export interface OpenWaggleApi extends OpenWaggleExtensionApi, OpenWaggleMcpApi {
   // Agent
   sendMessage(
     sessionId: SessionId,
@@ -119,10 +119,6 @@ export interface OpenWaggleApi extends OpenWaggleExtensionApi {
     apiKey: string,
     projectPath?: string | null,
   ): Promise<{ success: boolean; error?: string }>
-  getMcpSettings(projectPath?: string | null): Promise<McpSettingsView>
-  setMcpAdapterEnabled(enabled: boolean, projectPath?: string | null): Promise<McpSettingsView>
-  setMcpServerEnabled(input: McpSetServerEnabledInput): Promise<McpSettingsView>
-  writeMcpSourceConfig(input: McpWriteSourceConfigInput): Promise<McpSettingsView>
   discoverDocs(input?: DocsListInput): Promise<DocsDiscoveryView>
   resolveDocsTopic(input: DocsResolveTopicInput): Promise<FirstPartyDocsTopicSummary | null>
 

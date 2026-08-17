@@ -29,7 +29,7 @@ export type WorkingPath = string & Brand.Brand<'WorkingPath'>
 /**
  * A filesystem path that identifies a repository — where branch lists, worktree lists and
  * remotes live. A linked worktree shares `refs/` with the primary checkout, so this data
- * is per-repository, not per session (ADR 0016).
+ * is per-repository, not per session (ADR 0018).
  */
 export type RepositoryPath = string & Brand.Brand<'RepositoryPath'>
 

@@ -12,7 +12,6 @@ import { ProviderProbeService } from '../../../ports/provider-probe-service'
 
 interface RuntimeServicesOptions {
   readonly enabledOpenWaggleExtensionPackagePaths: readonly string[]
-  readonly loadMcpAdapter: boolean
 }
 
 type RuntimeServicesLoader = (
@@ -119,11 +118,9 @@ function piServices(loadErrors: readonly PiExtensionLoadErrorFixture[] = []) {
         errors: loadErrors,
       }),
     },
-    authStorage: {
-      setRuntimeApiKey: () => undefined,
-    },
-    modelRegistry: {
-      find: () => ({ id: 'offline-model' }),
+    modelRuntime: {
+      setRuntimeApiKey: async () => undefined,
+      getModel: () => ({ id: 'offline-model' }),
     },
   })
 }

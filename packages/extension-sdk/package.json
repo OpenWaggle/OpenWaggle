@@ -28,7 +28,7 @@
   },
   "sideEffects": false,
   "dependencies": {
-    "effect": "3.21.2"
+    "effect": "3.22.0"
   },
   "files": [
     "dist",

@@ -74,7 +74,7 @@ function FileChangeBadges({ stats }: { readonly stats: FileChangeStats }) {
  *
  * Built on @headless-tree so keyboard navigation, focus management, and the
  * ARIA tree semantics come from a maintained implementation rather than being
- * hand-rolled, while every row is still rendered with our own tokens (ADR 0014).
+ * hand-rolled, while every row is still rendered with our own tokens (ADR 0016).
  *
  * Expansion is DERIVED, not stored: every folder is expanded unless the user
  * explicitly collapsed it. `initialState.expandedItems` is applied only on mount,

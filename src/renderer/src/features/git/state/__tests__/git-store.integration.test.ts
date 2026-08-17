@@ -17,7 +17,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 
 import { selectWorkingTreeStatus, useGitStore } from '../git-store'
 
-/** Status is keyed by working path (ADR 0016), so a read must name the tree. */
+/** Status is keyed by working path (ADR 0018), so a read must name the tree. */
 function statusFor(workingPath: string) {
   return selectWorkingTreeStatus(useGitStore.getState(), workingPath).status
 }

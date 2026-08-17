@@ -9,7 +9,7 @@
     "jsx": "react-jsx",
     "strict": true,
     "skipLibCheck": true,
-    "outDir": "./.tsbuild",
+    "outDir": "./.typecheck/web",
     "rootDir": ".",
     "paths": {
       "*": ["./*"],

@@ -327,7 +327,7 @@ lines, 16 tests) which covers all those behaviours and adds worktree-mode select
 missing-ref flagging, copy-to-clipboard, start-from-origin, change-request checkout.
 
 Deleted behaviours and their fate:
-- Rename/delete/upstream dialogs and tests: removed intentionally (ADR 0015), no
+- Rename/delete/upstream dialogs and tests: removed intentionally (ADR 0017), no
   longer in the store (ComposerActionDialogKind = 'create-branch' only). Tests were
   the only coverage, and the behaviour no longer exists. ✓
 - Branch current indicator (●): now tested via aria-current assertion in

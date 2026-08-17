@@ -41,8 +41,7 @@ const scanGlobs: string[] = [
 const ignoreGlobs: string[] = [
   '.git/**',
   '.fallow/**',
-  '.tsbuild/**',
-  '.tsbuild-renderer-tests/**',
+  '.typecheck/**',
   'build/**',
   '.pi/**',
   'coverage/**',
@@ -50,7 +49,6 @@ const ignoreGlobs: string[] = [
   'node_modules/**',
   '**/node_modules/**',
   'out/**',
-  '.tsbuild/**',
   'packages/**/.pack/**',
   'packages/**/dist/**',
   'packages/**/dist-cjs/**',

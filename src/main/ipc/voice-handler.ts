@@ -19,16 +19,16 @@ const PCM16_SIGNED_NORMALIZATION_FACTOR = 32768
 
 const VOICE_MODEL_CONFIG: Record<
   VoiceModel,
-  { modelId: string; quantized: boolean; language?: string }
+  { modelId: string; dtype: 'fp32' | 'q8'; language?: string }
 > = {
   tiny: {
     modelId: 'Xenova/whisper-tiny.en',
-    quantized: true,
+    dtype: 'q8',
     language: 'en',
   },
   base: {
     modelId: 'Xenova/whisper-base',
-    quantized: false,
+    dtype: 'fp32',
   },
 }
 
@@ -63,7 +63,7 @@ type WhisperTranscriber = (
 ) => Promise<unknown>
 
 interface WhisperTranscriberOptions {
-  readonly quantized?: boolean
+  readonly dtype?: 'fp32' | 'q8'
   readonly task?: 'transcribe'
   readonly return_timestamps?: boolean
   readonly chunk_length_s?: number
@@ -170,7 +170,7 @@ async function loadTranscriber(model: VoiceModel): Promise<WhisperTranscriber> {
 
   const config = VOICE_MODEL_CONFIG[model]
   const transcriberPromise = (async () => {
-    const imported: unknown = await import('@xenova/transformers')
+    const imported: unknown = await import('@huggingface/transformers')
     assertTransformersModule(imported)
 
     const cacheDir = path.join(app.getPath('userData'), 'models', 'transformers')
@@ -184,7 +184,7 @@ async function loadTranscriber(model: VoiceModel): Promise<WhisperTranscriber> {
     }
 
     const transcriber = await imported.pipeline('automatic-speech-recognition', config.modelId, {
-      quantized: config.quantized,
+      dtype: config.dtype,
     })
     if (!isWhisperTranscriber(transcriber)) {
       throw new Error('Whisper transcriber could not be created.')

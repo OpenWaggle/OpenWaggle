@@ -11,9 +11,9 @@ OpenWaggle focuses on the Settings and composer workflow. Pi owns the provider/m
 
 Primary Pi references:
 
-- [Pi providers](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/providers.md)
-- [Pi custom models](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/models.md)
-- [Pi custom providers](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/custom-provider.md)
+- [Pi providers](https://pi.dev/docs/latest/providers)
+- [Pi custom models](https://pi.dev/docs/latest/models)
+- [Pi custom providers](https://pi.dev/docs/latest/custom-provider)
 
 ## Provider-Qualified Models
 
@@ -44,7 +44,7 @@ See [API Key Auth](/docs/providers/api-key-auth).
 
 ## OAuth Auth
 
-OAuth providers come directly from Pi `AuthStorage.getOAuthProviders()`. OpenWaggle starts the same browser-based login flow through a nicer settings UI.
+OAuth providers come directly from Pi `ModelRuntime` provider metadata. OpenWaggle starts the same browser-based login flow through a nicer settings UI.
 
 See [OAuth Auth](/docs/providers/oauth-auth).
 

@@ -35,7 +35,7 @@ jobs:
     steps:
       - name: Create or update the coordinated package release PR
         id: release
-        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
+        uses: googleapis/release-please-action@1afbd760e855a7181e737350c3fe3fe085acd177 # v5
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
@@ -60,7 +60,7 @@ jobs:
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         if: ${{ steps.release.outputs.prs_created == 'true' }}
         with:
-          version: 11.6.0
+          version: 11.15.1
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         if: ${{ steps.release.outputs.prs_created == 'true' }}

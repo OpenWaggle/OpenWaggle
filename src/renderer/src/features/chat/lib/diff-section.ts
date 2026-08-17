@@ -8,7 +8,7 @@ import type { ChatDiffSectionState } from '../model'
  * `workingPath` is the working tree the panel reads and mutates — the Session
  * worktree in worktree mode — while `repositoryPath` keeps the repository identity so
  * the panel can tell a worktree apart from the opened checkout and say which one it
- * is showing (ADR 0016).
+ * is showing (ADR 0018).
  */
 export function buildDiffSection(input: {
   readonly activeSession: Parameters<typeof resolveSessionWorkingDir>[0]

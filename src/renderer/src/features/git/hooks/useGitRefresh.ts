@@ -25,7 +25,7 @@ interface UseGitRefreshOptions {
  * transport event means a turn finished, so whatever the agent did to the working
  * tree is now visible. Status refreshes the **working path** and the branch list the
  * repository path — refreshing status for the project would report on the primary
- * checkout while the agent was editing a Session worktree (ADR 0016).
+ * checkout while the agent was editing a Session worktree (ADR 0018).
  */
 export function useGitRefresh({
   workingPath,

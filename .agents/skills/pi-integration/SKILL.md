@@ -17,7 +17,8 @@ Keep OpenWaggle a product/UI layer over Pi. Pi semantics are the runtime source 
 
 ## Provider, Model, And Auth
 
-- Source metadata from Pi `AuthStorage`, `ModelRegistry`, and project-scoped session services.
+- Source provider, model, and auth metadata from Pi `ModelRuntime` and project-scoped session services.
+- Derive API-key and OAuth support from each Pi provider's typed `auth` metadata; do not mirror provider capability lists in OpenWaggle.
 - Treat model identity as `provider/modelId`.
 - Keep provider-level runtime availability separate from API-key configured state and OAuth connected state.
 - Provider catalog/probe services should avoid loading optional MCP adapter extensions when only metadata/auth probing is needed.

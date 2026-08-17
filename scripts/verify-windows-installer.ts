@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url'
 
 const INSTALLER_ARGUMENT_INDEX = 2
 const INSTALLED_EXECUTABLE = 'OpenWaggle.exe'
+const INSTALLED_CLI_SHIM = 'openwaggle.cmd'
 const SILENT_INSTALL_ARGUMENT = '/S'
 
 type VerifyWindowsInstallerInput = {
@@ -43,6 +44,7 @@ export async function verifyWindowsInstaller(
   }
 
   await verifyPath(join(input.installDirectory, INSTALLED_EXECUTABLE))
+  await verifyPath(join(input.installDirectory, INSTALLED_CLI_SHIM))
 }
 
 async function main() {

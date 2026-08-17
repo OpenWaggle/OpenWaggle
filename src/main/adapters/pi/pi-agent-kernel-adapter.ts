@@ -13,8 +13,11 @@ import {
 import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
+import { McpConfigService, type McpConfigServiceShape } from '../../ports/mcp-config-service'
+import { McpRuntimeService, type McpRuntimeServiceShape } from '../../ports/mcp-runtime-service'
 import { runPiSession } from './agent-kernel/classic-run'
 import type { PiRuntimeExtensionIsolationInput } from './agent-kernel/runtime-extension-isolation'
+import { requireSessionProjectPath } from './agent-kernel/session-manager'
 import {
   compactPiSession,
   forkPiSession,
@@ -24,6 +27,7 @@ import {
 } from './agent-kernel/session-operations'
 import { createPiSession } from './agent-kernel/session-runtime'
 import { runPiWaggle } from './agent-kernel/waggle-run'
+import { createMcpGatewayExtension } from './mcp-gateway-extension'
 import {
   listRuntimeEnabledPackages,
   type OpenWagglePiExtensionSelectionServices,
@@ -85,6 +89,46 @@ function loadPiRuntimeExtensionIsolationInput(
   })
 }
 
+export function prepareMcpTurn(input: {
+  readonly projectPath: string
+  readonly executionPath: string
+  readonly sessionId: string
+  readonly config: McpConfigServiceShape
+  readonly runtime: McpRuntimeServiceShape
+}) {
+  return Effect.gen(function* () {
+    const snapshot = yield* input.config.createTurnSnapshot(input)
+    yield* input.runtime.prepareTurn({ sessionId: input.sessionId, snapshot })
+    return yield* Effect.gen(function* () {
+      const directTools = snapshot ? yield* input.runtime.listDirectTools(snapshot) : []
+      const extensionFactory = snapshot
+        ? createMcpGatewayExtension({
+            snapshot,
+            directTools,
+            executeGateway: (request, signal, interactions) =>
+              Effect.runPromise(
+                input.runtime.executeGateway({
+                  snapshot,
+                  request,
+                  ...(signal ? { signal } : {}),
+                  ...(interactions ? { interactions } : {}),
+                }),
+              ),
+          })
+        : undefined
+      const finish = Effect.gen(function* () {
+        const nextSnapshot = yield* input.config.createTurnSnapshot(input)
+        yield* input.runtime.completeTurn({ sessionId: input.sessionId, nextSnapshot })
+      }).pipe(Effect.catchAllCause(() => input.runtime.disposeSession(input.sessionId)))
+      return { extensionFactory, finish }
+    }).pipe(
+      Effect.onError(() =>
+        input.runtime.disposeSession(input.sessionId).pipe(Effect.catchAllCause(() => Effect.void)),
+      ),
+    )
+  })
+}
+
 export const PiAgentKernelLive = Layer.effect(
   AgentKernelService,
   Effect.gen(function* () {
@@ -93,6 +137,8 @@ export const PiAgentKernelLive = Layer.effect(
       lifecycleRepository: yield* ExtensionLifecycleRepository,
       projectOverridesRepository: yield* ExtensionProjectOverridesRepository,
     } satisfies OpenWagglePiExtensionSelectionServices
+    const mcpConfigService = yield* McpConfigService
+    const mcpRuntimeService = yield* McpRuntimeService
 
     return AgentKernelService.of({
       createSession: (input) =>
@@ -107,14 +153,36 @@ export const PiAgentKernelLive = Layer.effect(
             input,
             extensionSelectionServices,
           )
-
+          const projectPath = yield* Effect.try({
+            try: () => requireSessionProjectPath(input.session),
+            catch: toAgentKernelError,
+          })
+          const mcpTurn = yield* prepareMcpTurn({
+            projectPath,
+            executionPath: projectPath,
+            sessionId: input.session.id,
+            config: mcpConfigService,
+            runtime: mcpRuntimeService,
+          })
           return yield* Effect.tryPromise({
             try: () =>
               hasWaggleRunOptions(input)
-                ? runPiWaggle({ ...input, ...runtimeExtensionIsolation })
-                : runPiSession({ ...input, ...runtimeExtensionIsolation }),
+                ? runPiWaggle({
+                    ...input,
+                    ...runtimeExtensionIsolation,
+                    ...(mcpTurn.extensionFactory
+                      ? { mcpExtensionFactory: mcpTurn.extensionFactory }
+                      : {}),
+                  })
+                : runPiSession({
+                    ...input,
+                    ...runtimeExtensionIsolation,
+                    ...(mcpTurn.extensionFactory
+                      ? { mcpExtensionFactory: mcpTurn.extensionFactory }
+                      : {}),
+                  }),
             catch: toAgentKernelError,
-          })
+          }).pipe(Effect.ensuring(mcpTurn.finish))
         }),
 
       getContextUsage: (input: AgentKernelSessionInput) =>

@@ -4,6 +4,78 @@ OpenWaggle is an Electron desktop coding-agent workspace built on Pi. This gloss
 
 ## Language
 
+**OpenWaggle MCP integration**:
+The complete first-party product capability through which OpenWaggle consumes and optionally serves the Model Context Protocol.
+_Avoid_: Pi MCP extension, MCP plugin
+
+**MCP runtime**:
+The OpenWaggle-owned per-session subsystem that resolves MCP state, negotiates protocol capabilities, manages connections and tasks, and projects authorized tools into Pi.
+_Avoid_: MCP agent loop, Pi adapter extension
+
+**MCP desired state**:
+The user's global, project, or session request for MCP to be on, off, or inherited, independent from the currently applied runtime state.
+_Avoid_: extension enabled flag
+
+**MCP effective configuration**:
+The fully resolved server, scope, policy, trust, authentication, sandbox, and capability configuration with provenance for every contributing source.
+_Avoid_: merged mcp.json, Pi settings
+
+**MCP turn snapshot**:
+The immutable MCP effective configuration, catalog revision, handles, credentials, grants, and capability negotiation used by one agent turn.
+_Avoid_: live mutable MCP config
+
+**MCP gateway**:
+The stable, catalog-free `mcp` model tool that provides deferred list, search, describe, and single-call access through opaque handles.
+_Avoid_: injected MCP tool registry
+
+**MCP orchestration**:
+Confined multi-call composition through `mcp_run`, where intermediate results remain outside model context and every child call keeps its own policy and audit lifecycle.
+_Avoid_: arbitrary code execution, OpenCode Code Mode as the product name
+
+**MCP direct exposure**:
+An explicit opt-in that places selected individual MCP tool definitions on the model's native tool list.
+_Avoid_: default MCP mode, compatibility fallback
+
+**MCP capability handle**:
+An opaque session-, revision-, schema-, and identity-bound reference returned by deferred discovery and required for dispatch.
+_Avoid_: tool name as authority
+
+**MCP compatibility module**:
+An isolated implementation of deprecated or vendor-specific protocol behavior that cannot weaken modern MCP defaults.
+_Avoid_: silent legacy fallback
+
+**MCP trust record**:
+A fail-closed approval bound to server identity, effective configuration hash, package or endpoint identity, requested capabilities, and security profile.
+_Avoid_: trusted server name
+
+**MCP capability grant**:
+A scoped authorization for one server capability, data class, destination, project/session, and schema/config revision.
+_Avoid_: blanket server approval
+
+**MCP Task**:
+A durable OpenWaggle record of asynchronous MCP work that can be inspected, resumed, cancelled when supported, or completed without holding an agent turn open.
+_Avoid_: long-running tool call
+
+**MCP Event Inbox**:
+The opt-in attributed queue for proactive external MCP events, separate from standard state subscriptions and agent context.
+_Avoid_: automatic server prompt
+
+**MCP App host**:
+The sandboxed OpenWaggle-owned container and JSON-RPC bridge for standard `ui://` MCP Apps.
+_Avoid_: extension runtime, trusted webview
+
+**OpenWaggle MCP server profile**:
+The authenticated, revocable set of projects, session operations, agent capabilities, rates, and approval delegation exposed by `openwaggle mcp serve` to one caller.
+_Avoid_: inherited desktop permissions
+
+**Session Control**:
+The first-party OpenWaggle domain service through which authorized agents or adapters list, read, create, fork, steer, wait for, interrupt, hand off, and organize sessions.
+_Avoid_: MCP-owned sessions, loopback MCP orchestration
+
+**Session capability grant**:
+A caller-, operation-, workspace-, ancestry-, and target-bound authorization to use Session Control without inheriting another session's permissions.
+_Avoid_: desktop session permission inheritance
+
 **OpenWaggle extension package**:
 A first-class local package that can add OpenWaggle desktop contributions and optionally Pi runtime resources.
 _Avoid_: plugin, addon
@@ -375,7 +447,7 @@ A persisted snapshot of a Session worktree's file state captured per Pi agent tu
 _Avoid_: Pi session snapshot (that is conversation state), autosave
 
 **Session worktree**:
-A dedicated git worktree bound to one session running in worktree environment mode and shared by that session's conversation forks. OpenWaggle owns the worktree: it persists the worktree **path** and derives the branch name from the session id (`sessionWorktreeBranch`), rather than storing it. A branch changed underneath it — by the agent or from a terminal — is **not tracked**, a deliberate limitation recorded in ADR 0016.
+A dedicated git worktree bound to one session running in worktree environment mode and shared by that session's conversation forks. OpenWaggle owns the worktree: it persists the worktree **path** and derives the branch name from the session id (`sessionWorktreeBranch`), rather than storing it. A branch changed underneath it — by the agent or from a terminal — is **not tracked**, a deliberate limitation recorded in ADR 0018.
 _Avoid_: branch (ambiguous here), session branch, checkout
 
 **Working path**:
@@ -421,7 +493,7 @@ The ref the next send will run on. In `local` mode that is the checked-out branc
 _Avoid_: current branch (only true in local mode), base branch (only true in worktree mode), run context
 
 **Run target picker**:
-The single ref chooser in the **Session context row**. Selecting a ref resolves against the **Session environment mode**: it checks the ref out in `local` mode and records it as the **Worktree base ref** in `worktree` mode. It also hosts ref search, create-and-switch, copy-name, start-from-origin, and change-request checkout. It offers no branch administration — see ADR 0015.
+The single ref chooser in the **Session context row**. Selecting a ref resolves against the **Session environment mode**: it checks the ref out in `local` mode and records it as the **Worktree base ref** in `worktree` mode. It also hosts ref search, create-and-switch, copy-name, start-from-origin, and change-request checkout. It offers no branch administration — see ADR 0017.
 _Avoid_: branch picker (it picks a run target, not a branch to manage), branch manager, Options popover (removed)
 
 **Syntax theme**:
@@ -565,7 +637,7 @@ _Avoid_: description, cover letter, global comment
 - A **Derived token** is computed from **Semantic roles**, so it re-themes with an **Appearance** without appearing in the public contract.
 - A session's git reads and writes target its **Working path**; **Session environment mode** decides whether that is the **Session worktree** or the opened checkout. Repository-level data (branch list, worktree list, remotes) stays keyed to the project, because a linked worktree shares refs with the primary checkout.
 - The **Session context row** states where the next send runs: it owns the **Session environment mode**, and its **Run target picker** owns the **Run target**, which resolves to the checked-out branch or the **Worktree base ref** depending on the mode. It is distinct from the **Branch-diff base ref** chosen in the diff panel.
-- The **Run target picker** deliberately excludes branch administration (rename, delete, set upstream); those were removed end to end in ADR 0015, so branch cleanup is asked of the agent or done outside OpenWaggle.
+- The **Run target picker** deliberately excludes branch administration (rename, delete, set upstream); those were removed end to end in ADR 0017, so branch cleanup is asked of the agent or done outside OpenWaggle.
 - The **Changed-file navigator** lists files within the active diff scope, so its contents change with **Working-tree diff**, **Branch diff**, or **Turn diff** selection.
 - The **Diff chrome** is a set of **Derived tokens**, so it always matches the active **Appearance**; the **Syntax theme** is independent and selectable on its own.
 - A **Review comment** anchors to a diff line and carries its **Hunk** snippet; a **Review** gathers pending Review comments plus an optional **Review summary** and submits them to the agent as one message, never touching the composer.
@@ -772,6 +844,12 @@ _Avoid_: description, cover letter, global comment
 > **Domain expert:** "No — local docs are discoverable; trust and lifecycle are metadata, not visibility gates."
 
 ## Flagged ambiguities
+
+- "MCP extension" can imply that MCP lifecycle belongs to a Pi or OpenWaggle extension package. Resolved: use **OpenWaggle MCP integration** for the product and **MCP runtime** for the per-session client lifecycle.
+- "MCP enabled" can mean desired configuration or applied runtime state. Resolved: use **MCP desired state** for the user's request and report separately whether the safe boundary has applied it.
+- "Code Mode" can imply arbitrary code or a provider feature. Resolved: use **MCP orchestration** for OpenWaggle's confined provider-independent multi-call capability.
+- "MCP App" can imply an OpenWaggle extension. Resolved: standard Apps run in an **MCP App host** and never receive the Extension SDK merely by rendering.
+- "desktop session permissions" can imply ambient authority from an open window. Resolved: cross-session work uses **Session Control** with an explicit **Session capability grant**; the target keeps its own execution profile.
 
 - "lane" was used to mean both placement and execution model. Resolved: use **Extension contribution surface** for placement and **Extension contribution runtime** for loading/execution.
 - "trusted-react" was used as a general visual-extension model. Resolved: use **Federated module runtime** as the general model; framework choices such as React, Vue, Preact, or plain DOM are implementation choices inside the contribution.

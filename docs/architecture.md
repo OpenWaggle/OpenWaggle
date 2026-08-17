@@ -26,10 +26,12 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 - `docs/adr/0010-adopt-worktree-per-session-environment-mode.md`
 - `docs/adr/0011-per-turn-worktree-checkpointing.md`
 - `docs/adr/0012-source-control-provider-cli-adapters-and-stacked-actions.md`
-- `docs/adr/0013-single-design-token-contract.md`
-- `docs/adr/0014-adopt-pierre-diffs-renderer.md`
-- `docs/adr/0015-remove-git-branch-administration-from-composer.md`
-- `docs/adr/0016-session-keyed-git-state.md`
+- `docs/adr/0013-adopt-first-party-mcp-integration.md`
+- `docs/adr/0014-windows-mcp-stdio-sandbox.md`
+- `docs/adr/0015-single-design-token-contract.md`
+- `docs/adr/0016-adopt-pierre-diffs-renderer.md`
+- `docs/adr/0017-remove-git-branch-administration-from-composer.md`
+- `docs/adr/0018-session-keyed-git-state.md`
 
 ## Testing
 

@@ -68,7 +68,7 @@ Pi's resource loader is the runtime source of truth for skills and context files
 
 ## MCP
 
-MCP support is provided through Pi's extension system using the `pi-mcp-adapter` package source. The main process owns MCP config file reads/writes behind `McpConfigService`; the renderer only sees typed IPC DTOs. The effective MCP config merges global standard, global Pi, project standard, `.agents`, project Pi, and `.openwaggle/agent/mcp.json` sources before being passed to Pi for the next run. The Pi adapter scopes adapter startup and session binding to the generated MCP config and an isolated adapter cwd, then emits `session_shutdown` before disposal so MCP server state follows Pi's extension lifecycle.
+MCP is a first-party main-process subsystem behind `McpConfigService` and `McpRuntimeService`. Configuration resolves from `~/.openwaggle/mcp.json`, project `.mcp.json`, and project `.openwaggle/mcp.json`; user state separately owns scope, enablement, trust, grants, secrets, OAuth, and durable remote Tasks. The runtime negotiates current and legacy MCP revisions, owns transports and server lifecycle, and projects an OpenWaggle-owned gateway into Pi with an internal extension factory. No MCP extension package is installed or persisted in Pi settings.
 
 ## OpenWaggle Extensions
 

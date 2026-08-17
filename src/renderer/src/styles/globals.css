@@ -145,7 +145,7 @@
   }
 
   /*
-   * Diff chrome (ADR 0014 / ADR 0013 amendment).
+   * Diff chrome (ADR 0016 / ADR 0015 amendment).
    *
    * @pierre/diffs supplies the Syntax theme (code token colours), which is
    * deliberately outside our Design token contract — grammar scopes are not

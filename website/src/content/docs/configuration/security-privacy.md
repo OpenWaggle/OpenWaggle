@@ -1,7 +1,7 @@
 ---
 title: "Security & Privacy"
 description: "Current security boundaries for Electron, storage, provider auth, terminal, and Pi tools."
-order: 4
+order: 5
 section: "Configuration"
 ---
 

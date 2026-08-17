@@ -90,7 +90,8 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
 
       list: (limit) => repoOp('list', () => store.listSessionSummaries(limit)),
 
-      listDetails: (limit) => repoOp('listDetails', () => store.listSessionDetails(limit)),
+      listDetails: (limit, offset) =>
+        repoOp('listDetails', () => store.listSessionDetails(limit, offset)),
 
       create: (input) => repoOp('create', () => store.createSession(input)),
 

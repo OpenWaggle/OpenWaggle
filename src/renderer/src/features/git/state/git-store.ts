@@ -29,7 +29,7 @@ const EMPTY_WORKING_TREE_STATUS: GitWorkingTreeStatus = {
 
 interface GitState {
   /**
-   * Status per Working path (ADR 0016). A single slot could not represent two
+   * Status per Working path (ADR 0018). A single slot could not represent two
    * sessions running in two worktrees, which is exactly the case this fixes.
    */
   statusByWorkingPath: Readonly<Record<string, GitWorkingTreeStatus>>

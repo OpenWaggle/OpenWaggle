@@ -116,7 +116,7 @@ describe('package release validation', () => {
       )
       await writeJson(path.join(projectRoot, 'package.json'), {
         devDependencies: {
-          'release-please': '17.6.0',
+          'release-please': '17.6.1',
         },
         scripts: {
           check: 'pnpm typecheck && pnpm lint',
@@ -126,6 +126,37 @@ describe('package release validation', () => {
       const result = await validatePackageReleaseFiles(projectRoot)
 
       expect(result.violations).toContain('package.json scripts.check must run pnpm package:smoke.')
+    } finally {
+      await fs.rm(projectRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects lint scripts that skip package dependency builds', async () => {
+    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
+    try {
+      await writeMinimalPackageReleaseProject(projectRoot, validWorkflow)
+      const packageJsonPath = path.join(projectRoot, 'package.json')
+      const packageJson: unknown = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'))
+      if (!isJsonObject(packageJson)) {
+        throw new Error('Expected package fixture to be an object.')
+      }
+      const scripts = packageJson.scripts
+      if (!isJsonObject(scripts)) {
+        throw new Error('Expected package fixture scripts to be an object.')
+      }
+      await writeJson(packageJsonPath, {
+        ...packageJson,
+        scripts: {
+          ...scripts,
+          lint: 'oxlint src packages',
+        },
+      })
+
+      const result = await validatePackageReleaseFiles(projectRoot)
+
+      expect(result.violations).toContain(
+        'package.json scripts.lint must build package dependencies immediately before clean-checkout type-aware analysis.',
+      )
     } finally {
       await fs.rm(projectRoot, { recursive: true, force: true })
     }
@@ -143,14 +174,14 @@ describe('package release validation', () => {
       await writeJson(packageJsonPath, {
         ...packageJson,
         devDependencies: {
-          'release-please': '^17.6.0',
+          'release-please': '^17.6.1',
         },
       })
 
       const result = await validatePackageReleaseFiles(projectRoot)
 
       expect(result.violations).toContain(
-        'package.json must pin release-please 17.6.0 for deterministic preflight contracts.',
+        'package.json must pin release-please 17.6.1 for deterministic preflight contracts.',
       )
     } finally {
       await fs.rm(projectRoot, { recursive: true, force: true })
