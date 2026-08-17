@@ -6,7 +6,7 @@ Which git, diff and worktree behaviours are covered, and by which test. Kept as 
 
 | Behaviour | Test | Notes |
 |---|---|---|
-| Quick-action resolution from combined VCS status | `src/renderer/src/features/git/lib/__tests__/git-quick-action.unit.test.ts` | 20 cases across the clean / ahead / behind / diverged / upstream / change-request / default-ref / dirty / no-remote matrix, including GitLab MR terminology. |
+| Quick-action resolution from combined VCS status | `src/renderer/src/features/git/lib/__tests__/git-quick-action.unit.test.ts` | The clean / ahead / behind / diverged / upstream / change-request / default-ref / dirty / no-remote matrix, including GitLab MR terminology. |
 | Stacked-action progress stages, default-branch confirmation, auto branch naming | `src/shared/utils/__tests__/git-stacked-action.unit.test.ts` | Progress stages, default-branch confirmation gating and copy (PR/MR), auto feature-branch naming with collision suffixing, phase planning. |
 | Session-worktree orphan detection and cleanup | `src/main/ipc/git/__tests__/worktree-cleanup.unit.test.ts` | Sole-owner / shared / different-worktree / no-worktree / unknown, path normalization, display formatting. |
 | Diff-scope selection and memory | `src/renderer/src/features/diff-panel/state/__tests__/diff-scope-store.unit.test.ts` | Default scope (clean → branch, dirty → unstaged), preserving an explicit selection across a working-tree state change, clearing incompatible fields on scope switch, base-ref memory, reveal-request increment, stale-turn reconciliation. |
@@ -15,10 +15,10 @@ Which git, diff and worktree behaviours are covered, and by which test. Kept as 
 | Stacked-action orchestration | `src/main/ipc/git/__tests__/stacked-action-service.unit.test.ts` | Phase ordering branch → commit → push → change request, centralized stop-at-first-failure, pull-only, skip-commit-when-clean. |
 | Unified-diff parsing into per-file summaries | `src/shared/utils/__tests__/turn-diff-parse.unit.test.ts` | Per-file additions/deletions, empty diff, rename-only (zero line changes), CRLF normalization, and splitting a Turn diff into per-file blocks. |
 | Turn checkpoint storage and querying | `src/main/store/__tests__/turn-checkpoints.integration.test.ts` | Record / get / list, query by turn range, retention (prune to N), CASCADE delete, upsert, anchor-node round-trip. |
-| Combined local + remote VCS status | `src/main/ipc/git/__tests__/vcs-status-service.unit.test.ts`, `useCombinedVcsStatus` | Local (no network) versus remote (fetch), with distinct not-a-repo and remote-unreachable failures. |
+| Combined local + remote VCS status | `src/main/ipc/git/__tests__/vcs-status-service.unit.test.ts` | Local (no network) versus remote (fetch), with distinct not-a-repo and remote-unreachable failures. Main-process only — the renderer merge in `useCombinedVcsStatus` is untested (see Known gaps). |
 | Composer send gating for worktree mode | `src/renderer/src/features/git/lib/__tests__/worktree-send-plan.unit.test.ts` | Proceed / create-worktree / blocked, and defaulting the Worktree base ref to the current branch. |
 | Base-ref choices for the Branch-diff combobox | `src/renderer/src/features/diff-panel/lib/__tests__/base-ref-choices.unit.test.ts` | Local/remote pairing preferring origin, plus filtering. |
-| Checking a change request out into a worktree | `src/main/adapters/source-control/__tests__/gh-cli-adapter.unit.test.ts` | `gh pr checkout` / `glab mr checkout` typed primitive, plus the composer control. |
+| Checking a change request out into a worktree | `src/main/adapters/source-control/__tests__/gh-cli-adapter.unit.test.ts` | `gh pr checkout` typed primitive, plus the composer control. The GitLab `glab mr checkout` path is implemented but has no asserted test (see Known gaps). |
 | Obstruction-scanning `revert-all` safety | `src/main/ipc/git/__tests__/working-tree-service.{unit,integration}.test.ts` | Pre-mutation scan for nested repositories and path conflicts before a destructive revert. |
 | Diff rendering, review flow and navigator | `src/renderer/src/features/diff-panel/**/__tests__/*` | Review comment payload, code-view item caching, navigator tree, review submission (including the double-submit guard). |
 
@@ -66,3 +66,5 @@ duplicate-type guards above remain.
 - **The unit runner can under-report totals** when a worker crashes in a native destructor at teardown (#151). Not a failing test; tracked separately.
 - **Layout and pointer interception are invisible to component tests.** jsdom has no layout engine, so every rect is zero and `fireEvent` dispatches without hit-testing. A button can be unreachable in the app while its test passes — this happened to the vanished-worktree recovery actions. Interactive additions need a real browser check.
 - **330 renderer test type errors across 54 files** were fenced by `scripts/renderer-test-type-exemptions.json` (#154). This is now closed: every renderer test file typechecks, the exemption list is empty, and the binary per-file guard keeps it that way.
+- **`useCombinedVcsStatus` has no test.** The hook merges local and remote VCS status for the diff panel's quick action; only the main-process services it calls are covered. The diff-panel component tests do not stub `getLocalVcsStatus` / `getRemoteVcsStatus`, so the renderer-side merge is unverified.
+- **`glab mr checkout` is unasserted.** `glab-cli-adapter.ts` implements the GitLab change-request checkout, but no test pins its command array; only the `gh` equivalent is asserted.

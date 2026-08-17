@@ -1,6 +1,6 @@
 # Session-Keyed Git State
 
-Status: accepted (not yet implemented — see Staging)
+Status: accepted (implemented)
 
 OpenWaggle keys its git surface to the **working path** of the active session — the Session worktree in worktree mode, the opened checkout in local mode — and refreshes that state whenever OpenWaggle itself changes git.
 
@@ -38,7 +38,7 @@ So the trigger for "the agent changed something, go look" is built and correctly
 
 **3. Route the existing refresh triggers through the working path, and invalidate per path.** `useGitRefresh` already fires on turn end and window focus; it must refresh the session's working path rather than the project path. Every git mutation we perform — commit, stage-all, revert-all, worktree create/remove, branch create/checkout, worktree birth — invalidates for the affected working path. Invalidation carries the working path rather than being a coarse "git changed" signal: coarse events fan out, making session A re-run a full `git diff` because session B's index changed, and diffs here carry an explicit `maxBuffer`. Invalidating rather than pushing computed state keeps the event schema decoupled from consumers and keeps large diff payloads off the IPC bus; it also reuses the existing `invalidateGitStatusCache` instead of introducing a parallel mechanism.
 
-**4. Record the branch and worktree path we set, at the moment we set them.** `worktreeBaseRef` and `worktreeStartFromOrigin` stay immutable birth provenance, because Turn checkpoints anchor to them (ADR 0011) and overwriting them would strand historical Turn diffs.
+**4. Record the worktree path, and derive the branch from the session id.** The worktree *path* and environment mode are persisted on the session; the branch is **not** stored, it is derived on demand by `sessionWorktreeBranch(sessionId)` so that birth and recreation cannot disagree about the name (a divergence that once stranded a commit — see below). `worktreeBaseRef` and `worktreeStartFromOrigin` stay immutable birth provenance, because Turn checkpoints anchor to them (ADR 0011) and overwriting them would strand historical Turn diffs.
 
 **5. No `.git` watcher, no polling.** The existing turn-boundary and window-focus triggers cover the cases that matter once they point at the right path. Polling costs work while idle, is still stale while busy, and guarantees nothing at any instant. A watcher would close the two narrow gaps named in Known limitation — see there for why it is deferred rather than dismissed.
 

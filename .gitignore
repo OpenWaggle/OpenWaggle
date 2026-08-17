@@ -37,3 +37,6 @@ build/openwaggle-docs/
 .fallow
 # TypeScript incremental build artifacts
 *.tsbuildinfo
+
+# Local herdr orchestration config (machine-specific)
+.agents/skills/herdr-orchestration/.herdr-config.json

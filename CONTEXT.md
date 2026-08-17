@@ -375,7 +375,7 @@ A persisted snapshot of a Session worktree's file state captured per Pi agent tu
 _Avoid_: Pi session snapshot (that is conversation state), autosave
 
 **Session worktree**:
-A dedicated git worktree bound to one session running in worktree environment mode and shared by that session's conversation forks. OpenWaggle owns the worktree and records the branch it sets; a branch changed underneath it — by the agent or from a terminal — is **not tracked**, a deliberate limitation recorded in ADR 0016.
+A dedicated git worktree bound to one session running in worktree environment mode and shared by that session's conversation forks. OpenWaggle owns the worktree: it persists the worktree **path** and derives the branch name from the session id (`sessionWorktreeBranch`), rather than storing it. A branch changed underneath it — by the agent or from a terminal — is **not tracked**, a deliberate limitation recorded in ADR 0016.
 _Avoid_: branch (ambiguous here), session branch, checkout
 
 **Working path**:

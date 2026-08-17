@@ -11,7 +11,7 @@ import {
 
 const SCROLL_RESTORE_TOLERANCE_PX = 16
 
-test('after sending a message, transcript sticks to the bottom like t3code', async () => {
+test('after sending a message, transcript sticks to the bottom', async () => {
   const app = await OpenWaggleApp.launch('openwaggle-e2e-scroll-regression-')
 
   try {

@@ -139,7 +139,7 @@ function configureScrollableElement(scroller: HTMLElement) {
   }
 }
 
-describe('ChatTranscript t3-style scroll behavior', () => {
+describe('ChatTranscript pinned-turn scroll behavior', () => {
   beforeEach(() => {
     apiMock.registerExtensionFrame.mockClear()
     apiMock.unregisterExtensionFrame.mockClear()

@@ -64,6 +64,7 @@ your-project/
     prompts/
     themes/
     mcp.json
+    waggle-presets.json
   .agents/
     skills/
     extensions/
@@ -99,3 +100,5 @@ Current Pi-backed UI preferences include:
 
 - `treeFilterMode` — selected Session Tree filter mode.
 - `branchSummary.skipPrompt` — whether to skip the branch-summary choice when navigating from an earlier session-tree node.
+
+Not every OpenWaggle preference is project-scoped. The Appearance settings (diff view, wrap long lines, syntax theme) and the default session environment mode are **app-global**, stored in `openwaggle.db` rather than in a project file, so they cannot be set per project.

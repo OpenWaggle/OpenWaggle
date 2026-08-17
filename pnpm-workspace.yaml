@@ -22,7 +22,8 @@ trustPolicyIgnoreAfter: 43200
 # drop is scope-wide and consistent across @pierre/* rather than isolated to one
 # version, and the scope publishes @pierre/diffs daily - consistent with a change
 # of publish pipeline, not the single-version takeover this policy hunts.
-# Apache-2.0, and the same renderer T3Code runs in production.
+# Apache-2.0, and the same renderer used in production by the mature
+# implementation this work was compared against.
 #
 # trustPolicyIgnoreAfter (30d) would exempt these automatically once 2.0.0 ages
 # past 2026-08-23; this names them explicitly so the reason is recorded rather
