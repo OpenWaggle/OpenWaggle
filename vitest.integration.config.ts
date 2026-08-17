@@ -15,11 +15,12 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.integration.test.ts'],
     // Real-Git integration tests shell out to `git` many times (worktree add, commit,
-    // prune). Under the suite's parallel execution those subprocesses contend for CPU
-    // and a single test can exceed the 5s default, so they time out on a busy machine
-    // while passing in isolation. Give them room; hooks also run git in setup/teardown.
-    testTimeout: 30_000,
-    hookTimeout: 30_000,
+    // prune). Under the suite's parallel execution those subprocesses contend for CPU and
+    // a single test can take ~12s on a busy machine while passing in isolation. A timeout
+    // is a ceiling, not a wait — healthy tests still finish in ~12s — so a generous ceiling
+    // removes flake at no runtime cost. Hooks also run git in setup/teardown.
+    testTimeout: 60_000,
+    hookTimeout: 60_000,
     coverage: {
       enabled: false,
     },
