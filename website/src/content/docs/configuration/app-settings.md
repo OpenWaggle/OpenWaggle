@@ -12,12 +12,15 @@ Open Settings from the sidebar gear icon.
 | Section | Description |
 |---------|-------------|
 | **General** | General application settings. |
+| **Appearance** | Default diff view (unified or split) and the diff **syntax theme**, with a live preview. |
 | **Waggle Mode** | Multi-agent Waggle configuration and presets. |
+| **Extensions** | Manage OpenWaggle and Pi extensions. |
 | **MCP** | Pi extension-backed MCP server configuration, source hierarchy, and toggles. |
+| **Worktrees** | Default session environment mode (local or worktree) and management of the open project's session worktrees. |
 | **Connections** | Pi-backed API-key and OAuth provider authentication, plus enabled model selection. |
 | **Archived items** | Restore archived sessions and non-main session branches, or permanently delete archived sessions. |
 
-Configuration, Personalization, Git, Environments, and Worktrees are visible as disabled settings areas but are not active product surfaces yet.
+Configuration, Personalization, Git, and Environments are visible as disabled settings areas but are not active product surfaces yet.
 
 Archived branches are hidden from normal sidebar navigation but remain visible in the full Session Tree with archived state. Branch deletion is not exposed until Pi supports native branch deletion.
 
