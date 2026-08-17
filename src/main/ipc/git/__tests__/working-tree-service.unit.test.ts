@@ -25,6 +25,7 @@ describe('Git working-tree action failures', () => {
       .mockResolvedValueOnce({ stdout: '', stderr: '', code: 0 })
       .mockResolvedValueOnce({ stdout: '', stderr: '', code: 0 })
       .mockResolvedValueOnce({ stdout: '', stderr: '', code: 0 })
+      .mockResolvedValueOnce({ stdout: '', stderr: '', code: 0 })
       .mockResolvedValueOnce({ stdout: '', stderr: 'permission denied\n', code: 1 })
 
     await expect(revertAllGitChanges('/repo')).resolves.toEqual({

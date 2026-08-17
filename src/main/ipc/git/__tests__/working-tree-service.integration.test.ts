@@ -157,4 +157,56 @@ describe('Git working-tree actions', () => {
     })
     expect(await readFile(overlappingPath, 'utf8')).toBe('nested version\n')
   })
+
+  it('refuses when a type-changed directory holds ignored content reset --hard would destroy', async () => {
+    const repositoryPath = await createRepository()
+    // `modified.txt` is a tracked file in HEAD; turn it into a directory (a type change)
+    // that also holds a staged descendant and an ignored file. `reset --hard` would have
+    // to remove the directory to restore the file, taking the ignored file with it.
+    const typeChangedPath = path.join(repositoryPath, 'modified.txt')
+    const ignoredInside = path.join(typeChangedPath, 'ignored.log')
+
+    await unlink(typeChangedPath)
+    await mkdir(typeChangedPath)
+    await writeFile(path.join(typeChangedPath, 'staged.txt'), 'staged\n')
+    await runGit(['add', 'modified.txt/staged.txt'])
+    await writeFile(ignoredInside, 'precious ignored data\n')
+
+    const result = await revertAllGitChanges(repositoryPath)
+
+    expect(result).toEqual({
+      ok: false,
+      code: 'unsafe-revert',
+      message: 'Revert all stopped because modified.txt obstructs a tracked path.',
+    })
+    expect(await readFile(ignoredInside, 'utf8')).toBe('precious ignored data\n')
+  })
+
+  it('reverts unrelated changes without flagging an initialized tracked submodule', async () => {
+    const repositoryPath = await createRepository()
+    const submoduleSource = await mkdtemp(path.join(tmpdir(), 'openwaggle-submodule-src-'))
+    try {
+      await execFileAsync('git', ['init'], { cwd: submoduleSource })
+      await execFileAsync('git', ['config', 'user.name', 'Sub Test'], { cwd: submoduleSource })
+      await execFileAsync('git', ['config', 'user.email', 'sub@example.test'], {
+        cwd: submoduleSource,
+      })
+      await writeFile(path.join(submoduleSource, 'lib.txt'), 'lib\n')
+      await execFileAsync('git', ['add', '--all'], { cwd: submoduleSource })
+      await execFileAsync('git', ['commit', '-m', 'Submodule baseline'], { cwd: submoduleSource })
+
+      await runGit(['-c', 'protocol.file.allow=always', 'submodule', 'add', submoduleSource, 'sub'])
+      await runGit(['commit', '-m', 'Add submodule'])
+      // An unrelated tracked change that revert-all must still handle.
+      await writeFile(path.join(repositoryPath, 'modified.txt'), 'after\n')
+
+      const result = await revertAllGitChanges(repositoryPath)
+
+      expect(result).toEqual({ ok: true, message: 'All eligible working-tree changes reverted.' })
+      expect(await readFile(path.join(repositoryPath, 'modified.txt'), 'utf8')).toBe('before\n')
+      expect(await pathExists(path.join(repositoryPath, 'sub', '.git'))).toBe(true)
+    } finally {
+      await rm(submoduleSource, { recursive: true, force: true })
+    }
+  })
 })

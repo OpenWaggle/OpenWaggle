@@ -69,6 +69,7 @@ describe('registerGitHandlers working-tree actions', () => {
           .with('rev-parse --show-toplevel', () => callback(null, '/tmp/repo\n', ''))
           .with('ls-tree -r -z --name-only HEAD', () => callback(null, '', ''))
           .with('ls-files -z', () => callback(null, '', ''))
+          .with('ls-files --stage -z', () => callback(null, '', ''))
           .with('reset --hard HEAD', () => callback(null, 'HEAD is now at abc123\n', ''))
           .with('clean -fd -- :/', () => callback(null, 'Removing untracked.txt\n', ''))
           .otherwise(() =>
