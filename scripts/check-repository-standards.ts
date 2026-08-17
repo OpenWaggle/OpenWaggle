@@ -140,17 +140,56 @@ function collectToolingConfigViolations(file: string) {
  */
 const SESSION_BRANCH_PREFIX_LITERAL = ['ow', 'session-'].join('/')
 const SESSION_BRANCH_CONVENTION_OWNER = 'src/shared/utils/worktree.ts'
+const POLICY_SCRIPT_OWN_PATH = 'scripts/check-repository-standards.ts'
+
+/*
+ * Match the prefix in any literal form, not just a template literal. An independent audit
+ * proved the earlier template-only test was narrower than its own error message claimed:
+ * `const p = 'ow/session-probe'` and `'ow/session-' + id` both passed the guard, so the
+ * "single source of truth" it advertises could be bypassed by writing the prefix a
+ * different way.
+ *
+ * Comment lines are stripped first so prose that documents the convention (including this
+ * file and the JSDoc in the git worktree adapter) is not reported as a violation.
+ */
+function sessionBranchPrefixForms(): readonly string[] {
+  return [
+    `\`${SESSION_BRANCH_PREFIX_LITERAL}`,
+    `'${SESSION_BRANCH_PREFIX_LITERAL}`,
+    `"${SESSION_BRANCH_PREFIX_LITERAL}`,
+  ]
+}
+
+function withoutCommentLines(contents: string) {
+  return contents
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .filter((line) => {
+      const trimmed = line.trimStart()
+      return !trimmed.startsWith('//') && !trimmed.startsWith('*')
+    })
+    .join('\n')
+}
 
 function collectSessionBranchConventionViolations(file: string, contents: string) {
   const normalized = normalizePath(file)
   if (normalized === SESSION_BRANCH_CONVENTION_OWNER) return []
-  if (normalized.includes('__tests__') || normalized.includes('/docs/')) return []
-  if (!contents.includes(`\`${SESSION_BRANCH_PREFIX_LITERAL}$`)) return []
+  // This checker must contain the pattern it looks for.
+  if (normalized === POLICY_SCRIPT_OWN_PATH) return []
+  /*
+   * Code only. The convention is about how a branch name is *built*, so prose that
+   * documents it (docs, ADRs, review records) is not a violation, and neither are tests
+   * that assert the resulting string.
+   */
+  if (!/\.(?:ts|tsx|mts|cts)$/.test(normalized)) return []
+  if (normalized.includes('__tests__')) return []
+  const code = withoutCommentLines(contents)
+  if (!sessionBranchPrefixForms().some((form) => code.includes(form))) return []
   return [
     {
       file: normalized,
-      message: `Session worktree branch names must come from sessionWorktreeBranch() in ${SESSION_BRANCH_CONVENTION_OWNER}`,
-      detail: `found a local "${SESSION_BRANCH_PREFIX_LITERAL}" template literal`,
+      message: `Session worktree branch names must come from sessionWorktreeBranch() or sessionWorktreeBranchForId() in ${SESSION_BRANCH_CONVENTION_OWNER}`,
+      detail: `found a local "${SESSION_BRANCH_PREFIX_LITERAL}" string or template literal`,
     },
   ]
 }

@@ -26,6 +26,7 @@ import {
   navigatePiSessionTree,
 } from './agent-kernel/session-operations'
 import { createPiSession } from './agent-kernel/session-runtime'
+import { ensureSessionWorktreeProjectPath } from './agent-kernel/session-worktree-birth'
 import { runPiWaggle } from './agent-kernel/waggle-run'
 import { createMcpGatewayExtension } from './mcp-gateway-extension'
 import {
@@ -86,6 +87,38 @@ function loadPiRuntimeExtensionIsolationInput(
           operation,
         }),
     }
+  })
+}
+
+/**
+ * The two paths an MCP turn needs, which are not the same path for a worktree-mode session.
+ *
+ * `executionPath` is the tree the agent actually edits - the Session worktree in worktree
+ * mode. It becomes the MCP sandbox cwd and its read/write roots, so passing the opened
+ * checkout would let an MCP filesystem or git server act on the user's own checkout while
+ * the agent worked in the worktree: the "surface targets the wrong tree" defect ADR 0018
+ * exists to prevent. On main these were always identical because main had no worktree-mode
+ * agent cwd, so the divergence only appears once both sides are combined.
+ *
+ * Worktree birth is *ensured* here rather than merely resolved, so the paths also agree on
+ * the first send, before the tree exists. This is the same call the run functions make
+ * immediately afterwards; it is in-flight deduplicated per session and returns early once
+ * the tree exists, so hoisting it costs nothing.
+ *
+ * `projectPath` stays the opened checkout: MCP config discovery, scope and trust state are
+ * keyed to the project the user opened, and a linked worktree must not fork that identity.
+ */
+function resolveMcpTurnPaths(session: AgentKernelRunInput['session']) {
+  return Effect.gen(function* () {
+    const projectPath = yield* Effect.try({
+      try: () => requireSessionProjectPath(session),
+      catch: toAgentKernelError,
+    })
+    const executionPath = yield* Effect.tryPromise({
+      try: () => ensureSessionWorktreeProjectPath(session),
+      catch: toAgentKernelError,
+    })
+    return { projectPath, executionPath }
   })
 }
 
@@ -153,13 +186,10 @@ export const PiAgentKernelLive = Layer.effect(
             input,
             extensionSelectionServices,
           )
-          const projectPath = yield* Effect.try({
-            try: () => requireSessionProjectPath(input.session),
-            catch: toAgentKernelError,
-          })
+          const { projectPath, executionPath } = yield* resolveMcpTurnPaths(input.session)
           const mcpTurn = yield* prepareMcpTurn({
             projectPath,
-            executionPath: projectPath,
+            executionPath,
             sessionId: input.session.id,
             config: mcpConfigService,
             runtime: mcpRuntimeService,
