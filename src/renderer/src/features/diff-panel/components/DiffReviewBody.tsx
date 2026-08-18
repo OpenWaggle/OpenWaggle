@@ -2,7 +2,6 @@ import type { CodeViewHandle } from '@pierre/diffs/react'
 import type { GitFileDiff } from '@shared/types/git'
 import type { Ref } from 'react'
 import type { ReviewAnnotationMetadata } from '@/features/diff-panel/lib/code-view-items'
-import { useReviewStore } from '@/features/diff-panel/state/review-store'
 import { useDiffReviewActions } from '../hooks/useDiffReviewActions'
 import { useDiffViewOptions } from '../hooks/useDiffViewOptions'
 import { DiffCodeView } from './DiffCodeView'
@@ -13,8 +12,13 @@ interface DiffReviewBodyProps {
   readonly viewerRef: Ref<CodeViewHandle<ReviewAnnotationMetadata>>
   readonly files: readonly GitFileDiff[]
   readonly isLoading: boolean
+  /** A failed diff load, surfaced instead of an empty diff. */
+  readonly loadError: string | null
+  readonly onRetryLoad: () => void
   readonly onSendMessage: (content: string) => void
   readonly onFileClick: (path: string) => void
+  /** Isolates pending comments to the tree and scope they were written against. */
+  readonly reviewKey: string
 }
 
 /**
@@ -28,13 +32,14 @@ export function DiffReviewBody({
   viewerRef,
   files,
   isLoading,
+  loadError,
+  onRetryLoad,
   onSendMessage,
   onFileClick,
+  reviewKey,
 }: DiffReviewBodyProps) {
-  const activeCommentLocation = useReviewStore((s) => s.activeCommentLocation)
-  const setActiveCommentLocation = useReviewStore((s) => s.setActiveCommentLocation)
   const { viewOptions } = useDiffViewOptions()
-  const review = useDiffReviewActions(onSendMessage, files)
+  const review = useDiffReviewActions(onSendMessage, files, reviewKey)
 
   return (
     <>
@@ -43,11 +48,13 @@ export function DiffReviewBody({
           viewerRef={viewerRef}
           files={files}
           isLoading={isLoading}
+          loadError={loadError}
+          onRetryLoad={onRetryLoad}
           viewOptions={viewOptions}
           review={{
             comments: review.comments,
-            activeCommentLocation,
-            onSetActiveComment: setActiveCommentLocation,
+            activeCommentLocation: review.activeCommentLocation,
+            onSetActiveComment: review.onSetActiveComment,
             onAddSingleComment: review.onAddSingleComment,
             onAddToReview: review.onAddToReview,
             onRemoveComment: review.onRemoveComment,

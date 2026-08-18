@@ -1,8 +1,15 @@
 import type { GitFileDiff } from '@shared/types/git'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useReviewStore } from '@/features/diff-panel/state/review-store'
+import {
+  reviewKeyFor,
+  selectReviewThread,
+  useReviewStore,
+} from '@/features/diff-panel/state/review-store'
 import { useDiffReviewActions } from '../useDiffReviewActions'
+
+/** The panel keys pending reviews by tree and scope; these tests use the default scope. */
+const REVIEW_KEY = reviewKeyFor('/repo', 'unstaged')
 
 const FILES: readonly GitFileDiff[] = [
   {
@@ -27,7 +34,7 @@ describe('useDiffReviewActions', () => {
    */
   it('submits once when the same handler instance is invoked twice without a re-render', () => {
     const onSendMessage = vi.fn()
-    const { result } = renderHook(() => useDiffReviewActions(onSendMessage, FILES))
+    const { result } = renderHook(() => useDiffReviewActions(onSendMessage, FILES, REVIEW_KEY))
 
     act(() => {
       result.current.onAddToReview(
@@ -44,6 +51,6 @@ describe('useDiffReviewActions', () => {
     })
 
     expect(onSendMessage).toHaveBeenCalledTimes(1)
-    expect(useReviewStore.getState().comments).toEqual([])
+    expect(selectReviewThread(useReviewStore.getState(), REVIEW_KEY).comments).toEqual([])
   })
 })

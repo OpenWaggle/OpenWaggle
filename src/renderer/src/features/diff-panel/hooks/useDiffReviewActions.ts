@@ -6,7 +6,7 @@ import {
   type ReviewCommentWithSnippet,
 } from '@/features/diff-panel/lib/review-comment-payload'
 import type { ReviewCommentLocation } from '@/features/diff-panel/state/review-store'
-import { useReviewStore } from '@/features/diff-panel/state/review-store'
+import { selectReviewThread, useReviewStore } from '@/features/diff-panel/state/review-store'
 
 function buildComment(
   files: readonly GitFileDiff[],
@@ -37,9 +37,11 @@ function buildComment(
 export function useDiffReviewActions(
   onSendMessage: (content: string) => void,
   files: readonly GitFileDiff[],
+  reviewKey: string,
 ) {
-  const comments = useReviewStore((s) => s.comments)
-  const summary = useReviewStore((s) => s.summary)
+  const thread = useReviewStore((s) => selectReviewThread(s, reviewKey))
+  const comments = thread.comments
+  const summary = thread.summary
   const addComment = useReviewStore((s) => s.addComment)
   const removeComment = useReviewStore((s) => s.removeComment)
   const setSummary = useReviewStore((s) => s.setSummary)
@@ -48,11 +50,11 @@ export function useDiffReviewActions(
 
   function onAddSingleComment(location: ReviewCommentLocation, content: string) {
     onSendMessage(formatSingleReviewComment(buildComment(files, location, content)))
-    setActiveCommentLocation(null)
+    setActiveCommentLocation(reviewKey, null)
   }
 
   function onAddToReview(location: ReviewCommentLocation, content: string) {
-    addComment(buildComment(files, location, content))
+    addComment(reviewKey, buildComment(files, location, content))
   }
 
   function onSubmitReview() {
@@ -62,19 +64,23 @@ export function useDiffReviewActions(
     // array: both calls pass the emptiness guard and the agent receives the same
     // review twice.
     const state = useReviewStore.getState()
-    if (state.comments.length === 0) return
-    onSendMessage(formatReviewSubmission(state.summary, state.comments))
-    state.clearComments()
+    const pending = selectReviewThread(state, reviewKey)
+    if (pending.comments.length === 0) return
+    onSendMessage(formatReviewSubmission(pending.summary, pending.comments))
+    state.clearComments(reviewKey)
   }
 
   return {
     comments,
     summary,
+    activeCommentLocation: thread.activeCommentLocation,
     onAddSingleComment,
     onAddToReview,
-    onRemoveComment: removeComment,
-    onSetSummary: setSummary,
+    onSetActiveComment: (location: ReviewCommentLocation | null) =>
+      setActiveCommentLocation(reviewKey, location),
+    onRemoveComment: (id: string) => removeComment(reviewKey, id),
+    onSetSummary: (next: string) => setSummary(reviewKey, next),
     onSubmitReview,
-    onDiscardReview: discardReview,
+    onDiscardReview: () => discardReview(reviewKey),
   }
 }

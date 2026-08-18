@@ -12,6 +12,8 @@ interface DiffPanelState {
   readonly error: string | null
 }
 
+const DIFF_TRANSPORT_FAILURE_MESSAGE = 'The diff could not be loaded from the main process.'
+
 type DiffPanelAction =
   | { readonly type: 'clear' }
   | { readonly type: 'start-loading' }
@@ -101,10 +103,14 @@ export function useDiffPanelDiffs(workingPath: WorkingPath | null, selection: Di
         )
       })
       .catch(() => {
-        // Only an unexpected transport failure reaches here now; expected git
-        // failures arrive as { ok: false } above.
+        /*
+         * Only an unexpected transport failure reaches here; expected git failures arrive as
+         * { ok: false } above. It still needs a message: a null error rendered as "No changes to
+         * review", which tells the user their work is committed when the panel could not read
+         * the tree at all.
+         */
         if (cancelled || requestId !== diffRequestId.current) return
-        dispatch({ type: 'load-failure', error: null })
+        dispatch({ type: 'load-failure', error: DIFF_TRANSPORT_FAILURE_MESSAGE })
       })
     return () => {
       cancelled = true
@@ -141,7 +147,7 @@ export function useDiffPanelDiffs(workingPath: WorkingPath | null, selection: Di
         )
       )
         return
-      dispatch({ type: 'load-failure', error: null })
+      dispatch({ type: 'load-failure', error: DIFF_TRANSPORT_FAILURE_MESSAGE })
     }
   }
 

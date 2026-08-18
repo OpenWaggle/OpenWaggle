@@ -12,9 +12,11 @@ import {
 } from '@/features/diff-panel/state/diff-scope-store'
 import { useCombinedVcsStatus, useStackedGitActions } from '@/features/git'
 import { useBaseRefChoices } from '../hooks/useBaseRefChoices'
+import { useCommitPaths } from '../hooks/useCommitPaths'
 import { useDiffPanelDiffs } from '../hooks/useDiffPanelDiffs'
 import { useReconcileTurnSelection } from '../hooks/useReconcileTurnSelection'
 import { useSessionTurns, useTurnDiffFiles } from '../hooks/useSessionTurns'
+import { reviewKeyFor } from '../state/review-store'
 import { CommitMessageDialog } from './CommitMessageDialog'
 import { DiffBottomBar } from './DiffBottomBar'
 import { DiffPanelHeader } from './DiffPanelHeader'
@@ -25,6 +27,11 @@ interface DiffPanelProps {
   repositoryPath: RepositoryPath | null
   sessionId?: SessionId | null
   onSendMessage: (content: string) => void
+}
+
+/** Open a change request in the user's browser, never in an Electron window. */
+function openChangeRequestUrl(url: string | undefined) {
+  if (url) window.open(url, '_blank', 'noopener')
 }
 
 export function DiffPanel({
@@ -52,13 +59,10 @@ export function DiffPanel({
   const fileDiffs = selection.kind === 'turn' ? turnFiles : branchOrTreeDiffs.fileDiffs
   const isLoading = selection.kind === 'turn' ? false : branchOrTreeDiffs.isLoading
   const refreshDiff = branchOrTreeDiffs.refreshDiff
+  // Turn diffs come from the store, so only the branch/working-tree loader can fail here.
+  const loadError = selection.kind === 'turn' ? null : branchOrTreeDiffs.error
 
   useReconcileTurnSelection(scopeKey, turns)
-
-  /** Jump the virtualized list to a file's section. */
-  function handleFileClick(path: string) {
-    viewerRef.current?.scrollTo({ type: 'item', id: codeViewItemId(path), align: 'start' })
-  }
 
   function handleSelectScope(scope: 'branch' | 'unstaged' | 'turn') {
     if (scope === 'turn') {
@@ -86,18 +90,21 @@ export function DiffPanel({
   })
 
   const [pendingCommitAction, setPendingCommitAction] = useState<GitStackedAction | null>(null)
-  const selectedPaths = fileDiffs.map((file) => file.path)
+  const commitPaths = useCommitPaths(workingPath)
+  const retryLoad = () => {
+    if (workingPath) void refreshDiff(workingPath)
+  }
 
   /**
    * Commit-bearing actions must collect an explicit message first (review B2);
-   * everything else dispatches immediately. Only the visible selection is staged.
+   * everything else dispatches immediately.
    */
   function requestStackedAction(action: GitStackedAction) {
     if (action.startsWith('commit')) {
       setPendingCommitAction(action)
       return
     }
-    void stackedActions.run(action, { paths: selectedPaths })
+    void stackedActions.run(action, { paths: commitPaths })
   }
 
   return (
@@ -117,8 +124,13 @@ export function DiffPanel({
         viewerRef={viewerRef}
         files={fileDiffs}
         isLoading={isLoading}
+        loadError={loadError}
+        onRetryLoad={retryLoad}
         onSendMessage={onSendMessage}
-        onFileClick={handleFileClick}
+        onFileClick={(path) =>
+          viewerRef.current?.scrollTo({ type: 'item', id: codeViewItemId(path), align: 'start' })
+        }
+        reviewKey={reviewKeyFor(scopeKey || null, selection.kind)}
       />
       <DiffBottomBar
         onRevertAll={gitActions.handleRevertAll}
@@ -131,21 +143,18 @@ export function DiffPanel({
           isBusy: stackedActions.isRunning,
           onRunAction: (action) => requestStackedAction(action),
           onPull: () => stackedActions.run('pull'),
-          onOpenChangeRequest: () => {
-            const url = vcsStatus?.changeRequest?.url
-            if (url) window.open(url, '_blank', 'noopener')
-          },
+          onOpenChangeRequest: () => openChangeRequestUrl(vcsStatus?.changeRequest?.url),
           onPublish: () => stackedActions.run('push'),
         }}
       />
       <CommitMessageDialog
         open={pendingCommitAction !== null}
-        fileCount={selectedPaths.length}
+        fileCount={commitPaths.length}
         onCancel={() => setPendingCommitAction(null)}
         onConfirm={(commitMessage) => {
           const action = pendingCommitAction
           setPendingCommitAction(null)
-          if (action) void stackedActions.run(action, { paths: selectedPaths, commitMessage })
+          if (action) void stackedActions.run(action, { paths: commitPaths, commitMessage })
         }}
       />
     </div>

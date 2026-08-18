@@ -9,6 +9,7 @@ import {
 import type { ReviewCommentWithSnippet } from '@/features/diff-panel/lib/review-comment-payload'
 import type { ReviewCommentLocation } from '@/features/diff-panel/state/review-store'
 import { Spinner } from '@/shared/ui/Spinner'
+import { DiffLoadError } from './DiffLoadError'
 import { InlineComment } from './InlineComment'
 import { PendingComment } from './PendingComment'
 
@@ -34,11 +35,56 @@ interface DiffCodeViewProps {
   readonly viewerRef?: Ref<CodeViewHandle<ReviewAnnotationMetadata>>
   readonly files: readonly GitFileDiff[]
   readonly isLoading: boolean
+  /** A failed load, which must never be presented as an empty diff. */
+  readonly loadError: string | null
+  readonly onRetryLoad: () => void
   readonly viewOptions: DiffViewOptions
   readonly review: DiffCodeViewReview
 }
 
 const CODE_VIEW_LAYOUT = { paddingTop: 10, paddingBottom: 10, gap: 10 } as const
+
+/**
+ * Which non-diff state to show, if any.
+ *
+ * The order matters: a failed load must be checked before emptiness, or every failure - not a
+ * repository, an unresolvable base ref, a vanished worktree, a transport error - reads as "no
+ * changes", telling the user their work is committed when the tree could not be read at all.
+ */
+function resolveDiffPlaceholder(input: {
+  readonly isLoading: boolean
+  readonly loadError: string | null
+  readonly fileCount: number
+}) {
+  if (input.isLoading) return 'loading'
+  if (input.loadError !== null) return 'error'
+  return input.fileCount === 0 ? 'empty' : 'diff'
+}
+
+/** Loading, failed, or empty - anything other than an actual diff. */
+function DiffPlaceholder({
+  kind,
+  message,
+  onRetryLoad,
+}: {
+  readonly kind: 'loading' | 'error' | 'empty'
+  readonly message: string
+  readonly onRetryLoad: () => void
+}) {
+  if (kind === 'loading') {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <Spinner />
+      </div>
+    )
+  }
+  if (kind === 'error') return <DiffLoadError message={message} onRetry={onRetryLoad} />
+  return (
+    <div className="flex flex-1 items-center justify-center text-[12px] text-text-tertiary">
+      No changes to review
+    </div>
+  )
+}
 
 /**
  * Annotations anchor to the additions side unless the comment targets a removed
@@ -95,6 +141,8 @@ export function DiffCodeView({
   viewerRef,
   files,
   isLoading,
+  loadError,
+  onRetryLoad,
   viewOptions,
   review,
 }: DiffCodeViewProps) {
@@ -189,19 +237,10 @@ export function DiffCodeView({
     [onSetActiveComment, patchByPath],
   )
 
-  if (isLoading) {
+  const placeholder = resolveDiffPlaceholder({ isLoading, loadError, fileCount: files.length })
+  if (placeholder !== 'diff') {
     return (
-      <div className="flex flex-1 items-center justify-center">
-        <Spinner />
-      </div>
-    )
-  }
-
-  if (files.length === 0) {
-    return (
-      <div className="flex flex-1 items-center justify-center text-[12px] text-text-tertiary">
-        No changes to review
-      </div>
+      <DiffPlaceholder kind={placeholder} message={loadError ?? ''} onRetryLoad={onRetryLoad} />
     )
   }
 

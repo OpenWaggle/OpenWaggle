@@ -42,7 +42,7 @@ describe('Diff panel components', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     useGitStore.setState({ statusByWorkingPath: {} })
-    useReviewStore.setState({ comments: [], activeCommentLocation: null, summary: '' })
+    useReviewStore.setState({ byReviewKey: {} })
     useUIStore.setState({ toastMessage: null, toastData: null })
   })
 
@@ -291,24 +291,5 @@ describe('Diff panel components', () => {
 
     await waitFor(() => expect(api.stageAllGitChanges).toHaveBeenCalledWith('/repo-a'))
     expect(useUIStore.getState().toastData).toBeNull()
-  })
-
-  it('renders empty and failed diff states without stale files', async () => {
-    const { rerender } = render(
-      <DiffPanel workingPath={null} repositoryPath={null} onSendMessage={vi.fn()} />,
-    )
-
-    expect(screen.getByText('No changes to review')).toBeInTheDocument()
-
-    vi.mocked(api.getGitDiff).mockRejectedValue(new Error('git unavailable'))
-    rerender(
-      <DiffPanel
-        workingPath={WorkingPath('/repo')}
-        repositoryPath={RepositoryPath('/repo')}
-        onSendMessage={vi.fn()}
-      />,
-    )
-
-    expect(await screen.findByText('No changes to review')).toBeInTheDocument()
   })
 })

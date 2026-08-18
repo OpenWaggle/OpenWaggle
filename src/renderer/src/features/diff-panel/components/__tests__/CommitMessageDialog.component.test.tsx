@@ -30,6 +30,8 @@ describe('CommitMessageDialog', () => {
 
   it('reports the number of files being committed', () => {
     render(<CommitMessageDialog open fileCount={3} onCancel={vi.fn()} onConfirm={vi.fn()} />)
-    expect(screen.getByText('3 files will be committed.')).toBeInTheDocument()
+    expect(
+      screen.getByText('3 changed files in the working tree will be committed.'),
+    ).toBeInTheDocument()
   })
 })
