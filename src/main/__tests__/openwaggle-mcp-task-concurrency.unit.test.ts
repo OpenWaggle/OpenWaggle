@@ -161,8 +161,14 @@ describe('hosted MCP task cross-process integrity', () => {
       { ownerId: 'owner-b', now: () => now },
     )
     await Effect.runPromise(recovery.recoverInterruptedTasks())
-    await expect(Effect.runPromise(recovery.get(task.id))).resolves.not.toMatchObject({
-      status: 'interrupted',
+    /*
+     * Assert the status the task should actually have. `not.toMatchObject({ status: 'interrupted' })`
+     * passed for any other value - cancelled, failed, or a task that had vanished - so it could not
+     * distinguish "the live lease was respected" from "something else went wrong".
+     */
+    await expect(Effect.runPromise(recovery.get(task.id))).resolves.toMatchObject({
+      id: task.id,
+      status: 'working',
     })
     await Effect.runPromise(owner.cancelAll())
   })

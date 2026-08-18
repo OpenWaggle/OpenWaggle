@@ -243,10 +243,20 @@ export async function validateConventionalCommits(options: ConventionalCommitVal
             `Pull request title "${options.prTitle}" is not an allowed Conventional Commit subject.`,
           ]
 
+  /*
+   * The same exemption as the commit-level rule: a sync merge of an already-released base branch
+   * carries `packages/` paths relative to its first parent, but those changes are already on the
+   * base with their own release commits, so this PR owes no version bump for them. Without this the
+   * exemption only half worked - the merge commit passed while the PR *title* was still required to
+   * carry release intent for changes that were never this PR's.
+   */
+  const ownedPackageChanges = commits.filter(
+    (commit) => !isUpstreamUpdateMerge(commit, upstreamMergeHashes),
+  )
   const packageReleaseIntentViolations =
     options.prTitle !== undefined &&
     options.prTitle.length > 0 &&
-    commits.some(affectsPublishablePackage) &&
+    ownedPackageChanges.some(affectsPublishablePackage) &&
     !hasPackageReleaseIntent(options.prTitle)
       ? [
           `Pull request title ${JSON.stringify(options.prTitle)} changes a publishable package but would not create a Release Please version bump.`,

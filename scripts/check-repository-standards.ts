@@ -143,21 +143,19 @@ const SESSION_BRANCH_CONVENTION_OWNER = 'src/shared/utils/worktree.ts'
 const POLICY_SCRIPT_OWN_PATH = 'scripts/check-repository-standards.ts'
 
 /*
- * Match the prefix in any literal form, not just a template literal. An independent audit
- * proved the earlier template-only test was narrower than its own error message claimed:
- * `const p = 'ow/session-probe'` and `'ow/session-' + id` both passed the guard, so the
- * "single source of truth" it advertises could be bypassed by writing the prefix a
- * different way.
+ * Match the prefix wherever it appears in code, not only where a quote sits immediately before it.
  *
- * Comment lines are stripped first so prose that documents the convention (including this
- * file and the JSDoc in the git worktree adapter) is not reported as a violation.
+ * Two rounds of independent review have narrowed this. The first version tested only template
+ * literals, so `const p = 'ow/session-probe'` passed. The second required a quote or backtick
+ * directly before the prefix, which still missed every use where it is not at the start of the
+ * string - verified that `` `refs/heads/ow/session-${id}` `` slipped through untouched, which is
+ * one of the most natural ways to write it.
+ *
+ * Comment lines are stripped first so prose that documents the convention (including this file and
+ * the JSDoc in the git worktree adapter) is not reported as a violation.
  */
-function sessionBranchPrefixForms(): readonly string[] {
-  return [
-    `\`${SESSION_BRANCH_PREFIX_LITERAL}`,
-    `'${SESSION_BRANCH_PREFIX_LITERAL}`,
-    `"${SESSION_BRANCH_PREFIX_LITERAL}`,
-  ]
+function containsSessionBranchPrefix(code: string) {
+  return code.includes(SESSION_BRANCH_PREFIX_LITERAL)
 }
 
 function withoutCommentLines(contents: string) {
@@ -184,12 +182,12 @@ function collectSessionBranchConventionViolations(file: string, contents: string
   if (!/\.(?:ts|tsx|mts|cts)$/.test(normalized)) return []
   if (normalized.includes('__tests__')) return []
   const code = withoutCommentLines(contents)
-  if (!sessionBranchPrefixForms().some((form) => code.includes(form))) return []
+  if (!containsSessionBranchPrefix(code)) return []
   return [
     {
       file: normalized,
       message: `Session worktree branch names must come from sessionWorktreeBranch() or sessionWorktreeBranchForId() in ${SESSION_BRANCH_CONVENTION_OWNER}`,
-      detail: `found a local "${SESSION_BRANCH_PREFIX_LITERAL}" string or template literal`,
+      detail: `found a local "${SESSION_BRANCH_PREFIX_LITERAL}" literal in code`,
     },
   ]
 }
@@ -228,7 +226,15 @@ function printViolations(violations: readonly Violation[]) {
  */
 const SESSION_SUMMARY_QUERY_PATTERN = /sql<SessionSummaryRow>`([^`]*)`/gsu
 const SESSION_SUMMARY_COLUMN_FRAGMENT = 'sessionSummaryColumns'
-const SESSION_SUMMARY_INLINE_COLUMN = /\bcreated_at\b/u
+/**
+ * A query that selects columns at all, so a bare `SELECT COUNT(*)` or a fragment is not reported.
+ *
+ * The rule is "use the shared fragment", not "avoid one particular column name". It used to fire
+ * only when the inline list mentioned `created_at`, which let through exactly the defect it was
+ * written for: a list that *omits* a column the row type promises. `SELECT id, title, project_path`
+ * typed as `SessionSummaryRow` passed the guard while the missing columns came back undefined.
+ */
+const SESSION_SUMMARY_SELECTS_COLUMNS = /\bselect\b(?![\s\S]*\bcount\s*\()/iu
 const SESSION_SUMMARY_COLUMN_OWNERS: readonly string[] = [
   // A different SessionSummaryRow: the detail-side shape with message_count and aliases.
   'src/main/store/session-details/session-queries.ts',
@@ -240,7 +246,7 @@ function collectSessionSummaryColumnViolations(file: string, contents: string) {
   for (const match of contents.matchAll(SESSION_SUMMARY_QUERY_PATTERN)) {
     const query = match[1] ?? ''
     if (query.includes(SESSION_SUMMARY_COLUMN_FRAGMENT)) continue
-    if (!SESSION_SUMMARY_INLINE_COLUMN.test(query)) continue
+    if (!SESSION_SUMMARY_SELECTS_COLUMNS.test(query)) continue
     violations.push({
       file: normalizePath(file),
       message:

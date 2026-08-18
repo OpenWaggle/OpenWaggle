@@ -133,6 +133,22 @@ describe('Automatic base ref resolution', () => {
     }
   })
 
+  it('reports no changes when HEAD is the default branch itself', async () => {
+    /*
+     * The common case, and previously untested: on the default branch the base and HEAD are the
+     * same commit, so a three-dot diff is legitimately empty. Worth pinning because it looks
+     * identical to a failure, and because it is the state most users open the Branch tab in.
+     */
+    const cwd = await createRepository({ branch: 'main' })
+    await commitFile(cwd, 'on-main.txt', 'main\n', 'feat: commit straight onto main')
+
+    const automatic = await getGitBranchDiff(cwd, '')
+
+    expect(automatic.ok).toBe(true)
+    expect(changedPaths(automatic)).toEqual([])
+    expect(automatic.ok && automatic.resolvedBaseRef).toBe('main')
+  })
+
   it('falls back to a conventional default branch that exists locally', async () => {
     // A local-only repository advertises nothing, so the conventional name is all there is.
     const cwd = await createRepository({ branch: 'main' })

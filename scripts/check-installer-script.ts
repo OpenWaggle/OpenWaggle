@@ -31,7 +31,10 @@ import {
 
 const execFileAsync = promisify(execFile)
 
-const INSTALLER_SCRIPT = 'build/installer.nsh'
+const ELECTRON_BUILDER_CONFIG = 'electron-builder.yml'
+/** Fallback only for the error message when the config does not declare one. */
+const DEFAULT_INSTALLER_SCRIPT = 'build/installer.nsh'
+const NSIS_INCLUDE_LINE = /^\s*include:\s*(?<path>\S+)\s*$/mu
 const MAKENSIS_MISSING_EXIT_CODES = new Set(['ENOENT'])
 /** electron-builder compiles with warnings-as-errors; mirror it or the check is weaker. */
 const MAKENSIS_ARGS = ['-WX'] as const
@@ -125,7 +128,7 @@ function reportMissingMakensis() {
   }
 
   console.log(
-    `Installer script check skipped: makensis not installed. ${INSTALLER_SCRIPT} is compile-checked in CI.`,
+    `Installer script check skipped: makensis not installed. ${DEFAULT_INSTALLER_SCRIPT} is compile-checked in CI.`,
   )
 }
 
@@ -148,15 +151,37 @@ function commandOutput(error: unknown) {
   return parts.length > 0 ? parts.join('\n') : error.message
 }
 
+/**
+ * The script electron-builder is actually configured to include.
+ *
+ * Read from the config rather than hardcoded, so renaming or moving the file cannot leave this
+ * check compiling a path that no longer ships - it would pass while the real installer went
+ * unchecked, or fail for a file nothing uses.
+ */
+async function resolveInstallerScript(repositoryRoot: string) {
+  const config = await readFile(path.join(repositoryRoot, ELECTRON_BUILDER_CONFIG), 'utf8')
+  return NSIS_INCLUDE_LINE.exec(config)?.groups?.['path'] ?? null
+}
+
 async function main() {
   const repositoryRoot = process.cwd()
-  const installerScriptPath = path.join(repositoryRoot, INSTALLER_SCRIPT)
+  const declaredScript = await resolveInstallerScript(repositoryRoot)
+  if (declaredScript === null) {
+    console.error(
+      `${ELECTRON_BUILDER_CONFIG} declares no nsis.include, so there is no installer script to ` +
+        `check. If the customisations were removed, remove this check too; otherwise restore the ` +
+        `include (it was ${DEFAULT_INSTALLER_SCRIPT}).`,
+    )
+    process.exitCode = 1
+    return
+  }
+  const installerScriptPath = path.join(repositoryRoot, declaredScript)
   const macros = parseDefinedMacros(await readFile(installerScriptPath, 'utf8'))
   const insertions = planHookInsertions(macros)
 
   if (insertions.unmapped.length > 0) {
     console.error(
-      `${INSTALLER_SCRIPT} defines hook(s) this check has no insertion point for: ` +
+      `${declaredScript} defines hook(s) this check has no insertion point for: ` +
         `${insertions.unmapped.join(', ')}.\n` +
         'Add them to HOOK_PLACEMENTS in scripts/installer-hook-placements.ts so they are actually ' +
         'compiled. Skipping them silently is how an unguarded hook reaches a release.',
@@ -166,7 +191,7 @@ async function main() {
   }
   if (macros.length === 0) {
     console.error(
-      `${INSTALLER_SCRIPT} defines no macros, so this check would compile nothing. Refusing to pass.`,
+      `${declaredScript} defines no macros, so this check would compile nothing. Refusing to pass.`,
     )
     process.exitCode = 1
     return
@@ -184,7 +209,7 @@ async function main() {
       })
     }
     console.log(
-      `Installer script check passed: ${INSTALLER_SCRIPT} compiles for the installer and uninstaller passes.`,
+      `Installer script check passed: ${declaredScript} compiles for the installer and uninstaller passes.`,
     )
   } catch (error) {
     if (isMissingMakensis(error)) {
@@ -193,7 +218,7 @@ async function main() {
     }
 
     const detail = commandOutput(error)
-    console.error(`Installer script check failed: ${INSTALLER_SCRIPT} does not compile.\n`)
+    console.error(`Installer script check failed: ${declaredScript} does not compile.\n`)
     console.error(detail)
     console.error(
       '\nNSIS only allows `un.`-prefixed functions inside an uninstall section, so StrFunc helpers used by customUnInstall must be declared as their `Un` variant (for example `${UnStrRep}`) and called that way. Declare each helper only in the pass that uses it (`!ifdef BUILD_UNINSTALLER`): electron-builder compiles with warnings-as-errors, and a declared-but-unreferenced helper is `warning 6010`.',

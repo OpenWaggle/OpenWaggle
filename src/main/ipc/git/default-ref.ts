@@ -18,8 +18,13 @@ import { runGit } from './shared'
  * reports `main` from a developer's global config, so Automatic would have diffed against the
  * wrong branch and said nothing about it.
  *
- * Shared by VCS status (ahead/behind against the default branch) and the diff panel's Automatic
- * base ref, so the two cannot disagree about which branch "default" means.
+ * This is the branch *name* only. VCS status uses it directly (ahead/behind against the default
+ * branch); the diff panel's Automatic base ref goes through
+ * {@link resolveDefaultBranchRevision}, which additionally verifies that a revision exists and may
+ * therefore answer differently in form (`origin/main` rather than `main`) or answer at all where
+ * this returns null (a local-only repository with a conventional default). Both derive the name
+ * here, so they cannot disagree about *which branch* is default - only about which revision of it
+ * is resolvable, which is the question each is actually asking.
  */
 export async function resolveDefaultRef(projectPath: string): Promise<string | null> {
   const localSymref = await runGit(projectPath, [

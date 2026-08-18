@@ -91,7 +91,16 @@ The diff panel and the [Session Tree](/docs/using-openwaggle/session-tree) share
 Tabs at the top choose what you are reviewing:
 
 - **Working tree** — Uncommitted changes in the session's working tree.
-- **Branch** — Changes on `HEAD` relative to the merge base with a base ref. The default option, **Automatic**, resolves the repository's default branch — the one `origin/HEAD` advertises, preferring the remote-tracking copy so it reflects what you would open a change request against. Pick a specific ref from the dropdown to override it. In a fresh repository with no remote and no default branch to resolve, this falls back to the working-tree diff.
+- **Branch** — Changes on `HEAD` relative to the merge base with a base ref. The default option, **Automatic**, resolves the repository's default branch and then names it, so the label reads `Automatic · origin/main` once the diff has loaded. Resolution asks the remote, in this order:
+  1. `origin/HEAD`, the remote-tracking symref a clone sets up;
+  2. the remote directly, when that symref is missing locally;
+  3. a conventional `main` or `master` that exists locally, for a repository with no remote at all.
+
+  It prefers the remote-tracking copy (`origin/main` over a local `main`) so the comparison reflects what you would open a change request against. `init.defaultBranch` is deliberately not consulted: it describes how *new* repositories are initialised, and it is usually read from your global git config, so it says nothing about this repository.
+
+  Pick a specific ref from the dropdown to override it; a stored ref that no longer exists is shown as `(unavailable)` rather than silently reverting to Automatic. When nothing resolves — a fresh repository with no remote and no conventional default — the panel falls back to the working-tree diff and says so.
+
+  If you are already sitting on the default branch, `HEAD` and the base are the same commit, so the Branch tab shows no changes; use **Working tree** to review uncommitted work there.
 - **Turns** — Per-turn diffs, shown only once the session has captured turn checkpoints. The dropdown lists each turn with its `+`/`−` counts.
 
 ### Reading Diffs
