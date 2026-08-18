@@ -17,6 +17,9 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # Makes `pnpm check:installer` fail when NSIS is absent instead of skipping, so the
+  # installer compile check cannot silently stop running in CI.
+  REQUIRE_NSIS: '1'
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || inputs.head_sha || github.ref }}
@@ -88,6 +91,10 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      - name: Install NSIS for the installer script check
+        run: sudo apt-get update && sudo apt-get install -y nsis
+
       - run: pnpm check
 
   test:
