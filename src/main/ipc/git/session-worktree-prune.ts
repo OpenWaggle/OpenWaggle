@@ -1,3 +1,4 @@
+import { deleteSessionTurnCheckpointRefs } from '../../adapters/git/turn-checkpoint-refs'
 import { createLogger } from '../../logger'
 import { getOrphanedWorktreePathForSession, type SessionWorktreeRef } from './worktree-cleanup'
 import { removeGitWorktree } from './worktree-service'
@@ -28,23 +29,46 @@ export async function pruneSessionWorktree(
     const worktreePath = input.worktreePath?.trim()
     if (!worktreePath || !input.projectPath) {
       await deps.deleteCheckpoints(input.sessionId)
+      // Local-mode sessions capture checkpoints in the opened checkout, so their refs leak too.
+      if (input.projectPath) {
+        await deleteSessionTurnCheckpointRefs(input.projectPath, input.sessionId)
+      }
       return
     }
 
     const refs = await deps.listWorktreeRefs()
     const orphaned = getOrphanedWorktreePathForSession(refs, input.sessionId)
-    if (orphaned) {
-      const result = await removeGitWorktree(input.projectPath, { path: orphaned })
-      if (!result.ok) {
-        logger.warn('Could not remove Session worktree during prune', {
-          code: result.code,
-          message: result.message,
-        })
-      }
+    const removalFailed = orphaned ? await removalFailedFor(input.projectPath, orphaned) : false
+    if (!removalFailed) {
+      await deps.clearWorktree(input.sessionId)
     }
-    await deps.clearWorktree(input.sessionId)
     await deps.deleteCheckpoints(input.sessionId)
+    /*
+     * Anchor refs must go with the rows. They pin a full tree per turn (untracked files
+     * included) and survive worktree removal, branch deletion and `gc --prune=now`, so
+     * dropping only the rows left those objects reachable in the user's repository forever.
+     * Deleted against the primary checkout, which is where the shared ref namespace lives.
+     */
+    await deleteSessionTurnCheckpointRefs(input.projectPath, input.sessionId)
   } catch (error) {
     logger.warn('Failed to prune Session worktree', { error: String(error) })
   }
+}
+
+/**
+ * Remove the worktree, reporting whether the removal failed.
+ *
+ * Removal is deliberately not forced, so git refuses a worktree holding uncommitted work. The
+ * caller keeps the binding in that case: clearing it anyway left the user's work on disk in a
+ * directory the app had just forgotten about, with nothing in the UI pointing at it.
+ */
+async function removalFailedFor(projectPath: string, worktreePath: string): Promise<boolean> {
+  const result = await removeGitWorktree(projectPath, { path: worktreePath })
+  if (result.ok) return false
+
+  logger.warn('Kept the Session worktree binding because removal failed', {
+    code: result.code,
+    message: result.message,
+  })
+  return true
 }

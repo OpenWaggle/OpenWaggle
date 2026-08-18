@@ -115,7 +115,17 @@ export interface GitBranchCreatePayload {
   readonly checkout?: boolean
 }
 
-export const GIT_DIFF_ERROR_CODES = ['not-git-repo', 'bad-revision', 'unknown'] as const
+export const GIT_DIFF_ERROR_CODES = [
+  'not-git-repo',
+  'bad-revision',
+  /**
+   * The diff was larger than the buffer allowed for it. Distinct from `unknown` because the
+   * user can act on it (commit or stage in smaller pieces, exclude generated files) and because
+   * nothing is actually wrong with the repository.
+   */
+  'diff-too-large',
+  'unknown',
+] as const
 
 export type GitDiffErrorCode = (typeof GIT_DIFF_ERROR_CODES)[number]
 

@@ -1,4 +1,5 @@
-import type { GitDiffResult, GitStatusSummary } from '@shared/types/git'
+import type { GitDiffFailure, GitDiffResult, GitStatusSummary } from '@shared/types/git'
+import type { GitExecResult } from '../../adapters/git/run-git'
 import { resolveDefaultBranchRevision } from './default-ref'
 import { isGitRepository, runGit } from './shared'
 import { DIFF_GIT_MAX_BUFFER, GIT_PARSE_INT_RADIX } from './status-constants'
@@ -11,6 +12,9 @@ import {
 } from './status-parse'
 
 const NOT_A_REPOSITORY_MESSAGE = 'Selected folder is not a Git repository.'
+const FAILED_TO_LOAD_DIFF_MESSAGE = 'Failed to load Git diff.'
+const DIFF_TOO_LARGE_MESSAGE =
+  'This diff is too large to display. Commit or stage part of the change, or exclude generated files.'
 
 interface GitStatusCommandResults {
   readonly branchResult: Awaited<ReturnType<typeof runGit>>
@@ -44,9 +48,28 @@ export async function getGitDiff(projectPath: string): Promise<GitDiffResult> {
     return { ok: false, code: 'not-git-repo', message: NOT_A_REPOSITORY_MESSAGE }
   }
   const hasHead = await runGit(projectPath, ['rev-parse', '--verify', 'HEAD'])
-  const files =
-    hasHead.code === 0 ? await getHeadDiff(projectPath) : await getInitialCommitDiff(projectPath)
-  return { ok: true, files }
+  return hasHead.code === 0
+    ? await getHeadDiff(projectPath)
+    : await getInitialCommitDiff(projectPath)
+}
+
+/**
+ * Translate a failed diff command into a typed failure.
+ *
+ * These paths used to throw, so the working-tree scope surfaced a raw IPC rejection where the
+ * branch scope returned a typed failure for the very same condition. An over-large diff is
+ * enough to trigger it: git's output exceeding the buffer normalises to `code: 1` with empty
+ * stderr, so the message would not even have said what went wrong.
+ */
+function diffCommandFailure(result: GitExecResult, fallback: string): GitDiffFailure {
+  if (result.maxBufferExceeded === true) {
+    return {
+      ok: false,
+      code: 'diff-too-large',
+      message: DIFF_TOO_LARGE_MESSAGE,
+    }
+  }
+  return { ok: false, code: 'unknown', message: result.stderr.trim() || fallback }
 }
 
 /**
@@ -149,17 +172,19 @@ function sumChangedFiles(
   return changedFiles.reduce((sum, file) => sum + file[key], 0)
 }
 
-async function getHeadDiff(projectPath: string) {
+async function getHeadDiff(projectPath: string): Promise<GitDiffResult> {
   const headResult = await runGit(
     projectPath,
     ['diff', '--patch', '--find-renames', '--no-ext-diff', 'HEAD'],
     { maxBuffer: DIFF_GIT_MAX_BUFFER },
   )
-  if (headResult.code !== 0) throw new Error(headResult.stderr.trim() || 'Failed to load Git diff.')
-  return headResult.stdout.trim() ? parseUnifiedDiff(headResult.stdout) : []
+  if (headResult.code !== 0) {
+    return diffCommandFailure(headResult, FAILED_TO_LOAD_DIFF_MESSAGE)
+  }
+  return { ok: true, files: headResult.stdout.trim() ? parseUnifiedDiff(headResult.stdout) : [] }
 }
 
-async function getInitialCommitDiff(projectPath: string) {
+async function getInitialCommitDiff(projectPath: string): Promise<GitDiffResult> {
   const [worktreeResult, cachedResult] = await Promise.all([
     runGit(projectPath, ['diff', '--patch', '--no-ext-diff'], { maxBuffer: DIFF_GIT_MAX_BUFFER }),
     runGit(projectPath, ['diff', '--patch', '--cached', '--no-ext-diff'], {
@@ -168,14 +193,13 @@ async function getInitialCommitDiff(projectPath: string) {
   ])
 
   if (worktreeResult.code !== 0 && cachedResult.code !== 0) {
-    throw new Error(
-      worktreeResult.stderr.trim() || cachedResult.stderr.trim() || 'Failed to load Git diff.',
-    )
+    const failing = worktreeResult.maxBufferExceeded === true ? worktreeResult : cachedResult
+    return diffCommandFailure(failing, FAILED_TO_LOAD_DIFF_MESSAGE)
   }
 
   const parsed = [
     ...parseUnifiedDiff(worktreeResult.stdout),
     ...parseUnifiedDiff(cachedResult.stdout),
   ]
-  return parsed.length === 0 ? [] : mergeDiffsByPath(parsed)
+  return { ok: true, files: parsed.length === 0 ? [] : mergeDiffsByPath(parsed) }
 }

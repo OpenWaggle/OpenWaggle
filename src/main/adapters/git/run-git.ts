@@ -17,7 +17,19 @@ export interface GitExecResult {
   readonly stdout: string
   readonly stderr: string
   readonly code: number
+  /**
+   * The command produced more output than `maxBuffer` allowed and was killed.
+   *
+   * Node reports this with a non-numeric error code, which normalises to `code: 1` and an empty
+   * stderr - indistinguishable from an ordinary git failure. Callers that can hit it (diffs of
+   * generated files, lockfiles, large vendored changes) need to tell the user their output was
+   * too large rather than that git failed for no stated reason.
+   */
+  readonly maxBufferExceeded?: boolean
 }
+
+/** Node's error code when a child is killed for exceeding `maxBuffer`. */
+const MAX_BUFFER_ERROR_CODE = 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER'
 
 export interface RunGitOptions {
   readonly maxBuffer?: number
@@ -52,6 +64,7 @@ function normalizeGitError(error: unknown): GitExecResult {
     stdout: typeof value.stdout === 'string' ? value.stdout : '',
     stderr: typeof value.stderr === 'string' ? value.stderr : fallbackMessage,
     code: typeof value.code === 'number' ? value.code : 1,
+    ...(value.code === MAX_BUFFER_ERROR_CODE ? { maxBufferExceeded: true } : {}),
   }
 }
 

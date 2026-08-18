@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
+import { turnCheckpointRef } from '@shared/utils/turn-checkpoint-ref'
 import { createLogger } from '../../../logger'
 import {
   getLatestSnapshotRef,
@@ -13,11 +14,6 @@ import { DIFF_GIT_MAX_BUFFER, runGit } from '../../git/run-git'
 
 const logger = createLogger('turn-capture')
 const MAX_CHECKPOINTS_PER_SESSION = 100
-
-/** Namespace for reachable turn-checkpoint snapshot refs (keeps snapshots gc-safe). */
-export function turnCheckpointRef(sessionId: string, turnId: string): string {
-  return `refs/openwaggle/turn-checkpoints/${sessionId}/${turnId}`
-}
 
 /**
  * Best-effort per-turn checkpoint capture (WS7). Snapshots the worktree into a
