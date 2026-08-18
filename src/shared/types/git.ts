@@ -221,6 +221,12 @@ export const GIT_WORKTREE_ERROR_CODES = [
   'base-ref-not-found',
   'worktree-exists',
   'branch-exists',
+  /**
+   * The branch is already checked out in a different worktree. Distinct from `branch-exists`
+   * because attaching would hand this session another session's commits, so the caller must
+   * not retry or silently adopt it.
+   */
+  'branch-checked-out-elsewhere',
   'dirty-worktree',
   'not-found',
   'unknown',

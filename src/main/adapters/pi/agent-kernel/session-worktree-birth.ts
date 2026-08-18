@@ -3,7 +3,7 @@ import { homedir } from 'node:os'
 import path from 'node:path'
 import { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
-import { sessionWorktreeBranch } from '@shared/utils/worktree'
+import { legacySessionWorktreeBranch, sessionWorktreeBranch } from '@shared/utils/worktree'
 import { createLogger } from '../../../logger'
 // ponytail: direct store import (persistence); route through a session port if the Pi adapter grows more store touchpoints.
 import { setSessionWorktree } from '../../../store/session-details'
@@ -30,6 +30,34 @@ export function ensureSessionWorktreeProjectPath(session: SessionDetail): Promis
   })
   birthInFlight.set(key, pending)
   return pending
+}
+
+/**
+ * The branch this session's worktree should use.
+ *
+ * Normally the current convention (the full session id). A session born before that convention
+ * owns a branch named from the first 8 characters of its id, and that branch may carry commits
+ * the agent already made - so if the current name does not exist yet and the legacy one does,
+ * reattach to the legacy branch rather than creating a divergent one and stranding the work.
+ */
+async function resolveSessionBranch(projectPath: string, sessionId: string): Promise<string> {
+  const branch = sessionWorktreeBranch(sessionId)
+  const exists = await runGit(projectPath, [
+    'show-ref',
+    '--verify',
+    '--quiet',
+    `refs/heads/${branch}`,
+  ])
+  if (exists.code === 0) return branch
+
+  const legacy = legacySessionWorktreeBranch(sessionId)
+  const legacyExists = await runGit(projectPath, [
+    'show-ref',
+    '--verify',
+    '--quiet',
+    `refs/heads/${legacy}`,
+  ])
+  return legacyExists.code === 0 ? legacy : branch
 }
 
 async function ensureSessionWorktreeProjectPathUnlocked(session: SessionDetail): Promise<string> {
@@ -68,7 +96,7 @@ async function ensureSessionWorktreeProjectPathUnlocked(session: SessionDetail):
 
   const sessionId = String(session.id)
   const worktreePath = worktreePathFor(primaryPath, sessionId)
-  const branch = sessionWorktreeBranch(sessionId)
+  const branch = await resolveSessionBranch(primaryPath, sessionId)
 
   /*
    * Adopt an existing worktree at this session's deterministic path instead of creating it

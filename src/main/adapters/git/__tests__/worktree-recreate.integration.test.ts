@@ -119,3 +119,38 @@ describe('createGitWorktree recreation against real Git', () => {
     )
   })
 })
+
+describe('session worktree branch collisions', () => {
+  it('refuses to attach a branch that another worktree already has checked out', async () => {
+    /*
+     * Two sessions must never share a branch. They used to: the branch was named from the
+     * first 8 characters of the session id, and those are the top bits of a UUIDv7 timestamp,
+     * so sessions created within ~65s of each other derived the same name. Attaching then
+     * either failed with a misleading `unknown` code or, once the first worktree had been
+     * removed while its branch survived, silently handed the second session the first
+     * session's commits.
+     */
+    const repository = await createRepository()
+    const first = worktreePathFor(repository, 'session-first')
+    const second = worktreePathFor(repository, 'session-second')
+    const sharedBranch = 'ow/session-shared'
+
+    const created = await createGitWorktree(repository, {
+      path: first,
+      branch: sharedBranch,
+      baseRef: 'main',
+    })
+    expect(created.ok).toBe(true)
+
+    const collided = await createGitWorktree(repository, {
+      path: second,
+      branch: sharedBranch,
+      baseRef: 'main',
+    })
+
+    expect(collided.ok).toBe(false)
+    if (collided.ok) throw new Error('expected the collision to be refused')
+    expect(collided.code).toBe('branch-checked-out-elsewhere')
+    expect(collided.message).toContain(first)
+  })
+})

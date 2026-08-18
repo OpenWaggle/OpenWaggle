@@ -77,7 +77,7 @@ describe('ensureSessionWorktreeProjectPath', () => {
     const result = await ensureSessionWorktreeProjectPath(session({ environmentMode: 'worktree' }))
     expect(createGitWorktreeMock).toHaveBeenCalledWith(
       '/repo',
-      expect.objectContaining({ baseRef: 'main', branch: 'ow/session-sess-abc' }),
+      expect.objectContaining({ baseRef: 'main', branch: 'ow/session-sess-abcdef12' }),
     )
     expect(setSessionWorktreeMock).toHaveBeenCalledWith(expect.anything(), 'worktree', result)
     expect(result).toContain('/.openwaggle/worktrees/repo/')

@@ -93,6 +93,27 @@ export async function listGitWorktrees(projectPath: string): Promise<GitWorktree
   return { worktrees: parseWorktreeList(result.stdout) }
 }
 
+/**
+ * The worktree path that currently has `branch` checked out, or null when nothing does.
+ *
+ * Parses `git worktree list --porcelain`, whose records are `worktree <path>` followed by
+ * `branch refs/heads/<name>` for attached worktrees (detached ones report `detached` instead).
+ */
+async function branchWorktreeHolder(projectPath: string, branch: string): Promise<string | null> {
+  const result = await runGit(projectPath, ['worktree', 'list', '--porcelain'])
+  if (result.code !== 0) return null
+
+  let currentPath: string | null = null
+  for (const line of result.stdout.split('\n')) {
+    if (line.startsWith('worktree ')) {
+      currentPath = line.slice('worktree '.length).trim()
+      continue
+    }
+    if (line === `branch refs/heads/${branch}`) return currentPath
+  }
+  return null
+}
+
 export async function createGitWorktree(
   projectPath: string,
   payload: GitWorktreeCreatePayload,
@@ -134,6 +155,24 @@ export async function createGitWorktree(
     '--quiet',
     `refs/heads/${branch}`,
   ])
+
+  /*
+   * Attaching is only safe when nothing else holds the branch. `git worktree add <path>
+   * <branch>` refuses when the branch is checked out in another worktree, but it reports that
+   * with a message that classified as `unknown` - and if the other worktree had since been
+   * removed while its branch survived, the add would *succeed* and silently hand this session
+   * the other session's commits. Check explicitly and fail with a code that says what happened.
+   */
+  if (branchExists.code === 0) {
+    const holder = await branchWorktreeHolder(projectPath, branch)
+    if (holder !== null && holder !== worktreePath) {
+      return worktreeFailure(
+        'branch-checked-out-elsewhere',
+        `Branch "${branch}" is already checked out in ${holder}.`,
+      )
+    }
+  }
+
   const addArgs =
     branchExists.code === 0
       ? ['worktree', 'add', worktreePath, branch]
