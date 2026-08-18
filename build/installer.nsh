@@ -1,10 +1,17 @@
 !include "StrFunc.nsh"
-; StrFunc requires each helper to be declared before use, and the uninstaller needs the
-; `Un` variants: they generate `un.`-prefixed functions, which are the only ones NSIS lets
-; you Call from an uninstall section. `${StrStr}` is used by customInstall and `${UnStrRep}`
-; by customUnInstall, so declare exactly those two.
-${StrStr}
-${UnStrRep}
+; StrFunc requires each helper to be declared before use, and a declared-but-unreferenced
+; helper emits `warning 6010: install function ... not referenced`. electron-builder runs
+; makensis with warnings-as-errors and compiles the uninstaller in a separate pass (marked
+; by BUILD_UNINSTALLER), so declaring both variants unconditionally fails whichever pass
+; does not use one. Declare per pass instead.
+;
+; The uninstaller also needs the `Un` variants: they generate `un.`-prefixed functions,
+; which are the only ones NSIS lets you Call from an uninstall section.
+!ifdef BUILD_UNINSTALLER
+  ${UnStrRep}
+!else
+  ${StrStr}
+!endif
 
 !macro customInstall
   ; Install a stable command shim beside the application. The shim delegates to
