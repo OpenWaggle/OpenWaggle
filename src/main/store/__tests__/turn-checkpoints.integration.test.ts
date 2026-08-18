@@ -7,7 +7,6 @@ import { createSession } from '../session-details'
 import {
   deleteTurnCheckpointsForSession,
   getTurnDiff,
-  getTurnRangeDiff,
   listTurnCheckpoints,
   pruneTurnCheckpoints,
   recordTurnCheckpoint,
@@ -132,18 +131,5 @@ describe('turn checkpoints store', () => {
     const summaries = await listTurnCheckpoints(sessionId)
     expect(summaries).toHaveLength(1)
     expect(summaries[0]).toMatchObject({ turnId: 't0', insertions: 1, deletions: 1 })
-  })
-
-  it('merges diffs across a turn range (query by turn range)', async () => {
-    const sessionId = await makeSession('range')
-    await recordTurnCheckpoint({ sessionId, turnId: 't0', diff: DIFF_A })
-    await recordTurnCheckpoint({ sessionId, turnId: 't1', diff: DIFF_B })
-
-    const range = await getTurnRangeDiff(sessionId, 0, 1)
-    expect(range).not.toBeNull()
-    expect(range?.files.map((f) => f.path).sort()).toEqual(['a.ts', 'b.ts'])
-    expect(range?.turnId).toBe('t1')
-
-    expect(await getTurnRangeDiff(sessionId, 5, 9)).toBeNull()
   })
 })

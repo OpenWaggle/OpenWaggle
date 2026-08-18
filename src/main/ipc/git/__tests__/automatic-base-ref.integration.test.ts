@@ -30,18 +30,20 @@ async function commitFile(cwd: string, file: string, contents: string, message: 
   await git(cwd, ['commit', '-m', message])
 }
 
-async function createRepository(options?: {
-  readonly branch?: string
-  readonly configuredDefault?: string
-}) {
+async function createRepository(options?: { readonly branch?: string }) {
   const branch = options?.branch ?? 'main'
   const created = await mkdtemp(path.join(tmpdir(), 'openwaggle-automatic-base-'))
   repositoryPath = created
   await git(created, ['init', '-b', branch])
   await git(created, ['config', 'user.name', 'OpenWaggle Test'])
   await git(created, ['config', 'user.email', 'openwaggle@example.test'])
-  // Pin the setting resolution reads, so ambient global config cannot change the outcome.
-  await git(created, ['config', 'init.defaultBranch', options?.configuredDefault ?? branch])
+  /*
+   * A misleading `init.defaultBranch` is set on purpose. Resolution must ignore it: the setting
+   * describes how *new* repositories are initialised, `git config --get` reads it from global and
+   * system config, and a repository created with `git init -b develop` therefore reported a
+   * developer's global `main`. Automatic would have diffed against the wrong branch silently.
+   */
+  await git(created, ['config', 'init.defaultBranch', 'configured-but-irrelevant'])
   await commitFile(created, 'base.txt', 'base\n', 'chore: baseline')
   return created
 }
@@ -78,23 +80,62 @@ describe('Automatic base ref resolution', () => {
     }
   })
 
-  it('resolves the configured default branch when there is no remote', async () => {
-    const cwd = await createRepository({ branch: 'trunk', configuredDefault: 'trunk' })
-    await git(cwd, ['checkout', '-b', 'feature'])
-    await commitFile(cwd, 'on-feature.txt', 'feature\n', 'feat: add feature file')
-    // An uncommitted change must NOT appear: a branch diff is commits, not the working tree.
-    await writeFile(path.join(cwd, 'base.txt'), 'edited\n', 'utf8')
+  it('asks the remote which branch is default when the local symref is missing', async () => {
+    /*
+     * A clone sets refs/remotes/origin/HEAD, but plenty of repositories lack it. Verified that
+     * `ls-remote --symref origin HEAD` still reports `refs/heads/develop` there, which is
+     * authoritative - unlike a conventional guess or a global config setting.
+     */
+    const cwd = await createRepository({ branch: 'develop' })
+    const remote = await mkdtemp(path.join(tmpdir(), 'openwaggle-automatic-base-remote-'))
+    try {
+      await git(remote, ['init', '--bare', '-b', 'develop'])
+      await git(cwd, ['remote', 'add', 'origin', remote])
+      await git(cwd, ['push', '-u', 'origin', 'develop'])
+      // Deliberately no `symbolic-ref refs/remotes/origin/HEAD`.
+      await git(cwd, ['checkout', '-b', 'feature'])
+      await commitFile(cwd, 'on-feature.txt', 'feature\n', 'feat: add feature file')
+      // An uncommitted change must NOT appear: a branch diff is commits, not the working tree.
+      await writeFile(path.join(cwd, 'base.txt'), 'edited\n', 'utf8')
 
-    const automatic = await getGitBranchDiff(cwd, '')
+      const automatic = await getGitBranchDiff(cwd, '')
 
-    expect(automatic.ok).toBe(true)
-    expect(changedPaths(automatic)).toEqual(['on-feature.txt'])
+      expect(automatic.ok).toBe(true)
+      expect(changedPaths(automatic)).toEqual(['on-feature.txt'])
+      expect(automatic.ok && automatic.resolvedBaseRef).toBe('origin/develop')
+    } finally {
+      await rm(remote, { recursive: true, force: true })
+    }
+  })
+
+  it('does not diff against a conventional branch when the remote names a different default', async () => {
+    /*
+     * The failure this prevents: a repository whose real default is `develop` also has a `main`
+     * branch lying around. Trying conventional names before consulting the remote would diff
+     * against `main` and report nothing about the choice.
+     */
+    const cwd = await createRepository({ branch: 'develop' })
+    const remote = await mkdtemp(path.join(tmpdir(), 'openwaggle-automatic-base-remote-'))
+    try {
+      await git(remote, ['init', '--bare', '-b', 'develop'])
+      await git(cwd, ['remote', 'add', 'origin', remote])
+      await git(cwd, ['push', '-u', 'origin', 'develop'])
+      // A stale `main` that must not win.
+      await git(cwd, ['branch', 'main'])
+      await git(cwd, ['checkout', '-b', 'feature'])
+      await commitFile(cwd, 'only-on-feature.txt', 'x\n', 'feat: commit on feature')
+
+      const automatic = await getGitBranchDiff(cwd, '')
+
+      expect(automatic.ok && automatic.resolvedBaseRef).toBe('origin/develop')
+    } finally {
+      await rm(remote, { recursive: true, force: true })
+    }
   })
 
   it('falls back to a conventional default branch that exists locally', async () => {
-    // `git init -b main` sets no init.defaultBranch, so point it at a branch that does not
-    // exist and let the conventional fallback find the real `main`.
-    const cwd = await createRepository({ branch: 'main', configuredDefault: 'nonexistent' })
+    // A local-only repository advertises nothing, so the conventional name is all there is.
+    const cwd = await createRepository({ branch: 'main' })
     await git(cwd, ['checkout', '-b', 'feature'])
     await commitFile(cwd, 'conventional.txt', 'x\n', 'feat: commit on feature')
 
@@ -106,7 +147,7 @@ describe('Automatic base ref resolution', () => {
 
   it('falls back to the working-tree diff when no default branch exists', async () => {
     // No remote, no configured default, and no conventional main/master to fall back to.
-    const cwd = await createRepository({ branch: 'trunk', configuredDefault: 'nonexistent' })
+    const cwd = await createRepository({ branch: 'trunk' })
     await writeFile(path.join(cwd, 'base.txt'), 'base changed\n', 'utf8')
 
     const automatic = await getGitBranchDiff(cwd, '')

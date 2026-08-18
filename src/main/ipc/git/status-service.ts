@@ -89,8 +89,15 @@ export async function getGitBranchDiff(
     return { ok: false, code: 'not-git-repo', message: NOT_A_REPOSITORY_MESSAGE }
   }
   const requested = baseRef.trim()
-  const trimmed = requested === '' ? await resolveDefaultBranchRevision(projectPath) : requested
-  if (trimmed === null || trimmed === '') return getGitDiff(projectPath)
+  const automatic = requested === ''
+  const trimmed = automatic ? await resolveDefaultBranchRevision(projectPath) : requested
+  if (trimmed === null || trimmed === '') {
+    // Say so rather than passing off a working-tree diff as a branch diff.
+    const fallback = await getGitDiff(projectPath)
+    return fallback.ok && automatic
+      ? { ...fallback, automaticFellBackToWorkingTree: true }
+      : fallback
+  }
 
   const verify = await runGit(projectPath, ['rev-parse', '--verify', `${trimmed}^{commit}`])
   if (verify.code !== 0) {
@@ -106,13 +113,14 @@ export async function getGitBranchDiff(
     { maxBuffer: DIFF_GIT_MAX_BUFFER },
   )
   if (result.code !== 0) {
-    return {
-      ok: false,
-      code: 'unknown',
-      message: result.stderr.trim() || 'Failed to load branch diff.',
-    }
+    return diffCommandFailure(result, 'Failed to load branch diff.')
   }
-  return { ok: true, files: result.stdout.trim() ? parseUnifiedDiff(result.stdout) : [] }
+  return {
+    ok: true,
+    files: result.stdout.trim() ? parseUnifiedDiff(result.stdout) : [],
+    // Only report a ref the caller did not choose: Automatic has to be auditable.
+    ...(automatic ? { resolvedBaseRef: trimmed } : {}),
+  }
 }
 
 async function assertGitRepository(projectPath: string) {

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { turnCheckpointRef } from '@shared/utils/turn-checkpoint-ref'
 import { afterEach, describe, expect, it } from 'vitest'
-import { execFileAsync } from '../../../../ipc/git/shared'
+import { execFileAsync } from '../../../git/run-git'
 import { captureWorktreeSnapshotForTests } from '../turn-capture'
 
 let projectPath: string | null = null

@@ -101,6 +101,20 @@ describe('registerGitHandlers working-tree actions', () => {
   })
 
   it('requires main-process confirmation before invoking destructive Git commands', async () => {
+    const commands: string[] = []
+    execFileMock.mockImplementation(
+      (
+        _command: string,
+        args: string[],
+        _options: unknown,
+        callback: (error: Error | null, stdout: string, stderr: string) => void,
+      ) => {
+        commands.push(args.join(' '))
+        // The opened folder is the repository root here.
+        callback(null, '/tmp/repo\n', '')
+      },
+    )
+
     registerGitHandlers()
     const handler = registeredHandler('git:working-tree:revert-all')
     const sender = { id: 'renderer' }
@@ -124,7 +138,37 @@ describe('registerGitHandlers working-tree actions', () => {
           'This resets all tracked and staged changes to HEAD and permanently deletes untracked files and folders. Ignored files and nested Git repositories are kept. If either would obstruct restoring HEAD, nothing is changed. This cannot be undone.',
       },
     )
-    expect(execFileMock).not.toHaveBeenCalled()
+    /*
+     * Only the read-only root lookup that the dialog text needs may run before confirmation.
+     * The property worth pinning is that nothing mutating does.
+     */
+    expect(commands).toEqual(['rev-parse --show-toplevel'])
+  })
+
+  it('names the repository root in the confirmation when a subdirectory was opened', async () => {
+    /*
+     * Revert all is re-based onto the repository root and uses whole-repository pathspecs.
+     * Verified against real git that opening /repo/packages/app and confirming deletes untracked
+     * files under /repo/other too - work the user never had in view. The dialog is the only gate
+     * on the one irreversible action here, so it must state the scope it actually has.
+     */
+    execFileMock.mockImplementation(
+      (
+        _command: string,
+        _args: string[],
+        _options: unknown,
+        callback: (error: Error | null, stdout: string, stderr: string) => void,
+      ) => callback(null, '/tmp/repo\n', ''),
+    )
+
+    registerGitHandlers()
+    const handler = registeredHandler('git:working-tree:revert-all')
+
+    await handler?.({ sender: { id: 'renderer' } }, '/tmp/repo/packages/app')
+
+    const detail = showMessageBoxMock.mock.calls.at(0)?.at(1)?.detail
+    expect(detail).toContain('whole repository at /tmp/repo')
+    expect(detail).toContain('not only the folder you opened (/tmp/repo/packages/app)')
   })
 
   it('invalidates cached status after a working-tree mutation', async () => {

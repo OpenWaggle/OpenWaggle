@@ -7,6 +7,7 @@ import type {
   GitRunStackedActionResult,
   GitStackedActionBranchOutcome,
   GitStackedActionErrorCode,
+  GitStackedActionProbeFailure,
   OpenChangeRequestPayload,
   VcsChangeRequest,
 } from '@shared/types/git'
@@ -22,7 +23,16 @@ import type { GitPullResult, GitPushResult } from './push-service'
  * without a real repository. The IPC handler supplies real implementations.
  */
 export interface StackedActionDeps {
-  readonly hasWorkingTreeChanges: (projectPath: string) => Promise<boolean>
+  /**
+   * Whether the working tree has changes, or a failure when that cannot be determined.
+   *
+   * Returning a plain boolean meant a failing `git status` (locked index, unreadable repository)
+   * looked exactly like "clean", which made the commit phase silently skip for `commit_push`
+   * actions - the action then reported success having committed nothing.
+   */
+  readonly hasWorkingTreeChanges: (
+    projectPath: string,
+  ) => Promise<{ readonly ok: true; readonly hasChanges: boolean } | GitStackedActionProbeFailure>
   readonly listBranchNames: (projectPath: string) => Promise<readonly string[]>
   readonly createBranch: (
     projectPath: string,
@@ -71,7 +81,16 @@ export async function runStackedGitAction(
   options: GitRunStackedActionOptions,
   onProgress: ProgressReporter = () => {},
 ): Promise<GitRunStackedActionResult> {
-  const hasChanges = await deps.hasWorkingTreeChanges(projectPath)
+  const probe = await deps.hasWorkingTreeChanges(projectPath)
+  if (!probe.ok) {
+    return {
+      ok: false,
+      phase: 'commit',
+      code: 'unknown',
+      message: probe.message,
+    }
+  }
+  const hasChanges = probe.hasChanges
   const report = createReporter(options, hasChanges, onProgress)
 
   if (options.action === 'pull') {

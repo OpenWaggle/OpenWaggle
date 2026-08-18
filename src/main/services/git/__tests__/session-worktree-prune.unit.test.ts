@@ -13,7 +13,7 @@ const { removeGitWorktreeMock, deleteRefsMock } = vi.hoisted(() => ({
   ),
 }))
 
-vi.mock('../worktree-service', () => ({ removeGitWorktree: removeGitWorktreeMock }))
+vi.mock('../../../adapters/git/worktree', () => ({ removeGitWorktree: removeGitWorktreeMock }))
 vi.mock('../../../adapters/git/turn-checkpoint-refs', () => ({
   deleteSessionTurnCheckpointRefs: deleteRefsMock,
 }))

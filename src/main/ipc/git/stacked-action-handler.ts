@@ -2,6 +2,7 @@ import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { GitRunStackedActionOptions, GitRunStackedActionResult } from '@shared/types/git'
 import { GIT_STACKED_ACTIONS } from '@shared/types/git'
 import {
+  type DefaultBranchActionDialogCopy,
   requiresDefaultBranchConfirmation,
   resolveDefaultBranchActionDialogCopy,
 } from '@shared/utils/git-stacked-action'
@@ -40,7 +41,12 @@ function createStackedActionDeps(): StackedActionDeps {
   return {
     hasWorkingTreeChanges: async (projectPath) => {
       const result = await runGit(projectPath, ['status', '--porcelain=v1'])
-      return result.stdout.trim().length > 0
+      if (result.code !== 0) {
+        // Ignoring the exit code made an unreadable repository indistinguishable from a clean
+        // one, so the commit phase was skipped and the action reported success regardless.
+        return { ok: false, message: result.stderr.trim() || 'Could not read the working tree.' }
+      }
+      return { ok: true, hasChanges: result.stdout.trim().length > 0 }
     },
     listBranchNames: async (projectPath) => {
       const list = await listGitBranches(projectPath)
@@ -59,16 +65,26 @@ function createStackedActionDeps(): StackedActionDeps {
       return { ok: result.ok, message: result.message }
     },
     commit: async (projectPath, message, paths) => {
-      // Stage the caller's selection when provided; only fall back to staging the
-      // whole working tree when nothing was selected (avoids sweeping in the
-      // user's unrelated in-flight work in `local` environment mode).
+      /*
+       * Stage exactly what the caller selected, and nothing when the selection is empty.
+       *
+       * This used to fall back to `git add --all`, which has no pathspec and therefore covers
+       * the whole repository - not just the opened directory. In `local` environment mode that
+       * swept every unrelated in-flight edit in the user's own checkout into the commit, and
+       * `commit_push*` then pushed it. The fallback was reached exactly when nothing was on
+       * display, which is the case where committing everything is least defensible, so an
+       * empty selection now reports that there is nothing to commit.
+       */
       const selected = paths?.filter((entry) => entry.trim().length > 0) ?? []
-      if (selected.length > 0) {
-        await runGit(projectPath, ['add', '--', ...selected])
-        return commitGit(projectPath, { message, amend: false, paths: [...selected] })
+      if (selected.length === 0) {
+        return {
+          ok: false,
+          code: 'nothing-to-commit',
+          message: 'Select the files to commit: nothing was staged for this action.',
+        }
       }
-      await runGit(projectPath, ['add', '--all'])
-      return commitGit(projectPath, { message, amend: false, paths: [] })
+      await runGit(projectPath, ['add', '--', ...selected])
+      return commitGit(projectPath, { message, amend: false, paths: [...selected] })
     },
     push: (projectPath) => pushCurrentBranch(projectPath),
     pull: (projectPath) => pullCurrentBranch(projectPath),
@@ -106,10 +122,20 @@ function confirmDefaultBranchAction(
 ) {
   return Effect.gen(function* () {
     const local = yield* Effect.promise(() => readLocalVcsStatus(projectPath))
-    if (
-      !local.ok ||
-      !requiresDefaultBranchConfirmation(options.action, local.status.isDefaultRef)
-    ) {
+    /*
+     * Fail closed. A gate that skips itself whenever it cannot read the repository is not a
+     * gate: any `git status` failure used to wave a commit-and-push straight through. When the
+     * ref is unknown, treat it as risky and ask - the action itself may still be fine, the user
+     * just gets the last word.
+     */
+    if (!local.ok) {
+      return yield* askDefaultBranchConfirmation(event, {
+        title: 'Continue without checking the current ref?',
+        description: `The current ref could not be read (${local.message}), so it is not known whether this action targets the default ref. Continue anyway?`,
+        continueLabel: 'Continue',
+      })
+    }
+    if (!requiresDefaultBranchConfirmation(options.action, local.status.isDefaultRef)) {
       return true
     }
     const copy = resolveDefaultBranchActionDialogCopy({
@@ -118,6 +144,16 @@ function confirmDefaultBranchAction(
       includesCommit: options.action.startsWith('commit'),
       provider: local.status.sourceControlProvider?.id ?? null,
     })
+    return yield* askDefaultBranchConfirmation(event, copy)
+  })
+}
+
+/** Modal confirmation shown from main, so the renderer cannot skip it. */
+function askDefaultBranchConfirmation(
+  event: IpcMainInvokeEvent,
+  copy: DefaultBranchActionDialogCopy,
+) {
+  return Effect.gen(function* () {
     const ownerWindow = BrowserWindow.fromWebContents(event.sender)
     const dialogOptions = {
       type: 'warning',

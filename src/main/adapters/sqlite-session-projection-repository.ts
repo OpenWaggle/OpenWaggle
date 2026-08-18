@@ -42,7 +42,7 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
   const [store, turnCheckpoints, worktreePrune] = await Promise.all([
     import('../store/session-details'),
     import('../store/turn-checkpoints'),
-    import('../ipc/git/session-worktree-prune'),
+    import('../services/git/session-worktree-prune'),
   ])
   const { pruneSessionWorktree } = worktreePrune
   const { deleteTurnCheckpointsForSession } = turnCheckpoints

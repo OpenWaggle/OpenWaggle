@@ -1,7 +1,7 @@
 import { deleteSessionTurnCheckpointRefs } from '../../adapters/git/turn-checkpoint-refs'
+import { removeGitWorktree } from '../../adapters/git/worktree'
 import { createLogger } from '../../logger'
 import { getOrphanedWorktreePathForSession, type SessionWorktreeRef } from './worktree-cleanup'
-import { removeGitWorktree } from './worktree-service'
 
 const logger = createLogger('session-worktree-prune')
 

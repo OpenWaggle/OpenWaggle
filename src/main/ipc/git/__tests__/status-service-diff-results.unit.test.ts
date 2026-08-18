@@ -98,7 +98,8 @@ describe('diff loading returns typed results', () => {
 
     const result = await getGitBranchDiff('/repo', '   ')
 
-    expect(result).toEqual({ ok: true, files: [] })
+    // The ref Automatic chose is reported so the user can audit which base was used.
+    expect(result).toEqual({ ok: true, files: [], resolvedBaseRef: 'origin/main' })
     // A three-dot diff against the resolved default branch, not the working-tree diff.
     const diffCall = runGitMock.mock.calls.find((call) => call[1]?.[0] === 'diff')
     expect(diffCall?.[1]).toEqual([
@@ -123,7 +124,8 @@ describe('diff loading returns typed results', () => {
 
     const result = await getGitBranchDiff('/repo', '   ')
 
-    expect(result).toEqual({ ok: true, files: [] })
+    // Flagged, so the panel can say it is showing a different scope than the one advertised.
+    expect(result).toEqual({ ok: true, files: [], automaticFellBackToWorkingTree: true })
     // The working-tree path also shells out to `git diff`, so assert on the three-dot form:
     // no `<ref>...HEAD` range means no branch comparison was attempted.
     expect(

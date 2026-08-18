@@ -132,6 +132,20 @@ export type GitDiffErrorCode = (typeof GIT_DIFF_ERROR_CODES)[number]
 export interface GitDiffSuccess {
   readonly ok: true
   readonly files: readonly GitFileDiff[]
+  /**
+   * The base ref the diff was actually taken against, when one was resolved rather than given.
+   *
+   * "Automatic" promises a decision, so the user has to be able to audit which branch it picked -
+   * `origin/develop` and a stale local `main` are very different answers. Absent for the
+   * working-tree diff, which has no base, and for an explicitly requested ref, which the caller
+   * already knows.
+   */
+  readonly resolvedBaseRef?: string
+  /**
+   * True when "Automatic" could not resolve any default branch and fell back to the working-tree
+   * diff. Without this the panel silently showed a different scope than the one it advertised.
+   */
+  readonly automaticFellBackToWorkingTree?: boolean
 }
 
 export interface GitDiffFailure {

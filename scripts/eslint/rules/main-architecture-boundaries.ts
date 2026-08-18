@@ -14,6 +14,7 @@ const RENDERER_ALIAS_PREFIX = '@/'
 const MAIN_IPC_PREFIX = 'src/main/ipc/'
 const MAIN_APPLICATION_PREFIX = 'src/main/application/'
 const MAIN_STORE_PREFIX = 'src/main/store/'
+const MAIN_ADAPTERS_PREFIX = 'src/main/adapters/'
 const MAIN_DOMAIN_PREFIX = 'src/main/domain/'
 const RENDERER_PREFIX = 'src/renderer/'
 const SHARED_PREFIX = 'src/shared/'
@@ -166,8 +167,20 @@ function mainLayerBoundaryReason(projectPath: string, resolvedImport: string | n
     return 'Application services must depend on ports, not direct store imports.'
   }
 
-  return projectPath.startsWith(MAIN_APPLICATION_PREFIX) && resolvedImport?.startsWith(MAIN_IPC_PREFIX)
-    ? 'Application services must not depend on IPC handlers.'
+  if (
+    projectPath.startsWith(MAIN_APPLICATION_PREFIX) &&
+    resolvedImport?.startsWith(MAIN_IPC_PREFIX)
+  ) {
+    return 'Application services must not depend on IPC handlers.'
+  }
+
+  /*
+   * Adapters must not reach into the IPC layer. This direction was documented in prose (and in a
+   * comment inside the Pi adapter) but unenforced, and an adapter did import an IPC module that
+   * contained no handler at all - so the rule could not catch the next one either.
+   */
+  return projectPath.startsWith(MAIN_ADAPTERS_PREFIX) && resolvedImport?.startsWith(MAIN_IPC_PREFIX)
+    ? 'Adapters must not depend on IPC handlers; move shared logic to src/main/services/ or a port.'
     : null
 }
 

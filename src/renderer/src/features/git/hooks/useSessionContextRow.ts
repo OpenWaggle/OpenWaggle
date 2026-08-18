@@ -1,6 +1,7 @@
 import type { SessionId } from '@shared/types/brand'
 import { RepositoryPath } from '@shared/types/brand'
 import type { SessionEnvironmentMode, VcsChangeRequest } from '@shared/types/git'
+import type { ChangeRequestAdoption } from '@shared/types/ipc-invoke-git'
 import type { SessionDetail } from '@shared/types/session'
 import { sessionWorktreeBranch } from '@shared/utils/worktree'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -208,7 +209,7 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
   const loadChangeRequests = useCallback(async () => {
     if (!projectPath) return
     try {
-      const result = await api.listChangeRequests(projectPath)
+      const result = await api.listChangeRequests(RepositoryPath(projectPath))
       if (result.ok) setChangeRequests(result.changeRequests)
       else logger.warn('Failed to list change requests', { code: result.code })
     } catch (error) {
@@ -219,20 +220,31 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
   const checkoutChangeRequest = useCallback(
     async (headRef: string) => {
       if (!projectPath) return false
+      /*
+       * A worktree-mode session only needs the ref as a base for its own tree, so fetch it and
+       * record it. Checking it out would switch the user's opened checkout to the change-request
+       * branch - a tree this session never runs in - and would fail or leave partial state when
+       * that checkout is dirty.
+       */
+      const adoption: ChangeRequestAdoption = envMode === 'worktree' ? 'fetch' : 'checkout'
       try {
-        const result = await api.checkoutChangeRequest(projectPath, headRef)
+        const result = await api.checkoutChangeRequest(
+          RepositoryPath(projectPath),
+          headRef,
+          adoption,
+        )
         if (result.ok) {
           setBaseRef(headRef)
           return true
         }
-        logger.warn('Change request checkout failed', { code: result.code })
+        logger.warn('Change request adoption failed', { code: result.code, adoption })
         return false
       } catch (error) {
-        logger.warn('Change request checkout failed', { error: String(error) })
+        logger.warn('Change request adoption failed', { error: String(error), adoption })
         return false
       }
     },
-    [projectPath, setBaseRef],
+    [projectPath, setBaseRef, envMode],
   )
 
   const sendPlan = useMemo(

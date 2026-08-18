@@ -50,6 +50,7 @@ import type {
   SessionWorktreeCheck,
 } from './git'
 import type { IpcEventPayload } from './ipc'
+import type { ChangeRequestAdoption } from './ipc-invoke-git'
 import type { ProviderInfo, SupportedModelId } from './llm'
 import type { OpenWaggleExtensionApi } from './openwaggle-extension-api'
 import type { OpenWaggleMcpApi } from './openwaggle-mcp-api'
@@ -224,10 +225,16 @@ export interface OpenWaggleApi extends OpenWaggleExtensionApi, OpenWaggleMcpApi 
     workingPath: WorkingPath,
     options: GitRunStackedActionOptions,
   ): Promise<GitRunStackedActionResult>
-  listChangeRequests(projectPath: string): Promise<ChangeRequestListResult>
+  listChangeRequests(repositoryPath: RepositoryPath): Promise<ChangeRequestListResult>
+  /**
+   * Adopt a change request. `checkout` switches the repository's checkout; `fetch` only makes the
+   * ref available, which is what a worktree-mode session needs - switching the user's own
+   * checkout as a side effect targets a tree the session does not run in.
+   */
   checkoutChangeRequest(
-    projectPath: string,
+    repositoryPath: RepositoryPath,
     reference: string,
+    adoption: ChangeRequestAdoption,
   ): Promise<ChangeRequestCheckoutResult>
 
   // Attachments

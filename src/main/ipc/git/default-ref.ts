@@ -3,33 +3,68 @@ import { runGit } from './shared'
 /**
  * The repository's default branch, without a remote prefix.
  *
- * Prefers what the remote itself advertises (`refs/remotes/origin/HEAD`) and falls back to
- * the locally configured `init.defaultBranch`. Returns null when neither is known, which is
- * normal for a fresh repository with no remote.
+ * Prefers what the remote advertises, because that is the only authoritative statement of a
+ * repository's default branch:
+ * 1. `refs/remotes/origin/HEAD`, which a clone sets up and which costs nothing to read,
+ * 2. `git ls-remote --symref origin HEAD`, for a repository whose local copy of that symref was
+ *    never created - verified to report `refs/heads/develop` for a repository whose default is
+ *    `develop` even when the local symref is missing.
  *
- * Shared by VCS status (ahead/behind against the default branch) and the diff panel's
- * Automatic base ref, so the two cannot disagree about which branch "default" means.
+ * Returns null when the remote says nothing, which is normal for a repository with no remote.
+ *
+ * `init.defaultBranch` is deliberately not consulted. `git config --get` reads global and system
+ * config, and that setting describes how *new* repositories are initialised - not what this
+ * repository's default branch is. Verified: a repository created with `git init -b develop`
+ * reports `main` from a developer's global config, so Automatic would have diffed against the
+ * wrong branch and said nothing about it.
+ *
+ * Shared by VCS status (ahead/behind against the default branch) and the diff panel's Automatic
+ * base ref, so the two cannot disagree about which branch "default" means.
  */
 export async function resolveDefaultRef(projectPath: string): Promise<string | null> {
-  const headResult = await runGit(projectPath, [
+  const localSymref = await runGit(projectPath, [
     'symbolic-ref',
     '--quiet',
     '--short',
     'refs/remotes/origin/HEAD',
   ])
-  if (headResult.code === 0 && headResult.stdout.trim()) {
-    return headResult.stdout.trim().replace(/^origin\//, '')
+  if (localSymref.code === 0 && localSymref.stdout.trim()) {
+    return localSymref.stdout.trim().replace(/^origin\//, '')
   }
-  const configResult = await runGit(projectPath, ['config', '--get', 'init.defaultBranch'])
-  if (configResult.code === 0 && configResult.stdout.trim()) return configResult.stdout.trim()
+  return await resolveAdvertisedDefaultRef(projectPath)
+}
+
+/**
+ * Ask the remote directly which branch its HEAD points at.
+ *
+ * Only reached when the local symref is missing, and skipped entirely when no remote is
+ * configured, so the common cases (a clone, or a purely local repository) stay offline. A
+ * failure here - no network, no permission - is reported as "unknown" so resolution can fall
+ * back rather than surfacing a network error in a diff.
+ */
+async function resolveAdvertisedDefaultRef(projectPath: string): Promise<string | null> {
+  const remotes = await runGit(projectPath, ['remote'])
+  if (remotes.code !== 0 || !remotes.stdout.split('\n').some((line) => line.trim() === 'origin')) {
+    return null
+  }
+
+  const advertised = await runGit(projectPath, ['ls-remote', '--symref', 'origin', 'HEAD'])
+  if (advertised.code !== 0) return null
+
+  for (const line of advertised.stdout.split('\n')) {
+    // `ref: refs/heads/<name>\tHEAD`
+    const match = /^ref:\s+refs\/heads\/(?<name>\S+)\s+HEAD$/.exec(line.trim())
+    const name = match?.groups?.name
+    if (name) return name
+  }
   return null
 }
 
 /**
- * Branch names conventionally used for a default branch, tried in order when the repository
- * advertises nothing. A local-only repository created with `git init -b main` sets no
- * `init.defaultBranch`, so without this an obvious default would go unresolved and the
- * Automatic base ref would silently degrade to the working-tree diff.
+ * Branch names conventionally used for a default branch, tried in order when nothing is
+ * advertised. A local-only repository created with `git init -b main` advertises nothing, so
+ * without this an obvious default would go unresolved and the Automatic base ref would silently
+ * degrade to the working-tree diff.
  */
 const CONVENTIONAL_DEFAULT_BRANCHES = ['main', 'master'] as const
 
@@ -43,8 +78,8 @@ const CONVENTIONAL_DEFAULT_BRANCHES = ['main', 'master'] as const
  * 3. a conventional default (`main`, then `master`) for a local-only repository,
  * 4. null - no default branch is present at all, so callers must decide what to do.
  *
- * Deliberately independent of ambient global git config beyond what `resolveDefaultRef`
- * reads, so behaviour does not change between a developer machine and a fresh CI runner.
+ * A conventional name is only tried after the remote has been consulted, so a repository whose
+ * default is `develop` is not diffed against a `main` that merely happens to exist.
  */
 export async function resolveDefaultBranchRevision(projectPath: string): Promise<string | null> {
   const defaultRef = await resolveDefaultRef(projectPath)
