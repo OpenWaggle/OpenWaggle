@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { loadScrollCache, saveScrollCache } from '../chat-scroll-cache'
 
-const SCROLL_CACHE_KEY = 'openwaggle:scroll-positions'
+const SCROLL_CACHE_KEY = 'openwaggle:scroll-positions:v1'
 const MAX_SCROLL_CACHE_ENTRIES = 100
 
 describe('chat scroll cache', () => {

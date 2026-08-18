@@ -33,9 +33,6 @@ export const packageDocumentation = packageDocumentationDefinitions.map((definit
   versionPackageDocumentation(definition, versionsForSlug(definition.slug)),
 );
 
-export function packageDocumentationForSlug(slug: string) {
-  return findPackageDocumentationForSlug(packageDocumentation, slug);
-}
 
 export function packageDocumentationPage(routeSlug: string) {
   return resolvePackageDocumentationPage(packageDocumentation, routeSlug);

@@ -27,6 +27,7 @@ export function createBaseCommands(actions: CommandPaletteActionHandlers) {
   appendOptionalCommand(optionalCommands, createSessionTreeCommand(actions))
   appendOptionalCommand(optionalCommands, createForkCommand(actions))
   appendOptionalCommand(optionalCommands, createCloneCommand(actions))
+  appendOptionalCommand(optionalCommands, createWorktreesCommand(actions))
 
   return [
     {
@@ -152,6 +153,17 @@ function createCloneCommand(actions: CommandPaletteActionHandlers) {
     description: 'Duplicate the current session position',
     icon: <Copy className="size-3.5" />,
     action: actions.cloneToNewSession,
+  }
+}
+
+function createWorktreesCommand(actions: CommandPaletteActionHandlers) {
+  if (!actions.openWorktrees) return null
+  return {
+    id: 'new-worktree',
+    label: 'Manage worktrees',
+    description: 'Open the Worktrees settings surface',
+    icon: <GitBranch className="size-3.5" />,
+    action: actions.openWorktrees,
   }
 }
 

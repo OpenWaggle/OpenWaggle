@@ -13,6 +13,7 @@ describe('CompactionSummaryCard', () => {
   it('renders collapsed by default and expands the generated summary inline', () => {
     render(
       <CompactionSummaryCard
+        id="compaction-1"
         summary={'## Goal\nKeep the failing compaction test context.'}
         tokensBefore={123456}
       />,

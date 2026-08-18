@@ -51,7 +51,7 @@ describe('settings shell components', () => {
     fireEvent.click(screen.getByRole('button', { name: /General/ }))
 
     expect(screen.queryByRole('button', { name: /Git/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Worktrees/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Worktrees/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Personalization/ })).not.toBeInTheDocument()
     expect(navigateMock).toHaveBeenNthCalledWith(1, {
       to: '/settings/$tab',

@@ -1,5 +1,5 @@
 import type { Root } from 'hast'
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import rehypeSanitize from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import remarkParse from 'remark-parse'
@@ -85,10 +85,13 @@ interface SplitScanState {
 
 const INITIAL_SPLIT_STATE: SplitScanState = { scannedLength: 0, fenceCount: 0, lastSplitIdx: -1 }
 
-function resetSplitState(state: SplitScanState) {
-  state.scannedLength = INITIAL_SPLIT_STATE.scannedLength
-  state.fenceCount = INITIAL_SPLIT_STATE.fenceCount
-  state.lastSplitIdx = INITIAL_SPLIT_STATE.lastSplitIdx
+function preservedSplit(state: SplitScanState, text: string) {
+  return state.lastSplitIdx > 0 && state.lastSplitIdx <= text.length ? state.lastSplitIdx : -1
+}
+
+interface SplitScanResult {
+  readonly splitIdx: number
+  readonly next: SplitScanState
 }
 
 /**
@@ -96,61 +99,61 @@ function resetSplitState(state: SplitScanState) {
  * Uses cumulative fence count to determine parity without re-scanning the
  * entire prefix. Falls back to a full scan on non-monotonic text changes.
  *
+ * Pure: returns the next scan state instead of mutating it, so render stays
+ * free of ref writes (react-doctor/no-ref-current-in-render). The caller
+ * commits the returned state after render.
+ *
  * Amortized O(delta) per call where delta = new tokens since last call.
  */
-function findSplitIndexIncremental(text: string, state: SplitScanState) {
+function scanSplitIndex(text: string, state: SplitScanState): SplitScanResult {
   if (text.length <= state.scannedLength) {
     // Text shrunk or unchanged — full reset
-    resetSplitState(state)
-    state.scannedLength = text.length
-    state.fenceCount = countCodeFences(text)
-    state.lastSplitIdx = findSplitIndex(text)
-    return state.lastSplitIdx
+    const lastSplitIdx = findSplitIndex(text)
+    return {
+      splitIdx: lastSplitIdx,
+      next: { scannedLength: text.length, fenceCount: countCodeFences(text), lastSplitIdx },
+    }
   }
 
   // Text grew — only scan the delta for fences
   const delta = text.slice(state.scannedLength)
-  const deltaFences = countCodeFences(delta)
-  state.fenceCount += deltaFences
-  state.scannedLength = text.length
+  const fenceCount = state.fenceCount + countCodeFences(delta)
+  const scannedLength = text.length
 
   // If total fence count is odd, we're inside an open code block —
   // no valid split can exist beyond the last known one.
-  if (state.fenceCount % FENCE_PARITY_DIVISOR !== 0) {
-    // Preserve previous split if still in bounds
-    if (state.lastSplitIdx > 0 && state.lastSplitIdx <= text.length) {
-      return state.lastSplitIdx
+  if (fenceCount % FENCE_PARITY_DIVISOR !== 0) {
+    return {
+      splitIdx: preservedSplit(state, text),
+      next: { scannedLength, fenceCount, lastSplitIdx: state.lastSplitIdx },
     }
-    return -1
   }
 
   // Total fence count is even — search backward from end of NEW text only
   // for `\n\n` boundaries. We only need to search within the delta region
   // plus a small overlap (to catch \n\n that straddles the boundary).
-  const searchStart = Math.max(0, state.scannedLength - delta.length - DOUBLE_NEWLINE_LENGTH)
+  const searchStart = Math.max(0, scannedLength - delta.length - DOUBLE_NEWLINE_LENGTH)
   let pos = text.length
   while (pos > searchStart) {
     const idx = text.lastIndexOf('\n\n', pos - 1)
     if (idx === -1 || idx < searchStart) break
 
     // Fence count up to this candidate = total fences minus fences after candidate.
-    // Since total is even AND we're searching backward, the last \n\n where
-    // fences-before is even is our split point. Use cumulative count minus
-    // fences in the suffix after the candidate.
-    const fencesAfter = countCodeFences(text.slice(idx))
-    const fencesBefore = state.fenceCount - fencesAfter
+    // Since total is even AND we're searching backward, the last `\n\n` where
+    // fences-before is even is our split point.
+    const fencesBefore = fenceCount - countCodeFences(text.slice(idx))
     if (fencesBefore % FENCE_PARITY_DIVISOR === 0) {
-      state.lastSplitIdx = idx + DOUBLE_NEWLINE_LENGTH
-      return state.lastSplitIdx
+      const lastSplitIdx = idx + DOUBLE_NEWLINE_LENGTH
+      return { splitIdx: lastSplitIdx, next: { scannedLength, fenceCount, lastSplitIdx } }
     }
     pos = idx
   }
 
   // No new valid split in the delta — preserve previous result
-  if (state.lastSplitIdx > 0 && state.lastSplitIdx <= text.length) {
-    return state.lastSplitIdx
+  return {
+    splitIdx: preservedSplit(state, text),
+    next: { scannedLength, fenceCount, lastSplitIdx: state.lastSplitIdx },
   }
-  return -1
 }
 
 // ---------------------------------------------------------------------------
@@ -162,6 +165,93 @@ interface PrefixState {
   hast: Root
 }
 
+interface ComputedMarkdown {
+  readonly result: IncrementalMarkdownResult
+  readonly nextPrefixState: PrefixState | null
+  readonly nextSplitState: SplitScanState
+}
+
+interface ComputeInput {
+  readonly text: string
+  readonly isStreaming: boolean
+  readonly shikiOptions: ShikiOptions
+  readonly prefixState: PrefixState | null
+  readonly splitState: SplitScanState
+}
+
+/** Pure split/parse step: derives the result and the next cache state. */
+function computeIncrementalMarkdown(input: ComputeInput): ComputedMarkdown {
+  const { text, isStreaming, shikiOptions, prefixState, splitState } = input
+
+  if (!isStreaming) {
+    // Clear incremental state so it doesn't hold stale data between messages
+    const stale = splitState.scannedLength > 0
+    return {
+      result: { prefixHast: null, tail: text, prefixKey: '' },
+      nextPrefixState: stale ? null : prefixState,
+      nextSplitState: stale ? { ...INITIAL_SPLIT_STATE } : splitState,
+    }
+  }
+
+  const { splitIdx, next: nextSplitState } = scanSplitIndex(text, splitState)
+
+  if (splitIdx === -1) {
+    return {
+      result: { prefixHast: null, tail: text, prefixKey: '' },
+      nextPrefixState: prefixState,
+      nextSplitState,
+    }
+  }
+
+  const prefixText = text.slice(0, splitIdx)
+  const tail = text.slice(splitIdx)
+
+  // Same prefix as before — reuse the cached tree
+  if (prefixState && prefixText === prefixState.text) {
+    return {
+      result: { prefixHast: prefixState.hast, tail, prefixKey: prefixText },
+      nextPrefixState: prefixState,
+      nextSplitState,
+    }
+  }
+
+  // Incremental growth: prefix extends the previous prefix.
+  // Create a NEW Root so React detects the prop change and re-renders PrefixView.
+  // (Reusing the same reference would be treated as "unchanged" by React
+  // Compiler auto-memoization and skip the re-render.)
+  if (prefixState && prefixText.startsWith(prefixState.text)) {
+    const newHast = parseToHast(prefixText.slice(prefixState.text.length))
+    applyShikiToHast(newHast, {
+      highlighter: shikiOptions.highlighter,
+      cache: shikiOptions.cache,
+    })
+    const combined: Root = {
+      type: 'root',
+      children: [...prefixState.hast.children, ...newHast.children],
+    }
+    return {
+      result: { prefixHast: combined, tail, prefixKey: prefixText },
+      nextPrefixState: { text: prefixText, hast: combined },
+      nextSplitState,
+    }
+  }
+
+  // Full re-parse (first time or non-monotonic change)
+  // INVARIANT: `applyShikiToHast` mutates the tree. The mutated tree is stored
+  // as the prefix state and never passed back through `applyShikiToHast` again —
+  // same-prefix checks return early above, before reaching this block.
+  const hast = parseToHast(prefixText)
+  applyShikiToHast(hast, {
+    highlighter: shikiOptions.highlighter,
+    cache: shikiOptions.cache,
+  })
+  return {
+    result: { prefixHast: hast, tail, prefixKey: prefixText },
+    nextPrefixState: { text: prefixText, hast },
+    nextSplitState,
+  }
+}
+
 /**
  * Split streaming text into a stable parsed prefix (all complete paragraphs)
  * and a live tail (current in-progress paragraph). The prefix is parsed to HAST
@@ -169,6 +259,10 @@ interface PrefixState {
  *
  * When `isStreaming` is false, no splitting occurs — returns the full text
  * as the tail for the standard ReactMarkdown path.
+ *
+ * The parse caches live in refs but are only READ during render; the new state
+ * is committed in an effect. Render therefore stays pure, and a render that
+ * React discards or replays can no longer pollute the cache.
  */
 export function useIncrementalMarkdown(
   text: string,
@@ -177,69 +271,23 @@ export function useIncrementalMarkdown(
 ): IncrementalMarkdownResult {
   const prefixStateRef = useRef<PrefixState | null>(null)
   const splitStateRef = useRef<SplitScanState>({ ...INITIAL_SPLIT_STATE })
+  const highlighterRef = useRef(shikiOptions.highlighter)
 
-  // Invalidate prefix cache when highlighter changes (e.g., from undefined to loaded)
-  const prevHighlighterRef = useRef(shikiOptions.highlighter)
-  if (prevHighlighterRef.current !== shikiOptions.highlighter) {
-    prevHighlighterRef.current = shikiOptions.highlighter
-    prefixStateRef.current = null
-  }
-
-  if (!isStreaming) {
-    // Clear incremental state so it doesn't hold stale data between messages
-    if (splitStateRef.current.scannedLength > 0) {
-      resetSplitState(splitStateRef.current)
-      prefixStateRef.current = null
-    }
-    return { prefixHast: null, tail: text, prefixKey: '' }
-  }
-
-  const splitIdx = findSplitIndexIncremental(text, splitStateRef.current)
-
-  if (splitIdx === -1) {
-    return { prefixHast: null, tail: text, prefixKey: '' }
-  }
-
-  const prefixText = text.slice(0, splitIdx)
-  const tail = text.slice(splitIdx)
-  const prev = prefixStateRef.current
-
-  // Same prefix as before — return cached
-  if (prev && prefixText === prev.text) {
-    return { prefixHast: prev.hast, tail, prefixKey: prefixText }
-  }
-
-  // Incremental growth: prefix extends the previous prefix.
-  // Create a NEW Root so React detects the prop change and re-renders PrefixView.
-  // (Mutating prev.hast in-place returns the same reference, which React Compiler
-  // auto-memoization treats as "unchanged" and skips re-rendering.)
-  if (prev && prefixText.startsWith(prev.text)) {
-    const newMarkdown = prefixText.slice(prev.text.length)
-    const newHast = parseToHast(newMarkdown)
-    applyShikiToHast(newHast, {
-      highlighter: shikiOptions.highlighter,
-      cache: shikiOptions.cache,
-    })
-    const combined: Root = {
-      type: 'root',
-      children: [...prev.hast.children, ...newHast.children],
-    }
-    prefixStateRef.current = { text: prefixText, hast: combined }
-    return { prefixHast: combined, tail, prefixKey: prefixText }
-  }
-
-  // Full re-parse (first time or non-monotonic change)
-  const hast = parseToHast(prefixText)
-
-  // INVARIANT: `applyShikiToHast` mutates the tree. We store the mutated tree
-  // in the prefix state and never pass it back through `applyShikiToHast` again —
-  // same-prefix checks return early above, before reaching this block.
-  applyShikiToHast(hast, {
-    highlighter: shikiOptions.highlighter,
-    cache: shikiOptions.cache,
+  const computed = computeIncrementalMarkdown({
+    text,
+    isStreaming,
+    shikiOptions,
+    // A highlighter change (e.g. undefined -> loaded) invalidates the prefix cache.
+    prefixState:
+      highlighterRef.current === shikiOptions.highlighter ? prefixStateRef.current : null,
+    splitState: splitStateRef.current,
   })
 
-  prefixStateRef.current = { text: prefixText, hast }
+  useEffect(() => {
+    highlighterRef.current = shikiOptions.highlighter
+    prefixStateRef.current = computed.nextPrefixState
+    splitStateRef.current = computed.nextSplitState
+  })
 
-  return { prefixHast: hast, tail, prefixKey: prefixText }
+  return computed.result
 }

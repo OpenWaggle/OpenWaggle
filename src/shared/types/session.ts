@@ -1,6 +1,7 @@
 import type { Message, MessageRole } from './agent'
 import type { RunMode } from './background-run'
 import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
+import type { SessionEnvironmentMode } from './git'
 import type { SupportedModelId } from './llm'
 import type { WaggleConfig } from './waggle'
 
@@ -32,6 +33,9 @@ export interface SessionSummary {
   readonly lastActiveBranchId?: SessionBranchId | null
   readonly branches?: readonly SessionBranch[]
   readonly treeUiState?: SessionTreeUiState | null
+  /** Resolves this session's working path, so per-session git state can be shown in lists. */
+  readonly environmentMode?: SessionEnvironmentMode
+  readonly worktreePath?: string | null
 }
 
 export interface SessionInterruptedRun {
@@ -54,6 +58,21 @@ export interface SessionDetail {
   readonly archived?: boolean
   readonly createdAt: number
   readonly updatedAt: number
+  /** Session environment mode (ADR 0010); defaults to 'local'. */
+  readonly environmentMode?: SessionEnvironmentMode
+  /** Path of this session's Session worktree when in worktree mode. */
+  readonly worktreePath?: string | null
+  /** Chosen Worktree base ref for birth (ADR 0010); defaults to current branch. */
+  readonly worktreeBaseRef?: string | null
+  /** When true, the Session worktree is forked from origin/<baseRef>. */
+  readonly worktreeStartFromOrigin?: boolean
+}
+
+/** Per-session worktree birth plan persisted by the composer strip (WS1b). */
+export interface SessionWorktreePlan {
+  readonly environmentMode: SessionEnvironmentMode
+  readonly baseRef: string | null
+  readonly startFromOrigin: boolean
 }
 
 export interface SessionNode {

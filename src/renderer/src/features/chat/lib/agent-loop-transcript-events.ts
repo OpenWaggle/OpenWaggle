@@ -1,4 +1,4 @@
-import type { SessionTranscriptEntry, SessionWorkspace } from '@shared/types/session'
+import type { SessionWorkspace } from '@shared/types/session'
 import type { AgentTransportCustomEvent } from '@shared/types/stream'
 import {
   type AgentLoopTranscriptNode,
@@ -32,12 +32,6 @@ function readAgentLoopEventsFromNodes(
   }
 
   return { customMessages, interactionEvents }
-}
-
-export function readAgentLoopEventsFromTranscriptPath(
-  transcriptPath: readonly SessionTranscriptEntry[],
-): AgentLoopTranscriptEvents {
-  return readAgentLoopEventsFromNodes(transcriptPath.map((entry) => entry.node))
 }
 
 function compareWorkspaceNodes(left: AgentLoopTranscriptNode, right: AgentLoopTranscriptNode) {

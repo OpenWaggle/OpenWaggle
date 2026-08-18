@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { MessageChatRow, WaggleTurnChatRow } from '../../lib/types-chat-row'
 import {
   buildChatRows,
   createAssistantToolMessage,
@@ -48,7 +49,7 @@ describe('buildChatRows waggle message metadata', () => {
       phase: DEFAULT_PHASE,
     })
 
-    const waggleRows = rows.filter((r) => r.type === 'waggle-turn')
+    const waggleRows = rows.filter((r): r is WaggleTurnChatRow => r.type === 'waggle-turn')
     expect(waggleRows).toHaveLength(2)
     expect(waggleRows[0]?.messages).toHaveLength(1)
     expect(waggleRows[0]?.turnDividerProps).toMatchObject({
@@ -91,7 +92,7 @@ describe('buildChatRows waggle message metadata', () => {
       phase: DEFAULT_PHASE,
     })
 
-    const waggleRows = rows.filter((r) => r.type === 'waggle-turn')
+    const waggleRows = rows.filter((r): r is WaggleTurnChatRow => r.type === 'waggle-turn')
     expect(waggleRows).toHaveLength(1)
     expect(waggleRows[0]?.messages.map((row) => row.message.id)).toEqual([
       'waggle-tool-a',
@@ -121,7 +122,7 @@ describe('buildChatRows waggle message metadata', () => {
       phase: DEFAULT_PHASE,
     })
 
-    const waggleRows = rows.filter((r) => r.type === 'waggle-turn')
+    const waggleRows = rows.filter((r): r is WaggleTurnChatRow => r.type === 'waggle-turn')
     expect(waggleRows).toHaveLength(1)
     expect(waggleRows[0]?.messages.map((row) => row.message.id)).toEqual([
       'waggle-tool-a',
@@ -154,8 +155,10 @@ describe('buildChatRows waggle message metadata', () => {
       phase: DEFAULT_PHASE,
     })
 
-    const waggleRows = rows.filter((r) => r.type === 'waggle-turn')
-    const messageRows = rows.filter((r) => r.type === 'message' && r.message.role === 'assistant')
+    const waggleRows = rows.filter((r): r is WaggleTurnChatRow => r.type === 'waggle-turn')
+    const messageRows = rows.filter(
+      (r): r is MessageChatRow => r.type === 'message' && r.message.role === 'assistant',
+    )
     expect(waggleRows).toHaveLength(1)
     expect(messageRows).toHaveLength(1)
 

@@ -10,7 +10,7 @@ import {
 
 const SESSION_ID = SessionId('session-1')
 
-function message(id: string, role: UIMessage['role'], text: string) {
+function message(id: string, role: UIMessage['role'], text: string): UIMessage {
   return {
     id,
     role,
@@ -22,7 +22,7 @@ function node(
   id: string,
   parentId: string | null,
   overrides?: { readonly kind?: SessionNodeKind; readonly text?: string },
-) {
+): SessionNode {
   const kind = overrides?.kind ?? 'user_message'
   return {
     id: SessionNodeId(id),

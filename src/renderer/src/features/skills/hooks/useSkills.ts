@@ -1,6 +1,6 @@
 import type { SkillCatalogResult } from '@shared/types/standards'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { queryKeys } from '@/queries/query-keys'
 import {
   type SkillResourcesResult,
@@ -23,13 +23,31 @@ interface UseSkillsResult {
   toggleSkill: (skillId: string, enabled: boolean) => Promise<void>
 }
 
+/**
+ * The effective selection: the user's explicit pick while it still exists in the
+ * catalog, otherwise the first skill. Derived per render rather than mirrored
+ * into state via an effect, which would commit one render holding a selection
+ * that no longer exists (react-doctor/no-adjust-state-on-prop-change).
+ */
+function resolveSelectedSkillId(
+  projectPath: string | null,
+  explicitSkillId: string | null,
+  skills: readonly { readonly id: string }[],
+) {
+  if (projectPath === null) return null
+  if (explicitSkillId && skills.some((skill) => skill.id === explicitSkillId)) {
+    return explicitSkillId
+  }
+  return skills[0]?.id ?? null
+}
+
 function describeSkillsError(error: unknown, fallback: string) {
   return error instanceof Error && error.message.trim() ? error.message : fallback
 }
 
 export function useSkills(projectPath: string | null): UseSkillsResult {
   const queryClient = useQueryClient()
-  const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null)
+  const [explicitSkillId, setExplicitSkillId] = useState<string | null>(null)
   const skillResourcesQuery = useQuery(skillResourcesQueryOptions(projectPath))
 
   const toggleSkillMutation = useMutation({
@@ -42,10 +60,24 @@ export function useSkills(projectPath: string | null): UseSkillsResult {
       readonly skillId: string
       readonly enabled: boolean
     }) => api.setSkillEnabled(nextProjectPath, skillId, enabled),
+    // Invalidate on the mutation itself so every caller refreshes the catalog,
+    // not just the toggleSkill wrapper. mutateAsync awaits onSuccess, so callers
+    // still observe fresh data immediately after awaiting
+    // (react-doctor/query-mutation-missing-invalidation).
+    onSuccess: (_result, variables) =>
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.skills(variables.nextProjectPath),
+        exact: true,
+      }),
   })
 
   const catalog = skillResourcesQuery.data?.catalog ?? null
   const standardsStatus = skillResourcesQuery.data?.standardsStatus ?? null
+  const selectedSkillId = resolveSelectedSkillId(
+    projectPath,
+    explicitSkillId,
+    catalog?.skills ?? [],
+  )
   const selectedSkill = catalog?.skills.find((skill) => skill.id === selectedSkillId) ?? null
   const isPreviewEnabled =
     projectPath !== null &&
@@ -57,21 +89,6 @@ export function useSkills(projectPath: string | null): UseSkillsResult {
     skillPreviewQueryOptions(projectPath, selectedSkillId, isPreviewEnabled),
   )
 
-  useEffect(() => {
-    if (!projectPath) {
-      setSelectedSkillId(null)
-      return
-    }
-
-    const currentSkills = catalog?.skills ?? []
-    setSelectedSkillId((current) => {
-      if (current && currentSkills.some((skill) => skill.id === current)) {
-        return current
-      }
-      return currentSkills[0]?.id ?? null
-    })
-  }, [catalog?.skills, projectPath])
-
   async function toggleSkill(skillId: string, enabled: boolean) {
     if (!projectPath) return
     toggleSkillMutation.reset()
@@ -81,7 +98,7 @@ export function useSkills(projectPath: string | null): UseSkillsResult {
       return
     }
 
-    await queryClient.invalidateQueries({ queryKey: queryKeys.skills(projectPath), exact: true })
+    // The mutation's onSuccess already invalidated the catalog.
     const refreshedResources = queryClient.getQueryData<SkillResourcesResult>(
       queryKeys.skills(projectPath),
     )
@@ -132,7 +149,7 @@ export function useSkills(projectPath: string | null): UseSkillsResult {
     isPreviewLoading: previewQuery.isPending,
     error: getErrorMessage(),
     refresh,
-    selectSkill: setSelectedSkillId,
+    selectSkill: setExplicitSkillId,
     toggleSkill,
   }
 }

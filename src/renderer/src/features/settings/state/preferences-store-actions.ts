@@ -1,5 +1,12 @@
 import { SupportedModelId } from '@shared/types/brand'
-import { DEFAULT_SETTINGS, THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
+import type { SessionEnvironmentMode } from '@shared/types/git'
+import {
+  DEFAULT_SETTINGS,
+  type DiffSyntaxTheme,
+  type DiffView,
+  THINKING_LEVELS,
+  type ThinkingLevel,
+} from '@shared/types/settings'
 import { includes } from '@shared/utils/validation'
 import { useProviderStore } from '@/features/providers/state'
 import { api } from '@/shared/lib/ipc'
@@ -152,6 +159,26 @@ export function createPreferencesActions(
       await api.updateSettings({ thinkingLevel: preset })
       set({ settings: { ...settings, thinkingLevel: preset } })
       persistProjectPreference(settings.projectPath, { thinkingLevel: preset })
+    },
+    setDefaultSessionEnvironmentMode: async (mode: SessionEnvironmentMode) => {
+      const { settings } = get()
+      await api.updateSettings({ defaultSessionEnvironmentMode: mode })
+      set({ settings: { ...settings, defaultSessionEnvironmentMode: mode } })
+    },
+    setDiffSyntaxTheme: async (theme: DiffSyntaxTheme) => {
+      const { settings } = get()
+      await api.updateSettings({ diffSyntaxTheme: theme })
+      set({ settings: { ...settings, diffSyntaxTheme: theme } })
+    },
+    setDiffView: async (view: DiffView) => {
+      const { settings } = get()
+      await api.updateSettings({ diffView: view })
+      set({ settings: { ...settings, diffView: view } })
+    },
+    setDiffWrapLines: async (wrap: boolean) => {
+      const { settings } = get()
+      await api.updateSettings({ diffWrapLines: wrap })
+      set({ settings: { ...settings, diffWrapLines: wrap } })
     },
     setEnabledModels: (models) => setEnabledModels(models, set, get),
     setProjectDisplayName: async (path, name) => {

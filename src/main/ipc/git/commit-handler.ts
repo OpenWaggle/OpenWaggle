@@ -4,6 +4,7 @@ import * as Effect from 'effect/Effect'
 import { typedHandle } from '../typed-ipc'
 import { isGitRepository, projectPathSchema, runGit } from './shared'
 import { invalidateGitStatusCache } from './status-handler'
+import { invalidateVcsStatus } from './vcs-status-cache'
 
 function commitFailure(code: GitCommitFailure['code'], message: string): GitCommitFailure {
   return { ok: false, code, message }
@@ -30,7 +31,10 @@ function mapCommitFailure(stderr: string): GitCommitFailure {
   return commitFailure('unknown', message || 'Git commit failed.')
 }
 
-async function commitGit(projectPath: string, payload: GitCommitPayload): Promise<GitCommitResult> {
+export async function commitGit(
+  projectPath: string,
+  payload: GitCommitPayload,
+): Promise<GitCommitResult> {
   const message = payload.message.trim()
   const preflightFailure = await validateCommitPreflight(projectPath, message)
   if (preflightFailure) return preflightFailure
@@ -98,6 +102,7 @@ export function registerGitCommitHandlers(): void {
       const result = yield* Effect.promise(() => commitGit(projectPath, payload))
       if (result.ok) {
         invalidateGitStatusCache(projectPath)
+        invalidateVcsStatus(projectPath)
       }
       return result
     }),

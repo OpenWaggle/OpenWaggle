@@ -6,7 +6,7 @@ const execFile = promisify(execFileCallback)
 const ALL_ZERO_SHA_PATTERN = /^0+$/
 const CLI_ARGUMENT_START_INDEX = 2
 const CONVENTIONAL_COMMIT_SUBJECT_PATTERN =
-  /^(?:feat|fix|docs|test|chore|refactor|ci|build|revert)(?:\([^()\r\n]+\))?!?: \S.*$/
+  /^(?:feat|fix|docs|test|chore|refactor|perf|ci|build|revert)(?:\([^()\r\n]+\))?!?: \S.*$/
 const PACKAGE_RELEASE_INTENT_PATTERN =
   /^(?:(?:feat|fix|revert)(?:\([^()\r\n]+\))?!?: \S.*|chore\(main\): release \S.*)$/
 const COMMIT_BODY_FIELD_OFFSET = 3
@@ -48,9 +48,39 @@ function isGeneratedNonPackageMerge(commit: CommitSubject) {
   )
 }
 
-export function validateConventionalCommitSubjects(commits: readonly CommitSubject[]) {
+/**
+ * An update-branch merge that only brings work already present on the base branch.
+ *
+ * The package rule exists so a merge cannot introduce package changes without a Release
+ * Please bump. That reasoning applies to merging a feature branch *into* the base, where
+ * the changes are new. It does not apply in the other direction: when the base branch is
+ * merged *into* a feature branch, any package changes it carries are already on the base
+ * with whatever release commits accompanied them, so this pull request owes no bump for
+ * them. Attributing them to the merge made every branch that syncs with a base branch that
+ * touched `packages/` fail the policy, which is a false positive rather than a caught risk.
+ *
+ * Narrow by construction: the exemption applies only when *every* incoming parent is
+ * already contained in the base, so a merge that also brings unreleased work is still
+ * judged on its changed paths.
+ */
+function isUpstreamUpdateMerge(commit: CommitSubject, upstreamMergeHashes: ReadonlySet<string>) {
+  return (
+    commit.parentHashes.length > 1 &&
+    commit.subject.startsWith('Merge ') &&
+    upstreamMergeHashes.has(commit.hash)
+  )
+}
+
+export function validateConventionalCommitSubjects(
+  commits: readonly CommitSubject[],
+  upstreamMergeHashes: ReadonlySet<string> = new Set<string>(),
+) {
   return commits.flatMap((commit) => {
     if (isGeneratedNonPackageMerge(commit)) {
+      return []
+    }
+
+    if (isUpstreamUpdateMerge(commit, upstreamMergeHashes)) {
       return []
     }
 
@@ -189,6 +219,31 @@ async function readCommitSubjects(cwd: string, from: string, to: string) {
   return commits
 }
 
+/**
+ * Merges in the range whose incoming parents are all already contained in the base ref.
+ * See {@link isUpstreamUpdateMerge} for why those are exempt from the package rule.
+ */
+async function collectUpstreamUpdateMergeHashes(input: {
+  readonly base: string
+  readonly commits: readonly CommitSubject[]
+  readonly cwd: string
+}) {
+  const upstreamMergeHashes = new Set<string>()
+
+  for (const commit of input.commits) {
+    if (commit.parentHashes.length <= 1) continue
+    const incomingParents = commit.parentHashes.slice(1)
+    const containment = await Promise.all(
+      incomingParents.map((parent) => isAncestor(input.cwd, parent, input.base)),
+    )
+    if (containment.every((contained) => contained)) {
+      upstreamMergeHashes.add(commit.hash)
+    }
+  }
+
+  return upstreamMergeHashes
+}
+
 export async function validateConventionalCommits(options: ConventionalCommitValidationOptions = {}) {
   const cwd = options.cwd ?? process.cwd()
   const to = options.to ?? 'HEAD'
@@ -196,6 +251,11 @@ export async function validateConventionalCommits(options: ConventionalCommitVal
   const from = resolveFrom(options, baseline)
   const effectiveFrom = await resolveEffectiveFrom({ baseline, cwd, from, to })
   const commits = await readCommitSubjects(cwd, effectiveFrom, to)
+  const upstreamMergeHashes = await collectUpstreamUpdateMergeHashes({
+    base: effectiveFrom,
+    commits,
+    cwd,
+  })
 
   const prTitleViolations =
     options.prTitle === undefined || options.prTitle.length === 0
@@ -221,7 +281,7 @@ export async function validateConventionalCommits(options: ConventionalCommitVal
     effectiveFrom,
     to,
     violations: [
-      ...validateConventionalCommitSubjects(commits),
+      ...validateConventionalCommitSubjects(commits, upstreamMergeHashes),
       ...prTitleViolations,
       ...packageReleaseIntentViolations,
     ],

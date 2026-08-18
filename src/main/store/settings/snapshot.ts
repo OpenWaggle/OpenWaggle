@@ -1,6 +1,10 @@
 import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
 import {
   SETTINGS_KEY_DEFAULT_MODEL,
+  SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE,
+  SETTINGS_KEY_DIFF_SYNTAX_THEME,
+  SETTINGS_KEY_DIFF_VIEW,
+  SETTINGS_KEY_DIFF_WRAP_LINES,
   SETTINGS_KEY_ENABLED_MODELS,
   SETTINGS_KEY_FAVORITE_MODELS,
   SETTINGS_KEY_PROJECT_DISPLAY_NAMES,
@@ -10,7 +14,14 @@ import {
   SETTINGS_KEY_THINKING_LEVEL,
 } from './keys'
 import {
+  isValidDiffSyntaxTheme,
+  isValidDiffView,
+  isValidSessionEnvironmentMode,
   isValidThinkingLevel,
+  resolveDefaultSessionEnvironmentMode,
+  resolveDiffSyntaxTheme,
+  resolveDiffView,
+  resolveDiffWrapLines,
   resolveEnabledModels,
   resolveFavoriteModels,
   resolveProjectPath,
@@ -59,6 +70,16 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
     getStoredValue(storedSettings, SETTINGS_KEY_PROJECT_DISPLAY_NAMES) ??
       DEFAULT_SETTINGS.projectDisplayNames,
   )
+  const defaultSessionEnvironmentMode = resolveDefaultSessionEnvironmentMode(
+    getStoredValue(storedSettings, SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE),
+  )
+  const diffSyntaxTheme = resolveDiffSyntaxTheme(
+    getStoredValue(storedSettings, SETTINGS_KEY_DIFF_SYNTAX_THEME),
+  )
+  const diffView = resolveDiffView(getStoredValue(storedSettings, SETTINGS_KEY_DIFF_VIEW))
+  const diffWrapLines = resolveDiffWrapLines(
+    getStoredValue(storedSettings, SETTINGS_KEY_DIFF_WRAP_LINES),
+  )
 
   return {
     settings: {
@@ -70,7 +91,27 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       recentProjects,
       skillTogglesByProject,
       projectDisplayNames,
+      defaultSessionEnvironmentMode,
+      diffSyntaxTheme,
+      diffView,
+      diffWrapLines,
     } satisfies Settings,
+  }
+}
+
+/** Diff view preferences, split out to keep buildNextSettingsSnapshot within complexity limits. */
+function resolveNextDiffSettings(current: Settings, partial: Partial<Settings>) {
+  return {
+    diffSyntaxTheme:
+      partial.diffSyntaxTheme !== undefined && isValidDiffSyntaxTheme(partial.diffSyntaxTheme)
+        ? partial.diffSyntaxTheme
+        : current.diffSyntaxTheme,
+    diffView:
+      partial.diffView !== undefined && isValidDiffView(partial.diffView)
+        ? partial.diffView
+        : current.diffView,
+    diffWrapLines:
+      typeof partial.diffWrapLines === 'boolean' ? partial.diffWrapLines : current.diffWrapLines,
   }
 }
 
@@ -104,6 +145,12 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
     partial.projectDisplayNames !== undefined
       ? sanitizeProjectDisplayNames(partial.projectDisplayNames)
       : current.projectDisplayNames
+  const defaultSessionEnvironmentMode =
+    partial.defaultSessionEnvironmentMode !== undefined &&
+    isValidSessionEnvironmentMode(partial.defaultSessionEnvironmentMode)
+      ? partial.defaultSessionEnvironmentMode
+      : current.defaultSessionEnvironmentMode
+  const diffSettings = resolveNextDiffSettings(current, partial)
 
   return {
     ...current,
@@ -115,5 +162,7 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
     recentProjects,
     skillTogglesByProject,
     projectDisplayNames,
+    defaultSessionEnvironmentMode,
+    ...diffSettings,
   } satisfies Settings
 }

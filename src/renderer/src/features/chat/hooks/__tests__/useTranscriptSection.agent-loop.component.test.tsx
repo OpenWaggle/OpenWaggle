@@ -170,6 +170,8 @@ function transcriptParams(): TranscriptSectionParams {
     handleForkFromMessage: vi.fn(),
     userDidSend: false,
     onUserDidSendConsumed: vi.fn(),
+    handleViewTurnDiff: vi.fn(),
+    turnAnchorMessageIds: new Set<string>(),
   }
 }
 

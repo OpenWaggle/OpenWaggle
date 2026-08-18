@@ -143,19 +143,22 @@ class FileWriter {
           TIME_UNIT.SECONDS_PER_MINUTE *
           TIME_UNIT.MILLISECONDS_PER_SECOND
       const entries = await readdir(logsDir)
-      const deletions = entries
-        .filter((entry) => entry.startsWith('openwaggle-') && entry.endsWith('.log'))
-        .map(async (entry) => {
-          const filePath = path.join(logsDir, entry)
-          const st = await stat(filePath)
-          if (st.mtimeMs < cutoff) {
-            await unlink(filePath)
-          }
-        })
+      const deletions = entries.flatMap((entry) =>
+        entry.startsWith('openwaggle-') && entry.endsWith('.log')
+          ? [unlinkIfOlderThan(path.join(logsDir, entry), cutoff)]
+          : [],
+      )
       await Promise.allSettled(deletions)
     } catch (error) {
       reportFileLoggerFailure('failed to prune old log files', error)
     }
+  }
+}
+
+async function unlinkIfOlderThan(filePath: string, cutoff: number) {
+  const st = await stat(filePath)
+  if (st.mtimeMs < cutoff) {
+    await unlink(filePath)
   }
 }
 

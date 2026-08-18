@@ -205,11 +205,15 @@ export function useChatScrollEffects(params: UseChatScrollEffectsParams) {
   }, [isLoading, rowsLength, streamVersion, refs])
 
   useLayoutEffect(() => {
+    // Capture the ref objects (not their values) so cleanup is pinned to the same
+    // container this effect ran for, while still reading the latest .current
+    // — timers are assigned after setup (react-doctor/exhaustive-deps).
+    const { actionsRef, persistTimerRef, scrollbarTimerRef } = refs
     return () => {
-      refs.actionsRef.current?.cancelPendingStickToBottom()
-      refs.actionsRef.current?.cancelPendingRestoreRetry()
-      if (refs.persistTimerRef.current) clearTimeout(refs.persistTimerRef.current)
-      if (refs.scrollbarTimerRef.current) clearTimeout(refs.scrollbarTimerRef.current)
+      actionsRef.current?.cancelPendingStickToBottom()
+      actionsRef.current?.cancelPendingRestoreRetry()
+      if (persistTimerRef.current) clearTimeout(persistTimerRef.current)
+      if (scrollbarTimerRef.current) clearTimeout(scrollbarTimerRef.current)
       persistLatestScrollPosition(refs)
     }
   }, [refs])

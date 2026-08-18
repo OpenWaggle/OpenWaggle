@@ -16,10 +16,7 @@ export interface BranchDraftSelection {
 }
 
 function getUiMessageText(message: UIMessage) {
-  return message.parts
-    .filter((part) => part.type === 'text')
-    .map((part) => part.content)
-    .join('\n')
+  return message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('\n')
 }
 
 function isSummarizableAbandonedNode(node: SessionNode) {

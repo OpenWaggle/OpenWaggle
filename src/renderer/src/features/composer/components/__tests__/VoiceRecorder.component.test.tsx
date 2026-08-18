@@ -49,7 +49,9 @@ function createVisualizerControls() {
   }
 }
 
-function createVoiceController(overrides: Partial<VoiceCaptureController> = {}) {
+function createVoiceController(
+  overrides: Partial<VoiceCaptureController> = {},
+): VoiceCaptureController {
   return {
     canStart: false,
     clearError: vi.fn(),

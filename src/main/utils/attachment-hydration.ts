@@ -35,9 +35,6 @@ async function hydrateAttachmentSource(
 export async function hydrateAttachmentSources(
   attachments: readonly PreparedAttachment[],
 ): Promise<HydratedAttachment[]> {
-  const hydrated: HydratedAttachment[] = []
-  for (const attachment of attachments) {
-    hydrated.push(await hydrateAttachmentSource(attachment))
-  }
-  return hydrated
+  // Independent per-attachment reads; Promise.all preserves input order.
+  return Promise.all(attachments.map(hydrateAttachmentSource))
 }

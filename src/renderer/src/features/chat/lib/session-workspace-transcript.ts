@@ -31,20 +31,20 @@ function workspacePathToMessages(workspace: SessionWorkspace, messages: UIMessag
       continue
     }
 
+    // Read once per message instead of re-walking message.metadata.* per branch.
+    const branchSummary = message.metadata?.branchSummary
+    const compactionSummary = message.metadata?.compactionSummary
+
     workspaceMessages.push({
       id: messageId,
       role: message.role,
       parts: message.parts.flatMap(messagePartToUIParts),
       createdAt: new Date(message.createdAt),
-      ...(message.metadata?.branchSummary || message.metadata?.compactionSummary
+      ...(branchSummary || compactionSummary
         ? {
             metadata: {
-              ...(message.metadata.branchSummary
-                ? { branchSummary: message.metadata.branchSummary }
-                : {}),
-              ...(message.metadata.compactionSummary
-                ? { compactionSummary: message.metadata.compactionSummary }
-                : {}),
+              ...(branchSummary ? { branchSummary } : {}),
+              ...(compactionSummary ? { compactionSummary } : {}),
             },
           }
         : {}),

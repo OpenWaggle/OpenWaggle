@@ -1,4 +1,6 @@
 import { SessionId } from '@shared/types/brand'
+import type { UIMessage } from '@shared/types/chat-ui'
+import type { AgentTransportEvent } from '@shared/types/stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBackgroundRunStore } from '../background-run-store'
 
@@ -18,7 +20,7 @@ function resetStore() {
   })
 }
 
-function userMessage(id: string, content: string) {
+function userMessage(id: string, content: string): UIMessage {
   return {
     id,
     role: 'user',
@@ -27,7 +29,7 @@ function userMessage(id: string, content: string) {
   }
 }
 
-function assistantTextEvent(messageId: string, delta: string) {
+function assistantTextEvent(messageId: string, delta: string): AgentTransportEvent {
   return {
     type: 'message_update',
     messageId,

@@ -5,7 +5,7 @@ export function getDefaultExpandedSessionTreeNodeIds(
   nodes: readonly SessionNode[],
 ): readonly SessionNodeId[] {
   const parentIds = new Set(nodes.flatMap((node) => (node.parentId ? [String(node.parentId)] : [])))
-  return nodes.filter((node) => parentIds.has(String(node.id))).map((node) => node.id)
+  return nodes.flatMap((node) => (parentIds.has(String(node.id)) ? [node.id] : []))
 }
 
 export function resolveExpandedSessionTreeNodeIds(input: {

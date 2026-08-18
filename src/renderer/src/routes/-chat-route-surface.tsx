@@ -106,7 +106,7 @@ export function ChatRouteSurface({
   })
   const sidePanelQuery = useExtensionSidePanelContributions({
     enabled: isExtensionRightSidebarPanel(renderedRightSidebarPanel),
-    projectPath: sections.diff.projectPath,
+    projectPath: sections.diff.workingPath,
     sessionId: workspace.sessionId,
   })
 

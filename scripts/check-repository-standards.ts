@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import fg from 'fast-glob'
+import { collectDuplicateExportedTypes } from './standards/duplicate-exported-types'
 import {
   collectPackageBoundaryViolations,
   packageBoundarySourceGlobs,
@@ -40,7 +41,9 @@ const scanGlobs: string[] = [
 const ignoreGlobs: string[] = [
   '.git/**',
   '.fallow/**',
+  '.typecheck/**',
   'build/**',
+  '.pi/**',
   'coverage/**',
   'dist/**',
   'node_modules/**',
@@ -63,11 +66,27 @@ function normalizePath(filePath: string) {
   return filePath.split(path.sep).join('/')
 }
 
+/**
+ * The legacy agent directory is a dotted name, so a bare substring search also
+ * matches inside unrelated dotted identifiers -- notably every Bedrock Anthropic
+ * model id (`eu.anthropic.claude-...`), which we legitimately reference when
+ * documenting review tooling. Require the match not to be preceded by an
+ * identifier character, so a real path reference still trips the guard while a
+ * dotted identifier does not.
+ */
+function containsForbiddenReference(contents: string, reference: string) {
+  if (!reference.startsWith('.')) {
+    return contents.includes(reference)
+  }
+  const escaped = reference.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)
+  return new RegExp(String.raw`(?<![0-9A-Za-z])` + escaped).test(contents)
+}
+
 function collectForbiddenReferenceViolations(file: string, contents: string) {
   const violations: Violation[] = []
 
   for (const reference of forbiddenReferences) {
-    if (!contents.includes(reference)) {
+    if (!containsForbiddenReference(contents, reference)) {
       continue
     }
 
@@ -109,6 +128,72 @@ function collectToolingConfigViolations(file: string) {
   ]
 }
 
+/**
+ * The Session worktree branch convention must exist in exactly one place.
+ *
+ * Observed failure: worktree birth derived the branch from the session id while
+ * worktree recreation derived it from the recorded path's last segment. Recreation is
+ * supposed to reattach the surviving branch so commits made in the old tree are kept;
+ * because the two names disagreed it created a divergent branch at the base ref and
+ * stranded the session's commit on the orphaned original. A single source of truth is
+ * only durable if re-deriving the name elsewhere is caught.
+ */
+const SESSION_BRANCH_PREFIX_LITERAL = ['ow', 'session-'].join('/')
+const SESSION_BRANCH_CONVENTION_OWNER = 'src/shared/utils/worktree.ts'
+const POLICY_SCRIPT_OWN_PATH = 'scripts/check-repository-standards.ts'
+
+/*
+ * Match the prefix in any literal form, not just a template literal. An independent audit
+ * proved the earlier template-only test was narrower than its own error message claimed:
+ * `const p = 'ow/session-probe'` and `'ow/session-' + id` both passed the guard, so the
+ * "single source of truth" it advertises could be bypassed by writing the prefix a
+ * different way.
+ *
+ * Comment lines are stripped first so prose that documents the convention (including this
+ * file and the JSDoc in the git worktree adapter) is not reported as a violation.
+ */
+function sessionBranchPrefixForms(): readonly string[] {
+  return [
+    `\`${SESSION_BRANCH_PREFIX_LITERAL}`,
+    `'${SESSION_BRANCH_PREFIX_LITERAL}`,
+    `"${SESSION_BRANCH_PREFIX_LITERAL}`,
+  ]
+}
+
+function withoutCommentLines(contents: string) {
+  return contents
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .filter((line) => {
+      const trimmed = line.trimStart()
+      return !trimmed.startsWith('//') && !trimmed.startsWith('*')
+    })
+    .join('\n')
+}
+
+function collectSessionBranchConventionViolations(file: string, contents: string) {
+  const normalized = normalizePath(file)
+  if (normalized === SESSION_BRANCH_CONVENTION_OWNER) return []
+  // This checker must contain the pattern it looks for.
+  if (normalized === POLICY_SCRIPT_OWN_PATH) return []
+  /*
+   * Code only. The convention is about how a branch name is *built*, so prose that
+   * documents it (docs, ADRs, review records) is not a violation, and neither are tests
+   * that assert the resulting string.
+   */
+  if (!/\.(?:ts|tsx|mts|cts)$/.test(normalized)) return []
+  if (normalized.includes('__tests__')) return []
+  const code = withoutCommentLines(contents)
+  if (!sessionBranchPrefixForms().some((form) => code.includes(form))) return []
+  return [
+    {
+      file: normalized,
+      message: `Session worktree branch names must come from sessionWorktreeBranch() or sessionWorktreeBranchForId() in ${SESSION_BRANCH_CONVENTION_OWNER}`,
+      detail: `found a local "${SESSION_BRANCH_PREFIX_LITERAL}" string or template literal`,
+    },
+  ]
+}
+
 async function collectViolationsForFile(file: string) {
   const contents = await readFile(file, 'utf8')
 
@@ -117,6 +202,8 @@ async function collectViolationsForFile(file: string) {
     ...collectTsconfigViolations(file, contents),
     ...collectToolingConfigViolations(file),
     ...collectPackageBoundaryViolations(file, contents),
+    ...collectSessionBranchConventionViolations(file, contents),
+    ...collectSessionSummaryColumnViolations(file, contents),
   ] satisfies readonly RepositoryViolation[]
 }
 
@@ -127,6 +214,43 @@ function printViolations(violations: readonly Violation[]) {
   }
 }
 
+/**
+ * A SELECT column list is invisible to the type checker: `sql<SessionSummaryRow>` asserts
+ * the row shape without verifying the query selects those columns.
+ *
+ * Observed failure: three queries typed that way omitted `environment_mode` and
+ * `worktree_path`, so every session in the list reported local mode with no worktree and
+ * the per-session git indicators were simply absent. Nothing failed — it was found by
+ * opening the app.
+ *
+ * The columns now come from one fragment (`sessionSummaryColumns`). This keeps it that way
+ * by rejecting a query that spells them out inline again.
+ */
+const SESSION_SUMMARY_QUERY_PATTERN = /sql<SessionSummaryRow>`([^`]*)`/gsu
+const SESSION_SUMMARY_COLUMN_FRAGMENT = 'sessionSummaryColumns'
+const SESSION_SUMMARY_INLINE_COLUMN = /\bcreated_at\b/u
+const SESSION_SUMMARY_COLUMN_OWNERS: readonly string[] = [
+  // A different SessionSummaryRow: the detail-side shape with message_count and aliases.
+  'src/main/store/session-details/session-queries.ts',
+]
+
+function collectSessionSummaryColumnViolations(file: string, contents: string) {
+  if (SESSION_SUMMARY_COLUMN_OWNERS.includes(normalizePath(file))) return []
+  const violations: Violation[] = []
+  for (const match of contents.matchAll(SESSION_SUMMARY_QUERY_PATTERN)) {
+    const query = match[1] ?? ''
+    if (query.includes(SESSION_SUMMARY_COLUMN_FRAGMENT)) continue
+    if (!SESSION_SUMMARY_INLINE_COLUMN.test(query)) continue
+    violations.push({
+      file: normalizePath(file),
+      message:
+        'SessionSummaryRow queries must interpolate sessionSummaryColumns(sql), not list columns inline',
+      detail: 'an inline list can omit a column the row type promises, and the type checker cannot see it',
+    })
+  }
+  return violations
+}
+
 async function main() {
   const files = await fg([...scanGlobs, ...packageBoundarySourceGlobs], {
     dot: true,
@@ -134,10 +258,14 @@ async function main() {
     onlyFiles: true,
   })
   const violations: Violation[] = []
+  const contentsByFile = new Map<string, string>()
 
   for (const file of files.map(normalizePath).sort()) {
     violations.push(...(await collectViolationsForFile(file)))
+    contentsByFile.set(file, await readFile(file, 'utf8'))
   }
+
+  violations.push(...collectDuplicateExportedTypes(contentsByFile))
 
   if (violations.length === 0) {
     return

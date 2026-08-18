@@ -1,5 +1,6 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
+import type { SessionDetail } from '@shared/types/session'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import type { WaggleCollaborationStatus, WaggleConfig } from '@shared/types/waggle'
 import { $createParagraphNode, $createTextNode, $getRoot } from 'lexical'
@@ -16,6 +17,8 @@ export interface ComposerSectionParams {
   readonly status: AgentChatStatus
   readonly compactionStatus: AgentCompactionStatus | null
   readonly activeSessionId: SessionId | null
+  readonly session: SessionDetail | null
+  readonly isFirstMessage: boolean
   readonly waggleStatus: WaggleCollaborationStatus
   readonly commandPaletteOpen: boolean
   readonly slashSkills: readonly SkillDiscoveryItem[]
@@ -38,6 +41,7 @@ export interface ComposerSectionParams {
   readonly handleCloneToNewSession: () => void
 }
 
+/** Closes over nothing but the composer store singleton — hoisted to module scope. */
 function handleSelectSkill(skillId: string, skillName?: string) {
   const composerStore = useComposerStore.getState()
   const editor = composerStore.lexicalEditor
@@ -55,6 +59,7 @@ function handleSelectSkill(skillId: string, skillName?: string) {
     })
     editor.focus()
   } else {
+    // Fallback: plain text (no Lexical editor available)
     const currentInput = composerStore.input
     const nextInput = currentInput === '/' ? `/${skillId} ` : `/${skillId} ${currentInput}`
     composerStore.setInput(nextInput)
@@ -91,8 +96,12 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
     handleCloneToNewSession,
   } = params
 
+  const isFirstMessage = params.isFirstMessage
+
   return {
     activeSessionId,
+    session: params.session,
+    isFirstMessage,
     waggleStatus,
     commandPaletteOpen,
     slashSkills,

@@ -1,0 +1,70 @@
+# Git And Diff Behaviour Coverage Map
+
+Which git, diff and worktree behaviours are covered, and by which test. Kept as a map of *behaviour → test* so it stays useful without depending on any other codebase.
+
+## Covered
+
+| Behaviour | Test | Notes |
+|---|---|---|
+| Quick-action resolution from combined VCS status | `src/renderer/src/features/git/lib/__tests__/git-quick-action.unit.test.ts` | The clean / ahead / behind / diverged / upstream / change-request / default-ref / dirty / no-remote matrix, including GitLab MR terminology. |
+| Stacked-action progress stages, default-branch confirmation, auto branch naming | `src/shared/utils/__tests__/git-stacked-action.unit.test.ts` | Progress stages, default-branch confirmation gating and copy (PR/MR), auto feature-branch naming with collision suffixing, phase planning. |
+| Session-worktree orphan detection and cleanup | `src/main/ipc/git/__tests__/worktree-cleanup.unit.test.ts` | Sole-owner / shared / different-worktree / no-worktree / unknown, path normalization, display formatting. |
+| Diff-scope selection and memory | `src/renderer/src/features/diff-panel/state/__tests__/diff-scope-store.unit.test.ts` | Default scope (clean → branch, dirty → unstaged), preserving an explicit selection across a working-tree state change, clearing incompatible fields on scope switch, base-ref memory, reveal-request increment, stale-turn reconciliation. |
+| Change-request terminology and host detection | `src/shared/utils/__tests__/source-control-presentation.unit.test.ts`, `src/main/ipc/git/__tests__/vcs-status-parse.unit.test.ts` | PR vs MR wording, generic fallback, host detection including port preservation and self-hosted GitHub/GitLab. |
+| Source-control CLI adapters | `src/main/adapters/source-control/__tests__/{auth-parse,change-request-parse,gh-cli-adapter}.unit.test.ts` | Auth-status parsing, change-request JSON → `VcsChangeRequest` mapping, state mapping, field trimming, skipping invalid list entries, and typed cli-missing / not-authenticated / not-found failures (never throws). |
+| Stacked-action orchestration | `src/main/ipc/git/__tests__/stacked-action-service.unit.test.ts` | Phase ordering branch → commit → push → change request, centralized stop-at-first-failure, pull-only, skip-commit-when-clean. |
+| Unified-diff parsing into per-file summaries | `src/shared/utils/__tests__/turn-diff-parse.unit.test.ts` | Per-file additions/deletions, empty diff, rename-only (zero line changes), CRLF normalization, and splitting a Turn diff into per-file blocks. |
+| Turn checkpoint storage and querying | `src/main/store/__tests__/turn-checkpoints.integration.test.ts` | Record / get / list, query by turn range, retention (prune to N), CASCADE delete, upsert, anchor-node round-trip. |
+| Combined local + remote VCS status | `src/main/ipc/git/__tests__/vcs-status-service.unit.test.ts` | Local (no network) versus remote (fetch), with distinct not-a-repo and remote-unreachable failures. Main-process only — the renderer merge in `useCombinedVcsStatus` is untested (see Known gaps). |
+| Composer send gating for worktree mode | `src/renderer/src/features/git/lib/__tests__/worktree-send-plan.unit.test.ts` | Proceed / create-worktree / blocked, and defaulting the Worktree base ref to the current branch. |
+| Base-ref choices for the Branch-diff combobox | `src/renderer/src/features/diff-panel/lib/__tests__/base-ref-choices.unit.test.ts` | Local/remote pairing preferring origin, plus filtering. |
+| Checking a change request out into a worktree | `src/main/adapters/source-control/__tests__/gh-cli-adapter.unit.test.ts` | `gh pr checkout` typed primitive, plus the composer control. The GitLab `glab mr checkout` path is implemented but has no asserted test (see Known gaps). |
+| Obstruction-scanning `revert-all` safety | `src/main/ipc/git/__tests__/working-tree-service.{unit,integration}.test.ts` | Pre-mutation scan for nested repositories and path conflicts before a destructive revert. |
+| Diff rendering, review flow and navigator | `src/renderer/src/features/diff-panel/**/__tests__/*` | Review comment payload, code-view item caching, navigator tree, review submission (including the double-submit guard). |
+
+## Deliberately not covered
+
+| Area | Reason |
+|---|---|
+| Remote / multi-environment (cloud runners) | Deferred by explicit decision; no analog today. |
+| Optimistic client-side action state machine | OpenWaggle dispatches through thin hooks plus main-process services, so there is no client-side optimistic state to test. |
+| Driver-registry / god-module infrastructure | Deliberately not built: thin IPC handlers and focused services instead of multi-thousand-line modules. |
+| Providers beyond GitHub and GitLab | Not implemented. |
+| Mobile review surfaces | OpenWaggle is an Electron desktop app. |
+| Per-file stage / revert in the diff panel | Ships working-tree stage-all / revert-all instead, with a stronger obstruction scan. Per-hunk actions are tracked in #150. |
+| Change-request reference parsing and link building | Change-request URLs are opened directly. |
+| Paginated branch listing UI | Not part of this scope. |
+| Standalone runtime-schema suites for git types | Validation happens at IPC boundaries via `decodeUnknownOrThrow` plus TypeScript types. |
+| Remote-URL canonicalization, owner/repo parsing, status-stream merging | The CLIs own owner/repo resolution, and status is request/response rather than streamed. |
+
+## Fail-fast mechanisms
+
+These exist because a green suite passed through the defect each one now catches. Every one
+was verified by reintroducing the original bug.
+
+| Mechanism | Catches | Where |
+| --- | --- | --- |
+| `sessionWorktreeBranch()` + branch-prefix rule | The Session worktree branch convention being derived twice, so recreation builds a divergent branch and strands commits | `shared/utils/worktree.ts`, `scripts/check-repository-standards.ts` |
+| `sessionSummaryColumns(sql)` + inline-column rule + live-SQL test | A `SELECT` column list omitting a column its row type promises. `sql<SessionSummaryRow>` asserts the shape without verifying the query selects it, and three queries once dropped `environment_mode`/`worktree_path`, so every session reported local mode with no worktree | `store/sessions/types.ts`, `store/sessions/hydration.ts`, `scripts/check-repository-standards.ts`, `store/__tests__/session-summary-columns.integration.test.ts` |
+| Duplicate exported type guard | A second exported type with an existing name in a sibling module, the confusion behind editing the wrong `hydrateSessionSummary` | `scripts/check-repository-standards.ts` |
+| `pnpm typecheck:tests` | Test fixtures that do not match the interface they stand for; renderer tests were previously compiled with `noCheck` | `scripts/check-renderer-test-types.ts` |
+| React Compiler in component tests | Components reading from library-owned mutable instances, which render differently compiled than not | `vitest.component.config.ts` |
+| Real-Git worktree recreation tests | Git behaviour our mocks asserted but never exercised (`prune` leaves the branch) | `adapters/git/__tests__/worktree-recreate.integration.test.ts` |
+| Real-Git commit-target test | A commit landing in a tree other than the one it was asked to act on | `ipc/git/__tests__/commit-worktree.integration.test.ts` |
+| Branded `WorkingPath` / `RepositoryPath` | A git mutation or working-tree read being handed a repository path (the Header-commit-to-primary-checkout bug class). The renderer API and channel contracts brand the two path kinds; `resolveSessionWorkingDir` is the only producer of a `WorkingPath`, so a working-tree mutation can only be fed from the session→tree rule. Passing a repository path to `commitGit`/`stageAllGitChanges`/etc. is a compile error | `shared/types/brand.ts`, `shared/types/openwaggle-api.ts`, `shared/types/ipc-invoke-integrations.ts`, `shared/types/__tests__/git-path-brands.unit.test.ts` |
+
+Earlier this was recorded as deliberately not built, because name-based rules either
+false-positive (`Header.tsx` legitimately needs both paths) or leak through indirection
+(the original bug passed the wrong path through a store action). The branded-type form
+(#155) has none of those problems and is now in place, enforced by the compiler with a
+`@ts-expect-error` proof in `git-path-brands.unit.test.ts`. The branch-prefix and
+duplicate-type guards above remain.
+
+## Known gaps
+
+- **Git changes OpenWaggle did not make are not observed** (ADR 0018). No test covers agent-initiated `git checkout -b` reaching the UI, because the behaviour is deliberately absent.
+- **The unit runner can under-report totals** when a worker crashes in a native destructor at teardown (#151). Not a failing test; tracked separately.
+- **Layout and pointer interception are invisible to component tests.** jsdom has no layout engine, so every rect is zero and `fireEvent` dispatches without hit-testing. A button can be unreachable in the app while its test passes — this happened to the vanished-worktree recovery actions. Interactive additions need a real browser check.
+- **330 renderer test type errors across 54 files** were fenced by `scripts/renderer-test-type-exemptions.json` (#154). This is now closed: every renderer test file typechecks, the exemption list is empty, and the binary per-file guard keeps it that way.
+- **`useCombinedVcsStatus` has no test.** The hook merges local and remote VCS status for the diff panel's quick action; only the main-process services it calls are covered. The diff-panel component tests do not stub `getLocalVcsStatus` / `getRemoteVcsStatus`, so the renderer-side merge is unverified.
+- **`glab mr checkout` is unasserted.** `glab-cli-adapter.ts` implements the GitLab change-request checkout, but no test pins its command array; only the `gh` equivalent is asserted.

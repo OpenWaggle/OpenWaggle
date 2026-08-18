@@ -1,10 +1,7 @@
 import type {
   GitBranchCheckoutPayload,
   GitBranchCreatePayload,
-  GitBranchDeletePayload,
   GitBranchMutationResult,
-  GitBranchRenamePayload,
-  GitBranchSetUpstreamPayload,
 } from '@shared/types/git'
 import { branchFailure, mapBranchFailure } from './branch-failures'
 import { isGitRepository, runGit } from './shared'
@@ -157,52 +154,4 @@ export async function createGitBranch(
   if (checkoutFailure) return checkoutFailure
 
   return branchSuccess(payload.checkout ? `Created and checked out ${name}.` : `Created ${name}.`)
-}
-
-export async function renameGitBranch(
-  projectPath: string,
-  payload: GitBranchRenamePayload,
-): Promise<GitBranchMutationResult> {
-  const from = payload.from.trim()
-  const to = payload.to.trim()
-  if (!from || !to)
-    return branchFailure('invalid-name', 'Both source and target branch names are required.')
-
-  const repoFailure = await ensureBranchRepository(projectPath)
-  if (repoFailure) return repoFailure
-
-  const result = await runGit(projectPath, ['branch', '-m', from, to])
-  if (result.code !== 0) return mapBranchFailure(gitOutput(result))
-  return branchSuccess(`Renamed ${from} to ${to}.`)
-}
-
-export async function deleteGitBranch(
-  projectPath: string,
-  payload: GitBranchDeletePayload,
-): Promise<GitBranchMutationResult> {
-  const name = payload.name.trim()
-  if (!name) return branchFailure('invalid-name', 'Branch name is required.')
-
-  const repoFailure = await ensureBranchRepository(projectPath)
-  if (repoFailure) return repoFailure
-
-  const result = await runGit(projectPath, ['branch', payload.force ? '-D' : '-d', name])
-  if (result.code !== 0) return mapBranchFailure(gitOutput(result))
-  return branchSuccess(`Deleted ${name}.`)
-}
-
-export async function setGitBranchUpstream(
-  projectPath: string,
-  payload: GitBranchSetUpstreamPayload,
-): Promise<GitBranchMutationResult> {
-  const name = payload.name.trim()
-  const upstream = payload.upstream.trim()
-  if (!name || !upstream) return branchFailure('invalid-name', 'Branch and upstream are required.')
-
-  const repoFailure = await ensureBranchRepository(projectPath)
-  if (repoFailure) return repoFailure
-
-  const result = await runGit(projectPath, ['branch', '--set-upstream-to', upstream, name])
-  if (result.code !== 0) return mapBranchFailure(gitOutput(result))
-  return branchSuccess(`Set upstream for ${name} to ${upstream}.`)
 }

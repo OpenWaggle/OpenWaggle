@@ -8,7 +8,7 @@ function message(input: {
   readonly id: string
   readonly role: Message['role']
   readonly text: string
-}) {
+}): Message {
   return {
     id: MessageId(input.id),
     role: input.role,
@@ -23,7 +23,7 @@ function node(input: {
   readonly role?: SessionNode['role']
   readonly parentId?: string | null
   readonly contentText?: string
-}) {
+}): SessionNode {
   return {
     id: SessionNodeId(input.id),
     sessionId: SessionId('session-1'),

@@ -1,9 +1,10 @@
 import { SessionBranchId, SessionId, SupportedModelId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { WaggleMessageMetadata } from '@shared/types/waggle'
+import type { MessageChatRow, WaggleTurnChatRow } from '../../lib/types-chat-row'
 import { buildChatRows } from '../useBuildChatRows'
 
-function createUserMessage(id: string, text: string) {
+function createUserMessage(id: string, text: string): UIMessage {
   return {
     id,
     role: 'user',
@@ -11,7 +12,7 @@ function createUserMessage(id: string, text: string) {
   }
 }
 
-function createAssistantToolMessage(id: string, toolCallId: string) {
+function createAssistantToolMessage(id: string, toolCallId: string): UIMessage {
   return {
     id,
     role: 'assistant',
@@ -26,14 +27,14 @@ function createAssistantToolMessage(id: string, toolCallId: string) {
       {
         type: 'tool-result',
         toolCallId,
-        output: { kind: 'text', text: 'hello' },
+        content: { kind: 'text', text: 'hello' },
         state: 'output-available',
       },
     ],
   }
 }
 
-function createToolResultMessage(id: string, toolCallId: string) {
+function createToolResultMessage(id: string, toolCallId: string): UIMessage {
   return {
     id,
     role: 'assistant',
@@ -48,7 +49,11 @@ function createToolResultMessage(id: string, toolCallId: string) {
   }
 }
 
-function createAssistantPendingToolMessage(id: string, toolCallId: string, text: string) {
+function createAssistantPendingToolMessage(
+  id: string,
+  toolCallId: string,
+  text: string,
+): UIMessage {
   return {
     id,
     role: 'assistant',
@@ -65,7 +70,11 @@ function createAssistantPendingToolMessage(id: string, toolCallId: string, text:
   }
 }
 
-function createAssistantTerminalToolMessage(id: string, toolCallId: string, text: string) {
+function createAssistantTerminalToolMessage(
+  id: string,
+  toolCallId: string,
+  text: string,
+): UIMessage {
   return {
     id,
     role: 'assistant',
@@ -80,7 +89,7 @@ function createAssistantTerminalToolMessage(id: string, toolCallId: string, text
       {
         type: 'tool-result',
         toolCallId,
-        output: { success: true, path: 'pending-reload-check.txt' },
+        content: { success: true, path: 'pending-reload-check.txt' },
         state: 'output-available',
       },
       { type: 'text', content: text },
@@ -104,7 +113,9 @@ function getAssistantMessageRows(
     phase: { current: null, completed: [], totalElapsedMs: 0 },
   })
 
-  return rows.filter((row) => row.type === 'message' && row.message.role === 'assistant')
+  return rows.filter(
+    (row): row is MessageChatRow => row.type === 'message' && row.message.role === 'assistant',
+  )
 }
 
 function getWaggleTurnRows(
@@ -123,7 +134,7 @@ function getWaggleTurnRows(
     phase: { current: null, completed: [], totalElapsedMs: 0 },
   })
 
-  return rows.filter((row) => row.type === 'waggle-turn')
+  return rows.filter((row): row is WaggleTurnChatRow => row.type === 'waggle-turn')
 }
 
 export type { UIMessage, WaggleMessageMetadata }

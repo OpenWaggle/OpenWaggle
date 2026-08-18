@@ -18,6 +18,7 @@ const lifecycleMocks = vi.hoisted(() => {
   const hotkeys: HotkeyBinding[] = []
   return {
     projectPath: '/repo',
+    workingPath: '/repo/.worktrees/session-1',
     activeSessionId: 'session-1',
     loadChatSessions: vi.fn().mockResolvedValue(undefined),
     refreshSession: vi.fn().mockResolvedValue(undefined),
@@ -73,6 +74,9 @@ vi.mock('@/features/git/hooks', () => ({
   useGit: () => ({
     refreshStatus: lifecycleMocks.refreshGitStatus,
     refreshBranches: lifecycleMocks.refreshGitBranches,
+    // Status follows the session's working tree; the branch list is repository-level.
+    workingPath: lifecycleMocks.workingPath,
+    repositoryPath: lifecycleMocks.projectPath,
   }),
   useGitRefresh: lifecycleMocks.useGitRefresh,
 }))
@@ -122,11 +126,13 @@ describe('useWorkspaceLifecycle', () => {
 
     await waitFor(() => expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce())
     expect(lifecycleMocks.loadSessionTrees).toHaveBeenCalledOnce()
-    expect(lifecycleMocks.refreshGitStatus).toHaveBeenCalledWith('/repo')
+    // Status must target the session's worktree, not the opened checkout (ADR 0018).
+    expect(lifecycleMocks.refreshGitStatus).toHaveBeenCalledWith('/repo/.worktrees/session-1')
     expect(lifecycleMocks.refreshGitBranches).toHaveBeenCalledWith('/repo')
     expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledWith(SessionId('session-1'))
     expect(lifecycleMocks.useGitRefresh).toHaveBeenCalledWith({
-      projectPath: '/repo',
+      workingPath: '/repo/.worktrees/session-1',
+      repositoryPath: '/repo',
       activeSessionId: SessionId('session-1'),
       refreshGitStatus: lifecycleMocks.refreshGitStatus,
       refreshGitBranches: lifecycleMocks.refreshGitBranches,

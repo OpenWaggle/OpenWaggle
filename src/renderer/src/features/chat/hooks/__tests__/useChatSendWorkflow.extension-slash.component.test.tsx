@@ -59,6 +59,7 @@ function extensionSlashEntry(
       disabledProjectPaths: [],
     },
     diagnostics: [],
+    contentHash: 'content-hash-1',
     ...overrides,
   }
 }
@@ -78,6 +79,10 @@ function sendWorkflowParams(overrides: Partial<SendWorkflowParams> = {}): SendWo
     branchSummary: {
       materializeBranchSummary: vi.fn().mockResolvedValue(undefined),
       materializeDraftBranchForSend: vi.fn().mockResolvedValue(true),
+      cancelBranchSummary: vi.fn(),
+      skipBranchSummary: vi.fn(),
+      startCustomBranchSummary: vi.fn(),
+      switchComposerToDraftBranch: vi.fn(),
     },
     clearDraftBranchForSession: vi.fn(),
     draftBranch: null,

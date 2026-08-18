@@ -171,6 +171,10 @@ function makeSessionLayers() {
       unarchive: () => Effect.void,
       listArchived: () => Effect.succeed([]),
       updateTitle: () => Effect.void,
+      setWorktreePlan: () => Effect.void,
+      listTurnCheckpoints: () => Effect.succeed([]),
+      getTurnDiff: () => Effect.succeed(null),
+      setTurnCheckpointAnchor: () => Effect.void,
     }),
     Layer.succeed(SessionRepository, {
       list: () => Effect.succeed([]),

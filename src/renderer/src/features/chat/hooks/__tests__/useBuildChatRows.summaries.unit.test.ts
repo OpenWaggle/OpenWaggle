@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { MessageChatRow } from '../../lib/types-chat-row'
 import {
   buildChatRows,
   createUserMessage,
@@ -127,7 +128,7 @@ describe('buildChatRows reasoning visibility', () => {
     })
 
     const assistantRows = rows.filter(
-      (row) => row.type === 'message' && row.message.role === 'assistant',
+      (row): row is MessageChatRow => row.type === 'message' && row.message.role === 'assistant',
     )
 
     expect(assistantRows).toHaveLength(1)
@@ -168,7 +169,7 @@ describe('buildChatRows isRunActive', () => {
     })
 
     const assistantRows = rows.filter(
-      (row) => row.type === 'message' && row.message.role === 'assistant',
+      (row): row is MessageChatRow => row.type === 'message' && row.message.role === 'assistant',
     )
 
     // All assistant rows in an active run should have isRunActive true
@@ -199,7 +200,7 @@ describe('buildChatRows isRunActive', () => {
     })
 
     const assistantRows = rows.filter(
-      (row) => row.type === 'message' && row.message.role === 'assistant',
+      (row): row is MessageChatRow => row.type === 'message' && row.message.role === 'assistant',
     )
 
     for (const row of assistantRows) {

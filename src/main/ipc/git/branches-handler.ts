@@ -2,36 +2,17 @@ import { decodeUnknownOrThrow, type Schema } from '@shared/schema'
 import type {
   GitBranchCheckoutPayload,
   GitBranchCreatePayload,
-  GitBranchDeletePayload,
   GitBranchMutationResult,
-  GitBranchRenamePayload,
-  GitBranchSetUpstreamPayload,
 } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
 import { typedHandle } from '../typed-ipc'
 import { listGitBranches } from './branch-list'
-import {
-  checkoutGitBranch,
-  createGitBranch,
-  deleteGitBranch,
-  renameGitBranch,
-  setGitBranchUpstream,
-} from './branch-mutations'
-import {
-  branchCheckoutPayloadSchema,
-  branchCreatePayloadSchema,
-  branchDeletePayloadSchema,
-  branchRenamePayloadSchema,
-  branchSetUpstreamPayloadSchema,
-} from './branch-schemas'
+import { checkoutGitBranch, createGitBranch } from './branch-mutations'
+import { branchCheckoutPayloadSchema, branchCreatePayloadSchema } from './branch-schemas'
 import { projectPathSchema } from './shared'
+import { invalidateGitStatusCache } from './status-cache'
 
-type BranchMutationPayload =
-  | GitBranchCheckoutPayload
-  | GitBranchCreatePayload
-  | GitBranchDeletePayload
-  | GitBranchRenamePayload
-  | GitBranchSetUpstreamPayload
+type BranchMutationPayload = GitBranchCheckoutPayload | GitBranchCreatePayload
 
 function branchMutationHandler<TPayload extends BranchMutationPayload>(input: {
   readonly schema: Schema.Schema<TPayload>
@@ -39,9 +20,13 @@ function branchMutationHandler<TPayload extends BranchMutationPayload>(input: {
 }) {
   return (_event: unknown, rawPath: unknown, rawPayload: unknown) =>
     Effect.gen(function* () {
-      const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
+      const workingPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
       const payload = decodeUnknownOrThrow(input.schema, rawPayload)
-      return yield* Effect.promise(() => input.run(projectPath, payload))
+      const result = yield* Effect.promise(() => input.run(workingPath, payload))
+      // A checkout or branch creation moves the working tree's HEAD, so its cached
+      // status is stale and every window watching that tree needs to know.
+      if (result.ok) invalidateGitStatusCache(workingPath)
+      return result
     })
 }
 
@@ -60,17 +45,5 @@ export function registerGitBranchHandlers(): void {
   typedHandle(
     'git:branches:create',
     branchMutationHandler({ schema: branchCreatePayloadSchema, run: createGitBranch }),
-  )
-  typedHandle(
-    'git:branches:rename',
-    branchMutationHandler({ schema: branchRenamePayloadSchema, run: renameGitBranch }),
-  )
-  typedHandle(
-    'git:branches:delete',
-    branchMutationHandler({ schema: branchDeletePayloadSchema, run: deleteGitBranch }),
-  )
-  typedHandle(
-    'git:branches:set-upstream',
-    branchMutationHandler({ schema: branchSetUpstreamPayloadSchema, run: setGitBranchUpstream }),
   )
 }

@@ -1,10 +1,81 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import type { SessionId } from '@shared/types/brand'
+import type { SessionEnvironmentMode } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
 import { runStoreEffect } from '../store-runtime'
 import { EMPTY_INDEX } from './constants'
 import { stageSessionFileDeletion } from './file-deletion'
 import type { UpdateSessionRuntimeInput } from './types'
+
+export interface SessionWorktreeRefRow {
+  readonly sessionId: string
+  readonly worktreePath: string | null
+}
+
+/** Persist a session's environment mode and Session worktree path (birth). */
+export async function setSessionWorktree(
+  id: SessionId,
+  environmentMode: SessionEnvironmentMode,
+  worktreePath: string | null,
+): Promise<void> {
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        UPDATE sessions
+        SET environment_mode = ${environmentMode},
+            worktree_path = ${worktreePath},
+            updated_at = ${Date.now()}
+        WHERE id = ${id}
+      `
+    }),
+  )
+}
+
+/** Persist the per-session env mode + Worktree base ref plan (before birth). */
+export async function setSessionWorktreePlan(
+  id: SessionId,
+  environmentMode: SessionEnvironmentMode,
+  baseRef: string | null,
+  startFromOrigin: boolean,
+): Promise<void> {
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        UPDATE sessions
+        SET environment_mode = ${environmentMode},
+            worktree_base_ref = ${baseRef},
+            worktree_start_from_origin = ${startFromOrigin ? 1 : 0},
+            updated_at = ${Date.now()}
+        WHERE id = ${id}
+      `
+    }),
+  )
+}
+
+/** Clear a session's Session worktree binding (death). */
+export async function clearSessionWorktree(id: SessionId): Promise<void> {
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`UPDATE sessions SET worktree_path = NULL, updated_at = ${Date.now()} WHERE id = ${id}`
+    }),
+  )
+}
+
+/** All sessions' worktree paths, for orphan detection before removal. */
+export async function listSessionWorktreeRefs(): Promise<SessionWorktreeRefRow[]> {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<{ readonly id: string; readonly worktree_path: string | null }>`
+        SELECT id, worktree_path FROM sessions WHERE worktree_path IS NOT NULL
+      `
+      return rows.map((row) => ({ sessionId: row.id, worktreePath: row.worktree_path }))
+    }),
+  )
+}
 
 export async function updateSessionRuntime(input: UpdateSessionRuntimeInput): Promise<void> {
   await runStoreEffect(

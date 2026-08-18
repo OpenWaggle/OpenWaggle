@@ -20,7 +20,8 @@ import { logger } from './constants'
 import { createPiRunSessionRuntime, runSubscribedPiOperation } from './run-lifecycle'
 import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
 import { createSessionListener } from './session-listener'
-import { resolveSessionProjectPath } from './session-manager'
+import { ensureSessionWorktreeProjectPath } from './session-worktree-birth'
+import { captureTurnCheckpoint } from './turn-capture'
 import { resolveWaggleRuntimeConfig } from './waggle-model-resolution'
 import {
   buildWaggleTurnCustomMessage,
@@ -79,6 +80,31 @@ async function restoreInitialWaggleModel(input: {
       error: error instanceof Error ? error.message : String(error),
     })
   })
+}
+
+async function runInitialWaggleTurn(ctx: {
+  readonly session: AgentSession
+  readonly model: PiModel
+  readonly input: PiWaggleKernelRunInput
+  readonly meta: WaggleStreamMetadata
+  readonly runtimeConfig: ReturnType<typeof resolveWaggleRuntimeConfig>
+  readonly waggleDone: Promise<void>
+}) {
+  appendEnabledWaggleModeState({ session: ctx.session, runInput: ctx.input })
+  emitWaggleTurnStart(ctx.input, ctx.meta)
+  try {
+    await sendInitialWaggleMessages({
+      session: ctx.session,
+      model: ctx.model,
+      meta: ctx.meta,
+      payload: ctx.input.payload,
+      runId: ctx.input.runId,
+      runtimeConfig: ctx.runtimeConfig,
+    })
+    await ctx.waggleDone
+  } finally {
+    await restoreInitialWaggleModel({ session: ctx.session, model: ctx.model })
+  }
 }
 
 function createConfiguredWaggleExtension(input: {
@@ -151,7 +177,7 @@ function createConfiguredWaggleExtension(input: {
 }
 
 export async function runPiWaggle(input: PiWaggleKernelRunInput) {
-  const projectPath = resolveSessionProjectPath(input.session)
+  const projectPath = await ensureSessionWorktreeProjectPath(input.session)
   const waggleSessionId = randomUUID()
   const runtimeConfig = resolveWaggleRuntimeConfig({
     config: input.waggle.config,
@@ -203,30 +229,23 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
       input.runId,
     ),
   )
-
-  return runSubscribedPiOperation({
+  const result = await runSubscribedPiOperation({
     runInput: input,
     session,
     unsubscribe,
     abortWarning: 'Failed to abort Pi Waggle turn cleanly',
     preAbortWarning: 'Failed to abort pre-cancelled Pi Waggle turn cleanly',
-    operation: async () => {
-      appendEnabledWaggleModeState({ session, runInput: input })
-      emitWaggleTurnStart(input, currentMeta)
-      try {
-        await sendInitialWaggleMessages({
-          session,
-          model,
-          meta: currentMeta,
-          payload: input.payload,
-          runId: input.runId,
-          runtimeConfig,
-        })
-        await waggleExtension.done
-      } finally {
-        await restoreInitialWaggleModel({ session, model })
-      }
-    },
+    operation: () =>
+      runInitialWaggleTurn({
+        session,
+        model,
+        input,
+        meta: currentMeta,
+        runtimeConfig,
+        waggleDone: waggleExtension.done,
+      }),
     buildErrorMessages: buildPiRunAssistantMessages,
   })
+  await captureTurnCheckpoint({ session: input.session, projectPath, runId: input.runId })
+  return result
 }

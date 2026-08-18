@@ -1,4 +1,5 @@
 import { MessageId, SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
+import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionNode } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
 import { resolveTranscriptMessages } from '../session-workspace-transcript'
@@ -7,7 +8,7 @@ const SESSION_ID = SessionId('session-1')
 const SESSION_DETAIL_ID = SessionId('session-1')
 const MAIN_BRANCH_ID = SessionBranchId('session-1:main')
 
-function uiMessage(id: string, role: 'user' | 'assistant', content: string) {
+function uiMessage(id: string, role: 'user' | 'assistant', content: string): UIMessage {
   return {
     id,
     role,
@@ -22,7 +23,7 @@ function sessionNode(
   role: 'user' | 'assistant',
   content: string,
   createdOrder: number,
-) {
+): SessionNode {
   return {
     id: SessionNodeId(id),
     sessionId: SESSION_ID,

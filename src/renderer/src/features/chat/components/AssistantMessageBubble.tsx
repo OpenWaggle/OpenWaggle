@@ -4,7 +4,7 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { WaggleAgentColor } from '@shared/types/waggle'
-import { GitBranch } from 'lucide-react'
+import { GitBranch, GitCompare } from 'lucide-react'
 import React from 'react'
 import { Button } from '@/shared/ui/Button'
 import { useMessageCollapse } from '../hooks/useMessageCollapse'
@@ -71,6 +71,81 @@ function BranchFromMessageButton({
   )
 }
 
+function ViewTurnDiffButton({
+  messageId,
+  onViewTurnDiff,
+}: {
+  readonly messageId: string
+  readonly onViewTurnDiff: (messageId: string) => void
+}) {
+  return (
+    <Button
+      variant="unstyled"
+      type="button"
+      title="View turn diff"
+      aria-label="View turn diff"
+      onClick={() => onViewTurnDiff(messageId)}
+      className="opacity-0 group-hover/assistant-msg:opacity-100 transition-opacity text-text-muted hover:text-text-secondary"
+    >
+      <GitCompare className="size-3.5" />
+    </Button>
+  )
+}
+
+function MessageActionButtons({
+  messageId,
+  onBranchFromMessage,
+  onViewTurnDiff,
+  className,
+}: {
+  readonly messageId: string
+  readonly onBranchFromMessage?: (messageId: string) => void
+  readonly onViewTurnDiff?: (messageId: string) => void
+  readonly className: string
+}) {
+  if (!onBranchFromMessage && !onViewTurnDiff) return null
+  return (
+    <div className={className}>
+      {onViewTurnDiff ? (
+        <ViewTurnDiffButton messageId={messageId} onViewTurnDiff={onViewTurnDiff} />
+      ) : null}
+      {onBranchFromMessage ? (
+        <BranchFromMessageButton
+          messageId={messageId}
+          onBranchFromMessage={onBranchFromMessage}
+          className="opacity-0 group-hover/assistant-msg:opacity-100 transition-opacity text-text-muted hover:text-text-secondary"
+        />
+      ) : null}
+    </div>
+  )
+}
+
+type ToolResultEntry = {
+  content: unknown
+  state: string
+  sourceMessageId?: string
+  error?: string
+}
+
+function collectMessageToolState(message: UIMessage) {
+  const toolResults = new Map<string, ToolResultEntry>()
+  const messageToolCallIds = new Set<string>()
+  for (const part of message.parts) {
+    if (part.type === 'tool-call') {
+      messageToolCallIds.add(part.id)
+      continue
+    }
+    if (part.type !== 'tool-result') continue
+    toolResults.set(part.toolCallId, {
+      content: part.content,
+      state: part.state,
+      sourceMessageId: part.sourceMessageId,
+      error: part.error,
+    })
+  }
+  return { toolResults, messageToolCallIds }
+}
+
 interface AssistantMessageBubbleProps {
   message: UIMessage
   runtime: {
@@ -91,6 +166,7 @@ interface AssistantMessageBubbleProps {
   }
   actions?: {
     readonly onBranchFromMessage?: (messageId: string) => void
+    readonly onViewTurnDiff?: (messageId: string) => void
   }
 }
 
@@ -107,49 +183,31 @@ export function AssistantMessageBubble({
   const assistantModel = run?.assistantModel
   const hideAgentLabel = presentation?.hideAgentLabel
   const onBranchFromMessage = actions?.onBranchFromMessage
+  const onViewTurnDiff = actions?.onViewTurnDiff
   const collapse = useMessageCollapse(message, isStreaming, isRunActive, !!waggle)
 
-  const toolResults = new Map<
-    string,
-    { content: unknown; state: string; sourceMessageId?: string; error?: string }
-  >()
-  const messageToolCallIds = new Set<string>()
-  for (const part of message.parts) {
-    if (part.type === 'tool-call') {
-      messageToolCallIds.add(part.id)
-      continue
-    }
-
-    if (part.type === 'tool-result') {
-      toolResults.set(part.toolCallId, {
-        content: part.content,
-        state: part.state,
-        sourceMessageId: part.sourceMessageId,
-        error: part.error,
-      })
-    }
-  }
+  const { toolResults, messageToolCallIds } = collectMessageToolState(message)
 
   return (
     <div className="group/assistant-msg relative w-full">
-      {hideAgentLabel && onBranchFromMessage ? (
-        <BranchFromMessageButton
+      {hideAgentLabel ? (
+        <MessageActionButtons
           messageId={message.id}
           onBranchFromMessage={onBranchFromMessage}
-          className="absolute right-0 top-0 opacity-0 group-hover/assistant-msg:opacity-100 transition-opacity text-text-muted hover:text-text-secondary"
+          onViewTurnDiff={onViewTurnDiff}
+          className="absolute right-0 top-0 flex items-center gap-1"
         />
       ) : null}
       <div className="flex flex-col gap-2">
         {!hideAgentLabel ? (
           <div className="flex items-center justify-between gap-2">
             <AgentLabel assistantModel={assistantModel} waggle={waggle} />
-            {onBranchFromMessage ? (
-              <BranchFromMessageButton
-                messageId={message.id}
-                onBranchFromMessage={onBranchFromMessage}
-                className="ml-auto opacity-0 group-hover/assistant-msg:opacity-100 transition-opacity text-text-muted hover:text-text-secondary"
-              />
-            ) : null}
+            <MessageActionButtons
+              messageId={message.id}
+              onBranchFromMessage={onBranchFromMessage}
+              onViewTurnDiff={onViewTurnDiff}
+              className="ml-auto flex items-center gap-1"
+            />
           </div>
         ) : null}
 

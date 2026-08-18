@@ -28,8 +28,9 @@ export async function resolveAgentsChainForPath(
   const dirs = listScopeDirectories(projectPath, targetDir)
   const scoped: AgentsScopeItem[] = []
 
-  for (const dir of dirs.slice(1)) {
-    const scope = await readAgentsScope(projectPath, dir)
+  // Scope reads are independent; fetch concurrently then fold in directory order.
+  const scopes = await Promise.all(dirs.slice(1).map((dir) => readAgentsScope(projectPath, dir)))
+  for (const scope of scopes) {
     matchBy(scope, 'status')
       .with('found', (value) => {
         scoped.push(value)
@@ -75,22 +76,37 @@ export async function resolveAgentsForRun(
     .with('found', 'missing', () => undefined)
     .exhaustive()
 
-  const scopedByFilePath = new Map<string, AgentsScopeItem>()
-  for (const candidatePath of candidatePaths) {
-    try {
-      const chain = await resolveAgentsChainForPath(projectPath, candidatePath)
-      for (const warning of chain.warnings) {
-        addWarning(warning)
-      }
-      for (const scope of chain.scoped) {
-        if (!scopedByFilePath.has(scope.filePath)) {
-          scopedByFilePath.set(scope.filePath, scope)
+  // Candidate chains resolve independently; fetch concurrently then fold in
+  // candidate order so warning order and first-wins dedupe stay deterministic.
+  const chains = await Promise.all(
+    candidatePaths.map(async (candidatePath) => {
+      try {
+        return {
+          candidatePath,
+          chain: await resolveAgentsChainForPath(projectPath, candidatePath),
+          error: null,
         }
+      } catch (error) {
+        return { candidatePath, chain: null, error }
       }
-    } catch (error) {
+    }),
+  )
+
+  const scopedByFilePath = new Map<string, AgentsScopeItem>()
+  for (const { candidatePath, chain, error } of chains) {
+    if (!chain) {
       addWarning(
         `Failed to resolve AGENTS scope for "${candidatePath}": ${error instanceof Error ? error.message : String(error)}`,
       )
+      continue
+    }
+    for (const warning of chain.warnings) {
+      addWarning(warning)
+    }
+    for (const scope of chain.scoped) {
+      if (!scopedByFilePath.has(scope.filePath)) {
+        scopedByFilePath.set(scope.filePath, scope)
+      }
     }
   }
 

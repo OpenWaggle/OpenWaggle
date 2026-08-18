@@ -44,19 +44,16 @@ const PROVIDER_MODELS: ProviderInfo[] = [
 
 describe('composer view helpers', () => {
   it('builds action dialog copy and input requirements from the action kind', () => {
-    expect(getActionDialogConfig('rename-branch', 'main', '')).toMatchObject({
-      title: 'Rename "main"',
-      confirmLabel: 'Rename',
+    // Branch management (rename/delete/upstream) was removed: creating a branch to
+    // run on is the only remaining action dialog.
+    expect(getActionDialogConfig('create-branch')).toEqual({
+      title: 'Create branch',
+      description: 'Create and checkout a new branch from the current HEAD.',
+      confirmLabel: 'Create',
       confirmTone: 'normal',
-      inputPlaceholder: 'feature/new-name',
+      inputPlaceholder: 'feature/my-branch',
     })
-    expect(getActionDialogConfig('delete-branch', 'main', 'feature/old')).toMatchObject({
-      title: 'Delete "feature/old"',
-      confirmLabel: 'Delete',
-      confirmTone: 'danger',
-    })
-    expect(actionDialogHasInput('set-upstream')).toBe(true)
-    expect(actionDialogHasInput('delete-branch')).toBe(false)
+    expect(actionDialogHasInput('create-branch')).toBe(true)
     expect(actionDialogHasInput(null)).toBe(false)
   })
 

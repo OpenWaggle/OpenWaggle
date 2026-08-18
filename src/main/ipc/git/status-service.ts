@@ -1,4 +1,4 @@
-import type { GitStatusSummary } from '@shared/types/git'
+import type { GitDiffResult, GitStatusSummary } from '@shared/types/git'
 import { isGitRepository, runGit } from './shared'
 import { DIFF_GIT_MAX_BUFFER, GIT_PARSE_INT_RADIX } from './status-constants'
 import {
@@ -8,6 +8,8 @@ import {
   parsePorcelain,
   parseUnifiedDiff,
 } from './status-parse'
+
+const NOT_A_REPOSITORY_MESSAGE = 'Selected folder is not a Git repository.'
 
 interface GitStatusCommandResults {
   readonly branchResult: Awaited<ReturnType<typeof runGit>>
@@ -36,15 +38,56 @@ export async function getGitStatus(projectPath: string) {
   } satisfies GitStatusSummary
 }
 
-export async function getGitDiff(projectPath: string) {
-  await assertGitRepository(projectPath)
+export async function getGitDiff(projectPath: string): Promise<GitDiffResult> {
+  if (!(await isGitRepository(projectPath))) {
+    return { ok: false, code: 'not-git-repo', message: NOT_A_REPOSITORY_MESSAGE }
+  }
   const hasHead = await runGit(projectPath, ['rev-parse', '--verify', 'HEAD'])
-  return hasHead.code === 0 ? getHeadDiff(projectPath) : getInitialCommitDiff(projectPath)
+  const files =
+    hasHead.code === 0 ? await getHeadDiff(projectPath) : await getInitialCommitDiff(projectPath)
+  return { ok: true, files }
+}
+
+/**
+ * Branch diff: changes on HEAD relative to the merge-base with a base ref
+ * (three-dot diff). Empty base ref falls back to the working-tree diff.
+ */
+export async function getGitBranchDiff(
+  projectPath: string,
+  baseRef: string,
+): Promise<GitDiffResult> {
+  if (!(await isGitRepository(projectPath))) {
+    return { ok: false, code: 'not-git-repo', message: NOT_A_REPOSITORY_MESSAGE }
+  }
+  const trimmed = baseRef.trim()
+  if (!trimmed) return getGitDiff(projectPath)
+
+  const verify = await runGit(projectPath, ['rev-parse', '--verify', `${trimmed}^{commit}`])
+  if (verify.code !== 0) {
+    return {
+      ok: false,
+      code: 'bad-revision',
+      message: `Base ref "${trimmed}" could not be resolved.`,
+    }
+  }
+  const result = await runGit(
+    projectPath,
+    ['diff', '--patch', '--find-renames', '--no-ext-diff', `${trimmed}...HEAD`],
+    { maxBuffer: DIFF_GIT_MAX_BUFFER },
+  )
+  if (result.code !== 0) {
+    return {
+      ok: false,
+      code: 'unknown',
+      message: result.stderr.trim() || 'Failed to load branch diff.',
+    }
+  }
+  return { ok: true, files: result.stdout.trim() ? parseUnifiedDiff(result.stdout) : [] }
 }
 
 async function assertGitRepository(projectPath: string) {
   if (!(await isGitRepository(projectPath))) {
-    throw new Error('Selected folder is not a Git repository.')
+    throw new Error(NOT_A_REPOSITORY_MESSAGE)
   }
 }
 

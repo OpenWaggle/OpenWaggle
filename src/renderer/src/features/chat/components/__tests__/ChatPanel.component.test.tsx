@@ -1,9 +1,7 @@
 import { SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
-import type { UIMessage } from '@shared/types/chat-ui'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMessageQueueStore } from '@/features/chat/state'
 import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-store'
@@ -12,9 +10,9 @@ import { useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import type { ChatPanelSections } from '../../model'
 import { ChatPanel } from '../ChatPanel'
+import { createSections, makeMessage } from './ChatPanel.test-utils'
 
 const useChatPanelSectionsMock = vi.hoisted(() => vi.fn<() => ChatPanelSections>())
-const projectPath = '/test/project'
 
 vi.mock('../../hooks/use-chat-panel-controller', () => ({
   useChatPanelSections: useChatPanelSectionsMock,
@@ -29,91 +27,11 @@ vi.mock('@/shared/lib/ipc', () => ({
     listGitBranches: vi.fn().mockResolvedValue(null),
     checkoutGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
     createGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
-    renameGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
-    deleteGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
-    setGitBranchUpstream: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
     prepareAttachments: vi.fn().mockResolvedValue([]),
     onWaggleEvent: vi.fn(() => () => undefined),
     onWaggleTurnEvent: vi.fn(() => () => undefined),
   },
 }))
-
-function makeMessage(overrides: Partial<UIMessage> & { id: string; role: 'user' | 'assistant' }) {
-  return fromPartial<UIMessage>({
-    parts: [],
-    ...overrides,
-  })
-}
-
-function createSections(
-  overrides: Partial<ChatPanelSections['transcript']> = {},
-  composerOverrides: Partial<ChatPanelSections['composer']> = {},
-) {
-  const transcript = {
-    messages: [],
-    isLoading: false,
-    projectPath,
-    recentProjects: [],
-    activeSessionId: SessionId('session-1'),
-    chatRows: [],
-    extensionRegistry: null,
-    extensionProjectPaths: [projectPath],
-    lastUserMessageId: null,
-    streamSignalVersion: 0,
-    userDidSend: false,
-    onUserDidSendConsumed: vi.fn(),
-    onOpenProject: vi.fn().mockResolvedValue(undefined),
-    onSelectProjectPath: vi.fn(),
-    onRetryText: vi.fn().mockResolvedValue(undefined),
-    onOpenSettings: vi.fn(),
-    onDismissError: vi.fn(),
-    onDismissInterruptedRun: vi.fn(),
-    onBranchFromMessage: vi.fn(),
-    onForkFromMessage: vi.fn(),
-    ...overrides,
-  }
-
-  return {
-    transcript,
-    composer: {
-      activeSessionId: transcript.activeSessionId,
-      waggleStatus: 'idle',
-      commandPaletteOpen: false,
-      slashSkills: [],
-      forkSelectorOpen: false,
-      forkTargets: [],
-      isLoading: transcript.isLoading,
-      status: transcript.isLoading ? 'streaming' : 'ready',
-      compactionStatus: null,
-      onStopCollaboration: vi.fn(),
-      onSelectSkill: vi.fn(),
-      onStartWaggle: vi.fn(),
-      onSendWithWaggle: vi.fn().mockResolvedValue(undefined),
-      onSteer: vi.fn().mockResolvedValue(undefined),
-      onCancel: vi.fn(),
-      onToast: vi.fn(),
-      onSkipBranchSummary: vi.fn(),
-      onSummarizeBranch: vi.fn(),
-      onStartCustomBranchSummary: vi.fn(),
-      onCancelBranchSummary: vi.fn(),
-      onOpenForkSelector: vi.fn(),
-      onCloseForkSelector: vi.fn(),
-      onSelectForkTarget: vi.fn(),
-      onCloneToNewSession: vi.fn(),
-      ...composerOverrides,
-    },
-    diff: {
-      projectPath: transcript.projectPath,
-      onSendMessage: transcript.onRetryText,
-    },
-    agentInteractions: [],
-    agentCustomMessages: [],
-    agentInteractionEvents: [],
-    extensionRegistry: transcript.extensionRegistry,
-    extensionProjectPaths: transcript.extensionProjectPaths,
-    onRespondAgentInteraction: vi.fn().mockResolvedValue(undefined),
-  }
-}
 
 function renderPanel(
   overrides: Partial<ChatPanelSections['transcript']> = {},
@@ -213,7 +131,15 @@ describe('ChatPanel', () => {
     })
     renderPanel({
       messages: [message],
-      chatRows: [{ type: 'message', message, isStreaming: false, showTurnDivider: false }],
+      chatRows: [
+        {
+          type: 'message',
+          message,
+          isStreaming: false,
+          isRunActive: false,
+          showTurnDivider: false,
+        },
+      ],
     })
     expect(screen.queryByText(/open a project/i)).toBeNull()
   })
@@ -267,8 +193,20 @@ describe('ChatPanel', () => {
       messages: [userMessage, assistantMessage],
       isLoading: true,
       chatRows: [
-        { type: 'message', message: userMessage, isStreaming: false, showTurnDivider: false },
-        { type: 'message', message: assistantMessage, isStreaming: true, showTurnDivider: false },
+        {
+          type: 'message',
+          message: userMessage,
+          isStreaming: false,
+          isRunActive: false,
+          showTurnDivider: false,
+        },
+        {
+          type: 'message',
+          message: assistantMessage,
+          isStreaming: true,
+          isRunActive: false,
+          showTurnDivider: false,
+        },
         { type: 'phase-indicator', label: 'Writing', elapsedMs: 456 },
       ],
     })
@@ -292,8 +230,20 @@ describe('ChatPanel', () => {
       messages: [userMessage, assistantMessage],
       isLoading: false,
       chatRows: [
-        { type: 'message', message: userMessage, isStreaming: false, showTurnDivider: false },
-        { type: 'message', message: assistantMessage, isStreaming: false, showTurnDivider: false },
+        {
+          type: 'message',
+          message: userMessage,
+          isStreaming: false,
+          isRunActive: false,
+          showTurnDivider: false,
+        },
+        {
+          type: 'message',
+          message: assistantMessage,
+          isStreaming: false,
+          isRunActive: false,
+          showTurnDivider: false,
+        },
       ],
     })
     const spinner = document.querySelector('[class*="animate-spin"]')

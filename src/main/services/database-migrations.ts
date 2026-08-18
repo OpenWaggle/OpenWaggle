@@ -209,4 +209,56 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
     name: 'extension-storage-items',
     statements: [...CURRENT_EXTENSION_STORAGE_SCHEMA_STATEMENTS],
   },
+  {
+    id: 19,
+    name: 'session-worktree-environment',
+    statements: [
+      `ALTER TABLE sessions ADD COLUMN environment_mode TEXT NOT NULL DEFAULT 'local'`,
+      `ALTER TABLE sessions ADD COLUMN worktree_path TEXT`,
+    ],
+  },
+  {
+    id: 20,
+    name: 'turn-checkpoints',
+    statements: [
+      `
+      CREATE TABLE IF NOT EXISTS turn_checkpoints (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+        turn_id TEXT NOT NULL,
+        turn_index INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        diff TEXT NOT NULL,
+        insertions INTEGER NOT NULL DEFAULT 0,
+        deletions INTEGER NOT NULL DEFAULT 0
+      )
+      `,
+      `
+      CREATE INDEX IF NOT EXISTS idx_turn_checkpoints_session_turn_index
+      ON turn_checkpoints (session_id, turn_index ASC)
+      `,
+      `
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_turn_checkpoints_session_turn_unique
+      ON turn_checkpoints (session_id, turn_id)
+      `,
+    ],
+  },
+  {
+    id: 21,
+    name: 'turn-checkpoint-snapshot-ref',
+    statements: [`ALTER TABLE turn_checkpoints ADD COLUMN snapshot_ref TEXT`],
+  },
+  {
+    id: 22,
+    name: 'session-worktree-birth-plan',
+    statements: [
+      `ALTER TABLE sessions ADD COLUMN worktree_base_ref TEXT`,
+      `ALTER TABLE sessions ADD COLUMN worktree_start_from_origin INTEGER NOT NULL DEFAULT 0`,
+    ],
+  },
+  {
+    id: 23,
+    name: 'turn-checkpoint-anchor-node',
+    statements: [`ALTER TABLE turn_checkpoints ADD COLUMN anchor_node_id TEXT`],
+  },
 ]

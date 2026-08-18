@@ -1,3 +1,4 @@
+import { RepositoryPath, WorkingPath } from '@shared/types/brand'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { apiMock } = vi.hoisted(() => ({
@@ -7,9 +8,6 @@ const { apiMock } = vi.hoisted(() => ({
     commitGit: vi.fn(),
     checkoutGitBranch: vi.fn(),
     createGitBranch: vi.fn(),
-    renameGitBranch: vi.fn(),
-    deleteGitBranch: vi.fn(),
-    setGitBranchUpstream: vi.fn(),
   },
 }))
 
@@ -17,18 +15,25 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: apiMock,
 }))
 
-import { useGitStore } from '../git-store'
+import { selectWorkingTreeStatus, useGitStore } from '../git-store'
+
+/** Status is keyed by working path (ADR 0018), so a read must name the tree. */
+function statusFor(workingPath: string) {
+  return selectWorkingTreeStatus(useGitStore.getState(), workingPath).status
+}
+
+const WORKING_PATH = WorkingPath('/tmp/repo')
+const REPOSITORY_PATH = RepositoryPath('/tmp/repo')
 
 describe('useGitStore integration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useGitStore.setState({
-      status: null,
+      statusByWorkingPath: {},
       branches: null,
-      isLoading: false,
+      branchesError: null,
       isCommitting: false,
       isBranchActionRunning: false,
-      error: null,
     })
   })
 
@@ -58,10 +63,10 @@ describe('useGitStore integration', () => {
       ],
     })
 
-    await useGitStore.getState().refreshStatus('/tmp/repo')
-    await useGitStore.getState().refreshBranches('/tmp/repo')
+    await useGitStore.getState().refreshStatus(WORKING_PATH)
+    await useGitStore.getState().refreshBranches(REPOSITORY_PATH)
 
-    expect(useGitStore.getState().status?.branch).toBe('main')
+    expect(statusFor('/tmp/repo')?.branch).toBe('main')
     expect(useGitStore.getState().branches?.branches).toHaveLength(1)
   })
 
@@ -92,7 +97,9 @@ describe('useGitStore integration', () => {
       ],
     })
 
-    const result = await useGitStore.getState().checkoutBranch('/tmp/repo', { name: 'feature' })
+    const result = await useGitStore.getState().checkoutBranch(WORKING_PATH, REPOSITORY_PATH, {
+      name: 'feature',
+    })
 
     expect(result).toEqual({ ok: true, message: 'Switched to feature.' })
     expect(apiMock.getGitStatus).toHaveBeenCalledWith('/tmp/repo')
@@ -101,15 +108,15 @@ describe('useGitStore integration', () => {
   })
 
   it('preserves failed branch mutation responses', async () => {
-    apiMock.deleteGitBranch.mockResolvedValue({
+    apiMock.createGitBranch.mockResolvedValue({
       ok: false,
       code: 'branch-not-found',
       message: 'The requested branch could not be found.',
     })
 
-    const result = await useGitStore.getState().deleteBranch('/tmp/repo', {
+    const result = await useGitStore.getState().createBranch(WORKING_PATH, REPOSITORY_PATH, {
       name: 'missing',
-      force: false,
+      checkout: false,
     })
 
     expect(result).toEqual({

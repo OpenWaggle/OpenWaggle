@@ -11,6 +11,7 @@ import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
 import { AgentKernelService } from '../ports/agent-kernel-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
+import type { ProjectedSessionNodeInput } from '../ports/session-repository'
 import { SessionRepository } from '../ports/session-repository'
 import { clearDurableActiveRun, recordDurableActiveRun } from './agent-run/active-run'
 import {
@@ -27,6 +28,17 @@ import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-r
 export type { AgentRunInput, AgentRunResult } from './agent-run/types'
 
 const logger = createLogger('agent-run-service')
+
+/** The persisted assistant node with the greatest created order (the run's final assistant turn). */
+function resolveLatestAssistantNodeId(nodes: readonly ProjectedSessionNodeInput[]): string | null {
+  let latest: ProjectedSessionNodeInput | null = null
+  for (const node of nodes) {
+    if (node.role === 'assistant' && (latest === null || node.createdOrder > latest.createdOrder)) {
+      latest = node
+    }
+  }
+  return latest?.id ?? null
+}
 
 /**
  * Validate preconditions, execute the agent run, and persist results.
@@ -46,6 +58,7 @@ export function executeAgentRun(input: AgentRunInput) {
     assignedTitle = preflight.assignedTitle
 
     const { sessionRepo, identity } = yield* recordDurableActiveRun(input)
+    const sessionProjectionRepo = yield* SessionProjectionRepository
     activeRunIdentity = identity
 
     const hydratedPayload = yield* hydrateAgentRunPayload(input.payload)
@@ -76,6 +89,17 @@ export function executeAgentRun(input: AgentRunInput) {
       piSessionId: agentResult.piSessionId,
       piSessionFile: agentResult.piSessionFile,
     })
+
+    // WS6b: anchor this turn's checkpoint to the run's final assistant node so
+    // the transcript can reveal its Turn diff (no-op when no checkpoint/anchor).
+    const anchorNodeId = resolveLatestAssistantNodeId(sessionSnapshot.nodes)
+    if (anchorNodeId) {
+      yield* sessionProjectionRepo.setTurnCheckpointAnchor(
+        input.sessionId,
+        input.runId,
+        anchorNodeId,
+      )
+    }
 
     return buildAgentRunOutcome({
       agentResult,

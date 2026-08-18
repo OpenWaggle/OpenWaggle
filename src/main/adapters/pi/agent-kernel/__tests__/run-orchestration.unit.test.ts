@@ -23,7 +23,7 @@ const runMocks = vi.hoisted(() => ({
   createSessionManagerForSession: vi.fn(),
   disposeOpenWagglePiSession: vi.fn(),
   getPiModelAvailableThinkingLevels: vi.fn(),
-  resolveSessionProjectPath: vi.fn(),
+  resolveSessionWorkingPath: vi.fn(),
 }))
 vi.mock('../../pi-provider-catalog', () => ({
   createPiProjectModelRuntime: runMocks.createPiProjectModelRuntime,
@@ -38,7 +38,8 @@ vi.mock('../session-listener', () => ({
 }))
 vi.mock('../session-manager', () => ({
   createSessionManagerForSession: runMocks.createSessionManagerForSession,
-  resolveSessionProjectPath: runMocks.resolveSessionProjectPath,
+  resolveSessionWorkingPath: runMocks.resolveSessionWorkingPath,
+  requireSessionProjectPath: runMocks.resolveSessionWorkingPath,
 }))
 describe('Pi run orchestration', () => {
   beforeEach(() => {
@@ -48,8 +49,8 @@ describe('Pi run orchestration', () => {
     runMocks.createSessionManagerForSession.mockReset()
     runMocks.disposeOpenWagglePiSession.mockReset()
     runMocks.getPiModelAvailableThinkingLevels.mockReset()
-    runMocks.resolveSessionProjectPath.mockReset()
-    runMocks.resolveSessionProjectPath.mockReturnValue('/repo')
+    runMocks.resolveSessionWorkingPath.mockReset()
+    runMocks.resolveSessionWorkingPath.mockReturnValue('/repo')
     runMocks.createSessionManagerForSession.mockReturnValue({
       buildSessionContext: () => ({ messages: [] }),
     })

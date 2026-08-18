@@ -1,3 +1,4 @@
+import type { SqlClient } from '@effect/sql'
 import { safeDecodeUnknown } from '@shared/schema'
 import { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import type {
@@ -12,6 +13,7 @@ import { interruptedRunsByBranchId } from './active-run-hydration'
 import { DEFAULT_UI_STATE_JSON, MAIN_BRANCH_NAME, STANDARD_FUTURE_MODE } from './constants'
 import { parseJson } from './json'
 import { expandedNodeIdsSchema, waggleConfigSchema } from './schemas'
+import { SESSION_SUMMARY_COLUMN_NAMES } from './types'
 
 export { hydrateRecoverableActiveRun, interruptedRunsByBranchId } from './active-run-hydration'
 export { buildSessionNodes, visibleNodeIdForHead } from './node-hydration'
@@ -130,7 +132,7 @@ export function hydrateUiState(row: SessionTreeUiStateRow) {
   }
 }
 
-export function hydrateSessionSummary(row: SessionSummaryRow) {
+export function hydrateSessionSummary(row: SessionSummaryRow): SessionSummary {
   return {
     id: SessionId(row.id),
     title: row.title,
@@ -142,6 +144,8 @@ export function hydrateSessionSummary(row: SessionSummaryRow) {
     lastActiveBranchId: row.last_active_branch_id
       ? SessionBranchId(row.last_active_branch_id)
       : null,
+    environmentMode: row.environment_mode === 'worktree' ? 'worktree' : 'local',
+    worktreePath: row.worktree_path,
   }
 }
 
@@ -215,4 +219,13 @@ function parseWaggleConfig(raw: string | null): WaggleConfig | undefined {
       { ...parsed.data.agents[1], model: createWaggleModelBinding(parsed.data.agents[1].model) },
     ],
   }
+}
+
+/**
+ * The {@link SessionSummaryRow} column list as a SQL fragment.
+ *
+ * Lives here rather than in `types.ts` so the type module stays free of a SQL dependency.
+ */
+export function sessionSummaryColumns(sql: SqlClient.SqlClient) {
+  return sql.literal(SESSION_SUMMARY_COLUMN_NAMES.join(', '))
 }

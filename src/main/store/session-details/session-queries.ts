@@ -1,5 +1,6 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { SessionId } from '@shared/types/brand'
+import type { SessionEnvironmentMode } from '@shared/types/git'
 import type { SessionDetail, SessionSummary } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { runStoreEffect } from '../store-runtime'
@@ -12,7 +13,16 @@ import {
 } from './message-hydration'
 import type { SessionNodeRow, SessionRow, SessionSummaryRow } from './types'
 
-function hydrateSessionSummary(row: SessionSummaryRow) {
+/**
+ * The detail-side summary shape, which carries `messageCount` and deliberately omits the
+ * session-list fields (environment mode, worktree path, last-active ids).
+ *
+ * Named apart from `hydrateSessionSummary` in `store/sessions/hydration.ts` on purpose:
+ * when both were called the same thing, a change intended for the session list was made
+ * here instead. It typechecked, its own test passed, and the feature was simply missing
+ * until the app was opened.
+ */
+function hydrateSessionDetailSummary(row: SessionSummaryRow) {
   return {
     id: SessionId(row.id),
     title: row.title,
@@ -26,6 +36,8 @@ function hydrateSessionSummary(row: SessionSummaryRow) {
 
 function hydrateSessionDetail(sessionRow: SessionRow, nodeRows: readonly SessionNodeRow[]) {
   try {
+    const environmentMode: SessionEnvironmentMode =
+      sessionRow.environment_mode === 'worktree' ? 'worktree' : 'local'
     return {
       id: SessionId(sessionRow.id),
       title: sessionRow.title,
@@ -37,6 +49,10 @@ function hydrateSessionDetail(sessionRow: SessionRow, nodeRows: readonly Session
       archived: sessionRow.archived === 1 ? true : undefined,
       createdAt: sessionRow.created_at,
       updatedAt: sessionRow.updated_at,
+      environmentMode,
+      worktreePath: sessionRow.worktree_path,
+      worktreeBaseRef: sessionRow.worktree_base_ref,
+      worktreeStartFromOrigin: sessionRow.worktree_start_from_origin === 1,
     }
   } catch (error) {
     logSessionHydrationFailure(sessionRow, error)
@@ -61,7 +77,11 @@ function selectSessionRow(sql: SqlClient.SqlClient, id: SessionId) {
       created_at,
       updated_at,
       last_active_node_id,
-      last_active_branch_id
+      last_active_branch_id,
+      environment_mode,
+      worktree_path,
+      worktree_base_ref,
+      worktree_start_from_origin
     FROM sessions
     WHERE id = ${id}
     LIMIT 1
@@ -122,7 +142,7 @@ export async function listSessionSummaries(limit?: number, offset = 0): Promise<
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       const rows = yield* summaryCountSql(sql, 0, limit ?? null, offset)
-      return rows.map(hydrateSessionSummary)
+      return rows.map(hydrateSessionDetailSummary)
     }),
   )
 }
@@ -132,7 +152,7 @@ export async function listArchivedSessions(): Promise<SessionSummary[]> {
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       const rows = yield* summaryCountSql(sql, 1, null)
-      return rows.map(hydrateSessionSummary)
+      return rows.map(hydrateSessionDetailSummary)
     }),
   )
 }

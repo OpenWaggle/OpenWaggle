@@ -87,10 +87,21 @@ export function useTerminalSession(projectPath: string | null) {
     requestAnimationFrame(() => fitAddon.fit())
 
     const cwd = projectPath ?? ''
+    // This effect owns the terminal it creates. Tracking the id in an
+    // effect-scoped local (instead of reading terminalIdRef.current at cleanup)
+    // keeps ownership unambiguous AND fixes a leak: if cleanup ran before
+    // createTerminal resolved, the ref was still null and the terminal was never
+    // closed (react-doctor/exhaustive-deps).
+    let createdTerminalId: string | null = null
     api
       .createTerminal(cwd)
       .then((id) => {
-        if (!cleanedUp) setTerminalReady(terminalIdRef, id, term, setTerminalStatus)
+        createdTerminalId = id
+        if (cleanedUp) {
+          void api.closeTerminal(id)
+          return
+        }
+        setTerminalReady(terminalIdRef, id, term, setTerminalStatus)
       })
       .catch((error: unknown) => {
         if (!cleanedUp) setTerminalError(error, setTerminalStatus)
@@ -115,7 +126,7 @@ export function useTerminalSession(projectPath: string | null) {
       inputDispose.dispose()
       unsubscribe()
       resizeObserver.disconnect()
-      if (terminalIdRef.current) api.closeTerminal(terminalIdRef.current)
+      if (createdTerminalId) void api.closeTerminal(createdTerminalId)
       term.dispose()
     }
   }, [projectPath])

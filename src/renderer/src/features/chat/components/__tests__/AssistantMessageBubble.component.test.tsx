@@ -1,15 +1,20 @@
 import { SessionId, SupportedModelId } from '@shared/types/brand'
-import type { UIMessage } from '@shared/types/chat-ui'
+import type {
+  ChatTextPart,
+  ChatThinkingPart,
+  ChatToolCallPart,
+  ChatToolResultPart,
+  UIMessage,
+  UIMessagePart,
+} from '@shared/types/chat-ui'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { UseMessageCollapseResult } from '../../hooks/useMessageCollapse'
 
-type MessagePart = UIMessage['parts'][number]
-
 // ---------------------------------------------------------------------------
 // Hoisted mock handles
 // ---------------------------------------------------------------------------
-const mockCollapse = vi.hoisted(() => ({
+const mockCollapse = vi.hoisted((): { current: UseMessageCollapseResult } => ({
   current: {
     canCollapseDetails: false,
     showDetails: false,
@@ -17,7 +22,7 @@ const mockCollapse = vi.hoisted(() => ({
     collapseLabel: '',
     lastRenderableTextPartIndex: -1,
     renderAllParts: true,
-  } satisfies UseMessageCollapseResult,
+  },
 }))
 
 // ---------------------------------------------------------------------------
@@ -73,15 +78,15 @@ import { AssistantMessageBubble, type WaggleInfo } from '../AssistantMessageBubb
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-function textPart(content: string) {
+function textPart(content: string): ChatTextPart {
   return { type: 'text', content }
 }
 
-function toolCallPart(name: string, id = 'tc-1') {
+function toolCallPart(name: string, id = 'tc-1'): ChatToolCallPart {
   return { type: 'tool-call', id, name, arguments: '{}', state: 'output-available' }
 }
 
-function toolResultPart(toolCallId: string) {
+function toolResultPart(toolCallId: string): ChatToolResultPart {
   return {
     type: 'tool-result',
     toolCallId,
@@ -90,11 +95,11 @@ function toolResultPart(toolCallId: string) {
   }
 }
 
-function thinkingPart() {
+function thinkingPart(): ChatThinkingPart {
   return { type: 'thinking', content: 'internal reasoning' }
 }
 
-function createMessage(id: string, parts: MessagePart[]) {
+function createMessage(id: string, parts: UIMessagePart[]): UIMessage {
   return { id, role: 'assistant', parts }
 }
 
@@ -105,6 +110,10 @@ interface RenderAssistantOptions {
   readonly waggle?: WaggleInfo
   readonly assistantModel?: SupportedModelId
   readonly hideAgentLabel?: boolean
+  readonly actions?: {
+    readonly onBranchFromMessage?: (messageId: string) => void
+    readonly onViewTurnDiff?: (messageId: string) => void
+  }
 }
 
 function renderAssistantMessage({
@@ -112,6 +121,7 @@ function renderAssistantMessage({
   waggle,
   assistantModel,
   hideAgentLabel,
+  actions,
 }: RenderAssistantOptions) {
   return render(
     <AssistantMessageBubble
@@ -123,6 +133,7 @@ function renderAssistantMessage({
       run={assistantModel ? { assistantModel } : undefined}
       waggle={waggle}
       presentation={hideAgentLabel ? { hideAgentLabel } : undefined}
+      actions={actions}
     />,
   )
 }
@@ -262,5 +273,24 @@ describe('AssistantMessageBubble', () => {
     })
     expect(screen.queryByTestId('agent-label')).toBeNull()
     expect(screen.getByTestId('streaming-text')).toHaveTextContent('Hello')
+  })
+
+  it('renders a View turn diff button and fires onViewTurnDiff', () => {
+    const onViewTurnDiff = vi.fn()
+    const message = createMessage('m1', [textPart('Hello')])
+    renderAssistantMessage({
+      message,
+      assistantModel: SupportedModelId('gpt-5.5'),
+      actions: { onViewTurnDiff },
+    })
+    const button = screen.getByRole('button', { name: 'View turn diff' })
+    button.click()
+    expect(onViewTurnDiff).toHaveBeenCalledWith('m1')
+  })
+
+  it('omits the View turn diff button when no reveal handler is provided', () => {
+    const message = createMessage('m1', [textPart('Hello')])
+    renderAssistantMessage({ message, assistantModel: SupportedModelId('gpt-5.5') })
+    expect(screen.queryByRole('button', { name: 'View turn diff' })).toBeNull()
   })
 })

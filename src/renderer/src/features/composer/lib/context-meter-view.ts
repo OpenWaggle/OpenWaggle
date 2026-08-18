@@ -1,7 +1,7 @@
 import type { ContextUsageSnapshot } from '@shared/types/context-usage'
 import type { ProviderInfo, SupportedModelId } from '@shared/types/llm'
 import { formatTokens } from '@/shared/lib/format-tokens'
-import { CONTEXT_METER } from '../constants'
+import { CONTEXT_METER } from '../constants/context-meter'
 
 interface UsageTitleInput {
   readonly tokens: number | null

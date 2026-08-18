@@ -6,7 +6,11 @@ export { persistSessionSnapshot } from './session-details/persist-snapshot'
 export { createSession } from './session-details/session-creation'
 export {
   archiveSession,
+  clearSessionWorktree,
   deleteSession,
+  listSessionWorktreeRefs,
+  setSessionWorktree,
+  setSessionWorktreePlan,
   unarchiveSession,
   updateSessionRuntime,
   updateSessionTitle,

@@ -16,6 +16,8 @@ section: "Getting Started"
 | Toggle terminal | `Cmd+J` | `Ctrl+J` |
 | Toggle diff panel | `Cmd+D` | `Ctrl+D` |
 | Toggle Session Tree | `Cmd+Shift+Y` | `Ctrl+Shift+Y` |
+| Submit diff comment or review | `Cmd+Enter` | `Ctrl+Enter` |
+| Cancel diff comment or review | `Escape` | `Escape` |
 | Command palette | `Cmd+K` | `Ctrl+K` |
 
 ## Session Tree

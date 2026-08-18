@@ -153,9 +153,17 @@ async function readTableColumns(tableName: string) {
 
 describe('settings store', () => {
   beforeEach(async () => {
-    await disposeRuntime()
-    vi.resetModules()
     state.userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-settings-test-'))
+    // Deliberately NOT vi.resetModules(). Resetting the registry gave every test its
+    // own copy of the runtime module, so each test left a live better-sqlite3
+    // Database orphaned in a worker that vitest reuses across files; the accumulated
+    // objects then crashed the addon at environment teardown (#151). Resetting the
+    // runtime and the settings cache in place gives the same isolation -- a fresh
+    // database per test -- with exactly one module instance alive.
+    const { resetAppRuntimeForTests } = await import('../../runtime')
+    await resetAppRuntimeForTests()
+    const { resetSettingsStoreForTests } = await import('../settings')
+    await resetSettingsStoreForTests()
     state.encryptionAvailable = false
     state.encryptThrows = false
   })

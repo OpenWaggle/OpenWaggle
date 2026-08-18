@@ -6,6 +6,8 @@
  * Follows the same dynamic-import pattern as SettingsService.Live to defer
  * module-level side effects until runtime initialization.
  */
+
+import { SessionId } from '@shared/types/brand'
 import { Effect, Layer } from 'effect'
 import { SessionProjectionRepositoryError } from '../errors'
 import {
@@ -13,8 +15,56 @@ import {
   type SessionProjectionRepositoryShape,
 } from '../ports/session-projection-repository'
 
+type RepoOperation =
+  | 'get'
+  | 'getOptional'
+  | 'list'
+  | 'listDetails'
+  | 'create'
+  | 'delete'
+  | 'archive'
+  | 'unarchive'
+  | 'listArchived'
+  | 'updateTitle'
+  | 'setWorktreePlan'
+  | 'listTurnCheckpoints'
+  | 'getTurnDiff'
+  | 'setTurnCheckpointAnchor'
+
+function repoOp<A>(operation: RepoOperation, thunk: () => Promise<A>) {
+  return Effect.tryPromise({
+    try: thunk,
+    catch: (cause: unknown) => new SessionProjectionRepositoryError({ operation, cause }),
+  })
+}
+
 export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => {
-  const store = await import('../store/session-details')
+  const [store, turnCheckpoints, worktreePrune] = await Promise.all([
+    import('../store/session-details'),
+    import('../store/turn-checkpoints'),
+    import('../ipc/git/session-worktree-prune'),
+  ])
+  const { pruneSessionWorktree } = worktreePrune
+  const { deleteTurnCheckpointsForSession } = turnCheckpoints
+
+  async function pruneWorktreeForSession(id: Parameters<typeof store.getSessionDetail>[0]) {
+    const session = await store.getSessionDetail(id)
+    if (!session) return
+    await pruneSessionWorktree(
+      {
+        sessionId: String(id),
+        projectPath: session.projectPath,
+        worktreePath: session.worktreePath ?? null,
+      },
+      {
+        listWorktreeRefs: () => store.listSessionWorktreeRefs(),
+        clearWorktree: (sessionId) => store.clearSessionWorktree(SessionId(sessionId)),
+        deleteCheckpoints: async (sessionId) => {
+          await deleteTurnCheckpointsForSession(SessionId(sessionId))
+        },
+      },
+    )
+  }
 
   return Layer.succeed(
     SessionProjectionRepository,
@@ -36,63 +86,53 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
           ),
         ),
 
-      getOptional: (id) =>
-        Effect.tryPromise({
-          try: () => store.getSessionDetail(id),
-          catch: (cause) =>
-            new SessionProjectionRepositoryError({ operation: 'getOptional', cause }),
-        }),
+      getOptional: (id) => repoOp('getOptional', () => store.getSessionDetail(id)),
 
-      list: (limit) =>
-        Effect.tryPromise({
-          try: () => store.listSessionSummaries(limit),
-          catch: (cause) => new SessionProjectionRepositoryError({ operation: 'list', cause }),
-        }),
+      list: (limit) => repoOp('list', () => store.listSessionSummaries(limit)),
 
       listDetails: (limit, offset) =>
-        Effect.tryPromise({
-          try: () => store.listSessionDetails(limit, offset),
-          catch: (cause) =>
-            new SessionProjectionRepositoryError({ operation: 'listDetails', cause }),
-        }),
+        repoOp('listDetails', () => store.listSessionDetails(limit, offset)),
 
-      create: (input) =>
-        Effect.tryPromise({
-          try: () => store.createSession(input),
-          catch: (cause) => new SessionProjectionRepositoryError({ operation: 'create', cause }),
-        }),
+      create: (input) => repoOp('create', () => store.createSession(input)),
 
       delete: (id) =>
-        Effect.tryPromise({
-          try: () => store.deleteSession(id),
-          catch: (cause) => new SessionProjectionRepositoryError({ operation: 'delete', cause }),
+        repoOp('delete', async () => {
+          await pruneWorktreeForSession(id)
+          return store.deleteSession(id)
         }),
 
       archive: (id) =>
-        Effect.tryPromise({
-          try: () => store.archiveSession(id),
-          catch: (cause) => new SessionProjectionRepositoryError({ operation: 'archive', cause }),
+        repoOp('archive', async () => {
+          await pruneWorktreeForSession(id)
+          return store.archiveSession(id)
         }),
 
-      unarchive: (id) =>
-        Effect.tryPromise({
-          try: () => store.unarchiveSession(id),
-          catch: (cause) => new SessionProjectionRepositoryError({ operation: 'unarchive', cause }),
-        }),
+      unarchive: (id) => repoOp('unarchive', () => store.unarchiveSession(id)),
 
-      listArchived: () =>
-        Effect.tryPromise({
-          try: () => store.listArchivedSessions(),
-          catch: (cause) =>
-            new SessionProjectionRepositoryError({ operation: 'listArchived', cause }),
-        }),
+      listArchived: () => repoOp('listArchived', () => store.listArchivedSessions()),
 
-      updateTitle: (id, title) =>
-        Effect.tryPromise({
-          try: () => store.updateSessionTitle(id, title),
-          catch: (cause) =>
-            new SessionProjectionRepositoryError({ operation: 'updateTitle', cause }),
-        }),
+      updateTitle: (id, title) => repoOp('updateTitle', () => store.updateSessionTitle(id, title)),
+
+      setWorktreePlan: (id, plan) =>
+        repoOp('setWorktreePlan', () =>
+          store.setSessionWorktreePlan(
+            id,
+            plan.environmentMode,
+            plan.baseRef,
+            plan.startFromOrigin,
+          ),
+        ),
+
+      listTurnCheckpoints: (id) =>
+        repoOp('listTurnCheckpoints', () => turnCheckpoints.listTurnCheckpoints(id)),
+
+      getTurnDiff: (id, turnId) =>
+        repoOp('getTurnDiff', () => turnCheckpoints.getTurnDiff(id, turnId)),
+
+      setTurnCheckpointAnchor: (id, turnId, anchorNodeId) =>
+        repoOp('setTurnCheckpointAnchor', () =>
+          turnCheckpoints.setTurnCheckpointAnchor(id, turnId, anchorNodeId),
+        ),
     } satisfies SessionProjectionRepositoryShape),
   )
 }).pipe(Layer.unwrapEffect)

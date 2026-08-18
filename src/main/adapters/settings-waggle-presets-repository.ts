@@ -172,9 +172,10 @@ async function listWagglePresets(projectPath?: string | null) {
     projectPresets: projectState.presets,
     userHiddenBuiltInPresetIds: userState.hiddenBuiltInPresetIds,
     projectHiddenBuiltInPresetIds: projectState.hiddenBuiltInPresetIds,
+  }).flatMap((entry) => {
+    const preset = hydratePreset(entry.preset)
+    return isWagglePreset(preset) ? [preset] : []
   })
-    .map((entry) => hydratePreset(entry.preset))
-    .filter(isWagglePreset)
 }
 
 async function saveWagglePreset(preset: WagglePreset, projectPath?: string | null) {

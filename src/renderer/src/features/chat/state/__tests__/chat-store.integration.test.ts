@@ -11,8 +11,8 @@ import { useChatStore } from '../chat-store'
 
 const mockApi = {
   listSessionDetails: vi.fn(),
-  listSessions: vi.fn(async () => []),
-  getSessionTree: vi.fn(async () => null),
+  listSessions: vi.fn(async (..._args: unknown[]) => []),
+  getSessionTree: vi.fn(async (..._args: unknown[]) => null),
   getSessionDetail: vi.fn(),
   createSession: vi.fn(),
   deleteSession: vi.fn(),

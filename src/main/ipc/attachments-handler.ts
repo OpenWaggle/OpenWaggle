@@ -140,9 +140,9 @@ function registerPrepareAttachmentHandler() {
 
       const projectPath = yield* validateRequiredProjectPath(pp)
 
-      const normalized = paths
-        .map((entry) => (path.isAbsolute(entry) ? entry : path.resolve(projectPath, entry)))
-        .map((entry) => path.normalize(entry))
+      const normalized = paths.map((entry) =>
+        path.normalize(path.isAbsolute(entry) ? entry : path.resolve(projectPath, entry)),
+      )
 
       const uniquePaths = [...new Set(normalized)]
       if (uniquePaths.length === 0) return []

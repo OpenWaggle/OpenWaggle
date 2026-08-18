@@ -12,6 +12,9 @@ files:
   - out/renderer/**/*
   - node_modules/**/*
   - package.json
+  # Declarations are never needed at runtime; this also guarantees stray tsc
+  # output (e.g. test fixtures) can never be packaged into the app.
+  - '!out/**/*.d.ts'
   - '!**/.vscode/*'
   - '!src/*'
   - '!tests/**/*'

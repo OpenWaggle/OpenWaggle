@@ -110,8 +110,5 @@ export function isToolCallPart(part: MessagePart): part is ToolCallPart {
 }
 
 export function getMessageText(message: Message): string {
-  return message.parts
-    .filter(isTextPart)
-    .map((p) => p.text)
-    .join('')
+  return message.parts.reduce((text, part) => (isTextPart(part) ? text + part.text : text), '')
 }

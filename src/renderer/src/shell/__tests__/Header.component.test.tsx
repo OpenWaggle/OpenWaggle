@@ -25,6 +25,7 @@ const headerMocks = vi.hoisted(() => {
   }
   return {
     projectPath: '/repo/openwaggle',
+    workingPath: '/wt/openwaggle/session-1',
     gitStatus,
     refreshStatus: vi.fn().mockResolvedValue(undefined),
     refreshBranches: vi.fn().mockResolvedValue(undefined),
@@ -78,6 +79,9 @@ vi.mock('@/features/git/hooks', () => ({
     refreshStatus: headerMocks.refreshStatus,
     refreshBranches: headerMocks.refreshBranches,
     commit: headerMocks.commit,
+    // Status and commit target the session's working tree; branches the repository.
+    workingPath: headerMocks.workingPath,
+    repositoryPath: headerMocks.projectPath,
   }),
 }))
 
@@ -151,10 +155,12 @@ describe('Header', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirm commit' }))
 
     expect(screen.getByText('Commit dialog')).toBeInTheDocument()
-    expect(headerMocks.refreshStatus).toHaveBeenCalledWith('/repo/openwaggle')
+    // Manual refresh reads the session's working tree, not the opened checkout.
+    expect(headerMocks.refreshStatus).toHaveBeenCalledWith('/wt/openwaggle/session-1')
     expect(headerMocks.refreshBranches).toHaveBeenCalledWith('/repo/openwaggle')
     await waitFor(() =>
-      expect(headerMocks.commit).toHaveBeenCalledWith('/repo/openwaggle', {
+      // Commit writes to the tree being reviewed, not the opened checkout.
+      expect(headerMocks.commit).toHaveBeenCalledWith('/wt/openwaggle/session-1', {
         message: 'Ship it',
         amend: false,
         paths: ['src/app.ts'],

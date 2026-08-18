@@ -7,7 +7,7 @@ import {
   useChatScrollBehaviour,
 } from '../useChatScrollBehaviour'
 
-const SCROLL_CACHE_KEY = 'openwaggle:scroll-positions'
+const SCROLL_CACHE_KEY = 'openwaggle:scroll-positions:v1'
 const ANIMATION_FRAME_DELAY_MS = 16
 export const SCROLL_PERSIST_DEBOUNCE_MS = 150
 

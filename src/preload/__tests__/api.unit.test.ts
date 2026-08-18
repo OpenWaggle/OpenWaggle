@@ -3,15 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
   contextBridge: { exposeInMainWorld: vi.fn() },
-  ipcRenderer: {
-    invoke: vi.fn(),
-    send: vi.fn(),
-    on: vi.fn(),
-    removeListener: vi.fn(),
-  },
-  webUtils: {
-    getPathForFile: vi.fn(() => '/mock/path'),
-  },
+  ipcRenderer: { invoke: vi.fn(), send: vi.fn(), on: vi.fn(), removeListener: vi.fn() },
+  webUtils: { getPathForFile: vi.fn(() => '/mock/path') },
 }))
 
 import { ipcRenderer, webUtils } from 'electron'
@@ -73,6 +66,8 @@ describe('preload api surface contract', () => {
     'listSessions',
     'listSessionDetails',
     'getSessionDetail',
+    'listTurnCheckpoints',
+    'getTurnDiff',
     'createSession',
     'forkSessionToNew',
     'cloneSessionToNew',
@@ -82,6 +77,7 @@ describe('preload api surface contract', () => {
     'unarchiveSession',
     'listArchivedSessions',
     'updateSessionTitle',
+    'setSessionWorktreePlan',
     'listArchivedSessionBranches',
     'getSessionTree',
     'getSessionWorkspace',
@@ -90,6 +86,7 @@ describe('preload api surface contract', () => {
     'archiveSessionBranch',
     'restoreSessionBranch',
     'updateSessionTreeUiState',
+    'onGitWorkingTreeChanged',
     'onSessionTitleUpdated',
     // Terminal
     'createTerminal',
@@ -103,12 +100,20 @@ describe('preload api surface contract', () => {
     'getGitStatus',
     'commitGit',
     'getGitDiff',
+    'getGitBranchDiff',
+    'stageAllGitChanges',
+    'revertAllGitChanges',
     'listGitBranches',
     'checkoutGitBranch',
     'createGitBranch',
-    'renameGitBranch',
-    'deleteGitBranch',
-    'setGitBranchUpstream',
+    'listGitWorktrees',
+    'createGitWorktree',
+    'removeGitWorktree',
+    'getLocalVcsStatus',
+    'getRemoteVcsStatus',
+    'runStackedGitAction',
+    'listChangeRequests',
+    'checkoutChangeRequest',
     // Attachments
     'prepareAttachments',
     'prepareAttachmentFromText',
@@ -155,20 +160,15 @@ describe('preload api surface contract', () => {
     'suggestFiles',
     // Auto-updater
     'checkForUpdates',
+    'checkSessionWorktree',
     'installUpdate',
     'getUpdateStatus',
     'getAppVersion',
     'onUpdateStatus',
   ] as const
 
-  it('has every expected method as a function', () => {
-    for (const method of EXPECTED_METHODS) {
-      expect(api).toHaveProperty(method)
-      expect(typeof api[method]).toBe('function')
-    }
-  })
-
-  it('has no unexpected methods beyond the contract', () => {
+  it('matches the preload method contract exactly', () => {
+    for (const method of EXPECTED_METHODS) expect(typeof api[method]).toBe('function')
     const actualKeys = Object.keys(api).sort()
     const expectedKeys = [...EXPECTED_METHODS].sort()
     expect(actualKeys).toEqual(expectedKeys)

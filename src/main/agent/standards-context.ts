@@ -63,9 +63,10 @@ function getAttachmentPathsInsideProject(
   projectPath: string,
   attachments: readonly PreparedAttachment[],
 ) {
-  return attachments
-    .map((attachment) => path.resolve(attachment.path))
-    .filter((attachmentPath) => isPathInside(projectPath, attachmentPath))
+  return attachments.flatMap((attachment) => {
+    const attachmentPath = path.resolve(attachment.path)
+    return isPathInside(projectPath, attachmentPath) ? [attachmentPath] : []
+  })
 }
 
 async function loadCatalogWithWarnings(
@@ -107,28 +108,43 @@ async function loadActiveSkills(input: {
   readonly toggles: Readonly<Record<string, boolean>>
   readonly warnings: string[]
 }) {
-  const activeSkills: ActiveSkillInstruction[] = []
-  for (const skillId of input.selectedSkillIds) {
-    try {
-      const skill = await loadSkillInstructions(input.projectPath, skillId, input.toggles)
-      if (!skill.enabled) {
-        input.warnings.push(`Skill "${skillId}" is disabled and could not be activated.`)
-        continue
+  // Skills load independently; fetch concurrently then fold in request order so
+  // activeSkills ordering and warning ordering stay deterministic.
+  const loaded = await Promise.all(
+    input.selectedSkillIds.map(async (skillId) => {
+      try {
+        return {
+          skillId,
+          skill: await loadSkillInstructions(input.projectPath, skillId, input.toggles),
+          error: null,
+        }
+      } catch (error) {
+        return { skillId, skill: null, error }
       }
-      activeSkills.push({
-        id: skill.id,
-        name: skill.name,
-        description: skill.description,
-        body: skill.instructions,
-        folderPath: skill.folderPath,
-        skillPath: skill.skillPath,
-        hasScripts: skill.hasScripts,
-      })
-    } catch (error) {
+    }),
+  )
+
+  const activeSkills: ActiveSkillInstruction[] = []
+  for (const { skillId, skill, error } of loaded) {
+    if (!skill) {
       input.warnings.push(
         `Failed to load active skill "${skillId}": ${error instanceof Error ? error.message : String(error)}`,
       )
+      continue
     }
+    if (!skill.enabled) {
+      input.warnings.push(`Skill "${skillId}" is disabled and could not be activated.`)
+      continue
+    }
+    activeSkills.push({
+      id: skill.id,
+      name: skill.name,
+      description: skill.description,
+      body: skill.instructions,
+      folderPath: skill.folderPath,
+      skillPath: skill.skillPath,
+      hasScripts: skill.hasScripts,
+    })
   }
   return activeSkills
 }

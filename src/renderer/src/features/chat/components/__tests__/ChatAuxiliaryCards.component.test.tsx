@@ -1,4 +1,4 @@
-import { SessionBranchId, SupportedModelId } from '@shared/types/brand'
+import { RepositoryPath, SessionBranchId, SupportedModelId, WorkingPath } from '@shared/types/brand'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@/shell/ui-store'
@@ -8,8 +8,8 @@ import { InterruptedRunNotice } from '../InterruptedRunNotice'
 import { RunSummary } from '../RunSummary'
 
 vi.mock('@/features/diff-panel/components', () => ({
-  DiffPanel: ({ projectPath }: { readonly projectPath: string | null }) => (
-    <div>Diff for {projectPath ?? 'none'}</div>
+  DiffPanel: ({ workingPath }: { readonly workingPath: WorkingPath | null }) => (
+    <div>Diff for {workingPath ?? 'none'}</div>
   ),
 }))
 
@@ -78,7 +78,17 @@ describe('chat auxiliary cards', () => {
     const onClose = vi.fn()
     const onSendMessage = vi.fn()
 
-    render(<ChatDiffPane section={{ projectPath: '/repo', onSendMessage }} onClose={onClose} />)
+    render(
+      <ChatDiffPane
+        section={{
+          workingPath: WorkingPath('/repo'),
+          repositoryPath: RepositoryPath('/repo'),
+          sessionId: null,
+          onSendMessage,
+        }}
+        onClose={onClose}
+      />,
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Refresh diff' }))
     fireEvent.click(screen.getByRole('button', { name: 'Close diff sidebar' }))
@@ -87,5 +97,49 @@ describe('chat auxiliary cards', () => {
     expect(screen.getByText('Diff for /repo')).toBeInTheDocument()
     expect(useUIStore.getState().diffRefreshKey).toBe(1)
     expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  /**
+   * Stage all, Revert all and Commit act on whatever this panel is showing. For a
+   * worktree-mode session that is the Session worktree, not the opened checkout, and
+   * ADR 0018 requires the panel to say which — a retargeted destructive action must be
+   * visible rather than something the user infers.
+   */
+  it('names the Session worktree when the working path differs from the repository', () => {
+    useUIStore.setState({ diffRefreshKey: 0 })
+
+    render(
+      <ChatDiffPane
+        section={{
+          workingPath: WorkingPath('/wt/openwaggle/session-1'),
+          repositoryPath: RepositoryPath('/repo/openwaggle'),
+          sessionId: null,
+          onSendMessage: vi.fn(),
+        }}
+        onClose={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('Worktree · session-1')).toBeInTheDocument()
+    expect(screen.queryByText('Opened checkout')).not.toBeInTheDocument()
+  })
+
+  it('says the opened checkout when the session runs in the project itself', () => {
+    useUIStore.setState({ diffRefreshKey: 0 })
+
+    render(
+      <ChatDiffPane
+        section={{
+          workingPath: WorkingPath('/repo/openwaggle'),
+          repositoryPath: RepositoryPath('/repo/openwaggle'),
+          sessionId: null,
+          onSendMessage: vi.fn(),
+        }}
+        onClose={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('Opened checkout')).toBeInTheDocument()
+    expect(screen.queryByText(/^Worktree · /)).not.toBeInTheDocument()
   })
 })

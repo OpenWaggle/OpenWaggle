@@ -1,3 +1,4 @@
+import { formatWorktreePathForDisplay } from '@shared/utils/worktree'
 import { RefreshCw, X } from 'lucide-react'
 import { DiffPanel } from '@/features/diff-panel/components'
 import { Button } from '@/shared/ui/Button'
@@ -11,6 +12,12 @@ interface ChatDiffPaneProps {
 }
 
 export function ChatDiffPane({ section, onClose }: ChatDiffPaneProps) {
+  // A working path that differs from the opened project is a Session worktree. The two
+  // are distinct brands, so compare the underlying strings (equal only in local mode).
+  const worktreeLabel =
+    section.workingPath !== null && String(section.workingPath) !== String(section.repositoryPath)
+      ? formatWorktreePathForDisplay(section.workingPath)
+      : null
   const diffRefreshKey = useUIStore((s) => s.diffRefreshKey)
   const bumpDiffRefreshKey = useUIStore((s) => s.bumpDiffRefreshKey)
 
@@ -19,7 +26,15 @@ export function ChatDiffPane({ section, onClose }: ChatDiffPaneProps) {
       <header className="drag-region flex h-12 shrink-0 items-center justify-between border-b border-border bg-diff-header-bg px-3">
         <div className="flex min-w-0 items-center gap-2">
           <span className="no-drag text-[13px] font-medium text-text-primary">Changes</span>
-          <span className="no-drag text-[11px] text-text-tertiary">Working tree diff</span>
+          {/*
+            Name the tree, not just the scope. Stage all, Revert all and Commit act on
+            whatever this panel is showing, and for a worktree-mode session that is the
+            Session worktree rather than the opened checkout — which must not be
+            something the user has to infer (ADR 0018).
+          */}
+          <span className="no-drag truncate text-[11px] text-text-tertiary">
+            {worktreeLabel === null ? 'Opened checkout' : `Worktree · ${worktreeLabel}`}
+          </span>
         </div>
         <div className="no-drag flex items-center gap-1">
           <Button
@@ -48,7 +63,9 @@ export function ChatDiffPane({ section, onClose }: ChatDiffPaneProps) {
       <PanelErrorBoundary name="Diff" className="min-h-0 flex-1 overflow-hidden">
         <DiffPanel
           key={diffRefreshKey}
-          projectPath={section.projectPath}
+          workingPath={section.workingPath}
+          repositoryPath={section.repositoryPath}
+          sessionId={section.sessionId}
           onSendMessage={(content) => {
             void section.onSendMessage(content)
           }}

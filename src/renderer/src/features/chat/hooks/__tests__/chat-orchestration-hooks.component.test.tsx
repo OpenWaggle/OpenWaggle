@@ -112,6 +112,10 @@ function sendWorkflowParams(overrides: Partial<Parameters<typeof useChatSendWork
     branchSummary: {
       materializeBranchSummary: vi.fn().mockResolvedValue(undefined),
       materializeDraftBranchForSend: vi.fn().mockResolvedValue(true),
+      cancelBranchSummary: vi.fn(),
+      skipBranchSummary: vi.fn(),
+      startCustomBranchSummary: vi.fn(),
+      switchComposerToDraftBranch: vi.fn(),
     },
     clearDraftBranchForSession: vi.fn(),
     draftBranch: null,
@@ -183,7 +187,7 @@ describe('chat orchestration hooks', () => {
 
     requireAgentEventHandler()({
       sessionId: SESSION_ID,
-      event: { type: 'agent_end', runId: 'run-1', reason: 'stop' },
+      event: { type: 'agent_end', runId: 'run-1', reason: 'stop', timestamp: 0 },
     })
     expect(useBackgroundRunStore.getState().hasActiveRun(SESSION_ID)).toBe(false)
 
@@ -260,6 +264,8 @@ describe('chat orchestration hooks', () => {
         status: 'ready',
         compactionStatus: null,
         activeSessionId: SESSION_ID,
+        session: null,
+        isFirstMessage: true,
         waggleStatus: 'idle',
         commandPaletteOpen: false,
         slashSkills: [],

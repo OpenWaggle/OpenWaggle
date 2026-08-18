@@ -21,7 +21,7 @@ const runtimeMocks = vi.hoisted(() => ({
   createSessionManagerForSession: vi.fn(),
   disposeOpenWagglePiSession: vi.fn(),
   getPiAgentDir: vi.fn(),
-  resolveSessionProjectPath: vi.fn(),
+  resolveSessionWorkingPath: vi.fn(),
   sessionManagerCreate: vi.fn(),
 }))
 
@@ -42,7 +42,8 @@ vi.mock('../../pi-session-lifecycle', () => ({
 
 vi.mock('../session-manager', () => ({
   createSessionManagerForSession: runtimeMocks.createSessionManagerForSession,
-  resolveSessionProjectPath: runtimeMocks.resolveSessionProjectPath,
+  resolveSessionWorkingPath: runtimeMocks.resolveSessionWorkingPath,
+  requireSessionProjectPath: runtimeMocks.resolveSessionWorkingPath,
 }))
 
 const SESSION_ID = SessionId('session-runtime')
@@ -82,9 +83,9 @@ describe('Pi session runtime', () => {
     runtimeMocks.createSessionManagerForSession.mockReset()
     runtimeMocks.disposeOpenWagglePiSession.mockReset()
     runtimeMocks.getPiAgentDir.mockReset()
-    runtimeMocks.resolveSessionProjectPath.mockReset()
+    runtimeMocks.resolveSessionWorkingPath.mockReset()
     runtimeMocks.sessionManagerCreate.mockReset()
-    runtimeMocks.resolveSessionProjectPath.mockReturnValue('/repo')
+    runtimeMocks.resolveSessionWorkingPath.mockReturnValue('/repo')
     runtimeMocks.createSessionManagerForSession.mockReturnValue(sessionManager)
     runtimeMocks.createPiProjectModelRuntime.mockResolvedValue({ model, services })
     runtimeMocks.createOpenWaggleAgentSessionFromServices.mockResolvedValue({ session })

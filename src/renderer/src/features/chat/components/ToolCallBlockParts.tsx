@@ -212,9 +212,9 @@ export function UnifiedDiffView({
         </div>
       </div>
       <div className={cn('overflow-x-auto bg-bg', compact && 'max-h-[220px] overflow-y-hidden')}>
-        {diff.lines.map((line, index) => (
+        {diff.lines.map((line) => (
           <div
-            key={`${String(index)}-${line.type}`}
+            key={line.lineIndex}
             className={cn('flex whitespace-pre px-3', getUnifiedDiffLineClassName(line.type))}
           >
             {line.content}
