@@ -1,6 +1,6 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { WorkingPath } from '@shared/types/brand'
-import type { GitFileDiff } from '@shared/types/git'
+import type { GitDiffSuccess, GitFileDiff } from '@shared/types/git'
 import { useEffect, useReducer, useRef } from 'react'
 import type { DiffScopeSelection } from '@/features/diff-panel/state/diff-scope-store'
 import { api } from '@/shared/lib/ipc'
@@ -10,31 +10,61 @@ interface DiffPanelState {
   readonly isLoading: boolean
   /** Message from a typed load failure; null when the last load succeeded. */
   readonly error: string | null
+  /** Which ref "Automatic" resolved to, so the control can name it instead of promising it. */
+  readonly resolvedBaseRef: string | null
+  /** True when Automatic resolved nothing and the working-tree diff was returned instead. */
+  readonly automaticFellBackToWorkingTree: boolean
 }
 
 const DIFF_TRANSPORT_FAILURE_MESSAGE = 'The diff could not be loaded from the main process.'
 
+/** Carry main's report of what Automatic resolved to, so the UI can show it. */
+function loadSuccessAction(result: GitDiffSuccess): DiffPanelAction {
+  return {
+    type: 'load-success',
+    fileDiffs: result.files,
+    resolvedBaseRef: result.resolvedBaseRef ?? null,
+    automaticFellBackToWorkingTree: result.automaticFellBackToWorkingTree === true,
+  }
+}
+
 type DiffPanelAction =
   | { readonly type: 'clear' }
   | { readonly type: 'start-loading' }
-  | { readonly type: 'load-success'; readonly fileDiffs: readonly GitFileDiff[] }
+  | {
+      readonly type: 'load-success'
+      readonly fileDiffs: readonly GitFileDiff[]
+      readonly resolvedBaseRef: string | null
+      readonly automaticFellBackToWorkingTree: boolean
+    }
   | { readonly type: 'load-failure'; readonly error: string | null }
 
 function diffPanelReducer(state: DiffPanelState, action: DiffPanelAction) {
   return matchBy(action, 'type')
-    .with('clear', () => ({ fileDiffs: [], isLoading: false, error: null }))
+    .with('clear', () => ({
+      fileDiffs: [],
+      isLoading: false,
+      error: null,
+      resolvedBaseRef: null,
+      automaticFellBackToWorkingTree: false,
+    }))
     .with('start-loading', () => ({ ...state, isLoading: true }))
     .with('load-success', (value) => ({
       ...state,
       fileDiffs: value.fileDiffs,
       isLoading: false,
       error: null,
+      resolvedBaseRef: value.resolvedBaseRef,
+      automaticFellBackToWorkingTree: value.automaticFellBackToWorkingTree,
     }))
     .with('load-failure', (value) => ({
       ...state,
       fileDiffs: [],
       isLoading: false,
       error: value.error,
+      // Reset, or the base-ref label keeps naming what a previous successful load resolved.
+      resolvedBaseRef: null,
+      automaticFellBackToWorkingTree: false,
     }))
     .exhaustive()
 }
@@ -67,6 +97,8 @@ export function useDiffPanelDiffs(workingPath: WorkingPath | null, selection: Di
     fileDiffs: [],
     isLoading: false,
     error: null,
+    resolvedBaseRef: null,
+    automaticFellBackToWorkingTree: false,
   })
   const currentWorkingPath = useRef(workingPath)
   const diffRequestId = useRef(0)
@@ -97,9 +129,7 @@ export function useDiffPanelDiffs(workingPath: WorkingPath | null, selection: Di
       .then((result) => {
         if (cancelled || requestId !== diffRequestId.current) return
         dispatch(
-          result.ok
-            ? { type: 'load-success', fileDiffs: result.files }
-            : { type: 'load-failure', error: result.message },
+          result.ok ? loadSuccessAction(result) : { type: 'load-failure', error: result.message },
         )
       })
       .catch(() => {
@@ -133,9 +163,7 @@ export function useDiffPanelDiffs(workingPath: WorkingPath | null, selection: Di
       )
         return
       dispatch(
-        result.ok
-          ? { type: 'load-success', fileDiffs: result.files }
-          : { type: 'load-failure', error: result.message },
+        result.ok ? loadSuccessAction(result) : { type: 'load-failure', error: result.message },
       )
     } catch {
       if (

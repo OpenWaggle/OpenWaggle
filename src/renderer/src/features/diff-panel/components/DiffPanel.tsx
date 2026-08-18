@@ -1,6 +1,7 @@
 import type { CodeViewHandle } from '@pierre/diffs/react'
 import type { RepositoryPath, SessionId, WorkingPath } from '@shared/types/brand'
 import type { GitStackedAction } from '@shared/types/git'
+import type { TurnCheckpointSummary } from '@shared/types/turn-diff'
 import { useRef, useState } from 'react'
 import { useDiffPanelGitActions } from '@/features/diff-panel/hooks/useDiffPanelGitActions'
 import type { ReviewAnnotationMetadata } from '@/features/diff-panel/lib/code-view-items'
@@ -27,6 +28,22 @@ interface DiffPanelProps {
   repositoryPath: RepositoryPath | null
   sessionId?: SessionId | null
   onSendMessage: (content: string) => void
+}
+
+/** Switching to Turns means the latest captured turn, which the tabs do not know about. */
+function selectScope(input: {
+  readonly scope: 'branch' | 'unstaged' | 'turn'
+  readonly scopeKey: string
+  readonly turns: readonly TurnCheckpointSummary[]
+  readonly selectTurn: (scopeKey: string, turnId: string) => void
+  readonly selectGitScope: (scopeKey: string, scope: 'branch' | 'unstaged') => void
+}) {
+  if (input.scope === 'turn') {
+    const latestTurn = input.turns.at(-1)
+    if (latestTurn) input.selectTurn(input.scopeKey, latestTurn.turnId)
+    return
+  }
+  input.selectGitScope(input.scopeKey, input.scope)
 }
 
 /** Open a change request in the user's browser, never in an Electron window. */
@@ -64,15 +81,6 @@ export function DiffPanel({
 
   useReconcileTurnSelection(scopeKey, turns)
 
-  function handleSelectScope(scope: 'branch' | 'unstaged' | 'turn') {
-    if (scope === 'turn') {
-      const latestTurn = turns.at(-1)
-      if (latestTurn) selectTurn(scopeKey, latestTurn.turnId)
-      return
-    }
-    selectGitScope(scopeKey, scope)
-  }
-
   const gitActions = useDiffPanelGitActions({
     workingPath,
     fallbackHasChanges: selection.kind === 'unstaged' && fileDiffs.length > 0,
@@ -100,7 +108,9 @@ export function DiffPanel({
    * everything else dispatches immediately.
    */
   function requestStackedAction(action: GitStackedAction) {
-    if (action.startsWith('commit')) {
+    // Only ask for a message when there is something to commit: a dialog reading "0 changed files
+    // will be committed" collects text that main would discard.
+    if (action.startsWith('commit') && commitPaths.length > 0) {
       setPendingCommitAction(action)
       return
     }
@@ -112,11 +122,18 @@ export function DiffPanel({
       {workingPath ? (
         <DiffPanelHeader
           selection={selection}
-          baseRef={branchBaseRef}
-          baseRefChoices={baseRefChoices}
+          baseRefControl={{
+            current: branchBaseRef,
+            choices: baseRefChoices,
+            resolvedAutomatic: branchOrTreeDiffs.resolvedBaseRef,
+            fellBackToWorkingTree:
+              selection.kind === 'branch' && branchOrTreeDiffs.automaticFellBackToWorkingTree,
+            onChange: (baseRef) => selectBranchBaseRef(scopeKey, baseRef),
+          }}
           turns={turns}
-          onSelectScope={handleSelectScope}
-          onChangeBaseRef={(baseRef) => selectBranchBaseRef(scopeKey, baseRef)}
+          onSelectScope={(scope) =>
+            selectScope({ scope, scopeKey, turns, selectTurn, selectGitScope })
+          }
           onSelectTurn={(turnId) => selectTurn(scopeKey, turnId)}
         />
       ) : null}

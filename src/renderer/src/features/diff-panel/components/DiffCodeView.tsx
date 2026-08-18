@@ -4,6 +4,7 @@ import type { GitFileDiff } from '@shared/types/git'
 import { type Ref, useCallback, useMemo, useState } from 'react'
 import {
   buildCodeViewItems,
+  codeViewItemId,
   type ReviewAnnotationMetadata,
 } from '@/features/diff-panel/lib/code-view-items'
 import type { ReviewCommentWithSnippet } from '@/features/diff-panel/lib/review-comment-payload'
@@ -223,7 +224,13 @@ export function DiffCodeView({
         onSetActiveComment(null)
         return
       }
-      const filePath = [...patchByPath.keys()].find((path) => next.id.endsWith(path))
+      /*
+       * Match the item id exactly. A suffix test resolved `diff:docs/README.md` to `README.md`
+       * whenever both were in the diff, so the comment - and the filePath sent to the agent, and
+       * the snippet pulled from the patch - named a file the reviewer never looked at.
+       * Same-basename files at different depths are routine (index.ts, README.md, package.json).
+       */
+      const filePath = [...patchByPath.keys()].find((path) => codeViewItemId(path) === next.id)
       if (filePath === undefined) return
       const start = Math.min(next.range.start, next.range.end)
       const end = Math.max(next.range.start, next.range.end)
