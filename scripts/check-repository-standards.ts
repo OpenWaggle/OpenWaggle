@@ -154,11 +154,11 @@ const POLICY_SCRIPT_OWN_PATH = 'scripts/check-repository-standards.ts'
  * Comment lines are stripped first so prose that documents the convention (including this file and
  * the JSDoc in the git worktree adapter) is not reported as a violation.
  */
-function containsSessionBranchPrefix(code: string) {
+export function containsSessionBranchPrefix(code: string) {
   return code.includes(SESSION_BRANCH_PREFIX_LITERAL)
 }
 
-function withoutCommentLines(contents: string) {
+export function withoutCommentLines(contents: string) {
   return contents
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .split('\n')
@@ -240,8 +240,13 @@ const SESSION_SUMMARY_COLUMN_OWNERS: readonly string[] = [
   'src/main/store/session-details/session-queries.ts',
 ]
 
-function collectSessionSummaryColumnViolations(file: string, contents: string) {
+export function collectSessionSummaryColumnViolations(file: string, contents: string) {
   if (SESSION_SUMMARY_COLUMN_OWNERS.includes(normalizePath(file))) return []
+  /*
+   * Tests are exempt, as they are for the session-branch rule: this rule is about the queries the
+   * app ships, and a test that pins the rule has to contain the very pattern it detects.
+   */
+  if (normalizePath(file).includes('__tests__')) return []
   const violations: Violation[] = []
   for (const match of contents.matchAll(SESSION_SUMMARY_QUERY_PATTERN)) {
     const query = match[1] ?? ''

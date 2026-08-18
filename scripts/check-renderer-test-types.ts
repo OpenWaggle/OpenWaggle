@@ -95,7 +95,7 @@ async function countCheckedTestFiles(): Promise<number> {
  * in `--listFiles`, so an unscoped count stayed in the hundreds even with every renderer test
  * excluded - measuring the wrong project's health.
  */
-function isRendererTestFile(filePath: string) {
+export function isRendererTestFile(filePath: string) {
   return filePath.includes('/src/renderer/') && /\.test\.tsx?$/u.test(filePath)
 }
 
@@ -107,7 +107,7 @@ function isRendererTestFile(filePath: string) {
  */
 const MINIMUM_RENDERER_TEST_FILES = 100
 
-function countErrorsByFile(output: string): ErrorCounts {
+export function countErrorsByFile(output: string): ErrorCounts {
   const counts: Record<string, number> = {}
   for (const rawLine of output.split('\n')) {
     const match = ERROR_LINE.exec(rawLine.trim())
