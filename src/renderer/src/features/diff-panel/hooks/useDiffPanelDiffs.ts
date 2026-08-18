@@ -4,6 +4,7 @@ import type { GitDiffSuccess, GitFileDiff } from '@shared/types/git'
 import { useEffect, useReducer, useRef } from 'react'
 import type { DiffScopeSelection } from '@/features/diff-panel/state/diff-scope-store'
 import { api } from '@/shared/lib/ipc'
+import { createRendererLogger } from '@/shared/lib/logger'
 
 interface DiffPanelState {
   readonly fileDiffs: readonly GitFileDiff[]
@@ -16,6 +17,7 @@ interface DiffPanelState {
   readonly automaticFellBackToWorkingTree: boolean
 }
 
+const logger = createRendererLogger('diff-panel-diffs')
 const DIFF_TRANSPORT_FAILURE_MESSAGE = 'The diff could not be loaded from the main process.'
 
 /** Carry main's report of what Automatic resolved to, so the UI can show it. */
@@ -92,7 +94,16 @@ function fetchDiffsForScope(workingPath: WorkingPath, selection: DiffScopeSelect
  * the Session worktree. Naming it precisely matters here because reading the project
  * path instead is exactly the defect ADR 0018 fixed.
  */
-export function useDiffPanelDiffs(workingPath: WorkingPath | null, selection: DiffScopeSelection) {
+export function useDiffPanelDiffs(
+  workingPath: WorkingPath | null,
+  selection: DiffScopeSelection,
+  /**
+   * Bumped to refetch. Refresh used to be implemented by remounting the whole panel, which threw
+   * away everything panel-local: the scroll position in a long diff, the navigator's collapsed
+   * folders, the line selection, and the commit message the user was in the middle of typing.
+   */
+  refreshToken = 0,
+) {
   const [state, dispatch] = useReducer(diffPanelReducer, {
     fileDiffs: [],
     isLoading: false,
@@ -132,7 +143,7 @@ export function useDiffPanelDiffs(workingPath: WorkingPath | null, selection: Di
           result.ok ? loadSuccessAction(result) : { type: 'load-failure', error: result.message },
         )
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         /*
          * Only an unexpected transport failure reaches here; expected git failures arrive as
          * { ok: false } above. It still needs a message: a null error rendered as "No changes to
@@ -140,12 +151,14 @@ export function useDiffPanelDiffs(workingPath: WorkingPath | null, selection: Di
          * the tree at all.
          */
         if (cancelled || requestId !== diffRequestId.current) return
+        // refreshToken identifies which refresh generation failed (matches useSessionTurns).
+        logger.warn('Failed to load diffs', { error: String(error), refreshToken })
         dispatch({ type: 'load-failure', error: DIFF_TRANSPORT_FAILURE_MESSAGE })
       })
     return () => {
       cancelled = true
     }
-  }, [workingPath, scopeKind, branchBaseRef])
+  }, [workingPath, scopeKind, branchBaseRef, refreshToken])
 
   async function refreshDiff(workingPathToRefresh: WorkingPath) {
     diffRequestId.current += 1

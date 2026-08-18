@@ -111,7 +111,12 @@ function buildAnnotationsByPath(
 
   for (const comment of comments) {
     push(comment.filePath, {
-      side: 'additions',
+      /*
+       * Honour the side the comment was written against, as the draft marker already does. Pinning
+       * saved markers to the additions column moved a comment on a deleted line onto unrelated
+       * code at the same line number, while the payload still named the old line.
+       */
+      side: annotationSide(comment.lineType ?? 'add'),
       lineNumber: comment.endLine,
       metadata: { kind: 'pending', filePath: comment.filePath, commentId: comment.id },
     })

@@ -28,6 +28,15 @@ interface DiffPanelProps {
   repositoryPath: RepositoryPath | null
   sessionId?: SessionId | null
   onSendMessage: (content: string) => void
+  /**
+   * Bumped when the diff should be reloaded.
+   *
+   * Refresh used to remount this panel via `key=`, which discarded every piece of panel-local
+   * state: the scroll position in a long diff, the navigator's collapsed folders, the line
+   * selection, and a commit message the user was part-way through typing. Refreshes fire on every
+   * turn end, every working-tree broadcast and every window focus, so that was routine.
+   */
+  refreshToken?: number
 }
 
 /** Switching to Turns means the latest captured turn, which the tabs do not know about. */
@@ -56,6 +65,7 @@ export function DiffPanel({
   repositoryPath,
   sessionId = null,
   onSendMessage,
+  refreshToken = 0,
 }: DiffPanelProps) {
   const viewerRef = useRef<CodeViewHandle<ReviewAnnotationMetadata>>(null)
   const scopeByThreadKey = useDiffScopeStore((s) => s.byThreadKey)
@@ -63,15 +73,15 @@ export function DiffPanel({
   const selectBranchBaseRef = useDiffScopeStore((s) => s.selectBranchBaseRef)
   const selectTurn = useDiffScopeStore((s) => s.selectTurn)
   const scopeKey = sessionId ?? workingPath ?? ''
+  const commitPaths = useCommitPaths(workingPath)
   const selection: DiffScopeSelection = selectThreadDiffScopeSelection(
     scopeByThreadKey,
     scopeKey || null,
-    true,
   )
   const branchBaseRef = selection.kind === 'branch' ? selection.baseRef : null
   const baseRefChoices = useBaseRefChoices(repositoryPath)
-  const turns = useSessionTurns(sessionId)
-  const branchOrTreeDiffs = useDiffPanelDiffs(workingPath, selection)
+  const turns = useSessionTurns(sessionId, refreshToken)
+  const branchOrTreeDiffs = useDiffPanelDiffs(workingPath, selection, refreshToken)
   const turnFiles = useTurnDiffFiles(sessionId, selection)
   const fileDiffs = selection.kind === 'turn' ? turnFiles : branchOrTreeDiffs.fileDiffs
   const isLoading = selection.kind === 'turn' ? false : branchOrTreeDiffs.isLoading
@@ -98,7 +108,6 @@ export function DiffPanel({
   })
 
   const [pendingCommitAction, setPendingCommitAction] = useState<GitStackedAction | null>(null)
-  const commitPaths = useCommitPaths(workingPath)
   const retryLoad = () => {
     if (workingPath) void refreshDiff(workingPath)
   }

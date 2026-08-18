@@ -70,3 +70,17 @@ describe('base ref control', () => {
     expect(screen.getByRole('option', { name: 'main' })).toBeInTheDocument()
   })
 })
+
+describe('scope tab accessibility', () => {
+  it('announces which scope is selected', () => {
+    /*
+     * Selection was signalled by colour alone, so a screen-reader or high-contrast user heard three
+     * identical buttons - and the active scope decides both what the panel shows and what the quick
+     * action operates on. The sibling view toolbar in the same header already sets aria-pressed.
+     */
+    renderTabs(baseRefControl(), { kind: 'branch', baseRef: null })
+
+    expect(screen.getByRole('button', { name: 'Branch', pressed: true })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Working tree', pressed: false })).toBeInTheDocument()
+  })
+})

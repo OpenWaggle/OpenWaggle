@@ -62,7 +62,7 @@ export function ChatDiffPane({ section, onClose }: ChatDiffPaneProps) {
 
       <PanelErrorBoundary name="Diff" className="min-h-0 flex-1 overflow-hidden">
         <DiffPanel
-          key={diffRefreshKey}
+          refreshToken={diffRefreshKey}
           workingPath={section.workingPath}
           repositoryPath={section.repositoryPath}
           sessionId={section.sessionId}

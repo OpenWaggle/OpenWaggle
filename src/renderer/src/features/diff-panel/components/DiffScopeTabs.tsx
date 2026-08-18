@@ -53,9 +53,16 @@ export function DiffScopeTabs({
   const selectedTurnId = selection.kind === 'turn' ? selection.turnId : ''
   return (
     <div className="flex items-center gap-2 h-9 px-4 border-b border-border shrink-0">
+      {/*
+        `aria-pressed` on each tab: selection was signalled by colour alone, so a screen-reader or
+        high-contrast user heard three identical buttons with no way to tell which tree they were
+        reviewing - and the active scope decides both what is shown and what the quick action
+        operates on. The sibling view toolbar in this same header already does this.
+      */}
       <Button
         variant="unstyled"
         type="button"
+        aria-pressed={selection.kind === 'unstaged'}
         onClick={() => onSelectScope('unstaged')}
         className={tabClass(selection.kind === 'unstaged')}
       >
@@ -64,6 +71,7 @@ export function DiffScopeTabs({
       <Button
         variant="unstyled"
         type="button"
+        aria-pressed={selection.kind === 'branch'}
         onClick={() => onSelectScope('branch')}
         className={tabClass(selection.kind === 'branch')}
       >
@@ -73,6 +81,7 @@ export function DiffScopeTabs({
         <Button
           variant="unstyled"
           type="button"
+          aria-pressed={selection.kind === 'turn'}
           onClick={() => onSelectScope('turn')}
           className={tabClass(selection.kind === 'turn')}
         >

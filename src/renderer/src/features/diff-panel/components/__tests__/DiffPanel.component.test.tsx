@@ -25,6 +25,7 @@ vi.mock('@pierre/diffs/react', async () => ({
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     getGitDiff: vi.fn(),
+    getGitBranchDiff: vi.fn(),
     getGitStatus: vi.fn(),
     listGitBranches: vi.fn(),
     stageAllGitChanges: vi.fn(),

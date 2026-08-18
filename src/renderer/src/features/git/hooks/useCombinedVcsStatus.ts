@@ -15,18 +15,31 @@ export function useCombinedVcsStatus(workingPath: WorkingPath | null) {
   const [local, setLocal] = useState<LocalVcsStatus | null>(null)
   const [remote, setRemote] = useState<RemoteVcsStatus | null>(null)
   const requestedPath = useRef(workingPath)
+  /** The path the values currently in state were actually loaded from. */
+  const loadedPath = useRef<WorkingPath | null>(null)
 
   const refresh = useCallback(async () => {
+    const previousPath = requestedPath.current
     requestedPath.current = workingPath
-    if (!workingPath || typeof api.getLocalVcsStatus !== 'function') {
+    /*
+     * Drop the previous tree's status before fetching the new one. Keeping it across the await left
+     * the quick action labelled from the tree the user just switched away from - and enabled - so a
+     * fast click applied the old tree's decision to the new one. Null renders a disabled
+     * "Git status is unavailable" button, which is the honest state while loading.
+     */
+    if (workingPath !== previousPath || workingPath !== loadedPath.current) {
       setLocal(null)
       setRemote(null)
+    }
+    if (!workingPath || typeof api.getLocalVcsStatus !== 'function') {
+      loadedPath.current = null
       return
     }
     try {
       const localResult = await api.getLocalVcsStatus(workingPath)
       if (requestedPath.current !== workingPath) return
       setLocal(localResult.ok ? localResult.status : null)
+      loadedPath.current = workingPath
     } catch (error) {
       logger.warn('Failed to load local VCS status', { error: String(error) })
       setLocal(null)

@@ -24,6 +24,8 @@ function buildComment(
     createdAt: Date.now(),
     // Captured now, while the patch that the comment refers to is still on screen.
     diff: patch === '' ? '' : extractDiffSnippet(patch, location.line, endLine),
+    // Kept so the saved marker is drawn on the side the reviewer commented on.
+    lineType: location.lineType,
   }
 }
 
