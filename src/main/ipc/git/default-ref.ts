@@ -26,18 +26,34 @@ export async function resolveDefaultRef(projectPath: string): Promise<string | n
 }
 
 /**
+ * Branch names conventionally used for a default branch, tried in order when the repository
+ * advertises nothing. A local-only repository created with `git init -b main` sets no
+ * `init.defaultBranch`, so without this an obvious default would go unresolved and the
+ * Automatic base ref would silently degrade to the working-tree diff.
+ */
+const CONVENTIONAL_DEFAULT_BRANCHES = ['main', 'master'] as const
+
+/**
  * A revision for the default branch that actually exists in this repository.
  *
- * Prefers the remote-tracking ref, because that is what a reviewer means by "how does my
- * work differ from the default branch". Falls back to the local branch when there is no
- * remote copy, and to null when the default branch is not present at all - a repository
- * whose `init.defaultBranch` names a branch that was never created.
+ * Resolution order, each verified to exist before it is used:
+ * 1. the remote-tracking copy of what the remote advertises (`origin/<ref>`), because that is
+ *    what "how does my work differ from the default branch" means to a reviewer,
+ * 2. the local branch of that same ref, for a repository with no remote copy yet,
+ * 3. a conventional default (`main`, then `master`) for a local-only repository,
+ * 4. null - no default branch is present at all, so callers must decide what to do.
+ *
+ * Deliberately independent of ambient global git config beyond what `resolveDefaultRef`
+ * reads, so behaviour does not change between a developer machine and a fresh CI runner.
  */
 export async function resolveDefaultBranchRevision(projectPath: string): Promise<string | null> {
   const defaultRef = await resolveDefaultRef(projectPath)
-  if (defaultRef === null) return null
+  const candidates = [
+    ...(defaultRef === null ? [] : [`origin/${defaultRef}`, defaultRef]),
+    ...CONVENTIONAL_DEFAULT_BRANCHES,
+  ]
 
-  for (const candidate of [`origin/${defaultRef}`, defaultRef]) {
+  for (const candidate of candidates) {
     const verify = await runGit(projectPath, ['rev-parse', '--verify', `${candidate}^{commit}`])
     if (verify.code === 0) return candidate
   }

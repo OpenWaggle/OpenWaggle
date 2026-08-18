@@ -112,8 +112,14 @@ describe('diff loading returns typed results', () => {
 
   it('falls back to the working-tree diff when no default branch resolves', async () => {
     isGitRepositoryMock.mockResolvedValue(true)
-    // Nothing advertises a default branch: no origin/HEAD and no init.defaultBranch.
-    runGitMock.mockResolvedValue(gitResult(0, ''))
+    runGitMock.mockImplementation((_path: string, args: readonly string[]) => {
+      // Nothing advertises a default branch, and no candidate ref exists: `rev-parse --verify`
+      // fails for origin/HEAD, the configured default, and the conventional main/master.
+      if (args[0] === 'rev-parse' && args[1] === '--verify' && args[2] !== 'HEAD') {
+        return Promise.resolve(gitResult(1, ''))
+      }
+      return Promise.resolve(gitResult(0, ''))
+    })
 
     const result = await getGitBranchDiff('/repo', '   ')
 
