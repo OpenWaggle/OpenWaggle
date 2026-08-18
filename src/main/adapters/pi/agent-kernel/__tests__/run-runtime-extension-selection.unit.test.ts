@@ -122,6 +122,8 @@ describe('Pi run OpenWaggle extension selection', () => {
 
     await runPiSession({
       session: sessionDetail(),
+      // The kernel resolves (and births) this before calling the run functions.
+      workingPath: '/repo',
       runId: 'run-with-runtime-extension',
       payload: payload('Run with extension'),
       model: PRIMARY_MODEL,

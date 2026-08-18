@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { existsSyncMock, runGitMock, createGitWorktreeMock, setSessionWorktreeMock } = vi.hoisted(
   () => ({
-    existsSyncMock: vi.fn(() => true),
+    existsSyncMock: vi.fn((_candidate: string) => true),
     runGitMock: vi.fn(async () => ({ code: 0, stdout: 'main\n', stderr: '' })),
     createGitWorktreeMock: vi.fn(
       async (): Promise<GitWorktreeMutationResult> => ({ ok: true, message: 'ok', path: '/wt' }),
@@ -44,7 +44,14 @@ function session(
 
 describe('ensureSessionWorktreeProjectPath', () => {
   beforeEach(() => {
-    existsSyncMock.mockReset().mockReturnValue(true)
+    /*
+     * Default to "exists", except the deterministic birth path, which by definition does not
+     * exist before the first send. Blanket `true` made the first-send tests unrealistic and
+     * hid the adopt-on-repeat behaviour below.
+     */
+    existsSyncMock
+      .mockReset()
+      .mockImplementation((candidate: string) => !candidate.includes('/.openwaggle/worktrees/'))
     runGitMock.mockReset().mockResolvedValue({ code: 0, stdout: 'main\n', stderr: '' })
     createGitWorktreeMock.mockReset().mockResolvedValue({ ok: true, message: 'ok', path: '/wt' })
     setSessionWorktreeMock.mockReset().mockResolvedValue(undefined)
@@ -74,6 +81,32 @@ describe('ensureSessionWorktreeProjectPath', () => {
     )
     expect(setSessionWorktreeMock).toHaveBeenCalledWith(expect.anything(), 'worktree', result)
     expect(result).toContain('/.openwaggle/worktrees/repo/')
+  })
+
+  it('adopts the worktree on a repeat call with a stale session record instead of recreating it', async () => {
+    /*
+     * Regression for a critical defect: birth persists the new path with SQL but does not
+     * mutate the SessionDetail it was handed, so a caller holding a pre-birth copy still sees
+     * `worktreePath: null`. Creating again failed - the directory exists and the branch is
+     * already checked out there - which broke the first send of every worktree-mode session.
+     */
+    const stale = session({ environmentMode: 'worktree' })
+    // The deterministic path does not exist yet, then does once the first call created it.
+    let created = false
+    existsSyncMock.mockImplementation((candidate: string) => {
+      if (candidate.includes('/.openwaggle/worktrees/')) return created
+      return true
+    })
+    createGitWorktreeMock.mockImplementation(() => {
+      created = true
+      return Promise.resolve({ ok: true, message: 'ok', path: '/ignored' })
+    })
+
+    const first = await ensureSessionWorktreeProjectPath(stale)
+    const second = await ensureSessionWorktreeProjectPath(stale)
+
+    expect(second).toBe(first)
+    expect(createGitWorktreeMock).toHaveBeenCalledTimes(1)
   })
 
   it('uses the chosen Worktree base ref when persisted', async () => {

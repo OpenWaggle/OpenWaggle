@@ -70,6 +70,22 @@ async function ensureSessionWorktreeProjectPathUnlocked(session: SessionDetail):
   const worktreePath = worktreePathFor(primaryPath, sessionId)
   const branch = sessionWorktreeBranch(sessionId)
 
+  /*
+   * Adopt an existing worktree at this session's deterministic path instead of creating it
+   * again.
+   *
+   * The `existing` check above reads `session.worktreePath`, which is the *record*. Birth
+   * persists that record with SQL but does not mutate the `SessionDetail` it was handed, so a
+   * caller holding a pre-birth copy sees null even though the worktree is on disk. Creating
+   * again then fails: the directory exists and the branch is already checked out there.
+   * Keying idempotency on reality rather than on the record makes a repeat call safe whoever
+   * makes it.
+   */
+  if (existsSync(worktreePath)) {
+    await setSessionWorktree(SessionId(sessionId), 'worktree', worktreePath)
+    return worktreePath
+  }
+
   const result = await createGitWorktree(primaryPath, { path: worktreePath, branch, baseRef })
   if (!result.ok) {
     throw new Error(
