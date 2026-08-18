@@ -8,9 +8,14 @@
  * before anyone saw it, because NSIS only rejects installer-variant StrFunc calls from an
  * uninstall section at compile time.
  *
- * This runs makensis over a harness that inserts the custom macros exactly where
- * electron-builder inserts them, so the same class of error fails a pull request in
- * seconds instead of a release in minutes.
+ * This must match how electron-builder actually invokes makensis, or it gives false
+ * confidence - the first version of this check passed while the release still failed:
+ *
+ * - **Two passes.** electron-builder compiles the uninstaller separately, with
+ *   `BUILD_UNINSTALLER` defined, inserting `customUnInstall`; the installer pass inserts
+ *   `customInstall`. A helper declared in the wrong pass is unreferenced there.
+ * - **Warnings are errors.** electron-builder passes `-WX`, so `warning 6010: install
+ *   function ... not referenced` fails the build. Without `-WX` this check would miss it.
  */
 import { execFile } from 'node:child_process'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -22,15 +27,22 @@ const execFileAsync = promisify(execFile)
 
 const INSTALLER_SCRIPT = 'build/installer.nsh'
 const MAKENSIS_MISSING_EXIT_CODES = new Set(['ENOENT'])
+/** electron-builder compiles with warnings-as-errors; mirror it or the check is weaker. */
+const MAKENSIS_ARGS = ['-WX'] as const
+
+interface CompilePass {
+  readonly label: string
+  readonly defines: readonly string[]
+  readonly script: string
+}
 
 /**
  * Mirrors electron-builder's own usage: it `!include`s the custom script and inserts
- * `customInstall` into the install section and `customUnInstall` into the uninstaller.
- * `WriteUninstaller` is present so the uninstaller is genuinely generated, which is what
- * forces NSIS to validate the uninstall section's function calls.
+ * `customInstall` into the install section, or `customUnInstall` into the uninstaller of a
+ * separate `BUILD_UNINSTALLER` compilation.
  */
-function harnessScript(installerScriptPath: string) {
-  return [
+function compilePasses(installerScriptPath: string): readonly CompilePass[] {
+  const include = [
     '!include "WinMessages.nsh"',
     `!include "${installerScriptPath}"`,
     '',
@@ -38,16 +50,32 @@ function harnessScript(installerScriptPath: string) {
     'OutFile "installer-script-check.exe"',
     'InstallDir "$TEMP\\installer-script-check"',
     '',
-    'Section "Install"',
-    '  WriteUninstaller "$INSTDIR\\uninstall.exe"',
-    '  !insertmacro customInstall',
-    'SectionEnd',
-    '',
-    'Section "Uninstall"',
-    '  !insertmacro customUnInstall',
-    'SectionEnd',
-    '',
-  ].join('\n')
+  ]
+
+  return [
+    {
+      label: 'installer',
+      defines: [],
+      script: [...include, 'Section "Install"', '  !insertmacro customInstall', 'SectionEnd', ''].join(
+        '\n',
+      ),
+    },
+    {
+      label: 'uninstaller',
+      defines: ['BUILD_UNINSTALLER'],
+      script: [
+        ...include,
+        'Section "Install"',
+        '  WriteUninstaller "$INSTDIR\\uninstall.exe"',
+        'SectionEnd',
+        '',
+        'Section "Uninstall"',
+        '  !insertmacro customUnInstall',
+        'SectionEnd',
+        '',
+      ].join('\n'),
+    },
+  ]
 }
 
 function isMissingMakensis(error: unknown) {
@@ -103,10 +131,17 @@ async function main() {
   const workingDirectory = await mkdtemp(path.join(tmpdir(), 'openwaggle-nsis-check-'))
 
   try {
-    const harnessPath = path.join(workingDirectory, 'harness.nsi')
-    await writeFile(harnessPath, harnessScript(installerScriptPath), 'utf8')
-    await execFileAsync('makensis', [harnessPath], { cwd: workingDirectory })
-    console.log(`Installer script check passed: ${INSTALLER_SCRIPT} compiles.`)
+    for (const pass of compilePasses(installerScriptPath)) {
+      const harnessPath = path.join(workingDirectory, `harness-${pass.label}.nsi`)
+      await writeFile(harnessPath, pass.script, 'utf8')
+      const defineArgs = pass.defines.map((define) => `-D${define}`)
+      await execFileAsync('makensis', [...MAKENSIS_ARGS, ...defineArgs, harnessPath], {
+        cwd: workingDirectory,
+      })
+    }
+    console.log(
+      `Installer script check passed: ${INSTALLER_SCRIPT} compiles for the installer and uninstaller passes.`,
+    )
   } catch (error) {
     if (isMissingMakensis(error)) {
       reportMissingMakensis()
@@ -117,7 +152,7 @@ async function main() {
     console.error(`Installer script check failed: ${INSTALLER_SCRIPT} does not compile.\n`)
     console.error(detail)
     console.error(
-      '\nNSIS only allows `un.`-prefixed functions inside an uninstall section, so StrFunc helpers used by customUnInstall must be declared as their `Un` variant (for example `${UnStrRep}`) and called that way.',
+      '\nNSIS only allows `un.`-prefixed functions inside an uninstall section, so StrFunc helpers used by customUnInstall must be declared as their `Un` variant (for example `${UnStrRep}`) and called that way. Declare each helper only in the pass that uses it (`!ifdef BUILD_UNINSTALLER`): electron-builder compiles with warnings-as-errors, and a declared-but-unreferenced helper is `warning 6010`.',
     )
     process.exitCode = 1
   } finally {
