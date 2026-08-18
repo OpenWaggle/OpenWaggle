@@ -1,6 +1,10 @@
 !include "StrFunc.nsh"
+; StrFunc requires each helper to be declared before use, and the uninstaller needs the
+; `Un` variants: they generate `un.`-prefixed functions, which are the only ones NSIS lets
+; you Call from an uninstall section. `${StrStr}` is used by customInstall and `${UnStrRep}`
+; by customUnInstall, so declare exactly those two.
 ${StrStr}
-${StrRep}
+${UnStrRep}
 
 !macro customInstall
   ; Install a stable command shim beside the application. The shim delegates to
@@ -30,7 +34,7 @@ openwaggle_cli_path_done:
   ; Remove only this exact install directory from the user PATH.
   ReadRegStr $0 HKCU "Environment" "Path"
   StrCpy $1 ";$0;"
-  ${StrRep} $1 "$1" ";$INSTDIR;" ";"
+  ${UnStrRep} $1 "$1" ";$INSTDIR;" ";"
   StrCpy $2 $1 1
   StrCmp $2 ";" 0 openwaggle_cli_path_trim_end
   StrCpy $1 $1 "" 1

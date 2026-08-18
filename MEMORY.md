@@ -53,6 +53,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - On Apple silicon, performance/package QA should use arm64 outputs, not Rosetta x64 output from a universal build folder.
 - Electron Playwright E2E requires isolated user data and single-instance lock opt-out when another OpenWaggle instance is running.
 - CDP file upload can produce `File` objects without native paths; native file-path behavior needs preload/unit coverage or real OS selection QA.
+- **The Windows NSIS script is only compiled when electron-builder packages Windows, which happens in the release workflow, not CI.** An installer-variant StrFunc call inside `customUnInstall` broke two consecutive releases across six days before anyone noticed, because NSIS only rejects it at compile time. `build/installer.nsh` is now compile-checked by `pnpm check:installer` inside `pnpm check`, so it fails a pull request in seconds instead of a release in minutes. Two NSIS rules worth remembering: StrFunc helpers must be declared before use, and an uninstall section can only Call `un.`-prefixed functions, so `customUnInstall` needs the `Un` variants (`${UnStrRep}`, not `${StrRep}`).
 
 ## Renderer And Session Memory
 

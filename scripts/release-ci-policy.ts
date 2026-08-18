@@ -5,6 +5,14 @@ import {
   type ReleaseCiWorkflowJob,
 } from './release-ci-policy-workflow'
 import { matchesReleaseCiWorkflowAstContract } from './package-release-validator-workflow-structure'
+import {
+  CHECKOUT_STEP,
+  COMMIT_POLICY_CHECKOUT_STEP,
+  CONCURRENCY_GROUP,
+  DISPATCH_GUARD_STEP,
+  EXPECTED_STEPS,
+  IMMUTABLE_ACTIONS,
+} from './release-ci-policy-steps'
 
 export const REQUIRED_CI_CHECKS = [
   'Commit Policy',
@@ -19,79 +27,6 @@ const EXPECTED_CI_JOBS = [...REQUIRED_CI_CHECKS, 'Package release rehearsal (Nod
 const CI_WORKFLOW_PATH = '.github/workflows/ci.yml'
 const CONCURRENCY_POLICY_FIELD_COUNT = 2
 const REQUIRED_JOB_KEYS = ['name', 'runs-on', 'steps'] as const
-const ACTION_CHECKOUT = 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6'
-const ACTION_SETUP_NODE = 'actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6'
-const PNPM_ACTION_SETUP = 'pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4'
-const IMMUTABLE_ACTIONS = [ACTION_CHECKOUT, PNPM_ACTION_SETUP, ACTION_SETUP_NODE] as const
-const CONCURRENCY_GROUP =
-  'group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || inputs.head_sha || github.ref }}'
-const DISPATCH_GUARD_STEP = `      - name: Verify dispatched commit identity
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          DISPATCHED_SHA: \${{ github.sha }}
-          EXPECTED_SHA: \${{ inputs.head_sha }}
-        run: |
-          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
-          test "$DISPATCHED_SHA" = "$EXPECTED_SHA"`
-const CHECKOUT_STEP = `      - uses: ${ACTION_CHECKOUT}
-        with:
-          ref: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}`
-const COMMIT_POLICY_CHECKOUT_STEP = `      - uses: ${ACTION_CHECKOUT}
-        with:
-          fetch-depth: 0
-          ref: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}`
-const PNPM_SETUP_STEP = `      - uses: ${PNPM_ACTION_SETUP}
-        with:
-          version: 11.15.1`
-const NODE_SETUP_STEP = `      - uses: ${ACTION_SETUP_NODE}
-        with:
-          node-version: 24.14.0
-          cache: pnpm`
-const INSTALL_STEP = '      - run: pnpm install --frozen-lockfile'
-const RELEASE_POLICY_STEP = '      - run: pnpm exec tsx scripts/release-ci-policy.ts'
-const CONVENTIONAL_COMMITS_STEP = `      - name: Validate Conventional Commits
-        env:
-          COMMIT_POLICY_FROM: \${{ github.event_name == 'push' && github.event.before || github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
-          COMMIT_POLICY_TO: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: \${{ github.event_name == 'pull_request' && github.event.pull_request.title || '' }}
-        run: pnpm exec tsx scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"`
-
-const EXPECTED_STEPS = new Map<string, readonly string[]>([
-  [
-    'Commit Policy',
-    [
-      DISPATCH_GUARD_STEP,
-      COMMIT_POLICY_CHECKOUT_STEP,
-      PNPM_SETUP_STEP,
-      NODE_SETUP_STEP,
-      INSTALL_STEP,
-      RELEASE_POLICY_STEP,
-      CONVENTIONAL_COMMITS_STEP,
-    ],
-  ],
-  [
-    'Typecheck & Lint',
-    [
-      DISPATCH_GUARD_STEP,
-      CHECKOUT_STEP,
-      PNPM_SETUP_STEP,
-      NODE_SETUP_STEP,
-      INSTALL_STEP,
-      '      - run: pnpm check',
-    ],
-  ],
-  [
-    'Unit & Component Tests',
-    [
-      DISPATCH_GUARD_STEP,
-      CHECKOUT_STEP,
-      PNPM_SETUP_STEP,
-      NODE_SETUP_STEP,
-      INSTALL_STEP,
-      '      - run: pnpm test',
-    ],
-  ],
-])
 
 function hasMainBranchTrigger(workflow: string, trigger: string) {
   return new RegExp(`^ {2}${trigger}:\\s*\\n {4}branches: \\[main\\]$`, 'm').test(workflow)
