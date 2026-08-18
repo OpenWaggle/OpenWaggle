@@ -5,6 +5,7 @@ import type {
   VcsChangeRequest,
 } from '@shared/types/git'
 import { getSourceControlProvider } from '../../adapters/source-control'
+import { resolveDefaultRef } from './default-ref'
 import { isGitRepository, runGit } from './shared'
 import { GIT_PARSE_INT_RADIX } from './status-constants'
 import { buildChangedFiles, parseNumstat, parsePorcelain } from './status-parse'
@@ -27,21 +28,6 @@ async function resolvePrimaryRemoteUrl(projectPath: string): Promise<string | nu
   if (!firstRemote) return null
   const urlResult = await runGit(projectPath, ['remote', 'get-url', firstRemote])
   return urlResult.code === 0 ? urlResult.stdout.trim() || null : null
-}
-
-async function resolveDefaultRef(projectPath: string): Promise<string | null> {
-  const headResult = await runGit(projectPath, [
-    'symbolic-ref',
-    '--quiet',
-    '--short',
-    'refs/remotes/origin/HEAD',
-  ])
-  if (headResult.code === 0 && headResult.stdout.trim()) {
-    return headResult.stdout.trim().replace(/^origin\//, '')
-  }
-  const configResult = await runGit(projectPath, ['config', '--get', 'init.defaultBranch'])
-  if (configResult.code === 0 && configResult.stdout.trim()) return configResult.stdout.trim()
-  return null
 }
 
 async function resolveWorkingTree(projectPath: string) {

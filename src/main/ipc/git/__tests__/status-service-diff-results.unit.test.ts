@@ -88,14 +88,43 @@ describe('diff loading returns typed results', () => {
     expect(result.files[0]?.path).toBe('a.ts')
   })
 
-  it('treats an empty base ref as the working-tree diff', async () => {
+  it('resolves an empty base ref to the default branch before diffing', async () => {
     isGitRepositoryMock.mockResolvedValue(true)
+    runGitMock.mockImplementation((_path: string, args: readonly string[]) => {
+      if (args[0] === 'symbolic-ref') return Promise.resolve(gitResult(0, 'origin/main\n'))
+      if (args[0] === 'rev-parse') return Promise.resolve(gitResult(0, 'abc123\n'))
+      return Promise.resolve(gitResult(0, ''))
+    })
+
+    const result = await getGitBranchDiff('/repo', '   ')
+
+    expect(result).toEqual({ ok: true, files: [] })
+    // A three-dot diff against the resolved default branch, not the working-tree diff.
+    const diffCall = runGitMock.mock.calls.find((call) => call[1]?.[0] === 'diff')
+    expect(diffCall?.[1]).toEqual([
+      'diff',
+      '--patch',
+      '--find-renames',
+      '--no-ext-diff',
+      'origin/main...HEAD',
+    ])
+  })
+
+  it('falls back to the working-tree diff when no default branch resolves', async () => {
+    isGitRepositoryMock.mockResolvedValue(true)
+    // Nothing advertises a default branch: no origin/HEAD and no init.defaultBranch.
     runGitMock.mockResolvedValue(gitResult(0, ''))
 
     const result = await getGitBranchDiff('/repo', '   ')
 
     expect(result).toEqual({ ok: true, files: [] })
-    // rev-parse --verify HEAD, not a three-dot diff against a base.
-    expect(runGitMock.mock.calls[0]?.[1]).toEqual(['rev-parse', '--verify', 'HEAD'])
+    // The working-tree path also shells out to `git diff`, so assert on the three-dot form:
+    // no `<ref>...HEAD` range means no branch comparison was attempted.
+    expect(
+      runGitMock.mock.calls.some((call) => call[1]?.some((arg: string) => arg.endsWith('...HEAD'))),
+    ).toBe(false)
+    expect(
+      runGitMock.mock.calls.some((call) => call[1]?.[0] === 'rev-parse' && call[1]?.[2] === 'HEAD'),
+    ).toBe(true)
   })
 })

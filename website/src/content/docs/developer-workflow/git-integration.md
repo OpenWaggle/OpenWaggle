@@ -91,7 +91,7 @@ The diff panel and the [Session Tree](/docs/using-openwaggle/session-tree) share
 Tabs at the top choose what you are reviewing:
 
 - **Working tree** — Uncommitted changes in the session's working tree.
-- **Branch** — Changes on `HEAD` relative to the merge base with a base ref you pick from the dropdown. The default option, **Automatic**, sets no base ref and therefore shows the same working-tree diff as the first tab until you choose one.
+- **Branch** — Changes on `HEAD` relative to the merge base with a base ref. The default option, **Automatic**, resolves the repository's default branch — the one `origin/HEAD` advertises, preferring the remote-tracking copy so it reflects what you would open a change request against. Pick a specific ref from the dropdown to override it. In a fresh repository with no remote and no default branch to resolve, this falls back to the working-tree diff.
 - **Turns** — Per-turn diffs, shown only once the session has captured turn checkpoints. The dropdown lists each turn with its `+`/`−` counts.
 
 ### Reading Diffs

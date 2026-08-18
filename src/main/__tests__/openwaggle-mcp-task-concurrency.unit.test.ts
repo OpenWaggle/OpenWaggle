@@ -15,6 +15,10 @@ import {
   type OpenWaggleServerTaskServices,
 } from '../openwaggle-mcp-task-manager'
 import { OpenWaggleMcpTaskStore, type ServerTaskRecord } from '../openwaggle-mcp-task-store'
+import {
+  waitForLeaseRenewedBeyond,
+  waitForTaskStatus,
+} from './openwaggle-mcp-task-leases.test-support'
 
 vi.mock('electron', () => ({
   app: { getPath: () => tmpdir() },
@@ -63,20 +67,6 @@ function hangingServices(): OpenWaggleServerTaskServices {
       })
     }),
   }
-}
-
-async function waitForTaskStatus(
-  manager: OpenWaggleServerTaskManager,
-  taskId: string,
-  status: string,
-) {
-  const deadline = Date.now() + 2_000
-  while (Date.now() < deadline) {
-    const task = await Effect.runPromise(manager.get(taskId))
-    if (task.status === status) return task
-    await new Promise<void>((resolve) => setTimeout(resolve, 10))
-  }
-  throw new Error(`Task ${taskId} did not reach ${status}.`)
 }
 
 describe('hosted MCP task cross-process integrity', () => {
@@ -159,7 +149,9 @@ describe('hosted MCP task cross-process integrity', () => {
       owner.start({ projectPath: temporaryRoot, objective: 'renew me' }),
     )
     now = 1_090
-    await new Promise<void>((resolve) => setTimeout(resolve, 30))
+    // Only meaningful once the heartbeat has renewed past the 1_101 recovery clock; wait for
+    // that to be observably true rather than assuming a real-time interval fired.
+    await waitForLeaseRenewedBeyond(options.taskStorePath, task.id, 1_101)
     now = 1_101
 
     const recovery = new OpenWaggleServerTaskManager(

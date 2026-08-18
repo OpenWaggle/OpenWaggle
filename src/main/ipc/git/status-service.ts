@@ -1,4 +1,5 @@
 import type { GitDiffResult, GitStatusSummary } from '@shared/types/git'
+import { resolveDefaultBranchRevision } from './default-ref'
 import { isGitRepository, runGit } from './shared'
 import { DIFF_GIT_MAX_BUFFER, GIT_PARSE_INT_RADIX } from './status-constants'
 import {
@@ -49,8 +50,13 @@ export async function getGitDiff(projectPath: string): Promise<GitDiffResult> {
 }
 
 /**
- * Branch diff: changes on HEAD relative to the merge-base with a base ref
- * (three-dot diff). Empty base ref falls back to the working-tree diff.
+ * Branch diff: changes on HEAD relative to the merge-base with a base ref (three-dot diff).
+ *
+ * An empty base ref means the panel's "Automatic" option, which resolves to the repository's
+ * default branch. It used to fall through to the working-tree diff, which made Automatic a
+ * silent duplicate of the Working tree scope while the label promised a decision (#157).
+ * When no default branch can be resolved - a fresh repository with no remote and no created
+ * default branch - the working-tree diff remains the only honest answer.
  */
 export async function getGitBranchDiff(
   projectPath: string,
@@ -59,8 +65,9 @@ export async function getGitBranchDiff(
   if (!(await isGitRepository(projectPath))) {
     return { ok: false, code: 'not-git-repo', message: NOT_A_REPOSITORY_MESSAGE }
   }
-  const trimmed = baseRef.trim()
-  if (!trimmed) return getGitDiff(projectPath)
+  const requested = baseRef.trim()
+  const trimmed = requested === '' ? await resolveDefaultBranchRevision(projectPath) : requested
+  if (trimmed === null || trimmed === '') return getGitDiff(projectPath)
 
   const verify = await runGit(projectPath, ['rev-parse', '--verify', `${trimmed}^{commit}`])
   if (verify.code !== 0) {
