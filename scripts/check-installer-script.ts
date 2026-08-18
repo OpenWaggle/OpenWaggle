@@ -18,10 +18,16 @@
  *   function ... not referenced` fails the build. Without `-WX` this check would miss it.
  */
 import { execFile } from 'node:child_process'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
+
+import {
+  type HookInsertions,
+  parseDefinedMacros,
+  planHookInsertions,
+} from './installer-hook-placements'
 
 const execFileAsync = promisify(execFile)
 
@@ -37,11 +43,22 @@ interface CompilePass {
 }
 
 /**
- * Mirrors electron-builder's own usage: it `!include`s the custom script and inserts
- * `customInstall` into the install section, or `customUnInstall` into the uninstaller of a
- * separate `BUILD_UNINSTALLER` compilation.
+ * Mirrors electron-builder's own usage: it `!include`s the custom script, inserts the top-level
+ * hooks in both passes, the install-section hooks into the installer, and the uninstall-section
+ * hooks into the uninstaller of a separate `BUILD_UNINSTALLER` compilation.
+ *
+ * Every hook the script defines is inserted, derived from the script itself. Hardcoding
+ * `customInstall`/`customUnInstall` meant any other hook was never compiled at all: verified that
+ * an undeclared StrFunc call *and* a bogus instruction inside a `customHeader` macro both compiled
+ * clean under the old harness.
  */
-function compilePasses(installerScriptPath: string): readonly CompilePass[] {
+function compilePasses(
+  installerScriptPath: string,
+  insertions: HookInsertions,
+): readonly CompilePass[] {
+  const insertMacros = (macros: readonly string[], indent: string) =>
+    macros.map((macro) => `${indent}!insertmacro ${macro}`)
+
   const include = [
     '!include "WinMessages.nsh"',
     `!include "${installerScriptPath}"`,
@@ -50,15 +67,21 @@ function compilePasses(installerScriptPath: string): readonly CompilePass[] {
     'OutFile "installer-script-check.exe"',
     'InstallDir "$TEMP\\installer-script-check"',
     '',
+    ...insertMacros(insertions.topLevel, ''),
+    '',
   ]
 
   return [
     {
       label: 'installer',
       defines: [],
-      script: [...include, 'Section "Install"', '  !insertmacro customInstall', 'SectionEnd', ''].join(
-        '\n',
-      ),
+      script: [
+        ...include,
+        'Section "Install"',
+        ...insertMacros(insertions.installSection, '  '),
+        'SectionEnd',
+        '',
+      ].join('\n'),
     },
     {
       label: 'uninstaller',
@@ -70,7 +93,7 @@ function compilePasses(installerScriptPath: string): readonly CompilePass[] {
         'SectionEnd',
         '',
         'Section "Uninstall"',
-        '  !insertmacro customUnInstall',
+        ...insertMacros(insertions.uninstallSection, '  '),
         'SectionEnd',
         '',
       ].join('\n'),
@@ -128,10 +151,31 @@ function commandOutput(error: unknown) {
 async function main() {
   const repositoryRoot = process.cwd()
   const installerScriptPath = path.join(repositoryRoot, INSTALLER_SCRIPT)
+  const macros = parseDefinedMacros(await readFile(installerScriptPath, 'utf8'))
+  const insertions = planHookInsertions(macros)
+
+  if (insertions.unmapped.length > 0) {
+    console.error(
+      `${INSTALLER_SCRIPT} defines hook(s) this check has no insertion point for: ` +
+        `${insertions.unmapped.join(', ')}.\n` +
+        'Add them to HOOK_PLACEMENTS in scripts/installer-hook-placements.ts so they are actually ' +
+        'compiled. Skipping them silently is how an unguarded hook reaches a release.',
+    )
+    process.exitCode = 1
+    return
+  }
+  if (macros.length === 0) {
+    console.error(
+      `${INSTALLER_SCRIPT} defines no macros, so this check would compile nothing. Refusing to pass.`,
+    )
+    process.exitCode = 1
+    return
+  }
+
   const workingDirectory = await mkdtemp(path.join(tmpdir(), 'openwaggle-nsis-check-'))
 
   try {
-    for (const pass of compilePasses(installerScriptPath)) {
+    for (const pass of compilePasses(installerScriptPath, insertions)) {
       const harnessPath = path.join(workingDirectory, `harness-${pass.label}.nsi`)
       await writeFile(harnessPath, pass.script, 'utf8')
       const defineArgs = pass.defines.map((define) => `-D${define}`)

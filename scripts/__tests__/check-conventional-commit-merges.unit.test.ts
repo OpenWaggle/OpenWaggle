@@ -88,6 +88,47 @@ describe('Conventional Commit merge attribution', () => {
     }
   })
 
+  it('keeps exempting the sync merge after the base branch has advanced', async () => {
+    /*
+     * The exemption used to be asked against the *range start* of the validation, which
+     * `resolveEffectiveFrom` collapses to the bootstrap baseline whenever the requested base is no
+     * longer an ancestor of the PR head. In CI the requested base is the base branch's current tip,
+     * so one new commit on the base after the developer's sync merge re-blocked Commit Policy on
+     * every subsequent run of the same PR - with no fix available short of re-merging before each
+     * run. Reproduced against the real validator before this was changed.
+     */
+    const { baseline, cwd } = await createRepository()
+    try {
+      await writeAndCommit(
+        cwd,
+        'packages/extension-sdk/package.json',
+        '{"version":"0.2.0"}\n',
+        'fix(extension-sdk): update package metadata',
+      )
+
+      await git(cwd, ['checkout', '-b', 'feature', baseline])
+      await writeAndCommit(cwd, 'src/feature.ts', 'export {}\n', 'feat(app): add a feature')
+      const updateMerge = await merge(cwd, 'main', "Merge branch 'main' into feature")
+
+      // The base branch moves on AFTER the sync merge, exactly as it does between CI runs.
+      await git(cwd, ['checkout', 'main'])
+      await writeAndCommit(cwd, 'docs/notes.md', 'notes\n', 'docs: unrelated base commit')
+      const advancedBaseRef = await git(cwd, ['rev-parse', 'HEAD'])
+      await git(cwd, ['checkout', 'feature'])
+
+      const result = await validateConventionalCommits({
+        baseline,
+        cwd,
+        from: advancedBaseRef,
+        to: updateMerge,
+      })
+
+      expect(result.violations).toEqual([])
+    } finally {
+      await fs.rm(cwd, { force: true, recursive: true })
+    }
+  })
+
   it('still rejects a merge that brings package changes not yet on the base', async () => {
     const { baseline, cwd } = await createRepository()
     try {

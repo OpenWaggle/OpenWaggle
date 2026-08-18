@@ -1,5 +1,7 @@
 import { execFile as execFileCallback } from 'node:child_process'
 import { promisify } from 'node:util'
+import { isAncestor } from './git-ancestry'
+import { collectUpstreamUpdateMergeHashes } from './upstream-merge-attribution'
 
 const execFile = promisify(execFileCallback)
 
@@ -128,15 +130,6 @@ function resolveFrom(options: ConventionalCommitValidationOptions, baseline: str
     : options.from
 }
 
-async function isAncestor(cwd: string, ancestor: string, descendant: string) {
-  try {
-    await execFile('git', ['merge-base', '--is-ancestor', ancestor, descendant], { cwd })
-    return true
-  } catch {
-    return false
-  }
-}
-
 async function resolveEffectiveFrom(input: {
   readonly baseline: string
   readonly cwd: string
@@ -223,27 +216,6 @@ async function readCommitSubjects(cwd: string, from: string, to: string) {
  * Merges in the range whose incoming parents are all already contained in the base ref.
  * See {@link isUpstreamUpdateMerge} for why those are exempt from the package rule.
  */
-async function collectUpstreamUpdateMergeHashes(input: {
-  readonly base: string
-  readonly commits: readonly CommitSubject[]
-  readonly cwd: string
-}) {
-  const upstreamMergeHashes = new Set<string>()
-
-  for (const commit of input.commits) {
-    if (commit.parentHashes.length <= 1) continue
-    const incomingParents = commit.parentHashes.slice(1)
-    const containment = await Promise.all(
-      incomingParents.map((parent) => isAncestor(input.cwd, parent, input.base)),
-    )
-    if (containment.every((contained) => contained)) {
-      upstreamMergeHashes.add(commit.hash)
-    }
-  }
-
-  return upstreamMergeHashes
-}
-
 export async function validateConventionalCommits(options: ConventionalCommitValidationOptions = {}) {
   const cwd = options.cwd ?? process.cwd()
   const to = options.to ?? 'HEAD'
@@ -252,7 +224,12 @@ export async function validateConventionalCommits(options: ConventionalCommitVal
   const effectiveFrom = await resolveEffectiveFrom({ baseline, cwd, from, to })
   const commits = await readCommitSubjects(cwd, effectiveFrom, to)
   const upstreamMergeHashes = await collectUpstreamUpdateMergeHashes({
-    base: effectiveFrom,
+    /*
+     * The requested base ref first: in CI that is the base branch's current tip, which is the ref
+     * the containment question is actually about. `effectiveFrom` is only the start of the range
+     * being validated, and it collapses to the bootstrap baseline whenever the base has moved on.
+     */
+    bases: [from, effectiveFrom],
     commits,
     cwd,
   })
