@@ -11,6 +11,7 @@ export {
   resolveDefaultWorktreeBaseRef,
   resolveWorktreeSendPlan,
   WORKTREE_BASE_REF_REQUIRED,
+  WORKTREE_MISSING_REASON,
   type WorktreeSendPlan,
 } from './lib/worktree-send-plan'
 export { selectWorkingTreeStatus, useGitStore } from './state'
