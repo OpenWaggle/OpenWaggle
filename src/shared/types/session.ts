@@ -126,6 +126,30 @@ export interface SessionTreeUiStatePatch {
   readonly branchesSidebarCollapsed?: boolean
 }
 
+/**
+ * A Pinned session: one session the user marked for quick access.
+ *
+ * `sortKey` is a fractional index string carrying the user's Manual order, not a
+ * position integer (ADR 0019), so moving one pin writes only that pin's row.
+ */
+export interface PinnedSession {
+  readonly sessionId: SessionId
+  readonly pinnedAt: number
+  readonly sortKey: string
+}
+
+/**
+ * A request to reposition one pin, expressed by the neighbours it should land between.
+ *
+ * Neighbours are session ids rather than sort keys so callers work from what they
+ * rendered and never handle keys. `null` on either side means that end of the list.
+ */
+export interface PinnedSessionMove {
+  readonly sessionId: SessionId
+  readonly afterSessionId: SessionId | null
+  readonly beforeSessionId: SessionId | null
+}
+
 export interface SessionTree {
   readonly session: SessionSummary
   readonly nodes: readonly SessionNode[]

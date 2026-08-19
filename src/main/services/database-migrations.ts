@@ -261,4 +261,21 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
     name: 'turn-checkpoint-anchor-node',
     statements: [`ALTER TABLE turn_checkpoints ADD COLUMN anchor_node_id TEXT`],
   },
+  {
+    id: 24,
+    name: 'pinned-sessions',
+    statements: [
+      `
+      CREATE TABLE IF NOT EXISTS pinned_sessions (
+        session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+        pinned_at INTEGER NOT NULL,
+        sort_key TEXT NOT NULL
+      )
+      `,
+      `
+      CREATE INDEX IF NOT EXISTS idx_pinned_sessions_sort_key
+      ON pinned_sessions (sort_key ASC)
+      `,
+    ],
+  },
 ]

@@ -27,6 +27,10 @@ interface SessionDetailsHandlerMocks {
   readonly unarchiveSessionMock: TestMock
   readonly listArchivedSessionsMock: TestMock
   readonly updateSessionTitleMock: TestMock
+  readonly listPinnedSessionsMock: TestMock
+  readonly pinSessionMock: TestMock
+  readonly unpinSessionMock: TestMock
+  readonly movePinnedSessionMock: TestMock
   readonly cancelSessionRunsMock: TestMock
   readonly clearAgentPhaseMock: TestMock
   readonly clearStreamBufferMock: TestMock
@@ -50,6 +54,10 @@ const mocks: SessionDetailsHandlerMocks = vi.hoisted(() => ({
   unarchiveSessionMock: vi.fn(),
   listArchivedSessionsMock: vi.fn(),
   updateSessionTitleMock: vi.fn(),
+  listPinnedSessionsMock: vi.fn(async () => []),
+  pinSessionMock: vi.fn(async () => undefined),
+  unpinSessionMock: vi.fn(async () => undefined),
+  movePinnedSessionMock: vi.fn(async () => undefined),
   cancelSessionRunsMock: vi.fn(),
   clearAgentPhaseMock: vi.fn(),
   clearStreamBufferMock: vi.fn(),
@@ -69,6 +77,10 @@ export const archiveSessionMock: TestMock = mocks.archiveSessionMock
 export const unarchiveSessionMock: TestMock = mocks.unarchiveSessionMock
 export const listArchivedSessionsMock: TestMock = mocks.listArchivedSessionsMock
 export const updateSessionTitleMock: TestMock = mocks.updateSessionTitleMock
+export const listPinnedSessionsMock: TestMock = mocks.listPinnedSessionsMock
+export const pinSessionMock: TestMock = mocks.pinSessionMock
+export const unpinSessionMock: TestMock = mocks.unpinSessionMock
+export const movePinnedSessionMock: TestMock = mocks.movePinnedSessionMock
 export const cancelSessionRunsMock: TestMock = mocks.cancelSessionRunsMock
 export const clearAgentPhaseMock: TestMock = mocks.clearAgentPhaseMock
 export const clearStreamBufferMock: TestMock = mocks.clearStreamBufferMock
@@ -158,6 +170,29 @@ const TestSessionProjectionRepoLayer = Layer.succeed(
     listTurnCheckpoints: () => Effect.succeed([]),
     getTurnDiff: () => Effect.succeed(null),
     setTurnCheckpointAnchor: () => Effect.void,
+    listPinnedSessions: () =>
+      Effect.tryPromise({
+        try: () => listPinnedSessionsMock(),
+        catch: (cause) =>
+          new SessionProjectionRepositoryError({ operation: 'listPinnedSessions', cause }),
+      }),
+    pinSession: (id) =>
+      Effect.tryPromise({
+        try: () => pinSessionMock(id),
+        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'pinSession', cause }),
+      }),
+    unpinSession: (id) =>
+      Effect.tryPromise({
+        try: () => unpinSessionMock(id),
+        catch: (cause) =>
+          new SessionProjectionRepositoryError({ operation: 'unpinSession', cause }),
+      }),
+    movePinnedSession: (move) =>
+      Effect.tryPromise({
+        try: () => movePinnedSessionMock(move),
+        catch: (cause) =>
+          new SessionProjectionRepositoryError({ operation: 'movePinnedSession', cause }),
+      }),
   }),
 )
 
@@ -260,6 +295,14 @@ export function resetSessionDetailsHandlerMocks() {
   unarchiveSessionMock.mockReset()
   listArchivedSessionsMock.mockReset()
   updateSessionTitleMock.mockReset()
+  listPinnedSessionsMock.mockReset()
+  listPinnedSessionsMock.mockResolvedValue([])
+  pinSessionMock.mockReset()
+  pinSessionMock.mockResolvedValue(undefined)
+  unpinSessionMock.mockReset()
+  unpinSessionMock.mockResolvedValue(undefined)
+  movePinnedSessionMock.mockReset()
+  movePinnedSessionMock.mockResolvedValue(undefined)
   cancelSessionRunsMock.mockReset()
   cancelSessionRunsMock.mockReturnValue(false)
   clearAgentPhaseMock.mockReset()
