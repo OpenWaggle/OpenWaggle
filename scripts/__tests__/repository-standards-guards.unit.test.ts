@@ -78,4 +78,22 @@ describe('SessionSummaryRow column detection', () => {
 
     expect(collectSessionSummaryColumnViolations(file, contents)).toHaveLength(1)
   })
+
+  it('rejects an inline list that merely begins with an aggregate', () => {
+    /*
+     * The exemption matched any projection whose *first* term was an aggregate, so the column list
+     * behind a leading COUNT(*) was skipped - the same hole as the version that skipped any query
+     * containing `count(` at all, in a different disguise.
+     */
+    const contents =
+      'sql<SessionSummaryRow>`SELECT COUNT(*) AS total, id, title, project_path FROM sessions`'
+
+    expect(collectSessionSummaryColumnViolations(file, contents)).toHaveLength(1)
+  })
+
+  it('still ignores a projection of aggregates only', () => {
+    const contents = 'sql<SessionSummaryRow>`SELECT COUNT(*) AS total, MAX(created_at) FROM sessions`'
+
+    expect(collectSessionSummaryColumnViolations(file, contents)).toEqual([])
+  })
 })

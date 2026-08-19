@@ -227,13 +227,44 @@ const SESSION_SUMMARY_COLUMN_FRAGMENT = 'sessionSummaryColumns'
  * Judging the projection alone keeps `SELECT COUNT(*) AS total` passing and that subquery failing.
  */
 const SESSION_SUMMARY_PROJECTION = /\bselect\b(?<projection>[\s\S]*?)\bfrom\b/iu
-/** A projection made only of aggregates names no columns, so the fragment does not apply. */
-const AGGREGATE_ONLY_PROJECTION = /^[\s(]*\b(?:count|sum|min|max|avg)\s*\([\s\S]*$/iu
+/**
+ * A projection that names no columns of its own: only aggregate terms.
+ *
+ * Checked term by term. An earlier version matched anything whose *first* term was an aggregate, so an
+ * inline column list sitting behind a `COUNT(*)` was exempt - the same hole, in a different disguise,
+ * as the version that skipped any query containing `count(` at all.
+ */
+function namesNoColumns(projection: string) {
+  const terms = splitTopLevelTerms(projection)
+  if (terms.length === 0) return true
+  return terms.every((term) => AGGREGATE_TERM.test(term.trim()))
+}
+
+const AGGREGATE_TERM = /^\(?\s*\b(?:count|sum|min|max|avg)\s*\(/iu
+
+/** Split a projection on commas that are not inside parentheses. */
+function splitTopLevelTerms(projection: string): readonly string[] {
+  const terms: string[] = []
+  let depth = 0
+  let current = ''
+  for (const character of projection) {
+    if (character === '(') depth += 1
+    if (character === ')') depth -= 1
+    if (character === ',' && depth === 0) {
+      terms.push(current)
+      current = ''
+      continue
+    }
+    current += character
+  }
+  if (current.trim().length > 0) terms.push(current)
+  return terms.filter((term) => term.trim().length > 0)
+}
 
 function selectsNamedColumns(query: string) {
   const projection = SESSION_SUMMARY_PROJECTION.exec(query)?.groups?.['projection']
   if (projection === undefined) return false
-  return !AGGREGATE_ONLY_PROJECTION.test(projection.trim())
+  return !namesNoColumns(projection)
 }
 const SESSION_SUMMARY_COLUMN_OWNERS: readonly string[] = [
   // A different SessionSummaryRow: the detail-side shape with message_count and aliases.
