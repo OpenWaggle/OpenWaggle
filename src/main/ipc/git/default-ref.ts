@@ -103,10 +103,18 @@ const ADVERTISED_DEFAULT_REF_TIMEOUT_MS = 2_000
  */
 export async function resolveDefaultBranchRevision(projectPath: string): Promise<string | null> {
   const defaultRef = await resolveDefaultRef(projectPath)
-  const candidates = [
-    ...(defaultRef === null ? [] : [`origin/${defaultRef}`, defaultRef]),
-    ...CONVENTIONAL_DEFAULT_BRANCHES,
-  ]
+  /*
+   * A conventional name is a fallback for silence, not a second guess.
+   *
+   * The candidate list used to append `main`/`master` unconditionally, so a repository whose remote
+   * says `develop` - but whose clone has no `develop` commit yet - was diffed against whatever
+   * conventional branch happened to exist. That contradicted this function's own promise, and it is
+   * the failure mode the whole change was about: quietly comparing against the wrong branch. When
+   * the remote has named a default, its answer is the only one used; if that is not resolvable here,
+   * the caller falls through to the working-tree diff and says so.
+   */
+  const candidates =
+    defaultRef === null ? [...CONVENTIONAL_DEFAULT_BRANCHES] : [`origin/${defaultRef}`, defaultRef]
 
   for (const candidate of candidates) {
     const verify = await runGit(projectPath, ['rev-parse', '--verify', `${candidate}^{commit}`])

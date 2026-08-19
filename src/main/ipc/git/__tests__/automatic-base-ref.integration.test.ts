@@ -183,4 +183,31 @@ describe('Automatic base ref resolution', () => {
     expect(explicit.ok).toBe(true)
     expect(changedPaths(explicit)).toEqual(['explicit.txt'])
   })
+
+  it('does not fall back to a conventional branch when the remote named a different default', async () => {
+    /*
+     * The candidate list used to append `main`/`master` unconditionally, so a repository whose remote
+     * says `develop` - but whose clone has no `develop` commit yet - was diffed against whatever
+     * conventional branch existed, which is the "quietly compared against the wrong branch" failure
+     * this whole area was about. The remote's answer is authoritative; when it is not resolvable
+     * locally the working-tree diff is the honest fallback.
+     */
+    const cwd = await createRepository({ branch: 'main' })
+    const remote = await mkdtemp(path.join(tmpdir(), 'openwaggle-automatic-base-remote-'))
+    try {
+      await git(remote, ['init', '--bare', '-b', 'develop'])
+      await git(cwd, ['remote', 'add', 'origin', remote])
+      // The remote advertises `develop`, which this clone has no commit for.
+      await git(cwd, ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/develop'])
+
+      const automatic = await getGitBranchDiff(cwd, '')
+
+      expect(automatic.ok).toBe(true)
+      // Fell through to the working tree rather than diffing against the local `main`.
+      expect(automatic.ok && automatic.automaticFellBackToWorkingTree).toBe(true)
+      expect(automatic.ok && automatic.resolvedBaseRef).toBeUndefined()
+    } finally {
+      await rm(remote, { recursive: true, force: true })
+    }
+  })
 })
