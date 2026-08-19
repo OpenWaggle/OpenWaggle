@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -107,6 +107,52 @@ describe('commitGit against a linked worktree', () => {
    *   deletion staged. Batching makes that fatal (`add -A -- kept.txt moved.txt` exits 128), so staging is
    *   per-path and an unmatched entry is skipped.
    */
+  /**
+   * Everything a correct commit needs is settled inside `commitGit`, because there is more than one way in -
+   * the diff panel's stacked action and the header's Commit dialog - and each had a different subset right.
+   * This asserts the three properties a caller must not have to know about, from a caller that passes the
+   * plainest possible selection: target paths only, and a subdirectory as the project path.
+   */
+  it('commits a rename correctly from a subdirectory, given only the target path', async () => {
+    const { repository } = await createRepositoryWithWorktree()
+    const nested = path.join(repository, 'packages', 'app')
+    await mkdir(nested, { recursive: true })
+    await writeFile(path.join(nested, 'kept.txt'), 'keep\n')
+    // A filename whose glob syntax must not reach its sibling.
+    await writeFile(path.join(repository, 'file[ab].txt'), 'bracketed\n')
+    await writeFile(path.join(repository, 'filea.txt'), 'sibling\n')
+    await git(repository, ['add', '--all'])
+    await git(repository, ['commit', '-m', 'add files'])
+
+    await git(repository, ['mv', 'packages/app/kept.txt', 'packages/app/moved.txt'])
+    await writeFile(path.join(repository, 'file[ab].txt'), 'edited\n')
+    await writeFile(path.join(repository, 'filea.txt'), 'must not be committed\n')
+
+    // The project path is the opened subdirectory; the selection names only the rename's target.
+    const result = await commitGit(nested, {
+      message: 'move and edit',
+      amend: false,
+      paths: ['packages/app/moved.txt', 'file[ab].txt'],
+    })
+
+    expect(result.ok).toBe(true)
+    const tracked = await git(repository, ['ls-tree', '-r', '--name-only', 'HEAD'])
+    expect(tracked).toContain('packages/app/moved.txt')
+    expect(tracked).not.toContain('packages/app/kept.txt')
+    const committed = await git(repository, ['show', '--name-only', '--format=', 'HEAD'])
+    expect(committed).toContain('file[ab].txt')
+    /*
+     * The glob-looking pathspec must not have reached the sibling. Asserted on the *index*, not on
+     * `git status`: staging `filea.txt` without committing it leaves it in the status output either way, so
+     * only an empty index proves the pathspec stayed literal.
+     */
+    expect(await git(repository, ['show', '--name-only', '--format=', 'HEAD'])).not.toContain(
+      'filea.txt',
+    )
+    expect((await git(repository, ['diff', '--cached', '--name-only'])).trim()).toBe('')
+    expect(await git(repository, ['status', '--porcelain=v1'])).toContain('filea.txt')
+  })
+
   it('commits a staged rename and a deletion together', async () => {
     const { repository } = await createRepositoryWithWorktree()
     await writeFile(path.join(repository, 'kept.txt'), 'keep\n')

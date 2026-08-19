@@ -1,6 +1,7 @@
 import type { GitFileDiff } from '@shared/types/git'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MessageDeliveredRunFailed } from '@/features/chat/lib'
 import {
   reviewKeyFor,
   selectReviewThread,
@@ -34,7 +35,9 @@ describe('useDiffReviewActions', () => {
    */
   it('submits once when the same handler instance is invoked twice without a re-render', () => {
     const onSendMessage = vi.fn()
-    const { result } = renderHook(() => useDiffReviewActions(onSendMessage, FILES, REVIEW_KEY))
+    const { result } = renderHook(() =>
+      useDiffReviewActions(onSendMessage, FILES, REVIEW_KEY, REVIEW_KEY),
+    )
 
     act(() => {
       result.current.onAddToReview(
@@ -64,7 +67,9 @@ describe('useDiffReviewActions', () => {
     const onSendMessage = vi.fn(async () => {
       throw new Error('worktree is gone')
     })
-    const { result } = renderHook(() => useDiffReviewActions(onSendMessage, FILES, REVIEW_KEY))
+    const { result } = renderHook(() =>
+      useDiffReviewActions(onSendMessage, FILES, REVIEW_KEY, REVIEW_KEY),
+    )
 
     act(() => {
       result.current.onAddToReview(
@@ -82,7 +87,9 @@ describe('useDiffReviewActions', () => {
 
   it('clears the pending review once the send succeeds', async () => {
     const onSendMessage = vi.fn(async () => {})
-    const { result } = renderHook(() => useDiffReviewActions(onSendMessage, FILES, REVIEW_KEY))
+    const { result } = renderHook(() =>
+      useDiffReviewActions(onSendMessage, FILES, REVIEW_KEY, REVIEW_KEY),
+    )
 
     act(() => {
       result.current.onAddToReview(
@@ -116,7 +123,9 @@ describe('useDiffReviewActions', () => {
     )
 
     const { result, rerender } = renderHook(
-      ({ key }: { key: string }) => useDiffReviewActions(onSendMessage, FILES, key),
+      // The draft key is what this panel would use with no session yet, and it does not move here: the same
+      // working tree and scope simply gain a session id. That is the one transition the restore may follow.
+      ({ key }: { key: string }) => useDiffReviewActions(onSendMessage, FILES, key, draftKey),
       { initialProps: { key: draftKey } },
     )
 
@@ -141,5 +150,75 @@ describe('useDiffReviewActions', () => {
     const restored = selectReviewThread(useReviewStore.getState(), sessionKey)
     expect(restored.comments.map((comment) => comment.content)).toEqual(['look here'])
     expect(restored.summary).toBe('please fix')
+  })
+
+  it('does not follow a scope switch, which would move the review into another diff', async () => {
+    /*
+     * "The key changed" is not on its own a reason to follow. It also changes for a scope tab, a base ref, a
+     * turn, a session switch and a project switch, and following those *moves* the thread: comments and line
+     * anchors taken from one diff would sit pending in another, or one session's review in another session's
+     * conversation - which is what keying reviews was introduced to prevent.
+     */
+    const unstagedKey = '/repo::unstaged'
+    const stagedKey = '/repo::staged'
+    let rejectSend: ((error: Error) => void) | null = null
+    const onSendMessage = vi.fn(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectSend = reject
+        }),
+    )
+
+    const { result, rerender } = renderHook(
+      ({ key }: { key: string }) => useDiffReviewActions(onSendMessage, FILES, key, key),
+      { initialProps: { key: unstagedKey } },
+    )
+
+    act(() => {
+      result.current.onAddToReview(
+        { filePath: 'src/app.ts', line: 1, endLine: 1, lineType: 'add' },
+        'scoped comment',
+      )
+    })
+
+    const submitted = result.current.onSubmitReview()
+    // The user clicks the other scope tab while the send is in flight.
+    rerender({ key: stagedKey })
+    act(() => {
+      rejectSend?.(new Error('send failed'))
+    })
+    await submitted
+
+    expect(
+      selectReviewThread(useReviewStore.getState(), unstagedKey).comments.map((c) => c.content),
+    ).toEqual(['scoped comment'])
+    expect(selectReviewThread(useReviewStore.getState(), stagedKey).comments).toEqual([])
+  })
+
+  it('keeps a review cleared when the agent received it and only the run failed', async () => {
+    /*
+     * Sending a message and running the agent turn are one promise to callers, so a provider error or a rate
+     * limit rejects it long after the review reached the transcript. Treating that as a failed send restored
+     * the agent's own copy as pending - offering it for a second submission - and told the user it could not
+     * be sent.
+     */
+    const onSendMessage = vi.fn(() =>
+      Promise.reject(new MessageDeliveredRunFailed(new Error('provider rate limit'))),
+    )
+    const onReviewSendFailed = vi.fn()
+    const { result } = renderHook(() =>
+      useDiffReviewActions(onSendMessage, FILES, REVIEW_KEY, REVIEW_KEY, onReviewSendFailed),
+    )
+
+    act(() => {
+      result.current.onAddToReview(
+        { filePath: 'src/app.ts', line: 1, endLine: 1, lineType: 'add' },
+        'delivered comment',
+      )
+    })
+    await result.current.onSubmitReview()
+
+    expect(selectReviewThread(useReviewStore.getState(), REVIEW_KEY).comments).toEqual([])
+    expect(onReviewSendFailed).not.toHaveBeenCalled()
   })
 })

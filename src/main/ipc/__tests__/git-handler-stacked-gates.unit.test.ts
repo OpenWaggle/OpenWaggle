@@ -85,7 +85,7 @@ describe('stacked action safety gates', () => {
     })
 
     expect(result).toMatchObject({ ok: false, code: 'nothing-to-commit' })
-    expect(unexpected.filter((args) => args.startsWith('add'))).toEqual([])
+    expect(unexpected.filter((args) => args.includes('add'))).toEqual([])
   })
 
   it('stages only the selected paths for a commit', async () => {
@@ -93,10 +93,10 @@ describe('stacked action safety gates', () => {
     execFileMock.mockImplementation(
       (_command: string, args: string[], _options: unknown, callback: GitCallback) => {
         const joined = args.join(' ')
-        if (joined.startsWith('add ')) staged.push(joined)
+        if (joined.includes(' add ') || joined.startsWith('add ')) staged.push(joined)
         match(joined)
           .when(
-            (value) => value.startsWith('add ') || value.startsWith('commit '),
+            (value) => value.includes('add ') || value.includes('commit '),
             () => callback(null, '', ''),
           )
           .when(
@@ -132,7 +132,10 @@ describe('stacked action safety gates', () => {
      * already-staged rename's source matches nothing for `add`, and batching makes that fatal for the whole
      * commit.
      */
-    expect(staged).toEqual(['add -A -- src/a.txt', 'add -A -- src/b.txt'])
+    expect(staged).toEqual([
+      '--literal-pathspecs add -A -- src/a.txt',
+      '--literal-pathspecs add -A -- src/b.txt',
+    ])
     expect(staged.some((entry) => entry.includes('--all'))).toBe(false)
   })
 })

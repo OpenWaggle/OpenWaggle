@@ -1,5 +1,6 @@
 import type { GitFileDiff } from '@shared/types/git'
 import { useEffect, useRef } from 'react'
+import { wasMessageDelivered } from '@/features/chat/lib'
 import {
   extractDiffSnippet,
   formatReviewSubmission,
@@ -44,6 +45,8 @@ export function useDiffReviewActions(
   onSendMessage: (content: string) => void | Promise<void>,
   files: readonly GitFileDiff[],
   reviewKey: string,
+  /** The key this panel would use with no session yet: see the follow rule below. */
+  draftKey: string,
   onReviewSendFailed?: (error: unknown) => void,
 ) {
   const thread = useReviewStore((s) => selectReviewThread(s, reviewKey))
@@ -52,11 +55,20 @@ export function useDiffReviewActions(
    * the active id synchronously, so the panel moves from the working path to the session id before the send
    * can reject. Restoring under the key captured at click time therefore wrote the review where nothing was
    * reading, and the one-shot migration had already fired against the emptied draft.
+   *
+   * The draft key is tracked alongside it because "the key changed" is not on its own a reason to follow.
+   * It also changes for a scope tab, a base ref, a turn, a session switch and a project switch, and
+   * following those *moves* the thread: comments and line anchors taken from one diff would sit pending in
+   * another, or one session's review in another session's conversation - which is what keying reviews was
+   * introduced to prevent. Only one transition is legitimate, the same working tree and scope gaining a
+   * session id, and that is exactly the transition in which the draft key does not move.
    */
   const latestReviewKey = useRef(reviewKey)
+  const latestDraftKey = useRef(draftKey)
   useEffect(() => {
     latestReviewKey.current = reviewKey
-  }, [reviewKey])
+    latestDraftKey.current = draftKey
+  }, [reviewKey, draftKey])
   const comments = thread.comments
   const summary = thread.summary
   const addComment = useReviewStore((s) => s.addComment)
@@ -97,14 +109,22 @@ export function useDiffReviewActions(
     try {
       await onSendMessage(formatReviewSubmission(pending.summary, pending.comments))
     } catch (error) {
+      /*
+       * A run that failed after the message arrived is not a failed send. Sending and running are one
+       * promise to callers, so a provider error or a rate limit rejects it long after the review reached the
+       * transcript: restoring then offered the agent's own copy back for a second submission, and reported
+       * that it could not be sent.
+       */
+      if (wasMessageDelivered(error)) return
       logger.warn('Restoring the pending review because the send failed', {
         error: String(error),
       })
       state.restoreReview(reviewKey, pending.comments, pending.summary)
-      // Follow the panel if the key moved while the send was in flight.
-      if (latestReviewKey.current !== reviewKey) {
-        state.migrateReview(reviewKey, latestReviewKey.current)
-      }
+      const gainedSessionId =
+        reviewKey === draftKey &&
+        latestDraftKey.current === draftKey &&
+        latestReviewKey.current !== reviewKey
+      if (gainedSessionId) state.migrateReview(reviewKey, latestReviewKey.current)
       onReviewSendFailed?.(error)
     }
   }

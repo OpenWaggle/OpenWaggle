@@ -3,7 +3,7 @@ import type { DiffScopeSelection } from '@/features/diff-panel/state/diff-scope-
 import { reviewKeyFor, useReviewStore } from '@/features/diff-panel/state/review-store'
 
 /**
- * The key the panel's pending review lives under, carried across the one transition that changes it.
+ * The key the panel's pending review lives under, and the draft key it would use with no session yet.
  *
  * Threads are keyed by session id once one exists and by working path before that, so two sessions
  * sharing one checkout keep separate reviews. Sessions are created lazily on the first send, which
@@ -33,5 +33,5 @@ export function useReviewKey(input: {
     if (cameFromDraft) migrateReview(draftKey, reviewKey)
   }, [draftKey, reviewKey, migrateReview])
 
-  return reviewKey
+  return { reviewKey, draftKey }
 }

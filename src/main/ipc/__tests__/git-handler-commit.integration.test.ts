@@ -44,13 +44,21 @@ describe('registerGitHandlers commit', () => {
           cb({ name: 'GitError', message: 'not merging', code: 1, stdout: '', stderr: '' }, '', '')
           return
         }
-        if (args[0] === 'add') {
+        if (key === 'rev-parse --show-toplevel') {
+          cb(null, '/tmp/repo\n', '')
+          return
+        }
+        if (args.includes('status')) {
+          cb(null, '', '')
+          return
+        }
+        if (args.includes('add')) {
           // `add -A -- <path>`, one call per selected path.
           stagedPaths.push(args.slice(args.indexOf('--') + 1))
           cb(null, '', '')
           return
         }
-        if (args[0] === 'commit') {
+        if (args.includes('commit')) {
           commitCommands.push(args.join(' '))
           cb(null, '[main abc1234] test commit\n 1 file changed\n', '')
           return
@@ -79,7 +87,9 @@ describe('registerGitHandlers commit', () => {
      * and batching makes that fatal for the whole commit.
      */
     expect(stagedPaths).toEqual([['src/main/index.ts'], ['docs/new.md']])
-    expect(commitCommands).toEqual(['commit -m test commit -- src/main/index.ts docs/new.md'])
+    expect(commitCommands).toEqual([
+      '--literal-pathspecs commit -m test commit -- src/main/index.ts docs/new.md',
+    ])
   })
 
   it('maps commit failures to structured error codes', async () => {
@@ -97,6 +107,11 @@ describe('registerGitHandlers commit', () => {
         const key = args.join(' ')
         match(key)
           .with('rev-parse --is-inside-work-tree', () => cb(null, 'true\n', ''))
+          .with('rev-parse --show-toplevel', () => cb(null, '/tmp/repo\n', ''))
+          .when(
+            (value) => value.includes('status'),
+            () => cb(null, '', ''),
+          )
           .with('rev-parse -q --verify MERGE_HEAD', () =>
             cb(
               { name: 'GitError', message: 'not merging', code: 1, stdout: '', stderr: '' },
@@ -104,8 +119,8 @@ describe('registerGitHandlers commit', () => {
               '',
             ),
           )
-          .with('add -A -- src/file.ts', () => cb(null, '', ''))
-          .with('commit -m test commit -- src/file.ts', () =>
+          .with('--literal-pathspecs add -A -- src/file.ts', () => cb(null, '', ''))
+          .with('--literal-pathspecs commit -m test commit -- src/file.ts', () =>
             cb(
               {
                 name: 'GitError',

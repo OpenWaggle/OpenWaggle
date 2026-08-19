@@ -1,56 +1,16 @@
-import { execFile as execFileCallback } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
 import { validateConventionalCommits } from '../check-conventional-commits'
-
-const execFile = promisify(execFileCallback)
-const POLICY_SCRIPT_PATH = 'scripts/check-conventional-commits.ts'
-const GIT_IDENTITY = [
-  '-c',
-  'user.name=OpenWaggle Tests',
-  '-c',
-  'user.email=tests@openwaggle.ai',
-] as const
-
-async function git(cwd: string, args: readonly string[]) {
-  const { stdout } = await execFile('git', args, { cwd })
-  return stdout.trim()
-}
-
-async function writeAndCommit(
-  cwd: string,
-  filePath: string,
-  contents: string,
-  message: string,
-) {
-  const absolutePath = path.join(cwd, filePath)
-  await fs.mkdir(path.dirname(absolutePath), { recursive: true })
-  await fs.writeFile(absolutePath, contents, 'utf8')
-  await git(cwd, ['add', filePath])
-  await git(cwd, [...GIT_IDENTITY, 'commit', '-m', message])
-  return git(cwd, ['rev-parse', 'HEAD'])
-}
-
-async function createRepository() {
-  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-commit-policy-'))
-  await git(cwd, ['init', '-b', 'main'])
-  await writeAndCommit(cwd, 'history.txt', 'history\n', 'historical commit')
-  const baseline = await writeAndCommit(
-    cwd,
-    POLICY_SCRIPT_PATH,
-    'current policy marker\n',
-    'ci: introduce commit policy',
-  )
-  return { baseline, cwd }
-}
-
-async function merge(cwd: string, branch: string, message: string) {
-  await git(cwd, [...GIT_IDENTITY, 'merge', '--no-ff', branch, '-m', message])
-  return git(cwd, ['rev-parse', 'HEAD'])
-}
+import {
+  createRepository,
+  git,
+  GIT_IDENTITY,
+  merge,
+  POLICY_SCRIPT_PATH,
+  writeAndCommit,
+} from './commit-policy.test-harness'
 
 describe('Conventional Commit merge attribution', () => {
   it('exempts a feature branch that merges an already-released base branch', async () => {

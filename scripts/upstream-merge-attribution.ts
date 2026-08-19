@@ -38,6 +38,13 @@ async function blobAt(cwd: string, commitish: string, filePath: string): Promise
  * Comparing the blob against the base answers it directly: identical means the base already has
  * exactly this content, whatever route it took; different means this merge is changing the published
  * surface and owes release intent.
+ *
+ * The merge's own parents are asked as well, and they are what makes the answer stable. A base ref is the
+ * base branch's *current tip*, which moves: a sync merge that legitimately brought release 0.2.0 stopped
+ * matching the moment the base released 0.3.0 of the same file - which is every release, since release-please
+ * rewrites `package.json` and `CHANGELOG.md` each time. The PR was then permanently blocked by a commit-level
+ * violation that no title can satisfy, and re-syncing only added another such merge. A parent cannot move,
+ * and content that equals a parent's is by definition not introduced by this merge.
  */
 async function publishedChangesMatchBase(
   cwd: string,
@@ -47,10 +54,13 @@ async function publishedChangesMatchBase(
   const publishedPaths = commit.changedPaths.filter((path) => path.startsWith(PUBLISHABLE_PREFIX))
   if (publishedPaths.length === 0) return true
 
+  const references = [...bases, ...commit.parentHashes]
   for (const filePath of publishedPaths) {
     const merged = await blobAt(cwd, commit.hash, filePath)
-    const baseBlobs = await Promise.all(bases.map((base) => blobAt(cwd, base, filePath)))
-    if (!baseBlobs.includes(merged)) return false
+    const referenceBlobs = await Promise.all(
+      references.map((reference) => blobAt(cwd, reference, filePath)),
+    )
+    if (!referenceBlobs.includes(merged)) return false
   }
   return true
 }

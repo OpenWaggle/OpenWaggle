@@ -4,6 +4,7 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionDetail } from '@shared/types/session'
 import type { WaggleConfig } from '@shared/types/waggle'
+import { MessageDeliveredRunFailed } from '@/features/chat/lib/message-delivery'
 import { api } from '@/shared/lib/ipc'
 import { createOptimisticUserMessage } from '../lib/useAgentChat.utils'
 import { createPendingRunWaiter, updateMessagesForSession } from './useAgentChat.message-cache'
@@ -150,8 +151,10 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       ? api.sendWaggleMessage(targetSessionId, payload, params.model, waggleConfig)
       : api.sendMessage(targetSessionId, payload, params.model)
 
+    let delivered = false
     try {
       await sendPromise
+      delivered = true
       await runPromise
     } catch (runError) {
       const normalizedError = normalizeError(runError)
@@ -164,7 +167,11 @@ export function createAgentRunControls(params: AgentRunControlParams) {
         params.setStatus('error')
         refs.terminalRunErrorRef.current = normalizedError
       }
-      throw normalizedError
+      /*
+       * Distinguished, because a caller cannot tell these apart otherwise and one of them must not be
+       * treated as a lost message: the run failing says nothing about whether the message arrived.
+       */
+      throw delivered ? new MessageDeliveredRunFailed(normalizedError) : normalizedError
     }
   }
 

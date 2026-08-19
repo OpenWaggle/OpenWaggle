@@ -19,7 +19,8 @@ interface DiffReviewBodyProps {
   readonly onSendMessage: (content: string) => void | Promise<void>
   readonly onFileClick: (path: string) => void
   /** Isolates pending comments to the tree and scope they were written against. */
-  readonly reviewKey: string
+  /** The key this panel's review lives under, with the draft key it would use before a session exists. */
+  readonly reviewKeys: { readonly reviewKey: string; readonly draftKey: string }
 }
 
 /**
@@ -37,14 +38,20 @@ export function DiffReviewBody({
   onRetryLoad,
   onSendMessage,
   onFileClick,
-  reviewKey,
+  reviewKeys,
 }: DiffReviewBodyProps) {
   const { viewOptions } = useDiffViewOptions()
   const showToast = useUIStore((state) => state.showToast)
-  const review = useDiffReviewActions(onSendMessage, files, reviewKey, (error) => {
-    // A restored review that lands out of view is no better than a lost one if nothing says why.
-    showToast(`Could not send this review: ${String(error)}`, 'error')
-  })
+  const review = useDiffReviewActions(
+    onSendMessage,
+    files,
+    reviewKeys.reviewKey,
+    reviewKeys.draftKey,
+    (error) => {
+      // A restored review that lands out of view is no better than a lost one if nothing says why.
+      showToast(`Could not send this review: ${String(error)}`, 'error')
+    },
+  )
 
   return (
     <>

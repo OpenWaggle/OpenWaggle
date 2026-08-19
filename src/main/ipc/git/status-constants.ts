@@ -17,3 +17,12 @@ export const GIT_PARSE_INT_RADIX = 10
  * Applied to the reads whose output becomes a path we hand back to git.
  */
 export const GIT_RAW_PATHS = ['-c', 'core.quotePath=false'] as const
+
+/**
+ * Treat every pathspec as a literal path.
+ *
+ * Pathspecs are globs by default, so a filename containing glob syntax reaches files the user did not
+ * select: verified that `git add -- 'file[ab].txt'` also stages `filea.txt`. Every path here comes from
+ * `git status`, i.e. it is already an exact path, so glob expansion can only ever be wrong.
+ */
+export const GIT_LITERAL_PATHS = ['--literal-pathspecs'] as const

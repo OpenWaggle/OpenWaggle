@@ -146,3 +146,42 @@ skipped rather than failing the commit. The unit test that was supposed to cover
 be watching the duplicate `add` in the stacked path (W1-2) rather than `commitGit` at all: with the duplicate
 removed it went red, which is how W1-2 was confirmed.
 
+## Round six: the repairs of the repairs
+
+The sixth round was pointed at round five's five repairs. It found six more, three of them serious, and every
+one was again a flaw in a fix rather than in the original branch. All six are resolved.
+
+| Finding | Substance |
+| --- | --- |
+| X1-1 | The header's Commit dialog committed a rename as a duplicated file |
+| X1-2 | Commit from the header dialog was still dead in a repository opened at a subdirectory |
+| X1-3 | A filename containing glob syntax committed an unselected sibling |
+| X2-1 | The failed-send restore followed *any* key change, moving a review into another diff or session |
+| X2-2 | A review the agent had received was offered back for a second submission |
+| X3-1 | A synced PR was permanently blocked once the base released the same file again |
+
+The first three share one cause and now share one fix. There is more than one way into a commit - the diff
+panel's stacked action and the header's Commit dialog - and each had a different subset right, so everything a
+correct commit needs is now settled inside `commitGit`: the repository root, the rename sources read from the
+working tree, and `--literal-pathspecs`. A caller passing target paths only, from a subdirectory, with a
+filename like `file[ab].txt`, now commits exactly what was selected. Each of the three is pinned by reverting
+it in turn.
+
+X2-1 is the sharper lesson. Round five's repair made the restore "follow the panel", but "the key changed" is
+also true for a scope tab, a base ref, a turn, a session switch and a project switch - and following those
+*moves* the thread, so comments anchored in one diff would sit pending in another, or one session's review in
+another session's conversation. That is precisely what keying reviews was introduced to prevent, so the repair
+had reopened the original bug by a different route. Only one transition is legitimate, the same working tree
+and scope gaining a session id, which is exactly the transition in which the draft key does not move.
+
+X2-2 was a wrong assumption rather than a wrong line: sending a message and running the agent turn are one
+promise to callers, so a provider error or a rate limit rejects it long after the review has reached the
+transcript. `MessageDeliveredRunFailed` now distinguishes them.
+
+X3-1 would have blocked this very pull request. The sync-merge exemption compared the merge's blobs against
+the base *tip*, which moves: a merge that legitimately brought release 0.2.0 stopped matching the moment the
+base released 0.3.0 of the same file - every release, since release-please rewrites `package.json` and
+`CHANGELOG.md` each time - and the resulting commit-level violation cannot be satisfied by any PR title.
+A merge's own parents cannot move, so they are asked as well. This does not weaken the evil-merge guard: an
+evil merge introduces content matching no parent, which is what makes it evil.
+

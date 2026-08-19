@@ -114,7 +114,7 @@ export function DiffPanel({
   const baseRefChoices = useBaseRefChoices(repositoryPath)
   const turns = useSessionTurns(sessionId, refreshToken)
   const displayed = useDisplayedDiff({ sessionId, workingPath, selection, refreshToken })
-  const reviewKey = useReviewKey({ scopeKey, workingPath, selection })
+  const { reviewKey, draftKey } = useReviewKey({ scopeKey, workingPath, selection })
   const { fileDiffs, isLoading, loadError, refreshDiff } = displayed
 
   useReconcileTurnSelection(scopeKey, turns)
@@ -174,7 +174,7 @@ export function DiffPanel({
         onFileClick={(path) =>
           viewerRef.current?.scrollTo({ type: 'item', id: codeViewItemId(path), align: 'start' })
         }
-        reviewKey={reviewKey}
+        reviewKeys={{ reviewKey, draftKey }}
       />
       <DiffBottomBar
         onRevertAll={gitActions.handleRevertAll}
