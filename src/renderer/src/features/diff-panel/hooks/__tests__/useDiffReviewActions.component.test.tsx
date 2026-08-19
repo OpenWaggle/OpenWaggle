@@ -53,4 +53,47 @@ describe('useDiffReviewActions', () => {
     expect(onSendMessage).toHaveBeenCalledTimes(1)
     expect(selectReviewThread(useReviewStore.getState(), REVIEW_KEY).comments).toEqual([])
   })
+
+  it('keeps the pending review when the send fails', async () => {
+    /*
+     * The comments were cleared before the send was known to have worked, and the panel adapted an
+     * async send as fire-and-forget so a rejection was unobservable. Main throws outright for a
+     * missing session worktree, so a whole review the reviewer had written was destroyed with no way
+     * to recover it.
+     */
+    const onSendMessage = vi.fn(async () => {
+      throw new Error('worktree is gone')
+    })
+    const { result } = renderHook(() => useDiffReviewActions(onSendMessage, FILES, REVIEW_KEY))
+
+    act(() => {
+      result.current.onAddToReview(
+        { filePath: 'src/app.ts', line: 1, endLine: 1, lineType: 'add' },
+        'Guard this.',
+      )
+    })
+    await act(async () => {
+      await result.current.onSubmitReview()
+    })
+
+    expect(onSendMessage).toHaveBeenCalledTimes(1)
+    expect(selectReviewThread(useReviewStore.getState(), REVIEW_KEY).comments).toHaveLength(1)
+  })
+
+  it('clears the pending review once the send succeeds', async () => {
+    const onSendMessage = vi.fn(async () => {})
+    const { result } = renderHook(() => useDiffReviewActions(onSendMessage, FILES, REVIEW_KEY))
+
+    act(() => {
+      result.current.onAddToReview(
+        { filePath: 'src/app.ts', line: 1, endLine: 1, lineType: 'add' },
+        'Guard this.',
+      )
+    })
+    await act(async () => {
+      await result.current.onSubmitReview()
+    })
+
+    expect(selectReviewThread(useReviewStore.getState(), REVIEW_KEY).comments).toEqual([])
+  })
 })

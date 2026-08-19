@@ -200,8 +200,15 @@ async function getInitialCommitDiff(projectPath: string): Promise<GitDiffResult>
     }),
   ])
 
-  if (worktreeResult.code !== 0 && cachedResult.code !== 0) {
-    const failing = worktreeResult.maxBufferExceeded === true ? worktreeResult : cachedResult
+  /*
+   * Either command failing is a failure. Requiring *both* to fail meant that when one blew the diff
+   * buffer and the other returned cleanly - one large staged file in a repository with no first
+   * commit does exactly that - the truncated stdout Node hands back on a maxBuffer kill was parsed
+   * as if it were the whole patch and returned as success. A half-written diff presented as
+   * complete is worse than an error.
+   */
+  const failing = [worktreeResult, cachedResult].find((result) => result.code !== 0)
+  if (failing !== undefined) {
     return diffCommandFailure(failing, FAILED_TO_LOAD_DIFF_MESSAGE)
   }
 

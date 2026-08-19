@@ -44,6 +44,17 @@ interface ReviewState {
   setSummary: (reviewKey: string, summary: string) => void
   /** Abandon one pending review without sending it. */
   discardReview: (reviewKey: string) => void
+  /**
+   * Put a review back after a failed send.
+   *
+   * Submission removes the comments before awaiting, so a rapid double-click cannot send the same
+   * review twice. That would otherwise destroy the reviewer's work whenever the send rejects.
+   */
+  restoreReview: (
+    reviewKey: string,
+    comments: readonly ReviewCommentWithSnippet[],
+    summary: string,
+  ) => void
 }
 
 function updateThread(
@@ -93,6 +104,17 @@ export const useReviewStore = create<ReviewState>((set) => ({
 
   discardReview(reviewKey: string) {
     set((state) => updateThread(state, reviewKey, () => EMPTY_THREAD))
+  },
+
+  restoreReview(reviewKey: string, comments: readonly ReviewCommentWithSnippet[], summary: string) {
+    set((state) =>
+      updateThread(state, reviewKey, (thread) => ({
+        ...thread,
+        // Anything written while the send was in flight is kept ahead of the restored comments.
+        comments: [...comments, ...thread.comments],
+        summary: thread.summary.trim().length > 0 ? thread.summary : summary,
+      })),
+    )
   },
 }))
 

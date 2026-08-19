@@ -7,6 +7,9 @@ import {
 } from '@/features/diff-panel/lib/review-comment-payload'
 import type { ReviewCommentLocation } from '@/features/diff-panel/state/review-store'
 import { selectReviewThread, useReviewStore } from '@/features/diff-panel/state/review-store'
+import { createRendererLogger } from '@/shared/lib/logger'
+
+const logger = createRendererLogger('diff-panel-review')
 
 function buildComment(
   files: readonly GitFileDiff[],
@@ -37,7 +40,7 @@ function buildComment(
  * Neither touches the composer.
  */
 export function useDiffReviewActions(
-  onSendMessage: (content: string) => void,
+  onSendMessage: (content: string) => void | Promise<void>,
   files: readonly GitFileDiff[],
   reviewKey: string,
 ) {
@@ -59,7 +62,7 @@ export function useDiffReviewActions(
     addComment(reviewKey, buildComment(files, location, content))
   }
 
-  function onSubmitReview() {
+  async function onSubmitReview() {
     // Read imperatively rather than from the render closure. `comments` here is the
     // value from the last render, so a rapid double-click (or a key repeat on the
     // Cmd+Enter shortcut) fires this twice before React re-renders with the cleared
@@ -68,8 +71,25 @@ export function useDiffReviewActions(
     const state = useReviewStore.getState()
     const pending = selectReviewThread(state, reviewKey)
     if (pending.comments.length === 0) return
-    onSendMessage(formatReviewSubmission(pending.summary, pending.comments))
+    /*
+     * Taken out of the store before awaiting, and put back if the send fails.
+     *
+     * Both properties matter and they pull in opposite directions. Clearing only *after* a
+     * successful send lets a rapid double-click send the same review twice, because the second call
+     * reads the store before the first await resolves. Clearing first and never restoring destroys
+     * everything the reviewer wrote when the send rejects - which main does outright for a missing
+     * session worktree. Removing it synchronously satisfies the double-submit guard; restoring on
+     * failure keeps the work.
+     */
     state.clearComments(reviewKey)
+    try {
+      await onSendMessage(formatReviewSubmission(pending.summary, pending.comments))
+    } catch (error) {
+      logger.warn('Restoring the pending review because the send failed', {
+        error: String(error),
+      })
+      state.restoreReview(reviewKey, pending.comments, pending.summary)
+    }
   }
 
   return {

@@ -7,7 +7,7 @@ interface ReviewBarProps {
   readonly commentCount: number
   readonly summary: string
   readonly onSummaryChange: (summary: string) => void
-  readonly onSubmit: () => void
+  readonly onSubmit: () => void | Promise<void>
   readonly onDiscard: () => void
 }
 
@@ -58,7 +58,7 @@ export function ReviewBar({
               if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
                 event.preventDefault()
                 setIsSubmitOpen(false)
-                onSubmit()
+                void onSubmit()
               }
             }}
           />
@@ -76,7 +76,7 @@ export function ReviewBar({
               type="button"
               onClick={() => {
                 setIsSubmitOpen(false)
-                onSubmit()
+                void onSubmit()
               }}
               className="flex h-[26px] items-center gap-1.5 rounded-[5px] border border-accent bg-diff-stage-bg px-2.5 text-[12px] font-medium text-accent"
             >

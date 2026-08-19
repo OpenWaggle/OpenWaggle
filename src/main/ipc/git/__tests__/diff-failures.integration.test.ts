@@ -80,4 +80,24 @@ describe('getGitDiff failures', () => {
     if (!result.ok) throw new Error('expected the initial-commit path to succeed')
     expect(result.files.map((file) => file.path)).toEqual(['new.txt'])
   })
+
+  it('fails an unborn-HEAD repository whose staged diff is too large, rather than truncating it', async () => {
+    /*
+     * The guard used to require *both* the worktree and cached diffs to fail. One large staged file
+     * in a repository with no first commit makes only `--cached` blow the buffer, and Node hands the
+     * truncated stdout back on a maxBuffer kill - so a half-written patch was parsed as if complete
+     * and returned as success.
+     */
+    const repository = await mkdtemp(path.join(tmpdir(), 'openwaggle-diff-unborn-big-'))
+    repositoryPath = repository
+    await git(repository, ['init', '--initial-branch=main'])
+    await writeFile(path.join(repository, 'big.txt'), PADDING_LINE.repeat(LINES_OVER_BUFFER))
+    await git(repository, ['add', '--all'])
+
+    const result = await getGitDiff(repository)
+
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error('expected the oversized staged diff to fail')
+    expect(result.code).toBe('diff-too-large')
+  })
 })

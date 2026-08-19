@@ -28,7 +28,7 @@ interface DiffPanelProps {
   workingPath: WorkingPath | null
   repositoryPath: RepositoryPath | null
   sessionId?: SessionId | null
-  onSendMessage: (content: string) => void
+  onSendMessage: (content: string) => void | Promise<void>
   /**
    * Bumped when the diff should be reloaded.
    *

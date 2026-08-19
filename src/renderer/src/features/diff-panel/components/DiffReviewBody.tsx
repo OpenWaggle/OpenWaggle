@@ -15,7 +15,7 @@ interface DiffReviewBodyProps {
   /** A failed diff load, surfaced instead of an empty diff. */
   readonly loadError: string | null
   readonly onRetryLoad: () => void
-  readonly onSendMessage: (content: string) => void
+  readonly onSendMessage: (content: string) => void | Promise<void>
   readonly onFileClick: (path: string) => void
   /** Isolates pending comments to the tree and scope they were written against. */
   readonly reviewKey: string
