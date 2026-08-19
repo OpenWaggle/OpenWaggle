@@ -35,6 +35,14 @@ export interface RunGitOptions {
   readonly maxBuffer?: number
   /** Extra environment variables (e.g. GIT_INDEX_FILE for a scratch index). */
   readonly env?: Readonly<Record<string, string>>
+  /**
+   * Kill the command after this long.
+   *
+   * Required for anything that talks to a remote. Without it a command reaching the network blocks
+   * for git's own connect timeout - minutes - or forever on a credential prompt, and these calls sit
+   * on interactive paths: a diff load, a cached status refresh, the gate a Commit & push waits for.
+   */
+  readonly timeoutMs?: number
 }
 
 function normalizeGitSuccess(output: string | { stdout?: string; stderr?: string }): GitExecResult {
@@ -78,6 +86,7 @@ export async function runGit(
     const output = await execFileAsync('git', args, {
       cwd: projectPath,
       maxBuffer,
+      ...(options.timeoutMs === undefined ? {} : { timeout: options.timeoutMs }),
       ...(options.env ? { env: getEnvWithOverrides(options.env) } : {}),
     })
     return normalizeGitSuccess(output)

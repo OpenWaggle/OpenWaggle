@@ -53,7 +53,19 @@ async function resolveAdvertisedDefaultRef(projectPath: string): Promise<string 
     return null
   }
 
-  const advertised = await runGit(projectPath, ['ls-remote', '--symref', 'origin', 'HEAD'])
+  /*
+   * Hard-bounded, and never allowed to prompt.
+   *
+   * This runs on interactive paths - an Automatic-scope diff load, the short-TTL local status, the
+   * gate a Commit & push waits for - so an unreachable or credential-protected remote must not stall
+   * them. Verified that without a bound the diff load and the "network-free" cached status both
+   * blocked indefinitely against an unreachable origin. Giving up simply falls through to the
+   * conventional local default.
+   */
+  const advertised = await runGit(projectPath, ['ls-remote', '--symref', 'origin', 'HEAD'], {
+    timeoutMs: ADVERTISED_DEFAULT_REF_TIMEOUT_MS,
+    env: { GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: '', SSH_ASKPASS: '' },
+  })
   if (advertised.code !== 0) return null
 
   for (const line of advertised.stdout.split('\n')) {
@@ -72,6 +84,9 @@ async function resolveAdvertisedDefaultRef(projectPath: string): Promise<string 
  * degrade to the working-tree diff.
  */
 const CONVENTIONAL_DEFAULT_BRANCHES = ['main', 'master'] as const
+
+/** Long enough for a healthy remote to answer, short enough not to stall the UI. */
+const ADVERTISED_DEFAULT_REF_TIMEOUT_MS = 2_000
 
 /**
  * A revision for the default branch that actually exists in this repository.
