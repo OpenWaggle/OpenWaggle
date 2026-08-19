@@ -26,7 +26,7 @@ export function Sidebar() {
     activeBranchId: controller.activeBranchId,
     activeSessionId: controller.activeSessionId,
     activeSessionTree: controller.matchingActiveSessionTree,
-    collapsedProjectPaths: controller.collapsedProjectPaths,
+    isProjectCollapsed: controller.isProjectCollapsed,
     draftBranch: controller.draftBranch,
     draftSessionProjectPath: controller.draftSessionProjectPath,
     projectPath: controller.projectPath,

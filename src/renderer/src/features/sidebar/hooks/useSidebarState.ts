@@ -9,11 +9,9 @@ import { projectName } from '@/shared/lib/format'
 import { useUIStore } from '@/shell/ui-store'
 import { useFullscreen } from '@/shell/useFullscreen'
 import { buildPinnedSessionRows } from '../lib/pinned-sessions'
-import {
-  buildSidebarProjectGroups,
-  type SidebarSessionSortMode,
-} from '../lib/sidebar-project-groups'
+import { buildSidebarProjectGroups } from '../lib/sidebar-project-groups'
 import { usePinnedSessionsStore } from '../state/pinned-sessions-store'
+import { isProjectExpanded, useSidebarViewStore } from '../state/sidebar-view-store'
 import { activeViewFromPathname } from './sidebar-view'
 
 type SidebarSessionsState = ReturnType<typeof useSessions>
@@ -64,15 +62,18 @@ export function useSidebarState() {
   const sessions = useSessions()
   const git = useGit()
   const isFullscreen = useFullscreen()
-  const [sortMode, setSortMode] = useState<SidebarSessionSortMode>('recent')
+  // Sort mode and project expansion persist across launches, so a collapsed tree stays
+  // collapsed. See sidebar-view-store for why the chip filter deliberately does not.
+  const sortMode = useSidebarViewStore((s) => s.sessionSortMode)
+  const setSortMode = useSidebarViewStore((s) => s.setSessionSortMode)
+  const projectExpandedByPath = useSidebarViewStore((s) => s.projectExpandedByPath)
+  const setProjectExpanded = useSidebarViewStore((s) => s.setProjectExpanded)
+  const toggleProjectExpanded = useSidebarViewStore((s) => s.toggleProjectExpanded)
   const [sortMenuOpen, setSortMenuOpen] = useState(false)
   const [pinnedSortMenuOpen, setPinnedSortMenuOpen] = useState(false)
   const pins = usePinnedSessionsStore((s) => s.pins)
   const pinnedSortMode = usePinnedSessionsStore((s) => s.sortMode)
   const setPinnedSortMode = usePinnedSessionsStore((s) => s.setSortMode)
-  const [collapsedProjectPaths, setCollapsedProjectPaths] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  )
 
   const activeSession = resolveActiveSessionState(chat.activeSessionId, sessions)
   const pinnedRows = buildPinnedSessionRows({
@@ -97,10 +98,10 @@ export function useSidebarState() {
     activeSessionId: activeSession.activeSessionId,
     activeView: activeViewFromPathname(pathname),
     chat,
-    collapsedProjectPaths,
     displayProjectName,
     git,
     isFullscreen,
+    isProjectCollapsed: (path: string) => !isProjectExpanded(projectExpandedByPath, path),
     matchingActiveSessionTree: activeSession.matchingActiveSessionTree,
     matchingActiveWorkspace: activeSession.matchingActiveWorkspace,
     navigate,
@@ -109,16 +110,18 @@ export function useSidebarState() {
     pinnedSortMode,
     preferences: { removeProjectReferences, selectedModel, setProjectDisplayName },
     project,
+    projectExpandedByPath,
     sessionGroups,
     sessions,
-    setCollapsedProjectPaths,
     setPinnedSortMenuOpen,
     setPinnedSortMode,
+    setProjectExpanded,
     setSortMenuOpen,
     setSortMode,
     showToast,
     sidebarOpen,
     sortMenuOpen,
     sortMode,
+    toggleProjectExpanded,
   }
 }

@@ -9,20 +9,6 @@ import { createSidebarProjectActions } from './sidebar-project-actions'
 import { createSidebarSessionActions } from './sidebar-session-actions'
 import { useSidebarState } from './useSidebarState'
 
-function removeCollapsedProject(current: ReadonlySet<string>, path: string): ReadonlySet<string> {
-  if (!current.has(path)) return current
-  const next = new Set(current)
-  next.delete(path)
-  return next
-}
-
-function toggleCollapsedProject(current: ReadonlySet<string>, path: string): ReadonlySet<string> {
-  const next = new Set(current)
-  if (next.has(path)) next.delete(path)
-  else next.add(path)
-  return next
-}
-
 function createDomainActions(
   state: ReturnType<typeof useSidebarState>,
   clearTransientDraftContext: () => void,
@@ -66,7 +52,7 @@ function createDomainActions(
     clearTransientDraftContext,
     displayProjectName: state.displayProjectName,
     expandProject(path) {
-      state.setCollapsedProjectPaths((current) => removeCollapsedProject(current, path))
+      state.setProjectExpanded(path, true)
     },
     loadChatSessions: state.chat.loadSessions,
     loadSessionTrees: state.sessions.loadSessions,
@@ -121,7 +107,7 @@ function buildControllerOutput(
     handleToggleBranches: actions.branch.toggle,
     handleTogglePinnedSession: actions.session.togglePin,
     handleToggleProjectCollapsed(path: string) {
-      state.setCollapsedProjectPaths((current) => toggleCollapsedProject(current, path))
+      state.toggleProjectExpanded(path)
     },
     /**
      * Commit a Pinned section drag. Neighbours are resolved from the rendered rows, so a

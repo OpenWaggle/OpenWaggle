@@ -55,7 +55,8 @@ export function buildSessionGitIndicator(
 
 function buildDescription(input: { ahead: number; behind: number }) {
   const clauses: string[] = []
-  if (input.ahead > 0) clauses.push(`${String(input.ahead)} commit${input.ahead === 1 ? '' : 's'} ahead`)
+  if (input.ahead > 0)
+    clauses.push(`${String(input.ahead)} commit${input.ahead === 1 ? '' : 's'} ahead`)
   if (input.behind > 0) {
     clauses.push(`${String(input.behind)} commit${input.behind === 1 ? '' : 's'} behind`)
   }

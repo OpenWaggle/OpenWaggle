@@ -42,7 +42,8 @@ export interface SidebarProjectRenderState {
   readonly activeBranchId: SessionTree['session']['lastActiveBranchId']
   readonly activeSessionId: SessionId | null
   readonly activeSessionTree: SessionTree | null
-  readonly collapsedProjectPaths: ReadonlySet<string>
+  /** True when this project's sessions are hidden. Absent means expanded. */
+  readonly isProjectCollapsed: (projectPath: string) => boolean
   readonly draftBranch: SidebarDraftBranch | null
   readonly draftSessionProjectPath: string | null
   readonly projectPath: string | null

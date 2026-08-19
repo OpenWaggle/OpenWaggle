@@ -160,7 +160,7 @@ export function SidebarProjectGroupSection({
   branchActions,
 }: ProjectGroupSectionProps) {
   const projectLabel = displayProjectName(group.projectPath)
-  const collapsed = renderState.collapsedProjectPaths.has(group.projectPath)
+  const collapsed = renderState.isProjectCollapsed(group.projectPath)
 
   return (
     <section className="mb-2">
