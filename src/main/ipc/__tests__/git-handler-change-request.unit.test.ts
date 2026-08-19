@@ -34,11 +34,22 @@ describe('change request adoption', () => {
     registerGitHandlers()
     const handler = registeredHandler('git:change-request:checkout')
 
-    const result = await handler?.({}, '/tmp/repo', 'feature/pr-branch', 'fetch')
+    const result = await handler?.(
+      {},
+      '/tmp/repo',
+      'https://github.com/example/repo/pull/163',
+      'fetch',
+    )
 
-    expect(result).toEqual({ ok: true, reference: 'feature/pr-branch' })
+    /*
+     * Fetched by change-request number, not by head branch name. The branch only exists on `origin`
+     * for a same-repository change request; for a fork the old refspec either failed outright or -
+     * worse - silently succeeded against an unrelated origin branch of the same name and handed the
+     * session the wrong base. Both providers publish the real head under a numbered ref.
+     */
+    expect(result).toEqual({ ok: true, reference: 'refs/remotes/origin/change-requests/163' })
     expect(commands).toEqual([
-      'fetch origin +refs/heads/feature/pr-branch:refs/remotes/origin/feature/pr-branch',
+      'fetch origin +refs/pull/163/head:refs/remotes/origin/change-requests/163',
     ])
     // Nothing that could move HEAD or the index.
     expect(commands.some((entry) => /^(checkout|switch|reset|restore)\b/.test(entry))).toBe(false)
@@ -58,8 +69,23 @@ describe('change request adoption', () => {
     registerGitHandlers()
     const handler = registeredHandler('git:change-request:checkout')
 
-    const result = await handler?.({}, '/tmp/repo', 'missing', 'fetch')
+    const result = await handler?.(
+      {},
+      '/tmp/repo',
+      'https://github.com/example/repo/pull/999',
+      'fetch',
+    )
 
     expect(result).toMatchObject({ ok: false, code: 'unknown', message: 'no such ref' })
+  })
+
+  it('refuses a reference it cannot identify rather than fetching a same-named branch', async () => {
+    registerGitHandlers()
+    const handler = registeredHandler('git:change-request:checkout')
+
+    const result = await handler?.({}, '/tmp/repo', 'feature/pr-branch', 'fetch')
+
+    expect(result).toMatchObject({ ok: false, code: 'unknown' })
+    expect(commands).toEqual([])
   })
 })

@@ -221,20 +221,28 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
     async (headRef: string) => {
       if (!projectPath) return false
       /*
+       * Worktree mode fetches by change-request URL, not by head branch name: the branch only exists
+       * on `origin` for a same-repository change request, so a fork-based one either failed or
+       * silently resolved to an unrelated origin branch of the same name.
+       */
+      const selected = changeRequests.find((request) => request.headRef === headRef)
+      /*
        * A worktree-mode session only needs the ref as a base for its own tree, so fetch it and
        * record it. Checking it out would switch the user's opened checkout to the change-request
        * branch - a tree this session never runs in - and would fail or leave partial state when
        * that checkout is dirty.
        */
       const adoption: ChangeRequestAdoption = envMode === 'worktree' ? 'fetch' : 'checkout'
+      const reference = adoption === 'fetch' ? (selected?.url ?? headRef) : headRef
       try {
         const result = await api.checkoutChangeRequest(
           RepositoryPath(projectPath),
-          headRef,
+          reference,
           adoption,
         )
         if (result.ok) {
-          setBaseRef(headRef)
+          // Main reports the ref it actually made available, which for a fetch is a local ref.
+          setBaseRef(result.reference)
           return true
         }
         logger.warn('Change request adoption failed', { code: result.code, adoption })
@@ -244,7 +252,7 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
         return false
       }
     },
-    [projectPath, setBaseRef, envMode],
+    [projectPath, setBaseRef, envMode, changeRequests],
   )
 
   const sendPlan = useMemo(

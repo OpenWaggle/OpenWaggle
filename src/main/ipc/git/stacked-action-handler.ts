@@ -19,6 +19,7 @@ import { runStackedGitAction, type StackedActionDeps } from './stacked-action-se
 import { invalidateGitStatusCache } from './status-cache'
 import { invalidateVcsStatus, readLocalVcsStatus } from './vcs-status-cache'
 import { detectSourceControlProvider } from './vcs-status-parse'
+import { resolveRepositoryRoot } from './working-tree-service'
 
 const stackedActionOptionsSchema = Schema.Struct({
   action: Schema.Literal(...GIT_STACKED_ACTIONS),
@@ -83,8 +84,17 @@ function createStackedActionDeps(): StackedActionDeps {
           message: 'Select the files to commit: nothing was staged for this action.',
         }
       }
-      await runGit(projectPath, ['add', '--', ...selected])
-      return commitGit(projectPath, { message, amend: false, paths: [...selected] })
+      /*
+       * Staged and committed from the repository root, because the paths are repository-relative -
+       * that is what `git status --porcelain` reports, and what the renderer passes through. Running
+       * them from an opened subdirectory resolved them relative to that subdirectory instead:
+       * verified that `git add -- packages/app/x.txt` from `packages/app` fails with
+       * "pathspec ... did not match any files". `git add --all` hid this because it takes no
+       * pathspec. Revert all is already re-based onto the root; commit now agrees with it.
+       */
+      const repositoryRoot = (await resolveRepositoryRoot(projectPath)) ?? projectPath
+      await runGit(repositoryRoot, ['add', '--', ...selected])
+      return commitGit(repositoryRoot, { message, amend: false, paths: [...selected] })
     },
     push: (projectPath) => pushCurrentBranch(projectPath),
     pull: (projectPath) => pullCurrentBranch(projectPath),

@@ -3,6 +3,7 @@ import type { ChangeRequestCheckoutResult } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
 import { getSourceControlProvider } from '../../adapters/source-control'
 import { typedHandle } from '../typed-ipc'
+import { planChangeRequestFetch } from './change-request-refs'
 import { adoptionSchema, referenceSchema } from './change-request-schemas'
 import { projectPathSchema, runGit } from './shared'
 import { detectSourceControlProvider } from './vcs-status-parse'
@@ -23,27 +24,42 @@ const NO_PROVIDER = {
 const CHANGE_REQUEST_REMOTE = 'origin'
 
 /**
- * Make a change-request ref available locally without touching any working tree.
+ * Make a change request's head commit available locally without touching any working tree.
  *
- * A worktree-mode session only needs the ref as a base for its own tree. Running the provider's
+ * A worktree-mode session only needs the commit as a base for its own tree. Running the provider's
  * checkout instead switched the user's opened checkout to the change-request branch as a side
- * effect - a real branch switch of a tree the session does not even use, which would also fail
- * or leave partial state on a dirty checkout.
+ * effect - a real branch switch of a tree the session does not even use, which would also fail or
+ * leave partial state on a dirty checkout.
+ *
+ * The reference here is the change request's URL, not its head branch name: the branch only exists
+ * on `origin` for a same-repository change request, so a fork-based one either failed to fetch or
+ * silently resolved to an unrelated `origin` branch of the same name. Returns the local ref the
+ * caller should record as its base.
  */
 async function fetchChangeRequestRef(
   repositoryPath: string,
-  reference: string,
+  changeRequestUrl: string,
 ): Promise<ChangeRequestCheckoutResult> {
-  const refspec = `+refs/heads/${reference}:refs/remotes/${CHANGE_REQUEST_REMOTE}/${reference}`
+  const plan = planChangeRequestFetch(changeRequestUrl)
+  if (plan === null) {
+    return {
+      ok: false,
+      code: 'unknown',
+      message: `Could not tell which change request "${changeRequestUrl}" refers to.`,
+    }
+  }
+
+  const refspec = `+${plan.remoteRef}:${plan.localRef}`
   const result = await runGit(repositoryPath, ['fetch', CHANGE_REQUEST_REMOTE, refspec])
   if (result.code !== 0) {
     return {
       ok: false,
       code: 'unknown',
-      message: result.stderr.trim() || `Could not fetch "${reference}".`,
+      message: result.stderr.trim() || `Could not fetch ${plan.remoteRef}.`,
     }
   }
-  return { ok: true, reference }
+  // The base ref the session should use: a local ref that exists regardless of forks.
+  return { ok: true, reference: plan.localRef }
 }
 
 export function registerGitChangeRequestHandlers(): void {
