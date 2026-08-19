@@ -19,6 +19,12 @@ export interface ChangeRequestFetchPlan {
 /**
  * How to fetch a change request's head commit.
  *
+ * The local ref lives under `refs/openwaggle/`, not under `refs/remotes/origin/`. That namespace is the
+ * destination of the default fetch refspec, and an adopted head has no counterpart upstream, so any
+ * pruning fetch - `git fetch --prune`, or a bare fetch for a user with `fetch.prune=true`, which the app
+ * itself runs - treats it as a stale remote-tracking branch and deletes it. The session's recorded base
+ * ref would then stop resolving.
+ *
  * Derived from the change request's URL rather than its head branch name. The branch name only
  * exists on `origin` when the change request came from the same repository, so for a fork-based
  * change request - the normal shape of an outside contribution - fetching
@@ -33,7 +39,7 @@ export function planChangeRequestFetch(changeRequestUrl: string): ChangeRequestF
     if (number !== undefined) {
       return {
         remoteRef: pattern.headRef(number),
-        localRef: `refs/remotes/origin/change-requests/${number}`,
+        localRef: `refs/openwaggle/change-requests/${number}`,
       }
     }
   }

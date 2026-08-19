@@ -96,9 +96,25 @@ async function ensureSessionWorktreeProjectPathUnlocked(session: SessionDetail):
    * Checked before the base ref is resolved, because adoption needs no base ref: doing it after
    * meant a repeat call for an existing tree could still fail with "no base branch is resolvable".
    */
-  if (existsSync(worktreePath) && (await isWorktreeOf(primaryPath, worktreePath))) {
-    await setSessionWorktree(SessionId(sessionId), 'worktree', worktreePath)
-    return worktreePath
+  if (existsSync(worktreePath)) {
+    if (await isWorktreeOf(primaryPath, worktreePath)) {
+      await setSessionWorktree(SessionId(sessionId), 'worktree', worktreePath)
+      return worktreePath
+    }
+    /*
+     * Something else occupies this session's deterministic path - a directory left behind after the
+     * repository was moved or re-cloned. Refusing to adopt it is right, but falling through to
+     * `git worktree add` was not: that cannot write into a non-empty directory, so every send failed
+     * with git's own message and the session had no route back, since no worktree was ever recorded
+     * for the recover-or-switch gate to offer. Say what is in the way and what to do about it.
+     */
+    logger.warn('A non-worktree directory occupies the session worktree path', {
+      sessionId,
+      worktreePath,
+    })
+    throw new Error(
+      `Cannot create this session's worktree: ${worktreePath} already exists and is not a worktree of this repository. Remove or rename that directory, or switch this session to the current checkout.`,
+    )
   }
 
   const baseRef = await resolveWorktreeBaseRef(session, primaryPath)

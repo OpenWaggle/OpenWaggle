@@ -202,9 +202,15 @@ describe('ensureSessionWorktreeProjectPath', () => {
       return Promise.resolve({ code: 0, stdout: 'main\n', stderr: '' })
     })
 
-    await ensureSessionWorktreeProjectPath(session({ environmentMode: 'worktree' }))
+    /*
+     * Refusing to adopt is right, but falling through to `git worktree add` was not: it cannot write
+     * into a non-empty directory, so every send failed with git's own message and the session had no
+     * route back - no worktree was ever recorded for the recover-or-switch gate to offer.
+     */
+    await expect(
+      ensureSessionWorktreeProjectPath(session({ environmentMode: 'worktree' })),
+    ).rejects.toThrow(/already exists and is not a worktree/)
 
-    // Creation happened instead of adoption.
-    expect(createGitWorktreeMock).toHaveBeenCalledTimes(1)
+    expect(createGitWorktreeMock).not.toHaveBeenCalled()
   })
 })

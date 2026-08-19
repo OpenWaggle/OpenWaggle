@@ -47,9 +47,9 @@ describe('change request adoption', () => {
      * worse - silently succeeded against an unrelated origin branch of the same name and handed the
      * session the wrong base. Both providers publish the real head under a numbered ref.
      */
-    expect(result).toEqual({ ok: true, reference: 'refs/remotes/origin/change-requests/163' })
+    expect(result).toEqual({ ok: true, reference: 'refs/openwaggle/change-requests/163' })
     expect(commands).toEqual([
-      'fetch origin +refs/pull/163/head:refs/remotes/origin/change-requests/163',
+      'fetch origin +refs/pull/163/head:refs/openwaggle/change-requests/163',
     ])
     // Nothing that could move HEAD or the index.
     expect(commands.some((entry) => /^(checkout|switch|reset|restore)\b/.test(entry))).toBe(false)
