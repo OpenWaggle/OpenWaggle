@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   collectSessionSummaryColumnViolations,
   containsSessionBranchPrefix,
-  withoutCommentLines,
 } from '../check-repository-standards'
+import { withoutCommentLines } from '../standards/comment-stripping'
 
 describe('session branch prefix detection', () => {
   it('matches the prefix wherever it appears, not only after a quote', () => {
@@ -22,10 +22,21 @@ describe('session branch prefix detection', () => {
     const source = [
       '// branches are named ow/session-<id>',
       '/* also ow/session- in a block */',
-      'const branch = sessionWorktreeBranch(id)',
+      'const branch = sessionWorktreeBranch(id) // and ow/session- in a trailing comment',
+      'const url = "https://example.com/ow/session-docs"',
     ].join('\n')
 
-    expect(containsSessionBranchPrefix(withoutCommentLines(source))).toBe(false)
+    // The trailing-comment case regressed when the match was widened to the whole line.
+    expect(containsSessionBranchPrefix(withoutCommentLines(source))).toBe(true)
+    expect(
+      containsSessionBranchPrefix(
+        withoutCommentLines(
+          ['// ow/session-<id>', 'const branch = sessionWorktreeBranch(id) // ow/session-x'].join(
+            '\n',
+          ),
+        ),
+      ),
+    ).toBe(false)
   })
 })
 
@@ -53,5 +64,18 @@ describe('SessionSummaryRow column detection', () => {
     const contents = 'sql<SessionSummaryRow>`SELECT COUNT(*) AS total FROM sessions`'
 
     expect(collectSessionSummaryColumnViolations(file, contents)).toEqual([])
+  })
+
+  it('still rejects an inline list that merely carries a COUNT subquery', () => {
+    /*
+     * The rule briefly skipped any query containing `count(` anywhere, which exempted exactly the
+     * shape the detail-side row uses - so a list missing `environment_mode` and `worktree_path`, the
+     * original production bug, went unreported again.
+     */
+    const contents =
+      'sql<SessionSummaryRow>`SELECT id, title, project_path, ' +
+      '(SELECT COUNT(*) FROM messages m WHERE m.session_id = s.id) AS message_count FROM sessions s`'
+
+    expect(collectSessionSummaryColumnViolations(file, contents)).toHaveLength(1)
   })
 })

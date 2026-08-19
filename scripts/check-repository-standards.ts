@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import fg from 'fast-glob'
+import { withoutCommentLines } from './standards/comment-stripping'
 import { collectDuplicateExportedTypes } from './standards/duplicate-exported-types'
 import {
   collectPackageBoundaryViolations,
@@ -158,17 +159,6 @@ export function containsSessionBranchPrefix(code: string) {
   return code.includes(SESSION_BRANCH_PREFIX_LITERAL)
 }
 
-export function withoutCommentLines(contents: string) {
-  return contents
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .split('\n')
-    .filter((line) => {
-      const trimmed = line.trimStart()
-      return !trimmed.startsWith('//') && !trimmed.startsWith('*')
-    })
-    .join('\n')
-}
-
 function collectSessionBranchConventionViolations(file: string, contents: string) {
   const normalized = normalizePath(file)
   if (normalized === SESSION_BRANCH_CONVENTION_OWNER) return []
@@ -227,14 +217,24 @@ function printViolations(violations: readonly Violation[]) {
 const SESSION_SUMMARY_QUERY_PATTERN = /sql<SessionSummaryRow>`([^`]*)`/gsu
 const SESSION_SUMMARY_COLUMN_FRAGMENT = 'sessionSummaryColumns'
 /**
- * A query that selects columns at all, so a bare `SELECT COUNT(*)` or a fragment is not reported.
+ * The projection of a query: what sits between its first `select` and the matching `from`.
  *
- * The rule is "use the shared fragment", not "avoid one particular column name". It used to fire
- * only when the inline list mentioned `created_at`, which let through exactly the defect it was
- * written for: a list that *omits* a column the row type promises. `SELECT id, title, project_path`
- * typed as `SessionSummaryRow` passed the guard while the missing columns came back undefined.
+ * The rule is "use the shared fragment", not "avoid one particular column name". Two earlier versions
+ * were wrong in opposite directions: firing only when the list mentioned `created_at` let through the
+ * very defect it was written for, and skipping any query containing `count(` anywhere exempted an
+ * inline list that merely carried a `COUNT(...)` subquery - which is the shape the detail-side row
+ * actually uses, so a list missing `environment_mode` and `worktree_path` went unreported again.
+ * Judging the projection alone keeps `SELECT COUNT(*) AS total` passing and that subquery failing.
  */
-const SESSION_SUMMARY_SELECTS_COLUMNS = /\bselect\b(?![\s\S]*\bcount\s*\()/iu
+const SESSION_SUMMARY_PROJECTION = /\bselect\b(?<projection>[\s\S]*?)\bfrom\b/iu
+/** A projection made only of aggregates names no columns, so the fragment does not apply. */
+const AGGREGATE_ONLY_PROJECTION = /^[\s(]*\b(?:count|sum|min|max|avg)\s*\([\s\S]*$/iu
+
+function selectsNamedColumns(query: string) {
+  const projection = SESSION_SUMMARY_PROJECTION.exec(query)?.groups?.['projection']
+  if (projection === undefined) return false
+  return !AGGREGATE_ONLY_PROJECTION.test(projection.trim())
+}
 const SESSION_SUMMARY_COLUMN_OWNERS: readonly string[] = [
   // A different SessionSummaryRow: the detail-side shape with message_count and aliases.
   'src/main/store/session-details/session-queries.ts',
@@ -251,7 +251,7 @@ export function collectSessionSummaryColumnViolations(file: string, contents: st
   for (const match of contents.matchAll(SESSION_SUMMARY_QUERY_PATTERN)) {
     const query = match[1] ?? ''
     if (query.includes(SESSION_SUMMARY_COLUMN_FRAGMENT)) continue
-    if (!SESSION_SUMMARY_SELECTS_COLUMNS.test(query)) continue
+    if (!selectsNamedColumns(query)) continue
     violations.push({
       file: normalizePath(file),
       message:

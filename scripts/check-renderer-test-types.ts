@@ -22,6 +22,8 @@ import { execFile } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
+import { safeDecodeUnknown } from '@shared/schema'
+import { jsonObjectSchema } from '@shared/schemas/validation'
 
 const execFileAsync = promisify(execFile)
 
@@ -100,6 +102,29 @@ export function isRendererTestFile(filePath: string) {
 }
 
 /**
+ * Options that stop tsc reporting type errors at all.
+ *
+ * A positive control on the checker itself. Both other tripwires - a non-zero exit with no parseable
+ * errors, and a floor on the files pulled into the program - are blind to `noCheck`: with it, tsc
+ * exits 0, reports nothing, and still lists every file, so this script printed "all other test files
+ * are clean" while checking nothing. That is verbatim the state it was created to prevent, and one
+ * line in a tsconfig was enough to reach it.
+ */
+const OPTIONS_THAT_MUST_BE_OFF = ['noCheck'] as const
+
+/** Read the effective compiler options tsc will actually use. */
+async function readEffectiveCompilerOptions(): Promise<Readonly<Record<string, unknown>>> {
+  const { stdout } = await execFileAsync('npx', ['tsc', '-p', PROJECT, '--showConfig'], {
+    cwd: process.cwd(),
+    maxBuffer: TSC_OUTPUT_MAX_BUFFER_BYTES,
+  })
+  const parsed = safeDecodeUnknown(jsonObjectSchema, JSON.parse(stdout))
+  if (!parsed.success) return {}
+  const options = parsed.data['compilerOptions']
+  return options !== null && typeof options === 'object' ? { ...options } : {}
+}
+
+/**
  * Below this, the project is not really checking the renderer tests any more.
  *
  * Well under the real count (234 renderer test files at the time of writing) so ordinary churn
@@ -136,6 +161,19 @@ async function readExemptions() {
 }
 
 async function main() {
+  const effectiveOptions = await readEffectiveCompilerOptions()
+  const disabled = OPTIONS_THAT_MUST_BE_OFF.filter(
+    (option) => effectiveOptions[option] === true,
+  )
+  if (disabled.length > 0) {
+    console.error(
+      `${PROJECT} enables ${disabled.join(', ')}, so tsc reports no type errors at all and this ` +
+        'check would pass while checking nothing. Remove it.',
+    )
+    process.exitCode = 1
+    return
+  }
+
   const { output, failed } = await runTypecheck()
   const current = countErrorsByFile(output)
   const failingFiles = Object.keys(current).sort()

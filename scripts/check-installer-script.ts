@@ -36,7 +36,15 @@ const execFileAsync = promisify(execFile)
 const ELECTRON_BUILDER_CONFIG = 'electron-builder.yml'
 /** Fallback only for the error message when the config does not declare one. */
 const DEFAULT_INSTALLER_SCRIPT = 'build/installer.nsh'
-const NSIS_INCLUDE_LINE = /^\s*include:\s*(?<path>\S+)\s*$/mu
+/**
+ * The `include:` that belongs to the top-level `nsis:` block.
+ *
+ * Scoped deliberately: an unanchored search would match an `include:` under any other key - `files`,
+ * `dmg`, a linux target - and compile a path that is not the installer script at all.
+ */
+const NSIS_BLOCK = /^nsis:\s*$/mu
+const BLOCK_ENTRY = /^ {2}(?<key>[A-Za-z_][\w-]*):\s*(?<value>\S+)?\s*$/u
+const TOP_LEVEL_KEY = /^\S/u
 const MAKENSIS_MISSING_EXIT_CODES = new Set(['ENOENT'])
 /** electron-builder compiles with warnings-as-errors; mirror it or the check is weaker. */
 const MAKENSIS_ARGS = ['-WX'] as const
@@ -182,7 +190,17 @@ function commandOutput(error: unknown) {
  */
 async function resolveInstallerScript(repositoryRoot: string) {
   const config = await readFile(path.join(repositoryRoot, ELECTRON_BUILDER_CONFIG), 'utf8')
-  return NSIS_INCLUDE_LINE.exec(config)?.groups?.['path'] ?? null
+  const lines = config.split('\n')
+  const start = lines.findIndex((line) => NSIS_BLOCK.test(line))
+  if (start === -1) return null
+
+  for (const line of lines.slice(start + 1)) {
+    // The block ends at the next top-level key.
+    if (TOP_LEVEL_KEY.test(line) && line.trim().length > 0) return null
+    const entry = BLOCK_ENTRY.exec(line)
+    if (entry?.groups?.['key'] === 'include') return entry.groups['value'] ?? null
+  }
+  return null
 }
 
 async function main() {
