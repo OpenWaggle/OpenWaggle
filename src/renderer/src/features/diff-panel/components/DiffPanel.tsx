@@ -139,9 +139,6 @@ export function DiffPanel({
   })
 
   const [pendingCommitAction, setPendingCommitAction] = useState<GitStackedAction | null>(null)
-  const retryLoad = () => {
-    if (workingPath) void refreshDiff(workingPath)
-  }
 
   /**
    * Commit-bearing actions must collect an explicit message first (review B2);
@@ -172,7 +169,7 @@ export function DiffPanel({
         files={fileDiffs}
         isLoading={isLoading}
         loadError={loadError}
-        onRetryLoad={retryLoad}
+        onRetryLoad={displayed.retryLoad}
         onSendMessage={onSendMessage}
         onFileClick={(path) =>
           viewerRef.current?.scrollTo({ type: 'item', id: codeViewItemId(path), align: 'start' })

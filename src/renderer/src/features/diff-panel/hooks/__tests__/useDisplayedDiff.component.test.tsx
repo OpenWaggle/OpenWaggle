@@ -1,5 +1,5 @@
 import { SessionId, WorkingPath } from '@shared/types/brand'
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DiffScopeSelection } from '@/features/diff-panel/state/diff-scope-store'
 import { api } from '@/shared/lib/ipc'
@@ -97,5 +97,31 @@ describe('useDisplayedDiff in Turn scope', () => {
 
     resolveSecond?.(turnDiff('turn2.ts'))
     await waitFor(() => expect(result.current.fileDiffs.map((f) => f.path)).toEqual(['turn2.ts']))
+  })
+
+  it('retries the checkpoint read, not a working-tree diff, when a turn diff failed', async () => {
+    /*
+     * "Try again" went to the diff loader, which does not own turn scopes: it first ran a working-tree
+     * `git diff` and replaced the failure with the wrong files, then - once that was stopped - did nothing
+     * at all. The retry has to reach whichever loader owns the active scope.
+     */
+    vi.mocked(api.getTurnDiff).mockResolvedValueOnce(null)
+    const { result } = renderHook(() =>
+      useDisplayedDiff({
+        sessionId: SESSION,
+        workingPath: WORKING,
+        selection: turnScope('t1'),
+        refreshToken: 0,
+      }),
+    )
+    await waitFor(() => expect(result.current.loadError).not.toBeNull())
+
+    vi.mocked(api.getTurnDiff).mockResolvedValue(turnDiff('turn1.ts'))
+    act(() => {
+      result.current.retryLoad()
+    })
+
+    await waitFor(() => expect(result.current.fileDiffs.map((f) => f.path)).toEqual(['turn1.ts']))
+    expect(api.getGitDiff).not.toHaveBeenCalled()
   })
 })

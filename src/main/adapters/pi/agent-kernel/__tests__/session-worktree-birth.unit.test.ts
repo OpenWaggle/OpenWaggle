@@ -213,4 +213,30 @@ describe('ensureSessionWorktreeProjectPath', () => {
 
     expect(createGitWorktreeMock).not.toHaveBeenCalled()
   })
+
+  it('treats a recorded path that is no longer a worktree as missing, rather than using it', async () => {
+    /*
+     * The deterministic path was verified but the *recorded* one - checked first - was still adopted on
+     * existence alone. A directory left behind after the repository was moved or re-cloned was therefore
+     * handed to the agent as its working tree, where every git command fails and turn capture silently
+     * no-ops. The send gate already knows how to recover from a missing worktree.
+     */
+    existsSyncMock.mockReset().mockReturnValue(true)
+    runGitMock.mockReset().mockImplementation((cwd: string, args: readonly string[]) => {
+      if (args[0] === 'rev-parse' && args.includes('--git-common-dir')) {
+        return Promise.resolve({
+          code: 0,
+          stdout: cwd === '/repo' ? '/repo/.git\n' : '/elsewhere/.git\n',
+          stderr: '',
+        })
+      }
+      return Promise.resolve({ code: 0, stdout: 'main\n', stderr: '' })
+    })
+
+    await expect(
+      ensureSessionWorktreeProjectPath(
+        session({ environmentMode: 'worktree', worktreePath: '/stale/tree' }),
+      ),
+    ).rejects.toThrow(/no longer exists|not a worktree/)
+  })
 })

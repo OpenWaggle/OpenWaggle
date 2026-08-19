@@ -28,6 +28,8 @@ export interface TurnDiffFiles {
    * stored against the new turn.
    */
   readonly isLoading: boolean
+  /** Re-read the checkpoint. The diff loader does not own this scope, so it cannot retry it. */
+  readonly retry: () => void
 }
 
 /** List the session's Turn checkpoints (WS6b/WS7), oldest first (ascending turn index). */
@@ -75,6 +77,7 @@ export function useTurnDiffFiles(
    */
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [retryToken, setRetryToken] = useState(0)
   const turnId = selection.kind === 'turn' ? selection.turnId : null
 
   useEffect(() => {
@@ -85,6 +88,7 @@ export function useTurnDiffFiles(
       return
     }
     // Clear first: the previous turn's files must not stand in for the one now selected.
+    logger.debug('Reading turn checkpoint', { turnId, retryToken })
     setFiles(EMPTY_FILES)
     setError(null)
     setIsLoading(true)
@@ -113,7 +117,7 @@ export function useTurnDiffFiles(
     return () => {
       cancelled = true
     }
-  }, [sessionId, turnId])
+  }, [sessionId, turnId, retryToken])
 
-  return { files, error, isLoading }
+  return { files, error, isLoading, retry: () => setRetryToken((token) => token + 1) }
 }

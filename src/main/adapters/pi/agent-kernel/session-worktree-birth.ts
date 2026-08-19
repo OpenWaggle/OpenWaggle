@@ -54,7 +54,16 @@ async function ensureSessionWorktreeProjectPathUnlocked(session: SessionDetail):
 
   if (session.environmentMode !== 'worktree') return primaryPath
   const existing = session.worktreePath?.trim()
-  if (existing && existsSync(existing)) return existing
+  /*
+   * The recorded path is verified, not merely checked for existence - the same reason the deterministic
+   * path is. A directory left behind after the repository was moved or re-cloned would otherwise be handed
+   * to the agent as its working tree, where every git command fails and turn capture silently no-ops. A
+   * record that no longer names a worktree of this repository is treated as a missing worktree, which the
+   * send gate already knows how to recover from.
+   */
+  if (existing && existsSync(existing) && (await isWorktreeOf(primaryPath, existing))) {
+    return existing
+  }
 
   if (existing) {
     /*
