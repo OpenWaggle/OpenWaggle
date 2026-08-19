@@ -44,7 +44,11 @@ export function SessionRowSecondLine({
         className="flex min-w-0 flex-auto items-center gap-[5px] overflow-hidden whitespace-nowrap"
       >
         {stateLabel === '' ? null : (
-          <span className="shrink-0 font-bold tracking-[0.02em]" style={{ color: stateColorVar }}>
+          <span
+            data-qa="sidebar-row-state"
+            className="shrink-0 font-bold tracking-[0.02em]"
+            style={{ color: stateColorVar }}
+          >
             {stateLabel}
           </span>
         )}
