@@ -28,6 +28,14 @@ export interface CommitPaths {
    * failure-as-emptiness defect this panel has now had fixed three times over.
    */
   readonly error: string | null
+  /**
+   * True while the working tree is being read.
+   *
+   * "Not read yet" is not "clean". Without this the panel answered a commit pressed during the first load
+   * with "no changes in this working tree to commit" - the same failure-as-emptiness mistake, one state
+   * further along.
+   */
+  readonly isLoading: boolean
 }
 
 export function useCommitPaths(workingPath: WorkingPath | null, refreshToken = 0): CommitPaths {
@@ -55,5 +63,6 @@ export function useCommitPaths(workingPath: WorkingPath | null, refreshToken = 0
       file.renamedFrom === undefined ? [file.path] : [file.renamedFrom, file.path],
     ),
     error: workingTreeStatus.error,
+    isLoading: workingTreeStatus.isLoading,
   }
 }

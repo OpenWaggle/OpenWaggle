@@ -51,7 +51,12 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       }
       const sessionId = await createSession(projectPath)
       await flushDraftWorktreePlanToSession(projectPath, sessionId)
-      void sendMessageToSession(sessionId, payload, null)
+      /*
+       * Awaited, and its failure propagates. Dispatching this fire-and-forget meant the caller was told
+       * the send had succeeded: a review submitted as a session's first message was cleared and never
+       * restored, because the promise that would have signalled the failure was dropped.
+       */
+      await sendMessageToSession(sessionId, payload, null)
       return
     }
     await sendMessage(payload)
@@ -112,6 +117,8 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
         sessionId: String(sessionId),
         error: error instanceof Error ? error.message : String(error),
       })
+      // Rethrown so the caller can react - a submitted review has to be restored, not silently lost.
+      throw error
     }
   }
 

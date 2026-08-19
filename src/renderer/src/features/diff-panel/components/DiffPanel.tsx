@@ -56,6 +56,7 @@ function selectScope(input: {
 }
 
 const NOTHING_TO_COMMIT_MESSAGE = 'No changes in this working tree to commit.'
+const STILL_READING_MESSAGE = 'Still reading this working tree - try again in a moment.'
 
 /**
  * Dispatch a quick action, collecting a commit message first when one is needed.
@@ -75,9 +76,13 @@ function requestStackedAction(input: {
     input.run(input.action, { paths: input.commitPaths.paths })
     return
   }
-  // A tree that could not be read is not a clean tree.
+  // A tree that could not be read - or has not been read yet - is not a clean tree.
   if (input.commitPaths.error !== null) {
     input.showToast(`Could not read this working tree: ${input.commitPaths.error}`, 'error')
+    return
+  }
+  if (input.commitPaths.isLoading) {
+    input.showToast(STILL_READING_MESSAGE, 'error')
     return
   }
   if (input.commitPaths.paths.length === 0) input.showToast(NOTHING_TO_COMMIT_MESSAGE, 'error')
