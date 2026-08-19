@@ -157,4 +157,57 @@ describe('Conventional Commit PR title release intent', () => {
       await fs.rm(cwd, { force: true, recursive: true })
     }
   })
+
+  it('refuses a merge that reverts a published package to an older released state', async () => {
+    /*
+     * The adversarial shape an earlier version of this exemption passed. A combined diff omits a path
+     * whenever the merge result matches *any* parent, and containment accepts any ancestor of the
+     * base - so merging an old released commit and resolving a published file back to that older
+     * content produced an empty combined diff and sailed through both rules. What the exemption
+     * actually needs to know is whether the base already holds this content.
+     */
+    const { baseline, cwd } = await createRepository()
+    try {
+      await writeAndCommit(
+        cwd,
+        'packages/extension-sdk/index.ts',
+        'export const v = 2\n',
+        'fix(extension-sdk): release v2',
+      )
+      const oldReleased = await git(cwd, ['rev-parse', 'HEAD'])
+      await writeAndCommit(
+        cwd,
+        'packages/extension-sdk/index.ts',
+        'export const v = 3\n',
+        'fix(extension-sdk): release v3',
+      )
+      const baseRef = await git(cwd, ['rev-parse', 'HEAD'])
+
+      await git(cwd, ['checkout', '-b', 'feature', baseline])
+      await writeAndCommit(cwd, 'src/feature.ts', 'export {}\n', 'feat(app): add a feature')
+      // Merge an old released commit, keeping the published file at that older content.
+      await git(cwd, [...GIT_IDENTITY, 'merge', '--no-ff', '--no-commit', oldReleased]).catch(
+        () => undefined,
+      )
+      await writeAndCommit(
+        cwd,
+        'packages/extension-sdk/index.ts',
+        'export const v = 2\n',
+        "Merge branch 'old' into feature",
+      )
+      const evilMerge = await git(cwd, ['rev-parse', 'HEAD'])
+
+      const result = await validateConventionalCommits({
+        baseline,
+        cwd,
+        from: baseRef,
+        to: evilMerge,
+        prTitle: 'docs(app): describe the feature',
+      })
+
+      expect(result.violations.length).toBeGreaterThan(0)
+    } finally {
+      await fs.rm(cwd, { force: true, recursive: true })
+    }
+  })
 })

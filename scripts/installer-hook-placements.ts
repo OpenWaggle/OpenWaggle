@@ -19,9 +19,20 @@ import fg from 'fast-glob'
  */
 export type HookContext = 'top-level' | 'section' | 'function'
 
+/** The compilations electron-builder performs: the installer, and the uninstaller separately. */
+export type CompilePassName = 'installer' | 'uninstaller'
+
 export interface HookPlacement {
-  /** True when electron-builder compiles this hook with BUILD_UNINSTALLER defined. */
-  readonly uninstallerPass: boolean
+  /**
+   * Every pass that compiles this hook.
+   *
+   * A set, not a boolean. `installer.nsi` is compiled twice - once plainly, once with
+   * `-DBUILD_UNINSTALLER` - so a hook inserted there with no pass guard is compiled in *both*, and
+   * modelling the pass as a single flag silently checked `customHeader` and `preInit` in the installer
+   * pass only. A helper those hooks rely on is declared per pass, so the unchecked pass is exactly
+   * where a release would fail.
+   */
+  readonly passes: readonly CompilePassName[]
   readonly context: HookContext
   /** Where the placement was observed, for the error message. */
   readonly source: string
@@ -29,6 +40,7 @@ export interface HookPlacement {
 
 const TEMPLATE_GLOB = 'node_modules/.pnpm/app-builder-lib@*/node_modules/app-builder-lib/templates/nsis'
 const UNINSTALLER_DEFINE = 'BUILD_UNINSTALLER'
+const ALL_PASSES: readonly CompilePassName[] = ['installer', 'uninstaller']
 /** Templates the installer entry point includes only for one pass. */
 const PASS_BY_TEMPLATE: Readonly<Record<string, boolean>> = {
   'uninstaller.nsh': true,
@@ -173,8 +185,13 @@ function findPlacement(
     const byTemplate = PASS_BY_TEMPLATE[path.basename(relative)]
     const basename = path.basename(relative)
     const withinFile = contextAt(lines, index)
+    const pass = guarded ?? byTemplate
     return {
-      uninstallerPass: guarded ?? byTemplate ?? false,
+      /*
+       * An unguarded insertion in a file that is not pass-specific is compiled in both passes, which
+       * is how electron-builder treats `installer.nsi` itself.
+       */
+      passes: pass === undefined || pass === null ? ALL_PASSES : [pass ? 'uninstaller' : 'installer'],
       context: withinFile === 'top-level' ? (CONTEXT_BY_TEMPLATE[basename] ?? 'top-level') : withinFile,
       source: `${relative}:${String(index + 1)}`,
     }

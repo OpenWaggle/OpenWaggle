@@ -182,8 +182,12 @@ describe('registerGitHandlers working-tree actions', () => {
         match(args.join(' '))
           .with('rev-parse --is-inside-work-tree', () => callback(null, 'true\n', ''))
           .with('rev-parse --abbrev-ref HEAD', () => callback(null, 'main\n', ''))
-          .with('status --porcelain=v1', () => callback(null, ' M modified.txt\n', ''))
-          .with('diff --numstat HEAD', () => callback(null, '1\t0\tmodified.txt\n', ''))
+          .with('-c core.quotePath=false status --porcelain=v1', () =>
+            callback(null, ' M modified.txt\n', ''),
+          )
+          .with('-c core.quotePath=false diff --numstat HEAD', () =>
+            callback(null, '1\t0\tmodified.txt\n', ''),
+          )
           .with('rev-list --left-right --count HEAD...@{upstream}', () =>
             callback(null, '0\t0\n', ''),
           )
@@ -205,7 +209,9 @@ describe('registerGitHandlers working-tree actions', () => {
 
     const statusCommandCalls = execFileMock.mock.calls.filter((call: unknown[]) => {
       const args = call[1]
-      return Array.isArray(args) && args.join(' ') === 'status --porcelain=v1'
+      return (
+        Array.isArray(args) && args.join(' ') === '-c core.quotePath=false status --porcelain=v1'
+      )
     })
     expect(statusCommandCalls).toHaveLength(2)
   })
@@ -225,7 +231,7 @@ describe('registerGitHandlers working-tree actions', () => {
         match(args.join(' '))
           .with('rev-parse --is-inside-work-tree', () => callback(null, 'true\n', ''))
           .with('rev-parse --abbrev-ref HEAD', () => callback(null, 'main\n', ''))
-          .with('status --porcelain=v1', () => {
+          .with('-c core.quotePath=false status --porcelain=v1', () => {
             statusCallCount += 1
             if (statusCallCount === 1) {
               firstStatusCallback = callback
@@ -233,7 +239,7 @@ describe('registerGitHandlers working-tree actions', () => {
             }
             callback(null, '', '')
           })
-          .with('diff --numstat HEAD', () => callback(null, '', ''))
+          .with('-c core.quotePath=false diff --numstat HEAD', () => callback(null, '', ''))
           .with('rev-list --left-right --count HEAD...@{upstream}', () =>
             callback(null, '0\t0\n', ''),
           )
@@ -270,11 +276,11 @@ describe('registerGitHandlers working-tree actions', () => {
         match(args.join(' '))
           .with('rev-parse --is-inside-work-tree', () => callback(null, 'true\n', ''))
           .with('rev-parse --abbrev-ref HEAD', () => callback(null, 'main\n', ''))
-          .with('status --porcelain=v1', () => {
+          .with('-c core.quotePath=false status --porcelain=v1', () => {
             statusCallCount += 1
             callback(null, '', '')
           })
-          .with('diff --numstat HEAD', () => callback(null, '', ''))
+          .with('-c core.quotePath=false diff --numstat HEAD', () => callback(null, '', ''))
           .with('rev-list --left-right --count HEAD...@{upstream}', () =>
             callback(null, '0\t0\n', ''),
           )

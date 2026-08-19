@@ -68,7 +68,8 @@ describe('stacked action safety gates', () => {
         ['symbolic-ref --quiet --short HEAD', 'feature/x\n'],
         ['status --porcelain=v2 --branch', '# branch.head feature/x\n'],
         // The working-tree probe now runs before the commit phase and must be able to answer.
-        ['status --porcelain=v1', ' M a.txt\n'],
+        // The path-yielding reads disable git's quoting, so the canned key carries that prefix.
+        ['-c core.quotePath=false status --porcelain=v1', ' M a.txt\n'],
         ['remote get-url origin', 'https://github.com/example/repo.git\n'],
         ['rev-parse --abbrev-ref origin/HEAD', 'origin/main\n'],
       ]),

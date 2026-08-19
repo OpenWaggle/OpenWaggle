@@ -69,9 +69,9 @@ describe('vcs-status-service', () => {
         'symbolic-ref --quiet --short HEAD': gitResult(0, 'main\n'),
         'remote get-url origin': gitResult(0, 'git@github.com:o/r.git\n'),
         'symbolic-ref --quiet --short refs/remotes/origin/HEAD': gitResult(0, 'origin/main\n'),
-        'status --porcelain=v1': gitResult(0, ' M src/a.ts\n'),
-        'diff --numstat': gitResult(0, '2\t1\tsrc/a.ts\n'),
-        'diff --cached --numstat': gitResult(0, ''),
+        '-c core.quotePath=false status --porcelain=v1': gitResult(0, ' M src/a.ts\n'),
+        '-c core.quotePath=false diff --numstat': gitResult(0, '2\t1\tsrc/a.ts\n'),
+        '-c core.quotePath=false diff --cached --numstat': gitResult(0, ''),
       })
 
       const result = await getLocalVcsStatus('/repo')

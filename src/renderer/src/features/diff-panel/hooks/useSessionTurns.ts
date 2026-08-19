@@ -14,10 +14,20 @@ const TURN_DIFF_MISSING_MESSAGE =
   "This turn's checkpoint is no longer stored, so its diff cannot be shown."
 const TURN_DIFF_FAILED_MESSAGE = "This turn's diff could not be loaded."
 
-/** A turn's files plus why they are absent, when they are. */
+/** A turn's files, whether they are still loading, and why they are absent when they are. */
 export interface TurnDiffFiles {
   readonly files: readonly GitFileDiff[]
   readonly error: string | null
+  /**
+   * True while the checkpoint is being read.
+   *
+   * Without it the panel showed "No changes to review" until the read returned, and kept the
+   * *previous* turn's files on screen under the newly selected turn's label - the same
+   * unauditable-screen problem that was fixed for the failure case and left open in flight. Worse,
+   * a comment written during that window took its snippet from the old turn's patch while being
+   * stored against the new turn.
+   */
+  readonly isLoading: boolean
 }
 
 /** List the session's Turn checkpoints (WS6b/WS7), oldest first (ascending turn index). */
@@ -64,14 +74,20 @@ export function useTurnDiffFiles(
    * nothing when the checkpoint could not be read - or had been pruned by retention - at all.
    */
   const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
   const turnId = selection.kind === 'turn' ? selection.turnId : null
 
   useEffect(() => {
     if (!sessionId || !turnId) {
       setFiles(EMPTY_FILES)
       setError(null)
+      setIsLoading(false)
       return
     }
+    // Clear first: the previous turn's files must not stand in for the one now selected.
+    setFiles(EMPTY_FILES)
+    setError(null)
+    setIsLoading(true)
     let cancelled = false
     void (async () => {
       try {
@@ -80,15 +96,18 @@ export function useTurnDiffFiles(
         if (!turnDiff) {
           setFiles(EMPTY_FILES)
           setError(TURN_DIFF_MISSING_MESSAGE)
+          setIsLoading(false)
           return
         }
         setFiles(splitUnifiedDiffIntoFileDiffs(turnDiff.diff).map((diff) => ({ ...diff })))
         setError(null)
+        setIsLoading(false)
       } catch (loadError) {
         logger.warn('Failed to load turn diff', { error: String(loadError) })
         if (cancelled) return
         setFiles(EMPTY_FILES)
         setError(TURN_DIFF_FAILED_MESSAGE)
+        setIsLoading(false)
       }
     })()
     return () => {
@@ -96,5 +115,5 @@ export function useTurnDiffFiles(
     }
   }, [sessionId, turnId])
 
-  return { files, error }
+  return { files, error, isLoading }
 }

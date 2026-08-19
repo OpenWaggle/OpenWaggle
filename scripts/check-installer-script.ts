@@ -24,6 +24,7 @@ import path from 'node:path'
 import { promisify } from 'node:util'
 
 import {
+  type CompilePassName,
   derivePlacements,
   findNsisTemplates,
   type HookContext,
@@ -69,9 +70,9 @@ function compilePasses(
   installerScriptPath: string,
   placements: ReadonlyMap<string, HookPlacement>,
 ): readonly CompilePass[] {
-  const forPass = (uninstallerPass: boolean, context: HookContext) =>
+  const forPass = (pass: CompilePassName, context: HookContext) =>
     [...placements.entries()]
-      .filter(([, place]) => place.uninstallerPass === uninstallerPass && place.context === context)
+      .filter(([, place]) => place.passes.includes(pass) && place.context === context)
       .map(([hook]) => hook)
 
   const header = (extra: readonly string[]) => [
@@ -105,11 +106,11 @@ function compilePasses(
       label: 'installer',
       defines: [],
       script: [
-        ...header(insert(forPass(false, 'top-level'), '')),
-        ...functionBlock('CheckHooks', forPass(false, 'function')),
+        ...header(insert(forPass('installer', 'top-level'), '')),
+        ...functionBlock('CheckHooks', forPass('installer', 'function')),
         'Section "Install"',
-        ...insert(forPass(false, 'section'), '  '),
-        ...callIfDefined('CheckHooks', forPass(false, 'function')),
+        ...insert(forPass('installer', 'section'), '  '),
+        ...callIfDefined('CheckHooks', forPass('installer', 'function')),
         'SectionEnd',
         '',
       ].join('\n'),
@@ -118,15 +119,15 @@ function compilePasses(
       label: 'uninstaller',
       defines: ['BUILD_UNINSTALLER'],
       script: [
-        ...header(insert(forPass(true, 'top-level'), '')),
-        ...functionBlock('un.CheckHooks', forPass(true, 'function')),
+        ...header(insert(forPass('uninstaller', 'top-level'), '')),
+        ...functionBlock('un.CheckHooks', forPass('uninstaller', 'function')),
         'Section "Install"',
         '  WriteUninstaller "$INSTDIR\\uninstall.exe"',
         'SectionEnd',
         '',
         'Section "Uninstall"',
-        ...insert(forPass(true, 'section'), '  '),
-        ...callIfDefined('un.CheckHooks', forPass(true, 'function')),
+        ...insert(forPass('uninstaller', 'section'), '  '),
+        ...callIfDefined('un.CheckHooks', forPass('uninstaller', 'function')),
         'SectionEnd',
         '',
       ].join('\n'),

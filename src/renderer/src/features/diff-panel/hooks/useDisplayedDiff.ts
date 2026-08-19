@@ -27,7 +27,7 @@ export function useDisplayedDiff(input: {
 
   return {
     fileDiffs: isTurnScope ? turnFiles.files : branchOrTreeDiffs.fileDiffs,
-    isLoading: isTurnScope ? false : branchOrTreeDiffs.isLoading,
+    isLoading: isTurnScope ? turnFiles.isLoading : branchOrTreeDiffs.isLoading,
     loadError: isTurnScope ? turnFiles.error : branchOrTreeDiffs.error,
     refreshDiff: branchOrTreeDiffs.refreshDiff,
     /** What "Automatic" resolved to, for the base-ref control to report. */

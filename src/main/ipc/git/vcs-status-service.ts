@@ -7,7 +7,7 @@ import type {
 import { getSourceControlProvider } from '../../adapters/source-control'
 import { resolveDefaultRef } from './default-ref'
 import { isGitRepository, runGit } from './shared'
-import { GIT_PARSE_INT_RADIX } from './status-constants'
+import { GIT_PARSE_INT_RADIX, GIT_RAW_PATHS } from './status-constants'
 import { buildChangedFiles, parseNumstat, parsePorcelain } from './status-parse'
 import { detectSourceControlProvider, parseAheadBehind, toWorkingTree } from './vcs-status-parse'
 
@@ -32,9 +32,9 @@ async function resolvePrimaryRemoteUrl(projectPath: string): Promise<string | nu
 
 async function resolveWorkingTree(projectPath: string) {
   const [porcelainResult, worktreeNumstat, cachedNumstat] = await Promise.all([
-    runGit(projectPath, ['status', '--porcelain=v1']),
-    runGit(projectPath, ['diff', '--numstat']),
-    runGit(projectPath, ['diff', '--cached', '--numstat']),
+    runGit(projectPath, [...GIT_RAW_PATHS, 'status', '--porcelain=v1']),
+    runGit(projectPath, [...GIT_RAW_PATHS, 'diff', '--numstat']),
+    runGit(projectPath, [...GIT_RAW_PATHS, 'diff', '--cached', '--numstat']),
   ])
   const numstat = parseNumstat(`${worktreeNumstat.stdout}\n${cachedNumstat.stdout}`)
   const changedFiles = buildChangedFiles(parsePorcelain(porcelainResult.stdout), numstat)

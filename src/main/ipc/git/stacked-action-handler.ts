@@ -17,6 +17,7 @@ import { pullCurrentBranch, pushCurrentBranch } from './push-service'
 import { projectPathSchema, runGit } from './shared'
 import { runStackedGitAction, type StackedActionDeps } from './stacked-action-service'
 import { invalidateGitStatusCache } from './status-cache'
+import { GIT_RAW_PATHS } from './status-constants'
 import { invalidateVcsStatus, readLocalVcsStatus } from './vcs-status-cache'
 import { detectSourceControlProvider } from './vcs-status-parse'
 import { resolveRepositoryRoot } from './working-tree-service'
@@ -41,7 +42,7 @@ async function resolveProviderRemoteUrl(projectPath: string): Promise<string | n
 function createStackedActionDeps(): StackedActionDeps {
   return {
     hasWorkingTreeChanges: async (projectPath) => {
-      const result = await runGit(projectPath, ['status', '--porcelain=v1'])
+      const result = await runGit(projectPath, [...GIT_RAW_PATHS, 'status', '--porcelain=v1'])
       if (result.code !== 0) {
         // Ignoring the exit code made an unreadable repository indistinguishable from a clean
         // one, so the commit phase was skipped and the action reported success regardless.

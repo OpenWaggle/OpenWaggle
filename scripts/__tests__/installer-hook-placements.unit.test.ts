@@ -56,38 +56,44 @@ describe('derivePlacements', () => {
 
     // The installer pass compiles these, whatever their name suggests.
     expect(placements.get('customUnInstallCheck')).toMatchObject({
-      uninstallerPass: false,
+      passes: ['installer'],
       context: 'function',
     })
     expect(placements.get('customInit')).toMatchObject({
-      uninstallerPass: false,
+      passes: ['installer'],
       context: 'function',
     })
+    /*
+     * Both passes. `installer.nsi` is compiled twice - once plainly, once with -DBUILD_UNINSTALLER -
+     * and these hooks carry no pass guard, so a single boolean silently checked them in the installer
+     * pass only, which is where a per-pass helper declaration would then fail a release.
+     */
     expect(placements.get('customHeader')).toMatchObject({
-      uninstallerPass: false,
+      passes: ['installer', 'uninstaller'],
       context: 'top-level',
     })
+    expect(placements.get('preInit')?.passes).toEqual(['installer', 'uninstaller'])
     expect(placements.get('customInstall')).toMatchObject({
-      uninstallerPass: false,
+      passes: ['installer'],
       context: 'section',
     })
 
     // The uninstaller pass compiles these.
     expect(placements.get('customUnInstall')).toMatchObject({
-      uninstallerPass: true,
+      passes: ['uninstaller'],
       context: 'section',
     })
     expect(placements.get('customRemoveFiles')).toMatchObject({
-      uninstallerPass: true,
+      passes: ['uninstaller'],
       context: 'section',
     })
     expect(placements.get('customUnInit')).toMatchObject({
-      uninstallerPass: true,
+      passes: ['uninstaller'],
       context: 'function',
     })
     // Inserted after SectionEnd on purpose, so the hook can declare its own Section.
     expect(placements.get('customUnInstallSection')).toMatchObject({
-      uninstallerPass: true,
+      passes: ['uninstaller'],
       context: 'top-level',
     })
   })

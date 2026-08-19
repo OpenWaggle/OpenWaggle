@@ -2,7 +2,7 @@ import type { GitDiffFailure, GitDiffResult, GitStatusSummary } from '@shared/ty
 import type { GitExecResult } from '../../adapters/git/run-git'
 import { resolveDefaultBranchRevision } from './default-ref'
 import { isGitRepository, runGit } from './shared'
-import { DIFF_GIT_MAX_BUFFER, GIT_PARSE_INT_RADIX } from './status-constants'
+import { DIFF_GIT_MAX_BUFFER, GIT_PARSE_INT_RADIX, GIT_RAW_PATHS } from './status-constants'
 import {
   buildChangedFiles,
   mergeDiffsByPath,
@@ -132,8 +132,8 @@ async function assertGitRepository(projectPath: string) {
 async function loadGitStatusCommandResults(projectPath: string): Promise<GitStatusCommandResults> {
   const [branchResult, porcelainResult, numstatHeadResult, upstreamResult] = await Promise.all([
     runGit(projectPath, ['rev-parse', '--abbrev-ref', 'HEAD']),
-    runGit(projectPath, ['status', '--porcelain=v1']),
-    runGit(projectPath, ['diff', '--numstat', 'HEAD']),
+    runGit(projectPath, [...GIT_RAW_PATHS, 'status', '--porcelain=v1']),
+    runGit(projectPath, [...GIT_RAW_PATHS, 'diff', '--numstat', 'HEAD']),
     runGit(projectPath, ['rev-list', '--left-right', '--count', 'HEAD...@{upstream}']),
   ])
   return { branchResult, porcelainResult, numstatHeadResult, upstreamResult }
