@@ -12,6 +12,7 @@ import {
 } from './SidebarNavigation'
 import { SidebarPinnedSection } from './SidebarPinnedSection'
 import { SidebarProjectList } from './SidebarProjectList'
+import { SidebarSearchBox } from './SidebarSearchBox'
 import { SidebarStatusChips } from './SidebarStatusIndicators'
 
 export function Sidebar() {
@@ -61,6 +62,7 @@ export function Sidebar() {
             onNewSession={controller.handleNewSession}
             onOpenSkills={controller.handleOpenSkills}
           />
+          <SidebarSearchBox value={controller.searchQuery} onChange={controller.setSearchQuery} />
           <SidebarStatusChips
             counts={controller.chipCounts}
             activeState={controller.filterState}

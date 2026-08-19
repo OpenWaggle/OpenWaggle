@@ -11,16 +11,27 @@ import type { SidebarRowState } from '../lib/sidebar-row-state'
  */
 interface SidebarFilterState {
   readonly activeState: SidebarRowState | null
+  /** Free-text filter over project and session names. Also deliberately not persisted. */
+  readonly query: string
   readonly toggleState: (state: SidebarRowState) => void
+  readonly setQuery: (query: string) => void
   readonly clear: () => void
 }
 
 export const useSidebarFilterStore = create<SidebarFilterState>()((set) => ({
   activeState: null,
+  query: '',
 
   // Clicking the active chip clears it, so the same control both applies and removes.
   toggleState: (state) =>
     set((current) => ({ activeState: current.activeState === state ? null : state })),
 
-  clear: () => set((current) => (current.activeState === null ? current : { activeState: null })),
+  setQuery: (query) => set((current) => (current.query === query ? current : { query })),
+
+  clear: () =>
+    set((current) =>
+      current.activeState === null && current.query === ''
+        ? current
+        : { activeState: null, query: '' },
+    ),
 }))

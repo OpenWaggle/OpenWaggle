@@ -1,3 +1,6 @@
+/** Advertised on the search field, matching the prototype. */
+export const SIDEBAR_SEARCH_HOTKEY_LABEL = '\u2318F'
+
 export const SIDEBAR_LAYOUT = {
   /**
    * 316px, up from 272px.
@@ -13,6 +16,6 @@ export const SIDEBAR_LAYOUT = {
    * Breathing room under the lockup, above New session. Kept small: it is dead space in
    * a windowed sidebar, where every pixel here is a session row that cannot be reached.
    */
-  FULLSCREEN_SPACER_HEIGHT: 24,
-  WINDOWED_SPACER_HEIGHT: 16,
+  FULLSCREEN_SPACER_HEIGHT: 8,
+  WINDOWED_SPACER_HEIGHT: 2,
 }

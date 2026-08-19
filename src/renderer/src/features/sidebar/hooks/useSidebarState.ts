@@ -1,6 +1,6 @@
 import { SessionId } from '@shared/types/brand'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useChat } from '@/features/chat/hooks'
 import { useGit } from '@/features/git/hooks'
 import { useProject, useSessions } from '@/features/sessions/hooks'
@@ -86,10 +86,33 @@ export function useSidebarState() {
   const rowStates = useSidebarRowStates(sessions.sessions)
   const filterState = useSidebarFilterStore((s) => s.activeState)
   const toggleFilterState = useSidebarFilterStore((s) => s.toggleState)
-  const visibleSessions =
-    filterState === null
-      ? sessions.sessions
-      : sessions.sessions.filter((session) => rowStates.stateOf(session) === filterState)
+  const searchQuery = useSidebarFilterStore((s) => s.query)
+  const setSearchQuery = useSidebarFilterStore((s) => s.setQuery)
+
+  /*
+   * Returns the original array when nothing is narrowed, rather than a filtered copy.
+   *
+   * Identity matters here: this list feeds the per-session git indicator effect, which keys its
+   * memo on the array. A fresh array on every render made that effect re-run on every render,
+   * which spun the renderer.
+   */
+  const normalizedQuery = searchQuery.trim().toLowerCase()
+  const visibleSessions = useMemo(() => {
+    if (filterState === null && normalizedQuery === '') return sessions.sessions
+    return sessions.sessions.filter((session) => {
+      if (filterState !== null && rowStates.stateOf(session) !== filterState) return false
+      if (normalizedQuery === '') return true
+      // A project match keeps its sessions, so searching a repository name finds its work.
+      const label = session.projectPath === null ? '' : projectName(session.projectPath)
+      const custom =
+        session.projectPath === null ? '' : (projectDisplayNames[session.projectPath] ?? '')
+      return (
+        session.title.toLowerCase().includes(normalizedQuery) ||
+        label.toLowerCase().includes(normalizedQuery) ||
+        custom.toLowerCase().includes(normalizedQuery)
+      )
+    })
+  }, [sessions.sessions, filterState, normalizedQuery, rowStates, projectDisplayNames])
 
   const pinnedRows = buildPinnedSessionRows({
     pins,
@@ -117,6 +140,8 @@ export function useSidebarState() {
     displayProjectName,
     filterState,
     projectRollUp: rowStates.rollUpFor,
+    searchQuery,
+    setSearchQuery,
     git,
     isFullscreen,
     isProjectCollapsed: (path: string) => !isProjectExpanded(projectExpandedByPath, path),

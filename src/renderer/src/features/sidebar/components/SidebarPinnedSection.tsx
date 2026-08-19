@@ -10,6 +10,7 @@ import {
 } from '../lib/pinned-sessions'
 import type { SidebarSessionActions } from '../model'
 import { SessionListItem } from './SessionListItem'
+import { SidebarIconButton, SidebarSectionHead } from './SidebarSectionHead'
 
 /**
  * Pinned sort options. Deliberately the same labels, icons and popover treatment as the
@@ -50,19 +51,15 @@ function PinnedSortMenu({ sort }: { readonly sort: PinnedSortControlState }) {
       open={sortMenuOpen}
       onOpenChange={onSetMenuOpen}
       placement="bottom-end"
-      className="min-w-[150px] py-1"
+      className="min-w-[196px] py-1"
       trigger={
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          radius="sm"
-          aria-label="Sort pinned sessions"
+        <SidebarIconButton
+          label="Sort pinned sessions"
+          isActive={sortMenuOpen}
           onClick={() => onSetMenuOpen(!sortMenuOpen)}
-          className={cn(sortMenuOpen && 'text-text-primary')}
-          title="Sort pinned sessions"
         >
-          <LayoutList className="size-3" />
-        </Button>
+          <LayoutList className="size-[13px]" />
+        </SidebarIconButton>
       }
     >
       {PINNED_SORT_OPTIONS.map((option) => (
@@ -71,11 +68,13 @@ function PinnedSortMenu({ sort }: { readonly sort: PinnedSortControlState }) {
           size="xs"
           radius="none"
           key={option.value}
+          role="menuitemradio"
+          aria-checked={sortMode === option.value}
           onClick={() => {
             onSetMode(option.value)
             onSetMenuOpen(false)
           }}
-          className={cn('gap-2', sortMode === option.value && 'text-accent')}
+          className={cn('gap-2 px-3 text-[12px]', sortMode === option.value && 'text-accent')}
         >
           <option.icon className="size-3 shrink-0" />
           <span className="flex-1">{option.label}</span>
@@ -114,10 +113,9 @@ export function SidebarPinnedSection({
 
   return (
     <section aria-label="Pinned sessions" className="shrink-0">
-      <div className="no-drag flex h-[30px] shrink-0 items-center justify-between px-4">
-        <span className="text-[12px] font-medium text-text-tertiary">Pinned</span>
+      <SidebarSectionHead label="Pinned" count={rows.length}>
         <PinnedSortMenu sort={sort} />
-      </div>
+      </SidebarSectionHead>
       <ul>
         {rows.map((row, index) => (
           <PinnedSessionListItem

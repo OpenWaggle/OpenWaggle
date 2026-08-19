@@ -47,6 +47,7 @@ function branch(id: string, overrides: Partial<SessionBranch> = {}): SessionBran
     name: id,
     isMain: id === 'main',
     createdAt: 0,
+    updatedAt: 0,
     ...overrides,
   }
 }

@@ -1,7 +1,16 @@
 @import "tailwindcss";
 @plugin "tailwindcss-animate";
 
-@theme {
+/*
+ * `static` rather than a plain `@theme`.
+ *
+ * Tailwind tree-shakes theme variables that no utility class references, and several roles here
+ * are read at runtime through `var()` in an inline style rather than through a class:
+ * --color-neutral, --color-review and --color-plan. Without `static` they were declared here and
+ * absent from the stylesheet, so an idle row's `--row-color: var(--color-neutral)` resolved to
+ * nothing and the glyph fell back to inherited colour. Verified with the Tailwind CLI.
+ */
+@theme static {
   /*
    * Surfaces. Values match the approved sidebar prototype, which is the source of truth for
    * colour. Three drifted while the prototype was being built: bg-primary, bg-tertiary and

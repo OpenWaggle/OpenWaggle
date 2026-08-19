@@ -33,7 +33,7 @@ function ProvenanceIndicator({ indicator }: { readonly indicator: SessionProvena
       role="img"
       title={indicator.description}
       aria-label={indicator.description}
-      className="flex shrink-0 items-center gap-0.5 text-text-tertiary"
+      className="flex h-[15px] shrink-0 items-center gap-0.5 text-text-tertiary"
     >
       <Icon className="size-2.5" />
       {indicator.count === undefined ? null : (

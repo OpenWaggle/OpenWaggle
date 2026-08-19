@@ -56,19 +56,17 @@ export function SessionPinButton({
  * Fixed-width leading slot for a Pinned row's drag handle.
  *
  * Rendered in every Pinned sort, not only Manual: when the slot appeared and disappeared
- * with draggability, switching sort shifted every row sideways. The handle itself is
- * hover-revealed, as in the prototype, and absent outside Manual where dragging would
- * have nothing to write.
+ * with draggability, switching sort shifted every row sideways. The handle is visible at rest,
+ * as in the prototype, because it is what tells the user a row can be dragged before they
+ * touch it. It is absent outside Manual, where a drag would have nothing to write.
  */
 export function SessionDragGripSlot({ draggable }: { readonly draggable: boolean }) {
   return (
     <span
       aria-hidden="true"
-      className="mr-1 flex size-3 shrink-0 items-center justify-center text-text-muted"
+      className="mt-0.5 grid h-[17px] w-3 flex-none place-items-center text-text-muted"
     >
-      {draggable ? (
-        <GripVertical className="size-3 opacity-0 transition-opacity group-hover:opacity-100" />
-      ) : null}
+      {draggable ? <GripVertical className="size-3" /> : null}
     </span>
   )
 }
