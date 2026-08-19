@@ -200,7 +200,7 @@ export function DiffPanel({
       />
       <CommitMessageDialog
         open={pendingCommitAction !== null}
-        fileCount={commitPaths.paths.length}
+        fileCount={commitPaths.changedFileCount}
         onCancel={() => setPendingCommitAction(null)}
         onConfirm={(commitMessage) => {
           const action = pendingCommitAction

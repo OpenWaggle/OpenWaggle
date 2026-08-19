@@ -36,6 +36,13 @@ export interface CommitPaths {
    * further along.
    */
   readonly isLoading: boolean
+  /**
+   * How many files the user changed.
+   *
+   * Not `paths.length`: a rename contributes two pathspec entries so the commit covers the deletion, but it
+   * is one changed file, and the dialog was promising two.
+   */
+  readonly changedFileCount: number
 }
 
 export function useCommitPaths(workingPath: WorkingPath | null, refreshToken = 0): CommitPaths {
@@ -64,5 +71,6 @@ export function useCommitPaths(workingPath: WorkingPath | null, refreshToken = 0
     ),
     error: workingTreeStatus.error,
     isLoading: workingTreeStatus.isLoading,
+    changedFileCount: (workingTreeStatus.status?.changedFiles ?? []).length,
   }
 }

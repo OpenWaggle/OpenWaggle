@@ -197,7 +197,8 @@ async function resolveInstallerScript(repositoryRoot: string) {
 
 /** The `nsis.include` path declared by a config, or null when there is not exactly one. */
 export function resolveInstallerScriptFrom(config: string): string | null {
-  const lines = config.split('\n')
+  // A CRLF file left `\r` on every value, so the path did not exist and the check died with a raw ENOENT.
+  const lines = config.split('\n').map((line) => line.replace(/\r$/u, ''))
   const start = lines.findIndex((line) => NSIS_BLOCK.test(line))
   if (start === -1) return null
 

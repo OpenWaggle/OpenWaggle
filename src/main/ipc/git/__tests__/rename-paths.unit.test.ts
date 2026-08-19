@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { buildChangedFiles, parsePorcelain, renameSourcePath } from '../status-parse'
+import {
+  buildChangedFiles,
+  normalizeGitPath,
+  parsePorcelain,
+  renameSourcePath,
+} from '../status-parse'
 
 describe('renameSourcePath', () => {
   it('reads the source out of both porcelain rename spellings', () => {
@@ -44,5 +49,15 @@ describe('buildChangedFiles', () => {
 
     expect(files[0]).toMatchObject({ path: 'weird -> name.txt' })
     expect(files[0]).not.toHaveProperty('renamedFrom')
+  })
+
+  it('normalises a brace rename that removes a path component', () => {
+    /*
+     * git compacts such a rename as `dir/{sub => }/file.ts`. Substituting the second half left
+     * `dir//file.ts`, which matches no porcelain path, so the numstat line's stats were attached to a
+     * phantom entry instead of the file that changed.
+     */
+    expect(normalizeGitPath('dir/{sub => }/file.ts')).toBe('dir/file.ts')
+    expect(normalizeGitPath('dir/{old => new}/file.ts')).toBe('dir/new/file.ts')
   })
 })

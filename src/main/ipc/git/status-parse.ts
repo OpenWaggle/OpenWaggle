@@ -43,11 +43,23 @@ export function renameSourcePath(rawPath: string): string | null {
   return stripSurroundingQuotes(trimmed.slice(0, arrow).trim())
 }
 
+/** `dir//file.ts` -> `dir/file.ts`, and a trailing slash left by a removed final component. */
+function collapseEmptySegments(pathValue: string) {
+  return pathValue.replaceAll(/\/{2,}/g, '/').replace(/\/$/, '')
+}
+
 export function normalizeGitPath(rawPath: string) {
   const trimmed = rawPath.trim()
   if (!trimmed) return ''
 
-  const braceNormalized = trimmed.replaceAll(/\{([^{}]*?) => ([^{}]*?)\}/g, '$2')
+  /*
+   * The brace form can remove a path component: git compacts such a rename as `dir/{sub => }/file.ts`, and
+   * substituting the second half leaves `dir//file.ts`, which matches no porcelain path - so the numstat
+   * stats were attached to a phantom entry instead of the file.
+   */
+  const braceNormalized = collapseEmptySegments(
+    trimmed.replaceAll(/\{([^{}]*?) => ([^{}]*?)\}/g, '$2'),
+  )
   if (braceNormalized !== trimmed) return stripSurroundingQuotes(braceNormalized.trim())
 
   const renameTarget = findPlainRenameTarget(trimmed)
@@ -170,6 +182,11 @@ function parseNumstatLine(line: string) {
   if (parts.length < GIT_STATUS_CODE_WIDTH) return null
 
   const rawPath = parts.slice(GIT_NUMSTAT_PATH_OFFSET).pop()?.trim()
+  /*
+   * A numstat line carries no status code, so a rename can only be recognised from the path shape. The
+   * brace form is unambiguous; the bare ` => ` separator is what git emits for a whole-path rename, and
+   * `git diff --numstat` never writes a literal ` => ` for anything else.
+   */
   const path = rawPath ? normalizeGitPath(rawPath) : ''
   if (!path) return null
 

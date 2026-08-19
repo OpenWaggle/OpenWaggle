@@ -38,7 +38,13 @@ describe('normalizeGitPath', () => {
   })
 
   it('resolves brace rename with empty new side', () => {
-    expect(normalizeGitPath('src/{old => }/file.ts')).toBe('src//file.ts')
+    /*
+     * git compacts a rename that removes a path component this way. Verified against real git: moving
+     * `src/old/file.ts` to `src/file.ts` produces `src/{old => }/file.ts` in numstat, and the porcelain
+     * path is `src/file.ts`. This used to assert `src//file.ts`, which matches no porcelain entry, so the
+     * numstat stats were attached to a phantom file instead of the one that changed.
+     */
+    expect(normalizeGitPath('src/{old => }/file.ts')).toBe('src/file.ts')
   })
 
   it('resolves brace rename with surrounding quotes', () => {

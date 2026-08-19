@@ -65,7 +65,7 @@ The Capabilities area connects lazily. Prompts create editable drafts; resources
 
 OpenWaggle stores app-owned settings, sessions, and session projections in `openwaggle.db` under Electron's user-data directory. Waggle presets are stored by Pi, not in the user-data directory: user-scope presets live in `~/.pi/agent/waggle-presets.json`, and project-scope presets in `<project>/.pi/waggle-presets.json`.
 
-Session worktrees are created outside your project, at `~/.openwaggle/worktrees/<repository>/<sessionId>`, each on a branch named `ow/session-<short-session-id>`. Settings > Worktrees lists and removes them.
+Session worktrees are created outside your project, at `~/.openwaggle/worktrees/<repository>/<sessionId>`, each on a branch named `ow/session-<sessionId>` — the same id as the directory. Settings > Worktrees lists and removes them.
 
 Provider credentials are resolved by Pi auth storage, environment variables, or project/custom Pi provider configuration. Pi's default auth storage path is `~/.pi/agent/auth.json`.
 

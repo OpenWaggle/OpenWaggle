@@ -33,4 +33,11 @@ describe('resolveInstallerScriptFrom', () => {
   it('reports a list value rather than compiling one entry of it', () => {
     expect(resolveInstallerScriptFrom('nsis:\n  include:\n    - build/a.nsh\n')).toBeNull()
   })
+
+  it('reads a CRLF config', () => {
+    // A `\r` left on the value produced a path that does not exist, and the check died with a raw ENOENT.
+    expect(resolveInstallerScriptFrom('nsis:\r\n  include: build/installer.nsh\r\n')).toBe(
+      'build/installer.nsh',
+    )
+  })
 })
