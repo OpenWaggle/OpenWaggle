@@ -1,6 +1,7 @@
 import { decodeUnknownOrThrow } from '@shared/schema'
 import type { ChangeRequestCheckoutResult } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
+import { networkGitOptions } from '../../adapters/git/run-git'
 import { getSourceControlProvider } from '../../adapters/source-control'
 import { typedHandle } from '../typed-ipc'
 import { planChangeRequestFetch } from './change-request-refs'
@@ -22,6 +23,8 @@ const NO_PROVIDER = {
 
 /** The remote change-request branches are fetched from, matching the rest of the git module. */
 const CHANGE_REQUEST_REMOTE = 'origin'
+/** Longer than a ref advertisement, because this transfers objects. */
+const CHANGE_REQUEST_FETCH_TIMEOUT_MS = 30_000
 
 /**
  * Make a change request's head commit available locally without touching any working tree.
@@ -50,7 +53,12 @@ async function fetchChangeRequestRef(
   }
 
   const refspec = `+${plan.remoteRef}:${plan.localRef}`
-  const result = await runGit(repositoryPath, ['fetch', CHANGE_REQUEST_REMOTE, refspec])
+  const result = await runGit(
+    repositoryPath,
+    ['fetch', CHANGE_REQUEST_REMOTE, refspec],
+    // A fetch reaches the network on an interactive path, so it is bounded and never prompts.
+    networkGitOptions(CHANGE_REQUEST_FETCH_TIMEOUT_MS),
+  )
   if (result.code !== 0) {
     return {
       ok: false,

@@ -71,7 +71,8 @@ describe('registerGitHandlers status', () => {
           .with('rev-parse --is-inside-work-tree', () => cb(null, 'true\n', ''))
           .with('rev-parse --abbrev-ref HEAD', () => cb(null, 'main\n', ''))
           .with('-c core.quotePath=false status --porcelain=v1', () =>
-            cb(null, 'MM old.txt -> new.txt\n', ''),
+            // `RM` is what git emits for a rename that was then modified; `MM` never carries a rename.
+            cb(null, 'RM old.txt -> new.txt\n', ''),
           )
           .with('-c core.quotePath=false diff --numstat HEAD', () =>
             cb(null, '1\t0\told.txt => new.txt\n', ''),

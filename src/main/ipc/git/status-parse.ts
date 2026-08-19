@@ -148,9 +148,16 @@ function parsePorcelainLine(line: string) {
   const x = line[0] ?? ' '
   const y = line[1] ?? ' '
   const rawPath = line.slice(GIT_STATUS_PATH_OFFSET).trim()
-  const renamedFrom = renameSourcePath(rawPath)
+  /*
+   * Only a rename or copy has a source path. Reading the ` -> ` form unconditionally mangled an
+   * ordinary file whose own name contains that sequence: its path was truncated and a phantom source
+   * invented, which would then be staged and committed.
+   */
+  const isRenameOrCopy = x === 'R' || x === 'C' || y === 'R' || y === 'C'
+  const renamedFrom = isRenameOrCopy ? renameSourcePath(rawPath) : null
   return {
-    path: normalizeGitPath(rawPath),
+    // Only a rename or copy has the `old -> new` form to strip; anything else is a literal path.
+    path: isRenameOrCopy ? normalizeGitPath(rawPath) : stripSurroundingQuotes(rawPath),
     status: mapStatusCode(x === '?' && y === '?' ? '?' : y !== ' ' ? y : x),
     staged: x !== ' ' && x !== '?',
     unstaged: y !== ' ',

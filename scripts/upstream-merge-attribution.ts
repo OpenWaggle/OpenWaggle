@@ -14,7 +14,7 @@ interface MergeCandidate {
 /** The published surface: a change here must carry release intent. */
 const PUBLISHABLE_PREFIX = 'packages/'
 
-/** The object a path resolves to in a commit, or null when the path is absent there. */
+/** Paths a commit changed relative to its first parent, read raw so quoting cannot hide a prefix. */
 async function blobAt(cwd: string, commitish: string, filePath: string): Promise<string | null> {
   try {
     const { stdout } = await execFile('git', ['rev-parse', `${commitish}:${filePath}`], { cwd })

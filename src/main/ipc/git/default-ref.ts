@@ -1,3 +1,4 @@
+import { networkGitOptions } from '../../adapters/git/run-git'
 import { runGit } from './shared'
 
 /**
@@ -27,6 +28,18 @@ import { runGit } from './shared'
  * is resolvable, which is the question each is actually asking.
  */
 export async function resolveDefaultRef(projectPath: string): Promise<string | null> {
+  const local = await resolveLocalDefaultRef(projectPath)
+  return local ?? (await resolveAdvertisedDefaultRef(projectPath))
+}
+
+/**
+ * The default branch as recorded locally, with no network access at all.
+ *
+ * For callers that must stay offline. The local VCS status is one: it is cached with a two-second TTL
+ * precisely because it is cheap, and it is what the quick action and the default-branch confirmation
+ * gate wait on - so reaching the network there stalls the UI even when the call is bounded.
+ */
+export async function resolveLocalDefaultRef(projectPath: string): Promise<string | null> {
   const localSymref = await runGit(projectPath, [
     'symbolic-ref',
     '--quiet',
@@ -36,7 +49,7 @@ export async function resolveDefaultRef(projectPath: string): Promise<string | n
   if (localSymref.code === 0 && localSymref.stdout.trim()) {
     return localSymref.stdout.trim().replace(/^origin\//, '')
   }
-  return await resolveAdvertisedDefaultRef(projectPath)
+  return null
 }
 
 /**
@@ -62,10 +75,11 @@ async function resolveAdvertisedDefaultRef(projectPath: string): Promise<string 
    * blocked indefinitely against an unreachable origin. Giving up simply falls through to the
    * conventional local default.
    */
-  const advertised = await runGit(projectPath, ['ls-remote', '--symref', 'origin', 'HEAD'], {
-    timeoutMs: ADVERTISED_DEFAULT_REF_TIMEOUT_MS,
-    env: { GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: '', SSH_ASKPASS: '' },
-  })
+  const advertised = await runGit(
+    projectPath,
+    ['ls-remote', '--symref', 'origin', 'HEAD'],
+    networkGitOptions(ADVERTISED_DEFAULT_REF_TIMEOUT_MS),
+  )
   if (advertised.code !== 0) return null
 
   for (const line of advertised.stdout.split('\n')) {

@@ -33,4 +33,16 @@ describe('buildChangedFiles', () => {
 
     expect(files[0]).not.toHaveProperty('renamedFrom')
   })
+
+  it('does not invent a rename for an ordinary file whose name contains " -> "', () => {
+    /*
+     * The source path was read from any entry containing ` -> `, so a real file called
+     * `weird -> name.txt` had its path truncated to `weird` and a phantom source invented - which
+     * would then be staged and committed. Only R and C status codes describe a rename or copy.
+     */
+    const files = buildChangedFiles(parsePorcelain(' M weird -> name.txt\n'), new Map())
+
+    expect(files[0]).toMatchObject({ path: 'weird -> name.txt' })
+    expect(files[0]).not.toHaveProperty('renamedFrom')
+  })
 })

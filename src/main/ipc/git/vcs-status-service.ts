@@ -5,7 +5,7 @@ import type {
   VcsChangeRequest,
 } from '@shared/types/git'
 import { getSourceControlProvider } from '../../adapters/source-control'
-import { resolveDefaultRef } from './default-ref'
+import { resolveDefaultRef, resolveLocalDefaultRef } from './default-ref'
 import { isGitRepository, runGit } from './shared'
 import { GIT_PARSE_INT_RADIX, GIT_RAW_PATHS } from './status-constants'
 import { buildChangedFiles, parseNumstat, parsePorcelain } from './status-parse'
@@ -49,7 +49,8 @@ export async function getLocalVcsStatus(projectPath: string): Promise<LocalVcsSt
   const [refName, remoteUrl, defaultRef, workingTree] = await Promise.all([
     resolveRefName(projectPath),
     resolvePrimaryRemoteUrl(projectPath),
-    resolveDefaultRef(projectPath),
+    // Offline by contract: this status is cached with a two-second TTL and gates the quick action.
+    resolveLocalDefaultRef(projectPath),
     resolveWorkingTree(projectPath),
   ])
 
@@ -69,6 +70,7 @@ async function resolveAheadOfDefault(
   projectPath: string,
   refName: string | null,
 ): Promise<number | null> {
+  // The remote status may reach the network; the local one may not.
   const defaultRef = await resolveDefaultRef(projectPath)
   if (!defaultRef || !refName || refName === defaultRef) return null
   const result = await runGit(projectPath, ['rev-list', '--count', `origin/${defaultRef}..HEAD`])
