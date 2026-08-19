@@ -101,8 +101,11 @@ describe('diff loading returns typed results', () => {
     // The ref Automatic chose is reported so the user can audit which base was used.
     expect(result).toEqual({ ok: true, files: [], resolvedBaseRef: 'origin/main' })
     // A three-dot diff against the resolved default branch, not the working-tree diff.
-    const diffCall = runGitMock.mock.calls.find((call) => call[1]?.[0] === 'diff')
+    const diffCall = runGitMock.mock.calls.find((call) => call[1]?.includes('diff'))
     expect(diffCall?.[1]).toEqual([
+      // Path quoting is disabled on every read whose output becomes a path we hand back to git.
+      '-c',
+      'core.quotePath=false',
       'diff',
       '--patch',
       '--find-renames',

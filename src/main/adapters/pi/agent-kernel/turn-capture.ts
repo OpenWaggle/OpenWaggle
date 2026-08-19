@@ -148,7 +148,8 @@ async function computeIncrementalDiff(
   if (from === to) return ''
   const result = await runGit(
     projectPath,
-    ['diff', '--patch', '--find-renames', '--no-ext-diff', from, to],
+    // Paths are parsed out of this diff, so git must not C-quote them.
+    ['-c', 'core.quotePath=false', 'diff', '--patch', '--find-renames', '--no-ext-diff', from, to],
     { maxBuffer: DIFF_GIT_MAX_BUFFER },
   )
   if (result.code !== 0) {

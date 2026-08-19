@@ -109,7 +109,7 @@ export async function getGitBranchDiff(
   }
   const result = await runGit(
     projectPath,
-    ['diff', '--patch', '--find-renames', '--no-ext-diff', `${trimmed}...HEAD`],
+    [...GIT_RAW_PATHS, 'diff', '--patch', '--find-renames', '--no-ext-diff', `${trimmed}...HEAD`],
     { maxBuffer: DIFF_GIT_MAX_BUFFER },
   )
   if (result.code !== 0) {
@@ -167,8 +167,8 @@ async function resolveNumstat(
   if (numstatHeadResult.code === 0) return parseNumstat(numstatHeadResult.stdout)
 
   const [worktreeResult, cachedResult] = await Promise.all([
-    runGit(projectPath, ['diff', '--numstat']),
-    runGit(projectPath, ['diff', '--cached', '--numstat']),
+    runGit(projectPath, [...GIT_RAW_PATHS, 'diff', '--numstat']),
+    runGit(projectPath, [...GIT_RAW_PATHS, 'diff', '--cached', '--numstat']),
   ])
   return parseNumstat(`${worktreeResult.stdout}\n${cachedResult.stdout}`)
 }
@@ -183,7 +183,7 @@ function sumChangedFiles(
 async function getHeadDiff(projectPath: string): Promise<GitDiffResult> {
   const headResult = await runGit(
     projectPath,
-    ['diff', '--patch', '--find-renames', '--no-ext-diff', 'HEAD'],
+    [...GIT_RAW_PATHS, 'diff', '--patch', '--find-renames', '--no-ext-diff', 'HEAD'],
     { maxBuffer: DIFF_GIT_MAX_BUFFER },
   )
   if (headResult.code !== 0) {
@@ -194,8 +194,10 @@ async function getHeadDiff(projectPath: string): Promise<GitDiffResult> {
 
 async function getInitialCommitDiff(projectPath: string): Promise<GitDiffResult> {
   const [worktreeResult, cachedResult] = await Promise.all([
-    runGit(projectPath, ['diff', '--patch', '--no-ext-diff'], { maxBuffer: DIFF_GIT_MAX_BUFFER }),
-    runGit(projectPath, ['diff', '--patch', '--cached', '--no-ext-diff'], {
+    runGit(projectPath, [...GIT_RAW_PATHS, 'diff', '--patch', '--no-ext-diff'], {
+      maxBuffer: DIFF_GIT_MAX_BUFFER,
+    }),
+    runGit(projectPath, [...GIT_RAW_PATHS, 'diff', '--patch', '--cached', '--no-ext-diff'], {
       maxBuffer: DIFF_GIT_MAX_BUFFER,
     }),
   ])
