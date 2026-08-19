@@ -1,8 +1,9 @@
+import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 import {
-  HOOK_PLACEMENTS,
+  derivePlacements,
+  findNsisTemplates,
   parseDefinedMacros,
-  planHookInsertions,
 } from '../installer-hook-placements'
 
 describe('parseDefinedMacros', () => {
@@ -27,36 +28,88 @@ describe('parseDefinedMacros', () => {
   })
 })
 
-describe('planHookInsertions', () => {
-  it('places each hook where electron-builder inserts it', () => {
-    /*
-     * Placement is what makes the compile check meaningful: NSIS refuses installer-variant StrFunc
-     * calls from an uninstall section, and a helper declared in one pass is unreferenced in the
-     * other - both of which broke real releases.
-     */
-    const plan = planHookInsertions(['customHeader', 'customInstall', 'customUnInstall'])
+describe('derivePlacements', () => {
+  /*
+   * These assertions are against electron-builder's own vendored templates, not against a table in
+   * this repository. A hand-written table claimed `customUnInstallCheck` belonged in the uninstaller
+   * pass; it is inserted in `include/installUtil.nsh`, which the installer entry point includes only
+   * under `!ifndef BUILD_UNINSTALLER`. Real makensis proved the consequence: a hook calling the
+   * wrong StrFunc variant compiled clean under the old harness and would have failed a release.
+   * A test asserting the table against itself could not have caught that.
+   */
+  it('reads each hook pass and context out of the shipped templates', async () => {
+    const templates = await findNsisTemplates(process.cwd())
+    expect(templates).not.toBeNull()
+    if (templates === null) return
 
-    expect(plan.topLevel).toEqual(['customHeader'])
-    expect(plan.installSection).toEqual(['customInstall'])
-    expect(plan.uninstallSection).toEqual(['customUnInstall'])
-    expect(plan.unmapped).toEqual([])
+    const placements = await derivePlacements(templates, [
+      'customHeader',
+      'preInit',
+      'customInit',
+      'customUnInit',
+      'customInstall',
+      'customUnInstall',
+      'customUnInstallSection',
+      'customUnInstallCheck',
+      'customRemoveFiles',
+    ])
+
+    // The installer pass compiles these, whatever their name suggests.
+    expect(placements.get('customUnInstallCheck')).toMatchObject({
+      uninstallerPass: false,
+      context: 'function',
+    })
+    expect(placements.get('customInit')).toMatchObject({
+      uninstallerPass: false,
+      context: 'function',
+    })
+    expect(placements.get('customHeader')).toMatchObject({
+      uninstallerPass: false,
+      context: 'top-level',
+    })
+    expect(placements.get('customInstall')).toMatchObject({
+      uninstallerPass: false,
+      context: 'section',
+    })
+
+    // The uninstaller pass compiles these.
+    expect(placements.get('customUnInstall')).toMatchObject({
+      uninstallerPass: true,
+      context: 'section',
+    })
+    expect(placements.get('customRemoveFiles')).toMatchObject({
+      uninstallerPass: true,
+      context: 'section',
+    })
+    expect(placements.get('customUnInit')).toMatchObject({
+      uninstallerPass: true,
+      context: 'function',
+    })
+    // Inserted after SectionEnd on purpose, so the hook can declare its own Section.
+    expect(placements.get('customUnInstallSection')).toMatchObject({
+      uninstallerPass: true,
+      context: 'top-level',
+    })
   })
 
-  it('reports a macro it has no insertion point for instead of skipping it', () => {
-    /*
-     * The harness used to insert only customInstall and customUnInstall, so any other hook was
-     * never compiled: an undeclared StrFunc call and a bogus instruction inside customHeader both
-     * passed. An unknown hook must fail the check so this map gets extended.
-     */
-    const plan = planHookInsertions(['customInstall', 'someFutureHook'])
+  it('reports a hook this electron-builder version never inserts', async () => {
+    const templates = await findNsisTemplates(process.cwd())
+    if (templates === null) return
 
-    expect(plan.unmapped).toEqual(['someFutureHook'])
+    const placements = await derivePlacements(templates, ['someFutureHook'])
+
+    expect(placements.get('someFutureHook')).toBeNull()
   })
 
-  it('covers the hooks electron-builder documents', () => {
-    // A floor, so the map cannot quietly shrink back to the two hardcoded hooks.
-    for (const hook of ['customHeader', 'preInit', 'customUnInit', 'customRemoveFiles']) {
-      expect(HOOK_PLACEMENTS[hook]).toBeDefined()
+  it('covers every hook the shipped installer script defines', async () => {
+    // If a hook here had no placement the check would fail, so this also documents the real set.
+    const templates = await findNsisTemplates(process.cwd())
+    if (templates === null) return
+    const macros = parseDefinedMacros(await readFile('build/installer.nsh', 'utf8'))
+
+    expect(macros.length).toBeGreaterThan(0)
+    for (const [, placement] of await derivePlacements(templates, macros)) {
+      expect(placement).not.toBeNull()
     }
   })
 })

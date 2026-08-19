@@ -115,4 +115,46 @@ describe('Conventional Commit PR title release intent', () => {
       await fs.rm(cwd, { force: true, recursive: true })
     }
   })
+
+  it('refuses an evil merge that introduces an unreleased package change', async () => {
+    /*
+     * A merge's tree is not constrained by its parents: content added while resolving a conflict
+     * exists in neither side. Exempting the whole commit on parent containment alone dropped such a
+     * `packages/` change from both the commit rule and this PR-title rule, so a change to the
+     * published npm surface could reach the base branch with no version bump and no changelog entry.
+     * A regression against main, which had no exemption on this rule at all.
+     */
+    const { baseline, cwd } = await createRepository()
+    try {
+      await writeAndCommit(cwd, 'base-notes.md', 'notes\n', 'docs: base branch moves on')
+      const baseRef = await git(cwd, ['rev-parse', 'HEAD'])
+
+      await git(cwd, ['checkout', '-b', 'feature', baseline])
+      await writeAndCommit(cwd, 'src/feature.ts', 'export {}\n', 'feat(app): add a feature')
+      await merge(cwd, 'main', "Merge branch 'main' into feature")
+
+      // The package change exists only in the merge commit: no parent has it, nothing released it.
+      await writeAndCommit(
+        cwd,
+        'packages/extension-sdk/smuggled.ts',
+        'export {}\n',
+        'chore: amend marker',
+      )
+      await git(cwd, [...GIT_IDENTITY, 'reset', '--soft', 'HEAD~1'])
+      await git(cwd, [...GIT_IDENTITY, 'commit', '--amend', '--no-edit'])
+      const evilMerge = await git(cwd, ['rev-parse', 'HEAD'])
+
+      const result = await validateConventionalCommits({
+        baseline,
+        cwd,
+        from: baseRef,
+        to: evilMerge,
+        prTitle: 'docs(app): describe the feature',
+      })
+
+      expect(result.violations.join(' ')).toContain('would not create a Release Please version bump')
+    } finally {
+      await fs.rm(cwd, { force: true, recursive: true })
+    }
+  })
 })

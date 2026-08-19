@@ -1,52 +1,60 @@
-/**
- * Where electron-builder inserts each customisation hook.
- *
- * The compile check has to exercise every hook the script defines, in the place and pass that
- * electron-builder inserts it, or it only guards the hooks someone happened to hardcode. That was
- * the case: the harness inserted `customInstall` and `customUnInstall` and nothing else, so any
- * other hook - `customHeader`, `customUnInit`, `customRemoveFiles`, ... - could contain an
- * undeclared StrFunc call or outright nonsense and still pass `pnpm check` before dying in
- * `makensis` during a release. That is exactly the failure this check exists to move left.
- *
- * Anything not listed here fails the check rather than being skipped, so adding a hook forces this
- * map to be extended.
- */
-export type HookPlacement =
-  /** Inserted at top level in both passes (electron-builder does this outside any BUILD_UNINSTALLER guard). */
-  | 'top-level'
-  /** Inserted inside the installer's install section. */
-  | 'install-section'
-  /** Inserted inside the uninstaller's uninstall section, in the BUILD_UNINSTALLER pass. */
-  | 'uninstall-section'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+import fg from 'fast-glob'
 
 /**
- * The hooks electron-builder documents, and where each is inserted.
+ * Where electron-builder inserts a customisation hook, derived from its own templates.
  *
- * Names come from electron-builder's NSIS templates. Placement matters because NSIS refuses
- * installer-variant StrFunc calls from an uninstall section, and because a helper declared in one
- * pass is unreferenced in the other - both real release failures.
+ * The compile check has to exercise every hook the script defines, in the place *and pass* that
+ * electron-builder uses, or it inverts its own verdict. A hand-written table got this wrong: an
+ * independent review proved with real makensis that `customUnInstallCheck` was compiled in the
+ * uninstaller pass while electron-builder compiles it in the installer pass (it lives in
+ * `include/installUtil.nsh`, included under `!ifndef BUILD_UNINSTALLER`), so a hook calling the
+ * wrong StrFunc variant passed the check and would have died during a release - the exact failure
+ * the check exists to prevent. Four more hooks were placed at top level although they are inserted
+ * inside functions, where their instructions are legal.
+ *
+ * So the table is not written by hand any more. It is read out of the vendored
+ * `app-builder-lib/templates/nsis/**`, which is the only authority on the question.
  */
-export const HOOK_PLACEMENTS: Readonly<Record<string, HookPlacement>> = {
-  customHeader: 'top-level',
-  preInit: 'top-level',
-  customInit: 'top-level',
-  customUnInit: 'top-level',
-  customInstallMode: 'top-level',
-  customWelcomePage: 'top-level',
-  customFinishPage: 'top-level',
-  licensePage: 'top-level',
-  customPageAfterChangeDir: 'top-level',
-  customUninstallPage: 'top-level',
-  customUnWelcomePage: 'top-level',
-  customInstall: 'install-section',
-  customCheckAppRunning: 'install-section',
-  customFiles_x64: 'install-section',
-  customFiles_arm64: 'install-section',
-  customFiles_ia32: 'install-section',
-  customUnInstall: 'uninstall-section',
-  customUnInstallSection: 'uninstall-section',
-  customUnInstallCheck: 'uninstall-section',
-  customRemoveFiles: 'uninstall-section',
+export type HookContext = 'top-level' | 'section' | 'function'
+
+export interface HookPlacement {
+  /** True when electron-builder compiles this hook with BUILD_UNINSTALLER defined. */
+  readonly uninstallerPass: boolean
+  readonly context: HookContext
+  /** Where the placement was observed, for the error message. */
+  readonly source: string
+}
+
+const TEMPLATE_GLOB = 'node_modules/.pnpm/app-builder-lib@*/node_modules/app-builder-lib/templates/nsis'
+const UNINSTALLER_DEFINE = 'BUILD_UNINSTALLER'
+/** Templates the installer entry point includes only for one pass. */
+const PASS_BY_TEMPLATE: Readonly<Record<string, boolean>> = {
+  'uninstaller.nsh': true,
+  'installUtil.nsh': false,
+  'installSection.nsh': false,
+}
+
+/**
+ * Templates that are `!include`d *inside* a block, so their own top level is not top level.
+ *
+ * `installSection.nsh` is included inside `Section "install"`, and the `include/*.nsh` helpers are
+ * macro bodies invoked from functions. Reading context only within a file would call these top
+ * level and compile their hooks where instructions are illegal.
+ */
+const CONTEXT_BY_TEMPLATE: Readonly<Record<string, HookContext>> = {
+  'installSection.nsh': 'section',
+}
+
+/** Resolve the vendored templates directory, or null when the dependency is absent. */
+export async function findNsisTemplates(repositoryRoot: string): Promise<string | null> {
+  const matches = await fg(TEMPLATE_GLOB, {
+    cwd: repositoryRoot,
+    onlyDirectories: true,
+    absolute: true,
+  })
+  return matches[0] ?? null
 }
 
 const MACRO_DEFINITION = /^!macro\s+(?<name>\S+)/u
@@ -61,31 +69,115 @@ export function parseDefinedMacros(scriptSource: string): readonly string[] {
   return names
 }
 
-export interface HookInsertions {
-  readonly topLevel: readonly string[]
-  readonly installSection: readonly string[]
-  readonly uninstallSection: readonly string[]
-  /** Macros the script defines that this harness has no insertion point for. */
-  readonly unmapped: readonly string[]
+const BLOCK_END = /^(?:SectionEnd|FunctionEnd|!macroend)\b/iu
+const SECTION_START = /^Section\b/iu
+const FUNCTION_START = /^Function\b/iu
+const MACRO_START = /^!macro\b/iu
+
+/**
+ * The NSIS block a line sits inside: a section, a function, or neither.
+ *
+ * A hook inside a template's own `!macro` is inserted wherever that macro is, and every such macro
+ * in these templates is invoked from a function or section, so it is treated as a function - the
+ * stricter of the two for StrFunc purposes.
+ */
+function contextAt(lines: readonly string[], index: number): HookContext {
+  let closed = 0
+  for (let cursor = index; cursor >= 0; cursor -= 1) {
+    const line = (lines[cursor] ?? '').trim()
+    if (BLOCK_END.test(line)) {
+      closed += 1
+      continue
+    }
+    const opensSection = SECTION_START.test(line)
+    const opensCallable = FUNCTION_START.test(line) || MACRO_START.test(line)
+    if (!opensSection && !opensCallable) continue
+    if (closed > 0) {
+      closed -= 1
+      continue
+    }
+    return opensSection ? 'section' : 'function'
+  }
+  return 'top-level'
 }
 
-/** Group the script's macros by where they must be inserted to be compiled. */
-export function planHookInsertions(macros: readonly string[]): HookInsertions {
-  const buckets: Record<HookPlacement | 'unmapped', string[]> = {
-    'top-level': [],
-    'install-section': [],
-    'uninstall-section': [],
-    unmapped: [],
+/**
+ * Whether the insertion sits inside a BUILD_UNINSTALLER region of its own file.
+ *
+ * `!else` flips the polarity, which is how `customInit` is reached: it sits in the `!else` of an
+ * `!ifdef BUILD_UNINSTALLER`, i.e. the installer pass. Ignoring `!else` reported the opposite.
+ */
+function guardedForUninstaller(lines: readonly string[], index: number): boolean | null {
+  const stack: (boolean | null)[] = []
+  for (let cursor = 0; cursor <= index; cursor += 1) {
+    const line = (lines[cursor] ?? '').trim()
+    const mentionsDefine = line.includes(UNINSTALLER_DEFINE)
+    if (line.startsWith('!ifdef ') && mentionsDefine) {
+      stack.push(true)
+      continue
+    }
+    if (line.startsWith('!ifndef ') && mentionsDefine) {
+      stack.push(false)
+      continue
+    }
+    if (line.startsWith('!else')) {
+      const current = stack.pop()
+      stack.push(typeof current === 'boolean' ? !current : null)
+      continue
+    }
+    if (line.startsWith('!endif')) {
+      stack.pop()
+      continue
+    }
+    if (line.startsWith('!if')) stack.push(null)
   }
+  // The innermost decided guard wins.
+  for (const entry of [...stack].reverse()) if (entry !== null) return entry
+  return null
+}
 
-  for (const macro of macros) {
-    buckets[HOOK_PLACEMENTS[macro] ?? 'unmapped'].push(macro)
-  }
+/**
+ * Find where electron-builder inserts each hook.
+ *
+ * Returns `null` for a hook that appears in no template: that is a hook this version of
+ * electron-builder does not support, which must fail the check rather than be skipped.
+ */
+export async function derivePlacements(
+  templatesDir: string,
+  hooks: readonly string[],
+): Promise<ReadonlyMap<string, HookPlacement | null>> {
+  const files = await fg('**/*.{nsh,nsi}', { cwd: templatesDir, absolute: true })
+  const sources = await Promise.all(
+    files.map(async (file) => ({ file, lines: (await readFile(file, 'utf8')).split('\n') })),
+  )
 
-  return {
-    topLevel: buckets['top-level'],
-    installSection: buckets['install-section'],
-    uninstallSection: buckets['uninstall-section'],
-    unmapped: buckets.unmapped,
+  const placements = new Map<string, HookPlacement | null>()
+  for (const hook of hooks) {
+    placements.set(hook, findPlacement(sources, templatesDir, hook))
   }
+  return placements
+}
+
+function findPlacement(
+  sources: readonly { readonly file: string; readonly lines: readonly string[] }[],
+  templatesDir: string,
+  hook: string,
+): HookPlacement | null {
+  const insertion = new RegExp(`!insertmacro\\s+${hook}\\b`, 'u')
+  for (const { file, lines } of sources) {
+    const index = lines.findIndex((line) => insertion.test(line))
+    if (index === -1) continue
+
+    const relative = path.relative(templatesDir, file)
+    const guarded = guardedForUninstaller(lines, index)
+    const byTemplate = PASS_BY_TEMPLATE[path.basename(relative)]
+    const basename = path.basename(relative)
+    const withinFile = contextAt(lines, index)
+    return {
+      uninstallerPass: guarded ?? byTemplate ?? false,
+      context: withinFile === 'top-level' ? (CONTEXT_BY_TEMPLATE[basename] ?? 'top-level') : withinFile,
+      source: `${relative}:${String(index + 1)}`,
+    }
+  }
+  return null
 }

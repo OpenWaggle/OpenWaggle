@@ -24,9 +24,11 @@ import path from 'node:path'
 import { promisify } from 'node:util'
 
 import {
-  type HookInsertions,
+  derivePlacements,
+  findNsisTemplates,
+  type HookContext,
+  type HookPlacement,
   parseDefinedMacros,
-  planHookInsertions,
 } from './installer-hook-placements'
 
 const execFileAsync = promisify(execFile)
@@ -57,12 +59,14 @@ interface CompilePass {
  */
 function compilePasses(
   installerScriptPath: string,
-  insertions: HookInsertions,
+  placements: ReadonlyMap<string, HookPlacement>,
 ): readonly CompilePass[] {
-  const insertMacros = (macros: readonly string[], indent: string) =>
-    macros.map((macro) => `${indent}!insertmacro ${macro}`)
+  const forPass = (uninstallerPass: boolean, context: HookContext) =>
+    [...placements.entries()]
+      .filter(([, place]) => place.uninstallerPass === uninstallerPass && place.context === context)
+      .map(([hook]) => hook)
 
-  const include = [
+  const header = (extra: readonly string[]) => [
     '!include "WinMessages.nsh"',
     `!include "${installerScriptPath}"`,
     '',
@@ -70,18 +74,34 @@ function compilePasses(
     'OutFile "installer-script-check.exe"',
     'InstallDir "$TEMP\\installer-script-check"',
     '',
-    ...insertMacros(insertions.topLevel, ''),
+    ...extra,
     '',
   ]
+
+  const insert = (macros: readonly string[], indent: string) =>
+    macros.map((macro) => `${indent}!insertmacro ${macro}`)
+
+  /*
+   * A function wrapper for the hooks electron-builder inserts inside `.onInit`, `un.onInit` or one of
+   * its own macro bodies. Their instructions are illegal at top level, and - the reason this matters
+   * - whether a StrFunc call is legal depends on the pass and the block it sits in.
+   */
+  const functionBlock = (name: string, macros: readonly string[]) =>
+    macros.length === 0 ? [] : [`Function ${name}`, ...insert(macros, '  '), 'FunctionEnd', '']
+  // Only call the wrapper when there is one: an unresolved Call aborts the compile.
+  const callIfDefined = (name: string, macros: readonly string[]) =>
+    macros.length === 0 ? [] : [`  Call ${name}`]
 
   return [
     {
       label: 'installer',
       defines: [],
       script: [
-        ...include,
+        ...header(insert(forPass(false, 'top-level'), '')),
+        ...functionBlock('CheckHooks', forPass(false, 'function')),
         'Section "Install"',
-        ...insertMacros(insertions.installSection, '  '),
+        ...insert(forPass(false, 'section'), '  '),
+        ...callIfDefined('CheckHooks', forPass(false, 'function')),
         'SectionEnd',
         '',
       ].join('\n'),
@@ -90,13 +110,15 @@ function compilePasses(
       label: 'uninstaller',
       defines: ['BUILD_UNINSTALLER'],
       script: [
-        ...include,
+        ...header(insert(forPass(true, 'top-level'), '')),
+        ...functionBlock('un.CheckHooks', forPass(true, 'function')),
         'Section "Install"',
         '  WriteUninstaller "$INSTDIR\\uninstall.exe"',
         'SectionEnd',
         '',
         'Section "Uninstall"',
-        ...insertMacros(insertions.uninstallSection, '  '),
+        ...insert(forPass(true, 'section'), '  '),
+        ...callIfDefined('un.CheckHooks', forPass(true, 'function')),
         'SectionEnd',
         '',
       ].join('\n'),
@@ -177,18 +199,6 @@ async function main() {
   }
   const installerScriptPath = path.join(repositoryRoot, declaredScript)
   const macros = parseDefinedMacros(await readFile(installerScriptPath, 'utf8'))
-  const insertions = planHookInsertions(macros)
-
-  if (insertions.unmapped.length > 0) {
-    console.error(
-      `${declaredScript} defines hook(s) this check has no insertion point for: ` +
-        `${insertions.unmapped.join(', ')}.\n` +
-        'Add them to HOOK_PLACEMENTS in scripts/installer-hook-placements.ts so they are actually ' +
-        'compiled. Skipping them silently is how an unguarded hook reaches a release.',
-    )
-    process.exitCode = 1
-    return
-  }
   if (macros.length === 0) {
     console.error(
       `${declaredScript} defines no macros, so this check would compile nothing. Refusing to pass.`,
@@ -197,10 +207,36 @@ async function main() {
     return
   }
 
+  const templatesDir = await findNsisTemplates(repositoryRoot)
+  if (templatesDir === null) {
+    console.error(
+      "electron-builder's NSIS templates were not found, so hook placements cannot be derived. " +
+        'Install dependencies before running this check.',
+    )
+    process.exitCode = 1
+    return
+  }
+
+  const derived = await derivePlacements(templatesDir, macros)
+  const unsupported = [...derived.entries()]
+    .filter(([, place]) => place === null)
+    .map(([hook]) => hook)
+  if (unsupported.length > 0) {
+    console.error(
+      `${declaredScript} defines hook(s) this electron-builder version never inserts: ` +
+        `${unsupported.join(', ')}.\n` +
+        'They would never run. Remove them, or correct the macro name.',
+    )
+    process.exitCode = 1
+    return
+  }
+  const placements = new Map<string, HookPlacement>()
+  for (const [hook, place] of derived) if (place !== null) placements.set(hook, place)
+
   const workingDirectory = await mkdtemp(path.join(tmpdir(), 'openwaggle-nsis-check-'))
 
   try {
-    for (const pass of compilePasses(installerScriptPath, insertions)) {
+    for (const pass of compilePasses(installerScriptPath, placements)) {
       const harnessPath = path.join(workingDirectory, `harness-${pass.label}.nsi`)
       await writeFile(harnessPath, pass.script, 'utf8')
       const defineArgs = pass.defines.map((define) => `-D${define}`)
