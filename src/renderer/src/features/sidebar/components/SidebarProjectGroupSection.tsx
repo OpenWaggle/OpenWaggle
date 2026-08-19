@@ -24,6 +24,11 @@ interface ProjectGroupSectionProps {
   readonly branchActions: SidebarBranchActions
 }
 
+/** A draft's accent never varies, so the style object is built once rather than per render. */
+const DRAFT_ROW_STYLE: React.CSSProperties & { '--row-color': string } = {
+  '--row-color': 'var(--color-text-muted)',
+}
+
 /**
  * The unsaved session a project is about to start.
  *
@@ -39,10 +44,6 @@ function DraftSessionRow({
   readonly projectLabel: string
   readonly onSelect: () => void
 }) {
-  const rowStyle: React.CSSProperties & { '--row-color': string } = {
-    '--row-color': 'var(--color-text-muted)',
-  }
-
   return (
     <Button
       variant="unstyled"
@@ -51,7 +52,7 @@ function DraftSessionRow({
       aria-label={`Draft session in ${projectLabel}`}
       onClick={onSelect}
       data-qa="sidebar-draft-row"
-      style={rowStyle}
+      style={DRAFT_ROW_STYLE}
       className="group flex min-h-[44px] w-full items-start gap-2 bg-bg-active py-1.5 pr-2 pl-6 text-left transition-colors hover:bg-bg-hover"
     >
       <span className="grid h-[17px] w-3.5 flex-none place-items-center text-[color:var(--row-color)]">
