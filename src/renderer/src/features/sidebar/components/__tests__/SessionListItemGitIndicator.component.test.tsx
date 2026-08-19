@@ -70,10 +70,17 @@ describe('SessionListItem git indicator', () => {
     useGitStore.setState({ statusByWorkingPath: {} })
   })
 
+  /**
+   * Scoped to the divergence badge rather than any `role="img"`. Provenance glyphs are
+   * images too, and a worktree session legitimately shows one whether or not git status has
+   * arrived, so a blanket query would pass for the wrong reason.
+   */
+  const divergenceBadge = () => screen.queryByRole('img', { name: /commits? (ahead|behind)/ })
+
   it('shows nothing while the session status is unknown', () => {
     renderItem(session('a', { environmentMode: 'worktree', worktreePath: WORKTREE_A }))
 
-    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(divergenceBadge()).not.toBeInTheDocument()
   })
 
   it('shows nothing for a clean synced tree', () => {
@@ -83,7 +90,7 @@ describe('SessionListItem git indicator', () => {
 
     renderItem(session('a', { environmentMode: 'worktree', worktreePath: WORKTREE_A }))
 
-    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(divergenceBadge()).not.toBeInTheDocument()
   })
 
   it('reports this session worktree divergence', () => {

@@ -72,33 +72,3 @@ export function SessionDragGripSlot({ draggable }: { readonly draggable: boolean
     </span>
   )
 }
-
-/** The project a Pinned row belongs to, plus its Pinned shortcut when it has one. */
-export function SessionPinnedRowMeta({ pinnedRow }: { readonly pinnedRow: SessionPinnedRowState }) {
-  return (
-    <>
-      {/*
-       * The title owns the row and this label yields to it. Both flex from a zero basis,
-       * title weighted 2 to this label's 1, so a long project name can never squeeze the
-       * title out: measured at 272px sidebar width, a `shrink-0` label took 91px and left
-       * the title button 10px, rendering a row that showed only its project.
-       */}
-      {pinnedRow.projectLabel === '' ? null : (
-        <span
-          title={pinnedRow.projectLabel}
-          className="ml-1 min-w-0 flex-[1_1_0%] truncate text-[11px] text-text-muted"
-        >
-          {pinnedRow.projectLabel}
-        </span>
-      )}
-      {pinnedRow.shortcutIndex === null ? null : (
-        <span
-          aria-hidden="true"
-          className="ml-1 shrink-0 rounded border border-border-light bg-bg-tertiary px-1 py-0.5 font-mono text-[10px] text-text-muted"
-        >
-          {`\u2318${pinnedRow.shortcutIndex + 1}`}
-        </span>
-      )}
-    </>
-  )
-}
