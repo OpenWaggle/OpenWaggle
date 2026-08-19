@@ -50,7 +50,17 @@ function diffPanelReducer(state: DiffPanelState, action: DiffPanelAction) {
       resolvedBaseRef: null,
       automaticFellBackToWorkingTree: false,
     }))
-    .with('start-loading', () => ({ ...state, isLoading: true }))
+    .with('start-loading', () => ({
+      ...state,
+      isLoading: true,
+      /*
+       * Reset what the last load reported about Automatic. Keeping it meant the header claimed the
+       * working tree was on display while a newly selected base ref was loading - two contradictory
+       * statements about the same screen, which is the class of thing this reporting exists to remove.
+       */
+      resolvedBaseRef: null,
+      automaticFellBackToWorkingTree: false,
+    }))
     .with('load-success', (value) => ({
       ...state,
       fileDiffs: value.fileDiffs,
@@ -128,7 +138,12 @@ export function useDiffPanelDiffs(
   useEffect(() => {
     diffRequestId.current += 1
     const requestId = diffRequestId.current
-    if (!workingPath) {
+    /*
+     * Nothing to load for a turn: its diff comes from the checkpoint store. Running anyway meant
+     * every refresh - each turn end, each working-tree broadcast, each window focus - shelled out to
+     * `git diff` for a result the panel then discarded.
+     */
+    if (!workingPath || scopeKind === 'turn') {
       dispatch({ type: 'clear' })
       return
     }

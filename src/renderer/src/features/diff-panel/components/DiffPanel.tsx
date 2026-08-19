@@ -143,7 +143,8 @@ export function DiffPanel({
           selection={selection}
           baseRefControl={{
             current: branchBaseRef,
-            choices: baseRefChoices,
+            choices: baseRefChoices.choices,
+            choicesLoaded: baseRefChoices.loaded,
             resolvedAutomatic: displayed.resolvedAutomaticBaseRef,
             fellBackToWorkingTree: displayed.automaticFellBackToWorkingTree,
             onChange: (baseRef) => selectBranchBaseRef(scopeKey, baseRef),

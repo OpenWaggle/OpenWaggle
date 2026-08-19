@@ -118,5 +118,11 @@ describe('diff load failures', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load this diff')
     expect(screen.queryByText('No changes to review')).not.toBeInTheDocument()
+    /*
+     * And no working-tree diff was requested: a turn's diff comes from the checkpoint store, so
+     * shelling out to `git diff` on every refresh only produced a result the panel discarded.
+     */
+    expect(api.getGitDiff).not.toHaveBeenCalled()
+    expect(api.getGitBranchDiff).not.toHaveBeenCalled()
   })
 })

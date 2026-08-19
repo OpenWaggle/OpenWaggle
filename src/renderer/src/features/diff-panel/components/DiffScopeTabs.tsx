@@ -16,6 +16,8 @@ type ScopeKind = 'branch' | 'unstaged' | 'turn'
 export interface BaseRefControlState {
   readonly current: string | null
   readonly choices: readonly BaseRefChoice[]
+  /** Whether `choices` reflects a successful read, so a missing ref really is missing. */
+  readonly choicesLoaded: boolean
   readonly resolvedAutomatic: string | null
   readonly fellBackToWorkingTree: boolean
   readonly onChange: (baseRef: string) => void
@@ -107,7 +109,9 @@ export function DiffScopeTabs({
             rewritten the stored ref to empty.
           */}
           {baseRef !== null && !baseRefChoices.some((choice) => choice.label === baseRef) ? (
-            <option value={baseRef}>{`${baseRef} (unavailable)`}</option>
+            <option value={baseRef}>
+              {baseRefControl.choicesLoaded ? `${baseRef} (unavailable)` : baseRef}
+            </option>
           ) : null}
           {baseRefChoices.map((choice) => (
             <option key={choice.id} value={choice.label}>
@@ -119,8 +123,8 @@ export function DiffScopeTabs({
 
       {selection.kind === 'branch' && baseRefControl.fellBackToWorkingTree ? (
         // Automatic resolved no default branch, so this is the working-tree diff under a tab that
-        // claims a branch comparison. Say so rather than letting the two look identical.
-        <span className="text-[11px] text-text-tertiary">
+        // claims a branch comparison. Announced, not merely visible, for the same reason.
+        <span role="status" className="text-[11px] text-text-tertiary">
           No default branch; showing the working tree
         </span>
       ) : null}

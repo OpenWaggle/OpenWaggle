@@ -8,6 +8,7 @@ function baseRefControl(overrides: Partial<BaseRefControlState> = {}): BaseRefCo
   return {
     current: null,
     choices: [],
+    choicesLoaded: true,
     resolvedAutomatic: null,
     fellBackToWorkingTree: false,
     onChange: vi.fn(),
@@ -42,7 +43,22 @@ describe('base ref control', () => {
   it('says when Automatic resolved nothing and the working tree is being shown', () => {
     renderTabs(baseRefControl({ fellBackToWorkingTree: true }))
 
-    expect(screen.getByText('No default branch; showing the working tree')).toBeInTheDocument()
+    // Announced, not merely visible: the tab claims a branch comparison while showing something else.
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'No default branch; showing the working tree',
+    )
+  })
+
+  it('does not call a ref unavailable before the branch list has loaded', () => {
+    /*
+     * Choices load asynchronously and a failed listing collapsed to an empty list, so a perfectly
+     * valid ref was labelled "(unavailable)" - permanently if the listing kept failing. A guess
+     * presented as fact, in the one control whose job is to say which base the diff used.
+     */
+    renderTabs(baseRefControl({ current: 'release/1.x', choices: [], choicesLoaded: false }))
+
+    expect(screen.getByRole('option', { name: 'release/1.x' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /unavailable/ })).not.toBeInTheDocument()
   })
 
   it('renders a persisted ref that is not among the choices, instead of showing Automatic', () => {

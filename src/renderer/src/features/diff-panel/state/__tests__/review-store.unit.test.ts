@@ -140,4 +140,26 @@ describe('review-store', () => {
     expect(selectReviewThread(useReviewStore.getState(), turnTwo).comments).toEqual([])
     expect(selectReviewThread(useReviewStore.getState(), turnSeven).comments).toHaveLength(1)
   })
+
+  it('does not retain reviews that hold nothing', () => {
+    /*
+     * Every key the panel touched was kept for the life of the process - one per session and scope
+     * ever opened, including sessions since deleted. An empty review carries no user work.
+     */
+    const key = reviewKeyFor('s', { kind: 'unstaged' })
+    useReviewStore.getState().addComment(key, makeComment('c1'))
+    expect(Object.keys(useReviewStore.getState().byReviewKey)).toEqual([key])
+
+    useReviewStore.getState().removeComment(key, 'c1')
+
+    expect(Object.keys(useReviewStore.getState().byReviewKey)).toEqual([])
+  })
+
+  it('keeps a review that holds only a summary', () => {
+    // A summary is user work too, even before any comment exists.
+    const key = reviewKeyFor('s', { kind: 'unstaged' })
+    useReviewStore.getState().setSummary(key, 'please fix the naming')
+
+    expect(Object.keys(useReviewStore.getState().byReviewKey)).toEqual([key])
+  })
 })

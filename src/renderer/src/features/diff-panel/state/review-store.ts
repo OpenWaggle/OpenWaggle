@@ -59,13 +59,33 @@ interface ReviewState {
   ) => void
 }
 
+/**
+ * Drop reviews that hold nothing.
+ *
+ * Every key the panel touched was retained forever - a session id and scope per diff ever opened,
+ * including sessions since deleted - so the store grew without bound for the life of the process.
+ * An empty review carries no user work, so forgetting it loses nothing.
+ */
+function withoutEmptyThreads(byReviewKey: Record<string, ReviewThread>) {
+  return Object.fromEntries(
+    Object.entries(byReviewKey).filter(
+      ([, thread]) =>
+        thread.comments.length > 0 ||
+        thread.summary.trim().length > 0 ||
+        thread.activeCommentLocation !== null,
+    ),
+  )
+}
+
 function updateThread(
   state: Pick<ReviewState, 'byReviewKey'>,
   reviewKey: string,
   change: (thread: ReviewThread) => ReviewThread,
 ) {
   const current = state.byReviewKey[reviewKey] ?? EMPTY_THREAD
-  return { byReviewKey: { ...state.byReviewKey, [reviewKey]: change(current) } }
+  return {
+    byReviewKey: withoutEmptyThreads({ ...state.byReviewKey, [reviewKey]: change(current) }),
+  }
 }
 
 export const useReviewStore = create<ReviewState>((set) => ({
