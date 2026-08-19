@@ -43,8 +43,9 @@ const DEFAULT_INSTALLER_SCRIPT = 'build/installer.nsh'
  * Scoped deliberately: an unanchored search would match an `include:` under any other key - `files`,
  * `dmg`, a linux target - and compile a path that is not the installer script at all.
  */
-const NSIS_BLOCK = /^nsis:\s*$/mu
-const BLOCK_ENTRY = /^ {2}(?<key>[A-Za-z_][\w-]*):\s*(?<value>\S+)?\s*$/u
+const NSIS_BLOCK = /^nsis:\s*(?:#.*)?$/mu
+/** Any indented `key: value` inside the block, whatever the indent width. */
+const BLOCK_ENTRY = /^(?<indent>\s+)(?<key>[A-Za-z_][\w-]*):\s*(?<value>.*)$/u
 const TOP_LEVEL_KEY = /^\S/u
 const MAKENSIS_MISSING_EXIT_CODES = new Set(['ENOENT'])
 /** electron-builder compiles with warnings-as-errors; mirror it or the check is weaker. */
@@ -191,17 +192,36 @@ function commandOutput(error: unknown) {
  */
 async function resolveInstallerScript(repositoryRoot: string) {
   const config = await readFile(path.join(repositoryRoot, ELECTRON_BUILDER_CONFIG), 'utf8')
+  return resolveInstallerScriptFrom(config)
+}
+
+/** The `nsis.include` path declared by a config, or null when there is not exactly one. */
+export function resolveInstallerScriptFrom(config: string): string | null {
   const lines = config.split('\n')
   const start = lines.findIndex((line) => NSIS_BLOCK.test(line))
   if (start === -1) return null
 
   for (const line of lines.slice(start + 1)) {
+    // Blank lines and comments do not end the block.
+    const withoutComment = line.replace(/(?:^|\s)#.*$/u, '')
+    if (withoutComment.trim().length === 0) continue
     // The block ends at the next top-level key.
-    if (TOP_LEVEL_KEY.test(line) && line.trim().length > 0) return null
-    const entry = BLOCK_ENTRY.exec(line)
-    if (entry?.groups?.['key'] === 'include') return entry.groups['value'] ?? null
+    if (TOP_LEVEL_KEY.test(withoutComment)) return null
+
+    const entry = BLOCK_ENTRY.exec(withoutComment)
+    if (entry?.groups?.['key'] !== 'include') continue
+    const value = (entry.groups['value'] ?? '').trim()
+    // A list or an empty value is not a single path this check can compile.
+    if (value.length === 0 || value.startsWith('[') || value.startsWith('-')) return null
+    return stripYamlQuotes(value)
   }
   return null
+}
+
+/** Remove matching surrounding quotes, which YAML allows around a path. */
+function stripYamlQuotes(value: string) {
+  const quoted = /^(?<quote>["'])(?<inner>.*)\k<quote>$/u.exec(value)
+  return quoted?.groups?.['inner'] ?? value
 }
 
 async function main() {
@@ -209,9 +229,11 @@ async function main() {
   const declaredScript = await resolveInstallerScript(repositoryRoot)
   if (declaredScript === null) {
     console.error(
-      `${ELECTRON_BUILDER_CONFIG} declares no nsis.include, so there is no installer script to ` +
-        `check. If the customisations were removed, remove this check too; otherwise restore the ` +
-        `include (it was ${DEFAULT_INSTALLER_SCRIPT}).`,
+      `Could not read a single nsis.include path from ${ELECTRON_BUILDER_CONFIG}. This check compiles ` +
+        `that script, so it cannot run without it.\n` +
+        `If the include was moved or is now a list, teach resolveInstallerScript to read it - do not ` +
+        `delete this check: it exists because two consecutive Windows releases failed on an error the ` +
+        `installer script would have shown here. It was ${DEFAULT_INSTALLER_SCRIPT}.`,
     )
     process.exitCode = 1
     return

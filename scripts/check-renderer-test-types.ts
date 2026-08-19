@@ -111,6 +111,13 @@ export function isRendererTestFile(filePath: string) {
  * line in a tsconfig was enough to reach it.
  */
 const OPTIONS_THAT_MUST_BE_OFF = ['noCheck'] as const
+/**
+ * Options that must stay ON, because switching them off silences the very class of defect this guard
+ * exists for: a mock whose shape does not match the interface it stands in for. With `strict` or
+ * `strictNullChecks` off, a fixture missing a required field compiles clean and the check still reports
+ * every file as clean - the exemption list is empty, so there is no stale-exemption signal either.
+ */
+const OPTIONS_THAT_MUST_BE_ON = ['strict', 'strictNullChecks', 'noImplicitAny'] as const
 
 /** Read the effective compiler options tsc will actually use. */
 async function readEffectiveCompilerOptions(): Promise<Readonly<Record<string, unknown>>> {
@@ -169,6 +176,16 @@ async function main() {
     console.error(
       `${PROJECT} enables ${disabled.join(', ')}, so tsc reports no type errors at all and this ` +
         'check would pass while checking nothing. Remove it.',
+    )
+    process.exitCode = 1
+    return
+  }
+
+  const relaxed = OPTIONS_THAT_MUST_BE_ON.filter((option) => effectiveOptions[option] === false)
+  if (relaxed.length > 0) {
+    console.error(
+      `${PROJECT} turns off ${relaxed.join(', ')}. A fixture missing a required field then compiles ` +
+        'clean, which is exactly the mismatch this check exists to catch. Restore it.',
     )
     process.exitCode = 1
     return

@@ -43,6 +43,7 @@ Point-in-time review records for a specific change. They are historical working 
 
 - `docs/reviews/pr145-findings.md`, `docs/reviews/pr145-reviewer-{1,2,3}.md` — the diff-panel / git-actions review round.
 - `docs/reviews/adr16-findings.md`, `docs/reviews/adr16-reviewer-{1,2,3}.md` — the session-keyed git state review round.
+- `docs/reviews/pr163-findings.md` — three review rounds over the follow-up fixes, and why each remaining finding was left.
 
 ## Specs
 
