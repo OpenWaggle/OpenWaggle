@@ -42,20 +42,29 @@ describe('pruneSessionWorktree', () => {
      * objects into the user's repository forever.
      */
     const d = deps([{ sessionId: 's1', worktreePath: '/wt/x' }])
-    await pruneSessionWorktree({ sessionId: 's1', projectPath: '/repo', worktreePath: '/wt/x' }, d)
+    await pruneSessionWorktree(
+      { sessionId: 's1', projectPath: '/repo', worktreePath: '/wt/x', reason: 'delete' },
+      d,
+    )
     expect(deleteRefsMock).toHaveBeenCalledWith('/repo', 's1')
   })
 
   it('deletes anchor refs for a local-mode session, which has no worktree', async () => {
     const d = deps([])
-    await pruneSessionWorktree({ sessionId: 's1', projectPath: '/repo', worktreePath: null }, d)
+    await pruneSessionWorktree(
+      { sessionId: 's1', projectPath: '/repo', worktreePath: null, reason: 'delete' },
+      d,
+    )
     expect(removeGitWorktreeMock).not.toHaveBeenCalled()
     expect(deleteRefsMock).toHaveBeenCalledWith('/repo', 's1')
   })
 
   it('removes the worktree when the session solely owns it, then clears + prunes checkpoints', async () => {
     const d = deps([{ sessionId: 's1', worktreePath: '/wt/x' }])
-    await pruneSessionWorktree({ sessionId: 's1', projectPath: '/repo', worktreePath: '/wt/x' }, d)
+    await pruneSessionWorktree(
+      { sessionId: 's1', projectPath: '/repo', worktreePath: '/wt/x', reason: 'delete' },
+      d,
+    )
     expect(removeGitWorktreeMock).toHaveBeenCalledWith('/repo', { path: '/wt/x' })
     expect(d.clearWorktree).toHaveBeenCalledWith('s1')
     expect(d.deleteCheckpoints).toHaveBeenCalledWith('s1')
@@ -67,7 +76,7 @@ describe('pruneSessionWorktree', () => {
       { sessionId: 's2', worktreePath: '/wt/shared' },
     ])
     await pruneSessionWorktree(
-      { sessionId: 's1', projectPath: '/repo', worktreePath: '/wt/shared' },
+      { sessionId: 's1', projectPath: '/repo', worktreePath: '/wt/shared', reason: 'delete' },
       d,
     )
     expect(removeGitWorktreeMock).not.toHaveBeenCalled()
@@ -76,7 +85,10 @@ describe('pruneSessionWorktree', () => {
 
   it('only prunes checkpoints when the session has no worktree', async () => {
     const d = deps([])
-    await pruneSessionWorktree({ sessionId: 's1', projectPath: '/repo', worktreePath: null }, d)
+    await pruneSessionWorktree(
+      { sessionId: 's1', projectPath: '/repo', worktreePath: null, reason: 'delete' },
+      d,
+    )
     expect(removeGitWorktreeMock).not.toHaveBeenCalled()
     expect(d.clearWorktree).not.toHaveBeenCalled()
     expect(d.deleteCheckpoints).toHaveBeenCalledWith('s1')
@@ -86,7 +98,10 @@ describe('pruneSessionWorktree', () => {
     removeGitWorktreeMock.mockResolvedValue({ ok: false, code: 'dirty-worktree', message: 'dirty' })
     const d = deps([{ sessionId: 's1', worktreePath: '/wt/x' }])
     await expect(
-      pruneSessionWorktree({ sessionId: 's1', projectPath: '/repo', worktreePath: '/wt/x' }, d),
+      pruneSessionWorktree(
+        { sessionId: 's1', projectPath: '/repo', worktreePath: '/wt/x', reason: 'delete' },
+        d,
+      ),
     ).resolves.toBeUndefined()
   })
 
@@ -105,10 +120,32 @@ describe('pruneSessionWorktree', () => {
     })
     const d = deps([{ sessionId: 's1', worktreePath: '/wt/x' }])
 
-    await pruneSessionWorktree({ sessionId: 's1', projectPath: '/repo', worktreePath: '/wt/x' }, d)
+    await pruneSessionWorktree(
+      { sessionId: 's1', projectPath: '/repo', worktreePath: '/wt/x', reason: 'delete' },
+      d,
+    )
 
     expect(d.clearWorktree).not.toHaveBeenCalled()
     // Checkpoint rows still go: the session row itself is being deleted or archived.
     expect(d.deleteCheckpoints).toHaveBeenCalledWith('s1')
+  })
+
+  it('keeps Turn checkpoints and their anchor refs when a session is archived', async () => {
+    /*
+     * Archiving is reversible - `unarchive` exists and only flips a flag - but checkpoints and the
+     * whole anchor-ref namespace were deleted for both reasons, so an archived session came back with
+     * its entire turn-diff history gone and its snapshot objects unpinned.
+     */
+    const d = deps([{ sessionId: 's1', worktreePath: '/wt/x' }])
+
+    await pruneSessionWorktree(
+      { sessionId: 's1', projectPath: '/repo', worktreePath: '/wt/x', reason: 'archive' },
+      d,
+    )
+
+    expect(d.deleteCheckpoints).not.toHaveBeenCalled()
+    expect(deleteRefsMock).not.toHaveBeenCalled()
+    // The worktree itself still goes: it can be recreated, and the branch keeps its commits.
+    expect(removeGitWorktreeMock).toHaveBeenCalledWith('/repo', { path: '/wt/x' })
   })
 })

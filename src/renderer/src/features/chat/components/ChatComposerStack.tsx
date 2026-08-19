@@ -58,7 +58,7 @@ function noOp() {}
  * something bypassed the gate - and the message was silently re-enqueued instead of the user
  * seeing the recover-or-switch notice.
  */
-function enqueueIfAllowed(input: {
+export function enqueueIfAllowed(input: {
   readonly payload: AgentSendPayload
   readonly activeSessionId: SessionId | null
   readonly sendBlockedReason: string | null

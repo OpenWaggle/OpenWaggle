@@ -22,17 +22,22 @@ export async function pruneSessionWorktree(
     readonly sessionId: string
     readonly projectPath: string | null
     readonly worktreePath: string | null
+    /**
+     * Why the session is being pruned.
+     *
+     * Archiving is reversible - `unarchive` exists and only flips a flag - so it must not destroy
+     * anything that cannot come back. Turn checkpoints and their anchor refs were deleted for both
+     * reasons, so an archived session returned with its whole turn-diff history gone and its snapshot
+     * objects unpinned. Only a delete removes them.
+     */
+    readonly reason: 'delete' | 'archive'
   },
   deps: PruneSessionWorktreeDeps,
 ): Promise<void> {
   try {
     const worktreePath = input.worktreePath?.trim()
     if (!worktreePath || !input.projectPath) {
-      await deps.deleteCheckpoints(input.sessionId)
-      // Local-mode sessions capture checkpoints in the opened checkout, so their refs leak too.
-      if (input.projectPath) {
-        await deleteSessionTurnCheckpointRefs(input.projectPath, input.sessionId)
-      }
+      await discardCheckpoints(input, deps)
       return
     }
 
@@ -42,16 +47,35 @@ export async function pruneSessionWorktree(
     if (!removalFailed) {
       await deps.clearWorktree(input.sessionId)
     }
-    await deps.deleteCheckpoints(input.sessionId)
-    /*
-     * Anchor refs must go with the rows. They pin a full tree per turn (untracked files
-     * included) and survive worktree removal, branch deletion and `gc --prune=now`, so
-     * dropping only the rows left those objects reachable in the user's repository forever.
-     * Deleted against the primary checkout, which is where the shared ref namespace lives.
-     */
-    await deleteSessionTurnCheckpointRefs(input.projectPath, input.sessionId)
+
+    await discardCheckpoints(input, deps)
   } catch (error) {
     logger.warn('Failed to prune Session worktree', { error: String(error) })
+  }
+}
+
+/**
+ * Drop a session's Turn checkpoints, rows and anchor refs together - for a delete only.
+ *
+ * The refs pin a full tree per turn, untracked files included, and survive worktree removal, branch
+ * deletion and `gc --prune=now`, so dropping only the rows left those objects reachable in the user's
+ * repository forever. They are deleted against the primary checkout, where the shared namespace
+ * lives, and that includes local-mode sessions, which capture into the opened checkout.
+ *
+ * Archiving keeps everything: it is reversible, and an archived session must come back whole.
+ */
+async function discardCheckpoints(
+  input: {
+    readonly sessionId: string
+    readonly projectPath: string | null
+    readonly reason: 'delete' | 'archive'
+  },
+  deps: PruneSessionWorktreeDeps,
+) {
+  if (input.reason === 'archive') return
+  await deps.deleteCheckpoints(input.sessionId)
+  if (input.projectPath) {
+    await deleteSessionTurnCheckpointRefs(input.projectPath, input.sessionId)
   }
 }
 
