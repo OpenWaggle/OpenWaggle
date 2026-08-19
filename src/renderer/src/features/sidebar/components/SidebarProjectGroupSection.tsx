@@ -3,6 +3,7 @@ import { Edit3 } from 'lucide-react'
 import { Button } from '@/shared/ui/Button'
 import { buildSidebarBranchRows } from '../lib/sidebar-branches'
 import type { SidebarProjectGroup } from '../lib/sidebar-project-groups'
+import type { SidebarStateCount } from '../lib/sidebar-row-state'
 import type {
   SidebarBranchActions,
   SidebarProjectActions,
@@ -15,6 +16,7 @@ import { SidebarProjectHeader } from './SidebarProjectHeader'
 
 interface ProjectGroupSectionProps {
   readonly group: SidebarProjectGroup
+  readonly rollUp: readonly SidebarStateCount[]
   readonly renderState: SidebarProjectRenderState
   readonly displayProjectName: (path: string) => string
   readonly projectActions: SidebarProjectActions
@@ -153,6 +155,7 @@ function ProjectSessionRow({
 
 export function SidebarProjectGroupSection({
   group,
+  rollUp,
   renderState,
   displayProjectName,
   projectActions,
@@ -169,6 +172,7 @@ export function SidebarProjectGroupSection({
         projectLabel={projectLabel}
         isCurrentProject={group.projectPath === renderState.projectPath}
         collapsed={collapsed}
+        rollUp={rollUp}
         actions={projectActions}
       />
       {collapsed ? null : (

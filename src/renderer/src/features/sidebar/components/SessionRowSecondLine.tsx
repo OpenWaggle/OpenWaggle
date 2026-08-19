@@ -1,6 +1,6 @@
 import type { SessionSummary } from '@shared/types/session'
 import { cn } from '@/shared/lib/cn'
-import { formatRelativeTime } from '@/shared/lib/format'
+import { formatCompactRelativeTime } from '@/shared/lib/format'
 import { PINNED_SHORTCUT_LIMIT } from '../lib/pinned-sessions'
 import { SessionProvenanceIndicators } from './SessionProvenanceIndicators'
 import { SessionGitBadge } from './SessionRowGitBadge'
@@ -35,8 +35,14 @@ export function SessionRowSecondLine({
   const showShortcut = shortcutIndex !== null && shortcutIndex < PINNED_SHORTCUT_LIMIT
 
   return (
-    <span className="flex h-[15px] min-w-0 max-w-full items-center gap-1.5 text-[10.5px] text-text-muted leading-[15px]">
-      <span className="flex min-w-0 flex-auto items-center gap-[5px] overflow-hidden whitespace-nowrap">
+    <span
+      data-qa="sidebar-row-line2"
+      className="flex h-4 min-w-0 max-w-full items-center gap-1.5 text-[10.5px] text-text-muted leading-[1.45]"
+    >
+      <span
+        data-qa="sidebar-row-lead"
+        className="flex min-w-0 flex-auto items-center gap-[5px] overflow-hidden whitespace-nowrap"
+      >
         {stateLabel === '' ? null : (
           <span className="shrink-0 font-bold tracking-[0.02em]" style={{ color: stateColorVar }}>
             {stateLabel}
@@ -60,7 +66,7 @@ export function SessionRowSecondLine({
         <SessionGitBadge session={session} />
       </span>
 
-      <span className="flex flex-none items-center gap-1.5">
+      <span data-qa="sidebar-row-tail" className="flex flex-none items-center gap-1.5">
         {showShortcut ? (
           <span
             aria-hidden="true"
@@ -74,7 +80,9 @@ export function SessionRowSecondLine({
          * information at the moment the user was about to act on it, so the hover actions
          * overlay line one instead.
          */}
-        <span className="flex-none tabular-nums">{formatRelativeTime(session.updatedAt)}</span>
+        <span data-qa="sidebar-row-when" className="flex-none tabular-nums">
+          {formatCompactRelativeTime(session.updatedAt)}
+        </span>
       </span>
     </span>
   )

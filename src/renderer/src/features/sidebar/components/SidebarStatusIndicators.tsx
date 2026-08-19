@@ -1,0 +1,121 @@
+import { AlertTriangle } from 'lucide-react'
+import { cn } from '@/shared/lib/cn'
+import { Button } from '@/shared/ui/Button'
+import { SESSION_STATUS_ICON } from '../hooks/useSessionRowStatus'
+import {
+  type SidebarRowState,
+  type SidebarStateCount,
+  sidebarRowStateIcon,
+  sidebarRowStateMeta,
+} from '../lib/sidebar-row-state'
+
+function StateIcon({
+  state,
+  className,
+}: {
+  readonly state: SidebarRowState
+  readonly className?: string
+}) {
+  const iconName = sidebarRowStateIcon(state)
+  if (iconName === null) return null
+  const Icon = iconName === 'AlertTriangle' ? AlertTriangle : SESSION_STATUS_ICON[iconName]
+  if (Icon === undefined) return null
+  return <Icon className={className} />
+}
+
+/**
+ * Filter chips across the whole tree.
+ *
+ * They exist so a state can be reached without hunting through projects: one click isolates
+ * every failing session wherever it lives. A chip only appears when something is in that
+ * state, so the row is a summary of what is actually happening rather than a fixed toolbar.
+ */
+export function SidebarStatusChips({
+  counts,
+  activeState,
+  onToggle,
+}: {
+  readonly counts: readonly SidebarStateCount[]
+  readonly activeState: SidebarRowState | null
+  readonly onToggle: (state: SidebarRowState) => void
+}) {
+  if (counts.length === 0) return null
+
+  return (
+    <fieldset
+      aria-label="Filter sessions by state"
+      data-qa="sidebar-chips"
+      className="flex flex-none flex-wrap gap-1 px-2.5 pt-0.5 pb-2"
+    >
+      {counts.map(({ state, count }) => {
+        const meta = sidebarRowStateMeta(state)
+        const isActive = activeState === state
+        const chipStyle: React.CSSProperties & { '--chip': string } = { '--chip': meta.colorVar }
+
+        return (
+          <Button
+            key={state}
+            variant="unstyled"
+            type="button"
+            aria-pressed={isActive}
+            aria-label={`${isActive ? 'Clear filter' : 'Show only'}: ${meta.label}, ${String(count)}`}
+            onClick={() => onToggle(state)}
+            data-qa="sidebar-chip"
+            style={chipStyle}
+            className={cn(
+              'flex h-6 items-center gap-[5px] rounded-full border px-[9px] font-semibold text-[11px] transition-colors',
+              isActive
+                ? 'border-[color-mix(in_srgb,var(--chip)_60%,transparent)] bg-[color-mix(in_srgb,var(--chip)_16%,transparent)] text-[color:var(--chip)]'
+                : 'border-border-light bg-bg text-text-tertiary hover:border-text-muted hover:text-text-primary',
+            )}
+          >
+            <StateIcon state={state} className="size-2.5" />
+            {meta.shortLabel}
+            <span className="tabular-nums opacity-80">{count}</span>
+          </Button>
+        )
+      })}
+    </fieldset>
+  )
+}
+
+/**
+ * A project heading's roll-up.
+ *
+ * Answers "is there anything in here for me" without expanding the project, which is the
+ * whole point of being able to collapse one. Colour is paired with a count and an accessible
+ * name, never used alone.
+ */
+export function SidebarProjectStatusPips({
+  counts,
+}: {
+  readonly counts: readonly SidebarStateCount[]
+}) {
+  if (counts.length === 0) return null
+
+  return (
+    <span className="flex flex-none items-center gap-1">
+      {counts.map(({ state, count }) => {
+        const meta = sidebarRowStateMeta(state)
+        const pipStyle: React.CSSProperties & { '--pip': string } = { '--pip': meta.colorVar }
+
+        return (
+          <span
+            key={state}
+            role="img"
+            aria-label={`${meta.label}: ${String(count)}`}
+            title={`${meta.label}: ${String(count)}`}
+            data-qa="sidebar-pip"
+            style={pipStyle}
+            className="flex items-center gap-[3px] rounded-full border border-[color-mix(in_srgb,var(--pip)_45%,transparent)] bg-[color-mix(in_srgb,var(--pip)_14%,transparent)] py-px pr-[5px] pl-1 font-bold text-[10px] text-[color:var(--pip)]"
+          >
+            <span className="grid size-[9px] place-items-center">
+              <StateIcon state={state} className="size-[9px]" />
+            </span>
+            <span className="tabular-nums">{count}</span>
+          </span>
+        )
+      })}
+    </span>
+  )
+}

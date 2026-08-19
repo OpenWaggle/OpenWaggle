@@ -19,10 +19,13 @@ import {
 } from './SessionRowPinControls'
 import { SessionRowHoverActions, SessionRowSecondLine } from './SessionRowSecondLine'
 
-/** Left inset per row variant. A project's sessions sit under their project heading. */
+/**
+ * Left inset per variant, from the prototype: 24px under a project heading, 10px for a Pinned
+ * row that has no heading to sit under.
+ */
 const ITEM_VARIANT_CLASS = {
   project: 'pl-6 pr-2',
-  root: 'pl-4 pr-2',
+  root: 'pl-2.5 pr-2',
 }
 
 type SessionListItemVariant = 'project' | 'root'
@@ -110,10 +113,11 @@ export function SessionListItem({
   return (
     <li
       aria-current={isActive ? 'true' : undefined}
+      data-qa="sidebar-session-row"
       {...rowProps}
       style={rowStyle}
       className={cn(
-        'group relative mx-2 flex min-h-[44px] items-start gap-2 rounded-md py-1.5',
+        'group relative flex min-h-[44px] w-full items-start gap-2 py-1.5',
         ITEM_VARIANT_CLASS[variant],
         isActive ? 'bg-bg-active' : 'hover:bg-bg-hover',
         // A row needing a human carries a leading border, so attention is never colour alone.

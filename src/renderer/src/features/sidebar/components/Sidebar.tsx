@@ -1,3 +1,4 @@
+import type { SessionId } from '@shared/types/brand'
 import { useSessionStatusStore } from '@/features/sessions/state'
 import { cn } from '@/shared/lib/cn'
 import { SIDEBAR_LAYOUT } from '../constants/sidebar-layout'
@@ -11,6 +12,7 @@ import {
 } from './SidebarNavigation'
 import { SidebarPinnedSection } from './SidebarPinnedSection'
 import { SidebarProjectList } from './SidebarProjectList'
+import { SidebarStatusChips } from './SidebarStatusIndicators'
 
 export function Sidebar() {
   const controller = useSidebarController()
@@ -31,30 +33,7 @@ export function Sidebar() {
     draftSessionProjectPath: controller.draftSessionProjectPath,
     projectPath: controller.projectPath,
   }
-  const projectActions = {
-    newSession(nextProjectPath: string) {
-      void controller.handleSelectProjectPath(nextProjectPath)
-    },
-    openInFinder: controller.handleOpenProjectInFinder,
-    rename: controller.handleRenameProject,
-    archiveSessions: controller.handleArchiveProjectSessions,
-    remove: controller.handleRemoveProject,
-    toggleCollapsed: controller.handleToggleProjectCollapsed,
-  }
-  const sessionActions = {
-    select: controller.handleSelectSession,
-    delete: controller.handleDeleteSession,
-    archive: controller.handleArchiveSession,
-    clone: controller.handleCloneSession,
-    markUnread,
-    togglePin: controller.handleTogglePinnedSession,
-  }
-  const branchActions = {
-    select: controller.handleSelectBranch,
-    rename: controller.handleRenameBranch,
-    archive: controller.handleArchiveBranch,
-    toggle: controller.handleToggleBranches,
-  }
+  const actions = buildSidebarActions(controller, markUnread)
 
   return (
     <div
@@ -68,7 +47,12 @@ export function Sidebar() {
     >
       <nav
         aria-label="Sidebar"
-        className={`flex h-full ${SIDEBAR_LAYOUT.WIDTH_CLASS} shrink-0 flex-col justify-between border-r border-border bg-bg-secondary`}
+        /*
+         * Typography is set here, not inherited. #root runs at 16px with 0.006em tracking,
+         * which the prototype does not have, so every inherited size and every letter gap
+         * inside the sidebar was wrong before this.
+         */
+        className={`flex h-full ${SIDEBAR_LAYOUT.WIDTH_CLASS} shrink-0 flex-col justify-between border-r border-border bg-bg-secondary text-[13px] leading-[1.45] tracking-normal`}
       >
         <div className="flex flex-1 flex-col overflow-hidden">
           <SidebarBrandArea isFullscreen={controller.isFullscreen} />
@@ -77,13 +61,17 @@ export function Sidebar() {
             onNewSession={controller.handleNewSession}
             onOpenSkills={controller.handleOpenSkills}
           />
-          <div className="h-3 shrink-0" />
+          <SidebarStatusChips
+            counts={controller.chipCounts}
+            activeState={controller.filterState}
+            onToggle={controller.toggleFilterState}
+          />
           {/*
            * Pinned and Projects share one scroll area. They were separate, with only the
            * project list scrolling, so nine Pinned rows pushed the projects out of reach in
            * a windowed sidebar: the list below could not be scrolled to.
            */}
-          <div className="no-drag flex-1 overflow-y-auto pb-3">
+          <div data-qa="sidebar-scroll" className="no-drag sidebar-scroll flex-1 pb-3">
             <SidebarPinnedSection
               rows={controller.pinnedRows}
               activeSessionId={
@@ -96,10 +84,11 @@ export function Sidebar() {
                 onSetMode: controller.setPinnedSortMode,
               }}
               displayProjectName={controller.displayProjectName}
-              sessionActions={sessionActions}
+              sessionActions={actions.session}
               onReorder={controller.handleReorderPinnedSession}
             />
             <SidebarProjectsHeader
+              projectCount={controller.sessionGroups.projects.length}
               sortMenuOpen={controller.sortMenuOpen}
               sortMode={controller.sortMode}
               onOpenProject={() => {
@@ -110,11 +99,12 @@ export function Sidebar() {
             />
             <SidebarProjectList
               sessionGroups={controller.sessionGroups}
+              projectRollUp={controller.projectRollUp}
               renderState={renderState}
               displayProjectName={controller.displayProjectName}
-              projectActions={projectActions}
-              sessionActions={sessionActions}
-              branchActions={branchActions}
+              projectActions={actions.project}
+              sessionActions={actions.session}
+              branchActions={actions.branch}
             />
           </div>
         </div>
@@ -122,4 +112,42 @@ export function Sidebar() {
       </nav>
     </div>
   )
+}
+
+/**
+ * Group the controller's handlers into the three action objects the tree consumes.
+ *
+ * Extracted from the component so it holds layout only. These are pure wiring: the controller
+ * owns behaviour, this only names it for the components that call it.
+ */
+function buildSidebarActions(
+  controller: ReturnType<typeof useSidebarController>,
+  markUnread: (id: SessionId) => void,
+) {
+  return {
+    project: {
+      newSession(nextProjectPath: string) {
+        void controller.handleSelectProjectPath(nextProjectPath)
+      },
+      openInFinder: controller.handleOpenProjectInFinder,
+      rename: controller.handleRenameProject,
+      archiveSessions: controller.handleArchiveProjectSessions,
+      remove: controller.handleRemoveProject,
+      toggleCollapsed: controller.handleToggleProjectCollapsed,
+    },
+    session: {
+      select: controller.handleSelectSession,
+      delete: controller.handleDeleteSession,
+      archive: controller.handleArchiveSession,
+      clone: controller.handleCloneSession,
+      markUnread,
+      togglePin: controller.handleTogglePinnedSession,
+    },
+    branch: {
+      select: controller.handleSelectBranch,
+      rename: controller.handleRenameBranch,
+      archive: controller.handleArchiveBranch,
+      toggle: controller.handleToggleBranches,
+    },
+  }
 }

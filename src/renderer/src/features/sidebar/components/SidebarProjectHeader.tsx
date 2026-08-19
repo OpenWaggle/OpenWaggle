@@ -1,128 +1,22 @@
-import {
-  AlertTriangle,
-  Archive,
-  ChevronDown,
-  ChevronRight,
-  Edit3,
-  Folder,
-  MoreHorizontal,
-} from 'lucide-react'
+import { ChevronDown, ChevronRight, Edit3, Folder } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
-import { Popover } from '@/shared/ui/Popover'
 import { TextInput } from '@/shared/ui/TextInput'
 import type { SidebarProjectGroup } from '../lib/sidebar-project-groups'
+import type { SidebarStateCount } from '../lib/sidebar-row-state'
 import type { SidebarProjectActions } from '../model'
+import { ProjectActionsMenu } from './SidebarProjectActionsMenu'
+import { SidebarProjectStatusPips } from './SidebarStatusIndicators'
 
 interface ProjectHeaderProps {
   readonly group: SidebarProjectGroup
   readonly projectLabel: string
   readonly isCurrentProject: boolean
   readonly collapsed: boolean
+  /** States worth surfacing on the heading, so a collapsed project still reports them. */
+  readonly rollUp: readonly SidebarStateCount[]
   readonly actions: SidebarProjectActions
-}
-
-function ProjectMenuButton({
-  danger = false,
-  disabled = false,
-  icon: Icon,
-  label,
-  onClick,
-}: {
-  readonly danger?: boolean
-  readonly disabled?: boolean
-  readonly icon: typeof Folder
-  readonly label: string
-  readonly onClick: () => void
-}) {
-  return (
-    <Button
-      variant="unstyled"
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={cn(
-        'flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-bg-hover disabled:cursor-not-allowed disabled:text-text-muted disabled:hover:bg-transparent',
-        danger ? 'text-error' : 'text-text-secondary',
-      )}
-    >
-      <Icon className="size-3 shrink-0" />
-      <span>{label}</span>
-    </Button>
-  )
-}
-
-function ProjectActionsMenu({
-  group,
-  projectLabel,
-  menuOpen,
-  setMenuOpen,
-  actions,
-}: {
-  readonly group: SidebarProjectGroup
-  readonly projectLabel: string
-  readonly menuOpen: boolean
-  readonly setMenuOpen: (open: boolean) => void
-  readonly actions: SidebarProjectActions
-}) {
-  const sessionCount = group.sessions.length
-  const archiveLabel =
-    sessionCount === 0
-      ? 'No sessions to archive'
-      : `Archive ${sessionCount} session${sessionCount === 1 ? '' : 's'}...`
-
-  function closeAfter(action: () => void) {
-    setMenuOpen(false)
-    action()
-  }
-
-  return (
-    <Popover
-      open={menuOpen}
-      onOpenChange={setMenuOpen}
-      placement="bottom-end"
-      className="min-w-[190px] py-1"
-      trigger={({ isOpen, toggle }) => (
-        <Button
-          variant="unstyled"
-          type="button"
-          aria-label={`Open project actions for ${projectLabel}`}
-          aria-expanded={isOpen}
-          onClick={(event) => {
-            event.stopPropagation()
-            toggle()
-          }}
-          className="flex size-5 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
-        >
-          <MoreHorizontal className="size-3.5" />
-        </Button>
-      )}
-    >
-      <ProjectMenuButton
-        icon={Folder}
-        label="Open in Finder"
-        onClick={() => closeAfter(() => actions.openInFinder(group.projectPath))}
-      />
-      <ProjectMenuButton
-        icon={Edit3}
-        label="Rename project"
-        onClick={() => closeAfter(() => actions.rename(group.projectPath, projectLabel))}
-      />
-      <ProjectMenuButton
-        disabled={sessionCount === 0}
-        icon={Archive}
-        label={archiveLabel}
-        onClick={() => closeAfter(() => actions.archiveSessions(group.projectPath, group.sessions))}
-      />
-      <ProjectMenuButton
-        danger
-        icon={AlertTriangle}
-        label="Remove..."
-        onClick={() => closeAfter(() => actions.remove(group.projectPath))}
-      />
-    </Popover>
-  )
 }
 
 function ProjectRenameInput({
@@ -174,6 +68,7 @@ function ProjectTitleArea({
   readonly state: {
     readonly collapsed: boolean
     readonly DisclosureIcon: typeof ChevronDown
+    readonly isCurrentProject: boolean
     readonly projectLabel: string
     readonly renaming: boolean
     readonly renameInputRef: React.RefObject<HTMLInputElement | null>
@@ -183,8 +78,10 @@ function ProjectTitleArea({
   if (state.renaming) {
     return (
       <div className="flex min-w-0 flex-1 items-center gap-1.5">
-        <state.DisclosureIcon className="size-3 shrink-0 text-text-muted" />
-        <Folder className="size-3.5 shrink-0" />
+        <span className="grid w-3.5 flex-none place-items-center text-text-muted">
+          <state.DisclosureIcon className="size-3" />
+        </span>
+        <Folder className="size-[13px] shrink-0 text-text-tertiary" />
         <ProjectRenameInput
           value={state.renameValue}
           inputRef={state.renameInputRef}
@@ -205,9 +102,19 @@ function ProjectTitleArea({
       onClick={actions.toggle}
       className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
     >
-      <state.DisclosureIcon className="size-3 shrink-0 text-text-muted" />
-      <Folder className="size-3.5 shrink-0" />
-      <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{state.projectLabel}</span>
+      <span className="grid w-3.5 flex-none place-items-center text-text-muted">
+        <state.DisclosureIcon className="size-3" />
+      </span>
+      <Folder className="size-[13px] shrink-0 text-text-tertiary" />
+      <span
+        data-qa="sidebar-project-name"
+        className={cn(
+          'min-w-0 flex-1 truncate font-semibold text-[12.5px]',
+          state.isCurrentProject ? 'text-text-primary' : 'text-text-secondary',
+        )}
+      >
+        {state.projectLabel}
+      </span>
     </Button>
   )
 }
@@ -217,6 +124,7 @@ export function SidebarProjectHeader({
   projectLabel,
   isCurrentProject,
   collapsed,
+  rollUp,
   actions,
 }: ProjectHeaderProps) {
   const DisclosureIcon = collapsed ? ChevronRight : ChevronDown
@@ -240,8 +148,9 @@ export function SidebarProjectHeader({
 
   return (
     <div
+      data-qa="sidebar-project-row"
       className={cn(
-        'group flex h-7 w-full items-center gap-1.5 px-4 transition-colors hover:bg-bg-hover',
+        'group flex h-[30px] w-full items-center gap-1.5 pr-2.5 pl-2 transition-colors hover:bg-bg-hover',
         isCurrentProject ? 'text-text-secondary' : 'text-text-tertiary',
       )}
       title={group.projectPath}
@@ -250,6 +159,7 @@ export function SidebarProjectHeader({
         state={{
           collapsed,
           DisclosureIcon,
+          isCurrentProject,
           projectLabel,
           renaming,
           renameInputRef,
@@ -267,15 +177,24 @@ export function SidebarProjectHeader({
           },
         }}
       />
-      <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+      <span className="flex flex-none items-center gap-1 group-hover:hidden">
+        {rollUp.length === 0 ? (
+          <span data-qa="sidebar-project-count" className="flex-none text-[10.5px] text-text-muted">
+            {group.sessions.length}
+          </span>
+        ) : (
+          <SidebarProjectStatusPips counts={rollUp} />
+        )}
+      </span>
+      <div className="flex shrink-0 items-center gap-px opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
         <Button
           variant="unstyled"
           type="button"
           aria-label={`New session in ${projectLabel}`}
           onClick={() => actions.newSession(group.projectPath)}
-          className="flex size-5 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
+          className="grid size-5 flex-none place-items-center rounded text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
         >
-          <Edit3 className="size-3.5" />
+          <Edit3 className="size-3" />
         </Button>
         <ProjectActionsMenu
           group={group}
@@ -284,7 +203,7 @@ export function SidebarProjectHeader({
           setMenuOpen={setMenuOpen}
           actions={{
             ...actions,
-            rename(_path, name) {
+            rename(_path: string, name: string) {
               setMenuOpen(false)
               setRenameValue(name)
               setRenaming(true)

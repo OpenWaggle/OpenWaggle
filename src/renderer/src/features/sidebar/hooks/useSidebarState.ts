@@ -11,8 +11,10 @@ import { useFullscreen } from '@/shell/useFullscreen'
 import { buildPinnedSessionRows } from '../lib/pinned-sessions'
 import { buildSidebarProjectGroups } from '../lib/sidebar-project-groups'
 import { usePinnedSessionsStore } from '../state/pinned-sessions-store'
+import { useSidebarFilterStore } from '../state/sidebar-filter-store'
 import { isProjectExpanded, useSidebarViewStore } from '../state/sidebar-view-store'
 import { activeViewFromPathname } from './sidebar-view'
+import { useSidebarRowStates } from './useSidebarRowStates'
 
 type SidebarSessionsState = ReturnType<typeof useSessions>
 
@@ -76,13 +78,26 @@ export function useSidebarState() {
   const setPinnedSortMode = usePinnedSessionsStore((s) => s.setSortMode)
 
   const activeSession = resolveActiveSessionState(chat.activeSessionId, sessions)
+
+  /*
+   * Chip counts come from every session, the tree from the filtered set. Counting after
+   * filtering would leave one chip on screen and hide the states the user wants to switch to.
+   */
+  const rowStates = useSidebarRowStates(sessions.sessions)
+  const filterState = useSidebarFilterStore((s) => s.activeState)
+  const toggleFilterState = useSidebarFilterStore((s) => s.toggleState)
+  const visibleSessions =
+    filterState === null
+      ? sessions.sessions
+      : sessions.sessions.filter((session) => rowStates.stateOf(session) === filterState)
+
   const pinnedRows = buildPinnedSessionRows({
     pins,
-    sessions: sessions.sessions,
+    sessions: visibleSessions,
     sortMode: pinnedSortMode,
   })
   const sessionGroups = buildSidebarProjectGroups({
-    sessions: sessions.sessions,
+    sessions: visibleSessions,
     currentProjectPath: project.projectPath,
     recentProjects,
     sortMode,
@@ -98,7 +113,10 @@ export function useSidebarState() {
     activeSessionId: activeSession.activeSessionId,
     activeView: activeViewFromPathname(pathname),
     chat,
+    chipCounts: rowStates.chipCounts,
     displayProjectName,
+    filterState,
+    projectRollUp: rowStates.rollUpFor,
     git,
     isFullscreen,
     isProjectCollapsed: (path: string) => !isProjectExpanded(projectExpandedByPath, path),
@@ -122,6 +140,7 @@ export function useSidebarState() {
     sidebarOpen,
     sortMenuOpen,
     sortMode,
+    toggleFilterState,
     toggleProjectExpanded,
   }
 }
