@@ -26,6 +26,8 @@ interface BuildAgentRunOutcomeInput {
 
 interface BuildAgentRunFailureInput {
   readonly error: unknown
+  /** Whether the agent already had the message when this failed - see the outcome below. */
+  readonly reachedAgent?: boolean
   readonly assignedTitle?: string
   readonly sessionId: SessionId
   readonly runId: string
@@ -64,6 +66,7 @@ export function recoverAgentRunFailure({
   sessionId,
   runId,
   model,
+  reachedAgent = false,
 }: BuildAgentRunFailureInput): Effect.Effect<AgentRunResult> {
   if (error instanceof Error && error.message === 'aborted') {
     return Effect.succeed({
@@ -83,6 +86,13 @@ export function recoverAgentRunFailure({
     outcome: 'error' as const,
     message: classified.userMessage,
     code: classified.code,
+    /*
+     * Marked when the agent already had the message, so a caller is not told a delivered message was refused.
+     * Persisting the turn happens after the kernel returns, and a database write failure there is a typed
+     * failure recovered here - which used to be indistinguishable from a refusal raised before the prompt was
+     * ever sent.
+     */
+    ...(reachedAgent ? { transportEmitted: true } : {}),
     ...(assignedTitle ? { assignedTitle } : {}),
   })
 }

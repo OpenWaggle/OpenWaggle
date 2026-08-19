@@ -50,6 +50,8 @@ function resolveLatestAssistantNodeId(nodes: readonly ProjectedSessionNodeInput[
 export function executeAgentRun(input: AgentRunInput) {
   let assignedTitle: string | undefined
   let activeRunIdentity: ActiveRunIdentity | null = null
+  // Whether the agent got the message: a failure after that point is not a refused send.
+  let reachedAgent = false
   const durableAgentLoopEvents: DurableAgentLoopEvent[] = []
 
   return Effect.gen(function* () {
@@ -75,6 +77,13 @@ export function executeAgentRun(input: AgentRunInput) {
       hydratedPayload,
       preflight,
     )
+    /*
+     * From here on the agent has the message and has answered it, so a failure past this point is not a refused
+     * send. Everything below is persistence, and a database write failure is a typed failure that the recovery
+     * below turns into an ordinary error outcome - which was then reported to the caller as "the agent never
+     * received this", making it restore a review the agent already held.
+     */
+    reachedAgent = true
     const existingTree = yield* sessionRepo.getTree(input.sessionId)
     const sessionSnapshot = appendDurableAgentLoopEvents({
       snapshot: agentResult.sessionSnapshot,
@@ -113,6 +122,7 @@ export function executeAgentRun(input: AgentRunInput) {
     Effect.catchAll(
       (error): Effect.Effect<AgentRunResult> =>
         recoverAgentRunFailure({
+          reachedAgent,
           error,
           assignedTitle,
           sessionId: input.sessionId,

@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -112,4 +112,28 @@ describe('commitGit against a linked worktree', () => {
    * This asserts the three properties a caller must not have to know about, from a caller that passes the
    * plainest possible selection: target paths only, and a subdirectory as the project path.
    */
+
+  /**
+   * The first commit in a repository has no parent, and `git diff-tree HEAD` lists nothing for such a commit
+   * unless asked with `--root`. The verification therefore read every root commit as a total omission: it was
+   * created, rolled back, and reported as a failure - so a new project could never make its first commit.
+   */
+  it('accepts the first commit in a repository', async () => {
+    const { repository } = await createRepositoryWithWorktree()
+    const fresh = path.join(repository, 'fresh-project')
+    await mkdir(fresh, { recursive: true })
+    await git(fresh, ['init', '-b', 'main', '.'])
+    await git(fresh, ['config', 'user.email', 'tests@openwaggle.ai'])
+    await git(fresh, ['config', 'user.name', 'OpenWaggle Tests'])
+    await writeFile(path.join(fresh, 'first.txt'), 'hello\n')
+
+    const result = await commitGit(fresh, {
+      message: 'first commit',
+      amend: false,
+      paths: ['first.txt'],
+    })
+
+    expect(result.ok).toBe(true)
+    expect(await git(fresh, ['ls-tree', '-r', '--name-only', 'HEAD'])).toContain('first.txt')
+  })
 })

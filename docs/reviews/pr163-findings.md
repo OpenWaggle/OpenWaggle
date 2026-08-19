@@ -366,3 +366,42 @@ was keeping a session-keyed record of turn-start events - a record that cannot t
 the next, so a replacement's turn was attributed to the send it replaced. Main now reports `delivered` for a
 run that reached the transport, and the renderer's bookkeeping is deleted rather than corrected.
 
+## Round twelve
+
+Round twelve found five issues in round eleven's two replacements, including one that would have stopped a new
+project making its first commit. Four are fixed; one is recorded.
+
+| Finding | Substance |
+| --- | --- |
+| D1-1, D3-1 | Every first commit in a repository was created, rolled back and reported as a failure |
+| D1-2 | `--amend` was exempt from verification, so it could still omit a change silently |
+| D2-1 | A rejected invoke was reported as delivered, destroying the submitted review |
+| D2-3 | A failure while persisting the turn was reported as though the message never arrived |
+| D2-2 | The waggle path cannot report a refusal - recorded below, not fixed |
+
+**A root commit has no parent, and `git diff-tree HEAD` says nothing about it.** Verification read that silence
+as a total omission, so the first commit in any repository was created, undone and reported as a failure -
+verified against real git before and after. `--root` asks the question properly.
+
+**Exempting `--amend` was an admission that the undo was wrong, not that amends were safe.** Stepping back one
+parent is incorrect for a commit that replaced one rather than added one, so amends were left unverified and
+free to omit silently. The undo now restores the *recorded* previous HEAD, which is correct for both, and
+nothing is exempt.
+
+**One `try` covered two very different awaits.** The catch wrapped every failure as "delivered, and then the
+run failed", but it also covers the invoke itself rejecting - a payload the schema refuses, a handler that dies
+- where nothing arrived at all. Delivery is now marked only when main's report says so.
+
+**And `transportEmitted` marked less than it claimed.** It was set only when the kernel returned a terminal
+error, while the work after the kernel returns - reading the tree, appending events, persisting the snapshot,
+anchoring the checkpoint - can fail too, long after the agent has answered. Those failures were reported as
+refusals, which is what makes a caller offer a review the agent already holds. The run now records that it
+reached the agent, and the recovery marks the outcome accordingly.
+
+Recorded rather than fixed: **the waggle path cannot report a refusal.** Its run has no equivalent of the
+classic path's recovery, so a kernel failure - a missing worktree, a failed `worktree add` - fails the Effect
+and rejects the invoke instead of being reported. With the delivery fix above a rejection is treated as
+undelivered, so nothing is lost: the consequence is confined to a mid-turn failure of a waggle run, where the
+review may be offered a second time. Giving that path its own outcome mapping means restructuring waggle run
+orchestration, which belongs in its own change rather than at the end of this one.
+

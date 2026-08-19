@@ -43,6 +43,9 @@ export async function findOmittedPaths(
     '--no-commit-id',
     '--name-only',
     '-r',
+    // Without this a root commit lists nothing, so the very first commit in a repository looked like a
+    // total omission: it was created, rolled back, and reported as a failure.
+    '--root',
     '-z',
     'HEAD',
   ])
@@ -55,21 +58,30 @@ export async function findOmittedPaths(
   return omitted.length > 0 ? omitted : null
 }
 
+/** The commit HEAD points at, or null when the branch has no commits yet. */
+export async function currentHead(projectPath: string) {
+  const head = await runGit(projectPath, ['rev-parse', '-q', '--verify', 'HEAD'])
+  return head.code === 0 ? head.stdout.trim() : null
+}
+
 /**
  * Undo the commit just created and report what it left out.
  *
- * `--soft`, so the index and working tree are exactly as the user left them: nothing of their work is touched,
- * and the change is still theirs to make. Safe because this commit was created moments ago by this function.
+ * `--soft` back to whatever HEAD was before, so the index and working tree are exactly as the user left them:
+ * nothing of their work is touched, and the change is still theirs to make. Restoring the *recorded* previous
+ * HEAD rather than stepping back one parent is what makes this correct for an amend, where the commit replaced
+ * one instead of adding one - amends were exempted from verification for want of this, which left them able to
+ * omit a change silently.
  */
 export async function undoIncompleteCommit(
   projectPath: string,
-  omitted: readonly string[],
+  input: { readonly omitted: readonly string[]; readonly previousHead: string | null },
 ): Promise<GitCommitFailure> {
-  const hasParent = await runGit(projectPath, ['rev-parse', '-q', '--verify', 'HEAD^'])
+  const { omitted, previousHead } = input
   const undo =
-    hasParent.code === 0
-      ? await runGit(projectPath, ['reset', '--soft', 'HEAD^'])
-      : await runGit(projectPath, ['update-ref', '-d', 'HEAD'])
+    previousHead === null
+      ? await runGit(projectPath, ['update-ref', '-d', 'HEAD'])
+      : await runGit(projectPath, ['reset', '--soft', previousHead])
 
   const listed = omitted.join(', ')
   return commitFailure(

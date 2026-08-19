@@ -161,6 +161,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
      * begins immediately, and the superseded send's reply arrives after that replacement has started.
      */
     let notDelivered: MessageNotDelivered | null = null
+    let delivered = false
     try {
       /*
        * The report is read, not merely awaited. Main recovers every run failure into a value rather than
@@ -170,6 +171,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
        */
       const report = await sendPromise
       if (report.outcome === 'delivered') {
+        delivered = true
         await runPromise
       } else {
         // Nothing is waiting on the run any more, but its rejection must not surface unhandled.
@@ -198,11 +200,11 @@ export function createAgentRunControls(params: AgentRunControlParams) {
        * is reported as undelivered, which is the side that keeps the user's work.
        */
       /*
-       * Reaching here means the run promise rejected after the send reported delivery, so the message did
-       * arrive: the report is main's own answer, taken from whether the run reached the transport, rather than
-       * a guess from stream events that could not tell one send in a session from the next.
+       * Delivered only if main said so. This catch also covers the invoke itself rejecting - a payload the
+       * schema refuses, a handler that dies - where nothing arrived at all, and treating that as delivered
+       * destroyed the work a caller was holding for exactly this case.
        */
-      throw new MessageDeliveredRunFailed(normalizedError)
+      throw delivered ? new MessageDeliveredRunFailed(normalizedError) : normalizedError
     }
     /*
      * The caller is told, so work it submitted is not lost - a review is restored - but the session is left
