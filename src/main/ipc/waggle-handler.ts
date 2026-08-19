@@ -167,11 +167,16 @@ function startWaggleStream(sessionId: SessionId, runId: string, runtimeModel: Su
   emitTransportEvent(sessionId, { type: 'agent_start', timestamp: Date.now(), runId })
 }
 
-/** A send that produced no turn was not delivered, whatever the transport did afterwards. */
+/**
+ * A send that produced no turn was not delivered, whatever the transport did afterwards.
+ *
+ * `aborted` claims nothing, for the same reason it claims nothing on the classic path: a run cancelled before
+ * its prompt was sent reports that outcome too.
+ */
 function describeWaggleSendOutcome(result: WaggleHandlerResult): AgentSendReport {
   return matchBy(result, 'outcome')
     .with('success', () => ({ delivered: true }))
-    .with('aborted', () => ({ delivered: true }))
+    .with('aborted', () => ({ delivered: false }))
     .otherwise((value) => ({ delivered: false, message: value.message, code: value.code }))
 }
 

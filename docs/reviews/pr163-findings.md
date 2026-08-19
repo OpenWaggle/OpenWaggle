@@ -228,3 +228,44 @@ appeared, and in local mode every session of a project shares one working path. 
 send now names the session it created, and the panel builds the target key from that id and the scope the
 review was written in. Nothing is inferred.
 
+## Round eight
+
+Round eight attacked round seven's four repairs and found seven issues. All are resolved.
+
+| Finding | Substance |
+| --- | --- |
+| Z1-1 | A broken symlink at a rename source was committed, unselected |
+| Z1-2 | A case-only rename failed the commit with a raw git fatal |
+| Z2-1 | `aborted` was reported as delivered, though a pre-prompt cancellation reports that outcome |
+| Z2-2 | The ordinary send path never read the report it had been given |
+| Z2-3, Z3-1, Z3-2 | A review written in a non-default scope was still orphaned on the success path |
+
+Three points worth keeping.
+
+**`stat` follows symlinks; the occupancy check must not.** A broken symlink is still something the user put
+where the rename started, and `stat` reports it as absent - so the source was expanded into the commit and the
+symlink committed without being selected. `lstat` asks the question that was actually meant.
+
+**The report was added and then not consulted where it mattered most.** Round seven read `AgentSendReport` on
+the first-send path but left the ordinary path - every message to an existing session, which is the normal case
+for a review - awaiting the promise and discarding the value. That path also depends on the run promise
+rejecting, and ordinary actions such as Stop settle it without an error. It now reads the report and falls back
+to the delivery evidence. `aborted` no longer claims delivery either: a run cancelled before its prompt was
+sent reports exactly that outcome, so it is not evidence in either direction, and the caller must assume the
+message never arrived.
+
+**The scope reset was the root cause, and it was fixed in the wrong place.** Round seven made a *failed* first
+send carry the session it created, which fixed the failure path and left the ordinary one: a brand-new session
+has no scope selection recorded, so the panel snapped back to the working-tree scope in the very render the
+session appeared. A new session now inherits the scope its draft was written in, which both keeps the
+reviewer's choice and makes the review key stable across the transition.
+
+One limitation is recorded rather than fixed: a **case-only rename** cannot be committed through a pathspec on
+a case-insensitive filesystem. Git refuses with "will not add file alias", because a pathspec commit rebuilds
+those entries from the working tree and finds the other spelling already in the index. Committing the whole
+index does work, and `git commit -i` does too - but both sweep in whatever the user staged themselves, which is
+the one guarantee this commit path exists to keep. Verified against real git. The failure is now reported as
+`case-only-rename` with an actionable message instead of a raw fatal under `unknown`; committing it correctly
+needs a different mechanism (`write-tree`/`commit-tree`) and belongs in its own change. This behaviour predates
+the branch.
+

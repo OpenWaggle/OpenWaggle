@@ -46,6 +46,7 @@ export const GIT_COMMIT_ERROR_CODES = [
   'nothing-to-commit',
   'merge-in-progress',
   'empty-message',
+  'case-only-rename',
   'unknown',
 ] as const
 

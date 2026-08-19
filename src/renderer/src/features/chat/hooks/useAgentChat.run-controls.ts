@@ -157,7 +157,16 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       : api.sendMessage(targetSessionId, payload, params.model)
 
     try {
-      await sendPromise
+      /*
+       * The report is read, not merely awaited. Main recovers every run failure into a value rather than
+       * failing the Effect, so this invoke resolves whether the turn ran or was refused - and the run promise
+       * can be settled without an error by ordinary actions such as Stop. Without consulting the report, a
+       * refused send therefore reached the caller as a success, and a submitted review was discarded.
+       */
+      const report = await sendPromise
+      if (!report.delivered && !hasRunStarted(targetSessionId)) {
+        throw new Error(report.message ?? 'The agent could not start this turn.')
+      }
       await runPromise
     } catch (runError) {
       const normalizedError = normalizeError(runError)

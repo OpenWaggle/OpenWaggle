@@ -145,6 +145,15 @@ export const useDiffScopeStore = create<DiffScopeState>()(
 export function selectThreadDiffScopeSelection(
   byThreadKey: Record<string, DiffScopeSelection>,
   threadKey: string | null | undefined,
+  /**
+   * The key this panel used before a session existed.
+   *
+   * Sessions are created on the first send, so the scope tab the reviewer chose was recorded against the
+   * working path. Without inheriting it the panel snapped back to the working-tree scope in the very render
+   * the session appeared - discarding the choice, and orphaning a review written in another scope, because
+   * the key a review lives under carries the scope.
+   */
+  draftThreadKey?: string | null,
 ): DiffScopeSelection {
   /*
    * One default: the working tree.
@@ -155,5 +164,8 @@ export function selectThreadDiffScopeSelection(
    * worse than the dead branch: the scope would start as Branch, fire a branch diff, then flip to
    * the working tree once the status arrived. Removed rather than left as a false green.
    */
-  return threadKey ? (byThreadKey[threadKey] ?? DEFAULT_SELECTION) : DEFAULT_SELECTION
+  const own = threadKey ? byThreadKey[threadKey] : undefined
+  if (own) return own
+  const inherited = draftThreadKey ? byThreadKey[draftThreadKey] : undefined
+  return inherited ?? DEFAULT_SELECTION
 }

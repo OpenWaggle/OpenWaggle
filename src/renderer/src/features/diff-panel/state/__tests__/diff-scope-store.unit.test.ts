@@ -95,4 +95,30 @@ describe('diff-scope-store', () => {
     // The unstaged selection carries no baseRef field.
     expect(useDiffScopeStore.getState().byThreadKey.t1).toEqual({ kind: 'unstaged' })
   })
+
+  it('inherits the draft scope when a new session has none recorded', () => {
+    /*
+     * Sessions are created on the first send, so the scope tab the reviewer chose was recorded against the
+     * working path. Without inheriting it the panel snapped back to the working-tree scope in the very render
+     * the session appeared, discarding the choice - and orphaning a review written in another scope, because
+     * the key a review lives under carries the scope.
+     */
+    const byThreadKey = { '/repo': { kind: 'branch', baseRef: 'origin/main' } } as const
+
+    expect(selectThreadDiffScopeSelection(byThreadKey, 'session-1', '/repo')).toEqual({
+      kind: 'branch',
+      baseRef: 'origin/main',
+    })
+  })
+
+  it("prefers the session's own scope over the inherited one", () => {
+    const byThreadKey = {
+      '/repo': { kind: 'branch', baseRef: 'origin/main' },
+      'session-1': { kind: 'unstaged' },
+    } as const
+
+    expect(selectThreadDiffScopeSelection(byThreadKey, 'session-1', '/repo')).toEqual({
+      kind: 'unstaged',
+    })
+  })
 })

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -269,4 +269,68 @@ describe('commitGit against a linked worktree', () => {
     expect(committed).toContain('copy.txt')
     expect(committed).not.toContain('template.txt')
   })
+
+  it('does not commit a symlink left at a rename source path', async () => {
+    /*
+     * A broken symlink is still something the user put there, and `stat` reports it as absent - so the source
+     * was expanded into the commit and the symlink committed without being selected. The occupancy check does
+     * not follow links.
+     */
+    const { repository } = await createRepositoryWithWorktree()
+    await writeFile(path.join(repository, 'src.txt'), 'body\n')
+    await git(repository, ['add', '--all'])
+    await git(repository, ['commit', '-m', 'add src'])
+
+    await git(repository, ['mv', 'src.txt', 'dst.txt'])
+    await symlink('/nonexistent/target', path.join(repository, 'src.txt'))
+
+    const result = await commitGit(repository, {
+      message: 'move src',
+      amend: false,
+      paths: ['dst.txt'],
+    })
+
+    expect(result.ok).toBe(true)
+    const committed = await git(repository, ['show', '--name-only', '--format=', 'HEAD'])
+    expect(committed).toContain('dst.txt')
+    expect(committed).not.toContain('src.txt')
+  })
+
+  /**
+   * A case-only rename cannot be committed through a pathspec on a case-insensitive filesystem: git refuses
+   * with "will not add file alias", because a pathspec commit rebuilds those entries from the working tree and
+   * finds the other spelling already in the index. Committing the whole index would work but would sweep in
+   * whatever the user staged themselves, so this reports what happened rather than passing a raw fatal through
+   * as an unknown failure. Skipped where the filesystem is case-sensitive, since there is nothing to refuse.
+   */
+  it('explains a case-only rename it cannot commit', async () => {
+    const { repository } = await createRepositoryWithWorktree()
+    await writeFile(path.join(repository, 'readme.md'), 'body\n')
+    await git(repository, ['add', '--all'])
+    await git(repository, ['commit', '-m', 'add readme'])
+    await git(repository, ['mv', 'readme.md', 'README.md'])
+
+    const result = await commitGit(repository, {
+      message: 'rename for case',
+      amend: false,
+      paths: ['README.md'],
+    })
+
+    const caseInsensitive = await pathExistsForTest(path.join(repository, 'readme.md'))
+    if (!caseInsensitive) {
+      expect(result.ok).toBe(true)
+      return
+    }
+    expect(result).toMatchObject({ ok: false, code: 'case-only-rename' })
+    expect(result.ok ? '' : result.message).toContain('letter case')
+  })
 })
+
+async function pathExistsForTest(candidate: string) {
+  try {
+    await lstat(candidate)
+    return true
+  } catch {
+    return false
+  }
+}

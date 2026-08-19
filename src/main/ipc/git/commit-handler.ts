@@ -1,4 +1,4 @@
-import { stat } from 'node:fs/promises'
+import { lstat } from 'node:fs/promises'
 import path from 'node:path'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { GitCommitFailure, GitCommitPayload, GitCommitResult } from '@shared/types/git'
@@ -19,6 +19,19 @@ function mapCommitFailure(stderr: string): GitCommitFailure {
   const message = stderr.trim()
   const lower = message.toLowerCase()
 
+  /*
+   * A case-only rename cannot be committed through a pathspec at all. On a case-insensitive filesystem git
+   * refuses with "will not add file alias", because a pathspec commit rebuilds those entries from the working
+   * tree and finds the other spelling already in the index. Committing the whole index would work but would
+   * sweep in anything the user staged themselves, so the honest response is to say what happened rather than
+   * pass a raw fatal through as an unknown failure.
+   */
+  if (lower.includes('will not add file alias')) {
+    return commitFailure(
+      'case-only-rename',
+      'Git cannot commit a rename that only changes letter case on this filesystem. Commit it from the command line, or rename through a temporary name.',
+    )
+  }
   if (lower.includes('not a git repository')) {
     return commitFailure('not-git-repo', 'Selected folder is not a Git repository.')
   }
@@ -155,9 +168,15 @@ function isUnmatchedPathspec(stderr: string) {
   return /did not match any files/u.test(stderr)
 }
 
+/**
+ * Whether anything at all sits at this path, without following it.
+ *
+ * `lstat`, not `stat`: a broken symlink is something the user put there, and `stat` reports it as absent - so
+ * the rename source was expanded into the commit and the symlink committed unselected.
+ */
 async function pathExists(absolutePath: string) {
   try {
-    await stat(absolutePath)
+    await lstat(absolutePath)
     return true
   } catch {
     return false

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import type { AgentSendReport } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { act, renderHook } from '@testing-library/react'
@@ -134,7 +135,8 @@ describe('useAgentChat foreground run', () => {
   })
 
   it('does not fail a foreground send when the selected session changes mid-run', async () => {
-    const send = createDeferred<void>()
+    // The send resolves with main's report of the run, as the real channel does.
+    const send = createDeferred<AgentSendReport>()
     apiMock.sendMessage.mockReturnValueOnce(send.promise)
 
     const { result, rerender } = renderHook(
@@ -170,7 +172,7 @@ describe('useAgentChat foreground run', () => {
     })
 
     await act(async () => {
-      send.resolve(undefined)
+      send.resolve({ delivered: true })
       await expect(sendPromise).resolves.toBeUndefined()
     })
 

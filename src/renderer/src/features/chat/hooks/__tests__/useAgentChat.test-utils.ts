@@ -1,10 +1,13 @@
-import type { AgentSendPayload } from '@shared/types/agent'
+import type { AgentSendPayload, AgentSendReport } from '@shared/types/agent'
 import type { BackgroundRunSnapshot } from '@shared/types/background-run'
 import { MessageId, SessionId, ToolCallId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { act, cleanup } from '@testing-library/react'
 import { afterEach, beforeEach, vi } from 'vitest'
 import { useOptimisticUserMessageStore } from '../../state/optimistic-user-message-store'
+
+/** The ordinary case: main ran the turn. */
+const DELIVERED_REPORT = { delivered: true } as const
 
 const {
   apiMock,
@@ -66,8 +69,12 @@ const {
       }),
       getBackgroundRun: vi.fn(async (): Promise<BackgroundRunSnapshot | null> => null),
       getSessionDetail: vi.fn(async (): Promise<SessionDetail | null> => null),
-      sendMessage: vi.fn(async (): Promise<void> => undefined),
-      sendWaggleMessage: vi.fn(async (): Promise<void> => undefined),
+      /*
+       * Both send channels report what became of the run. A harness that resolved with nothing described an
+       * IPC contract that no longer exists, and the code under test would have read a refusal as a success.
+       */
+      sendMessage: vi.fn(async (): Promise<AgentSendReport> => DELIVERED_REPORT),
+      sendWaggleMessage: vi.fn(async (): Promise<AgentSendReport> => DELIVERED_REPORT),
       cancelAgent: vi.fn(async (): Promise<void> => undefined),
       steerAgent: vi.fn(async () => ({ preserved: true })),
       respondAgentInteraction: vi.fn(async () => ({
@@ -213,7 +220,9 @@ export function installUseAgentChatTestLifecycle() {
     apiMock.getBackgroundRun.mockReset()
     apiMock.getSessionDetail.mockReset()
     apiMock.sendMessage.mockReset()
+    apiMock.sendMessage.mockResolvedValue(DELIVERED_REPORT)
     apiMock.sendWaggleMessage.mockReset()
+    apiMock.sendWaggleMessage.mockResolvedValue(DELIVERED_REPORT)
     apiMock.cancelAgent.mockReset()
     apiMock.cancelAgent.mockResolvedValue(undefined)
     apiMock.steerAgent.mockReset()

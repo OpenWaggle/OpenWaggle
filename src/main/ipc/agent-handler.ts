@@ -59,11 +59,17 @@ function emitCancelledCompletion(sessionId: SessionId) {
   emitRunCompleted(sessionId)
 }
 
-/** A send that produced no turn was not delivered, whatever the transport did afterwards. */
+/**
+ * A send that produced no turn was not delivered, whatever the transport did afterwards.
+ *
+ * `aborted` claims nothing. A run cancelled before its prompt was sent reports exactly that outcome, as does
+ * any run that produced no messages, so it cannot be read as evidence either way - and the caller with work to
+ * protect must assume the message never arrived, which is the side that keeps it.
+ */
 function describeSendOutcome(result: AgentRunResult): AgentSendReport {
   return matchBy(result, 'outcome')
     .with('success', () => ({ delivered: true }))
-    .with('aborted', () => ({ delivered: true }))
+    .with('aborted', () => ({ delivered: false }))
     .otherwise((value) => ({
       delivered: false,
       ...(value.message === undefined ? {} : { message: value.message }),
@@ -254,3 +260,6 @@ export function registerAgentHandlers(): void {
   registerAgentCompactionHandlers()
   registerAgentSteeringHandlers()
 }
+
+/** Exposed for tests: the reporting rule decides whether a caller keeps a submitted review. */
+export const describeSendOutcomeForTests = describeSendOutcome
