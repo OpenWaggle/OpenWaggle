@@ -7,6 +7,11 @@ section: "Configuration"
 
 Open Settings from the sidebar gear icon.
 
+Some sidebar preferences are not in Settings because they belong to the sidebar itself: the session
+sort order and which projects you have collapsed are remembered between launches. State filters and
+the text filter are not, since a filter that hides sessions should not outlive the reason you
+applied it.
+
 ## Active Sections
 
 | Section | Description |

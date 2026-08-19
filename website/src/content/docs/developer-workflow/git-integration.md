@@ -39,7 +39,9 @@ The diff panel header names the tree it is showing, beside **Changes**:
 - **`Worktree · <name>`** — the session has its own worktree.
 - **Opened checkout** — the session runs in the folder you opened.
 
-Each session in the sidebar carries its own git indicator, so two sessions on two different worktrees show their own dirty / ahead / behind state independently.
+Each session in the sidebar carries its own git indicator, so two sessions on two different worktrees report their own state independently.
+
+The row shows how far the session's branch has diverged from upstream, as `↑2` ahead and `↓1` behind, and a branch icon whose tooltip names the branch. It deliberately does **not** show a count of uncommitted files: every session sharing a working tree reported the same number, so the count said nothing about the session you were looking at, and a large number implied a severity it did not carry. Use the diff panel for what actually changed.
 
 Branch and worktree **lists** are repository-level (a linked worktree shares refs with the primary checkout), while status, diffs, and working-tree actions follow the session's working tree.
 

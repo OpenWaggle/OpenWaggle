@@ -6,7 +6,7 @@ import { useChat } from '@/features/chat/hooks'
 import { useDiffRouteNavigation } from '@/features/diff-panel/hooks'
 import { useGit, useGitRefresh } from '@/features/git/hooks'
 import { useProject, useSessionStatusMonitor, useSessions } from '@/features/sessions/hooks'
-import { usePinnedSessionShortcuts } from '@/features/sidebar/hooks'
+import { usePinnedSessionShortcuts, useSidebarSearchShortcut } from '@/features/sidebar/hooks'
 import { api } from '@/shared/lib/ipc'
 import { useUIStore } from '@/shell/ui-store'
 
@@ -72,6 +72,7 @@ export function useWorkspaceLifecycle(): void {
 
   useSessionStatusMonitor()
   usePinnedSessionShortcuts()
+  useSidebarSearchShortcut()
 
   useHotkeys(
     [

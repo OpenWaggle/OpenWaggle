@@ -72,6 +72,14 @@ OpenWaggle is now a UI and product shell over Pi's coding-agent runtime:
 - **Commit dialog** — stage files, write messages, and commit without leaving the app
 - **Diff panel** — inline view of all working tree changes
 
+### Session Navigation
+
+- **Two-line session rows** — the title owns its own line; state, agent phase, branch, worktree and divergence sit underneath
+- **Pinned sessions** — keep the sessions you return to in a fixed place, reorder them by dragging, open the first nine with `Cmd+1` to `Cmd+9`
+- **State chips** — one click shows every failing or waiting session across all projects, not just the one you have open
+- **Filter field** — `Cmd+F` narrows by session title or project name
+- **Collapsible projects** — a collapsed project still reports what needs you, and stays collapsed between launches
+
 ### Rich Input
 
 - **Attachments** — drag and drop text files, PDFs, and images (with OCR extraction)

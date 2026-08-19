@@ -78,6 +78,13 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Manual compaction mirrors Pi TUI slash-command UX: `/compact` and `/compact <custom instructions>`, not context-meter-triggered compaction.
 - Provider auth UI is method-based. Keep provider-level availability separate from API-key configured state and OAuth connected state.
 - Compact composer interactions stay in-row unless the maintainer explicitly asks for a larger workflow.
+- Sidebar session rows are two lines at 316px width: the title owns line one, line two carries a shrinkable lead (state, phase, provenance) and a fixed tail (shortcut, timestamp). The timestamp never hides on hover; row actions overlay line one instead, because hiding it re-flowed the row under the cursor and removed information at the moment of acting on it.
+- Status colour is a semantic role, never a palette class or a status-prefixed token (ADR 0021). Adding a state means naming a role, not reaching for `text-red-500`.
+- The sidebar's `@theme` block must stay `@theme static`. Tailwind tree-shakes theme variables no utility references, and roles read at runtime through `var()` in inline styles (`--color-neutral`, `--color-review`, `--color-plan`) silently vanish otherwise.
+- Do not show a count of uncommitted files on a session row. Every session sharing a working tree reports the same number, so it says nothing about the session, and a large number implies a severity it does not carry. Divergence (`↑n ↓n`) is the useful part.
+- Provenance icons are a separate family from status icons and share no glyph with them (ADR 0020). At the size line two renders, a user reads silhouette rather than detail, so two node-graph glyphs are the same glyph.
+- Sidebar view preferences (session sort, collapsed projects) persist; sidebar filters (state chip, text query) do not. A filter that subtracts sessions must not outlive the intent behind it.
+- A list passed to `useSessionGitIndicators` must keep reference identity when nothing changed. The hook memoises on the array, so a freshly filtered copy every render re-runs its effect every render and spins the renderer.
 
 ## Tooling Memory
 

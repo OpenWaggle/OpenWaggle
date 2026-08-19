@@ -550,6 +550,36 @@ _Avoid_: sort mode (ambiguous with the project list's own session sort), filter 
 The keyboard shortcut opening a Pinned session by its **position** in the Pinned section, first row through ninth. Positional by definition, so it re-derives whenever the Pinned sort reorders the list, and rows past the ninth have none.
 _Avoid_: pin number (implies a number stored on the pin), session shortcut (any session can be opened; only Pinned sessions get a positional one)
 
+### Sidebar row vocabulary
+
+**Session row state**:
+The single thing a session row reports: its **Session status** plus `interrupted`, which is not a status because it is recorded per conversation branch and can accompany any status. Ranked, so a row that needs a person outranks one that is merely busy, and a row shows one state rather than several.
+_Avoid_: status (that is the narrower Pi-derived value), failed (the vocabulary is `error`, matching the code)
+
+**Attention tier**:
+The group of **Session row states** that need a person: needs input, interrupted, error. Rendered loudly, with a leading border as well as colour so the tier is never carried by colour alone. The in-flight tier recedes and the quiet tier stays quiet.
+_Avoid_: urgent, priority, alert (none of these are set by the user or by severity)
+
+**Provenance icon**:
+A muted icon on a row's second line saying what *kind* of session it is: its git branch, whether it owns a **Session worktree**, how many **SessionBranches** it has, whether a terminal is alive. A separate family from status icons, sharing no glyph with them, because at the size the second line renders a user reads silhouette rather than detail.
+_Avoid_: status icon (that family answers a different question), badge (implies a count or a state)
+
+**State chip**:
+A control at the top of the sidebar that narrows the whole tree to one **Session row state**, shown only when something is in that state and always paired with a count. Reaches across every project, so a failed run inside a collapsed project is one click away.
+_Avoid_: tab, filter pill, segmented control (it is a toggle, and several can be present without being mutually exclusive of the tree)
+
+**Roll-up pip**:
+A counted marker on a project heading reporting a **Session row state** inside it, restricted to the attention and in-flight tiers. Exists so a collapsed project still answers "is there anything in here for me".
+_Avoid_: badge, dot (a dot carries no count, and a count is what makes the colour legible)
+
+**Sidebar view preference**:
+Sidebar state the user authored and expects to survive a relaunch: the session sort order and which projects are collapsed. Distinct from a **Sidebar filter**, which is discarded on quit.
+_Avoid_: sidebar settings (it is not in Settings), layout state (window geometry is a different thing)
+
+**Sidebar filter**:
+A narrowing of the sidebar that hides sessions: a **State chip** or the text filter. Never persisted, because a filter that subtracts sessions should not outlive the intent behind it, and an app that opened on an unexplained subset would look broken.
+_Avoid_: search (it narrows in place rather than producing results), sidebar view preference (that persists; this does not)
+
 ## Relationships
 
 - An **OpenWaggle extension package** declares zero or more **OpenWaggle desktop contributions** across one or more **Extension contribution surfaces**.

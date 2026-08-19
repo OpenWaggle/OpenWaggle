@@ -13,12 +13,25 @@ section: "Getting Started"
 | New line | `Shift+Enter` | `Shift+Enter` |
 | New session | `Cmd+N` | `Ctrl+N` |
 | Toggle sidebar | `Cmd+B` | `Ctrl+B` |
+| Filter projects and sessions | `Cmd+F` | `Ctrl+F` |
+| Open pinned session 1 to 9 | `Cmd+1` … `Cmd+9` | `Ctrl+1` … `Ctrl+9` |
 | Toggle terminal | `Cmd+J` | `Ctrl+J` |
 | Toggle diff panel | `Cmd+D` | `Ctrl+D` |
 | Toggle Session Tree | `Cmd+Shift+Y` | `Ctrl+Shift+Y` |
 | Submit diff comment or review | `Cmd+Enter` | `Ctrl+Enter` |
 | Cancel diff comment or review | `Escape` | `Escape` |
 | Command palette | `Cmd+K` | `Ctrl+K` |
+
+## Sidebar
+
+`Cmd+F` focuses the filter field at the top of the sidebar, opening the sidebar first if it is
+collapsed. `Escape` while the field has focus clears both the text filter and any active state
+chip, which is the way out of a narrowed sidebar without reaching for the mouse.
+
+`Cmd+1` through `Cmd+9` open the first nine rows of the **Pinned** section. The mapping is
+positional against the section as currently ordered, so it follows a reorder or a sort change and
+a badge never points at a different session than the row it sits on. A tenth pin is still allowed,
+it simply has no shortcut.
 
 ## Session Tree
 
