@@ -266,4 +266,41 @@ describe('Conventional Commit PR title release intent', () => {
       await fs.rm(cwd, { force: true, recursive: true })
     }
   })
+
+  it('does not demand release intent from a PR that touches no package when the base moves ahead', async () => {
+    /*
+     * The PR-level check was a two-dot diff, which is symmetric: once the base branch gained a `packages/`
+     * commit the PR had not merged, it reported that path in the reverse direction and demanded release
+     * intent from a PR that never touched a package. That would have blocked every PR here as soon as a
+     * release landed. Verified against real git that a three-dot diff reports nothing for this shape.
+     */
+    const { baseline, cwd } = await createRepository()
+    try {
+      await git(cwd, ['checkout', '-b', 'feature', baseline])
+      await writeAndCommit(cwd, 'src/feature.ts', 'export {}\n', 'docs(app): document a thing')
+      const head = await git(cwd, ['rev-parse', 'HEAD'])
+
+      // The base branch releases a package change the PR has not merged.
+      await git(cwd, ['checkout', 'main'])
+      await writeAndCommit(
+        cwd,
+        'packages/extension-sdk/index.ts',
+        'export const v = 2\n',
+        'fix(extension-sdk): release v2',
+      )
+      const baseRef = await git(cwd, ['rev-parse', 'HEAD'])
+
+      const result = await validateConventionalCommits({
+        baseline,
+        cwd,
+        from: baseRef,
+        to: head,
+        prTitle: 'docs(app): document a thing',
+      })
+
+      expect(result.violations).toEqual([])
+    } finally {
+      await fs.rm(cwd, { force: true, recursive: true })
+    }
+  })
 })

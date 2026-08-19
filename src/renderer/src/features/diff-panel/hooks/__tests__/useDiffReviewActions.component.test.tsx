@@ -96,4 +96,50 @@ describe('useDiffReviewActions', () => {
 
     expect(selectReviewThread(useReviewStore.getState(), REVIEW_KEY).comments).toEqual([])
   })
+
+  it('follows the panel when the review key changes while the send is in flight', async () => {
+    /*
+     * The first send of a session changes the key mid-flight: creating a session sets the active id
+     * synchronously, so the panel moves from the working path to the session id before the send can reject.
+     * Restoring under the key captured at click time wrote the review where nothing was reading, and the
+     * one-shot key migration had already fired against the emptied draft - so a failed first send lost
+     * everything the reviewer had written.
+     */
+    const draftKey = '/repo::unstaged'
+    const sessionKey = 'session-1::unstaged'
+    let rejectSend: ((error: Error) => void) | null = null
+    const onSendMessage = vi.fn(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectSend = reject
+        }),
+    )
+
+    const { result, rerender } = renderHook(
+      ({ key }: { key: string }) => useDiffReviewActions(onSendMessage, FILES, key),
+      { initialProps: { key: draftKey } },
+    )
+
+    act(() => {
+      result.current.onAddToReview(
+        { filePath: 'src/app.ts', line: 1, endLine: 1, lineType: 'add' },
+        'look here',
+      )
+    })
+    act(() => {
+      result.current.onSetSummary('please fix')
+    })
+
+    const submitted = result.current.onSubmitReview()
+    // The panel moves to the session key while the send is still in flight.
+    rerender({ key: sessionKey })
+    act(() => {
+      rejectSend?.(new Error('no session worktree'))
+    })
+    await submitted
+
+    const restored = selectReviewThread(useReviewStore.getState(), sessionKey)
+    expect(restored.comments.map((comment) => comment.content)).toEqual(['look here'])
+    expect(restored.summary).toBe('please fix')
+  })
 })

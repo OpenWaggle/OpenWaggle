@@ -1,4 +1,5 @@
 import type { GitFileDiff } from '@shared/types/git'
+import { useEffect, useRef } from 'react'
 import {
   extractDiffSnippet,
   formatReviewSubmission,
@@ -43,8 +44,19 @@ export function useDiffReviewActions(
   onSendMessage: (content: string) => void | Promise<void>,
   files: readonly GitFileDiff[],
   reviewKey: string,
+  onReviewSendFailed?: (error: unknown) => void,
 ) {
   const thread = useReviewStore((s) => selectReviewThread(s, reviewKey))
+  /*
+   * The key the panel is reading *now*, which the first send changes mid-flight: creating a session sets
+   * the active id synchronously, so the panel moves from the working path to the session id before the send
+   * can reject. Restoring under the key captured at click time therefore wrote the review where nothing was
+   * reading, and the one-shot migration had already fired against the emptied draft.
+   */
+  const latestReviewKey = useRef(reviewKey)
+  useEffect(() => {
+    latestReviewKey.current = reviewKey
+  }, [reviewKey])
   const comments = thread.comments
   const summary = thread.summary
   const addComment = useReviewStore((s) => s.addComment)
@@ -89,6 +101,11 @@ export function useDiffReviewActions(
         error: String(error),
       })
       state.restoreReview(reviewKey, pending.comments, pending.summary)
+      // Follow the panel if the key moved while the send was in flight.
+      if (latestReviewKey.current !== reviewKey) {
+        state.migrateReview(reviewKey, latestReviewKey.current)
+      }
+      onReviewSendFailed?.(error)
     }
   }
 

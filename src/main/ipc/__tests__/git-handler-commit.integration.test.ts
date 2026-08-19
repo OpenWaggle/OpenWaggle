@@ -45,7 +45,8 @@ describe('registerGitHandlers commit', () => {
           return
         }
         if (args[0] === 'add') {
-          stagedPaths.push(args.slice(2))
+          // `add -A -- <path>`, one call per selected path.
+          stagedPaths.push(args.slice(args.indexOf('--') + 1))
           cb(null, '', '')
           return
         }
@@ -73,7 +74,11 @@ describe('registerGitHandlers commit', () => {
     })
 
     expect(result).toMatchObject({ ok: true, commitHash: 'abc1234' })
-    expect(stagedPaths).toEqual([['src/main/index.ts', 'docs/new.md']])
+    /*
+     * One `add` per path, not one batched call: an already-staged rename's source matches nothing for `add`,
+     * and batching makes that fatal for the whole commit.
+     */
+    expect(stagedPaths).toEqual([['src/main/index.ts'], ['docs/new.md']])
     expect(commitCommands).toEqual(['commit -m test commit -- src/main/index.ts docs/new.md'])
   })
 
@@ -99,7 +104,7 @@ describe('registerGitHandlers commit', () => {
               '',
             ),
           )
-          .with('add -- src/file.ts', () => cb(null, '', ''))
+          .with('add -A -- src/file.ts', () => cb(null, '', ''))
           .with('commit -m test commit -- src/file.ts', () =>
             cb(
               {

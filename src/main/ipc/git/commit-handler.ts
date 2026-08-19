@@ -81,11 +81,35 @@ async function validateCommitPreflight(projectPath: string, message: string) {
     : null
 }
 
+/**
+ * Whether the only complaint is that a pathspec matched nothing.
+ *
+ * That is not a failure for this purpose: it means the path is already staged, as a rename's source is.
+ */
+function isUnmatchedPathspec(stderr: string) {
+  return /did not match any files/u.test(stderr)
+}
+
 async function stageCommitPaths(projectPath: string, paths: readonly string[]) {
   if (paths.length === 0) return null
 
-  const addResult = await runGit(projectPath, ['add', '--', ...paths])
-  return addResult.code === 0 ? null : mapCommitFailure(addResult.stderr)
+  /*
+   * `-A`, so removals count as changes to stage, and one path at a time.
+   *
+   * Two real git behaviours force this shape. A plain `git add -- <paths>` refuses a path that is gone from
+   * disk, which is true of a deletion and of a rename's source, so `-A` is required. And a path can be in
+   * the commit set while matching nothing for `add`: an *already staged* rename has its source gone from
+   * both disk and index, yet the source must stay in the commit pathspec or the commit keeps both files and
+   * leaves the deletion staged. Batching makes that fatal - `add -A -- kept.txt moved.txt` exits 128 -
+   * whereas per-path staging lets the unmatched entry be skipped while everything else is staged.
+   */
+  for (const singlePath of paths) {
+    const addResult = await runGit(projectPath, ['add', '-A', '--', singlePath])
+    if (addResult.code === 0) continue
+    if (isUnmatchedPathspec(addResult.stderr)) continue
+    return mapCommitFailure(addResult.stderr)
+  }
+  return null
 }
 
 const commitPayloadSchema = Schema.Struct({

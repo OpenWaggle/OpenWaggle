@@ -95,4 +95,46 @@ describe('commitGit against a linked worktree', () => {
     const checkoutFiles = await git(repository, ['ls-tree', '-r', '--name-only', 'HEAD'])
     expect(checkoutFiles).not.toContain('only-here.txt')
   })
+
+  /**
+   * The commit set includes both paths of a rename, so the commit covers the deletion rather than keeping
+   * both files. Two real git behaviours make that awkward, and this pins both:
+   *
+   * - a path gone from disk is refused by a plain `git add --`, so `-A` is needed for a deletion and for an
+   *   unstaged rename's source;
+   * - an *already staged* rename's source is gone from disk **and** from the index, so it matches nothing
+   *   for `add` - yet it must stay in the commit pathspec, or the commit keeps both files and leaves the
+   *   deletion staged. Batching makes that fatal (`add -A -- kept.txt moved.txt` exits 128), so staging is
+   *   per-path and an unmatched entry is skipped.
+   */
+  it('commits a staged rename and a deletion together', async () => {
+    const { repository } = await createRepositoryWithWorktree()
+    await writeFile(path.join(repository, 'kept.txt'), 'keep\n')
+    await writeFile(path.join(repository, 'doomed.txt'), 'bye\n')
+    await writeFile(path.join(repository, 'untouched.txt'), 'leave me\n')
+    await git(repository, ['add', '--all'])
+    await git(repository, ['commit', '-m', 'add files'])
+
+    // A rename staged by git itself, an unstaged deletion, and an unrelated edit that must not be committed.
+    await git(repository, ['mv', 'kept.txt', 'moved.txt'])
+    await writeFile(path.join(repository, 'untouched.txt'), 'edited\n')
+    const { rm: removeFile } = await import('node:fs/promises')
+    await removeFile(path.join(repository, 'doomed.txt'))
+
+    const result = await commitGit(repository, {
+      message: 'move and delete',
+      amend: false,
+      paths: ['kept.txt', 'moved.txt', 'doomed.txt'],
+    })
+
+    expect(result.ok).toBe(true)
+    const tracked = await git(repository, ['ls-tree', '-r', '--name-only', 'HEAD'])
+    expect(tracked).toContain('moved.txt')
+    expect(tracked).not.toContain('kept.txt')
+    expect(tracked).not.toContain('doomed.txt')
+    // Nothing of the rename is left staged, and the unrelated edit is still the user's to commit.
+    const status = await git(repository, ['status', '--porcelain=v1'])
+    expect(status).not.toContain('kept.txt')
+    expect(status).toContain('untouched.txt')
+  })
 })

@@ -107,19 +107,32 @@ describe('stacked action safety gates', () => {
             (value) => value === 'symbolic-ref --quiet --short HEAD',
             () => callback(null, 'feature/x\n', ''),
           )
+          .when(
+            // No merge in progress: `rev-parse --verify` exits non-zero when the ref is absent.
+            (value) => value === 'rev-parse -q --verify MERGE_HEAD',
+            () => callback(Object.assign(new Error('no MERGE_HEAD'), { code: 1 }), '', ''),
+          )
           .otherwise(() => callback(null, '', ''))
       },
     )
     registerGitHandlers()
     const handler = registeredHandler('git:stacked-action:run')
 
-    await handler?.({ sender: {} }, '/tmp/repo', {
+    const result = await handler?.({ sender: {} }, '/tmp/repo', {
       action: 'commit',
       commitMessage: 'Ship it',
       paths: ['src/a.txt', 'src/b.txt'],
     })
 
-    expect(staged).toEqual(['add -- src/a.txt src/b.txt'])
+    expect(result).toMatchObject({ ok: true })
+
+    /*
+     * One `add` per selected path, each `-A` so a removal counts, and each scoped by a pathspec so it cannot
+     * reach anything unselected - which is what `git add --all` did. Per-path rather than batched because an
+     * already-staged rename's source matches nothing for `add`, and batching makes that fatal for the whole
+     * commit.
+     */
+    expect(staged).toEqual(['add -A -- src/a.txt', 'add -A -- src/b.txt'])
     expect(staged.some((entry) => entry.includes('--all'))).toBe(false)
   })
 })

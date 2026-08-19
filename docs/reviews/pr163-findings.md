@@ -115,3 +115,34 @@ Not fixed, with reasons:
 - **V3-2's sibling YAML forms (anchors, aliases).** Not handled, and reported as such rather than guessed at:
   an anchor would need a YAML parser, and adding one to a guard script buys less than it costs.
 
+## Round five: sign-off
+
+A fifth round was asked a narrower question - is there anything here that would harm a user, lose their work,
+or let a broken change reach `main`? It found five, three of them serious, and every one was a defect in a
+*previous round's fix* rather than in the original branch. All five are resolved.
+
+| Finding | Substance |
+| --- | --- |
+| W1-1 | A commit containing a rename or a deletion failed outright |
+| W1-2 | The stacked path staged separately from `commitGit`, duplicating that logic badly |
+| W2-1 | A review submitted as a session's first message was restored under a key nothing was reading |
+| W2-2 | A `git status` that failed was still reported as a clean tree |
+| W3-1 | Release intent was demanded of PRs that touch no package, once `main` moved ahead |
+
+Two are worth recording in more detail, because both were introduced while fixing something else.
+
+**W3-1** would have blocked every pull request on this repository the moment a release landed. The PR-level
+release-intent check asked a two-dot `git diff` between the base branch tip and the PR head. That is
+symmetric, so once `main` gained a `packages/` commit the branch had not merged, the diff reported that path
+in the reverse direction and demanded release intent from a PR that never touched a package. Verified against
+real git, then fixed by asking a three-dot diff against the merge base.
+
+**W1-1** came from the fix for renames committing only one of their two paths. Including the rename's source
+in the commit set is right - without it the commit keeps both files and leaves the deletion staged, which was
+verified - but that path is gone from disk, and `git add -- <paths>` refuses a path it cannot match. For an
+*already staged* rename the source is gone from the index too, so it matches nothing at all and batching
+makes the failure fatal for the whole commit. Staging is now per-path with `-A`, and an unmatched entry is
+skipped rather than failing the commit. The unit test that was supposed to cover this staging turned out to
+be watching the duplicate `add` in the stacked path (W1-2) rather than `commitGit` at all: with the duplicate
+removed it went red, which is how W1-2 was confirmed.
+

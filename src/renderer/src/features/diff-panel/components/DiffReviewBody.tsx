@@ -2,6 +2,7 @@ import type { CodeViewHandle } from '@pierre/diffs/react'
 import type { GitFileDiff } from '@shared/types/git'
 import type { Ref } from 'react'
 import type { ReviewAnnotationMetadata } from '@/features/diff-panel/lib/code-view-items'
+import { useUIStore } from '@/shell/ui-store'
 import { useDiffReviewActions } from '../hooks/useDiffReviewActions'
 import { useDiffViewOptions } from '../hooks/useDiffViewOptions'
 import { DiffCodeView } from './DiffCodeView'
@@ -39,7 +40,11 @@ export function DiffReviewBody({
   reviewKey,
 }: DiffReviewBodyProps) {
   const { viewOptions } = useDiffViewOptions()
-  const review = useDiffReviewActions(onSendMessage, files, reviewKey)
+  const showToast = useUIStore((state) => state.showToast)
+  const review = useDiffReviewActions(onSendMessage, files, reviewKey, (error) => {
+    // A restored review that lands out of view is no better than a lost one if nothing says why.
+    showToast(`Could not send this review: ${String(error)}`, 'error')
+  })
 
   return (
     <>

@@ -10,7 +10,7 @@ vi.mock('../shared', () => ({
   stripSurroundingQuotes: (value: string) => value,
 }))
 
-import { getGitBranchDiff, getGitDiff } from '../status-service'
+import { getGitBranchDiff, getGitDiff, getGitStatus } from '../status-service'
 
 function gitResult(code: number, stdout = '', stderr = '') {
   return { code, stdout, stderr }
@@ -137,5 +137,23 @@ describe('diff loading returns typed results', () => {
     expect(
       runGitMock.mock.calls.some((call) => call[1]?.[0] === 'rev-parse' && call[1]?.[2] === 'HEAD'),
     ).toBe(true)
+  })
+
+  it('refuses to report a failed status read as a clean tree', async () => {
+    /*
+     * The exit code of `git status --porcelain=v1` was ignored, so a failed read - an index.lock held by
+     * another git process is the everyday case - parsed as empty stdout and came back `clean: true` with no
+     * changed files. The renderer's guard against exactly this only sees a rejected call, so Commit offered
+     * nothing to commit and the quick action showed a clean tree, both silently.
+     */
+    // `getGitStatus` asserts the repository through `isGitRepository` before reading anything.
+    isGitRepositoryMock.mockResolvedValue(true)
+    runGitMock.mockImplementation(async (_path: string, args: readonly string[]) =>
+      args.includes('--porcelain=v1')
+        ? { code: 1, stdout: '', stderr: 'fatal: Unable to create index.lock: File exists' }
+        : { code: 0, stdout: '', stderr: '' },
+    )
+
+    await expect(getGitStatus('/repo')).rejects.toThrow(/index\.lock/u)
   })
 })

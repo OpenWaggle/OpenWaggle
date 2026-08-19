@@ -94,7 +94,11 @@ function createStackedActionDeps(): StackedActionDeps {
        * pathspec. Revert all is already re-based onto the root; commit now agrees with it.
        */
       const repositoryRoot = (await resolveRepositoryRoot(projectPath)) ?? projectPath
-      await runGit(repositoryRoot, ['add', '--', ...selected])
+      /*
+       * Staging is left to `commitGit`, which handles the awkward cases: a path gone from disk needs `-A`,
+       * and an already-staged rename's source matches nothing for `add` while still needing to be in the
+       * commit pathspec. Adding here as well duplicated that logic badly - it batched, which is fatal.
+       */
       return commitGit(repositoryRoot, { message, amend: false, paths: [...selected] })
     },
     push: (projectPath) => pushCurrentBranch(projectPath),

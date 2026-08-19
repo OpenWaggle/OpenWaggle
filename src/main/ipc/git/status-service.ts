@@ -12,6 +12,7 @@ import {
 } from './status-parse'
 
 const NOT_A_REPOSITORY_MESSAGE = 'Selected folder is not a Git repository.'
+const STATUS_READ_FAILED_MESSAGE = 'Could not read the working tree.'
 const FAILED_TO_LOAD_DIFF_MESSAGE = 'Failed to load Git diff.'
 const DIFF_TOO_LARGE_MESSAGE =
   'This diff is too large to display. Commit or stage part of the change, or exclude generated files.'
@@ -26,6 +27,17 @@ interface GitStatusCommandResults {
 export async function getGitStatus(projectPath: string) {
   await assertGitRepository(projectPath)
   const results = await loadGitStatusCommandResults(projectPath)
+  /*
+   * A failed read is not a clean tree.
+   *
+   * The exit code was ignored, so a `git status` that failed - an index.lock held by another git process is
+   * the everyday case - parsed as empty stdout and was reported as `clean: true` with no changed files. The
+   * renderer's guard against exactly this only sees a rejected call, so Commit offered nothing to commit and
+   * the quick action showed a clean tree, both silently. Throwing puts it on the path that guard watches.
+   */
+  if (results.porcelainResult.code !== 0) {
+    throw new Error(gitStatusReadFailureMessage(results.porcelainResult.stderr))
+  }
   const branch = await resolveBranchName(projectPath, results.branchResult)
   const aheadBehind = parseAheadBehind(results.upstreamResult)
   const numstat = await resolveNumstat(projectPath, results.numstatHeadResult)
@@ -41,6 +53,13 @@ export async function getGitStatus(projectPath: string) {
     ahead: aheadBehind.ahead,
     behind: aheadBehind.behind,
   } satisfies GitStatusSummary
+}
+
+function gitStatusReadFailureMessage(stderr: string) {
+  const detail = stderr.trim()
+  return detail.length > 0
+    ? `Could not read the working tree: ${detail}`
+    : STATUS_READ_FAILED_MESSAGE
 }
 
 export async function getGitDiff(projectPath: string): Promise<GitDiffResult> {
