@@ -8,6 +8,7 @@ import {
   clearRunStarted,
   hasRunStarted,
   MessageDeliveredRunFailed,
+  MessageNotDelivered,
 } from '@/features/chat/lib/message-delivery'
 import { api } from '@/shared/lib/ipc'
 import { createOptimisticUserMessage } from '../lib/useAgentChat.utils'
@@ -156,24 +157,28 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       ? api.sendWaggleMessage(targetSessionId, payload, params.model, waggleConfig)
       : api.sendMessage(targetSessionId, payload, params.model)
 
+    /*
+     * Raised after the try block, never inside it. The catch below tears the run down and puts the session into
+     * an error state, which is wrong for this case twice over: a cancellation is not a run failure, and the run
+     * being torn down may already have been *replaced* - stopping settles the run, a queued follow-up send
+     * begins immediately, and the superseded send's reply arrives after that replacement has started.
+     */
+    let notDelivered: MessageNotDelivered | null = null
     try {
       /*
        * The report is read, not merely awaited. Main recovers every run failure into a value rather than
        * failing the Effect, so this invoke resolves whether the turn ran or was refused - and the run promise
        * can be settled without an error by ordinary actions such as Stop. Without consulting the report, a
-       * refused send therefore reached the caller as a success, and a submitted review was discarded.
+       * refused send reached the caller as a success and a submitted review was discarded.
        */
       const report = await sendPromise
-      /*
-       * Only a definite refusal is an error here. A cancellation says nothing about delivery, and raising it
-       * dismantled the ordinary Stop flow: stopping settles the run and a queued follow-up send begins
-       * immediately, so the superseded send's reply arrives after the replacement has started - and its
-       * delivery evidence, which is session-wide, has already been cleared by that replacement.
-       */
-      if (report.outcome === 'refused') {
-        throw new Error(report.message ?? 'The agent could not start this turn.')
+      if (report.outcome === 'delivered' || hasRunStarted(targetSessionId)) {
+        await runPromise
+      } else {
+        // Nothing is waiting on the run any more, but its rejection must not surface unhandled.
+        void runPromise.catch(() => undefined)
+        notDelivered = new MessageNotDelivered(report.outcome, report.message)
       }
-      await runPromise
     } catch (runError) {
       const normalizedError = normalizeError(runError)
       if (refs.foregroundSessionIdRef.current === targetSessionId) {
@@ -199,6 +204,11 @@ export function createAgentRunControls(params: AgentRunControlParams) {
         ? new MessageDeliveredRunFailed(normalizedError)
         : normalizedError
     }
+    /*
+     * The caller is told, so work it submitted is not lost - a review is restored - but the session is left
+     * alone. Whether this is worth showing the user is the caller's decision, and a cancellation is not.
+     */
+    if (notDelivered) throw notDelivered
   }
 
   async function sendUserPayload(payload: AgentSendPayload, waggleConfig: WaggleConfig | null) {

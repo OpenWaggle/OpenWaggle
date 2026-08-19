@@ -7,7 +7,9 @@ export {
   createdSessionIdOf,
   FirstSendFailed,
   hasRunStarted,
+  isReportableSendFailure,
   MessageDeliveredRunFailed,
+  MessageNotDelivered,
   markRunStarted,
   wasMessageDelivered,
 } from './message-delivery'

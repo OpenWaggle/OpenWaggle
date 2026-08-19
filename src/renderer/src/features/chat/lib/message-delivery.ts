@@ -48,6 +48,31 @@ export function wasMessageDelivered(error: unknown) {
 }
 
 /**
+ * A send whose message never reached the agent.
+ *
+ * Two consumers want different things from this, which is why it carries the outcome rather than being two
+ * error types. Work the user submitted must be kept in both cases - a review is restored - but only a refusal
+ * is worth reporting as a failure: a cancellation is the user's own Stop, and telling them their turn "could
+ * not start" is noise about something they asked for.
+ */
+export class MessageNotDelivered extends Error {
+  readonly outcome: 'refused' | 'cancelled'
+
+  constructor(outcome: 'refused' | 'cancelled', message?: string) {
+    super(message ?? DEFAULT_NOT_DELIVERED_MESSAGE)
+    this.name = 'MessageNotDelivered'
+    this.outcome = outcome
+  }
+}
+
+const DEFAULT_NOT_DELIVERED_MESSAGE = 'The agent did not receive this message.'
+
+/** Whether this failure is worth showing the user, as opposed to one they caused by stopping the run. */
+export function isReportableSendFailure(error: unknown) {
+  return !(error instanceof MessageNotDelivered) || error.outcome === 'refused'
+}
+
+/**
  * A first send that failed, naming the session it created.
  *
  * Work submitted before a session exists is filed under the working path, and the session that is created to

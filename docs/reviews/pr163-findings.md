@@ -301,3 +301,37 @@ replaced it and left the chat wedged. The report now carries three outcomes rath
 `refused`, `cancelled` - because "did not arrive" and "cannot tell" call for different behaviour: only a
 refusal is an error, while a cancellation still lets a caller keep work the user may want back.
 
+## Round ten
+
+Round ten found four issues, one of them a blocker, and its whole-branch reviewer said plainly: do not merge
+until that one is fixed. All four are resolved.
+
+| Finding | Substance |
+| --- | --- |
+| B1-1 | A directory case change *plus* a file rename still committed successfully with the change omitted |
+| B1-2 | The case gate could refuse commits git performs happily on a case-sensitive filesystem |
+| B2-1, B3-1 | A cancelled send lost the submitted review, or reported the user's own Stop as a failure |
+
+**Not throwing was as wrong as throwing.** Round nine stopped raising a cancellation as an error, which fixed
+the Stop flow and reintroduced the loss it had been guarding: `onSubmitReview` clears the review before awaiting
+and restores it only on a failure, so a cancellation returning as an ordinary success left the work gone with
+nothing to bring it back. And a cancellation before the prompt was sent means main recorded nothing at all - no
+transcript entry, no turn-started event - so the message really was lost. The two requirements were never in
+conflict, they were being served by one signal: the caller must be *told*, so it can keep the work, but the
+session must be *left alone*, because the run that the failure path would tear down may be the replacement that
+a queued send has already started. `MessageNotDelivered` now carries its outcome and is raised after the run
+handling rather than inside it, and `isReportableSendFailure` decides separately whether the user hears about
+it. A refusal is worth reporting; their own Stop is not.
+
+**A rule about whole paths was not a rule about path components.** Comparing `from` against `to` in full only
+fires when nothing but case changed, so changing a directory's case while also renaming the file left the
+conflated directory component in place - the same silent omission, undetected. Any component now counts.
+
+**And the gate for it was the wrong question.** "Something still sits at the source path" is not "this
+filesystem conflates the spellings": on a case-sensitive filesystem a source is occupied for exactly the
+ordinary reasons the occupancy check was added for - a new file, a directory, a broken symlink, a copy - each of
+which would then have refused a commit git performs happily. The question is now put to git itself, which sets
+`core.ignorecase` by probing the filesystem when the repository is created. The component rule is pinned by a
+unit test with no filesystem involved, so it holds on the case-insensitive machines this is developed on and the
+case-sensitive ones CI runs on.
+

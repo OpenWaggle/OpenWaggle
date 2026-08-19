@@ -256,4 +256,59 @@ describe('commitGit and renames', () => {
     // Nothing was committed, so the change is still the user's to make.
     expect((await git(repository, ['log', '--format=%s', '-1'])).trim()).toBe('add helper')
   })
+
+  /**
+   * A directory whose case changes while the file is also renamed is the same silent omission as a pure
+   * case-only rename, and comparing whole paths missed it: `add` and `commit` both exit 0, the rename is left
+   * out of the commit while staying staged, and the commit reported success.
+   */
+  it('refuses a rename that changes a directory case and the file name together', async () => {
+    const { repository } = await createRepositoryWithWorktree()
+    if (!(await filesystemConflatesCase(repository))) return
+    await mkdir(path.join(repository, 'components'), { recursive: true })
+    await writeFile(path.join(repository, 'components', 'button.tsx'), 'export {}\n')
+    await writeFile(path.join(repository, 'app.tsx'), 'import "./components/button"\n')
+    await git(repository, ['add', '--all'])
+    await git(repository, ['commit', '-m', 'add button'])
+
+    await mkdir(path.join(repository, 'Components'), { recursive: true })
+    await git(repository, ['mv', 'components/button.tsx', 'Components/PrimaryButton.tsx'])
+    await writeFile(path.join(repository, 'app.tsx'), 'import "./Components/PrimaryButton"\n')
+
+    const result = await commitGit(repository, {
+      message: 'rename the button',
+      amend: false,
+      paths: ['Components/PrimaryButton.tsx', 'app.tsx'],
+    })
+
+    expect(result).toMatchObject({ ok: false, code: 'case-only-rename' })
+    expect((await git(repository, ['log', '--format=%s', '-1'])).trim()).toBe('add button')
+  })
+
+  /**
+   * The refusal must not reach a case-sensitive filesystem, where these are ordinary renames git performs
+   * happily. The previous gate - "something still sits at the source path" - was not that question: a source is
+   * occupied there for the ordinary reasons the occupancy check exists for.
+   */
+  it('commits an ordinary move whose components differ by more than case', async () => {
+    const { repository } = await createRepositoryWithWorktree()
+    await mkdir(path.join(repository, 'alpha'), { recursive: true })
+    await writeFile(path.join(repository, 'alpha', 'file.ts'), 'export {}\n')
+    await git(repository, ['add', '--all'])
+    await git(repository, ['commit', '-m', 'add file'])
+
+    await mkdir(path.join(repository, 'beta'), { recursive: true })
+    await git(repository, ['mv', 'alpha/file.ts', 'beta/file.ts'])
+
+    const result = await commitGit(repository, {
+      message: 'move the file',
+      amend: false,
+      paths: ['beta/file.ts'],
+    })
+
+    expect(result.ok).toBe(true)
+    const tracked = await git(repository, ['ls-tree', '-r', '--name-only', 'HEAD'])
+    expect(tracked).toContain('beta/file.ts')
+    expect(tracked).not.toContain('alpha/file.ts')
+  })
 })

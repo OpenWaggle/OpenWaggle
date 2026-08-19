@@ -1,6 +1,7 @@
 import type { CodeViewHandle } from '@pierre/diffs/react'
 import type { GitFileDiff } from '@shared/types/git'
 import type { Ref } from 'react'
+import { isReportableSendFailure } from '@/features/chat/lib'
 import type { ReviewAnnotationMetadata } from '@/features/diff-panel/lib/code-view-items'
 import { useUIStore } from '@/shell/ui-store'
 import { useDiffReviewActions } from '../hooks/useDiffReviewActions'
@@ -55,8 +56,14 @@ export function DiffReviewBody({
     reviewKeys.reviewKey,
     reviewKeys.keyForSession,
     (error) => {
-      // A restored review that lands out of view is no better than a lost one if nothing says why.
-      showToast(`Could not send this review: ${String(error)}`, 'error')
+      /*
+       * A restored review that lands out of view is no better than a lost one if nothing says why - but a
+       * cancellation is the user's own Stop, and reporting that as a failure would be noise about something
+       * they asked for. The review comes back either way.
+       */
+      if (isReportableSendFailure(error)) {
+        showToast(`Could not send this review: ${String(error)}`, 'error')
+      }
     },
   )
 

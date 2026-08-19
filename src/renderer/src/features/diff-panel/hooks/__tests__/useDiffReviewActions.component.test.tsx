@@ -1,7 +1,11 @@
 import type { GitFileDiff } from '@shared/types/git'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { FirstSendFailed, MessageDeliveredRunFailed } from '@/features/chat/lib'
+import {
+  FirstSendFailed,
+  MessageDeliveredRunFailed,
+  MessageNotDelivered,
+} from '@/features/chat/lib'
 import {
   reviewKeyFor,
   selectReviewThread,
@@ -190,5 +194,36 @@ describe('useDiffReviewActions', () => {
 
     expect(selectReviewThread(useReviewStore.getState(), REVIEW_KEY).comments).toEqual([])
     expect(onReviewSendFailed).not.toHaveBeenCalled()
+  })
+
+  it('restores a review whose send was cancelled before the agent got it', async () => {
+    /*
+     * A cancellation arriving before the prompt was sent means main recorded nothing: the message never reached
+     * the transcript and no turn-started event was ever emitted. Reporting that as an ordinary success - which
+     * it had to be, to stop it dismantling the Stop flow - left the comments and summary cleared with nothing
+     * to restore them. The outcome is carried instead, so the work comes back without an error being raised.
+     */
+    const onSendMessage = vi.fn(() => Promise.reject(new MessageNotDelivered('cancelled')))
+    const onReviewSendFailed = vi.fn()
+    const { result } = renderHook(() =>
+      useDiffReviewActions(onSendMessage, FILES, REVIEW_KEY, () => REVIEW_KEY, onReviewSendFailed),
+    )
+
+    act(() => {
+      result.current.onAddToReview(
+        { filePath: 'src/app.ts', line: 1, endLine: 1, lineType: 'add' },
+        'keep me',
+      )
+    })
+    act(() => {
+      result.current.onSetSummary('and this')
+    })
+    await result.current.onSubmitReview()
+
+    const restored = selectReviewThread(useReviewStore.getState(), REVIEW_KEY)
+    expect(restored.comments.map((comment) => comment.content)).toEqual(['keep me'])
+    expect(restored.summary).toBe('and this')
+    // The caller is told, and decides for itself that a cancellation is not worth reporting.
+    expect(onReviewSendFailed).toHaveBeenCalledTimes(1)
   })
 })

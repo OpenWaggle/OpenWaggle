@@ -3,15 +3,13 @@ import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { ThinkingLevel } from '@shared/types/settings'
 import type { WaggleConfig } from '@shared/types/waggle'
-import { FirstSendFailed } from '@/features/chat/lib'
+import { FirstSendFailed, MessageNotDelivered } from '@/features/chat/lib'
 import { createOptimisticUserMessage } from '@/features/chat/lib/useAgentChat.utils'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useOptimisticUserMessageStore } from '@/features/chat/state/optimistic-user-message-store'
 import { flushDraftWorktreePlanToSession } from '@/features/git'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
-
-const CANCELLED_BEFORE_TURN_MESSAGE = 'The agent did not start this turn.'
 
 const logger = createRendererLogger('use-send-message')
 
@@ -121,10 +119,10 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
         : await api.sendMessage(sessionId, payload, model)
       if (report.outcome === 'delivered') return
       /*
-       * A cancellation is reported too, so work the user may still want is not discarded - but it is the user's
-       * own action, so it carries no message of its own.
+       * A cancellation is reported too, so work the user may still want is not discarded - but it carries its
+       * outcome, because a caller must not tell the user their turn "could not start" when they stopped it.
        */
-      throw new Error(report.message ?? CANCELLED_BEFORE_TURN_MESSAGE)
+      throw new MessageNotDelivered(report.outcome, report.message)
     } catch (error) {
       useBackgroundRunStore.getState().clearRunRenderSnapshot(sessionId)
       logger.error('First message send failed', {

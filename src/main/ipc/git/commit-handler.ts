@@ -71,7 +71,9 @@ export async function commitGit(
    */
   const projectPath = (await resolveRepositoryRoot(rawProjectPath)) ?? rawProjectPath
   const renames = await resolveSelectedRenames(projectPath, payload.paths)
-  const caseOnly = renames.find((rename) => rename.sourceOccupied && isCaseOnlyRename(rename))
+  const caseOnly = (await filesystemIgnoresCase(projectPath))
+    ? renames.find(hasCaseOnlyComponent)
+    : undefined
   if (caseOnly) return caseOnlyRenameFailure(caseOnly)
   const paths = expandRenameSources(payload.paths, renames)
 
@@ -126,15 +128,40 @@ async function validateCommitPreflight(projectPath: string, message: string) {
  * the commit reported success while omitting the change, and the stacked action would push it. Verified against
  * real git for both shapes. Detected up front so neither can pass as success.
  *
- * Only where the filesystem actually conflates the two spellings, which is what `sourceOccupied` says: on a
- * case-sensitive filesystem this is an ordinary rename and commits perfectly well, so refusing it there would
+ * Any *component* counts, not only the whole path: changing a directory's case while also renaming the file
+ * leaves the conflated directory component in place, which is the same silent omission.
+ *
+ * Only where the filesystem actually conflates the two spellings - see {@link filesystemIgnoresCase}. On a
+ * case-sensitive filesystem this is an ordinary rename that commits perfectly well, so refusing it there would
  * break something that works.
  */
-function isCaseOnlyRename(rename: SelectedRename) {
-  return rename.from !== rename.to && rename.from.toLowerCase() === rename.to.toLowerCase()
+function hasCaseOnlyComponent(rename: { readonly from: string; readonly to: string }) {
+  const from = rename.from.split('/')
+  const to = rename.to.split('/')
+  if (from.length !== to.length) return false
+  return from.some(
+    (segment, index) => segment !== to[index] && segment.toLowerCase() === to[index]?.toLowerCase(),
+  )
 }
 
-function caseOnlyRenameFailure(rename: SelectedRename): GitCommitFailure {
+/**
+ * Whether git considers this filesystem case-insensitive.
+ *
+ * Asked of git rather than inferred, because git sets `core.ignorecase` when the repository is created by
+ * probing the filesystem, and it is git's own pathspec matching that conflates the spellings. The previous
+ * gate - "something still sits at the source path" - was not this question: on a case-sensitive filesystem a
+ * source is occupied for the ordinary reasons the occupancy check exists for, and each of those would have
+ * refused a commit git performs happily.
+ */
+async function filesystemIgnoresCase(projectPath: string) {
+  const setting = await runGit(projectPath, ['config', '--get', 'core.ignorecase'])
+  return setting.code === 0 && setting.stdout.trim() === 'true'
+}
+
+function caseOnlyRenameFailure(rename: {
+  readonly from: string
+  readonly to: string
+}): GitCommitFailure {
   return commitFailure(
     'case-only-rename',
     `Git cannot commit "${rename.from}" to "${rename.to}" on this filesystem, because they differ only in letter case. Commit it from the command line, or rename through a temporary name.`,
@@ -279,3 +306,6 @@ export function registerGitCommitHandlers(): void {
     }),
   )
 }
+
+/** Exposed for tests: which renames a case-insensitive filesystem cannot express through a pathspec. */
+export const hasCaseOnlyComponentForTests = hasCaseOnlyComponent
