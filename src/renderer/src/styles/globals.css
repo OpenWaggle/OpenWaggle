@@ -24,8 +24,27 @@
   --color-accent-dim: #b87410;
   --color-success: #4caf72;
   --color-error: #ef4444;
-  --color-warning: #f5a623;
-  --color-info: #61a8ff;
+  /*
+   * The AA-safe partner for --color-error. #ef4444 measures 4.49:1 on --color-bg-secondary,
+   * clearing the 3:1 bar for icons, borders and pips but missing 4.5:1 for small text.
+   * Small error text uses this, so the role keeps the app's existing error hue instead of
+   * being lightened everywhere. Every other role clears 4.5:1 unaided, so this is one
+   * exception rather than a <role>-text pattern. See ADR 0021.
+   */
+  --color-error-text: #f87171;
+  /* Was #f5a623, byte-identical to --color-accent, so a warning looked like the brand. */
+  --color-warning: #f97316;
+  --color-info: #3b82f6;
+
+  /*
+   * Roles with no cross-industry convention, named for meaning so a theme can re-map them
+   * without touching call sites. Never name a token after its hue. See ADR 0021.
+   */
+  --color-review: #a78bfa;
+  --color-plan: #e879f9;
+  --color-progress: #7dd3fc;
+  /* Carries no semantic weight: idle, inactive, nothing pending. */
+  --color-neutral: #9098a8;
 
   /* Design-specific tokens */
   --color-input-card-border: #2a2f3a;

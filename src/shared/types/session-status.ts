@@ -10,6 +10,9 @@ export type SessionStatus =
 /**
  * Icon names correspond to Lucide icon component names.
  * Animation class is applied directly to the icon (e.g. 'animate-pulse', 'animate-spin').
+ *
+ * Colours are semantic design tokens, never raw palette classes. Each status names the
+ * role it means, so a theme re-maps the role and every status follows. See ADR 0021.
  */
 interface SessionStatusPill {
   readonly icon: string
@@ -20,32 +23,34 @@ interface SessionStatusPill {
 const STATUS_PILL_MAP: Record<Exclude<SessionStatus, 'idle'>, SessionStatusPill> = {
   working: {
     icon: 'GitCompareArrows',
-    colorClass: 'text-sky-500',
+    colorClass: 'text-progress',
     animateClass: 'animate-pulse',
   },
   connecting: {
     icon: 'Loader2',
-    colorClass: 'text-sky-500',
+    colorClass: 'text-progress',
     animateClass: 'animate-spin',
   },
   completed: {
     icon: 'CircleCheck',
-    colorClass: 'text-emerald-500',
+    colorClass: 'text-success',
     animateClass: null,
   },
   'awaiting-input': {
     icon: 'MessageCircle',
-    colorClass: 'text-indigo-500',
+    colorClass: 'text-info',
     animateClass: null,
   },
   'waggle-running': {
     icon: 'WaggleBee',
-    colorClass: 'text-amber-500',
+    colorClass: 'text-accent',
     animateClass: 'animate-pulse',
   },
   error: {
     icon: 'XCircle',
-    colorClass: 'text-red-500',
+    // Icon, not text: --color-error clears the 3:1 non-text bar. Small error text uses
+    // text-error-text instead, which clears 4.5:1.
+    colorClass: 'text-error',
     animateClass: null,
   },
 }
