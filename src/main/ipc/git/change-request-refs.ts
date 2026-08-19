@@ -29,7 +29,7 @@ export interface ChangeRequestFetchPlan {
  */
 export function planChangeRequestFetch(changeRequestUrl: string): ChangeRequestFetchPlan | null {
   for (const pattern of PROVIDER_HEAD_REF_PATTERNS) {
-    const number = pattern.url.exec(changeRequestUrl)?.groups?.['number']
+    const number = pattern.url.exec(changeRequestUrl)?.groups?.number
     if (number !== undefined) {
       return {
         remoteRef: pattern.headRef(number),

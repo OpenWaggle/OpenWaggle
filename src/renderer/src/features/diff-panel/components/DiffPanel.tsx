@@ -7,7 +7,6 @@ import { useDiffPanelGitActions } from '@/features/diff-panel/hooks/useDiffPanel
 import type { ReviewAnnotationMetadata } from '@/features/diff-panel/lib/code-view-items'
 import { codeViewItemId } from '@/features/diff-panel/lib/code-view-items'
 import {
-  type DiffScopeSelection,
   selectThreadDiffScopeSelection,
   useDiffScopeStore,
 } from '@/features/diff-panel/state/diff-scope-store'
@@ -15,9 +14,9 @@ import { useCombinedVcsStatus, useStackedGitActions } from '@/features/git'
 import { useUIStore } from '@/shell/ui-store'
 import { useBaseRefChoices } from '../hooks/useBaseRefChoices'
 import { useCommitPaths } from '../hooks/useCommitPaths'
-import { useDiffPanelDiffs } from '../hooks/useDiffPanelDiffs'
+import { useDisplayedDiff } from '../hooks/useDisplayedDiff'
 import { useReconcileTurnSelection } from '../hooks/useReconcileTurnSelection'
-import { useSessionTurns, useTurnDiffFiles } from '../hooks/useSessionTurns'
+import { useSessionTurns } from '../hooks/useSessionTurns'
 import { reviewKeyFor } from '../state/review-store'
 import { CommitMessageDialog } from './CommitMessageDialog'
 import { DiffBottomBar } from './DiffBottomBar'
@@ -100,20 +99,12 @@ export function DiffPanel({
   const scopeKey = sessionId ?? workingPath ?? ''
   const commitPaths = useCommitPaths(workingPath, refreshToken)
   const showToast = useUIStore((state) => state.showToast)
-  const selection: DiffScopeSelection = selectThreadDiffScopeSelection(
-    scopeByThreadKey,
-    scopeKey || null,
-  )
+  const selection = selectThreadDiffScopeSelection(scopeByThreadKey, scopeKey || null)
   const branchBaseRef = selection.kind === 'branch' ? selection.baseRef : null
   const baseRefChoices = useBaseRefChoices(repositoryPath)
   const turns = useSessionTurns(sessionId, refreshToken)
-  const branchOrTreeDiffs = useDiffPanelDiffs(workingPath, selection, refreshToken)
-  const turnFiles = useTurnDiffFiles(sessionId, selection)
-  const fileDiffs = selection.kind === 'turn' ? turnFiles.files : branchOrTreeDiffs.fileDiffs
-  const isLoading = selection.kind === 'turn' ? false : branchOrTreeDiffs.isLoading
-  const refreshDiff = branchOrTreeDiffs.refreshDiff
-  // Every scope can fail: a turn's checkpoint may be unreadable or pruned by retention.
-  const loadError = selection.kind === 'turn' ? turnFiles.error : branchOrTreeDiffs.error
+  const displayed = useDisplayedDiff({ sessionId, workingPath, selection, refreshToken })
+  const { fileDiffs, isLoading, loadError, refreshDiff } = displayed
 
   useReconcileTurnSelection(scopeKey, turns)
 
@@ -124,7 +115,10 @@ export function DiffPanel({
     refreshDiff,
   })
 
-  const { status: vcsStatus, refresh: refreshVcsStatus } = useCombinedVcsStatus(workingPath)
+  const { status: vcsStatus, refresh: refreshVcsStatus } = useCombinedVcsStatus(
+    workingPath,
+    refreshToken,
+  )
   const stackedActions = useStackedGitActions({
     workingPath,
     onCompleted: () => {
@@ -150,9 +144,8 @@ export function DiffPanel({
           baseRefControl={{
             current: branchBaseRef,
             choices: baseRefChoices,
-            resolvedAutomatic: branchOrTreeDiffs.resolvedBaseRef,
-            fellBackToWorkingTree:
-              selection.kind === 'branch' && branchOrTreeDiffs.automaticFellBackToWorkingTree,
+            resolvedAutomatic: displayed.resolvedAutomaticBaseRef,
+            fellBackToWorkingTree: displayed.automaticFellBackToWorkingTree,
             onChange: (baseRef) => selectBranchBaseRef(scopeKey, baseRef),
           }}
           turns={turns}

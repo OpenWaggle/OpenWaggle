@@ -11,7 +11,17 @@ const logger = createRendererLogger('git')
  * Remote status loads asynchronously and is merged in when it arrives. Returns
  * null until the local half is available.
  */
-export function useCombinedVcsStatus(workingPath: WorkingPath | null) {
+export function useCombinedVcsStatus(
+  workingPath: WorkingPath | null,
+  /**
+   * Bumped to retry.
+   *
+   * Without it a single failed status read left the quick action permanently disabled - rendering
+   * "Git status is unavailable." - with no way back: the only other trigger was completing a stacked
+   * action, which is exactly what the disabled button prevents. "Refresh diff" now reaches here too.
+   */
+  refreshToken = 0,
+) {
   const [local, setLocal] = useState<LocalVcsStatus | null>(null)
   const [remote, setRemote] = useState<RemoteVcsStatus | null>(null)
   const requestedPath = useRef(workingPath)
@@ -57,8 +67,9 @@ export function useCombinedVcsStatus(workingPath: WorkingPath | null) {
   }, [workingPath])
 
   useEffect(() => {
+    logger.debug('Loading VCS status', { refreshToken })
     void refresh()
-  }, [refresh])
+  }, [refresh, refreshToken])
 
   const status: VcsStatus | null = local ? { ...local, ...(remote ?? EMPTY_REMOTE) } : null
 
