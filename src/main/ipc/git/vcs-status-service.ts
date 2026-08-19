@@ -4,12 +4,16 @@ import type {
   RemoteVcsStatusResult,
   VcsChangeRequest,
 } from '@shared/types/git'
+import { networkGitOptions } from '../../adapters/git/run-git'
 import { getSourceControlProvider } from '../../adapters/source-control'
 import { resolveDefaultRef, resolveLocalDefaultRef } from './default-ref'
 import { isGitRepository, runGit } from './shared'
 import { GIT_PARSE_INT_RADIX, GIT_RAW_PATHS } from './status-constants'
 import { buildChangedFiles, parseNumstat, parsePorcelain } from './status-parse'
 import { detectSourceControlProvider, parseAheadBehind, toWorkingTree } from './vcs-status-parse'
+
+/** The remote status is refreshed in the background, so a stalled remote must not pin it open. */
+const REMOTE_FETCH_TIMEOUT_MS = 60_000
 
 async function resolveRefName(projectPath: string): Promise<string | null> {
   const result = await runGit(projectPath, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
@@ -84,7 +88,11 @@ export async function getRemoteVcsStatus(projectPath: string): Promise<RemoteVcs
     return { ok: false, code: 'not-a-repo', message: 'Selected folder is not a Git repository.' }
   }
 
-  const fetchResult = await runGit(projectPath, ['fetch', '--quiet'])
+  const fetchResult = await runGit(
+    projectPath,
+    ['fetch', '--quiet'],
+    networkGitOptions(REMOTE_FETCH_TIMEOUT_MS),
+  )
   if (fetchResult.code !== 0) {
     return {
       ok: false,
