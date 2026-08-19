@@ -8,10 +8,12 @@ import { usePreferencesStore } from '@/features/settings/state'
 import { projectName } from '@/shared/lib/format'
 import { useUIStore } from '@/shell/ui-store'
 import { useFullscreen } from '@/shell/useFullscreen'
+import { buildPinnedSessionRows } from '../lib/pinned-sessions'
 import {
   buildSidebarProjectGroups,
   type SidebarSessionSortMode,
 } from '../lib/sidebar-project-groups'
+import { usePinnedSessionsStore } from '../state/pinned-sessions-store'
 import { activeViewFromPathname } from './sidebar-view'
 
 type SidebarSessionsState = ReturnType<typeof useSessions>
@@ -64,16 +66,26 @@ export function useSidebarState() {
   const isFullscreen = useFullscreen()
   const [sortMode, setSortMode] = useState<SidebarSessionSortMode>('recent')
   const [sortMenuOpen, setSortMenuOpen] = useState(false)
+  const [pinnedSortMenuOpen, setPinnedSortMenuOpen] = useState(false)
+  const pins = usePinnedSessionsStore((s) => s.pins)
+  const pinnedSortMode = usePinnedSessionsStore((s) => s.sortMode)
+  const setPinnedSortMode = usePinnedSessionsStore((s) => s.setSortMode)
   const [collapsedProjectPaths, setCollapsedProjectPaths] = useState<ReadonlySet<string>>(
     () => new Set(),
   )
 
   const activeSession = resolveActiveSessionState(chat.activeSessionId, sessions)
+  const pinnedRows = buildPinnedSessionRows({
+    pins,
+    sessions: sessions.sessions,
+    sortMode: pinnedSortMode,
+  })
   const sessionGroups = buildSidebarProjectGroups({
     sessions: sessions.sessions,
     currentProjectPath: project.projectPath,
     recentProjects,
     sortMode,
+    pinnedSessionIds: pinnedRows.map((row) => String(row.session.id)),
   })
 
   function displayProjectName(path: string) {
@@ -92,11 +104,16 @@ export function useSidebarState() {
     matchingActiveSessionTree: activeSession.matchingActiveSessionTree,
     matchingActiveWorkspace: activeSession.matchingActiveWorkspace,
     navigate,
+    pinnedRows,
+    pinnedSortMenuOpen,
+    pinnedSortMode,
     preferences: { removeProjectReferences, selectedModel, setProjectDisplayName },
     project,
     sessionGroups,
     sessions,
     setCollapsedProjectPaths,
+    setPinnedSortMenuOpen,
+    setPinnedSortMode,
     setSortMenuOpen,
     setSortMode,
     showToast,

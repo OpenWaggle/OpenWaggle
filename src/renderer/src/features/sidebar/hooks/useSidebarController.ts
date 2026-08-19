@@ -1,6 +1,9 @@
 import type { RepositoryPath, SessionId } from '@shared/types/brand'
 import { resolveSessionWorkingDir } from '@shared/utils/worktree'
+import { useEffect } from 'react'
 import { useBranchSummaryStore } from '@/features/chat/state'
+import { resolvePinnedDropNeighbours } from '../lib/pinned-sessions'
+import { usePinnedSessionsStore } from '../state/pinned-sessions-store'
 import { createSidebarBranchActions } from './sidebar-branch-actions'
 import { createSidebarProjectActions } from './sidebar-project-actions'
 import { createSidebarSessionActions } from './sidebar-session-actions'
@@ -40,6 +43,11 @@ function createDomainActions(
     selectedModel: state.preferences.selectedModel,
     showToast: state.showToast,
     startDraftSession: state.chat.startDraftSession,
+    togglePin(sessionId: SessionId) {
+      const store = usePinnedSessionsStore.getState()
+      const isPinned = store.pins.some((pin) => String(pin.sessionId) === String(sessionId))
+      void (isPinned ? store.unpinSession(sessionId) : store.pinSession(sessionId))
+    },
   })
   const branch = createSidebarBranchActions({
     activeBranchId: state.activeBranchId,
@@ -111,8 +119,22 @@ function buildControllerOutput(
     handleSelectProjectPath: actions.project.selectProjectPath,
     handleSelectSession: actions.session.select,
     handleToggleBranches: actions.branch.toggle,
+    handleTogglePinnedSession: actions.session.togglePin,
     handleToggleProjectCollapsed(path: string) {
       state.setCollapsedProjectPaths((current) => toggleCollapsedProject(current, path))
+    },
+    /**
+     * Commit a Pinned section drag. Neighbours are resolved from the rendered rows, so a
+     * drop expresses "between these two" rather than an index the main process would have
+     * to reinterpret.
+     */
+    handleReorderPinnedSession(sessionId: SessionId, targetIndex: number) {
+      const neighbours = resolvePinnedDropNeighbours(
+        state.pinnedRows,
+        String(sessionId),
+        targetIndex,
+      )
+      void usePinnedSessionsStore.getState().movePin(sessionId, neighbours)
     },
     projectPath: state.project.projectPath,
   }
@@ -120,6 +142,11 @@ function buildControllerOutput(
 
 export function useSidebarController() {
   const state = useSidebarState()
+  const loadPins = usePinnedSessionsStore((s) => s.loadPins)
+
+  useEffect(() => {
+    void loadPins()
+  }, [loadPins])
 
   function refreshGit(path: RepositoryPath | null) {
     // A project switch: branches are repository-level, and with no session context the

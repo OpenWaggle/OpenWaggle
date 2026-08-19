@@ -52,6 +52,7 @@ function actions(): SidebarSessionActions {
     delete: vi.fn(),
     archive: vi.fn(),
     markUnread: vi.fn(),
+    togglePin: vi.fn(),
     clone: vi.fn(),
   }
 }

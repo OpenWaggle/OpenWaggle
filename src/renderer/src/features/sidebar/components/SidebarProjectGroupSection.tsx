@@ -82,7 +82,13 @@ function ProjectSessionRows({
   const showDraftSession = state.draftSessionProjectPath === group.projectPath
 
   if (group.sessions.length === 0 && !showDraftSession) {
-    return <div className="px-10 py-1.5 text-[12px] text-text-muted">No sessions</div>
+    // A project can empty out because every session it has is pinned. Saying so beats
+    // "No sessions", which would read as data loss right after pinning the last one.
+    const label =
+      group.hoistedPinnedCount > 0
+        ? `${group.hoistedPinnedCount} session${group.hoistedPinnedCount === 1 ? '' : 's'} pinned above`
+        : 'No sessions'
+    return <div className="px-10 py-1.5 text-[12px] text-text-muted">{label}</div>
   }
 
   return (

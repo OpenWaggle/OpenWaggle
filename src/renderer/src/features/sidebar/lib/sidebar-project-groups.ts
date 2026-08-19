@@ -10,6 +10,12 @@ export interface SidebarProjectGroup {
   readonly sessions: readonly SessionSummary[]
   readonly firstSessionCreatedAt: number
   readonly latestUpdatedAt: number
+  /**
+   * How many of this project's sessions are Pinned and therefore rendered in the
+   * Pinned section instead of here. Drives the group's empty-state hint when every
+   * session it has is pinned away (issue #97).
+   */
+  readonly hoistedPinnedCount: number
 }
 
 export interface SidebarProjectGroups {
@@ -21,6 +27,12 @@ interface BuildSidebarProjectGroupsInput {
   readonly currentProjectPath: string | null
   readonly recentProjects: readonly string[]
   readonly sortMode: SidebarSessionSortMode
+  /**
+   * Sessions rendered in the Pinned section, hoisted out of their project group so no
+   * session is listed twice. Project ordering is unaffected: a group keeps its
+   * created/updated metrics from all of its sessions, so pinning never reorders projects.
+   */
+  readonly pinnedSessionIds?: readonly string[]
 }
 
 function normalizedProjectPath(path: string | null) {
@@ -70,6 +82,7 @@ export function buildSidebarProjectGroups({
   currentProjectPath,
   recentProjects,
   sortMode,
+  pinnedSessionIds = [],
 }: BuildSidebarProjectGroupsInput): SidebarProjectGroups {
   const sessionsByProject = new Map<string, SessionSummary[]>()
 
@@ -102,15 +115,18 @@ export function buildSidebarProjectGroups({
   }
 
   const projectPaths = [...sessionProjectPaths, ...sessionlessProjectPaths]
+  const pinned = new Set(pinnedSessionIds.map(String))
 
   return {
     projects: projectPaths.map((projectPath) => {
       const projectSessions = sessionsByProject.get(projectPath) ?? []
+      const unpinnedSessions = projectSessions.filter((session) => !pinned.has(String(session.id)))
       return {
         projectPath,
-        sessions: sortSessions(projectSessions, sortMode),
+        sessions: sortSessions(unpinnedSessions, sortMode),
         firstSessionCreatedAt: firstSessionCreatedAt(projectSessions),
         latestUpdatedAt: latestUpdatedAt(projectSessions),
+        hoistedPinnedCount: projectSessions.length - unpinnedSessions.length,
       }
     }),
   }

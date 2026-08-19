@@ -1,18 +1,17 @@
 import type { SessionId } from '@shared/types/brand'
-import { Archive, Copy, Eye, Trash2 } from 'lucide-react'
+import { Archive, Copy, Eye, Pin, PinOff, Trash2 } from 'lucide-react'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
 import { ContextMenu } from '@/shared/ui/ContextMenu'
+import type { SidebarSessionActions } from '../model'
 
 interface SessionItemContextMenuProps {
   readonly open: boolean
   readonly position: { readonly x: number; readonly y: number }
   readonly sessionId: SessionId
+  readonly isPinned: boolean
+  readonly actions: SidebarSessionActions
   readonly onClose: () => void
-  readonly onMarkUnread: (id: SessionId) => void
-  readonly onClone: (id: SessionId) => void
-  readonly onArchive: (id: SessionId) => void
-  readonly onDelete: (id: SessionId) => void
 }
 
 function SessionMenuButton({
@@ -43,11 +42,9 @@ export function SessionItemContextMenu({
   open,
   position,
   sessionId,
+  isPinned,
+  actions,
   onClose,
-  onMarkUnread,
-  onClone,
-  onArchive,
-  onDelete,
 }: SessionItemContextMenuProps) {
   function closeAfter(action: () => void) {
     action()
@@ -57,26 +54,31 @@ export function SessionItemContextMenu({
   function confirmDelete() {
     onClose()
     void api.showConfirm('Delete this session?', 'This cannot be undone.').then((confirmed) => {
-      if (confirmed) onDelete(sessionId)
+      if (confirmed) actions.delete(sessionId)
     })
   }
 
   return (
     <ContextMenu open={open} onClose={onClose} position={position}>
       <SessionMenuButton
+        icon={isPinned ? PinOff : Pin}
+        label={isPinned ? 'Unpin session' : 'Pin session'}
+        onClick={() => closeAfter(() => actions.togglePin(sessionId))}
+      />
+      <SessionMenuButton
         icon={Eye}
         label="Mark as unread"
-        onClick={() => closeAfter(() => onMarkUnread(sessionId))}
+        onClick={() => closeAfter(() => actions.markUnread(sessionId))}
       />
       <SessionMenuButton
         icon={Copy}
         label="Clone to new session"
-        onClick={() => closeAfter(() => onClone(sessionId))}
+        onClick={() => closeAfter(() => actions.clone(sessionId))}
       />
       <SessionMenuButton
         icon={Archive}
         label="Archive session"
-        onClick={() => closeAfter(() => onArchive(sessionId))}
+        onClick={() => closeAfter(() => actions.archive(sessionId))}
       />
       <SessionMenuButton icon={Trash2} label="Delete session" danger onClick={confirmDelete} />
     </ContextMenu>

@@ -11,18 +11,23 @@ import {
   GitCompareArrows,
   Loader2,
   MessageCircle,
-  MoreHorizontal,
   XCircle,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useSessionStatusStore } from '@/features/sessions/state'
 import { WaggleBeeIcon } from '@/features/waggle/components'
 import { cn } from '@/shared/lib/cn'
-import { formatRelativeTime, truncate } from '@/shared/lib/format'
+import { truncate } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
-import { useSessionGitIndicator } from '../hooks/useSessionGitIndicators'
 import type { SidebarSessionActions } from '../model'
 import { SessionItemContextMenu } from './SessionItemContextMenu'
+import { SessionRowActions } from './SessionRowActions'
+import { SessionGitBadge } from './SessionRowGitBadge'
+import {
+  SessionDragGripSlot,
+  SessionPinnedRowMeta,
+  type SessionPinnedRowState,
+} from './SessionRowPinControls'
 
 const TITLE_TRUNCATE_LENGTH = 29
 const ITEM_VARIANT_CLASS = {
@@ -56,6 +61,15 @@ interface SessionListItemProps {
   readonly variant?: SessionListItemVariant
   readonly actions: SidebarSessionActions
   readonly branchDisclosure?: SessionBranchDisclosureState
+  readonly isPinned?: boolean
+  readonly pinnedRow?: SessionPinnedRowState
+  /**
+   * Extra props for the row element itself, so a caller can make the row a drag source
+   * without wrapping it in another element — a wrapper would be invalid inside the list
+   * and would put the drag handlers on a non-semantic node. `data-*` keys are allowed so
+   * a drag source can expose its position for tests and QA selectors.
+   */
+  readonly rowProps?: React.LiHTMLAttributes<HTMLLIElement> & Record<`data-${string}`, unknown>
 }
 
 function toSessionId(sessionId: SessionId) {
@@ -157,7 +171,7 @@ function SessionTitleButton({
       variant="unstyled"
       type="button"
       onClick={() => onSelect(sessionId)}
-      className="min-w-0 flex-1 truncate text-left"
+      className="min-w-0 flex-[2_1_0%] truncate text-left"
     >
       <span
         className={cn(
@@ -171,70 +185,15 @@ function SessionTitleButton({
   )
 }
 
-function SessionActionsTrigger({
-  menuOpen,
-  session,
-  onClick,
-}: {
-  readonly menuOpen: boolean
-  readonly session: SessionSummary
-  readonly onClick: (event: React.MouseEvent<HTMLButtonElement>) => void
-}) {
-  return (
-    <div className="relative ml-auto h-5 w-14 shrink-0">
-      <Button
-        variant="unstyled"
-        type="button"
-        aria-label={`Open session actions for ${session.title}`}
-        onClick={onClick}
-        className={cn(
-          'peer absolute inset-y-0 right-0 z-10 flex size-5 items-center justify-center rounded text-text-tertiary opacity-0 transition-[background-color,color,opacity] hover:bg-bg-hover hover:text-text-secondary group-hover:opacity-100 focus:opacity-100',
-          menuOpen ? 'opacity-100' : null,
-        )}
-      >
-        <MoreHorizontal className="size-3.5" />
-      </Button>
-      <span
-        className={cn(
-          'pointer-events-none absolute inset-y-0 right-0 flex items-center text-right text-[11px] text-text-tertiary transition-opacity group-hover:opacity-0 peer-focus:opacity-0',
-          menuOpen ? 'opacity-0' : 'opacity-100',
-        )}
-      >
-        {formatRelativeTime(session.updatedAt)}
-      </span>
-    </div>
-  )
-}
-
-/**
- * This session's working-tree state, from status keyed by its own working path.
- * Absent until that path's status is known, so an unfetched session never looks clean.
- */
-function SessionGitBadge({ session }: { readonly session: SessionSummary }) {
-  const indicator = useSessionGitIndicator(session)
-  if (indicator.label === '') return null
-
-  return (
-    <span
-      role="img"
-      title={indicator.description}
-      aria-label={indicator.description}
-      className={cn(
-        'ml-1 shrink-0 whitespace-nowrap text-[10px] tabular-nums',
-        indicator.isDirty ? 'text-accent' : 'text-text-tertiary',
-      )}
-    >
-      {indicator.label}
-    </span>
-  )
-}
-
 export function SessionListItem({
   session,
   isActive,
   variant = 'root',
   actions,
   branchDisclosure,
+  isPinned = false,
+  pinnedRow,
+  rowProps,
 }: SessionListItemProps) {
   const sessionId = toSessionId(session.id)
   const { pill, StatusIcon, hasInterruptedRun } = useSessionItemStatus(sessionId, session)
@@ -258,10 +217,12 @@ export function SessionListItem({
   return (
     <li
       aria-current={isActive ? 'true' : undefined}
+      {...rowProps}
       className={cn(
         'group mx-2 flex h-[34px] items-center rounded-md',
         ITEM_VARIANT_CLASS[variant],
         isActive ? 'bg-bg-active' : 'hover:bg-bg-hover',
+        rowProps?.className,
       )}
       onContextMenu={handleContextMenu}
     >
@@ -270,6 +231,7 @@ export function SessionListItem({
         collapsed={branchDisclosure?.collapsed ?? false}
         onToggle={branchDisclosure?.onToggle}
       />
+      {pinnedRow ? <SessionDragGripSlot draggable={pinnedRow.draggable} /> : null}
       <SessionStatusMarkers
         pill={pill}
         StatusIcon={StatusIcon}
@@ -282,17 +244,23 @@ export function SessionListItem({
         sessionId={sessionId}
         onSelect={actions.select}
       />
-      <SessionActionsTrigger menuOpen={menuOpen} session={session} onClick={handleActionsClick} />
+      {pinnedRow ? <SessionPinnedRowMeta pinnedRow={pinnedRow} /> : null}
+      <SessionRowActions
+        isPinned={isPinned}
+        menuOpen={menuOpen}
+        session={session}
+        showTimestamp={!pinnedRow}
+        onActionsClick={handleActionsClick}
+        onTogglePin={() => actions.togglePin(sessionId)}
+      />
 
       <SessionItemContextMenu
         open={menuOpen}
         position={menuPos}
         sessionId={sessionId}
+        isPinned={isPinned}
+        actions={actions}
         onClose={() => setMenuOpen(false)}
-        onMarkUnread={actions.markUnread}
-        onClone={actions.clone}
-        onArchive={actions.archive}
-        onDelete={actions.delete}
       />
     </li>
   )

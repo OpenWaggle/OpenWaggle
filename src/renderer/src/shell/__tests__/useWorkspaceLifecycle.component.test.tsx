@@ -86,6 +86,8 @@ vi.mock('@/features/sessions/hooks', () => ({
   useSessions: () => ({
     loadSessions: lifecycleMocks.loadSessionTrees,
     refreshSessionTree: lifecycleMocks.refreshSessionTree,
+    // Pinned shortcuts map positions over the session list (issue #97).
+    sessions: [],
   }),
   useSessionStatusMonitor: lifecycleMocks.useSessionStatusMonitor,
 }))

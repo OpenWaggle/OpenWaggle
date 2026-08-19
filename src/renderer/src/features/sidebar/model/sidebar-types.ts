@@ -15,6 +15,8 @@ export interface SidebarSessionActions {
   readonly archive: (id: SessionId) => void
   readonly markUnread: (id: SessionId) => void
   readonly clone: (id: SessionId) => void
+  /** Pin or unpin the session, depending on whether it is already a Pinned session. */
+  readonly togglePin: (id: SessionId) => void
 }
 
 export interface SidebarBranchActions {
