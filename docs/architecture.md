@@ -32,6 +32,7 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 - `docs/adr/0016-adopt-pierre-diffs-renderer.md`
 - `docs/adr/0017-remove-git-branch-administration-from-composer.md`
 - `docs/adr/0018-session-keyed-git-state.md`
+- `docs/adr/0019-pinned-sessions-stored-per-pin.md`
 
 ## Testing
 
