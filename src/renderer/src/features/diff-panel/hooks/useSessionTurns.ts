@@ -10,6 +10,15 @@ import { createRendererLogger } from '@/shared/lib/logger'
 const logger = createRendererLogger('diff-panel-turns')
 const EMPTY_TURNS: readonly TurnCheckpointSummary[] = []
 const EMPTY_FILES: readonly GitFileDiff[] = []
+const TURN_DIFF_MISSING_MESSAGE =
+  "This turn's checkpoint is no longer stored, so its diff cannot be shown."
+const TURN_DIFF_FAILED_MESSAGE = "This turn's diff could not be loaded."
+
+/** A turn's files plus why they are absent, when they are. */
+export interface TurnDiffFiles {
+  readonly files: readonly GitFileDiff[]
+  readonly error: string | null
+}
 
 /** List the session's Turn checkpoints (WS6b/WS7), oldest first (ascending turn index). */
 export function useSessionTurns(
@@ -46,13 +55,21 @@ export function useSessionTurns(
 export function useTurnDiffFiles(
   sessionId: SessionId | null,
   selection: DiffScopeSelection,
-): readonly GitFileDiff[] {
+): TurnDiffFiles {
   const [files, setFiles] = useState<readonly GitFileDiff[]>(EMPTY_FILES)
+  /**
+   * A failed or missing turn diff, so it is not presented as a clean turn.
+   *
+   * An empty list rendered as "No changes to review", which told the user a past turn changed
+   * nothing when the checkpoint could not be read - or had been pruned by retention - at all.
+   */
+  const [error, setError] = useState<string | null>(null)
   const turnId = selection.kind === 'turn' ? selection.turnId : null
 
   useEffect(() => {
     if (!sessionId || !turnId) {
       setFiles(EMPTY_FILES)
+      setError(null)
       return
     }
     let cancelled = false
@@ -60,15 +77,18 @@ export function useTurnDiffFiles(
       try {
         const turnDiff = await api.getTurnDiff(sessionId, turnId)
         if (cancelled) return
-        const fileDiffs = turnDiff
-          ? splitUnifiedDiffIntoFileDiffs(turnDiff.diff).map((diff) => ({
-              ...diff,
-            }))
-          : EMPTY_FILES
-        setFiles(fileDiffs)
-      } catch (error) {
-        logger.warn('Failed to load turn diff', { error: String(error) })
-        if (!cancelled) setFiles(EMPTY_FILES)
+        if (!turnDiff) {
+          setFiles(EMPTY_FILES)
+          setError(TURN_DIFF_MISSING_MESSAGE)
+          return
+        }
+        setFiles(splitUnifiedDiffIntoFileDiffs(turnDiff.diff).map((diff) => ({ ...diff })))
+        setError(null)
+      } catch (loadError) {
+        logger.warn('Failed to load turn diff', { error: String(loadError) })
+        if (cancelled) return
+        setFiles(EMPTY_FILES)
+        setError(TURN_DIFF_FAILED_MESSAGE)
       }
     })()
     return () => {
@@ -76,5 +96,5 @@ export function useTurnDiffFiles(
     }
   }, [sessionId, turnId])
 
-  return files
+  return { files, error }
 }

@@ -32,5 +32,13 @@ export function useCommitPaths(workingPath: WorkingPath | null, refreshToken = 0
     void refreshStatus(workingPath)
   }, [workingPath, refreshStatus, refreshToken])
 
-  return (workingTreeStatus.status?.changedFiles ?? []).map((file) => file.path)
+  /*
+   * A rename contributes both of its paths. `git status` reports a rename under its target only, and
+   * a pathspec commit covers exactly the paths it is given - so committing a rename with just the
+   * target produced a commit containing *both* files and left the staged deletion of the source
+   * behind. Verified against real git.
+   */
+  return (workingTreeStatus.status?.changedFiles ?? []).flatMap((file) =>
+    file.renamedFrom === undefined ? [file.path] : [file.renamedFrom, file.path],
+  )
 }

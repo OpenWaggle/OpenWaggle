@@ -70,3 +70,33 @@ describe('commit paths in a subdirectory-opened repository', () => {
     ).rejects.toThrow(/did not match any files/u)
   })
 })
+
+describe('committing a rename', () => {
+  it('covers both paths, so the rename is not committed as a duplicate', async () => {
+    /*
+     * `git status` reports a rename under its target only, and a pathspec commit covers exactly the
+     * paths it is given: committing with just the target produced a commit containing *both* files
+     * and left the staged deletion of the source behind. Verified against real git.
+     */
+    const { root } = await createRepositoryWithPackage()
+    await git(root, ['mv', 'packages/app/x.txt', 'packages/app/y.txt'])
+
+    const porcelain = (await git(root, ['status', '--porcelain=v1'])).trim()
+    expect(porcelain).toContain('->')
+
+    // Both paths, which is what the renderer now derives from `renamedFrom`.
+    await git(root, [
+      'commit',
+      '-m',
+      'refactor: rename',
+      '--',
+      'packages/app/x.txt',
+      'packages/app/y.txt',
+    ])
+
+    expect((await git(root, ['status', '--porcelain=v1'])).trim()).toBe('')
+    const tracked = await git(root, ['ls-tree', '-r', '--name-only', 'HEAD'])
+    expect(tracked).toContain('packages/app/y.txt')
+    expect(tracked).not.toContain('packages/app/x.txt')
+  })
+})

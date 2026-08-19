@@ -8,7 +8,7 @@ import {
 } from '../review-store'
 
 /** Every pending review belongs to a tree and scope; these tests use one key throughout. */
-const KEY = reviewKeyFor('thread', 'unstaged')
+const KEY = reviewKeyFor('thread', { kind: 'unstaged' })
 
 function makeComment(id: string, filePath = 'src/index.ts', line = 10): ReviewCommentWithSnippet {
   return {
@@ -41,9 +41,9 @@ describe('review-store', () => {
      * another was open and submitting posted them into that other conversation - anchored to file
      * and line numbers that meant something else there.
      */
-    const sessionA = reviewKeyFor('session-a', 'unstaged')
-    const sessionB = reviewKeyFor('session-b', 'unstaged')
-    const branchScope = reviewKeyFor('session-a', 'branch')
+    const sessionA = reviewKeyFor('session-a', { kind: 'unstaged' })
+    const sessionB = reviewKeyFor('session-b', { kind: 'unstaged' })
+    const branchScope = reviewKeyFor('session-a', { kind: 'branch', baseRef: null })
 
     useReviewStore.getState().addComment(sessionA, makeComment('a1'))
     useReviewStore.getState().setSummary(sessionA, 'please fix')
@@ -56,8 +56,8 @@ describe('review-store', () => {
   })
 
   it('clearing one pending review leaves the others intact', () => {
-    const sessionA = reviewKeyFor('session-a', 'unstaged')
-    const sessionB = reviewKeyFor('session-b', 'unstaged')
+    const sessionA = reviewKeyFor('session-a', { kind: 'unstaged' })
+    const sessionB = reviewKeyFor('session-b', { kind: 'unstaged' })
     useReviewStore.getState().addComment(sessionA, makeComment('a1'))
     useReviewStore.getState().addComment(sessionB, makeComment('b1'))
 
@@ -117,5 +117,27 @@ describe('review-store', () => {
 
     useReviewStore.getState().setActiveCommentLocation(KEY, null)
     expect(selectReviewThread(useReviewStore.getState(), KEY).activeCommentLocation).toBeNull()
+  })
+
+  it('keeps reviews of different turns and different base refs apart', () => {
+    /*
+     * The key used to carry only the scope *kind*, so every turn shared one review and every base
+     * ref shared another. Turn 7's diff is not turn 2's, and `main...HEAD` is not `develop...HEAD`:
+     * a review written against one reappeared on the other with line anchors pointing at unrelated
+     * code, which is precisely what keying by scope was meant to prevent.
+     */
+    const turnScope = (turnId: string) =>
+      ({ kind: 'turn', turnId, filePath: null, revealRequestId: 0 }) as const
+    const turnSeven = reviewKeyFor('s', turnScope('turn-7'))
+    const turnTwo = reviewKeyFor('s', turnScope('turn-2'))
+    const againstMain = reviewKeyFor('s', { kind: 'branch', baseRef: 'main' })
+    const againstDevelop = reviewKeyFor('s', { kind: 'branch', baseRef: 'develop' })
+
+    expect(turnSeven).not.toBe(turnTwo)
+    expect(againstMain).not.toBe(againstDevelop)
+
+    useReviewStore.getState().addComment(turnSeven, makeComment('on-turn-7'))
+    expect(selectReviewThread(useReviewStore.getState(), turnTwo).comments).toEqual([])
+    expect(selectReviewThread(useReviewStore.getState(), turnSeven).comments).toHaveLength(1)
   })
 })

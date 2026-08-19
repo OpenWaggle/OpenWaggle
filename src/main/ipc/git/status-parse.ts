@@ -13,11 +13,34 @@ interface ParsedPorcelainEntry {
   readonly status: GitFileStatus
   readonly staged: boolean
   readonly unstaged: boolean
+  /** Where a rename came from, so a pathspec commit can cover the deletion too. */
+  readonly renamedFrom?: string
 }
 
 interface LineStats {
   readonly additions: number
   readonly deletions: number
+}
+
+/**
+ * The path a rename came from, or null when the entry is not a rename.
+ *
+ * Porcelain v1 spells a rename either as `old -> new` or with a brace form such as
+ * `dir/{old => new}.ts`; both have to be understood to reconstruct the source path.
+ */
+export function renameSourcePath(rawPath: string): string | null {
+  const trimmed = rawPath.trim()
+  if (!trimmed) return null
+
+  const brace = /\{([^{}]*?) => ([^{}]*?)\}/.exec(trimmed)
+  if (brace) {
+    const source = trimmed.replace(brace[0], brace[1] ?? '')
+    return stripSurroundingQuotes(source.trim())
+  }
+
+  const arrow = trimmed.indexOf(' -> ')
+  if (arrow === -1) return null
+  return stripSurroundingQuotes(trimmed.slice(0, arrow).trim())
 }
 
 export function normalizeGitPath(rawPath: string) {
@@ -124,11 +147,14 @@ function parsePorcelainLine(line: string) {
   if (line.length < GIT_STATUS_CODE_WIDTH) return null
   const x = line[0] ?? ' '
   const y = line[1] ?? ' '
+  const rawPath = line.slice(GIT_STATUS_PATH_OFFSET).trim()
+  const renamedFrom = renameSourcePath(rawPath)
   return {
-    path: normalizeGitPath(line.slice(GIT_STATUS_PATH_OFFSET).trim()),
+    path: normalizeGitPath(rawPath),
     status: mapStatusCode(x === '?' && y === '?' ? '?' : y !== ' ' ? y : x),
     staged: x !== ' ' && x !== '?',
     unstaged: y !== ' ',
+    ...(renamedFrom === null ? {} : { renamedFrom }),
   }
 }
 
@@ -162,6 +188,7 @@ function buildChangedFile(entry: ParsedPorcelainEntry, lineStats: LineStats | un
     unstaged: entry.unstaged,
     additions: lineStats?.additions ?? 0,
     deletions: lineStats?.deletions ?? 0,
+    ...(entry.renamedFrom === undefined ? {} : { renamedFrom: entry.renamedFrom }),
   } satisfies GitChangedFile
 }
 

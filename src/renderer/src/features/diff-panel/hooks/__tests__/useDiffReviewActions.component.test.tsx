@@ -9,7 +9,7 @@ import {
 import { useDiffReviewActions } from '../useDiffReviewActions'
 
 /** The panel keys pending reviews by tree and scope; these tests use the default scope. */
-const REVIEW_KEY = reviewKeyFor('/repo', 'unstaged')
+const REVIEW_KEY = reviewKeyFor('/repo', { kind: 'unstaged' })
 
 const FILES: readonly GitFileDiff[] = [
   {

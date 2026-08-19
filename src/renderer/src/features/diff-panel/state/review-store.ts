@@ -1,6 +1,8 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { ReviewComment } from '@shared/types/review'
 import { create } from 'zustand'
 import type { ReviewCommentWithSnippet } from '@/features/diff-panel/lib/review-comment-payload'
+import type { DiffScopeSelection } from '@/features/diff-panel/state/diff-scope-store'
 
 export type ReviewCommentLineType = 'add' | 'remove' | 'context'
 
@@ -121,12 +123,19 @@ export const useReviewStore = create<ReviewState>((set) => ({
 /**
  * The key a pending review belongs to.
  *
- * Includes the scope: a comment's line anchors and captured snippet only mean anything within the
- * diff they were written against, so a working-tree comment must not reappear on a Branch or Turn
- * diff where those line numbers point somewhere else.
+ * Includes the whole scope identity, not just its kind. A comment's line anchors and captured
+ * snippet only mean anything within the diff they were written against - and turn 7's diff is not
+ * turn 2's, nor is `main...HEAD` the same patch as `develop...HEAD`. Keying on the kind alone let a
+ * review written against one turn or base ref reappear on another, where those line numbers point
+ * somewhere else entirely.
  */
-export function reviewKeyFor(threadKey: string | null, scopeKind: string): string {
-  return `${threadKey ?? ''}::${scopeKind}`
+export function reviewKeyFor(threadKey: string | null, selection: DiffScopeSelection): string {
+  const scope = matchBy(selection, 'kind')
+    .with('branch', (value) => `branch:${value.baseRef ?? ''}`)
+    .with('turn', (value) => `turn:${value.turnId}`)
+    .with('unstaged', () => 'unstaged')
+    .exhaustive()
+  return `${threadKey ?? ''}::${scope}`
 }
 
 /** Read one pending review, defaulting to empty rather than undefined. */

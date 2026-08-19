@@ -109,11 +109,11 @@ export function DiffPanel({
   const turns = useSessionTurns(sessionId, refreshToken)
   const branchOrTreeDiffs = useDiffPanelDiffs(workingPath, selection, refreshToken)
   const turnFiles = useTurnDiffFiles(sessionId, selection)
-  const fileDiffs = selection.kind === 'turn' ? turnFiles : branchOrTreeDiffs.fileDiffs
+  const fileDiffs = selection.kind === 'turn' ? turnFiles.files : branchOrTreeDiffs.fileDiffs
   const isLoading = selection.kind === 'turn' ? false : branchOrTreeDiffs.isLoading
   const refreshDiff = branchOrTreeDiffs.refreshDiff
-  // Turn diffs come from the store, so only the branch/working-tree loader can fail here.
-  const loadError = selection.kind === 'turn' ? null : branchOrTreeDiffs.error
+  // Every scope can fail: a turn's checkpoint may be unreadable or pruned by retention.
+  const loadError = selection.kind === 'turn' ? turnFiles.error : branchOrTreeDiffs.error
 
   useReconcileTurnSelection(scopeKey, turns)
 
@@ -172,7 +172,7 @@ export function DiffPanel({
         onFileClick={(path) =>
           viewerRef.current?.scrollTo({ type: 'item', id: codeViewItemId(path), align: 'start' })
         }
-        reviewKey={reviewKeyFor(scopeKey || null, selection.kind)}
+        reviewKey={reviewKeyFor(scopeKey || null, selection)}
       />
       <DiffBottomBar
         onRevertAll={gitActions.handleRevertAll}

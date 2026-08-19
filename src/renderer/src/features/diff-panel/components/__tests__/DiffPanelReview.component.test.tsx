@@ -23,7 +23,7 @@ function makeReviewComment(id: string) {
 }
 
 /** The panel keys pending reviews by tree and scope; these tests use the default scope. */
-const REVIEW_KEY = reviewKeyFor('/repo', 'unstaged')
+const REVIEW_KEY = reviewKeyFor('/repo', { kind: 'unstaged' })
 
 // Async factory + dynamic import: vi.mock is hoisted above imports, so the stub
 // cannot be referenced from an ordinary top-level import here.
@@ -176,7 +176,7 @@ describe('pending review isolation', () => {
 
     useReviewStore
       .getState()
-      .addComment(reviewKeyFor('session-a', 'unstaged'), makeReviewComment('from-a'))
+      .addComment(reviewKeyFor('session-a', { kind: 'unstaged' }), makeReviewComment('from-a'))
 
     const { rerender } = render(
       <DiffPanel
@@ -201,7 +201,8 @@ describe('pending review isolation', () => {
     // Session B has its own (empty) review, and A's comment is not discarded either.
     await waitFor(() => expect(screen.queryByText('1 pending comment')).not.toBeInTheDocument())
     expect(
-      selectReviewThread(useReviewStore.getState(), reviewKeyFor('session-a', 'unstaged')).comments,
+      selectReviewThread(useReviewStore.getState(), reviewKeyFor('session-a', { kind: 'unstaged' }))
+        .comments,
     ).toHaveLength(1)
   })
 })

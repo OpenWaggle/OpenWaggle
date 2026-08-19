@@ -14,6 +14,14 @@ export interface GitChangedFile {
   readonly unstaged: boolean
   readonly additions: number
   readonly deletions: number
+  /**
+   * The path a rename came from, when this entry is one.
+   *
+   * Needed because a pathspec commit only covers the paths it is given: committing a rename with
+   * just the target left the staged deletion of the source behind, so the commit contained *both*
+   * files - silent content duplication - and a deletion the user never asked for stayed staged.
+   */
+  readonly renamedFrom?: string
 }
 
 export interface GitStatusSummary {

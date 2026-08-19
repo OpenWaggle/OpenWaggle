@@ -1,4 +1,4 @@
-import { RepositoryPath, WorkingPath } from '@shared/types/brand'
+import { RepositoryPath, SessionId, WorkingPath } from '@shared/types/brand'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useGitStore } from '@/features/git'
@@ -14,6 +14,8 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: {
     getGitDiff: vi.fn(),
     getGitBranchDiff: vi.fn(),
+    listTurnCheckpoints: vi.fn(),
+    getTurnDiff: vi.fn(),
     getGitStatus: vi.fn(),
     listGitBranches: vi.fn(),
     stageAllGitChanges: vi.fn(),
@@ -76,5 +78,45 @@ describe('diff load failures', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
 
     expect(await screen.findByText('No changes to review')).toBeInTheDocument()
+  })
+
+  it('says a turn checkpoint is gone rather than reporting the turn as unchanged', async () => {
+    /*
+     * A turn diff that is missing - pruned by retention - or unreadable produced an empty file list,
+     * which rendered as "No changes to review": the user was told a past turn changed nothing.
+     */
+    const { useDiffScopeStore } = await import('../../state/diff-scope-store')
+    vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [] })
+    vi.mocked(api.getGitStatus).mockResolvedValue({
+      branch: 'main',
+      additions: 0,
+      deletions: 0,
+      filesChanged: 0,
+      changedFiles: [],
+      clean: true,
+      ahead: 0,
+      behind: 0,
+    })
+    vi.mocked(api.listTurnCheckpoints).mockResolvedValue([])
+    // The checkpoint no longer exists.
+    vi.mocked(api.getTurnDiff).mockResolvedValue(null)
+    useDiffScopeStore.setState({
+      // The panel keys its scope by session id when it has one.
+      byThreadKey: {
+        'session-a': { kind: 'turn', turnId: 'turn-1', filePath: null, revealRequestId: 0 },
+      },
+    })
+
+    render(
+      <DiffPanel
+        workingPath={WorkingPath('/repo')}
+        repositoryPath={RepositoryPath('/repo')}
+        sessionId={SessionId('session-a')}
+        onSendMessage={vi.fn()}
+      />,
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load this diff')
+    expect(screen.queryByText('No changes to review')).not.toBeInTheDocument()
   })
 })
