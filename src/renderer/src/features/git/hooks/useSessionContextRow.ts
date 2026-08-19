@@ -263,14 +263,19 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
 
   const recreateWorktree = useCallback(async () => {
     if (!projectPath || recordedWorktreePath === null) return false
-    const branch = sessionId === null ? null : sessionWorktreeBranch(String(sessionId))
     const forkPoint = baseRef?.trim()
-    if (!branch || !forkPoint) return false
+    if (sessionId === null || !forkPoint) return false
     try {
+      /*
+       * Main resolves the branch from the session id. Deriving it here missed the legacy convention
+       * entirely, so recreating an older session's tree created a fresh branch at the base ref and
+       * left the agent's commits stranded on the old one.
+       */
       const result = await api.createGitWorktree(RepositoryPath(projectPath), {
         path: recordedWorktreePath,
-        branch,
+        branch: sessionWorktreeBranch(String(sessionId)),
         baseRef: forkPoint,
+        sessionId: String(sessionId),
       })
       if (result.ok) setWorktreeExists(true)
       return result.ok

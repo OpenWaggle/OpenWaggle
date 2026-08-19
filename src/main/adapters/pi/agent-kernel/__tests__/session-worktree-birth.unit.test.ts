@@ -6,7 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { existsSyncMock, runGitMock, createGitWorktreeMock, setSessionWorktreeMock } = vi.hoisted(
   () => ({
     existsSyncMock: vi.fn((_candidate: string) => true),
-    runGitMock: vi.fn(async () => ({ code: 0, stdout: 'main\n', stderr: '' })),
+    runGitMock: vi.fn(async (_cwd: string, _args: readonly string[]) => ({
+      code: 0,
+      stdout: 'main\n',
+      stderr: '',
+    })),
     createGitWorktreeMock: vi.fn(
       async (): Promise<GitWorktreeMutationResult> => ({ ok: true, message: 'ok', path: '/wt' }),
     ),
@@ -175,6 +179,32 @@ describe('ensureSessionWorktreeProjectPath', () => {
       ensureSessionWorktreeProjectPath(s),
     ])
     expect(a).toBe(b)
+    expect(createGitWorktreeMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not adopt a directory that is not a worktree of this repository', async () => {
+    /*
+     * A directory left at the deterministic path after the repository was moved or re-cloned was
+     * adopted on existence alone and recorded as the session's tree. The agent then ran with a cwd
+     * where every git command failed, turn capture silently no-opped, and the diff panel reported
+     * "not a Git repository".
+     */
+    existsSyncMock.mockReset().mockReturnValue(true)
+    runGitMock.mockReset().mockImplementation((cwd: string, args: readonly string[]) => {
+      if (args[0] === 'rev-parse' && args.includes('--git-common-dir')) {
+        // The candidate belongs to a different repository than the opened checkout.
+        return Promise.resolve({
+          code: 0,
+          stdout: cwd === '/repo' ? '/repo/.git\n' : '/elsewhere/.git\n',
+          stderr: '',
+        })
+      }
+      return Promise.resolve({ code: 0, stdout: 'main\n', stderr: '' })
+    })
+
+    await ensureSessionWorktreeProjectPath(session({ environmentMode: 'worktree' }))
+
+    // Creation happened instead of adoption.
     expect(createGitWorktreeMock).toHaveBeenCalledTimes(1)
   })
 })

@@ -1,3 +1,4 @@
+import { realpath } from 'node:fs/promises'
 import type {
   GitWorktreeCreatePayload,
   GitWorktreeInfo,
@@ -99,6 +100,16 @@ export async function listGitWorktrees(projectPath: string): Promise<GitWorktree
  * Parses `git worktree list --porcelain`, whose records are `worktree <path>` followed by
  * `branch refs/heads/<name>` for attached worktrees (detached ones report `detached` instead).
  */
+/** Whether two paths name the same tree, resolving symlinks; falls back to a plain compare. */
+async function isSamePath(left: string, right: string): Promise<boolean> {
+  if (left === right) return true
+  try {
+    return (await realpath(left)) === (await realpath(right))
+  } catch {
+    return false
+  }
+}
+
 async function branchWorktreeHolder(projectPath: string, branch: string): Promise<string | null> {
   const result = await runGit(projectPath, ['worktree', 'list', '--porcelain'])
   if (result.code !== 0) return null
@@ -165,7 +176,13 @@ export async function createGitWorktree(
    */
   if (branchExists.code === 0) {
     const holder = await branchWorktreeHolder(projectPath, branch)
-    if (holder !== null && holder !== worktreePath) {
+    /*
+     * Compared through realpath. `git worktree list` prints the canonical path, so a requested path
+     * that traverses a symlink - a temporary directory under /var on macOS, for example - never
+     * matched, and the caller was told the branch was checked out in the very path it had asked for
+     * instead of getting `worktree-exists`. The two codes are semantically distinct on purpose.
+     */
+    if (holder !== null && !(await isSamePath(holder, worktreePath))) {
       return worktreeFailure(
         'branch-checked-out-elsewhere',
         `Branch "${branch}" is already checked out in ${holder}.`,

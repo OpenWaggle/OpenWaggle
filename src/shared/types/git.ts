@@ -219,6 +219,15 @@ export interface GitWorktreeCreatePayload {
   readonly branch: string
   /** Base ref the worktree branch starts from. */
   readonly baseRef: string
+  /**
+   * Set when the worktree belongs to a session, so main decides the branch name rather than the
+   * caller.
+   *
+   * Session branches follow a convention with a legacy form, and a caller deriving the current name
+   * itself missed it: recreating an older session's tree created a fresh branch at the base ref and
+   * left the agent's commits stranded on the old one.
+   */
+  readonly sessionId?: string
 }
 
 /**

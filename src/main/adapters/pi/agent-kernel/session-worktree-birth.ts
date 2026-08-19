@@ -3,8 +3,8 @@ import { homedir } from 'node:os'
 import path from 'node:path'
 import { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
-import { legacySessionWorktreeBranch, sessionWorktreeBranch } from '@shared/utils/worktree'
 import { createLogger } from '../../../logger'
+import { resolveSessionWorktreeBranch } from '../../../services/git/session-branch-resolution'
 // ponytail: direct store import (persistence); route through a session port if the Pi adapter grows more store touchpoints.
 import { setSessionWorktree } from '../../../store/session-details'
 import { runGit } from '../../git/run-git'
@@ -33,31 +33,20 @@ export function ensureSessionWorktreeProjectPath(session: SessionDetail): Promis
 }
 
 /**
- * The branch this session's worktree should use.
+ * Whether `candidatePath` really is a linked worktree of `repositoryPath`.
  *
- * Normally the current convention (the full session id). A session born before that convention
- * owns a branch named from the first 8 characters of its id, and that branch may carry commits
- * the agent already made - so if the current name does not exist yet and the legacy one does,
- * reattach to the legacy branch rather than creating a divergent one and stranding the work.
+ * A directory at the deterministic path is not enough: one left over from a moved or re-cloned
+ * repository would be adopted and recorded, leaving the agent in a cwd where nothing git-related
+ * works. Compared through the common git directory, which every linked worktree of a repository
+ * shares.
  */
-async function resolveSessionBranch(projectPath: string, sessionId: string): Promise<string> {
-  const branch = sessionWorktreeBranch(sessionId)
-  const exists = await runGit(projectPath, [
-    'show-ref',
-    '--verify',
-    '--quiet',
-    `refs/heads/${branch}`,
+async function isWorktreeOf(repositoryPath: string, candidatePath: string): Promise<boolean> {
+  const [candidate, primary] = await Promise.all([
+    runGit(candidatePath, ['rev-parse', '--path-format=absolute', '--git-common-dir']),
+    runGit(repositoryPath, ['rev-parse', '--path-format=absolute', '--git-common-dir']),
   ])
-  if (exists.code === 0) return branch
-
-  const legacy = legacySessionWorktreeBranch(sessionId)
-  const legacyExists = await runGit(projectPath, [
-    'show-ref',
-    '--verify',
-    '--quiet',
-    `refs/heads/${legacy}`,
-  ])
-  return legacyExists.code === 0 ? legacy : branch
+  if (candidate.code !== 0 || primary.code !== 0) return false
+  return candidate.stdout.trim() !== '' && candidate.stdout.trim() === primary.stdout.trim()
 }
 
 async function ensureSessionWorktreeProjectPathUnlocked(session: SessionDetail): Promise<string> {
@@ -87,6 +76,31 @@ async function ensureSessionWorktreeProjectPathUnlocked(session: SessionDetail):
     )
   }
 
+  const sessionId = String(session.id)
+  const worktreePath = worktreePathFor(primaryPath, sessionId)
+
+  /*
+   * Adopt an existing worktree at this session's deterministic path instead of creating it again.
+   *
+   * The `existing` check above reads `session.worktreePath`, which is the *record*. Birth persists
+   * that record with SQL but does not mutate the `SessionDetail` it was handed, so a caller holding
+   * a pre-birth copy sees null even though the worktree is on disk. Creating again then fails: the
+   * directory exists and the branch is already checked out there. Keying idempotency on reality
+   * rather than on the record makes a repeat call safe whoever makes it.
+   *
+   * Adoption is verified, not assumed: the directory has to actually be a worktree of this
+   * repository. Adopting on existence alone recorded a stale directory - left behind after the
+   * repository was moved or re-cloned - as the session's tree, and the agent then ran with a cwd
+   * where every git command failed while turn capture silently no-opped.
+   *
+   * Checked before the base ref is resolved, because adoption needs no base ref: doing it after
+   * meant a repeat call for an existing tree could still fail with "no base branch is resolvable".
+   */
+  if (existsSync(worktreePath) && (await isWorktreeOf(primaryPath, worktreePath))) {
+    await setSessionWorktree(SessionId(sessionId), 'worktree', worktreePath)
+    return worktreePath
+  }
+
   const baseRef = await resolveWorktreeBaseRef(session, primaryPath)
   if (!baseRef) {
     throw new Error(
@@ -94,25 +108,7 @@ async function ensureSessionWorktreeProjectPathUnlocked(session: SessionDetail):
     )
   }
 
-  const sessionId = String(session.id)
-  const worktreePath = worktreePathFor(primaryPath, sessionId)
-  const branch = await resolveSessionBranch(primaryPath, sessionId)
-
-  /*
-   * Adopt an existing worktree at this session's deterministic path instead of creating it
-   * again.
-   *
-   * The `existing` check above reads `session.worktreePath`, which is the *record*. Birth
-   * persists that record with SQL but does not mutate the `SessionDetail` it was handed, so a
-   * caller holding a pre-birth copy sees null even though the worktree is on disk. Creating
-   * again then fails: the directory exists and the branch is already checked out there.
-   * Keying idempotency on reality rather than on the record makes a repeat call safe whoever
-   * makes it.
-   */
-  if (existsSync(worktreePath)) {
-    await setSessionWorktree(SessionId(sessionId), 'worktree', worktreePath)
-    return worktreePath
-  }
+  const branch = await resolveSessionWorktreeBranch(primaryPath, sessionId)
 
   const result = await createGitWorktree(primaryPath, { path: worktreePath, branch, baseRef })
   if (!result.ok) {

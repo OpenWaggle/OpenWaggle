@@ -153,4 +153,32 @@ describe('session worktree branch collisions', () => {
     expect(collided.code).toBe('branch-checked-out-elsewhere')
     expect(collided.message).toContain(first)
   })
+
+  it('reports worktree-exists, not a cross-session refusal, for the same tree asked for twice', async () => {
+    /*
+     * `git worktree list` prints the canonical path, so comparing it against the caller's string
+     * failed whenever the requested path traversed a symlink - a temporary directory under /var on
+     * macOS does. The caller was then told the branch was checked out in the very path it had asked
+     * for, and the two codes exist precisely so a caller can tell those situations apart.
+     */
+    const repository = await createRepository()
+    const tree = worktreePathFor(repository, 'session-same')
+
+    const first = await createGitWorktree(repository, {
+      path: tree,
+      branch: 'ow/session-same',
+      baseRef: 'main',
+    })
+    expect(first.ok).toBe(true)
+
+    const again = await createGitWorktree(repository, {
+      path: tree,
+      branch: 'ow/session-same',
+      baseRef: 'main',
+    })
+
+    expect(again.ok).toBe(false)
+    if (again.ok) throw new Error('expected the second create to be refused')
+    expect(again.code).toBe('worktree-exists')
+  })
 })
