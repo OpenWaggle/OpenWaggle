@@ -36,6 +36,14 @@ export interface SeedSessionInput {
   readonly projectPath?: string | null
   readonly waggleConfig?: unknown
   readonly archived?: boolean
+  /**
+   * Leave a run on the session's main branch recorded as interrupted.
+   *
+   * The one non-idle row state that can be seeded from the database: every other state is derived
+   * from live agent events. That makes it the only way an end-to-end test can prove the state
+   * chips and the project roll-up pips work, rather than asserting they are absent.
+   */
+  readonly interruptedRun?: boolean
 }
 
 function getDatabasePath(userDataDir: string): string {
@@ -370,8 +378,42 @@ export async function seedSessions(
     for (const sessionInput of sessionInputs) {
       const row = insertSessionRow(database)
       seedSessionRow(database, row, sessionInput, userDataDir)
+      if (sessionInput.interruptedRun === true) seedInterruptedRun(database, row, sessionInput)
     }
   } finally {
     database.close()
   }
+}
+
+/** An interrupted run on the session's main branch, which the sidebar reports as Interrupted. */
+function seedInterruptedRun(
+  database: DatabaseSync,
+  row: SessionRowFixture,
+  sessionInput: SeedSessionInput,
+) {
+  database
+    .prepare(
+      `
+        INSERT INTO session_active_runs (
+          run_id,
+          session_id,
+          branch_id,
+          run_mode,
+          status,
+          runtime_json,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(run_id) DO UPDATE SET status = excluded.status
+      `,
+    )
+    .run(
+      `run-${row.id}`,
+      row.id,
+      row.branchId,
+      'classic',
+      'interrupted',
+      JSON.stringify({ model: 'openai/gpt-5' }),
+      sessionInput.updatedAt,
+    )
 }

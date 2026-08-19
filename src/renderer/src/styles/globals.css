@@ -125,6 +125,22 @@
   }
 
   /*
+   * The sidebar's filter field owns one focus indicator, on the field rather than on the input.
+   *
+   * The global :focus-visible ring paints a box-shadow on any focused element, so a coloured
+   * border on the wrapper plus that ring on the input drew two nested rectangles. The ring moves
+   * to the wrapper and the input's is suppressed: replaced, not removed. Values are the app's own
+   * focus treatment, so the field looks focused the same way everything else does.
+   */
+  .sidebar-search:focus-within {
+    border-color: color-mix(in srgb, #9aa3b2 62%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, #9aa3b2 14%, transparent);
+  }
+  .sidebar-search input:focus-visible {
+    box-shadow: none;
+  }
+
+  /*
    * The sidebar's scroll area, ported from the approved prototype. A thin thumb drawn inside a
    * transparent border, so the track occupies the same width whether or not it is visible and
    * rows do not change width when a project is expanded.
