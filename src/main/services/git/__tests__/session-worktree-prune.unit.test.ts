@@ -145,7 +145,13 @@ describe('pruneSessionWorktree', () => {
 
     expect(d.deleteCheckpoints).not.toHaveBeenCalled()
     expect(deleteRefsMock).not.toHaveBeenCalled()
-    // The worktree itself still goes: it can be recreated, and the branch keeps its commits.
-    expect(removeGitWorktreeMock).toHaveBeenCalledWith('/repo', { path: '/wt/x' })
+    /*
+     * And the worktree stays. `git worktree remove` refuses on modified or untracked content, but
+     * ignored content is not dirty - `.env`, `node_modules`, build caches are deleted with the
+     * directory, and recreating the tree from its branch cannot restore any of it. Too destructive for
+     * a reversible action.
+     */
+    expect(removeGitWorktreeMock).not.toHaveBeenCalled()
+    expect(d.clearWorktree).not.toHaveBeenCalled()
   })
 })

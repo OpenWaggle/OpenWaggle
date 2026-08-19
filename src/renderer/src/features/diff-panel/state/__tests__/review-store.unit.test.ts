@@ -199,4 +199,37 @@ describe('review-store', () => {
       selectReviewThread(useReviewStore.getState(), key).comments.map((comment) => comment.id),
     ).toEqual(['written-first', 'added-during-flight'])
   })
+
+  it('moves a review when a lazily created session takes over the thread key', () => {
+    /*
+     * The panel keys threads by session id once one exists and by working path before that. Sessions are
+     * created on the first send, so that switch happens underneath a review already in progress: without
+     * a migration the panel read an empty thread while the user's comments sat under the old key -
+     * invisible, unreachable, and not pruned either, because they were not empty.
+     */
+    const draftKey = reviewKeyFor('/repo', { kind: 'unstaged' })
+    const sessionKey = reviewKeyFor('session-a', { kind: 'unstaged' })
+    useReviewStore.getState().addComment(draftKey, makeComment('written-before-the-session'))
+    useReviewStore.getState().setSummary(draftKey, 'please fix')
+
+    useReviewStore.getState().migrateReview(draftKey, sessionKey)
+
+    const moved = selectReviewThread(useReviewStore.getState(), sessionKey)
+    expect(moved.comments.map((comment) => comment.id)).toEqual(['written-before-the-session'])
+    expect(moved.summary).toBe('please fix')
+    // Nothing is left behind under the old key.
+    expect(Object.keys(useReviewStore.getState().byReviewKey)).toEqual([sessionKey])
+  })
+
+  it('does not disturb an unrelated review when migrating', () => {
+    const draftKey = reviewKeyFor('/repo', { kind: 'unstaged' })
+    const otherKey = reviewKeyFor('session-b', { kind: 'unstaged' })
+    useReviewStore.getState().addComment(otherKey, makeComment('other'))
+
+    useReviewStore
+      .getState()
+      .migrateReview(draftKey, reviewKeyFor('session-a', { kind: 'unstaged' }))
+
+    expect(selectReviewThread(useReviewStore.getState(), otherKey).comments).toHaveLength(1)
+  })
 })

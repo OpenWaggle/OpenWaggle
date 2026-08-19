@@ -47,6 +47,12 @@ interface ReviewState {
   /** Abandon one pending review without sending it. */
   discardReview: (reviewKey: string) => void
   /**
+   * Move a pending review to a new key, keeping whatever is already there.
+   *
+   * Used when a lazily created session takes over from the working path as the thread key.
+   */
+  migrateReview: (fromReviewKey: string, toReviewKey: string) => void
+  /**
    * Put a review back after a failed send.
    *
    * Submission removes the comments before awaiting, so a rapid double-click cannot send the same
@@ -145,6 +151,21 @@ export const useReviewStore = create<ReviewState>((set) => ({
     set((state) => updateThread(state, reviewKey, () => EMPTY_THREAD))
   },
 
+  migrateReview(fromReviewKey: string, toReviewKey: string) {
+    set((state) => {
+      const source = state.byReviewKey[fromReviewKey]
+      if (fromReviewKey === toReviewKey || source === undefined) return state
+      const target = state.byReviewKey[toReviewKey] ?? EMPTY_THREAD
+      const merged: ReviewThread = {
+        comments: dedupeById([...source.comments, ...target.comments]),
+        activeCommentLocation: target.activeCommentLocation ?? source.activeCommentLocation,
+        summary: chooseSummary(target.summary, source.summary),
+      }
+      const { [fromReviewKey]: _moved, ...rest } = state.byReviewKey
+      return { byReviewKey: withoutEmptyThreads({ ...rest, [toReviewKey]: merged }) }
+    })
+  },
+
   restoreReview(reviewKey: string, comments: readonly ReviewCommentWithSnippet[], summary: string) {
     set((state) =>
       updateThread(state, reviewKey, (thread) => ({
@@ -167,13 +188,18 @@ export const useReviewStore = create<ReviewState>((set) => ({
 }))
 
 /**
- * The key a pending review belongs to.
+ * The key a pending review belongs to: the working tree, plus the scope within it.
  *
- * Includes the whole scope identity, not just its kind. A comment's line anchors and captured
- * snippet only mean anything within the diff they were written against - and turn 7's diff is not
- * turn 2's, nor is `main...HEAD` the same patch as `develop...HEAD`. Keying on the kind alone let a
- * review written against one turn or base ref reappear on another, where those line numbers point
- * somewhere else entirely.
+ * Includes the whole scope identity, not just its kind. A comment's line anchors and captured snippet
+ * only mean anything within the diff they were written against - and turn 7's diff is not turn 2's, nor
+ * is `main...HEAD` the same patch as `develop...HEAD`. Keying on the kind alone let a review written
+ * against one turn or base ref reappear on another, where those line numbers point somewhere else.
+ *
+ * The thread key is the session id once one exists and the working path before that, so two sessions
+ * sharing one checkout keep separate reviews. Creating a session therefore moves the key underneath a
+ * review already in progress, which is why {@link ReviewState.migrateReview} exists: without it the
+ * panel started reading an empty thread while the user's comments sat under the old key, invisible,
+ * unreachable, and never pruned because they were not empty.
  */
 export function reviewKeyFor(threadKey: string | null, selection: DiffScopeSelection): string {
   const scope = matchBy(selection, 'kind')

@@ -41,6 +41,21 @@ export async function pruneSessionWorktree(
       return
     }
 
+    /*
+     * Archiving keeps the worktree.
+     *
+     * `git worktree remove` refuses on modified or untracked content, but *ignored* content is not
+     * dirty: it is deleted with the directory. Everything the user's own tooling put there and git was
+     * told to ignore - `.env`, `node_modules`, build caches - was destroyed by an action that is
+     * reversible, and recreating the tree from its branch cannot bring any of it back. Unarchiving
+     * therefore has to find the tree still there; birth adopts it on the next send. A worktree that is
+     * genuinely unwanted can be removed in Settings.
+     */
+    if (input.reason === 'archive') {
+      await discardCheckpoints(input, deps)
+      return
+    }
+
     const refs = await deps.listWorktreeRefs()
     const orphaned = getOrphanedWorktreePathForSession(refs, input.sessionId)
     const removalFailed = orphaned ? await removalFailedFor(input.projectPath, orphaned) : false

@@ -16,8 +16,8 @@ import { useBaseRefChoices } from '../hooks/useBaseRefChoices'
 import { type CommitPaths, useCommitPaths } from '../hooks/useCommitPaths'
 import { useDisplayedDiff } from '../hooks/useDisplayedDiff'
 import { useReconcileTurnSelection } from '../hooks/useReconcileTurnSelection'
+import { useReviewKey } from '../hooks/useReviewKey'
 import { useSessionTurns } from '../hooks/useSessionTurns'
-import { reviewKeyFor } from '../state/review-store'
 import { CommitMessageDialog } from './CommitMessageDialog'
 import { DiffBottomBar } from './DiffBottomBar'
 import { DiffPanelHeader } from './DiffPanelHeader'
@@ -109,6 +109,7 @@ export function DiffPanel({
   const baseRefChoices = useBaseRefChoices(repositoryPath)
   const turns = useSessionTurns(sessionId, refreshToken)
   const displayed = useDisplayedDiff({ sessionId, workingPath, selection, refreshToken })
+  const reviewKey = useReviewKey({ scopeKey, workingPath, selection })
   const { fileDiffs, isLoading, loadError, refreshDiff } = displayed
 
   useReconcileTurnSelection(scopeKey, turns)
@@ -171,7 +172,7 @@ export function DiffPanel({
         onFileClick={(path) =>
           viewerRef.current?.scrollTo({ type: 'item', id: codeViewItemId(path), align: 'start' })
         }
-        reviewKey={reviewKeyFor(scopeKey || null, selection)}
+        reviewKey={reviewKey}
       />
       <DiffBottomBar
         onRevertAll={gitActions.handleRevertAll}

@@ -87,7 +87,7 @@ function normalizeGitError(error: unknown): GitExecResult {
  * from "git failed for no stated reason", and neither could the user reading the toast.
  */
 function wasKilledForTimeout(value: Readonly<Record<string, unknown>>) {
-  return value['killed'] === true && typeof value['signal'] === 'string'
+  return value.killed === true && typeof value.signal === 'string'
 }
 
 export async function runGit(

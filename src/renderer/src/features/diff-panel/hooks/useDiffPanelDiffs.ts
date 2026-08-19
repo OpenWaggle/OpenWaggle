@@ -90,7 +90,15 @@ function isStaleDiffRequest(
   return requestId !== latestRequestId || currentWorkingPath !== requestedWorkingPath
 }
 
+/**
+ * Load the diff for a scope, or null when this loader does not own it.
+ *
+ * A turn's diff comes from the checkpoint store. The mount effect skips turn scopes, but the imperative
+ * refresh did not: "Try again" on a failed turn diff shelled out to `git diff` and replaced the failure
+ * with the working tree's file list under the turn's label.
+ */
 function fetchDiffsForScope(workingPath: WorkingPath, selection: DiffScopeSelection) {
+  if (selection.kind === 'turn') return null
   if (selection.kind === 'branch') {
     return api.getGitBranchDiff(workingPath, selection.baseRef ?? '')
   }
@@ -149,9 +157,13 @@ export function useDiffPanelDiffs(
     }
     const scopedSelection: DiffScopeSelection =
       scopeKind === 'branch' ? { kind: 'branch', baseRef: branchBaseRef } : { kind: 'unstaged' }
+    // Never null here: the turn scope returned above.
+    const pending = fetchDiffsForScope(workingPath, scopedSelection)
+    if (pending === null) return
+
     dispatch({ type: 'start-loading' })
     let cancelled = false
-    fetchDiffsForScope(workingPath, scopedSelection)
+    pending
       .then((result) => {
         if (cancelled || requestId !== diffRequestId.current) return
         dispatch(
@@ -176,11 +188,15 @@ export function useDiffPanelDiffs(
   }, [workingPath, scopeKind, branchBaseRef, refreshToken])
 
   async function refreshDiff(workingPathToRefresh: WorkingPath) {
+    // Nothing to refresh for a turn: its diff is owned by the checkpoint store, not this loader.
+    const pending = fetchDiffsForScope(workingPathToRefresh, selectionRef.current)
+    if (pending === null) return
+
     diffRequestId.current += 1
     const requestId = diffRequestId.current
     dispatch({ type: 'start-loading' })
     try {
-      const result = await fetchDiffsForScope(workingPathToRefresh, selectionRef.current)
+      const result = await pending
       if (
         isStaleDiffRequest(
           requestId,
