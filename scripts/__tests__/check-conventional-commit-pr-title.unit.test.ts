@@ -210,4 +210,60 @@ describe('Conventional Commit PR title release intent', () => {
       await fs.rm(cwd, { force: true, recursive: true })
     }
   })
+
+  it('demands release intent when a merge reverts a released package file', async () => {
+    /*
+     * A merge's paths are read against its *first* parent, so a merge resolved to keep the branch's own
+     * older copy of a published file reported no `packages/` path at all - while relative to the base the
+     * PR reverts a released change. Every per-commit rule exempted it. Asked against the base instead,
+     * the answer is unambiguous.
+     */
+    const { baseline, cwd } = await createRepository()
+    try {
+      // Released once on the base, before the branch forks: the branch inherits v = 1.
+      await writeAndCommit(
+        cwd,
+        'packages/extension-sdk/index.ts',
+        'export const v = 1\n',
+        'fix(extension-sdk): release v1',
+      )
+      const forkPoint = await git(cwd, ['rev-parse', 'HEAD'])
+      // The branch itself never touches the package.
+      await git(cwd, ['checkout', '-b', 'feature', forkPoint])
+      await writeAndCommit(cwd, 'src/feature.ts', 'export {}\n', 'feat(app): unrelated work')
+      await git(cwd, ['checkout', 'main'])
+      await writeAndCommit(
+        cwd,
+        'packages/extension-sdk/index.ts',
+        'export const v = 2\n',
+        'fix(extension-sdk): release v2',
+      )
+      const baseRef = await git(cwd, ['rev-parse', 'HEAD'])
+
+      // Merge the base, resolving the published file back to the branch's older content.
+      await git(cwd, ['checkout', 'feature'])
+      await git(cwd, [...GIT_IDENTITY, 'merge', '--no-ff', '--no-commit', 'main']).catch(
+        () => undefined,
+      )
+      await writeAndCommit(
+        cwd,
+        'packages/extension-sdk/index.ts',
+        'export const v = 1\n',
+        "Merge branch 'main' into feature",
+      )
+      const head = await git(cwd, ['rev-parse', 'HEAD'])
+
+      const result = await validateConventionalCommits({
+        baseline,
+        cwd,
+        from: baseRef,
+        to: head,
+        prTitle: 'docs(app): describe the feature',
+      })
+
+      expect(result.violations.join(' ')).toContain('would not create a Release Please version bump')
+    } finally {
+      await fs.rm(cwd, { force: true, recursive: true })
+    }
+  })
 })

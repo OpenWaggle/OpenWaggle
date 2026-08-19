@@ -50,7 +50,7 @@ async function publishedChangesMatchBase(
   for (const filePath of publishedPaths) {
     const merged = await blobAt(cwd, commit.hash, filePath)
     const baseBlobs = await Promise.all(bases.map((base) => blobAt(cwd, base, filePath)))
-    if (!baseBlobs.some((baseBlob) => baseBlob !== null && baseBlob === merged)) return false
+    if (!baseBlobs.includes(merged)) return false
   }
   return true
 }
