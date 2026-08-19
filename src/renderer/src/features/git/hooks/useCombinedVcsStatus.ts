@@ -7,6 +7,60 @@ import { createRendererLogger } from '@/shared/lib/logger'
 const logger = createRendererLogger('git')
 
 /**
+ * Shared bookkeeping for one status load.
+ *
+ * Every state write is guarded inline by both the requested path and the request id. The path alone
+ * cannot order two loads of the *same* path, and the refresh token makes those routine - every turn
+ * end, broadcast and focus - so an older, slower response (or rejection) could otherwise land after a
+ * newer one and put stale status back on screen. The comparison is written out at each write rather
+ * than extracted, because a helper hides it from the analysis that checks exactly this.
+ */
+interface LoadGuard {
+  readonly workingPath: WorkingPath
+  readonly requestedPath: MutableRef<WorkingPath | null>
+  readonly requestId: MutableRef<number>
+  readonly thisRequest: number
+}
+
+interface MutableRef<T> {
+  current: T
+}
+
+async function loadLocalStatus(
+  input: LoadGuard & {
+    readonly setLocal: (status: LocalVcsStatus | null) => void
+    readonly loadedPath: MutableRef<WorkingPath | null>
+  },
+) {
+  const { workingPath, requestedPath, requestId, thisRequest } = input
+  try {
+    const result = await api.getLocalVcsStatus(workingPath)
+    if (requestedPath.current !== workingPath || requestId.current !== thisRequest) return
+    input.setLocal(result.ok ? result.status : null)
+    input.loadedPath.current = workingPath
+  } catch (error) {
+    logger.warn('Failed to load local VCS status', { error: String(error) })
+    if (requestedPath.current !== workingPath || requestId.current !== thisRequest) return
+    input.setLocal(null)
+  }
+}
+
+async function loadRemoteStatus(
+  input: LoadGuard & { readonly setRemote: (status: RemoteVcsStatus | null) => void },
+) {
+  const { workingPath, requestedPath, requestId, thisRequest } = input
+  try {
+    const result = await api.getRemoteVcsStatus(workingPath)
+    if (requestedPath.current !== workingPath || requestId.current !== thisRequest) return
+    input.setRemote(result.ok ? result.status : null)
+  } catch (error) {
+    logger.warn('Failed to load remote VCS status', { error: String(error) })
+    if (requestedPath.current !== workingPath || requestId.current !== thisRequest) return
+    input.setRemote(null)
+  }
+}
+
+/**
  * Loads the combined VCS status for a project: Local status resolves instantly,
  * Remote status loads asynchronously and is merged in when it arrives. Returns
  * null until the local half is available.
@@ -27,8 +81,18 @@ export function useCombinedVcsStatus(
   const requestedPath = useRef(workingPath)
   /** The path the values currently in state were actually loaded from. */
   const loadedPath = useRef<WorkingPath | null>(null)
+  /**
+   * Which load is current.
+   *
+   * The path check alone cannot order two loads of the *same* path, and the refresh token makes those
+   * routine - every turn end, broadcast and focus. Without this an older, slower response could land
+   * after a newer one and put stale status back on screen.
+   */
+  const requestId = useRef(0)
 
   const refresh = useCallback(async () => {
+    requestId.current += 1
+    const thisRequest = requestId.current
     const previousPath = requestedPath.current
     requestedPath.current = workingPath
     /*
@@ -45,25 +109,18 @@ export function useCombinedVcsStatus(
       loadedPath.current = null
       return
     }
-    try {
-      const localResult = await api.getLocalVcsStatus(workingPath)
-      if (requestedPath.current !== workingPath) return
-      setLocal(localResult.ok ? localResult.status : null)
-      loadedPath.current = workingPath
-    } catch (error) {
-      logger.warn('Failed to load local VCS status', { error: String(error) })
-      setLocal(null)
-    }
-
-    if (typeof api.getRemoteVcsStatus !== 'function') return
-    try {
-      const remoteResult = await api.getRemoteVcsStatus(workingPath)
-      if (requestedPath.current !== workingPath) return
-      setRemote(remoteResult.ok ? remoteResult.status : null)
-    } catch (error) {
-      logger.warn('Failed to load remote VCS status', { error: String(error) })
-      setRemote(null)
-    }
+    // Capability checks do not depend on any response, so they are settled before the first await.
+    const canReadRemote = typeof api.getRemoteVcsStatus === 'function'
+    await loadLocalStatus({
+      workingPath,
+      requestedPath,
+      requestId,
+      thisRequest,
+      setLocal,
+      loadedPath,
+    })
+    if (!canReadRemote) return
+    await loadRemoteStatus({ workingPath, requestedPath, requestId, thisRequest, setRemote })
   }, [workingPath])
 
   useEffect(() => {

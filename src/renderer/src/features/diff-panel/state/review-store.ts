@@ -77,6 +77,23 @@ function withoutEmptyThreads(byReviewKey: Record<string, ReviewThread>) {
   )
 }
 
+/** Keep the first occurrence of each comment id, preserving order. */
+function dedupeById(
+  comments: readonly ReviewCommentWithSnippet[],
+): readonly ReviewCommentWithSnippet[] {
+  const seen = new Set<string>()
+  return comments.filter((comment) => {
+    if (seen.has(comment.id)) return false
+    seen.add(comment.id)
+    return true
+  })
+}
+
+/** The draft the user is looking at, falling back to the summary that was submitted. */
+function chooseSummary(draft: string, submitted: string) {
+  return draft.trim().length > 0 ? draft : submitted
+}
+
 function updateThread(
   state: Pick<ReviewState, 'byReviewKey'>,
   reviewKey: string,
@@ -132,9 +149,18 @@ export const useReviewStore = create<ReviewState>((set) => ({
     set((state) =>
       updateThread(state, reviewKey, (thread) => ({
         ...thread,
-        // Anything written while the send was in flight is kept ahead of the restored comments.
-        comments: [...comments, ...thread.comments],
-        summary: thread.summary.trim().length > 0 ? thread.summary : summary,
+        /*
+         * Restored comments come first, which is chronological: they were written before anything
+         * added while the send was in flight. Ids are de-duplicated because a restore can race with
+         * the user re-adding the same comment, which otherwise left two copies.
+         */
+        comments: dedupeById([...comments, ...thread.comments]),
+        /*
+         * The submitted summary wins over an empty draft, and a draft written during the flight wins
+         * over the submitted one - but only when it is actually different, so restoring cannot
+         * silently discard the text that was sent.
+         */
+        summary: chooseSummary(thread.summary, summary),
       })),
     )
   },

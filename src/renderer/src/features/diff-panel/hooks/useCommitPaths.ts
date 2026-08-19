@@ -18,7 +18,19 @@ const logger = createRendererLogger('diff-panel-commit-paths')
  * indicators, which iterate the session *list* - so for a draft session, or before the sidebar has
  * caught up, the panel read an empty slice and dispatched a commit with no paths at all.
  */
-export function useCommitPaths(workingPath: WorkingPath | null, refreshToken = 0) {
+export interface CommitPaths {
+  readonly paths: readonly string[]
+  /**
+   * Why the working tree could not be read, when it could not.
+   *
+   * An empty path list must not stand in for this. Treating a failed read as a clean tree told the
+   * user "no changes to commit" while the diff body could be showing dirty files - the same
+   * failure-as-emptiness defect this panel has now had fixed three times over.
+   */
+  readonly error: string | null
+}
+
+export function useCommitPaths(workingPath: WorkingPath | null, refreshToken = 0): CommitPaths {
   const refreshStatus = useGitStore((state) => state.refreshStatus)
   const workingTreeStatus = useGitStore((state) => selectWorkingTreeStatus(state, workingPath))
 
@@ -38,7 +50,10 @@ export function useCommitPaths(workingPath: WorkingPath | null, refreshToken = 0
    * target produced a commit containing *both* files and left the staged deletion of the source
    * behind. Verified against real git.
    */
-  return (workingTreeStatus.status?.changedFiles ?? []).flatMap((file) =>
-    file.renamedFrom === undefined ? [file.path] : [file.renamedFrom, file.path],
-  )
+  return {
+    paths: (workingTreeStatus.status?.changedFiles ?? []).flatMap((file) =>
+      file.renamedFrom === undefined ? [file.path] : [file.renamedFrom, file.path],
+    ),
+    error: workingTreeStatus.error,
+  }
 }

@@ -25,10 +25,14 @@ export function useBaseRefChoices(repositoryPath: RepositoryPath | null): BaseRe
   const [state, setState] = useState<BaseRefChoices>({ choices: EMPTY_CHOICES, loaded: false })
 
   useEffect(() => {
-    if (!repositoryPath) {
-      setState({ choices: EMPTY_CHOICES, loaded: false })
-      return
-    }
+    /*
+     * Cleared before loading, so `loaded` never describes a different repository's branches. Keeping
+     * the previous value across the switch would have marked the *new* repository's refs
+     * "(unavailable)" - a guess presented as fact, which is the regression this flag exists to stop.
+     */
+    setState({ choices: EMPTY_CHOICES, loaded: false })
+    if (!repositoryPath) return
+
     let cancelled = false
     void (async () => {
       try {

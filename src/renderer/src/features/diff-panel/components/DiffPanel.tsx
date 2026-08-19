@@ -13,7 +13,7 @@ import {
 import { useCombinedVcsStatus, useStackedGitActions } from '@/features/git'
 import { useUIStore } from '@/shell/ui-store'
 import { useBaseRefChoices } from '../hooks/useBaseRefChoices'
-import { useCommitPaths } from '../hooks/useCommitPaths'
+import { type CommitPaths, useCommitPaths } from '../hooks/useCommitPaths'
 import { useDisplayedDiff } from '../hooks/useDisplayedDiff'
 import { useReconcileTurnSelection } from '../hooks/useReconcileTurnSelection'
 import { useSessionTurns } from '../hooks/useSessionTurns'
@@ -66,16 +66,21 @@ const NOTHING_TO_COMMIT_MESSAGE = 'No changes in this working tree to commit.'
  */
 function requestStackedAction(input: {
   readonly action: GitStackedAction
-  readonly commitPaths: readonly string[]
+  readonly commitPaths: CommitPaths
   readonly run: (action: GitStackedAction, options?: { paths: readonly string[] }) => void
   readonly showToast: (message: string, variant: 'error') => void
   readonly onNeedsMessage: (action: GitStackedAction) => void
 }) {
   if (!input.action.startsWith('commit')) {
-    input.run(input.action, { paths: input.commitPaths })
+    input.run(input.action, { paths: input.commitPaths.paths })
     return
   }
-  if (input.commitPaths.length === 0) input.showToast(NOTHING_TO_COMMIT_MESSAGE, 'error')
+  // A tree that could not be read is not a clean tree.
+  if (input.commitPaths.error !== null) {
+    input.showToast(`Could not read this working tree: ${input.commitPaths.error}`, 'error')
+    return
+  }
+  if (input.commitPaths.paths.length === 0) input.showToast(NOTHING_TO_COMMIT_MESSAGE, 'error')
   else input.onNeedsMessage(input.action)
 }
 
@@ -192,12 +197,12 @@ export function DiffPanel({
       />
       <CommitMessageDialog
         open={pendingCommitAction !== null}
-        fileCount={commitPaths.length}
+        fileCount={commitPaths.paths.length}
         onCancel={() => setPendingCommitAction(null)}
         onConfirm={(commitMessage) => {
           const action = pendingCommitAction
           setPendingCommitAction(null)
-          if (action) void stackedActions.run(action, { paths: commitPaths, commitMessage })
+          if (action) void stackedActions.run(action, { paths: commitPaths.paths, commitMessage })
         }}
       />
     </div>

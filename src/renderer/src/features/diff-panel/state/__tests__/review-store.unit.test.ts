@@ -162,4 +162,41 @@ describe('review-store', () => {
 
     expect(Object.keys(useReviewStore.getState().byReviewKey)).toEqual([key])
   })
+
+  it('restores a review without duplicating a comment the user re-added', () => {
+    /*
+     * Submission removes the comments before awaiting, so the user can re-add one while the send is in
+     * flight. Concatenating blindly then left two copies of the same comment in the review that gets
+     * sent next.
+     */
+    const key = reviewKeyFor('s', { kind: 'unstaged' })
+    const comment = makeComment('c1')
+    useReviewStore.getState().addComment(key, comment)
+
+    useReviewStore.getState().restoreReview(key, [comment], 'submitted summary')
+
+    expect(selectReviewThread(useReviewStore.getState(), key).comments).toHaveLength(1)
+  })
+
+  it('keeps the submitted summary when nothing was typed during the send', () => {
+    // The submitted summary was discarded whenever any draft existed, even an empty one.
+    const key = reviewKeyFor('s', { kind: 'unstaged' })
+
+    useReviewStore.getState().restoreReview(key, [makeComment('c1')], 'the summary that was sent')
+
+    expect(selectReviewThread(useReviewStore.getState(), key).summary).toBe(
+      'the summary that was sent',
+    )
+  })
+
+  it('puts restored comments before ones added during the send, which is chronological', () => {
+    const key = reviewKeyFor('s', { kind: 'unstaged' })
+    useReviewStore.getState().addComment(key, makeComment('added-during-flight'))
+
+    useReviewStore.getState().restoreReview(key, [makeComment('written-first')], '')
+
+    expect(
+      selectReviewThread(useReviewStore.getState(), key).comments.map((comment) => comment.id),
+    ).toEqual(['written-first', 'added-during-flight'])
+  })
 })
