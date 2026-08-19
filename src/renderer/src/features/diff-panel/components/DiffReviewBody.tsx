@@ -20,7 +20,14 @@ interface DiffReviewBodyProps {
   readonly onFileClick: (path: string) => void
   /** Isolates pending comments to the tree and scope they were written against. */
   /** The key this panel's review lives under, with the draft key it would use before a session exists. */
-  readonly reviewKeys: { readonly reviewKey: string; readonly draftKey: string }
+  /**
+   * This panel's review key, with a way to build the key for a session that does not exist yet: a review
+   * submitted before any session exists has to follow the session created to carry it.
+   */
+  readonly reviewKeys: {
+    readonly reviewKey: string
+    readonly keyForSession: (sessionId: string) => string
+  }
 }
 
 /**
@@ -46,7 +53,7 @@ export function DiffReviewBody({
     onSendMessage,
     files,
     reviewKeys.reviewKey,
-    reviewKeys.draftKey,
+    reviewKeys.keyForSession,
     (error) => {
       // A restored review that lands out of view is no better than a lost one if nothing says why.
       showToast(`Could not send this review: ${String(error)}`, 'error')

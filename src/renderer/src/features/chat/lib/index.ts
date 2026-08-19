@@ -2,7 +2,15 @@ export { isTerminalTransportEvent } from './agent-stream-utils'
 export { createBranchDraftSelectionFromNode } from './branch-from-message'
 export { maybeOpenBranchSummaryPrompt } from './branch-summary-prompt-controller'
 export { setComposerTextValue } from './composer-text'
-export { MessageDeliveredRunFailed, wasMessageDelivered } from './message-delivery'
+export {
+  clearRunStarted,
+  createdSessionIdOf,
+  FirstSendFailed,
+  hasRunStarted,
+  MessageDeliveredRunFailed,
+  markRunStarted,
+  wasMessageDelivered,
+} from './message-delivery'
 export {
   isScrollContainerNearBottom,
   scrollElementToBottom,

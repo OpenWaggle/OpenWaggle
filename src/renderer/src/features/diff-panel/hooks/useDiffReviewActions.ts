@@ -1,6 +1,5 @@
 import type { GitFileDiff } from '@shared/types/git'
-import { useEffect, useRef } from 'react'
-import { wasMessageDelivered } from '@/features/chat/lib'
+import { createdSessionIdOf, wasMessageDelivered } from '@/features/chat/lib'
 import {
   extractDiffSnippet,
   formatReviewSubmission,
@@ -45,37 +44,18 @@ export function useDiffReviewActions(
   onSendMessage: (content: string) => void | Promise<void>,
   files: readonly GitFileDiff[],
   reviewKey: string,
-  /** The key this panel would use with no session yet: see the follow rule below. */
-  draftKey: string,
+  /** This panel's key for a given session, in the scope the review was written in. */
+  keyForSession: (sessionId: string) => string,
   onReviewSendFailed?: (error: unknown) => void,
 ) {
   const thread = useReviewStore((s) => selectReviewThread(s, reviewKey))
-  /*
-   * The key the panel is reading *now*, which the first send changes mid-flight: creating a session sets
-   * the active id synchronously, so the panel moves from the working path to the session id before the send
-   * can reject. Restoring under the key captured at click time therefore wrote the review where nothing was
-   * reading, and the one-shot migration had already fired against the emptied draft.
-   *
-   * The draft key is tracked alongside it because "the key changed" is not on its own a reason to follow.
-   * It also changes for a scope tab, a base ref, a turn, a session switch and a project switch, and
-   * following those *moves* the thread: comments and line anchors taken from one diff would sit pending in
-   * another, or one session's review in another session's conversation - which is what keying reviews was
-   * introduced to prevent. Only one transition is legitimate, the same working tree and scope gaining a
-   * session id, and that is exactly the transition in which the draft key does not move.
-   */
-  const latestReviewKey = useRef(reviewKey)
-  const latestDraftKey = useRef(draftKey)
-  useEffect(() => {
-    latestReviewKey.current = reviewKey
-    latestDraftKey.current = draftKey
-  }, [reviewKey, draftKey])
   const comments = thread.comments
   const summary = thread.summary
   const addComment = useReviewStore((s) => s.addComment)
   const removeComment = useReviewStore((s) => s.removeComment)
   const setSummary = useReviewStore((s) => s.setSummary)
-  const discardReview = useReviewStore((s) => s.discardReview)
   const setActiveCommentLocation = useReviewStore((s) => s.setActiveCommentLocation)
+  const discardReview = useReviewStore((s) => s.discardReview)
 
   function onAddSingleComment(location: ReviewCommentLocation, content: string) {
     onSendMessage(formatSingleReviewComment(buildComment(files, location, content)))
@@ -120,11 +100,16 @@ export function useDiffReviewActions(
         error: String(error),
       })
       state.restoreReview(reviewKey, pending.comments, pending.summary)
-      const gainedSessionId =
-        reviewKey === draftKey &&
-        latestDraftKey.current === draftKey &&
-        latestReviewKey.current !== reviewKey
-      if (gainedSessionId) state.migrateReview(reviewKey, latestReviewKey.current)
+      /*
+       * A first send creates the session that carries the review, which changes where the panel looks for it.
+       * The target is taken from the failure rather than from what the panel happens to show: the scope
+       * selection resets for a brand-new session key, and in local mode every session of a project shares one
+       * working path, so inferring it filed reviews into the wrong scope and into other sessions.
+       */
+      const createdSessionId = createdSessionIdOf(error)
+      if (createdSessionId !== null) {
+        state.migrateReview(reviewKey, keyForSession(createdSessionId))
+      }
       onReviewSendFailed?.(error)
     }
   }

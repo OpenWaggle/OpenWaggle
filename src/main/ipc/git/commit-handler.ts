@@ -1,3 +1,5 @@
+import { stat } from 'node:fs/promises'
+import path from 'node:path'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { GitCommitFailure, GitCommitPayload, GitCommitResult } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
@@ -99,10 +101,21 @@ async function validateCommitPreflight(projectPath: string, message: string) {
 }
 
 /**
- * Add each rename's source beside its target.
+ * Add each rename's source beside its target, unless something now occupies that path.
  *
- * A commit that names only the target keeps both files and leaves the deletion staged. Read from the working
- * tree so a caller that knows nothing about renames still commits one correctly.
+ * A commit that names only the target keeps both files and leaves the deletion staged, so the source belongs
+ * in the commit. Read from the working tree rather than trusted from the caller, so a caller that knows
+ * nothing about renames still commits one correctly.
+ *
+ * The occupancy check also settles copies, which `git status` reports with the same `old -> new` shape when
+ * `status.renames` is set to `copies`. A copy's source is not deleted, so it is still there to be found, and
+ * committing it would commit a file the user did not select.
+ *
+ * The occupancy check is not a nicety. `git commit -- <paths>` commits the *working tree* content of those
+ * paths, so if the user has since created a new file - or a directory - where the rename started, naming that
+ * path commits whatever is there now: verified that a rename plus an unrelated new file at the old name
+ * committed the new file, which the user never selected. When the path is occupied there is no deletion to
+ * express, and the honest commit is the target alone.
  */
 async function expandRenameSources(
   projectPath: string,
@@ -119,8 +132,16 @@ async function expandRenameSources(
   if (status.code !== 0) return paths
 
   const selected = new Set(paths)
+  const sources: string[] = []
   for (const file of parsePorcelain(status.stdout)) {
-    if (file.renamedFrom !== undefined && selected.has(file.path)) selected.add(file.renamedFrom)
+    if (file.renamedFrom !== undefined && selected.has(file.path)) sources.push(file.renamedFrom)
+  }
+  // Independent reads, so asked together.
+  const occupied = await Promise.all(
+    sources.map((source) => pathExists(path.join(projectPath, source))),
+  )
+  for (const [index, source] of sources.entries()) {
+    if (occupied[index] !== true) selected.add(source)
   }
   return [...selected]
 }
@@ -132,6 +153,15 @@ async function expandRenameSources(
  */
 function isUnmatchedPathspec(stderr: string) {
   return /did not match any files/u.test(stderr)
+}
+
+async function pathExists(absolutePath: string) {
+  try {
+    await stat(absolutePath)
+    return true
+  } catch {
+    return false
+  }
 }
 
 async function stageCommitPaths(projectPath: string, paths: readonly string[]) {

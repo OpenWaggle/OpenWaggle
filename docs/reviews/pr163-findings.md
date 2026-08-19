@@ -185,3 +185,46 @@ base released 0.3.0 of the same file - every release, since release-please rewri
 A merge's own parents cannot move, so they are asked as well. This does not weaken the evil-merge guard: an
 evil merge introduces content matching no parent, which is what makes it evil.
 
+## Round seven
+
+Round seven checked round six's four repairs and found seven more issues, three of them serious. Its
+release-intent reviewer returned zero findings and a clear recommendation to merge. All seven are resolved.
+
+| Finding | Substance |
+| --- | --- |
+| Y1-1 | A new file left where a rename started was committed, unselected |
+| Y1-2 | A copy's source was treated like a rename's |
+| Y1-3 | A directory where a rename started broke the commit and staged unselected files |
+| Y2-1 | "Delivered" was inferred from the invoke resolving, which is not evidence |
+| Y2-2 | The first-send path read main's failure as success |
+| Y2-3 | The follow rule refused the transition it was written for |
+| Y2-4 | The follow rule could file a review into a different session |
+
+Three of these deserve recording, because each was a *premise* that turned out to be false rather than a
+mistaken line.
+
+**The rename source is not always absent.** Adding it to the commit covers the deletion, which is right, but
+`git commit -- <paths>` commits the *working tree* content of the paths it is given. A user who creates
+something new at the old name - or a directory - would have had that committed without selecting it, and
+staging it first also destroyed the rename record in the index. Both verified against real git. When the path
+is occupied there is no deletion left to express, so the honest commit is the target alone. That same check
+settles copies, whose sources are never deleted.
+
+**A resolved send is not a delivered message.** Repair 3 rested on the premise that `await sendPromise`
+resolving meant the agent had the message. Main recovers every run failure into a value rather than failing
+the Effect, so the invoke resolves whether the turn ran or was refused - and the missing-worktree refusal,
+the exact case the review restore exists for, resolves like a success. The premise was not just imprecise, it
+was false for precisely the failure that mattered, so the repair had broken what it was protecting. Two
+things now carry real information: `agent:send-message` and its waggle counterpart return an
+`AgentSendReport`, so no caller can read a refusal as success; and delivery is judged by the agent reporting
+the turn started, which is the only positive evidence the renderer has. Absent that evidence the failure is
+reported as undelivered, which is the side that keeps the user's work.
+
+**The draft key does move.** Repair 2 narrowed the review-follow rule to "the same working tree and scope
+gaining a session id", on the stated grounds that the draft key does not move in that transition. It does: the
+scope selection is itself keyed by the session, and a brand-new session has none recorded, so a review written
+in the Branch scope had its follow refused and was orphaned. The rule also never checked *which* session
+appeared, and in local mode every session of a project shares one working path. Both are gone: a failed first
+send now names the session it created, and the panel builds the target key from that id and the scope the
+review was written in. Nothing is inferred.
+

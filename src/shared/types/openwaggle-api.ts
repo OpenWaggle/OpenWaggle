@@ -1,4 +1,4 @@
-import type { AgentSendPayload, PreparedAttachment } from './agent'
+import type { AgentSendPayload, AgentSendReport, PreparedAttachment } from './agent'
 import type {
   AgentLoopInteractionResponseInput,
   AgentLoopInteractionSubmitResult,
@@ -84,7 +84,7 @@ export interface OpenWaggleApi extends OpenWaggleExtensionApi, OpenWaggleMcpApi 
     sessionId: SessionId,
     payload: AgentSendPayload,
     model: SupportedModelId,
-  ): Promise<void>
+  ): Promise<AgentSendReport>
   cancelAgent(sessionId?: SessionId): Promise<void>
   steerAgent(sessionId: SessionId): Promise<{ preserved: boolean }>
   respondAgentInteraction(
@@ -271,7 +271,7 @@ export interface OpenWaggleApi extends OpenWaggleExtensionApi, OpenWaggleMcpApi 
     payload: AgentSendPayload,
     model: SupportedModelId,
     config: WaggleConfig,
-  ): Promise<void>
+  ): Promise<AgentSendReport>
   cancelWaggle(sessionId: SessionId): void
   onWaggleEvent(callback: (payload: IpcEventPayload<'waggle:event'>) => void): () => void
   onWaggleTurnEvent(callback: (payload: IpcEventPayload<'waggle:turn-event'>) => void): () => void

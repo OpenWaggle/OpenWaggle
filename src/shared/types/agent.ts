@@ -112,3 +112,16 @@ export function isToolCallPart(part: MessagePart): part is ToolCallPart {
 export function getMessageText(message: Message): string {
   return message.parts.reduce((text, part) => (isTextPart(part) ? text + part.text : text), '')
 }
+
+/**
+ * What became of a send, as reported back to the caller of `agent:send-message`.
+ *
+ * The invoke used to return nothing, and main recovers every run failure into a value rather than failing the
+ * Effect - so a caller awaiting the invoke could not tell a completed turn from a refused one. A review
+ * submitted as a session's first message was therefore cleared on a failure that looked exactly like success.
+ */
+export interface AgentSendReport {
+  readonly delivered: boolean
+  readonly message?: string
+  readonly code?: string
+}

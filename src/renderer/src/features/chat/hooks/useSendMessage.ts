@@ -3,6 +3,7 @@ import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { ThinkingLevel } from '@shared/types/settings'
 import type { WaggleConfig } from '@shared/types/waggle'
+import { FirstSendFailed } from '@/features/chat/lib'
 import { createOptimisticUserMessage } from '@/features/chat/lib/useAgentChat.utils'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useOptimisticUserMessageStore } from '@/features/chat/state/optimistic-user-message-store'
@@ -106,19 +107,33 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
     useBackgroundRunStore.getState().setRunRenderMessages(sessionId, [optimisticUserMessage])
 
     try {
-      if (config) {
-        await api.sendWaggleMessage(sessionId, payload, model, config)
-      } else {
-        await api.sendMessage(sessionId, payload, model)
-      }
+      /*
+       * The report is read, not just awaited. Main recovers every run failure into a value rather than
+       * failing the Effect, so this invoke resolves whether the turn ran or was refused - an unresolvable
+       * base ref, a foreign directory on the worktree path, a failed `worktree add`, an invalid model. There
+       * was therefore no rejection for the caller to react to, and a review submitted as a session's first
+       * message was cleared on a failure that looked exactly like success.
+       */
+      const report = config
+        ? await api.sendWaggleMessage(sessionId, payload, model, config)
+        : await api.sendMessage(sessionId, payload, model)
+      if (report.delivered) return
+      throw new Error(report.message ?? 'The agent could not start this turn.')
     } catch (error) {
       useBackgroundRunStore.getState().clearRunRenderSnapshot(sessionId)
       logger.error('First message send failed', {
         sessionId: String(sessionId),
         error: error instanceof Error ? error.message : String(error),
       })
-      // Rethrown so the caller can react - a submitted review has to be restored, not silently lost.
-      throw error
+      /*
+       * Rethrown so the caller can react - a submitted review has to be restored, not silently lost - and
+       * named with the session just created, because that is where the caller's work now belongs and it
+       * cannot be inferred reliably from the panel's own state.
+       */
+      throw new FirstSendFailed(
+        error instanceof Error ? error : new Error(String(error)),
+        String(sessionId),
+      )
     }
   }
 

@@ -1,7 +1,7 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { agentSendPayloadSchema } from '@shared/schemas/validation'
-import type { AgentSendPayload, Message } from '@shared/types/agent'
+import type { AgentSendPayload, AgentSendReport, Message } from '@shared/types/agent'
 import type { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { WaggleConfig } from '@shared/types/waggle'
 import * as Effect from 'effect/Effect'
@@ -104,7 +104,7 @@ function handleSendWaggleMessage(
     const runId = waggleRunId(sessionId)
     activeWaggleRuns.register(sessionId, abortController, {})
 
-    yield* Effect.ensuring(
+    return yield* Effect.ensuring(
       runRegisteredWaggleMessage(
         sessionId,
         runId,
@@ -148,6 +148,11 @@ function runRegisteredWaggleMessage(
     })
 
     handleWaggleResult(sessionId, runId, result)
+    /*
+     * Reported back for the same reason the classic path does it: this Effect succeeds whether the turn ran or
+     * was refused, so a caller with work to protect could not tell the difference.
+     */
+    return describeWaggleSendOutcome(result)
   })
 }
 
@@ -160,6 +165,14 @@ function cancelExistingWaggleWork(sessionId: SessionId) {
 function startWaggleStream(sessionId: SessionId, runId: string, runtimeModel: SupportedModelId) {
   startStreamBuffer(sessionId, runtimeModel, 'waggle')
   emitTransportEvent(sessionId, { type: 'agent_start', timestamp: Date.now(), runId })
+}
+
+/** A send that produced no turn was not delivered, whatever the transport did afterwards. */
+function describeWaggleSendOutcome(result: WaggleHandlerResult): AgentSendReport {
+  return matchBy(result, 'outcome')
+    .with('success', () => ({ delivered: true }))
+    .with('aborted', () => ({ delivered: true }))
+    .otherwise((value) => ({ delivered: false, message: value.message, code: value.code }))
 }
 
 function handleWaggleResult(sessionId: SessionId, runId: string, result: WaggleHandlerResult) {

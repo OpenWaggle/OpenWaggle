@@ -4,7 +4,11 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionDetail } from '@shared/types/session'
 import type { WaggleConfig } from '@shared/types/waggle'
-import { MessageDeliveredRunFailed } from '@/features/chat/lib/message-delivery'
+import {
+  clearRunStarted,
+  hasRunStarted,
+  MessageDeliveredRunFailed,
+} from '@/features/chat/lib/message-delivery'
 import { api } from '@/shared/lib/ipc'
 import { createOptimisticUserMessage } from '../lib/useAgentChat.utils'
 import { createPendingRunWaiter, updateMessagesForSession } from './useAgentChat.message-cache'
@@ -130,6 +134,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
 
   function startForegroundRun(targetSessionId: SessionId) {
     const { promise, waiter } = createPendingRunWaiter()
+    clearRunStarted(targetSessionId)
     refs.pendingRunWaiterRef.current = waiter
     refs.foregroundStreamActiveRef.current = true
     refs.foregroundSessionIdRef.current = targetSessionId
@@ -151,10 +156,8 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       ? api.sendWaggleMessage(targetSessionId, payload, params.model, waggleConfig)
       : api.sendMessage(targetSessionId, payload, params.model)
 
-    let delivered = false
     try {
       await sendPromise
-      delivered = true
       await runPromise
     } catch (runError) {
       const normalizedError = normalizeError(runError)
@@ -170,8 +173,16 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       /*
        * Distinguished, because a caller cannot tell these apart otherwise and one of them must not be
        * treated as a lost message: the run failing says nothing about whether the message arrived.
+       *
+       * The evidence is the agent reporting the turn started, not this invoke resolving. Main recovers every
+       * run failure into a value and resolves - including a refusal raised before the message is recorded,
+       * such as a session whose worktree has gone - so "the send resolved" labelled undelivered messages
+       * delivered, and the caller that restores a review then discarded it. Absent that evidence the failure
+       * is reported as undelivered, which is the side that keeps the user's work.
        */
-      throw delivered ? new MessageDeliveredRunFailed(normalizedError) : normalizedError
+      throw hasRunStarted(targetSessionId)
+        ? new MessageDeliveredRunFailed(normalizedError)
+        : normalizedError
     }
   }
 

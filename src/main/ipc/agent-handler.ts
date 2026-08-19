@@ -15,7 +15,7 @@ import {
   toAgentLoopResponseInput,
 } from '@shared/schemas/agent-loop-interaction'
 import { agentSendPayloadSchema } from '@shared/schemas/validation'
-import type { AgentSendPayload } from '@shared/types/agent'
+import type { AgentSendPayload, AgentSendReport } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { AgentTransportEvent } from '@shared/types/stream'
@@ -57,6 +57,18 @@ function clearSessionTransportState(sessionId: SessionId) {
 function emitCancelledCompletion(sessionId: SessionId) {
   clearSessionTransportState(sessionId)
   emitRunCompleted(sessionId)
+}
+
+/** A send that produced no turn was not delivered, whatever the transport did afterwards. */
+function describeSendOutcome(result: AgentRunResult): AgentSendReport {
+  return matchBy(result, 'outcome')
+    .with('success', () => ({ delivered: true }))
+    .with('aborted', () => ({ delivered: true }))
+    .otherwise((value) => ({
+      delivered: false,
+      ...(value.message === undefined ? {} : { message: value.message }),
+      ...(value.code === undefined ? {} : { code: value.code }),
+    }))
 }
 
 function handleRunResult(sessionId: SessionId, result: AgentRunResult) {
@@ -119,6 +131,12 @@ function registerAgentRunHandlers() {
 
         // ─── Transport: respond based on outcome ─────────
         handleRunResult(sessionId, result)
+        /*
+         * Reported back, because main recovers every run failure into a value rather than failing the Effect:
+         * without this the invoke resolved identically whether the turn ran or was refused, and a caller with
+         * work to protect - a submitted review - cleared it on a failure that looked like success.
+         */
+        const report = describeSendOutcome(result)
 
         // ─── Transport: cleanup ──────────────────────────
         cancelAgentLoopInteractionsForRun({ sessionId, runId })
@@ -127,6 +145,7 @@ function registerAgentRunHandlers() {
           clearStreamBuffer(sessionId)
           emitRunCompleted(sessionId)
         }
+        return report
       }),
   )
 

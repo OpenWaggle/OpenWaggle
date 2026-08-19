@@ -1,7 +1,7 @@
 import type { GitFileDiff } from '@shared/types/git'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { MessageDeliveredRunFailed } from '@/features/chat/lib'
+import { FirstSendFailed, MessageDeliveredRunFailed } from '@/features/chat/lib'
 import {
   reviewKeyFor,
   selectReviewThread,
@@ -36,7 +36,7 @@ describe('useDiffReviewActions', () => {
   it('submits once when the same handler instance is invoked twice without a re-render', () => {
     const onSendMessage = vi.fn()
     const { result } = renderHook(() =>
-      useDiffReviewActions(onSendMessage, FILES, REVIEW_KEY, REVIEW_KEY),
+      useDiffReviewActions(onSendMessage, FILES, REVIEW_KEY, () => REVIEW_KEY),
     )
 
     act(() => {
@@ -68,7 +68,7 @@ describe('useDiffReviewActions', () => {
       throw new Error('worktree is gone')
     })
     const { result } = renderHook(() =>
-      useDiffReviewActions(onSendMessage, FILES, REVIEW_KEY, REVIEW_KEY),
+      useDiffReviewActions(onSendMessage, FILES, REVIEW_KEY, () => REVIEW_KEY),
     )
 
     act(() => {
@@ -88,7 +88,7 @@ describe('useDiffReviewActions', () => {
   it('clears the pending review once the send succeeds', async () => {
     const onSendMessage = vi.fn(async () => {})
     const { result } = renderHook(() =>
-      useDiffReviewActions(onSendMessage, FILES, REVIEW_KEY, REVIEW_KEY),
+      useDiffReviewActions(onSendMessage, FILES, REVIEW_KEY, () => REVIEW_KEY),
     )
 
     act(() => {
@@ -104,29 +104,24 @@ describe('useDiffReviewActions', () => {
     expect(selectReviewThread(useReviewStore.getState(), REVIEW_KEY).comments).toEqual([])
   })
 
-  it('follows the panel when the review key changes while the send is in flight', async () => {
+  it('follows the session a failed first send created, keeping the submitted scope', async () => {
     /*
-     * The first send of a session changes the key mid-flight: creating a session sets the active id
-     * synchronously, so the panel moves from the working path to the session id before the send can reject.
-     * Restoring under the key captured at click time wrote the review where nothing was reading, and the
-     * one-shot key migration had already fired against the emptied draft - so a failed first send lost
-     * everything the reviewer had written.
+     * Work submitted before a session exists is filed under the working path, and the session created to
+     * carry it changes where the panel looks. Inferring the new location from what the panel happened to show
+     * when the failure landed got it wrong twice: the scope selection resets for a brand-new session key, so a
+     * Branch-scope review resurfaced under the default scope, and in local mode every session of a project
+     * shares one working path, so the review could land in a different session's conversation. The session id
+     * is carried on the failure instead.
      */
-    const draftKey = '/repo::unstaged'
-    const sessionKey = 'session-1::unstaged'
-    let rejectSend: ((error: Error) => void) | null = null
-    const onSendMessage = vi.fn(
-      () =>
-        new Promise<void>((_resolve, reject) => {
-          rejectSend = reject
-        }),
+    const draftKey = '/repo::branch'
+    const createdSessionKey = 'session-created::branch'
+    const otherSessionKey = 'session-other::unstaged'
+    const onSendMessage = vi.fn(() =>
+      Promise.reject(new FirstSendFailed(new Error('no session worktree'), 'session-created')),
     )
 
-    const { result, rerender } = renderHook(
-      // The draft key is what this panel would use with no session yet, and it does not move here: the same
-      // working tree and scope simply gain a session id. That is the one transition the restore may follow.
-      ({ key }: { key: string }) => useDiffReviewActions(onSendMessage, FILES, key, draftKey),
-      { initialProps: { key: draftKey } },
+    const { result } = renderHook(() =>
+      useDiffReviewActions(onSendMessage, FILES, draftKey, (sessionId) => `${sessionId}::branch`),
     )
 
     act(() => {
@@ -138,61 +133,36 @@ describe('useDiffReviewActions', () => {
     act(() => {
       result.current.onSetSummary('please fix')
     })
+    await result.current.onSubmitReview()
 
-    const submitted = result.current.onSubmitReview()
-    // The panel moves to the session key while the send is still in flight.
-    rerender({ key: sessionKey })
-    act(() => {
-      rejectSend?.(new Error('no session worktree'))
-    })
-    await submitted
-
-    const restored = selectReviewThread(useReviewStore.getState(), sessionKey)
+    const restored = selectReviewThread(useReviewStore.getState(), createdSessionKey)
     expect(restored.comments.map((comment) => comment.content)).toEqual(['look here'])
     expect(restored.summary).toBe('please fix')
+    // Not the session the user may have clicked to in the meantime, and not the draft key.
+    expect(selectReviewThread(useReviewStore.getState(), otherSessionKey).comments).toEqual([])
+    expect(selectReviewThread(useReviewStore.getState(), draftKey).comments).toEqual([])
   })
 
-  it('does not follow a scope switch, which would move the review into another diff', async () => {
-    /*
-     * "The key changed" is not on its own a reason to follow. It also changes for a scope tab, a base ref, a
-     * turn, a session switch and a project switch, and following those *moves* the thread: comments and line
-     * anchors taken from one diff would sit pending in another, or one session's review in another session's
-     * conversation - which is what keying reviews was introduced to prevent.
-     */
-    const unstagedKey = '/repo::unstaged'
-    const stagedKey = '/repo::staged'
-    let rejectSend: ((error: Error) => void) | null = null
-    const onSendMessage = vi.fn(
-      () =>
-        new Promise<void>((_resolve, reject) => {
-          rejectSend = reject
-        }),
-    )
-
-    const { result, rerender } = renderHook(
-      ({ key }: { key: string }) => useDiffReviewActions(onSendMessage, FILES, key, key),
-      { initialProps: { key: unstagedKey } },
+  it('leaves the review where it was when the send failed without creating a session', async () => {
+    const onSendMessage = vi.fn(() => Promise.reject(new Error('send failed')))
+    const { result } = renderHook(() =>
+      useDiffReviewActions(onSendMessage, FILES, REVIEW_KEY, () => 'session-x::unstaged'),
     )
 
     act(() => {
       result.current.onAddToReview(
         { filePath: 'src/app.ts', line: 1, endLine: 1, lineType: 'add' },
-        'scoped comment',
+        'stay here',
       )
     })
-
-    const submitted = result.current.onSubmitReview()
-    // The user clicks the other scope tab while the send is in flight.
-    rerender({ key: stagedKey })
-    act(() => {
-      rejectSend?.(new Error('send failed'))
-    })
-    await submitted
+    await result.current.onSubmitReview()
 
     expect(
-      selectReviewThread(useReviewStore.getState(), unstagedKey).comments.map((c) => c.content),
-    ).toEqual(['scoped comment'])
-    expect(selectReviewThread(useReviewStore.getState(), stagedKey).comments).toEqual([])
+      selectReviewThread(useReviewStore.getState(), REVIEW_KEY).comments.map((c) => c.content),
+    ).toEqual(['stay here'])
+    expect(selectReviewThread(useReviewStore.getState(), 'session-x::unstaged').comments).toEqual(
+      [],
+    )
   })
 
   it('keeps a review cleared when the agent received it and only the run failed', async () => {
@@ -207,7 +177,7 @@ describe('useDiffReviewActions', () => {
     )
     const onReviewSendFailed = vi.fn()
     const { result } = renderHook(() =>
-      useDiffReviewActions(onSendMessage, FILES, REVIEW_KEY, REVIEW_KEY, onReviewSendFailed),
+      useDiffReviewActions(onSendMessage, FILES, REVIEW_KEY, () => REVIEW_KEY, onReviewSendFailed),
     )
 
     act(() => {

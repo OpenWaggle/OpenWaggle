@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -182,5 +182,91 @@ describe('commitGit against a linked worktree', () => {
     const status = await git(repository, ['status', '--porcelain=v1'])
     expect(status).not.toContain('kept.txt')
     expect(status).toContain('untouched.txt')
+  })
+
+  /**
+   * The rename source is added to the commit so the deletion is covered - but only while nothing occupies
+   * that path. `git commit -- <paths>` commits the *working tree* content of the paths it is given, so a new
+   * file the user created at the old name would be committed too, and staging it first also destroyed the
+   * rename record in the index. Both were verified against real git. When the path is occupied there is no
+   * deletion left to express, and the honest commit is the target alone.
+   */
+  it('does not commit an unselected file left at a rename source path', async () => {
+    const { repository } = await createRepositoryWithWorktree()
+    await writeFile(path.join(repository, 'old.txt'), 'original\n')
+    await git(repository, ['add', '--all'])
+    await git(repository, ['commit', '-m', 'add old'])
+
+    await git(repository, ['mv', 'old.txt', 'new.txt'])
+    // The user creates something new at the old name and does NOT select it.
+    await writeFile(path.join(repository, 'old.txt'), 'unselected secret\n')
+
+    const result = await commitGit(repository, {
+      message: 'move the file',
+      amend: false,
+      paths: ['new.txt'],
+    })
+
+    expect(result.ok).toBe(true)
+    const committed = await git(repository, ['show', '--name-only', '--format=', 'HEAD'])
+    expect(committed).toContain('new.txt')
+    expect(committed).not.toContain('old.txt')
+    expect((await git(repository, ['show', 'HEAD:old.txt'])).trim()).toBe('original')
+    // Still the user's to deal with, and still their content.
+    expect(await readFile(path.join(repository, 'old.txt'), 'utf8')).toBe('unselected secret\n')
+  })
+
+  /**
+   * A directory where a rename started is the same question with a worse failure: staging that path swept in
+   * everything under it, and a pathspec naming it could fail the whole commit.
+   */
+  it('commits a rename when a directory occupies the source path', async () => {
+    const { repository } = await createRepositoryWithWorktree()
+    await writeFile(path.join(repository, 'notes.txt'), 'notes\n')
+    await git(repository, ['add', '--all'])
+    await git(repository, ['commit', '-m', 'add notes'])
+
+    await git(repository, ['mv', 'notes.txt', 'notes-moved.txt'])
+    await mkdir(path.join(repository, 'notes.txt'), { recursive: true })
+    await writeFile(path.join(repository, 'notes.txt', 'inside.txt'), 'unselected\n')
+
+    const result = await commitGit(repository, {
+      message: 'move notes',
+      amend: false,
+      paths: ['notes-moved.txt'],
+    })
+
+    expect(result.ok).toBe(true)
+    const committed = await git(repository, ['show', '--name-only', '--format=', 'HEAD'])
+    expect(committed).toContain('notes-moved.txt')
+    expect(committed).not.toContain('inside.txt')
+  })
+
+  /**
+   * `git status` reports a copy with the same `old -> new` shape as a rename when `status.renames=copies`, but
+   * a copy's source is not deleted - so committing it would commit a file the user did not select. The
+   * occupancy check settles this for the same reason it settles a re-created rename source.
+   */
+  it('does not commit a copy source', async () => {
+    const { repository } = await createRepositoryWithWorktree()
+    await git(repository, ['config', 'status.renames', 'copies'])
+    await writeFile(path.join(repository, 'template.txt'), 'shared body\n')
+    await git(repository, ['add', '--all'])
+    await git(repository, ['commit', '-m', 'add template'])
+
+    await writeFile(path.join(repository, 'copy.txt'), 'shared body\n')
+    // The source is edited but NOT selected.
+    await writeFile(path.join(repository, 'template.txt'), 'shared body\nedited\n')
+
+    const result = await commitGit(repository, {
+      message: 'add a copy',
+      amend: false,
+      paths: ['copy.txt'],
+    })
+
+    expect(result.ok).toBe(true)
+    const committed = await git(repository, ['show', '--name-only', '--format=', 'HEAD'])
+    expect(committed).toContain('copy.txt')
+    expect(committed).not.toContain('template.txt')
   })
 })

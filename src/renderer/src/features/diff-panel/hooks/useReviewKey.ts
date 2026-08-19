@@ -33,5 +33,11 @@ export function useReviewKey(input: {
     if (cameFromDraft) migrateReview(draftKey, reviewKey)
   }, [draftKey, reviewKey, migrateReview])
 
-  return { reviewKey, draftKey }
+  /*
+   * The scope is carried deliberately: a review written in the Branch scope must not resurface under the
+   * default scope just because a brand-new session key has no scope selection recorded yet.
+   */
+  const keyForSession = (sessionId: string) => reviewKeyFor(sessionId, input.selection)
+
+  return { reviewKey, draftKey, keyForSession }
 }
