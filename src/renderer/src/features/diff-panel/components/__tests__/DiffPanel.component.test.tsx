@@ -42,6 +42,7 @@ function statusSliceFor(workingPath: string, status: ReturnType<typeof gitStatus
 describe('Diff panel components', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    vi.mocked(api.listGitBranches).mockResolvedValue({ currentBranch: 'main', branches: [] })
     useGitStore.setState({ statusByWorkingPath: {} })
     useReviewStore.setState({ byReviewKey: {} })
     useUIStore.setState({ toastMessage: null, toastData: null })
@@ -49,17 +50,22 @@ describe('Diff panel components', () => {
 
   it('stages every change and refreshes the diff and Git status', async () => {
     vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] })
-    vi.mocked(api.getGitStatus).mockResolvedValue(
-      gitStatus([
-        {
-          path: 'src/app.ts',
-          status: 'modified',
-          staged: true,
-          unstaged: false,
-          additions: 1,
-          deletions: 1,
-        },
-      ]),
+    /*
+     * The status changes as a result of staging, so the mock has to as well: the panel now loads the
+     * working tree's status itself, and "Stage all" is correctly disabled when nothing is unstaged.
+     * A single static answer described only the post-stage state and relied on the panel not knowing
+     * the status before the click.
+     */
+    const changedFile = (staged: boolean) => ({
+      path: 'src/app.ts',
+      status: 'modified' as const,
+      staged,
+      unstaged: !staged,
+      additions: 1,
+      deletions: 1,
+    })
+    vi.mocked(api.getGitStatus).mockImplementation(async () =>
+      gitStatus([changedFile(vi.mocked(api.stageAllGitChanges).mock.calls.length > 0)]),
     )
     vi.mocked(api.stageAllGitChanges).mockResolvedValue({
       ok: true,
@@ -109,15 +115,36 @@ describe('Diff panel components', () => {
 
     await waitFor(() => expect(api.revertAllGitChanges).toHaveBeenCalledWith('/repo'))
     expect(api.getGitDiff).toHaveBeenCalledOnce()
-    expect(api.getGitStatus).not.toHaveBeenCalled()
+    /*
+     * Exactly one status read: the one the panel performs on mount to know what a commit would
+     * cover. A cancelled action must not trigger a second. This assertion used to be "never called",
+     * which only held while the panel relied on someone else loading that status.
+     */
+    expect(api.getGitStatus).toHaveBeenCalledOnce()
     expect(useUIStore.getState().toastData).toBeNull()
   })
 
   it('reverts confirmed changes and refreshes the diff and Git status', async () => {
     vi.mocked(api.getGitDiff)
       .mockResolvedValueOnce({ ok: true, files: [fileDiff()] })
-      .mockResolvedValueOnce({ ok: true, files: [] })
-    vi.mocked(api.getGitStatus).mockResolvedValue(gitStatus([]))
+      // Every later load sees the reverted tree; a bare `Once` chain would resolve undefined.
+      .mockResolvedValue({ ok: true, files: [] })
+    // Dirty until the revert runs: the panel loads this status, and "Revert all" is correctly
+    // disabled for a clean tree, so a single clean answer described only the post-revert state.
+    vi.mocked(api.getGitStatus).mockImplementation(async () =>
+      vi.mocked(api.revertAllGitChanges).mock.calls.length > 0
+        ? gitStatus([])
+        : gitStatus([
+            {
+              path: 'src/app.ts',
+              status: 'modified',
+              staged: false,
+              unstaged: true,
+              additions: 1,
+              deletions: 1,
+            },
+          ]),
+    )
     vi.mocked(api.revertAllGitChanges).mockResolvedValue({
       ok: true,
       message: 'All eligible working-tree changes reverted.',
@@ -134,9 +161,10 @@ describe('Diff panel components', () => {
     await screen.findByRole('button', { name: /select src\/app.ts/ })
     fireEvent.click(screen.getByRole('button', { name: 'Revert all' }))
 
+    // Wait for the reload the action triggers before asserting on what it rendered.
+    await waitFor(() => expect(api.getGitDiff).toHaveBeenCalledTimes(2))
     await screen.findByText('No changes to review')
     expect(api.revertAllGitChanges).toHaveBeenCalledWith('/repo')
-    expect(api.getGitDiff).toHaveBeenCalledTimes(2)
     expect(api.getGitStatus).toHaveBeenCalledWith('/repo')
     expect(screen.getByRole('button', { name: 'Revert all' })).toBeDisabled()
     expect(useUIStore.getState().toastData).toMatchObject({
@@ -253,7 +281,15 @@ describe('Diff panel components', () => {
 
     await waitFor(() => expect(api.stageAllGitChanges).toHaveBeenCalledWith('/repo-a'))
     expect(api.getGitDiff).toHaveBeenCalledTimes(2)
-    expect(api.getGitStatus).not.toHaveBeenCalled()
+    /*
+     * One status read per working path the panel showed - the mount load that tells it what a commit
+     * would cover - and none attributable to the settled action. The old assertion was "never
+     * called", which only held while the panel depended on someone else loading that status.
+     */
+    expect(vi.mocked(api.getGitStatus).mock.calls.map(([path]) => path)).toEqual([
+      '/repo-a',
+      '/repo-b',
+    ])
     expect(useUIStore.getState().toastData).toBeNull()
   })
 

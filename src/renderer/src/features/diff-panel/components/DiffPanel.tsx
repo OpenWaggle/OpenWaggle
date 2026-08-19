@@ -12,6 +12,7 @@ import {
   useDiffScopeStore,
 } from '@/features/diff-panel/state/diff-scope-store'
 import { useCombinedVcsStatus, useStackedGitActions } from '@/features/git'
+import { useUIStore } from '@/shell/ui-store'
 import { useBaseRefChoices } from '../hooks/useBaseRefChoices'
 import { useCommitPaths } from '../hooks/useCommitPaths'
 import { useDiffPanelDiffs } from '../hooks/useDiffPanelDiffs'
@@ -55,6 +56,30 @@ function selectScope(input: {
   input.selectGitScope(input.scopeKey, input.scope)
 }
 
+const NOTHING_TO_COMMIT_MESSAGE = 'No changes in this working tree to commit.'
+
+/**
+ * Dispatch a quick action, collecting a commit message first when one is needed.
+ *
+ * Nothing to commit is reported rather than dispatched: an empty set produced a `nothing-to-commit`
+ * failure whose message blamed the user for not selecting files, with no dialog shown - an enabled
+ * button that silently did nothing.
+ */
+function requestStackedAction(input: {
+  readonly action: GitStackedAction
+  readonly commitPaths: readonly string[]
+  readonly run: (action: GitStackedAction, options?: { paths: readonly string[] }) => void
+  readonly showToast: (message: string, variant: 'error') => void
+  readonly onNeedsMessage: (action: GitStackedAction) => void
+}) {
+  if (!input.action.startsWith('commit')) {
+    input.run(input.action, { paths: input.commitPaths })
+    return
+  }
+  if (input.commitPaths.length === 0) input.showToast(NOTHING_TO_COMMIT_MESSAGE, 'error')
+  else input.onNeedsMessage(input.action)
+}
+
 /** Open a change request in the user's browser, never in an Electron window. */
 function openChangeRequestUrl(url: string | undefined) {
   if (url) window.open(url, '_blank', 'noopener')
@@ -73,7 +98,8 @@ export function DiffPanel({
   const selectBranchBaseRef = useDiffScopeStore((s) => s.selectBranchBaseRef)
   const selectTurn = useDiffScopeStore((s) => s.selectTurn)
   const scopeKey = sessionId ?? workingPath ?? ''
-  const commitPaths = useCommitPaths(workingPath)
+  const commitPaths = useCommitPaths(workingPath, refreshToken)
+  const showToast = useUIStore((state) => state.showToast)
   const selection: DiffScopeSelection = selectThreadDiffScopeSelection(
     scopeByThreadKey,
     scopeKey || null,
@@ -116,16 +142,6 @@ export function DiffPanel({
    * Commit-bearing actions must collect an explicit message first (review B2);
    * everything else dispatches immediately.
    */
-  function requestStackedAction(action: GitStackedAction) {
-    // Only ask for a message when there is something to commit: a dialog reading "0 changed files
-    // will be committed" collects text that main would discard.
-    if (action.startsWith('commit') && commitPaths.length > 0) {
-      setPendingCommitAction(action)
-      return
-    }
-    void stackedActions.run(action, { paths: commitPaths })
-  }
-
   return (
     <div className="relative flex flex-col size-full bg-diff-bg">
       {workingPath ? (
@@ -167,7 +183,14 @@ export function DiffPanel({
         quickAction={{
           status: vcsStatus,
           isBusy: stackedActions.isRunning,
-          onRunAction: (action) => requestStackedAction(action),
+          onRunAction: (action) =>
+            requestStackedAction({
+              action,
+              commitPaths,
+              run: stackedActions.run,
+              showToast,
+              onNeedsMessage: setPendingCommitAction,
+            }),
           onPull: () => stackedActions.run('pull'),
           onOpenChangeRequest: () => openChangeRequestUrl(vcsStatus?.changeRequest?.url),
           onPublish: () => stackedActions.run('push'),

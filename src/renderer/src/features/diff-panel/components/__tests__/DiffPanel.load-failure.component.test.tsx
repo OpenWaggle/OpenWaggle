@@ -25,6 +25,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 describe('diff load failures', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    vi.mocked(api.listGitBranches).mockResolvedValue({ currentBranch: 'main', branches: [] })
     useGitStore.setState({ statusByWorkingPath: {} })
     useReviewStore.setState({ byReviewKey: {} })
   })

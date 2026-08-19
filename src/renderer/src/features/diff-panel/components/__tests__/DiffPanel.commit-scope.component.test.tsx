@@ -59,7 +59,21 @@ describe('commit scope', () => {
     useReviewStore.setState({ byReviewKey: {} })
     // Both loaders need a value: an unmocked one returns undefined and the hook awaits it.
     vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [] })
-    vi.mocked(api.getGitStatus).mockResolvedValue(gitStatus([]))
+    /*
+     * The panel loads this itself, so it must agree with the seeded store slice: it is the same tree.
+     */
+    vi.mocked(api.getGitStatus).mockResolvedValue(
+      gitStatus([
+        {
+          path: WORKING_TREE_FILE,
+          status: 'modified',
+          staged: false,
+          unstaged: true,
+          additions: 1,
+          deletions: 0,
+        },
+      ]),
+    )
     vi.mocked(api.listGitBranches).mockResolvedValue({ currentBranch: 'main', branches: [] })
     /*
      * The quick action needs a real status: without one it renders disabled with a hint, so the
@@ -134,5 +148,32 @@ describe('commit scope', () => {
     const call = vi.mocked(api.runStackedGitAction).mock.calls.at(0)
     if (!call) throw new Error('expected the stacked action to have been invoked')
     expect(call[1].paths).toEqual([WORKING_TREE_FILE])
+  })
+
+  it('loads the working tree itself rather than depending on a pre-populated store', async () => {
+    /*
+     * Nothing in the diff panel populated the git store: the entry appears as a side effect of the
+     * sidebar's per-session indicators, which iterate the session *list*. For a draft session, or
+     * before the sidebar caught up, the panel read an empty slice and dispatched a commit with no
+     * paths - an enabled button that showed no dialog and failed with a message blaming the user for
+     * not selecting files.
+     */
+    useGitStore.setState({ statusByWorkingPath: {} })
+    vi.mocked(api.getGitBranchDiff).mockResolvedValue({ ok: true, files: [] })
+
+    render(
+      <DiffPanel
+        workingPath={WORKING_PATH}
+        repositoryPath={RepositoryPath('/repo')}
+        onSendMessage={vi.fn()}
+      />,
+    )
+
+    await waitFor(() => expect(api.getGitStatus).toHaveBeenCalledWith(WORKING_PATH))
+
+    fireEvent.click(await screen.findByRole('button', { name: /Commit/ }))
+    expect(
+      await screen.findByText('1 changed file in the working tree will be committed.'),
+    ).toBeInTheDocument()
   })
 })

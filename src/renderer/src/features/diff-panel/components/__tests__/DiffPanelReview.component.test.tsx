@@ -46,6 +46,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 describe('Diff panel review flow', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    vi.mocked(api.listGitBranches).mockResolvedValue({ currentBranch: 'main', branches: [] })
     useGitStore.setState({ statusByWorkingPath: {} })
     useReviewStore.setState({ byReviewKey: {} })
     useUIStore.setState({ toastMessage: null, toastData: null })

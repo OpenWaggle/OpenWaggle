@@ -65,7 +65,19 @@ describe('diff refresh', () => {
     useDiffScopeStore.setState({ byThreadKey: {} })
     useReviewStore.setState({ byReviewKey: {} })
     vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] })
-    vi.mocked(api.getGitStatus).mockResolvedValue(gitStatus([]))
+    // The panel loads this itself; it must match the seeded store slice - the same working tree.
+    vi.mocked(api.getGitStatus).mockResolvedValue(
+      gitStatus([
+        {
+          path: 'src/app.ts',
+          status: 'modified',
+          staged: false,
+          unstaged: true,
+          additions: 1,
+          deletions: 0,
+        },
+      ]),
+    )
     vi.mocked(api.listGitBranches).mockResolvedValue({ currentBranch: 'main', branches: [] })
     vi.mocked(api.listTurnCheckpoints).mockResolvedValue([])
     vi.mocked(api.getLocalVcsStatus).mockResolvedValue({
