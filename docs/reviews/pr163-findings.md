@@ -72,3 +72,46 @@ Not fixed, with reasons:
   templates, so a rename that changed the answer would fail there.
 - **T3-4.** Obsolete: it described `evilMergePaths`, which no longer exists — the exemption now compares
   blobs against the base, and the paths it reads already come from a `-z` read.
+
+## Round four: verification
+
+A fourth round was asked to verify the round-three fixes rather than hunt afresh. It found 26 issues, of
+which four mattered a great deal — and one that says more than the rest: all three reviewers independently
+reported an empty `name.txt` committed at the repository root. A shell probe had created it (`echo x >
+"weird -> name.txt"` splits on the unquoted `>`) and `git add -A` swept it in. Removed in `6c4ce8c1`.
+
+Resolved:
+
+| Finding | Substance |
+| --- | --- |
+| V1-1 | A merge reverting a released package file escaped release intent entirely |
+| V1-2, V3-3, V3-4 | The path-quoting fix missed the numstat fallback and every `diff --patch` reader |
+| V1-3, V1-6 | Numstat rename parsing, including the form that removes a path component |
+| V1-4 | `networkGitOptions` was used by two callers; push, pull and the status fetch were unbounded |
+| V1-5 | The *recorded* worktree path was still adopted on existence alone |
+| V1-9 | A rationale listing callers that no longer reach the code |
+| V2-1 | The review migration claimed another session's pending review |
+| V2-2 | A review submitted as a session's first message was destroyed on failure |
+| V2-3 | "Try again" on a failed turn diff had become inert |
+| V2-4 | A working tree not yet read was reported as clean |
+| V2-5 | The commit dialog counted a rename as two files |
+| V2-6 | A comment claimed a comparison the code does not make — the claim was corrected, not the code |
+| V3-1 | Templates were located by taking the first glob hit in the pnpm store |
+| V3-2 | The installer config reader could not read a CRLF file |
+| V3-5 | The exemption refused a sync merge carrying a package deletion |
+| V3-6 | `app-settings.md` still named the legacy session branch |
+| V3-8 | Comment stripping truncated code inside a multi-line template literal |
+
+Not fixed, with reasons:
+
+- **V1-7 (paths git escapes regardless of `core.quotePath`).** A newline in a filename is still reported
+  escaped, because git has no unescaped porcelain v1 form for it. Handling it means moving to `-z` parsing
+  throughout, which is a larger change than this branch should carry; `core.quotePath=false` covers every
+  path that is merely non-ASCII, which is the case users actually hit.
+- **V1-8 (four fixes without their own test), V2-8.** Each is covered by a test written for the finding it
+  accompanies; no test was added purely to raise a count. `timedOut` is carried but not yet read by a caller,
+  which is deliberate — it exists so a caller *can* distinguish a kill from a failure.
+- **V1-10, V2-8, V3-7 (the stray `name.txt`).** Fixed: the file is gone.
+- **V3-2's sibling YAML forms (anchors, aliases).** Not handled, and reported as such rather than guessed at:
+  an anchor would need a YAML parser, and adding one to a guard script buys less than it costs.
+

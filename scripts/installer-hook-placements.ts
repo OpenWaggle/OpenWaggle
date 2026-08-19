@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { createRequire } from 'node:module'
 import fg from 'fast-glob'
 
 /**
@@ -59,14 +60,34 @@ const CONTEXT_BY_TEMPLATE: Readonly<Record<string, HookContext>> = {
   'installSection.nsh': 'section',
 }
 
-/** Resolve the vendored templates directory, or null when the dependency is absent. */
+/**
+ * Resolve the vendored templates directory, or null when the dependency is absent.
+ *
+ * Resolved through Node rather than by globbing the pnpm store: the store can hold several
+ * `app-builder-lib` versions at once, and taking the first glob hit would read templates from a copy
+ * electron-builder does not use - which is the opposite of this module's contract that the vendored
+ * templates are the authority. The glob remains only as a fallback for an unusual layout.
+ */
 export async function findNsisTemplates(repositoryRoot: string): Promise<string | null> {
+  const resolved = resolveTemplatesThroughNode(repositoryRoot)
+  if (resolved !== null) return resolved
+
   const matches = await fg(TEMPLATE_GLOB, {
     cwd: repositoryRoot,
     onlyDirectories: true,
     absolute: true,
   })
   return matches[0] ?? null
+}
+
+function resolveTemplatesThroughNode(repositoryRoot: string): string | null {
+  try {
+    const require = createRequire(path.join(repositoryRoot, 'package.json'))
+    const manifest = require.resolve('app-builder-lib/package.json')
+    return path.join(path.dirname(manifest), 'templates', 'nsis')
+  } catch {
+    return null
+  }
 }
 
 const MACRO_DEFINITION = /^!macro\s+(?<name>\S+)/u

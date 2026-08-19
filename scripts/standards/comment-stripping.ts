@@ -31,18 +31,42 @@ function withoutTrailingComment(line: string) {
   return line
 }
 
+/**
+ * Lines that sit inside a multi-line template literal.
+ *
+ * Trailing-comment stripping tracks quotes within a line, so a line *inside* a template literal opened
+ * earlier was scanned as if it were code: a `//` in it - a URL, most obviously - truncated real code before
+ * the convention checks ever saw it. Counting unescaped backticks tells us which lines to leave alone.
+ */
+const BACKTICKS_PER_PAIR = 2
+
+function templateLiteralLineFlags(lines: readonly string[]) {
+  const flags: boolean[] = []
+  let inside = false
+  for (const line of lines) {
+    flags.push(inside)
+    const backticks = (line.match(/(?<!\\)`/gu) ?? []).length
+    if (backticks % BACKTICKS_PER_PAIR === 1) inside = !inside
+  }
+  return flags
+}
+
 export function withoutCommentLines(contents: string) {
-  return contents
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .split('\n')
-    .filter((line) => {
-      const trimmed = line.trimStart()
-      return !trimmed.startsWith('//') && !trimmed.startsWith('*')
-    })
-    /*
-     * Trailing comments go too. The prefix check now matches anywhere in a line, so documenting the
-     * convention beside code became a violation - which the earlier quote-anchored forms tolerated.
-     */
-    .map(withoutTrailingComment)
-    .join('\n')
+  const withoutBlocks = contents.replace(/\/\*[\s\S]*?\*\//g, '').split('\n')
+  const withoutWholeLineComments = withoutBlocks.filter((line) => {
+    const trimmed = line.trimStart()
+    return !trimmed.startsWith('//') && !trimmed.startsWith('*')
+  })
+  return stripTrailingComments(withoutWholeLineComments).join('\n')
+}
+
+/**
+ * Strip trailing comments, leaving the interior of multi-line template literals alone.
+ *
+ * The prefix check matches anywhere in a line, so documenting the convention beside code would otherwise be
+ * a violation - but stripping inside a template literal deletes real code.
+ */
+function stripTrailingComments(lines: readonly string[]) {
+  const insideTemplate = templateLiteralLineFlags(lines)
+  return lines.map((line, index) => (insideTemplate[index] === true ? line : withoutTrailingComment(line)))
 }

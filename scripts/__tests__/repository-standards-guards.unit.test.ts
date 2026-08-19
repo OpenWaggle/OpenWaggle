@@ -96,4 +96,15 @@ describe('SessionSummaryRow column detection', () => {
 
     expect(collectSessionSummaryColumnViolations(file, contents)).toEqual([])
   })
+
+  it('does not truncate code inside a multi-line template literal', () => {
+    /*
+     * Trailing-comment stripping tracked quotes within a line, so a line *inside* a template literal opened
+     * earlier was scanned as code: a `//` in it - a URL, most obviously - deleted the rest of a real line
+     * before the convention checks ever saw it.
+     */
+    const source = ['const help = `', '  See https://example.com/docs for details', '`'].join('\n')
+
+    expect(withoutCommentLines(source)).toContain('https://example.com/docs for details')
+  })
 })

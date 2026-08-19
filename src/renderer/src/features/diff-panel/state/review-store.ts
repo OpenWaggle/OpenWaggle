@@ -177,9 +177,9 @@ export const useReviewStore = create<ReviewState>((set) => ({
          */
         comments: dedupeById([...comments, ...thread.comments]),
         /*
-         * The submitted summary wins over an empty draft, and a draft written during the flight wins
-         * over the submitted one - but only when it is actually different, so restoring cannot
-         * silently discard the text that was sent.
+         * A draft written while the send was in flight wins; otherwise the submitted summary comes back.
+         * This is unchanged behaviour, kept deliberately - the reviewer's point was that a summary is only
+         * ever "lost" here in the sense that the user replaced it themselves.
          */
         summary: chooseSummary(thread.summary, summary),
       })),
