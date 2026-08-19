@@ -1,6 +1,6 @@
 import type { SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
-import type { SessionWorktreePlan } from '@shared/types/session'
+import type { PinnedSessionMove, SessionWorktreePlan } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { cleanupSessionRun } from '../agent/session-cleanup'
 import { dismissInterruptedAgentRun } from '../application/agent-run-service'
@@ -53,6 +53,42 @@ function registerSessionDetailsReadHandlers() {
     Effect.gen(function* () {
       const repo = yield* SessionProjectionRepository
       return yield* repo.getTurnDiff(id, turnId)
+    }),
+  )
+}
+
+/**
+ * Pinned session handlers (issue #97).
+ *
+ * Pins are read as one list rather than per session: the Pinned section renders in
+ * Manual order, so the renderer needs the order, not a per-session boolean.
+ */
+function registerSessionPinHandlers() {
+  typedHandle('sessions:pins:list', () =>
+    Effect.gen(function* () {
+      const repo = yield* SessionProjectionRepository
+      return [...(yield* repo.listPinnedSessions())]
+    }),
+  )
+
+  typedHandle('sessions:pins:pin', (_event, id: SessionId) =>
+    Effect.gen(function* () {
+      const repo = yield* SessionProjectionRepository
+      yield* repo.pinSession(id)
+    }),
+  )
+
+  typedHandle('sessions:pins:unpin', (_event, id: SessionId) =>
+    Effect.gen(function* () {
+      const repo = yield* SessionProjectionRepository
+      yield* repo.unpinSession(id)
+    }),
+  )
+
+  typedHandle('sessions:pins:move', (_event, move: PinnedSessionMove) =>
+    Effect.gen(function* () {
+      const repo = yield* SessionProjectionRepository
+      yield* repo.movePinnedSession(move)
     }),
   )
 }
@@ -148,6 +184,7 @@ function registerSessionMutationHandlers() {
 
 export function registerSessionDetailsHandlers(): void {
   registerSessionDetailsReadHandlers()
+  registerSessionPinHandlers()
   registerSessionCreationHandlers()
   registerSessionMutationHandlers()
 }
