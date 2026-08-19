@@ -4,6 +4,7 @@ import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { GitCommitFailure, GitCommitPayload, GitCommitResult } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
 import { typedHandle } from '../typed-ipc'
+import { findOmittedPaths, stagedPaths, undoIncompleteCommit } from './commit-verification'
 import { isGitRepository, projectPathSchema, runGit } from './shared'
 import { GIT_LITERAL_PATHS, GIT_RAW_PATHS } from './status-constants'
 import { invalidateGitStatusCache } from './status-handler'
@@ -71,14 +72,13 @@ export async function commitGit(
    */
   const projectPath = (await resolveRepositoryRoot(rawProjectPath)) ?? rawProjectPath
   const renames = await resolveSelectedRenames(projectPath, payload.paths)
-  const caseOnly = (await filesystemIgnoresCase(projectPath))
-    ? renames.find(hasCaseOnlyComponent)
-    : undefined
-  if (caseOnly) return caseOnlyRenameFailure(caseOnly)
   const paths = expandRenameSources(payload.paths, renames)
 
   const stageFailure = await stageCommitPaths(projectPath, paths)
   if (stageFailure) return stageFailure
+
+  // Recorded before the commit, so what the commit actually did can be compared against what was asked.
+  const stagedBefore = await stagedPaths(projectPath)
 
   const commitArgs = [...GIT_LITERAL_PATHS, 'commit', '-m', message]
   if (payload.amend) {
@@ -92,6 +92,11 @@ export async function commitGit(
   if (commitResult.code !== 0) {
     return mapCommitFailure(`${commitResult.stderr}\n${commitResult.stdout}`)
   }
+
+  const omission = payload.amend
+    ? null
+    : await findOmittedPaths(projectPath, { intended: paths, stagedBefore })
+  if (omission) return await undoIncompleteCommit(projectPath, omission)
 
   const hashResult = await runGit(projectPath, ['rev-parse', 'HEAD'])
   const commitHash = hashResult.code === 0 ? hashResult.stdout.trim() : ''
@@ -116,56 +121,6 @@ async function validateCommitPreflight(projectPath: string, message: string) {
   return mergeCheck.code === 0
     ? commitFailure('merge-in-progress', 'Resolve the merge in progress before committing.')
     : null
-}
-
-/**
- * A rename that only changes letter case, anywhere in the path.
- *
- * These cannot be committed through a pathspec on a case-insensitive filesystem, and the two shapes fail
- * differently. A case-only *file* rename is refused outright with "will not add file alias". A case-only
- * *directory* component is worse: git's pathspec matching resolves the new spelling onto the old index entry,
- * `add` and `commit` both exit 0, and the rename is silently left out of the commit while staying staged - so
- * the commit reported success while omitting the change, and the stacked action would push it. Verified against
- * real git for both shapes. Detected up front so neither can pass as success.
- *
- * Any *component* counts, not only the whole path: changing a directory's case while also renaming the file
- * leaves the conflated directory component in place, which is the same silent omission.
- *
- * Only where the filesystem actually conflates the two spellings - see {@link filesystemIgnoresCase}. On a
- * case-sensitive filesystem this is an ordinary rename that commits perfectly well, so refusing it there would
- * break something that works.
- */
-function hasCaseOnlyComponent(rename: { readonly from: string; readonly to: string }) {
-  const from = rename.from.split('/')
-  const to = rename.to.split('/')
-  if (from.length !== to.length) return false
-  return from.some(
-    (segment, index) => segment !== to[index] && segment.toLowerCase() === to[index]?.toLowerCase(),
-  )
-}
-
-/**
- * Whether git considers this filesystem case-insensitive.
- *
- * Asked of git rather than inferred, because git sets `core.ignorecase` when the repository is created by
- * probing the filesystem, and it is git's own pathspec matching that conflates the spellings. The previous
- * gate - "something still sits at the source path" - was not this question: on a case-sensitive filesystem a
- * source is occupied for the ordinary reasons the occupancy check exists for, and each of those would have
- * refused a commit git performs happily.
- */
-async function filesystemIgnoresCase(projectPath: string) {
-  const setting = await runGit(projectPath, ['config', '--get', 'core.ignorecase'])
-  return setting.code === 0 && setting.stdout.trim() === 'true'
-}
-
-function caseOnlyRenameFailure(rename: {
-  readonly from: string
-  readonly to: string
-}): GitCommitFailure {
-  return commitFailure(
-    'case-only-rename',
-    `Git cannot commit "${rename.from}" to "${rename.to}" on this filesystem, because they differ only in letter case. Commit it from the command line, or rename through a temporary name.`,
-  )
 }
 
 interface SelectedRename {
@@ -306,6 +261,3 @@ export function registerGitCommitHandlers(): void {
     }),
   )
 }
-
-/** Exposed for tests: which renames a case-insensitive filesystem cannot express through a pathspec. */
-export const hasCaseOnlyComponentForTests = hasCaseOnlyComponent

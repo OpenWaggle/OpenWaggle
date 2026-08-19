@@ -4,7 +4,6 @@ import {
   setLastAgentErrorInfo,
 } from '@/features/chat/lib/agent-error-store'
 import { applyAgentTransportEvent } from '@/features/chat/lib/chat-stream-state'
-import { markRunStarted } from '@/features/chat/lib/message-delivery'
 import { updateMessagesForSession } from './useAgentChat.message-cache'
 import type { AgentEventPayload, AgentStreamEventContext } from './useAgentChat.types'
 
@@ -32,8 +31,6 @@ function setReadyIfNoActiveRun(context: AgentStreamEventContext) {
 }
 
 function handleAgentStartEvent(context: AgentStreamEventContext) {
-  // The agent has the message: this is the only honest evidence of delivery available to the renderer.
-  markRunStarted(context.subscribedSessionId)
   signalStreamChange(context)
   clearLastAgentErrorInfo(context.subscribedSessionId)
   context.setError(undefined)

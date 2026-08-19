@@ -44,4 +44,21 @@ describe('send outcome reporting', () => {
       code: 'worktree-missing',
     })
   })
+
+  it('reports delivery for a run that failed after the turn began', () => {
+    /*
+     * A provider error or a rate limit mid-turn is a failure *after* the message arrived, and main marks that
+     * with `transportEmitted`. Reporting it as a refusal made a caller restore a review the agent already held
+     * and offer it for a second submission - and it drove the renderer to guess at delivery from stream events,
+     * which cannot tell one send in a session from the next.
+     */
+    expect(
+      describeSendOutcomeForTests({
+        outcome: 'error',
+        message: 'Rate limit reached.',
+        code: 'rate-limit',
+        transportEmitted: true,
+      }),
+    ).toEqual({ outcome: 'delivered' })
+  })
 })

@@ -262,6 +262,35 @@ describe('commitGit and renames', () => {
    * case-only rename, and comparing whole paths missed it: `add` and `commit` both exit 0, the rename is left
    * out of the commit while staying staged, and the commit reported success.
    */
+  /**
+   * A directory case change that also moves the file deeper. Verified against real git that this one commits
+   * correctly through the whole path - the rename source is expanded in, git records the intended spelling, and
+   * the tree is right - so the verification must not refuse it. Kept because the shape-based rules this
+   * replaced were wrong about exactly this kind of case in both directions.
+   */
+  it('commits a directory case change that also changes the path depth', async () => {
+    const { repository } = await createRepositoryWithWorktree()
+    if (!(await filesystemConflatesCase(repository))) return
+    await mkdir(path.join(repository, 'a', 'Deep'), { recursive: true })
+    await writeFile(path.join(repository, 'a', 'Deep', 'f.ts'), 'export {}\n')
+    await git(repository, ['add', '--all'])
+    await git(repository, ['commit', '-m', 'add deep file'])
+
+    await mkdir(path.join(repository, 'a', 'deep', 'more'), { recursive: true })
+    await git(repository, ['mv', 'a/Deep/f.ts', 'a/deep/more/f.ts'])
+
+    const result = await commitGit(repository, {
+      message: 'move it deeper',
+      amend: false,
+      paths: ['a/deep/more/f.ts'],
+    })
+
+    expect(result.ok).toBe(true)
+    const tracked = await git(repository, ['ls-tree', '-r', '--name-only', 'HEAD'])
+    expect(tracked).toContain('a/deep/more/f.ts')
+    expect((await git(repository, ['status', '--porcelain=v1'])).trim()).toBe('')
+  })
+
   it('refuses a rename that changes a directory case and the file name together', async () => {
     const { repository } = await createRepositoryWithWorktree()
     if (!(await filesystemConflatesCase(repository))) return

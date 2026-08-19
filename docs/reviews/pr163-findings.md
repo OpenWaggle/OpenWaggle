@@ -335,3 +335,34 @@ which would then have refused a commit git performs happily. The question is now
 unit test with no filesystem involved, so it holds on the case-insensitive machines this is developed on and the
 case-sensitive ones CI runs on.
 
+## Round eleven
+
+Round eleven's whole-branch reviewer said merge; the two focused reviewers found seven issues between them,
+and every one pointed at the same thing: two designs of mine were reasoning by proxy instead of asking the
+question. Both proxies are now gone, and with them the findings.
+
+| Finding | Substance |
+| --- | --- |
+| C1-1, C1-2, C1-3 | The case-rename rule was wrong in both directions, and read a git boolean as a string |
+| C2-1 | A first send whose turn ran and then failed restored a review the agent already held |
+| C2-3, C2-4 | Session-keyed delivery evidence attributed one send's turn to another |
+| C2-2, C3-1 | A cancelled first send reported the user's own Stop as a failure |
+
+**Predicting which renames git cannot express was the wrong approach.** Three attempts each failed in one
+direction or the other: comparing whole paths missed a directory case change that also renamed the file;
+comparing components pairwise skipped the comparison whenever the depth changed, and fired on components git
+conflates nothing about; and "something sits at the source path" was never the same question as "this filesystem
+folds these spellings". The prediction is gone. The commit is now *verified*: the paths the index held before the
+commit are compared against the paths the commit recorded, and if something asked for was not recorded, the
+commit is undone with `--soft` - leaving the user's index and working tree exactly as they were - and reported.
+No path-shape judgement is involved, so there is no direction left to be wrong in. One shape the earlier rules
+refused turned out to commit perfectly well through the real path, verified against git, and is now pinned as
+such.
+
+**Guessing at delivery from stream events was also the wrong approach, and main knew the answer all along.**
+`transportEmitted` already distinguishes a failure raised after the turn began from a refusal raised before it.
+Reporting both as refusals is what made a review come back after the agent had it, and it is why the renderer
+was keeping a session-keyed record of turn-start events - a record that cannot tell one send in a session from
+the next, so a replacement's turn was attributed to the send it replaced. Main now reports `delivered` for a
+run that reached the transport, and the renderer's bookkeeping is deleted rather than corrected.
+

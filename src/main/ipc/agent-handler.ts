@@ -68,14 +68,32 @@ function emitCancelledCompletion(sessionId: SessionId) {
  * settles and the superseded send's reply arrives afterwards.
  */
 function describeSendOutcome(result: AgentRunResult): AgentSendReport {
-  return matchBy(result, 'outcome')
-    .with('success', () => ({ outcome: 'delivered' as const }))
-    .with('aborted', () => ({ outcome: 'cancelled' as const }))
-    .otherwise((value) => ({
-      outcome: 'refused' as const,
-      ...(value.message === undefined ? {} : { message: value.message }),
-      ...(value.code === undefined ? {} : { code: value.code }),
-    }))
+  return (
+    matchBy(result, 'outcome')
+      .with('success', () => ({ outcome: 'delivered' as const }))
+      .with('aborted', () => ({ outcome: 'cancelled' as const }))
+      /*
+       * A run that reached the transport had the message: `transportEmitted` marks a failure raised *after* the
+       * turn began, such as a provider error or a rate limit, as opposed to a refusal raised before it. Reporting
+       * both as refusals made a caller restore a review the agent already held and offer it for a second
+       * submission - and it drove the renderer to guess at delivery from stream events, which cannot tell one
+       * send from the next in the same session. Main knows; it now says so.
+       */
+      .with('error', (value) =>
+        value.transportEmitted === true
+          ? { outcome: 'delivered' as const }
+          : {
+              outcome: 'refused' as const,
+              ...(value.message === undefined ? {} : { message: value.message }),
+              ...(value.code === undefined ? {} : { code: value.code }),
+            },
+      )
+      .otherwise((value) => ({
+        outcome: 'refused' as const,
+        ...(value.message === undefined ? {} : { message: value.message }),
+        ...(value.code === undefined ? {} : { code: value.code }),
+      }))
+  )
 }
 
 function handleRunResult(sessionId: SessionId, result: AgentRunResult) {

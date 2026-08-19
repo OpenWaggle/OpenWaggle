@@ -16,32 +16,6 @@ export class MessageDeliveredRunFailed extends Error {
   }
 }
 
-/**
- * Sessions whose agent has reported a turn started since the last send.
- *
- * The evidence for "delivered" cannot be the invoke resolving: main recovers every run failure into a value
- * and resolves, including a refusal raised before the message is recorded - a session whose worktree has gone
- * is exactly that - so a resolved send says nothing. The agent reporting the turn started does say it, and it
- * is the only such signal the renderer has. Held here rather than threaded as a ref because the two places
- * that need it, the run controls and the stream-event handler, share nothing else.
- */
-const runStartedSessions = new Set<string>()
-
-/** Called when a send begins: no evidence of delivery yet. */
-export function clearRunStarted(sessionId: string) {
-  runStartedSessions.delete(sessionId)
-}
-
-/** Called when the agent reports the turn started, i.e. it has the message. */
-export function markRunStarted(sessionId: string) {
-  runStartedSessions.add(sessionId)
-}
-
-/** Whether the agent reported a turn started since this session's send began. */
-export function hasRunStarted(sessionId: string) {
-  return runStartedSessions.has(sessionId)
-}
-
 /** True when the message reached the agent and only the run that followed failed. */
 export function wasMessageDelivered(error: unknown) {
   return error instanceof MessageDeliveredRunFailed

@@ -5,8 +5,6 @@ import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionDetail } from '@shared/types/session'
 import type { WaggleConfig } from '@shared/types/waggle'
 import {
-  clearRunStarted,
-  hasRunStarted,
   MessageDeliveredRunFailed,
   MessageNotDelivered,
 } from '@/features/chat/lib/message-delivery'
@@ -135,7 +133,6 @@ export function createAgentRunControls(params: AgentRunControlParams) {
 
   function startForegroundRun(targetSessionId: SessionId) {
     const { promise, waiter } = createPendingRunWaiter()
-    clearRunStarted(targetSessionId)
     refs.pendingRunWaiterRef.current = waiter
     refs.foregroundStreamActiveRef.current = true
     refs.foregroundSessionIdRef.current = targetSessionId
@@ -172,7 +169,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
        * refused send reached the caller as a success and a submitted review was discarded.
        */
       const report = await sendPromise
-      if (report.outcome === 'delivered' || hasRunStarted(targetSessionId)) {
+      if (report.outcome === 'delivered') {
         await runPromise
       } else {
         // Nothing is waiting on the run any more, but its rejection must not surface unhandled.
@@ -200,9 +197,12 @@ export function createAgentRunControls(params: AgentRunControlParams) {
        * delivered, and the caller that restores a review then discarded it. Absent that evidence the failure
        * is reported as undelivered, which is the side that keeps the user's work.
        */
-      throw hasRunStarted(targetSessionId)
-        ? new MessageDeliveredRunFailed(normalizedError)
-        : normalizedError
+      /*
+       * Reaching here means the run promise rejected after the send reported delivery, so the message did
+       * arrive: the report is main's own answer, taken from whether the run reached the transport, rather than
+       * a guess from stream events that could not tell one send in a session from the next.
+       */
+      throw new MessageDeliveredRunFailed(normalizedError)
     }
     /*
      * The caller is told, so work it submitted is not lost - a review is restored - but the session is left
