@@ -75,4 +75,6 @@ These belong in their own issue. The token findings are already recorded on issu
 
 **Two tests assert the absence of a cloned-from and a remote indicator** and therefore cannot fail today. Kept as guards: both would fail the moment someone rendered a glyph for a state the product cannot be in, which is the rule ADR 0020 exists to enforce.
 
-**The E2E spec is one long test without `test.step`.** A fair criticism, and worth doing when the suite next grows; it does not affect what the test proves today.
+**The E2E spec was one long test without `test.step`, and covered no chips.** Both now addressed, though not because the review persuaded me: the maintainer looked at the suite and pointed out that a run showing zero chips proves nothing about them.
+
+`e2e/sidebar-filters.e2e.test.ts` covers the chips, the pips, the search field and Escape in twelve named steps. It is possible because an interrupted run is the one non-idle row state that can be seeded from the database, so a real chip appears without faking a live agent event. The original spec keeps its geometry and restart claims.
