@@ -17,17 +17,18 @@ const { describeSendOutcomeForTests } = await import('../agent-handler')
 describe('send outcome reporting', () => {
   it('reports delivery only for a run that produced a turn', () => {
     expect(describeSendOutcomeForTests({ outcome: 'success', newMessages: [] })).toEqual({
-      delivered: true,
+      outcome: 'delivered',
     })
   })
 
-  it('claims nothing for an aborted run', () => {
+  it('reports a cancellation as its own outcome, not as a refusal', () => {
     /*
-     * A run cancelled before its prompt was sent reports exactly this outcome, as does any run that produced
-     * no messages, so it is not evidence either way - and the caller must assume the message never arrived,
-     * which is the side that keeps it.
+     * A run cancelled before its prompt was sent reports the same thing as one cancelled mid-turn, so it is
+     * evidence in neither direction. Reporting it as a refusal made the ordinary Stop flow raise an error:
+     * stopping settles the run and a queued follow-up send begins immediately, so the superseded send's reply
+     * arrives after the replacement has started.
      */
-    expect(describeSendOutcomeForTests({ outcome: 'aborted' })).toEqual({ delivered: false })
+    expect(describeSendOutcomeForTests({ outcome: 'aborted' })).toEqual({ outcome: 'cancelled' })
   })
 
   it('passes the reason through for a failed run', () => {
@@ -38,7 +39,7 @@ describe('send outcome reporting', () => {
         code: 'worktree-missing',
       }),
     ).toEqual({
-      delivered: false,
+      outcome: 'refused',
       message: 'This session has no worktree.',
       code: 'worktree-missing',
     })

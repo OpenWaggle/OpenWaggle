@@ -164,7 +164,13 @@ export function createAgentRunControls(params: AgentRunControlParams) {
        * refused send therefore reached the caller as a success, and a submitted review was discarded.
        */
       const report = await sendPromise
-      if (!report.delivered && !hasRunStarted(targetSessionId)) {
+      /*
+       * Only a definite refusal is an error here. A cancellation says nothing about delivery, and raising it
+       * dismantled the ordinary Stop flow: stopping settles the run and a queued follow-up send begins
+       * immediately, so the superseded send's reply arrives after the replacement has started - and its
+       * delivery evidence, which is session-wide, has already been cleared by that replacement.
+       */
+      if (report.outcome === 'refused') {
         throw new Error(report.message ?? 'The agent could not start this turn.')
       }
       await runPromise

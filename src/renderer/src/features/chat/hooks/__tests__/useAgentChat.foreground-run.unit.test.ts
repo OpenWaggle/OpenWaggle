@@ -172,7 +172,7 @@ describe('useAgentChat foreground run', () => {
     })
 
     await act(async () => {
-      send.resolve({ delivered: true })
+      send.resolve({ outcome: 'delivered' })
       await expect(sendPromise).resolves.toBeUndefined()
     })
 
@@ -222,5 +222,40 @@ describe('useAgentChat foreground run', () => {
     expect(result.current.status).toBe('ready')
     expect(result.current.backgroundStreaming).toBe(false)
     expect(result.current.messages).toEqual([])
+  })
+
+  it('does not fail a send whose run was cancelled', async () => {
+    /*
+     * "Queue a follow-up, then press Stop" is an ordinary sequence: stopping settles the run and the queued
+     * send begins immediately, so the superseded send's reply arrives after the replacement has started - and
+     * the delivery evidence, which is session-wide, has been cleared by that replacement. Reporting the
+     * cancellation as a refusal therefore raised an error for a send nothing was wrong with, and the error
+     * dismantled the run that had replaced it.
+     */
+    const send = createDeferred<AgentSendReport>()
+    apiMock.sendMessage.mockReturnValueOnce(send.promise)
+
+    const { result } = renderHook(() =>
+      useAgentChat(
+        SessionId('session-1'),
+        createSessionWithId(SessionId('session-1')),
+        SupportedModelId('claude-sonnet-4-5'),
+        'medium',
+      ),
+    )
+
+    let sendPromise: Promise<void> | null = null
+    await act(async () => {
+      sendPromise = result.current.sendMessage(SEND_PAYLOAD)
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      send.resolve({ outcome: 'cancelled' })
+      result.current.stop()
+      await Promise.resolve()
+    })
+
+    await expect(sendPromise).resolves.toBeUndefined()
   })
 })

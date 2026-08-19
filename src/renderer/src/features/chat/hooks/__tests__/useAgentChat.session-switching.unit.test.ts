@@ -218,8 +218,8 @@ describe('useAgentChat session switching', () => {
     ])
 
     await act(async () => {
-      sendA.resolve({ delivered: true })
-      sendB.resolve({ delivered: true })
+      sendA.resolve({ outcome: 'delivered' })
+      sendB.resolve({ outcome: 'delivered' })
     })
   })
 })

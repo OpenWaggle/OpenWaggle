@@ -170,14 +170,18 @@ function startWaggleStream(sessionId: SessionId, runId: string, runtimeModel: Su
 /**
  * A send that produced no turn was not delivered, whatever the transport did afterwards.
  *
- * `aborted` claims nothing, for the same reason it claims nothing on the classic path: a run cancelled before
- * its prompt was sent reports that outcome too.
+ * `aborted` is its own outcome for the same reason it is on the classic path: a cancellation before the prompt
+ * was sent reports the same thing as one mid-turn, and raising it as an error broke the Stop flow.
  */
 function describeWaggleSendOutcome(result: WaggleHandlerResult): AgentSendReport {
   return matchBy(result, 'outcome')
-    .with('success', () => ({ delivered: true }))
-    .with('aborted', () => ({ delivered: false }))
-    .otherwise((value) => ({ delivered: false, message: value.message, code: value.code }))
+    .with('success', () => ({ outcome: 'delivered' as const }))
+    .with('aborted', () => ({ outcome: 'cancelled' as const }))
+    .otherwise((value) => ({
+      outcome: 'refused' as const,
+      message: value.message,
+      code: value.code,
+    }))
 }
 
 function handleWaggleResult(sessionId: SessionId, runId: string, result: WaggleHandlerResult) {

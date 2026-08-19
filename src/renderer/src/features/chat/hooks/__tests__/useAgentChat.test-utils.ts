@@ -7,7 +7,7 @@ import { afterEach, beforeEach, vi } from 'vitest'
 import { useOptimisticUserMessageStore } from '../../state/optimistic-user-message-store'
 
 /** The ordinary case: main ran the turn. */
-const DELIVERED_REPORT = { delivered: true } as const
+const DELIVERED_REPORT = { outcome: 'delivered' } as const
 
 const {
   apiMock,

@@ -70,7 +70,10 @@ export async function commitGit(
    * does not know about renames cannot get this wrong.
    */
   const projectPath = (await resolveRepositoryRoot(rawProjectPath)) ?? rawProjectPath
-  const paths = await expandRenameSources(projectPath, payload.paths)
+  const renames = await resolveSelectedRenames(projectPath, payload.paths)
+  const caseOnly = renames.find((rename) => rename.sourceOccupied && isCaseOnlyRename(rename))
+  if (caseOnly) return caseOnlyRenameFailure(caseOnly)
+  const paths = expandRenameSources(payload.paths, renames)
 
   const stageFailure = await stageCommitPaths(projectPath, paths)
   if (stageFailure) return stageFailure
@@ -114,6 +117,67 @@ async function validateCommitPreflight(projectPath: string, message: string) {
 }
 
 /**
+ * A rename that only changes letter case, anywhere in the path.
+ *
+ * These cannot be committed through a pathspec on a case-insensitive filesystem, and the two shapes fail
+ * differently. A case-only *file* rename is refused outright with "will not add file alias". A case-only
+ * *directory* component is worse: git's pathspec matching resolves the new spelling onto the old index entry,
+ * `add` and `commit` both exit 0, and the rename is silently left out of the commit while staying staged - so
+ * the commit reported success while omitting the change, and the stacked action would push it. Verified against
+ * real git for both shapes. Detected up front so neither can pass as success.
+ *
+ * Only where the filesystem actually conflates the two spellings, which is what `sourceOccupied` says: on a
+ * case-sensitive filesystem this is an ordinary rename and commits perfectly well, so refusing it there would
+ * break something that works.
+ */
+function isCaseOnlyRename(rename: SelectedRename) {
+  return rename.from !== rename.to && rename.from.toLowerCase() === rename.to.toLowerCase()
+}
+
+function caseOnlyRenameFailure(rename: SelectedRename): GitCommitFailure {
+  return commitFailure(
+    'case-only-rename',
+    `Git cannot commit "${rename.from}" to "${rename.to}" on this filesystem, because they differ only in letter case. Commit it from the command line, or rename through a temporary name.`,
+  )
+}
+
+interface SelectedRename {
+  readonly from: string
+  readonly to: string
+  /** Whether anything still sits at the source path - see {@link expandRenameSources}. */
+  readonly sourceOccupied: boolean
+}
+
+/** The renames among the selected paths, read from the working tree rather than trusted from the caller. */
+async function resolveSelectedRenames(
+  projectPath: string,
+  paths: readonly string[],
+): Promise<readonly SelectedRename[]> {
+  if (paths.length === 0) return []
+
+  const status = await runGit(projectPath, [
+    ...GIT_RAW_PATHS,
+    'status',
+    '--porcelain=v1',
+    '--untracked-files=all',
+  ])
+  if (status.code !== 0) return []
+
+  const selected = new Set(paths)
+  const pairs: { from: string; to: string }[] = []
+  for (const file of parsePorcelain(status.stdout)) {
+    if (file.renamedFrom !== undefined && selected.has(file.path)) {
+      pairs.push({ from: file.renamedFrom, to: file.path })
+    }
+  }
+  // Independent reads, so asked together.
+  const occupied = await Promise.all(
+    pairs.map((pair) => pathExists(path.join(projectPath, pair.from))),
+  )
+  return pairs.map((pair, index) => ({ ...pair, sourceOccupied: occupied[index] === true }))
+}
+
+/**
  * Add each rename's source beside its target, unless something now occupies that path.
  *
  * A commit that names only the target keeps both files and leaves the deletion staged, so the source belongs
@@ -130,31 +194,15 @@ async function validateCommitPreflight(projectPath: string, message: string) {
  * committed the new file, which the user never selected. When the path is occupied there is no deletion to
  * express, and the honest commit is the target alone.
  */
-async function expandRenameSources(
-  projectPath: string,
+function expandRenameSources(
   paths: readonly string[],
-): Promise<readonly string[]> {
-  if (paths.length === 0) return paths
-
-  const status = await runGit(projectPath, [
-    ...GIT_RAW_PATHS,
-    'status',
-    '--porcelain=v1',
-    '--untracked-files=all',
-  ])
-  if (status.code !== 0) return paths
+  renames: readonly SelectedRename[],
+): readonly string[] {
+  if (renames.length === 0) return paths
 
   const selected = new Set(paths)
-  const sources: string[] = []
-  for (const file of parsePorcelain(status.stdout)) {
-    if (file.renamedFrom !== undefined && selected.has(file.path)) sources.push(file.renamedFrom)
-  }
-  // Independent reads, so asked together.
-  const occupied = await Promise.all(
-    sources.map((source) => pathExists(path.join(projectPath, source))),
-  )
-  for (const [index, source] of sources.entries()) {
-    if (occupied[index] !== true) selected.add(source)
+  for (const rename of renames) {
+    if (!rename.sourceOccupied) selected.add(rename.from)
   }
   return [...selected]
 }

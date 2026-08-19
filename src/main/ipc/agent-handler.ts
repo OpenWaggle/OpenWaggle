@@ -62,16 +62,17 @@ function emitCancelledCompletion(sessionId: SessionId) {
 /**
  * A send that produced no turn was not delivered, whatever the transport did afterwards.
  *
- * `aborted` claims nothing. A run cancelled before its prompt was sent reports exactly that outcome, as does
- * any run that produced no messages, so it cannot be read as evidence either way - and the caller with work to
- * protect must assume the message never arrived, which is the side that keeps it.
+ * `aborted` is reported as its own outcome rather than as a failure. A run cancelled before its prompt was sent
+ * reports the same thing as one cancelled mid-turn, so it is evidence in neither direction - and raising it as
+ * an error dismantled the ordinary Stop flow, where a queued follow-up send begins the moment the stopped run
+ * settles and the superseded send's reply arrives afterwards.
  */
 function describeSendOutcome(result: AgentRunResult): AgentSendReport {
   return matchBy(result, 'outcome')
-    .with('success', () => ({ delivered: true }))
-    .with('aborted', () => ({ delivered: false }))
+    .with('success', () => ({ outcome: 'delivered' as const }))
+    .with('aborted', () => ({ outcome: 'cancelled' as const }))
     .otherwise((value) => ({
-      delivered: false,
+      outcome: 'refused' as const,
       ...(value.message === undefined ? {} : { message: value.message }),
       ...(value.code === undefined ? {} : { code: value.code }),
     }))

@@ -261,11 +261,43 @@ session appeared. A new session now inherits the scope its draft was written in,
 reviewer's choice and makes the review key stable across the transition.
 
 One limitation is recorded rather than fixed: a **case-only rename** cannot be committed through a pathspec on
-a case-insensitive filesystem. Git refuses with "will not add file alias", because a pathspec commit rebuilds
+a case-insensitive filesystem. (Round nine showed this disposition was incomplete - see below.) Git refuses with "will not add file alias", because a pathspec commit rebuilds
 those entries from the working tree and finds the other spelling already in the index. Committing the whole
 index does work, and `git commit -i` does too - but both sweep in whatever the user staged themselves, which is
 the one guarantee this commit path exists to keep. Verified against real git. The failure is now reported as
 `case-only-rename` with an actionable message instead of a raw fatal under `unknown`; committing it correctly
 needs a different mechanism (`write-tree`/`commit-tree`) and belongs in its own change. This behaviour predates
 the branch.
+
+## Round nine
+
+Round nine found four issues: one in the commit path and three that all trace to round eight's decision to
+report an aborted run as undelivered. All are resolved.
+
+| Finding | Substance |
+| --- | --- |
+| A1-1 | A case-only *directory* rename committed successfully while omitting the change |
+| A2-1 | A superseded send's cancellation was raised as an error, dismantling the run that replaced it |
+| A2-2 | Stop before the first turn event reported a failure the user had caused |
+| A3-1 | Stop with a queued message restored a review the agent already had, and wedged the chat |
+
+**Round eight's disposition was incomplete, and the shape it missed was worse than the one it recorded.** A
+case-only difference in a *file name* is refused outright by git. A case-only difference in a *directory
+component* is not: git's pathspec matching resolves the new spelling onto the old index entry, `add` and
+`commit` both exit 0, the rename is left out of the commit while staying staged, and `commitGit` returned
+`{ ok: true }` - so the stacked action would have pushed an incomplete commit. Both shapes are now detected up
+front, and only where the filesystem actually conflates the two spellings: on a case-sensitive filesystem this
+is an ordinary rename that commits perfectly well, and refusing it there would break something that works. The
+tests ask the filesystem rather than assuming the platform, because development happens on case-insensitive
+macOS while CI runs on case-sensitive Linux.
+
+**A cancellation is not a failure, and the previous round made it one.** Reporting `aborted` as
+`delivered: false` was right about the evidence - a run cancelled before its prompt was sent reports the same
+outcome as one cancelled mid-turn - but the ordinary send path *throws* when a report is not delivered, and
+that turned an everyday sequence into a broken one. Stopping settles the run, a queued follow-up send begins
+immediately, and the superseded send's reply arrives after the replacement has started, by which time the
+session-wide delivery evidence has been cleared by that replacement. The throw then dismantled the run that had
+replaced it and left the chat wedged. The report now carries three outcomes rather than two - `delivered`,
+`refused`, `cancelled` - because "did not arrive" and "cannot tell" call for different behaviour: only a
+refusal is an error, while a cancellation still lets a caller keep work the user may want back.
 

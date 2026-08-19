@@ -11,6 +11,8 @@ import { flushDraftWorktreePlanToSession } from '@/features/git'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 
+const CANCELLED_BEFORE_TURN_MESSAGE = 'The agent did not start this turn.'
+
 const logger = createRendererLogger('use-send-message')
 
 interface SendMessageDeps {
@@ -117,8 +119,12 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
       const report = config
         ? await api.sendWaggleMessage(sessionId, payload, model, config)
         : await api.sendMessage(sessionId, payload, model)
-      if (report.delivered) return
-      throw new Error(report.message ?? 'The agent could not start this turn.')
+      if (report.outcome === 'delivered') return
+      /*
+       * A cancellation is reported too, so work the user may still want is not discarded - but it is the user's
+       * own action, so it carries no message of its own.
+       */
+      throw new Error(report.message ?? CANCELLED_BEFORE_TURN_MESSAGE)
     } catch (error) {
       useBackgroundRunStore.getState().clearRunRenderSnapshot(sessionId)
       logger.error('First message send failed', {
