@@ -12,7 +12,7 @@ The provenance vocabulary is fixed as:
 | Runs in its own worktree | `Split` | `SessionSummary.environmentMode === 'worktree'` |
 | Cloned from another session | `CornerDownRight` | not yet recorded, see below |
 | Conversation branches (count) | `ListTree` | `SessionSummary.branches` |
-| Terminal process running | `Terminal` | terminal state per session |
+| Terminal process running | `Terminal` | not yet recorded per session, see below |
 | Commits ahead, commits behind | `↑n`, `↓n` | `GitStatusSummary.ahead`, `.behind` |
 
 ## Context
@@ -49,4 +49,12 @@ Adding a provenance concept later is constrained. The new glyph must not resembl
 
 The maintainer intends to tackle remote sessions in future. When a third **Session environment mode** exists, `Globe` is the glyph reserved for it. `Cloud` is T3Code's choice but generic, and `Server` implies a specific machine you own. Recording the reservation here, rather than shipping the icon behind a `TODO`, keeps the decision without asserting a state that cannot occur.
 
-That is the rule applied to both gaps in this vocabulary. Data the app should remember but does not is marked in code and rendered when present. A capability the app does not have is recorded in an ADR and rendered never. Cloned-from is the first kind. Cloning is real, but the lineage is not persisted, because `sourceSessionId` exists only inside MCP worktree derivation and never reaches a session. So the render path exists and is gated on the absent field.
+That is the rule applied to the gaps in this vocabulary. Data the app should remember but does not is marked in code and rendered when present. A capability the app does not have is recorded in an ADR and rendered never.
+
+Two concepts are the first kind, so their glyphs exist in the vocabulary and render nothing today.
+
+**Cloned-from.** Cloning is real, but the lineage is not persisted: `sourceSessionId` exists only inside MCP worktree derivation and never reaches a session. Recording it needs a migration adding a column plus projection through the session summary.
+
+**Terminal.** Terminals are keyed by project path, not by session. `terminal:create` takes a `projectPath` and returns a `terminalId`, and nothing records which session opened it, so a per-session count cannot be derived. Callers pass zero until a terminal carries its owning session id.
+
+Both render paths are complete and tested through the pure builder, so each glyph appears the moment real data exists. Neither is documented as a user-facing capability while it cannot occur, which is the same rule that kept `Globe` out.

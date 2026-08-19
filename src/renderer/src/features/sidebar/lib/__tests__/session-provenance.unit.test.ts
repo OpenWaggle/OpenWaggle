@@ -52,9 +52,13 @@ describe('buildSessionProvenance', () => {
     })
   })
 
-  it('ignores a blank branch name', () => {
+  /** An empty name would otherwise be announced as "On branch " with nothing after it. */
+  it('ignores a blank branch name rather than announcing an empty one', () => {
+    expect(buildSessionProvenance({ session: session(), gitBranch: '', terminalCount: 0 })).toEqual(
+      [],
+    )
     expect(
-      buildSessionProvenance({ session: session(), gitBranch: null, terminalCount: 0 }),
+      buildSessionProvenance({ session: session(), gitBranch: '   ', terminalCount: 0 }),
     ).toEqual([])
   })
 

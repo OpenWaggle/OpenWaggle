@@ -34,7 +34,7 @@ describe('buildSessionGitIndicator', () => {
   /**
    * The changed-file count was removed on purpose. Sessions sharing a working tree all
    * reported the same number, so it said nothing about the session being looked at, and
-   * a large number implied a severity it did not carry. See ADR 0021.
+   * a large number implied a severity it did not carry.
    */
   it('ignores uncommitted changes entirely', () => {
     const indicator = buildSessionGitIndicator(status({ clean: false, filesChanged: 57 }))

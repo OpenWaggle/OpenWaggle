@@ -112,26 +112,24 @@ describe('two-line session row', () => {
   /**
    * The timestamp used to hide on hover, which re-flowed the row under the cursor and removed
    * information at the moment the user was about to act on it.
+   *
+   * Asserted structurally: the timestamp is not inside the container that hover reveals, so no
+   * hover state can take it away. The visual claim, that it does not move or fade, needs real CSS
+   * and is owned by e2e/sidebar-remodel.e2e.test.ts. A jsdom assertion about hover visibility
+   * would be vacuous, because the component config loads no stylesheet.
    */
-  it('keeps the timestamp visible while the row is hovered', () => {
+  it('keeps the timestamp out of the hover-revealed container', () => {
     renderRow()
 
-    const before = qaOne('sidebar-row-when')?.textContent
-    expect(before).toBe('4h')
-
-    const row = qaOne('sidebar-session-row')
-    if (row !== null) fireEvent.mouseEnter(row)
-
-    expect(qaOne('sidebar-row-when')?.textContent).toBe(before)
-  })
-
-  /** Hover actions overlay line one rather than joining the flow, so they displace nothing. */
-  it('positions hover actions out of the row flow', () => {
-    renderRow()
-
+    const when = qaOne('sidebar-row-when')
     const pin = screen.getByRole('button', { name: /Pin session/ })
-    const container = pin.parentElement
-    expect(container?.className).toContain('absolute')
+    const hoverContainer = pin.parentElement
+
+    expect(when?.textContent).toBe('4h')
+    expect(hoverContainer).not.toBeNull()
+    expect(hoverContainer?.contains(when ?? null)).toBe(false)
+    // Line two owns it, which is what makes it survive every row state.
+    expect(qaOne('sidebar-row-line2')?.contains(when ?? null)).toBe(true)
   })
 
   it('shows the compact age, not a sentence', () => {

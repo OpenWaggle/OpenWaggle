@@ -6,7 +6,7 @@ import type { GitStatusSummary } from '@shared/types/git'
  * Ahead and behind only. The uncommitted changed-file count was removed deliberately:
  * every session sharing a working tree reported the same number, so the count told the
  * user nothing about the session they were looking at, and a large number implied
- * severity it did not have. See ADR 0021.
+ * severity it did not have. Recorded in the git integration documentation.
  */
 export interface SessionGitIndicator {
   readonly ahead: number

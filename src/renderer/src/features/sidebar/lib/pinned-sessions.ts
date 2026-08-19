@@ -22,6 +22,14 @@ export interface PinnedSessionRow {
   readonly session: SessionSummary
   /** Manual-order key, kept so a drop can be expressed against its neighbours. */
   readonly sortKey: string
+  /**
+   * Position in the whole Pinned section, which is what a Pinned shortcut resolves against.
+   *
+   * Assigned before any filtering, so a badge and its shortcut cannot disagree. Indexing the
+   * rendered rows instead meant that with a state chip or a text filter active, the row wearing
+   * the second badge was not the row the second shortcut opened.
+   */
+  readonly position: number
 }
 
 interface BuildPinnedSessionRowsInput {
@@ -31,8 +39,10 @@ interface BuildPinnedSessionRowsInput {
   readonly sortMode: PinnedSortMode
 }
 
+type UnpositionedPinnedRow = Omit<PinnedSessionRow, 'position'>
+
 function comparePinnedRows(sortMode: PinnedSortMode) {
-  return (left: PinnedSessionRow, right: PinnedSessionRow) => {
+  return (left: UnpositionedPinnedRow, right: UnpositionedPinnedRow) => {
     if (sortMode === 'recent') return right.session.updatedAt - left.session.updatedAt
     if (sortMode === 'oldest') return left.session.updatedAt - right.session.updatedAt
     if (sortMode === 'name') return left.session.title.localeCompare(right.session.title)
@@ -53,7 +63,7 @@ export function buildPinnedSessionRows({
   sortMode,
 }: BuildPinnedSessionRowsInput): readonly PinnedSessionRow[] {
   const sessionsById = new Map(sessions.map((session) => [String(session.id), session]))
-  const rows: PinnedSessionRow[] = []
+  const rows: UnpositionedPinnedRow[] = []
 
   for (const pin of pins) {
     const session = sessionsById.get(String(pin.sessionId))
@@ -61,7 +71,7 @@ export function buildPinnedSessionRows({
     rows.push({ session, sortKey: pin.sortKey })
   }
 
-  return rows.sort(comparePinnedRows(sortMode))
+  return rows.sort(comparePinnedRows(sortMode)).map((row, index) => ({ ...row, position: index }))
 }
 
 /**

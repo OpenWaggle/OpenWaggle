@@ -20,7 +20,8 @@ instead, so nothing you were reading moves as the pointer arrives.
 
 ### What a row tells you
 
-A coloured word names the session's state, next to a matching icon: `Input` when the agent is
+A coloured icon leads the row and the same colour names the state in words on the line below:
+`Input` when the agent is
 waiting on you, `Interrupted` when a run stopped partway and can be resumed, `Error` when a run
 failed, `Working` or `Connecting` while it is busy, `Waggle` during a Waggle review, `Done` when it
 finished while you were away. Rows that need a person also carry a coloured bar on their left edge,
@@ -39,7 +40,6 @@ the detail.
 | Branch | The git branch the session works on. The name is in the tooltip, not the row. |
 | Split | The session runs in its own worktree rather than the folder you opened. |
 | List tree | The session's conversation has more than one branch, with the count beside it. |
-| Terminal | A terminal process is alive in the session. |
 | `↑n` `↓n` | Commits ahead of and behind upstream. |
 
 ### Narrowing the list

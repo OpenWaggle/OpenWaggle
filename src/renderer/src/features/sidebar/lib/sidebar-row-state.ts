@@ -54,7 +54,7 @@ const ROW_STATE_META: Record<SidebarRowState, SidebarRowStateMeta> = {
     shortLabel: 'Input',
     label: 'Needs your input',
     colorVar: 'var(--color-info)',
-    labelColorVar: 'var(--color-info)',
+    labelColorVar: 'var(--color-info-text)',
   },
   interrupted: {
     rank: 1,
@@ -109,6 +109,22 @@ const ROW_STATE_META: Record<SidebarRowState, SidebarRowStateMeta> = {
 
 export function sidebarRowStateMeta(state: SidebarRowState) {
   return ROW_STATE_META[state]
+}
+
+/**
+ * The one tier authority.
+ *
+ * A row used to resolve its own tier from a second table, which disagreed with this one about
+ * `waggle-running`: the row treated it as quiet, so a Waggle run never receded and never showed
+ * its phase, while the project heading counted it as in flight. A heading and a row describing the
+ * same session differently is the exact failure two tables guarantee eventually.
+ */
+export function isAttentionState(state: SidebarRowState) {
+  return ROW_STATE_META[state].tier === 'attention'
+}
+
+export function isInFlightState(state: SidebarRowState) {
+  return ROW_STATE_META[state].tier === 'in-flight'
 }
 
 /** The icon name for a state, reusing the status pill's icon and warning for interruption. */

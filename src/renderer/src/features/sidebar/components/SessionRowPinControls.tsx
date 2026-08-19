@@ -64,7 +64,7 @@ export function SessionDragGripSlot({ draggable }: { readonly draggable: boolean
   return (
     <span
       aria-hidden="true"
-      className="mt-0.5 grid h-[17px] w-3 flex-none place-items-center text-text-muted"
+      className="mt-0.5 grid h-[17px] w-3.5 flex-none place-items-center text-text-tertiary"
     >
       {draggable ? <GripVertical className="size-3" /> : null}
     </span>

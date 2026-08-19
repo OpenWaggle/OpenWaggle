@@ -106,7 +106,7 @@ describe('SessionListItem git indicator', () => {
 
     renderItem(session('a', { environmentMode: 'worktree', worktreePath: WORKTREE_A }))
 
-    // Uncommitted files are deliberately not shown, only divergence. See ADR 0021.
+    // Uncommitted files are deliberately not shown, only divergence.
     expect(screen.getByRole('img', { name: '2 commits ahead' })).toBeInTheDocument()
   })
 

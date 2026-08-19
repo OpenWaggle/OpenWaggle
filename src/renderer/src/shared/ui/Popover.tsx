@@ -24,6 +24,14 @@ interface PopoverProps {
   placement?: Placement
   /** Additional classes for the dropdown panel. */
   className?: string
+  /**
+   * ARIA role for the dropdown panel.
+   *
+   * A panel whose children declare `menuitem` or `menuitemradio` needs `menu` here: those roles
+   * are only valid inside one, and without it a screen reader does not reliably announce the
+   * checked state of a sort option.
+   */
+  role?: 'menu' | 'listbox' | 'dialog'
 }
 
 export function Popover({
@@ -33,6 +41,7 @@ export function Popover({
   onOpenChange,
   placement = 'bottom-start',
   className,
+  role,
 }: PopoverProps) {
   const isControlled = controlledOpen !== undefined
   const {
@@ -74,6 +83,7 @@ export function Popover({
 
       {isOpen && (
         <div
+          role={role}
           className={cn(
             'absolute z-50 rounded-lg border border-border-light bg-bg-secondary shadow-lg',
             placementClasses[placement],

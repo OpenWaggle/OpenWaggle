@@ -29,8 +29,11 @@ interface SessionStatusPill {
    */
   readonly colorVar: string
   /**
-   * The colour for the small text label, where the plain role would fail contrast.
-   * Only error needs one: #ef4444 is 4.49:1 on the row background.
+   * The colour for the small text label, where the plain role cannot carry text.
+   *
+   * Measured against the lightest row background a label can sit on, --color-bg-active,
+   * error is 3.48:1 and info is 3.56:1: fine for an icon at 3:1, short of 4.5:1 for text.
+   * Those two have partner roles; everything else uses its own.
    */
   readonly labelColorVar: string
 }
@@ -66,7 +69,7 @@ const STATUS_PILL_MAP: Record<Exclude<SessionStatus, 'idle'>, SessionStatusPill>
     animateClass: null,
     shortLabel: 'Input',
     colorVar: 'var(--color-info)',
-    labelColorVar: 'var(--color-info)',
+    labelColorVar: 'var(--color-info-text)',
   },
   'waggle-running': {
     icon: 'WaggleBee',

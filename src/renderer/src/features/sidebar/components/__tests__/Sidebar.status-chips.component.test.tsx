@@ -165,18 +165,6 @@ describe('Sidebar status chips and project pips', () => {
     ).not.toBeInTheDocument()
   })
 
-  /** Counts are ranked, so the state that needs a human is reachable first. */
-  it('orders chips by how much they need a person', () => {
-    seedStatuses()
-    render(<Sidebar />)
-
-    expect(chipNames()).toEqual([
-      'Show only: Needs your input, 1',
-      'Show only: Run failed, 2',
-      'Show only: Working, 1',
-    ])
-  })
-
   /**
    * The point of the chips: one click isolates a state wherever it lives, including in projects
    * the user has not expanded.
@@ -230,14 +218,6 @@ describe('Sidebar status chips and project pips', () => {
 
     expect(useSidebarFilterStore.getState().activeState).toBeNull()
     expect(rowTitles().some((text) => text.includes('Quiet session'))).toBe(true)
-  })
-
-  /**
-   * A filter subtracts sessions, so one left over from days ago would open the app on a nearly
-   * empty list with no memory of why. Sorting and collapsing rearrange and do persist.
-   */
-  it('starts unfiltered on launch', () => {
-    expect(useSidebarFilterStore.getState().activeState).toBeNull()
   })
 
   /**

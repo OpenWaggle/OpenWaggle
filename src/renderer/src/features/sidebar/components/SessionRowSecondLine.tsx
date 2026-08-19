@@ -37,7 +37,7 @@ export function SessionRowSecondLine({
   return (
     <span
       data-qa="sidebar-row-line2"
-      className="flex h-4 min-w-0 max-w-full items-center gap-1.5 text-[10.5px] text-text-muted leading-[1.45]"
+      className="flex h-4 min-w-0 max-w-full items-center gap-1.5 text-[10.5px] text-text-tertiary leading-[1.45]"
     >
       <span
         data-qa="sidebar-row-lead"
@@ -74,7 +74,7 @@ export function SessionRowSecondLine({
         {showShortcut ? (
           <span
             aria-hidden="true"
-            className="flex-none rounded border border-border-light bg-bg-tertiary px-1 font-mono text-[10px] text-text-muted leading-[13px]"
+            className="flex-none rounded border border-border-light bg-bg-tertiary px-1 py-0.5 font-mono text-[10px] text-text-tertiary leading-none"
           >
             {`\u2318${String(shortcutIndex + 1)}`}
           </span>

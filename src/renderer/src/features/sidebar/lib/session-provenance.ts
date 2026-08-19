@@ -71,8 +71,11 @@ export function buildSessionProvenance(
   const indicators: SessionProvenanceIndicator[] = []
   const { session, gitBranch, terminalCount } = input
 
-  if (gitBranch !== null) {
-    indicators.push({ kind: 'git-branch', description: `On branch ${gitBranch}` })
+  // Guarded on content, not just on null: an empty name produced an icon announced as
+  // "On branch " with nothing after it.
+  const branchName = gitBranch?.trim() ?? ''
+  if (branchName !== '') {
+    indicators.push({ kind: 'git-branch', description: `On branch ${branchName}` })
   }
 
   if (session.environmentMode === 'worktree') {

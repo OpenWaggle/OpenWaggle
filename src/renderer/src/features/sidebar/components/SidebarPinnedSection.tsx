@@ -52,6 +52,7 @@ function PinnedSortMenu({ sort }: { readonly sort: PinnedSortControlState }) {
       onOpenChange={onSetMenuOpen}
       placement="bottom-end"
       className="min-w-[196px] py-1"
+      role="menu"
       trigger={
         <SidebarIconButton
           label="Sort pinned sessions"
@@ -117,11 +118,11 @@ export function SidebarPinnedSection({
         <PinnedSortMenu sort={sort} />
       </SidebarSectionHead>
       <ul>
-        {rows.map((row, index) => (
+        {rows.map((row, renderIndex) => (
           <PinnedSessionListItem
             key={String(row.session.id)}
             row={row}
-            index={index}
+            index={renderIndex}
             draggable={draggable}
             isActive={activeSessionId === String(row.session.id)}
             projectLabel={
@@ -170,7 +171,8 @@ function PinnedSessionListItem({
       isPinned
       pinnedRow={{
         projectLabel,
-        shortcutIndex: index < PINNED_SHORTCUT_LIMIT ? index : null,
+        // The row's position in the whole section, not its position among the rendered rows.
+        shortcutIndex: row.position < PINNED_SHORTCUT_LIMIT ? row.position : null,
         draggable,
       }}
       rowProps={{

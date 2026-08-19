@@ -114,11 +114,17 @@ export function useSidebarState() {
     })
   }, [sessions.sessions, filterState, normalizedQuery, rowStates, projectDisplayNames])
 
+  /*
+   * Positions come from the unfiltered section, then the rows are narrowed for display. A Pinned
+   * shortcut is positional over the whole section, so indexing the rendered rows would make ⌘2
+   * open one session while a different row wore the ⌘2 badge whenever a filter was active.
+   */
+  const visibleSessionIds = new Set(visibleSessions.map((session) => String(session.id)))
   const pinnedRows = buildPinnedSessionRows({
     pins,
-    sessions: visibleSessions,
+    sessions: sessions.sessions,
     sortMode: pinnedSortMode,
-  })
+  }).filter((row) => visibleSessionIds.has(String(row.session.id)))
   const sessionGroups = buildSidebarProjectGroups({
     sessions: visibleSessions,
     currentProjectPath: project.projectPath,

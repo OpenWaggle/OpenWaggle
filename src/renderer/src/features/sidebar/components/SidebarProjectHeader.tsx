@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Edit3, Folder } from 'lucide-react'
+import { ChevronDown, ChevronRight, Folder, Plus } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
@@ -177,7 +177,12 @@ export function SidebarProjectHeader({
           },
         }}
       />
-      <span className="flex flex-none items-center gap-1 group-hover:hidden">
+      {/*
+       * Hidden on hover and on focus-within, so pointer and keyboard agree about what the heading
+       * shows. Previously the roll-up disappeared for the pointer while a keyboard user never saw
+       * the actions that replace it.
+       */}
+      <span className="flex flex-none items-center gap-1 group-focus-within:hidden group-hover:hidden">
         {rollUp.length === 0 ? (
           <span data-qa="sidebar-project-count" className="flex-none text-[10.5px] text-text-muted">
             {group.sessions.length}
@@ -194,7 +199,7 @@ export function SidebarProjectHeader({
           onClick={() => actions.newSession(group.projectPath)}
           className="grid size-5 flex-none place-items-center rounded text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
         >
-          <Edit3 className="size-3" />
+          <Plus className="size-3" />
         </Button>
         <ProjectActionsMenu
           group={group}

@@ -67,7 +67,7 @@ export function SessionRowGlyph({
       className="grid h-[17px] w-3.5 flex-none place-items-center text-[color:var(--row-color)]"
     >
       {Icon === null ? null : (
-        <Icon className={cn('size-3.5', hasInterruptedRun ? null : animateClass)} />
+        <Icon className={cn('size-[13px]', hasInterruptedRun ? null : animateClass)} />
       )}
     </span>
   )

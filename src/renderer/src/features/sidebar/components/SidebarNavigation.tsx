@@ -146,6 +146,7 @@ export function SidebarProjectsHeader({
         onOpenChange={onSetSortMenuOpen}
         placement="bottom-end"
         className="min-w-[196px] py-1"
+        role="menu"
         trigger={
           <SidebarIconButton
             label="Sort sessions"

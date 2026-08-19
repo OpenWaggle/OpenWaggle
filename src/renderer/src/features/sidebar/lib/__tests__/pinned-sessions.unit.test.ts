@@ -206,3 +206,51 @@ describe('hoisting Pinned sessions out of project groups', () => {
     expect(groups.projects.every((group) => group.hoistedPinnedCount === 0)).toBe(true)
   })
 })
+
+/**
+ * A Pinned shortcut is positional over the whole section, and the badge advertises it, so both
+ * must come from the same numbering. Indexing the rendered rows meant that with a filter active
+ * the row wearing the second badge was not the row the second shortcut opened.
+ */
+describe('Pinned shortcut positions', () => {
+  it('numbers rows by their place in the section', () => {
+    const rows = buildPinnedSessionRows({
+      pins: [pin('a', 'a'), pin('b', 'b'), pin('c', 'c')],
+      sessions: [session('a'), session('b'), session('c')],
+      sortMode: 'manual',
+    })
+
+    expect(rows.map((row) => row.position)).toEqual([0, 1, 2])
+  })
+
+  it('keeps a position stable when an earlier row is filtered out of the view', () => {
+    const all = buildPinnedSessionRows({
+      pins: [pin('a', 'a'), pin('b', 'b'), pin('c', 'c')],
+      sessions: [session('a'), session('b'), session('c')],
+      sortMode: 'manual',
+    })
+
+    // What the sidebar does when a state chip or a text query hides the first pin.
+    const shown = all.filter((row) => String(row.session.id) !== 'a')
+
+    expect(shown.map((row) => String(row.session.id))).toEqual(['b', 'c'])
+    expect(shown.map((row) => row.position)).toEqual([1, 2])
+  })
+
+  it('renumbers after a sort change, because a shortcut follows the section order', () => {
+    const pins = [pin('a', 'a'), pin('b', 'b')]
+    const sessions = [session('a', { updatedAt: 10 }), session('b', { updatedAt: 20 })]
+
+    const manual = buildPinnedSessionRows({ pins, sessions, sortMode: 'manual' })
+    const recent = buildPinnedSessionRows({ pins, sessions, sortMode: 'recent' })
+
+    expect(manual.map((row) => [String(row.session.id), row.position])).toEqual([
+      ['a', 0],
+      ['b', 1],
+    ])
+    expect(recent.map((row) => [String(row.session.id), row.position])).toEqual([
+      ['b', 0],
+      ['a', 1],
+    ])
+  })
+})

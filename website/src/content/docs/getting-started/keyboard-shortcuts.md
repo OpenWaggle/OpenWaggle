@@ -29,9 +29,10 @@ collapsed. `Escape` while the field has focus clears both the text filter and an
 chip, which is the way out of a narrowed sidebar without reaching for the mouse.
 
 `Cmd+1` through `Cmd+9` open the first nine rows of the **Pinned** section. The mapping is
-positional against the section as currently ordered, so it follows a reorder or a sort change and
-a badge never points at a different session than the row it sits on. A tenth pin is still allowed,
-it simply has no shortcut.
+positional against the section as currently ordered, so it follows a reorder or a sort change.
+Positions are assigned over the whole section before any filtering, so a badge and its shortcut
+always refer to the same session even while a state chip or the text filter is hiding rows. A tenth
+pin is still allowed, it simply has no shortcut.
 
 ## Session Tree
 

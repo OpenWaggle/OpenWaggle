@@ -50,7 +50,15 @@ export function SidebarStatusChips({
       {counts.map(({ state, count }) => {
         const meta = sidebarRowStateMeta(state)
         const isActive = activeState === state
-        const chipStyle: React.CSSProperties & { '--chip': string } = { '--chip': meta.colorVar }
+        /*
+         * Two variables, not one. The tint and the border come from the role; the text comes from
+         * the label role, because a chip tints its own background from the same hue and painting
+         * text with the icon colour measured 3.76:1 on the active chip.
+         */
+        const chipStyle: React.CSSProperties & {
+          '--chip': string
+          '--chip-text': string
+        } = { '--chip': meta.colorVar, '--chip-text': meta.labelColorVar }
 
         return (
           <Button
@@ -65,7 +73,7 @@ export function SidebarStatusChips({
             className={cn(
               'flex h-6 items-center gap-[5px] rounded-full border px-[9px] font-semibold text-[11px] transition-colors',
               isActive
-                ? 'border-[color-mix(in_srgb,var(--chip)_60%,transparent)] bg-[color-mix(in_srgb,var(--chip)_16%,transparent)] text-[color:var(--chip)]'
+                ? 'border-[color-mix(in_srgb,var(--chip)_60%,transparent)] bg-[color-mix(in_srgb,var(--chip)_16%,transparent)] text-[color:var(--chip-text)]'
                 : 'border-border-light bg-bg text-text-tertiary hover:border-text-muted hover:text-text-primary',
             )}
           >
@@ -97,7 +105,10 @@ export function SidebarProjectStatusPips({
     <span className="flex flex-none items-center gap-1">
       {counts.map(({ state, count }) => {
         const meta = sidebarRowStateMeta(state)
-        const pipStyle: React.CSSProperties & { '--pip': string } = { '--pip': meta.colorVar }
+        const pipStyle: React.CSSProperties & {
+          '--pip': string
+          '--pip-text': string
+        } = { '--pip': meta.colorVar, '--pip-text': meta.labelColorVar }
 
         return (
           <span
@@ -107,7 +118,7 @@ export function SidebarProjectStatusPips({
             title={`${meta.label}: ${String(count)}`}
             data-qa="sidebar-pip"
             style={pipStyle}
-            className="flex items-center gap-[3px] rounded-full border border-[color-mix(in_srgb,var(--pip)_45%,transparent)] bg-[color-mix(in_srgb,var(--pip)_14%,transparent)] py-px pr-[5px] pl-1 font-bold text-[10px] text-[color:var(--pip)]"
+            className="flex items-center gap-[3px] rounded-full border border-[color-mix(in_srgb,var(--pip)_45%,transparent)] bg-[color-mix(in_srgb,var(--pip)_18%,transparent)] py-px pr-[5px] pl-1 font-bold text-[10px] text-[color:var(--pip-text)]"
           >
             <span className="grid size-[9px] place-items-center">
               <StateIcon state={state} className="size-[9px]" />
