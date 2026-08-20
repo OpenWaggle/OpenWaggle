@@ -31,24 +31,37 @@ describe('desktop app release workflow', () => {
     )
   })
 
-  it('merges a validated version PR instead of bypassing main protection', () => {
+  it('leaves the validated version PR open for a maintainer to merge', () => {
     expect(WORKFLOW).not.toContain('git push origin main')
     expect(WORKFLOW).not.toContain('--admin')
+    expect(WORKFLOW).not.toContain('gh pr merge')
+    expect(WORKFLOW).not.toContain('enablePullRequestAutoMerge')
     expect(WORKFLOW).toContain('git push origin "$RELEASE_BRANCH"')
     expect(WORKFLOW).toContain('gh pr create')
     expect(WORKFLOW).toContain('event=pull_request&branch=${RELEASE_BRANCH}')
     expect(WORKFLOW).toContain('gh run rerun "$RUN_ID"')
     expect(WORKFLOW).toContain('gh run watch "$RUN_ID" --exit-status')
     expect(WORKFLOW).not.toContain('gh workflow run ci.yml --ref "$RELEASE_BRANCH"')
-    expect(WORKFLOW).toContain('--match-head-commit "$HEAD_SHA"')
-    expect(WORKFLOW).toContain('--squash')
+    expect(WORKFLOW).toContain('Release PR ready for maintainer review: ${PR_URL}')
+    expect(WORKFLOW).toContain('A maintainer must merge this PR manually')
   })
 
-  it('tags only the verified protected merge commit', () => {
+  it('publishes only a verified human-merged release PR commit', () => {
     expect(WORKFLOW).toContain('git merge-base --is-ancestor "$commit_sha" origin/main')
     expect(WORKFLOW).toContain(
-      'test "$(git show -s --format=%s "$commit_sha")" = "chore(release): v${VERSION}"',
+      'scripts/app-release-state.ts release-subject-version',
     )
+    expect(WORKFLOW).toContain('repos/${GITHUB_REPOSITORY}/commits/${MERGE_SHA}/pulls')
+    expect(WORKFLOW).toContain(
+      'repos/${GITHUB_REPOSITORY}/pulls/${MATCHING_PR_NUMBER}',
+    )
+    expect(WORKFLOW).not.toContain('.[0].merged_by')
+    expect(WORKFLOW).toContain(`test "$(jq -er '.merged_by.type' <<<"$MATCHING_PR")" = "User"`)
+    expect(WORKFLOW).toContain(
+      `test "$(jq -er '.merged_by.login' <<<"$MATCHING_PR")" != "github-actions[bot]"`,
+    )
+    expect(WORKFLOW).toContain('RELEASE_PR_HEAD_SHA=$(jq -er \'.head.sha\'')
+    expect(WORKFLOW).toContain('.conclusion == "success"')
     expect(WORKFLOW).toContain('git tag -a "$TAG" "$MERGE_SHA"')
     expect(WORKFLOW).toContain('git push origin "refs/tags/${TAG}"')
     expect(WORKFLOW).not.toContain('--follow-tags')
@@ -60,10 +73,10 @@ describe('desktop app release workflow', () => {
     expect(WORKFLOW).toContain('if [ "$PR_STATE" = "MERGED" ]')
     expect(WORKFLOW).toContain('if [ "$MERGE_STATE" = "BEHIND" ]')
     expect(WORKFLOW).toContain('/update-branch')
-    expect(WORKFLOW).toContain('for MERGE_ATTEMPT in $(seq 1 3)')
-    expect(WORKFLOW).toContain('for STATE_ATTEMPT in $(seq 1 30)')
+    expect(WORKFLOW).toContain('for VALIDATION_ATTEMPT in $(seq 1 3)')
     expect(WORKFLOW).toContain('test "$(git rev-list -n 1 "$TAG")" = "$MERGE_SHA"')
-    expect(WORKFLOW).toContain('verify_release_commit "$TAG_COMMIT"')
+    expect(WORKFLOW).toContain('its protected-merge run owns publication')
+    expect(WORKFLOW).toContain('Release PR merged after validation')
   })
 
   it('accepts no candidate package changes beyond the expected version', () => {
@@ -78,10 +91,19 @@ describe('desktop app release workflow', () => {
     )
   })
 
-  it('skips release orchestration commits and increments prerelease versions', () => {
+  it('separates PR preparation from protected-merge publication', () => {
     expect(WORKFLOW).toContain(
       `if: "!startsWith(github.event.head_commit.message, 'chore(release):')"`,
     )
+    expect(WORKFLOW).toContain(
+      'if [ "$RELEASE_SUBJECT_VERSION" = "$CURRENT_VERSION" ]',
+    )
+    expect(WORKFLOW).toContain('write_no_release_output')
+    expect(WORKFLOW).toContain('write_release_outputs')
+    expect(WORKFLOW).toContain(
+      "group: \"${{ startsWith(github.event.head_commit.message, 'chore(release): v') && format('release-{0}', github.sha) || 'release-prepare' }}\"",
+    )
+    expect(WORKFLOW).toContain('cancel-in-progress: false')
     expect(WORKFLOW).toContain('NEW_VERSION="${BASE_VERSION}-${PRERELEASE_TAG}.$((PRERELEASE_NUM + 1))"')
   })
 
