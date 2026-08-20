@@ -1,6 +1,5 @@
 import fs from 'node:fs'
 import { pathToFileURL } from 'node:url'
-import { match } from '@diegogbrisa/ts-match'
 import { Schema } from 'effect'
 
 const ARG_VALUE_OFFSET = 1
@@ -33,13 +32,6 @@ export interface ReleasePullRequestIdentity {
   readonly repository: string
 }
 
-export interface MergeRecoveryInput {
-  readonly mergeStateStatus: string
-  readonly state: string
-}
-
-export type MergeRecoveryAction = 'complete' | 'conflict' | 'poll' | 'retry'
-
 export function selectOwnedReleasePullRequests(
   pullRequests: readonly AppReleasePullRequest[],
   identity: ReleasePullRequestIdentity,
@@ -56,25 +48,6 @@ export function selectOwnedReleasePullRequests(
 export function expectedVersionOnlyManifest(baseManifestJson: string, version: string) {
   const manifest = Schema.decodeUnknownSync(manifestJsonSchema)(baseManifestJson)
   return `${JSON.stringify({ ...manifest, version }, null, JSON_INDENT)}\n`
-}
-
-export function mergeRecoveryAction(input: MergeRecoveryInput): MergeRecoveryAction {
-  return match(input)
-    .when(
-      ({ state }) => state === 'MERGED',
-      () => 'complete' as const,
-    )
-    .when(
-      ({ mergeStateStatus, state }) => state === 'OPEN' && mergeStateStatus === 'BEHIND',
-      () => 'retry' as const,
-    )
-    .when(
-      ({ mergeStateStatus, state }) =>
-        state === 'OPEN' &&
-        ['UNKNOWN', 'BLOCKED', 'UNSTABLE', 'CLEAN'].includes(mergeStateStatus),
-      () => 'poll' as const,
-    )
-    .otherwise(() => 'conflict' as const)
 }
 
 function argument(name: string) {
@@ -116,16 +89,6 @@ async function runCli() {
     const version = argument('--version')
     const expected = expectedVersionOnlyManifest(fs.readFileSync(basePath, 'utf8'), version)
     fs.writeFileSync(outputPath, expected)
-    return
-  }
-
-  if (command === 'merge-action') {
-    process.stdout.write(
-      mergeRecoveryAction({
-        mergeStateStatus: argument('--merge-state'),
-        state: argument('--state'),
-      }),
-    )
     return
   }
 

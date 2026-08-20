@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   expectedVersionOnlyManifest,
-  mergeRecoveryAction,
   selectOwnedReleasePullRequests,
   type AppReleasePullRequest,
 } from '../app-release-state'
@@ -51,18 +50,5 @@ describe('app release state model', () => {
     expect(expectedVersionOnlyManifest(base, '0.3.0-alpha.45')).toBe(
       '{\n  "name": "openwaggle",\n  "version": "0.3.0-alpha.45",\n  "private": true\n}\n',
     )
-  })
-
-  it.each([
-    [{ state: 'MERGED', mergeStateStatus: 'UNKNOWN' }, 'complete'],
-    [{ state: 'OPEN', mergeStateStatus: 'BEHIND' }, 'retry'],
-    [{ state: 'OPEN', mergeStateStatus: 'UNKNOWN' }, 'poll'],
-    [{ state: 'OPEN', mergeStateStatus: 'BLOCKED' }, 'poll'],
-    [{ state: 'OPEN', mergeStateStatus: 'UNSTABLE' }, 'poll'],
-    [{ state: 'OPEN', mergeStateStatus: 'CLEAN' }, 'poll'],
-    [{ state: 'CLOSED', mergeStateStatus: 'UNKNOWN' }, 'conflict'],
-    [{ state: 'OPEN', mergeStateStatus: 'DIRTY' }, 'conflict'],
-  ])('maps merge recovery state %j to %s', (input, expected) => {
-    expect(mergeRecoveryAction(input)).toBe(expected)
   })
 })
