@@ -55,7 +55,9 @@ export function SidebarIconButton({
   readonly isActive?: boolean
   readonly onClick: (event: React.MouseEvent<HTMLButtonElement>) => void
   readonly children: React.ReactNode
-} & Record<`data-${string}`, unknown>) {
+  // Aria attributes so a Popover trigger can be told it opens a menu, and whether it is open.
+} & Record<`data-${string}`, unknown> &
+  React.AriaAttributes) {
   return (
     <Button
       variant="unstyled"
