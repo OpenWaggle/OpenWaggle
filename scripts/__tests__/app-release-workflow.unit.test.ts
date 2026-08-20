@@ -49,7 +49,7 @@ describe('desktop app release workflow', () => {
   it('publishes only a verified human-merged release PR commit', () => {
     expect(WORKFLOW).toContain('git merge-base --is-ancestor "$commit_sha" origin/main')
     expect(WORKFLOW).toContain(
-      'test "$(git show -s --format=%s "$commit_sha")" = "chore(release): v${VERSION}"',
+      'scripts/app-release-state.ts release-subject-version',
     )
     expect(WORKFLOW).toContain('repos/${GITHUB_REPOSITORY}/commits/${MERGE_SHA}/pulls')
     expect(WORKFLOW).toContain(
@@ -96,7 +96,7 @@ describe('desktop app release workflow', () => {
       `if: "!startsWith(github.event.head_commit.message, 'chore(release):')"`,
     )
     expect(WORKFLOW).toContain(
-      'if [ "$HEAD_SUBJECT" = "chore(release): v${CURRENT_VERSION}" ]',
+      'if [ "$RELEASE_SUBJECT_VERSION" = "$CURRENT_VERSION" ]',
     )
     expect(WORKFLOW).toContain('write_no_release_output')
     expect(WORKFLOW).toContain('write_release_outputs')

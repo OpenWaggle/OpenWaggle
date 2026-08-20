@@ -120,12 +120,14 @@ jobs:
 
           HEAD_SUBJECT=$(git show -s --format=%s HEAD)
           CURRENT_VERSION=$(node -p "require('./package.json').version")
+          RELEASE_SUBJECT_VERSION=$(pnpm exec tsx scripts/app-release-state.ts release-subject-version \
+            --subject "$HEAD_SUBJECT" 2>/dev/null || true)
 
           write_no_release_output() {
             echo "should_release=false" >> "$GITHUB_OUTPUT"
           }
 
-          if [ "$HEAD_SUBJECT" = "chore(release): v${CURRENT_VERSION}" ]; then
+          if [ "$RELEASE_SUBJECT_VERSION" = "$CURRENT_VERSION" ]; then
             VERSION="$CURRENT_VERSION"
           elif [[ "$HEAD_SUBJECT" == "chore(release):"* ]]; then
             write_no_release_output
@@ -159,7 +161,10 @@ jobs:
             git fetch origin \
               "+refs/heads/main:refs/remotes/origin/main"
             git merge-base --is-ancestor "$commit_sha" origin/main
-            test "$(git show -s --format=%s "$commit_sha")" = "chore(release): v${VERSION}"
+            local commit_subject
+            commit_subject=$(git show -s --format=%s "$commit_sha")
+            test "$(pnpm exec tsx scripts/app-release-state.ts release-subject-version \
+              --subject "$commit_subject")" = "$VERSION"
             local parent_sha
             parent_sha=$(git rev-parse "${commit_sha}^")
             verify_version_only_tree "$parent_sha" "$commit_sha"
@@ -171,9 +176,8 @@ jobs:
             echo "should_release=true" >> "$GITHUB_OUTPUT"
           }
 
-          if [ "$HEAD_SUBJECT" = "chore(release): v${VERSION}" ]; then
+          if [ "$RELEASE_SUBJECT_VERSION" = "$VERSION" ]; then
             MERGE_SHA="$GITHUB_SHA"
-            test "$HEAD_SUBJECT" = "chore(release): v${VERSION}"
             verify_release_commit "$MERGE_SHA"
 
             ASSOCIATED_PRS=$(gh api \

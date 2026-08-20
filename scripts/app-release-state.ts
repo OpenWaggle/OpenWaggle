@@ -5,6 +5,8 @@ import { Schema } from 'effect'
 const ARG_VALUE_OFFSET = 1
 const CLI_COMMAND_INDEX = 2
 const JSON_INDENT = 2
+const RELEASE_SUBJECT_PATTERN =
+  /^chore\(release\): v([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)(?: \(#[0-9]+\))?$/u
 
 const pullRequestSchema = Schema.Struct({
   baseRefName: Schema.String,
@@ -50,6 +52,10 @@ export function expectedVersionOnlyManifest(baseManifestJson: string, version: s
   return `${JSON.stringify({ ...manifest, version }, null, JSON_INDENT)}\n`
 }
 
+export function releaseSubjectVersion(subject: string) {
+  return RELEASE_SUBJECT_PATTERN.exec(subject)?.[1] ?? null
+}
+
 function argument(name: string) {
   const index = process.argv.indexOf(name)
   const value = index >= 0 ? process.argv[index + ARG_VALUE_OFFSET] : undefined
@@ -89,6 +95,15 @@ async function runCli() {
     const version = argument('--version')
     const expected = expectedVersionOnlyManifest(fs.readFileSync(basePath, 'utf8'), version)
     fs.writeFileSync(outputPath, expected)
+    return
+  }
+
+  if (command === 'release-subject-version') {
+    const version = releaseSubjectVersion(argument('--subject'))
+    if (!version) {
+      throw new Error('Commit subject is not a release subject.')
+    }
+    process.stdout.write(version)
     return
   }
 

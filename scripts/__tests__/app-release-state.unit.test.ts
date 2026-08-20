@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   expectedVersionOnlyManifest,
+  releaseSubjectVersion,
   selectOwnedReleasePullRequests,
   type AppReleasePullRequest,
 } from '../app-release-state'
@@ -50,5 +51,16 @@ describe('app release state model', () => {
     expect(expectedVersionOnlyManifest(base, '0.3.0-alpha.45')).toBe(
       '{\n  "name": "openwaggle",\n  "version": "0.3.0-alpha.45",\n  "private": true\n}\n',
     )
+  })
+
+  it('accepts exact and GitHub squash release subjects only', () => {
+    expect(releaseSubjectVersion('chore(release): v0.3.0-alpha.45')).toBe(
+      '0.3.0-alpha.45',
+    )
+    expect(releaseSubjectVersion('chore(release): v0.3.0-alpha.45 (#123)')).toBe(
+      '0.3.0-alpha.45',
+    )
+    expect(releaseSubjectVersion('chore(release): v0.3.0-alpha.45 extra')).toBeNull()
+    expect(releaseSubjectVersion('fix(release): v0.3.0-alpha.45 (#123)')).toBeNull()
   })
 })
