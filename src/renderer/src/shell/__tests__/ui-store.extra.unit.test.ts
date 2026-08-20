@@ -12,7 +12,7 @@ describe('useUIStore — extra coverage', () => {
       diffRefreshKey: 0,
       toastMessage: null,
       toastData: null,
-      commandPaletteOpen: false,
+      slashCommandMenuOpen: false,
       feedbackModalOpen: false,
     })
   })

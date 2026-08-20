@@ -16,7 +16,7 @@ _The Session Tree keeps the selected transcript path and alternate Pi session br
 Open the right-side Session Tree from:
 
 - The tree icon in the header.
-- The command palette action **Open Session Tree**.
+- The slash command menu action **Open Session Tree**.
 
 The Session Tree shares the right-side panel slot with Diff. Opening one closes the other instead of stacking sidebars.
 

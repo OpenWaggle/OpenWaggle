@@ -56,7 +56,7 @@ function ComposerOverlays({
   const {
     activeSessionId,
     waggleStatus,
-    commandPaletteOpen,
+    slashCommandMenuOpen,
     slashSkills,
     forkSelectorOpen,
     forkTargets,
@@ -76,7 +76,7 @@ function ComposerOverlays({
         onStop={waggleStatus !== 'idle' ? onStopCollaboration : noOp}
       />
       <ChatComposerCommandPalette
-        open={commandPaletteOpen}
+        open={slashCommandMenuOpen}
         slashSkills={slashSkills}
         onSelectSkill={onSelectSkill}
         onStartWaggle={onStartWaggle}

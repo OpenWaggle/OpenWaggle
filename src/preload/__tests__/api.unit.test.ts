@@ -12,9 +12,7 @@ import { api } from '../api'
 import { PRELOAD_MCP_METHODS } from './preload-mcp-methods'
 
 describe('preload api surface contract', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  beforeEach(() => vi.clearAllMocks())
 
   const EXPECTED_METHODS = [
     // Agent
@@ -63,6 +61,12 @@ describe('preload api surface contract', () => {
     'selectProjectFolder',
     'getProjectPreferences',
     'setProjectPreferences',
+    'searchWorkspaceFiles',
+    'searchWorkspaceContent',
+    'cancelWorkspaceContentSearch',
+    'readWorkspaceFile',
+    'writeWorkspaceFile',
+    'openWorkspaceFileExternal',
     'listSessions',
     'listSessionDetails',
     'getSessionDetail',
@@ -170,9 +174,7 @@ describe('preload api surface contract', () => {
 
   it('matches the preload method contract exactly', () => {
     for (const method of EXPECTED_METHODS) expect(typeof api[method]).toBe('function')
-    const actualKeys = Object.keys(api).sort()
-    const expectedKeys = [...EXPECTED_METHODS].sort()
-    expect(actualKeys).toEqual(expectedKeys)
+    expect(Object.keys(api).sort()).toEqual([...EXPECTED_METHODS].sort())
   })
 
   it('prepares attachments from user-selected File objects via preload path extraction', async () => {

@@ -1,11 +1,12 @@
 import fs from 'node:fs'
 import { pathToFileURL } from 'node:url'
-import { match } from '@diegogbrisa/ts-match'
 import { Schema } from 'effect'
 
 const ARG_VALUE_OFFSET = 1
 const CLI_COMMAND_INDEX = 2
 const JSON_INDENT = 2
+const RELEASE_SUBJECT_PATTERN =
+  /^chore\(release\): v([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)(?: \(#[0-9]+\))?$/u
 
 const pullRequestSchema = Schema.Struct({
   baseRefName: Schema.String,
@@ -33,13 +34,6 @@ export interface ReleasePullRequestIdentity {
   readonly repository: string
 }
 
-export interface MergeRecoveryInput {
-  readonly mergeStateStatus: string
-  readonly state: string
-}
-
-export type MergeRecoveryAction = 'complete' | 'conflict' | 'poll' | 'retry'
-
 export function selectOwnedReleasePullRequests(
   pullRequests: readonly AppReleasePullRequest[],
   identity: ReleasePullRequestIdentity,
@@ -58,23 +52,8 @@ export function expectedVersionOnlyManifest(baseManifestJson: string, version: s
   return `${JSON.stringify({ ...manifest, version }, null, JSON_INDENT)}\n`
 }
 
-export function mergeRecoveryAction(input: MergeRecoveryInput): MergeRecoveryAction {
-  return match(input)
-    .when(
-      ({ state }) => state === 'MERGED',
-      () => 'complete' as const,
-    )
-    .when(
-      ({ mergeStateStatus, state }) => state === 'OPEN' && mergeStateStatus === 'BEHIND',
-      () => 'retry' as const,
-    )
-    .when(
-      ({ mergeStateStatus, state }) =>
-        state === 'OPEN' &&
-        ['UNKNOWN', 'BLOCKED', 'UNSTABLE', 'CLEAN'].includes(mergeStateStatus),
-      () => 'poll' as const,
-    )
-    .otherwise(() => 'conflict' as const)
+export function releaseSubjectVersion(subject: string) {
+  return RELEASE_SUBJECT_PATTERN.exec(subject)?.[1] ?? null
 }
 
 function argument(name: string) {
@@ -119,13 +98,12 @@ async function runCli() {
     return
   }
 
-  if (command === 'merge-action') {
-    process.stdout.write(
-      mergeRecoveryAction({
-        mergeStateStatus: argument('--merge-state'),
-        state: argument('--state'),
-      }),
-    )
+  if (command === 'release-subject-version') {
+    const version = releaseSubjectVersion(argument('--subject'))
+    if (!version) {
+      throw new Error('Commit subject is not a release subject.')
+    }
+    process.stdout.write(version)
     return
   }
 

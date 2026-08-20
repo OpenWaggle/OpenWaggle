@@ -1,15 +1,18 @@
 import { compactCommandText } from '@/features/composer/commands'
-import { setEditorText } from '@/features/composer/lib'
-import { useComposerStore } from '@/features/composer/state'
+import {
+  consumeActiveSlashCommand,
+  insertSlashCommandTextAtActiveSlash,
+} from '@/features/composer/lib'
 import { useUIStore } from '@/shell/ui-store'
 
 export function createOptionalCommandPaletteAction(
-  closeCommandPalette: () => void,
+  closeSlashCommandMenu: () => void,
   action?: () => void,
 ) {
   if (!action) return undefined
   return () => {
-    closeCommandPalette()
+    consumeActiveSlashCommand()
+    closeSlashCommandMenu()
     action()
   }
 }
@@ -19,22 +22,12 @@ export function insertCompactCommand() {
 }
 
 export function insertComposerCommandText(command: string) {
-  const commandText = `${command} `
-  const composerStore = useComposerStore.getState()
-  const editor = composerStore.lexicalEditor
-
-  if (!editor) {
-    composerStore.setInput(commandText)
-    composerStore.setCursorIndex(commandText.length)
-    return
-  }
-
-  setEditorText(editor, commandText)
-  editor.focus()
+  insertSlashCommandTextAtActiveSlash(command)
 }
 
 export function openFeedbackModal() {
   const store = useUIStore.getState()
-  store.closeCommandPalette()
+  consumeActiveSlashCommand()
+  store.closeSlashCommandMenu()
   store.openFeedbackModal()
 }

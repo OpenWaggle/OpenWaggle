@@ -15,6 +15,7 @@ import {
 import { latestPiWaggleModeStateFromBranch } from './mode-state.js'
 import { PI_WAGGLE_TURN_CUSTOM_TYPE, PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE } from './protocol.js'
 import { registerPiWaggleRenderers } from './renderers.js'
+import { registerWaggleInvokeTool } from './waggle-invoke-tool.js'
 
 function notify(ctx: ExtensionContext, message: string, type: 'info' | 'warning' | 'error') {
   if (ctx.hasUI) ctx.ui.notify(message, type)
@@ -76,6 +77,7 @@ export default function defaultPiWaggleExtension(pi: ExtensionAPI) {
   const startDefaultWaggleRun = createStartDefaultWaggleRun({ getActiveRun, setActiveRun })
 
   registerPiWaggleRenderers(pi)
+  registerWaggleInvokeTool(pi, { getActiveRun })
   pi.registerCommand('waggle', {
     description: 'Enable Waggle multi-agent mode, optionally with a preset and prompt.',
     getArgumentCompletions: defaultWaggleCommandCompletions,

@@ -46,7 +46,7 @@ export function useChatPanelSections(): ChatPanelSections {
   const {
     activeWorkspace,
     clearDraftBranchForSession,
-    commandPaletteOpen,
+    slashCommandMenuOpen,
     draftBranch,
     handleDismissInterruptedRun,
     handleOpenProject,
@@ -102,10 +102,8 @@ export function useChatPanelSections(): ChatPanelSections {
   const extensionRegistry = extensionContributionsQuery.data ?? null
 
   const waggleStoreStatus = useWaggleStore((s) => s.status)
-  const waggleConfig = useWaggleStore((s) => s.activeConfig)
   const waggleActiveCollaborationId = useWaggleStore((s) => s.activeCollaborationId)
   const waggleConfigSessionId = useWaggleStore((s) => s.configSessionId)
-  const setWaggleConfig = useWaggleStore((s) => s.setConfig)
   const startWaggleCollaboration = useWaggleStore((s) => s.startCollaboration)
   const stopWaggleCollaboration = useWaggleStore((s) => s.stopCollaboration)
 
@@ -154,13 +152,10 @@ export function useChatPanelSections(): ChatPanelSections {
     refreshSessionWorkspace,
     sessionCopy,
     setUserDidSend,
-    setWaggleConfig,
     showToast,
     startWaggleCollaboration,
     stop,
     stopWaggleCollaboration,
-    waggleConfig,
-    waggleOwningId,
     waggleStatus,
   })
 
@@ -271,14 +266,13 @@ export function useChatPanelSections(): ChatPanelSections {
     session: activeSession,
     isFirstMessage: messages.length === 0,
     waggleStatus,
-    commandPaletteOpen,
+    slashCommandMenuOpen,
     slashSkills: catalog?.skills ?? [],
     phase,
     stop: sendWorkflow.cancelRun,
     showToast,
     handleSteer,
     handleSendWithWaggle: sendWorkflow.sendWithWaggle,
-    handleStartWaggle: sendWorkflow.startWaggle,
     handleStopCollaboration: sendWorkflow.stopCollaboration,
     handleSkipBranchSummary: branchSummary.skipBranchSummary,
     handleSummarizeBranch: () => void branchSummary.materializeBranchSummary(),

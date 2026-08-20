@@ -9,6 +9,8 @@ import {
 const RETAINED_CHAT_SEARCH_PARAMS = [
   'diff',
   'panel',
+  'filePath',
+  'fileLine',
   ...(NOTIFICATION_PROTOTYPE_ROUTES_ENABLED ? (['prototype', 'variant'] as const) : []),
   'sidePanelExtensionId',
   'sidePanelId',

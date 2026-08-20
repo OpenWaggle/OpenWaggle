@@ -10,7 +10,7 @@ import type { ExtensionContributionRegistryView } from '@shared/types/extensions
 import type { SessionDetail } from '@shared/types/session'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import type { AgentTransportCustomEvent } from '@shared/types/stream'
-import type { WaggleCollaborationStatus, WaggleConfig } from '@shared/types/waggle'
+import type { WaggleCollaborationStatus, WagglePreset } from '@shared/types/waggle'
 import type { AgentChatStatus, AgentCompactionStatus } from '../hooks/useAgentChat'
 import type { SessionForkTarget } from '../lib/session-fork-targets'
 import type { AgentInteractionEvent, ChatRow } from '../lib/types-chat-row'
@@ -49,7 +49,7 @@ export interface ChatComposerSectionState {
   readonly session: SessionDetail | null
   readonly isFirstMessage: boolean
   readonly waggleStatus: WaggleCollaborationStatus
-  readonly commandPaletteOpen: boolean
+  readonly slashCommandMenuOpen: boolean
   readonly slashSkills: readonly SkillDiscoveryItem[]
   readonly isLoading: boolean
   readonly status: AgentChatStatus
@@ -58,7 +58,7 @@ export interface ChatComposerSectionState {
   readonly forkTargets: readonly SessionForkTarget[]
   onStopCollaboration: () => void
   onSelectSkill: (skillId: string, skillName?: string) => void
-  onStartWaggle: (config: WaggleConfig) => void
+  onStartWaggle: (preset: WagglePreset) => void
   onSendWithWaggle: (payload: AgentSendPayload) => Promise<void>
   onSteer: (messageId: string) => Promise<void>
   onCancel: () => void

@@ -6,10 +6,12 @@
  * from `src/shared/schema.ts`.
  */
 
-import { Schema } from '@shared/schema'
+import { Schema, type SchemaType } from '@shared/schema'
+import type { AgentSendPayload } from '@shared/types/agent'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import type { JsonArray, JsonObject, JsonValue } from '@shared/types/json'
 import { THINKING_LEVELS } from '@shared/types/settings'
+import { toWaggleInvocation, waggleInvocationSchema } from './waggle'
 
 const attachmentKindSchema = Schema.Literal('text', 'image', 'pdf')
 const attachmentOriginSchema = Schema.Literal('user-file', 'auto-paste-text')
@@ -58,7 +60,19 @@ export const agentSendPayloadSchema = Schema.Struct({
   text: Schema.String,
   thinkingLevel: Schema.Literal(...THINKING_LEVELS),
   attachments: Schema.mutable(Schema.Array(preparedAttachmentSchema)),
+  waggle: Schema.optional(waggleInvocationSchema),
 })
+
+export function toAgentSendPayload(
+  input: SchemaType<typeof agentSendPayloadSchema>,
+): AgentSendPayload {
+  return {
+    text: input.text,
+    thinkingLevel: input.thinkingLevel,
+    attachments: input.attachments,
+    ...(input.waggle ? { waggle: toWaggleInvocation(input.waggle) } : {}),
+  }
+}
 
 export const projectPreferencesSchema = Schema.Struct({
   model: Schema.optional(Schema.String),

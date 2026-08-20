@@ -8,7 +8,13 @@ import {
   WAGGLE_INHERIT_MODEL,
   WAGGLE_STOP_CONDITIONS,
 } from '@openwaggle/waggle-core'
-import { Schema } from '@shared/schema'
+import { Schema, type SchemaType } from '@shared/schema'
+import {
+  createWaggleModelBinding,
+  type WaggleConfig,
+  type WaggleHandoffRequest,
+  type WaggleInvocation,
+} from '@shared/types/waggle'
 
 function validateWaggleModelBinding(value: string) {
   return isWaggleInheritedModel(value) || isProviderQualifiedWaggleModel(value)
@@ -49,6 +55,45 @@ export const waggleConfigSchema = Schema.Struct({
     ),
   }),
 })
+
+export const waggleInvocationMetadataSchema = Schema.Struct({
+  presetId: Schema.String,
+  presetName: Schema.String,
+  source: Schema.Literal('user', 'agent'),
+})
+
+export const waggleInvocationSchema = Schema.Struct({
+  ...waggleInvocationMetadataSchema.fields,
+  config: waggleConfigSchema,
+})
+
+export const waggleHandoffRequestSchema = Schema.Struct({
+  kind: Schema.Literal('waggle-handoff'),
+  ...waggleInvocationSchema.fields,
+  prompt: Schema.String,
+})
+
+export function toWaggleConfig(input: SchemaType<typeof waggleConfigSchema>): WaggleConfig {
+  return {
+    ...input,
+    agents: [
+      { ...input.agents[0], model: createWaggleModelBinding(input.agents[0].model) },
+      { ...input.agents[1], model: createWaggleModelBinding(input.agents[1].model) },
+    ],
+  }
+}
+
+export function toWaggleInvocation(
+  input: SchemaType<typeof waggleInvocationSchema>,
+): WaggleInvocation {
+  return { ...input, config: toWaggleConfig(input.config) }
+}
+
+export function toWaggleHandoffRequest(
+  input: SchemaType<typeof waggleHandoffRequestSchema>,
+): WaggleHandoffRequest {
+  return { ...input, config: toWaggleConfig(input.config) }
+}
 
 export const wagglePresetSchema = Schema.Struct({
   id: Schema.String,

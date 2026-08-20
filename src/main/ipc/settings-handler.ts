@@ -4,6 +4,14 @@ import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import { SupportedModelId } from '@shared/types/brand'
 import type { SessionTreeFilterMode } from '@shared/types/session'
 import { THINKING_LEVELS } from '@shared/types/settings'
+import {
+  isMandatoryShortcutCommand,
+  SHORTCUT_COMMANDS,
+  type ShortcutBinding,
+  type ShortcutBindings,
+  type ShortcutCommand,
+  shortcutBindingKey,
+} from '@shared/types/shortcuts'
 import * as Effect from 'effect/Effect'
 import { testCredentials } from '../application/provider-test-service'
 import { createLogger } from '../logger'
@@ -14,6 +22,7 @@ import { validateProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
 
 const logger = createLogger('ipc-settings')
+const MAX_SHORTCUT_KEY_LENGTH = 20
 
 function isString(value: string | undefined) {
   return value !== undefined
@@ -61,6 +70,43 @@ function validateTreeFilterMode(value: unknown) {
     : Effect.fail(new Error('Invalid tree filter mode'))
 }
 
+type ShortcutBindingsPatch = Readonly<Partial<Record<ShortcutCommand, ShortcutBinding | null>>>
+
+function validateShortcutBindingsUpdate(
+  current: ShortcutBindings,
+  patch: ShortcutBindingsPatch,
+):
+  | { readonly ok: true; readonly value: ShortcutBindings }
+  | { readonly ok: false; readonly error: string } {
+  const candidate: Record<ShortcutCommand, ShortcutBinding | null> = { ...current }
+  for (const command of SHORTCUT_COMMANDS) {
+    if (Object.hasOwn(patch, command)) candidate[command] = patch[command] ?? null
+  }
+
+  const owners = new Map<string, ShortcutCommand>()
+  for (const command of SHORTCUT_COMMANDS) {
+    const binding = candidate[command]
+    if (!binding) {
+      if (isMandatoryShortcutCommand(command)) {
+        return { ok: false, error: `Shortcut ${command} must stay assigned.` }
+      }
+      continue
+    }
+    if (!binding.key.trim() || binding.key.trim().length > MAX_SHORTCUT_KEY_LENGTH) {
+      return { ok: false, error: `Shortcut ${command} has an invalid key.` }
+    }
+
+    const key = shortcutBindingKey(binding)
+    const owner = owners.get(key)
+    if (owner) {
+      return { ok: false, error: `Shortcut ${key} is already assigned to ${owner}.` }
+    }
+    owners.set(key, command)
+  }
+
+  return { ok: true, value: candidate }
+}
+
 const settingsUpdateSchema = Schema.Struct({
   selectedModel: Schema.optional(Schema.String),
   favoriteModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
@@ -90,6 +136,24 @@ const settingsUpdateSchema = Schema.Struct({
     ),
   ),
   defaultAuthorizationMode: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
+  shortcutBindings: Schema.optional(
+    Schema.mutable(
+      Schema.Record({
+        key: Schema.Literal(...SHORTCUT_COMMANDS),
+        value: Schema.Union(
+          Schema.Struct({
+            key: Schema.String,
+            mod: Schema.optional(Schema.Boolean),
+            ctrl: Schema.optional(Schema.Boolean),
+            shift: Schema.optional(Schema.Boolean),
+            alt: Schema.optional(Schema.Boolean),
+            meta: Schema.optional(Schema.Boolean),
+          }),
+          Schema.Null,
+        ),
+      }),
+    ),
+  ),
 })
 
 function registerSettingsCrudHandlers() {
@@ -121,6 +185,19 @@ function registerSettingsCrudHandlers() {
       const recentProjects = yield* validateRecentProjectPaths(result.data.recentProjects)
 
       const settings = yield* SettingsService
+      let shortcutBindings: ShortcutBindings | undefined
+      if (result.data.shortcutBindings !== undefined) {
+        const current = yield* settings.get()
+        const validated = validateShortcutBindingsUpdate(
+          current.shortcutBindings,
+          result.data.shortcutBindings,
+        )
+        if (!validated.ok) {
+          logger.warn('Invalid shortcut bindings update', { error: validated.error })
+          return { ok: false, error: validated.error } satisfies { ok: false; error: string }
+        }
+        shortcutBindings = validated.value
+      }
       yield* settings.update({
         ...result.data,
         projectPath:
@@ -132,6 +209,7 @@ function registerSettingsCrudHandlers() {
             : undefined,
         favoriteModels: result.data.favoriteModels?.map(SupportedModelId),
         enabledModels: result.data.enabledModels?.map(SupportedModelId),
+        shortcutBindings,
       })
       if (result.data.projectPath !== undefined) {
         const projectChanges = yield* ActiveProjectChangeService

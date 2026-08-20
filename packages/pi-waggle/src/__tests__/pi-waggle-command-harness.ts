@@ -174,6 +174,7 @@ export function createHarness(
       commands.set(name, options)
     }),
     registerMessageRenderer: vi.fn(),
+    registerTool: vi.fn(),
     sendMessage,
     setModel,
   })

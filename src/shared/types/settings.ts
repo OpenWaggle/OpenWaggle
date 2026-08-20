@@ -4,6 +4,7 @@ import {
 } from './agent-authorization'
 import { SupportedModelId } from './brand'
 import type { SessionEnvironmentMode } from './git'
+import { DEFAULT_SHORTCUT_BINDINGS, type ShortcutBindings } from './shortcuts'
 
 export type Provider = string
 export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const
@@ -44,6 +45,7 @@ export interface Settings {
   readonly recentProjects: readonly string[]
   readonly skillTogglesByProject: Readonly<Record<string, Readonly<Record<string, boolean>>>>
   readonly projectDisplayNames: Readonly<Record<string, string>>
+  readonly shortcutBindings: ShortcutBindings
   /** Default Session environment mode applied to new sessions (ADR 0010). */
   readonly defaultSessionEnvironmentMode: SessionEnvironmentMode
   /** Default authorization mode applied to new sessions unless a project default overrides it. */
@@ -65,6 +67,7 @@ export const DEFAULT_SETTINGS: Settings = {
   recentProjects: [],
   skillTogglesByProject: {},
   projectDisplayNames: {},
+  shortcutBindings: DEFAULT_SHORTCUT_BINDINGS,
   defaultSessionEnvironmentMode: 'local',
   defaultAuthorizationMode: DEFAULT_AGENT_AUTHORIZATION_MODE,
   diffSyntaxTheme: 'pierre-dark',

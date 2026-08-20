@@ -11,7 +11,7 @@ describe('useUIStore integration', () => {
       activeSettingsTab: 'general',
       toastMessage: null,
       toastData: null,
-      commandPaletteOpen: false,
+      slashCommandMenuOpen: false,
     })
   })
 

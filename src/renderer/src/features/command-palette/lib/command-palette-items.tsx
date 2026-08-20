@@ -1,48 +1,15 @@
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import type { WagglePreset } from '@shared/types/waggle'
-import {
-  Archive,
-  Copy,
-  GitBranch,
-  GitPullRequest,
-  ListTree,
-  MessageSquare,
-  Settings,
-  Shield,
-  ShieldAlert,
-  Swords,
-  User,
-  Waypoints,
-} from 'lucide-react'
+import { Archive, GitPullRequest, Settings, Shield, ShieldAlert, Swords, User } from 'lucide-react'
 import { COMMAND_PALETTE } from '../constants/command-palette'
 import type {
   CommandPaletteActionHandlers,
   CommandPaletteItem,
 } from '../model/command-palette-item'
-import { openFeedbackModal } from './command-palette-actions'
 import { truncateCommandDescription } from './command-palette-text'
 
 export function createBaseCommands(actions: CommandPaletteActionHandlers) {
-  const optionalCommands: CommandPaletteItem[] = []
-  appendOptionalCommand(optionalCommands, createSessionTreeCommand(actions))
-  appendOptionalCommand(optionalCommands, createForkCommand(actions))
-  appendOptionalCommand(optionalCommands, createCloneCommand(actions))
-  appendOptionalCommand(optionalCommands, createWorktreesCommand(actions))
-
   return [
-    {
-      id: 'waggle',
-      label: 'Waggle Mode',
-      description: 'Start LLM collaboration session',
-      icon: <Waypoints className="size-3.5" />,
-      action: actions.startWaggle,
-    },
-    {
-      id: 'feedback',
-      label: 'Feedback',
-      icon: <MessageSquare className="size-3.5" />,
-      action: openFeedbackModal,
-    },
     {
       id: 'compact',
       label: 'Compact session',
@@ -50,7 +17,6 @@ export function createBaseCommands(actions: CommandPaletteActionHandlers) {
       icon: <Archive className="size-3.5" />,
       action: actions.insertCompactCommand,
     },
-    ...optionalCommands,
   ]
 }
 
@@ -123,50 +89,6 @@ export function createConfigureWaggleItem(lowerQuery: string, configureWaggle: (
   ]
 }
 
-function createSessionTreeCommand(actions: CommandPaletteActionHandlers) {
-  if (!actions.openSessionTree) return null
-  return {
-    id: 'session-tree',
-    label: 'Open Session Tree',
-    description: 'Navigate the Pi session tree',
-    icon: <ListTree className="size-3.5" />,
-    action: actions.openSessionTree,
-  }
-}
-
-function createForkCommand(actions: CommandPaletteActionHandlers) {
-  if (!actions.forkToNewSession) return null
-  return {
-    id: 'session-fork-to-new',
-    label: 'Fork to new session...',
-    description: 'Select a previous user message and continue in a new session',
-    icon: <GitBranch className="size-3.5" />,
-    action: actions.forkToNewSession,
-  }
-}
-
-function createCloneCommand(actions: CommandPaletteActionHandlers) {
-  if (!actions.cloneToNewSession) return null
-  return {
-    id: 'session-clone-to-new',
-    label: 'Clone to new session',
-    description: 'Duplicate the current session position',
-    icon: <Copy className="size-3.5" />,
-    action: actions.cloneToNewSession,
-  }
-}
-
-function createWorktreesCommand(actions: CommandPaletteActionHandlers) {
-  if (!actions.openWorktrees) return null
-  return {
-    id: 'new-worktree',
-    label: 'Manage worktrees',
-    description: 'Open the Worktrees settings surface',
-    icon: <GitBranch className="size-3.5" />,
-    action: actions.openWorktrees,
-  }
-}
-
 function commandMatchesQuery(command: CommandPaletteItem, lowerQuery: string) {
   return (
     command.label.toLowerCase().includes(lowerQuery) ||
@@ -206,10 +128,4 @@ function presetIcon(preset: WagglePreset) {
   if (name.includes('red team')) return <ShieldAlert className="size-3.5" />
   if (name.includes('qa') || name.includes('test')) return <Shield className="size-3.5" />
   return <User className="size-3.5" />
-}
-
-function appendOptionalCommand(commands: CommandPaletteItem[], command: CommandPaletteItem | null) {
-  if (command) {
-    commands.push(command)
-  }
 }

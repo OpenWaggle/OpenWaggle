@@ -49,5 +49,16 @@ export function createOptimisticUserMessage(payload: AgentSendPayload): UIMessag
       },
     ],
     createdAt: new Date(),
+    ...(payload.waggle
+      ? {
+          metadata: {
+            waggleInvocation: {
+              presetId: payload.waggle.presetId,
+              presetName: payload.waggle.presetName,
+              source: payload.waggle.source,
+            },
+          },
+        }
+      : {}),
   }
 }

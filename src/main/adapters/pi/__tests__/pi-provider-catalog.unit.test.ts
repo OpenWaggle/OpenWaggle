@@ -1,4 +1,4 @@
-import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import { createAgentSessionServices, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LEGACY_PI_MCP_ADAPTER_PACKAGE_SOURCES } from '../../../migrations/legacy-pi-mcp-adapter'
 import {
@@ -13,6 +13,7 @@ import {
   loadedSkillPaths,
   path,
   writeJson,
+  writeNpmProviderPackage,
   writeProviderExtension,
   writeProviderPackage,
   writeSkill,
@@ -54,6 +55,55 @@ describe('getPiModelAvailableThinkingLevels', () => {
 })
 
 describe('createPiProviderCatalogSnapshot', () => {
+  it('does not load a user-managed MCP adapter or remove it from other Pi projects', async () => {
+    const root = await createTempProject()
+    const agentDir = path.join(root, 'pi-agent')
+    const home = path.join(root, 'home')
+    const packageName = 'pi-mcp-adapter'
+    const packageVersion = '2.5.4'
+    const packageSource = `npm:${packageName}@${packageVersion}`
+    const mcpProviderId = 'user-managed-mcp-adapter-provider'
+    const otherProviderId = 'other-user-package-provider'
+    vi.stubEnv('HOME', home)
+    vi.stubEnv('PI_CODING_AGENT_DIR', agentDir)
+    await writeNpmProviderPackage(agentDir, packageName, packageVersion, mcpProviderId)
+    await writeProviderPackage(agentDir, 'extensions/global-provider-package', otherProviderId)
+    await writeJson(path.join(agentDir, 'settings.json'), {
+      packages: [packageSource, 'extensions/global-provider-package'],
+    })
+    const settingsBeforeOpenWaggle = await fs.readFile(path.join(agentDir, 'settings.json'), 'utf8')
+
+    try {
+      const snapshot = await createPiProviderCatalogSnapshot(null)
+
+      expect(snapshot.providers.map((provider) => provider.provider)).not.toContain(mcpProviderId)
+      expect(snapshot.providers.map((provider) => provider.provider)).toContain(otherProviderId)
+      expect(await fs.readFile(path.join(agentDir, 'settings.json'), 'utf8')).toBe(
+        settingsBeforeOpenWaggle,
+      )
+
+      const openWaggleServices = await createPiRuntimeServices(root)
+      openWaggleServices.settingsManager.setTheme('light')
+      await openWaggleServices.settingsManager.flush()
+      const settingsAfterOpenWaggleWrite = JSON.parse(
+        await fs.readFile(path.join(agentDir, 'settings.json'), 'utf8'),
+      )
+      expect(settingsAfterOpenWaggleWrite).toEqual({
+        packages: [packageSource, 'extensions/global-provider-package'],
+        theme: 'light',
+      })
+
+      const externalPiServices = await createAgentSessionServices({
+        cwd: root,
+        agentDir,
+      })
+      expect(externalPiServices.modelRuntime.getProvider(mcpProviderId)?.id).toBe(mcpProviderId)
+      expect(externalPiServices.modelRuntime.getProvider(otherProviderId)?.id).toBe(otherProviderId)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
   it('removes and does not load an OpenWaggle-owned legacy global MCP package entry', async () => {
     const root = await createTempProject()
     const agentDir = path.join(root, 'pi-agent')

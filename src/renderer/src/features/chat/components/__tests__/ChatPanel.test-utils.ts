@@ -57,7 +57,7 @@ export function createSections(
       session: null,
       isFirstMessage: false,
       waggleStatus: 'idle',
-      commandPaletteOpen: false,
+      slashCommandMenuOpen: false,
       slashSkills: [],
       forkSelectorOpen: false,
       forkTargets: [],

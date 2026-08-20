@@ -46,7 +46,10 @@ export function useWaggleChat(sessionId: SessionId | null): void {
     // onRunCompleted still transitions the store to 'completed'.
     const unsubRunCompleted = api.onRunCompleted((payload) => {
       const state = useWaggleStore.getState()
-      if (state.activeCollaborationId === payload.sessionId && state.status === 'running') {
+      if (
+        state.activeCollaborationId === payload.sessionId &&
+        (state.status === 'pending' || state.status === 'running')
+      ) {
         state.handleTurnEvent({
           type: 'collaboration-complete',
           reason: state.completionReason ?? 'Run completed',

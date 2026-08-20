@@ -9,6 +9,15 @@ import {
   DIFF_VIEWS,
   THINKING_LEVELS,
 } from '@shared/types/settings'
+import {
+  DEFAULT_SHORTCUT_BINDINGS,
+  isMandatoryShortcutCommand,
+  SHORTCUT_COMMANDS,
+  type ShortcutBinding,
+  type ShortcutBindings,
+  type ShortcutCommand,
+  shortcutBindingKey,
+} from '@shared/types/shortcuts'
 import { includes } from '@shared/utils/validation'
 
 export function isObjectRecord(value: unknown): value is Readonly<Record<string, unknown>> {
@@ -194,6 +203,49 @@ export function sanitizeProjectDisplayNames(raw: unknown) {
     if (typeof key === 'string' && typeof value === 'string') {
       result[key] = value
     }
+  }
+  return result
+}
+
+function sanitizeShortcutBinding(raw: unknown): ShortcutBinding | null {
+  if (!isObjectRecord(raw) || typeof raw.key !== 'string') return null
+  const key = raw.key.trim()
+  if (!key || key.length > BASE_TEN + BASE_TEN) return null
+
+  const optionalBooleanKeys = ['mod', 'ctrl', 'shift', 'alt', 'meta'] as const
+  for (const field of optionalBooleanKeys) {
+    if (raw[field] !== undefined && typeof raw[field] !== 'boolean') return null
+  }
+
+  return {
+    key,
+    ...(raw.mod === true ? { mod: true } : {}),
+    ...(raw.ctrl === true ? { ctrl: true } : {}),
+    ...(raw.shift === true ? { shift: true } : {}),
+    ...(raw.alt === true ? { alt: true } : {}),
+    ...(raw.meta === true ? { meta: true } : {}),
+  }
+}
+
+export function sanitizeShortcutBindings(raw: unknown): ShortcutBindings {
+  if (!isObjectRecord(raw)) return DEFAULT_SHORTCUT_BINDINGS
+
+  const result: Record<ShortcutCommand, ShortcutBinding | null> = {
+    ...DEFAULT_SHORTCUT_BINDINGS,
+  }
+  for (const command of SHORTCUT_COMMANDS) {
+    if (raw[command] === null && !isMandatoryShortcutCommand(command)) {
+      result[command] = null
+      continue
+    }
+    const binding = sanitizeShortcutBinding(raw[command])
+    if (binding) result[command] = binding
+  }
+  const assigned = Object.values(result).filter(
+    (binding): binding is ShortcutBinding => binding !== null,
+  )
+  if (new Set(assigned.map(shortcutBindingKey)).size !== assigned.length) {
+    return DEFAULT_SHORTCUT_BINDINGS
   }
   return result
 }

@@ -13,6 +13,7 @@ import { ConnectionsSection } from './sections/ConnectionsSection'
 import { ExtensionsSection } from './sections/ExtensionsSection'
 import { GeneralSection } from './sections/GeneralSection'
 import { McpSection } from './sections/McpSection'
+import { ShortcutsSection } from './sections/ShortcutsSection'
 import { WaggleSection } from './sections/WaggleSection'
 import { WorktreesSection } from './sections/WorktreesSection'
 
@@ -83,6 +84,7 @@ function SettingsTabContent({
 }) {
   return match(tab)
     .with('general', () => <GeneralSection />)
+    .with('shortcuts', () => <ShortcutsSection />)
     .with('appearance', () => <AppearanceSection />)
     .with('waggle', () => <WaggleSection />)
     .with('extensions', () => <ExtensionsSection />)

@@ -1,3 +1,5 @@
+import type { WaggleInvocationMetadata } from './waggle'
+
 export type ChatMessageRole = 'system' | 'user' | 'assistant'
 
 export interface ChatTextPart {
@@ -77,6 +79,7 @@ export interface ChatBranchSummaryMetadata {
 export interface UIMessageMetadata {
   readonly branchSummary?: ChatBranchSummaryMetadata
   readonly compactionSummary?: ChatCompactionSummaryMetadata
+  readonly waggleInvocation?: WaggleInvocationMetadata
 }
 
 export interface UIMessage {
