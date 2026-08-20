@@ -240,6 +240,46 @@ describe('Pinned section', () => {
     })
   })
 
+  /*
+   * Reordering has to work without a drag.
+   *
+   * Manual order made the row a drag source and offered nothing else, which fails WCAG 2.2
+   * SC 2.1.1 Keyboard and SC 2.5.7 Dragging Movements: a keyboard user, or anyone who cannot hold
+   * a pointer down and move it, could not change the order at all.
+   */
+  it('reorders a pinned row from the actions menu, with no drag', async () => {
+    resetStores([pin(PINNED_ID, 'i'), pin(PLAIN_ID, 'q')])
+    render(<Sidebar />)
+
+    // The second row can move up; the first cannot.
+    fireEvent.click(
+      within(pinnedSection()).getByRole('button', {
+        name: 'Open session actions for Plain session',
+      }),
+    )
+    expect(screen.getByText('Move up')).toBeInTheDocument()
+    expect(screen.queryByText('Move down')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('Move up'))
+
+    await waitFor(() => {
+      expect(movePinnedSessionMock).toHaveBeenCalled()
+    })
+  })
+
+  it('offers no move on the only pinned row', () => {
+    resetStores([pin(PINNED_ID, 'i')])
+    render(<Sidebar />)
+
+    fireEvent.click(
+      within(pinnedSection()).getByRole('button', {
+        name: 'Open session actions for Pinned session',
+      }),
+    )
+
+    expect(screen.queryByText('Move up')).not.toBeInTheDocument()
+    expect(screen.queryByText('Move down')).not.toBeInTheDocument()
+  })
+
   it('offers Unpin in the actions menu of a pinned row', async () => {
     resetStores([pin(PINNED_ID, 'i')])
     render(<Sidebar />)

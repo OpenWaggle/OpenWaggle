@@ -106,3 +106,29 @@ export function buildSessionProvenance(
 
   return indicators
 }
+
+/**
+ * One hover description for a whole row.
+ *
+ * The row's click target is stretched over the row with a pseudo-element, and a pseudo-element is
+ * hit-tested as part of the element that owns it. Pointer events anywhere in the row therefore
+ * target the title control, so a title on an inner span is unreachable. Composing the same
+ * descriptions onto the row itself keeps them readable, since the lookup walks ancestors.
+ */
+export function describeSessionRow(input: {
+  readonly indicators: readonly SessionProvenanceIndicator[]
+  readonly projectLabel: string
+  readonly stateLabel: string | null
+  readonly gitDivergence: string | null
+  readonly hasInterruptedRun: boolean
+}): string | undefined {
+  const parts = [
+    input.projectLabel,
+    input.stateLabel,
+    ...input.indicators.map((indicator) => indicator.description),
+    input.gitDivergence,
+    input.hasInterruptedRun ? 'A run was interrupted in this session' : null,
+  ].filter((part): part is string => typeof part === 'string' && part.length > 0)
+
+  return parts.length === 0 ? undefined : parts.join(' \u00b7 ')
+}

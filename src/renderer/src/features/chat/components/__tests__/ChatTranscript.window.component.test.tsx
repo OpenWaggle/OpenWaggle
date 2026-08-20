@@ -131,6 +131,36 @@ describe('ChatTranscript windowing', () => {
     expect(screen.queryByRole('button', { name: /load earlier/i })).not.toBeInTheDocument()
   })
 
+  /*
+   * A window that remembered its size instead of its start unmounted the topmost row on every
+   * arrival. With [overflow-anchor:none] on the scroller that moved the view under a reader who had
+   * scrolled up, and it grew a "Load earlier" control on a session read from its first message.
+   */
+  it('keeps the same first row as new rows arrive', () => {
+    const { rerender } = render(<ChatTranscript section={createSection(30)} />)
+
+    // A short session shows everything and offers no control.
+    expect(screen.getByText('msg-0')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /load earlier/i })).not.toBeInTheDocument()
+
+    // Growing past the window size must not start hiding the beginning.
+    rerender(<ChatTranscript section={createSection(60)} />)
+
+    expect(screen.getByText('msg-0')).toBeInTheDocument()
+    expect(screen.getByText('msg-59')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /load earlier/i })).not.toBeInTheDocument()
+  })
+
+  it('never slices a shrinking transcript down to nothing', () => {
+    const { rerender } = render(<ChatTranscript section={createSection(400)} />)
+    expect(screen.getByRole('button', { name: /load earlier/i })).toBeInTheDocument()
+
+    // Compaction replaces a long transcript with a short summary.
+    rerender(<ChatTranscript section={createSection(3)} />)
+
+    expect(screen.getByText('msg-2')).toBeInTheDocument()
+  })
+
   it('returns to the newest rows when the session changes', () => {
     const total = 400
     const { rerender } = render(<ChatTranscript section={createSection(total, 'session-1')} />)

@@ -2,6 +2,7 @@ import { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import { useState } from 'react'
 import { cn } from '@/shared/lib/cn'
+import { useSessionRowDescription } from '../hooks/useSessionRowDescription'
 import { useSessionRowStatus } from '../hooks/useSessionRowStatus'
 import type { SidebarSessionActions } from '../model'
 import { SessionItemContextMenu } from './SessionItemContextMenu'
@@ -50,13 +51,22 @@ interface SessionListItemProps {
 /** What a Pinned row adds to the second line, defaulted for rows inside a project group. */
 function resolvePinnedMeta(pinnedRow: SessionPinnedRowState | undefined) {
   if (pinnedRow === undefined) {
-    return { isPinnedRow: false, projectLabel: '', shortcutIndex: null, draggable: false }
+    return {
+      isPinnedRow: false,
+      projectLabel: '',
+      shortcutIndex: null,
+      draggable: false,
+      onMoveUp: null,
+      onMoveDown: null,
+    }
   }
   return {
     isPinnedRow: true,
     projectLabel: pinnedRow.projectLabel,
     shortcutIndex: pinnedRow.shortcutIndex,
     draggable: pinnedRow.draggable,
+    onMoveUp: pinnedRow.onMoveUp,
+    onMoveDown: pinnedRow.onMoveDown,
   }
 }
 
@@ -103,6 +113,12 @@ export function SessionListItem({
   const status = useSessionRowStatus(sessionId, session)
   const menu = useRowContextMenu()
   const pinned = resolvePinnedMeta(pinnedRow)
+  const rowDescription = useSessionRowDescription({
+    session,
+    projectLabel: pinned.projectLabel,
+    stateLabel: status.stateLabel,
+    hasInterruptedRun: status.hasInterruptedRun,
+  })
 
   // A type annotation rather than an assertion: React's CSSProperties does not model custom
   // properties, and the row sets one so its glyph, label and border read the same value.
@@ -113,6 +129,12 @@ export function SessionListItem({
   return (
     <li
       aria-current={isActive ? 'true' : undefined}
+      /*
+       * The row carries the hover description for everything inside it. The stretched click target
+       * is hit-tested as part of the title control, so a title on an inner span is unreachable;
+       * a title here is found by walking ancestors.
+       */
+      title={rowDescription}
       data-qa="sidebar-session-row"
       {...rowProps}
       style={rowStyle}
@@ -169,6 +191,8 @@ export function SessionListItem({
         sessionId={sessionId}
         isPinned={isPinned}
         actions={actions}
+        onMoveUp={pinned.onMoveUp}
+        onMoveDown={pinned.onMoveDown}
         onClose={menu.close}
       />
     </li>

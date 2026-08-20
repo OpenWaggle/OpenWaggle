@@ -24,9 +24,16 @@ interface ProjectGroupSectionProps {
   readonly branchActions: SidebarBranchActions
 }
 
-/** A draft's accent never varies, so the style object is built once rather than per render. */
+/**
+ * A draft's accent never varies, so the style object is built once rather than per render.
+ *
+ * text-tertiary rather than text-muted: on the active row background (#2b313a) muted measures
+ * 2.58:1, well under the 4.5:1 that AA requires for text, and this row always renders on that
+ * background. Nothing in this palette clears 4.5:1 against text-muted, so it should never carry
+ * text.
+ */
 const DRAFT_ROW_STYLE: React.CSSProperties & { '--row-color': string } = {
-  '--row-color': 'var(--color-text-muted)',
+  '--row-color': 'var(--color-text-tertiary)',
 }
 
 /**
@@ -64,7 +71,7 @@ function DraftSessionRow({
             New session
           </span>
         </span>
-        <span className="flex h-4 min-w-0 items-center gap-1.5 text-[10.5px] text-text-muted leading-[1.45]">
+        <span className="flex h-4 min-w-0 items-center gap-1.5 text-[10.5px] text-text-tertiary leading-[1.45]">
           <span className="flex min-w-0 flex-auto items-center gap-[5px] overflow-hidden whitespace-nowrap">
             <span className="shrink-0 font-bold tracking-[0.02em] text-[color:var(--row-color)]">
               Draft

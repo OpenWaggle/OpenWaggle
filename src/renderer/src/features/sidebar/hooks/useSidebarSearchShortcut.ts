@@ -1,50 +1,48 @@
-import { useHotkeys } from '@tanstack/react-hotkeys'
+import { useHotkey } from '@tanstack/react-hotkeys'
+import { useEscapeHotkey } from '@/shared/hooks/useEscapeHotkey'
 import { useUIStore } from '@/shell/ui-store'
 import { useSidebarFilterStore } from '../state/sidebar-filter-store'
 
-/** Marks the filter field so Escape can tell it apart from any other focused input. */
-const SEARCH_CONTAINER_SELECTOR = '[data-qa="sidebar-search"]'
-
 /**
- * Mod+F focuses the sidebar's filter field.
+ * Mod+F focuses the sidebar's filter field, and Escape clears it while it holds focus.
  *
- * The field advertises this shortcut on its right-hand side, so the binding has to exist: a
- * hint for a shortcut that does nothing is worse than no hint, because the user stops trusting
- * the others. Opens the sidebar first when it is collapsed, since focusing a hidden field would
- * silently do nothing.
+ * The field advertises Mod+F on its right-hand side, so the binding has to exist: a hint for a
+ * shortcut that does nothing is worse than no hint, because the user stops trusting the others.
+ * Opens the sidebar first when it is collapsed, since focusing a hidden field would silently do
+ * nothing, and records the request in the store so the field can focus itself rather than being
+ * found by a DOM query that races the sidebar mounting.
  *
- * The request is recorded in the store and the field focuses itself. Reaching into the DOM from
- * here instead needed a requestAnimationFrame to wait for the sidebar to mount, which raced that
- * mount and flaked under load.
+ * Escape goes through useEscapeHotkey, not through a second useHotkeys entry.
+ * @tanstack/react-hotkeys calls preventDefault and stopPropagation on every match before the
+ * callback runs, so a plain Escape registration with preventDefault cancels Escape for the whole
+ * application no matter what the callback then decides. Chromium will not close a native <dialog>
+ * once a document-level listener has cancelled the key, which silently killed the only dismissal
+ * CommitMessageDialog has. The shared hook exists for exactly this: it registers permissively and
+ * prevents the default only when it owns the topmost overlay.
  */
 export function useSidebarSearchShortcut(): void {
   const sidebarOpen = useUIStore((state) => state.sidebarOpen)
   const toggleSidebar = useUIStore((state) => state.toggleSidebar)
   const clearFilters = useSidebarFilterStore((state) => state.clear)
   const requestFocus = useSidebarFilterStore((state) => state.requestFocus)
+  const searchFocused = useSidebarFilterStore((state) => state.searchFocused)
 
-  useHotkeys(
-    [
-      {
-        hotkey: 'Mod+F',
-        callback: () => {
-          if (!sidebarOpen) toggleSidebar()
-          requestFocus()
-        },
-      },
-      {
-        // Escape from the field clears what it narrowed, which is the way out of a filtered
-        // sidebar without reaching for the mouse.
-        hotkey: 'Escape',
-        callback: () => {
-          const active = document.activeElement
-          if (active instanceof HTMLInputElement && active.closest(SEARCH_CONTAINER_SELECTOR)) {
-            clearFilters()
-            active.blur()
-          }
-        },
-      },
-    ],
+  useHotkey(
+    'Mod+F',
+    () => {
+      if (!sidebarOpen) toggleSidebar()
+      requestFocus()
+    },
     { preventDefault: true },
+  )
+
+  // Only claims Escape while the field actually holds focus, so every other overlay keeps it.
+  useEscapeHotkey(
+    () => {
+      clearFilters()
+      const active = document.activeElement
+      if (active instanceof HTMLInputElement) active.blur()
+    },
+    { enabled: searchFocused },
   )
 }

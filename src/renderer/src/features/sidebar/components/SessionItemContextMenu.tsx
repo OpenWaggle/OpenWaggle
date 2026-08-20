@@ -1,5 +1,5 @@
 import type { SessionId } from '@shared/types/brand'
-import { Archive, Copy, Eye, Pin, PinOff, Trash2 } from 'lucide-react'
+import { Archive, ArrowDown, ArrowUp, Copy, Eye, Pin, PinOff, Trash2 } from 'lucide-react'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
 import { ContextMenu } from '@/shared/ui/ContextMenu'
@@ -11,6 +11,15 @@ interface SessionItemContextMenuProps {
   readonly sessionId: SessionId
   readonly isPinned: boolean
   readonly actions: SidebarSessionActions
+  /**
+   * Keyboard route for reordering a pinned row, null when the move does not apply.
+   *
+   * Dragging is the only pointer route for Manual order, and dragging alone fails WCAG 2.2
+   * SC 2.1.1 Keyboard and SC 2.5.7 Dragging Movements. This menu opens from the keyboard, so these
+   * give reordering a route that needs no sustained gesture.
+   */
+  readonly onMoveUp?: (() => void) | null
+  readonly onMoveDown?: (() => void) | null
   readonly onClose: () => void
 }
 
@@ -44,6 +53,8 @@ export function SessionItemContextMenu({
   sessionId,
   isPinned,
   actions,
+  onMoveUp,
+  onMoveDown,
   onClose,
 }: SessionItemContextMenuProps) {
   function closeAfter(action: () => void) {
@@ -65,6 +76,16 @@ export function SessionItemContextMenu({
         label={isPinned ? 'Unpin session' : 'Pin session'}
         onClick={() => closeAfter(() => actions.togglePin(sessionId))}
       />
+      {onMoveUp ? (
+        <SessionMenuButton icon={ArrowUp} label="Move up" onClick={() => closeAfter(onMoveUp)} />
+      ) : null}
+      {onMoveDown ? (
+        <SessionMenuButton
+          icon={ArrowDown}
+          label="Move down"
+          onClick={() => closeAfter(onMoveDown)}
+        />
+      ) : null}
       <SessionMenuButton
         icon={Eye}
         label="Mark as unread"

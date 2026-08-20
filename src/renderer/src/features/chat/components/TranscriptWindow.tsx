@@ -1,5 +1,5 @@
 import { matchBy } from '@diegogbrisa/ts-match'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/shared/ui/Button'
 import type { ChatRow } from '../lib/types-chat-row'
 import type { ChatRowRenderContext } from './ChatRowRenderContext'
@@ -53,19 +53,66 @@ export function TranscriptWindow({
   readonly rows: ChatRow[]
   readonly context: ChatRowRenderContext
 }) {
-  const [limit, setLimit] = useState(INITIAL_ROW_WINDOW)
-  const hiddenCount = Math.max(0, rows.length - limit)
+  /*
+   * The window remembers where it starts, not how big it is.
+   *
+   * Holding a visible limit instead made a new row push an old one out of the window: the topmost
+   * mounted row unmounted on every arrival, and with [overflow-anchor:none] on the scroller a
+   * reader who had scrolled up watched the view jump. It also grew a "Load earlier messages (1
+   * above)" control on a session the user had read from its very first message, which is a lie
+   * about the transcript. Fixing the start makes new rows purely additive.
+   *
+   * Initialised from the row count on mount, which is correct because the component is remounted
+   * per session by its key.
+   */
+  const [hidden, setHidden] = useState(() => Math.max(0, rows.length - INITIAL_ROW_WINDOW))
+  const [announcement, setAnnouncement] = useState('')
+  const startRef = useRef<HTMLDivElement>(null)
+  const pendingFocusRef = useRef(false)
+
+  // Compaction can shrink the transcript below the recorded start, which would otherwise slice
+  // everything away and leave a Load earlier control above an empty transcript.
+  const hiddenCount = Math.min(hidden, Math.max(0, rows.length - 1))
   const visibleRows = hiddenCount === 0 ? rows : rows.slice(hiddenCount)
+
+  /*
+   * Keep the keyboard somewhere sensible after the control retires.
+   *
+   * The last press unmounts the button, which drops focus to document.body and loses the reader's
+   * place entirely. Focus moves to the top of the transcript instead.
+   */
+  useEffect(() => {
+    if (!pendingFocusRef.current || hiddenCount > 0) return
+    pendingFocusRef.current = false
+    startRef.current?.focus()
+  }, [hiddenCount])
+
+  function loadEarlier() {
+    const revealed = Math.min(hiddenCount, LOAD_EARLIER_ROW_COUNT)
+    pendingFocusRef.current = true
+    setHidden((current) => Math.max(0, current - LOAD_EARLIER_ROW_COUNT))
+    setAnnouncement(`${revealed} earlier messages loaded`)
+  }
 
   return (
     <>
+      {/*
+       * One polite message instead of a hundred. The scroller is a role="log", whose implicit
+       * aria-live is polite and whose aria-relevant defaults to additions, so inserting 100 rows in
+       * one commit queued an announcement per row. The summary is what a reader actually wants.
+       */}
+      <div aria-live="polite" className="sr-only">
+        {announcement}
+      </div>
+      {/* Focus lands here when the transcript reaches its start, so a keyboard user keeps a place. */}
+      <div ref={startRef} tabIndex={-1} className="outline-none" />
       {hiddenCount > 0 ? (
         <div className="mx-auto w-full max-w-[720px] px-12 pt-5 pb-6">
           <Button
             variant="secondary"
             type="button"
             className="w-full justify-center text-[12px]"
-            onClick={() => setLimit((current) => current + LOAD_EARLIER_ROW_COUNT)}
+            onClick={loadEarlier}
           >
             {`Load earlier messages (${hiddenCount} above)`}
           </Button>

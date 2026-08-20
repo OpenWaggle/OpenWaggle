@@ -122,7 +122,7 @@ export function SidebarPinnedSection({
           <PinnedSessionListItem
             key={String(row.session.id)}
             row={row}
-            index={renderIndex}
+            place={{ index: renderIndex, count: rows.length }}
             draggable={draggable}
             isActive={activeSessionId === String(row.session.id)}
             projectLabel={
@@ -148,7 +148,7 @@ export function SidebarPinnedSection({
  */
 function PinnedSessionListItem({
   row,
-  index,
+  place,
   draggable,
   isActive,
   projectLabel,
@@ -156,13 +156,22 @@ function PinnedSessionListItem({
   onReorder,
 }: {
   readonly row: PinnedSessionRow
-  readonly index: number
+  /** Where the row sits among the rendered rows, and how many there are. */
+  readonly place: { readonly index: number; readonly count: number }
   readonly draggable: boolean
   readonly isActive: boolean
   readonly projectLabel: string
   readonly sessionActions: SidebarSessionActions
   readonly onReorder: (sessionId: SessionId, targetIndex: number) => void
 }) {
+  const sessionId = SessionId(String(row.session.id))
+  /*
+   * Manual order only. In a sorted order the position is derived, so moving a row would either be
+   * undone by the sort or silently switch the whole section to Manual.
+   */
+  const canMoveUp = draggable && place.index > 0
+  const canMoveDown = draggable && place.index < place.count - 1
+
   return (
     <SessionListItem
       session={row.session}
@@ -174,10 +183,12 @@ function PinnedSessionListItem({
         // The row's position in the whole section, not its position among the rendered rows.
         shortcutIndex: row.position < PINNED_SHORTCUT_LIMIT ? row.position : null,
         draggable,
+        onMoveUp: canMoveUp ? () => onReorder(sessionId, place.index - 1) : null,
+        onMoveDown: canMoveDown ? () => onReorder(sessionId, place.index + 1) : null,
       }}
       rowProps={{
         draggable,
-        'data-pinned-index': index,
+        'data-pinned-index': place.index,
         'data-pinned-session-id': String(row.session.id),
         onDragStart: (event) => {
           event.dataTransfer.effectAllowed = 'move'
@@ -201,7 +212,7 @@ function PinnedSessionListItem({
           event.currentTarget.removeAttribute('data-drop-target')
           const draggedSessionId = event.dataTransfer.getData('text/plain')
           if (!draggedSessionId || draggedSessionId === String(row.session.id)) return
-          onReorder(SessionId(draggedSessionId), index)
+          onReorder(SessionId(draggedSessionId), place.index)
         },
         className: cn(
           'transition-opacity',

@@ -19,6 +19,15 @@ export interface SessionPinnedRowState {
   readonly shortcutIndex: number | null
   /** True in Manual order, where the row is a drag source and shows a grip. */
   readonly draggable: boolean
+  /**
+   * Keyboard route for reordering, null where the move is impossible or unavailable.
+   *
+   * Dragging is the only pointer route, and dragging alone fails WCAG 2.2 SC 2.1.1 Keyboard and
+   * SC 2.5.7 Dragging Movements. These land in the row's context menu, which opens from the
+   * keyboard, so reordering does not depend on a sustained pointer gesture.
+   */
+  readonly onMoveUp: (() => void) | null
+  readonly onMoveDown: (() => void) | null
 }
 
 /**
