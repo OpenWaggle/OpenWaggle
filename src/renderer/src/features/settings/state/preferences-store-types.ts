@@ -1,6 +1,7 @@
 import type { SupportedModelId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
 import type { DiffSyntaxTheme, DiffView, Settings, ThinkingLevel } from '@shared/types/settings'
+import type { ShortcutBinding, ShortcutCommand } from '@shared/types/shortcuts'
 
 export interface PreferencesState {
   settings: Settings
@@ -21,6 +22,8 @@ export interface PreferencesState {
   setDiffWrapLines: (wrap: boolean) => Promise<void>
   setEnabledModels: (models: string[]) => Promise<void>
   setProjectDisplayName: (path: string, name: string) => Promise<void>
+  setShortcutBinding: (command: ShortcutCommand, binding: ShortcutBinding | null) => Promise<void>
+  resetShortcutBindings: () => Promise<void>
   clearProjectDisplayName: (path: string) => Promise<void>
   removeProjectReferences: (path: string) => Promise<void>
   loadProjectPreferences: (projectPath: string) => Promise<void>

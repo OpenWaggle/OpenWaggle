@@ -12,6 +12,8 @@ section: "Getting Started"
 | Send message | `Enter` | `Enter` |
 | New line | `Shift+Enter` | `Shift+Enter` |
 | New session | `Cmd+N` | `Ctrl+N` |
+| Command palette | `Cmd+K` | `Ctrl+K` |
+| Go to file | `Cmd+P` | `Ctrl+P` |
 | Toggle sidebar | `Cmd+B` | `Ctrl+B` |
 | Filter projects and sessions | `Cmd+F` | `Ctrl+F` |
 | Open pinned session 1 to 9 | `Cmd+1` … `Cmd+9` | `Ctrl+1` … `Ctrl+9` |
@@ -20,7 +22,8 @@ section: "Getting Started"
 | Toggle Session Tree | `Cmd+Shift+Y` | `Ctrl+Shift+Y` |
 | Submit diff comment or review | `Cmd+Enter` | `Ctrl+Enter` |
 | Cancel diff comment or review | `Escape` | `Escape` |
-| Command palette | `Cmd+K` | `Ctrl+K` |
+
+Open **Settings > Shortcuts** to record replacements. OpenWaggle rejects conflicts instead of silently replacing another command. Command palette, Go to file, and New session must remain assigned; optional workspace shortcuts can be cleared and every shortcut can be reset.
 
 ## Sidebar
 
@@ -36,7 +39,7 @@ pin is still allowed, it simply has no shortcut.
 
 ## Session Tree
 
-Open the Session Tree from the header tree icon or the command palette action **Open Session Tree**. When focus is inside the tree:
+Open the Session Tree from the header tree icon or the global command palette action **Open Session Tree**. When focus is inside the tree:
 
 | Action | Shortcut |
 |--------|----------|

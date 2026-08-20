@@ -156,6 +156,18 @@ export async function resolvePresetById(cwd: string, presetId: string) {
   return presets.find((candidate) => candidate.preset.id === presetId) ?? null
 }
 
+export async function resolvePresetByReference(cwd: string, reference: string) {
+  const normalizedReference = reference.trim().toLowerCase()
+  const presets = resolvedPresetsForUi(await loadPiWagglePresetLayers(cwd))
+  return (
+    presets.find(
+      (candidate) =>
+        candidate.preset.id.toLowerCase() === normalizedReference ||
+        candidate.preset.name.toLowerCase() === normalizedReference,
+    ) ?? null
+  )
+}
+
 export function disableWaggle(input: {
   readonly pi: Pick<ExtensionAPI, 'appendEntry'>
   readonly ctx: ExtensionCommandContext

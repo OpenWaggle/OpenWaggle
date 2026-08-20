@@ -2,12 +2,13 @@ import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
-import type { WaggleCollaborationStatus, WaggleConfig } from '@shared/types/waggle'
-import { $createParagraphNode, $createTextNode, $getRoot } from 'lexical'
+import type { WaggleCollaborationStatus } from '@shared/types/waggle'
 import type { AgentChatStatus, AgentCompactionStatus } from '@/features/chat/hooks/useAgentChat'
 import type { useStreamingPhase } from '@/features/chat/hooks/useStreamingPhase'
-import { $createSkillMentionNode } from '@/features/composer/components'
-import { useComposerStore } from '@/features/composer/state'
+import {
+  insertSkillReferenceAtActiveSlash,
+  insertWagglePresetAtActiveSlash,
+} from '@/features/composer/lib'
 import type { SessionForkTarget } from '../lib/session-fork-targets'
 import type { ChatComposerSectionState } from '../model'
 
@@ -20,7 +21,7 @@ export interface ComposerSectionParams {
   readonly session: SessionDetail | null
   readonly isFirstMessage: boolean
   readonly waggleStatus: WaggleCollaborationStatus
-  readonly commandPaletteOpen: boolean
+  readonly slashCommandMenuOpen: boolean
   readonly slashSkills: readonly SkillDiscoveryItem[]
   readonly forkSelectorOpen: boolean
   readonly forkTargets: readonly SessionForkTarget[]
@@ -29,7 +30,6 @@ export interface ComposerSectionParams {
   readonly showToast: (message: string) => void
   readonly handleSteer: (messageId: string) => Promise<void>
   readonly handleSendWithWaggle: (payload: AgentSendPayload) => Promise<void>
-  readonly handleStartWaggle: (config: WaggleConfig) => void
   readonly handleStopCollaboration: () => void
   readonly handleSkipBranchSummary: () => void
   readonly handleSummarizeBranch: () => void
@@ -43,28 +43,7 @@ export interface ComposerSectionParams {
 
 /** Closes over nothing but the composer store singleton — hoisted to module scope. */
 function handleSelectSkill(skillId: string, skillName?: string) {
-  const composerStore = useComposerStore.getState()
-  const editor = composerStore.lexicalEditor
-
-  if (editor) {
-    editor.update(() => {
-      const root = $getRoot()
-      root.clear()
-      const paragraph = $createParagraphNode()
-      const mentionNode = $createSkillMentionNode(skillId, skillName ?? skillId)
-      paragraph.append(mentionNode)
-      paragraph.append($createTextNode(' '))
-      root.append(paragraph)
-      root.selectEnd()
-    })
-    editor.focus()
-  } else {
-    // Fallback: plain text (no Lexical editor available)
-    const currentInput = composerStore.input
-    const nextInput = currentInput === '/' ? `/${skillId} ` : `/${skillId} ${currentInput}`
-    composerStore.setInput(nextInput)
-    composerStore.setCursorIndex(nextInput.length)
-  }
+  insertSkillReferenceAtActiveSlash(skillId, skillName ?? skillId)
 }
 
 export function useComposerSection(params: ComposerSectionParams): ChatComposerSectionState {
@@ -75,7 +54,7 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
     compactionStatus,
     activeSessionId,
     waggleStatus,
-    commandPaletteOpen,
+    slashCommandMenuOpen,
     slashSkills,
     forkSelectorOpen,
     forkTargets,
@@ -84,7 +63,6 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
     showToast,
     handleSteer,
     handleSendWithWaggle,
-    handleStartWaggle,
     handleStopCollaboration,
     handleSkipBranchSummary,
     handleSummarizeBranch,
@@ -103,7 +81,7 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
     session: params.session,
     isFirstMessage,
     waggleStatus,
-    commandPaletteOpen,
+    slashCommandMenuOpen,
     slashSkills,
     forkSelectorOpen,
     forkTargets,
@@ -112,7 +90,7 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
     compactionStatus,
     onStopCollaboration: handleStopCollaboration,
     onSelectSkill: handleSelectSkill,
-    onStartWaggle: handleStartWaggle,
+    onStartWaggle: insertWagglePresetAtActiveSlash,
     onSendWithWaggle: handleSendWithWaggle,
     onSteer: handleSteer,
     onCancel: stop,

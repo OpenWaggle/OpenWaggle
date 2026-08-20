@@ -21,6 +21,7 @@ import { registerUpdaterHandlers } from './updater-handler'
 import { registerVoiceHandlers } from './voice-handler'
 import { registerWaggleHandlers } from './waggle-handler'
 import { registerWagglePresetsHandlers } from './waggle-presets-handler'
+import { registerWorkspaceFileHandlers } from './workspace-files-handler'
 
 export { cleanupTerminals } from './terminal-handler'
 
@@ -48,4 +49,5 @@ export function registerAllIpcHandlers(): void {
   registerUpdaterHandlers()
   registerComposerHandlers()
   registerDocsHandlers()
+  registerWorkspaceFileHandlers()
 }

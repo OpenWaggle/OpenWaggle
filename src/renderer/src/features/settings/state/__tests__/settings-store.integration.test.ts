@@ -1,5 +1,6 @@
 import { SupportedModelId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
+import { DEFAULT_SHORTCUT_BINDINGS } from '@shared/types/shortcuts'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { apiMock } = vi.hoisted(() => ({
@@ -122,5 +123,49 @@ describe('preferences-store integration', () => {
 
     expect(apiMock.updateSettings).toHaveBeenCalledWith({ selectedModel: 'openai/gpt-4.1-mini' })
     expect(usePreferencesStore.getState().settings.selectedModel).toBe('openai/gpt-4.1-mini')
+  })
+
+  it('keeps shortcut state unchanged when main rejects a duplicate binding', async () => {
+    const shortcutBindings = {
+      ...DEFAULT_SHORTCUT_BINDINGS,
+      'diff.toggle': null,
+      'sidebar.toggle': { key: 'D', mod: true },
+      'terminal.toggle': { key: 'T', mod: true, shift: true },
+    }
+    usePreferencesStore.setState({
+      settings: { ...DEFAULT_SETTINGS, shortcutBindings },
+    })
+    apiMock.updateSettings.mockResolvedValue({
+      ok: false,
+      error: 'Shortcut Mod+D is already assigned to sidebar.toggle.',
+    })
+
+    await expect(
+      usePreferencesStore
+        .getState()
+        .setShortcutBinding('diff.toggle', DEFAULT_SHORTCUT_BINDINGS['diff.toggle']),
+    ).rejects.toThrow('already assigned')
+
+    expect(usePreferencesStore.getState().settings.shortcutBindings).toEqual(shortcutBindings)
+    expect(apiMock.getSettings).not.toHaveBeenCalled()
+  })
+
+  it('uses the persisted shortcut snapshot after main sanitizes an accepted binding', async () => {
+    const persistedSettings = {
+      ...DEFAULT_SETTINGS,
+      shortcutBindings: {
+        ...DEFAULT_SHORTCUT_BINDINGS,
+        'terminal.toggle': { key: 'j', mod: true },
+      },
+    }
+    apiMock.updateSettings.mockResolvedValue({ ok: true })
+    apiMock.getSettings.mockResolvedValue(persistedSettings)
+
+    await usePreferencesStore
+      .getState()
+      .setShortcutBinding('terminal.toggle', { key: '  j  ', mod: true })
+
+    expect(apiMock.getSettings).toHaveBeenCalledOnce()
+    expect(usePreferencesStore.getState().settings).toEqual(persistedSettings)
   })
 })

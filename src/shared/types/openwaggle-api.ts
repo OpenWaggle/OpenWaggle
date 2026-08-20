@@ -53,6 +53,7 @@ import type { IpcEventPayload } from './ipc'
 import type { ProviderInfo, SupportedModelId } from './llm'
 import type { OpenWaggleExtensionApi } from './openwaggle-extension-api'
 import type { OpenWaggleMcpApi } from './openwaggle-mcp-api'
+import type { OpenWaggleWorkspaceFilesApi } from './openwaggle-workspace-files-api'
 import type { AgentPhaseState } from './phase'
 import type {
   PinnedSession,
@@ -79,7 +80,10 @@ import type { UpdateStatus } from './updater'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 import type { WaggleConfig, WagglePreset } from './waggle'
 
-export interface OpenWaggleApi extends OpenWaggleExtensionApi, OpenWaggleMcpApi {
+export interface OpenWaggleApi
+  extends OpenWaggleExtensionApi,
+    OpenWaggleMcpApi,
+    OpenWaggleWorkspaceFilesApi {
   // Agent
   sendMessage(
     sessionId: SessionId,

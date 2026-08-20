@@ -19,8 +19,10 @@ export function CommandPaletteItemButton({
     <Button
       variant="unstyled"
       type="button"
+      role="menuitem"
       data-highlighted={highlighted}
       onClick={item.action}
+      onMouseDown={(event) => event.preventDefault()}
       onMouseEnter={() => onHighlightIndexChange(index)}
       className={cn(
         'flex h-10 w-full items-center gap-2.5 px-3.5 text-left transition-colors',

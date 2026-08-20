@@ -24,16 +24,26 @@ test('app launches and persists a created thread', async () => {
   }
 })
 
-test('welcome starter prompt keeps the project-selection guidance visible before project selection', async () => {
+test('welcome keeps the centered project guidance and removes starter cards', async () => {
   const app = await OpenWaggleApp.launch('openwaggle-e2e-')
 
   try {
     const mainWindow = app.mainWindow()
-    await mainWindow.page.getByRole('button', { name: 'Draft a one-page summary of this app' }).click()
-
+    const welcome = mainWindow.page.getByRole('region', { name: 'Welcome' })
+    await expect(welcome).toBeVisible()
+    await expect(welcome.getByRole('img', { name: 'OpenWaggle logo' })).toBeVisible()
     await mainWindow.expectComposerValue('')
     await expect(mainWindow.page.getByText('Select a project folder to get started')).toBeVisible()
     await expect(mainWindow.page.getByText('No projects yet')).toBeVisible()
+    await expect(
+      mainWindow.page.getByRole('button', { name: 'Draft a one-page summary of this app' }),
+    ).toHaveCount(0)
+    await expect(
+      mainWindow.page.getByRole('button', { name: 'Build a coding game in this repo' }),
+    ).toHaveCount(0)
+    await expect(
+      mainWindow.page.getByRole('button', { name: 'Create a refactor plan for this codebase' }),
+    ).toHaveCount(0)
   } finally {
     await app.cleanup()
   }

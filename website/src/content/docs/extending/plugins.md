@@ -16,6 +16,6 @@ The active extension points today are:
 
 ## OpenWaggle Extensions
 
-OpenWaggle extension packages are the current local package model for Settings sections, side panels, dialogs, extension routes, transcript/tool renderers, status widgets, command palette entries, slash commands, and Pi runtime/resource additions.
+OpenWaggle extension packages are the current local package model for Settings sections, side panels, dialogs, extension routes, transcript/tool renderers, status widgets, slash command menu entries, slash commands, and Pi runtime/resource additions.
 
 Use [OpenWaggle Extensions](/docs/extending/openwaggle-extensions/) for the package format and lifecycle. The public marketplace and remote discovery service remain out of scope; local packages are installed, trusted, updated, disabled, and removed through the Extension Manager or the approved package workflow.

@@ -3,11 +3,16 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockCopyToClipboard = vi.fn()
+const mockOpenWorkspaceFile = vi.fn()
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     copyToClipboard: (...args: unknown[]) => mockCopyToClipboard(...args),
   },
+}))
+
+vi.mock('@/features/workspace-files/hooks', () => ({
+  useOpenWorkspaceFile: () => mockOpenWorkspaceFile,
 }))
 
 import { UserMessageBubble } from '../UserMessageBubble'
@@ -25,6 +30,32 @@ describe('UserMessageBubble', () => {
     const message = createUserMessage('u1', [{ type: 'text', content: 'Hello world' }])
     render(<UserMessageBubble message={message} />)
     expect(screen.getByText('Hello world')).toBeInTheDocument()
+  })
+
+  it('keeps a Waggle invocation chip inline with the prompt', () => {
+    const message: UIMessage = {
+      id: 'u-waggle',
+      role: 'user',
+      parts: [{ type: 'text', content: 'QA toolbar lifecycle' }],
+      metadata: {
+        waggleInvocation: {
+          presetId: 'code-review',
+          presetName: 'Code Review',
+          source: 'user',
+        },
+      },
+    }
+    const { container } = render(<UserMessageBubble message={message} />)
+
+    const invocationLine = container.querySelector('[data-waggle-invocation-line="true"]')
+    expect(invocationLine).toBeInTheDocument()
+    expect(invocationLine?.className).toContain('flex')
+    expect(screen.getByText('Code Review').closest('[data-waggle-invocation-line="true"]')).toBe(
+      invocationLine,
+    )
+    expect(
+      screen.getByText('QA toolbar lifecycle').closest('[data-waggle-invocation-line="true"]'),
+    ).toBe(invocationLine)
   })
 
   it('renders multiple text parts', () => {
@@ -101,6 +132,29 @@ describe('UserMessageBubble', () => {
     render(<UserMessageBubble message={message} />)
     expect(screen.getByText('index.ts')).toBeInTheDocument()
     expect(screen.getByText(/Check/)).toBeInTheDocument()
+  })
+
+  it('keeps trailing prose punctuation outside file-reference chips', () => {
+    const message = createUserMessage('u-punctuation', [
+      { type: 'text', content: 'See @src/foo.ts, then continue.' },
+    ])
+    render(<UserMessageBubble message={message} />)
+
+    fireEvent.click(screen.getByTitle('Open src/foo.ts'))
+
+    expect(mockOpenWorkspaceFile).toHaveBeenCalledWith('src/foo.ts')
+    expect(screen.getByText(/, then continue\./)).toBeInTheDocument()
+  })
+
+  it('renders serialized slash skill references as skill chips', () => {
+    const message = createUserMessage('u1', [
+      { type: 'text', content: 'Use /caveman for this response' },
+    ])
+    render(<UserMessageBubble message={message} />)
+
+    expect(screen.getByTitle('/caveman')).toBeInTheDocument()
+    expect(screen.getByText('caveman')).toBeInTheDocument()
+    expect(screen.getByText(/Use/)).toBeInTheDocument()
   })
 
   it('does not render @mentions inside inline code as chips', () => {

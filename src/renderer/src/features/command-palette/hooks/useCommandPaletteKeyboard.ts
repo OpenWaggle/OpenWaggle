@@ -1,19 +1,24 @@
 import { match } from '@diegogbrisa/ts-match'
-import type { KeyboardEvent, RefObject } from 'react'
+import { COMMAND_PRIORITY_HIGH, KEY_DOWN_COMMAND, type LexicalEditor } from 'lexical'
+import { type RefObject, useEffect, useEffectEvent } from 'react'
 import type { CommandPaletteItem } from '../model'
 
 interface UseCommandPaletteKeyboardInput {
+  readonly editor: LexicalEditor | null
   readonly items: readonly CommandPaletteItem[]
   readonly highlightIndex: number
-  readonly setHighlightIndex: (updater: (currentIndex: number) => number) => void
+  readonly setHighlightIndex: (index: number) => void
   readonly listRef: RefObject<HTMLDivElement | null>
+  readonly onClose: () => void
 }
 
 export function useCommandPaletteKeyboard({
+  editor,
   items,
   highlightIndex,
   setHighlightIndex,
   listRef,
+  onClose,
 }: UseCommandPaletteKeyboardInput) {
   function scrollHighlightedIntoView() {
     requestAnimationFrame(() => {
@@ -24,11 +29,11 @@ export function useCommandPaletteKeyboard({
 
   function moveHighlight(delta: 1 | -1) {
     if (items.length === 0) return
-    setHighlightIndex((currentIndex) => nextHighlightIndex(currentIndex, delta, items.length))
+    setHighlightIndex(nextHighlightIndex(highlightIndex, delta, items.length))
     scrollHighlightedIntoView()
   }
 
-  return (event: KeyboardEvent) => {
+  const handleKeyDown = useEffectEvent((event: KeyboardEvent) => {
     match(event.key)
       .with('ArrowDown', () => {
         event.preventDefault()
@@ -44,8 +49,28 @@ export function useCommandPaletteKeyboard({
         event.preventDefault()
         selectedItem.action()
       })
+      .with('Tab', () => {
+        const selectedItem = items[highlightIndex]
+        if (!selectedItem) return
+        event.preventDefault()
+        selectedItem.action()
+      })
+      .with('Escape', () => {
+        event.preventDefault()
+        onClose()
+      })
       .otherwise(() => undefined)
-  }
+    return event.defaultPrevented
+  })
+
+  useEffect(() => {
+    if (!editor) return
+    return editor.registerCommand<KeyboardEvent>(
+      KEY_DOWN_COMMAND,
+      (event) => handleKeyDown(event),
+      COMMAND_PRIORITY_HIGH,
+    )
+  }, [editor])
 }
 
 function nextHighlightIndex(currentIndex: number, delta: 1 | -1, itemCount: number) {

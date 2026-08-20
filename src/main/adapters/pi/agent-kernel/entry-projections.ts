@@ -1,6 +1,8 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
 import { PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE } from '@openwaggle/pi-waggle/protocol'
+import { safeDecodeUnknown } from '@shared/schema'
+import { waggleInvocationMetadataSchema } from '@shared/schemas/waggle'
 import type { MessageRole } from '@shared/types/agent'
 import { createModelRef } from '@shared/types/llm'
 import type { ProjectedSessionNodeInput } from '../../../ports/session-repository'
@@ -211,15 +213,24 @@ function customEntryProjection(
 function visibleWaggleUserMessageProjection(
   entry: Extract<SessionEntry, { type: 'custom_message' }>,
 ): PiEntryProjection {
+  const details = toJsonValue(entry.details ?? null)
+  const decodedInvocation =
+    typeof details === 'object' && details !== null && !Array.isArray(details)
+      ? safeDecodeUnknown(waggleInvocationMetadataSchema, details.waggleInvocation)
+      : null
   return {
     kind: 'user_message',
     role: 'user',
     contentJson: buildMessageNodeContentJson(piTextAndImageContentToParts(entry.content), null),
-    metadataJson: buildRawNodeContentJson({
-      customType: entry.customType,
-      display: entry.display,
-      details: toJsonValue(entry.details ?? null),
-    }),
+    metadataJson: buildRawNodeContentJson(
+      decodedInvocation?.success
+        ? { waggleInvocation: decodedInvocation.data }
+        : {
+            customType: entry.customType,
+            display: entry.display,
+            details,
+          },
+    ),
   }
 }
 

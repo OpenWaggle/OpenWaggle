@@ -32,7 +32,7 @@ features/<feature>/
   lib/         # pure helpers and domain logic for the feature
   state/       # focused Zustand stores and selectors
   model/       # feature-owned types and view models
-  commands/    # command palette or user-action commands owned by the feature
+  commands/    # slash command menu or user-action commands owned by the feature
   constants/   # object-based feature constants
   __tests__/   # tests colocated under the folder they validate
   index.ts     # explicit public API for cross-feature imports

@@ -59,7 +59,7 @@ export function ChatComposerStack({
   const {
     activeSessionId,
     waggleStatus,
-    commandPaletteOpen,
+    slashCommandMenuOpen,
     slashSkills,
     forkSelectorOpen,
     forkTargets,
@@ -104,7 +104,7 @@ export function ChatComposerStack({
       />
 
       <ChatComposerCommandPalette
-        open={commandPaletteOpen}
+        open={slashCommandMenuOpen}
         slashSkills={slashSkills}
         onSelectSkill={onSelectSkill}
         onStartWaggle={onStartWaggle}

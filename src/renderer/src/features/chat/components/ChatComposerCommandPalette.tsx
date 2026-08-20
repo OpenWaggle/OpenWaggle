@@ -1,12 +1,12 @@
 import type { SkillDiscoveryItem } from '@shared/types/standards'
-import type { WaggleConfig } from '@shared/types/waggle'
+import type { WagglePreset } from '@shared/types/waggle'
 import { CommandPalette } from '@/features/command-palette/components'
 
 interface ChatComposerCommandPaletteProps {
   readonly open: boolean
   readonly slashSkills: readonly SkillDiscoveryItem[]
   readonly onSelectSkill: (skillId: string, skillName?: string) => void
-  readonly onStartWaggle: (config: WaggleConfig) => void
+  readonly onStartWaggle: (preset: WagglePreset) => void
   readonly onOpenSessionTree?: () => void
   readonly onForkToNewSession: () => void
   readonly onCloneToNewSession: () => void

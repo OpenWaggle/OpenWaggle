@@ -245,6 +245,14 @@ export const api: OpenWaggleApi = {
   // Composer
   suggestFiles: invoke('composer:file-suggest'),
 
+  // Workspace files
+  searchWorkspaceFiles: invoke('workspace-files:search'),
+  searchWorkspaceContent: invoke('workspace-files:search-content'),
+  cancelWorkspaceContentSearch: invoke('workspace-files:cancel-content-search'),
+  readWorkspaceFile: invoke('workspace-files:read'),
+  writeWorkspaceFile: invoke('workspace-files:write'),
+  openWorkspaceFileExternal: invoke('workspace-files:open-external'),
+
   // Auto-updater
   checkForUpdates: invoke('updater:check'),
   installUpdate: invoke('updater:install'),

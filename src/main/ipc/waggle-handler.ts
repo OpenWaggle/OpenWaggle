@@ -1,6 +1,6 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import { decodeUnknownOrThrow } from '@shared/schema'
-import { agentSendPayloadSchema } from '@shared/schemas/validation'
+import { agentSendPayloadSchema, toAgentSendPayload } from '@shared/schemas/validation'
 import type { AgentSendPayload, Message } from '@shared/types/agent'
 import type { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { WaggleConfig } from '@shared/types/waggle'
@@ -97,7 +97,9 @@ function handleSendWaggleMessage(
   config: WaggleConfig,
 ) {
   return Effect.gen(function* () {
-    const validatedPayload = decodeUnknownOrThrow(agentSendPayloadSchema, payload)
+    const validatedPayload = toAgentSendPayload(
+      decodeUnknownOrThrow(agentSendPayloadSchema, payload),
+    )
     cancelExistingWaggleWork(sessionId)
 
     const abortController = new AbortController()

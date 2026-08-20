@@ -42,7 +42,7 @@ export function useChatPanelSections(): ChatPanelSections {
   const {
     activeWorkspace,
     clearDraftBranchForSession,
-    commandPaletteOpen,
+    slashCommandMenuOpen,
     draftBranch,
     handleDismissInterruptedRun,
     handleOpenProject,
@@ -88,7 +88,7 @@ export function useChatPanelSections(): ChatPanelSections {
     sendWaggleMessage,
   })
 
-  async function handleStarterPrompt(content: string) {
+  async function handleRetryText(content: string) {
     if (!model.trim()) {
       showToast('Select a model before sending.')
       return
@@ -98,7 +98,7 @@ export function useChatPanelSections(): ChatPanelSections {
       await handleSendText(content)
     } catch (sendError) {
       const message = sendError instanceof Error ? sendError.message : String(sendError)
-      logger.error('Failed to send starter prompt', { error: message })
+      logger.error('Failed to retry message', { error: message })
       showToast(message)
     }
   }
@@ -113,10 +113,8 @@ export function useChatPanelSections(): ChatPanelSections {
   const extensionRegistry = extensionContributionsQuery.data ?? null
 
   const waggleStoreStatus = useWaggleStore((s) => s.status)
-  const waggleConfig = useWaggleStore((s) => s.activeConfig)
   const waggleActiveCollaborationId = useWaggleStore((s) => s.activeCollaborationId)
   const waggleConfigSessionId = useWaggleStore((s) => s.configSessionId)
-  const setWaggleConfig = useWaggleStore((s) => s.setConfig)
   const startWaggleCollaboration = useWaggleStore((s) => s.startCollaboration)
   const stopWaggleCollaboration = useWaggleStore((s) => s.stopCollaboration)
 
@@ -165,13 +163,10 @@ export function useChatPanelSections(): ChatPanelSections {
     refreshSessionWorkspace,
     sessionCopy,
     setUserDidSend,
-    setWaggleConfig,
     showToast,
     startWaggleCollaboration,
     stop,
     stopWaggleCollaboration,
-    waggleConfig,
-    waggleOwningId,
     waggleStatus,
   })
 
@@ -258,7 +253,7 @@ export function useChatPanelSections(): ChatPanelSections {
     extensionProjectPaths,
     handleOpenProject,
     handleSelectProjectPath,
-    handleSendText: handleStarterPrompt,
+    handleSendText: handleRetryText,
     openSettings,
     handleDismissInterruptedRun,
     handleBranchFromMessage,
@@ -282,14 +277,13 @@ export function useChatPanelSections(): ChatPanelSections {
     session: activeSession,
     isFirstMessage: messages.length === 0,
     waggleStatus,
-    commandPaletteOpen,
+    slashCommandMenuOpen,
     slashSkills: catalog?.skills ?? [],
     phase,
     stop: sendWorkflow.cancelRun,
     showToast,
     handleSteer,
     handleSendWithWaggle: sendWorkflow.sendWithWaggle,
-    handleStartWaggle: sendWorkflow.startWaggle,
     handleStopCollaboration: sendWorkflow.stopCollaboration,
     handleSkipBranchSummary: branchSummary.skipBranchSummary,
     handleSummarizeBranch: () => void branchSummary.materializeBranchSummary(),

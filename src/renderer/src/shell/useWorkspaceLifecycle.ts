@@ -1,11 +1,12 @@
 import { SessionId } from '@shared/types/brand'
-import { useHotkeys } from '@tanstack/react-hotkeys'
+import { type UseHotkeyDefinition, useHotkeys } from '@tanstack/react-hotkeys'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { useChat } from '@/features/chat/hooks'
 import { useDiffRouteNavigation } from '@/features/diff-panel/hooks'
 import { useGit, useGitRefresh } from '@/features/git/hooks'
 import { useProject, useSessionStatusMonitor, useSessions } from '@/features/sessions/hooks'
+import { usePreferencesStore } from '@/features/settings/state'
 import { usePinnedSessionShortcuts, useSidebarSearchShortcut } from '@/features/sidebar/hooks'
 import { api } from '@/shared/lib/ipc'
 import { useUIStore } from '@/shell/ui-store'
@@ -30,10 +31,14 @@ export function useWorkspaceLifecycle(): void {
   const navigate = useNavigate()
   const toggleTerminal = useUIStore((s) => s.toggleTerminal)
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
-  const toggleCommandPalette = useUIStore((s) => s.toggleCommandPalette)
+  const openCommandSurface = useUIStore((s) => s.openCommandSurface)
+  const closeCommandSurface = useUIStore((s) => s.closeCommandSurface)
+  const commandSurface = useUIStore((s) => s.commandSurface)
+  const shortcutBindings = usePreferencesStore((s) => s.settings.shortcutBindings)
   const { toggleDiff, toggleSessionTree } = useDiffRouteNavigation()
 
   function startDraftSessionRoute() {
+    closeCommandSurface()
     startDraftSession(projectPath)
     void navigate({ to: '/' })
   }
@@ -74,15 +79,38 @@ export function useWorkspaceLifecycle(): void {
   usePinnedSessionShortcuts()
   useSidebarSearchShortcut()
 
-  useHotkeys(
-    [
-      { hotkey: 'Mod+J', callback: toggleTerminal },
-      { hotkey: 'Mod+N', callback: startDraftSessionRoute },
-      { hotkey: 'Mod+B', callback: toggleSidebar },
-      { hotkey: 'Mod+D', callback: toggleDiff },
-      { hotkey: 'Mod+K', callback: toggleCommandPalette },
-      { hotkey: 'Mod+Shift+Y', callback: toggleSessionTree },
-    ],
-    { preventDefault: true },
-  )
+  const hotkeys: UseHotkeyDefinition[] = [
+    {
+      binding: shortcutBindings['commandPalette.toggle'],
+      callback: () =>
+        commandSurface === 'commands' ? closeCommandSurface() : openCommandSurface('commands'),
+    },
+    {
+      binding: shortcutBindings['filePicker.toggle'],
+      callback: () =>
+        commandSurface === 'files' ? closeCommandSurface() : openCommandSurface('files'),
+    },
+    {
+      binding: shortcutBindings['chat.new'],
+      callback: startDraftSessionRoute,
+    },
+    {
+      binding: shortcutBindings['terminal.toggle'],
+      callback: toggleTerminal,
+    },
+    {
+      binding: shortcutBindings['sidebar.toggle'],
+      callback: toggleSidebar,
+    },
+    {
+      binding: shortcutBindings['diff.toggle'],
+      callback: toggleDiff,
+    },
+    {
+      binding: shortcutBindings['sessionTree.toggle'],
+      callback: toggleSessionTree,
+    },
+  ].flatMap((item) => (item.binding ? [{ hotkey: item.binding, callback: item.callback }] : []))
+
+  useHotkeys(hotkeys, { preventDefault: true })
 }

@@ -91,18 +91,23 @@ Pi owns active tool selection. OpenWaggle does not pass an explicit allowlist to
 
 Pi owns tool execution. OpenWaggle renders the resulting events directly in the transcript.
 
-## Command Palette
+## Slash Command Menu
 
-Press `Cmd+K` / `Ctrl+K` or type `/` at the start of the composer input.
+Type `/` anywhere a new composer token can start. Keep typing to filter the menu, then use the arrow keys and `Enter` to select an item without leaving the composer.
 
-Current command-palette uses include:
+Current slash-command-menu uses include:
 
 - Skill references.
 - Waggle presets.
-- `/compact` for manual Pi compaction.
-- `/fork` to choose a previous user turn and copy that branch into a new session.
-- `/clone` to copy the current selected node path into a new session.
-- **Open Session Tree** for branch and node navigation in the active Pi session.
+- Slash contributions from enabled extensions.
+
+Selecting a skill or Waggle preset replaces only the active slash token. Existing prompt text remains intact, and the selection renders as a chip before the message is sent. Waggle presets apply to one send rather than enabling a sticky mode.
+
+## Global Command Palette
+
+Press `Cmd+K` / `Ctrl+K` for the centered application palette. It includes new sessions, compaction, projects, recent sessions, session operations, settings, view toggles, extension actions, feedback, file search, and content search. Prompt skills and Waggle presets remain in the composer-native `/` menu. You can also type `/compact` directly when you want to include custom compaction instructions.
+
+Use `Cmd+P` / `Ctrl+P` to go directly to fuzzy project file search. Opening a result shows the project explorer and file on the right. Text files support autosave with external-change detection; Markdown and HTML support safe previews, while images and PDFs render in place. Content-search results open at the matching line.
 
 ## Error Handling
 

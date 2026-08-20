@@ -2,6 +2,7 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
+import { DEFAULT_SHORTCUT_BINDINGS } from '@shared/types/shortcuts'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   getBranchSummarySkipPromptMock,
@@ -189,6 +190,39 @@ describe('registerSettingsHandlers', () => {
       )
       expect(result).toEqual({ ok: true })
       expect(updateSettingsMock).toHaveBeenCalledOnce()
+    })
+
+    it('rejects duplicate shortcut bindings without replacing existing customizations', async () => {
+      const currentSettings = {
+        ...DEFAULT_SETTINGS,
+        shortcutBindings: {
+          ...DEFAULT_SHORTCUT_BINDINGS,
+          'diff.toggle': null,
+          'sidebar.toggle': { key: 'D', mod: true },
+          'terminal.toggle': { key: 'T', mod: true, shift: true },
+        },
+      }
+      getSettingsMock.mockReturnValue(currentSettings)
+      registerSettingsHandlers()
+
+      const handler = getTypedEffectInvokeHandler('settings:update')
+      const result = await handler?.(
+        {},
+        {
+          shortcutBindings: {
+            ...currentSettings.shortcutBindings,
+            'diff.toggle': DEFAULT_SHORTCUT_BINDINGS['diff.toggle'],
+          },
+        },
+      )
+
+      expect(result).toEqual({ ok: false, error: expect.stringContaining('already assigned') })
+      expect(updateSettingsMock).not.toHaveBeenCalled()
+      expect(currentSettings.shortcutBindings['terminal.toggle']).toEqual({
+        key: 'T',
+        mod: true,
+        shift: true,
+      })
     })
   })
 

@@ -1,7 +1,7 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import { EXTENSION_SIDE_PANEL_ROUTE_PANEL, SETTINGS_TABS, type SettingsTab } from '@/shell/ui-store'
 
-export type ChatBuiltInRightPanel = 'diff' | 'session-tree'
+export type ChatBuiltInRightPanel = 'diff' | 'file' | 'session-tree'
 export type ChatRightPanel = ChatBuiltInRightPanel | typeof EXTENSION_SIDE_PANEL_ROUTE_PANEL
 
 export interface ChatExtensionSidePanelTarget {
@@ -16,6 +16,8 @@ export interface ChatRouteSearch {
   readonly node?: string
   readonly diff?: 1
   readonly panel?: ChatRightPanel
+  readonly filePath?: string
+  readonly fileLine?: number
   readonly sidePanelExtensionId?: string
   readonly sidePanelId?: string
   readonly sidePanelPackagePath?: string
@@ -52,39 +54,63 @@ function parseSearchToken(value: unknown) {
 }
 
 function parseRightPanel(value: unknown) {
-  return isMatching(P.union('diff', 'session-tree', EXTENSION_SIDE_PANEL_ROUTE_PANEL), value)
+  return isMatching(
+    P.union('diff', 'file', 'session-tree', EXTENSION_SIDE_PANEL_ROUTE_PANEL),
+    value,
+  )
     ? value
     : undefined
 }
 
-export function parseChatRouteSearch(search: Record<string, unknown>): ChatRouteSearch {
+function parseFileLine(value: unknown) {
+  const numericValue = typeof value === 'string' ? Number(value) : value
+  return typeof numericValue === 'number' && Number.isSafeInteger(numericValue) && numericValue > 0
+    ? numericValue
+    : undefined
+}
+
+function parseBaseChatSearch(search: Record<string, unknown>): ChatRouteSearch {
   const branch = parseSearchString(search.branch)
   const node = parseSearchString(search.node)
-  const panel = parseRightPanel(search.panel)
-  const base: ChatRouteSearch = {
+  return {
     ...(branch ? { branch } : {}),
     ...(node ? { node } : {}),
     ...(search.diff === 1 || search.diff === '1' ? { diff: 1 } : {}),
   }
+}
+
+function parseExtensionPanelSearch(
+  search: Record<string, unknown>,
+  base: ChatRouteSearch,
+): ChatRouteSearch {
+  const sidePanelExtensionId = parseSearchToken(search.sidePanelExtensionId)
+  const sidePanelId = parseSearchToken(search.sidePanelId)
+  if (!sidePanelExtensionId || !sidePanelId) return base
+
+  const sidePanelPackagePath = parseSearchToken(search.sidePanelPackagePath)
+  const sidePanelContentHash = parseSearchToken(search.sidePanelContentHash)
+  return {
+    ...base,
+    panel: EXTENSION_SIDE_PANEL_ROUTE_PANEL,
+    sidePanelExtensionId,
+    sidePanelId,
+    ...(sidePanelPackagePath ? { sidePanelPackagePath } : {}),
+    ...(sidePanelContentHash ? { sidePanelContentHash } : {}),
+  }
+}
+
+export function parseChatRouteSearch(search: Record<string, unknown>): ChatRouteSearch {
+  const panel = parseRightPanel(search.panel)
+  const base = parseBaseChatSearch(search)
 
   if (panel === EXTENSION_SIDE_PANEL_ROUTE_PANEL) {
-    const sidePanelExtensionId = parseSearchToken(search.sidePanelExtensionId)
-    const sidePanelId = parseSearchToken(search.sidePanelId)
-    const sidePanelPackagePath = parseSearchToken(search.sidePanelPackagePath)
-    const sidePanelContentHash = parseSearchToken(search.sidePanelContentHash)
+    return parseExtensionPanelSearch(search, base)
+  }
 
-    if (sidePanelExtensionId && sidePanelId) {
-      return {
-        ...base,
-        panel,
-        sidePanelExtensionId,
-        sidePanelId,
-        ...(sidePanelPackagePath ? { sidePanelPackagePath } : {}),
-        ...(sidePanelContentHash ? { sidePanelContentHash } : {}),
-      }
-    }
-
-    return base
+  if (panel === 'file') {
+    const filePath = parseSearchToken(search.filePath)
+    const fileLine = parseFileLine(search.fileLine)
+    return filePath ? { ...base, panel, filePath, ...(fileLine ? { fileLine } : {}) } : base
   }
 
   return {
