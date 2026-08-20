@@ -40,7 +40,7 @@ function AuthProviderGroup({
         aria-expanded={isOpen}
         className={cn(
           'flex w-full items-start justify-between gap-4 rounded-md p-1 text-left transition-colors',
-          'hover:bg-bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-light',
+          'hover:bg-bg-hover focus-visible:outline-none',
         )}
       >
         <div className="flex min-w-0 items-start gap-2.5">
