@@ -1,12 +1,12 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
-import { TERMINAL_STATUSES } from '@shared/types/session-status'
 import { useMemo } from 'react'
 import { useSessionStatusStore } from '@/features/sessions/state'
 import {
   buildProjectRollUp,
   buildSidebarStateCounts,
   resolveSidebarRowState,
+  resolveVisibleSessionStatus,
   type SidebarRowState,
   sessionHasInterruptedRun,
 } from '../lib/sidebar-row-state'
@@ -28,20 +28,17 @@ export function useSidebarRowStates(sessions: readonly SessionSummary[]) {
 
     for (const session of sessions) {
       const id = SessionId(String(session.id))
-      const status = statuses.get(id) ?? 'idle'
-      // A finished run the user already saw reads as idle, so "Done" keeps meaning news.
-      const completed = completedAt.get(id)
-      const visited = lastVisitedAt.get(id)
-      const isSeen =
-        TERMINAL_STATUSES.has(status) &&
-        completed !== undefined &&
-        visited !== undefined &&
-        completed <= visited
+      // The same rule a row itself uses, so a row and its project heading cannot disagree.
+      const status = resolveVisibleSessionStatus({
+        status: statuses.get(id) ?? 'idle',
+        completedAt: completedAt.get(id),
+        lastVisitedAt: lastVisitedAt.get(id),
+      })
 
       byId.set(
         String(session.id),
         resolveSidebarRowState({
-          status: isSeen ? 'idle' : status,
+          status,
           hasInterruptedRun: sessionHasInterruptedRun(session),
         }),
       )

@@ -84,6 +84,9 @@ export function Sidebar() {
                 menuOpen: controller.pinnedSortMenuOpen,
                 onSetMenuOpen: controller.setPinnedSortMenuOpen,
                 onSetMode: controller.setPinnedSortMode,
+                // A narrowed list is not the list, so it cannot be reordered.
+                reorderable:
+                  controller.filterState === null && controller.searchQuery.trim() === '',
               }}
               displayProjectName={controller.displayProjectName}
               sessionActions={actions.session}

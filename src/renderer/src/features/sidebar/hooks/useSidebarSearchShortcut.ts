@@ -1,7 +1,9 @@
 import { useHotkey } from '@tanstack/react-hotkeys'
+import { useLocation } from '@tanstack/react-router'
 import { useEscapeHotkey } from '@/shared/hooks/useEscapeHotkey'
 import { useUIStore } from '@/shell/ui-store'
 import { useSidebarFilterStore } from '../state/sidebar-filter-store'
+import { activeViewFromPathname } from './sidebar-view'
 
 /**
  * Mod+F focuses the sidebar's filter field, and Escape clears it while it holds focus.
@@ -26,10 +28,19 @@ export function useSidebarSearchShortcut(): void {
   const clearFilters = useSidebarFilterStore((state) => state.clear)
   const requestFocus = useSidebarFilterStore((state) => state.requestFocus)
   const searchFocused = useSidebarFilterStore((state) => state.searchFocused)
+  const { pathname } = useLocation()
+  // The settings view makes the sidebar inert, and an inert field cannot take focus.
+  const sidebarCanFocus = activeViewFromPathname(pathname) !== 'settings'
 
   useHotkey(
     'Mod+F',
     () => {
+      /*
+       * Nothing happens in the settings view rather than a request that quietly evaporates.
+       * The field is rendered but inert there, so focus() is a no-op, and the hint that advertises
+       * this shortcut is not on screen either.
+       */
+      if (!sidebarCanFocus) return
       if (!sidebarOpen) toggleSidebar()
       requestFocus()
     },

@@ -67,6 +67,8 @@ vi.mock('@tanstack/react-hotkeys', () => ({
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => lifecycleMocks.navigate,
+  // The sidebar's filter shortcut reads the route to know whether the sidebar can take focus.
+  useLocation: () => ({ pathname: '/' }),
 }))
 
 vi.mock('@/features/chat/hooks', () => ({

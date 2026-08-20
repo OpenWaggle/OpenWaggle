@@ -1,6 +1,6 @@
 import type { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
-import { resolveSessionStatusPill, TERMINAL_STATUSES } from '@shared/types/session-status'
+import { resolveSessionStatusPill } from '@shared/types/session-status'
 import {
   CircleCheck,
   CirclePause,
@@ -16,6 +16,7 @@ import {
   isAttentionState,
   isInFlightState,
   resolveSidebarRowState,
+  resolveVisibleSessionStatus,
   sessionHasInterruptedRun,
   sidebarRowStateMeta,
 } from '../lib/sidebar-row-state'
@@ -31,24 +32,13 @@ export const SESSION_STATUS_ICON: Record<string, React.ComponentType<{ className
   WaggleBee: WaggleBeeIcon,
 }
 
-/**
- * A finished run the user has already seen reads as idle.
- *
- * Without this, a completed session would keep its tick forever and the tick would stop
- * meaning "this finished while you were away".
- */
+/** The status this row should show, resolved by the one rule the chips and roll-ups also use. */
 function useVisibleStatus(sessionId: SessionId) {
   const status = useSessionStatusStore((s) => s.statuses.get(sessionId) ?? 'idle')
   const completedAt = useSessionStatusStore((s) => s.completedAt.get(sessionId))
-  const lastVisited = useSessionStatusStore((s) => s.lastVisitedAt.get(sessionId))
+  const lastVisitedAt = useSessionStatusStore((s) => s.lastVisitedAt.get(sessionId))
 
-  const isSeen =
-    TERMINAL_STATUSES.has(status) &&
-    completedAt !== undefined &&
-    lastVisited !== undefined &&
-    completedAt <= lastVisited
-
-  return isSeen ? 'idle' : status
+  return resolveVisibleSessionStatus({ status, completedAt, lastVisitedAt })
 }
 
 /**

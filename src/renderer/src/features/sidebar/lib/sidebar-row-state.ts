@@ -4,6 +4,7 @@ import {
   INTERRUPTED_RUN_PILL,
   resolveSessionStatusPill,
   type SessionStatus,
+  TERMINAL_STATUSES,
 } from '@shared/types/session-status'
 
 /**
@@ -193,4 +194,28 @@ export function buildProjectRollUp(
   return buildSidebarStateCounts(sessions, stateOf).filter(
     ({ state }) => ROW_STATE_META[state].tier !== 'quiet',
   )
+}
+
+/**
+ * The status a row should show, which is not always the status the store holds.
+ *
+ * A finished run the user has already seen reads as idle. Without that, a completed session keeps
+ * its tick forever and the tick stops meaning "this finished while you were away".
+ *
+ * One function because the rule was written twice, once in the hook a row uses and once in the hook
+ * the chips and roll-ups use. They agreed only because two copies happened to match, so a row and
+ * its own project heading were one edit away from describing the same session differently.
+ */
+export function resolveVisibleSessionStatus(input: {
+  readonly status: SessionStatus
+  readonly completedAt: number | undefined
+  readonly lastVisitedAt: number | undefined
+}): SessionStatus {
+  const seen =
+    TERMINAL_STATUSES.has(input.status) &&
+    input.completedAt !== undefined &&
+    input.lastVisitedAt !== undefined &&
+    input.completedAt <= input.lastVisitedAt
+
+  return seen ? 'idle' : input.status
 }

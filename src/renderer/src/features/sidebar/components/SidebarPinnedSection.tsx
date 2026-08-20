@@ -33,6 +33,16 @@ export interface PinnedSortControlState {
   readonly menuOpen: boolean
   readonly onSetMenuOpen: (open: boolean) => void
   readonly onSetMode: (mode: PinnedSortMode) => void
+  /**
+   * Whether the section can be reordered at all right now.
+   *
+   * False while a chip or the text filter is narrowing the list. Reordering is expressed as
+   * "between these two rows", and with rows hidden the two rows on screen are not the two rows
+   * in the list: moving a pin down past the only other visible pin would silently jump every
+   * hidden pin above it. Positions are already computed over the unfiltered section for the same
+   * reason, and a filtered view is not the real list.
+   */
+  readonly reorderable: boolean
 }
 
 interface SidebarPinnedSectionProps {
@@ -103,7 +113,7 @@ export function SidebarPinnedSection({
 }: SidebarPinnedSectionProps) {
   if (rows.length === 0) return null
 
-  const draggable = sort.mode === 'manual'
+  const draggable = sort.mode === 'manual' && sort.reorderable
   /*
    * The project label only earns its width when the pinned rows span more than one
    * project. With every pin in the same project it is pure noise, and at a 272px sidebar

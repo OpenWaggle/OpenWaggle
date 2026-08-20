@@ -9,6 +9,7 @@ import { useSessionStatusStore, useSessionStore } from '@/features/sessions/stat
 import { usePreferencesStore } from '@/features/settings/state'
 import { useUIStore } from '@/shell/ui-store'
 import { usePinnedSessionsStore } from '../../state/pinned-sessions-store'
+import { useSidebarFilterStore } from '../../state/sidebar-filter-store'
 import { Sidebar } from '../Sidebar'
 
 const {
@@ -134,6 +135,7 @@ function resetStores(pins: readonly PinnedSession[]) {
   })
   useUIStore.setState({ ...useUIStore.getInitialState(), sidebarOpen: true })
   usePinnedSessionsStore.setState({ pins, sortMode: 'manual' })
+  useSidebarFilterStore.setState({ activeState: null, query: '' })
 }
 
 const pinnedSection = () => screen.getByRole('region', { name: 'Pinned sessions' })
@@ -264,6 +266,28 @@ describe('Pinned section', () => {
     await waitFor(() => {
       expect(movePinnedSessionMock).toHaveBeenCalled()
     })
+  })
+
+  /*
+   * A narrowed list cannot be reordered.
+   *
+   * Reordering is "between these two rows", and with rows hidden the two on screen are not the two
+   * in the list: moving a pin past the only other visible one silently jumped every hidden pin
+   * above it. Positions are already computed over the unfiltered section for the same reason.
+   */
+  it('withdraws reordering while a filter narrows the section', () => {
+    resetStores([pin(PINNED_ID, 'i'), pin(PLAIN_ID, 'q')])
+    useSidebarFilterStore.setState({ query: 'Plain' })
+    render(<Sidebar />)
+
+    fireEvent.click(
+      within(pinnedSection()).getByRole('button', {
+        name: 'Open session actions for Plain session',
+      }),
+    )
+
+    expect(screen.queryByText('Move up')).not.toBeInTheDocument()
+    expect(screen.queryByText('Move down')).not.toBeInTheDocument()
   })
 
   it('offers no move on the only pinned row', () => {

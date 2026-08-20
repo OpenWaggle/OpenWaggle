@@ -178,13 +178,20 @@ export function SidebarProjectHeader({
         }}
       />
       {/*
-       * Hidden on hover and on focus-within, so pointer and keyboard agree about what the heading
-       * shows. Previously the roll-up disappeared for the pointer while a keyboard user never saw
-       * the actions that replace it.
+       * The roll-up never hides. It is the only thing on a collapsed heading that says a session in
+       * there needs a person, so covering it with the hover actions loses the one fact the heading
+       * exists to carry. It was hidden on hover and on focus-within, and since a click leaves the
+       * heading focused, one click hid it until focus moved somewhere else entirely.
+       *
+       * The plain session count does still yield to the actions: a count is not attention, and
+       * giving up its width keeps the actions from crowding a long project name.
        */}
-      <span className="flex flex-none items-center gap-1 group-focus-within:hidden group-hover:hidden">
+      <span className="flex flex-none items-center gap-1">
         {rollUp.length === 0 ? (
-          <span data-qa="sidebar-project-count" className="flex-none text-[10.5px] text-text-muted">
+          <span
+            data-qa="sidebar-project-count"
+            className="flex-none text-[10.5px] text-text-muted group-focus-within:hidden group-hover:hidden"
+          >
             {group.sessions.length}
           </span>
         ) : (
