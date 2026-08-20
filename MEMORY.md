@@ -225,11 +225,17 @@ jsdom has no hit testing, so a component test passes whether or not the fix is p
 
 The dev server rewrites `src/renderer/src/routeTree.gen.ts` (import ordering only, no route change). Any script that checks out commits in sequence fails on every checkout while that file is dirty. Stop the dev server before such a loop.
 
+### Focus draws nothing, by decision
+
+`:focus` and `:focus-visible` set `outline: none` and `box-shadow: none` app-wide, and no component adds a ring, glow or shadow on focus. This is a maintainer decision, not an oversight: do not reintroduce a focus indicator as a fix for a lint rule, an audit finding or an accessibility report. The trade-off is recorded in `docs/reviews/sidebar-remodel-review.md`, including that the app does not meet WCAG 2.2 SC 2.4.7 as a result.
+
+`focus:opacity-100` is not an indicator and stays: it reveals hover-only controls so the keyboard can reach them at all.
+
 ### A focused row keeps its focus, so a later keypress paints its focus ring
 
 Clicking a sidebar row leaves it focused. Chromium re-evaluates `:focus-visible` on the currently focused element when the interaction modality changes, so the next key press of any kind paints the keyboard focus indicator on a row the user clicked minutes earlier. Pressing the screenshot shortcut is enough to make it appear in the screenshot.
 
-Two consequences worth remembering. A focus indicator that looks acceptable on a compact control looks like a rendering fault when it wraps a 316px row, so judge the treatment on the largest surface it can land on. And anything hidden behind `group-focus-within:*` on a row is hidden for as long as that row holds focus, not just while the pointer is over it: a roll-up pip hidden that way vanished on click and stayed gone.
+The consequence that outlives the ring: anything hidden behind `group-focus-within:*` on a row stays hidden for as long as that row holds focus, not just while the pointer is over it. A roll-up pip hidden that way vanished on click and stayed gone.
 
 ### Reserved shortcuts have to be declared where the conflict check looks
 

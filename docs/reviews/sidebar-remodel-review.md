@@ -117,7 +117,9 @@ Run after the branch had merged `origin/main`, with one brief each: correctness,
 
 **A project's roll-up pip disappeared.** It was hidden on hover and on `focus-within`, and a click leaves the heading focused, so one click hid it until focus moved somewhere else entirely. The pip is the only thing on a collapsed heading that says a session inside needs a person. It never hides now; the plain session count still yields to the hover actions, because a count is not attention.
 
-**The focus ring was a rectangle around whole rows.** Replaced everywhere with a 2px inset bar on the leading edge, including the `Button` primitive's own ring. Measured 6.46:1 against the lightest row surface and 8.88:1 against the darkest, where the grey ring managed 5.15:1, so it also settles the 2.14:1 finding from the first round. Replaced rather than deleted: a keyboard user has no other way to tell where they are.
+**The focus ring is gone, with nothing in its place.** The maintainer's decision, stated twice and unambiguously. Removed from the global rule, from the `Button` primitive, from `Select`, from the scroll-to-bottom button, from the connections row, from the session-tree filter field, and from the sidebar filter field, and the session-tree dot keeps its halo on hover only. `:focus` and `:focus-visible` now set `outline: none` and `box-shadow: none`, so the browser draws nothing of its own either. Verified across fourteen tab stops in the running app: no shadow, no outline, no glow.
+
+An intermediate version replaced the ring with a 2px bar on the leading edge, which measured 6.46:1 to 8.88:1 and would have satisfied WCAG 2.2 SC 2.4.7. That was not what was asked for and is not what shipped. The consequence, recorded here rather than argued: a keyboard user has no visual indication of where focus is, so the app does not meet SC 2.4.7, and the 2.14:1 `Button` ring finding from the first round is resolved by deletion rather than by contrast.
 
 ### Accepted, with reasons
 

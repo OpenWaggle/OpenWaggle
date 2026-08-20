@@ -125,21 +125,6 @@
   }
 
   /*
-   * The sidebar's filter field owns one focus indicator, on the field rather than on the input.
-   *
-   * The input sits inside a bordered wrapper, so an indicator on both drew two marks. The wrapper
-   * carries it and the input's is suppressed: replaced, not removed.
-   */
-  .sidebar-search:focus-within {
-    border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
-    box-shadow: inset 2px 0 0 0 var(--color-accent);
-  }
-  .sidebar-search input:focus-visible {
-    box-shadow: none;
-    border-color: transparent;
-  }
-
-  /*
    * The sidebar's scroll area, ported from the approved prototype. A thin thumb drawn inside a
    * transparent border, so the track occupies the same width whether or not it is visible and
    * rows do not change width when a project is expanded.
@@ -298,37 +283,12 @@
   }
 
   /*
-   * Focus is a bar on the leading edge, never a ring.
+   * No focus decoration anywhere. Maintainer's decision.
    *
-   * This used to paint a two-layer grey box-shadow around whatever held focus. On a compact control
-   * that reads as a ring; on a 316px sidebar row it draws a rectangle around the whole row, which
-   * looks like a rendering fault rather than a state. Clicking a row also leaves it focused, so the
-   * next key press of any kind repainted that rectangle and it appeared to be stuck.
-   *
-   * A 2px inset bar on the leading edge is not removal: the indicator has to stay for anyone
-   * driving the app from the keyboard, or there is no way to tell where you are. It measures 6.46:1
-   * against the lightest row surface and 8.88:1 against the darkest, comfortably past the 3:1 that
-   * WCAG 2.2 asks of a non-text indicator, where the grey ring managed 5.15:1 at its worst.
-   * Inset, so it never adds width and cannot overlap a neighbour.
+   * outline is suppressed so the browser draws nothing of its own either.
    */
+  :focus,
   :focus-visible {
-    outline: none;
-    box-shadow: inset 2px 0 0 0 var(--color-accent);
-  }
-
-  /*
-   * A field shows focus along its whole leading edge and keeps its border colour, since a text
-   * input has a visible boundary already and a bar alone reads as a stray mark inside it.
-   */
-  input:focus-visible,
-  textarea:focus-visible,
-  select:focus-visible {
-    box-shadow: inset 2px 0 0 0 var(--color-accent);
-    border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
-  }
-
-  .model-selector-search-input:focus,
-  .model-selector-search-input:focus-visible {
     outline: none;
     box-shadow: none;
   }
@@ -629,7 +589,7 @@
       0 0 10px color-mix(in srgb, var(--color-accent) 10%, transparent);
   }
 
-  .session-tree-node-dot:is(:hover, :focus-visible) {
+  .session-tree-node-dot:hover {
     box-shadow:
       0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent),
       0 0 12px color-mix(in srgb, var(--color-accent) 14%, transparent);

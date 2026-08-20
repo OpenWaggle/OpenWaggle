@@ -127,13 +127,12 @@ test('sidebar filtering: chips, pips, search and Escape', async () => {
       await expect(rows).toHaveCount(3)
     })
 
-    await test.step('the focused field draws one ring, not two', async () => {
+    await test.step('focus reaches the field and draws nothing', async () => {
       await page.keyboard.press('ControlOrMeta+f')
-      // The shortcut focuses on the next frame, so measuring immediately can catch the unfocused
-      // field and report no ring at all.
+      // The shortcut focuses on the next frame, so measuring immediately can catch the wrong state.
       await expect(page.locator('[data-qa="sidebar-search"] input')).toBeFocused()
 
-      const rings = await page.evaluate(() => {
+      const marks = await page.evaluate(() => {
         const field = document.querySelector('[data-qa="sidebar-search"]')
         const input = field?.querySelector('input')
         if (!field || !input) return null
@@ -146,11 +145,15 @@ test('sidebar filtering: chips, pips, search and Escape', async () => {
         }
       })
 
-      // The indicator lives on the field; the input's own ring is replaced, not merely removed.
-      expect(rings?.fieldShadow).not.toBe('none')
-      expect(rings?.inputShadow).toBe('none')
-      expect(rings?.inputOutlineStyle).toBe('none')
+      /*
+       * Focus draws no ring, glow or outline anywhere. The app-wide decision is that focus is
+       * invisible, so the only thing to assert is that the keyboard still reaches the field.
+       */
+      expect(marks?.fieldShadow).toBe('none')
+      expect(marks?.inputShadow).toBe('none')
+      expect(marks?.inputOutlineStyle).toBe('none')
     })
+
   } finally {
     await app.cleanup()
   }
