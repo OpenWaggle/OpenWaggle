@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   expectedVersionOnlyManifest,
-  mergeRecoveryAction,
+  releaseSubjectVersion,
   selectOwnedReleasePullRequests,
   type AppReleasePullRequest,
 } from '../app-release-state'
@@ -53,16 +53,14 @@ describe('app release state model', () => {
     )
   })
 
-  it.each([
-    [{ state: 'MERGED', mergeStateStatus: 'UNKNOWN' }, 'complete'],
-    [{ state: 'OPEN', mergeStateStatus: 'BEHIND' }, 'retry'],
-    [{ state: 'OPEN', mergeStateStatus: 'UNKNOWN' }, 'poll'],
-    [{ state: 'OPEN', mergeStateStatus: 'BLOCKED' }, 'poll'],
-    [{ state: 'OPEN', mergeStateStatus: 'UNSTABLE' }, 'poll'],
-    [{ state: 'OPEN', mergeStateStatus: 'CLEAN' }, 'poll'],
-    [{ state: 'CLOSED', mergeStateStatus: 'UNKNOWN' }, 'conflict'],
-    [{ state: 'OPEN', mergeStateStatus: 'DIRTY' }, 'conflict'],
-  ])('maps merge recovery state %j to %s', (input, expected) => {
-    expect(mergeRecoveryAction(input)).toBe(expected)
+  it('accepts exact and GitHub squash release subjects only', () => {
+    expect(releaseSubjectVersion('chore(release): v0.3.0-alpha.45')).toBe(
+      '0.3.0-alpha.45',
+    )
+    expect(releaseSubjectVersion('chore(release): v0.3.0-alpha.45 (#123)')).toBe(
+      '0.3.0-alpha.45',
+    )
+    expect(releaseSubjectVersion('chore(release): v0.3.0-alpha.45 extra')).toBeNull()
+    expect(releaseSubjectVersion('fix(release): v0.3.0-alpha.45 (#123)')).toBeNull()
   })
 })
