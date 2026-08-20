@@ -103,13 +103,18 @@ export function AgentNotificationStack({
   )
 
   useEffect(() => {
-    const timers = notifications
-      .filter((event) => event.interaction.level === 'info')
-      .map((event) =>
+    const timers: number[] = []
+    for (const event of notifications) {
+      if (event.interaction.level !== 'info') {
+        continue
+      }
+
+      timers.push(
         window.setTimeout(() => {
           setDismissedIds((current) => new Set(current).add(event.interaction.interactionId))
         }, INFO_DISMISS_DELAY_MS),
       )
+    }
 
     return () => {
       for (const timer of timers) {

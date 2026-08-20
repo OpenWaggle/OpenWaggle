@@ -174,7 +174,7 @@ export function surfaceLabel(input: ExtensionAgentLoopSurfaceInput) {
   return matchBy(input, 'surface')
     .with('tool', (value) => `Tool output · ${value.toolCall.name}`)
     .with('custom-message', (value) => `Custom message · ${value.message.name}`)
-    .with('interaction', (value) => `Interaction · ${value.interaction.customType}`)
+    .with('interaction', (value) => value.interaction.title)
     .with('transcript', () => 'Transcript summary')
     .with('status', () => 'Run status')
     .exhaustive()

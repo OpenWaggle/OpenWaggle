@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { setProjectPreferences } from '../../config/project-config'
 import {
   archiveSessionMock,
   cancelSessionRunsMock,
@@ -19,6 +20,7 @@ import {
   listSessionDetailsMock,
   loadSessionDetailsHandlers,
   resetSessionDetailsHandlerMocks,
+  setAuthorizationModeMock,
   typedHandleMock,
 } from './session-details-handler.test-harness'
 
@@ -91,6 +93,34 @@ describe('registerSessionDetailsHandlers', () => {
         environmentMode: 'local',
         authorizationMode: 'yolo',
       })
+    } finally {
+      await rm(projectPath, { recursive: true, force: true })
+    }
+  })
+
+  it('uses a project authorization default when creating a session', async () => {
+    const projectPath = await mkdtemp(path.join(tmpdir(), 'openwaggle-session-test-'))
+    const validatedProjectPath = await realpath(projectPath)
+    try {
+      const createdSession = {
+        id: SessionId('session-created'),
+        title: 'New session',
+        messages: [],
+      }
+      await setProjectPreferences(validatedProjectPath, { authorizationMode: 'ask-for-approval' })
+      createSessionMock.mockResolvedValue(createdSession)
+
+      registerSessionDetailsHandlers()
+      const handler = getInvokeHandler('sessions:create')
+
+      const result = await handler?.({}, projectPath)
+      expect(result).toEqual(createdSession)
+      expect(createSessionMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectPath: validatedProjectPath,
+          authorizationMode: 'ask-for-approval',
+        }),
+      )
     } finally {
       await rm(projectPath, { recursive: true, force: true })
     }
@@ -216,5 +246,27 @@ describe('registerSessionDetailsHandlers', () => {
     expect(cleanupSessionRunMock).toHaveBeenCalledWith(SessionId('session-archive'))
     expect(emitRunCompletedMock).not.toHaveBeenCalled()
     expect(archiveSessionMock).toHaveBeenCalledWith(SessionId('session-archive'))
+  })
+
+  it('updates a session authorization mode through the projection repository', async () => {
+    registerSessionDetailsHandlers()
+    const handler = getInvokeHandler('sessions:set-authorization-mode')
+
+    await handler?.({}, SessionId('session-authorization'), 'ask-for-approval')
+
+    expect(setAuthorizationModeMock).toHaveBeenCalledWith(
+      SessionId('session-authorization'),
+      'ask-for-approval',
+    )
+  })
+
+  it('rejects invalid session authorization modes', async () => {
+    registerSessionDetailsHandlers()
+    const handler = getInvokeHandler('sessions:set-authorization-mode')
+
+    await expect(handler?.({}, SessionId('session-authorization'), 'always-allow')).rejects.toThrow(
+      'Session authorization mode is invalid.',
+    )
+    expect(setAuthorizationModeMock).not.toHaveBeenCalled()
   })
 })

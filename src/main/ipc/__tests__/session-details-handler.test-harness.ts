@@ -27,6 +27,7 @@ interface SessionDetailsHandlerMocks {
   readonly unarchiveSessionMock: TestMock
   readonly listArchivedSessionsMock: TestMock
   readonly updateSessionTitleMock: TestMock
+  readonly setAuthorizationModeMock: TestMock
   readonly cancelSessionRunsMock: TestMock
   readonly clearAgentPhaseMock: TestMock
   readonly clearStreamBufferMock: TestMock
@@ -50,6 +51,7 @@ const mocks: SessionDetailsHandlerMocks = vi.hoisted(() => ({
   unarchiveSessionMock: vi.fn(),
   listArchivedSessionsMock: vi.fn(),
   updateSessionTitleMock: vi.fn(),
+  setAuthorizationModeMock: vi.fn(),
   cancelSessionRunsMock: vi.fn(),
   clearAgentPhaseMock: vi.fn(),
   clearStreamBufferMock: vi.fn(),
@@ -69,6 +71,7 @@ export const archiveSessionMock: TestMock = mocks.archiveSessionMock
 export const unarchiveSessionMock: TestMock = mocks.unarchiveSessionMock
 export const listArchivedSessionsMock: TestMock = mocks.listArchivedSessionsMock
 export const updateSessionTitleMock: TestMock = mocks.updateSessionTitleMock
+export const setAuthorizationModeMock: TestMock = mocks.setAuthorizationModeMock
 export const cancelSessionRunsMock: TestMock = mocks.cancelSessionRunsMock
 export const clearAgentPhaseMock: TestMock = mocks.clearAgentPhaseMock
 export const clearStreamBufferMock: TestMock = mocks.clearStreamBufferMock
@@ -155,7 +158,14 @@ const TestSessionProjectionRepoLayer = Layer.succeed(
         catch: (cause) => new SessionProjectionRepositoryError({ operation: 'updateTitle', cause }),
       }),
     setWorktreePlan: () => Effect.void,
-    setAuthorizationMode: () => Effect.void,
+    setAuthorizationMode: (id, authorizationMode) =>
+      Effect.tryPromise({
+        try: async () => {
+          await setAuthorizationModeMock(id, authorizationMode)
+        },
+        catch: (cause) =>
+          new SessionProjectionRepositoryError({ operation: 'setAuthorizationMode', cause }),
+      }),
     listTurnCheckpoints: () => Effect.succeed([]),
     getTurnDiff: () => Effect.succeed(null),
     setTurnCheckpointAnchor: () => Effect.void,
@@ -261,6 +271,7 @@ export function resetSessionDetailsHandlerMocks() {
   unarchiveSessionMock.mockReset()
   listArchivedSessionsMock.mockReset()
   updateSessionTitleMock.mockReset()
+  setAuthorizationModeMock.mockReset()
   cancelSessionRunsMock.mockReset()
   cancelSessionRunsMock.mockReturnValue(false)
   clearAgentPhaseMock.mockReset()

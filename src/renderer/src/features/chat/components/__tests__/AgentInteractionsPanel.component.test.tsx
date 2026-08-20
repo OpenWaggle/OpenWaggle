@@ -219,11 +219,10 @@ describe('AgentInteractionsPanel', () => {
 
     render(<AgentInteractionsPanel interactions={[interaction]} onRespond={onRespond} />)
 
+    expect(screen.getAllByText('Custom interaction')).toHaveLength(2)
     expect(
-      screen.getByText(
-        `Custom interaction · ${OPENWAGGLE_AGENT_LOOP.PI_TUI_CUSTOM_INTERACTION_TYPE}`,
-      ),
-    ).toBeInTheDocument()
+      screen.queryByText(OPENWAGGLE_AGENT_LOOP.PI_TUI_CUSTOM_INTERACTION_TYPE),
+    ).not.toBeInTheDocument()
     expect(screen.getByText('Custom desktop interaction renderer unavailable')).toBeInTheDocument()
     expect(
       screen.getByText(/does not execute terminal UI custom components inside Electron/),

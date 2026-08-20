@@ -19,6 +19,7 @@ import { WaggleCollaborationStatus as WaggleCollaborationStatusBanner } from '@/
 import { useComposerSendGate } from '../hooks/useComposerSendGate'
 import type { AgentInteractionEvent } from '../lib/types-chat-row'
 import type { ChatComposerSectionState } from '../model'
+import { AgentCustomInteractionComposerFallback } from './AgentCustomInteractionComposerFallback'
 import { AgentInteractionComposerPrompt } from './AgentInteractionComposerPrompt'
 import { AgentNotificationStack } from './AgentNotificationStack'
 import { ChatComposerCommandPalette } from './ChatComposerCommandPalette'
@@ -187,6 +188,12 @@ export function ChatComposerStack({
         />
         <AgentNotificationStack events={agentInteractionEvents} />
         <AgentInteractionComposerPrompt
+          interactions={agentInteractions}
+          onRespond={onRespondAgentInteraction}
+        />
+        <AgentCustomInteractionComposerFallback
+          extensionProjectPaths={extensionProjectPaths}
+          extensionRegistry={extensionRegistry}
           interactions={agentInteractions}
           onRespond={onRespondAgentInteraction}
         />

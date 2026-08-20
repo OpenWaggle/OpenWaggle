@@ -1,9 +1,12 @@
+/// <reference types="vite/client" />
+
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import { EXTENSION_SIDE_PANEL_ROUTE_PANEL, SETTINGS_TABS, type SettingsTab } from '@/shell/ui-store'
 
 export type ChatBuiltInRightPanel = 'diff' | 'session-tree'
 export type ChatRightPanel = ChatBuiltInRightPanel | typeof EXTENSION_SIDE_PANEL_ROUTE_PANEL
 export type NotificationPrototypeVariant = 'B1' | 'B2' | 'B3' | 'N1' | 'N2' | 'N3'
+export const NOTIFICATION_PROTOTYPE_ROUTES_ENABLED = import.meta.env.DEV
 
 export interface ChatExtensionSidePanelTarget {
   readonly extensionId: string
@@ -61,12 +64,16 @@ function parseRightPanel(value: unknown) {
 }
 
 function parseNotificationPrototype(value: unknown) {
-  return value === 'notifications' ? value : undefined
+  return NOTIFICATION_PROTOTYPE_ROUTES_ENABLED && value === 'notifications' ? value : undefined
 }
 
 function parseNotificationPrototypeVariant(
   value: unknown,
 ): NotificationPrototypeVariant | undefined {
+  if (!NOTIFICATION_PROTOTYPE_ROUTES_ENABLED) {
+    return undefined
+  }
+
   if (
     value === 'B1' ||
     value === 'B2' ||

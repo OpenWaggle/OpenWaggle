@@ -144,7 +144,7 @@ describe('ExtensionAgentLoopSurface', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '#113' }))
 
-    expect(screen.getByText('Interaction · github.issue.select')).toBeInTheDocument()
+    expect(screen.getAllByText('Select an issue')).toHaveLength(2)
     expect(onAction).toHaveBeenCalledWith('select-issue', 'issue-113')
   })
 

@@ -6,7 +6,7 @@ export function agentLoopInteractionTitle(interaction: AgentLoopInteraction) {
   return matchBy(interaction, 'kind')
     .with('confirm', 'select', 'input', 'editor', (value) => value.title)
     .with('notify', () => 'Notification')
-    .with('custom', (value) => `Custom interaction · ${value.customType}`)
+    .with('custom', () => 'Custom interaction')
     .exhaustive()
 }
 

@@ -1,11 +1,11 @@
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { lazy, Suspense } from 'react'
 import { EXTENSION_SIDE_PANEL_ROUTE_PANEL } from '@/shell/ui-store'
-import { NotificationPrototypeRouteView } from './-notification-prototype'
 import {
   type ChatExtensionSidePanelTarget,
   type ChatRouteSearch,
   extensionSidePanelTargetFromSearch,
+  NOTIFICATION_PROTOTYPE_ROUTES_ENABLED,
   type NotificationPrototypeVariant,
 } from './-route-search'
 
@@ -17,12 +17,18 @@ function notificationPrototypeSearch(
 }
 
 function notificationPrototypeAvailable() {
-  return window.location.protocol === 'http:'
+  return NOTIFICATION_PROTOTYPE_ROUTES_ENABLED && window.location.protocol === 'http:'
 }
 
 const LazyChatRouteSurface = lazy(() =>
   import('./-chat-route-surface').then((module) => ({
     default: module.ChatRouteSurface,
+  })),
+)
+
+const LazyNotificationPrototypeRouteView = lazy(() =>
+  import('./-notification-prototype').then((module) => ({
+    default: module.NotificationPrototypeRouteView,
   })),
 )
 
@@ -33,6 +39,17 @@ function ChatRouteSurfaceFallback() {
       className="flex min-h-0 min-w-0 flex-1 items-center justify-center bg-bg text-[13px] text-text-tertiary"
     >
       Loading chat…
+    </output>
+  )
+}
+
+function NotificationPrototypeFallback() {
+  return (
+    <output
+      aria-live="polite"
+      className="flex min-h-0 min-w-0 flex-1 items-center justify-center bg-bg text-[13px] text-text-tertiary"
+    >
+      Loading prototype…
     </output>
   )
 }
@@ -97,10 +114,12 @@ export function ChatIndexRouteView() {
 
   if (notificationPrototypeAvailable() && search.prototype === 'notifications') {
     return (
-      <NotificationPrototypeRouteView
-        variant={search.variant ?? 'B1'}
-        onVariantChange={setPrototypeVariant}
-      />
+      <Suspense fallback={<NotificationPrototypeFallback />}>
+        <LazyNotificationPrototypeRouteView
+          variant={search.variant ?? 'B1'}
+          onVariantChange={setPrototypeVariant}
+        />
+      </Suspense>
     )
   }
 
@@ -189,10 +208,12 @@ export function ChatSessionRouteView() {
 
   if (notificationPrototypeAvailable() && search.prototype === 'notifications') {
     return (
-      <NotificationPrototypeRouteView
-        variant={search.variant ?? 'B1'}
-        onVariantChange={setPrototypeVariant}
-      />
+      <Suspense fallback={<NotificationPrototypeFallback />}>
+        <LazyNotificationPrototypeRouteView
+          variant={search.variant ?? 'B1'}
+          onVariantChange={setPrototypeVariant}
+        />
+      </Suspense>
     )
   }
 
