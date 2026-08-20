@@ -224,3 +224,17 @@ jsdom has no hit testing, so a component test passes whether or not the fix is p
 `npx playwright test` does not build. Running it directly tests the previous `out/`, which produces failures that look like broken source. Use `pnpm test:e2e`, or run `pnpm build` first.
 
 The dev server rewrites `src/renderer/src/routeTree.gen.ts` (import ordering only, no route change). Any script that checks out commits in sequence fails on every checkout while that file is dirty. Stop the dev server before such a loop.
+
+### A focused row keeps its focus, so a later keypress paints its focus ring
+
+Clicking a sidebar row leaves it focused. Chromium re-evaluates `:focus-visible` on the currently focused element when the interaction modality changes, so the next key press of any kind paints the keyboard focus indicator on a row the user clicked minutes earlier. Pressing the screenshot shortcut is enough to make it appear in the screenshot.
+
+Two consequences worth remembering. A focus indicator that looks acceptable on a compact control looks like a rendering fault when it wraps a 316px row, so judge the treatment on the largest surface it can land on. And anything hidden behind `group-focus-within:*` on a row is hidden for as long as that row holds focus, not just while the pointer is over it: a roll-up pip hidden that way vanished on click and stayed gone.
+
+### Reserved shortcuts have to be declared where the conflict check looks
+
+`Mod+F` and `Mod+1` to `Mod+9` are registered directly by sidebar hooks rather than through `shortcutBindings`, so the settings conflict check could not see them and a user could bind a command onto one. The result was two live handlers and a console warning from the hotkey library with nothing in the UI to explain it. `RESERVED_SHORTCUT_KEYS` in `src/shared/types/shortcuts.ts` is where a directly-registered combination gets declared so the check can find it.
+
+### The menu role and its keyboard model are one decision
+
+`role="menu"` with `role="menuitemradio"` children tells a screen reader to use arrow keys. Declaring it on a panel of plain buttons produces a menu that is operable by Tab and Enter but announces a model that does not exist, which is worse than announcing nothing. `useMenuKeyboard` in `src/renderer/src/shared/hooks/` holds the model and `Popover` switches it on with the role, so the two cannot be declared separately. Items are found in the DOM rather than registered by each call site, because a menu's items are arbitrary children.

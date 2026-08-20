@@ -101,19 +101,27 @@ Run after the branch had merged `origin/main`, with one brief each: correctness,
 
 **The QA seed script had four defects.** `--replace-qa` alone made `Number('--replace-qa')`, so it seeded empty transcripts and reported "NaN messages" while exiting successfully; the cleanup predicate matched `QA session%`, a title the script never writes, so the flag was a no-op; running it twice failed on a duplicate `session_nodes.id`; and it hardcoded macOS paths plus one contributor's project folder.
 
+### Fixed after the reviews, on the maintainer's decisions
+
+**`role="menu"` now carries the keyboard model it promises.** The maintainer chose to implement the pattern in the shared `Popover` rather than drop the role. `useMenuKeyboard` gives every menu panel arrow keys, Home and End, a single tab stop with a roving tabindex, Tab to leave, focus entering on the checked item, focus returning to the trigger on close, and skipped disabled items. Triggers report `aria-haspopup` and `aria-expanded`. Panels with any other role are untouched, verified for a listbox in tests and for the project actions menu in the real app. `CommandPalette` declares the role without the model on `origin/main` and still does; it is not a `Popover`, so it stays in the follow-up issue.
+
+**Reordering withdraws while a filter is active.** The maintainer chose this over resolving neighbours from the unfiltered rows: a move means "between these two rows", and with rows hidden the two on screen are not the two in the list. This closes both routes, the drag and the new menu items.
+
+**One rule decides whether a finished run has been seen.** `resolveVisibleSessionStatus` in `sidebar-row-state.ts` is now the only copy, called by the row hook and by the hook the chips and roll-ups use.
+
+**The reserved shortcuts are visible to the settings conflict check.** `RESERVED_SHORTCUT_KEYS` names `Mod+F` and `Mod+1` to `Mod+9` with what claims them, so rebinding onto one reports which feature owns it instead of producing two live handlers and a console warning.
+
+**`Mod+F` does nothing in the settings view** rather than issuing a focus request that evaporates against an inert field.
+
+### Two defects the maintainer found by using the app
+
+**A project's roll-up pip disappeared.** It was hidden on hover and on `focus-within`, and a click leaves the heading focused, so one click hid it until focus moved somewhere else entirely. The pip is the only thing on a collapsed heading that says a session inside needs a person. It never hides now; the plain session count still yields to the hover actions, because a count is not attention.
+
+**The focus ring was a rectangle around whole rows.** Replaced everywhere with a 2px inset bar on the leading edge, including the `Button` primitive's own ring. Measured 6.46:1 against the lightest row surface and 8.88:1 against the darkest, where the grey ring managed 5.15:1, so it also settles the 2.14:1 finding from the first round. Replaced rather than deleted: a keyboard user has no other way to tell where they are.
+
 ### Accepted, with reasons
 
 **Two provenance glyphs still render nothing.** `cloned-from` and `terminal` have complete tested render paths gated on data that never arrives. One reviewer argued for deleting them. Kept, because ADR 0020 draws the line at whether the product *has* the capability: a session genuinely is cloned from another and genuinely owns terminals, and nothing records either. The TODOs name the migration.
-
-**The row state rule is written twice**, in `useSessionRowStatus` and `useSidebarRowStates`, so chips and rows agree only because two copies match. A real duplication and a fair hit against the "one authority" claim in `MEMORY.md`. Not fixed here because collapsing them changes what every row subscribes to, which is a refactor with its own regression surface, and this branch is already large. Recorded as a follow-up rather than pretended away.
-
-**`role="menu"` without the keyboard model.** The sort menus announce menu semantics but are plain buttons: no roving tabindex, no arrow keys, no focus move on open. The reviewer is right that this now promises a keyboard model that does not exist. Left as is in this branch and raised as a follow-up, because the honest fix is either to implement the pattern in the shared `Popover` or to change the role, and both reach past the sidebar.
-
-**Dragging a pinned row while a filter is active** resolves neighbours from the visible subset, so a drop can reposition a pin relative to rows the user cannot see. The stored key stays valid. A follow-up.
-
-**`Mod+F` and `Mod+1` to `Mod+9` are invisible to the shortcut conflict check** in settings, so rebinding a command onto one of them produces two handlers and a console warning with nothing in the UI to explain it. A follow-up.
-
-**`Mod+F` is dropped while the sidebar is inert** in the settings view. A follow-up.
 
 **Switching conversation branch does not reset the transcript window**, so an expansion carries across branches of one session. Performance only. Noted in ADR 0022 rather than fixed.
 
