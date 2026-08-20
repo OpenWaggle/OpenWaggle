@@ -33,10 +33,8 @@ function InteractionHeader({ interaction }: { readonly interaction: AgentLoopInt
     <div className="flex items-start gap-3">
       <MessageSquareWarning className="mt-0.5 size-4 shrink-0 text-accent" />
       <div className="min-w-0">
-        <h3 className="text-[13px] font-semibold text-text-primary">Pi interaction pending</h3>
-        <p className="mt-1 text-[12px] leading-5 text-text-tertiary">
-          {interaction.kind} · {interaction.source}
-        </p>
+        <h3 className="text-[13px] font-semibold text-text-primary">Interaction pending</h3>
+        <p className="mt-1 text-[12px] leading-5 text-text-tertiary">{interaction.kind}</p>
       </div>
     </div>
   )

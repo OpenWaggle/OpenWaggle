@@ -286,6 +286,7 @@ describe('chat orchestration hooks', () => {
         handleCloseForkSelector: vi.fn(),
         handleSelectForkTarget: vi.fn(),
         handleCloneToNewSession: vi.fn(),
+        handleSetAuthorizationMode: vi.fn().mockResolvedValue(undefined),
       }),
     )
 

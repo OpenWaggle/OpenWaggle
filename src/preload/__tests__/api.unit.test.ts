@@ -78,6 +78,7 @@ describe('preload api surface contract', () => {
     'listArchivedSessions',
     'updateSessionTitle',
     'setSessionWorktreePlan',
+    'setSessionAuthorizationMode',
     'listArchivedSessionBranches',
     'getSessionTree',
     'getSessionWorkspace',

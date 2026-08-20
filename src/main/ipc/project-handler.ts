@@ -1,5 +1,6 @@
 import { safeDecodeUnknown } from '@shared/schema'
 import { projectPreferencesSchema } from '@shared/schemas/validation'
+import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { THINKING_LEVELS } from '@shared/types/settings'
 import { includes } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
@@ -43,9 +44,15 @@ function validateProjectPreferences(preferences: unknown) {
     return Effect.fail(new Error('Project preference thinking level is invalid.'))
   }
 
+  const { authorizationMode } = result.data
+  if (authorizationMode !== undefined && !isAgentAuthorizationMode(authorizationMode)) {
+    return Effect.fail(new Error('Project preference authorization mode is invalid.'))
+  }
+
   const validatedPreferences: ProjectPreferences = {
     ...(model !== undefined ? { model } : {}),
     ...(thinkingLevel !== undefined ? { thinkingLevel } : {}),
+    ...(authorizationMode !== undefined ? { authorizationMode } : {}),
   }
   return Effect.succeed(validatedPreferences)
 }

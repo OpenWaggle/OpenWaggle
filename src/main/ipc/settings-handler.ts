@@ -1,5 +1,6 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
+import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import { SupportedModelId } from '@shared/types/brand'
 import type { SessionTreeFilterMode } from '@shared/types/session'
 import { THINKING_LEVELS } from '@shared/types/settings'
@@ -88,6 +89,7 @@ const settingsUpdateSchema = Schema.Struct({
       }),
     ),
   ),
+  defaultAuthorizationMode: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
 })
 
 function registerSettingsCrudHandlers() {

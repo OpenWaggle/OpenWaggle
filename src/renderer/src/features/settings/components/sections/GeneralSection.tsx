@@ -1,10 +1,18 @@
 import { matchBy } from '@diegogbrisa/ts-match'
+import {
+  AGENT_AUTHORIZATION_MODE_LABELS,
+  AGENT_AUTHORIZATION_MODES,
+  type AgentAuthorizationMode,
+  isAgentAuthorizationMode,
+} from '@shared/types/agent-authorization'
 import type { UpdateStatus } from '@shared/types/updater'
 import { Loader2, RefreshCw, RotateCcw } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
+import { Select } from '@/shared/ui/Select'
 
 const logger = createRendererLogger('settings')
 
@@ -41,6 +49,47 @@ function useUpdateStatus() {
   }, [])
 
   return status
+}
+
+function useProjectAuthorizationDefault(projectPath: string | null) {
+  const [mode, setMode] = useState<AgentAuthorizationMode | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!projectPath) {
+      setMode(null)
+      setLoading(false)
+      return
+    }
+
+    let cancelled = false
+    setLoading(true)
+    api
+      .getProjectPreferences(projectPath)
+      .then((preferences) => {
+        if (cancelled) {
+          return
+        }
+        setMode(preferences?.authorizationMode ?? null)
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          logger.warn('Failed to load project authorization preferences', { error: String(err) })
+          setMode(null)
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [projectPath])
+
+  return { loading, mode, setMode }
 }
 
 interface StatusRow {
@@ -87,6 +136,112 @@ function getStatusRow(status: UpdateStatus) {
     .exhaustive()
 }
 
+function AgentAccessSection() {
+  const settings = usePreferencesStore((s) => s.settings)
+  const setDefaultAuthorizationMode = usePreferencesStore((s) => s.setDefaultAuthorizationMode)
+  const projectAuthorization = useProjectAuthorizationDefault(settings.projectPath)
+  const [savingGlobalAuthorization, setSavingGlobalAuthorization] = useState(false)
+  const [savingProjectAuthorization, setSavingProjectAuthorization] = useState(false)
+
+  function handleGlobalAuthorizationModeChange(mode: AgentAuthorizationMode) {
+    if (mode === settings.defaultAuthorizationMode || savingGlobalAuthorization) {
+      return
+    }
+
+    setSavingGlobalAuthorization(true)
+    setDefaultAuthorizationMode(mode)
+      .catch((err: unknown) => {
+        logger.warn('Failed to update global authorization mode', { error: String(err) })
+      })
+      .finally(() => {
+        setSavingGlobalAuthorization(false)
+      })
+  }
+
+  function handleProjectAuthorizationModeChange(mode: AgentAuthorizationMode) {
+    if (!settings.projectPath || mode === projectAuthorization.mode || savingProjectAuthorization) {
+      return
+    }
+
+    setSavingProjectAuthorization(true)
+    api
+      .setProjectPreferences(settings.projectPath, { authorizationMode: mode })
+      .then(() => {
+        projectAuthorization.setMode(mode)
+      })
+      .catch((err: unknown) => {
+        logger.warn('Failed to update project authorization mode', { error: String(err) })
+      })
+      .finally(() => {
+        setSavingProjectAuthorization(false)
+      })
+  }
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-[16px] font-semibold text-[#e7e9ee]">Agent access</h3>
+
+      <div className="overflow-hidden rounded-lg border border-[#1e2229] bg-[#111418]">
+        <div className="flex min-h-14 items-center justify-between gap-4 border-b border-[#1e2229] px-5 py-3">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[13px] font-medium text-[#e7e9ee]">Default for new sessions</span>
+            <span className="text-[12px] text-[#9098a8]">
+              New sessions use this access mode unless a project default exists.
+            </span>
+          </div>
+          <Select
+            aria-label="Default access mode for new sessions"
+            disabled={savingGlobalAuthorization}
+            value={settings.defaultAuthorizationMode}
+            onChange={(event) => {
+              if (isAgentAuthorizationMode(event.currentTarget.value)) {
+                handleGlobalAuthorizationModeChange(event.currentTarget.value)
+              }
+            }}
+          >
+            {AGENT_AUTHORIZATION_MODES.map((mode) => (
+              <option key={mode} value={mode}>
+                {AGENT_AUTHORIZATION_MODE_LABELS[mode]}
+              </option>
+            ))}
+          </Select>
+        </div>
+
+        <div className="flex min-h-14 items-center justify-between gap-4 px-5 py-3">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[13px] font-medium text-[#e7e9ee]">Current project default</span>
+            <span className="text-[12px] text-[#9098a8]">
+              {settings.projectPath
+                ? projectAuthorization.mode
+                  ? 'New sessions in this project use this mode.'
+                  : 'No project override yet; new sessions use the global default.'
+                : 'Open a project to set a project-specific default.'}
+            </span>
+          </div>
+          <Select
+            aria-label="Current project access mode"
+            disabled={
+              !settings.projectPath || projectAuthorization.loading || savingProjectAuthorization
+            }
+            value={projectAuthorization.mode ?? settings.defaultAuthorizationMode}
+            onChange={(event) => {
+              if (isAgentAuthorizationMode(event.currentTarget.value)) {
+                handleProjectAuthorizationModeChange(event.currentTarget.value)
+              }
+            }}
+          >
+            {AGENT_AUTHORIZATION_MODES.map((mode) => (
+              <option key={mode} value={mode}>
+                {AGENT_AUTHORIZATION_MODE_LABELS[mode]}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function GeneralSection() {
   const version = useAppVersion()
   const status = useUpdateStatus()
@@ -99,6 +254,8 @@ export function GeneralSection() {
 
   return (
     <div className="space-y-6">
+      <AgentAccessSection />
+
       {/* About & Updates — title outside the card */}
       <div className="space-y-3">
         <h3 className="text-[16px] font-semibold text-[#e7e9ee]">About & Updates</h3>

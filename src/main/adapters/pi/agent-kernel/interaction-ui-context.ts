@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { ExtensionUIContext } from '@earendil-works/pi-coding-agent'
 import { OPENWAGGLE_AGENT_LOOP } from '@shared/constants/agent-loop'
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type {
   AgentLoopConfirmInteraction,
   AgentLoopCustomInteraction,
@@ -28,6 +29,7 @@ type PiNotifyLevel = Parameters<ExtensionUIContext['notify']>[1]
 export interface PiInteractionUiContextInput {
   readonly sessionId: SessionId
   readonly runId: string
+  readonly authorizationMode: AgentAuthorizationMode
   readonly signal: AbortSignal
   readonly onEvent: (event: AgentTransportEvent) => void
 }
@@ -77,6 +79,26 @@ function textValue(response: AgentLoopInteractionResponse) {
 
 function normalizeNotifyLevel(level: PiNotifyLevel) {
   return level ?? 'info'
+}
+
+function confirmPurpose(input: { readonly title: string; readonly message: string }) {
+  if (
+    input.title === 'Allow MCP tool call?' ||
+    input.title === 'Open MCP elicitation URL?' ||
+    input.title === 'Review MCP input request?' ||
+    input.title === 'Allow legacy MCP sampling?'
+  ) {
+    return 'authorization' as const
+  }
+
+  return 'confirmation' as const
+}
+
+function shouldAutoAcceptConfirm(input: {
+  readonly authorizationMode: AgentAuthorizationMode
+  readonly purpose: ReturnType<typeof confirmPurpose>
+}) {
+  return input.authorizationMode === 'yolo' && input.purpose === 'authorization'
 }
 
 function customRendererFields(
@@ -129,11 +151,17 @@ function createDesktopInteractionUiOverrides(
       return selectedValue(response)
     },
     confirm: async (title, message, opts) => {
+      const purpose = confirmPurpose({ title, message })
+      if (shouldAutoAcceptConfirm({ authorizationMode: context.authorizationMode, purpose })) {
+        return true
+      }
+
       const interaction = {
         ...baseInteraction({ context, opts }),
         kind: 'confirm',
         title,
         message,
+        purpose,
       } satisfies AgentLoopConfirmInteraction
       const response = await requestInteraction({
         interaction,

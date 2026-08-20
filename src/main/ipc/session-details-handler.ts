@@ -1,3 +1,7 @@
+import {
+  type AgentAuthorizationMode,
+  isAgentAuthorizationMode,
+} from '@shared/types/agent-authorization'
 import type { SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionWorktreePlan } from '@shared/types/session'
@@ -8,6 +12,7 @@ import {
   cloneAgentSessionToNewSession,
   forkAgentSessionToNewSession,
 } from '../application/agent-session-service'
+import { getProjectPreferences } from '../config/project-config'
 import { AgentKernelService } from '../ports/agent-kernel-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SettingsService } from '../services/settings-service'
@@ -24,6 +29,22 @@ function cleanupBeforeSessionRemoval(sessionId: SessionId) {
   if (cancelledActiveRun) {
     emitRunCompleted(sessionId)
   }
+}
+
+function validateAuthorizationMode(mode: unknown) {
+  if (!isAgentAuthorizationMode(mode)) {
+    return Effect.fail(new Error('Session authorization mode is invalid.'))
+  }
+  return Effect.succeed(mode)
+}
+
+function resolveSessionAuthorizationMode(input: {
+  readonly projectPath: string
+  readonly globalDefault: AgentAuthorizationMode
+}) {
+  return Effect.promise(() => getProjectPreferences(input.projectPath)).pipe(
+    Effect.map((preferences) => preferences?.authorizationMode ?? input.globalDefault),
+  )
 }
 
 function registerSessionDetailsReadHandlers() {
@@ -66,12 +87,17 @@ function registerSessionCreationHandlers() {
         projectPath: normalizedProjectPath,
       })
       const settings = yield* (yield* SettingsService).get()
+      const authorizationMode = yield* resolveSessionAuthorizationMode({
+        projectPath: normalizedProjectPath,
+        globalDefault: settings.defaultAuthorizationMode,
+      })
       const repo = yield* SessionProjectionRepository
       return yield* repo.create({
         projectPath: normalizedProjectPath,
         piSessionId: runtimeSession.piSessionId,
         piSessionFile: runtimeSession.piSessionFile,
         environmentMode: settings.defaultSessionEnvironmentMode,
+        authorizationMode,
       })
     }),
   )
@@ -142,6 +168,14 @@ function registerSessionMutationHandlers() {
     Effect.gen(function* () {
       const repo = yield* SessionProjectionRepository
       yield* repo.setWorktreePlan(id, plan)
+    }),
+  )
+
+  typedHandle('sessions:set-authorization-mode', (_event, id: SessionId, mode: unknown) =>
+    Effect.gen(function* () {
+      const validatedMode = yield* validateAuthorizationMode(mode)
+      const repo = yield* SessionProjectionRepository
+      yield* repo.setAuthorizationMode(id, validatedMode)
     }),
   )
 }

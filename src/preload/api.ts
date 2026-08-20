@@ -145,6 +145,7 @@ export const api: OpenWaggleApi = {
   listArchivedSessions: invoke('sessions:list-archived'),
   updateSessionTitle: invoke('sessions:update-title'),
   setSessionWorktreePlan: invoke('sessions:set-worktree-plan'),
+  setSessionAuthorizationMode: invoke('sessions:set-authorization-mode'),
   listArchivedSessionBranches: invoke('sessions:list-archived-branches'),
   getSessionTree: invoke('sessions:get-tree'),
   getSessionWorkspace: invoke('sessions:get-workspace'),

@@ -13,6 +13,7 @@ function mergeSettings(current: Settings, partial: Partial<Settings>): Settings 
     recentProjects: partial.recentProjects ?? current.recentProjects,
     skillTogglesByProject: partial.skillTogglesByProject ?? current.skillTogglesByProject,
     projectDisplayNames: partial.projectDisplayNames ?? current.projectDisplayNames,
+    defaultAuthorizationMode: partial.defaultAuthorizationMode ?? current.defaultAuthorizationMode,
     defaultSessionEnvironmentMode:
       partial.defaultSessionEnvironmentMode ?? current.defaultSessionEnvironmentMode,
     diffSyntaxTheme: partial.diffSyntaxTheme ?? current.diffSyntaxTheme,

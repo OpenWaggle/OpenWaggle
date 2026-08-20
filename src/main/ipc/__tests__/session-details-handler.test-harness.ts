@@ -155,6 +155,7 @@ const TestSessionProjectionRepoLayer = Layer.succeed(
         catch: (cause) => new SessionProjectionRepositoryError({ operation: 'updateTitle', cause }),
       }),
     setWorktreePlan: () => Effect.void,
+    setAuthorizationMode: () => Effect.void,
     listTurnCheckpoints: () => Effect.succeed([]),
     getTurnDiff: () => Effect.succeed(null),
     setTurnCheckpointAnchor: () => Effect.void,

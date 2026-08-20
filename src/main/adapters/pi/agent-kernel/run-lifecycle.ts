@@ -5,6 +5,7 @@ import type {
   SessionManager,
 } from '@earendil-works/pi-coding-agent'
 import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
+import { DEFAULT_AGENT_AUTHORIZATION_MODE } from '@shared/types/agent-authorization'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { clampThinkingLevel } from '@shared/utils/thinking-levels'
 import type { AgentKernelRunInput, AgentKernelRunResult } from '../../../ports/agent-kernel-service'
@@ -106,6 +107,7 @@ export async function createPiRunSessionRuntime(
   const openWaggleUi = {
     sessionId: input.session.id,
     runId: input.runId,
+    authorizationMode: input.session.authorizationMode ?? DEFAULT_AGENT_AUTHORIZATION_MODE,
     signal: input.signal,
     onEvent: input.onEvent,
   }

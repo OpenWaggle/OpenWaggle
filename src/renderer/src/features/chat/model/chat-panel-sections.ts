@@ -1,4 +1,5 @@
 import type { AgentSendPayload } from '@shared/types/agent'
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type {
   AgentLoopInteraction,
   AgentLoopInteractionResponse,
@@ -70,6 +71,7 @@ export interface ChatComposerSectionState {
   onCloseForkSelector: () => void
   onSelectForkTarget: (target: SessionForkTarget) => void
   onCloneToNewSession: () => void
+  onSetAuthorizationMode: (authorizationMode: AgentAuthorizationMode) => Promise<void>
 }
 
 export interface ChatDiffSectionState {

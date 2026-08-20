@@ -226,7 +226,7 @@ describe('AgentInteractionsPanel', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('Custom desktop interaction renderer unavailable')).toBeInTheDocument()
     expect(
-      screen.getByText(/does not execute Pi TUI custom components inside Electron/),
+      screen.getByText(/does not execute terminal UI custom components inside Electron/),
     ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Reject interaction' }))

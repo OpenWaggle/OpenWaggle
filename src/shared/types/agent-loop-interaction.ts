@@ -26,6 +26,7 @@ export interface AgentLoopConfirmInteraction extends AgentLoopInteractionBase {
   readonly kind: 'confirm'
   readonly title: string
   readonly message: string
+  readonly purpose?: 'authorization' | 'confirmation'
 }
 
 export interface AgentLoopSelectInteraction extends AgentLoopInteractionBase {

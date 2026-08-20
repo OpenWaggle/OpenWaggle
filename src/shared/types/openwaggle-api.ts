@@ -1,4 +1,5 @@
 import type { AgentSendPayload, PreparedAttachment } from './agent'
+import type { AgentAuthorizationMode } from './agent-authorization'
 import type {
   AgentLoopInteractionResponseInput,
   AgentLoopInteractionSubmitResult,
@@ -127,12 +128,18 @@ export interface OpenWaggleApi extends OpenWaggleExtensionApi, OpenWaggleMcpApi 
 
   // Project
   selectProjectFolder(): Promise<string | null>
-  getProjectPreferences(
-    projectPath: string,
-  ): Promise<{ model?: string; thinkingLevel?: string } | null>
+  getProjectPreferences(projectPath: string): Promise<{
+    model?: string
+    thinkingLevel?: string
+    authorizationMode?: AgentAuthorizationMode
+  } | null>
   setProjectPreferences(
     projectPath: string,
-    preferences: { model?: string; thinkingLevel?: string },
+    preferences: {
+      model?: string
+      thinkingLevel?: string
+      authorizationMode?: AgentAuthorizationMode
+    },
   ): Promise<void>
 
   // Sessions
@@ -159,6 +166,7 @@ export interface OpenWaggleApi extends OpenWaggleExtensionApi, OpenWaggleMcpApi 
   listArchivedSessions(): Promise<SessionSummary[]>
   updateSessionTitle(id: SessionId, title: string): Promise<void>
   setSessionWorktreePlan(id: SessionId, plan: SessionWorktreePlan): Promise<void>
+  setSessionAuthorizationMode(id: SessionId, mode: AgentAuthorizationMode): Promise<void>
   listArchivedSessionBranches(limit?: number): Promise<SessionSummary[]>
   getSessionTree(sessionId: SessionId): Promise<SessionTree | null>
   getSessionWorkspace(

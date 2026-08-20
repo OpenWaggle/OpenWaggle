@@ -1,11 +1,24 @@
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { lazy, Suspense } from 'react'
 import { EXTENSION_SIDE_PANEL_ROUTE_PANEL } from '@/shell/ui-store'
+import { NotificationPrototypeRouteView } from './-notification-prototype'
 import {
   type ChatExtensionSidePanelTarget,
   type ChatRouteSearch,
   extensionSidePanelTargetFromSearch,
+  type NotificationPrototypeVariant,
 } from './-route-search'
+
+function notificationPrototypeSearch(
+  previous: ChatRouteSearch,
+  variant: NotificationPrototypeVariant,
+): ChatRouteSearch {
+  return { ...previous, prototype: 'notifications', variant }
+}
+
+function notificationPrototypeAvailable() {
+  return window.location.protocol === 'http:'
+}
 
 const LazyChatRouteSurface = lazy(() =>
   import('./-chat-route-surface').then((module) => ({
@@ -73,6 +86,22 @@ export function ChatIndexRouteView() {
         sidePanelContentHash: open ? target.contentHash : undefined,
       },
     })
+  }
+
+  function setPrototypeVariant(variant: NotificationPrototypeVariant) {
+    void navigate({
+      to: '/',
+      search: (previous: ChatRouteSearch) => notificationPrototypeSearch(previous, variant),
+    })
+  }
+
+  if (notificationPrototypeAvailable() && search.prototype === 'notifications') {
+    return (
+      <NotificationPrototypeRouteView
+        variant={search.variant ?? 'B1'}
+        onVariantChange={setPrototypeVariant}
+      />
+    )
   }
 
   return (
@@ -148,6 +177,23 @@ export function ChatSessionRouteView() {
         sidePanelContentHash: open ? target.contentHash : undefined,
       }),
     })
+  }
+
+  function setPrototypeVariant(variant: NotificationPrototypeVariant) {
+    void navigate({
+      to: '/sessions/$sessionId',
+      params: { sessionId },
+      search: (previous: ChatRouteSearch) => notificationPrototypeSearch(previous, variant),
+    })
+  }
+
+  if (notificationPrototypeAvailable() && search.prototype === 'notifications') {
+    return (
+      <NotificationPrototypeRouteView
+        variant={search.variant ?? 'B1'}
+        onVariantChange={setPrototypeVariant}
+      />
+    )
   }
 
   return (

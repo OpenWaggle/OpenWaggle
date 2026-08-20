@@ -226,7 +226,7 @@ export function submitAgentLoopInteractionResponse(
   }
 
   if (!selectedChoiceIsValid({ interaction: pending.interaction, response: input.response })) {
-    return invalidResponse('Selected value is not one of the pending Pi select choices.')
+    return invalidResponse('Selected value is not one of the pending select choices.')
   }
 
   settlePending({ key, pending, response: input.response })

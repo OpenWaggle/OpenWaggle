@@ -51,6 +51,7 @@ describe('registerSessionDetailsHandlers', () => {
       'sessions:list-archived',
       'sessions:update-title',
       'sessions:set-worktree-plan',
+      'sessions:set-authorization-mode',
     ])
   })
 
@@ -88,6 +89,7 @@ describe('registerSessionDetailsHandlers', () => {
         piSessionId: 'pi-session-created',
         piSessionFile: '/tmp/pi-session-created.jsonl',
         environmentMode: 'local',
+        authorizationMode: 'yolo',
       })
     } finally {
       await rm(projectPath, { recursive: true, force: true })

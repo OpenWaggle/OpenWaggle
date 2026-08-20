@@ -17,6 +17,8 @@ import { extensionContributionsQueryOptions } from '@/queries/extensions'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { buildDiffSection } from '../lib/diff-section'
 import { reportAutoSendQueueFailure } from '../lib/queue-failure-feedback'
+import { setComposerSessionAuthorizationMode } from '../lib/session-authorization-mode-action'
+import { sendStarterPrompt } from '../lib/starter-prompt-action'
 import type { ChatPanelSections } from '../model'
 import { useBranchSummaryWorkflow } from './useBranchSummaryWorkflow'
 import { useChatPanelEnvironment } from './useChatPanelEnvironment'
@@ -29,16 +31,18 @@ import { useTranscriptSection } from './useTranscriptSection'
 const logger = createRendererLogger('chat-panel')
 
 export function useChatPanelSections(): ChatPanelSections {
-  // ── Intent-driven scroll flag ──
   const [userDidSend, setUserDidSend] = useState(false)
-
-  function onUserDidSendConsumed() {
-    setUserDidSend(false)
-  }
+  const onUserDidSendConsumed = () => setUserDidSend(false)
 
   const env = useChatPanelEnvironment()
-  const { activeSessionId, activeSession, createSession, setActiveSession, refreshSession } =
-    env.chat
+  const {
+    activeSessionId,
+    activeSession,
+    createSession,
+    setActiveSession,
+    refreshSession,
+    setSessionAuthorizationMode,
+  } = env.chat
   const {
     activeWorkspace,
     clearDraftBranchForSession,
@@ -87,21 +91,6 @@ export function useChatPanelSections(): ChatPanelSections {
     sendMessage,
     sendWaggleMessage,
   })
-
-  async function handleStarterPrompt(content: string) {
-    if (!model.trim()) {
-      showToast('Select a model before sending.')
-      return
-    }
-
-    try {
-      await handleSendText(content)
-    } catch (sendError) {
-      const message = sendError instanceof Error ? sendError.message : String(sendError)
-      logger.error('Failed to send starter prompt', { error: message })
-      showToast(message)
-    }
-  }
 
   useWaggleChat(activeSessionId)
   const phase = useStreamingPhase(activeSessionId)
@@ -258,7 +247,7 @@ export function useChatPanelSections(): ChatPanelSections {
     extensionProjectPaths,
     handleOpenProject,
     handleSelectProjectPath,
-    handleSendText: handleStarterPrompt,
+    handleSendText: (content) => sendStarterPrompt({ content, model, handleSendText, showToast }),
     openSettings,
     handleDismissInterruptedRun,
     handleBranchFromMessage,
@@ -299,6 +288,13 @@ export function useChatPanelSections(): ChatPanelSections {
     handleCloseForkSelector: sessionCopy.closeForkSelector,
     handleSelectForkTarget: sessionCopy.selectForkTarget,
     handleCloneToNewSession: () => void sessionCopy.cloneCurrentSessionToNewSession(),
+    handleSetAuthorizationMode: (authorizationMode) =>
+      setComposerSessionAuthorizationMode({
+        activeSessionId,
+        authorizationMode,
+        setSessionAuthorizationMode,
+        showToast,
+      }),
   })
 
   return {

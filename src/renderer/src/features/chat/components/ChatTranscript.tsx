@@ -26,10 +26,9 @@ function getChatRowKey(row: ChatRow) {
       'agent-loop-custom-message',
       (value) => `custom:${value.event.timestamp}:${value.event.name}`,
     )
-    .with('agent-loop-interaction-event', (value) =>
-      value.event.type === 'agent_interaction_request'
-        ? `interaction-request:${value.event.interaction.interactionId}`
-        : `interaction-resolved:${value.event.interactionId}`,
+    .with(
+      'agent-loop-interaction',
+      (value) => `interaction:${value.item.request.interaction.interactionId}`,
     )
     .with('branch-summary', (value) => `branch-summary:${value.id}`)
     .with('compaction-summary', (value) => `compaction:${value.id}`)

@@ -1,4 +1,5 @@
 import * as SqlClient from '@effect/sql/SqlClient'
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
@@ -47,6 +48,23 @@ export async function setSessionWorktreePlan(
         SET environment_mode = ${environmentMode},
             worktree_base_ref = ${baseRef},
             worktree_start_from_origin = ${startFromOrigin ? 1 : 0},
+            updated_at = ${Date.now()}
+        WHERE id = ${id}
+      `
+    }),
+  )
+}
+
+export async function setSessionAuthorizationMode(
+  id: SessionId,
+  authorizationMode: AgentAuthorizationMode,
+): Promise<void> {
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        UPDATE sessions
+        SET authorization_mode = ${authorizationMode},
             updated_at = ${Date.now()}
         WHERE id = ${id}
       `

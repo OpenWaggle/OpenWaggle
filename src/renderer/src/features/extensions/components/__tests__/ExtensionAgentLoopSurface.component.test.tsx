@@ -160,7 +160,7 @@ describe('ExtensionAgentLoopSurface', () => {
             kind: 'custom',
             customType: 'github.issue.approval',
             title: 'Custom desktop interaction',
-            description: 'This custom Pi interaction requires an OpenWaggle desktop renderer.',
+            description: 'This custom interaction requires an OpenWaggle desktop renderer.',
             state: 'pending',
             actions: [],
           },
@@ -173,7 +173,7 @@ describe('ExtensionAgentLoopSurface', () => {
 
     expect(screen.getByText('Custom desktop interaction renderer unavailable')).toBeInTheDocument()
     expect(
-      screen.getByText(/does not execute Pi TUI custom components inside Electron/),
+      screen.getByText(/does not execute terminal UI custom components inside Electron/),
     ).toBeInTheDocument()
     expect(screen.getByText('custom-interaction')).toBeInTheDocument()
 
@@ -205,7 +205,7 @@ describe('ExtensionAgentLoopSurface', () => {
             kind: 'custom',
             customType: 'github.issue.approval',
             title: 'Custom desktop interaction',
-            description: 'This custom Pi interaction requires an OpenWaggle desktop renderer.',
+            description: 'This custom interaction requires an OpenWaggle desktop renderer.',
             state: 'pending',
             actions: [],
           },

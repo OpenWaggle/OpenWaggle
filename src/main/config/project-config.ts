@@ -8,6 +8,7 @@ import {
   safeDecodeUnknown,
 } from '@shared/schema'
 import { projectSettingsFileSchema } from '@shared/schemas/validation'
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { JsonObject } from '@shared/types/json'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { isEnoent } from '@shared/utils/node-error'
@@ -23,6 +24,7 @@ const logger = createLogger('project-config')
 export interface ProjectPreferences {
   readonly model?: string
   readonly thinkingLevel?: ThinkingLevel
+  readonly authorizationMode?: AgentAuthorizationMode
 }
 
 export interface ProjectConfig {
@@ -168,6 +170,9 @@ export async function setProjectPreferences(
       ...(preferences.thinkingLevel !== undefined
         ? { thinkingLevel: preferences.thinkingLevel }
         : {}),
+      ...(preferences.authorizationMode !== undefined
+        ? { authorizationMode: preferences.authorizationMode }
+        : {}),
     },
   }))
 }
@@ -190,12 +195,14 @@ function parseProjectPreferences(
 ): ProjectPreferences | undefined {
   const model = settings?.preferences?.model
   const thinkingLevel = settings?.preferences?.thinkingLevel
-  if (!model && !thinkingLevel) {
+  const authorizationMode = settings?.preferences?.authorizationMode
+  if (!model && !thinkingLevel && !authorizationMode) {
     return undefined
   }
 
   return {
     ...(model ? { model } : {}),
     ...(thinkingLevel ? { thinkingLevel } : {}),
+    ...(authorizationMode ? { authorizationMode } : {}),
   }
 }

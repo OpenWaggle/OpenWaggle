@@ -161,8 +161,48 @@ The durable chat-transcript surface for rendering Pi tool progress, tool results
 _Avoid_: ephemeral-only tool UI
 
 **Blocking agent-loop interaction**:
-An Interactive agent-loop contribution that pauses Pi progress until the user responds.
+An Interactive agent-loop contribution that pauses agent progress until the user responds.
 _Avoid_: hidden prompt
+
+**Authorization request**:
+A blocking request for the user to grant or deny a clearly identified agent capability within an explicit scope.
+_Avoid_: generic confirmation, interaction requested, Pi permission
+
+**Authorization mode**:
+The global, project, or session preference that determines whether authorization requests are granted automatically or presented to the user.
+_Avoid_: permission level, sandbox mode, interaction mode
+
+**YOLO (Full access)**:
+The default Authorization mode that automatically grants authorization requests without answering unrelated user-input requests or exceeding external policy boundaries.
+_Avoid_: YOLO mode, no-safety mode, auto-answer mode, unrestricted mode
+
+**Ask for Approval**:
+An Authorization mode that presents an authorization request when no matching scoped grant already exists.
+_Avoid_: Ask mode, manual mode, confirmation mode
+
+**Scoped authorization grant**:
+A revocable authorization bound to one project, requester, capability, and resource or destination.
+_Avoid_: blanket permission, global allow, trusted requester
+
+**Authorization decision**:
+The outcome of an Authorization request: continue without access, allow once, allow for the session, or create a Scoped authorization grant.
+_Avoid_: interaction response, confirmation result, approval boolean
+
+**Authorization history entry**:
+The single durable transcript record that presents an Authorization request and its eventual Authorization decision in user-facing language.
+_Avoid_: request card, resolved card, raw interaction event
+
+**Agent notification**:
+A non-blocking, attributed message from an agent run with informational, warning, or error severity that never requires a user response.
+_Avoid_: interaction request, approval, acknowledgement prompt
+
+**Live notification banner**:
+The compact composer-adjacent presentation of the current session's Agent notifications, ordered by severity and stacked when more than one is active.
+_Avoid_: interaction card, generic toast, notification side panel
+
+**Durable notification notice**:
+The single semantic transcript record retained for a warning or error Agent notification.
+_Avoid_: notification request card, notification resolution card, raw notification event
 
 **Extension SDK surface**:
 The intentional public API exposed to extension code for capability calls, UI mounting context, theme data, and contribution behavior.
@@ -397,7 +437,7 @@ Pi session data that can reconstruct historical agent-loop contributions after r
 _Avoid_: renderer-only history
 
 **Pending interaction state**:
-OpenWaggle-owned live state for a Pi interaction request waiting for user feedback.
+OpenWaggle-owned live state for an interaction request waiting for user feedback.
 _Avoid_: extension-local pending prompt
 
 ### Source control and diff
@@ -548,6 +588,21 @@ _Avoid_: description, cover letter, global comment
 - Multiple **Agent-loop contributions** may share one **Agent-loop binding identity** across different **Extension contribution surfaces**.
 - The **Transcript agent-loop surface** is the durable fallback record for agent-loop feedback even when auxiliary surfaces such as dialogs, side panels, or status widgets are also used.
 - A **Blocking agent-loop interaction** must be surfaced prominently while preserving a durable record in the **Transcript agent-loop surface**.
+- An **Authorization request** is distinct from informational notifications and user-input requests because it can produce a reusable scoped grant.
+- An **Authorization request** identifies its action, requester, exact target, and effect in user-facing language.
+- A session **Authorization mode** overrides its project's mode, which overrides the global default.
+- **YOLO (Full access)** resolves **Authorization requests** automatically but leaves unrelated user-input requests pending for the user.
+- **YOLO (Full access)** is the global default **Authorization mode** for new projects and sessions without an override.
+- **Ask for Approval** presents only **Authorization requests** that are not already covered by a **Scoped authorization grant**.
+- A **Scoped authorization grant** applies only when its project, requester, capability, and resource or destination all match.
+- An **Authorization request** produces exactly one **Authorization decision**.
+- A surfaced **Authorization request** has exactly one **Authorization history entry**, which changes from pending to the final **Authorization decision** instead of creating separate request and resolution cards.
+- Changing a session to **YOLO (Full access)** resolves its pending **Authorization request** automatically; changing to **Ask for Approval** governs subsequent requests without revoking completed authorization decisions.
+- **YOLO (Full access)** does not create authorization prompts, authorization transcript entries, approval counters, or a separate authorization log; authorized work remains visible through its normal activity or result presentation.
+- An active **Agent notification** is presented in a **Live notification banner** above the composer rather than as an authorization prompt or transcript card.
+- A **Live notification banner** fronts the most severe active notice and stacks additional notices behind it.
+- An informational **Agent notification** is ephemeral and does not create transcript history.
+- A warning or error **Agent notification** creates exactly one **Durable notification notice**.
 - An **Extension contribution surface** is rendered inside an **Extension contribution container**.
 - A visual **OpenWaggle desktop contribution** has exactly one **Extension contribution runtime**.
 - A visual **OpenWaggle desktop contribution** has exactly one **Extension execution placement**.

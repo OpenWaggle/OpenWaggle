@@ -1,3 +1,4 @@
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
 import type { SessionNode } from '@shared/types/session'
@@ -19,6 +20,7 @@ export interface SessionRow {
   readonly worktree_path: string | null
   readonly worktree_base_ref: string | null
   readonly worktree_start_from_origin: number | null
+  readonly authorization_mode: string | null
 }
 
 export interface SessionSummaryRow {
@@ -94,6 +96,8 @@ export interface CreateSessionInput {
   readonly piSessionFile?: string
   /** Environment mode the session is born with (defaults to 'local' when omitted). */
   readonly environmentMode?: SessionEnvironmentMode
+  /** Authorization mode the session is born with (defaults to YOLO when omitted). */
+  readonly authorizationMode?: AgentAuthorizationMode
 }
 
 export interface DerivedSessionBranch {

@@ -9,6 +9,7 @@ export {
   clearSessionWorktree,
   deleteSession,
   listSessionWorktreeRefs,
+  setSessionAuthorizationMode,
   setSessionWorktree,
   setSessionWorktreePlan,
   unarchiveSession,

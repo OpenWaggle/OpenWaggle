@@ -1,4 +1,5 @@
 import type { AgentSendPayload } from './agent'
+import type { AgentAuthorizationMode } from './agent-authorization'
 import type {
   AgentLoopInteractionResponseInput,
   AgentLoopInteractionSubmitResult,
@@ -181,10 +182,21 @@ export interface IpcCoreInvokeChannelMap {
   }
   'project-config:get-preferences': {
     args: [projectPath: string]
-    return: { model?: string; thinkingLevel?: string } | null
+    return: {
+      model?: string
+      thinkingLevel?: string
+      authorizationMode?: AgentAuthorizationMode
+    } | null
   }
   'project-config:set-preferences': {
-    args: [projectPath: string, preferences: { model?: string; thinkingLevel?: string }]
+    args: [
+      projectPath: string,
+      preferences: {
+        model?: string
+        thinkingLevel?: string
+        authorizationMode?: AgentAuthorizationMode
+      },
+    ]
     return: undefined
   }
   'sessions:list-details': {
@@ -233,6 +245,10 @@ export interface IpcCoreInvokeChannelMap {
   }
   'sessions:set-worktree-plan': {
     args: [id: SessionId, plan: SessionWorktreePlan]
+    return: undefined
+  }
+  'sessions:set-authorization-mode': {
+    args: [id: SessionId, mode: AgentAuthorizationMode]
     return: undefined
   }
   'sessions:list': {

@@ -32,6 +32,19 @@ const createMigrationsTable = Effect.gen(function* () {
   `)
 })
 
+const ensureSessionAuthorizationModeColumn = Effect.gen(function* () {
+  const sql = yield* SqlClient.SqlClient
+  const columns = yield* sql<{ name: string }>`PRAGMA table_info(sessions)`
+  const hasAuthorizationMode = columns.some((column) => column.name === 'authorization_mode')
+
+  if (!hasAuthorizationMode) {
+    yield* sql.unsafe(`
+      ALTER TABLE sessions
+      ADD COLUMN authorization_mode TEXT NOT NULL DEFAULT 'yolo'
+    `)
+  }
+})
+
 const runMigrations = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient
   yield* createMigrationsTable
@@ -60,6 +73,8 @@ const runMigrations = Effect.gen(function* () {
       }),
     )
   }
+
+  yield* ensureSessionAuthorizationModeColumn
 })
 
 const makeDatabaseLayer = Effect.gen(function* () {

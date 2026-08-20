@@ -38,11 +38,19 @@ type UnknownObject = { readonly [key: string]: unknown }
 export function isDurableAgentLoopEvent(
   event: AgentTransportEvent,
 ): event is DurableAgentLoopEvent {
-  return (
-    event.type === 'custom' ||
-    event.type === 'agent_interaction_request' ||
-    event.type === 'agent_interaction_resolved'
-  )
+  if (event.type === 'custom') {
+    return true
+  }
+
+  if (event.type === 'agent_interaction_request') {
+    return event.interaction.kind !== 'notify' || event.interaction.level !== 'info'
+  }
+
+  if (event.type === 'agent_interaction_resolved') {
+    return event.kind !== 'notify'
+  }
+
+  return false
 }
 
 function isObject(value: unknown): value is UnknownObject {

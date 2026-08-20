@@ -1,4 +1,5 @@
 import * as SqlClient from '@effect/sql/SqlClient'
+import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { SessionId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
 import type { SessionDetail, SessionSummary } from '@shared/types/session'
@@ -53,6 +54,9 @@ function hydrateSessionDetail(sessionRow: SessionRow, nodeRows: readonly Session
       worktreePath: sessionRow.worktree_path,
       worktreeBaseRef: sessionRow.worktree_base_ref,
       worktreeStartFromOrigin: sessionRow.worktree_start_from_origin === 1,
+      authorizationMode: isAgentAuthorizationMode(sessionRow.authorization_mode)
+        ? sessionRow.authorization_mode
+        : 'yolo',
     }
   } catch (error) {
     logSessionHydrationFailure(sessionRow, error)
@@ -81,7 +85,8 @@ function selectSessionRow(sql: SqlClient.SqlClient, id: SessionId) {
       environment_mode,
       worktree_path,
       worktree_base_ref,
-      worktree_start_from_origin
+      worktree_start_from_origin,
+      authorization_mode
     FROM sessions
     WHERE id = ${id}
     LIMIT 1

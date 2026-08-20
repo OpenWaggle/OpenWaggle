@@ -138,7 +138,10 @@ function AgentLoopExtensionSurfaceHarness({
 
   return (
     <>
-      <InteractionEventRow event={interactionRequestEvent(interaction)} extensions={extensions} />
+      <InteractionEventRow
+        item={{ request: interactionRequestEvent(interaction) }}
+        extensions={extensions}
+      />
       <AgentInteractionsPanel
         extensionProjectPaths={[PROJECT_PATH]}
         extensionRegistry={registry}
@@ -168,7 +171,7 @@ describe('agent-loop extension surfaces', () => {
     apiMock.unregisterExtensionFrame.mockResolvedValue(undefined)
   })
 
-  it('renders the same pending Pi interaction across transcript, live, status, and composer extension surfaces', async () => {
+  it('renders a native transcript row with live, status, and composer extension surfaces', async () => {
     const interaction = pendingConfirmInteraction()
     const registry = multiSurfaceInteractionRegistry()
 
@@ -180,9 +183,10 @@ describe('agent-loop extension surfaces', () => {
       />,
     )
 
-    expect(screen.getByText('Interaction requested')).toBeInTheDocument()
+    expect(screen.getByText('Confirmation requested')).toBeInTheDocument()
+    expect(screen.getAllByText('The extension wants to proceed.')).toHaveLength(2)
     await waitFor(() => {
-      expect(screen.getAllByTitle('Extension module: GitHub interaction renderer')).toHaveLength(2)
+      expect(screen.getAllByTitle('Extension module: GitHub interaction renderer')).toHaveLength(1)
       expect(screen.getByTitle('Extension module: GitHub status widget')).toHaveAttribute(
         'src',
         expect.stringContaining(EXTENSION_FRAME_URL_PREFIX),

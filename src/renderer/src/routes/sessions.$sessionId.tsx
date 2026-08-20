@@ -9,6 +9,8 @@ export const Route = createFileRoute('/sessions/$sessionId')({
       retainSearchParams<ChatRouteSearch>([
         'diff',
         'panel',
+        'prototype',
+        'variant',
         'sidePanelExtensionId',
         'sidePanelId',
         'sidePanelPackagePath',

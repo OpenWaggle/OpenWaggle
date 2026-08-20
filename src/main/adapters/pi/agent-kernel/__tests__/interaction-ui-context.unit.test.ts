@@ -1,6 +1,7 @@
 import { getEventListeners } from 'node:events'
 import type { ExtensionUIContext } from '@earendil-works/pi-coding-agent'
 import { OPENWAGGLE_AGENT_LOOP } from '@shared/constants/agent-loop'
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { SessionId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import { fromPartial } from '@total-typescript/shoehorn'
@@ -13,13 +14,17 @@ import { createPiInteractionUiContext } from '../interaction-ui-context'
 
 const sessionId = SessionId('pi-ui-session')
 
-function createContext(signal = new AbortController().signal) {
+function createContext(input?: {
+  readonly signal?: AbortSignal
+  readonly authorizationMode?: AgentAuthorizationMode
+}) {
   const emitted: AgentTransportEvent[] = []
   const ui = createPiInteractionUiContext(
     {
       sessionId,
       runId: 'run-pi-ui',
-      signal,
+      authorizationMode: input?.authorizationMode ?? 'yolo',
+      signal: input?.signal ?? new AbortController().signal,
       onEvent: (event) => emitted.push(event),
     },
     fromPartial<ExtensionUIContext>({}),
@@ -54,6 +59,45 @@ describe('Pi interaction UI context', () => {
     })
 
     await expect(confirmed).resolves.toBe(true)
+  })
+
+  it('auto-accepts authorization confirmations in YOLO mode without emitting audit events', async () => {
+    const { emitted, ui } = createContext({ authorizationMode: 'yolo' })
+
+    await expect(ui.confirm('Allow MCP tool call?', 'Read project files?')).resolves.toBe(true)
+    expect(emitted).toEqual([])
+  })
+
+  it('asks authorization confirmations in approval mode', async () => {
+    const { emitted, ui } = createContext({ authorizationMode: 'ask-for-approval' })
+
+    const confirmed = ui.confirm('Allow MCP tool call?', 'Read project files?')
+
+    expect(emitted).toMatchObject([
+      {
+        type: 'agent_interaction_request',
+        interaction: {
+          kind: 'confirm',
+          title: 'Allow MCP tool call?',
+          message: 'Read project files?',
+          purpose: 'authorization',
+        },
+      },
+    ])
+    const request = emitted[0]
+    if (request?.type !== 'agent_interaction_request') {
+      throw new Error('Expected pending interaction request')
+    }
+
+    submitAgentLoopInteractionResponse({
+      sessionId,
+      runId: 'run-pi-ui',
+      interactionId: request.interaction.interactionId,
+      kind: 'confirm',
+      response: { kind: 'confirm', accepted: false },
+    })
+
+    await expect(confirmed).resolves.toBe(false)
   })
 
   it('emits Pi notify as an immediately resolved interaction', () => {
@@ -108,7 +152,7 @@ describe('Pi interaction UI context', () => {
   it('releases parent abort listeners after an interaction settles', async () => {
     const runController = new AbortController()
     const interactionController = new AbortController()
-    const { emitted, ui } = createContext(runController.signal)
+    const { emitted, ui } = createContext({ signal: runController.signal })
 
     const confirmed = ui.confirm('Proceed?', 'Run the extension tool?', {
       signal: interactionController.signal,

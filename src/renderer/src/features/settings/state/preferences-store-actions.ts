@@ -1,3 +1,4 @@
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { SupportedModelId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
 import {
@@ -159,6 +160,11 @@ export function createPreferencesActions(
       await api.updateSettings({ thinkingLevel: preset })
       set({ settings: { ...settings, thinkingLevel: preset } })
       persistProjectPreference(settings.projectPath, { thinkingLevel: preset })
+    },
+    setDefaultAuthorizationMode: async (mode: AgentAuthorizationMode) => {
+      const { settings } = get()
+      await api.updateSettings({ defaultAuthorizationMode: mode })
+      set({ settings: { ...settings, defaultAuthorizationMode: mode } })
     },
     setDefaultSessionEnvironmentMode: async (mode: SessionEnvironmentMode) => {
       const { settings } = get()

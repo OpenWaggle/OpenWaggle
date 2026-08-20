@@ -1,3 +1,7 @@
+import {
+  type AgentAuthorizationMode,
+  DEFAULT_AGENT_AUTHORIZATION_MODE,
+} from './agent-authorization'
 import { SupportedModelId } from './brand'
 import type { SessionEnvironmentMode } from './git'
 
@@ -42,6 +46,8 @@ export interface Settings {
   readonly projectDisplayNames: Readonly<Record<string, string>>
   /** Default Session environment mode applied to new sessions (ADR 0010). */
   readonly defaultSessionEnvironmentMode: SessionEnvironmentMode
+  /** Default authorization mode applied to new sessions unless a project default overrides it. */
+  readonly defaultAuthorizationMode: AgentAuthorizationMode
   /** Syntax theme for diff code text (ADR 0016). */
   readonly diffSyntaxTheme: DiffSyntaxTheme
   /** Diff view layout: unified or split. */
@@ -60,6 +66,7 @@ export const DEFAULT_SETTINGS: Settings = {
   skillTogglesByProject: {},
   projectDisplayNames: {},
   defaultSessionEnvironmentMode: 'local',
+  defaultAuthorizationMode: DEFAULT_AGENT_AUTHORIZATION_MODE,
   diffSyntaxTheme: 'pierre-dark',
   diffView: 'unified',
   diffWrapLines: false,

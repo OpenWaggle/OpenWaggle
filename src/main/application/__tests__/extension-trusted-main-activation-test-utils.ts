@@ -172,6 +172,7 @@ function makeSessionLayers() {
       listArchived: () => Effect.succeed([]),
       updateTitle: () => Effect.void,
       setWorktreePlan: () => Effect.void,
+      setAuthorizationMode: () => Effect.void,
       listTurnCheckpoints: () => Effect.succeed([]),
       getTurnDiff: () => Effect.succeed(null),
       setTurnCheckpointAnchor: () => Effect.void,

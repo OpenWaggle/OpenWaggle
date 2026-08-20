@@ -79,6 +79,7 @@ export function createSections(
       onCloseForkSelector: vi.fn(),
       onSelectForkTarget: vi.fn(),
       onCloneToNewSession: vi.fn(),
+      onSetAuthorizationMode: vi.fn().mockResolvedValue(undefined),
       ...composerOverrides,
     },
     diff: {

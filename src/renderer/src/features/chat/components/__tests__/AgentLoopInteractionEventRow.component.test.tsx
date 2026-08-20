@@ -28,10 +28,15 @@ function customInteractionRequest(): AgentTransportInteractionRequestEvent {
 }
 
 describe('InteractionEventRow', () => {
-  it('keeps the transcript audit row visible when a custom desktop renderer is unavailable', () => {
-    render(<InteractionEventRow event={customInteractionRequest()} extensions={extensions} />)
+  it('keeps the transcript row visible when a custom desktop renderer is unavailable', () => {
+    render(
+      <InteractionEventRow
+        item={{ request: customInteractionRequest() }}
+        extensions={extensions}
+      />,
+    )
 
-    expect(screen.getByText('Interaction requested')).toBeInTheDocument()
+    expect(screen.getByText('Custom interaction')).toBeInTheDocument()
     expect(
       screen.getByText(
         `Custom interaction · ${OPENWAGGLE_AGENT_LOOP.PI_TUI_CUSTOM_INTERACTION_TYPE}`,
@@ -39,7 +44,7 @@ describe('InteractionEventRow', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('Custom desktop interaction renderer unavailable')).toBeInTheDocument()
     expect(
-      screen.getByText(/does not execute Pi TUI custom components inside Electron/),
+      screen.getByText(/does not execute terminal UI custom components inside Electron/),
     ).toBeInTheDocument()
   })
 })

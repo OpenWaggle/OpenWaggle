@@ -92,8 +92,8 @@ function renderInteractionFallback({
               Custom desktop interaction renderer unavailable
             </h4>
             <p className="mt-1 text-[12px] leading-5 text-text-tertiary">
-              OpenWaggle does not execute Pi TUI custom components inside Electron. This interaction
-              needs a matching extension interaction renderer.
+              OpenWaggle does not execute terminal UI custom components inside Electron. This
+              interaction needs a matching extension interaction renderer.
             </p>
             <dl className="mt-3 grid gap-1 text-[11px] text-text-muted">
               <div className="flex min-w-0 gap-2">

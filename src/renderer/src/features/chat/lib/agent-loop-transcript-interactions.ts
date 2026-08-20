@@ -64,7 +64,16 @@ function parseConfirmInteraction(
 ): AgentLoopConfirmInteraction | null {
   const title = stringField(interaction, 'title')
   const message = stringField(interaction, 'message')
-  return title !== null && message !== null ? { ...base, kind: 'confirm', title, message } : null
+  const purpose = stringField(interaction, 'purpose')
+  return title !== null && message !== null
+    ? {
+        ...base,
+        kind: 'confirm',
+        title,
+        message,
+        ...(purpose === 'authorization' || purpose === 'confirmation' ? { purpose } : {}),
+      }
+    : null
 }
 
 function parseSelectInteraction(

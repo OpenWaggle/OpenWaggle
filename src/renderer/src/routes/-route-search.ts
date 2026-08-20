@@ -3,6 +3,7 @@ import { EXTENSION_SIDE_PANEL_ROUTE_PANEL, SETTINGS_TABS, type SettingsTab } fro
 
 export type ChatBuiltInRightPanel = 'diff' | 'session-tree'
 export type ChatRightPanel = ChatBuiltInRightPanel | typeof EXTENSION_SIDE_PANEL_ROUTE_PANEL
+export type NotificationPrototypeVariant = 'B1' | 'B2' | 'B3' | 'N1' | 'N2' | 'N3'
 
 export interface ChatExtensionSidePanelTarget {
   readonly extensionId: string
@@ -16,6 +17,8 @@ export interface ChatRouteSearch {
   readonly node?: string
   readonly diff?: 1
   readonly panel?: ChatRightPanel
+  readonly prototype?: 'notifications'
+  readonly variant?: NotificationPrototypeVariant
   readonly sidePanelExtensionId?: string
   readonly sidePanelId?: string
   readonly sidePanelPackagePath?: string
@@ -57,14 +60,38 @@ function parseRightPanel(value: unknown) {
     : undefined
 }
 
+function parseNotificationPrototype(value: unknown) {
+  return value === 'notifications' ? value : undefined
+}
+
+function parseNotificationPrototypeVariant(
+  value: unknown,
+): NotificationPrototypeVariant | undefined {
+  if (
+    value === 'B1' ||
+    value === 'B2' ||
+    value === 'B3' ||
+    value === 'N1' ||
+    value === 'N2' ||
+    value === 'N3'
+  ) {
+    return value
+  }
+  return undefined
+}
+
 export function parseChatRouteSearch(search: Record<string, unknown>): ChatRouteSearch {
   const branch = parseSearchString(search.branch)
   const node = parseSearchString(search.node)
   const panel = parseRightPanel(search.panel)
+  const prototype = parseNotificationPrototype(search.prototype)
+  const variant = parseNotificationPrototypeVariant(search.variant)
   const base: ChatRouteSearch = {
     ...(branch ? { branch } : {}),
     ...(node ? { node } : {}),
     ...(search.diff === 1 || search.diff === '1' ? { diff: 1 } : {}),
+    ...(prototype ? { prototype } : {}),
+    ...(variant ? { variant } : {}),
   }
 
   if (panel === EXTENSION_SIDE_PANEL_ROUTE_PANEL) {

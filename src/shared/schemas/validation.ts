@@ -7,6 +7,7 @@
  */
 
 import { Schema } from '@shared/schema'
+import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import type { JsonArray, JsonObject, JsonValue } from '@shared/types/json'
 import { THINKING_LEVELS } from '@shared/types/settings'
 
@@ -62,6 +63,7 @@ export const agentSendPayloadSchema = Schema.Struct({
 export const projectPreferencesSchema = Schema.Struct({
   model: Schema.optional(Schema.String),
   thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
+  authorizationMode: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
 })
 
 export const projectSettingsFileSchema = Schema.Struct(

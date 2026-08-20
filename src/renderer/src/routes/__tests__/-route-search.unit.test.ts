@@ -30,6 +30,37 @@ describe('parseChatRouteSearch', () => {
     expect(parseChatRouteSearch({ panel: 'other' })).toEqual({})
   })
 
+  it('preserves the notification prototype and its supported variants', () => {
+    expect(parseChatRouteSearch({ prototype: 'notifications', variant: 'B1' })).toEqual({
+      prototype: 'notifications',
+      variant: 'B1',
+    })
+    expect(parseChatRouteSearch({ prototype: 'notifications', variant: 'B2' })).toEqual({
+      prototype: 'notifications',
+      variant: 'B2',
+    })
+    expect(parseChatRouteSearch({ prototype: 'notifications', variant: 'B3' })).toEqual({
+      prototype: 'notifications',
+      variant: 'B3',
+    })
+    expect(parseChatRouteSearch({ prototype: 'notifications', variant: 'N1' })).toEqual({
+      prototype: 'notifications',
+      variant: 'N1',
+    })
+    expect(parseChatRouteSearch({ prototype: 'notifications', variant: 'N2' })).toEqual({
+      prototype: 'notifications',
+      variant: 'N2',
+    })
+    expect(parseChatRouteSearch({ prototype: 'notifications', variant: 'N3' })).toEqual({
+      prototype: 'notifications',
+      variant: 'N3',
+    })
+  })
+
+  it('drops unsupported notification prototype search values', () => {
+    expect(parseChatRouteSearch({ prototype: 'other', variant: 'D' })).toEqual({})
+  })
+
   it('preserves complete extension side panel selections with explicit search keys', () => {
     const search = parseChatRouteSearch({
       panel: 'extension-side-panel',

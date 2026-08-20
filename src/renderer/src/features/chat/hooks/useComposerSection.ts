@@ -1,4 +1,5 @@
 import type { AgentSendPayload } from '@shared/types/agent'
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
@@ -39,6 +40,7 @@ export interface ComposerSectionParams {
   readonly handleCloseForkSelector: () => void
   readonly handleSelectForkTarget: (target: SessionForkTarget) => void
   readonly handleCloneToNewSession: () => void
+  readonly handleSetAuthorizationMode: (authorizationMode: AgentAuthorizationMode) => Promise<void>
 }
 
 /** Closes over nothing but the composer store singleton — hoisted to module scope. */
@@ -94,6 +96,7 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
     handleCloseForkSelector,
     handleSelectForkTarget,
     handleCloneToNewSession,
+    handleSetAuthorizationMode,
   } = params
 
   const isFirstMessage = params.isFirstMessage
@@ -125,5 +128,6 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
     onCloseForkSelector: handleCloseForkSelector,
     onSelectForkTarget: handleSelectForkTarget,
     onCloneToNewSession: handleCloneToNewSession,
+    onSetAuthorizationMode: handleSetAuthorizationMode,
   }
 }

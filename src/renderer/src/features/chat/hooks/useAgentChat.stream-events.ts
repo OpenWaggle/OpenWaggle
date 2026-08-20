@@ -95,6 +95,10 @@ function addAgentInteraction(
   event: InteractionRequestEvent,
   context: AgentStreamEventContext,
 ) {
+  if (event.interaction.kind === 'notify') {
+    return
+  }
+
   const next = new Map(context.agentInteractionsBySessionIdRef.current)
   const current = next.get(sessionId) ?? []
   next.set(sessionId, [
