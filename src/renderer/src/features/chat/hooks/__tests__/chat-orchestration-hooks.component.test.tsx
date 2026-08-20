@@ -247,7 +247,7 @@ describe('chat orchestration hooks', () => {
     ).rejects.toThrow('send failed')
 
     expect(params.startWaggleCollaboration).toHaveBeenCalledOnce()
-    expect(params.stopWaggleCollaboration).toHaveBeenCalledOnce()
+    expect(params.stopWaggleCollaboration).toHaveBeenCalledWith(SESSION_ID)
     expect(params.setUserDidSend).toHaveBeenLastCalledWith(false)
   })
 

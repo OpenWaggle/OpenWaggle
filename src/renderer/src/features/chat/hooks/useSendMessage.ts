@@ -108,7 +108,7 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
         await api.sendMessage(sessionId, payload, model)
       }
     } catch (error) {
-      if (config) useWaggleStore.getState().stopCollaboration()
+      if (config) useWaggleStore.getState().stopCollaboration(sessionId)
       useBackgroundRunStore.getState().clearRunRenderSnapshot(sessionId)
       logger.error('First message send failed', {
         sessionId: String(sessionId),

@@ -150,4 +150,24 @@ describe('WorkspaceFileEditor', () => {
     expect(setSelectionRange).not.toHaveBeenCalled()
     setSelectionRange.mockRestore()
   })
+
+  it('opens a Markdown content-search result in edit mode at its target line', async () => {
+    const markdownFile: WorkspaceTextFileReadResult = {
+      ...file,
+      path: 'docs/guide.md',
+      basename: 'guide.md',
+      mimeType: 'text/markdown',
+      previewKind: 'markdown',
+      language: 'markdown',
+    }
+    const setSelectionRange = vi.spyOn(HTMLTextAreaElement.prototype, 'setSelectionRange')
+
+    renderWithQueryClient(
+      <WorkspaceFileEditor projectPath="/project" file={markdownFile} targetLine={2} />,
+    )
+
+    expect(screen.getByRole('textbox', { name: 'Edit docs/guide.md' })).toHaveFocus()
+    await waitFor(() => expect(setSelectionRange).toHaveBeenCalledWith(11, 22))
+    setSelectionRange.mockRestore()
+  })
 })

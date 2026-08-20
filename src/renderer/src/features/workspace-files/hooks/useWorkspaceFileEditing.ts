@@ -80,7 +80,7 @@ function useFileSaveQueue(projectPath: string, file: WorkspaceTextFileReadResult
     }
   }
 
-  const saveSnapshot = useEffectEvent(async (snapshot: string) => {
+  async function saveSnapshot(snapshot: string) {
     if (conflictRef.current) return
     if (savingRef.current) {
       pendingRef.current = snapshot
@@ -138,11 +138,13 @@ function useFileSaveQueue(projectPath: string, file: WorkspaceTextFileReadResult
       nextSnapshot = pendingRef.current
     }
     savingRef.current = false
-  })
+  }
+
+  const saveSnapshotFromEffect = useEffectEvent(saveSnapshot)
 
   useEffect(() => {
     if (content === savedContent || conflictRef.current) return
-    const timer = window.setTimeout(() => void saveSnapshot(content), AUTOSAVE_DELAY_MS)
+    const timer = window.setTimeout(() => void saveSnapshotFromEffect(content), AUTOSAVE_DELAY_MS)
     return () => window.clearTimeout(timer)
   }, [content, savedContent])
 
@@ -152,7 +154,7 @@ function useFileSaveQueue(projectPath: string, file: WorkspaceTextFileReadResult
       mountedRef.current = false
       if (!conflictRef.current && latestContentRef.current !== savedContentRef.current) {
         if (savingRef.current) pendingRef.current = latestContentRef.current
-        else void saveSnapshot(latestContentRef.current)
+        else void saveSnapshotFromEffect(latestContentRef.current)
       }
     }
   }, [])
@@ -207,7 +209,7 @@ export function useWorkspaceFileEditing({
   readonly targetLine: number | null
 }) {
   const queue = useFileSaveQueue(projectPath, file)
-  const [preview, setPreview] = useState(file.previewKind === 'markdown')
+  const [preview, setPreview] = useState(file.previewKind === 'markdown' && targetLine === null)
   const [wordWrap, setWordWrap] = useState(
     () => window.localStorage.getItem(WRAP_STORAGE_KEY) !== 'false',
   )

@@ -11,6 +11,7 @@ const ICON_SIZE = 12
  * skill references use the same identifier grammar as runtime skill activation.
  */
 const COMPOSER_REFERENCE_REGEX = /(?:^|\s)(@\S+|\/[a-z0-9][a-z0-9-_]*)(?=$|\s|[.,!?;:)\]}>'"])/gi
+const TRAILING_FILE_REFERENCE_PUNCTUATION = /[.,!?;:)\]}>'"]+$/u
 
 /**
  * Splits text into an array of ReactNode items, replacing composer references
@@ -23,9 +24,13 @@ export function renderTextWithMentions(text: string): ReactNode[] {
 
   for (const match of text.matchAll(COMPOSER_REFERENCE_REGEX)) {
     const fullMatch = match[0]
-    const reference = match[1]
-    if (!reference) continue
-    const matchStart = match.index + (fullMatch.length - reference.length)
+    const rawReference = match[1]
+    if (!rawReference) continue
+    const reference = rawReference.startsWith('@')
+      ? rawReference.replace(TRAILING_FILE_REFERENCE_PUNCTUATION, '')
+      : rawReference
+    if (reference === '@') continue
+    const matchStart = match.index + (fullMatch.length - rawReference.length)
 
     if (matchStart > lastIndex) {
       parts.push(text.slice(lastIndex, matchStart))

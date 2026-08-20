@@ -39,7 +39,7 @@ interface ChatSendWorkflowParams {
   readonly showToast: (message: string) => void
   readonly startWaggleCollaboration: (sessionId: SessionId, config: WaggleConfig) => void
   readonly stop: () => void
-  readonly stopWaggleCollaboration: () => void
+  readonly stopWaggleCollaboration: (sessionId?: SessionId) => void
   readonly waggleStatus: WaggleCollaborationStatus
 }
 
@@ -183,7 +183,9 @@ export function useChatSendWorkflow(params: ChatSendWorkflowParams) {
         if (params.activeSessionId) params.clearDraftBranchForSession(params.activeSessionId)
       } catch (error) {
         params.setUserDidSend(false)
-        if (payload.waggle?.config) params.stopWaggleCollaboration()
+        if (payload.waggle?.config && params.activeSessionId) {
+          params.stopWaggleCollaboration(params.activeSessionId)
+        }
         throw error
       }
     },

@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockCopyToClipboard = vi.fn()
+const mockOpenWorkspaceFile = vi.fn()
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
@@ -11,7 +12,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 }))
 
 vi.mock('@/features/workspace-files/hooks', () => ({
-  useOpenWorkspaceFile: () => vi.fn(),
+  useOpenWorkspaceFile: () => mockOpenWorkspaceFile,
 }))
 
 import { UserMessageBubble } from '../UserMessageBubble'
@@ -131,6 +132,18 @@ describe('UserMessageBubble', () => {
     render(<UserMessageBubble message={message} />)
     expect(screen.getByText('index.ts')).toBeInTheDocument()
     expect(screen.getByText(/Check/)).toBeInTheDocument()
+  })
+
+  it('keeps trailing prose punctuation outside file-reference chips', () => {
+    const message = createUserMessage('u-punctuation', [
+      { type: 'text', content: 'See @src/foo.ts, then continue.' },
+    ])
+    render(<UserMessageBubble message={message} />)
+
+    fireEvent.click(screen.getByTitle('Open src/foo.ts'))
+
+    expect(mockOpenWorkspaceFile).toHaveBeenCalledWith('src/foo.ts')
+    expect(screen.getByText(/, then continue\./)).toBeInTheDocument()
   })
 
   it('renders serialized slash skill references as skill chips', () => {

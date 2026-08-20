@@ -172,6 +172,30 @@ describe('agent handler Waggle handoff lifecycle', () => {
     expect(mocks.emitRunCompleted).toHaveBeenCalledOnce()
   })
 
+  it('surfaces thrown Waggle failures and still completes cleanup', async () => {
+    mocks.executeAgentRun.mockReturnValue(
+      Effect.succeed({ outcome: 'success', newMessages: [handoffMessage()] }),
+    )
+    mocks.executeWaggleRun.mockReturnValue(Effect.fail(new Error('repository failed')))
+    const { send } = registerHandlers()
+
+    await expect(Effect.runPromise(send({}, SESSION_ID, PAYLOAD, MODEL))).rejects.toThrow(
+      'repository failed',
+    )
+
+    expect(mocks.emitErrorAndFinish).toHaveBeenCalledWith(
+      SESSION_ID,
+      'Something went wrong',
+      'unknown',
+      `waggle-${SESSION_ID}`,
+    )
+    expect(activeWaggleRuns.has(SESSION_ID)).toBe(false)
+    expect(activeRuns.has(SESSION_ID)).toBe(false)
+    expect(mocks.clearAgentPhase).toHaveBeenCalledWith(SESSION_ID)
+    expect(mocks.clearStreamBuffer).toHaveBeenCalledWith(SESSION_ID)
+    expect(mocks.emitRunCompleted).toHaveBeenCalledWith(SESSION_ID)
+  })
+
   it('cancels during handoff and clears classic and Waggle run state', async () => {
     mocks.executeAgentRun.mockReturnValue(
       Effect.succeed({ outcome: 'success', newMessages: [handoffMessage()] }),

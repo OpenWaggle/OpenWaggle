@@ -45,7 +45,7 @@ interface WaggleState {
   startCollaboration: (sessionId: SessionId, config: WaggleConfig) => void
   handleTurnEvent: (event: WaggleTurnEvent) => void
   trackMessageMetadata: (messageId: string, meta: WaggleMessageMetadata) => void
-  stopCollaboration: () => void
+  stopCollaboration: (sessionId?: SessionId) => void
   reset: () => void
 }
 
@@ -174,8 +174,11 @@ export const useWaggleStore = create<WaggleState>((set) => ({
     }))
   },
 
-  stopCollaboration() {
-    set({ status: 'stopped' })
+  stopCollaboration(sessionId) {
+    set((state) => {
+      if (sessionId && state.activeCollaborationId !== sessionId) return state
+      return { status: 'stopped' }
+    })
   },
 
   reset() {

@@ -160,15 +160,23 @@ async function readWorkspaceFile(input: {
   }
 
   const data = await fs.readFile(resolved.realFilePath)
+  const observedBase = {
+    ...base,
+    revision: workspaceFileRevision(resolved.stats.mtimeMs, resolved.stats.size, data),
+  }
   const kind = workspaceFilePreviewKind(extension, data)
   if (kind === 'image' || kind === 'pdf') {
-    return { ...base, previewKind: kind, data: new Uint8Array(data) }
+    return { ...observedBase, previewKind: kind, data: new Uint8Array(data) }
   }
   if (kind === 'binary') {
-    return { ...base, previewKind: kind, reason: 'Binary files cannot be edited as text.' }
+    return {
+      ...observedBase,
+      previewKind: kind,
+      reason: 'Binary files cannot be edited as text.',
+    }
   }
   return {
-    ...base,
+    ...observedBase,
     previewKind: kind,
     content: data.toString('utf8'),
     ...(LANGUAGE_BY_EXTENSION[extension] ? { language: LANGUAGE_BY_EXTENSION[extension] } : {}),
@@ -179,7 +187,15 @@ async function writeWorkspaceFile(
   input: WorkspaceFileWriteInput,
 ): Promise<WorkspaceFileWriteResult> {
   const resolved = await resolveExistingFile(input)
-  const currentRevision = workspaceFileRevision(resolved.stats.mtimeMs, resolved.stats.size)
+  const currentContent =
+    resolved.stats.size <= MAX_EDITABLE_TEXT_BYTES
+      ? await fs.readFile(resolved.realFilePath)
+      : undefined
+  const currentRevision = workspaceFileRevision(
+    resolved.stats.mtimeMs,
+    resolved.stats.size,
+    currentContent,
+  )
   if (currentRevision !== input.expectedRevision) {
     return {
       status: 'conflict',
@@ -199,7 +215,7 @@ async function writeWorkspaceFile(
     status: 'saved',
     size: stats.size,
     modifiedAt: stats.mtimeMs,
-    revision: workspaceFileRevision(stats.mtimeMs, stats.size),
+    revision: workspaceFileRevision(stats.mtimeMs, stats.size, Buffer.from(input.content, 'utf8')),
   }
 }
 

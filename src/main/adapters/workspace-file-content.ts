@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type { WorkspaceFilePreviewKind } from '@shared/types/workspace-files'
 
 const BYTE_ZERO = 0
@@ -75,6 +76,13 @@ export function workspaceFilePreviewKind(
   return hasBinaryBytes(buffer) ? 'binary' : 'text'
 }
 
-export function workspaceFileRevision(modifiedAt: number, size: number) {
-  return `${String(modifiedAt)}:${String(size)}`
+export function workspaceFileRevision(
+  modifiedAt: number,
+  size: number,
+  observedContent?: Uint8Array,
+) {
+  const digest = observedContent
+    ? createHash('sha256').update(observedContent).digest('hex')
+    : 'unobserved'
+  return `${String(modifiedAt)}:${String(size)}:${digest}`
 }

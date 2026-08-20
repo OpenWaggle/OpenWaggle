@@ -20,6 +20,7 @@ import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import * as Effect from 'effect/Effect'
+import { classifyAgentError } from '../agent/error-classifier'
 import { getPhaseForSession } from '../agent/phase-tracker'
 import { cleanupSessionRun } from '../agent/session-cleanup'
 import {
@@ -109,48 +110,61 @@ function registerAgentRunHandlers() {
           emitTransportEvent(sessionId, event)
         }
 
-        // ─── Application: delegate to service ────────────
-        const result = yield* executeAgentRun({
-          sessionId,
-          runId,
-          payload: validatedPayload,
-          model,
-          signal: abortController.signal,
-          onEvent: onEventWithUsageCapture,
-          onTitleAssigned: (title) => {
-            broadcastToWindows('sessions:title-updated', { sessionId, title })
-          },
-        })
-
-        const handoff =
-          result.outcome === 'success' ? findWaggleHandoffRequest(result.newMessages) : null
-        if (handoff && !abortController.signal.aborted) {
-          activeWaggleRuns.register(sessionId, abortController, {})
-          yield* runAgentRequestedWaggle({
+        yield* Effect.gen(function* () {
+          // ─── Application: delegate to service ────────────
+          const result = yield* executeAgentRun({
             sessionId,
-            handoff,
+            runId,
+            payload: validatedPayload,
             model,
-            thinkingLevel: validatedPayload.thinkingLevel,
-            abortController,
-          }).pipe(
-            Effect.ensuring(
-              Effect.sync(() => {
-                activeWaggleRuns.deleteIfCurrent(sessionId, abortController)
-              }),
-            ),
-          )
-        }
+            signal: abortController.signal,
+            onEvent: onEventWithUsageCapture,
+            onTitleAssigned: (title) => {
+              broadcastToWindows('sessions:title-updated', { sessionId, title })
+            },
+          })
 
-        // ─── Transport: respond based on outcome ─────────
-        handleRunResult(sessionId, result)
+          const handoff =
+            result.outcome === 'success' ? findWaggleHandoffRequest(result.newMessages) : null
+          if (handoff && !abortController.signal.aborted) {
+            activeWaggleRuns.register(sessionId, abortController, {})
+            yield* runAgentRequestedWaggle({
+              sessionId,
+              handoff,
+              model,
+              thinkingLevel: validatedPayload.thinkingLevel,
+              abortController,
+            }).pipe(
+              Effect.tapError((error) =>
+                Effect.sync(() => {
+                  const classified = classifyAgentError(error)
+                  emitErrorAndFinish(
+                    sessionId,
+                    classified.userMessage,
+                    classified.code,
+                    `waggle-${sessionId}`,
+                  )
+                }),
+              ),
+            )
+          }
 
-        // ─── Transport: cleanup ──────────────────────────
-        cancelAgentLoopInteractionsForRun({ sessionId, runId })
-        if (activeRuns.deleteIfCurrent(sessionId, abortController)) {
-          clearAgentPhase(sessionId)
-          clearStreamBuffer(sessionId)
-          emitRunCompleted(sessionId)
-        }
+          // ─── Transport: respond based on outcome ─────────
+          handleRunResult(sessionId, result)
+        }).pipe(
+          Effect.ensuring(
+            Effect.sync(() => {
+              // ─── Transport: cleanup ──────────────────────
+              cancelAgentLoopInteractionsForRun({ sessionId, runId })
+              activeWaggleRuns.deleteIfCurrent(sessionId, abortController)
+              if (activeRuns.deleteIfCurrent(sessionId, abortController)) {
+                clearAgentPhase(sessionId)
+                clearStreamBuffer(sessionId)
+                emitRunCompleted(sessionId)
+              }
+            }),
+          ),
+        )
       }),
   )
 

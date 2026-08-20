@@ -165,6 +165,33 @@ describe('FilesystemWorkspaceFileLive', () => {
     )
   })
 
+  it('rejects a same-size external edit whose modification time is preserved', async () => {
+    const filePath = path.join(projectPath, 'src', 'alpha.ts')
+    const fixedMtimeSeconds = 1_700_000_000
+    await fs.utimes(filePath, fixedMtimeSeconds, fixedMtimeSeconds)
+    const initial = await runWithWorkspaceFiles((service) =>
+      service.readFile({ projectPath, path: 'src/alpha.ts' }),
+    )
+    const initialStats = await fs.stat(filePath)
+    const externalContent = 'export const omega = 9\n'
+    expect(Buffer.byteLength(externalContent)).toBe(initial.size)
+
+    await fs.writeFile(filePath, externalContent)
+    await fs.utimes(filePath, initialStats.atime, initialStats.mtime)
+
+    const result = await runWithWorkspaceFiles((service) =>
+      service.writeFile({
+        projectPath,
+        path: 'src/alpha.ts',
+        content: 'export const alpha = 2\n',
+        expectedRevision: initial.revision,
+      }),
+    )
+
+    expect(result.status).toBe('conflict')
+    expect(await fs.readFile(filePath, 'utf8')).toBe(externalContent)
+  })
+
   it('rejects oversized UTF-8 writes before mutating the file', async () => {
     const initial = await runWithWorkspaceFiles((service) =>
       service.readFile({ projectPath, path: 'src/alpha.ts' }),

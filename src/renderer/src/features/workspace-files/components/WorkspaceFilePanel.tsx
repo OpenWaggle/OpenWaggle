@@ -29,7 +29,14 @@ function BlobPreview({ file }: { readonly file: WorkspaceBinaryFileReadResult })
       </div>
     )
   }
-  return <iframe title={file.basename} src={url} className="min-h-0 flex-1 border-0 bg-white" />
+  return (
+    <iframe
+      title={file.basename}
+      src={url}
+      sandbox=""
+      className="min-h-0 flex-1 border-0 bg-white"
+    />
+  )
 }
 
 function UnavailablePreview({ file }: { readonly file: WorkspaceUnavailableFileReadResult }) {
