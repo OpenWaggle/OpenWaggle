@@ -35,6 +35,7 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 - `docs/adr/0019-pinned-sessions-stored-per-pin.md`
 - `docs/adr/0020-sidebar-provenance-icon-vocabulary.md`
 - `docs/adr/0021-status-colours-are-semantic-roles.md`
+- `docs/adr/0022-transcript-opens-from-its-newest-end.md`
 
 ## Testing
 

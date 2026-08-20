@@ -550,6 +550,10 @@ _Avoid_: sort mode (ambiguous with the project list's own session sort), filter 
 The keyboard shortcut opening a Pinned session by its **position** in the Pinned section, first row through ninth. Positional by definition, so it re-derives whenever the Pinned sort reorders the list, and rows past the ninth have none.
 _Avoid_: pin number (implies a number stored on the pin), session shortcut (any session can be opened; only Pinned sessions get a positional one)
 
+### Transcript window
+
+**Transcript window** is the slice of a session's rows the chat builds on open: the newest 40. **Load earlier** expands it by 100 rows. The window is not a scroll position and is never persisted; it resets to the newest rows whenever the open session changes. See `docs/adr/0022-transcript-opens-from-its-newest-end.md`.
+
 ### Sidebar row vocabulary
 
 **Session row state**:
