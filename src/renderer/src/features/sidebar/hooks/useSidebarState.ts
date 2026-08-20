@@ -131,6 +131,8 @@ export function useSidebarState() {
     recentProjects,
     sortMode,
     pinnedSessionIds: pinnedRows.map((row) => String(row.session.id)),
+    // Project-wide actions act on the project, not on what the filter happens to show.
+    allSessions: sessions.sessions,
   })
 
   function displayProjectName(path: string) {

@@ -52,7 +52,13 @@ export function ProjectActionsMenu({
   readonly setMenuOpen: (open: boolean) => void
   readonly actions: SidebarProjectActions
 }) {
-  const sessionCount = group.sessions.length
+  /*
+   * The project's whole session set, not the rows on screen. Archiving from here used to offer the
+   * visible count and archive only those, and a project whose sessions were all pinned reported
+   * nothing to archive.
+   */
+  const archivable = group.allSessions
+  const sessionCount = archivable.length
   const archiveLabel =
     sessionCount === 0
       ? 'No sessions to archive'
@@ -99,7 +105,7 @@ export function ProjectActionsMenu({
         disabled={sessionCount === 0}
         icon={Archive}
         label={archiveLabel}
-        onClick={() => closeAfter(() => actions.archiveSessions(group.projectPath, group.sessions))}
+        onClick={() => closeAfter(() => actions.archiveSessions(group.projectPath, archivable))}
       />
       <ProjectMenuButton
         danger

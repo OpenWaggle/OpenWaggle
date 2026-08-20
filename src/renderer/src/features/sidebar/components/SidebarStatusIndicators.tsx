@@ -39,7 +39,21 @@ export function SidebarStatusChips({
   readonly activeState: SidebarRowState | null
   readonly onToggle: (state: SidebarRowState) => void
 }) {
-  if (counts.length === 0) return null
+  /*
+   * An active filter keeps its chip even when nothing is in that state any more.
+   *
+   * Chips are otherwise a summary of what is happening, so a state with no sessions has no chip.
+   * That left a trap: opening the only completed session marks it visited, which reads as idle, so
+   * the completed chip vanished while its filter stayed set. Every row was filtered out and the
+   * only control that could clear the filter had just disappeared, leaving an empty sidebar with no
+   * way back. The zero keeps the reason for the emptiness on screen and stays clickable.
+   */
+  const shown =
+    activeState !== null && !counts.some(({ state }) => state === activeState)
+      ? [...counts, { state: activeState, count: 0 }]
+      : counts
+
+  if (shown.length === 0) return null
 
   return (
     <fieldset
@@ -47,7 +61,7 @@ export function SidebarStatusChips({
       data-qa="sidebar-chips"
       className="flex flex-none flex-wrap gap-1 px-2.5 pt-0.5 pb-2"
     >
-      {counts.map(({ state, count }) => {
+      {shown.map(({ state, count }) => {
         const meta = sidebarRowStateMeta(state)
         const isActive = activeState === state
         /*

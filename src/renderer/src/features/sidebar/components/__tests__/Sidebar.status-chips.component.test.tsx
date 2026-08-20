@@ -291,3 +291,28 @@ describe('Sidebar status chips and project pips', () => {
     expect(labels).toContain('Input')
   })
 })
+
+describe('an active filter stays clearable', () => {
+  /*
+   * Opening the only completed session marks it visited, which reads as idle, so the completed chip
+   * had nothing to count and disappeared while its filter stayed set. Every row was filtered out
+   * and the one control that could clear the filter had just gone, leaving an empty sidebar with no
+   * way back.
+   */
+  it('keeps a zero-count chip for the state being filtered', () => {
+    resetStores()
+    useSidebarFilterStore.setState({ activeState: 'completed' })
+    render(<Sidebar />)
+
+    const chips = screen.getByRole('group', { name: 'Filter sessions by state' })
+    const chip = within(chips).getByRole('button', {
+      name: /Clear filter: Finished while you were away, 0/,
+    })
+
+    expect(chip).toBeInTheDocument()
+    expect(chip).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.click(chip)
+    expect(useSidebarFilterStore.getState().activeState).toBeNull()
+  })
+})
