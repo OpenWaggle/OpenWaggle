@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { expect, test } from '@playwright/test'
+import { expect, type Page, test } from '@playwright/test'
 import { OpenWaggleApp } from './support/openwaggle-app'
 import { seedSessions } from './support/session-fixtures'
 
@@ -98,10 +98,46 @@ test('sidebar remodel: width, two-line rows, and view state that survives a rest
     const overflow = await scroller.evaluate((node) => node.scrollWidth - node.clientWidth)
     expect(overflow).toBeLessThanOrEqual(0)
 
+    // ── The whole row opens the session, not just the title text ─────────────
+    /*
+     * Regression guard. The two-line remodel left the click handler sized to the title, so 70% of
+     * a 316x48 row was dead to clicks: measured by sampling elementFromPoint across the row in
+     * the running app. Clicking anywhere did nothing, which reads as broken navigation rather
+     * than as a small target.
+     *
+     * This has to be an end-to-end test. The fix stretches the control with a pseudo-element, so
+     * only a real hit test can tell whether a point in the row reaches it, and jsdom has none.
+     */
+    const secondRow = page.locator('[data-qa="sidebar-session-row"]').filter({
+      hasText: SECOND_TITLE,
+    })
+    const box = await secondRow.boundingBox()
+    if (box === null) throw new Error('no row box')
+
+    // The timestamp on line two, at the far end of the row from the title.
+    await secondRow.click({ position: { x: box.width - 14, y: box.height - 8 } })
+    await expect(secondRow).toHaveAttribute('aria-current', 'true')
+
+    // The glyph column on line one, left of the title.
+    const glyphSideRow = page
+      .locator('[data-qa="sidebar-session-row"]')
+      .filter({ hasText: FIRST_TITLE })
+    const glyphBox = await glyphSideRow.boundingBox()
+    if (glyphBox === null) throw new Error('no row box')
+    await glyphSideRow.click({ position: { x: 6, y: glyphBox.height - 6 } })
+    await expect(glyphSideRow).toHaveAttribute('aria-current', 'true')
+
     // ── Collapse a project, then relaunch and expect it still collapsed ───────
-    await expect(page.getByText(FIRST_TITLE)).toBeVisible()
+    /*
+     * Scoped to the sidebar rows. A session is open by now, so its title also appears in the
+     * chat, and an unscoped text match would resolve to two elements.
+     */
+    const sidebarRowByTitle = (page: Page, title: string) =>
+      page.locator('[data-qa="sidebar-session-row"]').filter({ hasText: title })
+
+    await expect(sidebarRowByTitle(page, FIRST_TITLE)).toBeVisible()
     await page.getByRole('button', { name: `Collapse ${PROJECT_LABEL}` }).click()
-    await expect(page.getByText(FIRST_TITLE)).toBeHidden()
+    await expect(sidebarRowByTitle(page, FIRST_TITLE)).toBeHidden()
 
     // Change the sort too, so both persisted preferences are covered by one restart.
     await page.locator('[data-qa="sidebar-section-head"]').last().hover()
@@ -112,9 +148,9 @@ test('sidebar remodel: width, two-line rows, and view state that survives a rest
     const restarted = app.mainWindow().page
 
     await expect(restarted.getByRole('button', { name: `Expand ${PROJECT_LABEL}` })).toBeVisible()
-    await expect(restarted.getByText(FIRST_TITLE)).toBeHidden()
+    await expect(sidebarRowByTitle(restarted, FIRST_TITLE)).toBeHidden()
     // The other project was never collapsed, so it must come back expanded.
-    await expect(restarted.getByText(OTHER_TITLE)).toBeVisible()
+    await expect(sidebarRowByTitle(restarted, OTHER_TITLE)).toBeVisible()
 
     await restarted.locator('[data-qa="sidebar-section-head"]').last().hover()
     await restarted.getByRole('button', { name: 'Sort sessions' }).click()

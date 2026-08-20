@@ -119,7 +119,7 @@ export function SessionRowHoverActions({
   return (
     <span
       className={cn(
-        'absolute top-[5px] right-2 flex gap-px pl-3.5 transition-opacity',
+        'absolute top-[5px] right-2 z-10 flex gap-px pl-3.5 transition-opacity',
         'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
         menuOpen ? 'opacity-100' : null,
         isActive

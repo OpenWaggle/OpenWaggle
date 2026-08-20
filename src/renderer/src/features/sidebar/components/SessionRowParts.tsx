@@ -36,7 +36,7 @@ export function SessionBranchDisclosureButton({
         event.stopPropagation()
         onToggle?.()
       }}
-      className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
+      className="relative z-10 mt-0.5 flex size-4 shrink-0 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
     >
       <DisclosureIcon className="size-3" />
     </Button>
@@ -91,11 +91,20 @@ export function SessionRowTitle({
       data-qa="sidebar-row-title-line"
       className="flex h-[18.13px] min-w-0 items-center gap-1.5"
     >
+      {/*
+       * The hit area is the whole row, not the width of the title text.
+       *
+       * A two-line row is 48px tall and 316px wide while the title occupies one short line, so a
+       * button sized to its own text leaves most of the row dead to clicks. The pseudo-element
+       * stretches this control over the row's padding box instead, which keeps one focusable
+       * element with the title as its accessible name. Controls that do something else are
+       * layered above it.
+       */}
       <Button
         variant="unstyled"
         type="button"
         onClick={onSelect}
-        className="min-w-0 flex-1 truncate text-left leading-[1.45]"
+        className="min-w-0 flex-1 truncate text-left leading-[1.45] after:absolute after:inset-0 after:content-['']"
       >
         <span
           data-qa="sidebar-row-title"
