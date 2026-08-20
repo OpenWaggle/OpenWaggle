@@ -44,3 +44,13 @@ The scroll hooks keep receiving the **full** row count, not the windowed one. Th
 Anything that needs to reach an arbitrary message by id must expand the window first. Nothing does today: the only id-addressed element is `data-user-message-id`, which has no reader outside the transcript itself.
 
 A person who wants the start of a long session presses a control instead of scrolling to it. That is the price, and it buys a switch that lands in well under a tenth of a second on a packaged build.
+
+The window remembers where it starts rather than how many rows it shows. Holding a size instead unmounted the topmost row on every arrival, which moved the view under a reader who had scrolled up, and offered to load earlier messages on a session read from its first message.
+
+A control that acts on a turn, rather than a lookup that resolves one, is unavailable until the window reaches that turn. The view-turn-diff affordance on older turns is the case that exists today: it renders only for mounted rows, so it appears once the reader presses Load earlier.
+
+Switching conversation branch within one session does not reset the window, because the component is keyed by session id alone. An expansion therefore carries across branches. Performance only, and it costs at most what the reader already chose to build.
+
+A saved scroll position can now be unreachable, since the content height is capped. The restore gives up when the reachable extent stops growing, rather than retrying toward a target the window will never produce.
+
+Measured again once the render was capped: switch cost is flat in session size. 400 rows settle in 61ms, 2,000 in 62ms, 6,000 in 69ms, all rendering 42 rows. The unbounded read does not become the bottleneck at any size a session realistically reaches, which is the evidence against paginating it.

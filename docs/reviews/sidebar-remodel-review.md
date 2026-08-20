@@ -78,3 +78,43 @@ These belong in their own issue. The token findings are already recorded on issu
 **The E2E spec was one long test without `test.step`, and covered no chips.** Both now addressed, though not because the review persuaded me: the maintainer looked at the suite and pointed out that a run showing zero chips proves nothing about them.
 
 `e2e/sidebar-filters.e2e.test.ts` covers the chips, the pips, the search field and Escape in twelve named steps. It is possible because an interrupted run is the one non-idle row state that can be seeded from the database, so a real chip appears without faking a live agent event. The original spec keeps its geometry and restart claims.
+
+## Second round: four reviewers on the whole branch
+
+Run after the branch had merged `origin/main`, with one brief each: correctness, architecture, accessibility, and whether the tests and documentation tell the truth. Same tool and model as the first round.
+
+### Fixed, and each was a live bug
+
+**Escape was cancelled for the whole application.** The sidebar registered Escape through `useHotkeys` with `preventDefault: true`, and `@tanstack/react-hotkeys` calls `preventDefault` and `stopPropagation` on every match *before* the callback runs, so the check for "is the filter field focused" gated nothing. Chromium will not close a native `<dialog>` once a document-level listener has cancelled the key, so `CommitMessageDialog`, whose only dismissal is that native path, stopped closing. Found independently by two reviewers, one of whom ran the library to confirm the ordering. Now routed through the existing `useEscapeHotkey`, enabled only while the field holds focus.
+
+**A saved scroll position retried forever.** `applyPendingRestore` returned "retry" whenever the content had not yet grown to the remembered offset, and `scheduleRestoreRetry` rearmed every 96ms with no cap. A capped transcript window can never reach an offset saved from a taller transcript, so the timer ran for the life of the session, rewriting `scrollTop` and clearing the auto-scroll flag on every pass. Scrolling up was undone within 96ms. The restore now gives up when the reachable extent stops growing, and the regression test leaves a pending timer behind without the fix.
+
+**Reordering pinned sessions had no keyboard route.** Manual order made the row a drag source and offered nothing else. That fails WCAG 2.2 SC 2.1.1 Keyboard and SC 2.5.7 Dragging Movements, and the grip is `aria-hidden`, so a screen reader user had no signal that reordering existed at all. Move up and Move down now sit in the row's context menu, which opens from the keyboard.
+
+**The draft row measured 2.58:1.** Its second line and its "Draft" word both used `--color-text-muted` on `--color-bg-active`. Moved to `--color-text-tertiary` at 4.52:1. `--color-text-muted` clears 4.5:1 against nothing in this palette and should never carry text.
+
+**The transcript window remembered its size, not its start.** Every new row pushed an old one out, so the topmost mounted row unmounted on each arrival and, with `[overflow-anchor:none]` on the scroller, the view jumped under a reader who had scrolled up. It also grew a "Load earlier messages (1 above)" control on a session read from its first message, which is a lie about the transcript.
+
+**The stretched click target made every tooltip in a row unreachable.** A pseudo-element is hit-tested as part of the element that owns it, so pointer events anywhere in the row resolve to the title control, which had no `title` and no ancestor with one. The branch name, which `SessionProvenanceIndicators` states lives in the tooltip, could not be read there. The row now carries one composed description built from the same facts the icons announce.
+
+**Load earlier lost focus and shouted.** The control unmounts on the last press, dropping focus to `document.body`, and inserting 100 rows into a `role="log"` queued an announcement per row. Focus now moves to the top of the transcript and one polite message reports the count.
+
+**The QA seed script had four defects.** `--replace-qa` alone made `Number('--replace-qa')`, so it seeded empty transcripts and reported "NaN messages" while exiting successfully; the cleanup predicate matched `QA session%`, a title the script never writes, so the flag was a no-op; running it twice failed on a duplicate `session_nodes.id`; and it hardcoded macOS paths plus one contributor's project folder.
+
+### Accepted, with reasons
+
+**Two provenance glyphs still render nothing.** `cloned-from` and `terminal` have complete tested render paths gated on data that never arrives. One reviewer argued for deleting them. Kept, because ADR 0020 draws the line at whether the product *has* the capability: a session genuinely is cloned from another and genuinely owns terminals, and nothing records either. The TODOs name the migration.
+
+**The row state rule is written twice**, in `useSessionRowStatus` and `useSidebarRowStates`, so chips and rows agree only because two copies match. A real duplication and a fair hit against the "one authority" claim in `MEMORY.md`. Not fixed here because collapsing them changes what every row subscribes to, which is a refactor with its own regression surface, and this branch is already large. Recorded as a follow-up rather than pretended away.
+
+**`role="menu"` without the keyboard model.** The sort menus announce menu semantics but are plain buttons: no roving tabindex, no arrow keys, no focus move on open. The reviewer is right that this now promises a keyboard model that does not exist. Left as is in this branch and raised as a follow-up, because the honest fix is either to implement the pattern in the shared `Popover` or to change the role, and both reach past the sidebar.
+
+**Dragging a pinned row while a filter is active** resolves neighbours from the visible subset, so a drop can reposition a pin relative to rows the user cannot see. The stored key stays valid. A follow-up.
+
+**`Mod+F` and `Mod+1` to `Mod+9` are invisible to the shortcut conflict check** in settings, so rebinding a command onto one of them produces two handlers and a console warning with nothing in the UI to explain it. A follow-up.
+
+**`Mod+F` is dropped while the sidebar is inert** in the settings view. A follow-up.
+
+**Switching conversation branch does not reset the transcript window**, so an expansion carries across branches of one session. Performance only. Noted in ADR 0022 rather than fixed.
+
+**Turn diff controls on turns older than the window are unreachable** until the reader presses Load earlier. A consequence of windowing worth stating, now in ADR 0022.
