@@ -2,8 +2,8 @@ import { useHotkeys } from '@tanstack/react-hotkeys'
 import { useUIStore } from '@/shell/ui-store'
 import { useSidebarFilterStore } from '../state/sidebar-filter-store'
 
-/** The element the sidebar's filter field renders, found without a ref across components. */
-const SEARCH_INPUT_SELECTOR = '[data-qa="sidebar-search"] input'
+/** Marks the filter field so Escape can tell it apart from any other focused input. */
+const SEARCH_CONTAINER_SELECTOR = '[data-qa="sidebar-search"]'
 
 /**
  * Mod+F focuses the sidebar's filter field.
@@ -12,11 +12,16 @@ const SEARCH_INPUT_SELECTOR = '[data-qa="sidebar-search"] input'
  * hint for a shortcut that does nothing is worse than no hint, because the user stops trusting
  * the others. Opens the sidebar first when it is collapsed, since focusing a hidden field would
  * silently do nothing.
+ *
+ * The request is recorded in the store and the field focuses itself. Reaching into the DOM from
+ * here instead needed a requestAnimationFrame to wait for the sidebar to mount, which raced that
+ * mount and flaked under load.
  */
 export function useSidebarSearchShortcut(): void {
   const sidebarOpen = useUIStore((state) => state.sidebarOpen)
   const toggleSidebar = useUIStore((state) => state.toggleSidebar)
   const clearFilters = useSidebarFilterStore((state) => state.clear)
+  const requestFocus = useSidebarFilterStore((state) => state.requestFocus)
 
   useHotkeys(
     [
@@ -24,14 +29,7 @@ export function useSidebarSearchShortcut(): void {
         hotkey: 'Mod+F',
         callback: () => {
           if (!sidebarOpen) toggleSidebar()
-          // After the sidebar mounts, not in the same frame the toggle happens.
-          requestAnimationFrame(() => {
-            const input = document.querySelector(SEARCH_INPUT_SELECTOR)
-            if (input instanceof HTMLInputElement) {
-              input.focus()
-              input.select()
-            }
-          })
+          requestFocus()
         },
       },
       {
@@ -40,7 +38,7 @@ export function useSidebarSearchShortcut(): void {
         hotkey: 'Escape',
         callback: () => {
           const active = document.activeElement
-          if (active instanceof HTMLInputElement && active.closest('[data-qa="sidebar-search"]')) {
+          if (active instanceof HTMLInputElement && active.closest(SEARCH_CONTAINER_SELECTOR)) {
             clearFilters()
             active.blur()
           }

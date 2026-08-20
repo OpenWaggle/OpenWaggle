@@ -1,5 +1,7 @@
 import { Search } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import { SIDEBAR_SEARCH_HOTKEY_LABEL } from '../constants/sidebar-layout'
+import { useSidebarFilterStore } from '../state/sidebar-filter-store'
 
 /**
  * Filter projects and sessions by text.
@@ -19,6 +21,22 @@ export function SidebarSearchBox({
   readonly value: string
   readonly onChange: (value: string) => void
 }) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const focusRequest = useSidebarFilterStore((state) => state.focusRequest)
+
+  /*
+   * The field focuses itself when asked, rather than the shortcut reaching across the tree for it.
+   *
+   * The shortcut used to query the DOM inside a requestAnimationFrame, which raced the sidebar
+   * mounting and flaked under load. Owning focus here means the effect cannot run before the input
+   * exists, because the input is what runs it.
+   */
+  useEffect(() => {
+    if (focusRequest === 0) return
+    inputRef.current?.focus()
+    inputRef.current?.select()
+  }, [focusRequest])
+
   return (
     <div className="flex-none px-2 pt-1 pb-2">
       <div
@@ -27,6 +45,7 @@ export function SidebarSearchBox({
       >
         <Search className="size-3.5 flex-none" />
         <input
+          ref={inputRef}
           type="text"
           value={value}
           onChange={(event) => onChange(event.target.value)}
