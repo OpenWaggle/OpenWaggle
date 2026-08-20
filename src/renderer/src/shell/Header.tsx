@@ -37,6 +37,8 @@ export function Header() {
     refreshStatus: refreshGitStatus,
     refreshBranches: refreshGitBranches,
     commit: commitGit,
+    workingPath,
+    repositoryPath,
   } = useGit()
 
   const [commitOpen, setCommitOpen] = useState(false)
@@ -44,13 +46,16 @@ export function Header() {
     useDiffRouteNavigation()
 
   function handleRefreshGit() {
-    void refreshGitStatus(projectPath)
-    void refreshGitBranches(projectPath)
+    // Status follows the session's working tree; the branch list is repository-level.
+    void refreshGitStatus(workingPath)
+    void refreshGitBranches(repositoryPath)
     bumpDiffRefreshKey()
   }
 
   async function handleCommitGit(message: string, amend: boolean, paths: string[]) {
-    if (!projectPath) {
+    // Commit into the tree the user is looking at. Committing the primary checkout
+    // while a worktree session is active would write to a tree they never reviewed.
+    if (!workingPath) {
       return {
         ok: false as const,
         code: 'not-git-repo' as const,
@@ -58,7 +63,7 @@ export function Header() {
       }
     }
     return match
-      .promise(commitGit(projectPath, { message, amend, paths }))
+      .promise(commitGit(workingPath, { message, amend, paths }))
       .with({ ok: true }, (result) => {
         bumpDiffRefreshKey()
         showToast(`Commit created: ${result.summary}`)

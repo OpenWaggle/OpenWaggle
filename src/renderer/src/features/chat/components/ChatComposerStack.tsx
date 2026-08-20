@@ -5,7 +5,6 @@ import type {
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import { useMessageQueueStore } from '@/features/chat/state'
 import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-store'
-import { CommandPalette } from '@/features/command-palette/components'
 import {
   ActionDialog,
   BranchSummaryPrompt,
@@ -15,8 +14,11 @@ import {
   QueuedMessages,
 } from '@/features/composer/components'
 import { useScopedComposerDrafts } from '@/features/composer/hooks'
+import { SessionContextRow } from '@/features/git'
 import { WaggleCollaborationStatus as WaggleCollaborationStatusBanner } from '@/features/waggle/components'
+import { useComposerSendGate } from '../hooks/useComposerSendGate'
 import type { ChatComposerSectionState } from '../model'
+import { ChatComposerCommandPalette } from './ChatComposerCommandPalette'
 import { ChatComposerExtensionDialogs } from './ChatComposerExtensionDialogs'
 import { SessionForkSelector } from './SessionForkSelector'
 
@@ -37,6 +39,15 @@ const EMPTY_EXTENSION_PROJECT_PATHS: readonly string[] = []
 
 function noOp() {}
 
+/**
+ * The composer stack.
+ *
+ * The control row below the input uses `min-h-7` with `flex-wrap` rather than a fixed
+ * height. The compact controls are shorter than 28px so the envelope is unchanged, but the
+ * vanished-worktree notice needs room for its message and actions: inside a fixed-height
+ * row flex shrank it to zero width and left its buttons underneath the run-target picker,
+ * unclickable in the app while component tests passed.
+ */
 export function ChatComposerStack({
   section,
   agentInteractions = EMPTY_AGENT_INTERACTIONS,
@@ -71,16 +82,20 @@ export function ChatComposerStack({
     onSelectForkTarget,
     onCloneToNewSession,
   } = section
-
   useScopedComposerDrafts(activeSessionId)
-
+  const { strip, guardedSend } = useComposerSendGate({
+    activeSessionId,
+    session: section.session,
+    isFirstMessage: section.isFirstMessage,
+    onSend: onSendWithWaggle,
+    onToast,
+  })
   const enqueue = useMessageQueueStore((s) => s.enqueue)
   const branchSummaryMode = useBranchSummaryStore((s) => s.prompt?.mode ?? null)
   const composerDisabledForBranchSummary =
     branchSummaryMode === 'choice' || branchSummaryMode === 'summarizing'
   const composerPlaceholder =
     branchSummaryMode === 'custom' ? 'Custom instructions for the branch summary' : undefined
-
   return (
     <>
       <WaggleCollaborationStatusBanner
@@ -88,18 +103,15 @@ export function ChatComposerStack({
         onStop={waggleStatus !== 'idle' ? onStopCollaboration : noOp}
       />
 
-      {slashCommandMenuOpen && (
-        <div className="mx-auto w-full max-w-[720px] px-5 pb-2">
-          <CommandPalette
-            slashSkills={slashSkills}
-            onSelectSkill={onSelectSkill}
-            onStartWaggle={onStartWaggle}
-            onOpenSessionTree={onOpenSessionTree}
-            onForkToNewSession={onOpenForkSelector}
-            onCloneToNewSession={onCloneToNewSession}
-          />
-        </div>
-      )}
+      <ChatComposerCommandPalette
+        open={slashCommandMenuOpen}
+        slashSkills={slashSkills}
+        onSelectSkill={onSelectSkill}
+        onStartWaggle={onStartWaggle}
+        onOpenSessionTree={onOpenSessionTree}
+        onForkToNewSession={onOpenForkSelector}
+        onCloneToNewSession={onCloneToNewSession}
+      />
 
       <SessionForkSelector
         open={forkSelectorOpen}
@@ -131,7 +143,7 @@ export function ChatComposerStack({
           onRespond={onRespondAgentInteraction}
         />
         <Composer
-          onSend={onSendWithWaggle}
+          onSend={guardedSend}
           onEnqueue={(payload) => {
             if (activeSessionId) {
               enqueue(activeSessionId, payload)
@@ -150,7 +162,10 @@ export function ChatComposerStack({
           }}
           onToast={onToast}
         />
-        <ComposerBranchRow onToast={onToast} />
+        <div className="mt-1.5 flex min-h-7 min-w-0 flex-wrap items-center justify-between gap-3 px-1">
+          <SessionContextRow strip={strip} />
+          <ComposerBranchRow strip={strip} onToast={onToast} />
+        </div>
         <ActionDialog onToast={onToast} />
       </div>
     </>

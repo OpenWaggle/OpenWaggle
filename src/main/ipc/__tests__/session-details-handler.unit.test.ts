@@ -39,6 +39,8 @@ describe('registerSessionDetailsHandlers', () => {
     expect(channels).toEqual([
       'sessions:list-details',
       'sessions:get-detail',
+      'sessions:turn-checkpoints:list',
+      'sessions:turn-diff:get',
       'sessions:create',
       'sessions:fork-to-new',
       'sessions:clone-to-new',
@@ -48,6 +50,7 @@ describe('registerSessionDetailsHandlers', () => {
       'sessions:unarchive',
       'sessions:list-archived',
       'sessions:update-title',
+      'sessions:set-worktree-plan',
     ])
   })
 
@@ -84,6 +87,7 @@ describe('registerSessionDetailsHandlers', () => {
         projectPath: validatedProjectPath,
         piSessionId: 'pi-session-created',
         piSessionFile: '/tmp/pi-session-created.jsonl',
+        environmentMode: 'local',
       })
     } finally {
       await rm(projectPath, { recursive: true, force: true })

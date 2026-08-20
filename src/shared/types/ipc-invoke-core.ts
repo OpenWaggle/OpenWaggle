@@ -46,6 +46,7 @@ import type {
   SessionTreeUiStatePatch,
   SessionWorkspace,
   SessionWorkspaceSelection,
+  SessionWorktreePlan,
 } from './session'
 import type { Settings } from './settings'
 
@@ -228,6 +229,10 @@ export interface IpcCoreInvokeChannelMap {
   }
   'sessions:update-title': {
     args: [id: SessionId, title: string]
+    return: undefined
+  }
+  'sessions:set-worktree-plan': {
+    args: [id: SessionId, plan: SessionWorktreePlan]
     return: undefined
   }
   'sessions:list': {

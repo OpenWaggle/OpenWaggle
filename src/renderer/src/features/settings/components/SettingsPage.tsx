@@ -7,6 +7,7 @@ import { Button } from '@/shared/ui/Button'
 import type { SettingsTab } from '@/shell/ui-store'
 import { useFullscreen } from '@/shell/useFullscreen'
 import { SettingsNav } from './SettingsNav'
+import { AppearanceSection } from './sections/AppearanceSection'
 import { ArchivedSection } from './sections/ArchivedSection'
 import { ConnectionsSection } from './sections/ConnectionsSection'
 import { ExtensionsSection } from './sections/ExtensionsSection'
@@ -14,6 +15,7 @@ import { GeneralSection } from './sections/GeneralSection'
 import { McpSection } from './sections/McpSection'
 import { ShortcutsSection } from './sections/ShortcutsSection'
 import { WaggleSection } from './sections/WaggleSection'
+import { WorktreesSection } from './sections/WorktreesSection'
 
 interface SettingsPageProps {
   readonly activeTab: SettingsTab
@@ -83,9 +85,11 @@ function SettingsTabContent({
   return match(tab)
     .with('general', () => <GeneralSection />)
     .with('shortcuts', () => <ShortcutsSection />)
+    .with('appearance', () => <AppearanceSection />)
     .with('waggle', () => <WaggleSection />)
     .with('extensions', () => <ExtensionsSection />)
     .with('mcp', () => <McpSection sessionId={activeSessionId} />)
+    .with('worktrees', () => <WorktreesSection />)
     .with('connections', () => <ConnectionsSection />)
     .with('archived', () => <ArchivedSection />)
     .otherwise(() => <GeneralSection />)

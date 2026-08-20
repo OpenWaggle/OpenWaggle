@@ -1,5 +1,6 @@
 import { SessionBranchId, SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
+import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBranchSummaryStore, useChatStore } from '@/features/chat/state'
@@ -50,6 +51,7 @@ describe('useChatRouteEffects', () => {
     })
     usePreferencesStore.setState({
       settings: {
+        ...DEFAULT_SETTINGS,
         selectedModel: SupportedModelId('openai/gpt-5.5'),
         favoriteModels: [],
         enabledModels: [],

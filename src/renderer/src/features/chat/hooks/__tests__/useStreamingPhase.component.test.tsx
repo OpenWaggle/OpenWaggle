@@ -8,7 +8,7 @@ const { emitPhaseEvent, clearPhaseListeners, getAgentPhaseMock, onAgentPhaseMock
     const phaseListeners = new Set<(payload: AgentPhaseEventPayload) => void>()
 
     return {
-      getAgentPhaseMock: vi.fn(async () => null),
+      getAgentPhaseMock: vi.fn(async (): Promise<AgentPhaseState | null> => null),
       onAgentPhaseMock: vi.fn((callback: (payload: AgentPhaseEventPayload) => void) => {
         phaseListeners.add(callback)
         return () => phaseListeners.delete(callback)

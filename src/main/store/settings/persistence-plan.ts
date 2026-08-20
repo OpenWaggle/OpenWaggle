@@ -1,6 +1,10 @@
 import type { Settings } from '@shared/types/settings'
 import {
   SETTINGS_KEY_DEFAULT_MODEL,
+  SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE,
+  SETTINGS_KEY_DIFF_SYNTAX_THEME,
+  SETTINGS_KEY_DIFF_VIEW,
+  SETTINGS_KEY_DIFF_WRAP_LINES,
   SETTINGS_KEY_ENABLED_MODELS,
   SETTINGS_KEY_FAVORITE_MODELS,
   SETTINGS_KEY_PROJECT_DISPLAY_NAMES,
@@ -94,6 +98,30 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
     partial.shortcutBindings !== undefined,
     SETTINGS_KEY_SHORTCUT_BINDINGS,
     next.shortcutBindings,
+  )
+  appendChangedSetting(
+    writes,
+    partial.defaultSessionEnvironmentMode !== undefined,
+    SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE,
+    next.defaultSessionEnvironmentMode,
+  )
+  appendChangedSetting(
+    writes,
+    partial.diffSyntaxTheme !== undefined,
+    SETTINGS_KEY_DIFF_SYNTAX_THEME,
+    next.diffSyntaxTheme,
+  )
+  appendChangedSetting(
+    writes,
+    partial.diffView !== undefined,
+    SETTINGS_KEY_DIFF_VIEW,
+    next.diffView,
+  )
+  appendChangedSetting(
+    writes,
+    partial.diffWrapLines !== undefined,
+    SETTINGS_KEY_DIFF_WRAP_LINES,
+    next.diffWrapLines,
   )
 
   return writes

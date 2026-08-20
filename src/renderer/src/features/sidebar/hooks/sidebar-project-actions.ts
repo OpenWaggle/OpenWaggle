@@ -1,3 +1,5 @@
+import type { RepositoryPath } from '@shared/types/brand'
+import { RepositoryPath as makeRepositoryPath } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import type { useNavigate } from '@tanstack/react-router'
 import { api } from '@/shared/lib/ipc'
@@ -13,7 +15,7 @@ interface SidebarProjectActionDeps {
   readonly loadSessionTrees: () => Promise<void>
   readonly navigate: Navigate
   readonly projectPath: string | null
-  readonly refreshGit: (path: string | null) => void
+  readonly refreshGit: (path: RepositoryPath | null) => void
   readonly removeProjectReferences: (path: string) => Promise<void>
   readonly selectFolder: () => Promise<string | null>
   readonly sessions: readonly SessionSummary[]
@@ -49,7 +51,7 @@ function resetToDraftForProject(deps: SidebarProjectActionDeps, projectPath: str
 async function selectProjectPath(deps: SidebarProjectActionDeps, path: string) {
   resetToDraftForProject(deps, path)
   await deps.setProjectPath(path)
-  deps.refreshGit(path)
+  deps.refreshGit(makeRepositoryPath(path))
 }
 
 async function archiveProjectSessions(
@@ -89,9 +91,9 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
   const projectSessionIds = new Set(projectSessions.map((session) => String(session.id)))
   const activeRuns = await api.listActiveRuns()
   await Promise.all(
-    activeRuns
-      .filter((run) => projectSessionIds.has(String(run.sessionId)))
-      .map((run) => api.cancelAgent(run.sessionId)),
+    activeRuns.flatMap((run) =>
+      projectSessionIds.has(String(run.sessionId)) ? [api.cancelAgent(run.sessionId)] : [],
+    ),
   )
   await Promise.all(projectSessions.map((session) => api.deleteSession(session.id)))
   clearComposerDraftsForSessions(projectSessions)

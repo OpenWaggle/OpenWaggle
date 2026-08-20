@@ -1,6 +1,7 @@
 import { useSessionStatusStore } from '@/features/sessions/state'
 import { cn } from '@/shared/lib/cn'
 import { SIDEBAR_LAYOUT } from '../constants/sidebar-layout'
+import { useSessionGitIndicators } from '../hooks/useSessionGitIndicators'
 import { useSidebarController } from '../hooks/useSidebarController'
 import {
   SidebarBrandArea,
@@ -12,6 +13,9 @@ import { SidebarProjectList } from './SidebarProjectList'
 
 export function Sidebar() {
   const controller = useSidebarController()
+  // Each row shows its own working tree, so load status for every listed session's
+  // working path (de-duplicated: local-mode sessions in one project share a tree).
+  useSessionGitIndicators(controller.sessionGroups.projects.flatMap((group) => group.sessions))
   const markUnread = useSessionStatusStore((state) => state.markUnread)
   const sidebarHidden = !controller.sidebarOpen || controller.activeView === 'settings'
   const renderState = {

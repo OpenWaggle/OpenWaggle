@@ -1,6 +1,6 @@
 {
   "name": "openwaggle",
-  "version": "0.3.0-alpha.56",
+  "version": "0.3.0-alpha.59",
   "description": "Desktop coding agent with multi-model waggle mode",
   "main": "./out/main/index.js",
   "engines": {
@@ -58,7 +58,8 @@
     "package-release:publish": "node scripts/package-release-publish.ts",
     "package-release:validate": "tsx scripts/package-release-validator.ts",
     "check:fast": "pnpm typecheck && pnpm lint",
-    "check": "pnpm typecheck && pnpm lint && pnpm package-release:validate && pnpm api:snapshot:check && pnpm package-docs:check && pnpm package:smoke",
+    "check:installer": "tsx scripts/check-installer-script.ts",
+    "check": "pnpm typecheck && pnpm check:installer && pnpm typecheck:tests && pnpm lint && pnpm package-release:validate && pnpm api:snapshot:check && pnpm package-docs:check && pnpm package:smoke",
     "prepush:main": "pnpm check && pnpm format && pnpm test:all",
     "website:capture-screenshots": "pnpm prepare:native:electron && tsx scripts/capture-website-screenshots.ts",
     "prepare": "husky",
@@ -66,7 +67,8 @@
     "website:build": "pnpm package-docs:check && pnpm --filter @openwaggle/website build",
     "website:preview": "pnpm --filter @openwaggle/website preview",
     "website:test": "pnpm --filter @openwaggle/website test",
-    "docs:generate": "tsx scripts/generate-installed-docs.ts"
+    "docs:generate": "tsx scripts/generate-installed-docs.ts",
+    "typecheck:tests": "tsx scripts/check-renderer-test-types.ts"
   },
   "packageManager": "pnpm@11.15.1",
   "repository": {
@@ -77,6 +79,8 @@
     "@diegogbrisa/ts-match": "1.6.2",
     "@earendil-works/pi-ai": "0.81.1",
     "@earendil-works/pi-coding-agent": "0.81.1",
+    "@headless-tree/core": "1.7.0",
+    "@headless-tree/react": "1.7.0",
     "@lexical/react": "0.48.0",
     "@lobehub/icons-static-svg": "1.94.0",
     "@modelcontextprotocol/client": "2.0.0",
@@ -87,6 +91,7 @@
     "@openwaggle/extension-sdk": "workspace:*",
     "@openwaggle/pi-waggle": "workspace:*",
     "@openwaggle/waggle-core": "workspace:*",
+    "@pierre/diffs": "1.3.2",
     "@tanstack/react-hotkeys": "0.10.0",
     "@tanstack/react-router": "1.170.18",
     "@huggingface/transformers": "4.2.0",

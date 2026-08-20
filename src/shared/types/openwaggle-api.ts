@@ -5,7 +5,14 @@ import type {
 } from './agent-loop-interaction'
 import type { OAuthAccountInfo, OAuthProvider } from './auth'
 import type { ActiveRunInfo, BackgroundRunSnapshot } from './background-run'
-import type { SessionBranchId, SessionId, SessionNodeId, WagglePresetId } from './brand'
+import type {
+  RepositoryPath,
+  SessionBranchId,
+  SessionId,
+  SessionNodeId,
+  WagglePresetId,
+  WorkingPath,
+} from './brand'
 import type { FileSuggestion } from './composer'
 import type { ContextCompactionResult, ContextUsageSnapshot } from './context-usage'
 import type {
@@ -21,22 +28,32 @@ import type {
   GhCliStatus,
 } from './feedback'
 import type {
+  ChangeRequestCheckoutResult,
+  ChangeRequestListResult,
   GitBranchCheckoutPayload,
   GitBranchCreatePayload,
-  GitBranchDeletePayload,
   GitBranchListResult,
   GitBranchMutationResult,
-  GitBranchRenamePayload,
-  GitBranchSetUpstreamPayload,
   GitCommitPayload,
   GitCommitResult,
-  GitFileDiff,
+  GitDiffResult,
+  GitRunStackedActionOptions,
+  GitRunStackedActionResult,
   GitStatusSummary,
+  GitWorkingTreeMutationResult,
+  GitWorktreeCreatePayload,
+  GitWorktreeListResult,
+  GitWorktreeMutationResult,
+  GitWorktreeRemovePayload,
+  LocalVcsStatusResult,
+  RemoteVcsStatusResult,
+  SessionWorktreeCheck,
 } from './git'
 import type { IpcEventPayload } from './ipc'
 import type { ProviderInfo, SupportedModelId } from './llm'
 import type { OpenWaggleExtensionApi } from './openwaggle-extension-api'
 import type { OpenWaggleMcpApi } from './openwaggle-mcp-api'
+import type { OpenWaggleWorkspaceFilesApi } from './openwaggle-workspace-files-api'
 import type { AgentPhaseState } from './phase'
 import type {
   SessionCopyToNewResult,
@@ -48,6 +65,7 @@ import type {
   SessionTreeUiStatePatch,
   SessionWorkspace,
   SessionWorkspaceSelection,
+  SessionWorktreePlan,
 } from './session'
 import type { Settings } from './settings'
 import type {
@@ -55,18 +73,15 @@ import type {
   AgentsResolutionResult,
   SkillCatalogResult,
 } from './standards'
+import type { TurnCheckpointSummary, TurnDiff } from './turn-diff'
 import type { UpdateStatus } from './updater'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 import type { WaggleConfig, WagglePreset } from './waggle'
-import type {
-  WorkspaceContentMatch,
-  WorkspaceFileEntry,
-  WorkspaceFileReadResult,
-  WorkspaceFileWriteInput,
-  WorkspaceFileWriteResult,
-} from './workspace-files'
 
-export interface OpenWaggleApi extends OpenWaggleExtensionApi, OpenWaggleMcpApi {
+export interface OpenWaggleApi
+  extends OpenWaggleExtensionApi,
+    OpenWaggleMcpApi,
+    OpenWaggleWorkspaceFilesApi {
   // Agent
   sendMessage(
     sessionId: SessionId,
@@ -128,6 +143,8 @@ export interface OpenWaggleApi extends OpenWaggleExtensionApi, OpenWaggleMcpApi 
   listSessions(limit?: number): Promise<SessionSummary[]>
   listSessionDetails(limit?: number): Promise<SessionDetail[]>
   getSessionDetail(id: SessionId): Promise<SessionDetail | null>
+  listTurnCheckpoints(id: SessionId): Promise<TurnCheckpointSummary[]>
+  getTurnDiff(id: SessionId, turnId: string): Promise<TurnDiff | null>
   createSession(projectPath: string): Promise<SessionDetail>
   forkSessionToNew(
     sessionId: SessionId,
@@ -145,6 +162,7 @@ export interface OpenWaggleApi extends OpenWaggleExtensionApi, OpenWaggleMcpApi 
   unarchiveSession(id: SessionId): Promise<void>
   listArchivedSessions(): Promise<SessionSummary[]>
   updateSessionTitle(id: SessionId, title: string): Promise<void>
+  setSessionWorktreePlan(id: SessionId, plan: SessionWorktreePlan): Promise<void>
   listArchivedSessionBranches(limit?: number): Promise<SessionSummary[]>
   getSessionTree(sessionId: SessionId): Promise<SessionTree | null>
   getSessionWorkspace(
@@ -161,6 +179,9 @@ export interface OpenWaggleApi extends OpenWaggleExtensionApi, OpenWaggleMcpApi 
   archiveSessionBranch(sessionId: SessionId, branchId: SessionBranchId): Promise<void>
   restoreSessionBranch(sessionId: SessionId, branchId: SessionBranchId): Promise<void>
   updateSessionTreeUiState(sessionId: SessionId, patch: SessionTreeUiStatePatch): Promise<void>
+  onGitWorkingTreeChanged(
+    callback: (payload: IpcEventPayload<'git:working-tree-changed'>) => void,
+  ): () => void
   onSessionTitleUpdated(
     callback: (payload: IpcEventPayload<'sessions:title-updated'>) => void,
   ): () => void
@@ -176,30 +197,42 @@ export interface OpenWaggleApi extends OpenWaggleExtensionApi, OpenWaggleMcpApi 
   onFullscreenChanged(callback: (isFullscreen: boolean) => void): () => void
 
   // Git
-  getGitStatus(projectPath: string): Promise<GitStatusSummary>
-  commitGit(projectPath: string, payload: GitCommitPayload): Promise<GitCommitResult>
-  getGitDiff(projectPath: string): Promise<GitFileDiff[]>
-  listGitBranches(projectPath: string): Promise<GitBranchListResult>
+  getGitStatus(workingPath: WorkingPath): Promise<GitStatusSummary>
+  commitGit(workingPath: WorkingPath, payload: GitCommitPayload): Promise<GitCommitResult>
+  getGitDiff(workingPath: WorkingPath): Promise<GitDiffResult>
+  getGitBranchDiff(workingPath: WorkingPath, baseRef: string): Promise<GitDiffResult>
+  stageAllGitChanges(workingPath: WorkingPath): Promise<GitWorkingTreeMutationResult>
+  revertAllGitChanges(workingPath: WorkingPath): Promise<GitWorkingTreeMutationResult>
+  listGitBranches(repositoryPath: RepositoryPath): Promise<GitBranchListResult>
   checkoutGitBranch(
-    projectPath: string,
+    workingPath: WorkingPath,
     payload: GitBranchCheckoutPayload,
   ): Promise<GitBranchMutationResult>
   createGitBranch(
-    projectPath: string,
+    workingPath: WorkingPath,
     payload: GitBranchCreatePayload,
   ): Promise<GitBranchMutationResult>
-  renameGitBranch(
+  checkSessionWorktree(worktreePath: string | null): Promise<SessionWorktreeCheck>
+  listGitWorktrees(repositoryPath: RepositoryPath): Promise<GitWorktreeListResult>
+  createGitWorktree(
+    repositoryPath: RepositoryPath,
+    payload: GitWorktreeCreatePayload,
+  ): Promise<GitWorktreeMutationResult>
+  removeGitWorktree(
+    repositoryPath: RepositoryPath,
+    payload: GitWorktreeRemovePayload,
+  ): Promise<GitWorktreeMutationResult>
+  getLocalVcsStatus(workingPath: WorkingPath): Promise<LocalVcsStatusResult>
+  getRemoteVcsStatus(workingPath: WorkingPath): Promise<RemoteVcsStatusResult>
+  runStackedGitAction(
+    workingPath: WorkingPath,
+    options: GitRunStackedActionOptions,
+  ): Promise<GitRunStackedActionResult>
+  listChangeRequests(projectPath: string): Promise<ChangeRequestListResult>
+  checkoutChangeRequest(
     projectPath: string,
-    payload: GitBranchRenamePayload,
-  ): Promise<GitBranchMutationResult>
-  deleteGitBranch(
-    projectPath: string,
-    payload: GitBranchDeletePayload,
-  ): Promise<GitBranchMutationResult>
-  setGitBranchUpstream(
-    projectPath: string,
-    payload: GitBranchSetUpstreamPayload,
-  ): Promise<GitBranchMutationResult>
+    reference: string,
+  ): Promise<ChangeRequestCheckoutResult>
 
   // Attachments
   prepareAttachments(projectPath: string, files: readonly File[]): Promise<PreparedAttachment[]>
@@ -264,22 +297,6 @@ export interface OpenWaggleApi extends OpenWaggleExtensionApi, OpenWaggleMcpApi 
 
   // Composer
   suggestFiles(projectPath: string, query: string): Promise<FileSuggestion[]>
-
-  // Workspace files
-  searchWorkspaceFiles(
-    projectPath: string,
-    query: string,
-    limit: number,
-  ): Promise<WorkspaceFileEntry[]>
-  searchWorkspaceContent(
-    projectPath: string,
-    query: string,
-    limit: number,
-  ): Promise<WorkspaceContentMatch[]>
-  cancelWorkspaceContentSearch(projectPath: string): Promise<void>
-  readWorkspaceFile(projectPath: string, path: string): Promise<WorkspaceFileReadResult>
-  writeWorkspaceFile(input: WorkspaceFileWriteInput): Promise<WorkspaceFileWriteResult>
-  openWorkspaceFileExternal(projectPath: string, path: string): Promise<void>
 
   // Auto-updater
   checkForUpdates(): Promise<void>

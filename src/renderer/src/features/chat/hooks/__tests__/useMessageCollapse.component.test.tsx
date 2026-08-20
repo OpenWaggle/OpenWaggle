@@ -1,15 +1,18 @@
-import type { UIMessage } from '@shared/types/chat-ui'
+import type {
+  ChatTextPart,
+  ChatToolCallPart,
+  UIMessage,
+  UIMessagePart,
+} from '@shared/types/chat-ui'
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { useMessageCollapse } from '../useMessageCollapse'
 
-type MessagePart = UIMessage['parts'][number]
-
-function textPart(content: string) {
+function textPart(content: string): ChatTextPart {
   return { type: 'text', content }
 }
 
-function toolCallPart(name: string, id = 'tc-1') {
+function toolCallPart(name: string, id = 'tc-1'): ChatToolCallPart {
   return {
     type: 'tool-call',
     id,
@@ -19,7 +22,7 @@ function toolCallPart(name: string, id = 'tc-1') {
   }
 }
 
-function createMessage(id: string, parts: MessagePart[]) {
+function createMessage(id: string, parts: UIMessagePart[]): UIMessage {
   return { id, role: 'assistant', parts }
 }
 

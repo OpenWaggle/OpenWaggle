@@ -1,6 +1,17 @@
 !include "StrFunc.nsh"
-${StrStr}
-${StrRep}
+; StrFunc requires each helper to be declared before use, and a declared-but-unreferenced
+; helper emits `warning 6010: install function ... not referenced`. electron-builder runs
+; makensis with warnings-as-errors and compiles the uninstaller in a separate pass (marked
+; by BUILD_UNINSTALLER), so declaring both variants unconditionally fails whichever pass
+; does not use one. Declare per pass instead.
+;
+; The uninstaller also needs the `Un` variants: they generate `un.`-prefixed functions,
+; which are the only ones NSIS lets you Call from an uninstall section.
+!ifdef BUILD_UNINSTALLER
+  ${UnStrRep}
+!else
+  ${StrStr}
+!endif
 
 !macro customInstall
   ; Install a stable command shim beside the application. The shim delegates to
@@ -30,7 +41,7 @@ openwaggle_cli_path_done:
   ; Remove only this exact install directory from the user PATH.
   ReadRegStr $0 HKCU "Environment" "Path"
   StrCpy $1 ";$0;"
-  ${StrRep} $1 "$1" ";$INSTDIR;" ";"
+  ${UnStrRep} $1 "$1" ";$INSTDIR;" ";"
   StrCpy $2 $1 1
   StrCmp $2 ";" 0 openwaggle_cli_path_trim_end
   StrCpy $1 $1 "" 1

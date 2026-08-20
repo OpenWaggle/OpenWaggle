@@ -1,20 +1,20 @@
+import type { SessionContextRowState } from '@/features/git'
 import { useProject } from '@/features/sessions/hooks'
-import { BranchPicker } from './BranchPicker'
+import { RunTargetPicker } from './RunTargetPicker'
 
 interface ComposerBranchRowProps {
+  readonly strip: SessionContextRowState | null
   readonly onToast?: (message: string) => void
 }
 
-export function ComposerBranchRow({ onToast }: ComposerBranchRowProps) {
+export function ComposerBranchRow({ strip, onToast }: ComposerBranchRowProps) {
   const { projectPath } = useProject()
 
   if (!projectPath) {
     return null
   }
 
-  return (
-    <div className="mt-1 flex h-7 items-center justify-end px-4">
-      <BranchPicker onToast={onToast} />
-    </div>
-  )
+  // Row layout is owned by the parent so this shares one row with the session
+  // context row: mode on the left, the single run-target picker on the right.
+  return <RunTargetPicker strip={strip} onToast={onToast} />
 }

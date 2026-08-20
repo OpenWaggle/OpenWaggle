@@ -16,9 +16,11 @@ export function buildSessionNodes(nodeRows: readonly SessionNodeRow[]) {
   const visibleParentById = buildVisibleParentByRowId(nodeRows)
   const visibleDepthById = new Map<string, number>()
 
-  return nodeRows
-    .filter((row) => !isHiddenProjectionRow(row))
-    .map((row) => hydrateSessionNode(row, visibleParentById, visibleDepthById))
+  return nodeRows.flatMap((row) =>
+    isHiddenProjectionRow(row)
+      ? []
+      : [hydrateSessionNode(row, visibleParentById, visibleDepthById)],
+  )
 }
 
 export function visibleNodeIdForHead(

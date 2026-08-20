@@ -1,9 +1,10 @@
+import type { AttachmentRecord } from '@shared/types/agent'
 import { SupportedModelId, WagglePresetId } from '@shared/types/brand'
 import type { WagglePreset } from '@shared/types/waggle'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useComposerStore } from '../composer-store'
 
-function makeAttachment(id: string) {
+function makeAttachment(id: string): AttachmentRecord {
   return {
     id,
     kind: 'text',
@@ -47,15 +48,6 @@ function makeWagglePreset(): WagglePreset {
 describe('composer-store', () => {
   beforeEach(() => {
     useComposerStore.getState().reset()
-    // Also ensure fields not cleared by reset are back to defaults
-    useComposerStore.setState({
-      actionDialog: null,
-      actionDialogInput: '',
-      actionDialogError: null,
-      actionDialogBusy: false,
-      activeDraftContextKey: null,
-      scopedDrafts: {},
-    })
   })
 
   describe('text input', () => {

@@ -6,7 +6,10 @@ export const SCROLL_PERSIST_DEBOUNCE_MS = 150
 export const SESSION_RESTORE_RETRY_MS = 96
 
 const SCROLL_CACHE_MAX_ENTRIES = 100
-const SCROLL_CACHE_KEY = 'openwaggle:scroll-positions'
+// Versioned key: if the persisted shape ever changes, old data is simply not
+// found rather than parsed into a crash for users with saved sessions
+// (react-doctor/client-localstorage-no-version).
+const SCROLL_CACHE_KEY = 'openwaggle:scroll-positions:v1'
 
 function isScrollCacheEntry(value: unknown): value is readonly [string, number] {
   return isMatching(P.tuple([P.string, P.finite]), value)

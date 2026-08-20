@@ -82,21 +82,29 @@ After fixing errors, re-run the same diagnostic command from Step 1. Verify:
 
 ## Configuration
 
-The project uses `doctor.config.json` at the repo root:
+The project uses `doctor.config.ts` at the repo root (TypeScript, so each suppression can
+carry the reason it exists):
 
-```json
-{
-  "ignore": {
-    "files": [".codex/worktrees/**", ".openwaggle/worktrees/**", ".pi/worktrees/**"],
-    "rules": []
-  }
+```ts
+const config: DoctorConfig = {
+  ignore: {
+    files: ['.codex/worktrees/**', '.openwaggle/worktrees/**', '.typecheck/**', 'out/**'],
+    rules: [],
+    overrides: [
+      { files: ['path/to/file.ts'], rules: ['plugin/rule'] }, // with a comment explaining why
+    ],
+  },
 }
 ```
 
-- `ignore.files` — Glob patterns to exclude tool-managed worktrees and generated code.
-- `ignore.rules` — Rules to suppress using `plugin/rule` format.
+- `ignore.files` — Glob patterns excluding tool-managed worktrees and generated output.
+- `ignore.rules` — Rules suppressed project-wide, in `plugin/rule` format. Keep this empty.
+- `ignore.overrides` — Per-file + per-rule suppressions. **Prefer these.**
 
-To suppress a rule project-wide, add it to `ignore.rules`. To suppress for specific files, add glob patterns to `ignore.files`.
+Policy for this repository: no blanket rule disables, and no suppression of a finding that
+could be fixed in code. Every override must be a *verified* false positive, scoped to the
+narrowest file + rule pair, with a comment recording the evidence. If a finding is real,
+fix the code instead.
 
 ## Project context
 

@@ -59,6 +59,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     cancelAgent: cancelAgentMock,
     deleteSession: deleteSessionMock,
     getGitStatus: getGitStatusMock,
+    onGitWorkingTreeChanged: () => () => {},
     getProjectPreferences: getProjectPreferencesMock,
     getProviderModels: getProviderModelsMock,
     listActiveRuns: listActiveRunsMock,

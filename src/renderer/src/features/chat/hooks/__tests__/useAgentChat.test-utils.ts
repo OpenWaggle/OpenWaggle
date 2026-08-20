@@ -1,4 +1,5 @@
 import type { AgentSendPayload } from '@shared/types/agent'
+import type { BackgroundRunSnapshot } from '@shared/types/background-run'
 import { MessageId, SessionId, ToolCallId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { act, cleanup } from '@testing-library/react'
@@ -24,21 +25,21 @@ const {
     { readonly messages: readonly unknown[]; updatedAt: number }
   >()
   const getRunRenderSnapshotMock = vi.fn(
-    (sessionId: string) => runRenderSnapshots.get(String(sessionId)) ?? null,
+    (sessionId: SessionId) => runRenderSnapshots.get(String(sessionId)) ?? null,
   )
-  const setRunRenderMessagesMock = vi.fn((sessionId: string, messages: readonly unknown[]) => {
+  const setRunRenderMessagesMock = vi.fn((sessionId: SessionId, messages: readonly unknown[]) => {
     runRenderSnapshots.set(String(sessionId), {
       messages: [...messages],
       updatedAt: Date.now(),
     })
   })
-  const hasActiveRunMock = vi.fn(() => false)
+  const hasActiveRunMock = vi.fn((_id: SessionId) => false)
   const useBackgroundRunStoreMock = vi.fn(
     (
       selector: (state: {
-        getRunRenderSnapshot: (sessionId: string) => unknown
-        hasActiveRun: (sessionId: string) => boolean
-        setRunRenderMessages: (sessionId: string, messages: readonly unknown[]) => void
+        getRunRenderSnapshot: (sessionId: SessionId) => unknown
+        hasActiveRun: (sessionId: SessionId) => boolean
+        setRunRenderMessages: (sessionId: SessionId, messages: readonly unknown[]) => void
       }) => unknown,
     ) =>
       selector({
@@ -63,11 +64,11 @@ const {
         runCompletedHandlers.push(handler)
         return () => {}
       }),
-      getBackgroundRun: vi.fn(async () => null),
-      getSessionDetail: vi.fn(async () => null),
-      sendMessage: vi.fn(async () => undefined),
-      sendWaggleMessage: vi.fn(async () => undefined),
-      cancelAgent: vi.fn(async () => undefined),
+      getBackgroundRun: vi.fn(async (): Promise<BackgroundRunSnapshot | null> => null),
+      getSessionDetail: vi.fn(async (): Promise<SessionDetail | null> => null),
+      sendMessage: vi.fn(async (): Promise<void> => undefined),
+      sendWaggleMessage: vi.fn(async (): Promise<void> => undefined),
+      cancelAgent: vi.fn(async (): Promise<void> => undefined),
       steerAgent: vi.fn(async () => ({ preserved: true })),
       respondAgentInteraction: vi.fn(async () => ({
         ok: true,
@@ -113,7 +114,7 @@ function emitRunCompleted(payload: unknown) {
   }
 }
 
-function createSession() {
+function createSession(): SessionDetail {
   return {
     id: SessionId('session-1'),
     title: 'SessionDetail',
@@ -141,7 +142,10 @@ function createSession() {
   }
 }
 
-function createSessionWithMessages(updatedAt: number, messages: SessionDetail['messages']) {
+function createSessionWithMessages(
+  updatedAt: number,
+  messages: SessionDetail['messages'],
+): SessionDetail {
   return {
     id: SessionId('session-1'),
     title: 'SessionDetail',
@@ -152,7 +156,7 @@ function createSessionWithMessages(updatedAt: number, messages: SessionDetail['m
   }
 }
 
-function createSessionWithId(id: SessionId) {
+function createSessionWithId(id: SessionId): SessionDetail {
   return {
     id,
     title: `Session ${String(id)}`,
@@ -167,7 +171,7 @@ function createSessionWithIdAndMessages(
   id: SessionId,
   updatedAt: number,
   messages: SessionDetail['messages'],
-) {
+): SessionDetail {
   return {
     id,
     title: `Session ${String(id)}`,

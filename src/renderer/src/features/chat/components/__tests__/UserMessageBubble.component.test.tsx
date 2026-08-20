@@ -17,7 +17,7 @@ vi.mock('@/features/workspace-files/hooks', () => ({
 
 import { UserMessageBubble } from '../UserMessageBubble'
 
-function createUserMessage(id: string, parts: UIMessage['parts']) {
+function createUserMessage(id: string, parts: UIMessage['parts']): UIMessage {
   return { id, role: 'user', parts }
 }
 

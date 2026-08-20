@@ -432,6 +432,134 @@ _Avoid_: renderer-only history
 OpenWaggle-owned live state for a Pi interaction request waiting for user feedback.
 _Avoid_: extension-local pending prompt
 
+### Source control and diff
+
+**Source control provider**:
+An integrated remote hosting service OpenWaggle drives for change requests and remote refs, such as GitHub or GitLab.
+_Avoid_: git remote (that is the plain URL), forge
+
+**Change request**:
+The provider-neutral concept that a GitHub pull request or a GitLab merge request instantiates.
+_Avoid_: PR (as the neutral term), MR (as the neutral term)
+
+**Stacked git action**:
+A single composite git intent that runs an ordered set of steps — for example commit, then push, then open a change request — as one user action.
+_Avoid_: batch commit, macro
+
+**Local VCS status**:
+The network-free part of a repository's git status — repo presence, current ref, default-ref and primary-remote flags, and working-tree changes — that the diff panel can read instantly.
+_Avoid_: git status (unqualified)
+
+**Remote VCS status**:
+The network-derived part of a repository's git status — upstream presence, ahead/behind and ahead-of-default counts, and open change-request state — loaded asynchronously.
+_Avoid_: git status (unqualified)
+
+**Working-tree diff**:
+The diff scope showing staged and unstaged changes in the current working tree.
+_Avoid_: local diff, dirty diff
+
+**Branch diff**:
+The diff scope comparing the current branch against a chosen base ref.
+_Avoid_: PR diff, full diff
+
+**Branch-diff base ref**:
+The ref the Branch diff compares against; chosen in the diff panel, changeable at any time, and view-only (it never alters the repository or a Session worktree).
+_Avoid_: base ref (unqualified), worktree base ref
+
+**Worktree base ref**:
+The ref a Session worktree is forked from when it is born on first send; chosen before send in worktree mode (defaulting to the current branch). Frozen once the worktree exists, as birth provenance: Turn checkpoints anchor to it, so it records where the worktree came from and is **not** a claim about which branch is checked out now.
+_Avoid_: base ref (unqualified), branch-diff base ref, start branch, current branch
+
+**Turn diff**:
+The diff scope showing the file changes produced by one Pi agent turn, computed from per-turn worktree checkpoint snapshots stored by OpenWaggle.
+_Avoid_: message diff, step diff
+
+**Turn checkpoint**:
+A persisted snapshot of a Session worktree's file state captured per Pi agent turn, stored as a diff blob and queryable by turn range to produce Turn diffs.
+_Avoid_: Pi session snapshot (that is conversation state), autosave
+
+**Session worktree**:
+A dedicated git worktree bound to one session running in worktree environment mode and shared by that session's conversation forks. OpenWaggle owns the worktree: it persists the worktree **path** and derives the branch name from the session id (`sessionWorktreeBranch`), rather than storing it. A branch changed underneath it — by the agent or from a terminal — is **not tracked**, a deliberate limitation recorded in ADR 0018.
+_Avoid_: branch (ambiguous here), session branch, checkout
+
+**Working path**:
+The working tree a session's git reads and writes target: its Session worktree in worktree mode, the opened checkout in local mode. Distinct from the project path, which identifies the repository and still keys repository-level data such as branch lists, worktree lists and remotes.
+_Avoid_: project path (that is the repository), cwd, workdir
+
+**Session environment mode**:
+How a session's git work is isolated: `local` runs directly in the opened checkout, `worktree` runs in a dedicated Session worktree; chosen per session with a configurable default.
+_Avoid_: sandbox, isolation level
+
+### Appearance and design tokens
+
+**Design token contract**:
+The single versioned set of semantic presentation roles — colour, typography, spacing, radius, focus, and elevation — published by the extension SDK and consumed by both the OpenWaggle app and extensions, so host and extension UI cannot drift apart.
+_Avoid_: theme (that is an instance), CSS variables (that is the transport), design system (broader than the token set)
+
+**Appearance**:
+A named instance of the Design token contract that a user can select, such as dark or light.
+_Avoid_: theme (ambiguous with the extension theme object), skin
+
+**Colour scheme**:
+The light-or-dark polarity flag carried inside an Appearance, used by consumers that only need to know the polarity rather than individual role values.
+_Avoid_: appearance (that is the full instance), mode (ambiguous with Session environment mode)
+
+**Semantic role**:
+One named entry in the Design token contract, such as `surfaceRaised` or `textMuted`, defined by the meaning of its use rather than by a literal value.
+_Avoid_: variable, colour name, palette entry
+
+**Derived token**:
+An OpenWaggle-internal presentation value computed from Semantic roles for a specific surface, such as the diff panel's add/remove colours, kept out of the public contract while still re-theming automatically.
+_Avoid_: private token (it is still a CSS variable), one-off colour
+
+**Changed-file navigator**:
+The diff panel's list of files in the active diff scope, used to jump to a file's section and to submit a review.
+_Avoid_: worktree sidebar (worktree means a git worktree here), file tree (it is scoped to changed files, not the repository), sidebar (that is the app-level surface)
+
+**Session context row**:
+The composer-adjacent row stating where the next send will run. Its left half owns the **Session environment mode**; its right half is the **Run target picker**. Deliberately one fixed-height row, so changing mode never shifts the composer.
+_Avoid_: branch toolbar, composer context strip, Composer extension surface (that is for extension controls)
+
+**Run target**:
+The ref the next send will run on. In `local` mode that is the checked-out branch; in `worktree` mode it is the **Worktree base ref** the new worktree branches from. One name for one question, because showing the same branch string in two controls left it ambiguous which governed the send.
+_Avoid_: current branch (only true in local mode), base branch (only true in worktree mode), run context
+
+**Run target picker**:
+The single ref chooser in the **Session context row**. Selecting a ref resolves against the **Session environment mode**: it checks the ref out in `local` mode and records it as the **Worktree base ref** in `worktree` mode. It also hosts ref search, create-and-switch, copy-name, start-from-origin, and change-request checkout. It offers no branch administration — see ADR 0017.
+_Avoid_: branch picker (it picks a run target, not a branch to manage), branch manager, Options popover (removed)
+
+**Syntax theme**:
+The token-colour scheme applied to code text inside a diff (keyword, string, comment, and so on), supplied by the diff renderer and selectable by the user. It is deliberately **not** part of the Design token contract: its taxonomy is language grammar scopes, not semantic presentation roles.
+_Avoid_: Appearance (that governs chrome, not code tokens), colour scheme, palette
+
+**Syntax theme preview**:
+The live patch rendered inside the Syntax theme picker, using the real renderer and the real Diff chrome, so the choice is made by looking rather than by reading a description.
+_Avoid_: sample, thumbnail (it is a working diff, not an image), swatch
+
+**Diff chrome**:
+Everything the diff renderer draws around the code text — gutters, line numbers, add/remove backgrounds, word-level emphasis, hover, selection, separators. Unlike the Syntax theme, the diff chrome is driven by OpenWaggle Semantic roles (as Derived tokens), so it always matches the active Appearance.
+_Avoid_: diff theme (ambiguous with Syntax theme), diff style (that is unified-vs-split)
+
+**Hunk**:
+A contiguous block of changed lines within a file diff, introduced by an `@@` header. The unit the renderer groups changes into; used in code and docs but not in button labels.
+_Avoid_: chunk, block, section
+
+**Diff view**:
+The layout the diff is drawn in — unified (one column) or split (side-by-side). A user-selectable Diff view setting.
+_Avoid_: diff mode (ambiguous with Session environment mode), stacked (reads as a third mode rather than a synonym for unified)
+
+**Review comment**:
+A piece of feedback a user anchors to a line or line range in the Changed-file navigator's diff, addressed to the agent rather than to a remote change request. Carries the anchored diff snippet so the agent sees the code being discussed.
+_Avoid_: inline comment (that is the UI affordance), change-request comment (that targets a PR/MR)
+
+**Review**:
+The set of pending Review comments plus an optional Review summary, accumulated in the diff panel and submitted to the agent as one message. Pending until submitted; discarding clears it without sending.
+_Avoid_: batch, PR review (no remote change request is involved)
+
+**Review summary**:
+An optional overall instruction attached to a Review at submit time, framing the individual Review comments for the agent.
+_Avoid_: description, cover letter, global comment
+
 ## Relationships
 
 - An **OpenWaggle extension package** declares zero or more **OpenWaggle desktop contributions** across one or more **Extension contribution surfaces**.
@@ -536,6 +664,16 @@ _Avoid_: extension-local pending prompt
 - **Extension package state** and **Extension contribution instance state** may enhance live rendering, but they are not **Agent-loop durable state**.
 - OpenWaggle owns each **Extension contribution container**; the extension owns only the content mounted inside it.
 - The **Composer extension surface** is constrained to compact actions and launchers instead of arbitrary composer input injection.
+- The **Design token contract** has exactly one definition, published by the extension SDK; the app consumes it rather than maintaining a parallel token set, so extension UI cannot visually drift from host UI.
+- An **Appearance** supplies a value for every **Semantic role** in the **Design token contract** and carries one **Colour scheme**.
+- A **Derived token** is computed from **Semantic roles**, so it re-themes with an **Appearance** without appearing in the public contract.
+- A session's git reads and writes target its **Working path**; **Session environment mode** decides whether that is the **Session worktree** or the opened checkout. Repository-level data (branch list, worktree list, remotes) stays keyed to the project, because a linked worktree shares refs with the primary checkout.
+- The **Session context row** states where the next send runs: it owns the **Session environment mode**, and its **Run target picker** owns the **Run target**, which resolves to the checked-out branch or the **Worktree base ref** depending on the mode. It is distinct from the **Branch-diff base ref** chosen in the diff panel.
+- The **Run target picker** deliberately excludes branch administration (rename, delete, set upstream); those were removed end to end in ADR 0017, so branch cleanup is asked of the agent or done outside OpenWaggle.
+- The **Changed-file navigator** lists files within the active diff scope, so its contents change with **Working-tree diff**, **Branch diff**, or **Turn diff** selection.
+- The **Diff chrome** is a set of **Derived tokens**, so it always matches the active **Appearance**; the **Syntax theme** is independent and selectable on its own.
+- A **Review comment** anchors to a diff line and carries its **Hunk** snippet; a **Review** gathers pending Review comments plus an optional **Review summary** and submits them to the agent as one message, never touching the composer.
+- A **Review** targets the agent, whereas a **Change request** targets a remote (GitHub/GitLab); they share no state.
 
 ## Example dialogue
 
@@ -768,3 +906,8 @@ _Avoid_: extension-local pending prompt
 - "installed docs" can imply a copied folder with no entry point. Resolved: installed docs must include an **Installed docs index** with predictable topic routing.
 - "docs path" can imply a fixed filesystem location. Resolved: agents should use the **Docs discovery capability** instead of hardcoding packaged paths.
 - "untrusted extension docs" can imply hidden local docs. Resolved: **Extension package documentation** is discoverable with provenance metadata regardless of trust or enablement.
+- "branch" is ambiguous between conversation forks and git. Resolved: a **SessionBranch** is a conversation-tree fork of the Pi message tree; a **Session worktree** (with its own temporary git branch) is the git isolation unit. A session in `worktree` **Session environment mode** owns one **Session worktree** shared across all its **SessionBranches**; a `local`-mode session has none and edits the opened checkout.
+- "turn diff" could imply the git commit range a turn produced. Resolved: a **Turn diff** is computed from persisted per-turn **Turn checkpoints** (worktree snapshots stored as diff blobs), a dedicated OpenWaggle subsystem distinct from Pi session (conversation) snapshots, so it works even for uncommitted in-turn edits.
+- "worktree sidebar" was used for the diff panel's file list, which collides with **Session worktree** (a git worktree). Resolved: that list is the **Changed-file navigator**; it is scoped to the active diff and has no relationship to git worktrees.
+- "theme" is ambiguous between the contract, a selectable instance, and the object handed to extensions. Resolved: the **Design token contract** is the versioned role set, an **Appearance** is a selectable instance of it, and the extension theme object is one projection of an Appearance across the SDK boundary.
+- "mode" is ambiguous between appearance polarity and git isolation. Resolved: **Colour scheme** is light-or-dark polarity; **Session environment mode** is `local` versus `worktree` git isolation.

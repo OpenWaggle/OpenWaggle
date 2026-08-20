@@ -7,14 +7,8 @@ import { sessionTreePanelReducer } from '../session-tree-panel-state'
 
 function makeTree() {
   const root = node({ id: 'root', depth: 0, order: 1 })
-  const user = {
-    ...node({ id: 'user', parentId: 'root', depth: 1, order: 2 }),
-    kind: 'user_message',
-  }
-  const tool = {
-    ...node({ id: 'tool', parentId: 'user', depth: 2, order: 3 }),
-    kind: 'tool_result',
-  }
+  const user = node({ id: 'user', parentId: 'root', depth: 1, order: 2, kind: 'user_message' })
+  const tool = node({ id: 'tool', parentId: 'user', depth: 2, order: 3, kind: 'tool_result' })
 
   return {
     session: {

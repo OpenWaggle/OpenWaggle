@@ -28,5 +28,6 @@ export interface CommandPaletteActionHandlers {
   readonly openSessionTree?: () => void
   readonly forkToNewSession?: () => void
   readonly cloneToNewSession?: () => void
+  readonly openWorktrees?: () => void
   readonly insertCompactCommand: () => void
 }

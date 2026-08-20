@@ -15,6 +15,7 @@ const config: object[] = [
     ignores: [
       'dist/**',
       'out/**',
+      '.typecheck/**',
       'node_modules/**',
       'packages/**/.pack/**',
       'packages/**/dist/**',

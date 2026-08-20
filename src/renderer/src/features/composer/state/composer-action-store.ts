@@ -1,11 +1,7 @@
 import { create } from 'zustand'
 import { useComposerStore } from './composer-store'
 
-export type ComposerActionDialogKind =
-  | 'create-branch'
-  | 'rename-branch'
-  | 'delete-branch'
-  | 'set-upstream'
+export type ComposerActionDialogKind = 'create-branch'
 
 interface ComposerActionState {
   // Action dialog

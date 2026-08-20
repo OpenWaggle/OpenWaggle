@@ -47,9 +47,7 @@ export function useActionDialogController({ onToast }: UseActionDialogController
   const inputRef = useRef<HTMLInputElement>(null)
   const gitBranch = git.status?.branch ?? null
   const hasInput = actionDialogHasInput(actionDialog)
-  const config = actionDialog
-    ? getActionDialogConfig(actionDialog, gitBranch, actionDialogInput)
-    : null
+  const config = actionDialog ? getActionDialogConfig(actionDialog) : null
 
   useEscapeHotkey(closeDialogIfIdle, { enabled: actionDialog !== null })
 
@@ -120,15 +118,11 @@ async function closeDialogOnMutationResult(
 function createActionDialogMutation(input: ActionDialogMutationInput) {
   return match(input.kind)
     .with('create-branch', () => createBranchMutation(input))
-    .with('rename-branch', () => renameBranchMutation(input))
-    .with('delete-branch', () => deleteBranchMutation(input))
-    .with('set-upstream', () => setUpstreamMutation(input))
     .exhaustive()
 }
 
 function createBranchMutation({
   actionDialogInput,
-  projectPath,
   git,
   setActionDialogError,
   onToast,
@@ -138,81 +132,12 @@ function createBranchMutation({
     setActionDialogError('Branch name is required.')
     return null
   }
+  const workingPath = git.workingPath
+  const repositoryPath = git.repositoryPath
   return runBranchMutation(
     () =>
-      projectPath
-        ? git.createBranch(projectPath, { name, checkout: true })
-        : Promise.resolve(NO_PROJECT_RESULT),
-    onToast,
-  )
-}
-
-function renameBranchMutation({
-  actionDialogInput,
-  gitBranch,
-  projectPath,
-  git,
-  setActionDialogError,
-  onToast,
-}: ActionDialogMutationInput) {
-  if (!gitBranch) return null
-  const target = actionDialogInput.trim()
-  if (!target) {
-    setActionDialogError('New branch name is required.')
-    return null
-  }
-  return runBranchMutation(
-    () =>
-      projectPath
-        ? git.renameBranch(projectPath, { from: gitBranch, to: target })
-        : Promise.resolve(NO_PROJECT_RESULT),
-    onToast,
-  )
-}
-
-function deleteBranchMutation({
-  actionDialogInput,
-  gitBranch,
-  projectPath,
-  git,
-  setActionDialogError,
-  onToast,
-}: ActionDialogMutationInput) {
-  const target = actionDialogInput.trim() || gitBranch
-  if (!target) return null
-  if (target === gitBranch) {
-    setActionDialogError(
-      'Cannot delete the currently checked out branch. Checkout another branch first.',
-    )
-    return null
-  }
-  return runBranchMutation(
-    () =>
-      projectPath
-        ? git.deleteBranch(projectPath, { name: target, force: false })
-        : Promise.resolve(NO_PROJECT_RESULT),
-    onToast,
-  )
-}
-
-function setUpstreamMutation({
-  actionDialogInput,
-  gitBranch,
-  projectPath,
-  git,
-  setActionDialogError,
-  onToast,
-}: ActionDialogMutationInput) {
-  if (!gitBranch) return null
-  const upstream = actionDialogInput.trim()
-  if (!upstream) {
-    setActionDialogError('Upstream branch is required.')
-    return null
-  }
-  return runBranchMutation(
-    () =>
-      projectPath
-        ? git.setUpstream(projectPath, { name: gitBranch, upstream })
+      workingPath && repositoryPath
+        ? git.createBranch(workingPath, repositoryPath, { name, checkout: true })
         : Promise.resolve(NO_PROJECT_RESULT),
     onToast,
   )

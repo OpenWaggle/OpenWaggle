@@ -82,6 +82,17 @@ export function getGhCliEnv(): Record<string, string | undefined> {
   return env
 }
 
+/**
+ * The current environment plus explicit overrides, for child git invocations that
+ * need extra variables (e.g. `GIT_INDEX_FILE` for a scratch index) while still
+ * inheriting PATH/HOME. `env.ts` is the only module allowed to read process.env.
+ */
+export function getEnvWithOverrides(
+  overrides: Readonly<Record<string, string>>,
+): Record<string, string | undefined> {
+  return { ...process.env, ...overrides }
+}
+
 export function getNpmCompatiblePath(): string {
   const result: string[] = []
   const seen = new Set<string>()

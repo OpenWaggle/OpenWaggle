@@ -1,7 +1,7 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 
 interface OptimisticSteeredUserTurn {
   readonly id: string
@@ -30,29 +30,24 @@ export function useOptimisticSteeredTurn(
   const [optimisticSteeredUserTurn, setOptimisticSteeredUserTurn] =
     useState<OptimisticSteeredUserTurn | null>(null)
 
-  const previousSessionIdRef = useRef(sessionId)
-
-  // Clear optimistic turn on session switch
-  useEffect(() => {
-    if (previousSessionIdRef.current === sessionId) {
-      return
-    }
-    previousSessionIdRef.current = sessionId
+  // Both clears below adjust state during render (the React-recommended
+  // prev-value comparison) rather than in an effect. Routing them through an
+  // effect commits one render showing the stale optimistic turn first
+  // (react-doctor/no-adjust-state-on-prop-change).
+  const [previousSessionId, setPreviousSessionId] = useState(sessionId)
+  if (previousSessionId !== sessionId) {
+    setPreviousSessionId(sessionId)
     setOptimisticSteeredUserTurn(null)
-  }, [sessionId])
+  }
 
-  // Clear optimistic turn when real message arrives
-  useEffect(() => {
-    if (!optimisticSteeredUserTurn) {
-      return
-    }
-    if (!isSessionIdle) {
-      return
-    }
-    if (hasMatchingSteeredUserTurn(hydratedMessages, optimisticSteeredUserTurn)) {
-      setOptimisticSteeredUserTurn(null)
-    }
-  }, [hydratedMessages, isSessionIdle, optimisticSteeredUserTurn])
+  // Clear the optimistic turn once the real steered message has arrived.
+  if (
+    optimisticSteeredUserTurn &&
+    isSessionIdle &&
+    hasMatchingSteeredUserTurn(hydratedMessages, optimisticSteeredUserTurn)
+  ) {
+    setOptimisticSteeredUserTurn(null)
+  }
 
   const visibleMessages = insertOptimisticSteeredUserTurn(
     hydratedMessages,

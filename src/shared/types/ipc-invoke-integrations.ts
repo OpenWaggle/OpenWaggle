@@ -1,7 +1,7 @@
 import type { AgentSendPayload, PreparedAttachment } from './agent'
 import type { OAuthAccountInfo, OAuthProvider } from './auth'
 import type { ActiveRunInfo, BackgroundRunSnapshot } from './background-run'
-import type { SessionId, WagglePresetId } from './brand'
+import type { RepositoryPath, SessionId, WagglePresetId, WorkingPath } from './brand'
 import type { FileSuggestion } from './composer'
 import type {
   DiagnosticsInfo,
@@ -12,16 +12,24 @@ import type {
 import type {
   GitBranchCheckoutPayload,
   GitBranchCreatePayload,
-  GitBranchDeletePayload,
   GitBranchListResult,
   GitBranchMutationResult,
-  GitBranchRenamePayload,
-  GitBranchSetUpstreamPayload,
   GitCommitPayload,
   GitCommitResult,
-  GitFileDiff,
+  GitDiffResult,
+  GitRunStackedActionOptions,
+  GitRunStackedActionResult,
   GitStatusSummary,
+  GitWorkingTreeMutationResult,
+  GitWorktreeCreatePayload,
+  GitWorktreeListResult,
+  GitWorktreeMutationResult,
+  GitWorktreeRemovePayload,
+  LocalVcsStatusResult,
+  RemoteVcsStatusResult,
+  SessionWorktreeCheck,
 } from './git'
+import type { IpcWorkspaceFileInvokeChannelMap } from './ipc-invoke-workspace-files'
 import type { SupportedModelId } from './llm'
 import type { AgentPhaseState } from './phase'
 import type {
@@ -29,22 +37,16 @@ import type {
   AgentsResolutionResult,
   SkillCatalogResult,
 } from './standards'
+import type { TurnCheckpointSummary, TurnDiff } from './turn-diff'
 import type { UpdateStatus } from './updater'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 import type { WaggleConfig, WagglePreset } from './waggle'
-import type {
-  WorkspaceContentMatch,
-  WorkspaceFileEntry,
-  WorkspaceFileReadResult,
-  WorkspaceFileWriteInput,
-  WorkspaceFileWriteResult,
-} from './workspace-files'
 
 // ─── IPC Channel Map ─────────────────────────────────────────
 // Single source of truth for every IPC channel.
 // Each entry defines: [channel name, args tuple, return type]
 
-export interface IpcIntegrationInvokeChannelMap {
+export interface IpcIntegrationInvokeChannelMap extends IpcWorkspaceFileInvokeChannelMap {
   'terminal:create': {
     args: [projectPath: string]
     return: string
@@ -58,40 +60,68 @@ export interface IpcIntegrationInvokeChannelMap {
     return: undefined
   }
   'git:status': {
-    args: [projectPath: string]
+    args: [workingPath: WorkingPath]
     return: GitStatusSummary
   }
   'git:commit': {
-    args: [projectPath: string, payload: GitCommitPayload]
+    args: [workingPath: WorkingPath, payload: GitCommitPayload]
     return: GitCommitResult
   }
   'git:diff': {
-    args: [projectPath: string]
-    return: GitFileDiff[]
+    args: [workingPath: WorkingPath]
+    return: GitDiffResult
+  }
+  'git:branch-diff': {
+    args: [workingPath: WorkingPath, baseRef: string]
+    return: GitDiffResult
+  }
+  'git:working-tree:stage-all': {
+    args: [workingPath: WorkingPath]
+    return: GitWorkingTreeMutationResult
+  }
+  'git:working-tree:revert-all': {
+    args: [workingPath: WorkingPath]
+    return: GitWorkingTreeMutationResult
   }
   'git:branches:list': {
-    args: [projectPath: string]
+    args: [repositoryPath: RepositoryPath]
     return: GitBranchListResult
   }
   'git:branches:checkout': {
-    args: [projectPath: string, payload: GitBranchCheckoutPayload]
+    args: [workingPath: WorkingPath, payload: GitBranchCheckoutPayload]
     return: GitBranchMutationResult
   }
   'git:branches:create': {
-    args: [projectPath: string, payload: GitBranchCreatePayload]
+    args: [workingPath: WorkingPath, payload: GitBranchCreatePayload]
     return: GitBranchMutationResult
   }
-  'git:branches:rename': {
-    args: [projectPath: string, payload: GitBranchRenamePayload]
-    return: GitBranchMutationResult
+  'git:worktrees:list': {
+    args: [repositoryPath: RepositoryPath]
+    return: GitWorktreeListResult
   }
-  'git:branches:delete': {
-    args: [projectPath: string, payload: GitBranchDeletePayload]
-    return: GitBranchMutationResult
+  'git:worktrees:create': {
+    args: [repositoryPath: RepositoryPath, payload: GitWorktreeCreatePayload]
+    return: GitWorktreeMutationResult
   }
-  'git:branches:set-upstream': {
-    args: [projectPath: string, payload: GitBranchSetUpstreamPayload]
-    return: GitBranchMutationResult
+  'git:worktrees:remove': {
+    args: [repositoryPath: RepositoryPath, payload: GitWorktreeRemovePayload]
+    return: GitWorktreeMutationResult
+  }
+  'git:worktrees:check': {
+    args: [worktreePath: string | null]
+    return: SessionWorktreeCheck
+  }
+  'git:vcs-status:local': {
+    args: [workingPath: WorkingPath]
+    return: LocalVcsStatusResult
+  }
+  'git:vcs-status:remote': {
+    args: [workingPath: WorkingPath]
+    return: RemoteVcsStatusResult
+  }
+  'git:stacked-action:run': {
+    args: [workingPath: WorkingPath, options: GitRunStackedActionOptions]
+    return: GitRunStackedActionResult
   }
   'attachments:prepare': {
     args: [projectPath: string, paths: string[]]
@@ -231,31 +261,6 @@ export interface IpcIntegrationInvokeChannelMap {
     args: [projectPath: string, query: string]
     return: FileSuggestion[]
   }
-  // Workspace files
-  'workspace-files:search': {
-    args: [projectPath: string, query: string, limit: number]
-    return: WorkspaceFileEntry[]
-  }
-  'workspace-files:search-content': {
-    args: [projectPath: string, query: string, limit: number]
-    return: WorkspaceContentMatch[]
-  }
-  'workspace-files:cancel-content-search': {
-    args: [projectPath: string]
-    return: undefined
-  }
-  'workspace-files:read': {
-    args: [projectPath: string, path: string]
-    return: WorkspaceFileReadResult
-  }
-  'workspace-files:write': {
-    args: [input: WorkspaceFileWriteInput]
-    return: WorkspaceFileWriteResult
-  }
-  'workspace-files:open-external': {
-    args: [projectPath: string, path: string]
-    return: undefined
-  }
   // Auto-updater
   'updater:check': {
     args: []
@@ -272,5 +277,13 @@ export interface IpcIntegrationInvokeChannelMap {
   'app:get-version': {
     args: []
     return: string
+  }
+  'sessions:turn-checkpoints:list': {
+    args: [id: SessionId]
+    return: TurnCheckpointSummary[]
+  }
+  'sessions:turn-diff:get': {
+    args: [id: SessionId, turnId: string]
+    return: TurnDiff | null
   }
 }

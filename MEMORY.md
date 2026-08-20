@@ -54,6 +54,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - On Apple silicon, performance/package QA should use arm64 outputs, not Rosetta x64 output from a universal build folder.
 - Electron Playwright E2E requires isolated user data and single-instance lock opt-out when another OpenWaggle instance is running.
 - CDP file upload can produce `File` objects without native paths; native file-path behavior needs preload/unit coverage or real OS selection QA.
+- **The Windows NSIS script is only compiled when electron-builder packages Windows, which happens in the release workflow, not CI.** An installer-variant StrFunc call inside `customUnInstall` broke two consecutive releases across six days before anyone noticed, because NSIS only rejects it at compile time. `build/installer.nsh` is now compile-checked by `pnpm check:installer` inside `pnpm check`, so it fails a pull request in seconds instead of a release in minutes. Two NSIS rules worth remembering: StrFunc helpers must be declared before use, and an uninstall section can only Call `un.`-prefixed functions, so `customUnInstall` needs the `Un` variants (`${UnStrRep}`, not `${StrRep}`).
 
 ## Renderer And Session Memory
 
@@ -68,6 +69,8 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Composer slash selection is owned by Lexical: keep focus in the editor, derive the active `/query` from its collapsed selection, replace or consume only that token, and serialize skill decorator nodes as `/skill-id`. Do not route `/` through a second-input global palette.
 - Waggle presets in the desktop composer are one-shot invocation metadata, not idle global mode state. A standard agent hands off through the terminating `waggle_invoke` Pi tool, and the main handler chains Waggle only after the standard result is durable.
 - Workspace file UI is route-backed, but all indexing, root confinement, preview reads, optimistic-revision writes, and external-open resolution stay behind `WorkspaceFileService` in the main process.
+- **React Compiler runs in the app build (`electron.vite.config.ts` -> `reactCompilerPreset()`) and, since this work, in the component test config too — but not in the node unit config, which renders nothing.** Any component that reads render data from a library-owned *mutable* instance can pass a suite that does not run the compiler and still render permanently stale in the real app: the compiler memoizes on referential identity, and the instance is mutated in place so its identity never changes. Hit for real with `@headless-tree` in the Changed-file navigator — `tree.getItems()` returned 262 items while zero rows reached the DOM. Fix is the scoped `'use no memo'` directive on the component that maps the mutable instance (an official compiler escape hatch, not a lint-ignore comment). See "The React Compiler now runs in component tests" below for the mechanism that now catches this class; for anything outside component tests, still treat a green suite as no evidence and verify in real Electron over CDP.
+- Corollary: prefer libraries whose render input is a plain value over ones exposing a mutable instance, precisely because our tests cannot see the difference.
 
 ## Product And UX Memory
 
@@ -90,3 +93,105 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Unit, integration, and component tests belong in nearby `__tests__/`; E2E stays under `e2e/`.
 - Do not suppress Fallow complexity findings; refactor instead.
 - Do not add legacy compatibility for removed pre-Pi surfaces unless explicitly requested.
+
+### `fromPartial` hides fixture mismatches as well as expressing them
+
+`fromPartial` from `@total-typescript/shoehorn` casts. Wrapping a whole test fixture in it
+makes type errors disappear whether the partiality was intended or not: a field with an
+outright wrong type (`switchToLocalMode: 'not-a-function'` where `() => void` is required)
+compiled silently once the object was wrapped. Verified while building the renderer test
+type guard — the guard passed with the broken fixture until the wrapper was removed.
+
+Use it only where a large type is deliberately stubbed and the test asserts on a subset.
+When a fixture is *meant* to be complete, keep it unwrapped so a missing or wrong field
+is reported. Two of this repository's own fixtures were failing for exactly that reason:
+required fields had been added to `SessionContextRowState` and never added to the fixtures.
+
+### A count-based ratchet is defeated by swapping one error for another
+
+The first version of `scripts/check-renderer-test-types.ts` compared per-file error counts
+against a baseline. A deliberately broken mock in a file that already had errors kept the
+total identical and passed. The check is binary per file instead: files not on
+`scripts/renderer-test-type-exemptions.json` must have zero errors, and an exempt file
+that becomes clean fails as a stale exemption so the list can only shrink.
+
+### The React Compiler now runs in component tests
+
+`vitest.component.config.ts` applies `reactCompilerPreset()` via `@rolldown/plugin-babel`,
+matching `electron.vite.config.ts`. Before this, component tests exercised un-compiled
+output while the app shipped compiled output, so the suite was structurally blind to
+compiler-interaction defects.
+
+Proof it now bites: deleting the scoped `'use no memo'` from `FileTree.tsx` — the directive
+that fixed a navigator rendering zero rows in the app while tests passed — fails 5 tests.
+Before the change, removing it failed none.
+
+The unit config runs in `environment: 'node'` and renders nothing, so it needs no compiler.
+
+### Two exported types with the same name in sibling modules is a live trap here
+
+`store/sessions/types.ts` and `store/session-details/types.ts` both export
+`SessionSummaryRow` with different shapes, and each module had its own
+`hydrateSessionSummary`. A change meant for the session list was made to the detail-side
+function: it typechecked, its own test passed, and the feature was simply absent until the
+app was opened. The detail-side function is now `hydrateSessionDetailSummary`.
+
+`pnpm check:repository-standards` fails on any *new* duplicate exported type name under
+`src/`, against a checked-in `KNOWN_DUPLICATE_EXPORTED_TYPES` list that can only shrink
+(resolving one without removing it from the list also fails). `packages/extension-sdk`
+deliberately mirrors shared types as its public surface, so the check is scoped to `src/`.
+
+Rules considered and rejected as noise: duplicate *declared* function names (241 existing)
+and duplicate *exported* function names (14). Only the type-name variant was both low-noise
+and pointed at the actual trap. Note the function I edited was not exported at all, so an
+export-only rule would never have caught it — the durable catch for that half is the
+integration test on the live `listSessions` path.
+
+### SELECT column lists are invisible to the type checker
+
+`sql<SessionSummaryRow>` asserts the row shape; it does not verify the query selects those
+columns. Three queries typed that way omitted `environment_mode` and `worktree_path`, so
+every session in the list reported local mode with no worktree and the per-session git
+indicators were absent. Typecheck, lint and the whole suite stayed green; it was found by
+opening the app.
+
+The columns now come from `SESSION_SUMMARY_COLUMN_NAMES` in `store/sessions/types.ts`,
+interpolated as a fragment by `sessionSummaryColumns(sql)`. Three layers keep it closed:
+the shared fragment, a repository-standards rule rejecting an inline column list in a
+`sql<SessionSummaryRow>` query, and `store/__tests__/session-summary-columns.integration.test.ts`
+which drives the real SQLite path. The detail-side `session-queries.ts` is exempted by name:
+its `SessionSummaryRow` is a different type with `message_count` and table aliases.
+
+Note the detail worth remembering: dropping a column fails the integration test but produces
+**zero** typecheck errors. Types cannot see into a SQL string.
+
+### Working-tree vs repository paths are branded (WorkingPath / RepositoryPath)
+
+`src/shared/types/brand.ts` defines `WorkingPath` and `RepositoryPath`. Working-tree reads
+and mutations (`getGitStatus`, `commitGit`, `getGitDiff`, `stageAllGitChanges`,
+`revertAllGitChanges`, vcs-status, stacked actions, branch checkout/create) take a
+`WorkingPath`; repository-level lists (branches, worktrees) take a `RepositoryPath`. Both
+are erased strings at runtime, so IPC serialization is unaffected.
+
+`resolveSessionWorkingDir` is the ONLY producer of a `WorkingPath` (in local mode it
+rebrands the checkout — same string, correct role); `useRepositoryPath` produces the
+`RepositoryPath`. So a working-tree mutation can only be fed from the session→tree rule,
+and passing a repository/project path to one is a compile error. `git-path-brands.unit.test.ts`
+pins this with `@ts-expect-error` on every wrong pairing — if a brand stops being enforced
+the directive goes unused and the typecheck fails.
+
+Branch checkout/create take BOTH a WorkingPath (git runs in a tree) and a RepositoryPath
+(whose branch list to refresh) — equal only in local mode, which is the only place checkout
+is reachable. The store's `checkoutBranch`/`createBranch` were previously handed one path
+named `workingPath` and used it for both; the branding surfaced that conflation.
+
+### The renderer test type exemption list is empty; keep it that way
+
+`scripts/renderer-test-type-exemptions.json` is `[]`. Every renderer test file typechecks
+under `tsconfig.renderer-tests.json`, enforced by `pnpm typecheck:tests` (part of
+`pnpm check`), which is binary per file: any test file with a type error fails. The
+dominant fix while clearing the original 330 was annotating fixture factory return types
+(`ChatTextPart`, `UIMessage`, `SessionNode`, `MessageChatRow`, `ChatPanelSections`, etc.)
+so a literal like `type: 'text'` or `role: 'assistant'` is checked against the interface
+instead of widening to `string`. Do NOT use `fromPartial` to silence a whole-object
+mismatch — it casts and hides real errors.

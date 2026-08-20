@@ -15,9 +15,6 @@ vi.mock('@/shared/lib/ipc', () => ({
     listGitBranches: vi.fn().mockResolvedValue(null),
     checkoutGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'Checked out' }),
     createGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
-    renameGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
-    deleteGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
-    setGitBranchUpstream: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
   },
 }))
 
@@ -32,26 +29,30 @@ describe('ComposerBranchRow', () => {
     })
     useGitStore.setState({
       ...useGitStore.getInitialState(),
-      status: {
-        branch: 'main',
-        additions: 0,
-        deletions: 0,
-        filesChanged: 0,
-        changedFiles: [],
-        clean: true,
-        ahead: 0,
-        behind: 0,
+      statusByWorkingPath: {
+        '/test/project': {
+          status: {
+            branch: 'main',
+            additions: 0,
+            deletions: 0,
+            filesChanged: 0,
+            changedFiles: [],
+            clean: true,
+            ahead: 0,
+            behind: 0,
+          },
+          isLoading: false,
+          error: null,
+        },
       },
-      branches: { branches: [] },
+      branches: { currentBranch: null, branches: [] },
     })
   })
 
-  it('renders the branch picker in a right-aligned row when a project is selected', () => {
-    const { container } = render(<ComposerBranchRow />)
+  it('renders the single run-target picker when a project is selected', () => {
+    render(<ComposerBranchRow strip={null} />)
 
-    expect(screen.getByTitle('Manage branches')).toBeInTheDocument()
-    expect(screen.getByText('main')).toBeInTheDocument()
-    expect(container.firstElementChild).toHaveClass('justify-end')
+    expect(screen.getByRole('button', { name: 'Run target: main' })).toBeInTheDocument()
   })
 
   it('renders no row when no project is selected', () => {
@@ -59,7 +60,7 @@ describe('ComposerBranchRow', () => {
       settings: { ...DEFAULT_SETTINGS, projectPath: null },
     })
 
-    const { container } = render(<ComposerBranchRow />)
+    const { container } = render(<ComposerBranchRow strip={null} />)
 
     expect(container.firstChild).toBeNull()
   })

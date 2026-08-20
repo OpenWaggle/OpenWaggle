@@ -1,7 +1,13 @@
 import { BASE_TEN, PERCENT_BASE } from '@shared/constants/math'
 import { SupportedModelId } from '@shared/types/brand'
+import { SESSION_ENVIRONMENT_MODES } from '@shared/types/git'
 import { parseModelRef } from '@shared/types/llm'
-import { DEFAULT_SETTINGS, THINKING_LEVELS } from '@shared/types/settings'
+import {
+  DEFAULT_SETTINGS,
+  DIFF_SYNTAX_THEMES,
+  DIFF_VIEWS,
+  THINKING_LEVELS,
+} from '@shared/types/settings'
 import {
   DEFAULT_SHORTCUT_BINDINGS,
   isMandatoryShortcutCommand,
@@ -31,6 +37,38 @@ export function resolveProjectPath(raw: unknown) {
 
 export function resolveThinkingLevel(raw: unknown) {
   return isValidThinkingLevel(raw) ? raw : DEFAULT_SETTINGS.thinkingLevel
+}
+
+export function isValidSessionEnvironmentMode(value: unknown) {
+  return typeof value === 'string' && includes(SESSION_ENVIRONMENT_MODES, value)
+}
+
+export function resolveDefaultSessionEnvironmentMode(raw: unknown) {
+  return isValidSessionEnvironmentMode(raw) ? raw : DEFAULT_SETTINGS.defaultSessionEnvironmentMode
+}
+
+export function isValidDiffSyntaxTheme(value: unknown) {
+  return typeof value === 'string' && includes(DIFF_SYNTAX_THEMES, value)
+}
+
+export function resolveDiffSyntaxTheme(raw: unknown) {
+  return isValidDiffSyntaxTheme(raw) ? raw : DEFAULT_SETTINGS.diffSyntaxTheme
+}
+
+export function isValidDiffView(value: unknown) {
+  return typeof value === 'string' && includes(DIFF_VIEWS, value)
+}
+
+export function resolveDiffView(raw: unknown) {
+  return isValidDiffView(raw) ? raw : DEFAULT_SETTINGS.diffView
+}
+
+export function resolveDiffWrapLines(raw: unknown) {
+  if (typeof raw === 'boolean') return raw
+  // Persisted as a string by the key-value store.
+  if (raw === 'true') return true
+  if (raw === 'false') return false
+  return DEFAULT_SETTINGS.diffWrapLines
 }
 
 export function normalizeStoredModelRef(raw: string) {

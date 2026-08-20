@@ -28,8 +28,14 @@ const CONFIG = {
       roleDescription: 'Reviews the change',
       color: 'blue',
     },
+    {
+      label: 'Verifier',
+      model: MODEL,
+      roleDescription: 'Verifies the change',
+      color: 'amber',
+    },
   ],
-  stop: { primary: 'fixed-turns', fixedTurns: 1, maxTurnsSafety: 2 },
+  stop: { primary: 'consensus', maxTurnsSafety: 2 },
 } satisfies WaggleConfig
 
 function deferredFailure() {

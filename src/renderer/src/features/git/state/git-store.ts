@@ -1,13 +1,11 @@
 import { match } from '@diegogbrisa/ts-match'
+import type { RepositoryPath, WorkingPath } from '@shared/types/brand'
 import type {
   GitBranchCheckoutPayload,
   GitBranchCreatePayload,
-  GitBranchDeletePayload,
   GitBranchListResult,
   GitBranchMutationFailure,
   GitBranchMutationResult,
-  GitBranchRenamePayload,
-  GitBranchSetUpstreamPayload,
   GitCommitFailure,
   GitCommitPayload,
   GitCommitResult,
@@ -16,37 +14,69 @@ import type {
 import { create } from 'zustand'
 import { api } from '@/shared/lib/ipc'
 
+/** Status for one working tree. Keyed by Working path so sessions do not overwrite each other. */
+export interface GitWorkingTreeStatus {
+  readonly status: GitStatusSummary | null
+  readonly isLoading: boolean
+  readonly error: string | null
+}
+
+const EMPTY_WORKING_TREE_STATUS: GitWorkingTreeStatus = {
+  status: null,
+  isLoading: false,
+  error: null,
+}
+
 interface GitState {
-  status: GitStatusSummary | null
+  /**
+   * Status per Working path (ADR 0018). A single slot could not represent two
+   * sessions running in two worktrees, which is exactly the case this fixes.
+   */
+  statusByWorkingPath: Readonly<Record<string, GitWorkingTreeStatus>>
+  /**
+   * Branch list is repository-level, not per session: a linked worktree shares
+   * `refs/` with the primary checkout, so one slot is correct and a map would
+   * duplicate identical data per session.
+   */
   branches: GitBranchListResult | null
-  isLoading: boolean
+  branchesError: string | null
   isCommitting: boolean
   isBranchActionRunning: boolean
-  statusError: string | null
-  branchesError: string | null
-  refreshStatus: (projectPath: string | null) => Promise<void>
-  refreshBranches: (projectPath: string | null) => Promise<void>
-  commit: (projectPath: string, payload: GitCommitPayload) => Promise<GitCommitResult>
+  refreshStatus: (workingPath: WorkingPath | null) => Promise<void>
+  refreshBranches: (repositoryPath: RepositoryPath | null) => Promise<void>
+  commit: (workingPath: WorkingPath, payload: GitCommitPayload) => Promise<GitCommitResult>
   checkoutBranch: (
-    projectPath: string,
+    workingPath: WorkingPath,
+    repositoryPath: RepositoryPath,
     payload: GitBranchCheckoutPayload,
   ) => Promise<GitBranchMutationResult>
   createBranch: (
-    projectPath: string,
+    workingPath: WorkingPath,
+    repositoryPath: RepositoryPath,
     payload: GitBranchCreatePayload,
   ) => Promise<GitBranchMutationResult>
-  renameBranch: (
-    projectPath: string,
-    payload: GitBranchRenamePayload,
-  ) => Promise<GitBranchMutationResult>
-  deleteBranch: (
-    projectPath: string,
-    payload: GitBranchDeletePayload,
-  ) => Promise<GitBranchMutationResult>
-  setUpstream: (
-    projectPath: string,
-    payload: GitBranchSetUpstreamPayload,
-  ) => Promise<GitBranchMutationResult>
+}
+
+/** Per-path request ids, so a slow response for one tree cannot overwrite a newer one. */
+const latestStatusRequestIdByPath = new Map<string, number>()
+
+function nextStatusRequestId(workingPath: string) {
+  const next = (latestStatusRequestIdByPath.get(workingPath) ?? 0) + 1
+  latestStatusRequestIdByPath.set(workingPath, next)
+  return next
+}
+
+function isStaleStatusRequest(workingPath: string, requestId: number) {
+  return latestStatusRequestIdByPath.get(workingPath) !== requestId
+}
+
+/** Read one working tree's status slice, defaulting to empty rather than undefined. */
+export function selectWorkingTreeStatus(
+  state: Pick<GitState, 'statusByWorkingPath'>,
+  workingPath: string | null,
+): GitWorkingTreeStatus {
+  if (workingPath === null) return EMPTY_WORKING_TREE_STATUS
+  return state.statusByWorkingPath[workingPath] ?? EMPTY_WORKING_TREE_STATUS
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -54,11 +84,7 @@ function getErrorMessage(error: unknown, fallback: string) {
 }
 
 function gitCommitFailureFromError(error: unknown): GitCommitFailure {
-  return {
-    ok: false,
-    code: 'unknown',
-    message: getErrorMessage(error, 'Commit failed.'),
-  }
+  return { ok: false, code: 'unknown', message: getErrorMessage(error, 'Commit failed.') }
 }
 
 function gitBranchFailureFromError(error: unknown): GitBranchMutationFailure {
@@ -108,114 +134,125 @@ async function resolveGitBranchMutationResult(
 }
 
 export const useGitStore = create<GitState>((set, get) => ({
-  status: null,
+  statusByWorkingPath: {},
   branches: null,
-  isLoading: false,
+  branchesError: null,
   isCommitting: false,
   isBranchActionRunning: false,
-  statusError: null,
-  branchesError: null,
 
-  async refreshStatus(projectPath: string | null) {
-    if (!projectPath) {
-      set({ status: null, statusError: null, isLoading: false })
-      return
-    }
+  async refreshStatus(workingPath: WorkingPath | null) {
+    if (workingPath === null) return
+    const requestId = nextStatusRequestId(workingPath)
+    patchWorkingTree(set, workingPath, { isLoading: true, error: null })
 
-    set({ isLoading: true, statusError: null })
     try {
-      const status = await api.getGitStatus(projectPath)
-      set({ status, isLoading: false, statusError: null })
+      const status = await api.getGitStatus(workingPath)
+      if (isStaleStatusRequest(workingPath, requestId)) return
+      patchWorkingTree(set, workingPath, { status, isLoading: false, error: null })
     } catch (err) {
-      set({
+      if (isStaleStatusRequest(workingPath, requestId)) return
+      patchWorkingTree(set, workingPath, {
         status: null,
         isLoading: false,
-        statusError: err instanceof Error ? err.message : 'Failed to load Git status.',
+        error: getErrorMessage(err, 'Failed to load Git status.'),
       })
     }
   },
 
-  async refreshBranches(projectPath: string | null) {
-    if (!projectPath) {
+  async refreshBranches(repositoryPath: RepositoryPath | null) {
+    if (repositoryPath === null) {
       set({ branches: null, branchesError: null })
       return
     }
 
     try {
-      const branches = await api.listGitBranches(projectPath)
+      const branches = await api.listGitBranches(repositoryPath)
       set({ branches, branchesError: null })
     } catch (err) {
       set({
         branches: null,
-        branchesError: err instanceof Error ? err.message : 'Failed to load Git branches.',
+        branchesError: getErrorMessage(err, 'Failed to load Git branches.'),
       })
     }
   },
 
-  async commit(projectPath: string, payload: GitCommitPayload) {
+  async commit(workingPath: WorkingPath, payload: GitCommitPayload) {
     set({ isCommitting: true })
     try {
-      return await resolveGitCommitResult(api.commitGit(projectPath, payload), () =>
-        get().refreshStatus(projectPath),
+      return await resolveGitCommitResult(api.commitGit(workingPath, payload), () =>
+        get().refreshStatus(workingPath),
       )
     } finally {
       set({ isCommitting: false })
     }
   },
 
-  async checkoutBranch(projectPath: string, payload: GitBranchCheckoutPayload) {
-    set({ isBranchActionRunning: true })
-    try {
-      return await resolveGitBranchMutationResult(api.checkoutGitBranch(projectPath, payload), () =>
-        Promise.all([get().refreshStatus(projectPath), get().refreshBranches(projectPath)]),
-      )
-    } finally {
-      set({ isBranchActionRunning: false })
-    }
+  async checkoutBranch(
+    workingPath: WorkingPath,
+    repositoryPath: RepositoryPath,
+    payload: GitBranchCheckoutPayload,
+  ) {
+    return runBranchMutation(set, () =>
+      resolveGitBranchMutationResult(api.checkoutGitBranch(workingPath, payload), () =>
+        refreshAfterBranchMutation(get, workingPath, repositoryPath),
+      ),
+    )
   },
 
-  async createBranch(projectPath: string, payload: GitBranchCreatePayload) {
-    set({ isBranchActionRunning: true })
-    try {
-      return await resolveGitBranchMutationResult(api.createGitBranch(projectPath, payload), () =>
-        Promise.all([get().refreshStatus(projectPath), get().refreshBranches(projectPath)]),
-      )
-    } finally {
-      set({ isBranchActionRunning: false })
-    }
-  },
-
-  async renameBranch(projectPath: string, payload: GitBranchRenamePayload) {
-    set({ isBranchActionRunning: true })
-    try {
-      return await resolveGitBranchMutationResult(api.renameGitBranch(projectPath, payload), () =>
-        Promise.all([get().refreshStatus(projectPath), get().refreshBranches(projectPath)]),
-      )
-    } finally {
-      set({ isBranchActionRunning: false })
-    }
-  },
-
-  async deleteBranch(projectPath: string, payload: GitBranchDeletePayload) {
-    set({ isBranchActionRunning: true })
-    try {
-      return await resolveGitBranchMutationResult(api.deleteGitBranch(projectPath, payload), () =>
-        Promise.all([get().refreshStatus(projectPath), get().refreshBranches(projectPath)]),
-      )
-    } finally {
-      set({ isBranchActionRunning: false })
-    }
-  },
-
-  async setUpstream(projectPath: string, payload: GitBranchSetUpstreamPayload) {
-    set({ isBranchActionRunning: true })
-    try {
-      return await resolveGitBranchMutationResult(
-        api.setGitBranchUpstream(projectPath, payload),
-        () => Promise.all([get().refreshStatus(projectPath), get().refreshBranches(projectPath)]),
-      )
-    } finally {
-      set({ isBranchActionRunning: false })
-    }
+  async createBranch(
+    workingPath: WorkingPath,
+    repositoryPath: RepositoryPath,
+    payload: GitBranchCreatePayload,
+  ) {
+    return runBranchMutation(set, () =>
+      resolveGitBranchMutationResult(api.createGitBranch(workingPath, payload), () =>
+        refreshAfterBranchMutation(get, workingPath, repositoryPath),
+      ),
+    )
   },
 }))
+
+type SetGitState = (partial: (state: GitState) => Partial<GitState>) => void
+
+function patchWorkingTree(
+  set: SetGitState,
+  workingPath: string,
+  patch: Partial<GitWorkingTreeStatus>,
+) {
+  set((state) => ({
+    statusByWorkingPath: {
+      ...state.statusByWorkingPath,
+      [workingPath]: {
+        ...(state.statusByWorkingPath[workingPath] ?? EMPTY_WORKING_TREE_STATUS),
+        ...patch,
+      },
+    },
+  }))
+}
+
+/**
+ * A checkout or branch creation changes both the working tree's HEAD and the
+ * repository's refs, so both slices are refreshed. Branches are listed from the
+ * working path deliberately: a linked worktree shares `refs/` with the primary
+ * checkout, so the list is identical and the working path is the one guaranteed to
+ * exist for this session.
+ */
+async function refreshAfterBranchMutation(
+  get: () => GitState,
+  workingPath: WorkingPath,
+  repositoryPath: RepositoryPath,
+) {
+  await Promise.all([get().refreshStatus(workingPath), get().refreshBranches(repositoryPath)])
+}
+
+async function runBranchMutation(
+  set: (partial: Partial<GitState>) => void,
+  run: () => Promise<GitBranchMutationResult>,
+) {
+  set({ isBranchActionRunning: true })
+  try {
+    return await run()
+  } finally {
+    set({ isBranchActionRunning: false })
+  }
+}

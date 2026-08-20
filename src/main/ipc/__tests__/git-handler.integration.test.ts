@@ -68,7 +68,7 @@ describe('registerGitHandlers status', () => {
         match(key)
           .with('rev-parse --is-inside-work-tree', () => cb(null, 'true\n', ''))
           .with('rev-parse --abbrev-ref HEAD', () => cb(null, 'main\n', ''))
-          .with('status --porcelain=v1', () => cb(null, 'RM old.txt -> new.txt\n', ''))
+          .with('status --porcelain=v1', () => cb(null, 'MM old.txt -> new.txt\n', ''))
           .with('diff --numstat HEAD', () => cb(null, '1\t0\told.txt => new.txt\n', ''))
           .with('rev-list --left-right --count HEAD...@{upstream}', () => cb(null, '0\t0\n', ''))
           .otherwise(() => cb(new Error(`Unexpected git command: ${key}`), '', ''))
@@ -92,6 +92,7 @@ describe('registerGitHandlers status', () => {
           deletions: 0,
           status: 'modified',
           staged: true,
+          unstaged: true,
         },
       ],
     })

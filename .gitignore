@@ -1,5 +1,10 @@
 node_modules/
 out/
+# pi agent harness working state (goals, session scratch) - never part of the repo
+.pi/
+
+# tsc typecheck byproducts (declarations + build info), namespaced per target. Kept
+# out of out/ so they are never packaged by electron-builder's `out/**/*` glob.
 .typecheck/
 dist/
 dist-cjs/
@@ -31,3 +36,6 @@ build/openwaggle-docs/
 .fallow
 # TypeScript incremental build artifacts
 *.tsbuildinfo
+
+# Local herdr orchestration config (machine-specific)
+.agents/skills/herdr-orchestration/.herdr-config.json

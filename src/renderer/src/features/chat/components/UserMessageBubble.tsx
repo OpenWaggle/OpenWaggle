@@ -199,7 +199,7 @@ export function UserMessageBubble({
         ) : (
           <UserMessageContent message={message} contentParts={contentParts} />
         )}
-        <div className="absolute -bottom-7 right-0 flex items-center gap-2 opacity-0 group-hover/user-msg:opacity-100 transition-all">
+        <div className="absolute -bottom-7 right-0 flex items-center gap-2 opacity-0 group-hover/user-msg:opacity-100 transition-opacity">
           {onBranchFromMessage ? (
             <Button
               variant="unstyled"

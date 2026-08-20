@@ -43,11 +43,16 @@
   --color-diff-header-bg: #111418;
   --color-diff-add-bg: #0d2e1a;
   --color-diff-remove-bg: #2d1214;
-  --color-diff-add-text: #ffd166;
-  --color-diff-add-mark: #f5a623;
+  /*
+    Additions are GREEN, deletions RED. These were amber (#f5a623 / #ffd166), which
+    paired a warm hue against the red of deletions: almost no hue separation, and it
+    broke the add/remove convention every diff tool shares. Greens chosen for
+    contrast against --color-diff-add-bg on dark.
+  */
+  --color-diff-add-mark: #3fb950;
   --color-diff-remove-text: #ef4444;
   --color-diff-remove-num: #ef444466;
-  --color-diff-add-num: #f5a62366;
+  --color-diff-add-num: #3fb95066;
   --color-diff-context-text: #c9cdd6;
   --color-diff-highlight-bg: #17130a;
   --color-diff-stage-bg: #1a2e1a;
@@ -135,6 +140,68 @@
   }
 
   /* Diff scroll — thinner than global scrollbars */
+  .diff-scroll {
+    container-type: inline-size;
+  }
+
+  /*
+   * Diff chrome (ADR 0016 / ADR 0015 amendment).
+   *
+   * @pierre/diffs supplies the Syntax theme (code token colours), which is
+   * deliberately outside our Design token contract — grammar scopes are not
+   * semantic roles. Everything it draws AROUND the code is Diff chrome, and that
+   * stays under our contract: each --diffs-*-override below is a Derived token
+   * computed from our Semantic roles, so the diff re-themes with the Appearance
+   * even though a third-party theme colours the code.
+   *
+   * The three selection/modified anchors are load-bearing rather than cosmetic:
+   * line selection is how a Review comment begins, and the renderer's own
+   * default for it is blue (#009fff), which would read as off-brand against our
+   * amber accent on the panel's primary interaction.
+   */
+  .diff-chrome {
+    /* Surfaces */
+    --diffs-bg-context-override: var(--color-diff-bg);
+    --diffs-bg-context-gutter-override: var(--color-diff-header-bg);
+    --diffs-bg-buffer-override: var(--color-diff-bg);
+    --diffs-bg-separator-override: var(--color-diff-header-bg);
+
+    /* Additions / deletions */
+    --diffs-addition-color-override: var(--color-diff-add-mark);
+    --diffs-deletion-color-override: var(--color-diff-remove-text);
+    --diffs-bg-addition-override: var(--color-diff-add-bg);
+    --diffs-bg-deletion-override: var(--color-diff-remove-bg);
+    --diffs-bg-addition-number-override: var(--color-diff-add-num);
+    --diffs-bg-deletion-number-override: var(--color-diff-remove-num);
+
+    /* Word-level emphasis: strengthen the row colour rather than introduce a hue */
+    --diffs-bg-addition-emphasis-override: color-mix(
+      in srgb,
+      var(--color-diff-add-mark) 24%,
+      var(--color-diff-add-bg)
+    );
+    --diffs-bg-deletion-emphasis-override: color-mix(
+      in srgb,
+      var(--color-diff-remove-text) 24%,
+      var(--color-diff-remove-bg)
+    );
+
+    /* Line numbers */
+    --diffs-fg-number-override: var(--color-text-muted);
+    --diffs-fg-number-addition-override: var(--color-diff-add-mark);
+    --diffs-fg-number-deletion-override: var(--color-diff-remove-text);
+
+    /* Interaction — anchored to our accent, see note above */
+    --diffs-bg-hover-override: var(--color-bg-hover);
+    --diffs-bg-selection-override: color-mix(in srgb, var(--color-accent) 18%, transparent);
+    --diffs-bg-selection-number-override: color-mix(in srgb, var(--color-accent) 32%, transparent);
+    --diffs-modified-color-override: var(--color-accent);
+    --diffs-bg-caret-override: var(--color-accent);
+
+    /* Conflict markers reuse the danger role rather than a bespoke colour */
+    --diffs-fg-conflict-marker-override: var(--color-diff-remove-text);
+  }
+
   .diff-scroll::-webkit-scrollbar {
     width: 4px;
     height: 4px;

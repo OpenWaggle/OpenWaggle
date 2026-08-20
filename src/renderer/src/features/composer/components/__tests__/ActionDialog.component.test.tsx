@@ -12,9 +12,6 @@ vi.mock('@/shared/lib/ipc', () => ({
     listGitBranches: vi.fn().mockResolvedValue(null),
     checkoutGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
     createGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
-    renameGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
-    deleteGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
-    setGitBranchUpstream: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
   },
 }))
 
@@ -41,13 +38,6 @@ describe('ActionDialog', () => {
     useComposerActionStore.setState({ actionDialog: 'create-branch' })
     render(<ActionDialog />)
     expect(screen.getByPlaceholderText('feature/my-branch')).toBeInTheDocument()
-  })
-
-  it('does not show input for delete-branch', () => {
-    useComposerActionStore.setState({ actionDialog: 'delete-branch' })
-    render(<ActionDialog />)
-    expect(screen.queryByRole('textbox')).toBeNull()
-    expect(screen.getByText('Delete')).toBeInTheDocument()
   })
 
   it('shows error message when actionDialogError is set', () => {
@@ -109,32 +99,5 @@ describe('ActionDialog', () => {
     const input = screen.getByPlaceholderText('feature/my-branch')
     fireEvent.change(input, { target: { value: 'feat/new' } })
     expect(useComposerActionStore.getState().actionDialogInput).toBe('feat/new')
-  })
-
-  it('blocks deleting the currently checked out branch', () => {
-    useGitStore.setState({
-      ...useGitStore.getInitialState(),
-      status: {
-        branch: 'main',
-        additions: 0,
-        deletions: 0,
-        filesChanged: 0,
-        changedFiles: [],
-        clean: true,
-        ahead: 0,
-        behind: 0,
-      },
-    })
-    useComposerActionStore.setState({
-      actionDialog: 'delete-branch',
-      actionDialogInput: 'main',
-    })
-    render(<ActionDialog />)
-    fireEvent.click(screen.getByText('Delete'))
-    expect(
-      screen.getByText(
-        'Cannot delete the currently checked out branch. Checkout another branch first.',
-      ),
-    ).toBeInTheDocument()
   })
 })

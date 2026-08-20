@@ -1,5 +1,6 @@
 import type { SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
+import type { SessionWorktreePlan } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { cleanupSessionRun } from '../agent/session-cleanup'
 import { dismissInterruptedAgentRun } from '../application/agent-run-service'
@@ -9,6 +10,7 @@ import {
 } from '../application/agent-session-service'
 import { AgentKernelService } from '../ports/agent-kernel-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
+import { SettingsService } from '../services/settings-service'
 import { clearAgentPhase, clearStreamBuffer, emitRunCompleted } from '../utils/stream-bridge'
 import { cancelSessionRuns } from './active-agent-runs'
 import { validateRequiredProjectPath } from './project-path-validation'
@@ -39,6 +41,20 @@ function registerSessionDetailsReadHandlers() {
       return yield* repo.getOptional(id)
     }),
   )
+
+  typedHandle('sessions:turn-checkpoints:list', (_event, id: SessionId) =>
+    Effect.gen(function* () {
+      const repo = yield* SessionProjectionRepository
+      return [...(yield* repo.listTurnCheckpoints(id))]
+    }),
+  )
+
+  typedHandle('sessions:turn-diff:get', (_event, id: SessionId, turnId: string) =>
+    Effect.gen(function* () {
+      const repo = yield* SessionProjectionRepository
+      return yield* repo.getTurnDiff(id, turnId)
+    }),
+  )
 }
 
 function registerSessionCreationHandlers() {
@@ -49,11 +65,13 @@ function registerSessionCreationHandlers() {
       const runtimeSession = yield* agentKernel.createSession({
         projectPath: normalizedProjectPath,
       })
+      const settings = yield* (yield* SettingsService).get()
       const repo = yield* SessionProjectionRepository
       return yield* repo.create({
         projectPath: normalizedProjectPath,
         piSessionId: runtimeSession.piSessionId,
         piSessionFile: runtimeSession.piSessionFile,
+        environmentMode: settings.defaultSessionEnvironmentMode,
       })
     }),
   )
@@ -117,6 +135,13 @@ function registerSessionMutationHandlers() {
     Effect.gen(function* () {
       const repo = yield* SessionProjectionRepository
       yield* repo.updateTitle(id, title)
+    }),
+  )
+
+  typedHandle('sessions:set-worktree-plan', (_event, id: SessionId, plan: SessionWorktreePlan) =>
+    Effect.gen(function* () {
+      const repo = yield* SessionProjectionRepository
+      yield* repo.setWorktreePlan(id, plan)
     }),
   )
 }

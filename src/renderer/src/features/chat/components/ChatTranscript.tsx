@@ -112,6 +112,8 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
     onDismissInterruptedRun,
     onBranchFromMessage,
     onForkFromMessage,
+    onViewTurnDiff,
+    turnAnchorMessageIds,
     lastUserMessageId,
     streamSignalVersion,
     userDidSend,
@@ -150,7 +152,7 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
       extensions: { registry: extensionRegistry, projectPaths: extensionProjectPaths },
     },
     extensions: { registry: extensionRegistry, projectPaths: extensionProjectPaths },
-    actions: { onBranchFromMessage, onForkFromMessage },
+    actions: { onBranchFromMessage, onForkFromMessage, onViewTurnDiff, turnAnchorMessageIds },
     onOpenSettings,
     onRetry: (content) => {
       void onRetryText(content)

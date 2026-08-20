@@ -4,6 +4,7 @@ import { lstat, realpath } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
+import { sessionWorktreeBranchForId } from '@shared/utils/worktree'
 import { getSafeChildEnv } from './env'
 import type {
   HostedSessionWorktreeInput,
@@ -111,7 +112,7 @@ function worktreeIdentity(sourceSessionId: string, commonDirectory: string, stor
     .digest('hex')
     .slice(0, REPOSITORY_ID_LENGTH)
   return {
-    branch: `ow/session-${worktreeId}`,
+    branch: sessionWorktreeBranchForId(worktreeId),
     projectPath: path.join(
       storageRoot,
       `${path.basename(commonDirectory)}-${repositoryId}`,

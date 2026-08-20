@@ -1,4 +1,5 @@
 import type { SessionId } from '@shared/types/brand'
+import type { SessionEnvironmentMode } from '@shared/types/git'
 import type { SessionNode } from '@shared/types/session'
 import type { WaggleConfig } from '@shared/types/waggle'
 
@@ -14,6 +15,10 @@ export interface SessionRow {
   readonly updated_at: number
   readonly last_active_node_id: string | null
   readonly last_active_branch_id: string | null
+  readonly environment_mode: string | null
+  readonly worktree_path: string | null
+  readonly worktree_base_ref: string | null
+  readonly worktree_start_from_origin: number | null
 }
 
 export interface SessionSummaryRow {
@@ -87,6 +92,8 @@ export interface CreateSessionInput {
   readonly projectPath: string
   readonly piSessionId: string
   readonly piSessionFile?: string
+  /** Environment mode the session is born with (defaults to 'local' when omitted). */
+  readonly environmentMode?: SessionEnvironmentMode
 }
 
 export interface DerivedSessionBranch {

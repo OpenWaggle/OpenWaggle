@@ -39,9 +39,11 @@ export interface ToastData {
 export const SETTINGS_TABS = [
   'general',
   'shortcuts',
+  'appearance',
   'waggle',
   'extensions',
   'mcp',
+  'worktrees',
   'archived',
   'connections',
 ] as const

@@ -20,6 +20,7 @@ import { WaggleBeeIcon } from '@/features/waggle/components'
 import { cn } from '@/shared/lib/cn'
 import { formatRelativeTime, truncate } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
+import { useSessionGitIndicator } from '../hooks/useSessionGitIndicators'
 import type { SidebarSessionActions } from '../model'
 import { SessionItemContextMenu } from './SessionItemContextMenu'
 
@@ -205,6 +206,29 @@ function SessionActionsTrigger({
   )
 }
 
+/**
+ * This session's working-tree state, from status keyed by its own working path.
+ * Absent until that path's status is known, so an unfetched session never looks clean.
+ */
+function SessionGitBadge({ session }: { readonly session: SessionSummary }) {
+  const indicator = useSessionGitIndicator(session)
+  if (indicator.label === '') return null
+
+  return (
+    <span
+      role="img"
+      title={indicator.description}
+      aria-label={indicator.description}
+      className={cn(
+        'ml-1 shrink-0 whitespace-nowrap text-[10px] tabular-nums',
+        indicator.isDirty ? 'text-accent' : 'text-text-tertiary',
+      )}
+    >
+      {indicator.label}
+    </span>
+  )
+}
+
 export function SessionListItem({
   session,
   isActive,
@@ -251,6 +275,7 @@ export function SessionListItem({
         StatusIcon={StatusIcon}
         hasInterruptedRun={hasInterruptedRun}
       />
+      <SessionGitBadge session={session} />
       <SessionTitleButton
         isActive={isActive}
         session={session}

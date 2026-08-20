@@ -23,7 +23,7 @@ describe('useAgentChat background reconnect', () => {
     apiMock.getBackgroundRun.mockResolvedValue({
       sessionId: SessionId('session-1'),
       model: SupportedModelId('claude-sonnet-4-5'),
-      mode: 'agent',
+      mode: 'classic',
       startedAt: 1,
       parts: [{ type: 'text', text: 'Partial answer' }],
     })

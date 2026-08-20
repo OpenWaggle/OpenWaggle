@@ -28,6 +28,8 @@ interface MessageBubbleProps {
   actions?: {
     readonly onBranchFromMessage?: (messageId: string) => void
     readonly onForkFromMessage?: (messageId: string) => void
+    readonly onViewTurnDiff?: (messageId: string) => void
+    readonly turnAnchorMessageIds?: ReadonlySet<string>
   }
 }
 
@@ -56,11 +58,14 @@ export function MessageBubble({
       run={run}
       waggle={waggle}
       presentation={presentation}
-      actions={
-        actions?.onBranchFromMessage
+      actions={{
+        ...(actions?.onBranchFromMessage
           ? { onBranchFromMessage: actions.onBranchFromMessage }
-          : undefined
-      }
+          : {}),
+        ...(actions?.onViewTurnDiff && actions.turnAnchorMessageIds?.has(message.id)
+          ? { onViewTurnDiff: actions.onViewTurnDiff }
+          : {}),
+      }}
     />
   )
 }

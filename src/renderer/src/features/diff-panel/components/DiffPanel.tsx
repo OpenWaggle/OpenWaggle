@@ -1,215 +1,152 @@
-import { matchBy } from '@diegogbrisa/ts-match'
-import type { GitFileDiff } from '@shared/types/git'
-import type { ReviewComment } from '@shared/types/review'
-import { useEffect, useReducer } from 'react'
-import type { ReviewCommentLocation } from '@/features/diff-panel/state/review-store'
-import { useReviewStore } from '@/features/diff-panel/state/review-store'
-import { api } from '@/shared/lib/ipc'
-import { Spinner } from '@/shared/ui/Spinner'
+import type { CodeViewHandle } from '@pierre/diffs/react'
+import type { RepositoryPath, SessionId, WorkingPath } from '@shared/types/brand'
+import type { GitStackedAction } from '@shared/types/git'
+import { useRef, useState } from 'react'
+import { useDiffPanelGitActions } from '@/features/diff-panel/hooks/useDiffPanelGitActions'
+import type { ReviewAnnotationMetadata } from '@/features/diff-panel/lib/code-view-items'
+import { codeViewItemId } from '@/features/diff-panel/lib/code-view-items'
+import {
+  type DiffScopeSelection,
+  selectThreadDiffScopeSelection,
+  useDiffScopeStore,
+} from '@/features/diff-panel/state/diff-scope-store'
+import { useCombinedVcsStatus, useStackedGitActions } from '@/features/git'
+import { useBaseRefChoices } from '../hooks/useBaseRefChoices'
+import { useDiffPanelDiffs } from '../hooks/useDiffPanelDiffs'
+import { useReconcileTurnSelection } from '../hooks/useReconcileTurnSelection'
+import { useSessionTurns, useTurnDiffFiles } from '../hooks/useSessionTurns'
+import { CommitMessageDialog } from './CommitMessageDialog'
 import { DiffBottomBar } from './DiffBottomBar'
-import { DiffFileSection } from './DiffFileSection'
-import { buildDisplayItems, type DisplayItem } from './diff-display-items'
-import { FileTree } from './FileTree'
+import { DiffPanelHeader } from './DiffPanelHeader'
+import { DiffReviewBody } from './DiffReviewBody'
 
 interface DiffPanelProps {
-  projectPath: string | null
+  workingPath: WorkingPath | null
+  repositoryPath: RepositoryPath | null
+  sessionId?: SessionId | null
   onSendMessage: (content: string) => void
 }
 
-interface RenderableDiffFile extends GitFileDiff {
-  readonly items: DisplayItem[]
-}
-
-interface DiffPanelState {
-  readonly fileDiffs: readonly RenderableDiffFile[]
-  readonly isLoading: boolean
-}
-
-type DiffPanelAction =
-  | { readonly type: 'clear' }
-  | { readonly type: 'start-loading' }
-  | { readonly type: 'load-success'; readonly fileDiffs: readonly RenderableDiffFile[] }
-  | { readonly type: 'load-failure' }
-
-function diffPanelReducer(state: DiffPanelState, action: DiffPanelAction) {
-  return matchBy(action, 'type')
-    .with('clear', () => ({ fileDiffs: [], isLoading: false }))
-    .with('start-loading', () => ({ ...state, isLoading: true }))
-    .with('load-success', (value) => ({ fileDiffs: value.fileDiffs, isLoading: false }))
-    .with('load-failure', () => ({ fileDiffs: [], isLoading: false }))
-    .exhaustive()
-}
-
-interface DiffPanelContentProps {
-  readonly fileDiffs: readonly RenderableDiffFile[]
-  readonly isLoading: boolean
-  readonly review: {
-    readonly comments: readonly ReviewComment[]
-    readonly activeCommentLocation: ReviewCommentLocation | null
-  }
-  readonly actions: {
-    readonly onSetActiveComment: (location: ReviewCommentLocation | null) => void
-    readonly onAddSingleComment: (
-      filePath: string,
-      startLine: number,
-      endLine: number,
-      content: string,
-    ) => void
-    readonly onAddToReview: (comment: ReviewComment) => void
-    readonly onSendReview: () => void
-    readonly onFileClick: (path: string) => void
-  }
-}
-
-function DiffPanelContent({ fileDiffs, isLoading, review, actions }: DiffPanelContentProps) {
-  return (
-    <div className="flex flex-1 overflow-hidden">
-      <div className="diff-scroll flex-1 overflow-auto p-2.5">
-        <div className="flex min-w-full w-max flex-col gap-2.5">
-          {isLoading && (
-            <div className="flex items-center justify-center h-20 text-text-tertiary">
-              <Spinner />
-            </div>
-          )}
-          {!isLoading && fileDiffs.length === 0 && (
-            <div className="flex items-center justify-center h-20 text-[12px] text-text-tertiary">
-              No uncommitted changes
-            </div>
-          )}
-          {fileDiffs.map((file) => (
-            <div key={file.path} id={`diff-file-${file.path}`}>
-              <DiffFileSection
-                filePath={file.path}
-                items={file.items}
-                additions={file.additions}
-                deletions={file.deletions}
-                activeCommentLocation={review.activeCommentLocation}
-                onSetActiveComment={actions.onSetActiveComment}
-                onAddSingleComment={actions.onAddSingleComment}
-                onAddToReview={actions.onAddToReview}
-              />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <FileTree
-        files={fileDiffs}
-        onFileClick={actions.onFileClick}
-        onSendReview={actions.onSendReview}
-        reviewCount={review.comments.length}
-      />
-    </div>
+export function DiffPanel({
+  workingPath,
+  repositoryPath,
+  sessionId = null,
+  onSendMessage,
+}: DiffPanelProps) {
+  const viewerRef = useRef<CodeViewHandle<ReviewAnnotationMetadata>>(null)
+  const scopeByThreadKey = useDiffScopeStore((s) => s.byThreadKey)
+  const selectGitScope = useDiffScopeStore((s) => s.selectGitScope)
+  const selectBranchBaseRef = useDiffScopeStore((s) => s.selectBranchBaseRef)
+  const selectTurn = useDiffScopeStore((s) => s.selectTurn)
+  const scopeKey = sessionId ?? workingPath ?? ''
+  const selection: DiffScopeSelection = selectThreadDiffScopeSelection(
+    scopeByThreadKey,
+    scopeKey || null,
+    true,
   )
-}
+  const branchBaseRef = selection.kind === 'branch' ? selection.baseRef : null
+  const baseRefChoices = useBaseRefChoices(repositoryPath)
+  const turns = useSessionTurns(sessionId)
+  const branchOrTreeDiffs = useDiffPanelDiffs(workingPath, selection)
+  const turnFiles = useTurnDiffFiles(sessionId, selection)
+  const fileDiffs = selection.kind === 'turn' ? turnFiles : branchOrTreeDiffs.fileDiffs
+  const isLoading = selection.kind === 'turn' ? false : branchOrTreeDiffs.isLoading
+  const refreshDiff = branchOrTreeDiffs.refreshDiff
 
-export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps) {
-  const [state, dispatch] = useReducer(diffPanelReducer, {
-    fileDiffs: [],
-    isLoading: false,
-  })
+  useReconcileTurnSelection(scopeKey, turns)
 
-  const comments = useReviewStore((s) => s.comments)
-  const activeCommentLocation = useReviewStore((s) => s.activeCommentLocation)
-  const setActiveCommentLocation = useReviewStore((s) => s.setActiveCommentLocation)
-  const addComment = useReviewStore((s) => s.addComment)
-  const clearComments = useReviewStore((s) => s.clearComments)
+  /** Jump the virtualized list to a file's section. */
+  function handleFileClick(path: string) {
+    viewerRef.current?.scrollTo({ type: 'item', id: codeViewItemId(path), align: 'start' })
+  }
 
-  useEffect(() => {
-    if (!projectPath) {
-      dispatch({ type: 'clear' })
+  function handleSelectScope(scope: 'branch' | 'unstaged' | 'turn') {
+    if (scope === 'turn') {
+      const latestTurn = turns.at(-1)
+      if (latestTurn) selectTurn(scopeKey, latestTurn.turnId)
       return
     }
+    selectGitScope(scopeKey, scope)
+  }
 
-    dispatch({ type: 'start-loading' })
-    let cancelled = false
-    api
-      .getGitDiff(projectPath)
-      .then((diffs) => {
-        if (cancelled) return
-        dispatch({
-          type: 'load-success',
-          fileDiffs: diffs.map((diff) => ({
-            ...diff,
-            items: buildDisplayItems(diff.diff),
-          })),
-        })
-      })
-      .catch(() => {
-        if (cancelled) return
-        dispatch({ type: 'load-failure' })
-      })
+  const gitActions = useDiffPanelGitActions({
+    workingPath,
+    fallbackHasChanges: selection.kind === 'unstaged' && fileDiffs.length > 0,
+    canMutateWorkingTree: selection.kind === 'unstaged',
+    refreshDiff,
+  })
 
-    return () => {
-      cancelled = true
+  const { status: vcsStatus, refresh: refreshVcsStatus } = useCombinedVcsStatus(workingPath)
+  const stackedActions = useStackedGitActions({
+    workingPath,
+    onCompleted: () => {
+      if (workingPath) void refreshDiff(workingPath)
+      void refreshVcsStatus()
+    },
+  })
+
+  const [pendingCommitAction, setPendingCommitAction] = useState<GitStackedAction | null>(null)
+  const selectedPaths = fileDiffs.map((file) => file.path)
+
+  /**
+   * Commit-bearing actions must collect an explicit message first (review B2);
+   * everything else dispatches immediately. Only the visible selection is staged.
+   */
+  function requestStackedAction(action: GitStackedAction) {
+    if (action.startsWith('commit')) {
+      setPendingCommitAction(action)
+      return
     }
-  }, [projectPath])
-
-  const { fileDiffs, isLoading } = state
-
-  function handleAddSingleComment(
-    filePath: string,
-    startLine: number,
-    endLine: number,
-    content: string,
-  ) {
-    const lineRef =
-      startLine !== endLine ? `s ${String(startLine)}-${String(endLine)}` : ` ${String(startLine)}`
-    const message = `**Review comment** on \`${filePath}\` (line${lineRef}):\n\n${content}`
-    onSendMessage(message)
-    setActiveCommentLocation(null)
-  }
-
-  function handleAddToReview(comment: ReviewComment) {
-    addComment(comment)
-  }
-
-  function handleSendReview() {
-    if (comments.length === 0) return
-
-    const lines = comments.map((c) => {
-      const lineRef =
-        c.startLine !== c.endLine
-          ? `s ${String(c.startLine)}-${String(c.endLine)}`
-          : ` ${String(c.startLine)}`
-      return `- **\`${c.filePath}\`** line${lineRef}: ${c.content}`
-    })
-    const message = `**Code Review**\n\n${lines.join('\n')}`
-    onSendMessage(message)
-    clearComments()
-  }
-
-  function handleFileClick(path: string) {
-    const el = document.getElementById(`diff-file-${path}`)
-    el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
-
-  function handleRevertAll() {
-    // Future: implement git checkout -- . via IPC
-  }
-
-  function handleStageAll() {
-    // Future: implement git add -A via IPC
+    void stackedActions.run(action, { paths: selectedPaths })
   }
 
   return (
-    <div className="flex flex-col size-full bg-diff-bg">
-      <DiffPanelContent
-        fileDiffs={fileDiffs}
+    <div className="relative flex flex-col size-full bg-diff-bg">
+      {workingPath ? (
+        <DiffPanelHeader
+          selection={selection}
+          baseRef={branchBaseRef}
+          baseRefChoices={baseRefChoices}
+          turns={turns}
+          onSelectScope={handleSelectScope}
+          onChangeBaseRef={(baseRef) => selectBranchBaseRef(scopeKey, baseRef)}
+          onSelectTurn={(turnId) => selectTurn(scopeKey, turnId)}
+        />
+      ) : null}
+      <DiffReviewBody
+        viewerRef={viewerRef}
+        files={fileDiffs}
         isLoading={isLoading}
-        review={{ comments, activeCommentLocation }}
-        actions={{
-          onSetActiveComment: setActiveCommentLocation,
-          onAddSingleComment: handleAddSingleComment,
-          onAddToReview: handleAddToReview,
-          onSendReview: handleSendReview,
-          onFileClick: handleFileClick,
-        }}
+        onSendMessage={onSendMessage}
+        onFileClick={handleFileClick}
       />
       <DiffBottomBar
-        onRevertAll={handleRevertAll}
-        onStageAll={handleStageAll}
-        hasChanges={fileDiffs.length > 0}
+        onRevertAll={gitActions.handleRevertAll}
+        onStageAll={gitActions.handleStageAll}
+        canRevertAll={gitActions.canRevertAll}
+        canStageAll={gitActions.canStageAll}
+        isActionRunning={gitActions.isActionRunning}
+        quickAction={{
+          status: vcsStatus,
+          isBusy: stackedActions.isRunning,
+          onRunAction: (action) => requestStackedAction(action),
+          onPull: () => stackedActions.run('pull'),
+          onOpenChangeRequest: () => {
+            const url = vcsStatus?.changeRequest?.url
+            if (url) window.open(url, '_blank', 'noopener')
+          },
+          onPublish: () => stackedActions.run('push'),
+        }}
+      />
+      <CommitMessageDialog
+        open={pendingCommitAction !== null}
+        fileCount={selectedPaths.length}
+        onCancel={() => setPendingCommitAction(null)}
+        onConfirm={(commitMessage) => {
+          const action = pendingCommitAction
+          setPendingCommitAction(null)
+          if (action) void stackedActions.run(action, { paths: selectedPaths, commitMessage })
+        }}
       />
     </div>
   )

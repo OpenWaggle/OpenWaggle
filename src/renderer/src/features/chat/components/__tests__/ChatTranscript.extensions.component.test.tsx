@@ -90,7 +90,15 @@ function createSection(): ChatTranscriptSectionState {
     projectPath: PROJECT_PATH,
     recentProjects: [],
     activeSessionId: SessionId('session-1'),
-    chatRows: [{ type: 'message', message: defaultMessage }],
+    chatRows: [
+      {
+        type: 'message',
+        message: defaultMessage,
+        isStreaming: false,
+        isRunActive: false,
+        showTurnDivider: false,
+      },
+    ],
     extensionRegistry: transcriptRendererRegistry(),
     extensionProjectPaths: [PROJECT_PATH],
     lastUserMessageId: 'msg-1',
@@ -105,6 +113,8 @@ function createSection(): ChatTranscriptSectionState {
     onDismissInterruptedRun: vi.fn(),
     onBranchFromMessage: vi.fn(),
     onForkFromMessage: vi.fn(),
+    onViewTurnDiff: vi.fn(),
+    turnAnchorMessageIds: new Set<string>(),
   }
 }
 

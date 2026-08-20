@@ -96,7 +96,6 @@ describe('createBaseCommands', () => {
       insertCompactCommand: vi.fn(),
       selectPreset: vi.fn(),
       selectSkill: vi.fn(),
-      startWaggle: vi.fn(),
     })
 
     expect(commands.map((command) => command.id)).not.toContain('code-review')

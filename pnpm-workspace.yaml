@@ -2,6 +2,42 @@ packages:
   - "packages/*"
   - "website"
 
+# Supply-chain hardening: delay installs until a release has had time to be
+# vetted, and never accept weakening trust signals (provenance/signatures).
+minimumReleaseAge: 10080
+trustPolicy: no-downgrade
+# Downgrade scrutiny targets fresh takeovers. Combined with minimumReleaseAge
+# (7d), this applies the no-downgrade check to releases 7-30 days old, and
+# exempts long-established transitive pins (semver 5/6, @octokit/endpoint) that
+# predate npm provenance and therefore read as a "downgrade".
+# NOTE: trustPolicyExclude is avoided deliberately - pnpm 11.6.0 silently drops
+# the LAST entry of that list, so it cannot be relied on.
+trustPolicyIgnoreAfter: 43200
+
+# Investigated exception (PR #145, ADR 0016). @pierre/diffs is the diff renderer;
+# it transitively pins @pierre/theme@2.0.0 and @pierre/theming@1.0.1.
+#
+# Evidence: @pierre/theme published SLSA provenance on every version from 0.0.20
+# through 1.0.3, then stopped at 1.1.0 (2026-06-26) and 2.0.0 (2026-07-24). The
+# drop is scope-wide and consistent across @pierre/* rather than isolated to one
+# version, and the scope publishes @pierre/diffs daily - consistent with a change
+# of publish pipeline, not the single-version takeover this policy hunts.
+# Apache-2.0, and the same renderer used in production by the mature
+# implementation this work was compared against.
+#
+# trustPolicyIgnoreAfter (30d) would exempt these automatically once 2.0.0 ages
+# past 2026-08-23; this names them explicitly so the reason is recorded rather
+# than the block disappearing silently on a date.
+#
+# The trailing sentinel is load-bearing: pnpm 11.6.0 drops the last entry of this
+# list, so a real pattern must never be last. Verified empirically - see the
+# comment above on trustPolicyExclude.
+trustPolicyExclude:
+  - "@pierre/diffs"
+  - "@pierre/theme"
+  - "@pierre/theming"
+  - "openwaggle-unused-sentinel-do-not-remove"
+
 minimumReleaseAgeExclude:
   - "@diegogbrisa/*"
   - hono@4.12.34

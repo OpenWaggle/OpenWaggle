@@ -93,7 +93,7 @@ function leafIdsForNodes(
   nodes: readonly ProjectedSessionNodeInput[],
   childCounts: ReadonlyMap<string, number>,
 ) {
-  return nodes.filter((node) => (childCounts.get(node.id) ?? 0) === 0).map((node) => node.id)
+  return nodes.flatMap((node) => ((childCounts.get(node.id) ?? 0) === 0 ? [node.id] : []))
 }
 
 function buildBranchDerivationContext(input: {

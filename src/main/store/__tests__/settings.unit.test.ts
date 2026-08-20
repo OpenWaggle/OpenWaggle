@@ -6,6 +6,14 @@ import { SupportedModelId } from '@shared/types/brand'
 import { DEFAULT_SHORTCUT_BINDINGS } from '@shared/types/shortcuts'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  REMOVED_PERSISTENCE_MIGRATION_IDS,
+  REMOVED_PERSISTENCE_TABLES,
+  REMOVED_SETTINGS_KEYS,
+  type SettingsStoreRow,
+  type TableColumnRow,
+  type TableRow,
+} from './settings-test-constants'
 
 const state = vi.hoisted(() => ({
   userDataDir: '',
@@ -28,34 +36,6 @@ vi.mock('electron', () => ({
     decryptString: (value: Buffer) => value.toString('utf8'),
   },
 }))
-
-interface SettingsStoreRow {
-  readonly key: string
-}
-
-interface TableRow {
-  readonly name: string
-}
-
-interface TableColumnRow {
-  readonly name: string
-}
-
-const REMOVED_PERSISTENCE_MIGRATION_IDS = [8, 11] as const
-const REMOVED_PERSISTENCE_TABLES = [
-  'session_message_parts',
-  'pinned_context',
-  'session_messages',
-  'orchestration_run_tasks',
-  'orchestration_runs',
-  'orchestration_events',
-  'provider_session_runtime',
-  'team_presets',
-  'waggle_presets',
-  'team_runtime_state',
-  'auth_tokens',
-] as const
-const REMOVED_SETTINGS_KEYS = ['providers', 'executionMode', 'qualityPreset', 'mcpServers'] as const
 
 async function disposeRuntime() {
   const { disposeAppRuntime } = await import('../../runtime')
@@ -154,9 +134,17 @@ async function readTableColumns(tableName: string) {
 
 describe('settings store', () => {
   beforeEach(async () => {
-    await disposeRuntime()
-    vi.resetModules()
     state.userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-settings-test-'))
+    // Deliberately NOT vi.resetModules(). Resetting the registry gave every test its
+    // own copy of the runtime module, so each test left a live better-sqlite3
+    // Database orphaned in a worker that vitest reuses across files; the accumulated
+    // objects then crashed the addon at environment teardown (#151). Resetting the
+    // runtime and the settings cache in place gives the same isolation -- a fresh
+    // database per test -- with exactly one module instance alive.
+    const { resetAppRuntimeForTests } = await import('../../runtime')
+    await resetAppRuntimeForTests()
+    const { resetSettingsStoreForTests } = await import('../settings')
+    await resetSettingsStoreForTests()
     state.encryptionAvailable = false
     state.encryptThrows = false
   })

@@ -27,8 +27,9 @@ export function useSettingsSetup(): void {
 
       const oauthProviders = useProviderStore
         .getState()
-        .providerModels.filter((provider) => provider.auth.supportsOAuth)
-        .map((provider) => provider.provider)
+        .providerModels.flatMap((provider) =>
+          provider.auth.supportsOAuth ? [provider.provider] : [],
+        )
       await loadAllAuthAccounts(oauthProviders)
     }
 

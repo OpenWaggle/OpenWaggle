@@ -170,7 +170,7 @@ export function ChatRouteSurface({
   })
   const sidePanelQuery = useExtensionSidePanelContributions({
     enabled: isExtensionRightSidebarPanel(renderedRightSidebarPanel),
-    projectPath: sections.diff.projectPath,
+    projectPath: sections.diff.workingPath,
     sessionId: workspace.sessionId,
   })
 
@@ -221,7 +221,7 @@ export function ChatRouteSurface({
                 <LazySessionTreePanel onClose={() => handleSessionTreeOpenChange(false)} />
               ) : renderedRightSidebarPanel === 'file' && rightSidebar.workspaceFile ? (
                 <WorkspaceFilePanel
-                  projectPath={sections.diff.projectPath}
+                  projectPath={sections.diff.workingPath}
                   relativePath={rightSidebar.workspaceFile.path}
                   line={rightSidebar.workspaceFile.line}
                   onClose={() => handleWorkspaceFileOpenChange(false)}

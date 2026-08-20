@@ -1,4 +1,5 @@
-import type { SessionId } from '@shared/types/brand'
+import type { RepositoryPath, SessionId } from '@shared/types/brand'
+import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import { useBranchSummaryStore } from '@/features/chat/state'
 import { createSidebarBranchActions } from './sidebar-branch-actions'
 import { createSidebarProjectActions } from './sidebar-project-actions'
@@ -22,7 +23,7 @@ function toggleCollapsedProject(current: ReadonlySet<string>, path: string): Rea
 function createDomainActions(
   state: ReturnType<typeof useSidebarState>,
   clearTransientDraftContext: () => void,
-  refreshGit: (path: string | null) => void,
+  refreshGit: (path: RepositoryPath | null) => void,
   refreshAfterSessionMutation: (sessionId: SessionId) => Promise<void>,
 ) {
   const session = createSidebarSessionActions({
@@ -120,8 +121,14 @@ function buildControllerOutput(
 export function useSidebarController() {
   const state = useSidebarState()
 
-  function refreshGit(path: string | null) {
-    void Promise.all([state.git.refreshStatus(path), state.git.refreshBranches(path)])
+  function refreshGit(path: RepositoryPath | null) {
+    // A project switch: branches are repository-level, and with no session context the
+    // working tree is the checkout itself. resolveSessionWorkingDir stays the sole
+    // WorkingPath producer rather than coercing the repository path directly.
+    void Promise.all([
+      state.git.refreshStatus(resolveSessionWorkingDir(null, path)),
+      state.git.refreshBranches(path),
+    ])
   }
 
   function clearTransientDraftContext() {

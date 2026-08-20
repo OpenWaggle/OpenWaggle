@@ -43,7 +43,7 @@ function makeToolCallPart(
   args = '{}',
   id = 'tc-1',
   state: ToolCallPart['state'] = 'input-complete',
-) {
+): ToolCallPart {
   return { type: 'tool-call', id, name, arguments: args, state }
 }
 

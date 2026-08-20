@@ -11,21 +11,23 @@ export function clampThinkingLevel(
   requestedLevel: ThinkingLevel,
   availableLevels: readonly ThinkingLevel[],
 ): ThinkingLevel {
-  if (availableLevels.includes(requestedLevel)) {
+  // Set lookup: the level list is probed once per candidate in both scan loops.
+  const available = new Set(availableLevels)
+  if (available.has(requestedLevel)) {
     return requestedLevel
   }
 
   const requestedIndex = THINKING_LEVELS.indexOf(requestedLevel)
   for (let index = requestedIndex; index < THINKING_LEVELS.length; index += 1) {
     const candidate = THINKING_LEVELS[index]
-    if (candidate && availableLevels.includes(candidate)) {
+    if (candidate && available.has(candidate)) {
       return candidate
     }
   }
 
   for (let index = requestedIndex - 1; index >= 0; index -= 1) {
     const candidate = THINKING_LEVELS[index]
-    if (candidate && availableLevels.includes(candidate)) {
+    if (candidate && available.has(candidate)) {
       return candidate
     }
   }

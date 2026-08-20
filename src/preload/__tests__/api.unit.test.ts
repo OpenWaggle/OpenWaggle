@@ -3,15 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
   contextBridge: { exposeInMainWorld: vi.fn() },
-  ipcRenderer: {
-    invoke: vi.fn(),
-    send: vi.fn(),
-    on: vi.fn(),
-    removeListener: vi.fn(),
-  },
-  webUtils: {
-    getPathForFile: vi.fn(() => '/mock/path'),
-  },
+  ipcRenderer: { invoke: vi.fn(), send: vi.fn(), on: vi.fn(), removeListener: vi.fn() },
+  webUtils: { getPathForFile: vi.fn(() => '/mock/path') },
 }))
 
 import { ipcRenderer, webUtils } from 'electron'
@@ -19,9 +12,7 @@ import { api } from '../api'
 import { PRELOAD_MCP_METHODS } from './preload-mcp-methods'
 
 describe('preload api surface contract', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  beforeEach(() => vi.clearAllMocks())
 
   const EXPECTED_METHODS = [
     // Agent
@@ -79,6 +70,8 @@ describe('preload api surface contract', () => {
     'listSessions',
     'listSessionDetails',
     'getSessionDetail',
+    'listTurnCheckpoints',
+    'getTurnDiff',
     'createSession',
     'forkSessionToNew',
     'cloneSessionToNew',
@@ -88,6 +81,7 @@ describe('preload api surface contract', () => {
     'unarchiveSession',
     'listArchivedSessions',
     'updateSessionTitle',
+    'setSessionWorktreePlan',
     'listArchivedSessionBranches',
     'getSessionTree',
     'getSessionWorkspace',
@@ -96,6 +90,7 @@ describe('preload api surface contract', () => {
     'archiveSessionBranch',
     'restoreSessionBranch',
     'updateSessionTreeUiState',
+    'onGitWorkingTreeChanged',
     'onSessionTitleUpdated',
     // Terminal
     'createTerminal',
@@ -109,12 +104,20 @@ describe('preload api surface contract', () => {
     'getGitStatus',
     'commitGit',
     'getGitDiff',
+    'getGitBranchDiff',
+    'stageAllGitChanges',
+    'revertAllGitChanges',
     'listGitBranches',
     'checkoutGitBranch',
     'createGitBranch',
-    'renameGitBranch',
-    'deleteGitBranch',
-    'setGitBranchUpstream',
+    'listGitWorktrees',
+    'createGitWorktree',
+    'removeGitWorktree',
+    'getLocalVcsStatus',
+    'getRemoteVcsStatus',
+    'runStackedGitAction',
+    'listChangeRequests',
+    'checkoutChangeRequest',
     // Attachments
     'prepareAttachments',
     'prepareAttachmentFromText',
@@ -161,22 +164,16 @@ describe('preload api surface contract', () => {
     'suggestFiles',
     // Auto-updater
     'checkForUpdates',
+    'checkSessionWorktree',
     'installUpdate',
     'getUpdateStatus',
     'getAppVersion',
     'onUpdateStatus',
   ] as const
 
-  it('has every expected method as a function', () => {
-    for (const method of EXPECTED_METHODS) {
-      expect(typeof api[method]).toBe('function')
-    }
-  })
-
-  it('has no unexpected methods beyond the contract', () => {
-    const actualKeys = Object.keys(api).sort()
-    const expectedKeys = [...EXPECTED_METHODS].sort()
-    expect(actualKeys).toEqual(expectedKeys)
+  it('matches the preload method contract exactly', () => {
+    for (const method of EXPECTED_METHODS) expect(typeof api[method]).toBe('function')
+    expect(Object.keys(api).sort()).toEqual([...EXPECTED_METHODS].sort())
   })
 
   it('prepares attachments from user-selected File objects via preload path extraction', async () => {

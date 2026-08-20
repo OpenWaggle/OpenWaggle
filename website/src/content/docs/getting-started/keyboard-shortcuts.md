@@ -18,6 +18,8 @@ section: "Getting Started"
 | Toggle terminal | `Cmd+J` | `Ctrl+J` |
 | Toggle diff panel | `Cmd+D` | `Ctrl+D` |
 | Toggle Session Tree | `Cmd+Shift+Y` | `Ctrl+Shift+Y` |
+| Submit diff comment or review | `Cmd+Enter` | `Ctrl+Enter` |
+| Cancel diff comment or review | `Escape` | `Escape` |
 
 Open **Settings > Shortcuts** to record replacements. OpenWaggle rejects conflicts instead of silently replacing another command. Command palette, Go to file, and New session must remain assigned; optional workspace shortcuts can be cleared and every shortcut can be reset.
 

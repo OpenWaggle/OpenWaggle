@@ -1,78 +1,108 @@
 import { MessageSquare } from 'lucide-react'
 import { useState } from 'react'
+import { formatLineRange } from '@/features/diff-panel/lib/review-comment-payload'
 import { Button } from '@/shared/ui/Button'
 import { Textarea } from '@/shared/ui/Textarea'
 
 interface InlineCommentProps {
-  startLine: number
-  endLine: number
-  onAddSingleComment: (content: string) => void
-  onAddToReview: (content: string) => void
-  onCancel: () => void
+  readonly startLine: number
+  readonly endLine: number
+  /** Once a Review is open, the batch action reads "Add to review" (GitLab). */
+  readonly hasPendingReview: boolean
+  readonly onAddSingleComment: (content: string) => void
+  readonly onAddToReview: (content: string) => void
+  readonly onCancel: () => void
 }
+
+/**
+ * Composer for a new Review comment, mounted in the renderer's annotation slot.
+ *
+ * Width is bounded in container-query units against the diff's VISIBLE width:
+ * the code column is as wide as its longest line, so a full-width comment would
+ * push its own actions off-screen.
+ */
+const TEXTAREA_ROWS = 3
 
 export function InlineComment({
   startLine,
   endLine,
+  hasPendingReview,
   onAddSingleComment,
   onAddToReview,
   onCancel,
 }: InlineCommentProps) {
   const [content, setContent] = useState('')
-
-  const lineLabel = startLine === endLine ? `line ${startLine}` : `lines ${startLine}-${endLine}`
+  const trimmed = content.trim()
+  const canSubmit = trimmed !== ''
 
   function handleAddSingle() {
-    if (!content.trim()) return
-    onAddSingleComment(content.trim())
+    if (!canSubmit) return
+    onAddSingleComment(trimmed)
     setContent('')
   }
 
   function handleAddToReview() {
-    if (!content.trim()) return
-    onAddToReview(content.trim())
+    if (!canSubmit) return
+    onAddToReview(trimmed)
     setContent('')
   }
 
   return (
-    <div className="flex flex-col gap-2 w-full bg-diff-header-bg py-2 px-3 border-y border-border">
-      {/* Comment Meta */}
-      <div className="flex items-center gap-1.5 h-[18px]">
-        <MessageSquare className="size-[11px] text-text-tertiary shrink-0" />
-        <span className="text-[11px] font-medium text-text-secondary">Comment on {lineLabel}</span>
+    <div className="sticky left-0 flex w-[min(640px,calc(100cqw-4rem))] max-w-[calc(100cqw-4rem)] flex-col gap-2 border-y border-border bg-diff-header-bg px-3 py-2">
+      <div className="flex items-center gap-1.5">
+        <MessageSquare className="size-3 shrink-0 text-text-tertiary" />
+        <span className="text-[11px] text-text-tertiary">
+          Comment on {formatLineRange(startLine, endLine)}
+        </span>
       </div>
 
-      {/* Comment Editor */}
       <Textarea
+        autoFocus
         value={content}
-        onChange={(e) => setContent(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') onCancel()
-        }}
+        onChange={(event) => setContent(event.target.value)}
         placeholder="Leave feedback on this change…"
-        resize="none"
-        className="h-[58px] rounded-md border-button-border bg-diff-bg px-2.5 text-[12px] text-text-primary placeholder:text-text-tertiary focus:border-accent/50"
+        rows={TEXTAREA_ROWS}
+        className="text-[12px]"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            onCancel()
+            return
+          }
+          if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault()
+            if (hasPendingReview) handleAddToReview()
+            else handleAddSingle()
+          }
+        }}
       />
 
-      {/* Actions */}
-      <div className="flex items-center justify-end gap-2 h-[26px]">
+      <div className="flex flex-wrap items-center gap-2">
         <Button
-          variant="primary"
-          size="xs"
-          onClick={handleAddSingle}
-          disabled={!content.trim()}
-          className="h-[26px]"
+          variant="unstyled"
+          type="button"
+          onClick={onCancel}
+          className="h-[26px] rounded-[5px] px-2 text-[12px] text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
         >
-          Add single comment
+          Cancel
         </Button>
         <Button
-          variant="secondary"
-          size="xs"
-          onClick={handleAddToReview}
-          disabled={!content.trim()}
-          className="h-[26px]"
+          variant="unstyled"
+          type="button"
+          onClick={handleAddSingle}
+          disabled={!canSubmit}
+          className="h-[26px] rounded-[5px] border border-button-border px-2.5 text-[12px] text-text-secondary transition-opacity hover:bg-bg-hover disabled:opacity-40"
         >
-          Add to review
+          Add comment
+        </Button>
+        <Button
+          variant="unstyled"
+          type="button"
+          onClick={handleAddToReview}
+          disabled={!canSubmit}
+          className="h-[26px] rounded-[5px] border border-accent bg-diff-stage-bg px-2.5 text-[12px] font-medium text-accent transition-opacity disabled:opacity-40"
+        >
+          {hasPendingReview ? 'Add to review' : 'Start a review'}
         </Button>
       </div>
     </div>

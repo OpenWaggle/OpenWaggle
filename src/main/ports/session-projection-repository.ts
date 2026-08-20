@@ -5,7 +5,9 @@
  * Runtime writes still go through SessionRepository.
  */
 import type { SessionId } from '@shared/types/brand'
-import type { SessionDetail, SessionSummary } from '@shared/types/session'
+import type { SessionEnvironmentMode } from '@shared/types/git'
+import type { SessionDetail, SessionSummary, SessionWorktreePlan } from '@shared/types/session'
+import type { TurnCheckpointSummary, TurnDiff } from '@shared/types/turn-diff'
 import { Context, type Effect } from 'effect'
 import type { SessionProjectionRepositoryError } from '../errors'
 
@@ -25,6 +27,7 @@ export interface SessionProjectionRepositoryShape {
     readonly projectPath: string
     readonly piSessionId: string
     readonly piSessionFile?: string
+    readonly environmentMode?: SessionEnvironmentMode
   }) => Effect.Effect<SessionDetail, SessionProjectionRepositoryError>
   readonly delete: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly archive: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
@@ -36,6 +39,22 @@ export interface SessionProjectionRepositoryShape {
   readonly updateTitle: (
     id: SessionId,
     title: string,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  readonly setWorktreePlan: (
+    id: SessionId,
+    plan: SessionWorktreePlan,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  readonly listTurnCheckpoints: (
+    id: SessionId,
+  ) => Effect.Effect<readonly TurnCheckpointSummary[], SessionProjectionRepositoryError>
+  readonly getTurnDiff: (
+    id: SessionId,
+    turnId: string,
+  ) => Effect.Effect<TurnDiff | null, SessionProjectionRepositoryError>
+  readonly setTurnCheckpointAnchor: (
+    id: SessionId,
+    turnId: string,
+    anchorNodeId: string,
   ) => Effect.Effect<void, SessionProjectionRepositoryError>
 }
 

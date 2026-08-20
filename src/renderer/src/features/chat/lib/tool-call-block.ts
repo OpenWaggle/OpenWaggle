@@ -26,6 +26,13 @@ export interface ToolCallResultPayload {
 export interface UnifiedDiffLine {
   readonly type: 'add' | 'remove' | 'context' | 'meta'
   readonly content: string
+  /**
+   * 0-based position in the parsed diff. A diff line has no other identity
+   * (content repeats — blank context lines, identical edits), so position IS its
+   * identity; carrying it in the data gives React a stable key without keying on
+   * the render index (react-doctor/no-array-index-as-key).
+   */
+  readonly lineIndex: number
 }
 
 export interface UnifiedDiffData {
@@ -169,19 +176,19 @@ export function getResultError(result: ToolCallResultPayload | undefined) {
 function parseUnifiedDiff(diffText: string): UnifiedDiffData {
   let additions = 0
   let deletions = 0
-  const lines = diffText.split(LINE_SPLIT_SEPARATOR).map((line): UnifiedDiffLine => {
+  const lines = diffText.split(LINE_SPLIT_SEPARATOR).map((line, lineIndex): UnifiedDiffLine => {
     if (line.startsWith('+++') || line.startsWith('---') || line.startsWith('@@')) {
-      return { type: 'meta', content: line }
+      return { type: 'meta', content: line, lineIndex }
     }
     if (line.startsWith('+')) {
       additions += 1
-      return { type: 'add', content: line }
+      return { type: 'add', content: line, lineIndex }
     }
     if (line.startsWith('-')) {
       deletions += 1
-      return { type: 'remove', content: line }
+      return { type: 'remove', content: line, lineIndex }
     }
-    return { type: 'context', content: line }
+    return { type: 'context', content: line, lineIndex }
   })
 
   return { text: diffText, lines, additions, deletions }

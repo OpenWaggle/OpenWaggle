@@ -1,8 +1,8 @@
-import type { ReviewComment } from '@shared/types/review'
 import { beforeEach, describe, expect, it } from 'vitest'
+import type { ReviewCommentWithSnippet } from '@/features/diff-panel/lib/review-comment-payload'
 import { type ReviewCommentLocation, useReviewStore } from '../review-store'
 
-function makeComment(id: string, filePath = 'src/index.ts', line = 10): ReviewComment {
+function makeComment(id: string, filePath = 'src/index.ts', line = 10): ReviewCommentWithSnippet {
   return {
     id,
     filePath,
@@ -10,6 +10,7 @@ function makeComment(id: string, filePath = 'src/index.ts', line = 10): ReviewCo
     endLine: line,
     content: `comment-${id}`,
     createdAt: Date.now(),
+    diff: '',
   }
 }
 

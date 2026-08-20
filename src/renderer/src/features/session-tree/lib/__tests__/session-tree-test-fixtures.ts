@@ -19,13 +19,14 @@ export function node(input: {
   readonly parentId?: string | null
   readonly depth: number
   readonly order: number
+  readonly kind?: SessionNode['kind']
 }): SessionNode {
   return {
     id: SessionNodeId(input.id),
     sessionId: SESSION_ID,
     parentId: input.parentId ? SessionNodeId(input.parentId) : null,
     piEntryType: 'message',
-    kind: 'assistant_message',
+    kind: input.kind ?? 'assistant_message',
     timestampMs: input.order,
     createdOrder: input.order,
     pathDepth: input.depth,

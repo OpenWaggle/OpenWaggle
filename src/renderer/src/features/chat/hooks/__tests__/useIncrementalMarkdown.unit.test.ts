@@ -112,7 +112,10 @@ describe('useIncrementalMarkdown', () => {
 
   it('invalidates prefix cache when highlighter changes', () => {
     const text = 'paragraph one\n\nparagraph two'
-    const options1 = { highlighter: undefined, cache: new ShikiCache() }
+    const options1: { highlighter: import('shiki').Highlighter | undefined; cache: ShikiCache } = {
+      highlighter: undefined,
+      cache: new ShikiCache(),
+    }
 
     const { result, rerender } = renderHook(
       ({ opts }) => useIncrementalMarkdown(text, true, opts),

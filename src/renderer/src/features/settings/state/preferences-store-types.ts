@@ -1,5 +1,6 @@
 import type { SupportedModelId } from '@shared/types/brand'
-import type { Settings, ThinkingLevel } from '@shared/types/settings'
+import type { SessionEnvironmentMode } from '@shared/types/git'
+import type { DiffSyntaxTheme, DiffView, Settings, ThinkingLevel } from '@shared/types/settings'
 import type { ShortcutBinding, ShortcutCommand } from '@shared/types/shortcuts'
 
 export interface PreferencesState {
@@ -15,6 +16,10 @@ export interface PreferencesState {
   pushRecentProject: (path: string) => Promise<void>
   removeRecentProject: (path: string) => Promise<void>
   setThinkingLevel: (preset: ThinkingLevel) => Promise<void>
+  setDefaultSessionEnvironmentMode: (mode: SessionEnvironmentMode) => Promise<void>
+  setDiffSyntaxTheme: (theme: DiffSyntaxTheme) => Promise<void>
+  setDiffView: (view: DiffView) => Promise<void>
+  setDiffWrapLines: (wrap: boolean) => Promise<void>
   setEnabledModels: (models: string[]) => Promise<void>
   setProjectDisplayName: (path: string, name: string) => Promise<void>
   setShortcutBinding: (command: ShortcutCommand, binding: ShortcutBinding | null) => Promise<void>

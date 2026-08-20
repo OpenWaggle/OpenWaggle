@@ -1,5 +1,6 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
+import type { SessionDetail } from '@shared/types/session'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import type { WaggleCollaborationStatus } from '@shared/types/waggle'
 import type { AgentChatStatus, AgentCompactionStatus } from '@/features/chat/hooks/useAgentChat'
@@ -17,6 +18,8 @@ export interface ComposerSectionParams {
   readonly status: AgentChatStatus
   readonly compactionStatus: AgentCompactionStatus | null
   readonly activeSessionId: SessionId | null
+  readonly session: SessionDetail | null
+  readonly isFirstMessage: boolean
   readonly waggleStatus: WaggleCollaborationStatus
   readonly slashCommandMenuOpen: boolean
   readonly slashSkills: readonly SkillDiscoveryItem[]
@@ -38,6 +41,7 @@ export interface ComposerSectionParams {
   readonly handleCloneToNewSession: () => void
 }
 
+/** Closes over nothing but the composer store singleton — hoisted to module scope. */
 function handleSelectSkill(skillId: string, skillName?: string) {
   insertSkillReferenceAtActiveSlash(skillId, skillName ?? skillId)
 }
@@ -70,8 +74,12 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
     handleCloneToNewSession,
   } = params
 
+  const isFirstMessage = params.isFirstMessage
+
   return {
     activeSessionId,
+    session: params.session,
+    isFirstMessage,
     waggleStatus,
     slashCommandMenuOpen,
     slashSkills,

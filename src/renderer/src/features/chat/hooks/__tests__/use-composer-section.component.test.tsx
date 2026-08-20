@@ -43,6 +43,8 @@ function composerSectionParams(): Parameters<typeof useComposerSection>[0] {
     status: 'ready',
     compactionStatus: null,
     activeSessionId: SESSION_ID,
+    session: null,
+    isFirstMessage: false,
     waggleStatus: 'idle',
     slashCommandMenuOpen: false,
     slashSkills: [],

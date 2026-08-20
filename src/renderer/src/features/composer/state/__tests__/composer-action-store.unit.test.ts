@@ -37,14 +37,14 @@ describe('action dialog', () => {
     useComposerStore.getState().openMenu('thinking')
     expect(useComposerStore.getState().thinkingMenuOpen).toBe(true)
 
-    useComposerActionStore.getState().openActionDialog('delete-branch')
+    useComposerActionStore.getState().openActionDialog('create-branch')
     expect(useComposerStore.getState().thinkingMenuOpen).toBe(false)
     expect(useComposerStore.getState().executionMenuOpen).toBe(false)
     expect(useComposerStore.getState().branchMenuOpen).toBe(false)
   })
 
   it('closeActionDialog resets dialog state when not busy', () => {
-    useComposerActionStore.getState().openActionDialog('delete-branch')
+    useComposerActionStore.getState().openActionDialog('create-branch')
     useComposerActionStore.getState().closeActionDialog()
     expect(useComposerActionStore.getState().actionDialog).toBeNull()
     expect(useComposerActionStore.getState().actionDialogInput).toBe('')
@@ -52,10 +52,10 @@ describe('action dialog', () => {
   })
 
   it('closeActionDialog does nothing when busy', () => {
-    useComposerActionStore.getState().openActionDialog('rename-branch')
+    useComposerActionStore.getState().openActionDialog('create-branch')
     useComposerActionStore.getState().setActionDialogBusy(true)
     useComposerActionStore.getState().closeActionDialog()
-    expect(useComposerActionStore.getState().actionDialog).toBe('rename-branch')
+    expect(useComposerActionStore.getState().actionDialog).toBe('create-branch')
   })
 
   it('setActionDialogInput updates input value', () => {
