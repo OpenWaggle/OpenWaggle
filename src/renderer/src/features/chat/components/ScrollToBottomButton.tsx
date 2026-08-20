@@ -27,7 +27,7 @@ export function ScrollToBottomButton({ visible, onClick }: ScrollToBottomButtonP
           'bg-bg-secondary text-[12px] text-text-secondary shadow-sm',
           'transition-colors hover:border-accent/40 hover:bg-bg-hover hover:text-text-primary',
           'active:border-accent/70 active:bg-[color-mix(in_oklab,var(--color-bg-secondary)_88%,var(--color-accent)_12%)] active:text-text-primary',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40',
+          'focus-visible:outline-none',
         )}
         aria-label="Scroll to bottom"
       >

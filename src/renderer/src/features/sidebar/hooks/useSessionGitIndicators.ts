@@ -63,3 +63,16 @@ export function useSessionGitIndicator(session: SessionSummary) {
   const status = useGitStore((s) => selectWorkingTreeStatus(s, workingPath).status)
   return buildSessionGitIndicator(status)
 }
+
+/**
+ * The git branch this session's working tree is on, or null until status is known.
+ *
+ * Read separately from the ahead/behind indicator because a row shows the branch as an
+ * icon whose accessible name carries the value, while divergence renders as text.
+ */
+export function useSessionGitBranch(session: SessionSummary): string | null {
+  const workingPath = sessionWorkingPath(session)
+  const branch = useGitStore((s) => selectWorkingTreeStatus(s, workingPath).status?.branch)
+  const trimmed = branch?.trim()
+  return trimmed !== undefined && trimmed.length > 0 ? trimmed : null
+}

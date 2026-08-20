@@ -560,6 +560,62 @@ _Avoid_: batch, PR review (no remote change request is involved)
 An optional overall instruction attached to a Review at submit time, framing the individual Review comments for the agent.
 _Avoid_: description, cover letter, global comment
 
+### Sidebar quick access
+
+**Pinned session**:
+A session the user has explicitly marked for quick access, so it appears in the Pinned section regardless of recency. A durable expression of user intent, not a view preference: it survives archiving the session and is keyed by the session's own identity, so it can later follow the session across devices.
+_Avoid_: favourite, starred, bookmark, pinned project (projects cannot be pinned)
+
+**Pinned section**:
+The region at the top of the sidebar that lists every Pinned session, above the project list. Its purpose is a predictable location: a Pinned session is always found here rather than wherever recency has moved it.
+_Avoid_: pinned band, favourites bar, quick access bar
+
+**Manual order**:
+The user-authored sequence of Pinned sessions, produced by dragging rows within the Pinned section and persisted per pin. The default Pinned sort, and the only one whose sequence a user owns; the alternatives derive their sequence from session data instead.
+_Avoid_: custom order (ambiguous with the Pinned sort choice), pin order (that is chronological, not user-authored)
+
+**Pinned sort**:
+The rule ordering the Pinned section — Manual, or one derived from session data (Recent, Oldest, Name). A view preference, distinct from Manual order, which the derived rules never overwrite.
+_Avoid_: sort mode (ambiguous with the project list's own session sort), filter (nothing is hidden)
+
+**Pinned shortcut**:
+The keyboard shortcut opening a Pinned session by its **position** in the Pinned section, first row through ninth. Positional by definition, so it re-derives whenever the Pinned sort reorders the list, and rows past the ninth have none.
+_Avoid_: pin number (implies a number stored on the pin), session shortcut (any session can be opened; only Pinned sessions get a positional one)
+
+### Transcript window
+
+**Transcript window** is the slice of a session's rows the chat builds on open: the newest 40. **Load earlier** expands it by 100 rows. The window is not a scroll position and is never persisted; it resets to the newest rows whenever the open session changes. See `docs/adr/0022-transcript-opens-from-its-newest-end.md`.
+
+### Sidebar row vocabulary
+
+**Session row state**:
+The single thing a session row reports: its **Session status** plus `interrupted`, which is not a status because it is recorded per conversation branch and can accompany any status. Ranked, so a row that needs a person outranks one that is merely busy, and a row shows one state rather than several.
+_Avoid_: status (that is the narrower Pi-derived value), failed (the vocabulary is `error`, matching the code)
+
+**Attention tier**:
+The group of **Session row states** that need a person: needs input, interrupted, error. Rendered loudly, with a leading border as well as colour so the tier is never carried by colour alone. The in-flight tier recedes and the quiet tier stays quiet.
+_Avoid_: urgent, priority, alert (none of these are set by the user or by severity)
+
+**Provenance icon**:
+A muted icon on a row's second line saying what *kind* of session it is: its git branch, whether it owns a **Session worktree**, how many **SessionBranches** it has, whether a terminal is alive. A separate family from status icons, sharing no glyph with them, because at the size the second line renders a user reads silhouette rather than detail.
+_Avoid_: status icon (that family answers a different question), badge (implies a count or a state)
+
+**State chip**:
+A control at the top of the sidebar that narrows the whole tree to one **Session row state**, shown only when something is in that state and always paired with a count. Reaches across every project, so a failed run inside a collapsed project is one click away.
+_Avoid_: tab, filter pill, segmented control (it is a toggle, and several can be present without being mutually exclusive of the tree)
+
+**Roll-up pip**:
+A counted marker on a project heading reporting a **Session row state** inside it, restricted to the attention and in-flight tiers. Exists so a collapsed project still answers "is there anything in here for me".
+_Avoid_: badge, dot (a dot carries no count, and a count is what makes the colour legible)
+
+**Sidebar view preference**:
+Sidebar state the user authored and expects to survive a relaunch: the session sort order and which projects are collapsed. Distinct from a **Sidebar filter**, which is discarded on quit.
+_Avoid_: sidebar settings (it is not in Settings), layout state (window geometry is a different thing)
+
+**Sidebar filter**:
+A narrowing of the sidebar that hides sessions: a **State chip** or the text filter. Never persisted, because a filter that subtracts sessions should not outlive the intent behind it, and an app that opened on an unexplained subset would look broken.
+_Avoid_: search (it narrows in place rather than producing results), sidebar view preference (that persists; this does not)
+
 ## Relationships
 
 - An **OpenWaggle extension package** declares zero or more **OpenWaggle desktop contributions** across one or more **Extension contribution surfaces**.
@@ -608,6 +664,11 @@ _Avoid_: description, cover letter, global comment
 - The **Waggle core package** can be used without the **Pi Waggle package** when another tool wants Waggle mode without Pi-specific integration.
 - The **Waggle core package** is runtime-neutral and must not import Pi SDK packages, Electron, Node built-ins, OpenWaggle renderer stores, or app services.
 - An **OpenWaggle publishable package** is distinct from the OpenWaggle desktop app artifact and from a **Development extension fixture**.
+- A **Pinned session** is one session; it appears in the **Pinned section** and not in its project group, so no session is listed twice.
+- A **Pinned session** keeps its pin when archived; the row leaves the **Pinned section** while archived and returns on unarchive.
+- The **Pinned section** is ordered by exactly one **Pinned sort**; only **Manual order** is user-authored, and the derived sorts never overwrite it.
+- A **Pinned shortcut** belongs to a **position** in the **Pinned section**, never to a particular **Pinned session**.
+- Projects are not pinnable: quick access is expressed only through **Pinned sessions**.
 - Multiple **OpenWaggle publishable packages** can share one **Package publishing workflow** while remaining separate packages.
 - An **OpenWaggle publishable package** has an **Independent package version** even when it uses the shared **Package publishing workflow**.
 - The **Release Please package workflow** is the selected **Package publishing workflow** for OpenWaggle publishable packages.
@@ -911,3 +972,5 @@ _Avoid_: description, cover letter, global comment
 - "worktree sidebar" was used for the diff panel's file list, which collides with **Session worktree** (a git worktree). Resolved: that list is the **Changed-file navigator**; it is scoped to the active diff and has no relationship to git worktrees.
 - "theme" is ambiguous between the contract, a selectable instance, and the object handed to extensions. Resolved: the **Design token contract** is the versioned role set, an **Appearance** is a selectable instance of it, and the extension theme object is one projection of an Appearance across the SDK boundary.
 - "mode" is ambiguous between appearance polarity and git isolation. Resolved: **Colour scheme** is light-or-dark polarity; **Session environment mode** is `local` versus `worktree` git isolation.
+- "pin" was used for both projects and sessions (issue #97 was written as project pinning). Resolved: only sessions are pinnable. A **Pinned session** is reachable by one **Pinned shortcut**, whereas a pinned project never could be — it has no single thing to open.
+- "pinned order" conflated two ideas. Resolved: **Manual order** is the sequence the user drags and owns; **Pinned sort** is the rule currently ordering the section. Switching **Pinned sort** away from Manual and back must return the user's **Manual order** unchanged.

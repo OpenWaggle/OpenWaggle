@@ -9,6 +9,7 @@ import type {
   ExtensionProjectOverrideKey,
   ExtensionProjectOverrideState,
 } from '../../extensions/types'
+import { PINNED_SESSION_REPOSITORY_STUB } from '../../ports/__tests__/session-projection-pin-stub'
 import { ActiveProjectChangeService } from '../../ports/active-project-change-service'
 import { DocsBundleService } from '../../ports/docs-bundle-service'
 import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
@@ -175,6 +176,7 @@ function makeSessionLayers() {
       listTurnCheckpoints: () => Effect.succeed([]),
       getTurnDiff: () => Effect.succeed(null),
       setTurnCheckpointAnchor: () => Effect.void,
+      ...PINNED_SESSION_REPOSITORY_STUB,
     }),
     Layer.succeed(SessionRepository, {
       list: () => Effect.succeed([]),

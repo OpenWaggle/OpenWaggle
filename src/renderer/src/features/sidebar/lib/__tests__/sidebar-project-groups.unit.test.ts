@@ -118,3 +118,66 @@ describe('buildSidebarProjectGroups', () => {
     expect(grouped.projects).toEqual([])
   })
 })
+
+describe('a project group carries every session it owns', () => {
+  /*
+   * `sessions` is what the tree renders: narrowed by the filter and with pinned rows hoisted out.
+   * A project-wide action must not act on that subset. Archiving from the project menu offered the
+   * visible count and archived only those, and a project whose sessions were all pinned reported
+   * nothing to archive at all.
+   */
+  it('keeps the sessions a filter hid out of the rendered rows', () => {
+    const visible = [makeSession('a', 'Session a', '/repo', 3)]
+    const everything = [
+      makeSession('a', 'Session a', '/repo', 3),
+      makeSession('b', 'Session b', '/repo', 2),
+      makeSession('c', 'Session c', '/repo', 1),
+    ]
+
+    const groups = buildSidebarProjectGroups({
+      sessions: visible,
+      currentProjectPath: '/repo',
+      recentProjects: [],
+      sortMode: 'recent',
+      allSessions: everything,
+    })
+
+    const group = groups.projects.find((candidate) => candidate.projectPath === '/repo')
+    expect(group?.sessions).toHaveLength(1)
+    expect(group?.allSessions).toHaveLength(3)
+  })
+
+  it('keeps the pinned sessions hoisted out of the rendered rows', () => {
+    const everything = [
+      makeSession('a', 'Session a', '/repo', 2),
+      makeSession('b', 'Session b', '/repo', 1),
+    ]
+
+    const groups = buildSidebarProjectGroups({
+      sessions: everything,
+      currentProjectPath: '/repo',
+      recentProjects: [],
+      sortMode: 'recent',
+      pinnedSessionIds: ['a', 'b'],
+      allSessions: everything,
+    })
+
+    const group = groups.projects.find((candidate) => candidate.projectPath === '/repo')
+    // Every row is pinned away, so the group renders nothing but still owns both sessions.
+    expect(group?.sessions).toHaveLength(0)
+    expect(group?.allSessions).toHaveLength(2)
+  })
+
+  it('falls back to the rendered sessions when no unfiltered list is given', () => {
+    const rendered = [makeSession('a', 'Session a', '/repo', 1)]
+
+    const groups = buildSidebarProjectGroups({
+      sessions: rendered,
+      currentProjectPath: '/repo',
+      recentProjects: [],
+      sortMode: 'recent',
+    })
+
+    expect(groups.projects[0]?.allSessions).toHaveLength(1)
+  })
+})

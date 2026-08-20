@@ -52,6 +52,7 @@ function actions(): SidebarSessionActions {
     delete: vi.fn(),
     archive: vi.fn(),
     markUnread: vi.fn(),
+    togglePin: vi.fn(),
     clone: vi.fn(),
   }
 }
@@ -69,10 +70,17 @@ describe('SessionListItem git indicator', () => {
     useGitStore.setState({ statusByWorkingPath: {} })
   })
 
+  /**
+   * Scoped to the divergence badge rather than any `role="img"`. Provenance glyphs are
+   * images too, and a worktree session legitimately shows one whether or not git status has
+   * arrived, so a blanket query would pass for the wrong reason.
+   */
+  const divergenceBadge = () => screen.queryByRole('img', { name: /commits? (ahead|behind)/ })
+
   it('shows nothing while the session status is unknown', () => {
     renderItem(session('a', { environmentMode: 'worktree', worktreePath: WORKTREE_A }))
 
-    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(divergenceBadge()).not.toBeInTheDocument()
   })
 
   it('shows nothing for a clean synced tree', () => {
@@ -82,10 +90,10 @@ describe('SessionListItem git indicator', () => {
 
     renderItem(session('a', { environmentMode: 'worktree', worktreePath: WORKTREE_A }))
 
-    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(divergenceBadge()).not.toBeInTheDocument()
   })
 
-  it('reports this session worktree changed files and divergence', () => {
+  it('reports this session worktree divergence', () => {
     useGitStore.setState({
       statusByWorkingPath: {
         [WORKTREE_A]: {
@@ -98,7 +106,8 @@ describe('SessionListItem git indicator', () => {
 
     renderItem(session('a', { environmentMode: 'worktree', worktreePath: WORKTREE_A }))
 
-    expect(screen.getByRole('img', { name: '3 changed files, 2 ahead' })).toBeInTheDocument()
+    // Uncommitted files are deliberately not shown, only divergence.
+    expect(screen.getByRole('img', { name: '2 commits ahead' })).toBeInTheDocument()
   })
 
   /**
@@ -110,7 +119,7 @@ describe('SessionListItem git indicator', () => {
     useGitStore.setState({
       statusByWorkingPath: {
         [WORKTREE_A]: {
-          status: status({ clean: false, filesChanged: 4 }),
+          status: status({ clean: false, filesChanged: 4, ahead: 4 }),
           isLoading: false,
           error: null,
         },
@@ -121,12 +130,12 @@ describe('SessionListItem git indicator', () => {
     const first = renderItem(
       session('a', { environmentMode: 'worktree', worktreePath: WORKTREE_A }),
     )
-    expect(screen.getByRole('img', { name: '4 changed files' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: '4 commits ahead' })).toBeInTheDocument()
     first.unmount()
 
     renderItem(session('b', { environmentMode: 'worktree', worktreePath: WORKTREE_B }))
-    expect(screen.getByRole('img', { name: '5 behind' })).toBeInTheDocument()
-    expect(screen.queryByRole('img', { name: '4 changed files' })).not.toBeInTheDocument()
+    expect(screen.getByRole('img', { name: '5 commits behind' })).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: '4 commits ahead' })).not.toBeInTheDocument()
   })
 
   // A local-mode session reads the opened checkout, not a worktree path it may carry
@@ -135,12 +144,12 @@ describe('SessionListItem git indicator', () => {
     useGitStore.setState({
       statusByWorkingPath: {
         [PROJECT]: {
-          status: status({ clean: false, filesChanged: 1 }),
+          status: status({ clean: false, filesChanged: 1, ahead: 1 }),
           isLoading: false,
           error: null,
         },
         [WORKTREE_A]: {
-          status: status({ clean: false, filesChanged: 9 }),
+          status: status({ clean: false, filesChanged: 9, ahead: 9 }),
           isLoading: false,
           error: null,
         },
@@ -149,6 +158,6 @@ describe('SessionListItem git indicator', () => {
 
     renderItem(session('a', { environmentMode: 'local', worktreePath: WORKTREE_A }))
 
-    expect(screen.getByRole('img', { name: '1 changed file' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: '1 commit ahead' })).toBeInTheDocument()
   })
 })

@@ -36,6 +36,7 @@ function renderSessionItem(options?: { readonly isActive?: boolean }) {
     onDelete: vi.fn(),
     onMarkUnread: vi.fn(),
     onSelect: vi.fn(),
+    onTogglePin: vi.fn(),
   }
 
   render(
@@ -48,6 +49,7 @@ function renderSessionItem(options?: { readonly isActive?: boolean }) {
         archive: callbacks.onArchive,
         clone: callbacks.onClone,
         markUnread: callbacks.onMarkUnread,
+        togglePin: callbacks.onTogglePin,
       }}
     />,
   )

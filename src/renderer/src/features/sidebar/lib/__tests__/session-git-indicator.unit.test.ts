@@ -25,25 +25,31 @@ describe('buildSessionGitIndicator', () => {
   it('shows nothing when status is unknown', () => {
     expect(buildSessionGitIndicator(null).label).toBe('')
     expect(buildSessionGitIndicator(undefined).label).toBe('')
-    expect(buildSessionGitIndicator(null).isDirty).toBe(false)
   })
 
   it('shows nothing for a clean, synced tree', () => {
     expect(buildSessionGitIndicator(status()).label).toBe('')
   })
 
-  it('reports changed files', () => {
-    const indicator = buildSessionGitIndicator(status({ clean: false, filesChanged: 3 }))
+  /**
+   * The changed-file count was removed on purpose. Sessions sharing a working tree all
+   * reported the same number, so it said nothing about the session being looked at, and
+   * a large number implied a severity it did not carry.
+   */
+  it('ignores uncommitted changes entirely', () => {
+    const indicator = buildSessionGitIndicator(status({ clean: false, filesChanged: 57 }))
 
-    expect(indicator.isDirty).toBe(true)
-    expect(indicator.label).toContain('3')
-    expect(indicator.description).toBe('3 changed files')
+    expect(indicator.label).toBe('')
+    expect(indicator.description).toBe('')
   })
 
-  it('uses the singular for one changed file', () => {
-    expect(buildSessionGitIndicator(status({ clean: false, filesChanged: 1 })).description).toBe(
-      '1 changed file',
+  it('still reports divergence on a dirty tree', () => {
+    const indicator = buildSessionGitIndicator(
+      status({ clean: false, filesChanged: 57, ahead: 1, behind: 3 }),
     )
+
+    expect(indicator.label).toBe('↑1 ↓3')
+    expect(indicator.description).toBe('1 commit ahead, 3 commits behind')
   })
 
   it('reports ahead and behind counts', () => {
@@ -51,21 +57,12 @@ describe('buildSessionGitIndicator', () => {
 
     expect(indicator.label).toContain('↑2')
     expect(indicator.label).toContain('↓1')
-    expect(indicator.description).toBe('2 ahead, 1 behind')
+    expect(indicator.description).toBe('2 commits ahead, 1 commit behind')
   })
 
-  it('combines dirtiness with divergence', () => {
-    const indicator = buildSessionGitIndicator(
-      status({ clean: false, filesChanged: 2, ahead: 1, behind: 3 }),
-    )
-
-    expect(indicator.description).toBe('2 changed files, 1 ahead, 3 behind')
-  })
-
-  // A tree reporting not-clean with no counted files has nothing actionable to show.
-  it('treats not-clean with zero changed files as not dirty', () => {
-    expect(buildSessionGitIndicator(status({ clean: false, filesChanged: 0 })).isDirty).toBe(false)
-    expect(buildSessionGitIndicator(status({ clean: false, filesChanged: 0 })).label).toBe('')
+  it('uses the singular for a single commit', () => {
+    expect(buildSessionGitIndicator(status({ ahead: 1 })).description).toBe('1 commit ahead')
+    expect(buildSessionGitIndicator(status({ behind: 1 })).description).toBe('1 commit behind')
   })
 
   it('clamps negative counts rather than rendering them', () => {

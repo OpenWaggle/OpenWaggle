@@ -9,7 +9,11 @@ When you launch OpenWaggle for the first time, you'll see the main workspace wit
 
 1. **Set up a provider** — Click the gear icon in the sidebar to open Settings. Go to **Connections**, expand an auth method group, and authenticate through API key or OAuth as reported by Pi. See [Providers & Models](/docs/providers/overview) for details.
 
-2. **Select a project** — Click "Select a project folder to get started" in the welcome screen, or use the folder button in the sidebar. This gives the agent access to your codebase.
+2. **Select a project** — Click "Select a project folder to get started" in the welcome screen, or use the folder button on the sidebar's **Projects** heading. This gives the agent access to your codebase.
+
+   Once you have more than a handful of sessions, the filter field at the top of the sidebar
+   (`Cmd+F`) narrows by session title or project name, and the state chips beneath it jump
+   straight to whatever needs you. See [Reading the sidebar](/docs/using-openwaggle/chat-and-tools#reading-the-sidebar).
 
 3. **Enable models** — In Settings > Connections, choose which Pi-reported models should appear in the composer.
 

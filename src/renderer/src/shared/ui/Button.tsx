@@ -28,7 +28,8 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const BUTTON_BASE_CLASS =
-  'inline-flex shrink-0 items-center gap-1.5 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 disabled:cursor-not-allowed disabled:opacity-50'
+  // No focus ring: focus shows as a bar on the leading edge, from the global :focus-visible rule.
+  'inline-flex shrink-0 items-center gap-1.5 font-medium transition-colors focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50'
 const BUTTON_UNSTYLED_BASE_CLASS = 'disabled:cursor-not-allowed disabled:opacity-50'
 
 const BUTTON_VARIANT_CLASS = {

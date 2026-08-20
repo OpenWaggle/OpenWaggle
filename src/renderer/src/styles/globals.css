@@ -1,13 +1,27 @@
 @import "tailwindcss";
 @plugin "tailwindcss-animate";
 
-@theme {
-  /* Surfaces */
-  --color-bg: #141619;
+/*
+ * `static` rather than a plain `@theme`.
+ *
+ * Tailwind tree-shakes theme variables that no utility class references, and several roles here
+ * are read at runtime through `var()` in an inline style rather than through a class:
+ * --color-neutral, --color-review and --color-plan. Without `static` they were declared here and
+ * absent from the stylesheet, so an idle row's `--row-color: var(--color-neutral)` resolved to
+ * nothing and the glyph fell back to inherited colour. Verified with the Tailwind CLI.
+ */
+@theme static {
+  /*
+   * Surfaces. Values match the approved sidebar prototype, which is the source of truth for
+   * colour. Three drifted while the prototype was being built: bg-primary, bg-tertiary and
+   * bg-active. The visible one was bg-active, an amber tint here against the prototype's
+   * blue-grey, which made the selected row a different colour from the approved design.
+   */
+  --color-bg: #141719;
   --color-bg-secondary: #1a1d22;
-  --color-bg-tertiary: #1f232a;
+  --color-bg-tertiary: #20242b;
   --color-bg-hover: #262b33;
-  --color-bg-active: #1d1a10;
+  --color-bg-active: #2b313a;
 
   /* Borders */
   --color-border: #1e2229;
@@ -24,8 +38,31 @@
   --color-accent-dim: #b87410;
   --color-success: #4caf72;
   --color-error: #ef4444;
-  --color-warning: #f5a623;
-  --color-info: #61a8ff;
+  /*
+   * AA-safe partners for roles that cannot carry small text.
+   *
+   * A session row has three backgrounds: resting --color-bg-secondary, hovered
+   * --color-bg-hover, selected --color-bg-active. The binding constraint is the lightest,
+   * #2b313a, not the resting one. Measured there, --color-error is 3.48:1 and --color-info
+   * is 3.56:1: both clear the 3:1 non-text bar for an icon, a border or a pip, and both miss
+   * 4.5:1 for a label. These partners carry the label instead, so each role keeps the hue it
+   * was chosen for. Every other role clears 4.5:1 on all three. See ADR 0021.
+   */
+  --color-error-text: #f87171;
+  --color-info-text: #60a5fa;
+  /* Was #f5a623, byte-identical to --color-accent, so a warning looked like the brand. */
+  --color-warning: #f97316;
+  --color-info: #3b82f6;
+
+  /*
+   * Roles with no cross-industry convention, named for meaning so a theme can re-map them
+   * without touching call sites. Never name a token after its hue. See ADR 0021.
+   */
+  --color-review: #a78bfa;
+  --color-plan: #e879f9;
+  --color-progress: #7dd3fc;
+  /* Carries no semantic weight: idle, inactive, nothing pending. */
+  --color-neutral: #9098a8;
 
   /* Design-specific tokens */
   --color-input-card-border: #2a2f3a;
@@ -85,6 +122,29 @@
     letter-spacing: 0.006em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  /*
+   * The sidebar's scroll area, ported from the approved prototype. A thin thumb drawn inside a
+   * transparent border, so the track occupies the same width whether or not it is visible and
+   * rows do not change width when a project is expanded.
+   */
+  .sidebar-scroll {
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+  }
+  .sidebar-scroll::-webkit-scrollbar {
+    width: 10px;
+  }
+  .sidebar-scroll::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--color-text-muted) 40%, transparent);
+    border-radius: 6px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  .sidebar-scroll::-webkit-scrollbar-track {
+    background: transparent;
   }
 
   body.right-sidebar-resizing {
@@ -222,15 +282,13 @@
     background: color-mix(in srgb, var(--color-accent) 20%, transparent);
   }
 
+  /*
+   * No focus decoration anywhere. Maintainer's decision.
+   *
+   * outline is suppressed so the browser draws nothing of its own either.
+   */
+  :focus,
   :focus-visible {
-    outline: none;
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, #9aa3b2 76%, transparent),
-      0 0 0 3px color-mix(in srgb, #9aa3b2 15%, transparent);
-  }
-
-  .model-selector-search-input:focus,
-  .model-selector-search-input:focus-visible {
     outline: none;
     box-shadow: none;
   }
@@ -531,7 +589,7 @@
       0 0 10px color-mix(in srgb, var(--color-accent) 10%, transparent);
   }
 
-  .session-tree-node-dot:is(:hover, :focus-visible) {
+  .session-tree-node-dot:hover {
     box-shadow:
       0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent),
       0 0 12px color-mix(in srgb, var(--color-accent) 14%, transparent);

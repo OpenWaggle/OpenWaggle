@@ -56,6 +56,8 @@ import type { OpenWaggleMcpApi } from './openwaggle-mcp-api'
 import type { OpenWaggleWorkspaceFilesApi } from './openwaggle-workspace-files-api'
 import type { AgentPhaseState } from './phase'
 import type {
+  PinnedSession,
+  PinnedSessionMove,
   SessionCopyToNewResult,
   SessionDetail,
   SessionNavigateTreeOptions,
@@ -145,6 +147,12 @@ export interface OpenWaggleApi
   getSessionDetail(id: SessionId): Promise<SessionDetail | null>
   listTurnCheckpoints(id: SessionId): Promise<TurnCheckpointSummary[]>
   getTurnDiff(id: SessionId, turnId: string): Promise<TurnDiff | null>
+  /** Every Pinned session in Manual order, archived ones included (issue #97). */
+  listPinnedSessions(): Promise<PinnedSession[]>
+  pinSession(id: SessionId): Promise<void>
+  unpinSession(id: SessionId): Promise<void>
+  /** Reposition one pin between the neighbours it should land between. */
+  movePinnedSession(move: PinnedSessionMove): Promise<void>
   createSession(projectPath: string): Promise<SessionDetail>
   forkSessionToNew(
     sessionId: SessionId,

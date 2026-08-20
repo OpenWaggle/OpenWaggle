@@ -1,6 +1,7 @@
 import {
   DEFAULT_SHORTCUT_BINDINGS,
   isMandatoryShortcutCommand,
+  RESERVED_SHORTCUT_KEYS,
   SHORTCUT_DEFINITIONS,
   type ShortcutBinding,
   type ShortcutBindings,
@@ -30,6 +31,23 @@ function eventBinding(event: KeyboardEvent<HTMLButtonElement>): ShortcutBinding 
     ...(event.altKey ? { alt: true } : {}),
     ...(event.shiftKey ? { shift: true } : {}),
   }
+}
+
+/**
+ * A label for whatever already owns this combination, or null when it is free.
+ *
+ * Checks the reserved combinations as well as the configurable ones. The sidebar's filter and the
+ * pinned-session shortcuts register directly, so without this a user could bind a command onto one
+ * and get two live handlers with no explanation.
+ */
+function conflictLabel(
+  command: ShortcutCommand,
+  binding: ShortcutBinding,
+  bindings: ReturnType<typeof usePreferencesStore.getState>['settings']['shortcutBindings'],
+) {
+  const reserved = RESERVED_SHORTCUT_KEYS[shortcutBindingKey(binding)]
+  if (reserved !== undefined) return reserved
+  return conflictingCommand(command, binding, bindings)?.label ?? null
 }
 
 function conflictingCommand(
@@ -118,9 +136,9 @@ export function ShortcutsSection() {
 
   async function saveBinding(command: ShortcutCommand, binding: ShortcutBinding | null) {
     if (binding) {
-      const conflict = conflictingCommand(command, binding, bindings)
-      if (conflict) {
-        setError(`Already used by “${conflict.label}”.`)
+      const conflict = conflictLabel(command, binding, bindings)
+      if (conflict !== null) {
+        setError(`Already used by “${conflict}”.`)
         return
       }
     }

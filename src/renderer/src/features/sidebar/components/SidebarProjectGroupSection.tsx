@@ -3,6 +3,7 @@ import { Edit3 } from 'lucide-react'
 import { Button } from '@/shared/ui/Button'
 import { buildSidebarBranchRows } from '../lib/sidebar-branches'
 import type { SidebarProjectGroup } from '../lib/sidebar-project-groups'
+import type { SidebarStateCount } from '../lib/sidebar-row-state'
 import type {
   SidebarBranchActions,
   SidebarProjectActions,
@@ -15,6 +16,7 @@ import { SidebarProjectHeader } from './SidebarProjectHeader'
 
 interface ProjectGroupSectionProps {
   readonly group: SidebarProjectGroup
+  readonly rollUp: readonly SidebarStateCount[]
   readonly renderState: SidebarProjectRenderState
   readonly displayProjectName: (path: string) => string
   readonly projectActions: SidebarProjectActions
@@ -22,6 +24,26 @@ interface ProjectGroupSectionProps {
   readonly branchActions: SidebarBranchActions
 }
 
+/**
+ * A draft's accent never varies, so the style object is built once rather than per render.
+ *
+ * text-tertiary rather than text-muted: on the active row background (#2b313a) muted measures
+ * 2.58:1, well under the 4.5:1 that AA requires for text, and this row always renders on that
+ * background. Nothing in this palette clears 4.5:1 against text-muted, so it should never carry
+ * text.
+ */
+const DRAFT_ROW_STYLE: React.CSSProperties & { '--row-color': string } = {
+  '--row-color': 'var(--color-text-tertiary)',
+}
+
+/**
+ * The unsaved session a project is about to start.
+ *
+ * Two lines like every other row, from the prototype: the title on line one, and line two
+ * saying "Draft" where a state word goes with "unsaved" where a timestamp goes. It was a 34px
+ * single line with a pill on the right, which made the one row that is not yet a session look
+ * like a different kind of object.
+ */
 function DraftSessionRow({
   projectLabel,
   onSelect,
@@ -36,14 +58,27 @@ function DraftSessionRow({
       aria-current="true"
       aria-label={`Draft session in ${projectLabel}`}
       onClick={onSelect}
-      className="group flex h-[34px] w-full items-center gap-2 bg-bg-active pl-10 pr-4 text-left transition-colors hover:bg-bg-hover"
+      data-qa="sidebar-draft-row"
+      style={DRAFT_ROW_STYLE}
+      className="group flex min-h-[44px] w-full items-start gap-2 bg-bg-active py-1.5 pr-2 pl-6 text-left transition-colors hover:bg-bg-hover"
     >
-      <Edit3 className="size-3.5 shrink-0 text-text-secondary" />
-      <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-text-primary">
-        New session
+      <span className="grid h-[17px] w-3.5 flex-none place-items-center text-[color:var(--row-color)]">
+        <Edit3 className="size-3" />
       </span>
-      <span className="shrink-0 rounded border border-border bg-bg-tertiary px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-muted">
-        Draft
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="flex h-[18.13px] min-w-0 items-center">
+          <span className="block w-full truncate font-medium text-[12.5px] text-text-primary leading-[1.45]">
+            New session
+          </span>
+        </span>
+        <span className="flex h-4 min-w-0 items-center gap-1.5 text-[10.5px] text-text-tertiary leading-[1.45]">
+          <span className="flex min-w-0 flex-auto items-center gap-[5px] overflow-hidden whitespace-nowrap">
+            <span className="shrink-0 font-bold tracking-[0.02em] text-[color:var(--row-color)]">
+              Draft
+            </span>
+          </span>
+          <span className="flex flex-none items-center">unsaved</span>
+        </span>
       </span>
     </Button>
   )
@@ -82,7 +117,13 @@ function ProjectSessionRows({
   const showDraftSession = state.draftSessionProjectPath === group.projectPath
 
   if (group.sessions.length === 0 && !showDraftSession) {
-    return <div className="px-10 py-1.5 text-[12px] text-text-muted">No sessions</div>
+    // A project can empty out because every session it has is pinned. Saying so beats
+    // "No sessions", which would read as data loss right after pinning the last one.
+    const label =
+      group.hoistedPinnedCount > 0
+        ? `${group.hoistedPinnedCount} session${group.hoistedPinnedCount === 1 ? '' : 's'} pinned above`
+        : 'No sessions'
+    return <div className="px-10 py-1.5 text-[12px] text-text-muted">{label}</div>
   }
 
   return (
@@ -147,6 +188,7 @@ function ProjectSessionRow({
 
 export function SidebarProjectGroupSection({
   group,
+  rollUp,
   renderState,
   displayProjectName,
   projectActions,
@@ -154,7 +196,7 @@ export function SidebarProjectGroupSection({
   branchActions,
 }: ProjectGroupSectionProps) {
   const projectLabel = displayProjectName(group.projectPath)
-  const collapsed = renderState.collapsedProjectPaths.has(group.projectPath)
+  const collapsed = renderState.isProjectCollapsed(group.projectPath)
 
   return (
     <section className="mb-2">
@@ -163,6 +205,7 @@ export function SidebarProjectGroupSection({
         projectLabel={projectLabel}
         isCurrentProject={group.projectPath === renderState.projectPath}
         collapsed={collapsed}
+        rollUp={rollUp}
         actions={projectActions}
       />
       {collapsed ? null : (
