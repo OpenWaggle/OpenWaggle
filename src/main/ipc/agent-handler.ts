@@ -14,12 +14,13 @@ import {
   agentLoopResponseInputSchema,
   toAgentLoopResponseInput,
 } from '@shared/schemas/agent-loop-interaction'
-import { agentSendPayloadSchema } from '@shared/schemas/validation'
+import { agentSendPayloadSchema, toAgentSendPayload } from '@shared/schemas/validation'
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import * as Effect from 'effect/Effect'
+import { classifyAgentError } from '../agent/error-classifier'
 import { getPhaseForSession } from '../agent/phase-tracker'
 import { cleanupSessionRun } from '../agent/session-cleanup'
 import {
@@ -28,6 +29,7 @@ import {
 } from '../application/agent-loop-interaction-broker'
 import { type AgentRunResult, executeAgentRun } from '../application/agent-run-service'
 import { compactAgentSession, getAgentContextUsage } from '../application/agent-session-service'
+import { findWaggleHandoffRequest } from '../application/waggle-handoff'
 import { broadcastToWindows } from '../utils/broadcast'
 import {
   clearAgentPhase,
@@ -41,10 +43,12 @@ import {
 import {
   activeCompactions,
   activeRuns,
+  activeWaggleRuns,
   cancelAllSessionRuns,
   cancelSessionRuns,
   hasAnyActiveRun,
 } from './active-agent-runs'
+import { runAgentRequestedWaggle } from './agent-waggle-handoff'
 import { emitErrorAndFinish } from './run-handler-utils'
 import { typedHandle } from './typed-ipc'
 
@@ -86,7 +90,9 @@ function registerAgentRunHandlers() {
     'agent:send-message',
     (_event, sessionId: SessionId, payload: AgentSendPayload, model: SupportedModelId) =>
       Effect.gen(function* () {
-        const validatedPayload = decodeUnknownOrThrow(agentSendPayloadSchema, payload)
+        const validatedPayload = toAgentSendPayload(
+          decodeUnknownOrThrow(agentSendPayloadSchema, payload),
+        )
         // ─── Transport: cancel existing same-session work, register new ────
         if (cancelSessionRuns(sessionId)) {
           clearSessionTransportState(sessionId)
@@ -104,29 +110,61 @@ function registerAgentRunHandlers() {
           emitTransportEvent(sessionId, event)
         }
 
-        // ─── Application: delegate to service ────────────
-        const result = yield* executeAgentRun({
-          sessionId,
-          runId,
-          payload: validatedPayload,
-          model,
-          signal: abortController.signal,
-          onEvent: onEventWithUsageCapture,
-          onTitleAssigned: (title) => {
-            broadcastToWindows('sessions:title-updated', { sessionId, title })
-          },
-        })
+        yield* Effect.gen(function* () {
+          // ─── Application: delegate to service ────────────
+          const result = yield* executeAgentRun({
+            sessionId,
+            runId,
+            payload: validatedPayload,
+            model,
+            signal: abortController.signal,
+            onEvent: onEventWithUsageCapture,
+            onTitleAssigned: (title) => {
+              broadcastToWindows('sessions:title-updated', { sessionId, title })
+            },
+          })
 
-        // ─── Transport: respond based on outcome ─────────
-        handleRunResult(sessionId, result)
+          const handoff =
+            result.outcome === 'success' ? findWaggleHandoffRequest(result.newMessages) : null
+          if (handoff && !abortController.signal.aborted) {
+            activeWaggleRuns.register(sessionId, abortController, {})
+            yield* runAgentRequestedWaggle({
+              sessionId,
+              handoff,
+              model,
+              thinkingLevel: validatedPayload.thinkingLevel,
+              abortController,
+            }).pipe(
+              Effect.tapError((error) =>
+                Effect.sync(() => {
+                  const classified = classifyAgentError(error)
+                  emitErrorAndFinish(
+                    sessionId,
+                    classified.userMessage,
+                    classified.code,
+                    `waggle-${sessionId}`,
+                  )
+                }),
+              ),
+            )
+          }
 
-        // ─── Transport: cleanup ──────────────────────────
-        cancelAgentLoopInteractionsForRun({ sessionId, runId })
-        if (activeRuns.deleteIfCurrent(sessionId, abortController)) {
-          clearAgentPhase(sessionId)
-          clearStreamBuffer(sessionId)
-          emitRunCompleted(sessionId)
-        }
+          // ─── Transport: respond based on outcome ─────────
+          handleRunResult(sessionId, result)
+        }).pipe(
+          Effect.ensuring(
+            Effect.sync(() => {
+              // ─── Transport: cleanup ──────────────────────
+              cancelAgentLoopInteractionsForRun({ sessionId, runId })
+              activeWaggleRuns.deleteIfCurrent(sessionId, abortController)
+              if (activeRuns.deleteIfCurrent(sessionId, abortController)) {
+                clearAgentPhase(sessionId)
+                clearStreamBuffer(sessionId)
+                emitRunCompleted(sessionId)
+              }
+            }),
+          ),
+        )
       }),
   )
 

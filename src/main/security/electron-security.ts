@@ -23,9 +23,9 @@ const SCRIPT_SRC_VALUES = [
   EXTENSION_RUNTIME_SCRIPT_SOURCE,
 ] as const
 const STYLE_SRC_VALUES = ["'self'", "'unsafe-inline'"] as const
-const IMG_SRC_VALUES = ["'self'", 'data:'] as const
+const IMG_SRC_VALUES = ["'self'", 'data:', 'blob:'] as const
 const EXTENSION_FRAME_SOURCE = `${OPENWAGGLE_EXTENSION_FRAME_PROTOCOL.SCHEME}:` as const
-const FRAME_SRC_VALUES = ["'self'", EXTENSION_FRAME_SOURCE] as const
+const FRAME_SRC_VALUES = ["'self'", 'blob:', EXTENSION_FRAME_SOURCE] as const
 const CONNECT_SRC_VALUES = [
   "'self'",
   'ws://localhost:*',

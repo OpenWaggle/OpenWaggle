@@ -5,25 +5,19 @@ import { createBaseCommands } from '../command-palette-items'
 import { normalizeCommandQuery, truncateCommandDescription } from '../command-palette-text'
 
 const {
-  closeCommandPaletteMock,
+  closeSlashCommandMenuMock,
   compactCommandTextMock,
-  focusEditorMock,
-  getComposerStateMock,
+  consumeActiveSlashCommandMock,
   getUiStateMock,
+  insertSlashCommandTextAtActiveSlashMock,
   openFeedbackModalMock,
-  setCursorIndexMock,
-  setEditorTextMock,
-  setInputMock,
 } = vi.hoisted(() => ({
-  closeCommandPaletteMock: vi.fn(),
+  closeSlashCommandMenuMock: vi.fn(),
   compactCommandTextMock: vi.fn(() => '/compact'),
-  focusEditorMock: vi.fn(),
-  getComposerStateMock: vi.fn(),
+  consumeActiveSlashCommandMock: vi.fn(),
   getUiStateMock: vi.fn(),
+  insertSlashCommandTextAtActiveSlashMock: vi.fn(),
   openFeedbackModalMock: vi.fn(),
-  setCursorIndexMock: vi.fn(),
-  setEditorTextMock: vi.fn(),
-  setInputMock: vi.fn(),
 }))
 
 vi.mock('@/features/composer/commands', () => ({
@@ -31,11 +25,8 @@ vi.mock('@/features/composer/commands', () => ({
 }))
 
 vi.mock('@/features/composer/lib', () => ({
-  setEditorText: setEditorTextMock,
-}))
-
-vi.mock('@/features/composer/state', () => ({
-  useComposerStore: { getState: getComposerStateMock },
+  consumeActiveSlashCommand: consumeActiveSlashCommandMock,
+  insertSlashCommandTextAtActiveSlash: insertSlashCommandTextAtActiveSlashMock,
 }))
 
 vi.mock('@/shell/ui-store', () => ({
@@ -98,30 +89,30 @@ describe('buildCommandPaletteEntries', () => {
 
 describe('createBaseCommands', () => {
   it('does not expose commands that only close the palette without backing behavior', () => {
-    const closeCommandPalette = vi.fn()
+    const closeSlashCommandMenu = vi.fn()
     const commands = createBaseCommands({
-      closeCommandPalette,
+      closeSlashCommandMenu,
       configureWaggle: vi.fn(),
       insertCompactCommand: vi.fn(),
       selectPreset: vi.fn(),
       selectSkill: vi.fn(),
-      startWaggle: vi.fn(),
     })
 
     expect(commands.map((command) => command.id)).not.toContain('code-review')
     expect(commands.map((command) => command.id)).not.toContain('new-worktree')
     expect(commands.map((command) => command.id)).not.toContain('personality')
-    expect(commands.some((command) => command.action === closeCommandPalette)).toBe(false)
+    expect(commands.some((command) => command.action === closeSlashCommandMenu)).toBe(false)
   })
 })
 
 describe('command palette actions', () => {
-  it('wraps optional actions by closing the palette before running the action', () => {
+  it('wraps optional actions by consuming the slash token and closing the menu', () => {
     const close = vi.fn()
     const action = vi.fn()
 
     createOptionalCommandPaletteAction(close, action)?.()
 
+    expect(consumeActiveSlashCommandMock).toHaveBeenCalledBefore(close)
     expect(close).toHaveBeenCalledBefore(action)
   })
 
@@ -129,41 +120,21 @@ describe('command palette actions', () => {
     expect(createOptionalCommandPaletteAction(vi.fn())).toBeUndefined()
   })
 
-  it('inserts the compact command into plain composer state when no editor is mounted', () => {
-    getComposerStateMock.mockReturnValue({
-      lexicalEditor: null,
-      setCursorIndex: setCursorIndexMock,
-      setInput: setInputMock,
-    })
-
+  it('replaces the active slash token with the compact command', () => {
     insertCompactCommand()
 
-    expect(setInputMock).toHaveBeenCalledWith('/compact ')
-    expect(setCursorIndexMock).toHaveBeenCalledWith('/compact '.length)
-    expect(setEditorTextMock).not.toHaveBeenCalled()
+    expect(insertSlashCommandTextAtActiveSlashMock).toHaveBeenCalledWith('/compact')
   })
 
-  it('inserts the compact command into Lexical and focuses the editor when mounted', () => {
-    getComposerStateMock.mockReturnValue({
-      lexicalEditor: { focus: focusEditorMock },
-      setCursorIndex: setCursorIndexMock,
-      setInput: setInputMock,
-    })
-
-    insertCompactCommand()
-
-    expect(setEditorTextMock).toHaveBeenCalledWith({ focus: focusEditorMock }, '/compact ')
-    expect(focusEditorMock).toHaveBeenCalled()
-  })
-
-  it('opens feedback through shell state after closing the command palette', () => {
+  it('opens feedback after consuming the slash token and closing the menu', () => {
     getUiStateMock.mockReturnValue({
-      closeCommandPalette: closeCommandPaletteMock,
+      closeSlashCommandMenu: closeSlashCommandMenuMock,
       openFeedbackModal: openFeedbackModalMock,
     })
 
     openFeedbackModal()
 
-    expect(closeCommandPaletteMock).toHaveBeenCalledBefore(openFeedbackModalMock)
+    expect(consumeActiveSlashCommandMock).toHaveBeenCalledBefore(closeSlashCommandMenuMock)
+    expect(closeSlashCommandMenuMock).toHaveBeenCalledBefore(openFeedbackModalMock)
   })
 })

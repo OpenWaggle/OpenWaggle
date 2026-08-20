@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react'
 import { useBackgroundRunMonitor } from '@/features/chat/hooks'
+import { GlobalCommandPalette } from '@/features/command-palette/components'
 import { FeedbackModal } from '@/features/feedback/components'
 import { Sidebar } from '@/features/sidebar/components'
+import { ProjectContentSearch, ProjectFilePicker } from '@/features/workspace-files/components'
 import { Header } from '@/shell/Header'
 import { ToastOverlay } from '@/shell/ToastOverlay'
 import { useUIStore } from '@/shell/ui-store'
@@ -18,6 +20,7 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
   useBackgroundRunMonitor()
   useAutoUpdater()
   const feedbackModalOpen = useUIStore((s) => s.feedbackModalOpen)
+  const commandSurface = useUIStore((s) => s.commandSurface)
 
   return (
     <div className="flex size-full overflow-hidden bg-bg">
@@ -31,6 +34,9 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
 
       <ToastOverlay />
       {feedbackModalOpen && <FeedbackModal />}
+      {commandSurface === 'commands' && <GlobalCommandPalette />}
+      {commandSurface === 'files' && <ProjectFilePicker />}
+      {commandSurface === 'content' && <ProjectContentSearch />}
     </div>
   )
 }

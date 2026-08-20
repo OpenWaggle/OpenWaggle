@@ -10,6 +10,7 @@ import {
   SETTINGS_KEY_PROJECT_DISPLAY_NAMES,
   SETTINGS_KEY_PROJECT_PATH,
   SETTINGS_KEY_RECENT_PROJECTS,
+  SETTINGS_KEY_SHORTCUT_BINDINGS,
   SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT,
   SETTINGS_KEY_THINKING_LEVEL,
 } from './keys'
@@ -33,6 +34,7 @@ import {
   sanitizeFavoriteModels,
   sanitizeProjectDisplayNames,
   sanitizeRecentProjects,
+  sanitizeShortcutBindings,
   sanitizeSkillTogglesByProject,
 } from './sanitizers'
 
@@ -70,6 +72,10 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
     getStoredValue(storedSettings, SETTINGS_KEY_PROJECT_DISPLAY_NAMES) ??
       DEFAULT_SETTINGS.projectDisplayNames,
   )
+  const shortcutBindings = sanitizeShortcutBindings(
+    getStoredValue(storedSettings, SETTINGS_KEY_SHORTCUT_BINDINGS) ??
+      DEFAULT_SETTINGS.shortcutBindings,
+  )
   const defaultSessionEnvironmentMode = resolveDefaultSessionEnvironmentMode(
     getStoredValue(storedSettings, SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE),
   )
@@ -91,6 +97,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       recentProjects,
       skillTogglesByProject,
       projectDisplayNames,
+      shortcutBindings,
       defaultSessionEnvironmentMode,
       diffSyntaxTheme,
       diffView,
@@ -145,6 +152,10 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
     partial.projectDisplayNames !== undefined
       ? sanitizeProjectDisplayNames(partial.projectDisplayNames)
       : current.projectDisplayNames
+  const shortcutBindings =
+    partial.shortcutBindings !== undefined
+      ? sanitizeShortcutBindings(partial.shortcutBindings)
+      : current.shortcutBindings
   const defaultSessionEnvironmentMode =
     partial.defaultSessionEnvironmentMode !== undefined &&
     isValidSessionEnvironmentMode(partial.defaultSessionEnvironmentMode)
@@ -162,6 +173,7 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
     recentProjects,
     skillTogglesByProject,
     projectDisplayNames,
+    shortcutBindings,
     defaultSessionEnvironmentMode,
     ...diffSettings,
   } satisfies Settings

@@ -1,17 +1,14 @@
 import type { AgentSendPayload } from '@shared/types/agent'
-import { SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
+import { SessionId, SessionNodeId, SupportedModelId, WagglePresetId } from '@shared/types/brand'
 import type { IpcEventChannelMap } from '@shared/types/ipc-events'
-import type { WaggleConfig } from '@shared/types/waggle'
+import type { WaggleConfig, WagglePreset } from '@shared/types/waggle'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { StreamingPhaseHandle } from '@/features/chat/hooks/useStreamingPhase'
-import { useComposerStore } from '@/features/composer/state'
 import { useBackgroundRunStore } from '../../state/background-run-store'
 import { useBranchSummaryStore } from '../../state/branch-summary-store'
 import { useChatStore } from '../../state/chat-store'
 import { useBackgroundRunMonitor } from '../useBackgroundRunMonitor'
 import { useChatSendWorkflow } from '../useChatSendWorkflow'
-import { useComposerSection } from '../useComposerSection'
 import { useSessionCopyWorkflow } from '../useSessionCopyWorkflow'
 
 type AgentEventPayload = IpcEventChannelMap['agent:event']['payload']
@@ -97,12 +94,28 @@ function waggleConfig(): WaggleConfig {
   }
 }
 
-function phaseHandle(current: StreamingPhaseHandle['current'] = null): StreamingPhaseHandle {
+function wagglePreset(): WagglePreset {
   return {
-    current,
-    completed: [],
-    totalElapsedMs: 0,
-    reset: vi.fn(),
+    id: WagglePresetId('review'),
+    name: 'Review',
+    description: 'Review changes',
+    config: waggleConfig(),
+    isBuiltIn: false,
+    createdAt: 1,
+    updatedAt: 1,
+  }
+}
+
+function wagglePayload(text: string): AgentSendPayload {
+  const preset = wagglePreset()
+  return {
+    ...payload(text),
+    waggle: {
+      presetId: preset.id,
+      presetName: preset.name,
+      source: 'user',
+      config: preset.config,
+    },
   }
 }
 
@@ -137,13 +150,10 @@ function sendWorkflowParams(overrides: Partial<Parameters<typeof useChatSendWork
       selectForkTarget: vi.fn(),
     },
     setUserDidSend: vi.fn(),
-    setWaggleConfig: vi.fn(),
     showToast: vi.fn(),
     startWaggleCollaboration: vi.fn(),
     stop: vi.fn(),
     stopWaggleCollaboration: vi.fn(),
-    waggleConfig: null,
-    waggleOwningId: null,
     waggleStatus: 'idle',
     ...overrides,
   } satisfies Parameters<typeof useChatSendWorkflow>[0]
@@ -171,7 +181,6 @@ describe('chat orchestration hooks', () => {
       sessionById: new Map(),
       sessions: [],
     })
-    useComposerStore.setState({ input: '', cursorIndex: 0, lexicalEditor: null })
   })
 
   it('tracks background run lifecycle events and clears snapshots after completion refresh', async () => {
@@ -215,28 +224,46 @@ describe('chat orchestration hooks', () => {
     expect(params.handleSend).not.toHaveBeenCalled()
   })
 
-  it('sends through Waggle when an idle config belongs to the active session', async () => {
+  it('sends through Waggle when the one-shot payload includes a preset', async () => {
     const config = waggleConfig()
-    const params = sendWorkflowParams({ waggleConfig: config })
+    const params = sendWorkflowParams()
     const { result } = renderHook(() => useChatSendWorkflow(params))
 
-    await act(() => result.current.sendWithWaggle(payload('Review the refactor')))
+    await act(() => result.current.sendWithWaggle(wagglePayload('Review the refactor')))
 
     expect(params.branchSummary.materializeDraftBranchForSend).toHaveBeenCalledWith(null)
     expect(params.startWaggleCollaboration).toHaveBeenCalledWith(SESSION_ID, config)
-    expect(params.handleSendWaggle).toHaveBeenCalledWith(payload('Review the refactor'), config)
+    expect(params.handleSendWaggle).toHaveBeenCalledWith(
+      wagglePayload('Review the refactor'),
+      config,
+    )
     expect(params.clearDraftBranchForSession).toHaveBeenCalledWith(SESSION_ID)
+  })
+
+  it('stops the pending Waggle state when an active-session send fails', async () => {
+    const params = sendWorkflowParams({
+      handleSendWaggle: vi.fn().mockRejectedValue(new Error('send failed')),
+    })
+    const { result } = renderHook(() => useChatSendWorkflow(params))
+
+    await expect(
+      act(() => result.current.sendWithWaggle(wagglePayload('Review the refactor'))),
+    ).rejects.toThrow('send failed')
+
+    expect(params.startWaggleCollaboration).toHaveBeenCalledOnce()
+    expect(params.stopWaggleCollaboration).toHaveBeenCalledWith(SESSION_ID)
+    expect(params.setUserDidSend).toHaveBeenLastCalledWith(false)
   })
 
   it('does not swallow first-message Waggle sends before a session exists', async () => {
     const config = waggleConfig()
-    const params = sendWorkflowParams({ activeSessionId: null, waggleConfig: config })
+    const params = sendWorkflowParams({ activeSessionId: null })
     const { result } = renderHook(() => useChatSendWorkflow(params))
 
-    await act(() => result.current.sendWithWaggle(payload('Run the same prompt again')))
+    await act(() => result.current.sendWithWaggle(wagglePayload('Run the same prompt again')))
 
     expect(params.handleSendWaggle).toHaveBeenCalledWith(
-      payload('Run the same prompt again'),
+      wagglePayload('Run the same prompt again'),
       config,
     )
     expect(params.startWaggleCollaboration).not.toHaveBeenCalled()
@@ -252,50 +279,6 @@ describe('chat orchestration hooks', () => {
     expect(apiMock.cancelWaggle).toHaveBeenCalledWith(SESSION_ID)
     expect(params.stopWaggleCollaboration).toHaveBeenCalledOnce()
     expect(params.stop).toHaveBeenCalledOnce()
-  })
-
-  it('builds composer section state and inserts skill commands without a mounted Lexical editor', () => {
-    useComposerStore.setState({ input: '/' })
-    const startWaggle = vi.fn()
-    const { result } = renderHook(() =>
-      useComposerSection({
-        isLoading: false,
-        isSteering: false,
-        status: 'ready',
-        compactionStatus: null,
-        activeSessionId: SESSION_ID,
-        session: null,
-        isFirstMessage: true,
-        waggleStatus: 'idle',
-        commandPaletteOpen: false,
-        slashSkills: [],
-        forkSelectorOpen: false,
-        forkTargets: [],
-        phase: phaseHandle({ label: 'Thinking', elapsedMs: 10 }),
-        stop: vi.fn(),
-        showToast: vi.fn(),
-        handleSteer: vi.fn().mockResolvedValue(undefined),
-        handleSendWithWaggle: vi.fn().mockResolvedValue(undefined),
-        handleStartWaggle: startWaggle,
-        handleStopCollaboration: vi.fn(),
-        handleSkipBranchSummary: vi.fn(),
-        handleSummarizeBranch: vi.fn(),
-        handleStartCustomBranchSummary: vi.fn(),
-        handleCancelBranchSummary: vi.fn(),
-        handleOpenForkSelector: vi.fn(),
-        handleCloseForkSelector: vi.fn(),
-        handleSelectForkTarget: vi.fn(),
-        handleCloneToNewSession: vi.fn(),
-      }),
-    )
-
-    act(() => result.current.onSelectSkill('audit'))
-    act(() => result.current.onStartWaggle(waggleConfig()))
-
-    expect(result.current.isLoading).toBe(true)
-    expect(useComposerStore.getState().input).toBe('/audit ')
-    expect(useComposerStore.getState().cursorIndex).toBe('/audit '.length)
-    expect(startWaggle).toHaveBeenCalledOnce()
   })
 
   it('keeps session copy commands safe when there is no active session or fork target', async () => {

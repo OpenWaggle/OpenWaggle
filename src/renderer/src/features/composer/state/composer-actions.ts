@@ -1,9 +1,10 @@
 import type { PreparedAttachment } from '@shared/types/agent'
+import type { WagglePreset } from '@shared/types/waggle'
 import type { LexicalEditor } from 'lexical'
 import { createScopedDraftActions, removeScopedDraft } from './composer-drafts'
 import { createHistoryActions } from './composer-history'
 import { INITIAL_COMPOSER_STATE } from './composer-initial-state'
-import type { ComposerGet, ComposerSet, MenuKind } from './composer-store-types'
+import type { ComposerGet, ComposerSet, ComposerState, MenuKind } from './composer-store-types'
 
 export function createComposerStoreState(set: ComposerSet, get: ComposerGet) {
   return {
@@ -11,6 +12,9 @@ export function createComposerStoreState(set: ComposerSet, get: ComposerGet) {
     ...createTextActions(set),
     ...createHistoryActions(set, get),
     ...createAttachmentActions(set),
+    setSelectedWagglePreset(preset: WagglePreset | null) {
+      set({ selectedWagglePreset: preset })
+    },
     ...createScopedDraftActions(set, get),
     ...createMenuActions(set),
     ...createSlashSkillActions(set),
@@ -71,6 +75,10 @@ function createSlashSkillActions(set: ComposerSet) {
       set({ slashHighlightIndex: index })
     },
 
+    setActiveSlashCommand(match: ComposerState['activeSlashCommand']) {
+      set({ activeSlashCommand: match })
+    },
+
     setDismissedSlashToken(token: string | null) {
       set({ dismissedSlashToken: token })
     },
@@ -95,8 +103,10 @@ function resetComposerState(set: ComposerSet, get: ComposerGet) {
     draftInput: '',
     attachments: [],
     attachmentError: null,
+    selectedWagglePreset: null,
     dismissedSlashToken: null,
     slashHighlightIndex: 0,
+    activeSlashCommand: null,
     thinkingMenuOpen: false,
     executionMenuOpen: false,
     branchMenuOpen: false,

@@ -1,5 +1,5 @@
 import type { RefObject } from 'react'
-import { useEffect } from 'react'
+import { useEffect, useEffectEvent } from 'react'
 
 /**
  * Calls `onClose` when a mousedown occurs outside the referenced element.
@@ -10,16 +10,18 @@ export function useClickOutside(
   onClose: () => void,
   enabled = true,
 ): void {
+  const close = useEffectEvent(onClose)
+
   useEffect(() => {
     if (!enabled) return
 
     function onMouseDown(event: MouseEvent) {
       if (ref.current && event.target instanceof Node && !ref.current.contains(event.target)) {
-        onClose()
+        close()
       }
     }
 
     document.addEventListener('mousedown', onMouseDown)
     return () => document.removeEventListener('mousedown', onMouseDown)
-  }, [ref, onClose, enabled])
+  }, [ref, enabled])
 }

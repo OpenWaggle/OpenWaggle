@@ -207,7 +207,7 @@ The same phase must add the TanStack Hotkeys foundation and consolidate suitable
 Implemented in the current branch:
 
 - Route search supports `panel: 'diff' | 'session-tree'`; Diff and Session Tree share the same right-side slot.
-- Header tree icon and command palette action open the Session Tree.
+- Header tree icon and slash command menu action open the Session Tree.
 - Session Tree renders OpenWaggle-styled graph rows with connector rails, interactive node dots, active/draft/archive/branch badges, expand/collapse controls, and Pi filter modes. The renderer builds a Pi-like visible tree model: filter-hidden ancestors are transparent, active-path children are ordered first, single-child chains stay on the same rail, and indentation appears only around real branch points.
 - Session Tree controls keep the toolbar focused on Pi filter select plus deferred node search; the shared OpenWaggle scroll-to-bottom affordance appears as the same center-bottom overlay pattern used by the chat transcript only when tree content is scrollable and the user is away from the bottom.
 - Filter mode persists globally through Pi `treeFilterMode` settings via Pi adapter-backed IPC.
@@ -353,9 +353,9 @@ OpenWaggle triggers:
 
 - user message row action: `Fork to new session`
 - composer slash command: `/fork`
-- command palette: `Fork to new session…`
+- slash command menu: `Fork to new session…`
 
-`/fork` and command palette action open a previous-user-message selector. A direct user-message row action skips the selector.
+`/fork` and the slash command menu action open a previous-user-message selector. A direct user-message row action skips the selector.
 
 Only user message rows show `Fork to new session`. Assistant/tool/summary rows do not.
 
@@ -367,7 +367,7 @@ OpenWaggle triggers:
 
 - left-sidebar session overflow: `Clone to new session`
 - composer slash command: `/clone`
-- command palette: `Clone to new session`
+- slash command menu: `Clone to new session`
 
 Command palette clone uses current active session/branch/node context. Sidebar clone is row-scoped; mirror Pi mechanics first, and if a non-active row cannot safely clone without switching runtime state, disable it with a truthful explanation.
 

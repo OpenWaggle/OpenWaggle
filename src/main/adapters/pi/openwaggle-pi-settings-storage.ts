@@ -8,6 +8,7 @@ import {
   withoutExcludedPackageEntries,
   withoutExcludedPackages,
   withoutSyntheticExcludedExtensionPatterns,
+  withRestoredExcludedNpmPackageEntries,
 } from './openwaggle-pi-settings-package-exclusions'
 import { withoutImplicitOpenWaggleResourcePrecedence } from './openwaggle-pi-settings-resource-removal'
 import {
@@ -30,6 +31,7 @@ interface SettingsStorageLike {
 interface OpenWagglePiSettingsManagerOptions extends OpenWaggleResourcePrecedenceOptions {
   readonly excludedGlobalPackageSources?: readonly string[]
   readonly excludedProjectPackageSources?: readonly string[]
+  readonly runtimeExcludedNpmPackageNames?: readonly string[]
 }
 
 function getOpenWaggleProjectSettingsPath(projectPath: string) {
@@ -174,14 +176,23 @@ function createOpenWagglePiSettingsStorage(
       }
 
       const current = serializeJsonObject(readProjectPiSettings(projectPath, options))
-      const visibleCurrent = withoutExcludedPackages(current, options.excludedProjectPackageSources)
+      const visibleCurrent = withoutExcludedPackages(
+        current,
+        options.excludedProjectPackageSources,
+        options.runtimeExcludedNpmPackageNames,
+      )
       const nextWithoutSyntheticPatterns = withoutSyntheticExcludedExtensionPatterns(
         current,
         fn(visibleCurrent),
         options.excludedProjectPackageSources,
       )
-      const next = withoutExcludedPackageEntries(
+      const nextWithRestoredRuntimePackages = withRestoredExcludedNpmPackageEntries(
+        current,
         nextWithoutSyntheticPatterns,
+        options.runtimeExcludedNpmPackageNames,
+      )
+      const next = withoutExcludedPackageEntries(
+        nextWithRestoredRuntimePackages,
         options.excludedProjectPackageSources,
       )
       if (next !== undefined) {
@@ -197,14 +208,23 @@ function withGlobalPiSettingsLock(
 ) {
   const globalSettingsPath = getPiGlobalSettingsPath()
   const current = readFileIfPresent(globalSettingsPath)
-  const visibleCurrent = withoutExcludedPackages(current, options.excludedGlobalPackageSources)
+  const visibleCurrent = withoutExcludedPackages(
+    current,
+    options.excludedGlobalPackageSources,
+    options.runtimeExcludedNpmPackageNames,
+  )
   const nextWithoutSyntheticPatterns = withoutSyntheticExcludedExtensionPatterns(
     current,
     fn(visibleCurrent),
     options.excludedGlobalPackageSources,
   )
-  const next = withoutExcludedPackageEntries(
+  const nextWithRestoredRuntimePackages = withRestoredExcludedNpmPackageEntries(
+    current,
     nextWithoutSyntheticPatterns,
+    options.runtimeExcludedNpmPackageNames,
+  )
+  const next = withoutExcludedPackageEntries(
+    nextWithRestoredRuntimePackages,
     options.excludedGlobalPackageSources,
   )
   if (next !== undefined) {

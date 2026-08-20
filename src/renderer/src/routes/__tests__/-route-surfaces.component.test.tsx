@@ -207,11 +207,17 @@ describe('route surfaces', () => {
     render(
       <ChatRouteSurface
         workspace={{ branchId: 'branch-1', nodeId: 'node-1', sessionId: 'session-1' }}
-        rightSidebar={{ diffOpen: true, extensionSidePanel: null, sessionTreeOpen: false }}
+        rightSidebar={{
+          diffOpen: true,
+          extensionSidePanel: null,
+          sessionTreeOpen: false,
+          workspaceFile: null,
+        }}
         rightSidebarActions={{
           onDiffOpenChange,
           onExtensionSidePanelOpenChange: vi.fn(),
           onSessionTreeOpenChange,
+          onWorkspaceFileOpenChange: vi.fn(),
         }}
       />,
     )
@@ -238,11 +244,17 @@ describe('route surfaces', () => {
     render(
       <ChatRouteSurface
         workspace={{ branchId: null, nodeId: null, sessionId: 'session-1' }}
-        rightSidebar={{ diffOpen: false, extensionSidePanel: null, sessionTreeOpen: true }}
+        rightSidebar={{
+          diffOpen: false,
+          extensionSidePanel: null,
+          sessionTreeOpen: true,
+          workspaceFile: null,
+        }}
         rightSidebarActions={{
           onDiffOpenChange,
           onExtensionSidePanelOpenChange: vi.fn(),
           onSessionTreeOpenChange,
+          onWorkspaceFileOpenChange: vi.fn(),
         }}
       />,
     )
@@ -270,11 +282,13 @@ describe('route surfaces', () => {
             sidePanelId: 'sample.side-panel',
           },
           sessionTreeOpen: false,
+          workspaceFile: null,
         }}
         rightSidebarActions={{
           onDiffOpenChange,
           onExtensionSidePanelOpenChange,
           onSessionTreeOpenChange,
+          onWorkspaceFileOpenChange: vi.fn(),
         }}
       />,
     )

@@ -1,6 +1,6 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
-import { waggleMetadataSchema } from '@shared/schemas/waggle'
+import { waggleInvocationMetadataSchema, waggleMetadataSchema } from '@shared/schemas/waggle'
 import type { Message } from '@shared/types/agent'
 import { MessageId, SupportedModelId, ToolCallId } from '@shared/types/brand'
 import { isRecord } from '@shared/utils/validation'
@@ -58,6 +58,7 @@ const messagePartSchema = Schema.Union(
 
 const messageMetadataSchema = Schema.Struct({
   waggle: Schema.optional(waggleMetadataSchema),
+  waggleInvocation: Schema.optional(waggleInvocationMetadataSchema),
 })
 
 const messageNodeContentSchema = Schema.Struct({

@@ -3,8 +3,17 @@ import os from 'node:os'
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
 import { SupportedModelId } from '@shared/types/brand'
+import { DEFAULT_SHORTCUT_BINDINGS } from '@shared/types/shortcuts'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  REMOVED_PERSISTENCE_MIGRATION_IDS,
+  REMOVED_PERSISTENCE_TABLES,
+  REMOVED_SETTINGS_KEYS,
+  type SettingsStoreRow,
+  type TableColumnRow,
+  type TableRow,
+} from './settings-test-constants'
 
 const state = vi.hoisted(() => ({
   userDataDir: '',
@@ -27,34 +36,6 @@ vi.mock('electron', () => ({
     decryptString: (value: Buffer) => value.toString('utf8'),
   },
 }))
-
-interface SettingsStoreRow {
-  readonly key: string
-}
-
-interface TableRow {
-  readonly name: string
-}
-
-interface TableColumnRow {
-  readonly name: string
-}
-
-const REMOVED_PERSISTENCE_MIGRATION_IDS = [8, 11] as const
-const REMOVED_PERSISTENCE_TABLES = [
-  'session_message_parts',
-  'pinned_context',
-  'session_messages',
-  'orchestration_run_tasks',
-  'orchestration_runs',
-  'orchestration_events',
-  'provider_session_runtime',
-  'team_presets',
-  'waggle_presets',
-  'team_runtime_state',
-  'auth_tokens',
-] as const
-const REMOVED_SETTINGS_KEYS = ['providers', 'executionMode', 'qualityPreset', 'mcpServers'] as const
 
 async function disposeRuntime() {
   const { disposeAppRuntime } = await import('../../runtime')
@@ -240,6 +221,18 @@ describe('settings store', () => {
     const settings = getSettings()
 
     expect(settings.thinkingLevel).toBe('medium')
+  })
+
+  it('resets corrupt duplicate shortcut bindings before global hotkeys are registered', async () => {
+    await writeRawSetting('shortcutBindings', {
+      ...DEFAULT_SHORTCUT_BINDINGS,
+      'commandPalette.toggle': { key: 'P', mod: true },
+      'filePicker.toggle': { key: 'P', mod: true },
+    })
+
+    const { getSettings } = await loadSettingsModule()
+
+    expect(getSettings().shortcutBindings).toEqual(DEFAULT_SHORTCUT_BINDINGS)
   })
 
   it('sanitizes and limits favorite models from persisted settings', async () => {

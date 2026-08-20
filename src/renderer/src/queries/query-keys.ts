@@ -14,4 +14,10 @@ export const queryKeys = {
   skills: (projectPath: string | null) => ['skills', projectPath] as const,
   skillPreview: (projectPath: string | null, skillId: string | null) =>
     ['skillPreview', projectPath, skillId] as const,
+  workspaceFiles: (projectPath: string | null, query: string, limit: number) =>
+    ['workspaceFiles', projectPath, query, limit] as const,
+  workspaceContent: (projectPath: string | null, query: string, limit: number) =>
+    ['workspaceContent', projectPath, query, limit] as const,
+  workspaceFile: (projectPath: string | null, relativePath: string | null) =>
+    ['workspaceFile', projectPath, relativePath] as const,
 }

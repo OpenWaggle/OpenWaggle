@@ -1,6 +1,6 @@
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { $getRoot, COMMAND_PRIORITY_HIGH, PASTE_COMMAND } from 'lexical'
-import { useEffect } from 'react'
+import { useEffect, useEffectEvent } from 'react'
 
 interface PastePluginProps {
   checkAndConvertPaste: (pastedText: string, currentEditorText: string) => boolean
@@ -13,6 +13,7 @@ interface PastePluginProps {
  */
 export function PastePlugin({ checkAndConvertPaste }: PastePluginProps): null {
   const [editor] = useLexicalComposerContext()
+  const checkPaste = useEffectEvent(checkAndConvertPaste)
 
   useEffect(() => {
     return editor.registerCommand<ClipboardEvent>(
@@ -25,14 +26,14 @@ export function PastePlugin({ checkAndConvertPaste }: PastePluginProps): null {
         if (!pastedText) return false
 
         const currentText = editor.getEditorState().read(() => $getRoot().getTextContent())
-        const converted = checkAndConvertPaste(pastedText, currentText)
+        const converted = checkPaste(pastedText, currentText)
 
         // If auto-converted to attachment, prevent Lexical from inserting the text
         return converted
       },
       COMMAND_PRIORITY_HIGH,
     )
-  }, [editor, checkAndConvertPaste])
+  }, [editor])
 
   return null
 }

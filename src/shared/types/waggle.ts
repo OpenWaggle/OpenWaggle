@@ -5,7 +5,7 @@ import {
   WAGGLE_AGENT_COLORS,
   WAGGLE_INHERIT_MODEL,
 } from '@openwaggle/waggle-core'
-import { SupportedModelId, type WagglePresetId } from './brand'
+import { type SessionId, SupportedModelId, type WagglePresetId } from './brand'
 import type { SupportedModelId as SupportedModelIdType } from './llm'
 
 export { WAGGLE_AGENT_COLORS, WAGGLE_INHERIT_MODEL }
@@ -53,8 +53,26 @@ export interface WagglePreset {
   readonly updatedAt: number
 }
 
+export type WaggleInvocationSource = 'user' | 'agent'
+
+export interface WaggleInvocationMetadata {
+  readonly presetId: string
+  readonly presetName: string
+  readonly source: WaggleInvocationSource
+}
+
+export interface WaggleInvocation extends WaggleInvocationMetadata {
+  readonly config: WaggleConfig
+}
+
+export interface WaggleHandoffRequest extends WaggleInvocation {
+  readonly kind: 'waggle-handoff'
+  readonly prompt: string
+}
+
 export const WAGGLE_COLLABORATION_STATUSES = [
   'idle',
+  'pending',
   'running',
   'paused',
   'completed',
@@ -110,6 +128,11 @@ export interface WaggleMessageMetadata {
 }
 
 export type WaggleTurnEvent =
+  | {
+      readonly type: 'collaboration-pending'
+      readonly sessionId: SessionId
+      readonly invocation: WaggleInvocation
+    }
   | {
       readonly type: 'turn-start'
       readonly turnNumber: number

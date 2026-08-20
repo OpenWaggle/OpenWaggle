@@ -1,6 +1,19 @@
+import type { WagglePreset } from '@shared/types/waggle'
 import type { LexicalEditor } from 'lexical'
-import { $createParagraphNode, $createTextNode, $getRoot, $isElementNode } from 'lexical'
+import {
+  $createParagraphNode,
+  $createTextNode,
+  $getRoot,
+  $getSelection,
+  $isElementNode,
+  $isRangeSelection,
+  $isTextNode,
+  $nodesOfType,
+} from 'lexical'
+import { $createSkillMentionNode } from '../components/nodes/SkillMentionNode'
+import { $createWaggleMentionNode, WaggleMentionNode } from '../components/nodes/WaggleMentionNode'
 import { useComposerStore } from '../state/composer-store'
+import { findSlashCommandMatch, replaceSlashCommandMatch } from './slash-command'
 
 export function insertTextAtEditorOrStore(
   editor: LexicalEditor | null,
@@ -24,4 +37,130 @@ export function insertTextAtEditorOrStore(
     paragraph.append($createTextNode(text))
     root.selectEnd()
   })
+}
+
+export function insertSkillReferenceAtActiveSlash(skillId: string, skillName: string) {
+  const store = useComposerStore.getState()
+  if (!store.lexicalEditor) {
+    replaceSlashCommandInStore(`/${skillId}`, true)
+    return
+  }
+
+  store.lexicalEditor.update(() => {
+    const activeSlash = readActiveSlashTextNode()
+    if (!activeSlash) return
+
+    const { textNode, match } = activeSlash
+    const text = textNode.getTextContent()
+    const before = text.slice(0, match.startOffset)
+    const after = text.slice(match.endOffset)
+    const trailingTextContent = after.startsWith(' ') ? after : ` ${after}`
+    const cursorOffset = trailingTextContent.length > 0 ? 1 : 0
+    const mentionNode = $createSkillMentionNode(skillId, skillName)
+    const trailingTextNode = $createTextNode(trailingTextContent)
+
+    if (before) {
+      textNode.setTextContent(before)
+      textNode.insertAfter(mentionNode)
+    } else {
+      textNode.replace(mentionNode)
+    }
+    mentionNode.insertAfter(trailingTextNode)
+    trailingTextNode.select(cursorOffset, cursorOffset)
+  })
+
+  store.lexicalEditor.focus()
+}
+
+export function insertWagglePresetAtActiveSlash(preset: WagglePreset) {
+  const store = useComposerStore.getState()
+  if (!store.lexicalEditor) {
+    consumeActiveSlashCommand()
+    store.setSelectedWagglePreset(preset)
+    return
+  }
+
+  store.lexicalEditor.update(() => {
+    const activeSlash = readActiveSlashTextNode()
+    if (!activeSlash) return
+
+    for (const existing of $nodesOfType(WaggleMentionNode)) existing.remove()
+    const { textNode, match } = activeSlash
+    const text = textNode.getTextContent()
+    const before = text.slice(0, match.startOffset)
+    const after = text.slice(match.endOffset)
+    const trailingTextContent =
+      after.startsWith(' ') || before.endsWith(' ') || !after ? after : ` ${after}`
+    const cursorOffset = trailingTextContent.length > 0 ? 1 : 0
+    const mentionNode = $createWaggleMentionNode(preset)
+    const trailingTextNode = $createTextNode(trailingTextContent)
+
+    if (before) {
+      textNode.setTextContent(before)
+      textNode.insertAfter(mentionNode)
+    } else {
+      textNode.replace(mentionNode)
+    }
+    mentionNode.insertAfter(trailingTextNode)
+    trailingTextNode.select(cursorOffset, cursorOffset)
+  })
+
+  store.setSelectedWagglePreset(preset)
+  store.lexicalEditor.focus()
+}
+
+export function insertSlashCommandTextAtActiveSlash(command: string) {
+  replaceActiveSlashCommand(command, true)
+}
+
+export function consumeActiveSlashCommand() {
+  replaceActiveSlashCommand('', false)
+}
+
+function replaceActiveSlashCommand(replacement: string, ensureTrailingSpace: boolean) {
+  const store = useComposerStore.getState()
+  if (!store.lexicalEditor) {
+    replaceSlashCommandInStore(replacement, ensureTrailingSpace)
+    return
+  }
+
+  store.lexicalEditor.update(() => {
+    const activeSlash = readActiveSlashTextNode()
+    if (!activeSlash) return
+
+    const { textNode, match } = activeSlash
+    const next = replaceSlashCommandMatch(
+      textNode.getTextContent(),
+      match,
+      replacement,
+      ensureTrailingSpace,
+    )
+    textNode.setTextContent(next.text)
+    textNode.select(next.cursorOffset, next.cursorOffset)
+  })
+
+  store.lexicalEditor.focus()
+}
+
+function replaceSlashCommandInStore(replacement: string, ensureTrailingSpace: boolean) {
+  const store = useComposerStore.getState()
+  const match =
+    findSlashCommandMatch(store.input, store.cursorIndex) ??
+    findSlashCommandMatch(store.input, store.input.length)
+  if (!match) return
+
+  const next = replaceSlashCommandMatch(store.input, match, replacement, ensureTrailingSpace)
+  store.setInput(next.text)
+  store.setCursorIndex(next.cursorOffset)
+}
+
+function readActiveSlashTextNode() {
+  const selection = $getSelection()
+  if (!$isRangeSelection(selection) || !selection.isCollapsed()) return null
+
+  const textNode = selection.anchor.getNode()
+  if (!$isTextNode(textNode)) return null
+
+  const match = findSlashCommandMatch(textNode.getTextContent(), selection.anchor.offset)
+  return match ? { textNode, match } : null
 }
