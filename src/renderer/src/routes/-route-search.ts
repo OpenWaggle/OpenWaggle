@@ -1,13 +1,8 @@
-/// <reference types="vite/client" />
-
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import { EXTENSION_SIDE_PANEL_ROUTE_PANEL, SETTINGS_TABS, type SettingsTab } from '@/shell/ui-store'
 
 export type ChatBuiltInRightPanel = 'diff' | 'file' | 'session-tree'
 export type ChatRightPanel = ChatBuiltInRightPanel | typeof EXTENSION_SIDE_PANEL_ROUTE_PANEL
-/** Dev-only design mockup route. Statically false in a production build. */
-export const DESIGN_MOCKUP_ROUTE_ENABLED = import.meta.env.DEV
-
 export interface ChatExtensionSidePanelTarget {
   readonly extensionId: string
   readonly sidePanelId: string
@@ -20,7 +15,6 @@ export interface ChatRouteSearch {
   readonly node?: string
   readonly diff?: 1
   readonly panel?: ChatRightPanel
-  readonly mockup?: 'notifications'
   readonly filePath?: string
   readonly fileLine?: number
   readonly sidePanelExtensionId?: string
@@ -67,10 +61,6 @@ function parseRightPanel(value: unknown) {
     : undefined
 }
 
-function parseDesignMockup(value: unknown) {
-  return DESIGN_MOCKUP_ROUTE_ENABLED && value === 'notifications' ? value : undefined
-}
-
 function parseFileLine(value: unknown) {
   const numericValue = typeof value === 'string' ? Number(value) : value
   return typeof numericValue === 'number' && Number.isSafeInteger(numericValue) && numericValue > 0
@@ -81,12 +71,10 @@ function parseFileLine(value: unknown) {
 function parseBaseChatSearch(search: Record<string, unknown>): ChatRouteSearch {
   const branch = parseSearchString(search.branch)
   const node = parseSearchString(search.node)
-  const mockup = parseDesignMockup(search.mockup)
   return {
     ...(branch ? { branch } : {}),
     ...(node ? { node } : {}),
     ...(search.diff === 1 || search.diff === '1' ? { diff: 1 } : {}),
-    ...(mockup ? { mockup } : {}),
   }
 }
 

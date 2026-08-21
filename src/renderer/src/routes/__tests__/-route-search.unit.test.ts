@@ -30,12 +30,10 @@ describe('parseChatRouteSearch', () => {
     expect(parseChatRouteSearch({ panel: 'other' })).toEqual({})
   })
 
-  it('preserves the dev-only design mockup flag', () => {
-    expect(parseChatRouteSearch({ mockup: 'notifications' })).toEqual({ mockup: 'notifications' })
-  })
-
-  it('drops unsupported design mockup search values', () => {
-    expect(parseChatRouteSearch({ mockup: 'other' })).toEqual({})
+  it('drops every throwaway design-exploration search key', () => {
+    // The prototypes and the mockup that replaced them are gone, so none of their keys may survive
+    // parsing. Kept as a test because a stray key in the route contract outlives the code it served.
+    expect(parseChatRouteSearch({ mockup: 'notifications' })).toEqual({})
     expect(parseChatRouteSearch({ prototype: 'notifications', variant: 'B1' })).toEqual({})
   })
 

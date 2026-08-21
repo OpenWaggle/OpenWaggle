@@ -170,6 +170,7 @@ export const SESSION_AUTHORIZATION_MODE_OVERRIDE_MIGRATION_STATEMENTS = [
   `
   ALTER TABLE sessions
   ADD COLUMN authorization_mode_override TEXT
+    CHECK (authorization_mode_override IN ('yolo', 'ask-for-approval'))
   `,
 ] as const
 

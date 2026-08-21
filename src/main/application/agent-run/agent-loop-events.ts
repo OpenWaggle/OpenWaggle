@@ -5,6 +5,10 @@ import type {
   AgentTransportInteractionRequestEvent,
   AgentTransportInteractionResolvedEvent,
 } from '@shared/types/stream'
+import {
+  notificationCreatesDurableRecord,
+  notificationResolutionCreatesDurableRecord,
+} from '@shared/utils/agent-notification-durability'
 import type { AgentKernelSessionSnapshot } from '../../ports/agent-kernel-service'
 import type { ProjectedSessionNodeInput } from '../../ports/session-repository'
 
@@ -43,11 +47,14 @@ export function isDurableAgentLoopEvent(
   }
 
   if (event.type === 'agent_interaction_request') {
-    return event.interaction.kind !== 'notify' || event.interaction.level !== 'info'
+    return (
+      event.interaction.kind !== 'notify' ||
+      notificationCreatesDurableRecord(event.interaction.level)
+    )
   }
 
   if (event.type === 'agent_interaction_resolved') {
-    return event.kind !== 'notify'
+    return event.kind !== 'notify' || notificationResolutionCreatesDurableRecord()
   }
 
   return false

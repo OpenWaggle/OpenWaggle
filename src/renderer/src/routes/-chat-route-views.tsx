@@ -1,5 +1,3 @@
-/// <reference types="vite/client" />
-
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { lazy, Suspense } from 'react'
 import { EXTENSION_SIDE_PANEL_ROUTE_PANEL } from '@/shell/ui-store'
@@ -15,23 +13,6 @@ const LazyChatRouteSurface = lazy(() =>
   })),
 )
 
-/**
- * `import.meta.env.DEV` is inlined here rather than imported as a constant so Rollup can prove
- * the branch dead and drop the mockup chunk from production output entirely. Importing the flag
- * from another module leaves the dynamic import reachable and ships the chunk.
- */
-const LazyNotificationDesignMockup = import.meta.env.DEV
-  ? lazy(() =>
-      import('./-notification-design-mockup').then((module) => ({
-        default: module.NotificationDesignMockup,
-      })),
-    )
-  : null
-
-function designMockupAvailable() {
-  return LazyNotificationDesignMockup !== null && window.location.protocol === 'http:'
-}
-
 function ChatRouteSurfaceFallback() {
   return (
     <output
@@ -39,17 +20,6 @@ function ChatRouteSurfaceFallback() {
       className="flex min-h-0 min-w-0 flex-1 items-center justify-center bg-bg text-[13px] text-text-tertiary"
     >
       Loading chat…
-    </output>
-  )
-}
-
-function DesignMockupFallback() {
-  return (
-    <output
-      aria-live="polite"
-      className="flex min-h-0 min-w-0 flex-1 items-center justify-center bg-bg text-[13px] text-text-tertiary"
-    >
-      Loading mockup…
     </output>
   )
 }
@@ -124,18 +94,6 @@ export function ChatIndexRouteView() {
         sidePanelContentHash: undefined,
       },
     })
-  }
-
-  if (
-    LazyNotificationDesignMockup &&
-    designMockupAvailable() &&
-    search.mockup === 'notifications'
-  ) {
-    return (
-      <Suspense fallback={<DesignMockupFallback />}>
-        <LazyNotificationDesignMockup />
-      </Suspense>
-    )
   }
 
   return (
@@ -235,18 +193,6 @@ export function ChatSessionRouteView() {
         sidePanelContentHash: undefined,
       }),
     })
-  }
-
-  if (
-    LazyNotificationDesignMockup &&
-    designMockupAvailable() &&
-    search.mockup === 'notifications'
-  ) {
-    return (
-      <Suspense fallback={<DesignMockupFallback />}>
-        <LazyNotificationDesignMockup />
-      </Suspense>
-    )
   }
 
   return (
