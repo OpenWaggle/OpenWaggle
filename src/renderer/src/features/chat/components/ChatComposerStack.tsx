@@ -17,11 +17,9 @@ import { useScopedComposerDrafts } from '@/features/composer/hooks'
 import { SessionContextRow, type SessionContextRowState } from '@/features/git'
 import { WaggleCollaborationStatus as WaggleCollaborationStatusBanner } from '@/features/waggle/components'
 import { useComposerSendGate } from '../hooks/useComposerSendGate'
-import type { AgentInteractionEvent } from '../lib/types-chat-row'
 import type { ChatComposerSectionState } from '../model'
 import { AgentCustomInteractionComposerFallback } from './AgentCustomInteractionComposerFallback'
 import { AgentInteractionComposerPrompt } from './AgentInteractionComposerPrompt'
-import { AgentNotificationStack } from './AgentNotificationStack'
 import { ChatComposerCommandPalette } from './ChatComposerCommandPalette'
 import { ChatComposerExtensionDialogs } from './ChatComposerExtensionDialogs'
 import { SessionAuthorizationModeMenu } from './SessionAuthorizationModeMenu'
@@ -30,7 +28,6 @@ import { SessionForkSelector } from './SessionForkSelector'
 interface ChatComposerStackProps {
   readonly section: ChatComposerSectionState
   readonly agentInteractions?: readonly AgentLoopInteraction[]
-  readonly agentInteractionEvents?: readonly AgentInteractionEvent[]
   readonly extensionRegistry?: ExtensionContributionRegistryView | null
   readonly extensionProjectPaths?: readonly string[]
   readonly onRespondAgentInteraction: (
@@ -41,7 +38,6 @@ interface ChatComposerStackProps {
 }
 
 const EMPTY_AGENT_INTERACTIONS: readonly AgentLoopInteraction[] = []
-const EMPTY_AGENT_INTERACTION_EVENTS: readonly AgentInteractionEvent[] = []
 const EMPTY_EXTENSION_PROJECT_PATHS: readonly string[] = []
 
 function noOp() {}
@@ -131,7 +127,6 @@ function ComposerControlRow({
 export function ChatComposerStack({
   section,
   agentInteractions = EMPTY_AGENT_INTERACTIONS,
-  agentInteractionEvents = EMPTY_AGENT_INTERACTION_EVENTS,
   extensionRegistry = null,
   extensionProjectPaths = EMPTY_EXTENSION_PROJECT_PATHS,
   onRespondAgentInteraction,
@@ -186,7 +181,6 @@ export function ChatComposerStack({
           onCustomSummary={onStartCustomBranchSummary}
           onCancel={onCancelBranchSummary}
         />
-        <AgentNotificationStack events={agentInteractionEvents} />
         <AgentInteractionComposerPrompt
           interactions={agentInteractions}
           onRespond={onRespondAgentInteraction}

@@ -4,6 +4,7 @@ import {
   setLastAgentErrorInfo,
 } from '@/features/chat/lib/agent-error-store'
 import { applyAgentTransportEvent } from '@/features/chat/lib/chat-stream-state'
+import { capAgentInteractionEvents } from '@/features/chat/lib/notification-stack-model'
 import { updateMessagesForSession } from './useAgentChat.message-cache'
 import type { AgentEventPayload, AgentStreamEventContext } from './useAgentChat.types'
 
@@ -18,7 +19,6 @@ type InteractionResolvedEvent = Extract<
 type CustomEvent = Extract<AgentEventPayload['event'], { readonly type: 'custom' }>
 
 const CUSTOM_MESSAGE_LIMIT = 20
-const INTERACTION_EVENT_LIMIT = 30
 
 function signalStreamChange(context: AgentStreamEventContext) {
   context.streamSignalVersionRef.current += 1
@@ -133,7 +133,7 @@ function addInteractionEvent(
 ) {
   const next = new Map(context.agentInteractionEventsBySessionIdRef.current)
   const current = next.get(sessionId) ?? []
-  next.set(sessionId, [...current, event].slice(-INTERACTION_EVENT_LIMIT))
+  next.set(sessionId, capAgentInteractionEvents([...current, event]))
   context.agentInteractionEventsBySessionIdRef.current = next
   context.setAgentInteractionEventsBySessionId(next)
 }
