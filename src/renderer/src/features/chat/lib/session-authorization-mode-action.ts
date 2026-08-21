@@ -3,10 +3,11 @@ import type { SessionId } from '@shared/types/brand'
 
 export async function setComposerSessionAuthorizationMode(input: {
   readonly activeSessionId: SessionId | null
-  readonly authorizationMode: AgentAuthorizationMode
+  /** `null` clears the session override so the session inherits again. */
+  readonly authorizationMode: AgentAuthorizationMode | null
   readonly setSessionAuthorizationMode: (
     sessionId: SessionId,
-    authorizationMode: AgentAuthorizationMode,
+    authorizationMode: AgentAuthorizationMode | null,
   ) => Promise<void>
   readonly showToast: (message: string) => void
 }) {

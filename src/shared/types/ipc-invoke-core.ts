@@ -240,8 +240,9 @@ export interface IpcCoreInvokeChannelMap {
     args: [id: SessionId, plan: SessionWorktreePlan]
     return: undefined
   }
+  /** `null` clears the session override so the session inherits again. */
   'sessions:set-authorization-mode': {
-    args: [id: SessionId, mode: AgentAuthorizationMode]
+    args: [id: SessionId, mode: AgentAuthorizationMode | null]
     return: undefined
   }
   'sessions:list': {

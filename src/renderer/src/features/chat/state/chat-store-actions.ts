@@ -116,13 +116,19 @@ async function refreshSession(id: SessionId, set: ChatSet, get: ChatGet) {
 
 async function setSessionAuthorizationMode(
   id: SessionId,
-  authorizationMode: AgentAuthorizationMode,
+  authorizationMode: AgentAuthorizationMode | null,
   set: ChatSet,
   get: ChatGet,
 ) {
   const previous = get().sessionById.get(id) ?? null
   if (previous) {
-    upsertSession({ ...previous, authorizationMode }, set)
+    // `null` clears the override, so the optimistic copy must drop the field rather than store a
+    // mode. Keeping one here would show an override the session no longer has.
+    const { authorizationMode: _cleared, ...withoutOverride } = previous
+    upsertSession(
+      authorizationMode === null ? withoutOverride : { ...previous, authorizationMode },
+      set,
+    )
   }
 
   try {

@@ -71,7 +71,7 @@ export interface ChatComposerSectionState {
   onCloseForkSelector: () => void
   onSelectForkTarget: (target: SessionForkTarget) => void
   onCloneToNewSession: () => void
-  onSetAuthorizationMode: (authorizationMode: AgentAuthorizationMode) => Promise<void>
+  onSetAuthorizationMode: (authorizationMode: AgentAuthorizationMode | null) => Promise<void>
 }
 
 export interface ChatDiffSectionState {

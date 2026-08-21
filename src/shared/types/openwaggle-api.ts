@@ -163,7 +163,7 @@ export interface OpenWaggleApi
   listArchivedSessions(): Promise<SessionSummary[]>
   updateSessionTitle(id: SessionId, title: string): Promise<void>
   setSessionWorktreePlan(id: SessionId, plan: SessionWorktreePlan): Promise<void>
-  setSessionAuthorizationMode(id: SessionId, mode: AgentAuthorizationMode): Promise<void>
+  setSessionAuthorizationMode(id: SessionId, mode: AgentAuthorizationMode | null): Promise<void>
   listArchivedSessionBranches(limit?: number): Promise<SessionSummary[]>
   getSessionTree(sessionId: SessionId): Promise<SessionTree | null>
   getSessionWorkspace(

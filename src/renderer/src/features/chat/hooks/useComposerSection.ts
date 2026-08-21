@@ -40,7 +40,9 @@ export interface ComposerSectionParams {
   readonly handleCloseForkSelector: () => void
   readonly handleSelectForkTarget: (target: SessionForkTarget) => void
   readonly handleCloneToNewSession: () => void
-  readonly handleSetAuthorizationMode: (authorizationMode: AgentAuthorizationMode) => Promise<void>
+  readonly handleSetAuthorizationMode: (
+    authorizationMode: AgentAuthorizationMode | null,
+  ) => Promise<void>
 }
 
 /** Closes over nothing but the composer store singleton — hoisted to module scope. */

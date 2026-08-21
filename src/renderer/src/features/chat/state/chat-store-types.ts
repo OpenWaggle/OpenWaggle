@@ -21,9 +21,10 @@ export interface ChatState {
   setActiveSessionId: (id: SessionId | null) => void
   setActiveSession: (id: SessionId | null) => void
   refreshSession: (id: SessionId) => Promise<void>
+  /** `null` clears the session override so the session inherits again. */
   setSessionAuthorizationMode: (
     id: SessionId,
-    authorizationMode: AgentAuthorizationMode,
+    authorizationMode: AgentAuthorizationMode | null,
   ) => Promise<void>
   upsertSession: (session: SessionDetail) => void
   deleteSession: (id: SessionId) => Promise<void>
