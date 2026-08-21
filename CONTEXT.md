@@ -695,6 +695,8 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - A **Blocking agent-loop interaction** is added above the composer without altering it, so a draft, caret position, placeholder, enabled state, and the Enter key all survive its arrival untouched.
 - A user may answer a **Blocking agent-loop interaction** before or after sending a queued message, in either order, and neither choice removes the other.
 - Cancelling or steering a run denies its pending **Authorization request** rather than carrying it over, so a later run has to ask again.
+- A **Blocking agent-loop interaction** announces itself politely and is reachable without the user losing their place in the composer, and the shortcut that reaches it belongs to the **Shortcut registry**.
+- No **Authorization decision** is bound to a single keystroke, because a mistyped key must not be able to grant a capability.
 - An extension renders its own contributions freely in the **Transcript agent-loop surface** and owns a **Custom desktop interaction** end to end.
 - An **Authorization request** and the standard user-input requests are presented by OpenWaggle's own prompt, which an extension cannot replace, although it may still contribute a dialog, a transcript card, or a status widget alongside that prompt.
 - A status widget belongs to the run rather than to any single pending interaction.

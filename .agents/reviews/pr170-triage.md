@@ -110,3 +110,63 @@ Recorded in `CONTEXT.md` under Language, Relationships, and Flagged ambiguities.
    focused time, errors stay until dismissed, and the clock only advances while the window is
    focused so nothing expires unwatched. This reverses the earlier N1 choice on purpose.
 5. Requests never expire. Only the user or cancelling the run ends one.
+
+## Agreed scope: full implementation in this MR
+
+Decided after the grilling session. No deferrals, no follow-up PR.
+
+### Slice 1. Authorization resolution core
+- Extract `resolveSessionAuthorizationMode` into a shared application module and call it from all
+  four session-creation paths, including the three MCP/task-runtime ones (blocker B1).
+- Make `authorization_mode` nullable, `NULL` meaning inherit, and resolve session then project then
+  global at request time rather than at creation (M3).
+- Resolve the mode when a request is raised, not once per run, and settle a pending authorization
+  request when the session switches to YOLO (blocker B2).
+- Make the mode required on `SessionDetail` or fail closed, never open (N1).
+
+### Slice 2. Scoped authorization grants
+- New migration (id 25) and table keyed on project, requester, capability, and resource.
+- Matching requires all four to agree; a grant satisfies a request without prompting in Ask mode.
+- IPC to list, create and revoke; Settings surface listing every grant with a revoke action.
+- `Allow…` menu offers session scope and project scope, and the project option names the exact
+  requester, capability and destination it is about to grant.
+
+### Slice 3. Request purpose
+- Declare purpose at each of the seven `ui.confirm` call sites; delete the title sniffing (M1).
+- YOLO auto-grants only the authorization purpose. External navigation and disclosure always
+  prompt, in every mode (M2).
+
+### Slice 4. Notifications, T3 model
+- Move the stack out of the composer into a floating corner viewport, thread-scoped.
+- Severity ordering, per-notice timers keyed by id, focused-time clock that pauses on blur,
+  info and warning leave after 5s, errors persist (M4, M5, M6, N9).
+- Separate the notification feed from the interaction event window so info notices can no longer
+  evict authorization events (M7).
+- Return `null` at the render boundary for an info notify (N12).
+
+### Slice 5. Approval ribbon
+- B3 ribbon above the composer, with composer draft continuity enforced by test.
+- `Details` disclosure carrying the payload with `whitespace-pre-wrap` (M8, M9).
+- One transcript row per request, updating in place, with the queued counter (N7).
+- Queue chip naming what it waits on.
+
+### Slice 6. Extension boundary
+- One run-level mount for status widgets; delete `AgentInteractionsPanel` and its three tests (M12).
+- Drop `factoryName`, `pi-ui` and `pi-tui-custom` from the renderer payload (N3).
+- Remove the raw UUID and state token from the fallback (N4), the raw `kind` subtitle (N5), and
+  scope `role="alert"` to pending only (N6).
+
+### Slice 7. Accessibility
+- Polite live region, accessible names on every control, remappable focus chord through the
+  shortcut registry, and no key bound to a grant action (M10, M11).
+
+### Slice 8. Tests and cleanup
+- Component tests for the notification stack, the ribbon, the session mode menu and the Settings
+  section, including the draft-continuity invariants (M13).
+- Migration test from an older database, grant matching tests, purpose classification tests tying
+  each call site to its declared purpose.
+- Fix assertions that cannot fail (N16), cover the production route gate (N17), add the error-level
+  durability case (N15).
+- Shared durability predicate (N2), CHECK constraint (N13), dead `CURRENT_SESSION` statement (N14),
+  duplicated control components (N10), submit busy and error handling (N8), routeTree churn (N19).
+- Delete the mockup files.
