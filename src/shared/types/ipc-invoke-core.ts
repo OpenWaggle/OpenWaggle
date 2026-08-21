@@ -38,6 +38,10 @@ import type {
 } from './extensions'
 import type { ProviderInfo, SupportedModelId } from './llm'
 import type {
+  ProjectPreferencesPayload,
+  ProjectPreferencesUpdatePayload,
+} from './openwaggle-api-project'
+import type {
   SessionCopyToNewResult,
   SessionDetail,
   SessionNavigateTreeOptions,
@@ -182,21 +186,10 @@ export interface IpcCoreInvokeChannelMap {
   }
   'project-config:get-preferences': {
     args: [projectPath: string]
-    return: {
-      model?: string
-      thinkingLevel?: string
-      authorizationMode?: AgentAuthorizationMode
-    } | null
+    return: ProjectPreferencesPayload | null
   }
   'project-config:set-preferences': {
-    args: [
-      projectPath: string,
-      preferences: {
-        model?: string
-        thinkingLevel?: string
-        authorizationMode?: AgentAuthorizationMode
-      },
-    ]
+    args: [projectPath: string, preferences: ProjectPreferencesUpdatePayload]
     return: undefined
   }
   'sessions:list-details': {

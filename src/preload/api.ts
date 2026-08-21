@@ -128,6 +128,9 @@ export const api: OpenWaggleApi = {
   selectProjectFolder: invoke('project:select-folder'),
   getProjectPreferences: invoke('project-config:get-preferences'),
   setProjectPreferences: invoke('project-config:set-preferences'),
+  listAuthorizationGrants: invoke('authorization-grants:list'),
+  grantAuthorization: invoke('authorization-grants:grant'),
+  revokeAuthorization: invoke('authorization-grants:revoke'),
 
   // Sessions
   listSessions: invoke('sessions:list'),

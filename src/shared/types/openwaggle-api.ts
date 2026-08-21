@@ -23,12 +23,6 @@ import type {
   FirstPartyDocsTopicSummary,
 } from './docs'
 import type {
-  DiagnosticsInfo,
-  FeedbackPayload,
-  FeedbackSubmitResult,
-  GhCliStatus,
-} from './feedback'
-import type {
   ChangeRequestCheckoutResult,
   ChangeRequestListResult,
   GitBranchCheckoutPayload,
@@ -52,6 +46,10 @@ import type {
 } from './git'
 import type { IpcEventPayload } from './ipc'
 import type { ProviderInfo, SupportedModelId } from './llm'
+import type { OpenWaggleAuthorizationGrantApi } from './openwaggle-api-authorization-grants'
+import type { OpenWaggleFeedbackApi } from './openwaggle-api-feedback'
+import type { OpenWaggleProjectConfigApi } from './openwaggle-api-project'
+import type { OpenWaggleUpdaterApi } from './openwaggle-api-updater'
 import type { OpenWaggleExtensionApi } from './openwaggle-extension-api'
 import type { OpenWaggleMcpApi } from './openwaggle-mcp-api'
 import type { OpenWaggleWorkspaceFilesApi } from './openwaggle-workspace-files-api'
@@ -77,19 +75,15 @@ import type {
   SkillCatalogResult,
 } from './standards'
 import type { TurnCheckpointSummary, TurnDiff } from './turn-diff'
-import type { UpdateStatus } from './updater'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 import type { WaggleConfig, WagglePreset } from './waggle'
 
-/** Wire shape of the per-project agent overrides carried over IPC. */
-export interface ProjectPreferencesPayload {
-  model?: string
-  thinkingLevel?: string
-  authorizationMode?: AgentAuthorizationMode
-}
-
 export interface OpenWaggleApi
-  extends OpenWaggleExtensionApi,
+  extends OpenWaggleAuthorizationGrantApi,
+    OpenWaggleFeedbackApi,
+    OpenWaggleProjectConfigApi,
+    OpenWaggleUpdaterApi,
+    OpenWaggleExtensionApi,
     OpenWaggleMcpApi,
     OpenWaggleWorkspaceFilesApi {
   // Agent
@@ -138,11 +132,6 @@ export interface OpenWaggleApi
 
   // Providers
   getProviderModels(projectPath?: string | null): Promise<ProviderInfo[]>
-
-  // Project
-  selectProjectFolder(): Promise<string | null>
-  getProjectPreferences(projectPath: string): Promise<ProjectPreferencesPayload | null>
-  setProjectPreferences(projectPath: string, preferences: ProjectPreferencesPayload): Promise<void>
 
   // Sessions
   listSessions(limit?: number): Promise<SessionSummary[]>
@@ -299,21 +288,6 @@ export interface OpenWaggleApi
   saveWagglePreset(preset: WagglePreset, projectPath?: string | null): Promise<WagglePreset>
   deleteWagglePreset(id: WagglePresetId, projectPath?: string | null): Promise<void>
 
-  // Feedback
-  checkGhCli(): Promise<GhCliStatus>
-  collectDiagnostics(): Promise<DiagnosticsInfo>
-  getRecentLogs(lineCount: number): Promise<string>
-  submitFeedback(payload: FeedbackPayload): Promise<FeedbackSubmitResult>
-  generateFeedbackMarkdown(payload: FeedbackPayload): Promise<string>
-  openExternal(url: string): Promise<void>
-
   // Composer
   suggestFiles(projectPath: string, query: string): Promise<FileSuggestion[]>
-
-  // Auto-updater
-  checkForUpdates(): Promise<void>
-  installUpdate(): Promise<void>
-  getUpdateStatus(): Promise<UpdateStatus>
-  getAppVersion(): Promise<string>
-  onUpdateStatus(callback: (payload: UpdateStatus) => void): () => void
 }
