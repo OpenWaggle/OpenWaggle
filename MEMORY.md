@@ -90,6 +90,47 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Sidebar view preferences (session sort, collapsed projects) persist; sidebar filters (state chip, text query) do not. A filter that subtracts sessions must not outlive the intent behind it.
 - A list passed to `useSessionGitIndicators` must keep reference identity when nothing changed. The hook memoises on the array, so a freshly filtered copy every render re-runs its effect every render and spins the renderer.
 
+## Access Modes And Authorization Memory
+
+- Authorization mode is a live chain resolved when a request is raised, not a value copied at session
+  creation (ADR 0023). `authorization_mode_override` is nullable and `NULL` means inherit. Never read
+  absence as `yolo`: that pins every pre-existing session to full access and makes the user's global
+  default permanently irrelevant to it.
+- Session creation stores no mode. If a create path needs one, the design is wrong; resolve at the
+  point of use instead.
+- Request purpose is declared at the call site. Never infer it from a title, and never re-introduce
+  the exact-match title sniffing that used to live in `interaction-ui-context.ts`: renaming a title
+  silently changed what full access could answer and no check could see it.
+- Anything reaching `ui.confirm` is a question addressed to the user and can never be auto-answered.
+  Authorization has its own entry point, and a missing channel degrades to prompting.
+- Of the seven confirmation points in the app, exactly two are authorization. Opening an external URL
+  and the input disclosure are not, and auto-granting the disclosure saves no work because the editor
+  after it still blocks.
+- Full access must emit no event at all, not merely skip the prompt. The "no transcript entry, no
+  counter, no log" guarantee is enforced by short-circuiting before emission.
+- Grants are keyed on requester, capability and resource, and are stored in project config, following
+  Codex. Arguments are excluded, and an absent resource is never a wildcard: server-level matching
+  would let a server widen its own permissions by shipping a new tool.
+- An arriving request adds a surface above the composer and changes nothing about it. Do not disable
+  the composer, move focus, or change the placeholder, and do not bind Enter to answering a request.
+  T3 Code does seize the composer; we deliberately do not.
+- Notification lifetimes count window-focused time and pause on blur, following T3. A timer keyed to
+  the notification array instead of to each notification id restarts every clock on every new event,
+  so nothing ever expires during a busy run.
+- Notifications and decisions need independent event budgets. One shared window let informational
+  notices evict an authorization request and its resolution, leaving a transcript row stuck on
+  "Waiting" after the decision was made.
+- The notification durability rule is shared between main and renderer. Two copies drift into a
+  transcript that disagrees with itself after a reload while both sides' tests stay green.
+- Migration 24 is `pinned-sessions` and had already shipped. Never renumber or replace a migration id
+  that users have applied.
+- Rebuilding the `sessions` table is not safe: it is the parent of cascading foreign keys, and a
+  rebuild under `PRAGMA foreign_keys = ON` deletes every node and pinned row with it. Add a column.
+- A dev-only route must inline `import.meta.env.DEV` at the `lazy()` call. Importing the flag as a
+  constant from another module leaves the dynamic import reachable and ships the chunk.
+- Guard visible strings with a source scan, not `queryByText('some-id')`. Exact-match queries stay
+  green when an identifier is appended to a label, which is how `pi-tui-custom` survived its own test.
+
 ## Tooling Memory
 
 - Package manager: `pnpm`.
