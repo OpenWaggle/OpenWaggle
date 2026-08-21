@@ -248,6 +248,10 @@ _Avoid_: composer banner, interaction card, application-wide toast, notification
 The single semantic transcript record retained for a warning or error Agent notification.
 _Avoid_: notification request card, notification resolution card, raw notification event
 
+**Composer draft continuity**:
+The guarantee that an arriving agent request adds a surface above the composer without changing the composer itself, so the user can finish and send the thought they were already writing.
+_Avoid_: approval takeover, disabled composer, focus steal, placeholder swap
+
 **Extension SDK surface**:
 The intentional public API exposed to extension code for capability calls, UI mounting context, theme data, and contribution behavior.
 _Avoid_: OpenWaggle internals, renderer internals
@@ -688,6 +692,9 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - Multiple **Agent-loop contributions** may share one **Agent-loop binding identity** across different **Extension contribution surfaces**.
 - The **Transcript agent-loop surface** is the durable fallback record for agent-loop feedback even when auxiliary surfaces such as dialogs, side panels, or status widgets are also used.
 - A **Blocking agent-loop interaction** must be surfaced prominently while preserving a durable record in the **Transcript agent-loop surface**.
+- A **Blocking agent-loop interaction** is added above the composer without altering it, so a draft, caret position, placeholder, enabled state, and the Enter key all survive its arrival untouched.
+- A user may answer a **Blocking agent-loop interaction** before or after sending a queued message, in either order, and neither choice removes the other.
+- Cancelling or steering a run denies its pending **Authorization request** rather than carrying it over, so a later run has to ask again.
 - An extension renders its own contributions freely in the **Transcript agent-loop surface** and owns a **Custom desktop interaction** end to end.
 - An **Authorization request** and the standard user-input requests are presented by OpenWaggle's own prompt, which an extension cannot replace, although it may still contribute a dialog, a transcript card, or a status widget alongside that prompt.
 - A status widget belongs to the run rather than to any single pending interaction.

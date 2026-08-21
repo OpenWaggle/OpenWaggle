@@ -116,17 +116,23 @@ Arguments: {
 function ComposerShell({
   ribbon,
   placeholder,
+  draft,
   paused = false,
 }: {
   readonly ribbon: React.ReactNode
   readonly placeholder: string
+  readonly draft?: string
   readonly paused?: boolean
 }) {
   return (
     <div className="rounded-2xl border border-border bg-bg-secondary">
       {ribbon}
       <div className="px-4 pt-3 pb-3">
-        <p className="h-11 text-[13px] leading-5 text-text-muted">{placeholder}</p>
+        {draft ? (
+          <p className="h-11 text-[13px] leading-5 text-text-primary">{draft}</p>
+        ) : (
+          <p className="h-11 text-[13px] leading-5 text-text-muted">{placeholder}</p>
+        )}
         <div className="flex min-h-7 items-center justify-between gap-3 text-[11px] text-text-muted">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span className="truncate">GPT-5.6 Sol · Medium</span>
@@ -136,7 +142,7 @@ function ComposerShell({
             {paused ? (
               <span className="inline-flex items-center gap-1 rounded border border-border bg-bg-tertiary px-1.5 py-0.5 text-[10px] text-text-tertiary">
                 <Network className="size-3" />
-                Waiting on network
+                Waiting for your approval
               </span>
             ) : null}
           </div>
@@ -180,8 +186,9 @@ export function NotificationDesignMockup() {
         <MockTranscript />
         <div className="mx-auto w-full max-w-[720px] px-5 pb-5">
           <ComposerShell
+            draft="also check whether any of them are already fixed on main"
             paused
-            placeholder="Approve or block above to continue"
+            placeholder="Ask anything · / skills & Waggle · @ files"
             ribbon={<ApprovalRibbon />}
           />
         </div>
@@ -191,12 +198,12 @@ export function NotificationDesignMockup() {
       </div>
 
       <Section
-        note="Persistent approval never sits in the button row. Allow… opens a menu holding Allow for this session and Always allow for this project, and the project option names the exact requester, capability and destination it grants."
+        note="The composer is untouched: the half-written draft, the placeholder, the enabled input and the Enter key all survive the ribbon arriving, so you can finish the sentence and queue it before or after deciding. Persistent approval never sits in the button row. Allow… opens a menu holding Allow for this session and Always allow for this project, and the project option names the exact requester, capability and destination it grants."
         title="Ribbon with Details open"
       >
         <ComposerShell
           paused
-          placeholder="Approve or block above to continue"
+          placeholder="Ask anything · / skills & Waggle · @ files"
           ribbon={<ApprovalRibbon detailsOpen />}
         />
       </Section>
@@ -223,7 +230,7 @@ export function NotificationDesignMockup() {
       >
         <ComposerShell
           paused
-          placeholder="Pick an option above, or type a different answer"
+          placeholder="Ask anything · / skills & Waggle · @ files"
           ribbon={<QuestionRibbon />}
         />
       </Section>
