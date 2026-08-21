@@ -145,7 +145,6 @@ function parseCustomInteraction(
     stringField(interaction, 'customType') ?? OPENWAGGLE_AGENT_LOOP.PI_TUI_CUSTOM_INTERACTION_TYPE
   const payload = optionalJsonValue(interaction.payload)
   const renderer = isObject(interaction.renderer) ? interaction.renderer : null
-  const factoryName = renderer === null ? null : stringField(renderer, 'factoryName')
   const overlay = renderer?.overlay
 
   return {
@@ -156,7 +155,6 @@ function parseCustomInteraction(
     renderer: {
       kind: 'pi-tui-custom',
       supported: false,
-      ...(factoryName !== null ? { factoryName } : {}),
       ...(typeof overlay === 'boolean' ? { overlay } : {}),
     },
   }

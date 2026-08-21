@@ -175,7 +175,10 @@ describe('ExtensionAgentLoopSurface', () => {
     expect(
       screen.getByText(/does not execute terminal UI custom components inside Electron/),
     ).toBeInTheDocument()
-    expect(screen.getByText('custom-interaction')).toBeInTheDocument()
+    // The raw interaction id used to be printed here. It means nothing to a reader, so the card
+    // now shows a human lifecycle label and the id stays internal.
+    expect(screen.queryByText('custom-interaction')).not.toBeInTheDocument()
+    expect(screen.getByText('Waiting for a renderer')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Reject interaction' }))
 

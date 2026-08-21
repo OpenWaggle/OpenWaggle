@@ -14,6 +14,7 @@ import {
   QueuedMessages,
 } from '@/features/composer/components'
 import { useScopedComposerDrafts } from '@/features/composer/hooks'
+import { ExtensionAgentLoopStatusWidgets } from '@/features/extensions'
 import { SessionContextRow, type SessionContextRowState } from '@/features/git'
 import { WaggleCollaborationStatus as WaggleCollaborationStatusBanner } from '@/features/waggle/components'
 import { useComposerSendGate } from '../hooks/useComposerSendGate'
@@ -97,27 +98,48 @@ function ComposerOverlays({
   )
 }
 
+/** Tone for the run-level status surface extensions can contribute into. */
+function runStatusTone(status: ChatComposerSectionState['status']) {
+  if (status === 'streaming' || status === 'submitted') return 'running' as const
+  if (status === 'compacting' || status === 'retrying') return 'running' as const
+  return 'neutral' as const
+}
+
 function ComposerControlRow({
   strip,
-  session,
-  onSetAuthorizationMode,
-  onToast,
+  section,
+  extensionRegistry,
+  extensionProjectPaths,
 }: {
   readonly strip: SessionContextRowState
-  readonly session: ChatComposerSectionState['session']
-  readonly onSetAuthorizationMode: ChatComposerSectionState['onSetAuthorizationMode']
-  readonly onToast: ChatComposerSectionState['onToast']
+  readonly section: ChatComposerSectionState
+  readonly extensionRegistry: ExtensionContributionRegistryView | null
+  readonly extensionProjectPaths: readonly string[]
 }) {
   return (
     <div className="mt-1.5 flex min-h-7 min-w-0 flex-wrap items-center justify-between gap-3 px-1">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <SessionAuthorizationModeMenu
-          session={session}
-          onSetAuthorizationMode={onSetAuthorizationMode}
+          session={section.session}
+          onSetAuthorizationMode={section.onSetAuthorizationMode}
         />
         <SessionContextRow strip={strip} />
+        {/* Status widgets belong to the run, so they mount once here rather than hanging off a
+            pending custom interaction, which is where they used to live and therefore only
+            appeared when an unrelated interaction happened to be waiting. */}
+        <ExtensionAgentLoopStatusWidgets
+          input={{
+            surface: 'status',
+            status: {
+              label: 'Run status',
+              tone: runStatusTone(section.status),
+            },
+          }}
+          projectPaths={extensionProjectPaths}
+          registry={extensionRegistry}
+        />
       </div>
-      <ComposerBranchRow strip={strip} onToast={onToast} />
+      <ComposerBranchRow strip={strip} onToast={section.onToast} />
     </div>
   )
 }
@@ -152,7 +174,6 @@ export function ChatComposerStack({
     onSummarizeBranch,
     onStartCustomBranchSummary,
     onCancelBranchSummary,
-    onSetAuthorizationMode,
   } = section
   useScopedComposerDrafts(activeSessionId)
   const { strip, guardedSend } = useComposerSendGate({
@@ -226,10 +247,10 @@ export function ChatComposerStack({
           onToast={onToast}
         />
         <ComposerControlRow
+          extensionProjectPaths={extensionProjectPaths}
+          extensionRegistry={extensionRegistry}
+          section={section}
           strip={strip}
-          session={section.session}
-          onSetAuthorizationMode={onSetAuthorizationMode}
-          onToast={onToast}
         />
         <ActionDialog onToast={onToast} />
       </div>

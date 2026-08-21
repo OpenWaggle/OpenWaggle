@@ -89,13 +89,14 @@ function normalizeNotifyLevel(level: PiNotifyLevel) {
 }
 
 function customRendererFields(
-  factory: PiCustomInteractionFactory,
   options: PiCustomInteractionOptions,
 ): AgentLoopCustomInteraction['renderer'] {
+  // The factory's raw JS function name is a runtime internal, not something a reader should ever
+  // see, so it stays out of the payload the renderer receives. `kind` remains an internal
+  // discriminant the renderer maps to product copy; it is never displayed.
   return {
     kind: 'pi-tui-custom',
     supported: false,
-    ...(factory.name.trim().length > 0 ? { factoryName: factory.name } : {}),
     ...(options?.overlay !== undefined ? { overlay: options.overlay } : {}),
   }
 }
@@ -109,7 +110,7 @@ async function requestCustomInteraction(input: {
     ...baseInteraction({ context: input.context }),
     kind: 'custom',
     customType: OPENWAGGLE_AGENT_LOOP.PI_TUI_CUSTOM_INTERACTION_TYPE,
-    renderer: customRendererFields(input.factory, input.options),
+    renderer: customRendererFields(input.options),
   } satisfies AgentLoopCustomInteraction
   const response = await requestInteraction({
     interaction,

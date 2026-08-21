@@ -85,7 +85,6 @@ export interface AgentLoopCustomInteraction extends AgentLoopInteractionBase {
   readonly renderer: {
     readonly kind: 'pi-tui-custom'
     readonly supported: false
-    readonly factoryName?: string
     readonly overlay?: boolean
   }
 }

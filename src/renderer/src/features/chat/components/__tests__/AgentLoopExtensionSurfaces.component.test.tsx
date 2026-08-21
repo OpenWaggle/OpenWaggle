@@ -11,7 +11,7 @@ import type {
 import type { AgentTransportInteractionRequestEvent } from '@shared/types/stream'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { AgentInteractionsPanel } from '../AgentInteractionsPanel'
+import { AgentCustomInteractionComposerFallback } from '../AgentCustomInteractionComposerFallback'
 import { InteractionEventRow } from '../AgentLoopInteractionEventRow'
 import { ChatComposerExtensionDialogs } from '../ChatComposerExtensionDialogs'
 
@@ -142,7 +142,7 @@ function AgentLoopExtensionSurfaceHarness({
         item={{ request: interactionRequestEvent(interaction) }}
         extensions={extensions}
       />
-      <AgentInteractionsPanel
+      <AgentCustomInteractionComposerFallback
         extensionProjectPaths={[PROJECT_PATH]}
         extensionRegistry={registry}
         interactions={[interaction]}
@@ -184,13 +184,16 @@ describe('agent-loop extension surfaces', () => {
     )
 
     expect(screen.getByText('Confirmation requested')).toBeInTheDocument()
-    expect(screen.getAllByText('The extension wants to proceed.')).toHaveLength(2)
+    // Once, in the transcript row. The composer fallback renders only custom interactions, so a
+    // confirm is no longer echoed a second time beneath it.
+    expect(screen.getAllByText('The extension wants to proceed.')).toHaveLength(1)
+
+    // OpenWaggle owns the prompt for the built-in kinds, so an extension gets no inline renderer
+    // for a confirm. It still reaches the user through the dialog and the side panel below.
     await waitFor(() => {
-      expect(screen.getAllByTitle('Extension module: GitHub interaction renderer')).toHaveLength(1)
-      expect(screen.getByTitle('Extension module: GitHub status widget')).toHaveAttribute(
-        'src',
-        expect.stringContaining(EXTENSION_FRAME_URL_PREFIX),
-      )
+      expect(
+        screen.queryByTitle('Extension module: GitHub interaction renderer'),
+      ).not.toBeInTheDocument()
     })
 
     fireEvent.click(screen.getByRole('button', { name: /extensions/i }))
