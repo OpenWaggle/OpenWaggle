@@ -11,6 +11,7 @@ import {
   submitAgentLoopInteractionResponse,
 } from '../../../../application/agent-loop-interaction-broker'
 import { createPiInteractionUiContext } from '../interaction-ui-context'
+import { getOpenWaggleAuthorize } from '../openwaggle-authorize-channel'
 
 const sessionId = SessionId('pi-ui-session')
 
@@ -34,6 +35,7 @@ function createContext(input?: {
     {
       sessionId,
       runId: 'run-pi-ui',
+      projectPath: null,
       resolveAuthorizationMode: async () => input?.authorizationMode ?? 'yolo',
       signal: input?.signal ?? new AbortController().signal,
       onEvent: (event) => emitted.push(event),
@@ -73,17 +75,69 @@ describe('Pi interaction UI context', () => {
     await expect(confirmed).resolves.toBe(true)
   })
 
-  it('auto-accepts authorization confirmations in YOLO mode without emitting audit events', async () => {
+  it('never auto-accepts a plain confirm, even in full access', async () => {
+    // Plain confirm is a question addressed to the user. Purpose used to be guessed from the title,
+    // so this exact call was auto-granted in full access; now only the declared authorization
+    // channel can be.
     const { emitted, ui } = createContext({ authorizationMode: 'yolo' })
 
-    await expect(ui.confirm('Allow MCP tool call?', 'Read project files?')).resolves.toBe(true)
+    const confirmed = ui.confirm('Allow MCP tool call?', 'Read project files?')
+    await flushAuthorizationResolution()
+
+    expect(emitted).toMatchObject([
+      {
+        type: 'agent_interaction_request',
+        interaction: { kind: 'confirm', purpose: 'user-input' },
+      },
+    ])
+    const request = emitted[0]
+    if (request?.type !== 'agent_interaction_request') {
+      throw new Error('Expected pending interaction request')
+    }
+
+    submitAgentLoopInteractionResponse({
+      sessionId,
+      runId: 'run-pi-ui',
+      interactionId: request.interaction.interactionId,
+      kind: 'confirm',
+      response: { kind: 'confirm', accepted: false },
+    })
+    await expect(confirmed).resolves.toBe(false)
+  })
+
+  it('exposes the authorization channel, which full access grants without emitting anything', async () => {
+    const { emitted, ui } = createContext({ authorizationMode: 'yolo' })
+    const authorize = getOpenWaggleAuthorize(ui)
+    if (!authorize) throw new Error('Expected the OpenWaggle authorization channel')
+
+    await expect(
+      authorize({
+        title: 'Allow MCP tool call?',
+        message: 'Read project files?',
+        scopeKey: {
+          requester: 'github-issues',
+          capability: 'mcp.tool-call',
+          resource: 'list_issues',
+        },
+      }),
+    ).resolves.toBe(true)
     expect(emitted).toEqual([])
   })
 
-  it('asks authorization confirmations in approval mode', async () => {
+  it('asks through the authorization channel in approval mode', async () => {
     const { emitted, ui } = createContext({ authorizationMode: 'ask-for-approval' })
+    const authorize = getOpenWaggleAuthorize(ui)
+    if (!authorize) throw new Error('Expected the OpenWaggle authorization channel')
 
-    const confirmed = ui.confirm('Allow MCP tool call?', 'Read project files?')
+    const confirmed = authorize({
+      title: 'Allow MCP tool call?',
+      message: 'Read project files?',
+      scopeKey: {
+        requester: 'github-issues',
+        capability: 'mcp.tool-call',
+        resource: 'list_issues',
+      },
+    })
     await flushAuthorizationResolution()
 
     expect(emitted).toMatchObject([
@@ -92,8 +146,8 @@ describe('Pi interaction UI context', () => {
         interaction: {
           kind: 'confirm',
           title: 'Allow MCP tool call?',
-          message: 'Read project files?',
           purpose: 'authorization',
+          scopeKey: { capability: 'mcp.tool-call', resource: 'list_issues' },
         },
       },
     ])

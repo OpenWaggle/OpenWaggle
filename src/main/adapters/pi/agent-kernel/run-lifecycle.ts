@@ -107,6 +107,7 @@ export async function createPiRunSessionRuntime(
   const openWaggleUi = {
     sessionId: input.session.id,
     runId: input.runId,
+    projectPath: input.projectPath,
     resolveAuthorizationMode: () => resolveEffectiveAuthorizationMode(input.session.id),
     signal: input.signal,
     onEvent: input.onEvent,

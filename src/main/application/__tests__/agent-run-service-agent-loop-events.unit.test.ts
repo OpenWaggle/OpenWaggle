@@ -192,6 +192,7 @@ describe('executeAgentRun agent-loop event durability', () => {
           createdAt: 10,
           title: 'Approve?',
           message: 'Allow the extension action?',
+          purpose: 'user-input',
         },
       })
       input.onEvent({

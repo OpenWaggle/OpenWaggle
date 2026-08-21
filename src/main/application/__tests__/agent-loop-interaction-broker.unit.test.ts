@@ -21,7 +21,8 @@ function confirmInteraction() {
     source: 'pi-ui',
     createdAt: 1,
     title: 'Continue?',
-    message: 'Allow Pi to proceed?',
+    message: 'Continue with the change?',
+    purpose: 'user-input',
   } as const
 }
 
@@ -196,7 +197,7 @@ describe('switching a session to full access', () => {
   it('leaves a question addressed to the user pending', async () => {
     const emitted: AgentTransportEvent[] = []
     const pending = requestAgentLoopInteraction({
-      interaction: { ...confirmInteraction(), purpose: 'confirmation' },
+      interaction: { ...confirmInteraction(), purpose: 'user-input' },
       onEvent: (event) => emitted.push(event),
     })
     let settled = false

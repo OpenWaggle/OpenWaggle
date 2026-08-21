@@ -2,6 +2,7 @@ import { match } from '@diegogbrisa/ts-match'
 import { OPENWAGGLE_AGENT_LOOP } from '@shared/constants/agent-loop'
 import type {
   AgentLoopConfirmInteraction,
+  AgentLoopConfirmPurpose,
   AgentLoopCustomInteraction,
   AgentLoopEditorInteraction,
   AgentLoopInputInteraction,
@@ -58,20 +59,37 @@ function parseChoices(value: unknown) {
   return Array.isArray(value) && value.every((choice) => typeof choice === 'string') ? value : null
 }
 
+/**
+ * Rehydrates a confirm from persisted history.
+ *
+ * An unrecognised or missing purpose becomes `user-input`, the purpose nothing may answer on the
+ * user's behalf. Replayed history must never widen into `authorization`.
+ */
+function parseConfirmPurpose(value: string | null): AgentLoopConfirmPurpose {
+  if (
+    value === 'authorization' ||
+    value === 'user-input' ||
+    value === 'disclosure' ||
+    value === 'external-navigation'
+  ) {
+    return value
+  }
+  return 'user-input'
+}
+
 function parseConfirmInteraction(
   base: AgentLoopInteractionBaseFields,
   interaction: UnknownObject,
 ): AgentLoopConfirmInteraction | null {
   const title = stringField(interaction, 'title')
   const message = stringField(interaction, 'message')
-  const purpose = stringField(interaction, 'purpose')
   return title !== null && message !== null
     ? {
         ...base,
         kind: 'confirm',
         title,
         message,
-        ...(purpose === 'authorization' || purpose === 'confirmation' ? { purpose } : {}),
+        purpose: parseConfirmPurpose(stringField(interaction, 'purpose')),
       }
     : null
 }

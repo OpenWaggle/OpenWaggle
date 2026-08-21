@@ -14,10 +14,12 @@ import type {
 } from '@shared/types/agent-loop-interaction'
 import type { SessionId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
+import { requestAuthorization } from '../../../application/agent-authorization-request'
 import {
   type AgentLoopInteractionRequestInput,
   requestAgentLoopInteraction,
 } from '../../../application/agent-loop-interaction-broker'
+import { OPENWAGGLE_AUTHORIZE_KEY, type OpenWaggleAuthorize } from './openwaggle-authorize-channel'
 
 type DesktopInteractionUiOverrideKey = 'select' | 'confirm' | 'input' | 'notify' | 'editor'
 type DesktopInteractionUiOverrides = Pick<ExtensionUIContext, DesktopInteractionUiOverrideKey>
@@ -34,6 +36,7 @@ export interface PiInteractionUiContextInput {
    * governs the rest of that run.
    */
   readonly resolveAuthorizationMode: () => Promise<AgentAuthorizationMode>
+  readonly projectPath: string | null
   readonly signal: AbortSignal
   readonly onEvent: (event: AgentTransportEvent) => void
 }
@@ -85,27 +88,6 @@ function normalizeNotifyLevel(level: PiNotifyLevel) {
   return level ?? 'info'
 }
 
-function confirmPurpose(input: { readonly title: string; readonly message: string }) {
-  if (
-    input.title === 'Allow MCP tool call?' ||
-    input.title === 'Open MCP elicitation URL?' ||
-    input.title === 'Review MCP input request?' ||
-    input.title === 'Allow legacy MCP sampling?'
-  ) {
-    return 'authorization' as const
-  }
-
-  return 'confirmation' as const
-}
-
-async function shouldAutoAcceptConfirm(input: {
-  readonly resolveAuthorizationMode: () => Promise<AgentAuthorizationMode>
-  readonly purpose: ReturnType<typeof confirmPurpose>
-}) {
-  if (input.purpose !== 'authorization') return false
-  return (await input.resolveAuthorizationMode()) === 'yolo'
-}
-
 function customRendererFields(
   factory: PiCustomInteractionFactory,
   options: PiCustomInteractionOptions,
@@ -155,23 +137,16 @@ function createDesktopInteractionUiOverrides(
       })
       return selectedValue(response)
     },
+    // Anything reaching plain `confirm` is a question addressed to the user, so no access mode may
+    // answer it. Authorization goes through the OpenWaggle channel below, which declares its
+    // purpose and its grant key explicitly.
     confirm: async (title, message, opts) => {
-      const purpose = confirmPurpose({ title, message })
-      if (
-        await shouldAutoAcceptConfirm({
-          resolveAuthorizationMode: context.resolveAuthorizationMode,
-          purpose,
-        })
-      ) {
-        return true
-      }
-
       const interaction = {
         ...baseInteraction({ context, opts }),
         kind: 'confirm',
         title,
         message,
-        purpose,
+        purpose: 'user-input',
       } satisfies AgentLoopConfirmInteraction
       const response = await requestInteraction({
         interaction,
@@ -220,6 +195,23 @@ function createDesktopInteractionUiOverrides(
   } satisfies DesktopInteractionUiOverrides
 }
 
+function createAuthorizeChannel(context: PiInteractionUiContextInput): OpenWaggleAuthorize {
+  return (request) =>
+    requestAuthorization({
+      sessionId: context.sessionId,
+      runId: context.runId,
+      projectPath: context.projectPath,
+      title: request.title,
+      message: request.message,
+      scopeKey: request.scopeKey,
+      resolveAuthorizationMode: context.resolveAuthorizationMode,
+      onEvent: context.onEvent,
+      runSignal: context.signal,
+      ...(request.signal ? { interactionSignal: request.signal } : {}),
+      newInteractionId: () => randomUUID(),
+    })
+}
+
 export function createPiInteractionUiContext(
   context: PiInteractionUiContextInput,
   base: ExtensionUIContext,
@@ -227,5 +219,6 @@ export function createPiInteractionUiContext(
   return Object.assign({}, base, createDesktopInteractionUiOverrides(context), {
     custom: (factory: PiCustomInteractionFactory, options: PiCustomInteractionOptions) =>
       requestCustomInteraction({ context, factory, options }),
+    [OPENWAGGLE_AUTHORIZE_KEY]: createAuthorizeChannel(context),
   })
 }

@@ -1,3 +1,7 @@
+import type {
+  AgentAuthorizationDecisionScope,
+  AgentAuthorizationScopeKey,
+} from './agent-authorization-grants'
 import type { SessionId } from './brand'
 import type { JsonValue } from './json'
 
@@ -22,11 +26,32 @@ export interface AgentLoopInteractionBase {
   readonly timeoutMs?: number
 }
 
+/**
+ * Why a confirmation is being asked.
+ *
+ * Declared where the request is raised, never inferred from the wording, so a copy edit cannot
+ * silently change what an access mode is allowed to answer.
+ *
+ * - `authorization`: the agent asks to act itself inside this workspace and session. The only
+ *   purpose full access may answer.
+ * - `user-input`: a question addressed to the user. Nothing may answer it for them.
+ * - `disclosure`: exists to tell the user who is asking and for what, before they supply it.
+ * - `external-navigation`: continues outside the application, at a destination the agent or a
+ *   third party chose.
+ */
+export type AgentLoopConfirmPurpose =
+  | 'authorization'
+  | 'user-input'
+  | 'disclosure'
+  | 'external-navigation'
+
 export interface AgentLoopConfirmInteraction extends AgentLoopInteractionBase {
   readonly kind: 'confirm'
   readonly title: string
   readonly message: string
-  readonly purpose?: 'authorization' | 'confirmation'
+  readonly purpose: AgentLoopConfirmPurpose
+  /** Present only for `authorization`, naming what a kept approval would cover. */
+  readonly scopeKey?: AgentAuthorizationScopeKey
 }
 
 export interface AgentLoopSelectInteraction extends AgentLoopInteractionBase {
@@ -76,6 +101,8 @@ export type AgentLoopInteraction =
 export interface AgentLoopConfirmResponse {
   readonly kind: 'confirm'
   readonly accepted: boolean
+  /** How far an acceptance reaches. Absent means this once only. */
+  readonly scope?: AgentAuthorizationDecisionScope
 }
 
 export interface AgentLoopSelectResponse {
