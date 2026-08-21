@@ -161,7 +161,10 @@ function SidebarBranchItem({
       )}
     >
       {row.branch.interruptedRun ? (
-        <AlertTriangle className="size-3 shrink-0 text-amber-400" aria-label="Interrupted run" />
+        <AlertTriangle
+          className="size-3 shrink-0 text-[color:var(--color-warning)]"
+          aria-label="Interrupted run"
+        />
       ) : (
         <GitBranch className="size-3 shrink-0" />
       )}

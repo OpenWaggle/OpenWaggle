@@ -6,7 +6,6 @@ import {
   EXTENSION_LIFECYCLE_PACKAGE_VERSION_MIGRATION_STATEMENTS,
   EXTENSION_LIFECYCLE_RELOAD_STATE_MIGRATION_STATEMENTS,
   EXTENSION_LIFECYCLE_SCHEMA_V1_STATEMENTS,
-  SESSION_AUTHORIZATION_MODE_MIGRATION_STATEMENTS,
   SESSION_SCHEMA_BEFORE_AUTHORIZATION_MODE_STATEMENTS,
 } from './database-schema'
 
@@ -264,7 +263,19 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
   },
   {
     id: 24,
-    name: 'session-authorization-mode',
-    statements: [...SESSION_AUTHORIZATION_MODE_MIGRATION_STATEMENTS],
+    name: 'pinned-sessions',
+    statements: [
+      `
+      CREATE TABLE IF NOT EXISTS pinned_sessions (
+        session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+        pinned_at INTEGER NOT NULL,
+        sort_key TEXT NOT NULL
+      )
+      `,
+      `
+      CREATE INDEX IF NOT EXISTS idx_pinned_sessions_sort_key
+      ON pinned_sessions (sort_key ASC)
+      `,
+    ],
   },
 ]

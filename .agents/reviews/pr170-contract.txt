@@ -1,0 +1,998 @@
+ no event fires and nothing reaches the transcript.
+
+ Now I'm checking whether authorizationMode is snapshotted per run and if
+ session-mode changes take effect immediately. The pending resolution doesn't switch,
+ but the CONTEXT does record the mode change, which is the locked contract. Since the
+ PR added that line to CONTEXT, I should report this as a major finding. I also need
+ to verify that the SessionAuthorizationModeMenu is accessible in the composer
+ control row and that GeneralSection has both the global and project-level defaults.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ cat src/renderer/src/features/chat/components/SessionAuthorizationModeMenu.tsx &&
+ echo "=== action" && cat
+ src/renderer/src/features/chat/lib/session-authorization-mode-action.ts && echo "===
+ store action" && sed -n 110,135p
+ src/renderer/src/features/chat/state/chat-store-actions.ts
+
+ ... (106 earlier lines, ctrl+o to expand)
+   } catch (err) {
+     if (previous) {
+       upsertSession(previous, set)
+     }
+     handleStoreError(err, 'set session authorization mode', setError(set))
+
+ Took 0.0s
+
+
+ I'm noting the terminology alignment between the UI labels and the context—"Access"
+ and "Session access mode" map to what the brief refers to as "access modes," so
+ that's consistent. Moving on to work through the GeneralSection next.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ sed -n 40,120p
+ src/renderer/src/features/settings/components/sections/GeneralSection.tsx; echo
+ "..."; sed -n 130,250p
+ src/renderer/src/features/settings/components/sections/GeneralSection.tsx
+
+ ... (209 earlier lines, ctrl+o to expand)
+   const version = useAppVersion()
+   const status = useUpdateStatus()
+   const statusRow = getStatusRow(status)
+
+   const canCheck =
+
+ Took 0.0s
+
+
+ I need to verify that the setProjectPreferences function in project-config.ts
+ properly merges preferences without overwriting the model and thinkingLevel
+ settings—the diff only showed the added lines, so I'm checking the full
+ implementation around lines 160-180 to see how it handles the spread operation.
+
+
+ read src/main/config/project-config.ts:158-187
+
+
+ The project override system has a merge-safe design, but there's no way to clear an
+ override once set. When the project Select shows the global default as its value,
+ selecting that same option is a no-op due to a guard check, though there's a quirk
+ where if projectAuthorization.mode is null, choosing the global value actually
+ writes the override instead of leaving it unset.
+
+ Now I need to verify that defaultAuthorizationMode properly round-trips through the
+ sanitizers, snapshot keys, and persistence plan.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ git diff 4e19097e..HEAD -- src/main/store/settings/
+ src/renderer/src/features/settings/state/preferences-store-actions.ts
+ src/shared/types/ipc-invoke-core.ts src/shared/types/openwaggle-api.ts
+ src/preload/api.ts
+
+ ... (294 earlier lines, ctrl+o to expand)
+ +  setSessionAuthorizationMode(id: SessionId, mode: AgentAuthorizationMode):
+ Promise<void>
+    listArchivedSessionBranches(limit?: number): Promise<SessionSummary[]>
+    getSessionTree(sessionId: SessionId): Promise<SessionTree | null>
+    getSessionWorkspace(
+
+ Took 0.0s
+
+
+ Now I'm reviewing the test files that were added or modified, focusing on the
+ interaction UI context, agent loop events, chat row building, and the various
+ component tests for the agent loop feature.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ git diff 4e19097e..HEAD --
+ src/main/adapters/pi/agent-kernel/__tests__/interaction-ui-context.unit.test.ts
+ src/main/application/agent-run/__tests__/agent-loop-events.unit.test.ts
+
+ ... (153 earlier lines, ctrl+o to expand)
+ +        response: { kind: 'notify', acknowledged: true },
+ +      }),
+ +    ).toBe(false)
+ +  })
+ +})
+
+ Took 0.0s
+
+
+ I'm identifying test coverage gaps—specifically, I need to verify that error-level
+ notifications are durable and that non-authorization confirms like 'Proceed?' aren't
+ auto-accepted in YOLO mode, which is the critical safety contract preventing
+ automatic responses to genuine user input.
+
+
+ read src/main/adapters/pi/agent-kernel/__tests__/interaction-ui-context.unit.test.ts
+
+
+ Looking at the test case with the default authorizationMode set to 'yolo' and title
+ 'Proceed?' — the assertion actually does catch a regression where the confirm
+ wouldn't be auto-accepted, since if it were auto-accepted, the emitted array would
+ be empty and the toMatchObject check would fail.
+
+ However, there's a significant gap: select, input, and editor requests aren't
+ explicitly tested for non-auto-acceptance in YOLO mode, even though they shouldn't
+ be auto-answered by design. The shouldAutoAcceptConfirm logic only applies to
+ confirm requests, so the others are protected by construction, but it's worth
+ flagging as untested.
+
+ The YOLO test's expect(emitted).toEqual([]) is a strong assertion. The
+ 'ask-for-approval' test also uses toMatchObject correctly on arrays, which does
+ enforce length matching, so that's solid.
+
+ But there's a major fragility I'm noticing: the four MCP titles used at the real
+ call sites aren't cross-checked against confirmPurpose. One test references 'Allow
+ MCP tool call?' but the other three titles — for elicitation URL, form, and sampling
+ — have no corresponding assertions. If someone renames 'Allow legacy MCP sampling?'
+ the YOLO auto-grant would silently break. That's a critical test gap and a brittle
+ coupling.
+
+ Now I need to examine the renderer tests.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ git diff 4e19097e..HEAD --
+ src/renderer/src/features/chat/hooks/__tests__/useBuildChatRows.agent-loop.unit.test
+ .ts
+
+ ... (96 earlier lines, ctrl+o to expand)
+ null).toBe(
+ +      undefined,
+ +    )
+    })
+  })
+
+ Took 0.0s
+
+
+ I'm reviewing the test coverage and noticing some gaps—there's no test for
+ error-level notifications, and I haven't covered scenarios like resolutions arriving
+ before their corresponding requests or duplicate request events that need
+ deduplication during the merge. The test for warning-level notifications is solid
+ with its single-row assertion, but I need to think through what the merge logic
+ should handle.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ git diff 4e19097e..HEAD --
+ src/renderer/src/features/chat/components/__tests__/AgentLoopInteractionEventRow.com
+ ponent.test.tsx
+ src/renderer/src/features/chat/hooks/__tests__/useTranscriptSection.agent-loop.compo
+ nent.test.tsx
+ src/renderer/src/features/chat/components/__tests__/AgentInteractionsPanel.component
+ .test.tsx
+ src/renderer/src/features/chat/components/__tests__/AgentCustomInteractionComposerFa
+ llback.component.test.tsx
+
+ ... (181 earlier lines, ctrl+o to expand)
+ +        status: 'resolved',
+ +      },
+ +    })
+    })
+  })
+
+ Took 0.1s
+
+
+ I'm noticing that these test assertions are too generic—checking just the count of
+ elements with "Custom interaction" doesn't actually verify which labels are present,
+ so a regression that added the raw customType elsewhere could slip through as long
+ as the total count stayed the same.
+
+ The queryByText check for the exact string is also weak since it does full-text-node
+ matching by default; if someone reintroduced "Custom interaction · pi-tui-custom",
+ the test would still pass. I should flag this as needing a regex or { exact: false }
+  to catch partial matches.
+
+ Similarly, there's no test asserting that "Pi" is absent from the output—only that
+ the new copy appears. The toHaveLength(3) assertion is brittle and will break on any
+ layout change, though it's not permissive. Now I need to check whether there are any
+ tests at all for the notification stack, interaction composer prompt, or
+ authorization mode menu components.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ ls src/renderer/src/features/chat/components/__tests__/ | grep -iE
+ "notif|prompt|authoriz|composerstack"; echo "--- grep usages in tests"; grep -rln
+ "AgentNotificationStack\|AgentInteractionComposerPrompt\|SessionAuthorizationModeMen
+ u" src/renderer/src --include=*test* ; echo "--- e2e"; grep -rln
+ "authorization\|notification" e2e/ | head
+
+ --- grep usages in tests
+ --- e2e
+
+ Took 0.2s
+
+
+ I'm noticing there are several components that don't have test coverage yet: the
+ notification stack that handles severity ordering and auto-dismiss behavior, the
+ authorization prompt with its button states and queued counter, the composer mode
+ selector, and the settings sections for global and project-level agent access
+ defaults.
+
+ Now I need to look at how the session handler manages authorization mode changes and
+ resolves precedence when sessions are created, then check the existing test patterns
+ in the session details and composer section tests.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ git diff 4e19097e..HEAD --
+ src/main/ipc/__tests__/session-details-handler.unit.test.ts
+ src/main/ipc/__tests__/session-details-handler.test-harness.ts
+ src/renderer/src/features/chat/hooks/__tests__/use-composer-section.component.test.t
+ sx src/preload/__tests__/api.unit.test.ts
+ src/renderer/src/routes/__tests__/-route-search.unit.test.ts
+
+ ... (256 earlier lines, ctrl+o to expand)
+ +
+    it('preserves complete extension side panel selections with explicit search
+ keys', () => {
+      const search = parseChatRouteSearch({
+        panel: 'extension-side-panel',
+
+ Took 0.1s
+
+
+ I'm noticing a test coverage gap with the notification prototype routes — the test
+ only validates the development branch since NOTIFICATION_PROTOTYPE_ROUTES_ENABLED
+ checks import.meta.env.DEV, which is true in vitest but false in production builds.
+ This means there's no actual test verifying the production gating works correctly.
+
+ Now checking the Ask mode transcript behavior claim: in Ask mode exactly one
+ transcript row updates in place per request, which holds up. The pending row does
+ appear both in the transcript and in the composer prompt, but the composer prompt
+ isn't counted as a transcript entry, so the contract of one transcript entry per
+ request is maintained. I'm also seeing potential duplication where
+ ChatComposerExtensionDialogs, AgentCustomInteractionComposerFallback, and
+ AgentInteractionComposerPrompt all render from agentInteractions — for custom
+ interactions both the fallback and extension dialogs can render, while for confirm
+ only the ComposerPrompt renders. There's another layer here where
+ AgentInteractionComposerPrompt renders the first prompt interaction while
+ AgentCustomInteractionComposerFallback renders all custom interactions, which I need
+ to trace through more carefully.
+
+ For the notify path with warnings and errors in the live transcript,
+ addAgentInteraction returns early so notify never becomes a pending interaction, and
+ addInteractionEvent records it as a transcript row. The notify flow is
+ fire-and-forget with requestInteraction, where requestAgentLoopInteraction emits
+ both the request and resolved immediately to onEvent — the resolved isn't durable
+ but the request is for warn/error. The contract that info is ephemeral with no
+ durable history checks out across three places, and warning/error create exactly one
+ durable transcript notice. I'm also verifying that if the same warning notify
+ request is persisted and live, mergeInteractionEvents dedupes it to one. Now I need
+ to verify the severity ordering claim concretely.
+
+ I'm noticing the notification banner doesn't clear when a run ends or session
+ switches — agentInteractionEvents is a per-session map that persists across turns,
+ so warning/error banners stay until manually dismissed, and after restart they're
+ gone from the banner but durable rows remain. That's reasonable, though a warning
+ from 20 turns ago isn't really "active" anymore. There's also a concrete issue: the
+ notification stack caps at 3 by newest timestamp, so if 2 info plus 1 error arrive
+ and then another info comes in, the error could get pushed out.
+
+ I'm verifying the INTERACTION_EVENT_LIMIT is indeed 30 events per session, and now I
+ need to scan through the remaining diffs in globals.css, Popover, Select, Button,
+ format.ts, and the test files for authorizationMode field additions.
+
+ Looking at the renderer changes across ChatTranscript.tsx, ChatPanel.tsx,
+ chat-panel-sections, useComposerSection, and ChatComposerStack—I'm particularly
+ concerned about merge conflicts in ChatComposerStack around ComposerControlRow to
+ ensure the mode menu actually got rendered and wasn't accidentally dropped during
+ conflict resolution.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ sed -n 85,165p src/renderer/src/features/chat/components/ChatComposerStack.tsx
+
+ ... (82 earlier lines, ctrl+o to expand)
+     onToast,
+   })
+   const enqueue = useMessageQueueStore((s) => s.enqueue)
+   const branchSummaryMode = useBranchSummaryStore((s) => s.prompt?.mode ?? null)
+   const composerDisabledForBranchSummary =
+
+ Took 0.1s
+
+
+ I need to verify the default value for EMPTY_AGENT_INTERACTION_EVENTS and check
+ whether ChatPanel is properly wiring the agentInteractionEvents prop.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ git diff 4e19097e..HEAD -- src/renderer/src/features/chat/components/ChatPanel.tsx
+ src/renderer/src/features/chat/components/ChatTranscript.tsx | head -80
+
+ ... (43 earlier lines, ctrl+o to expand)
+ +      'agent-loop-interaction',
+ +      (value) => `interaction:${value.item.request.interaction.interactionId}`,
+      )
+      .with('branch-summary', (value) => `branch-summary:${value.id}`)
+      .with('compaction-summary', (value) => `compaction:${value.id}`)
+
+ Took 0.0s
+
+
+ I'm noticing that AgentInteractionsPanel is still being tested even though ChatPanel
+ no longer renders it, which means the component is dead code kept alive only by its
+ test file. This is actually a useful finding—the test passes but it's testing
+ something that's no longer part of the shipped product. Let me check if this
+ component is used anywhere else in the codebase.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ grep -rn "AgentInteractionsPanel" src/ | grep -v "AgentInteractionsPanel.tsx:"; echo
+ "--- ChatComposerExtensionDialogs?"; grep -rn "ChatComposerExtensionDialogs"
+ src/renderer/src --include=*.tsx | grep -v __tests__ | head
+
+ ... (34 earlier lines, ctrl+o to expand)
+ ace ChatComposerExtensionDialogsProps {
+ src/renderer/src/features/chat/components/ChatComposerExtensionDialogs.tsx:232:expor
+ t function ChatComposerExtensionDialogs({
+ src/renderer/src/features/chat/components/ChatComposerExtensionDialogs.tsx:237:}:
+ ChatComposerExtensionDialogsProps) {
+
+ Took 0.5s
+
+
+ So AgentInteractionsPanel is only used in tests and isn't actually mounted anywhere
+ in the app. The real issue is that it was rendering extension status widgets, and
+ removing it from ChatPanel means those widgets have disappeared from the composer
+ without anyone noticing.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ sed -n 1,120p src/renderer/src/features/chat/components/AgentInteractionsPanel.tsx
+
+ ... (66 earlier lines, ctrl+o to expand)
+         {error ? <p className="text-[12px] text-error">{error}</p> : null}
+       </div>
+     </div>
+   )
+ }
+
+ Took 0.0s
+
+
+ AgentInteractionCard handles rendering extension surfaces for different interaction
+ types, but now the composer only mounts custom interactions through
+ AgentCustomInteractionComposerFallback—for select, input, editor, and confirm
+ interactions, the extension surface that renders the prompt in the agent loop is no
+ longer being mounted in the composer, leaving only OpenWaggle's built-in handling.
+
+ I should check ChatComposerExtensionDialogs to see if it's handling this instead.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ sed -n 85,135p
+ src/renderer/src/features/chat/components/ChatComposerExtensionDialogs.tsx && sed -n
+ 225,275p src/renderer/src/features/chat/components/ChatComposerExtensionDialogs.tsx
+
+ ... (98 earlier lines, ctrl+o to expand)
+           type: 'response-failed',
+           message: cause instanceof Error ? cause.message : String(cause),
+         })
+       })
+       .finally(() => {
+
+ Took 0.0s
+
+
+ ChatComposerExtensionDialogs still handles dialog-placement extensions for pending
+ interactions, keeping those surfaces available. But inline extension surfaces for
+ standard interactions are no longer being mounted—previously AgentInteractionCard
+ would render ExtensionAgentLoopSurface inline for everything, now only custom
+ interaction kinds go through AgentCustomInteractionComposerFallback.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ sed -n 1,60p src/renderer/src/features/chat/components/AgentInteractionCard.tsx &&
+ echo ... && sed -n 100,160p
+ src/renderer/src/features/chat/components/AgentInteractionCard.tsx
+
+ ... (119 earlier lines, ctrl+o to expand)
+         submit={(response) => submit(interaction, response)}
+       />
+     </section>
+   )
+ }
+
+ Took 0.0s
+
+
+ I'm realizing that the extension status-widget surface and inline interaction
+ renderer are now restricted to custom interactions only, which means extensions can
+ no longer contribute these components for confirm, select, input, or editor
+ interactions—this breaks the existing interactive agent-loop contribution contract.
+
+ The three passing tests are masking this regression. I need to examine where else
+ ExtensionAgentLoopStatusWidgets is being mounted to understand the full scope of the
+ issue.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ grep -rn "ExtensionAgentLoopStatusWidgets" src/renderer/src --include=*.tsx | grep
+ -v __tests__
+
+ ... (1 earlier lines, ctrl+o to expand)
+ ExtensionAgentLoopStatusWidgets,
+ src/renderer/src/features/chat/components/AgentInteractionCard.tsx:100:
+ <ExtensionAgentLoopStatusWidgets
+ src/renderer/src/features/extensions/components/ExtensionAgentLoopStatusWidgets.tsx:
+ 45:export function ExtensionAgentLoopStatusWidgets({
+
+ Took 0.2s
+
+
+ So the status widgets are only accessible through AgentInteractionCard, which now
+ only renders for custom interactions—meaning the extension's status-widget placement
+ for standard interactions is effectively unreachable. That's a significant finding.
+ Now I need to check the test files like agent-run-service.unit.test.ts,
+ waggle-run-service.test-harness.ts, and run-handler-utils.unit.test.ts to see if
+ there are any authorizationMode additions that need attention, though those are
+ likely straightforward changes.
+
+ Let me scan through the remaining test diffs to identify any weak assertions.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ git diff 4e19097e..HEAD --
+ src/main/application/__tests__/agent-session-copy-service.unit.test.ts
+ src/main/ipc/__tests__/run-handler-utils.unit.test.ts
+ src/main/application/__tests__/agent-run-service-agent-loop-events.unit.test.ts |
+ head -120
+
+ ... (39 earlier lines, ctrl+o to expand)
+      setWorktreePlan: () => Effect.void,
+ +    setAuthorizationMode: () => Effect.void,
+      listTurnCheckpoints: () => Effect.succeed([]),
+      getTurnDiff: () => Effect.succeed(null),
+      setTurnCheckpointAnchor: () => Effect.void,
+
+ Took 0.0s
+
+
+ Looking at the fork/clone contract for copyAgentSessionToNewSession — it passes
+ through the source session's authorization mode, which could be undefined and would
+ default to 'yolo' during session creation, but if the source was 'ask-for-approval'
+ it carries over correctly. The authorization mode comes from the hydrated
+ SessionDetail which always returns a value, so that's solid, though there's no test
+ covering this behavior.
+
+ Now I need to check where else sessions get created — through
+ agentKernel.createSession in waggle or repo.create calls elsewhere — to see if any
+ of those paths skip passing the authorizationMode parameter.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ grep -rn "repo.create(\|projectionRepo.create(\|\.create({" src/main --include=*.ts
+ | grep -v __tests__ | head -20
+
+ ... (4 earlier lines, ctrl+o to expand)
+ src/main/openwaggle-mcp-task-runtime.ts:89:      const session = yield*
+ sessions.create({
+ src/main/ipc/session-details-handler.ts:131:      return yield* repo.create({
+ src/main/application/agent-session-service.ts:166:    const createdProjection =
+ yield* sessionProjectionRepo.create({
+
+ Took 0.3s
+
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ sed -n 70,95p src/main/openwaggle-mcp-session-derivation.ts; echo ---; sed -n 38,55p
+ src/main/openwaggle-mcp-session-lifecycle.ts; echo ---; sed -n 82,100p
+ src/main/openwaggle-mcp-task-runtime.ts
+
+ ... (62 earlier lines, ctrl+o to expand)
+       })
+       return { sessionId: session.id, created: true as const }
+     }),
+   )
+ }
+
+ Took 0.0s
+
+
+ I'm seeing a critical bug: three MCP-driven session creation paths bypass the
+ authorization precedence chain entirely, hardcoding 'yolo' mode instead of
+ respecting the global default setting. This means users who configure global
+ defaults like Ask for Approval still end up with YOLO sessions when using the
+ OpenWaggle MCP server for session derivation, lifecycle management, or task
+ runtime—directly violating the documented precedence hierarchy.
+
+ The database schema and input fallbacks compound this by also hardcoding 'yolo' as
+ the default, which means any future creation path will silently default to full
+ access unless explicitly overridden. I'm verifying that the agent-session-service
+ fork/clone correctly passes the source mode, checking whether e2e tests cover the
+ electron-qa gap, confirming the session-status monitor changes aren't part of this
+ PR, and validating my finding about <p> tag newline collapse by checking CSS
+ white-space rules. Now I need to pull exact line numbers for all the findings.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ grep -n "confirmPurpose\|shouldAutoAcceptConfirm\|Allow MCP tool call"
+ src/main/adapters/pi/agent-kernel/interaction-ui-context.ts; echo "--- notif stack";
+ grep -n "sort((left, right)\|MAX_VISIBLE\|INFO_DISMISS"
+ src/renderer/src/features/chat/components/AgentNotificationStack.tsx; echo "---
+ prompt p"; grep -n "text-text-secondary\">{message}"
+ src/renderer/src/features/chat/components/AgentInteractionComposerPrompt.tsx
+ src/renderer/src/features/chat/components/AgentLoopInteractionEventRow.tsx; echo
+ "--- limit"; grep -n "INTERACTION_EVENT_LIMIT"
+ src/renderer/src/features/chat/hooks/useAgentChat.stream-events.ts; echo "---
+ fallback id"; grep -n "interaction.id}\|State</dt>\|>Interaction<"
+ src/renderer/src/features/extensions/components/ExtensionAgentLoopFallback.tsx
+
+ ... (21 earlier lines, ctrl+o to expand)
+ 136:  next.set(sessionId, [...current, event].slice(-INTERACTION_EVENT_LIMIT))
+ --- fallback id
+ 100:                <dt className="shrink-0 text-text-tertiary">Interaction</dt>
+ 101:                <dd className="truncate">{interaction.id}</dd>
+ 104:                <dt className="shrink-0 text-text-tertiary">State</dt>
+
+ Took 0.0s
+
+
+ I'm verifying the contract requirements by checking line numbers in the MCP creation
+ paths and session defaults, then confirming that the auto-grant mechanism has no
+ counter and no separate authorization logging—the auto-accept path returns true
+ without any logging activity.
+
+ I also need to verify that auto-grants don't write to the database or trigger
+ projections, and I'm discovering a critical issue: authorizationMode is captured at
+ run start in createPiRunSessionRuntime rather than being read fresh per confirm
+ request. This means switching to Ask mid-run doesn't actually govern subsequent
+ requests within that same run—it's a contract violation that mirrors the
+ pending-resolution gap. I should report this as one major finding covering both
+ directions.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ sed -n 95,130p src/main/adapters/pi/agent-kernel/run-lifecycle.ts; echo "---
+ creation line"; grep -n "authorizationMode ?? 'yolo'"
+ src/main/store/session-details/session-creation.ts; grep -n "sessions.create({"
+ src/main/openwaggle-mcp-session-derivation.ts
+ src/main/openwaggle-mcp-session-lifecycle.ts src/main/openwaggle-mcp-task-runtime.ts
+
+ ... (43 earlier lines, ctrl+o to expand)
+ sessions.create({
+ src/main/openwaggle-mcp-session-lifecycle.ts:44:        const created = yield*
+ sessions.create({
+ src/main/openwaggle-mcp-task-runtime.ts:89:      const session = yield*
+ sessions.create({
+
+ Took 0.0s
+
+
+ I'm realizing that input.session is likely a stale snapshot captured at run start,
+ so any mode changes made mid-run won't be visible to that execution. This means the
+ contract that "changing to Ask for Approval governs subsequent requests" only
+ applies to the next run, not the current one. Each run fetches its own session
+ detail, so the mode change takes effect only after the run completes.
+
+ For the AgentNotificationStack, info notifications do persist in
+ agentInteractionEvents and count toward the 30-item limit, but they stay in the
+ array even after dismissal — dismissedIds just hides them visually. The real issue
+ is that visibleNotifications depends on notifications, which is memoized on [events,
+ dismissedIds], and events comes from agentInteractionEvents. Since that's a new
+ array reference on every stream event, the useEffect timers for info notifications
+ reset constantly during active streaming, even though agentInteractionEvents only
+ actually changes on interaction events.
+
+ The practical upshot: a rapid stream of info notifications never auto-dismisses
+ because each new one resets the 3.2-second timer for all visible ones. It's a minor
+ issue but worth noting.
+
+ Now I'm ready to compile the findings, starting with the blockers.
+
+ The first blocker is that MCP-created sessions ignore project and global defaults,
+ violating precedence rules — this spans multiple files in the session derivation and
+ lifecycle logic. The second blocker is that switching to YOLO mode mid-run doesn't
+ resolve pending authorization, leaving the system in an inconsistent state. A major
+ issue is that YOLO auto-grant relies on four hardcoded English confirmation titles
+ duplicated across call sites with no shared constant or test coverage. The live
+ notification banner sorts only by timestamp, so newer info notices can push error or
+ warning messages out of the three visible slots, violating the contract to front the
+ most severe active notice. Info notifications also consume the 30-event live window,
+ evicting authorization request and resolution events, which means resolutions whose
+ requests were evicted get silently dropped and rows can get stuck in a waiting
+ state.
+
+ Authorization consent text is rendered without whitespace preservation, causing
+ multi-line MCP consent bodies to collapse into a single line. Raw protocol JSON like
+ tool arguments and sampling requests are exposed directly as the visible
+ authorization message instead of being formatted for users. Extension inline
+ interaction surfaces and status widgets are no longer mounted for non-custom
+ interactions.
+
+ There are no tests covering AgentNotificationStack, AgentInteractionComposerPrompt,
+ SessionAuthorizationModeMenu, or AgentAccessSection. The existing test assertions
+ are brittle—using exact text matching that would pass even if the text were
+ reintroduced as part of a larger string, and relying on fragile length counts with
+ getAllByText. The route-search prototype tests only exercise the development branch.
+
+ The production gate remains untested. There's a UI issue where raw interaction UUIDs
+ and internal state tokens are exposed as visible labels. Error-level notification
+ durability isn't tested, only warning-level. Project authorization overrides can't
+ be cleared once set. Info auto-dismiss timers reset whenever any new interaction
+ event arrives, which could be problematic. There's also dead
+ code—CURRENT_SESSION_SCHEMA_STATEMENTS and ensureSessionAuthorizationModeColumn are
+ no longer used in production.
+
+ A notification row mislabels info notifications as warnings if they reach the
+ transcript. There are 1,771 lines of notification prototype routes still shipped in
+ the renderer. I should compile a brief verification table showing what was proven or
+ disproven, then list the findings concisely without unnecessary commentary.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ wc -l src/renderer/src/routes/-notification-*.tsx | tail -1
+
+ 1771 total
+
+ Took 0.2s
+
+
+ Contract verification verdict
+
+ ┌───────────────────────────────────┬──────────────────────────────────────────────┐
+ │ Contract bullet                   │ Verdict                                      │
+ ├───────────────────────────────────┼──────────────────────────────────────────────┤
+ │ YOLO: nothing reaches transcript, │ HOLDS — interaction-ui-context.ts:154-157    │
+ │ no counter, no authorization log  │ returns true before requestInteraction, so   │
+ │                                   │ no agent_interaction_request/_resolved is    │
+ │                                   │ emitted, nothing is persisted                │
+ │                                   │ (isDurableAgentLoopEvent never sees it), no  │
+ │                                   │ counter/log exists anywhere. Test            │
+ │                                   │ emitted).toEqual([]) is a real assertion.    │
+ ├───────────────────────────────────┼──────────────────────────────────────────────┤
+ │ YOLO does not auto-answer         │ HOLDS by construction —                      │
+ │ select/input/editor/non-authoriza │ shouldAutoAcceptConfirm is wired only into   │
+ │ tion confirm                      │ confirm, and only for purpose ===            │
+ │                                   │ 'authorization'. But see F3.                 │
+ ├───────────────────────────────────┼──────────────────────────────────────────────┤
+ │ Ask mode: exactly one transcript  │ HOLDS in the happy path —                    │
+ │ row, updated in place             │ build-agent-loop-interaction-rows.ts         │
+ │                                   │ coalesces by interactionId; row key is       │
+ │                                   │ interaction:<id>. Breaks under F5.           │
+ ├───────────────────────────────────┼──────────────────────────────────────────────┤
+ │ info leaves no durable history;   │ HOLDS — filtered in all three layers         │
+ │ warning/error leave exactly one   │ (agent-loop-events.ts:41-49,                 │
+ │ notice                            │ build-agent-loop-interaction-rows.ts:9-19,   │
+ │                                   │ useAgentChat.stream-events.ts:98).           │
+ ├───────────────────────────────────┼──────────────────────────────────────────────┤
+ │ No visible label contains Pi,     │ FAILS — see F6, F7, F12. (Pre-existing Pi    │
+ │ pi-ui, pi-tui-custom, binding id, │ strings also remain in                       │
+ │ raw JSON                          │ ConnectionsSection.tsx:79-124,               │
+ │                                   │ KeyEditor.tsx:81,                            │
+ │                                   │ AvailableModelsSection.tsx:53-55,            │
+ │                                   │ ExtensionManifestBadges.tsx:18,              │
+ │                                   │ global-command-core-items.tsx:106 — outside  │
+ │                                   │ this diff but they falsify the "anywhere"    │
+ │                                   │ claim.)                                      │
+ ├───────────────────────────────────┼──────────────────────────────────────────────┤
+ │ Precedence: session > project >   │ FAILS — see F1.                              │
+ │ global                            │                                              │
+ └───────────────────────────────────┴──────────────────────────────────────────────┘
+
+ ────────────────────────────────────────────────────────────────────────────────
+
+ ```
+   SEVERITY: blocker
+   FILE: src/main/openwaggle-mcp-session-derivation.ts:78,
+ src/main/openwaggle-mcp-session-lifecycle.ts:44,
+ src/main/openwaggle-mcp-task-runtime.ts:89 (with
+ src/main/store/session-details/session-creation.ts:32,54)
+   WHAT: Three session-creation paths call `sessions.create({...})` without
+ `authorizationMode`, so the store falls back to a hardcoded `'yolo'` instead of
+ resolving the project/global default.
+   WHY IT MATTERS: A user who sets the global or project default to `Ask for
+ Approval` still gets full-access sessions for every MCP-derived, MCP-lifecycle, and
+ task-runtime session — the precedence rule is silently bypassed in favour of the
+ less safe mode.
+   FIX: Extract `resolveSessionAuthorizationMode` out of
+ `session-details-handler.ts:41` into an application-level helper and call it from
+ all four creation sites; make `CreateSessionInput.authorizationMode` required (or
+ default it from `SettingsService`, not from a literal) so a new creation path cannot
+ silently pick `'yolo'`.
+ ```
+
+ ```
+   SEVERITY: blocker
+   FILE: src/main/adapters/pi/agent-kernel/run-lifecycle.ts:110 and
+ src/main/ipc/session-details-handler.ts:174-179
+   WHAT: `authorizationMode` is snapshotted into the run's UI context once at run
+ start, and `sessions:set-authorization-mode` only writes the DB row — it neither
+ re-resolves the live run nor settles the pending interaction.
+   WHY IT MATTERS: Violates two locked bullets directly: "Changing a session to YOLO
+ (Full access) resolves its pending Authorization request automatically" (the pending
+ prompt just sits there) and "changing to Ask for Approval governs subsequent
+ requests" (the rest of the in-flight run keeps auto-granting after the user switched
+ to Ask).
+   FIX: Make the UI context read the mode through a getter (`() =>
+ currentModeForSession(sessionId)`) instead of a captured value, and have the IPC
+ handler, on a switch to `yolo`, resolve pending `confirm` interactions whose
+ `purpose === 'authorization'` for that session via the broker
+ (`submitAgentLoopInteractionResponse` with `accepted: true`).
+ ```
+
+ ```
+   SEVERITY: major
+   FILE: src/main/adapters/pi/agent-kernel/interaction-ui-context.ts:84-95
+   WHAT: Authorization vs. confirmation classification is four hardcoded English
+ title literals, duplicated by value from `mcp-tool-execution.ts:42`,
+ `mcp-client-interactions.ts:86,115,214`, with no shared constant and no test
+ asserting the two sides stay in sync.
+   WHY IT MATTERS: Renaming or localising any of those titles silently disables YOLO
+ auto-grant for that capability (user gets prompts in a mode that promises none), and
+ any future authorization confirm added elsewhere silently gets `purpose:
+ 'confirmation'` and is never auto-granted — while a benign confirm that happens to
+ reuse a title would be auto-granted.
+   FIX: Move the purpose into the call contract instead of inferring it: add an
+ `AUTHORIZATION_CONFIRM_TITLES` const (or better, a `purpose` field on an
+ OpenWaggle-owned confirm wrapper) exported from one module and imported by both the
+ MCP call sites and `confirmPurpose`, plus a unit test that asserts every MCP
+ authorization call site classifies as `'authorization'`.
+ ```
+
+ ```
+   SEVERITY: major
+   FILE: src/renderer/src/features/chat/components/AgentNotificationStack.tsx:88-91
+   WHAT: `visibleNotifications` sorts purely by `timestamp` descending and then
+ truncates to `MAX_VISIBLE_NOTIFICATIONS = 3`; severity is never part of the
+ ordering.
+   WHY IT MATTERS: Breaks "A Live notification banner fronts the most severe active
+ notice and stacks additional notices behind it" — three later `info` notices push an
+ active `error` out of the visible set entirely, so the user loses the error banner
+ (`error`/`warning` never auto-dismiss, so this is not self-correcting).
+   FIX: Sort by a severity rank first (`error` > `warning` > `info`) and by timestamp
+ only within a rank, and exclude already-shown-and-expired `info` from competing for
+ the three slots.
+ ```
+
+ ```
+   SEVERITY: major
+   FILE: src/renderer/src/features/chat/hooks/useAgentChat.stream-events.ts:21,136
+ with src/renderer/src/features/chat/lib/build-agent-loop-interaction-rows.ts:44-48
+   WHAT: Every notification — including ephemeral `info` — is pushed into the same
+ `INTERACTION_EVENT_LIMIT = 30` live event window (two entries each: request + notify
+ ack), and `appendInteractionEventRows` silently drops a resolution whose request has
+ been evicted.
+   WHY IT MATTERS: 15 info notifications are enough to evict all authorization
+ request/resolution events from the live window; the Ask-mode row then either
+ disappears or is stuck showing "Waiting" even though the decision was made — i.e.
+ "exactly one transcript entry which updates in place" fails precisely when
+ notifications are noisy, and `info` (which is supposed to leave no trace) is what
+ destroys the history.
+   FIX: Filter `notify`+`info` out of `addInteractionEvent` (it is only needed by the
+ banner, which can use its own short list), and make `appendInteractionEventRows`
+ synthesise a row from an orphan resolution instead of dropping it.
+ ```
+
+ ```
+   SEVERITY: major
+   FILE:
+ src/renderer/src/features/chat/components/AgentInteractionComposerPrompt.tsx:291 and
+ src/renderer/src/features/chat/components/AgentLoopInteractionEventRow.tsx:260
+   WHAT: The authorization message is rendered in a plain `<p>` with no
+ `whitespace-pre-wrap`, but every MCP consent body is built with `.join('\n')`
+ (`mcp-tool-execution.ts:43-49`, `mcp-client-interactions.ts:87-93,116-124,215-227`).
+   WHY IT MATTERS: The `Server:` / `Tool:` / `Arguments:` / scope lines collapse into
+ a single run-on paragraph in both the new prompt and the new transcript row, so the
+ request does not "identify its action, requester, exact target, and effect in
+ user-facing language" — the user is asked to grant access to text they cannot parse.
+   FIX: Add `whitespace-pre-wrap` to both message paragraphs, or give
+ `AgentLoopConfirmInteraction` a structured `details: readonly {label, value}[]` and
+ render a definition list instead of a newline-joined blob.
+ ```
+
+ ```
+   SEVERITY: major
+   FILE: src/main/adapters/pi/mcp-tool-execution.ts:45,
+ src/main/adapters/pi/mcp-client-interactions.ts:118,226
+   WHAT: The visible authorization message embeds raw protocol JSON —
+ `JSON.stringify(input.arguments, null, 2)`, `reviewText(requestedSchema)`, and
+ `reviewText(input.request)` (the whole sampling request).
+   WHY IT MATTERS: Contradicts the locked bullet "no raw internal identifiers (…
+ response JSON) in any visible label" and the glossary requirement that an
+ Authorization request speaks "user-facing language"; combined with the finding above
+ it is one unbroken JSON blob inside the prompt.
+   FIX: Render the payload behind a collapsed `<details>`/expand in the prompt (a
+ code block, not the label), and keep the label itself to server, capability, and
+ target. If the raw payload is deliberately kept for informed consent, record that
+ exception in CONTEXT.md so the contract and the code agree.
+ ```
+
+ ```
+   SEVERITY: major
+   FILE: src/renderer/src/features/chat/components/ChatPanel.tsx:24 (removal) and
+ src/renderer/src/features/chat/components/AgentInteractionsPanel.tsx
+   WHAT: `AgentInteractionsPanel` was unmounted from `ChatPanel` and is now
+ referenced only by three test files. It was the sole mount point for inline
+ `ExtensionAgentLoopSurface` (interaction surface) and the only mount point in the
+ app for `ExtensionAgentLoopStatusWidgets`; the replacement composer stack routes
+ only `kind === 'custom'` through `AgentInteractionCard`.
+   WHY IT MATTERS: Extensions can no longer render an inline interaction surface or a
+ status widget for `confirm`/`select`/`input`/`editor` interactions — a silent
+ regression of "An Interactive agent-loop contribution returns user feedback to the
+ pending interaction" — and `AgentInteractionsPanel.component.test.tsx`,
+ `AgentInteractionsPanel.status-widgets.component.test.tsx`,
+ `AgentLoopExtensionSurfaces.component.test.tsx` still pass green while covering zero
+ shipped code.
+   FIX: Either mount the extension interaction/status surfaces for all pending
+ interaction kinds from `ChatComposerStack` (not just `custom`), or delete
+ `AgentInteractionsPanel` plus its three tests and re-point the
+ status-widget/extension-surface coverage at the component that actually renders
+ them.
+ ```
+
+ ```
+   SEVERITY: major
+   FILE: src/renderer/src/features/chat/components/__tests__/ (no file)
+   WHAT: There is no test of any kind — component, unit, or e2e — for
+ `AgentNotificationStack`, `AgentInteractionComposerPrompt`,
+ `SessionAuthorizationModeMenu`, or `GeneralSection`'s `AgentAccessSection`; `grep
+ -rln` over the test tree returns nothing for all four.
+   WHY IT MATTERS: The entire user-visible surface of this PR is unverified.
+ Specifically untested branches: severity ordering and the 3-slot cap; `info`
+ auto-dismiss vs. `warning`/`error` persistence; manual dismiss; `Allow once` /
+ `Continue without` vs. `Confirm` / `Cancel` label switching on `purpose`;
+ `Authorization requested` vs. `Confirmation requested` eyebrow; the `+N queued`
+ counter; `onRespond` rejection surfacing an error; the `saving` guard and no-op
+ guard in the mode menu; project-override write/read and the "no project override
+ yet" copy.
+   FIX: Add component tests for those four, driving the `purpose` and `level`
+ discriminants explicitly and asserting label text (not element counts).
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE:
+ src/renderer/src/features/chat/components/__tests__/AgentLoopInteractionEventRow.com
+ ponent.test.tsx:38-42, AgentInteractionsPanel.component.test.tsx:222-225,
+ AgentCustomInteractionComposerFallback.component.test.tsx:33-35
+   WHAT: The "no internal identifier leaked" guard is
+ `queryByText(OPENWAGGLE_AGENT_LOOP.PI_TUI_CUSTOM_INTERACTION_TYPE)`, which by
+ default matches only a text node whose entire content equals `pi-tui-custom`; the
+ companion assertion is `getAllByText('Custom interaction')).toHaveLength(3)`.
+   WHY IT MATTERS: Reintroducing the old label `Custom interaction · pi-tui-custom`
+ would leave both assertions green — the exact-match query would not fire, and the
+ count would still be 3. The tests would pass if the regression they exist to prevent
+ came back.
+   FIX: Use `queryByText(new RegExp(PI_TUI_CUSTOM_INTERACTION_TYPE))` (or `{ exact:
+ false }`) and additionally assert
+ `expect(container.textContent).not.toMatch(/pi-ui|pi-tui|\bPi\b/)`; replace the
+ magic length counts with assertions on specific roles/headings.
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE: src/renderer/src/routes/__tests__/-route-search.unit.test.ts:33-62
+   WHAT: The new tests assert that `prototype`/`variant` survive parsing, but
+ `NOTIFICATION_PROTOTYPE_ROUTES_ENABLED = import.meta.env.DEV` is always `true` under
+ vitest, so only the dev branch is exercised.
+   WHY IT MATTERS: The production gate — the thing that keeps 1,771 lines of
+ prototype UI unreachable in a shipped app — has no coverage; if
+ `parseNotificationPrototype` lost its guard the suite would stay green.
+   FIX: Stub `import.meta.env.DEV` (or inject the flag) and add a case asserting
+ `parseChatRouteSearch({ prototype: 'notifications', variant: 'B1' })` returns `{}`
+ when the flag is off; likewise assert `RETAINED_CHAT_SEARCH_PARAMS` omits them.
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE:
+ src/renderer/src/features/extensions/components/ExtensionAgentLoopFallback.tsx:100-1
+ 06
+   WHAT: The custom-interaction fallback renders `Interaction: {interaction.id}` (a
+ raw UUID) and `State: {interaction.state}` (raw enum token) as visible labels.
+   WHY IT MATTERS: The PR cleaned `pi-tui-custom` and "Pi TUI" out of this same card
+ but left a raw internal identifier and an internal state token in it, so the "no raw
+ internal identifiers in any visible label" bullet is still not satisfied for this
+ surface.
+   FIX: Drop the id row (or hide it behind a copy-for-support affordance) and map
+ `state` through a user-facing label map (`pending → Waiting`, `submitted →
+ Answered`, `cancelled → Dismissed`).
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE: src/main/application/agent-run/__tests__/agent-loop-events.unit.test.ts:8-54
+   WHAT: The durability test covers `info` (false), `warning` (true), and the notify
+ ack (false), but never `level: 'error'`, and never a non-notify request/resolution
+ pair.
+   WHY IT MATTERS: "warning or error creates exactly one Durable notification notice"
+ is only half proven; the `event.interaction.level !== 'info'` condition would still
+ pass this test if it were narrowed to `=== 'warning'`.
+   FIX: Add `error` and a `confirm` request/resolution pair (both `true`) to the same
+ test.
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE:
+ src/renderer/src/features/settings/components/sections/GeneralSection.tsx:161-167,22
+ 6
+   WHAT: The project select falls back to `settings.defaultAuthorizationMode` for
+ display when no override exists, and there is no "Use global default" option, so
+ once a project override is written it can never be removed.
+   WHY IT MATTERS: The precedence chain is one-way in the UI — a user who sets a
+ project override cannot return the project to "inherit global", so a later change to
+ the global default silently has no effect for that project.
+   FIX: Add an explicit `Use global default` option that calls
+ `setProjectPreferences` with the key cleared, and teach
+ `setProjectPreferences`/`parseProjectPreferences` to delete `authorizationMode` when
+ passed `null`.
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE: src/renderer/src/features/chat/components/AgentNotificationStack.tsx:103-119
+   WHAT: The auto-dismiss effect depends on `notifications`, which is recomputed
+ whenever `events` or `dismissedIds` changes, so every new interaction event or
+ dismissal restarts the 3.2 s timer of every visible `info` notice.
+   WHY IT MATTERS: Under a stream of notifications, `info` notices never reach their
+ dismissal deadline and stop being ephemeral in practice.
+   FIX: Key the timers off stable `interactionId`s in a ref-held map created once per
+ id, rather than re-creating all timers on every `notifications` identity change.
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE:
+ src/renderer/src/features/chat/components/AgentLoopInteractionEventRow.tsx:59
+   WHAT: `interactionEyebrow` for a `notify` interaction returns `'Error
+ notification'` or, for anything else, `'Warning notification'` — an `info` notify
+ would be rendered as a warning.
+   WHY IT MATTERS: The "no durable history for info" guarantee is enforced only
+ upstream in `build-agent-loop-interaction-rows.ts`; if a persisted or replayed
+ `info` event ever reaches this row it is mislabelled as a warning, which is worse
+ than not rendering it.
+   FIX: Return `null` from `InteractionEventRow` for `level === 'info'` so the
+ invariant is enforced at the render boundary too, and add a component test for it.
+ ```
+
+ ```
+   SEVERITY: nit
+   FILE: src/main/services/database-schema.ts:39-46 and
+ src/main/services/database-service.ts:35-45
+   WHAT: `CURRENT_SESSION_SCHEMA_STATEMENTS` (which now carries the
+ `authorization_mode` column) is no longer referenced by any production code path —
+ only by `SESSION_SCHEMA_BEFORE_AUTHORIZATION_MODE_STATEMENTS.slice(1)` in the same
+ file — and `ensureSessionAuthorizationModeColumn` re-does migration 24 on every
+ boot.
+   WHY IT MATTERS: Two sources of truth for the sessions table plus an unconditional
+ `PRAGMA table_info` on every startup; the exported "current" schema is dead and will
+ drift from what migrations actually produce.
+   FIX: Drop the `authorization_mode` column from `CURRENT_SESSION_TABLE_STATEMENT`
+ (or delete the now-unused export) and remove `ensureSessionAuthorizationModeColumn`
+ now that migration 24 owns the column.
+ ```
+
+ ```
+   SEVERITY: nit
+   FILE: src/renderer/src/routes/-notification-prototype*.tsx (8 files, 1,771 lines)
+   WHAT: Six notification design prototypes plus shared parts are committed into the
+ production route directory, wired into `-chat-route-views.tsx` behind
+ `import.meta.env.DEV && protocol === 'http:'`.
+   WHY IT MATTERS: Prototype code in `src/renderer/src/routes/` is indistinguishable
+ from shipped routes to future readers and to the architecture lint boundaries; the
+ design decision is already made, so five of the six variants are permanent dead
+ weight.
+   FIX: Delete the discarded variants (or move the survivor's exploration under
+ `fixtures/`/`docs/`), and drop the `prototype`/`variant` search params from
+ `ChatRouteSearch` once they are gone.
+ ```
+
+ NO FURTHER FINDINGS
+
+──────────────────────────────────────────────────────────────────────────────────────
+
+──────────────────────────────────────────────────────────────────────────────────────
+~/Desktop/Projects/personal/OpenWaggle-access-modes (pi/approval-modes-notifications)
+↑132 ↓38k R9.6M W159k CH99.0% $7.417 22.3%/1.0M (auto)  eu.anthropic.claude-opus-5 • h
+MCP: 0/6 servers ○ 🐴 ponytail: ⚡ FULL

@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { lazy, Suspense } from 'react'
 import { EXTENSION_SIDE_PANEL_ROUTE_PANEL } from '@/shell/ui-store'
@@ -5,20 +7,7 @@ import {
   type ChatExtensionSidePanelTarget,
   type ChatRouteSearch,
   extensionSidePanelTargetFromSearch,
-  NOTIFICATION_PROTOTYPE_ROUTES_ENABLED,
-  type NotificationPrototypeVariant,
 } from './-route-search'
-
-function notificationPrototypeSearch(
-  previous: ChatRouteSearch,
-  variant: NotificationPrototypeVariant,
-): ChatRouteSearch {
-  return { ...previous, prototype: 'notifications', variant }
-}
-
-function notificationPrototypeAvailable() {
-  return NOTIFICATION_PROTOTYPE_ROUTES_ENABLED && window.location.protocol === 'http:'
-}
 
 const LazyChatRouteSurface = lazy(() =>
   import('./-chat-route-surface').then((module) => ({
@@ -26,11 +15,22 @@ const LazyChatRouteSurface = lazy(() =>
   })),
 )
 
-const LazyNotificationPrototypeRouteView = lazy(() =>
-  import('./-notification-prototype').then((module) => ({
-    default: module.NotificationPrototypeRouteView,
-  })),
-)
+/**
+ * `import.meta.env.DEV` is inlined here rather than imported as a constant so Rollup can prove
+ * the branch dead and drop the mockup chunk from production output entirely. Importing the flag
+ * from another module leaves the dynamic import reachable and ships the chunk.
+ */
+const LazyNotificationDesignMockup = import.meta.env.DEV
+  ? lazy(() =>
+      import('./-notification-design-mockup').then((module) => ({
+        default: module.NotificationDesignMockup,
+      })),
+    )
+  : null
+
+function designMockupAvailable() {
+  return LazyNotificationDesignMockup !== null && window.location.protocol === 'http:'
+}
 
 function ChatRouteSurfaceFallback() {
   return (
@@ -43,13 +43,13 @@ function ChatRouteSurfaceFallback() {
   )
 }
 
-function NotificationPrototypeFallback() {
+function DesignMockupFallback() {
   return (
     <output
       aria-live="polite"
       className="flex min-h-0 min-w-0 flex-1 items-center justify-center bg-bg text-[13px] text-text-tertiary"
     >
-      Loading prototype…
+      Loading mockup…
     </output>
   )
 }
@@ -126,20 +126,14 @@ export function ChatIndexRouteView() {
     })
   }
 
-  function setPrototypeVariant(variant: NotificationPrototypeVariant) {
-    void navigate({
-      to: '/',
-      search: (previous: ChatRouteSearch) => notificationPrototypeSearch(previous, variant),
-    })
-  }
-
-  if (notificationPrototypeAvailable() && search.prototype === 'notifications') {
+  if (
+    LazyNotificationDesignMockup &&
+    designMockupAvailable() &&
+    search.mockup === 'notifications'
+  ) {
     return (
-      <Suspense fallback={<NotificationPrototypeFallback />}>
-        <LazyNotificationPrototypeRouteView
-          variant={search.variant ?? 'B1'}
-          onVariantChange={setPrototypeVariant}
-        />
+      <Suspense fallback={<DesignMockupFallback />}>
+        <LazyNotificationDesignMockup />
       </Suspense>
     )
   }
@@ -243,21 +237,14 @@ export function ChatSessionRouteView() {
     })
   }
 
-  function setPrototypeVariant(variant: NotificationPrototypeVariant) {
-    void navigate({
-      to: '/sessions/$sessionId',
-      params: { sessionId },
-      search: (previous: ChatRouteSearch) => notificationPrototypeSearch(previous, variant),
-    })
-  }
-
-  if (notificationPrototypeAvailable() && search.prototype === 'notifications') {
+  if (
+    LazyNotificationDesignMockup &&
+    designMockupAvailable() &&
+    search.mockup === 'notifications'
+  ) {
     return (
-      <Suspense fallback={<NotificationPrototypeFallback />}>
-        <LazyNotificationPrototypeRouteView
-          variant={search.variant ?? 'B1'}
-          onVariantChange={setPrototypeVariant}
-        />
+      <Suspense fallback={<DesignMockupFallback />}>
+        <LazyNotificationDesignMockup />
       </Suspense>
     )
   }

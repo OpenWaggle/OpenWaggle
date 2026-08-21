@@ -5,8 +5,8 @@ import { EXTENSION_SIDE_PANEL_ROUTE_PANEL, SETTINGS_TABS, type SettingsTab } fro
 
 export type ChatBuiltInRightPanel = 'diff' | 'file' | 'session-tree'
 export type ChatRightPanel = ChatBuiltInRightPanel | typeof EXTENSION_SIDE_PANEL_ROUTE_PANEL
-export type NotificationPrototypeVariant = 'B1' | 'B2' | 'B3' | 'N1' | 'N2' | 'N3'
-export const NOTIFICATION_PROTOTYPE_ROUTES_ENABLED = import.meta.env.DEV
+/** Dev-only design mockup route. Statically false in a production build. */
+export const DESIGN_MOCKUP_ROUTE_ENABLED = import.meta.env.DEV
 
 export interface ChatExtensionSidePanelTarget {
   readonly extensionId: string
@@ -20,8 +20,7 @@ export interface ChatRouteSearch {
   readonly node?: string
   readonly diff?: 1
   readonly panel?: ChatRightPanel
-  readonly prototype?: 'notifications'
-  readonly variant?: NotificationPrototypeVariant
+  readonly mockup?: 'notifications'
   readonly filePath?: string
   readonly fileLine?: number
   readonly sidePanelExtensionId?: string
@@ -68,28 +67,8 @@ function parseRightPanel(value: unknown) {
     : undefined
 }
 
-function parseNotificationPrototype(value: unknown) {
-  return NOTIFICATION_PROTOTYPE_ROUTES_ENABLED && value === 'notifications' ? value : undefined
-}
-
-function parseNotificationPrototypeVariant(
-  value: unknown,
-): NotificationPrototypeVariant | undefined {
-  if (!NOTIFICATION_PROTOTYPE_ROUTES_ENABLED) {
-    return undefined
-  }
-
-  if (
-    value === 'B1' ||
-    value === 'B2' ||
-    value === 'B3' ||
-    value === 'N1' ||
-    value === 'N2' ||
-    value === 'N3'
-  ) {
-    return value
-  }
-  return undefined
+function parseDesignMockup(value: unknown) {
+  return DESIGN_MOCKUP_ROUTE_ENABLED && value === 'notifications' ? value : undefined
 }
 
 function parseFileLine(value: unknown) {
@@ -102,14 +81,12 @@ function parseFileLine(value: unknown) {
 function parseBaseChatSearch(search: Record<string, unknown>): ChatRouteSearch {
   const branch = parseSearchString(search.branch)
   const node = parseSearchString(search.node)
-  const prototype = parseNotificationPrototype(search.prototype)
-  const variant = parseNotificationPrototypeVariant(search.variant)
+  const mockup = parseDesignMockup(search.mockup)
   return {
     ...(branch ? { branch } : {}),
     ...(node ? { node } : {}),
     ...(search.diff === 1 || search.diff === '1' ? { diff: 1 } : {}),
-    ...(prototype ? { prototype } : {}),
-    ...(variant ? { variant } : {}),
+    ...(mockup ? { mockup } : {}),
   }
 }
 

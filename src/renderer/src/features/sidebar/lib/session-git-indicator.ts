@@ -1,10 +1,14 @@
 import type { GitStatusSummary } from '@shared/types/git'
 
-/** What a session's row shows about its working tree at a glance. */
+/**
+ * What a session's row shows about its working tree at a glance.
+ *
+ * Ahead and behind only. The uncommitted changed-file count was removed deliberately:
+ * every session sharing a working tree reported the same number, so the count told the
+ * user nothing about the session they were looking at, and a large number implied
+ * severity it did not have. Recorded in the git integration documentation.
+ */
 export interface SessionGitIndicator {
-  /** Uncommitted changes exist in this session's working tree. */
-  readonly isDirty: boolean
-  readonly changedFileCount: number
   readonly ahead: number
   readonly behind: number
   /** Short text for the row, empty when there is nothing worth showing. */
@@ -14,8 +18,6 @@ export interface SessionGitIndicator {
 }
 
 const EMPTY_INDICATOR: SessionGitIndicator = {
-  isDirty: false,
-  changedFileCount: 0,
   ahead: 0,
   behind: 0,
   label: '',
@@ -34,40 +36,29 @@ export function buildSessionGitIndicator(
 ): SessionGitIndicator {
   if (!status) return EMPTY_INDICATOR
 
-  const changedFileCount = status.filesChanged
-  const isDirty = !status.clean && changedFileCount > 0
   const ahead = Math.max(0, status.ahead)
   const behind = Math.max(0, status.behind)
 
   const parts: string[] = []
-  if (isDirty) parts.push(`${String(changedFileCount)}\u00b7`)
   if (ahead > 0) parts.push(`\u2191${String(ahead)}`)
   if (behind > 0) parts.push(`\u2193${String(behind)}`)
 
-  if (parts.length === 0) return { ...EMPTY_INDICATOR, ahead, behind }
+  if (parts.length === 0) return EMPTY_INDICATOR
 
   return {
-    isDirty,
-    changedFileCount,
     ahead,
     behind,
     label: parts.join(' '),
-    description: buildDescription({ isDirty, changedFileCount, ahead, behind }),
+    description: buildDescription({ ahead, behind }),
   }
 }
 
-function buildDescription(input: {
-  isDirty: boolean
-  changedFileCount: number
-  ahead: number
-  behind: number
-}) {
+function buildDescription(input: { ahead: number; behind: number }) {
   const clauses: string[] = []
-  if (input.isDirty) {
-    const plural = input.changedFileCount === 1 ? 'file' : 'files'
-    clauses.push(`${String(input.changedFileCount)} changed ${plural}`)
+  if (input.ahead > 0)
+    clauses.push(`${String(input.ahead)} commit${input.ahead === 1 ? '' : 's'} ahead`)
+  if (input.behind > 0) {
+    clauses.push(`${String(input.behind)} commit${input.behind === 1 ? '' : 's'} behind`)
   }
-  if (input.ahead > 0) clauses.push(`${String(input.ahead)} ahead`)
-  if (input.behind > 0) clauses.push(`${String(input.behind)} behind`)
   return clauses.join(', ')
 }

@@ -1,0 +1,998 @@
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ rg -n "getOptional" src/main/adapters/sqlite-session-projection-repository.ts; echo
+ "=== ui ctx creators ==="; rg -rn "createPiInteractionUiContext|authorizationMode"
+ src/main --glob '!**/__tests__/**'
+
+ ... (39 earlier lines, ctrl+o to expand)
+ src/main/adapters/pi/agent-kernel/interaction-ui-context.ts:      if
+ (shouldAutoAcceptConfirm({ n: context.n, purpose })) {
+ src/main/adapters/pi/agent-kernel/interaction-ui-context.ts:export function n(
+ src/main/adapters/pi/agent-kernel/run-lifecycle.ts:    n: input.session.n ??
+ DEFAULT_AGENT_AUTHORIZATION_MODE,
+
+ Took 0.0s
+
+
+ Ah, I see the issue — I accidentally used the -r flag with rg which interpreted "n"
+ as a replacement string instead of a line number option. Let me run it again with
+ just -n to get the proper output.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ rg -n "createPiInteractionUiContext" src/main --glob '!**/__tests__/**'; echo "===
+ openWaggleUi builders ==="; rg -n "openWaggleUi" src/main --glob '!**/__tests__/**'
+
+ ... (21 earlier lines, ctrl+o to expand)
+ src/main/adapters/pi/agent-kernel/run-lifecycle.ts:82:        openWaggleUi:
+ input.openWaggleUi,
+ src/main/adapters/pi/agent-kernel/run-lifecycle.ts:107:  const openWaggleUi = {
+ src/main/adapters/pi/agent-kernel/run-lifecycle.ts:125:      openWaggleUi,
+ src/main/adapters/pi/agent-kernel/run-lifecycle.ts:145:      openWaggleUi,
+
+ Took 0.1s
+
+
+
+ read src/main/adapters/pi/agent-kernel/run-lifecycle.ts:55-154
+
+
+ I need to understand whether the Pi session is cached and reused across runs, or if
+ a new session is created each time. The mode gets set once when the run session is
+ created, so if sessions are reused, changing the mode mid-session would only take
+ effect on the next run. I should check the agent-kernel adapter to see if there's
+ any session caching mechanism, and trace through the callers of
+ createPiRunSessionRuntime to understand the session lifecycle.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ rg -n "createPiRunSessionRuntime|sessionCache|runtimeCache" src/main --glob
+ '!**/__tests__/**' | head; echo "=== other places building sessions (repo.create)
+ ==="; rg -n "\.create\(\{" src/main --glob '!**/__tests__/**' -A6 | grep -n
+ "piSessionId" -B4 | head -60
+
+ ... (45 earlier lines, ctrl+o to expand)
+ sessions.create({
+ 34-src/main/openwaggle-mcp-session-lifecycle.ts-45-          projectPath:
+ resolvedProjectPath,
+ 35:src/main/openwaggle-mcp-session-lifecycle.ts-46-          piSessionId:
+ runtimeSession.piSessionId,
+
+ Took 0.0s
+
+
+ I'm noticing there are several other places where sessions get created without
+ passing the authorizationMode parameter, so they default to 'yolo' in the database
+ instead of respecting the project or global defaults. This becomes a problem when
+ users set their defaults to 'ask-for-approval' but sessions created through the
+ OpenWaggle MCP server—like agent-created sub-sessions—bypass those settings
+ entirely.
+
+ This feels like a major security issue since it silently grants full access when the
+ user explicitly requested approval workflows. I should map out all the session
+ creation call sites to understand the full scope, including whether worktree-based
+ creation has the same problem.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ for f in src/main/openwaggle-mcp-session-derivation.ts
+ src/main/openwaggle-mcp-task-runtime.ts
+ src/main/openwaggle-mcp-session-lifecycle.ts; do echo "=== $f"; rg -n "create\(\{"
+ -A 8 $f; done
+
+ ... (26 earlier lines, ctrl+o to expand)
+ 49-        if (input.title?.trim()) yield* sessions.updateTitle(created.id,
+ input.title.trim())
+ 50-        return yield* sessions.get(created.id)
+ 51-      }),
+ 52-    ),
+
+ Took 0.0s
+
+
+ These paths aren't passing environmentMode either, which is a pre-existing pattern
+ but represents a security gap for authorization that I should flag as major. The
+ fork/clone in agent-session-service does pass authorizationMode correctly, and while
+ session.authorizationMode could theoretically be undefined, it's properly defined
+ through the SessionDetail getter. Now I'm looking at the settings IPC decode
+ schema...
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ sed -n 90,220p src/main/ipc/settings-handler.ts
+
+ ... (136 earlier lines, ctrl+o to expand)
+ projectChanges.reconcileTrustedMainExtensions(projectPathValidation.value)
+       }
+       return { ok: true } satisfies { ok: true }
+     }),
+   )
+
+ Took 0.0s
+
+
+ I'm checking how the settings update spreads the result data with the default
+ authorization mode, then applies the shortcut bindings override. There's a
+ consideration around undefined values — when shortcutBindings is undefined, the
+ persistence plan validates that partial properties aren't undefined before
+ proceeding, so the spread followed by explicit undefined assignment should be
+ handled correctly.
+
+ Now I'm realizing that defaultSessionEnvironmentMode and the diff-related settings
+ aren't in the settingsUpdateSchema at all, which means the IPC decode would drop
+ them since Effect Schema's Struct ignores excess properties by default. I need to
+ check if there's a separate handler for those settings or if this was an oversight
+ from the merge — let me look at the origin/main version to see if those fields were
+ previously in the schema.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ git show origin/main:src/main/ipc/settings-handler.ts | sed -n 100,170p; echo "===
+ other update paths ==="; rg -n "defaultSessionEnvironmentMode|diffView"
+ src/main/ipc/*.ts | head
+
+ ... (70 earlier lines, ctrl+o to expand)
+         const error = result.issues.join('; ')
+         logger.warn('Invalid settings update payload', { error })
+ === other update paths ===
+ src/main/ipc/session-details-handler.ts:99:        environmentMode:
+ settings.defaultSessionEnvironmentMode,
+
+ Took 0.1s
+
+
+ I'm checking whether the schema omits those settings too, and wondering if there's a
+ separate channel for updating preferences over IPC. Let me search for how the
+ renderer actually updates diffView and look for other settings-related channels.
+ Actually, defaultAuthorizationMode is in the schema which is good, but I need to
+ verify how Schema.Struct handles excess properties.
+
+ The schema appears to ignore excess properties rather than error on them, which
+ means the branch correctly added the key and existing diffView updates wouldn't
+ break. Now I should check if defaultAuthorizationMode is allowed by the
+ preload/renderer type, and verify that the Settings type for updates works with
+ Partial<Settings>. After that I need to examine the migration runner to understand
+ how failures are handled and whether downgrading to an older app version with a
+ newer database would cause issues.
+
+
+ read src/main/services/database-service.ts
+
+
+ I'm seeing a critical issue with the session authorization mode migration. The
+ ensureSessionAuthorizationModeColumn function runs on every startup outside the
+ migration system, which creates a downgrade problem—if someone runs a newer build
+ that adds the column and records the migration, then rolls back to an older build,
+ that older version won't know about the column and will fail when inserting sessions
+ without the authorization_mode field.
+
+ The NOT NULL DEFAULT constraint handles inserts safely, but the real problem is that
+ this ad-hoc guard duplicates migration 24 and creates a hazard: any future schema
+ change that recreates the sessions table using the current schema statements (which
+ now includes authorization_mode) will cause migration 24's ALTER to fail with a
+ duplicate column error on fresh databases. That's likely why the ensure guard exists
+ in the first place. The guard is unnecessary duplication that bypasses the migration
+ ledger, though it can't actually mask migration failures since those would error out
+ during the migration run itself.
+
+ There's a scenario where it matters: databases created before the migrations ledger
+ existed or where the sessions table was created through another path. But checking
+ the codebase shows the sessions table is only created via migrations, so the ensure
+ step is genuinely redundant—a dead safety net that duplicates DDL and runs a PRAGMA
+ on every boot.
+
+ The bigger issue is that CURRENT_SESSION_SCHEMA_STATEMENTS is now never executed
+ (only the sliced version is used), and CURRENT_SESSION_TABLE_STATEMENT is dead code.
+ There are two definitions of the "current" table schema where the non-executed one
+ lacks the environment_mode and worktree columns, which is misleading.
+
+ On the rollback side, the migration has no down statements, which matches the
+ repo-wide pattern. The authorization_mode column defaults to 'yolo' without a CHECK
+ constraint, so any string could theoretically be stored, though the hydration guards
+ and IPC validation handle this. The trickier part is that existing sessions will
+ silently get 'yolo' as their default, giving them full access—it's technically
+ intended per the contract, but there's no migration-level distinction to flag this
+ behavior change.
+
+ I should flag this as a minor finding: the migration unconditionally back-fills
+ pre-existing sessions to 'yolo', which silently grants full access where the prior
+ build would have prompted. That's a security-relevant behavior shift worth calling
+ out in a release note.
+
+ Now I'm checking the other scope items — the unused message parameter in
+ confirmPurpose, and scanning for Pi identifiers or 'Pi' strings that might leak into
+ user-facing payloads like the renderer output or error messages from the interaction
+ broker.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ rg -n "'[^']*\bPi\b[^']*'|\"[^\"]*\bPi\b[^\"]*\""
+ src/main/application/agent-loop-interaction-broker.ts
+ src/shared/types/agent-loop-interaction.ts
+ src/main/adapters/pi/agent-kernel/interaction-ui-context.ts | head -30; echo "===
+ source values ==="; rg -n "source:"
+ src/main/adapters/pi/agent-kernel/interaction-ui-context.ts
+ src/shared/types/agent-loop-interaction.ts | head
+
+ === source values ===
+ src/shared/types/agent-loop-interaction.ts:20:  readonly source:
+ AgentLoopInteractionSource
+ src/main/adapters/pi/agent-kernel/interaction-ui-context.ts:57:    source: 'pi-ui',
+
+ Took 0.0s
+
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ cat src/shared/types/agent-loop-interaction.ts; echo "=== broker user-facing
+ messages ==="; rg -n "invalidResponse\(|message:"
+ src/main/application/agent-loop-interaction-broker.ts | head -20
+
+ ... (146 earlier lines, ctrl+o to expand)
+ 215:        message: 'No pending agent-loop interaction matches this response.',
+ 225:    return invalidResponse('Interaction response payload kind does not match the
+ request kind.')
+ 229:    return invalidResponse('Selected value is not one of the pending select
+ choices.')
+
+ Took 0.0s
+
+
+ I'm noticing that internal Pi identifiers like source: 'pi-ui' and renderer.kind:
+ 'pi-tui-custom' are being passed through IPC payloads to the renderer, and while
+ whether they're actually displayed depends on the renderer implementation, the brief
+ wants me to flag any Pi-internal identifiers that could potentially reach
+ user-facing output. The factoryName field is another concern since it contains the
+ Pi extension factory function name and could get rendered as well.
+
+ I should report this as a minor issue: the payload is carrying these internal
+ identifiers into the renderer, which violates the contract against exposing raw
+ internal IDs in visible labels. The safest fix would be to either strip factoryName
+ from the payload or map it to a product-level field instead. Now I need to check
+ what customRendererFields actually contains and confirm whether factoryName is
+ indeed a Pi function name.
+
+
+ read src/main/adapters/pi/agent-kernel/interaction-ui-context.ts:95-174
+
+
+ I'm noticing that the YOLO auto-accept mode bypasses the abort signal check—it
+ returns true immediately even if the run has already been cancelled, whereas
+ previously an aborted signal would reject or return false. This is a minor issue
+ where auto-grant should still respect an aborted signal to avoid granting
+ permissions for cancelled operations.
+
+ The bigger concern is that the auto-grant path emits no event at all, which aligns
+ with the contract of no approval prompt, no transcript entry, and no counter. Now
+ I'm wondering whether there are other authorization surfaces using select for
+ approval options like "Allow once / Always / Deny"—I should search for ui.select
+ usage in the main codebase to check.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ sed -n 130,240p src/main/adapters/pi/mcp-client-interactions.ts
+
+ ... (115 earlier lines, ctrl+o to expand)
+     ...(auth.headers ? { headers: auth.headers } : {}),
+     ...(auth.env ? { env: auth.env } : {}),
+     signal,
+     maxTokens,
+     ...(numberValue(input.request.temperature) === undefined
+
+ Took 0.0s
+
+
+ There are some serious security vulnerabilities in YOLO mode I should flag: the
+ 'Allow legacy MCP sampling?' setting gets auto-granted, which means an MCP server
+ can silently consume tokens using the user's credentials and inject untrusted
+ content. Even worse, 'Open MCP elicitation URL?' is also auto-granted, so a server
+ can invoke shell.openExternal with any URL it supplies without any user
+ confirmation—that's a real privilege escalation vector.
+
+ Opening arbitrary URLs in the browser isn't really an agent capability; it's a
+ user-directed navigation that could be exploited for phishing or CSRF attacks. The
+ current flow where the browser opens unexpectedly and then a confirmation prompt
+ appears is both a poor UX and a genuine security concern. I'd rate this as a major
+ issue and recommend keeping URL-open confirmation always user-gated, or at minimum
+ flagging it as a risk.
+
+ The form elicitation has a similar problem: 'Review MCP input request?' gets
+ auto-granted in YOLO, so ui.editor opens without showing the user which server is
+ making the request or what schema it's requesting.  The consent gate that should
+ disclose the destination and data contract gets skipped entirely, leaving the user
+ filling in data for a third-party server blind. This violates the contract's
+ principle of not auto-answering genuine user-input requests. I'll frame the URL-open
+ issue as a major security finding since it's a data/security outcome the contract
+ likely didn't anticipate, rather than a design relitigation.
+
+ Now I need to trace through the session-details-handler resolution chain and see
+ what happens when getProjectPreferences throws. Since it uses Effect.promise, a
+ rejection becomes a defect that crashes session creation entirely. I should check
+ whether getProjectPreferences handles malformed JSON or permission errors
+ gracefully.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ sed -n 1,170p src/main/config/project-config.ts
+
+ ... (168 earlier lines, ctrl+o to expand)
+     ...current,
+     preferences: {
+       ...current.preferences,
+       ...(preferences.model !== undefined ? { model: preferences.model } : {}),
+       ...(preferences.thinkingLevel !== undefined
+
+ Took 0.0s
+
+
+ I'm noticing that getProjectPreferences silently returns undefined on errors, which
+ is generally okay since the promise handling is defensive. But I need to trace
+ through what happens when projectPath is empty or undefined in the session details
+ handler — specifically checking if normalizedProjectPath could be an empty string,
+ since sessions might have null project paths. I should verify the createSession
+ handler to see how it handles empty paths.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ sed -n 60,115p src/main/ipc/session-details-handler.ts; echo "=== normalize fn ===";
+ rg -n "normalizeProjectPath|normalizedProjectPath" src/main/ipc/*.ts
+ src/main/application/*.ts --glob '!**/__tests__/**' | head
+
+ ... (74 earlier lines, ctrl+o to expand)
+ normalizedProjectPaths
+ src/main/application/extension-docs-discovery-service.ts:132:    const packageLookup
+ = yield* loadExtensionDocPackages(normalizeProjectPaths(input.projectPaths))
+ src/main/application/extension-contribution-registry-service.ts:43:function
+ normalizeProjectPaths(projectPaths: readonly string[] | undefined) {
+
+ Took 0.2s
+
+
+ I'm verifying that validateRequiredProjectPath checks for non-empty and existing
+ paths, then looking at the unit tests for session-details-handler to see what's
+ covered—particularly around the migration logic and whether YOLO is properly
+ handling select/input/editor elements. I also need to trace through the fork/clone
+ path in forkAgentSessionToNewSession to confirm it's passing authorizationMode
+ correctly, which I can see it does on line 170 of agent-session-service.
+
+ Now checking if copyAgentSessionToNewSession is the shared function handling both
+ fork and clone operations, and whether the authorizationMode from the source session
+ carries over properly even for older session rows. Let me examine the new tests to
+ see what's actually covered.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ git diff 4e19097e..HEAD --
+ src/main/ipc/__tests__/session-details-handler.unit.test.ts
+ src/main/ipc/__tests__/session-details-handler.test-harness.ts
+
+ ... (153 earlier lines, ctrl+o to expand)
+ +      'Session authorization mode is invalid.',
+ +    )
+ +    expect(setAuthorizationModeMock).not.toHaveBeenCalled()
+ +  })
+  })
+
+ Took 0.0s
+
+
+ I'm noticing some gaps in the test coverage—specifically, there's no test verifying
+ that the global default gets used when a project lacks its own setting but the
+ global is set to 'ask-for-approval', and no tests confirming that other creation
+ paths like MCP actually inherit those defaults. Now I need to check whether the
+ session detail returned to the renderer includes the authorizationMode for list
+ queries, since the sidebar and composer might need per-session mode information.
+ Looking at the session queries, only selectSessionRow has been updated so far, so I
+ should verify if listSessionDetails uses a different query.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ sed -n 1,140p src/main/store/session-details/session-queries.ts
+
+ ... (142 earlier lines, ctrl+o to expand)
+       ) AS message_count
+     FROM sessions s
+     WHERE s.archived = ${archived}
+     ORDER BY s.updated_at DESC
+     LIMIT ${limit ?? -1}
+
+ Took 0.0s
+
+
+ Looking for a listSessionDetails function that might be doing a bulk query to return
+ an array of SessionDetail objects, and I want to check if the sessions:list-details
+ endpoint includes the authorizationMode field — there's a note about a similar bug
+ pattern with the summary hydrators that I should keep in mind.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ sed -n 140,260p src/main/store/session-details/session-queries.ts; echo "===
+ sessions list (other hydration) ==="; rg -n "authorization_mode|environment_mode"
+ src/main/store/sessions/*.ts | head
+
+ ... (52 earlier lines, ctrl+o to expand)
+ === 'worktree' ? 'worktree' : 'local',
+ src/main/store/sessions/types.ts:11:  readonly environment_mode: string | null
+ src/main/store/sessions/types.ts:58: * queries typed this way once omitted
+ `environment_mode` and `worktree_path`, so every
+ src/main/store/sessions/types.ts:75:  'environment_mode',
+
+ Took 0.0s
+
+
+ I'm checking how listSessionDetails retrieves session data through getSessionDetail
+ — there's an N+1 query issue but it's pre-existing. The sidebar's SessionSummary
+ type doesn't include authorizationMode, so I need to verify whether the renderer
+ composer pulls that field from the full session detail or if it's missing entirely.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ rg -n "authorizationMode" src/renderer/src --glob '!**/__tests__/**' | head -30
+
+ ... (33 earlier lines, ctrl+o to expand)
+ authorizationMode: AgentAuthorizationMode
+ src/renderer/src/features/chat/lib/session-authorization-mode-action.ts:9:
+ authorizationMode: AgentAuthorizationMode,
+ src/renderer/src/features/chat/lib/session-authorization-mode-action.ts:18:    await
+ input.setSessionAuthorizationMode(input.activeSessionId, input.authorizationMode)
+
+ Took 0.0s
+
+
+ I'm checking whether the renderer can actually write to the global
+ defaultAuthorizationMode setting through the settings update mechanism, since I'm
+ seeing it read from the session but I'm not finding evidence it's being set anywhere
+ in the renderer code.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ rg -n "defaultAuthorizationMode" src/renderer src/shared packages | head -20
+
+ ... (7 earlier lines, ctrl+o to expand)
+ value={settings.defaultAuthorizationMode}
+ src/renderer/src/features/settings/components/sections/GeneralSection.tsx:226:
+ value={projectAuthorization.mode ?? settings.defaultAuthorizationMode}
+ src/renderer/src/features/settings/state/preferences-store-actions.ts:187:
+ persistSetting('defaultAuthorizationMode', mode, set, get),
+
+ Took 0.2s
+
+
+ The renderer handles the global default, so the chain flows through
+ settings.defaultAuthorizationMode, then project overrides at creation time. But
+ there's a semantic mismatch: the contract specifies "session override > project
+ default > global default" precedence, yet the implementation bakes project and
+ global defaults into the session row at creation. This means if someone changes the
+ global or project default later, existing sessions retain their original values—even
+ ones where the user never explicitly set a session-level choice. There's no fallback
+ mechanism to pick up those changes.
+
+ This could be a contract violation depending on interpretation. The wording suggests
+ a live resolution chain, but the snapshot-at-create behavior means project default
+ changes silently don't apply to existing sessions. That's a user-visible gap,
+ especially problematic when tightening security—if an admin switches a project to
+ "Ask for Approval," sessions created under the old "YOLO" default keep running with
+ that permissive mode. I'm flagging this as a major issue since it's a
+ security-tightening action that silently fails to take effect, which directly
+ contradicts the precedence model described in the brief.
+
+ There's also a related migration issue: sessions created before this feature all get
+ "YOLO" via migration, so even if the global default is later set to "Ask for
+ Approval," it doesn't retroactively apply. Same class of problem.
+
+ I'm also noticing that run-lifecycle reads input.session.authorizationMode ??
+ DEFAULT with a fail-open default. Combined with the DB NOT NULL constraint and
+ hydration fallback, this means undefined only happens if a caller constructs
+ SessionDetail without the field—but that's a security control with a fail-open
+ fallback, which is a design smell. If any code path forgets to pass the mode, you
+ get full access. I'll report this as a separate minor issue: the optional typing
+ plus fail-open behavior on a security control.
+
+ Now I need to check how waggle runs use this. The waggle-run service should be using
+ the same preflight flow with SessionProjectionRepository.getOptional, so let me
+ verify the background-run service does the same.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ rg -n "session:|getOptional|SessionDetail"
+ src/main/application/waggle-run-service.ts src/main/application/agent-run/kernel.ts
+ 2>/dev/null | head -20; echo "=== who else builds SessionDetail literals ==="; rg -n
+ "satisfies SessionDetail|: SessionDetail =" src/main --glob '!**/__tests__/**' |
+ head
+
+ ... (8 earlier lines, ctrl+o to expand)
+ sessionProjectionRepo.getOptional(input.sessionId)
+ src/main/application/waggle-run-service.ts:163:function assignPreparedTitle(input:
+ WaggleRunInput, session: SessionDetail) {
+ src/main/application/waggle-run-service.ts:199:      session: prepared.session,
+ === who else builds SessionDetail literals ===
+
+ Took 0.1s
+
+
+ Both paths route through getOptional, so now I need to verify that the
+ environment_mode migration is in place to confirm the
+ CURRENT_SESSION_TABLE_STATEMENT staleness issue is real.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ rg -n "environment_mode|worktree_path" src/main/services/database-migrations.ts |
+ head; echo "=== migration ids ==="; rg -n "id: [0-9]+"
+ src/main/services/database-migrations.ts | tail -8
+
+ ... (7 earlier lines, ctrl+o to expand)
+ 222:    id: 20,
+ 248:    id: 21,
+ 253:    id: 22,
+ 261:    id: 23,
+ 266:    id: 24,
+
+ Took 0.1s
+
+
+ I'm noticing that CURRENT_SESSION_TABLE_STATEMENT is misnamed—it's actually an
+ outdated schema definition that's missing several columns like environment_mode and
+ worktree_path while still including the deprecated authorization_mode, so it's never
+ actually executed. This is problematic because if someone mistakenly uses
+ CURRENT_SESSION_SCHEMA_STATEMENTS for a fresh installation, it would cause migration
+ 24 to fail due to duplicate columns.
+
+ There's also a fragile positional coupling in
+ SESSION_SCHEMA_BEFORE_AUTHORIZATION_MODE_STATEMENTS where it uses .slice(1) to skip
+ the first statement—if anyone prepends a new statement to
+ CURRENT_SESSION_SCHEMA_STATEMENTS, migration 20 would silently drop an index.
+
+ On the durability side, I'm checking whether the durable transcript filter correctly
+ handles the notify resolution contract: warning/error events should produce exactly
+ one durable notice, and resolved notifications are properly dropped. The subtlety is
+ that for warning-level notify requests, the durable record is the request itself,
+ but a re-hydrated transcript would show the interaction as perpetually pending since
+ the resolved event isn't persisted and notify auto-resolves immediately.
+
+ I need to trace how the renderer's projection derives status for a durable request
+ without a resolution event—specifically checking the session-projection code that
+ builds transcript entries from durable events to see whether a persisted notify
+ request alone renders as pending.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ rg -n "isDurableAgentLoopEvent" src --glob '!**/__tests__/**'; sed -n 1,120p
+ src/main/application/agent-run/agent-loop-events.ts
+
+ ... (126 earlier lines, ctrl+o to expand)
+   }
+   return {
+     id: `${input.runId}:agent-loop:${String(input.index)}`,
+     parentId: input.parentId,
+     piEntryType: 'custom',
+
+ Took 0.2s
+
+
+ Durable events create separate session nodes for each request and resolution, but
+ the contract specifies only one transcript entry per request that updates in place.
+ The persistence layer writes both nodes, so the renderer needs to collapse them by
+ interaction ID to match the contract—that's handled on the rendering side, though
+ the main-side persistence guarantees the structure.
+
+ The real concern is when a warning or error notification request has no resolution
+ node; the renderer would need to treat it as terminal rather than pending, which
+ could cause a rehydrated warning to appear stuck in pending state forever. I should
+ check how the renderer actually projects these nodes to see if this is already
+ handled or if it's a genuine bug.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ rg -ln "agent_interaction_request|interactionId" src/renderer/src --glob
+ '!**/__tests__/**' | head -15
+
+ ... (10 earlier lines, ctrl+o to expand)
+ src/renderer/src/features/chat/components/AgentInteractionsPanel.tsx
+ src/renderer/src/features/chat/components/ChatTranscript.tsx
+ src/renderer/src/features/chat/components/AgentInteractionComposerPrompt.tsx
+ src/renderer/src/features/chat/components/AgentCustomInteractionComposerFallback.tsx
+ src/renderer/src/features/chat/hooks/useAgentChat.ts
+
+ Took 0.0s
+
+
+ I should flag this as a boundary risk in a minor finding, but I need to be precise
+ about it without diving deep into the renderer code. Let me quickly scan the
+ agent-loop-transcript-interactions to check whether notify functions as a terminal
+ state.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ rg -n "notify"
+ src/renderer/src/features/chat/lib/agent-loop-transcript-interactions.ts
+ src/renderer/src/features/chat/lib/agent-loop-interaction-view.ts | head -20
+
+ ... (10 earlier lines, ctrl+o to expand)
+ src/renderer/src/features/chat/lib/agent-loop-interaction-view.ts:28:
+ .with('confirm', 'select', 'input', 'editor', 'notify', () => false)
+ src/renderer/src/features/chat/lib/agent-loop-interaction-view.ts:45:
+ .with('notify', () => [{ id: 'acknowledge', label: 'Acknowledge', tone: 'primary' as
+ const }])
+
+ Took 0.0s
+
+
+ I'm noticing a cross-boundary bug where rehydrated durable warning/error
+ notifications lose their resolution state because agent_interaction_resolved was
+ dropped from persistence, leaving them stuck with a pending "Acknowledge" button.
+ This is a concrete issue introduced by the my-scope change that's worth flagging as
+ significant.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ sed -n 1,80p src/renderer/src/features/chat/lib/build-agent-loop-interaction-rows.ts
+
+ ... (54 earlier lines, ctrl+o to expand)
+     if (item) {
+       rows.push({ type: 'agent-loop-interaction', item })
+     }
+   }
+ }
+
+ Took 0.1s
+
+
+ I'm checking how the renderer handles notify rows for agent-loop-interaction —
+ specifically whether it uses interactionActions like the Acknowledge button, or if
+ it renders them as static notices instead. The AgentInteractionCard might only apply
+ to pending prompts, so this could be intentional mirroring of the filter logic,
+ though it does create some duplicated handling.
+
+ The real maintainability issue I'm finding is that the skip rules are implemented in
+ two separate places — both the main persistence layer and the renderer projection —
+ without a shared constant. That should live in src/shared so both can reference the
+ same source of truth.
+
+ I've verified the packages directory has no changes, checked the preload API diff,
+ and now I'm looking at whether the sessions:set-authorization-mode IPC channel is
+ properly registered in any channel validation or allowlist that the renderer might
+ enforce.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ rg -n "sessions:set-worktree-plan" src --glob '!**/__tests__/**' | grep -v renderer
+
+ ... (1 earlier lines, ctrl+o to expand)
+ invoke('sessions:set-worktree-plan'),
+ src/shared/types/ipc-invoke-core.ts:246:  'sessions:set-worktree-plan': {
+ src/main/ipc/session-details-handler.ts:167:
+ typedHandle('sessions:set-worktree-plan', (_event, id: SessionId, plan:
+ SessionWorktreePlan) =>
+
+ Took 0.1s
+
+
+ The validateAuthorizationMode function rejects with a raw Error that gets surfaced
+ through IPC, which aligns with how the tests expect it to throw. When
+ setSessionAuthorizationMode updates a session, it bumps the updated_at timestamp to
+ the current time, which reorders the session list by recency and marks that session
+ as recently active.
+
+ Now I'm checking whether setWorktreePlan follows the same pattern of updating the
+ timestamp for consistency across session mutations.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ sed -n 1,60p src/main/store/session-details/session-mutations.ts
+
+ ... (55 earlier lines, ctrl+o to expand)
+ }
+
+ export async function setSessionAuthorizationMode(
+   id: SessionId,
+   authorizationMode: AgentAuthorizationMode,
+
+ Took 0.1s
+
+
+ Checking another scope item: YOLO auto-grant should only apply to authorization
+ requests and not interfere with select, input, editor, or other confirm types. I've
+ verified this is working correctly—only the confirm override checks for it, while
+ the other request types remain untouched. The classification relies on matching
+ title strings, and since purpose is optional in the confirm type definition, I need
+ to account for confirms that might not have a purpose specified.
+
+ There's a gap in unit test coverage for select, input, and editor requests under
+ YOLO mode—they should not be auto-granted. I'll flag this as part of the
+ title-allowlist finding or as a separate minor test-gap issue. Also noticed
+ confirmPurpose destructures the message parameter but never uses it, which is dead
+ code.
+
+ Checking the hasUI flow: in YOLO mode, if ctx.hasUI is false, the MCP tool execution
+ throws an error before reaching auto-accept, so headless runs are properly gated.
+ The openWaggleUi is provided for waggle runs, so that's fine. For database writes,
+ setSessionAuthorizationMode is only called from validated IPC paths and the repo
+ port, so that's secure. Now I need to search the tests for migration coverage on
+ existing databases.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ rg -ln "APP_MIGRATIONS|database-migrations|authorization_mode" src --glob
+ '**/__tests__/**' | head
+
+ (no output)
+
+ Took 0.1s
+
+
+ I'm noticing there's no test coverage for the migration, the authorization_mode
+ column itself, or how pre-existing session rows hydrate to 'yolo', nor any
+ verification that getSessionDetail returns the authorizationMode field—this is a
+ notable gap since it's a security control column with zero database-level test
+ coverage. I'll classify this as minor based on the severity definitions, though it's
+ worth flagging. Now I need to check whether store integration tests exist for
+ sessions.
+
+ Looking at the type definitions, ipc-invoke-core.ts has loose typing for
+ thinkingLevel but authorizationMode is properly typed, which is fine. The
+ project-handler validates authorizationMode against the schema, creating some
+ redundant validation that's harmless. But there's a real issue:
+ projectSettingsFileSchema might not include preferences.authorizationMode, and since
+ Effect Schema strips excess fields by default during decoding, the authorizationMode
+ could be silently dropped both on read and write operations. I need to verify
+ whether projectSettingsFileSchema actually composes projectPreferencesSchema.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ sed -n 70,120p src/shared/schemas/validation.ts
+
+ ... (15 earlier lines, ctrl+o to expand)
+     preferences: Schema.optional(projectPreferencesSchema),
+     pi: Schema.optional(jsonObjectSchema),
+   },
+   jsonLooseRecordSchema,
+ )
+
+ Took 0.0s
+
+
+ Verified the merge conflict resolution in settings-handler.ts looks good with both
+ defaultAuthorizationMode and shortcutBindings properly coexisting, and now I'm
+ double-checking that the validation.ts schema merge didn't accidentally drop
+ anything from the original.
+
+ The diff in main only added those 2 lines as expected. I'm also verifying a few key
+ security claims: that resolveSessionAuthorizationMode only gets called during
+ session creation (not re-resolved for existing sessions), that shell.openExternal
+ happens right after the auto-approved confirm in the YOLO flow, and that the MCP
+ elicitation path is only reachable when third-party MCP servers are actually
+ configured. All confirmed. Now I need to compile the findings with precise line
+ numbers.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ grep -n "confirmPurpose\|shouldAutoAcceptConfirm\|factoryName"
+ src/main/adapters/pi/agent-kernel/interaction-ui-context.ts; echo ---; grep -n
+ "authorizationMode" src/main/adapters/pi/agent-kernel/run-lifecycle.ts
+ src/main/ipc/session-details-handler.ts src/shared/types/session.ts; echo ---; grep
+ -n "id: 24\|SESSION_AUTHORIZATION_MODE_MIGRATION"
+ src/main/services/database-migrations.ts src/main/services/database-schema.ts; echo
+ ---; grep -n "ensureSessionAuthorizationModeColumn"
+ src/main/services/database-service.ts; echo ---; grep -n
+ "CURRENT_SESSION_TABLE_STATEMENT\|slice(1)" src/main/services/database-schema.ts;
+ echo ---; grep -n "create({" src/main/openwaggle-mcp-session-derivation.ts
+ src/main/openwaggle-mcp-task-runtime.ts src/main/openwaggle-mcp-session-lifecycle.ts
+
+ ... (34 earlier lines, ctrl+o to expand)
+ sessions.create({
+ src/main/openwaggle-mcp-task-runtime.ts:89:      const session = yield*
+ sessions.create({
+ src/main/openwaggle-mcp-session-lifecycle.ts:44:        const created = yield*
+ sessions.create({
+
+ Took 0.0s
+
+
+ Findings.
+
+ ```
+   SEVERITY: major
+   FILE: src/main/openwaggle-mcp-session-lifecycle.ts:44,
+ src/main/openwaggle-mcp-session-derivation.ts:78,
+ src/main/openwaggle-mcp-task-runtime.ts:89
+   WHAT: These three session-creation paths never pass `authorizationMode`, so
+ sessions created through the OpenWaggle MCP server (agent-derived sessions, task
+ runtime sessions) always land on the SQL default `'yolo'` and ignore the
+ project/global default resolved in `session-details-handler.ts:90`.
+   WHY IT MATTERS: A user who sets the global or project default to `Ask for
+ Approval` still gets full-access sessions for every agent-created session, silently
+ defeating the setting for exactly the sessions the user did not create by hand.
+   FIX: Move `resolveSessionAuthorizationMode` (session-details-handler.ts:38) into a
+ shared application helper and call it in all three `sessions.create({...})` sites
+ (they also skip `environmentMode`, so one shared "new session defaults" resolver
+ fixes both).
+ ```
+
+ ```
+   SEVERITY: major
+   FILE: src/main/ipc/session-details-handler.ts:38-47
+   WHAT: Project/global defaults are snapshotted into `sessions.authorization_mode`
+ at creation time only; there is no "inherit" state, so changing the project or
+ global default never affects any existing session, even one the user never overrode.
+   WHY IT MATTERS: The locked contract is a live precedence chain (session override >
+ project > global); tightening a project default to `Ask for Approval` appears to
+ apply but every existing session keeps auto-granting, which is a silent failure of a
+ security control.
+   FIX: Either persist "inherit" (nullable column / `authorizationMode?: undefined`
+ meaning unset) and resolve project→global at run start in
+ `preflight.ts`/`run-lifecycle.ts`, or make the settings UI contract explicit that
+ defaults only apply to new sessions and only write the session row when the user
+ overrides.
+ ```
+
+ ```
+   SEVERITY: major
+   FILE: src/main/adapters/pi/agent-kernel/interaction-ui-context.ts:84-95
+   WHAT: `confirmPurpose` classifies authorization vs. user-input by exact-matching
+ four hard-coded title strings that are produced in unrelated files
+ (`mcp-tool-execution.ts:42`, `mcp-client-interactions.ts:86,115,215`), with no
+ shared constant and no test that links the producers to the classifier.
+   WHY IT MATTERS: Any copy edit to one of those titles silently changes
+ authorization semantics (YOLO users start seeing prompts, or a genuine input consent
+ gate gets auto-granted), and nothing in typecheck, lint, or the current tests
+ catches it.
+   FIX: Stop inferring purpose from prose: export a shared
+ `AUTHORIZATION_CONFIRM_TITLES` const (or better, thread an explicit `purpose:
+ 'authorization'` through the confirm `opts` from the four call sites) so the
+ classification is declared where the request is created.
+ ```
+
+ ```
+   SEVERITY: major
+   FILE: src/main/adapters/pi/agent-kernel/interaction-ui-context.ts:154-156 (with
+ src/main/adapters/pi/mcp-client-interactions.ts:85-98,114-129)
+   WHAT: In YOLO, `Open MCP elicitation URL?` and `Review MCP input request?` are
+ auto-granted, so an MCP server can make the app call `shell.openExternal(...)` on a
+ server-supplied URL with no user consent, and the disclosure screen naming the
+ destination server and requested schema is skipped before the user is handed a raw
+ editor to type data that is sent to that server.
+   WHY IT MATTERS: These two are not tool-execution grants; auto-accepting them turns
+ "full agent access" into "third-party MCP server can open arbitrary https/loopback
+ URLs in the user's browser and harvest input without attribution" — a
+ phishing/data-disclosure escalation the mode selector does not advertise.
+   FIX: Keep external-navigation and pre-input-consent confirms user-gated regardless
+ of mode (classify them as `'confirmation'`, or add a third purpose such as
+ `'disclosure'` that YOLO never auto-grants), and restrict YOLO auto-grant to the
+ tool-call and sampling grants.
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE: src/main/services/database-service.ts:35-45,77
+   WHAT: `ensureSessionAuthorizationModeColumn` re-implements migration 24's DDL and
+ runs a `PRAGMA table_info(sessions)` on every boot, outside the `_migrations`
+ ledger.
+   WHY IT MATTERS: Two copies of the same `ALTER TABLE` string can drift, and a
+ schema fix-up that bypasses the migration ledger makes the DB state no longer
+ reconstructible from `APP_MIGRATIONS` (the exact class of problem the ledger exists
+ to prevent).
+   FIX: Delete the ad-hoc guard and rely on migration id 24; if idempotency is
+ genuinely needed, make it a normal migration step guarded inside
+ `database-migrations.ts`.
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE: src/main/services/database-schema.ts:22-41,115-121
+   WHAT: `CURRENT_SESSION_TABLE_STATEMENT` (the only place `authorization_mode`
+ appears in a CREATE TABLE) is never executed — it is reachable only through
+ `CURRENT_SESSION_SCHEMA_STATEMENTS.slice(1)` — and it is already stale: it omits
+ `environment_mode`, `worktree_path`, `worktree_base_ref`,
+ `worktree_start_from_origin` added by migration 20.
+   WHY IT MATTERS: The next person who recreates the sessions table from the
+ statement named "CURRENT" gets a table missing four columns and simultaneously
+ breaks migration 24 with `duplicate column name: authorization_mode` on fresh
+ installs; the `.slice(1)` positional coupling also silently drops an index if anyone
+ prepends a statement.
+   FIX: Keep one executed CREATE TABLE (the pre-authorization-mode one used by
+ migration 20) and either delete the unused "current" variant or generate the index
+ list by name instead of `slice(1)`.
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE: src/shared/types/session.ts:71,
+ src/main/adapters/pi/agent-kernel/run-lifecycle.ts:110
+   WHAT: `SessionDetail.authorizationMode` is optional and the run path falls back to
+ `DEFAULT_AGENT_AUTHORIZATION_MODE` (= `yolo`), so any future producer of a
+ `SessionDetail` that forgets the field yields full access.
+   WHY IT MATTERS: A security control that fails open on missing data will eventually
+ be defeated by an unrelated refactor, and the DB column plus `hydrateSessionDetail`
+ already guarantee a value, so the optionality buys nothing.
+   FIX: Make the field required on `SessionDetail` (hydration already always sets it)
+ or make the run-path fallback `'ask-for-approval'` so unknown state fails closed.
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE: src/main/services/database-migrations.ts:266-269
+   WHAT: No test anywhere references `authorization_mode` — there is zero coverage
+ for migration 24 on a pre-existing DB, for the `isAgentAuthorizationMode` hydration
+ fallback in `session-queries.ts:57`, or for `setSessionAuthorizationMode` at the
+ store level, and no unit test asserts that YOLO leaves
+ `select`/`input`/`editor`/non-authorization `confirm` untouched.
+   WHY IT MATTERS: The brief's two riskiest behaviours (old rows back-filled to full
+ access, YOLO not swallowing user-input requests) are asserted only for one
+ happy-path confirm case in `interaction-ui-context.unit.test.ts`.
+   FIX: Add a store/integration test that opens a DB at migration 23, runs
+ migrations, and asserts old rows hydrate to `'yolo'`; add one unit test per
+ non-confirm interaction kind asserting YOLO still emits a request event.
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE: src/main/application/agent-run/agent-loop-events.ts:44-51 vs
+ src/renderer/src/features/chat/lib/build-agent-loop-interaction-rows.ts:7-17
+   WHAT: The durability rule (drop `info` notify requests, drop all notify
+ resolutions) is duplicated verbatim in main-process persistence and renderer
+ projection with no shared predicate.
+   WHY IT MATTERS: The contract "info creates no durable history, warning/error
+ create exactly one notice" is enforced in two places that can diverge, and
+ divergence shows up only as a wrong transcript after reload — invisible to both
+ sides' unit tests.
+   FIX: Put the predicate in `src/shared` (e.g.
+ `shared/utils/agent-loop-interaction.ts`) and import it from both the persistence
+ filter and the renderer row builder.
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE: src/main/adapters/pi/agent-kernel/interaction-ui-context.ts:111
+   WHAT: `factoryName: factory.name` puts a Pi extension's raw JS function name into
+ the interaction payload sent to the renderer, alongside `source: 'pi-ui'`
+ (agent-loop-interaction.ts:12) and `renderer.kind: 'pi-tui-custom'`
+ (agent-loop-interaction.ts:60).
+   WHY IT MATTERS: The contract forbids raw internal identifiers and "Pi" in anything
+ user-facing; shipping them in the payload means only renderer discipline stands
+ between them and a visible label.
+   FIX: Drop `factoryName` from the payload (or keep it out of the durable node
+ content and log it instead), and treat `source`/`renderer.kind` as internal-only
+ discriminants that the renderer must map to product copy.
+ ```
+
+ ```
+   SEVERITY: nit
+   FILE: src/main/adapters/pi/agent-kernel/interaction-ui-context.ts:84
+   WHAT: `confirmPurpose` accepts `message` but never reads it.
+   WHY IT MATTERS: A dead parameter on a security-classification function suggests
+ the message was meant to participate and invites a future reader to "fix" it.
+   FIX: Take only `title`, or remove the function entirely as part of the
+ explicit-purpose fix above.
+ ```
+
+ ```
+   SEVERITY: nit
+   FILE: src/main/services/database-schema.ts:183-188
+   WHAT: The new column has no `CHECK (authorization_mode IN
+ ('yolo','ask-for-approval'))` constraint.
+   WHY IT MATTERS: Only IPC-level validation prevents arbitrary strings; a bad write
+ is then silently coerced back to `'yolo'` (full access) by the hydration fallback
+ rather than surfacing.
+   FIX: Add a CHECK constraint, or log at `warn` in `hydrateSessionDetail` when the
+ stored value is not a known mode.
+ ```
+
+ Verification notes on the brief's explicit questions: fresh installs do get yolo
+ (migration 20 creates the table without the column, migration 24 adds it with
+ DEFAULT 'yolo', DEFAULT_SETTINGS.defaultAuthorizationMode = 'yolo'); pre-existing
+ rows are back-filled to yolo by migration 24 and by the database-service.ts guard —
+ correct per the locked contract, but it is a silent grant of full access to sessions
+ that previously always prompted, so it needs a release note. Downgrade is safe (NOT
+ NULL DEFAULT covers inserts from an older build). YOLO auto-grant touches only the
+ confirm override, so select/input/editor/custom/notify cannot be swallowed. The
+ merged settings IPC schema correctly carries defaultAuthorizationMode and
+ shortcutBindings together, and ...result.data propagates the new key into
+ settings.update.
+
+ NO FURTHER FINDINGS
+
+──────────────────────────────────────────────────────────────────────────────────────
+
+──────────────────────────────────────────────────────────────────────────────────────
+~/Desktop/Projects/personal/OpenWaggle-access-modes (pi/approval-modes-notifications)
+↑88 ↓27k R5.7M W172k CH98.9% $5.038 17.6%/1.0M (auto)  eu.anthropic.claude-opus-5 • hi
+MCP: 0/6 servers ○ 🐴 ponytail: ⚡ FULL

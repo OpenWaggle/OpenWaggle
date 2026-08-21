@@ -2,6 +2,7 @@ import { SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { PINNED_SESSION_REPOSITORY_STUB } from '../../ports/__tests__/session-projection-pin-stub'
 import { AgentKernelMissingEntryError, AgentKernelService } from '../../ports/agent-kernel-service'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { SessionRepository } from '../../ports/session-repository'
@@ -35,6 +36,7 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   listTurnCheckpoints: () => Effect.succeed([]),
   getTurnDiff: () => Effect.succeed(null),
   setTurnCheckpointAnchor: () => Effect.void,
+  ...PINNED_SESSION_REPOSITORY_STUB,
 })
 
 const TestSessionLayer = Layer.succeed(SessionRepository, {

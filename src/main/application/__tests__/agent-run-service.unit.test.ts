@@ -4,6 +4,7 @@ import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { PINNED_SESSION_REPOSITORY_STUB } from '../../ports/__tests__/session-projection-pin-stub'
 import { type AgentKernelRunInput, AgentKernelService } from '../../ports/agent-kernel-service'
 import { ProviderService } from '../../ports/provider-service'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
@@ -56,6 +57,7 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   listTurnCheckpoints: () => Effect.succeed([]),
   getTurnDiff: () => Effect.succeed(null),
   setTurnCheckpointAnchor: () => Effect.void,
+  ...PINNED_SESSION_REPOSITORY_STUB,
 })
 const TestProviderLayer = Layer.succeed(ProviderService, {
   get: () => Effect.succeed(undefined),

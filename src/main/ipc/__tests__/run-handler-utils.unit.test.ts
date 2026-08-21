@@ -5,6 +5,7 @@ import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionProjectionRepositoryError } from '../../errors'
+import { PINNED_SESSION_REPOSITORY_STUB } from '../../ports/__tests__/session-projection-pin-stub'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 
 const { emitTransportEventMock, updateTitleMock, hydrateAttachmentSourcesMock } = vi.hoisted(
@@ -55,6 +56,7 @@ const makeTestSessionProjectionLayer = () =>
     listTurnCheckpoints: () => Effect.succeed([]),
     getTurnDiff: () => Effect.succeed(null),
     setTurnCheckpointAnchor: () => Effect.void,
+    ...PINNED_SESSION_REPOSITORY_STUB,
   })
 
 const TestRuntimeLayer = makeTestSessionProjectionLayer()

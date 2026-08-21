@@ -13,28 +13,7 @@ import type * as SessionDetailsHandler from '../session-details-handler'
 
 type TestMock = Mock
 
-interface SessionDetailsHandlerMocks {
-  readonly typedHandleMock: TestMock
-  readonly cleanupSessionRunMock: TestMock
-  readonly createRuntimeSessionMock: TestMock
-  readonly forkRuntimeSessionMock: TestMock
-  readonly persistSnapshotMock: TestMock
-  readonly listSessionDetailsMock: TestMock
-  readonly getSessionDetailMock: TestMock
-  readonly createSessionMock: TestMock
-  readonly deleteSessionMock: TestMock
-  readonly archiveSessionMock: TestMock
-  readonly unarchiveSessionMock: TestMock
-  readonly listArchivedSessionsMock: TestMock
-  readonly updateSessionTitleMock: TestMock
-  readonly setAuthorizationModeMock: TestMock
-  readonly cancelSessionRunsMock: TestMock
-  readonly clearAgentPhaseMock: TestMock
-  readonly clearStreamBufferMock: TestMock
-  readonly emitRunCompletedMock: TestMock
-}
-
-const mocks: SessionDetailsHandlerMocks = vi.hoisted(() => ({
+const mocks = vi.hoisted(() => ({
   typedHandleMock: vi.fn(),
   cleanupSessionRunMock: vi.fn(),
   createRuntimeSessionMock: vi.fn(async (_input: { readonly projectPath: string }) => ({
@@ -52,6 +31,10 @@ const mocks: SessionDetailsHandlerMocks = vi.hoisted(() => ({
   listArchivedSessionsMock: vi.fn(),
   updateSessionTitleMock: vi.fn(),
   setAuthorizationModeMock: vi.fn(),
+  listPinnedSessionsMock: vi.fn(async () => []),
+  pinSessionMock: vi.fn(async () => undefined),
+  unpinSessionMock: vi.fn(async () => undefined),
+  movePinnedSessionMock: vi.fn(async () => undefined),
   cancelSessionRunsMock: vi.fn(),
   clearAgentPhaseMock: vi.fn(),
   clearStreamBufferMock: vi.fn(),
@@ -72,6 +55,10 @@ export const unarchiveSessionMock: TestMock = mocks.unarchiveSessionMock
 export const listArchivedSessionsMock: TestMock = mocks.listArchivedSessionsMock
 export const updateSessionTitleMock: TestMock = mocks.updateSessionTitleMock
 export const setAuthorizationModeMock: TestMock = mocks.setAuthorizationModeMock
+export const listPinnedSessionsMock: TestMock = mocks.listPinnedSessionsMock
+export const pinSessionMock: TestMock = mocks.pinSessionMock
+export const unpinSessionMock: TestMock = mocks.unpinSessionMock
+export const movePinnedSessionMock: TestMock = mocks.movePinnedSessionMock
 export const cancelSessionRunsMock: TestMock = mocks.cancelSessionRunsMock
 export const clearAgentPhaseMock: TestMock = mocks.clearAgentPhaseMock
 export const clearStreamBufferMock: TestMock = mocks.clearStreamBufferMock
@@ -169,6 +156,29 @@ const TestSessionProjectionRepoLayer = Layer.succeed(
     listTurnCheckpoints: () => Effect.succeed([]),
     getTurnDiff: () => Effect.succeed(null),
     setTurnCheckpointAnchor: () => Effect.void,
+    listPinnedSessions: () =>
+      Effect.tryPromise({
+        try: () => listPinnedSessionsMock(),
+        catch: (cause) =>
+          new SessionProjectionRepositoryError({ operation: 'listPinnedSessions', cause }),
+      }),
+    pinSession: (id) =>
+      Effect.tryPromise({
+        try: () => pinSessionMock(id),
+        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'pinSession', cause }),
+      }),
+    unpinSession: (id) =>
+      Effect.tryPromise({
+        try: () => unpinSessionMock(id),
+        catch: (cause) =>
+          new SessionProjectionRepositoryError({ operation: 'unpinSession', cause }),
+      }),
+    movePinnedSession: (move) =>
+      Effect.tryPromise({
+        try: () => movePinnedSessionMock(move),
+        catch: (cause) =>
+          new SessionProjectionRepositoryError({ operation: 'movePinnedSession', cause }),
+      }),
   }),
 )
 
@@ -254,29 +264,16 @@ export function getInvokeHandler(name: string) {
 }
 
 export function resetSessionDetailsHandlerMocks() {
-  typedHandleMock.mockReset()
-  cleanupSessionRunMock.mockReset()
-  createRuntimeSessionMock.mockReset()
+  for (const mock of Object.values(mocks)) mock.mockReset()
   createRuntimeSessionMock.mockResolvedValue({
     piSessionId: 'pi-session-created',
     piSessionFile: '/tmp/pi-session-created.jsonl',
   })
-  forkRuntimeSessionMock.mockReset()
-  persistSnapshotMock.mockReset()
-  listSessionDetailsMock.mockReset()
-  getSessionDetailMock.mockReset()
-  createSessionMock.mockReset()
-  deleteSessionMock.mockReset()
-  archiveSessionMock.mockReset()
-  unarchiveSessionMock.mockReset()
-  listArchivedSessionsMock.mockReset()
-  updateSessionTitleMock.mockReset()
-  setAuthorizationModeMock.mockReset()
-  cancelSessionRunsMock.mockReset()
+  listPinnedSessionsMock.mockResolvedValue([])
+  pinSessionMock.mockResolvedValue(undefined)
+  unpinSessionMock.mockResolvedValue(undefined)
+  movePinnedSessionMock.mockResolvedValue(undefined)
   cancelSessionRunsMock.mockReturnValue(false)
-  clearAgentPhaseMock.mockReset()
-  clearStreamBufferMock.mockReset()
-  emitRunCompletedMock.mockReset()
 }
 
 export function loadSessionDetailsHandlers(): Promise<typeof SessionDetailsHandler> {

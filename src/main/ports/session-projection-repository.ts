@@ -8,7 +8,13 @@
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
-import type { SessionDetail, SessionSummary, SessionWorktreePlan } from '@shared/types/session'
+import type {
+  PinnedSession,
+  PinnedSessionMove,
+  SessionDetail,
+  SessionSummary,
+  SessionWorktreePlan,
+} from '@shared/types/session'
 import type { TurnCheckpointSummary, TurnDiff } from '@shared/types/turn-diff'
 import { Context, type Effect } from 'effect'
 import type { SessionProjectionRepositoryError } from '../errors'
@@ -62,6 +68,19 @@ export interface SessionProjectionRepositoryShape {
     id: SessionId,
     turnId: string,
     anchorNodeId: string,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  /** Every Pinned session in Manual order, archived ones included (issue #97). */
+  readonly listPinnedSessions: () => Effect.Effect<
+    readonly PinnedSession[],
+    SessionProjectionRepositoryError
+  >
+  /** Pin a session, appended to the end of Manual order. Idempotent. */
+  readonly pinSession: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
+  /** Remove a pin. Idempotent. */
+  readonly unpinSession: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
+  /** Reposition one pin between two neighbours, writing only that pin. */
+  readonly movePinnedSession: (
+    move: PinnedSessionMove,
   ) => Effect.Effect<void, SessionProjectionRepositoryError>
 }
 

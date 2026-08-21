@@ -32,6 +32,15 @@ const createMigrationsTable = Effect.gen(function* () {
   `)
 })
 
+/**
+ * Adds the session authorization-mode column when it is missing.
+ *
+ * Deliberately not an `APP_MIGRATIONS` entry: the column has to appear on databases that
+ * were created before it existed AND on fresh ones (migrations 5 and 21 build `sessions`
+ * without it), and a numbered `ALTER TABLE ADD COLUMN` would fail on any database that
+ * already gained the column from an earlier build of this branch. The PRAGMA check makes
+ * this idempotent in every one of those cases.
+ */
 const ensureSessionAuthorizationModeColumn = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient
   const columns = yield* sql<{ name: string }>`PRAGMA table_info(sessions)`

@@ -1,4 +1,6 @@
+import { cloneElement, isValidElement, useCallback, useRef } from 'react'
 import { useEscapeHotkey } from '@/shared/hooks/useEscapeHotkey'
+import { useMenuKeyboard } from '@/shared/hooks/useMenuKeyboard'
 import { usePopover } from '@/shared/hooks/usePopover'
 import { cn } from '@/shared/lib/cn'
 
@@ -24,6 +26,19 @@ interface PopoverProps {
   placement?: Placement
   /** Additional classes for the dropdown panel. */
   className?: string
+  /**
+   * ARIA role for the dropdown panel.
+   *
+   * A panel whose children declare `menuitem` or `menuitemradio` needs `menu` here: those roles
+   * are only valid inside one, and without it a screen reader does not reliably announce the
+   * checked state of a sort option.
+   *
+   * `menu` also switches on the keyboard model that role promises: arrow keys, Home and End move
+   * between items, the panel is a single tab stop, focus enters it on open and returns to the
+   * trigger on close. Declaring the role without that model tells a screen reader user to press
+   * keys that do nothing, so the two are deliberately not separable.
+   */
+  role?: 'menu' | 'listbox' | 'dialog'
 }
 
 export function Popover({
@@ -33,6 +48,7 @@ export function Popover({
   onOpenChange,
   placement = 'bottom-start',
   className,
+  role,
 }: PopoverProps) {
   const isControlled = controlledOpen !== undefined
   const {
@@ -46,6 +62,8 @@ export function Popover({
   })
 
   const isOpen = isControlled ? controlledOpen : popoverIsOpen
+  const isMenu = role === 'menu'
+  const panelRef = useRef<HTMLDivElement>(null)
 
   function toggle() {
     if (isControlled) {
@@ -55,34 +73,60 @@ export function Popover({
     }
   }
 
-  useEscapeHotkey(
-    () => {
-      if (isControlled) {
-        onOpenChange?.(false)
-      } else {
-        popoverClose()
-      }
-    },
-    { enabled: isOpen },
+  const close = useCallback(() => {
+    if (isControlled) {
+      onOpenChange?.(false)
+    } else {
+      popoverClose()
+    }
+  }, [isControlled, onOpenChange, popoverClose])
+
+  const handlePanelKeyDown = useMenuKeyboard({
+    enabled: isMenu,
+    isOpen,
+    panelRef,
+    onClose: close,
+  })
+
+  useEscapeHotkey(close, { enabled: isOpen })
+
+  const panelClass = cn(
+    'absolute z-50 rounded-lg border border-border-light bg-bg-secondary shadow-lg',
+    placementClasses[placement],
+    className,
   )
 
-  const triggerContent = typeof trigger === 'function' ? trigger({ isOpen, toggle }) : trigger
+  const triggerNode = typeof trigger === 'function' ? trigger({ isOpen, toggle }) : trigger
+  /*
+   * A menu trigger has to say so, and say whether it is open.
+   *
+   * Added here rather than at each call site so every menu reports it, and only when the trigger
+   * has not already set them itself.
+   */
+  const triggerContent =
+    isMenu && isValidElement<React.AriaAttributes>(triggerNode)
+      ? cloneElement(triggerNode, {
+          'aria-haspopup': triggerNode.props['aria-haspopup'] ?? 'menu',
+          'aria-expanded': triggerNode.props['aria-expanded'] ?? isOpen,
+        })
+      : triggerNode
 
   return (
     <div ref={containerRef} className="relative">
       {triggerContent}
 
-      {isOpen && (
-        <div
-          className={cn(
-            'absolute z-50 rounded-lg border border-border-light bg-bg-secondary shadow-lg',
-            placementClasses[placement],
-            className,
-          )}
-        >
-          {children}
-        </div>
-      )}
+      {isOpen &&
+        // Split so the menu panel carries a literal role alongside its key handler: a handler on a
+        // panel whose role is only known at runtime reads as an interaction on a static element.
+        (isMenu ? (
+          <div ref={panelRef} role="menu" onKeyDown={handlePanelKeyDown} className={panelClass}>
+            {children}
+          </div>
+        ) : (
+          <div ref={panelRef} role={role} className={panelClass}>
+            {children}
+          </div>
+        ))}
     </div>
   )
 }

@@ -82,6 +82,13 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Manual compaction mirrors Pi TUI slash-command UX: `/compact` and `/compact <custom instructions>`, not context-meter-triggered compaction.
 - Provider auth UI is method-based. Keep provider-level availability separate from API-key configured state and OAuth connected state.
 - Compact composer interactions stay in-row unless the maintainer explicitly asks for a larger workflow.
+- Sidebar session rows are two lines at 316px width: the title owns line one, line two carries a shrinkable lead (state, phase, provenance) and a fixed tail (shortcut, timestamp). The timestamp never hides on hover; row actions overlay line one instead, because hiding it re-flowed the row under the cursor and removed information at the moment of acting on it.
+- Status colour is a semantic role, never a palette class or a status-prefixed token (ADR 0021). Adding a state means naming a role, not reaching for `text-red-500`.
+- The sidebar's `@theme` block must stay `@theme static`. Tailwind tree-shakes theme variables no utility references, and roles read at runtime through `var()` in inline styles (`--color-neutral`, `--color-review`, `--color-plan`) silently vanish otherwise.
+- Do not show a count of uncommitted files on a session row. Every session sharing a working tree reports the same number, so it says nothing about the session, and a large number implies a severity it does not carry. Divergence (`↑n ↓n`) is the useful part.
+- Provenance icons are a separate family from status icons and share no glyph with them (ADR 0020). At the size line two renders, a user reads silhouette rather than detail, so two node-graph glyphs are the same glyph.
+- Sidebar view preferences (session sort, collapsed projects) persist; sidebar filters (state chip, text query) do not. A filter that subtracts sessions must not outlive the intent behind it.
+- A list passed to `useSessionGitIndicators` must keep reference identity when nothing changed. The hook memoises on the array, so a freshly filtered copy every render re-runs its effect every render and spins the renderer.
 
 ## Tooling Memory
 
@@ -195,3 +202,45 @@ dominant fix while clearing the original 330 was annotating fixture factory retu
 so a literal like `type: 'text'` or `role: 'assistant'` is checked against the interface
 instead of widening to `string`. Do NOT use `fromPartial` to silence a whole-object
 mismatch — it casts and hides real errors.
+
+### A measuring instrument that reads innerText measures itself
+
+A probe that polled `log.innerText` every 8ms to detect a rendered transcript reported roughly 1,000ms for every session switch, suspiciously constant. `innerText` forces synchronous layout, so on a 50,000px subtree the poll loop was the cost being reported. A `MutationObserver` on the same element put the real figure at 221-267ms.
+
+Two symptoms mark this mistake: a number that barely varies across different inputs, and a blocked-time total that does not add up to the wall clock. When the timings look suspiciously flat, suspect the instrument before the application. Use `MutationObserver`, `PerformanceObserver` or a CDP trace, none of which read layout.
+
+### A row is only as clickable as its handler is wide
+
+The two-line sidebar rows put the click handler on the title text inside a 316x48 row, which left 70% of every row dead to clicks. It read as broken navigation rather than as a small target: clicks did nothing, so people clicked repeatedly.
+
+Measure a hit area instead of assuming it. Sampling `document.elementFromPoint` across a row's bounding box, then reporting which control each point resolves to, turns "feels wrong" into "140 of 200 points hit nothing" and afterwards into "3 of 200". The fix is the stretched-link pattern, `after:absolute after:inset-0` on the existing control, with real controls lifted to `relative z-10`.
+
+jsdom has no hit testing, so a component test passes whether or not the fix is present. This class of bug can only be guarded end to end, with a click at a coordinate.
+
+### Electron E2E launches ignore a running dev app, but a dirty tree blocks checkouts
+
+`OpenWaggleApp.launch` sets `OPENWAGGLE_DISABLE_SINGLE_INSTANCE=1`, so a running `pnpm dev` instance does not steal E2E launches. Two things do bite:
+
+`npx playwright test` does not build. Running it directly tests the previous `out/`, which produces failures that look like broken source. Use `pnpm test:e2e`, or run `pnpm build` first.
+
+The dev server rewrites `src/renderer/src/routeTree.gen.ts` (import ordering only, no route change). Any script that checks out commits in sequence fails on every checkout while that file is dirty. Stop the dev server before such a loop.
+
+### Focus draws nothing, by decision
+
+`:focus` and `:focus-visible` set `outline: none` and `box-shadow: none` app-wide, and no component adds a ring, glow or shadow on focus. This is a maintainer decision, not an oversight: do not reintroduce a focus indicator as a fix for a lint rule, an audit finding or an accessibility report. The trade-off is recorded in `docs/reviews/sidebar-remodel-review.md`, including that the app does not meet WCAG 2.2 SC 2.4.7 as a result.
+
+`focus:opacity-100` is not an indicator and stays: it reveals hover-only controls so the keyboard can reach them at all.
+
+### A focused row keeps its focus, so a later keypress paints its focus ring
+
+Clicking a sidebar row leaves it focused. Chromium re-evaluates `:focus-visible` on the currently focused element when the interaction modality changes, so the next key press of any kind paints the keyboard focus indicator on a row the user clicked minutes earlier. Pressing the screenshot shortcut is enough to make it appear in the screenshot.
+
+The consequence that outlives the ring: anything hidden behind `group-focus-within:*` on a row stays hidden for as long as that row holds focus, not just while the pointer is over it. A roll-up pip hidden that way vanished on click and stayed gone.
+
+### Reserved shortcuts have to be declared where the conflict check looks
+
+`Mod+F` and `Mod+1` to `Mod+9` are registered directly by sidebar hooks rather than through `shortcutBindings`, so the settings conflict check could not see them and a user could bind a command onto one. The result was two live handlers and a console warning from the hotkey library with nothing in the UI to explain it. `RESERVED_SHORTCUT_KEYS` in `src/shared/types/shortcuts.ts` is where a directly-registered combination gets declared so the check can find it.
+
+### The menu role and its keyboard model are one decision
+
+`role="menu"` with `role="menuitemradio"` children tells a screen reader to use arrow keys. Declaring it on a panel of plain buttons produces a menu that is operable by Tab and Enter but announces a model that does not exist, which is worse than announcing nothing. `useMenuKeyboard` in `src/renderer/src/shared/hooks/` holds the model and `Popover` switches it on with the role, so the two cannot be declared separately. Items are found in the DOM rather than registered by each call site, because a menu's items are arbitrary children.

@@ -57,6 +57,8 @@ import type { OpenWaggleMcpApi } from './openwaggle-mcp-api'
 import type { OpenWaggleWorkspaceFilesApi } from './openwaggle-workspace-files-api'
 import type { AgentPhaseState } from './phase'
 import type {
+  PinnedSession,
+  PinnedSessionMove,
   SessionCopyToNewResult,
   SessionDetail,
   SessionNavigateTreeOptions,
@@ -78,6 +80,13 @@ import type { TurnCheckpointSummary, TurnDiff } from './turn-diff'
 import type { UpdateStatus } from './updater'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 import type { WaggleConfig, WagglePreset } from './waggle'
+
+/** Wire shape of the per-project agent overrides carried over IPC. */
+export interface ProjectPreferencesPayload {
+  model?: string
+  thinkingLevel?: string
+  authorizationMode?: AgentAuthorizationMode
+}
 
 export interface OpenWaggleApi
   extends OpenWaggleExtensionApi,
@@ -132,19 +141,8 @@ export interface OpenWaggleApi
 
   // Project
   selectProjectFolder(): Promise<string | null>
-  getProjectPreferences(projectPath: string): Promise<{
-    model?: string
-    thinkingLevel?: string
-    authorizationMode?: AgentAuthorizationMode
-  } | null>
-  setProjectPreferences(
-    projectPath: string,
-    preferences: {
-      model?: string
-      thinkingLevel?: string
-      authorizationMode?: AgentAuthorizationMode
-    },
-  ): Promise<void>
+  getProjectPreferences(projectPath: string): Promise<ProjectPreferencesPayload | null>
+  setProjectPreferences(projectPath: string, preferences: ProjectPreferencesPayload): Promise<void>
 
   // Sessions
   listSessions(limit?: number): Promise<SessionSummary[]>
@@ -152,6 +150,12 @@ export interface OpenWaggleApi
   getSessionDetail(id: SessionId): Promise<SessionDetail | null>
   listTurnCheckpoints(id: SessionId): Promise<TurnCheckpointSummary[]>
   getTurnDiff(id: SessionId, turnId: string): Promise<TurnDiff | null>
+  /** Every Pinned session in Manual order, archived ones included (issue #97). */
+  listPinnedSessions(): Promise<PinnedSession[]>
+  pinSession(id: SessionId): Promise<void>
+  unpinSession(id: SessionId): Promise<void>
+  /** Reposition one pin between the neighbours it should land between. */
+  movePinnedSession(move: PinnedSessionMove): Promise<void>
   createSession(projectPath: string): Promise<SessionDetail>
   forkSessionToNew(
     sessionId: SessionId,

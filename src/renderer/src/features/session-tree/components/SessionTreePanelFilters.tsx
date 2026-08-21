@@ -36,7 +36,7 @@ export function SessionTreePanelFilters({ filters }: SessionTreePanelFiltersProp
           onChange={(event) => filters.onSearchQueryChange(event.target.value)}
           placeholder="Search nodes"
           inputSize="sm"
-          className="rounded-lg border-input-card-border bg-bg-secondary pr-3 pl-9 text-text-secondary focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]"
+          className="rounded-lg border-input-card-border bg-bg-secondary pr-3 pl-9 text-text-secondary"
           aria-label="Search Session Tree nodes"
         />
       </div>

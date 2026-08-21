@@ -1,0 +1,998 @@
+ fallback, check if the busy state properly disables the reject button, and trace how
+ CUSTOM_INTERACTION_UNAVAILABLE_ACTION_ID maps to responses in the extension action
+ handler.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ sed -n '1,60p'
+ src/renderer/src/features/extensions/components/ExtensionAgentLoopSurface.tsx &&
+ echo "=== response actions" && cat
+ src/renderer/src/features/chat/lib/agent-loop-interaction-response-actions.ts
+
+ ... (137 earlier lines, ctrl+o to expand)
+       }
+       return null
+     })
+     .exhaustive()
+ }
+
+ Took 0.0s
+
+
+ I'm verifying that the fallback mechanism properly handles the "Reject interaction"
+ case through the custom action with null value, and now I need to trace how
+ ExtensionAgentLoopFallback receives and passes the onAction callback from the input.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ rg -n "ExtensionAgentLoopFallback|fallback|onAction"
+ src/renderer/src/features/extensions/components/ExtensionAgentLoopSurface.tsx
+
+ ... (17 earlier lines, ctrl+o to expand)
+ 179:  if (resolution.status !== 'available' && fallback !== undefined) {
+ 180:    return fallbackContent
+ 184:    resolution.status === 'available' ? resolution.contribution.entry.title :
+ fallbackTitle
+ 191:        fallbackContent
+
+ Took 0.1s
+
+
+ I'm checking whether ExtensionAgentLoopFallback properly extracts the onAction
+ callback from the input and passes it through to the renderInteractionFallback
+ function by examining the component's initial implementation.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ sed -n '140,220p'
+ src/renderer/src/features/extensions/components/ExtensionAgentLoopFallback.tsx
+
+ ... (69 earlier lines, ctrl+o to expand)
+ }: {
+   readonly input: ExtensionAgentLoopSurfaceInput
+ }) {
+   return fallbackFor(input)
+ }
+
+ Took 0.1s
+
+
+ There's an escape hatch through the Reject interaction option in the composer
+ fallback, so users won't get stranded as long as onAction is provided. The
+ primaryInput in AgentInteractionCard.InteractionExtensionSurfaces only includes
+ onAction when handleSurfaceAction is defined, which means it's available when not
+ busy. However, I'm spotting a bug where AgentInteractionCard is rendered with
+ fallback={extensionFallback} but...
+
+ For custom interactions, requiresDesktopRenderer is true, so the fallback becomes
+ undefined, which means ExtensionAgentLoopFallback gets used instead. The
+ AgentCustomInteractionComposerFallback renders unconditionally for all custom
+ interactions, but that's fine since the extension surface will render the actual
+ extension if available. There's also a pre-existing pattern where ChatComposerStack
+ renders both the interaction prompt and extension dialogs, which is expected for
+ dialogs. The real issue I'm tracking now is the double-prompt problem in Ask mode
+ when a pending authorization confirm is rendering.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ git diff 4e19097e..HEAD -- src/renderer/src/features/chat/hooks/useBuildChatRows.ts
+ src/renderer/src/features/chat/lib/types-chat-row.ts
+ src/renderer/src/features/chat/lib/agent-loop-transcript-interactions.ts
+ src/renderer/src/features/chat/components/ChatRowRenderer.tsx
+ src/renderer/src/features/chat/components/ChatTranscript.tsx
+
+ ... (114 earlier lines, ctrl+o to expand)
+ +  | { type: 'agent-loop-interaction'; item: AgentInteractionTranscriptItem }
+    | { type: 'branch-summary'; id: string; summary: string }
+    | { type: 'compaction-summary'; id: string; summary: string; tokensBefore: number
+ }
+    | { type: 'phase-indicator'; label: string; elapsedMs: number }
+
+ Took 0.3s
+
+
+ I'm looking at how appendInteractionEventRows works — it creates one row per
+ interaction ID, ordered by when the first request appears. The rows get appended at
+ the end of the chat rows (after messages), which means interactions end up at the
+ bottom of the transcript regardless of when they actually occurred chronologically.
+ This is the existing behavior, and the row ordering is determined by the first
+ request's position.
+
+ Now I need to check agent-loop-transcript-interactions.ts to see if it parses
+ historical interactions from a persisted session and whether those interactions
+ hydrate agentInteractionEvents. If history hydration is happening, then reopening a
+ session would restore those notifications above the composer.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ rg -n "agentLoopTranscriptInteraction|agent-loop-transcript-interactions"
+ src/renderer/src --glob '!**/__tests__/**' | head && echo "=== exports" && rg -n
+ "^export" src/renderer/src/features/chat/lib/agent-loop-transcript-interactions.ts
+
+ ... (5 earlier lines, ctrl+o to expand)
+ AgentTransportInteractionResolvedEvent['error'] {
+ 190:export function parseInteractionKind(value: string | null):
+ AgentLoopInteractionKind | null {
+ 205:export function parseInteractionStatus(value: string | null):
+ AgentLoopInteractionStatus | null {
+
+ Took 0.1s
+
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ rg -n "agent-loop-transcript-event-parser|parseAgentLoopTranscriptEvent"
+ src/renderer/src --glob '!**/__tests__/**' | head && echo "===" && sed -n '1,60p'
+ src/renderer/src/features/chat/lib/agent-loop-transcript-event-parser.ts
+
+ ... (58 earlier lines, ctrl+o to expand)
+   if (event.type !== 'agent_interaction_request') {
+     return null
+   }
+
+   const base = baseEventFields(event)
+
+ Took 0.1s
+
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ rg -n "agent-loop-transcript-events'|agentLoopTranscript" src/renderer/src --glob
+ '!**/__tests__/**' | head -20 && echo "===" && rg -n "interactionEvents"
+ src/renderer/src/features/chat/hooks/useTranscriptSection.ts
+ src/renderer/src/features/chat/hooks/use-chat-panel-controller.ts | head
+
+ ... (12 earlier lines, ctrl+o to expand)
+ persistedAgentLoopEvents.interactionEvents,
+ src/renderer/src/features/chat/hooks/useTranscriptSection.ts:128:
+ interactionEvents,
+ src/renderer/src/features/chat/hooks/useTranscriptSection.ts:142:
+ interactionEvents: mergedInteractionEvents,
+
+ Took 0.1s
+
+
+
+ read src/renderer/src/features/chat/hooks/useTranscriptSection.ts:100-169
+
+
+ I'm seeing that the transcript merges persisted interaction events from the
+ workspace tree, while the AgentNotificationStack specifically receives only the live
+ stream events from sections.agentInteractionEvents — this prevents stale
+ notifications from appearing after a reload. The stack is working correctly with
+ live events only, though I need to check how warning and error notifications behave
+ within an active session.
+
+ The live event array persists until the app restarts or hits the interaction limit,
+ and switching between sessions can re-show dismissed notifications. The dismissedIds
+  state is local to AgentNotificationStack per ChatComposerStack, so switching
+ sessions doesn't clear dismissals — the IDs carry over harmlessly since they're
+ unique, and dismissed notifications stay dismissed if you return to the same
+ session.
+
+ I should verify the use-chat-panel-controller implementation around lines 290-305.
+ There's also a potential issue: the notification stack doesn't acknowledge
+ notifications, but requestAgentLoopInteraction for notify registers a pending entry
+ that never resolves, which could leak in the main process's pending map and prevent
+ the run from finishing if it awaits those interactions — that's out of scope but
+ worth noting as a minor issue affecting transcript behavior.
+
+ Now I'm checking the accessibility of the composer prompt and verifying that the
+ Select component has the selectSize prop and the Button component supports
+ size="icon-xs" — these should already exist since the diffs touched those files. I
+ need to confirm the prototype route files aren't bundled in production by checking
+ the Vite config and tree-shaking behavior, though running a full build would be
+ definitive but time-consuming. The lazy-loaded notification prototype module should
+ be tree-shaken out in production since it's only imported conditionally. The JSX
+ branch will still be included in the output, so Rollup will emit the lazy chunk. I
+ should verify this empirically by running a build to confirm — it'll take a few
+ minutes but give me concrete evidence. In the meantime, I'll quickly check the
+ Select and Button props and review the prototype files.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ sed -n '280,305p' src/renderer/src/features/chat/hooks/use-chat-panel-controller.ts
+ && echo "=== select sizes" && rg -n "selectSize|icon-xs"
+ src/renderer/src/shared/ui/Select.tsx src/renderer/src/shared/ui/Button.tsx | head
+
+ ... (31 earlier lines, ctrl+o to expand)
+ src/renderer/src/shared/ui/Select.tsx:31:      className={cn(SELECT_BASE_CLASS,
+ SELECT_SIZE_CLASS[selectSize], className)}
+ src/renderer/src/shared/ui/Button.tsx:15:type ButtonSize = 'none' | 'xs' | 'sm' |
+ 'md' | 'lg' | 'icon-xs' | 'icon-sm' | 'icon-md' | 'icon-lg'
+ src/renderer/src/shared/ui/Button.tsx:53:  'icon-xs': 'size-5 p-0',
+
+ Took 0.0s
+
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ timeout 600 pnpm build > /tmp/ow-build.log 2>&1; echo "exit=$?"; tail -30
+ /tmp/ow-build.log
+
+ ... (26 earlier lines, ctrl+o to expand)
+ out/renderer/assets/index-D5Pau8M-.js                                 1,100.79 kB
+ out/renderer/assets/PanelErrorBoundary-6NbQxsVB.js                    1,474.55 kB
+ out/renderer/assets/markdown-link-components-Ca3ysast.js              2,029.05 kB
+
+ ✓ built in 4.61s
+
+ Took 23.7s
+
+
+ I've found concrete evidence that a 99.37 kB notification prototype file is being
+ shipped in the production renderer bundle, even though it's unreachable because the
+ feature flag that enables it is disabled in production, which means the prototype
+ parameter never gets parsed and remains undefined.
+
+ Now I'm verifying this finding by searching the built chunk for the guard condition
+ and confirming the prototype code isn't actually being loaded, plus checking that
+ there's no route entry for it.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ ls -la out/renderer/assets/ | grep -i notification && echo "=== guard in chunks:" &&
+ rg -l "notification-prototype" out/renderer/assets/*.js | head && echo "=== search
+ for prototype gate" && rg -o "protocol===\"http:\"[^;]{0,80}"
+ out/renderer/assets/*.js | head -5
+
+ ... (1 earlier lines, ctrl+o to expand)
+ -notification-prototype-DjEVl3od.js
+ === guard in chunks:
+ out/renderer/assets/-notification-prototype-DjEVl3od.js
+ out/renderer/assets/index-D5Pau8M-.js
+ === search for prototype gate
+
+ Took 0.1s
+
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ rg -o ".{160}notification-prototype.{60}" out/renderer/assets/index-D5Pau8M-.js |
+ head -3
+
+ (no output)
+
+ Took 0.0s
+
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ grep -o -E '.{0,200}notification-prototype.{0,200}'
+ out/renderer/assets/index-D5Pau8M-.js | head -c 1500
+
+ ... (3 earlier lines, ctrl+o to expand)
+ i]);
+ var LazyNotificationPrototypeRouteView = (0, import_react.lazy)(() =>
+ __vitePreload(() => import("./-notification-prototype-DjEVl3od.js").then((module) =>
+ ({ default: module.NotificationPrototypeRouteView })),
+ __vite__mapDeps([10,1,4,9,6]), import.meta.url));
+
+ Took 0.9s
+
+
+ I should also verify that the gate didn't get folded to false, which would prevent
+ it from ever rendering, and search for the notificationPrototypeAvailable equivalent
+ in this section.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ grep -o -E '.{0,120}protocol === "http:".{0,120}'
+ out/renderer/assets/index-D5Pau8M-.js | head -c 800; echo; grep -o -E 'function
+ notificationPrototypeAvailable.{0,160}' out/renderer/assets/index-D5Pau8M-.js | head
+ -c 600
+
+ function notificationPrototypeAvailable() {
+
+ Took 0.8s
+
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ grep -o -E 'function notificationPrototypeAvailable\(\)[^}]{0,200}\}'
+ out/renderer/assets/index-D5Pau8M-.js | head -c 600; echo "---"; grep -o -E
+ 'NOTIFICATION_PROTOTYPE_ROUTES_ENABLED.{0,80}' out/renderer/assets/index-D5Pau8M-.js
+ | head -3
+
+ ---
+
+ Took 0.1s
+
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ python3 - <<'EOF'
+ import re
+ s=open('out/renderer/assets/index-D5Pau8M-.js',encoding='utf8').read()
+ i=s.find('function notificationPrototypeAvailable')
+ print(repr(s[i:i+300]))
+ j=s.find('parseNotificationPrototype')
+ print(repr(s[j-50:j+400]))
+ EOF
+
+ ... (1 earlier lines, ctrl+o to expand)
+ LazyChatRouteSurface = (0, import_react.lazy)(() => __vitePreload(() =>
+ import("./-chat-route-surface-BR9GTl95.js").then((module) => ({ default:
+ module.ChatRouteSurface })), __vite__mapDeps([0,1,2,3,4,5,6,7,8,9]),
+ import.meta.url));\nva'
+ ''
+
+ Took 0.0s
+
+
+ The notificationPrototypeAvailable() function always returns false in production, so
+ it can never actually render, but the dead code still gets bundled as 99 kB of
+ unused weight. The guard itself is a runtime function call rather than a
+ compile-time check, which means the JSX and lazy reference survive in the bundle
+ even though they're unreachable. So this is dead code being shipped, not something
+ that could accidentally render in production.
+
+ I'm also checking the prototype files themselves for any harmful code, and looking
+ at how search params are handled — RETAINED_CHAT_SEARCH_PARAMS correctly excludes
+ 'prototype' and 'variant' in production. The / route doesn't have any
+ retainSearchParams middleware at all, so nothing gets dropped there, which is fine.
+ In ChatIndexRouteView, the setPrototypeVariant navigation works correctly, but the
+ other setters like setDiffOpen and setSessionTreeOpen use static search objects that
+ replace the entire search state rather than merging with previous params — this
+ wipes out things like branch, node, and filePath, which is the intended behavior
+ when switching panels. Since prototype and variant are dev-only, this is acceptable,
+ and it matches the behavior from main.
+
+ Now I need to check the actual diff for -chat-route-views.tsx since it's listed as a
+ conflict file — the brief shows 67 insertions but the file is around 270 lines, so I
+ need to see what was actually changed to make sure nothing from main got dropped
+ during the merge.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ git diff 4e19097e..HEAD -- src/renderer/src/routes/-chat-route-views.tsx
+
+ ... (107 earlier lines, ctrl+o to expand)
+ +  }
+ +
+    return (
+      <Suspense fallback={<ChatRouteSurfaceFallback />}>
+        <LazyChatRouteSurface
+
+ Took 0.0s
+
+
+ The workspace file panel and search parameters are staying intact across both views,
+ with workspaceFile and setWorkspaceFileOpen properly threaded through. The
+ notification prototype check relies on window.location.protocol === 'http:', which
+ works in dev since Electron's renderer runs through the Vite dev server, though this
+ means the prototype won't work in a packaged dev build—but that's acceptable.
+
+ Hooks in ChatIndexRouteView are all called before the early return, so that's fine.
+ Now I need to review the conflict test files, remaining renderer test changes, the
+ composer-section test, and the AgentInteractionsPanel dead-code test to make sure
+ nothing's been weakened. After that, I'll do a quick accessibility check on the
+ prototype files, though that's lower priority since it's dev-only.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ git diff 4e19097e..HEAD -- 'src/renderer/**/__tests__/**' | head -250
+
+ ... (324 earlier lines, ctrl+o to expand)
+ +          response: { kind: 'notify', acknowledged: true },
+ +        },
+ +      ],
+ +      isLoading: false,
+ +      error: undefined,
+
+ Took 0.1s
+
+
+ The AgentInteractionsPanel is still referenced in tests but no longer rendered in
+ the actual app, so it's technically dead production code worth flagging as a minor
+ issue. Now I'm doing a comprehensive sweep for accessibility problems and checking
+ test coverage for the notification stack — I notice there are no tests covering
+ AgentNotificationStack, AgentInteractionComposerPrompt,
+ SessionAuthorizationModeMenu, and several other components.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ rg -l
+ "AgentNotificationStack|AgentInteractionComposerPrompt|SessionAuthorizationModeMenu|
+ AgentAccessSection|GeneralSection" src/renderer/src --glob '*test*'; echo "(none
+ above = no tests)"; echo "=== a11y: aria-live/role in new files"; rg -n
+ "aria-live|role=|aria-label"
+ src/renderer/src/features/chat/components/AgentNotificationStack.tsx
+ src/renderer/src/features/chat/components/AgentInteractionComposerPrompt.tsx
+ src/renderer/src/features/chat/components/AgentCustomInteractionComposerFallback.tsx
+
+ ... (3 earlier lines, ctrl+o to expand)
+ .tsx
+ (none above = no tests)
+ === a11y: aria-live/role in new files
+ src/renderer/src/features/chat/components/AgentNotificationStack.tsx:156:
+ aria-label="Dismiss notification"
+
+ Took 0.1s
+
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ git diff 4e19097e..HEAD --stat --
+ src/renderer/src/features/settings/components/__tests__/ && rg -n "Agent
+ access|authorizationMode|Default access"
+ src/renderer/src/features/settings/components/__tests__/GeneralSection.component.tes
+ t.tsx | head
+
+ (no output)
+
+ Took 0.1s
+
+
+ The test file for GeneralSection hasn't been updated to cover the new
+ AgentAccessSection component, so there's a test gap there. I'm also wondering if the
+ existing tests will even run — if the mock for api doesn't include
+ getProjectPreferences, that call inside the effect would throw synchronously and
+ break the test.
+
+ I notice useProjectAuthorizationDefault calls api.getProjectPreferences without
+ checking if it exists first, unlike the other hooks in the file that all guard with
+ typeof api.getAppVersion !== 'function'. That's inconsistent and could be a problem.
+ Let me look at the test file to see if this is actually a risk.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ sed -n '1,60p'
+ src/renderer/src/features/settings/components/__tests__/GeneralSection.component.tes
+ t.tsx
+
+ ... (55 earlier lines, ctrl+o to expand)
+     render(<GeneralSection />)
+     expect(screen.getByText('About & Updates')).toBeInTheDocument()
+   })
+
+   it('renders the "Check now" button when status is idle', async () => {
+
+ Took 0.0s
+
+
+ The mock API is missing getProjectPreferences, which is why the GeneralSection test
+ passes—the effect bails out early when projectPath is null. This is a fragile setup
+ that would break if the default store ever had a projectPath, and it means the new
+ Agent access UI has no test coverage at all. I should verify that
+ getProjectPreferences actually exists in the real API.
+
+ I also need to check whether setProjectPreferences(path, { authorizationMode })
+ merges or replaces the entire preferences object. If it replaces, this call would
+ wipe out other settings like thinkingLevel, which would be data loss. The
+ persistProjectPreference function in the preferences store actions used a similar
+ partial update pattern, so I need to look at the main handler to understand the
+ actual semantics.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ rg -n "getProjectPreferences|setProjectPreferences" src/preload src/main/ipc
+ src/shared --glob '!**/__tests__/**' | head -20
+
+ ... (12 earlier lines, ctrl+o to expand)
+ src/main/ipc/project-handler.ts:97:      yield* Effect.promise(() =>
+ setProjectPreferences(validatedProjectPath, validatedPreferences))
+ src/shared/types/openwaggle-api.ts:135:  getProjectPreferences(projectPath: string):
+ Promise<{
+ src/shared/types/openwaggle-api.ts:140:  setProjectPreferences(
+
+ Took 0.0s
+
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ rg -n "export async function setProjectPreferences" -A 20
+ src/main/config/project-config.ts && sed -n '130,150p'
+ src/shared/types/openwaggle-api.ts
+
+ ... (37 earlier lines, ctrl+o to expand)
+     },
+   ): Promise<void>
+
+   // Sessions
+   listSessions(limit?: number): Promise<SessionSummary[]>
+
+ Took 0.0s
+
+
+ The merge logic preserves data correctly and confirms that authorization mode
+ overrides can't be removed once set—that's a genuine constraint, not just a UI
+ issue. Let me verify the prototype routes don't have any issues beyond the bundling
+ concern since they're development-only, and check that globals.css hasn't changed
+ compared to the base. I should also look into what AgentInteractionComposerPrompt is
+ handling.
+
+ When a user approves an interaction, the submit handler sets busy and waits for the
+ main promise to resolve. Once it does, the interaction gets removed from the list,
+ which causes AgentInteractionComposerPrompt to return null or show the next queued
+ item before the promise settles. This unmounts AgentInteractionComposerPromptBody,
+ triggering the .finally() cleanup that clears the busy state—but React 18/19
+ silently ignores setState calls on unmounted components, so no crash occurs. If
+ another prompt is queued, the body remounts with a fresh key and state. The real
+ problem is that setError calls after unmount get lost silently, so if onRespond
+ rejects after the interaction was already removed (like a timeout), the error
+ disappears. More importantly, PromptActions sub-components store input state keyed
+ by interaction ID, and since AgentInteractionComposerPromptBody is also keyed the
+ same way, switching from one pending prompt to the next causes the entire body to
+ remount.
+
+ The extraCount calculation filters for prompt interactions only, ignoring custom
+ ones in the queue—so the "+N queued" label undercounts if custom interactions are
+ pending. For concurrent interactions from parallel subagents, only the first prompt
+ surfaces as answerable while others show "+N queued", but since all pending ones are
+ awaited concurrently, answering the first unblocks it and surfaces the next one. The
+ textarea in EditorActions and the inputs in SelectActions lack accessible names or
+ labels—they're not associated with the prompt's title heading, which is an
+ accessibility gap for form controls. The ChatComposerStack sits above the composer
+ in a constrained container with the notification stack below it using a small
+ margin. I'm checking how AgentNotificationStack handles the event queue — it caps
+ visible notifications at 3, but older ones that scroll out of view aren't dismissed,
+ just hidden. When the visible ones auto-dismiss, the hidden notifications resurface
+ and restart their timers, so notifications can reappear after being scrolled away.
+ That's a real bug worth flagging, especially combined with the timer-reset issue.
+
+ The core problem is that timers restart on every re-computation, so during bursts of
+ notifications, info messages persist much longer than the intended 3.2 seconds, and
+ any overflow notifications that were hidden end up resurfacing instead of expiring
+ naturally. I should mark this as a major finding about the visibility and timer
+ model.
+
+ Now I need to check the TextInput and Textarea components for their label handling.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ sed -n '1,40p' src/renderer/src/shared/ui/TextInput.tsx && echo "=== Textarea" &&
+ sed -n '1,40p' src/renderer/src/shared/ui/Textarea.tsx
+
+ ... (80 earlier lines, ctrl+o to expand)
+ const TEXTAREA_RESIZE_CLASS: Record<TextareaResize, string> = {
+   none: 'resize-none',
+   vertical: 'resize-y',
+   both: 'resize',
+ }
+
+ Took 0.0s
+
+
+ I've confirmed that TextInput, Textarea, and Select components lack accessible names
+ in their respective action handlers. Now I need to check whether the previous
+ AgentInteractionInputControls implementation had proper labels to see if we've
+ introduced an accessibility regression.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ cat src/renderer/src/features/chat/components/AgentInteractionInputControls.tsx
+ src/renderer/src/features/chat/components/AgentInteractionSelectControls.tsx
+
+ ... (79 earlier lines, ctrl+o to expand)
+         </Button>
+       </div>
+     </div>
+   )
+ }
+
+ Took 0.0s
+
+
+ I'm noticing there's a significant duplication issue where
+ AgentInteractionComposerPrompt is essentially a near-copy of four existing control
+ components with only minor variations in button order and labels. This is worth
+ flagging as a maintainability concern, though it's a minor finding. The same
+ accessibility gap that existed before is still present in the new file. I was about
+ to scan through the prototype files to check something else, but got cut off
+ mid-thought.
+
+ Now I need to verify the prototype files don't have quality issues and are only
+ accessible via the feature flag, plus check if the notification prototype is
+ importing any production components that would create unwanted coupling. I should
+ also double-check the AgentNotificationStack for potential memory leaks —
+ specifically whether dismissedIds could grow unbounded and confirm the timer cleanup
+ is working properly. The visibleNotifications computation is O(n) across all events
+ on each recompute, but with the interaction event limit in place it should stay
+ bounded. I need to find what that limit value actually is.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ rg -n "INTERACTION_EVENT_LIMIT|CUSTOM_MESSAGE_LIMIT"
+ src/renderer/src/features/chat/hooks/*.ts | head && echo "=== prototype imports" &&
+ rg -n "^import" src/renderer/src/routes/-notification-prototype.tsx | head -20
+
+ ... (18 earlier lines, ctrl+o to expand)
+ 7:import { VariantB1RunSeam } from './-notification-prototype-b1-seam'
+ 8:import { VariantB2CommandPrompt } from './-notification-prototype-b2-command'
+ 9:import { VariantB3DecisionRibbon } from './-notification-prototype-b3-ribbon'
+ 10:import type {
+ 15:import type { NotificationPrototypeVariant } from './-route-search'
+
+ Took 0.1s
+
+
+ The interaction event limit of 30 per session means notification events now compete
+ with authorization requests and responses for that same space. If a verbose agent
+ floods the window with info notifications, it can evict authorization
+ request-response pairs, causing transcript entries to disappear and breaking the
+ guarantee that each surfaced request has a corresponding entry.
+
+ Before this change, notifications were already counted but produced audit rows; now
+ they consume slots without creating durable records, which is a real regression for
+ the Ask mode contract. I need to verify whether mergeInteractionEvents can recover
+ evicted events from the persisted workspace transcript to assess how severe this
+ actually is.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ cat src/renderer/src/features/chat/lib/agent-loop-transcript-events.ts
+
+ ... (121 earlier lines, ctrl+o to expand)
+     eventsByKey.set(interactionEventKey(event), event)
+   }
+   return [...eventsByKey.values()].sort((left, right) => left.timestamp -
+ right.timestamp)
+ }
+
+ Took 0.0s
+
+
+ The persisted transcript acts as the source of truth and merges with the live
+ 30-event window, so eviction risk is actually mitigated—the merged transcript used
+ for rows recovers from persistence when the workspace refreshes. This makes the
+ eviction concern largely moot, so I'll either drop it or mention it as a minor note.
+
+ However, the notification stack uses only live events, not the merged transcript. So
+ warning and error notifications get automatically evicted from the stack after 30
+ more interaction events—this partially addresses the "warnings pinned forever"
+ concern, though it's not an intentional dismissal mechanism. The durable notice
+ contract still holds since the stack and transcript use different event sources.
+
+ I need to verify whether persisted transcript nodes create durable history for info
+ notifications. The renderer filters info notifications from rows, so they don't
+ appear as visible history, but I should confirm the main-side persistence behavior
+ is out of scope. Let me do a final check on whether the notification stack re-shows
+ notifications when switching sessions. So the older notifications do resurface once
+ the newer ones expire, and each dismissal resets the timers on the remaining ones,
+ causing them to stack up — first at 3.2 seconds, then 6.4, then 9.6. Both are
+ confirmed bugs. Now I need to document these findings with line numbers in the
+ format the brief specifies.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ grep -n "useEffect\|MAX_VISIBLE\|INFO_DISMISS\|const
+ notifications\|<section\|dismissedIds"
+ src/renderer/src/features/chat/components/AgentNotificationStack.tsx && echo "===
+ prompt" && grep -n "return
+ null\|<section\|<Textarea\|<TextInput\|<Select\|setBusyInteractionId\|error
+ ?\|extraCount"
+ src/renderer/src/features/chat/components/AgentInteractionComposerPrompt.tsx
+
+ ... (28 earlier lines, ctrl+o to expand)
+ 286:                +{extraCount} queued
+ 296:          {error ? <p className="mt-2 text-[12px] leading-5
+ text-error">{error}</p> : null}
+ 312:    return null
+ 319:      extraCount={interactions.filter(isPromptInteraction).length - 1}
+
+ Took 0.0s
+
+
+ I'm tracking down the line numbers for the other issues I found—the
+ ExtensionAgentLoopFallback interaction ID around line 100, the raw kind in
+ AgentInteractionCard's header at line 37, the project select in GeneralSection near
+ line 216, and the lazy prototype in the chat route views file around lines 27-31.
+ Let me grep through the code to confirm these locations.
+
+
+ $ cd /Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle-access-modes &&
+ grep -n "interaction.id}"
+ src/renderer/src/features/extensions/components/ExtensionAgentLoopFallback.tsx &&
+ grep -n "interaction.kind}"
+ src/renderer/src/features/chat/components/AgentInteractionCard.tsx && grep -n
+ "Current project access mode\|projectAuthorization.mode ??"
+ src/renderer/src/features/settings/components/sections/GeneralSection.tsx && grep -n
+ "LazyNotificationPrototypeRouteView = lazy"
+ src/renderer/src/routes/-chat-route-views.tsx && grep -n "error ? <p"
+ src/renderer/src/features/chat/components/AgentCustomInteractionComposerFallback.tsx
+
+ ... (4 earlier lines, ctrl+o to expand)
+ 226:            value={projectAuthorization.mode ??
+ settings.defaultAuthorizationMode}
+ 29:const LazyNotificationPrototypeRouteView = lazy(() =>
+ 66:      {error ? <p className="text-[12px] leading-5 text-error">{error}</p> :
+ null}
+
+ Took 0.0s
+
+
+ Findings for the renderer half of the diff (base for the diff is 4e19097e, the main
+ commit actually merged — note origin/main has since advanced to b987cb82, so git
+ diff origin/main..HEAD now spuriously shows the sidebar remodel as deleted).
+
+ ```
+   SEVERITY: major
+   FILE: src/renderer/src/features/chat/components/AgentNotificationStack.tsx:100-119
+   WHAT: The auto-dismiss timers are keyed to the `notifications` array identity, so
+ every new interaction event and every dismissal tears down and restarts the pending
+ 3.2 s timers for all still-visible info notifications.
+   WHY IT MATTERS: `info` is contractually ephemeral, but with a burst of
+ notifications each survivor gets a fresh full delay (3.2 s → 6.4 s → 9.6 s …), so
+ ephemeral toasts linger above the composer for as long as the agent keeps emitting
+ interaction events.
+   FIX: Drive dismissal per interaction id instead of per array: keep a `Map<string,
+ timeoutId>` in a ref (or a child component per notification that owns its own
+ `useEffect([interactionId])`), and only schedule a timer for ids that do not already
+ have one.
+ ```
+
+ ```
+   SEVERITY: major
+   FILE: src/renderer/src/features/chat/components/AgentNotificationStack.tsx:73-92
+   WHAT: Only the newest `MAX_VISIBLE_NOTIFICATIONS` (3) get timers; overflow `info`
+ notifications are hidden but never marked dismissed, so they pop back into view once
+ the visible three expire.
+   WHY IT MATTERS: An info notification can appear, vanish, and then reappear seconds
+ later long after it was relevant — the opposite of ephemeral, and it re-steals
+ composer space during an active run.
+   FIX: Expire by age rather than visibility — compute the dismissal deadline from
+ `event.timestamp` (e.g. treat `info` older than `INFO_DISMISS_DELAY_MS` as already
+ dismissed) so overflowed notifications age out while hidden.
+ ```
+
+ ```
+   SEVERITY: major
+   FILE:
+ src/renderer/src/features/chat/components/AgentInteractionComposerPrompt.tsx:269-299
+   WHAT: The authorization/input prompt renders as a plain `<section>` with no
+ `aria-live`/`role`, no accessible name, no focus management, and its error message
+ is a bare `<p>`.
+   WHY IT MATTERS: This is the surface that replaced the transcript approval card and
+ is now the only way to unblock a paused run; a screen-reader or keyboard-first user
+ gets no announcement that the agent is waiting and no route to the controls other
+ than blind tabbing.
+   FIX: Wrap the body in `role="group"` + `aria-labelledby` pointing at the `<h3>`,
+ add `aria-live="assertive"` (or `role="alert"`) on the eyebrow/title region, give
+ the error `<p>` `role="alert"`, and move focus to the primary action (or the
+ section) when a new `interactionId` mounts.
+ ```
+
+ ```
+   SEVERITY: major
+   FILE:
+ src/renderer/src/features/chat/components/AgentInteractionComposerPrompt.tsx:99,139,
+ 171
+   WHAT: The `Select`, `TextInput` and `Textarea` inside the prompt have no
+ `aria-label`/`aria-labelledby`; neither primitive derives a name from the
+ surrounding `<h3>`.
+   WHY IT MATTERS: `select`/`input`/`editor` requests are exactly the ones YOLO must
+ NOT auto-answer, so these unlabelled controls are the mandatory path for every
+ genuine user-input request; a screen reader announces "combo box"/"edit text" with
+ no context.
+   FIX: Pass `aria-label={interaction.title}` (or `id`/`htmlFor` against the title
+ element) on each control; the same gap exists in the older
+ `AgentInteraction*Controls` and should be fixed once in a shared wrapper.
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE: src/renderer/src/routes/-chat-route-views.tsx:29-33
+   WHAT: The dev-only prototype is referenced by a module-scope `lazy(() =>
+ import('./-notification-prototype'))`, so Rollup still emits the chunk in production
+ — verified: `pnpm build` produces
+ `out/renderer/assets/-notification-prototype-DjEVl3od.js` (99.4 kB) and `index-*.js`
+ contains a live `__vitePreload` reference to it.
+   WHY IT MATTERS: ~1 900 lines of throwaway prototype UI ship in every release
+ artifact; the runtime gate is sound (`notificationPrototypeAvailable()` folds to
+ `return false`, so it cannot render), but the payload and the reachable-looking
+ `__vite__mapDeps` entry are pure dead weight.
+   FIX: Put the `lazy()` behind the compile-time constant so the branch is statically
+ eliminated, e.g. `const LazyNotificationPrototypeRouteView =
+ NOTIFICATION_PROTOTYPE_ROUTES_ENABLED ? lazy(...) : null` and render only when
+ non-null — or move the prototype files out of `src/renderer/src/routes/` entirely.
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE:
+ src/renderer/src/features/settings/components/sections/GeneralSection.tsx:216-241
+   WHAT: The "Current project default" select has no "Use global default" option, and
+ `setProjectPreferences` ignores `undefined` (src/main/config/project-config.ts:173),
+ so once a project override is set it can never be cleared from the UI.
+   WHY IT MATTERS: The locked precedence contract is session > project > global; a
+ user who accidentally pins a project to `Ask for Approval` is stuck with it for that
+ project forever, including for every new session created there.
+   FIX: Add an explicit "Use global default" option that clears the override (needs a
+ nullable/`clear` path through `setProjectPreferences`), and drop the misleading `??
+ settings.defaultAuthorizationMode` fallback in `value` so "no override" is visually
+ distinct.
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE:
+ src/renderer/src/features/settings/components/sections/GeneralSection.tsx:56-90
+   WHAT: `useProjectAuthorizationDefault` calls `api.getProjectPreferences(...)`
+ without the `typeof api.x !== 'function'` guard that every sibling hook in the same
+ file uses, and the existing `GeneralSection.component.test.tsx` api mock does not
+ stub it.
+   WHY IT MATTERS: The suite is green only because the default `settings.projectPath`
+ is `null`; any test or preload shape that supplies a project path throws
+ `api.getProjectPreferences is not a function` inside the effect and takes the whole
+ Settings tab down.
+   FIX: Add the same capability guard as `useAppVersion`/`useUpdateStatus`, and add
+ `getProjectPreferences`/`setProjectPreferences` to the test mock.
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE:
+ src/renderer/src/features/settings/components/sections/GeneralSection.tsx:132-241
+ (and AgentNotificationStack.tsx, AgentInteractionComposerPrompt.tsx,
+ SessionAuthorizationModeMenu.tsx)
+   WHAT: None of the four new user-facing access-mode / notification surfaces has a
+ test: no component test for `AgentNotificationStack`,
+ `AgentInteractionComposerPrompt`, or `SessionAuthorizationModeMenu`, and
+ `GeneralSection.component.test.tsx` was not extended for `AgentAccessSection`.
+   WHY IT MATTERS: The three highest-risk behaviours in this PR — info auto-dismiss
+ timing, one-prompt-at-a-time selection, and mode persistence/rollback — are entirely
+ unverified, which is why the timer bugs above survived a green suite.
+   FIX: Add component tests with fake timers for the info-dismiss window and overflow
+ behaviour, a prompt test covering "interaction disappears mid-flight" and the `+N
+ queued` counter, and a `GeneralSection` test for global/project mode persistence.
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE:
+ src/renderer/src/features/chat/components/AgentInteractionComposerPrompt.tsx:255-266
+   WHAT: `submit()` clears `busyInteractionId` in `.finally()` even on success, and
+ `setError` fires after the interaction has usually been removed from
+ `agentInteractions` (the component unmounts), so a failed response can be silently
+ swallowed and a successful one briefly re-enables the buttons.
+   WHY IT MATTERS: A user can double-submit an authorization decision in the window
+ between resolve and list update, and a genuine IPC failure on an already-removed
+ interaction shows no error at all.
+   FIX: Keep `busy` latched after success (only clear it on failure), and surface the
+ response error through the toast/store rather than component-local state that dies
+ with the unmount.
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE:
+ src/renderer/src/features/chat/components/AgentInteractionComposerPrompt.tsx:319
+   WHAT: `extraCount` counts only prompt interactions (`isPromptInteraction`), so
+ pending `custom` interactions are excluded from the "+N queued" badge even though
+ they occupy the same composer stack below.
+   WHY IT MATTERS: The badge understates how much is blocking the run, and the user
+ sees a card that is not accounted for by the counter directly above it.
+   FIX: Count all non-`notify` pending interactions, or label the badge to match what
+ it counts.
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE:
+ src/renderer/src/features/extensions/components/ExtensionAgentLoopFallback.tsx:99-10
+ 3
+   WHAT: The custom-interaction fallback still renders the raw interaction UUID
+ (`{interaction.id}`) and the internal state token in a visible `<dl>`, in both the
+ composer fallback and the transcript row.
+   WHY IT MATTERS: The locked contract forbids raw internal identifiers in visible
+ labels; this PR de-Pi-ified the prose two lines above but left the UUID, so the
+ de-branding pass is incomplete.
+   FIX: Drop the `Interaction`/`State` rows (or hide them behind a dev-only details
+ disclosure) and keep only the human-readable explanation plus the "Reject
+ interaction" action.
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE: src/renderer/src/features/chat/components/AgentInteractionCard.tsx:37
+   WHAT: `InteractionHeader` prints the raw discriminant (`interaction.kind`, always
+ the literal `custom` on this path) as the card subtitle under a generic "Interaction
+ pending" heading.
+   WHY IT MATTERS: Same contract clause as above — a raw internal kind token is
+ user-visible, and "Interaction pending / custom" carries no product meaning.
+   FIX: Replace with `agentLoopInteractionTitle(interaction)` (already yields "Custom
+ interaction") and delete the raw `kind` line.
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE:
+ src/renderer/src/features/extensions/components/ExtensionAgentLoopFallback.tsx:87
+   WHAT: The custom-interaction fallback uses `role="alert"` unconditionally, and
+ `AgentLoopInteractionEventRow.tsx:296-310` renders that same fallback for
+ *historical* resolved custom interactions in the transcript.
+   WHY IT MATTERS: Screen readers interruptively announce every historical "renderer
+ unavailable" card whenever the transcript re-renders or the session is reopened.
+   FIX: Only apply `role="alert"` when the interaction state is `pending`; use a
+ plain region for the transcript/read-only rendering.
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE: src/renderer/src/features/chat/components/AgentInteractionsPanel.tsx:27
+   WHAT: `AgentInteractionsPanel` is no longer rendered anywhere in the app (removed
+ from `ChatPanel.tsx`); its only remaining references are its own component test and
+ the `AgentLoopExtensionSurfaces` harness.
+   WHY IT MATTERS: Dead production code kept alive by tests gives false coverage
+ confidence — the tests that were updated in this PR
+ (`AgentInteractionsPanel.component.test.tsx`) now assert behaviour no user can
+ reach.
+   FIX: Delete the component and its test, and rewrite the
+ `AgentLoopExtensionSurfaces` harness against
+ `AgentCustomInteractionComposerFallback` / `AgentInteractionComposerPrompt`, which
+ are the real surfaces.
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE:
+ src/renderer/src/features/chat/components/AgentInteractionComposerPrompt.tsx:55-181
+   WHAT: `ConfirmActions`/`SelectActions`/`InputActions`/`EditorActions` are
+ near-verbatim copies of the existing
+ `AgentInteractionConfirmControls`/`SelectControls`/`InputControls`/`EditorControls`,
+ differing only in button order and labels.
+   WHY IT MATTERS: Four duplicated control pairs will drift (the a11y gap above
+ already exists in both copies, and cancel-vs-confirm ordering already differs
+ between them).
+   FIX: Parameterise the existing `AgentInteraction*Controls` with the label/ordering
+ variants the prompt needs and delete the duplicates.
+ ```
+
+ ```
+   SEVERITY: minor
+   FILE: src/renderer/src/features/chat/components/AgentNotificationStack.tsx:99
+   WHAT: `dismissedIds` grows monotonically for the lifetime of the window and is
+ shared across all sessions (the stack is not remounted per session), and
+ `warning`/`error` entries stay pinned above the composer until manually dismissed or
+ evicted from the 30-event live window.
+   WHY IT MATTERS: Switching away from a session and back re-surfaces old warnings
+ above the composer even though they already have a durable transcript notice; the
+ set is also unbounded, if small.
+   FIX: Prune `dismissedIds` to the ids still present in `events`, and give
+ `warning`/`error` a longer-but-finite lifetime in the stack (or key the stack by
+ `activeSessionId`) so the transcript remains the durable record.
+ ```
+
+ ```
+   SEVERITY: nit
+   FILE: src/renderer/src/routeTree.gen.ts:12-165
+   WHAT: The generated route tree was re-emitted with a different route ordering
+ (`_chat`/`settings`/`skills` and `sessions.$sessionId`/`settings.$tab` swapped) with
+ no route added or removed.
+   WHY IT MATTERS: Pure churn in a generated file inside a merge commit makes it
+ harder to tell whether the conflict resolution changed routing; it also suggests the
+ committed artifact was produced by a different generator run than main's.
+   FIX: Regenerate on top of the merged tree and confirm the only diff is
+ intentional, or leave the file byte-identical to main.
+ ```
+
+ Verified clean in scope (no findings): the nine-way merge resolutions preserved
+ main's behaviour — ChatComposerStack keeps all three overlays
+ (WaggleCollaborationStatusBanner, ChatComposerCommandPalette, SessionForkSelector)
+ via ComposerOverlays; -route-search.ts / -chat-route-views.tsx keep the file panel,
+ filePath/fileLine parsing and both setWorkspaceFileOpen handlers;
+ sessions.$sessionId.tsx retains all eight of main's search params and only
+ conditionally appends the dev-only two; preferences-store-actions.ts loses no setter
+ in the persistSetting refactor. YOLO auto-grant is short-circuited in main before
+ any event is emitted (interaction-ui-context.ts:151-153), so no prompt, row or
+ counter can leak into the renderer. An unresolvable custom interaction does not
+ strand the composer: the default fallback exposes "Reject interaction" wired to
+ {kind:'custom', value:null} (covered by the new component test). notify is
+ fire-and-forget in main, so local-only dismissal cannot hang a run. Transcript
+ durability is safe despite the 30-event live window because mergeInteractionEvents
+ re-hydrates from the persisted workspace tree.
+
+ Residual risk not covered here: no Electron QA evidence for the new composer prompt
+ / notification stack / access-mode menu, and main-process concerns (the
+ never-settling notify promise registered in the interaction broker) were out of
+ scope.
+
+ NO FURTHER FINDINGS
+
+──────────────────────────────────────────────────────────────────────────────────────
+
+──────────────────────────────────────────────────────────────────────────────────────
+~/Desktop/Projects/personal/OpenWaggle-access-modes (pi/approval-modes-notifications)
+↑96 ↓33k R6.2M W118k CH99.6% $5.123 18.1%/1.0M (auto)  eu.anthropic.claude-opus-5 • hi
+MCP: 0/6 servers ○ 🐴 ponytail: ⚡ FULL

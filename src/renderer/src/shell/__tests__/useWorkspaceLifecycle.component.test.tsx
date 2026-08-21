@@ -19,6 +19,7 @@ const lifecycleMocks = vi.hoisted(() => {
   let titleUpdatedHandler: TitleUpdatedHandler | null = null
   const titleUnsubscribe = vi.fn()
   const hotkeys: HotkeyBinding[] = []
+  const singleHotkeys: { readonly hotkey: unknown; readonly callback: () => void }[] = []
   return {
     projectPath: '/repo',
     workingPath: '/repo/.worktrees/session-1',
@@ -38,6 +39,7 @@ const lifecycleMocks = vi.hoisted(() => {
     useSessionStatusMonitor: vi.fn(),
     titleUnsubscribe,
     hotkeys,
+    singleHotkeys,
     getTitleUpdatedHandler: () => titleUpdatedHandler,
     onSessionTitleUpdated: vi.fn((handler: TitleUpdatedHandler) => {
       titleUpdatedHandler = handler
@@ -49,12 +51,24 @@ const lifecycleMocks = vi.hoisted(() => {
 vi.mock('@tanstack/react-hotkeys', () => ({
   useHotkeys: (bindings: readonly HotkeyBinding[]) => {
     lifecycleMocks.hotkeys.length = 0
+    lifecycleMocks.singleHotkeys.length = 0
     lifecycleMocks.hotkeys.push(...bindings)
+  },
+  /*
+   * Single registrations are collected separately.
+   *
+   * The sidebar's Mod+F and the shared Escape hook register one at a time, and folding them into
+   * the same array would have them cleared by the workspace's own useHotkeys call, or clear it.
+   */
+  useHotkey: (hotkey: unknown, callback: () => void) => {
+    lifecycleMocks.singleHotkeys.push({ hotkey, callback })
   },
 }))
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => lifecycleMocks.navigate,
+  // The sidebar's filter shortcut reads the route to know whether the sidebar can take focus.
+  useLocation: () => ({ pathname: '/' }),
 }))
 
 vi.mock('@/features/chat/hooks', () => ({
@@ -90,6 +104,8 @@ vi.mock('@/features/sessions/hooks', () => ({
   useSessions: () => ({
     loadSessions: lifecycleMocks.loadSessionTrees,
     refreshSessionTree: lifecycleMocks.refreshSessionTree,
+    // Pinned shortcuts map positions over the session list (issue #97).
+    sessions: [],
   }),
   useSessionStatusMonitor: lifecycleMocks.useSessionStatusMonitor,
 }))

@@ -8,6 +8,7 @@ import { useProviderStore } from '@/features/providers/state'
 import { useSessionStatusStore, useSessionStore } from '@/features/sessions/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { useUIStore } from '@/shell/ui-store'
+import { useSidebarViewStore } from '../../state/sidebar-view-store'
 import { Sidebar } from '../Sidebar'
 
 const {
@@ -143,6 +144,7 @@ function resetStores(session = makeSession()) {
     ...useUIStore.getInitialState(),
     sidebarOpen: true,
   })
+  useSidebarViewStore.setState({ sessionSortMode: 'recent', projectExpandedByPath: {} })
 }
 
 describe('Sidebar project actions', () => {
@@ -173,6 +175,36 @@ describe('Sidebar project actions', () => {
     expect(screen.queryByText('Existing project session')).toBeNull()
     expect(updateSettingsMock).not.toHaveBeenCalled()
     expect(navigateMock).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Collapsing was useState only, so a restart undid it. The state now lives in the persisted
+   * view store, which is what makes it survive.
+   */
+  it('records a collapsed project in the persisted view store', () => {
+    render(<Sidebar />)
+
+    fireEvent.click(screen.getByRole('button', { name: /collapse openwaggle/i }))
+
+    expect(useSidebarViewStore.getState().projectExpandedByPath).toEqual({
+      [PROJECT_PATH]: false,
+    })
+  })
+
+  /** A fresh mount with restored state is what the user sees after relaunching. */
+  it('renders a project collapsed when the restored state says so', () => {
+    useSidebarViewStore.setState({ projectExpandedByPath: { [PROJECT_PATH]: false } })
+
+    render(<Sidebar />)
+
+    expect(screen.queryByText('Existing project session')).toBeNull()
+    expect(screen.getByRole('button', { name: /expand openwaggle/i })).toBeInTheDocument()
+  })
+
+  it('treats a project it has never seen as expanded', () => {
+    render(<Sidebar />)
+
+    expect(screen.getByText('Existing project session')).toBeInTheDocument()
   })
 
   it('hides collapsed sidebar contents from accessibility and hit testing', () => {

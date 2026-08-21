@@ -180,13 +180,6 @@ export const EXTENSION_LIFECYCLE_RELOAD_STATE_MIGRATION_STATEMENTS = [
   `,
 ] as const
 
-export const SESSION_AUTHORIZATION_MODE_MIGRATION_STATEMENTS = [
-  `
-  ALTER TABLE sessions
-  ADD COLUMN authorization_mode TEXT NOT NULL DEFAULT 'yolo'
-  `,
-] as const
-
 export const CURRENT_EXTENSION_LIFECYCLE_SCHEMA_STATEMENTS = [
   `
   CREATE TABLE IF NOT EXISTS extension_lifecycle_state (

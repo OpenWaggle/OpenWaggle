@@ -2,7 +2,7 @@ import { createFileRoute, retainSearchParams } from '@tanstack/react-router'
 import { ChatSessionRouteView } from './-chat-route-views'
 import {
   type ChatRouteSearch,
-  NOTIFICATION_PROTOTYPE_ROUTES_ENABLED,
+  DESIGN_MOCKUP_ROUTE_ENABLED,
   parseChatRouteSearch,
 } from './-route-search'
 
@@ -11,7 +11,7 @@ const RETAINED_CHAT_SEARCH_PARAMS = [
   'panel',
   'filePath',
   'fileLine',
-  ...(NOTIFICATION_PROTOTYPE_ROUTES_ENABLED ? (['prototype', 'variant'] as const) : []),
+  ...(DESIGN_MOCKUP_ROUTE_ENABLED ? (['mockup'] as const) : []),
   'sidePanelExtensionId',
   'sidePanelId',
   'sidePanelPackagePath',

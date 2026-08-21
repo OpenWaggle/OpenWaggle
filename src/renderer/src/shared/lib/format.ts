@@ -32,6 +32,26 @@ export function formatRelativeTime(timestamp: number): string {
 }
 
 /**
+ * The same age, compact, for places where the word "ago" is implied by context.
+ *
+ * A sidebar row's tail has room for a value, not a sentence: "4h ago" is 35px against this
+ * form's 21px, and those 14px come out of the session title. Prose contexts keep
+ * `formatRelativeTime`, where "Updated 4h" would read as unfinished.
+ */
+export function formatCompactRelativeTime(timestamp: number): string {
+  const diff = Date.now() - timestamp
+  const seconds = Math.floor(diff / TIME_UNIT.MILLISECONDS_PER_SECOND)
+  const minutes = Math.floor(seconds / TIME_UNIT.SECONDS_PER_MINUTE)
+  const hours = Math.floor(minutes / TIME_UNIT.SECONDS_PER_MINUTE)
+  const days = Math.floor(hours / TIME_UNIT.HOURS_PER_DAY)
+
+  if (days > 0) return `${String(days)}d`
+  if (hours > 0) return `${String(hours)}h`
+  if (minutes > 0) return `${String(minutes)}m`
+  return 'now'
+}
+
+/**
  * Truncate a string to a max length.
  */
 export function truncate(str: string, maxLength: number): string {
