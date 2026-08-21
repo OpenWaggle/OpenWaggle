@@ -7,6 +7,7 @@ import { ChevronDown, LockKeyhole } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { allowScopeChoices, ribbonTargetLine } from '../lib/agent-authorization-ribbon-model'
+import { restoreFocusBeforeRequest } from '../lib/pending-request-focus'
 
 /**
  * The decision row for an authorization request.
@@ -159,8 +160,17 @@ export function AgentAuthorizationRibbon({
   return (
     <section
       aria-labelledby={`authorization-${interaction.interactionId}`}
+      // Polite, never assertive. Assertive would cut across whatever the user is dictating or
+      // reading, which is the audio equivalent of stealing their caret.
+      aria-live="polite"
       className="border-b border-border/60 px-4 py-2.5"
       data-authorization-ribbon="true"
+      data-request-ribbon="true"
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return
+        event.stopPropagation()
+        restoreFocusBeforeRequest()
+      }}
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <RibbonIdentity interaction={interaction} queuedCount={queuedCount} scopeKey={scopeKey} />

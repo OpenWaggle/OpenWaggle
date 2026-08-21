@@ -10,6 +10,7 @@ import {
   ribbonEyebrow,
 } from '../lib/agent-authorization-ribbon-model'
 import { agentLoopInteractionMessage } from '../lib/agent-loop-interaction-view'
+import { restoreFocusBeforeRequest } from '../lib/pending-request-focus'
 import { AgentAuthorizationRibbon } from './AgentAuthorizationRibbon'
 import { AgentInteractionControls } from './AgentInteractionControls'
 
@@ -61,8 +62,15 @@ function AgentQuestionRibbon({
   return (
     <section
       aria-labelledby={titleId}
+      aria-live="polite"
       className="border-b border-border/60 px-4 py-2.5"
       data-question-ribbon="true"
+      data-request-ribbon="true"
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return
+        event.stopPropagation()
+        restoreFocusBeforeRequest()
+      }}
     >
       <div className="flex min-w-0 items-center gap-2">
         <div className="min-w-0">
