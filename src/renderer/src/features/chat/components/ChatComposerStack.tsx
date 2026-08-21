@@ -42,6 +42,13 @@ const EMPTY_EXTENSION_PROJECT_PATHS: readonly string[] = []
 
 function noOp() {}
 
+/** Last path segment, so a project-scoped approval names somewhere the user recognises. */
+function projectDisplayName(projectPath: string | null) {
+  if (!projectPath) return null
+  const segments = projectPath.split('/').filter((segment) => segment.length > 0)
+  return segments.at(-1) ?? null
+}
+
 function ComposerOverlays({
   section,
   onOpenSessionTree,
@@ -184,6 +191,7 @@ export function ChatComposerStack({
         <AgentInteractionComposerPrompt
           interactions={agentInteractions}
           onRespond={onRespondAgentInteraction}
+          projectName={projectDisplayName(section.session?.projectPath ?? null)}
         />
         <AgentCustomInteractionComposerFallback
           extensionProjectPaths={extensionProjectPaths}
