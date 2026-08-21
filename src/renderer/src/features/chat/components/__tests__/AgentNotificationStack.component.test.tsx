@@ -15,7 +15,6 @@ function notice(input: {
 }): AgentInteractionEvent {
   return {
     type: 'agent_interaction_request',
-    runId: 'run-1',
     interaction: {
       interactionId: input.id,
       sessionId: SESSION_ID,

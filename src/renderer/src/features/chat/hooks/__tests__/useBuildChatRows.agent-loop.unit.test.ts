@@ -27,6 +27,7 @@ describe('buildChatRows agent-loop events', () => {
             createdAt: 2,
             title: 'Continue?',
             message: 'Proceed with action?',
+            purpose: 'user-input',
           },
         },
         {

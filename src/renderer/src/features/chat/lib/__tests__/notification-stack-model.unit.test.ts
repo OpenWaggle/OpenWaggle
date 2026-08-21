@@ -14,7 +14,6 @@ const SESSION_ID = SessionId('session-1')
 function notifyRequest(id: string): AgentInteractionEvent {
   return {
     type: 'agent_interaction_request',
-    runId: 'run-1',
     interaction: {
       interactionId: id,
       sessionId: SESSION_ID,
@@ -32,7 +31,6 @@ function notifyRequest(id: string): AgentInteractionEvent {
 function confirmRequest(id: string): AgentInteractionEvent {
   return {
     type: 'agent_interaction_request',
-    runId: 'run-1',
     interaction: {
       interactionId: id,
       sessionId: SESSION_ID,

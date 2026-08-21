@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 /**
@@ -21,7 +22,7 @@ function findRepoRoot(start: string) {
   return current
 }
 
-const REPO_ROOT = findRepoRoot(import.meta.dirname)
+const REPO_ROOT = findRepoRoot(dirname(fileURLToPath(import.meta.url)))
 const RENDERER_UI_DIRECTORIES = [
   'src/renderer/src/features/chat/components',
   'src/renderer/src/features/extensions/components',
@@ -30,8 +31,8 @@ const RENDERER_UI_DIRECTORIES = [
 function readRendererSources() {
   return RENDERER_UI_DIRECTORIES.flatMap((directory) =>
     readdirSync(join(REPO_ROOT, directory), { withFileTypes: true })
-      .filter((entry) => entry.isFile() && entry.name.endsWith('.tsx'))
-      .map((entry) => ({
+      .filter((entry: { isFile: () => boolean; name: string }) => entry.isFile() && entry.name.endsWith('.tsx'))
+      .map((entry: { name: string }) => ({
         path: join(directory, entry.name),
         source: readFileSync(join(REPO_ROOT, directory, entry.name), 'utf-8'),
       })),
