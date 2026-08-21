@@ -20,7 +20,7 @@ export interface SessionRow {
   readonly worktree_path: string | null
   readonly worktree_base_ref: string | null
   readonly worktree_start_from_origin: number | null
-  readonly authorization_mode: string | null
+  readonly authorization_mode_override: string | null
 }
 
 export interface SessionSummaryRow {

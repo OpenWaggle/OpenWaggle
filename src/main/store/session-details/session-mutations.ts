@@ -55,16 +55,17 @@ export async function setSessionWorktreePlan(
   )
 }
 
+/** Stores a session override, or clears it with `null` so the session inherits again. */
 export async function setSessionAuthorizationMode(
   id: SessionId,
-  authorizationMode: AgentAuthorizationMode,
+  authorizationMode: AgentAuthorizationMode | null,
 ): Promise<void> {
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       yield* sql`
         UPDATE sessions
-        SET authorization_mode = ${authorizationMode},
+        SET authorization_mode_override = ${authorizationMode},
             updated_at = ${Date.now()}
         WHERE id = ${id}
       `

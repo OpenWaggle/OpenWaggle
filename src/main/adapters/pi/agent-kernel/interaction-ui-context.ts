@@ -29,7 +29,11 @@ type PiNotifyLevel = Parameters<ExtensionUIContext['notify']>[1]
 export interface PiInteractionUiContextInput {
   readonly sessionId: SessionId
   readonly runId: string
-  readonly authorizationMode: AgentAuthorizationMode
+  /**
+   * Read when a request is raised, never captured once per run, so switching the mode mid-run
+   * governs the rest of that run.
+   */
+  readonly resolveAuthorizationMode: () => Promise<AgentAuthorizationMode>
   readonly signal: AbortSignal
   readonly onEvent: (event: AgentTransportEvent) => void
 }
@@ -94,11 +98,12 @@ function confirmPurpose(input: { readonly title: string; readonly message: strin
   return 'confirmation' as const
 }
 
-function shouldAutoAcceptConfirm(input: {
-  readonly authorizationMode: AgentAuthorizationMode
+async function shouldAutoAcceptConfirm(input: {
+  readonly resolveAuthorizationMode: () => Promise<AgentAuthorizationMode>
   readonly purpose: ReturnType<typeof confirmPurpose>
 }) {
-  return input.authorizationMode === 'yolo' && input.purpose === 'authorization'
+  if (input.purpose !== 'authorization') return false
+  return (await input.resolveAuthorizationMode()) === 'yolo'
 }
 
 function customRendererFields(
@@ -152,7 +157,12 @@ function createDesktopInteractionUiOverrides(
     },
     confirm: async (title, message, opts) => {
       const purpose = confirmPurpose({ title, message })
-      if (shouldAutoAcceptConfirm({ authorizationMode: context.authorizationMode, purpose })) {
+      if (
+        await shouldAutoAcceptConfirm({
+          resolveAuthorizationMode: context.resolveAuthorizationMode,
+          purpose,
+        })
+      ) {
         return true
       }
 

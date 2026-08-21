@@ -247,6 +247,32 @@ export function cancelAgentLoopInteractionsForRun(input: {
   }
 }
 
+/**
+ * Grants every pending authorization request for a session.
+ *
+ * Called when the session switches to YOLO (Full access), because a mode that promises never to ask
+ * must also clear the question it is already asking. Non-authorization requests are left alone:
+ * YOLO grants capabilities, it never answers a question addressed to the user.
+ */
+export function grantPendingAuthorizationsForSession(input: {
+  readonly sessionId: SessionId
+}): number {
+  let granted = 0
+  for (const [key, pending] of pendingInteractions) {
+    const interaction = pending.interaction
+    if (interaction.sessionId !== input.sessionId) continue
+    if (interaction.kind !== 'confirm' || interaction.purpose !== 'authorization') continue
+
+    settlePending({
+      key,
+      pending,
+      response: { kind: 'confirm', accepted: true },
+    })
+    granted += 1
+  }
+  return granted
+}
+
 export function clearAgentLoopInteractionBrokerForTests() {
   for (const [key, pending] of pendingInteractions) {
     settlePending({ key, pending, response: pending.fallback, status: 'cancelled' })

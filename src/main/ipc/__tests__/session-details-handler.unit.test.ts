@@ -95,14 +95,16 @@ describe('registerSessionDetailsHandlers', () => {
         piSessionId: 'pi-session-created',
         piSessionFile: '/tmp/pi-session-created.jsonl',
         environmentMode: 'local',
-        authorizationMode: 'yolo',
       })
     } finally {
       await rm(projectPath, { recursive: true, force: true })
     }
   })
 
-  it('uses a project authorization default when creating a session', async () => {
+  it('stores no authorization override when creating a session, even with a project default', async () => {
+    // Creation deliberately records nothing. The mode is a live chain resolved when a request is
+    // raised, so snapshotting a project default here would freeze the session against later
+    // changes to that default. A stored override must only ever come from an explicit user choice.
     const projectPath = await mkdtemp(path.join(tmpdir(), 'openwaggle-session-test-'))
     const validatedProjectPath = await realpath(projectPath)
     try {
@@ -120,10 +122,7 @@ describe('registerSessionDetailsHandlers', () => {
       const result = await handler?.({}, projectPath)
       expect(result).toEqual(createdSession)
       expect(createSessionMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          projectPath: validatedProjectPath,
-          authorizationMode: 'ask-for-approval',
-        }),
+        expect.not.objectContaining({ authorizationMode: expect.anything() }),
       )
     } finally {
       await rm(projectPath, { recursive: true, force: true })
@@ -262,6 +261,15 @@ describe('registerSessionDetailsHandlers', () => {
       SessionId('session-authorization'),
       'ask-for-approval',
     )
+  })
+
+  it('clears the override with null so the session inherits again', async () => {
+    registerSessionDetailsHandlers()
+    const handler = getInvokeHandler('sessions:set-authorization-mode')
+
+    await handler?.({}, SessionId('session-authorization'), null)
+
+    expect(setAuthorizationModeMock).toHaveBeenCalledWith(SessionId('session-authorization'), null)
   })
 
   it('rejects invalid session authorization modes', async () => {

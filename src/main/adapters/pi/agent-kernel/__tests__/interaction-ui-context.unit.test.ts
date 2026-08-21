@@ -14,6 +14,17 @@ import { createPiInteractionUiContext } from '../interaction-ui-context'
 
 const sessionId = SessionId('pi-ui-session')
 
+/**
+ * Waits for the microtasks `confirm` spends resolving the authorization mode.
+ *
+ * The mode is read when the request is raised rather than captured per run, so a confirm cannot
+ * emit its request event synchronously: it has to know first whether full access would grant it
+ * outright, since an auto-granted call must leave no transcript entry at all.
+ */
+async function flushAuthorizationResolution() {
+  await new Promise((resolve) => setTimeout(resolve, 0))
+}
+
 function createContext(input?: {
   readonly signal?: AbortSignal
   readonly authorizationMode?: AgentAuthorizationMode
@@ -23,7 +34,7 @@ function createContext(input?: {
     {
       sessionId,
       runId: 'run-pi-ui',
-      authorizationMode: input?.authorizationMode ?? 'yolo',
+      resolveAuthorizationMode: async () => input?.authorizationMode ?? 'yolo',
       signal: input?.signal ?? new AbortController().signal,
       onEvent: (event) => emitted.push(event),
     },
@@ -40,6 +51,7 @@ describe('Pi interaction UI context', () => {
   it('bridges Pi confirm to a typed OpenWaggle interaction response', async () => {
     const { emitted, ui } = createContext()
     const confirmed = ui.confirm('Proceed?', 'Run the extension tool?')
+    await flushAuthorizationResolution()
     const request = emitted[0]
 
     expect(request).toMatchObject({
@@ -72,6 +84,7 @@ describe('Pi interaction UI context', () => {
     const { emitted, ui } = createContext({ authorizationMode: 'ask-for-approval' })
 
     const confirmed = ui.confirm('Allow MCP tool call?', 'Read project files?')
+    await flushAuthorizationResolution()
 
     expect(emitted).toMatchObject([
       {
@@ -157,6 +170,7 @@ describe('Pi interaction UI context', () => {
     const confirmed = ui.confirm('Proceed?', 'Run the extension tool?', {
       signal: interactionController.signal,
     })
+    await flushAuthorizationResolution()
     const request = emitted[0]
     if (request?.type !== 'agent_interaction_request') {
       throw new Error('Expected pending interaction request')

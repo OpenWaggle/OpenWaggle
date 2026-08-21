@@ -3,7 +3,7 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 const DEFAULT_EXTENSION_BUILD_STATUS = OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.NOT_RUN
 const DEFAULT_EXTENSION_RELOAD_STATUS = OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED
 
-const SESSION_TABLE_BEFORE_AUTHORIZATION_MODE_STATEMENT = `
+const SESSION_TABLE_STATEMENT = `
   CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY,
     pi_session_id TEXT NOT NULL UNIQUE,
@@ -19,25 +19,8 @@ const SESSION_TABLE_BEFORE_AUTHORIZATION_MODE_STATEMENT = `
   )
   `
 
-const CURRENT_SESSION_TABLE_STATEMENT = `
-  CREATE TABLE IF NOT EXISTS sessions (
-    id TEXT PRIMARY KEY,
-    pi_session_id TEXT NOT NULL UNIQUE,
-    pi_session_file TEXT,
-    project_path TEXT,
-    title TEXT NOT NULL,
-    archived INTEGER NOT NULL DEFAULT 0,
-    waggle_config_json TEXT,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL,
-    last_active_node_id TEXT,
-    last_active_branch_id TEXT,
-    authorization_mode TEXT NOT NULL DEFAULT 'yolo'
-  )
-  `
-
 export const CURRENT_SESSION_SCHEMA_STATEMENTS = [
-  CURRENT_SESSION_TABLE_STATEMENT,
+  SESSION_TABLE_STATEMENT,
   `
   CREATE INDEX IF NOT EXISTS idx_sessions_updated_at
   ON sessions (updated_at DESC)
@@ -115,11 +98,6 @@ export const CURRENT_SESSION_SCHEMA_STATEMENTS = [
   `,
 ] as const
 
-export const SESSION_SCHEMA_BEFORE_AUTHORIZATION_MODE_STATEMENTS = [
-  SESSION_TABLE_BEFORE_AUTHORIZATION_MODE_STATEMENT,
-  ...CURRENT_SESSION_SCHEMA_STATEMENTS.slice(1),
-] as const
-
 export const EXTENSION_LIFECYCLE_SCHEMA_V1_STATEMENTS = [
   `
   CREATE TABLE IF NOT EXISTS extension_lifecycle_state (
@@ -177,6 +155,21 @@ export const EXTENSION_LIFECYCLE_RELOAD_STATE_MIGRATION_STATEMENTS = [
   `
   ALTER TABLE extension_lifecycle_state
   ADD COLUMN last_reloaded_at INTEGER
+  `,
+] as const
+
+/**
+ * Adds the session authorization-mode override.
+ *
+ * Nullable on purpose: `NULL` means the session holds no override and inherits its project
+ * default, then the global default. It never means `yolo`. Added as a new column rather than by
+ * rebuilding `sessions`, because `sessions` is the parent of cascading foreign keys and a rebuild
+ * under `PRAGMA foreign_keys = ON` would delete every node and pinned row with it.
+ */
+export const SESSION_AUTHORIZATION_MODE_OVERRIDE_MIGRATION_STATEMENTS = [
+  `
+  ALTER TABLE sessions
+  ADD COLUMN authorization_mode_override TEXT
   `,
 ] as const
 

@@ -53,9 +53,10 @@ export interface SessionProjectionRepositoryShape {
     id: SessionId,
     plan: SessionWorktreePlan,
   ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  /** `null` clears the session override so the session inherits its project and global default. */
   readonly setAuthorizationMode: (
     id: SessionId,
-    mode: AgentAuthorizationMode,
+    mode: AgentAuthorizationMode | null,
   ) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly listTurnCheckpoints: (
     id: SessionId,

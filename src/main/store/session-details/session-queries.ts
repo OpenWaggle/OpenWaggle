@@ -54,9 +54,9 @@ function hydrateSessionDetail(sessionRow: SessionRow, nodeRows: readonly Session
       worktreePath: sessionRow.worktree_path,
       worktreeBaseRef: sessionRow.worktree_base_ref,
       worktreeStartFromOrigin: sessionRow.worktree_start_from_origin === 1,
-      authorizationMode: isAgentAuthorizationMode(sessionRow.authorization_mode)
-        ? sessionRow.authorization_mode
-        : 'yolo',
+      ...(isAgentAuthorizationMode(sessionRow.authorization_mode_override)
+        ? { authorizationMode: sessionRow.authorization_mode_override }
+        : {}),
     }
   } catch (error) {
     logSessionHydrationFailure(sessionRow, error)
@@ -86,7 +86,7 @@ function selectSessionRow(sql: SqlClient.SqlClient, id: SessionId) {
       worktree_path,
       worktree_base_ref,
       worktree_start_from_origin,
-      authorization_mode
+      authorization_mode_override
     FROM sessions
     WHERE id = ${id}
     LIMIT 1
