@@ -43,7 +43,13 @@ const DEFAULT_NOT_DELIVERED_MESSAGE = 'The agent did not receive this message.'
 
 /** Whether this failure is worth showing the user, as opposed to one they caused by stopping the run. */
 export function isReportableSendFailure(error: unknown) {
-  return !(error instanceof MessageNotDelivered) || error.outcome === 'refused'
+  /*
+   * Unwrapped first, because a first send reports its failure as a `FirstSendFailed` carrying the session it
+   * created - so a cancellation on that path arrived here wrapped, was not recognised, and the user was told
+   * their own Stop had failed to send.
+   */
+  const cause = error instanceof FirstSendFailed ? error.cause : error
+  return !(cause instanceof MessageNotDelivered) || cause.outcome === 'refused'
 }
 
 /**

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  FirstSendFailed,
   isReportableSendFailure,
   MessageDeliveredRunFailed,
   MessageNotDelivered,
@@ -29,5 +30,20 @@ describe('message delivery reporting', () => {
     expect(isReportableSendFailure(new MessageNotDelivered('cancelled'))).toBe(false)
     // Anything else is an ordinary failure and is reported.
     expect(isReportableSendFailure(new Error('boom'))).toBe(true)
+  })
+
+  it('does not report a cancellation that arrives wrapped by a first send', () => {
+    /*
+     * A first send reports its failure as a `FirstSendFailed` carrying the session it created, so a
+     * cancellation on that path arrives wrapped. Unrecognised, it told the user their own Stop had failed.
+     */
+    const cancelled = new FirstSendFailed(new MessageNotDelivered('cancelled'), 'session-a')
+    const refused = new FirstSendFailed(
+      new MessageNotDelivered('refused', 'no worktree'),
+      'session-a',
+    )
+
+    expect(isReportableSendFailure(cancelled)).toBe(false)
+    expect(isReportableSendFailure(refused)).toBe(true)
   })
 })

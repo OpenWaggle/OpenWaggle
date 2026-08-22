@@ -442,3 +442,16 @@ The delivery marker was corrected rather than removed, because that one has a ri
 was already aborted returns from the kernel without prompting, so "the kernel returned" was never "the agent has
 the message". It is now taken from the kernel actually producing a turn.
 
+Two round-thirteen items outside the guard are settled here too.
+
+A cancellation reported by a *first* send arrives wrapped in the `FirstSendFailed` that names the session it
+created, so the "is this worth telling the user" check did not recognise it and reported their own Stop as a
+failed send. It unwraps first now.
+
+**E1-3, recorded rather than changed.** A selected path whose change exists only in the index - staged, then
+reverted in the working tree - is committed as the working-tree version, because that is what
+`git commit -- <paths>` means: it commits the working tree state of the paths it is given, not the index's. The
+staged version is therefore not in the commit, and the commit reports success. This is git's own semantics for a
+partial commit rather than a defect in the panel, and changing it would mean building commits from the index with
+`write-tree`/`commit-tree` - the same change the case-folding limitation would need. Recorded together with it.
+
