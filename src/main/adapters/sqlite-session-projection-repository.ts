@@ -46,13 +46,16 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
   const [store, turnCheckpoints, worktreePrune, pinnedSessions] = await Promise.all([
     import('../store/session-details'),
     import('../store/turn-checkpoints'),
-    import('../ipc/git/session-worktree-prune'),
+    import('../services/git/session-worktree-prune'),
     import('../store/pinned-sessions'),
   ])
   const { pruneSessionWorktree } = worktreePrune
   const { deleteTurnCheckpointsForSession } = turnCheckpoints
 
-  async function pruneWorktreeForSession(id: Parameters<typeof store.getSessionDetail>[0]) {
+  async function pruneWorktreeForSession(
+    id: Parameters<typeof store.getSessionDetail>[0],
+    reason: 'delete' | 'archive',
+  ) {
     const session = await store.getSessionDetail(id)
     if (!session) return
     await pruneSessionWorktree(
@@ -60,6 +63,7 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
         sessionId: String(id),
         projectPath: session.projectPath,
         worktreePath: session.worktreePath ?? null,
+        reason,
       },
       {
         listWorktreeRefs: () => store.listSessionWorktreeRefs(),
@@ -102,13 +106,14 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
 
       delete: (id) =>
         repoOp('delete', async () => {
-          await pruneWorktreeForSession(id)
+          await pruneWorktreeForSession(id, 'delete')
           return store.deleteSession(id)
         }),
 
       archive: (id) =>
         repoOp('archive', async () => {
-          await pruneWorktreeForSession(id)
+          // Reversible, so the session's Turn history has to survive it.
+          await pruneWorktreeForSession(id, 'archive')
           return store.archiveSession(id)
         }),
 

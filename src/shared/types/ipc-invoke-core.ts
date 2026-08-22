@@ -1,4 +1,4 @@
-import type { AgentSendPayload } from './agent'
+import type { AgentSendPayload, AgentSendReport } from './agent'
 import type {
   AgentLoopInteractionResponseInput,
   AgentLoopInteractionSubmitResult,
@@ -57,7 +57,7 @@ import type { Settings } from './settings'
 export interface IpcCoreInvokeChannelMap {
   'agent:send-message': {
     args: [sessionId: SessionId, payload: AgentSendPayload, model: SupportedModelId]
-    return: undefined
+    return: AgentSendReport
   }
   'agent:cancel': {
     args: [sessionId?: SessionId]

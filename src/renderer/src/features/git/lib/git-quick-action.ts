@@ -147,12 +147,15 @@ function resolveNoUpstreamQuickAction(input: {
     return { label: 'Push', disabled: true, kind: 'show_hint', hint: 'No local commits to push.' }
   }
   if (input.hasOpenPr || input.isDefaultRef) {
-    return {
-      label: 'Push',
-      disabled: false,
-      kind: 'run_action',
-      action: input.isDefaultRef ? 'commit_push' : 'push',
-    }
+    /*
+     * `push`, never `commit_push`. These branches are only reached with a clean tree, and main
+     * skips the commit phase when there is nothing to commit - but the panel opens its Commit
+     * message dialog for any action whose id starts with "commit". Pressing a button labelled
+     * "Push" therefore demanded a commit message under "0 changed files will be committed", and
+     * then threw the message away. The default-ref confirmation still fires: `push` is one of the
+     * actions it gates.
+     */
+    return { label: 'Push', disabled: false, kind: 'run_action', action: 'push' }
   }
   return {
     label: `Push & create ${input.terminology.shortLabel}`,
@@ -168,12 +171,15 @@ function resolveAheadQuickAction(input: {
   terminology: ChangeRequestTerminology
 }): GitQuickAction {
   if (input.hasOpenPr || input.isDefaultRef) {
-    return {
-      label: 'Push',
-      disabled: false,
-      kind: 'run_action',
-      action: input.isDefaultRef ? 'commit_push' : 'push',
-    }
+    /*
+     * `push`, never `commit_push`. These branches are only reached with a clean tree, and main
+     * skips the commit phase when there is nothing to commit - but the panel opens its Commit
+     * message dialog for any action whose id starts with "commit". Pressing a button labelled
+     * "Push" therefore demanded a commit message under "0 changed files will be committed", and
+     * then threw the message away. The default-ref confirmation still fires: `push` is one of the
+     * actions it gates.
+     */
+    return { label: 'Push', disabled: false, kind: 'run_action', action: 'push' }
   }
   return {
     label: `Push & create ${input.terminology.shortLabel}`,

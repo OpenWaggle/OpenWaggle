@@ -1,6 +1,7 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { Logger } from '@shared/types/logger'
+import { WORKTREE_MISSING_REASON } from '@/features/git'
 
 const AUTO_SEND_FAILURE_TOAST =
   'Queued message failed to send automatically. It stayed in the queue.'
@@ -15,6 +16,18 @@ function formatError(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }
 
+/**
+ * Whether a failure is main refusing to run because the session's worktree is gone.
+ *
+ * That failure has a recovery - recreate the worktree, or switch to the opened checkout - and the
+ * composer offers both. A queued message is dispatched long after it was written, so it can reach a
+ * tree that has since disappeared, and reporting the generic queue message there hid the one piece of
+ * information the user could act on.
+ */
+function isMissingWorktreeFailure(error: unknown) {
+  return formatError(error).includes(WORKTREE_MISSING_REASON)
+}
+
 export function reportAutoSendQueueFailure(
   deps: QueueFailureFeedbackDeps,
   sessionId: SessionId | null,
@@ -26,7 +39,9 @@ export function reportAutoSendQueueFailure(
     error: formatError(error),
     queuedText: payload.text,
   })
-  deps.showToast(AUTO_SEND_FAILURE_TOAST)
+  deps.showToast(
+    isMissingWorktreeFailure(error) ? WORKTREE_MISSING_REASON : AUTO_SEND_FAILURE_TOAST,
+  )
 }
 
 export function reportQueuedSteerFailure(

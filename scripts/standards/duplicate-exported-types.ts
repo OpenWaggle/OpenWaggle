@@ -30,7 +30,6 @@ export const KNOWN_DUPLICATE_EXPORTED_TYPES: readonly string[] = [
   'SessionSummaryRow',
   'UpdateSessionRuntimeInput',
   'WaggleInfo',
-  'WorktreeSendPlan',
 ]
 
 const DUPLICATE_DECLARATION_THRESHOLD = 2

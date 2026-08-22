@@ -14,6 +14,14 @@ export interface GitChangedFile {
   readonly unstaged: boolean
   readonly additions: number
   readonly deletions: number
+  /**
+   * The path a rename came from, when this entry is one.
+   *
+   * Needed because a pathspec commit only covers the paths it is given: committing a rename with
+   * just the target left the staged deletion of the source behind, so the commit contained *both*
+   * files - silent content duplication - and a deletion the user never asked for stayed staged.
+   */
+  readonly renamedFrom?: string
 }
 
 export interface GitStatusSummary {
@@ -38,6 +46,7 @@ export const GIT_COMMIT_ERROR_CODES = [
   'nothing-to-commit',
   'merge-in-progress',
   'empty-message',
+  'case-only-rename',
   'unknown',
 ] as const
 
@@ -115,13 +124,37 @@ export interface GitBranchCreatePayload {
   readonly checkout?: boolean
 }
 
-export const GIT_DIFF_ERROR_CODES = ['not-git-repo', 'bad-revision', 'unknown'] as const
+export const GIT_DIFF_ERROR_CODES = [
+  'not-git-repo',
+  'bad-revision',
+  /**
+   * The diff was larger than the buffer allowed for it. Distinct from `unknown` because the
+   * user can act on it (commit or stage in smaller pieces, exclude generated files) and because
+   * nothing is actually wrong with the repository.
+   */
+  'diff-too-large',
+  'unknown',
+] as const
 
 export type GitDiffErrorCode = (typeof GIT_DIFF_ERROR_CODES)[number]
 
 export interface GitDiffSuccess {
   readonly ok: true
   readonly files: readonly GitFileDiff[]
+  /**
+   * The base ref the diff was actually taken against, when one was resolved rather than given.
+   *
+   * "Automatic" promises a decision, so the user has to be able to audit which branch it picked -
+   * `origin/develop` and a stale local `main` are very different answers. Absent for the
+   * working-tree diff, which has no base, and for an explicitly requested ref, which the caller
+   * already knows.
+   */
+  readonly resolvedBaseRef?: string
+  /**
+   * True when "Automatic" could not resolve any default branch and fell back to the working-tree
+   * diff. Without this the panel silently showed a different scope than the one it advertised.
+   */
+  readonly automaticFellBackToWorkingTree?: boolean
 }
 
 export interface GitDiffFailure {
@@ -195,6 +228,15 @@ export interface GitWorktreeCreatePayload {
   readonly branch: string
   /** Base ref the worktree branch starts from. */
   readonly baseRef: string
+  /**
+   * Set when the worktree belongs to a session, so main decides the branch name rather than the
+   * caller.
+   *
+   * Session branches follow a convention with a legacy form, and a caller deriving the current name
+   * itself missed it: recreating an older session's tree created a fresh branch at the base ref and
+   * left the agent's commits stranded on the old one.
+   */
+  readonly sessionId?: string
 }
 
 /**
@@ -221,6 +263,12 @@ export const GIT_WORKTREE_ERROR_CODES = [
   'base-ref-not-found',
   'worktree-exists',
   'branch-exists',
+  /**
+   * The branch is already checked out in a different worktree. Distinct from `branch-exists`
+   * because attaching would hand this session another session's commits, so the caller must
+   * not retry or silently adopt it.
+   */
+  'branch-checked-out-elsewhere',
   'dirty-worktree',
   'not-found',
   'unknown',

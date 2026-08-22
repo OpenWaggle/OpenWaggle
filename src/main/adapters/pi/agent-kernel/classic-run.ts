@@ -8,14 +8,26 @@ import {
 } from './run-lifecycle'
 import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
 import { createSessionListener } from './session-listener'
-import { ensureSessionWorktreeProjectPath } from './session-worktree-birth'
 import { captureTurnCheckpoint } from './turn-capture'
 
+/**
+ * Runs a classic (non-Waggle) Pi turn.
+ *
+ * `workingPath` is the tree this turn runs in, already resolved (and, for a worktree-mode
+ * session, already born) by the caller. It is passed in rather than re-derived because
+ * worktree birth is not idempotent against a stale in-memory session: it persists the new
+ * path with SQL but does not mutate the `SessionDetail` it was given, so a second call would
+ * still see `worktreePath` as null and try to create the same worktree twice - which fails,
+ * because the directory now exists and the branch is already checked out there.
+ */
 export async function runPiSession(
   input: AgentKernelRunInput &
-    PiRuntimeExtensionIsolationInput & { readonly mcpExtensionFactory?: ExtensionFactory },
+    PiRuntimeExtensionIsolationInput & {
+      readonly workingPath: string
+      readonly mcpExtensionFactory?: ExtensionFactory
+    },
 ) {
-  const projectPath = await ensureSessionWorktreeProjectPath(input.session)
+  const projectPath = input.workingPath
   const { model, session } = await createPiRunSessionRuntime({
     session: input.session,
     projectPath,

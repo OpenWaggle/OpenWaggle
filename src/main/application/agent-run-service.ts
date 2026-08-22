@@ -50,6 +50,8 @@ function resolveLatestAssistantNodeId(nodes: readonly ProjectedSessionNodeInput[
 export function executeAgentRun(input: AgentRunInput) {
   let assignedTitle: string | undefined
   let activeRunIdentity: ActiveRunIdentity | null = null
+  // Whether the agent got the message: a failure after that point is not a refused send.
+  let reachedAgent = false
   const durableAgentLoopEvents: DurableAgentLoopEvent[] = []
 
   return Effect.gen(function* () {
@@ -75,6 +77,15 @@ export function executeAgentRun(input: AgentRunInput) {
       hydratedPayload,
       preflight,
     )
+    /*
+     * Whether the agent actually took a turn, which is not the same as the kernel returning: a run whose signal
+     * was already aborted returns without prompting at all. Everything below this point is persistence, and a
+     * database write failure there is a typed failure that the recovery turns into an ordinary error outcome -
+     * reported to the caller as "the agent never received this", which made it restore a review the agent
+     * already held. Marking it on the kernel merely returning had the opposite fault: a cancelled-before-prompt
+     * run whose persistence then failed was reported as delivered, and the submitted review was discarded.
+     */
+    reachedAgent = agentResult.aborted !== true && agentResult.newMessages.length > 0
     const existingTree = yield* sessionRepo.getTree(input.sessionId)
     const sessionSnapshot = appendDurableAgentLoopEvents({
       snapshot: agentResult.sessionSnapshot,
@@ -113,6 +124,7 @@ export function executeAgentRun(input: AgentRunInput) {
     Effect.catchAll(
       (error): Effect.Effect<AgentRunResult> =>
         recoverAgentRunFailure({
+          reachedAgent,
           error,
           assignedTitle,
           sessionId: input.sessionId,

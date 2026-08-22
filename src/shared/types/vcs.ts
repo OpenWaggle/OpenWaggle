@@ -169,9 +169,11 @@ export interface GitRunStackedActionOptions {
   readonly changeRequestBody?: string
   readonly draft?: boolean
   /**
-   * Repo-relative paths to stage for the commit phase. When omitted the whole
-   * working tree is staged, which in `local` environment mode would sweep in the
-   * user's unrelated in-flight work — callers should pass the user's selection.
+   * Repo-relative paths to stage for the commit phase.
+   *
+   * Required in practice: an empty or omitted selection reports `nothing-to-commit` rather than
+   * staging the whole repository. `git add --all` has no pathspec, so the old fallback reached
+   * past the opened directory and swept the user's unrelated in-flight work into the commit.
    */
   readonly paths?: readonly string[]
 }
@@ -189,6 +191,12 @@ export const GIT_STACKED_ACTION_ERROR_CODES = [
   'unknown',
 ] as const
 export type GitStackedActionErrorCode = (typeof GIT_STACKED_ACTION_ERROR_CODES)[number]
+
+/** A stacked-action precondition probe that could not answer. */
+export interface GitStackedActionProbeFailure {
+  readonly ok: false
+  readonly message: string
+}
 
 export interface GitStackedActionBranchOutcome {
   readonly status: 'created' | 'unchanged'

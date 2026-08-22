@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import fg from 'fast-glob'
+import { withoutCommentLines } from './standards/comment-stripping'
 import { collectDuplicateExportedTypes } from './standards/duplicate-exported-types'
 import {
   collectPackageBoundaryViolations,
@@ -143,32 +144,19 @@ const SESSION_BRANCH_CONVENTION_OWNER = 'src/shared/utils/worktree.ts'
 const POLICY_SCRIPT_OWN_PATH = 'scripts/check-repository-standards.ts'
 
 /*
- * Match the prefix in any literal form, not just a template literal. An independent audit
- * proved the earlier template-only test was narrower than its own error message claimed:
- * `const p = 'ow/session-probe'` and `'ow/session-' + id` both passed the guard, so the
- * "single source of truth" it advertises could be bypassed by writing the prefix a
- * different way.
+ * Match the prefix wherever it appears in code, not only where a quote sits immediately before it.
  *
- * Comment lines are stripped first so prose that documents the convention (including this
- * file and the JSDoc in the git worktree adapter) is not reported as a violation.
+ * Two rounds of independent review have narrowed this. The first version tested only template
+ * literals, so `const p = 'ow/session-probe'` passed. The second required a quote or backtick
+ * directly before the prefix, which still missed every use where it is not at the start of the
+ * string - verified that `` `refs/heads/ow/session-${id}` `` slipped through untouched, which is
+ * one of the most natural ways to write it.
+ *
+ * Comment lines are stripped first so prose that documents the convention (including this file and
+ * the JSDoc in the git worktree adapter) is not reported as a violation.
  */
-function sessionBranchPrefixForms(): readonly string[] {
-  return [
-    `\`${SESSION_BRANCH_PREFIX_LITERAL}`,
-    `'${SESSION_BRANCH_PREFIX_LITERAL}`,
-    `"${SESSION_BRANCH_PREFIX_LITERAL}`,
-  ]
-}
-
-function withoutCommentLines(contents: string) {
-  return contents
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .split('\n')
-    .filter((line) => {
-      const trimmed = line.trimStart()
-      return !trimmed.startsWith('//') && !trimmed.startsWith('*')
-    })
-    .join('\n')
+export function containsSessionBranchPrefix(code: string) {
+  return code.includes(SESSION_BRANCH_PREFIX_LITERAL)
 }
 
 function collectSessionBranchConventionViolations(file: string, contents: string) {
@@ -184,12 +172,12 @@ function collectSessionBranchConventionViolations(file: string, contents: string
   if (!/\.(?:ts|tsx|mts|cts)$/.test(normalized)) return []
   if (normalized.includes('__tests__')) return []
   const code = withoutCommentLines(contents)
-  if (!sessionBranchPrefixForms().some((form) => code.includes(form))) return []
+  if (!containsSessionBranchPrefix(code)) return []
   return [
     {
       file: normalized,
       message: `Session worktree branch names must come from sessionWorktreeBranch() or sessionWorktreeBranchForId() in ${SESSION_BRANCH_CONVENTION_OWNER}`,
-      detail: `found a local "${SESSION_BRANCH_PREFIX_LITERAL}" string or template literal`,
+      detail: `found a local "${SESSION_BRANCH_PREFIX_LITERAL}" literal in code`,
     },
   ]
 }
@@ -228,19 +216,73 @@ function printViolations(violations: readonly Violation[]) {
  */
 const SESSION_SUMMARY_QUERY_PATTERN = /sql<SessionSummaryRow>`([^`]*)`/gsu
 const SESSION_SUMMARY_COLUMN_FRAGMENT = 'sessionSummaryColumns'
-const SESSION_SUMMARY_INLINE_COLUMN = /\bcreated_at\b/u
+/**
+ * The projection of a query: what sits between its first `select` and the matching `from`.
+ *
+ * The rule is "use the shared fragment", not "avoid one particular column name". Two earlier versions
+ * were wrong in opposite directions: firing only when the list mentioned `created_at` let through the
+ * very defect it was written for, and skipping any query containing `count(` anywhere exempted an
+ * inline list that merely carried a `COUNT(...)` subquery - which is the shape the detail-side row
+ * actually uses, so a list missing `environment_mode` and `worktree_path` went unreported again.
+ * Judging the projection alone keeps `SELECT COUNT(*) AS total` passing and that subquery failing.
+ */
+const SESSION_SUMMARY_PROJECTION = /\bselect\b(?<projection>[\s\S]*?)\bfrom\b/iu
+/**
+ * A projection that names no columns of its own: only aggregate terms.
+ *
+ * Checked term by term. An earlier version matched anything whose *first* term was an aggregate, so an
+ * inline column list sitting behind a `COUNT(*)` was exempt - the same hole, in a different disguise,
+ * as the version that skipped any query containing `count(` at all.
+ */
+function namesNoColumns(projection: string) {
+  const terms = splitTopLevelTerms(projection)
+  if (terms.length === 0) return true
+  return terms.every((term) => AGGREGATE_TERM.test(term.trim()))
+}
+
+const AGGREGATE_TERM = /^\(?\s*\b(?:count|sum|min|max|avg)\s*\(/iu
+
+/** Split a projection on commas that are not inside parentheses. */
+function splitTopLevelTerms(projection: string): readonly string[] {
+  const terms: string[] = []
+  let depth = 0
+  let current = ''
+  for (const character of projection) {
+    if (character === '(') depth += 1
+    if (character === ')') depth -= 1
+    if (character === ',' && depth === 0) {
+      terms.push(current)
+      current = ''
+      continue
+    }
+    current += character
+  }
+  if (current.trim().length > 0) terms.push(current)
+  return terms.filter((term) => term.trim().length > 0)
+}
+
+function selectsNamedColumns(query: string) {
+  const projection = SESSION_SUMMARY_PROJECTION.exec(query)?.groups?.['projection']
+  if (projection === undefined) return false
+  return !namesNoColumns(projection)
+}
 const SESSION_SUMMARY_COLUMN_OWNERS: readonly string[] = [
   // A different SessionSummaryRow: the detail-side shape with message_count and aliases.
   'src/main/store/session-details/session-queries.ts',
 ]
 
-function collectSessionSummaryColumnViolations(file: string, contents: string) {
+export function collectSessionSummaryColumnViolations(file: string, contents: string) {
   if (SESSION_SUMMARY_COLUMN_OWNERS.includes(normalizePath(file))) return []
+  /*
+   * Tests are exempt, as they are for the session-branch rule: this rule is about the queries the
+   * app ships, and a test that pins the rule has to contain the very pattern it detects.
+   */
+  if (normalizePath(file).includes('__tests__')) return []
   const violations: Violation[] = []
   for (const match of contents.matchAll(SESSION_SUMMARY_QUERY_PATTERN)) {
     const query = match[1] ?? ''
     if (query.includes(SESSION_SUMMARY_COLUMN_FRAGMENT)) continue
-    if (!SESSION_SUMMARY_INLINE_COLUMN.test(query)) continue
+    if (!selectsNamedColumns(query)) continue
     violations.push({
       file: normalizePath(file),
       message:

@@ -119,3 +119,66 @@ describe('createGitWorktree recreation against real Git', () => {
     )
   })
 })
+
+describe('session worktree branch collisions', () => {
+  it('refuses to attach a branch that another worktree already has checked out', async () => {
+    /*
+     * Two sessions must never share a branch. They used to: the branch was named from the
+     * first 8 characters of the session id, and those are the top bits of a UUIDv7 timestamp,
+     * so sessions created within ~65s of each other derived the same name. Attaching then
+     * either failed with a misleading `unknown` code or, once the first worktree had been
+     * removed while its branch survived, silently handed the second session the first
+     * session's commits.
+     */
+    const repository = await createRepository()
+    const first = worktreePathFor(repository, 'session-first')
+    const second = worktreePathFor(repository, 'session-second')
+    const sharedBranch = 'ow/session-shared'
+
+    const created = await createGitWorktree(repository, {
+      path: first,
+      branch: sharedBranch,
+      baseRef: 'main',
+    })
+    expect(created.ok).toBe(true)
+
+    const collided = await createGitWorktree(repository, {
+      path: second,
+      branch: sharedBranch,
+      baseRef: 'main',
+    })
+
+    expect(collided.ok).toBe(false)
+    if (collided.ok) throw new Error('expected the collision to be refused')
+    expect(collided.code).toBe('branch-checked-out-elsewhere')
+    expect(collided.message).toContain(first)
+  })
+
+  it('reports worktree-exists, not a cross-session refusal, for the same tree asked for twice', async () => {
+    /*
+     * `git worktree list` prints the canonical path, so comparing it against the caller's string
+     * failed whenever the requested path traversed a symlink - a temporary directory under /var on
+     * macOS does. The caller was then told the branch was checked out in the very path it had asked
+     * for, and the two codes exist precisely so a caller can tell those situations apart.
+     */
+    const repository = await createRepository()
+    const tree = worktreePathFor(repository, 'session-same')
+
+    const first = await createGitWorktree(repository, {
+      path: tree,
+      branch: 'ow/session-same',
+      baseRef: 'main',
+    })
+    expect(first.ok).toBe(true)
+
+    const again = await createGitWorktree(repository, {
+      path: tree,
+      branch: 'ow/session-same',
+      baseRef: 'main',
+    })
+
+    expect(again.ok).toBe(false)
+    if (again.ok) throw new Error('expected the second create to be refused')
+    expect(again.code).toBe('worktree-exists')
+  })
+})

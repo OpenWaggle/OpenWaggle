@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -55,7 +55,6 @@ afterEach(async () => {
   await rm(worktree, { recursive: true, force: true }).catch(() => undefined)
   repositoryPath = null
 })
-
 describe('commitGit against a linked worktree', () => {
   /**
    * The blocking defect this pins: the header committed to the opened checkout while a
@@ -94,5 +93,47 @@ describe('commitGit against a linked worktree', () => {
     // The branch the checkout has out must not contain it.
     const checkoutFiles = await git(repository, ['ls-tree', '-r', '--name-only', 'HEAD'])
     expect(checkoutFiles).not.toContain('only-here.txt')
+  })
+
+  /**
+   * The commit set includes both paths of a rename, so the commit covers the deletion rather than keeping
+   * both files. Two real git behaviours make that awkward, and this pins both:
+   *
+   * - a path gone from disk is refused by a plain `git add --`, so `-A` is needed for a deletion and for an
+   *   unstaged rename's source;
+   * - an *already staged* rename's source is gone from disk **and** from the index, so it matches nothing
+   *   for `add` - yet it must stay in the commit pathspec, or the commit keeps both files and leaves the
+   *   deletion staged. Batching makes that fatal (`add -A -- kept.txt moved.txt` exits 128), so staging is
+   *   per-path and an unmatched entry is skipped.
+   */
+  /**
+   * Everything a correct commit needs is settled inside `commitGit`, because there is more than one way in -
+   * the diff panel's stacked action and the header's Commit dialog - and each had a different subset right.
+   * This asserts the three properties a caller must not have to know about, from a caller that passes the
+   * plainest possible selection: target paths only, and a subdirectory as the project path.
+   */
+
+  /**
+   * The first commit in a repository has no parent, and `git diff-tree HEAD` lists nothing for such a commit
+   * unless asked with `--root`. The verification therefore read every root commit as a total omission: it was
+   * created, rolled back, and reported as a failure - so a new project could never make its first commit.
+   */
+  it('accepts the first commit in a repository', async () => {
+    const { repository } = await createRepositoryWithWorktree()
+    const fresh = path.join(repository, 'fresh-project')
+    await mkdir(fresh, { recursive: true })
+    await git(fresh, ['init', '-b', 'main', '.'])
+    await git(fresh, ['config', 'user.email', 'tests@openwaggle.ai'])
+    await git(fresh, ['config', 'user.name', 'OpenWaggle Tests'])
+    await writeFile(path.join(fresh, 'first.txt'), 'hello\n')
+
+    const result = await commitGit(fresh, {
+      message: 'first commit',
+      amend: false,
+      paths: ['first.txt'],
+    })
+
+    expect(result.ok).toBe(true)
+    expect(await git(fresh, ['ls-tree', '-r', '--name-only', 'HEAD'])).toContain('first.txt')
   })
 })

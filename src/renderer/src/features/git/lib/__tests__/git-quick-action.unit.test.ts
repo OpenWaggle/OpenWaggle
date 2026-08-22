@@ -120,10 +120,22 @@ describe('resolveQuickAction', () => {
     })
   })
 
-  it('uses push-only (commit_push) on the default ref when no upstream and ahead', () => {
+  it('pushes, and does not ask for a commit message, on a clean default ref that is ahead', () => {
+    /*
+     * This used to resolve to `commit_push` for a clean tree. The panel opens its Commit message
+     * dialog for any action whose id starts with "commit", so a button labelled "Push" demanded a
+     * message under "0 changed files will be committed" - and main then skipped the commit phase
+     * and discarded it.
+     */
     expect(
       resolveQuickAction(status({ hasUpstream: false, aheadCount: 1, isDefaultRef: true }), false),
-    ).toMatchObject({ action: 'commit_push' })
+    ).toMatchObject({ label: 'Push', action: 'push' })
+  })
+
+  it('pushes on a clean branch with an open change request', () => {
+    expect(
+      resolveQuickAction(status({ aheadCount: 1, changeRequest: pr('open') }), false),
+    ).toMatchObject({ label: 'Push', action: 'push' })
   })
 })
 

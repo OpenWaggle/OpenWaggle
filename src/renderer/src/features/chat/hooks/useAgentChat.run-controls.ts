@@ -4,6 +4,10 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionDetail } from '@shared/types/session'
 import type { WaggleConfig } from '@shared/types/waggle'
+import {
+  MessageDeliveredRunFailed,
+  MessageNotDelivered,
+} from '@/features/chat/lib/message-delivery'
 import { api } from '@/shared/lib/ipc'
 import { createOptimisticUserMessage } from '../lib/useAgentChat.utils'
 import { createPendingRunWaiter, updateMessagesForSession } from './useAgentChat.message-cache'
@@ -150,9 +154,30 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       ? api.sendWaggleMessage(targetSessionId, payload, params.model, waggleConfig)
       : api.sendMessage(targetSessionId, payload, params.model)
 
+    /*
+     * Raised after the try block, never inside it. The catch below tears the run down and puts the session into
+     * an error state, which is wrong for this case twice over: a cancellation is not a run failure, and the run
+     * being torn down may already have been *replaced* - stopping settles the run, a queued follow-up send
+     * begins immediately, and the superseded send's reply arrives after that replacement has started.
+     */
+    let notDelivered: MessageNotDelivered | null = null
+    let delivered = false
     try {
-      await sendPromise
-      await runPromise
+      /*
+       * The report is read, not merely awaited. Main recovers every run failure into a value rather than
+       * failing the Effect, so this invoke resolves whether the turn ran or was refused - and the run promise
+       * can be settled without an error by ordinary actions such as Stop. Without consulting the report, a
+       * refused send reached the caller as a success and a submitted review was discarded.
+       */
+      const report = await sendPromise
+      if (report.outcome === 'delivered') {
+        delivered = true
+        await runPromise
+      } else {
+        // Nothing is waiting on the run any more, but its rejection must not surface unhandled.
+        void runPromise.catch(() => undefined)
+        notDelivered = new MessageNotDelivered(report.outcome, report.message)
+      }
     } catch (runError) {
       const normalizedError = normalizeError(runError)
       if (refs.foregroundSessionIdRef.current === targetSessionId) {
@@ -164,8 +189,28 @@ export function createAgentRunControls(params: AgentRunControlParams) {
         params.setStatus('error')
         refs.terminalRunErrorRef.current = normalizedError
       }
-      throw normalizedError
+      /*
+       * Distinguished, because a caller cannot tell these apart otherwise and one of them must not be
+       * treated as a lost message: the run failing says nothing about whether the message arrived.
+       *
+       * The evidence is the agent reporting the turn started, not this invoke resolving. Main recovers every
+       * run failure into a value and resolves - including a refusal raised before the message is recorded,
+       * such as a session whose worktree has gone - so "the send resolved" labelled undelivered messages
+       * delivered, and the caller that restores a review then discarded it. Absent that evidence the failure
+       * is reported as undelivered, which is the side that keeps the user's work.
+       */
+      /*
+       * Delivered only if main said so. This catch also covers the invoke itself rejecting - a payload the
+       * schema refuses, a handler that dies - where nothing arrived at all, and treating that as delivered
+       * destroyed the work a caller was holding for exactly this case.
+       */
+      throw delivered ? new MessageDeliveredRunFailed(normalizedError) : normalizedError
     }
+    /*
+     * The caller is told, so work it submitted is not lost - a review is restored - but the session is left
+     * alone. Whether this is worth showing the user is the caller's decision, and a cancellation is not.
+     */
+    if (notDelivered) throw notDelivered
   }
 
   async function sendUserPayload(payload: AgentSendPayload, waggleConfig: WaggleConfig | null) {

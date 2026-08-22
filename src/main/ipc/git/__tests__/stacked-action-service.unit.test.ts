@@ -4,7 +4,7 @@ import { runStackedGitAction, type StackedActionDeps } from '../stacked-action-s
 
 function makeDeps(overrides: Partial<StackedActionDeps> = {}): StackedActionDeps {
   return {
-    hasWorkingTreeChanges: vi.fn(async () => true),
+    hasWorkingTreeChanges: vi.fn(async () => ({ ok: true, hasChanges: true }) as const),
     listBranchNames: vi.fn(async () => ['main']),
     createBranch: vi.fn(async () => ({ ok: true, message: 'created' })),
     commit: vi.fn(async () => ({ ok: true, commitHash: 'abc', summary: 'done' }) as const),
@@ -133,10 +133,34 @@ describe('runStackedGitAction', () => {
   })
 
   it('skips commit when there are no working-tree changes for a push-only flow', async () => {
-    const deps = makeDeps({ hasWorkingTreeChanges: vi.fn(async () => false) })
+    const deps = makeDeps({
+      hasWorkingTreeChanges: vi.fn(async () => ({ ok: true, hasChanges: false }) as const),
+    })
     const result = await runStackedGitAction(deps, '/repo', { action: 'push' })
     expect(result.ok).toBe(true)
     expect(deps.commit).not.toHaveBeenCalled()
     expect(deps.push).toHaveBeenCalled()
+  })
+
+  it('fails instead of skipping the commit when the working tree cannot be read', async () => {
+    /*
+     * A failing `git status` used to be indistinguishable from a clean tree, so `commit_push`
+     * quietly skipped the commit phase, pushed nothing new, and still reported success.
+     */
+    const deps = makeDeps({
+      hasWorkingTreeChanges: vi.fn(
+        async () => ({ ok: false, message: 'index.lock exists' }) as const,
+      ),
+    })
+
+    const result = await runStackedGitAction(deps, '/repo', {
+      action: 'commit_push',
+      commitMessage: 'Ship it',
+      paths: ['a.txt'],
+    })
+
+    expect(result).toMatchObject({ ok: false, phase: 'commit', message: 'index.lock exists' })
+    expect(deps.commit).not.toHaveBeenCalled()
+    expect(deps.push).not.toHaveBeenCalled()
   })
 })

@@ -3,6 +3,14 @@ export { createBranchDraftSelectionFromNode } from './branch-from-message'
 export { maybeOpenBranchSummaryPrompt } from './branch-summary-prompt-controller'
 export { setComposerTextValue } from './composer-text'
 export {
+  createdSessionIdOf,
+  FirstSendFailed,
+  isReportableSendFailure,
+  MessageDeliveredRunFailed,
+  MessageNotDelivered,
+  wasMessageDelivered,
+} from './message-delivery'
+export {
   isScrollContainerNearBottom,
   scrollElementToBottom,
 } from './scroll-to-bottom'

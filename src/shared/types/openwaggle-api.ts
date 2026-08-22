@@ -1,4 +1,4 @@
-import type { AgentSendPayload, PreparedAttachment } from './agent'
+import type { AgentSendPayload, AgentSendReport, PreparedAttachment } from './agent'
 import type {
   AgentLoopInteractionResponseInput,
   AgentLoopInteractionSubmitResult,
@@ -10,7 +10,6 @@ import type {
   SessionBranchId,
   SessionId,
   SessionNodeId,
-  WagglePresetId,
   WorkingPath,
 } from './brand'
 import type { FileSuggestion } from './composer'
@@ -50,7 +49,9 @@ import type {
   SessionWorktreeCheck,
 } from './git'
 import type { IpcEventPayload } from './ipc'
+import type { ChangeRequestAdoption } from './ipc-invoke-git'
 import type { ProviderInfo, SupportedModelId } from './llm'
+import type { OpenWaggleWaggleApi } from './openwaggle-api-waggle'
 import type { OpenWaggleExtensionApi } from './openwaggle-extension-api'
 import type { OpenWaggleMcpApi } from './openwaggle-mcp-api'
 import type { OpenWaggleWorkspaceFilesApi } from './openwaggle-workspace-files-api'
@@ -78,18 +79,18 @@ import type {
 import type { TurnCheckpointSummary, TurnDiff } from './turn-diff'
 import type { UpdateStatus } from './updater'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
-import type { WaggleConfig, WagglePreset } from './waggle'
 
 export interface OpenWaggleApi
   extends OpenWaggleExtensionApi,
     OpenWaggleMcpApi,
+    OpenWaggleWaggleApi,
     OpenWaggleWorkspaceFilesApi {
   // Agent
   sendMessage(
     sessionId: SessionId,
     payload: AgentSendPayload,
     model: SupportedModelId,
-  ): Promise<void>
+  ): Promise<AgentSendReport>
   cancelAgent(sessionId?: SessionId): Promise<void>
   steerAgent(sessionId: SessionId): Promise<{ preserved: boolean }>
   respondAgentInteraction(
@@ -236,10 +237,16 @@ export interface OpenWaggleApi
     workingPath: WorkingPath,
     options: GitRunStackedActionOptions,
   ): Promise<GitRunStackedActionResult>
-  listChangeRequests(projectPath: string): Promise<ChangeRequestListResult>
+  listChangeRequests(repositoryPath: RepositoryPath): Promise<ChangeRequestListResult>
+  /**
+   * Adopt a change request. `checkout` switches the repository's checkout; `fetch` only makes the
+   * ref available, which is what a worktree-mode session needs - switching the user's own
+   * checkout as a side effect targets a tree the session does not run in.
+   */
   checkoutChangeRequest(
-    projectPath: string,
+    repositoryPath: RepositoryPath,
     reference: string,
+    adoption: ChangeRequestAdoption,
   ): Promise<ChangeRequestCheckoutResult>
 
   // Attachments
@@ -270,17 +277,6 @@ export interface OpenWaggleApi
   getLogsPath(): Promise<string>
   openPath(path: string): Promise<void>
 
-  // Waggle mode
-  sendWaggleMessage(
-    sessionId: SessionId,
-    payload: AgentSendPayload,
-    model: SupportedModelId,
-    config: WaggleConfig,
-  ): Promise<void>
-  cancelWaggle(sessionId: SessionId): void
-  onWaggleEvent(callback: (payload: IpcEventPayload<'waggle:event'>) => void): () => void
-  onWaggleTurnEvent(callback: (payload: IpcEventPayload<'waggle:turn-event'>) => void): () => void
-
   // Auth
   startOAuth(provider: OAuthProvider): Promise<void>
   submitAuthCode(provider: OAuthProvider, code: string): Promise<void>
@@ -289,11 +285,6 @@ export interface OpenWaggleApi
   disconnectAuth(provider: OAuthProvider): Promise<void>
   getAuthAccountInfo(provider: OAuthProvider): Promise<OAuthAccountInfo>
   onOAuthStatus(callback: (status: IpcEventPayload<'auth:oauth-status'>) => void): () => void
-
-  // Waggle presets
-  listWagglePresets(projectPath?: string | null): Promise<WagglePreset[]>
-  saveWagglePreset(preset: WagglePreset, projectPath?: string | null): Promise<WagglePreset>
-  deleteWagglePreset(id: WagglePresetId, projectPath?: string | null): Promise<void>
 
   // Feedback
   checkGhCli(): Promise<GhCliStatus>

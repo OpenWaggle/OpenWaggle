@@ -12,8 +12,8 @@ export type DiffScopeSelection =
       readonly revealRequestId: number
     }
 
-const DEFAULT_SELECTION: DiffScopeSelection = { kind: 'branch', baseRef: null }
-const DEFAULT_WORKING_TREE_SELECTION: DiffScopeSelection = { kind: 'unstaged' }
+/** A thread with no stored scope shows its working tree. */
+const DEFAULT_SELECTION: DiffScopeSelection = { kind: 'unstaged' }
 
 interface DiffScopeState {
   byThreadKey: Record<string, DiffScopeSelection>
@@ -145,11 +145,27 @@ export const useDiffScopeStore = create<DiffScopeState>()(
 export function selectThreadDiffScopeSelection(
   byThreadKey: Record<string, DiffScopeSelection>,
   threadKey: string | null | undefined,
-  hasWorkingTreeChanges = false,
+  /**
+   * The key this panel used before a session existed.
+   *
+   * Sessions are created on the first send, so the scope tab the reviewer chose was recorded against the
+   * working path. Without inheriting it the panel snapped back to the working-tree scope in the very render
+   * the session appeared - discarding the choice, and orphaning a review written in another scope, because
+   * the key a review lives under carries the scope.
+   */
+  draftThreadKey?: string | null,
 ): DiffScopeSelection {
-  if (!threadKey) return DEFAULT_SELECTION
-  return (
-    byThreadKey[threadKey] ??
-    (hasWorkingTreeChanges ? DEFAULT_WORKING_TREE_SELECTION : DEFAULT_SELECTION)
-  )
+  /*
+   * One default: the working tree.
+   *
+   * There used to be a second, Branch, chosen by a `hasWorkingTreeChanges` argument - but the only
+   * caller passed a hardcoded `true`, so no real thread could ever reach it while its unit tests
+   * reported it working. Deriving the flag from the asynchronously loaded status would have been
+   * worse than the dead branch: the scope would start as Branch, fire a branch diff, then flip to
+   * the working tree once the status arrived. Removed rather than left as a false green.
+   */
+  const own = threadKey ? byThreadKey[threadKey] : undefined
+  if (own) return own
+  const inherited = draftThreadKey ? byThreadKey[draftThreadKey] : undefined
+  return inherited ?? DEFAULT_SELECTION
 }

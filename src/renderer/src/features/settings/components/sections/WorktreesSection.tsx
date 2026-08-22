@@ -7,6 +7,7 @@ import { usePreferencesStore } from '@/features/settings/state/preferences-store
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
+import { useUIStore } from '@/shell/ui-store'
 
 const logger = createRendererLogger('settings')
 
@@ -57,6 +58,7 @@ export function WorktreesSection() {
   const repositoryPath = projectPath === null ? null : RepositoryPath(projectPath)
   const { worktrees, isLoading, refresh } = useProjectWorktrees(repositoryPath)
   const [removingPath, setRemovingPath] = useState<string | null>(null)
+  const showToast = useUIStore((state) => state.showToast)
 
   async function handleRemove(worktreePath: string) {
     if (!repositoryPath) return
@@ -64,11 +66,18 @@ export function WorktreesSection() {
     try {
       const result = await api.removeGitWorktree(repositoryPath, { path: worktreePath })
       if (!result.ok) {
+        /*
+         * Say why. Removal is deliberately refused for a dirty or locked worktree - the common case
+         * for a session that is mid-work - and sending the typed message only to the log meant the
+         * row stayed put with no explanation, which reads as a broken button.
+         */
         logger.warn('Failed to remove worktree', { code: result.code, message: result.message })
+        showToast(result.message, 'error')
       }
       await refresh()
     } catch (error) {
       logger.warn('Failed to remove worktree', { error: String(error) })
+      showToast('Could not remove the worktree.', 'error')
     } finally {
       setRemovingPath(null)
     }
@@ -77,8 +86,8 @@ export function WorktreesSection() {
   return (
     <div className="space-y-6">
       <div className="space-y-3">
-        <h3 className="text-[16px] font-semibold text-[#e7e9ee]">Session environment mode</h3>
-        <div className="overflow-hidden rounded-lg border border-[#1e2229] bg-[#111418]">
+        <h3 className="text-[16px] font-semibold text-text-primary">Session environment mode</h3>
+        <div className="overflow-hidden rounded-lg border border-border bg-diff-header-bg">
           {SESSION_ENVIRONMENT_MODES.map((mode) => {
             const isActive = settings.defaultSessionEnvironmentMode === mode
             return (
@@ -89,17 +98,18 @@ export function WorktreesSection() {
                 onClick={() => {
                   void setDefaultSessionEnvironmentMode(mode)
                 }}
-                className="flex w-full items-center justify-between border-b border-[#1e2229] px-5 py-3 text-left last:border-b-0 hover:bg-[#161a20]"
+                aria-pressed={isActive}
+                className="flex w-full items-center justify-between border-b border-border px-5 py-3 text-left last:border-b-0 hover:bg-bg-hover"
               >
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-[13px] font-medium text-[#e7e9ee]">
+                  <span className="text-[13px] font-medium text-text-primary">
                     {MODE_LABELS[mode]}
                   </span>
-                  <span className="text-[12px] text-[#9098a8]">{MODE_DESCRIPTIONS[mode]}</span>
+                  <span className="text-[12px] text-text-tertiary">{MODE_DESCRIPTIONS[mode]}</span>
                 </div>
                 <div
                   className={`size-3 shrink-0 rounded-full border ${
-                    isActive ? 'border-accent bg-accent' : 'border-[#3a3f4a]'
+                    isActive ? 'border-accent bg-accent' : 'border-border-light'
                   }`}
                 />
               </Button>
@@ -110,30 +120,30 @@ export function WorktreesSection() {
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-[16px] font-semibold text-[#e7e9ee]">Worktrees</h3>
+          <h3 className="text-[16px] font-semibold text-text-primary">Worktrees</h3>
           <Button variant="secondary" size="xs" disabled={isLoading} onClick={() => void refresh()}>
             Refresh
           </Button>
         </div>
         {!projectPath ? (
-          <p className="text-[12px] text-[#9098a8]">Open a project to manage its worktrees.</p>
+          <p className="text-[12px] text-text-tertiary">Open a project to manage its worktrees.</p>
         ) : worktrees.length === 0 ? (
-          <p className="text-[12px] text-[#9098a8]">
+          <p className="text-[12px] text-text-tertiary">
             {isLoading ? 'Loading worktrees…' : 'No worktrees for this repository.'}
           </p>
         ) : (
-          <div className="overflow-hidden rounded-lg border border-[#1e2229] bg-[#111418]">
+          <div className="overflow-hidden rounded-lg border border-border bg-diff-header-bg">
             {worktrees.map((worktree) => (
               <div
                 key={worktree.path}
-                className="flex items-center justify-between border-b border-[#1e2229] px-5 py-3 last:border-b-0"
+                className="flex items-center justify-between border-b border-border px-5 py-3 last:border-b-0"
               >
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-[13px] font-medium text-[#e7e9ee]">
+                  <span className="text-[13px] font-medium text-text-primary">
                     {formatWorktreePathForDisplay(worktree.path)}
                     {worktree.isMain ? ' (main)' : ''}
                   </span>
-                  <span className="text-[12px] text-[#9098a8]">
+                  <span className="text-[12px] text-text-tertiary">
                     {worktree.branch ?? 'detached'} · {worktree.path}
                   </span>
                 </div>

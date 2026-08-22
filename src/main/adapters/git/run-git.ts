@@ -17,12 +17,34 @@ export interface GitExecResult {
   readonly stdout: string
   readonly stderr: string
   readonly code: number
+  /**
+   * The command produced more output than `maxBuffer` allowed and was killed.
+   *
+   * Node reports this with a non-numeric error code, which normalises to `code: 1` and an empty
+   * stderr - indistinguishable from an ordinary git failure. Callers that can hit it (diffs of
+   * generated files, lockfiles, large vendored changes) need to tell the user their output was
+   * too large rather than that git failed for no stated reason.
+   */
+  readonly maxBufferExceeded?: boolean
+  /** The command was killed for exceeding `timeoutMs`, rather than failing on its own terms. */
+  readonly timedOut?: boolean
 }
+
+/** Node's error code when a child is killed for exceeding `maxBuffer`. */
+const MAX_BUFFER_ERROR_CODE = 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER'
 
 export interface RunGitOptions {
   readonly maxBuffer?: number
   /** Extra environment variables (e.g. GIT_INDEX_FILE for a scratch index). */
   readonly env?: Readonly<Record<string, string>>
+  /**
+   * Kill the command after this long.
+   *
+   * Required for anything that talks to a remote. Without it a command reaching the network blocks
+   * for git's own connect timeout - minutes - or forever on a credential prompt, and these calls sit
+   * on interactive paths: a diff load, a cached status refresh, the gate a Commit & push waits for.
+   */
+  readonly timeoutMs?: number
 }
 
 function normalizeGitSuccess(output: string | { stdout?: string; stderr?: string }): GitExecResult {
@@ -52,7 +74,20 @@ function normalizeGitError(error: unknown): GitExecResult {
     stdout: typeof value.stdout === 'string' ? value.stdout : '',
     stderr: typeof value.stderr === 'string' ? value.stderr : fallbackMessage,
     code: typeof value.code === 'number' ? value.code : 1,
+    ...(value.code === MAX_BUFFER_ERROR_CODE ? { maxBufferExceeded: true } : {}),
+    ...(wasKilledForTimeout(value) ? { timedOut: true } : {}),
   }
+}
+
+/**
+ * Whether the command was killed for exceeding its timeout.
+ *
+ * Node reports a timeout kill with `killed: true` and a signal rather than an exit status, so it
+ * normalised to `code: 1` with an empty stderr - a caller could not tell "the remote is unreachable"
+ * from "git failed for no stated reason", and neither could the user reading the toast.
+ */
+function wasKilledForTimeout(value: Readonly<Record<string, unknown>>) {
+  return value.killed === true && typeof value.signal === 'string'
 }
 
 export async function runGit(
@@ -65,6 +100,7 @@ export async function runGit(
     const output = await execFileAsync('git', args, {
       cwd: projectPath,
       maxBuffer,
+      ...(options.timeoutMs === undefined ? {} : { timeout: options.timeoutMs }),
       ...(options.env ? { env: getEnvWithOverrides(options.env) } : {}),
     })
     return normalizeGitSuccess(output)
@@ -83,4 +119,18 @@ export function stripSurroundingQuotes(value: string): string {
     return value.slice(1, -1).replaceAll('\\"', '"')
   }
   return value
+}
+
+/**
+ * Options for a git command that reaches the network.
+ *
+ * Bounded and never allowed to prompt. Without this a command blocks for git's own connect timeout -
+ * minutes - or forever on a credential prompt, and these calls sit on interactive paths. Defined once
+ * so a new network call cannot quietly omit it.
+ */
+export function networkGitOptions(timeoutMs: number): RunGitOptions {
+  return {
+    timeoutMs,
+    env: { GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: '', SSH_ASKPASS: '' },
+  }
 }
