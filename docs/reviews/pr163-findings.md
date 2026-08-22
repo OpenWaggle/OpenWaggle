@@ -405,3 +405,40 @@ undelivered, so nothing is lost: the consequence is confined to a mid-turn failu
 review may be offered a second time. Giving that path its own outcome mapping means restructuring waggle run
 orchestration, which belongs in its own change rather than at the end of this one.
 
+## Round thirteen, and a decision about the case-folding guard
+
+Round thirteen found that two of round twelve's repairs had themselves broken ordinary operations, and both of
+its blockers were in code added to guard a pre-existing edge case. That is the point at which the guard stopped
+being worth having, so it is gone.
+
+| Finding | Substance | Outcome |
+| --- | --- | --- |
+| E1-1, E3-1 | Every `--amend` was refused when HEAD is a merge commit | guard removed |
+| E1-2 | An amend that removes part of the previous commit was refused | guard removed |
+| E1-3 | A change living only in the index is dropped and reported as success | pre-existing; recorded |
+| E2-2, E3-2 | A run cancelled before its prompt was marked as having reached the agent | fixed |
+| E2-1 | A cancelled first send reports the user's own Stop | fixed earlier; re-verified |
+
+**Why the guard is gone rather than fixed again.** Its premise - "a path the commit did not record was omitted"
+- is simply false in two ordinary cases. An amend legitimately drops a path when the user reverts part of the
+previous commit, and `git diff-tree` prints nothing at all for a merge commit, so amending on a merge looked
+like a total omission. Both were reported as case-folding failures, which is not even the right explanation.
+Counting attempts: the dangerous shapes were predicted from path strings three times, each wrong in a different
+direction, and verified after the fact once, which broke the first commit in a repository, amends on merges,
+and the everyday revert-in-amend. Four attempts, five regressions in operations users perform daily - against a
+pre-existing limitation that predates this branch and merely leaves the change visible in `git status`.
+
+Removing it restores the commit path to what rounds one to ten exercised, and the limitation is documented
+instead:
+
+> On a filesystem that folds letter case, a rename that differs only by case in any path component cannot be
+> committed through a pathspec. Git either refuses it outright ("will not add file alias", reported as
+> `case-only-rename`) or resolves the new spelling onto the existing entry, in which case the rename stays
+> staged and visible in `git status` while the rest of the selection commits. Committing it needs a temporary
+> intermediate name, or the command line. Doing this properly means building the commit with
+> `write-tree`/`commit-tree` rather than a pathspec, which is its own change.
+
+The delivery marker was corrected rather than removed, because that one has a right answer: a run whose signal
+was already aborted returns from the kernel without prompting, so "the kernel returned" was never "the agent has
+the message". It is now taken from the kernel actually producing a turn.
+

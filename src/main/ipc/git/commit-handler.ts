@@ -4,12 +4,6 @@ import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { GitCommitFailure, GitCommitPayload, GitCommitResult } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
 import { typedHandle } from '../typed-ipc'
-import {
-  currentHead,
-  findOmittedPaths,
-  stagedPaths,
-  undoIncompleteCommit,
-} from './commit-verification'
 import { isGitRepository, projectPathSchema, runGit } from './shared'
 import { GIT_LITERAL_PATHS, GIT_RAW_PATHS } from './status-constants'
 import { invalidateGitStatusCache } from './status-handler'
@@ -82,12 +76,6 @@ export async function commitGit(
   const stageFailure = await stageCommitPaths(projectPath, paths)
   if (stageFailure) return stageFailure
 
-  // Recorded before the commit, so what the commit actually did can be compared against what was asked.
-  const [stagedBefore, previousHead] = await Promise.all([
-    stagedPaths(projectPath),
-    currentHead(projectPath),
-  ])
-
   const commitArgs = [...GIT_LITERAL_PATHS, 'commit', '-m', message]
   if (payload.amend) {
     commitArgs.push('--amend')
@@ -100,9 +88,6 @@ export async function commitGit(
   if (commitResult.code !== 0) {
     return mapCommitFailure(`${commitResult.stderr}\n${commitResult.stdout}`)
   }
-
-  const omitted = await findOmittedPaths(projectPath, { intended: paths, stagedBefore })
-  if (omitted) return await undoIncompleteCommit(projectPath, { omitted, previousHead })
 
   const hashResult = await runGit(projectPath, ['rev-parse', 'HEAD'])
   const commitHash = hashResult.code === 0 ? hashResult.stdout.trim() : ''

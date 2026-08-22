@@ -78,12 +78,14 @@ export function executeAgentRun(input: AgentRunInput) {
       preflight,
     )
     /*
-     * From here on the agent has the message and has answered it, so a failure past this point is not a refused
-     * send. Everything below is persistence, and a database write failure is a typed failure that the recovery
-     * below turns into an ordinary error outcome - which was then reported to the caller as "the agent never
-     * received this", making it restore a review the agent already held.
+     * Whether the agent actually took a turn, which is not the same as the kernel returning: a run whose signal
+     * was already aborted returns without prompting at all. Everything below this point is persistence, and a
+     * database write failure there is a typed failure that the recovery turns into an ordinary error outcome -
+     * reported to the caller as "the agent never received this", which made it restore a review the agent
+     * already held. Marking it on the kernel merely returning had the opposite fault: a cancelled-before-prompt
+     * run whose persistence then failed was reported as delivered, and the submitted review was discarded.
      */
-    reachedAgent = true
+    reachedAgent = agentResult.aborted !== true && agentResult.newMessages.length > 0
     const existingTree = yield* sessionRepo.getTree(input.sessionId)
     const sessionSnapshot = appendDurableAgentLoopEvents({
       snapshot: agentResult.sessionSnapshot,
