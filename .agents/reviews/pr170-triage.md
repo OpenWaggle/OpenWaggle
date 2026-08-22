@@ -5,83 +5,85 @@ run against the merged branch. Deduplicated. Status legend: [ ] open, [x] fixed,
 
 ## Blockers
 
-- [ ] B1 MCP/task-runtime session creation bypasses authorization-mode resolution.
+All 47 findings are closed. Each line records the commit that closed it.
+
+- [x] B1 (f4d09524 creation stores no mode, so no path can land on yolo by omission) MCP/task-runtime session creation bypasses authorization-mode resolution.
       `openwaggle-mcp-session-derivation.ts:78`, `openwaggle-mcp-session-lifecycle.ts:44`,
       `openwaggle-mcp-task-runtime.ts:89` call `sessions.create()` with no `authorizationMode`,
       so the store default `'yolo'` wins and the project/global default is ignored.
       `resolveSessionAuthorizationMode` is private to `session-details-handler.ts:41`.
-- [ ] B2 A mid-run mode change does nothing. `run-lifecycle.ts:110` snapshots the mode into the
+- [x] B2 (f4d09524 resolved at request time; grantPendingAuthorizationsForSession on switch to YOLO) A mid-run mode change does nothing. `run-lifecycle.ts:110` snapshots the mode into the
       UI context at run start; `sessions:set-authorization-mode` only writes the DB row.
       Violates two locked bullets: switching to YOLO must resolve the pending request, and
       switching to Ask must govern the rest of the run.
 
 ## Majors
 
-- [ ] M1 `confirmPurpose` (`interaction-ui-context.ts:84`) classifies authorization vs input by
+- [x] M1 (78eb4bf4 title sniffing deleted; purpose declared at the call site) `confirmPurpose` (`interaction-ui-context.ts:84`) classifies authorization vs input by
       exact-matching four English title literals produced in two other files. No shared
       constant, no test linking producers to classifier. All three reviewers flagged it.
-- [x] M2 DECIDED: reclassify so both always prompt. In YOLO, `Open MCP elicitation URL?` is auto-granted, so an MCP server can trigger
+- [x] M2 (78eb4bf4 external navigation and disclosure stay on plain confirm) DECIDED: reclassify so both always prompt. In YOLO, `Open MCP elicitation URL?` is auto-granted, so an MCP server can trigger
       `shell.openExternal()` on a server-supplied URL with no consent, and the form-elicitation
       disclosure (server + requested schema) is skipped before the user types into an editor.
-- [x] M3 DECIDED: live inherit chain. No inherit state today: project/global defaults are snapshotted at creation, so changing them
+- [x] M3 (f4d09524 + 22fd4f26 live chain, nullable override, Use default in Settings and composer) DECIDED: live inherit chain. No inherit state today: project/global defaults are snapshotted at creation, so changing them
       never affects existing sessions, and a project override cannot be cleared from the UI
       (`GeneralSection.tsx:216`, `project-config.ts:173` ignores `undefined`).
-- [ ] M4 `AgentNotificationStack.tsx:88` sorts by timestamp only, then caps at 3, so three later
+- [x] M4 (39d97933 severity-first ordering) `AgentNotificationStack.tsx:88` sorts by timestamp only, then caps at 3, so three later
       `info` notices evict an active `error`. Contract requires severity-first ordering.
-- [ ] M5 Auto-dismiss timers are keyed to the `notifications` array identity, so every new event
+- [x] M5 (39d97933 per-notice clocks keyed by id) Auto-dismiss timers are keyed to the `notifications` array identity, so every new event
       restarts every visible `info` timer; under a stream `info` never expires.
-- [ ] M6 Overflow `info` notices beyond the visible 3 are never marked dismissed, so they pop
+- [x] M6 (39d97933 every notice owns a clock, including overflowed ones) Overflow `info` notices beyond the visible 3 are never marked dismissed, so they pop
       back into view after the visible ones expire.
-- [ ] M7 `info` notifications consume the shared 30-entry live event window
+- [x] M7 (39d97933 independent notify and decision budgets) `info` notifications consume the shared 30-entry live event window
       (`useAgentChat.stream-events.ts:21`), evicting authorization request/resolution pairs; the
       Ask-mode transcript row then vanishes or stays stuck on "Waiting".
-- [ ] M8 Authorization message is rendered in a plain `<p>` with no `whitespace-pre-wrap`, but
+- [x] M8 (8615aa37 + ecd1c9b9 pre-wrapped, capped Details in the ribbon and the transcript row) Authorization message is rendered in a plain `<p>` with no `whitespace-pre-wrap`, but
       every MCP consent body is `.join('\n')`, so Server/Tool/Arguments collapse into one
       run-on paragraph.
-- [ ] M9 Visible authorization message embeds raw protocol JSON (`JSON.stringify(arguments)`,
+- [x] M9 (8615aa37 payload behind Details, never in the label) Visible authorization message embeds raw protocol JSON (`JSON.stringify(arguments)`,
       requested schema, whole sampling request), against the no-raw-JSON bullet.
-- [ ] M10 `AgentInteractionComposerPrompt` has no `role`/`aria-live`/accessible name/focus
+- [x] M10 (71cd3a63 polite live region, named region, error announced via role=alert) `AgentInteractionComposerPrompt` has no `role`/`aria-live`/accessible name/focus
       management; its error is a bare `<p>`. This is the only way to unblock a paused run.
-- [ ] M11 The `Select`/`TextInput`/`Textarea` in that prompt have no accessible name — exactly
+- [x] M11 (71cd3a63 accessible names on select, input, editor and their actions) The `Select`/`TextInput`/`Textarea` in that prompt have no accessible name — exactly
       the requests YOLO must never auto-answer.
-- [x] M12 DECIDED: OpenWaggle owns built-in prompts; status widgets get one run-level mount;
+- [x] M12 (0f112685 status widgets mounted once per run; dead panel deleted) DECIDED: OpenWaggle owns built-in prompts; status widgets get one run-level mount;
       delete the dead panel and its tests. `AgentInteractionsPanel` is unmounted from `ChatPanel` and now referenced only by
       tests, so the inline extension interaction surface and `ExtensionAgentLoopStatusWidgets`
       no longer render for `confirm`/`select`/`input`/`editor`. (Dialog placement still works.)
-- [ ] M13 Zero tests for `AgentNotificationStack`, `AgentInteractionComposerPrompt`,
+- [x] M13 (multiple: 10 notification, 7 ribbon, 8 accessibility, 7 mode menu, 8 Settings component tests) Zero tests for `AgentNotificationStack`, `AgentInteractionComposerPrompt`,
       `SessionAuthorizationModeMenu`, and the Settings `AgentAccessSection`.
 
 ## Minors and nits
 
-- [ ] N1 `SessionDetail.authorizationMode` optional + run-path fallback to `yolo` fails open.
-- [ ] N2 Durability predicate duplicated in main persistence and renderer projection.
-- [ ] N3 `factoryName`, `source: 'pi-ui'`, `renderer.kind: 'pi-tui-custom'` shipped in the
+- [x] N1 (f4d09524 fail closed to ask-for-approval) `SessionDetail.authorizationMode` optional + run-path fallback to `yolo` fails open.
+- [x] N2 (4ea2b7ca shared durability predicate) Durability predicate duplicated in main persistence and renderer projection.
+- [x] N3 (0f112685 factoryName removed from the payload and the type) `factoryName`, `source: 'pi-ui'`, `renderer.kind: 'pi-tui-custom'` shipped in the
       renderer payload.
-- [ ] N4 `ExtensionAgentLoopFallback.tsx:100` shows a raw interaction UUID and raw state token.
-- [ ] N5 `AgentInteractionCard.tsx:37` prints the raw `kind` discriminant as the subtitle.
-- [ ] N6 `role="alert"` applied to historical resolved custom interactions in the transcript.
-- [ ] N7 `extraCount` ("+N queued") excludes pending `custom` interactions shown right below it.
-- [ ] N8 `submit()` clears busy on success and sets error after unmount, allowing double-submit
+- [x] N4 (0f112685 raw UUID and state token replaced with a human label) `ExtensionAgentLoopFallback.tsx:100` shows a raw interaction UUID and raw state token.
+- [x] N5 (0f112685 raw kind discriminant replaced with the user-facing title) `AgentInteractionCard.tsx:37` prints the raw `kind` discriminant as the subtitle.
+- [x] N6 (0f112685 role=alert only while pending) `role="alert"` applied to historical resolved custom interactions in the transcript.
+- [x] N7 (8615aa37 counts every blocking request) `extraCount` ("+N queued") excludes pending `custom` interactions shown right below it.
+- [x] N8 (8615aa37 busy latches on success) `submit()` clears busy on success and sets error after unmount, allowing double-submit
       and swallowing genuine IPC failures.
-- [ ] N9 `dismissedIds` is unbounded and shared across sessions, so old warnings resurface on
+- [x] N9 (39d97933 dismissals reset with the session key) `dismissedIds` is unbounded and shared across sessions, so old warnings resurface on
       session switch.
-- [ ] N10 `ConfirmActions`/`SelectActions`/`InputActions`/`EditorActions` duplicate the existing
+- [x] N10 (8615aa37 select, input and editor reuse the shared controls) `ConfirmActions`/`SelectActions`/`InputActions`/`EditorActions` duplicate the existing
       `AgentInteraction*Controls`.
-- [x] N11 FIXED: `import.meta.env.DEV` inlined at the `lazy()` call so Rollup drops the branch.
+- [x] N11 (4ea2b7ca mockups deleted; clean build emits no chunk) FIXED: `import.meta.env.DEV` inlined at the `lazy()` call so Rollup drops the branch.
       Verified with a clean `pnpm build`: no mockup chunk, zero references in the entry file.
-- [ ] N12 `interactionEyebrow` labels an `info` notify as "Warning notification" if one ever
+- [x] N12 (this commit: the row renders nothing for an informational notice) `interactionEyebrow` labels an `info` notify as "Warning notification" if one ever
       reaches the row; the invariant is only enforced upstream.
-- [ ] N13 No `CHECK (authorization_mode IN (...))` constraint; a bad value coerces to `yolo`.
-- [ ] N14 `CURRENT_SESSION_TABLE_STATEMENT` is unreferenced and already stale (missing
+- [x] N13 (4ea2b7ca CHECK constraint on the override column) No `CHECK (authorization_mode IN (...))` constraint; a bad value coerces to `yolo`.
+- [x] N14 (f4d09524 one canonical sessions statement; slice(1) coupling removed) `CURRENT_SESSION_TABLE_STATEMENT` is unreferenced and already stale (missing
       `environment_mode` and the three `worktree_*` columns).
-- [ ] N15 Missing durability test for `level: 'error'` and for a non-notify request/resolution.
-- [ ] N16 Leak guards use exact-match `queryByText('pi-tui-custom')`, which stays green if the
+- [x] N15 (4ea2b7ca error level and a decision pair covered) Missing durability test for `level: 'error'` and for a non-notify request/resolution.
+- [x] N16 (0f112685 + this commit source scan replaces exact-match text guards) Leak guards use exact-match `queryByText('pi-tui-custom')`, which stays green if the
       old `Custom interaction · pi-tui-custom` label returns.
-- [ ] N17 The prototype production gate has no test (`import.meta.env.DEV` is always true in
+- [x] N17 (4ea2b7ca route test asserts no throwaway design key survives) The prototype production gate has no test (`import.meta.env.DEV` is always true in
       vitest).
-- [x] N18 DONE: all eight deleted, replaced by one static mockup. Was 1,771 lines of six notification prototypes live in `src/renderer/src/routes/`;
+- [x] N18 (0e9b9718 + 4ea2b7ca prototypes and then the mockup deleted) DONE: all eight deleted, replaced by one static mockup. Was 1,771 lines of six notification prototypes live in `src/renderer/src/routes/`;
       the design is decided, so five variants are dead weight.
-- [ ] N19 `routeTree.gen.ts` was re-emitted with reordered routes and no route change.
+- [x] N19 (verified: routeTree.gen.ts has no diff against origin/main) `routeTree.gen.ts` was re-emitted with reordered routes and no route change.
 
 ## Already resolved during the merge
 

@@ -45,8 +45,23 @@ function harness(input: {
   return { emitted, pending }
 }
 
-async function flush() {
-  await new Promise((resolve) => setTimeout(resolve, 0))
+/**
+ * Waits until the request has actually been raised.
+ *
+ * A fixed tick is not enough and made this suite flaky under load: before registering anything,
+ * `requestAuthorization` resolves the mode and then reads the project config from disk, so the
+ * emitted event can arrive several macrotasks later. Polling for the event removes the guess.
+ */
+async function flush(emitted?: readonly AgentTransportEvent[]) {
+  if (!emitted) {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    return
+  }
+
+  const deadline = Date.now() + 5000
+  while (emitted.length === 0 && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  }
 }
 
 function answer(scope?: 'session' | 'project') {
@@ -76,7 +91,7 @@ describe('requestAuthorization', () => {
 
   it('prompts in approval mode when nothing covers the request', async () => {
     const { emitted, pending } = harness({ mode: 'ask-for-approval' })
-    await flush()
+    await flush(emitted)
 
     expect(emitted[0]).toMatchObject({
       type: 'agent_interaction_request',
@@ -88,8 +103,8 @@ describe('requestAuthorization', () => {
   })
 
   it('returns false when the user continues without granting', async () => {
-    const { pending } = harness({ mode: 'ask-for-approval' })
-    await flush()
+    const { emitted, pending } = harness({ mode: 'ask-for-approval' })
+    await flush(emitted)
 
     submitAgentLoopInteractionResponse({
       sessionId,
@@ -103,8 +118,8 @@ describe('requestAuthorization', () => {
   })
 
   it('leaves nothing behind for a once-only approval', async () => {
-    const { pending } = harness({ mode: 'ask-for-approval' })
-    await flush()
+    const { emitted, pending } = harness({ mode: 'ask-for-approval' })
+    await flush(emitted)
     answer()
     await pending
 
@@ -113,7 +128,7 @@ describe('requestAuthorization', () => {
 
   it('keeps a session approval and stops asking for the rest of the session', async () => {
     const first = harness({ mode: 'ask-for-approval' })
-    await flush()
+    await flush(first.emitted)
     answer('session')
     await expect(first.pending).resolves.toBe(true)
     expect(listSessionGrants(sessionId)).toHaveLength(1)
@@ -125,7 +140,7 @@ describe('requestAuthorization', () => {
 
   it('does not reuse a session approval for a different tool', async () => {
     const first = harness({ mode: 'ask-for-approval' })
-    await flush()
+    await flush(first.emitted)
     answer('session')
     await first.pending
 
@@ -142,7 +157,7 @@ describe('requestAuthorization', () => {
       runSignal: new AbortController().signal,
       newInteractionId: () => 'authorization-2',
     })
-    await flush()
+    await flush(emitted)
 
     expect(emitted).toHaveLength(1)
     submitAgentLoopInteractionResponse({
@@ -171,7 +186,7 @@ describe('requestAuthorization with a project', () => {
 
   it('persists a project approval and stops asking afterwards', async () => {
     const first = harness({ mode: 'ask-for-approval', projectPath })
-    await flush()
+    await flush(first.emitted)
     answer('project')
     await expect(first.pending).resolves.toBe(true)
 
@@ -185,8 +200,8 @@ describe('requestAuthorization with a project', () => {
 
   it('falls back to the session when there is no project to write to', async () => {
     // Narrower than the user asked for, never wider, and never silently dropped.
-    const { pending } = harness({ mode: 'ask-for-approval', projectPath: null })
-    await flush()
+    const { emitted, pending } = harness({ mode: 'ask-for-approval', projectPath: null })
+    await flush(emitted)
     answer('project')
     await pending
 

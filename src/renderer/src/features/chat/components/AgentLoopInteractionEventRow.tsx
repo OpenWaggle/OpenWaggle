@@ -1,20 +1,18 @@
 import type { AgentLoopInteraction } from '@shared/types/agent-loop-interaction'
 import type { AgentTransportInteractionResolvedEvent } from '@shared/types/stream'
+import { notificationCreatesDurableRecord } from '@shared/utils/agent-notification-durability'
 import {
   AlertTriangle,
   Bell,
   CheckCircle2,
-  ChevronDown,
   CircleSlash,
   Clock3,
   type LucideIcon,
   ShieldCheck,
   XCircle,
 } from 'lucide-react'
-import { useState } from 'react'
 import { ExtensionAgentLoopSurface } from '@/features/extensions'
 import { cn } from '@/shared/lib/cn'
-import { Button } from '@/shared/ui/Button'
 import {
   agentLoopInteractionMessage,
   agentLoopInteractionRequiresDesktopRenderer,
@@ -22,6 +20,7 @@ import {
   toExtensionInteractionView,
 } from '../lib/agent-loop-interaction-view'
 import type { AgentInteractionTranscriptItem } from '../lib/types-chat-row'
+import { InteractionMessage } from './AgentInteractionMessage'
 import type { ChatRowRenderContext } from './ChatRowRenderContext'
 
 function eventTimeLabel(timestamp: number) {
@@ -197,6 +196,13 @@ function NotificationRow({ item }: { readonly item: AgentInteractionTranscriptIt
     return null
   }
 
+  // An informational notice is ephemeral and leaves no durable record. The projection already drops
+  // it, so reaching here means something upstream changed; render nothing rather than dress it as a
+  // warning, which is what this row would otherwise do to any level that is not an error.
+  if (!notificationCreatesDurableRecord(interaction.level)) {
+    return null
+  }
+
   const isError = interaction.level === 'error'
   const Icon = isError ? AlertTriangle : Bell
   return (
@@ -221,45 +227,6 @@ function NotificationRow({ item }: { readonly item: AgentInteractionTranscriptIt
         </div>
       </div>
     </section>
-  )
-}
-
-/**
- * The request's own words, in the durable row.
- *
- * A consent body is built as several lines and often carries a JSON payload, so rendering it as one
- * paragraph collapsed it into an unreadable run-on and put protocol detail into what should be a
- * human sentence. Multi-line bodies go behind a disclosure, pre-wrapped and height capped, exactly
- * as the live ribbon does; a single-line message needs none of that and stays inline.
- */
-function InteractionMessage({ message }: { readonly message: string }) {
-  const [open, setOpen] = useState(false)
-  const firstLine = message.split('\n', 1)[0] ?? message
-  const isMultiLine = message.trimEnd().includes('\n')
-
-  if (!isMultiLine) {
-    return <p className="mt-2 text-[12px] leading-5 text-text-secondary">{message}</p>
-  }
-
-  return (
-    <div className="mt-2">
-      <p className="truncate text-[12px] leading-5 text-text-secondary">{firstLine}</p>
-      <Button
-        aria-expanded={open}
-        className="mt-1 gap-1 text-[10px] text-text-muted"
-        onClick={() => setOpen((current) => !current)}
-        size="xs"
-        variant="ghost"
-      >
-        <ChevronDown className={`size-3 ${open ? '' : '-rotate-90'}`} />
-        Details
-      </Button>
-      {open ? (
-        <pre className="mt-1 max-h-40 max-w-full min-w-0 overflow-auto rounded-lg border border-border/65 bg-bg/70 p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-text-secondary [overflow-wrap:anywhere]">
-          {message}
-        </pre>
-      ) : null}
-    </div>
   )
 }
 

@@ -36,13 +36,57 @@ describe('InteractionEventRow', () => {
       />,
     )
 
-    expect(screen.getAllByText('Custom interaction')).toHaveLength(3)
-    expect(
-      screen.queryByText(OPENWAGGLE_AGENT_LOOP.PI_TUI_CUSTOM_INTERACTION_TYPE),
-    ).not.toBeInTheDocument()
+    expect(screen.getAllByText('Custom interaction').length).toBeGreaterThan(0)
+    // Counting would stay green if a raw identifier were appended to the label, so this asserts the
+    // identifier cannot appear anywhere in the rendered output.
+    expect(document.body.textContent).not.toContain(
+      OPENWAGGLE_AGENT_LOOP.PI_TUI_CUSTOM_INTERACTION_TYPE,
+    )
     expect(screen.getByText('Custom desktop interaction renderer unavailable')).toBeInTheDocument()
     expect(
       screen.getByText(/does not execute terminal UI custom components inside Electron/),
     ).toBeInTheDocument()
+  })
+})
+
+function notifyRequest(level: 'info' | 'warning' | 'error'): AgentTransportInteractionRequestEvent {
+  return {
+    type: 'agent_interaction_request',
+    timestamp: 1,
+    interaction: {
+      interactionId: `notify-${level}`,
+      sessionId: SessionId('session-1'),
+      runId: 'run-1',
+      kind: 'notify',
+      source: 'pi-ui',
+      createdAt: 1,
+      message: `Notice at ${level} level`,
+      level,
+    },
+  }
+}
+
+describe('InteractionEventRow notification durability', () => {
+  it('renders a warning and an error notice', () => {
+    const { unmount } = render(
+      <InteractionEventRow extensions={extensions} item={{ request: notifyRequest('warning') }} />,
+    )
+    expect(screen.getByText('Notice at warning level')).toBeInTheDocument()
+    unmount()
+
+    render(
+      <InteractionEventRow extensions={extensions} item={{ request: notifyRequest('error') }} />,
+    )
+    expect(screen.getByText('Notice at error level')).toBeInTheDocument()
+  })
+
+  it('renders nothing for an informational notice', () => {
+    // Informational notices are ephemeral and leave no durable record. This row styles anything that
+    // is not an error as a warning, so reaching it would dress an info notice as one.
+    const { container } = render(
+      <InteractionEventRow extensions={extensions} item={{ request: notifyRequest('info') }} />,
+    )
+
+    expect(container).toBeEmptyDOMElement()
   })
 })
