@@ -1,11 +1,18 @@
-# PR #170 review triage
+# PR #170 — Independent review findings and disposition
 
-Source: three independent reviewers (`.agents/reviews/pr170-{backend,renderer,contract}.txt`),
-run against the merged branch. Deduplicated. Status legend: [ ] open, [x] fixed, [?] needs decision.
+Three independent reviewer agents (pi on Bedrock, `eu.anthropic.claude-opus-5`) reviewed the branch
+read-only after it was merged with `main`, with scoped briefs:
+
+| Reviewer | Scope | Report |
+| --- | --- | --- |
+| 1 | main process, shared types, IPC, persistence | [`pr170-reviewer-1.md`](./pr170-reviewer-1.md) |
+| 2 | renderer, merge-conflict resolutions, accessibility | [`pr170-reviewer-2.md`](./pr170-reviewer-2.md) |
+| 3 | contract conformance and test quality | [`pr170-reviewer-3.md`](./pr170-reviewer-3.md) |
+
+They produced 47 findings, deduplicated below to 2 blockers, 13 majors and 20 minors. Every one is
+closed; each line records the commit that closed it.
 
 ## Blockers
-
-All 47 findings are closed. Each line records the commit that closed it.
 
 - [x] B1 (f4d09524 creation stores no mode, so no path can land on yolo by omission) MCP/task-runtime session creation bypasses authorization-mode resolution.
       `openwaggle-mcp-session-derivation.ts:78`, `openwaggle-mcp-session-lifecycle.ts:44`,
