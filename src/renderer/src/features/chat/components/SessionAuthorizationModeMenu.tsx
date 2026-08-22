@@ -6,9 +6,48 @@ import {
   isAgentAuthorizationMode,
 } from '@shared/types/agent-authorization'
 import type { SessionDetail } from '@shared/types/session'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { usePreferencesStore } from '@/features/settings/state'
+import { api } from '@/shared/lib/ipc'
+import { createRendererLogger } from '@/shared/lib/logger'
 import { Select } from '@/shared/ui/Select'
+
+const logger = createRendererLogger('session-access-mode')
+
+/**
+ * The project's own override, when it has one.
+ *
+ * Read here so the closed control can name the mode that will actually be used. Showing "Default"
+ * instead would hide which mode is in force, which is the one thing this control exists to say.
+ */
+function useProjectDefault(projectPath: string | null) {
+  const [projectDefault, setProjectDefault] = useState<AgentAuthorizationMode | null>(null)
+
+  useEffect(() => {
+    if (!projectPath || typeof api.getProjectPreferences !== 'function') {
+      setProjectDefault(null)
+      return
+    }
+
+    let cancelled = false
+    api
+      .getProjectPreferences(projectPath)
+      .then((preferences) => {
+        if (!cancelled) setProjectDefault(preferences?.authorizationMode ?? null)
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        logger.warn('Failed to read the project access mode', { error: String(err) })
+        setProjectDefault(null)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [projectPath])
+
+  return projectDefault
+}
 
 /** Sentinel for the option that clears the session override. */
 const INHERIT_VALUE = 'inherit'
@@ -37,15 +76,20 @@ export function SessionAuthorizationModeMenu({
   const [saving, setSaving] = useState(false)
   const [choosing, setChoosing] = useState(false)
   const globalDefault = usePreferencesStore((s) => s.settings.defaultAuthorizationMode)
+  const projectDefault = useProjectDefault(session?.projectPath ?? null)
 
   // Absent means the session holds no override and follows its project, then the global default.
   const override = session?.authorizationMode ?? null
+
+  // The same precedence the main process resolves at request time, so the control cannot claim one
+  // mode while the run uses another.
+  const effective = override ?? projectDefault ?? globalDefault
 
   // Before a session exists there is nothing to hold an override, so the control shows the mode the
   // first run will actually use and is not editable yet. Hiding it instead would leave the composer
   // silent about access until after the first message, which is exactly when it matters least.
   const draft = session === null
-  const value = draft ? globalDefault : (override ?? INHERIT_VALUE)
+  const value = draft ? effective : (override ?? INHERIT_VALUE)
 
   function handleChange(next: AgentAuthorizationMode | null) {
     if (next === override || saving) return
@@ -57,7 +101,9 @@ export function SessionAuthorizationModeMenu({
   }
 
   function labelFor(mode: AgentAuthorizationMode) {
-    const isSelected = draft ? mode === globalDefault : mode === override
+    // A native select shows the selected option's own text when closed, so the selected option
+    // carries the compact label until the control opens and the full one after.
+    const isSelected = draft ? mode === effective : mode === override
     return isSelected && !choosing
       ? AGENT_AUTHORIZATION_MODE_SHORT_LABELS[mode]
       : AGENT_AUTHORIZATION_MODE_LABELS[mode]
@@ -93,8 +139,12 @@ export function SessionAuthorizationModeMenu({
         value={value}
       >
         {draft ? null : (
+          // While inheriting and closed, this is the option on display, so it names the mode in
+          // force rather than the word "Default", which would say nothing about what will happen.
           <option value={INHERIT_VALUE}>
-            {choosing || override !== null ? 'Use default' : 'Default'}
+            {choosing || override !== null
+              ? 'Use default'
+              : AGENT_AUTHORIZATION_MODE_SHORT_LABELS[effective]}
           </option>
         )}
         {AGENT_AUTHORIZATION_MODES.map((mode) => (

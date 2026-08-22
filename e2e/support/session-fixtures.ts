@@ -353,15 +353,17 @@ function seedSessionRow(
   }
 }
 
+/** Returns the seeded session id, which live agent events have to be addressed to. */
 export async function seedSingleSession(
   userDataDir: string,
   sessionInput: SeedSessionInput,
-): Promise<void> {
+): Promise<string> {
   await waitForDatabase(userDataDir)
   const database = openDatabase(userDataDir)
   try {
     const row = insertSessionRow(database)
     seedSessionRow(database, row, sessionInput, userDataDir)
+    return row.id
   } finally {
     database.close()
   }

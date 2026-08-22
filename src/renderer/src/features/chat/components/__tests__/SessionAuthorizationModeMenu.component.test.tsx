@@ -2,6 +2,11 @@ import { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/shared/lib/ipc', () => ({
+  api: { getProjectPreferences: vi.fn().mockResolvedValue(null) },
+}))
+
 import { SessionAuthorizationModeMenu } from '../SessionAuthorizationModeMenu'
 
 function session(override?: 'yolo' | 'ask-for-approval'): SessionDetail {
@@ -64,7 +69,9 @@ describe('SessionAuthorizationModeMenu', () => {
     expect(screen.getByRole('option', { name: 'Ask for Approval' })).toBeInTheDocument()
   })
 
-  it('shows a session with no override as following the default', () => {
+  it('names the mode in force while inheriting, rather than the word Default', () => {
+    // The control exists to say which mode the next run will use. "Default" says nothing about that,
+    // and an inheriting session is the common case.
     render(
       <SessionAuthorizationModeMenu
         onSetAuthorizationMode={vi.fn().mockResolvedValue(undefined)}
@@ -72,7 +79,12 @@ describe('SessionAuthorizationModeMenu', () => {
       />,
     )
 
-    expect(screen.getByRole('combobox', { name: 'Session access mode' })).toHaveValue('inherit')
+    const select = screen.getByRole('combobox', { name: 'Session access mode' })
+    expect(select).toHaveValue('inherit')
+    expect(screen.getByRole('option', { name: 'YOLO' })).toBeInTheDocument()
+
+    fireEvent.mouseDown(select)
+    expect(screen.getByRole('option', { name: 'Use default' })).toBeInTheDocument()
   })
 
   it('sets a session override', () => {

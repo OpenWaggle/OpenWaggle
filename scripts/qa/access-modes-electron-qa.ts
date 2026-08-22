@@ -2,6 +2,7 @@ import { chromium } from '@playwright/test'
 
 const SETTLE_MS = 1200
 const RENDER_MS = 1500
+const JSON_INDENT = 2
 
 /**
  * Electron QA over CDP.
@@ -86,7 +87,7 @@ async function main() {
     (text) => !text.includes('Download the React DevTools'),
   )
 
-  console.log(JSON.stringify(results, null, 2))
+  console.log(JSON.stringify(results, null, JSON_INDENT))
   await browser.close()
 }
 
