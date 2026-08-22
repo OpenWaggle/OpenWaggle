@@ -33,5 +33,7 @@ export function ComposerEditorArea({
 }
 
 function getDefaultPlaceholder(isLoading: boolean) {
-  return isLoading ? 'Add a message to the session...' : 'Ask for follow-up changes'
+  return isLoading
+    ? 'Add a message · / skills & Waggle · @ files'
+    : 'Ask anything · / skills & Waggle · @ files'
 }

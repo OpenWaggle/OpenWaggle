@@ -138,7 +138,7 @@ An extension package can declare multiple contribution families:
 - `customMessageRenderers` for Pi custom message records.
 - `interactionRenderers` for Pi interaction requests such as `confirm`, `select`, `input`, `editor`, `notify`, and typed custom interactions.
 - `statusWidgets` for compact status surfaces.
-- `commands` and `slashCommands` for command palette and composer-adjacent launchers.
+- `commands` and `slashCommands` for slash command menu and composer-adjacent launchers.
 
 OpenWaggle owns the container: placement, chrome, sizing, docking, fallback behavior, and persistence rules. The extension owns the content mounted inside that container.
 
@@ -156,7 +156,7 @@ Choose the surface by the job the extension is doing, not by the framework used 
 - `sidePanels` are for auxiliary workspace content that benefits from staying open while the user works, such as issue lists, project metadata, logs, or package state shared with other contributions.
 - `dialogs` are for focused host-owned modals, confirmations, pickers, and forms that should temporarily interrupt the current workflow.
 - `routes` are for larger extension-owned views mounted inside an OpenWaggle route container. They should not replace core shell navigation.
-- `commands` and `slashCommands` launch actions from the command palette or composer. Composer contributions are compact launchers or selectors, not arbitrary controls inside the composer text input.
+- `commands` and `slashCommands` launch actions from the slash command menu or composer. Composer contributions are compact launchers or selectors, not arbitrary controls inside the composer text input.
 - `transcriptRenderers` render durable Pi session records in the chat transcript. They must be reconstructable from the mount context and Pi session data after remount or restart.
 - `toolRenderers` render Pi-native tool calls and results. They customize desktop presentation for Pi tools; they do not create a separate OpenWaggle tool runtime.
 - `customMessageRenderers` render Pi custom message records while preserving the Pi-native custom message type as the binding identity.

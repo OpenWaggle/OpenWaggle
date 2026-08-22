@@ -3,6 +3,7 @@ import {
   Archive,
   Cable,
   GitBranch,
+  Keyboard,
   Network,
   PackageOpen,
   Palette,
@@ -21,6 +22,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'general', label: 'General', icon: Settings2 },
+  { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard },
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'waggle', label: 'Waggle Mode', icon: Waypoints },
   { id: 'extensions', label: 'Extensions', icon: PackageOpen },

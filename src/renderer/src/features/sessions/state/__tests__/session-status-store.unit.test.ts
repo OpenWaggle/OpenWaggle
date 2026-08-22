@@ -11,6 +11,7 @@ describe('session-status-store', () => {
       statuses: new Map(),
       completedAt: new Map(),
       lastVisitedAt: new Map(),
+      phases: new Map(),
     })
   })
 
@@ -160,6 +161,71 @@ describe('session-status-store', () => {
 
       expect(useSessionStatusStore.getState().statuses.has(ID_A)).toBe(false)
       expect(useSessionStatusStore.getState().completedAt.has(ID_A)).toBe(false)
+    })
+  })
+
+  /**
+   * The phase already crossed IPC and was thrown away, used only to infer that a session
+   * was alive. Keeping the label is what lets a row say "Refactoring" rather than repeating
+   * "Working".
+   */
+  describe('phases', () => {
+    it('retains the phase label per session', () => {
+      useSessionStatusStore.getState().setPhase(ID_A, 'Refactoring')
+      useSessionStatusStore.getState().setPhase(ID_B, 'Testing')
+
+      expect(useSessionStatusStore.getState().getPhase(ID_A)).toBe('Refactoring')
+      expect(useSessionStatusStore.getState().getPhase(ID_B)).toBe('Testing')
+    })
+
+    it('reports no phase for a session that never reported one', () => {
+      expect(useSessionStatusStore.getState().getPhase(ID_A)).toBeNull()
+    })
+
+    it('clears the phase when set to null', () => {
+      useSessionStatusStore.getState().setPhase(ID_A, 'Thinking')
+      useSessionStatusStore.getState().setPhase(ID_A, null)
+
+      expect(useSessionStatusStore.getState().getPhase(ID_A)).toBeNull()
+      expect(useSessionStatusStore.getState().phases.has(ID_A)).toBe(false)
+    })
+
+    it('keeps state identity stable when the phase is unchanged', () => {
+      useSessionStatusStore.getState().setPhase(ID_A, 'Writing')
+      const before = useSessionStatusStore.getState().phases
+
+      useSessionStatusStore.getState().setPhase(ID_A, 'Writing')
+
+      expect(useSessionStatusStore.getState().phases).toBe(before)
+    })
+
+    // A finished run is not doing anything, so a stale label must not outlive it.
+    it('drops the phase when a run reaches a terminal status', () => {
+      useSessionStatusStore.getState().setPhase(ID_A, 'Executing')
+      useSessionStatusStore.getState().setStatus(ID_A, 'completed')
+
+      expect(useSessionStatusStore.getState().getPhase(ID_A)).toBeNull()
+    })
+
+    it('drops the phase on error too', () => {
+      useSessionStatusStore.getState().setPhase(ID_A, 'Debugging')
+      useSessionStatusStore.getState().setStatus(ID_A, 'error')
+
+      expect(useSessionStatusStore.getState().getPhase(ID_A)).toBeNull()
+    })
+
+    it('keeps the phase while a run is still working', () => {
+      useSessionStatusStore.getState().setPhase(ID_A, 'Planning')
+      useSessionStatusStore.getState().setStatus(ID_A, 'working')
+
+      expect(useSessionStatusStore.getState().getPhase(ID_A)).toBe('Planning')
+    })
+
+    it('clearStatus forgets the phase as well', () => {
+      useSessionStatusStore.getState().setPhase(ID_A, 'Researching')
+      useSessionStatusStore.getState().clearStatus(ID_A)
+
+      expect(useSessionStatusStore.getState().getPhase(ID_A)).toBeNull()
     })
   })
 })

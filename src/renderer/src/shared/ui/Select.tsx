@@ -15,7 +15,8 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
  * would both survive and stylesheet order would decide the winner.
  */
 const SELECT_BASE_CLASS =
-  'border bg-bg-secondary text-text-secondary outline-none transition-[border-color,box-shadow] focus:border-accent/50 focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]'
+  // No focus ring or glow, per the app-wide decision that focus draws nothing.
+  'border bg-bg-secondary text-text-secondary outline-none transition-[border-color]'
 
 const SELECT_SIZE_CLASS = {
   // Chip size, matching BranchPickerTrigger so selects can sit in a control row.

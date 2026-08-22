@@ -69,7 +69,7 @@ Open **Settings → MCP → Migrate existing MCP configuration** and choose **Sc
 
 Review warnings before importing. OpenWaggle preserves source-path provenance, does not copy plaintext credentials, and imports every selected definition disabled and untrusted. Existing target definitions win instead of being overwritten. The standard active definitions in `<project>/.mcp.json` already remain available directly and are not duplicated by migration.
 
-The migration removes only the exact OpenWaggle-owned `extensions/pi-mcp-adapter` entry from Pi settings. It does not remove unrelated packages or delete legacy configuration files, so the scan can be rerun while you verify the new definitions.
+The migration removes only the exact OpenWaggle-owned `extensions/pi-mcp-adapter` entry from Pi settings. A user-managed `pi-mcp-adapter` npm package remains installed and configured for standalone Pi and other projects, but OpenWaggle does not load it because the desktop app now owns MCP directly. OpenWaggle does not delete unrelated packages or legacy configuration files, so the scan can be rerun while you verify the new definitions.
 
 ## Current and older MCP servers
 

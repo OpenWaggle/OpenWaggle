@@ -30,6 +30,10 @@ export function ChatIndexRouteView() {
   const diffOpen = search.panel === 'diff' || (search.diff === 1 && search.panel === undefined)
   const sessionTreeOpen = search.panel === 'session-tree'
   const extensionSidePanel = extensionSidePanelTargetFromSearch(search)
+  const workspaceFile =
+    search.panel === 'file' && search.filePath
+      ? { path: search.filePath, line: search.fileLine ?? null }
+      : null
 
   function setDiffOpen(open: boolean) {
     const panel: ChatRouteSearch['panel'] = open ? 'diff' : undefined
@@ -75,15 +79,33 @@ export function ChatIndexRouteView() {
     })
   }
 
+  function setWorkspaceFileOpen(open: boolean, target?: { path: string; line?: number | null }) {
+    const panel: ChatRouteSearch['panel'] = open ? 'file' : undefined
+    void navigate({
+      to: '/',
+      search: {
+        diff: undefined,
+        panel,
+        filePath: open ? target?.path : undefined,
+        fileLine: open ? (target?.line ?? undefined) : undefined,
+        sidePanelExtensionId: undefined,
+        sidePanelId: undefined,
+        sidePanelPackagePath: undefined,
+        sidePanelContentHash: undefined,
+      },
+    })
+  }
+
   return (
     <Suspense fallback={<ChatRouteSurfaceFallback />}>
       <LazyChatRouteSurface
         workspace={{ branchId: null, nodeId: null, sessionId: null }}
-        rightSidebar={{ diffOpen, extensionSidePanel, sessionTreeOpen }}
+        rightSidebar={{ diffOpen, extensionSidePanel, sessionTreeOpen, workspaceFile }}
         rightSidebarActions={{
           onDiffOpenChange: setDiffOpen,
           onExtensionSidePanelOpenChange: setExtensionSidePanelOpen,
           onSessionTreeOpenChange: setSessionTreeOpen,
+          onWorkspaceFileOpenChange: setWorkspaceFileOpen,
         }}
       />
     </Suspense>
@@ -97,6 +119,10 @@ export function ChatSessionRouteView() {
   const diffOpen = search.panel === 'diff' || (search.diff === 1 && search.panel === undefined)
   const sessionTreeOpen = search.panel === 'session-tree'
   const extensionSidePanel = extensionSidePanelTargetFromSearch(search)
+  const workspaceFile =
+    search.panel === 'file' && search.filePath
+      ? { path: search.filePath, line: search.fileLine ?? null }
+      : null
 
   function setDiffOpen(open: boolean) {
     const panel: ChatRouteSearch['panel'] = open ? 'diff' : undefined
@@ -150,15 +176,35 @@ export function ChatSessionRouteView() {
     })
   }
 
+  function setWorkspaceFileOpen(open: boolean, target?: { path: string; line?: number | null }) {
+    const panel: ChatRouteSearch['panel'] = open ? 'file' : undefined
+    void navigate({
+      to: '/sessions/$sessionId',
+      params: { sessionId },
+      search: (previous: ChatRouteSearch) => ({
+        ...previous,
+        diff: undefined,
+        panel,
+        filePath: open ? target?.path : undefined,
+        fileLine: open ? (target?.line ?? undefined) : undefined,
+        sidePanelExtensionId: undefined,
+        sidePanelId: undefined,
+        sidePanelPackagePath: undefined,
+        sidePanelContentHash: undefined,
+      }),
+    })
+  }
+
   return (
     <Suspense fallback={<ChatRouteSurfaceFallback />}>
       <LazyChatRouteSurface
         workspace={{ branchId: search.branch ?? null, nodeId: search.node ?? null, sessionId }}
-        rightSidebar={{ diffOpen, extensionSidePanel, sessionTreeOpen }}
+        rightSidebar={{ diffOpen, extensionSidePanel, sessionTreeOpen, workspaceFile }}
         rightSidebarActions={{
           onDiffOpenChange: setDiffOpen,
           onExtensionSidePanelOpenChange: setExtensionSidePanelOpen,
           onSessionTreeOpenChange: setSessionTreeOpen,
+          onWorkspaceFileOpenChange: setWorkspaceFileOpen,
         }}
       />
     </Suspense>

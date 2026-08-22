@@ -85,6 +85,7 @@ export function useChatScrollBehaviour(
     pendingAutoScrollFrameRef,
     pendingRestoreTimerRef,
     pendingRestoreScrollTopRef,
+    lastRestoreMaxScrollTopRef,
     activeSessionIdRef,
     scrollCacheRef,
     persistTimerRef,
@@ -155,6 +156,7 @@ export function useChatScrollBehaviour(
     shouldAutoScrollRef.current = true
     pendingUserScrollUpIntentRef.current = false
     pendingRestoreScrollTopRef.current = null
+    lastRestoreMaxScrollTopRef.current = null
     syncButtonVisibility()
     rememberScrollPosition(activeSessionIdRef.current, scrollContainer.scrollTop)
   }
@@ -179,14 +181,34 @@ export function useChatScrollBehaviour(
     lastKnownScrollTopRef.current = nextScrollTop
 
     const fullyRestored = maxScrollTop >= target
+
+    /*
+     * Give up when the content stops growing toward the target.
+     *
+     * The transcript renders a capped window, so an offset saved from a taller transcript can be
+     * permanently out of reach. Retrying on that forever pinned the view to the bottom every
+     * retry interval and left a timer running for the life of the session, which reads as a frozen
+     * transcript. Growth is the only evidence that waiting is still worthwhile.
+     */
+    const previousMax = lastRestoreMaxScrollTopRef.current
+    const stillGrowing = previousMax === null || maxScrollTop > previousMax
+    lastRestoreMaxScrollTopRef.current = maxScrollTop
+
     shouldAutoScrollRef.current = fullyRestored && isScrollContainerNearBottom(scrollContainer)
     syncButtonVisibility()
 
-    if (!fullyRestored) {
+    if (!fullyRestored && stillGrowing) {
       return true
     }
 
+    if (!fullyRestored) {
+      // Unreachable target: keep the clamped position and let the user scroll freely again.
+      shouldAutoScrollRef.current = isScrollContainerNearBottom(scrollContainer)
+      syncButtonVisibility()
+    }
+
     pendingRestoreScrollTopRef.current = null
+    lastRestoreMaxScrollTopRef.current = null
     rememberScrollPosition(activeSessionIdRef.current, nextScrollTop)
     return false
   }

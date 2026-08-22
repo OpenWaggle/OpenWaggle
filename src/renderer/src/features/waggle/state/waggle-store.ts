@@ -9,7 +9,7 @@ import {
   type WaggleMessageMetadata,
   type WaggleTurnEvent,
 } from '@shared/types/waggle'
-import { create } from 'zustand'
+import { create, type StoreApi } from 'zustand'
 
 interface WaggleState {
   // Active collaboration
@@ -45,11 +45,30 @@ interface WaggleState {
   startCollaboration: (sessionId: SessionId, config: WaggleConfig) => void
   handleTurnEvent: (event: WaggleTurnEvent) => void
   trackMessageMetadata: (messageId: string, meta: WaggleMessageMetadata) => void
-  stopCollaboration: () => void
+  stopCollaboration: (sessionId?: SessionId) => void
   reset: () => void
 }
 
-export const useWaggleStore = create<WaggleState>((set) => ({
+type SetWaggleState = StoreApi<WaggleState>['setState']
+
+type WaggleDataState = Pick<
+  WaggleState,
+  | 'activeCollaborationId'
+  | 'configSessionId'
+  | 'activeConfig'
+  | 'status'
+  | 'currentTurn'
+  | 'currentAgentIndex'
+  | 'currentAgentLabel'
+  | 'initialTurnMeta'
+  | 'completedTurnMeta'
+  | 'liveMessageMetadata'
+  | 'fileConflicts'
+  | 'lastConsensusResult'
+  | 'completionReason'
+>
+
+const INITIAL_WAGGLE_DATA: WaggleDataState = {
   activeCollaborationId: null,
   configSessionId: null,
   activeConfig: null,
@@ -63,6 +82,75 @@ export const useWaggleStore = create<WaggleState>((set) => ({
   fileConflicts: [],
   lastConsensusResult: null,
   completionReason: null,
+}
+
+function pendingCollaborationState(sessionId: SessionId, config: WaggleConfig) {
+  const firstAgent = config.agents[0]
+  return {
+    activeCollaborationId: sessionId,
+    configSessionId: sessionId,
+    activeConfig: config,
+    status: 'pending' as const,
+    currentTurn: 0,
+    currentAgentIndex: 0,
+    currentAgentLabel: firstAgent.label,
+    initialTurnMeta: {
+      agentIndex: 0,
+      agentLabel: firstAgent.label,
+      agentColor: firstAgent.color,
+      ...(!isInheritedWaggleModelBinding(firstAgent.model) ? { agentModel: firstAgent.model } : {}),
+      turnNumber: 0,
+    },
+    completedTurnMeta: [],
+    liveMessageMetadata: {},
+    fileConflicts: [],
+    lastConsensusResult: null,
+    completionReason: null,
+  }
+}
+
+function handleWaggleTurnEvent(set: SetWaggleState, event: WaggleTurnEvent) {
+  matchBy(event, 'type')
+    .with('collaboration-pending', (value) => {
+      set(pendingCollaborationState(value.sessionId, value.invocation.config))
+    })
+    .with('turn-start', (value) => {
+      set({
+        status: 'running',
+        currentTurn: value.turnNumber,
+        currentAgentIndex: value.agentIndex,
+        currentAgentLabel: value.agentLabel,
+      })
+    })
+    .with('consensus-reached', (value) => set({ lastConsensusResult: value.result }))
+    .with('file-conflict', (value) => {
+      set((state) => ({ fileConflicts: [...state.fileConflicts, value.warning] }))
+    })
+    .with('collaboration-complete', (value) => {
+      set({ status: 'completed', completionReason: value.reason })
+    })
+    .with('collaboration-stopped', (value) => {
+      set({ status: 'stopped', completionReason: value.reason })
+    })
+    .with('turn-end', (value) => {
+      set((state) => ({
+        completedTurnMeta: [
+          ...state.completedTurnMeta,
+          {
+            agentIndex: value.agentIndex,
+            agentLabel: value.agentLabel,
+            agentColor: value.agentColor,
+            agentModel: value.agentModel,
+            turnNumber: value.turnNumber,
+          },
+        ],
+      }))
+    })
+    .exhaustive()
+}
+
+export const useWaggleStore = create<WaggleState>((set) => ({
+  ...INITIAL_WAGGLE_DATA,
 
   setConfig(config, sessionId) {
     set({ activeConfig: config, configSessionId: sessionId })
@@ -73,74 +161,11 @@ export const useWaggleStore = create<WaggleState>((set) => ({
   },
 
   startCollaboration(sessionId, config) {
-    const firstAgent = config.agents[0]
-    set({
-      activeCollaborationId: sessionId,
-      configSessionId: sessionId,
-      activeConfig: config,
-      status: 'running',
-      currentTurn: 0,
-      currentAgentIndex: 0,
-      currentAgentLabel: firstAgent.label,
-      initialTurnMeta: {
-        agentIndex: 0,
-        agentLabel: firstAgent.label,
-        agentColor: firstAgent.color,
-        ...(!isInheritedWaggleModelBinding(firstAgent.model)
-          ? { agentModel: firstAgent.model }
-          : {}),
-        turnNumber: 0,
-      },
-      completedTurnMeta: [],
-      liveMessageMetadata: {},
-      fileConflicts: [],
-      lastConsensusResult: null,
-      completionReason: null,
-    })
+    set(pendingCollaborationState(sessionId, config))
   },
 
   handleTurnEvent(event) {
-    matchBy(event, 'type')
-      .with('turn-start', (value) => {
-        set({
-          currentTurn: value.turnNumber,
-          currentAgentIndex: value.agentIndex,
-          currentAgentLabel: value.agentLabel,
-        })
-      })
-      .with('consensus-reached', (value) => {
-        set({ lastConsensusResult: value.result })
-      })
-      .with('file-conflict', (value) => {
-        set((s) => ({ fileConflicts: [...s.fileConflicts, value.warning] }))
-      })
-      .with('collaboration-complete', (value) => {
-        set({
-          status: 'completed',
-          completionReason: value.reason,
-        })
-      })
-      .with('collaboration-stopped', (value) => {
-        set({
-          status: 'stopped',
-          completionReason: value.reason,
-        })
-      })
-      .with('turn-end', (value) => {
-        set((s) => ({
-          completedTurnMeta: [
-            ...s.completedTurnMeta,
-            {
-              agentIndex: value.agentIndex,
-              agentLabel: value.agentLabel,
-              agentColor: value.agentColor,
-              agentModel: value.agentModel,
-              turnNumber: value.turnNumber,
-            },
-          ],
-        }))
-      })
-      .exhaustive()
+    handleWaggleTurnEvent(set, event)
   },
 
   trackMessageMetadata(messageId, meta) {
@@ -149,25 +174,14 @@ export const useWaggleStore = create<WaggleState>((set) => ({
     }))
   },
 
-  stopCollaboration() {
-    set({ status: 'stopped' })
+  stopCollaboration(sessionId) {
+    set((state) => {
+      if (sessionId && state.activeCollaborationId !== sessionId) return state
+      return { status: 'stopped' }
+    })
   },
 
   reset() {
-    set({
-      activeCollaborationId: null,
-      configSessionId: null,
-      activeConfig: null,
-      status: 'idle',
-      currentTurn: 0,
-      currentAgentIndex: 0,
-      currentAgentLabel: '',
-      initialTurnMeta: null,
-      completedTurnMeta: [],
-      liveMessageMetadata: {},
-      fileConflicts: [],
-      lastConsensusResult: null,
-      completionReason: null,
-    })
+    set(INITIAL_WAGGLE_DATA)
   },
 }))

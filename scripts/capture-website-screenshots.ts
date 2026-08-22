@@ -46,6 +46,7 @@ const HERO_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'hero-screenshot.p
 const CODING_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'feature-coding-agent.png')
 const GIT_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'feature-git-workflow.png')
 const EXTENSIBLE_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'feature-extensible.png')
+const SESSION_TREE_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'session-tree-panel.png')
 
 function buildElectronEnv(userDataDir: string): Record<string, string> {
   const env: Record<string, string> = {
@@ -79,7 +80,7 @@ async function launchApp(userDataDir: string): Promise<{ app: ElectronApplicatio
     { width: WINDOW_WIDTH_PX, height: WINDOW_HEIGHT_PX },
   )
 
-  await expect(page.getByRole('button', { name: 'New thread' }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'New session' }).first()).toBeVisible()
   console.info('[website-shots] app ready')
   return { app, page }
 }
@@ -128,17 +129,17 @@ async function openThread(page: Page, threadTitle: string) {
 
 async function captureHeroScreenshot(page: Page) {
   console.info('[website-shots] capturing hero screenshot')
-  await page.getByRole('button', { name: 'New thread' }).first().click()
+  await page.getByRole('button', { name: 'New session' }).first().click()
   await waitForUi(page)
   await page.locator('header').click()
   await waitForUi(page)
-  await page.screenshot({ path: HERO_SCREENSHOT_PATH, animations: 'disabled' })
+  await page.screenshot({ path: HERO_SCREENSHOT_PATH, animations: 'disabled', scale: 'css' })
 }
 
 async function captureCodingScreenshot(page: Page) {
   console.info('[website-shots] capturing coding screenshot')
   await openThread(page, THREAD_TITLE)
-  await page.screenshot({ path: CODING_SCREENSHOT_PATH, animations: 'disabled' })
+  await page.screenshot({ path: CODING_SCREENSHOT_PATH, animations: 'disabled', scale: 'css' })
 }
 
 async function captureGitScreenshot(page: Page) {
@@ -147,16 +148,33 @@ async function captureGitScreenshot(page: Page) {
   await page.getByRole('button', { name: 'Toggle diff panel' }).click()
   await page.getByRole('button', { name: /Stage all/ }).waitFor()
   await waitForUi(page)
-  await page.screenshot({ path: GIT_SCREENSHOT_PATH, animations: 'disabled' })
+  await page.screenshot({ path: GIT_SCREENSHOT_PATH, animations: 'disabled', scale: 'css' })
 }
 
 async function captureExtensibleScreenshot(page: Page) {
   console.info('[website-shots] capturing extensibility screenshot')
-  await page.getByRole('button', { name: 'MCPs' }).click()
-  await page.getByRole('heading', { name: 'MCPs' }).waitFor()
-  await page.getByText('Registry').waitFor()
+  // MCP lives in Settings now, reached through the settings nav rather than a top-level button.
+  await page.getByRole('button', { name: 'Settings' }).first().click()
+  await page.getByRole('button', { name: 'MCP' }).first().click()
   await waitForUi(page)
-  await page.screenshot({ path: EXTENSIBLE_SCREENSHOT_PATH, animations: 'disabled' })
+  await page.screenshot({ path: EXTENSIBLE_SCREENSHOT_PATH, animations: 'disabled', scale: 'css' })
+}
+
+/**
+ * The Session Tree panel, used by the session-tree documentation page.
+ *
+ * Captured here rather than by hand so all five images are reproducible from one command and
+ * cannot drift apart as the UI changes.
+ */
+async function captureSessionTreeScreenshot(page: Page) {
+  console.info('[website-shots] capturing session tree screenshot')
+  await openThread(page, THREAD_TITLE)
+  await page.getByRole('button', { name: 'Toggle Session Tree' }).click()
+  await page.getByRole('region', { name: 'Session Tree' }).waitFor()
+  await waitForUi(page)
+  await page.screenshot({ path: SESSION_TREE_SCREENSHOT_PATH, animations: 'disabled', scale: 'css' })
+  await page.getByRole('button', { name: 'Toggle Session Tree' }).click()
+  await waitForUi(page)
 }
 
 async function main() {
@@ -180,6 +198,7 @@ async function main() {
     await captureHeroScreenshot(launched.page)
     await captureCodingScreenshot(launched.page)
     await captureGitScreenshot(launched.page)
+    await captureSessionTreeScreenshot(launched.page)
     await captureExtensibleScreenshot(launched.page)
     console.info('[website-shots] screenshot capture complete')
   } finally {

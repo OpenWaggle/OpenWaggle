@@ -23,6 +23,16 @@ export const COMPOSER = {
   FILE_SUGGEST_LIMIT: 50,
 } as const
 
+/** Workspace file search and preview limits */
+export const WORKSPACE_FILES = {
+  /** Maximum results returned by the centered file picker */
+  PICKER_RESULT_LIMIT: 200,
+  /** Maximum content-search matches returned to the renderer */
+  CONTENT_RESULT_LIMIT: 200,
+  /** Maximum indexed files returned to the side-panel explorer */
+  EXPLORER_RESULT_LIMIT: 5_000,
+} as const
+
 /** Terminal limits */
 export const TERMINAL = {
   /** Default terminal columns */

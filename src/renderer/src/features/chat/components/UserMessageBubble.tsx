@@ -1,5 +1,5 @@
 import type { UIMessage } from '@shared/types/chat-ui'
-import { Check, Copy, FileDown, FileText, GitBranch, GitFork, Image } from 'lucide-react'
+import { Check, Copy, FileDown, FileText, GitBranch, GitFork, Image, Waypoints } from 'lucide-react'
 import { Children, cloneElement, isValidElement, type ReactNode } from 'react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
@@ -16,14 +16,14 @@ const USER_REMARK_PLUGINS = [remarkGfm]
 
 /**
  * Recursively walks ReactNode children, replacing string nodes with
- * mention-chip-enriched fragments. Skips recursion into <a> and <code>
- * elements to avoid chipifying link text or code content.
+ * composer-reference-chip-enriched fragments. Skips recursion into <a> and
+ * <code> elements to avoid chipifying link text or code content.
  *
  * Uses Children.map/cloneElement because ReactMarkdown children are opaque
  * ReactNode trees. If React deprecates these APIs, migrate
  * to a custom remark plugin instead.
  */
-function processChildrenForMentions(children: ReactNode): ReactNode {
+function processChildrenForComposerReferences(children: ReactNode): ReactNode {
   return Children.map(children, (child) => {
     if (typeof child === 'string') {
       const parts = renderTextWithMentions(child)
@@ -35,7 +35,7 @@ function processChildrenForMentions(children: ReactNode): ReactNode {
       if (typeof child.type === 'string' && (child.type === 'a' || child.type === 'code')) {
         return child
       }
-      return cloneElement(child, {}, processChildrenForMentions(child.props.children))
+      return cloneElement(child, {}, processChildrenForComposerReferences(child.props.children))
     }
 
     return child
@@ -43,11 +43,11 @@ function processChildrenForMentions(children: ReactNode): ReactNode {
 }
 
 function UserMarkdownParagraph({ children }: { readonly children?: ReactNode }) {
-  return <p>{processChildrenForMentions(children)}</p>
+  return <p>{processChildrenForComposerReferences(children)}</p>
 }
 
 function UserMarkdownListItem({ children }: { readonly children?: ReactNode }) {
-  return <li>{processChildrenForMentions(children)}</li>
+  return <li>{processChildrenForComposerReferences(children)}</li>
 }
 
 const userMarkdownComponents: Components = {
@@ -110,6 +110,46 @@ function AttachmentChip({ name }: { readonly name: string }) {
   )
 }
 
+function WaggleInvocationChip({ message }: { readonly message: UIMessage }) {
+  const invocation = message.metadata?.waggleInvocation
+  if (!invocation) return null
+
+  return (
+    <span className="mt-px inline-flex shrink-0 items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[12px] text-amber-200">
+      <Waypoints className="size-3.5" />
+      <span>{invocation.presetName}</span>
+      {invocation.source === 'agent' ? (
+        <span className="text-[10px] uppercase tracking-wide text-amber-200/60">agent</span>
+      ) : null}
+    </span>
+  )
+}
+
+function UserMessageContent({
+  message,
+  contentParts,
+}: {
+  readonly message: UIMessage
+  readonly contentParts: readonly Extract<UIMessage['parts'][number], { type: 'text' }>[]
+}) {
+  if (contentParts.length === 0) return null
+  return (
+    <div className="prose prose-user min-w-0 flex-1 max-w-none break-words [overflow-wrap:anywhere]">
+      {contentParts.map((part, index) => (
+        <ReactMarkdown
+          key={`${message.id}-text-${String(index)}`}
+          remarkPlugins={USER_REMARK_PLUGINS}
+          rehypePlugins={safeMarkdownRehypePlugins}
+          urlTransform={safeMarkdownUrlTransform}
+          components={userMarkdownComponents}
+        >
+          {part.content}
+        </ReactMarkdown>
+      ))}
+    </div>
+  )
+}
+
 interface UserMessageBubbleProps {
   message: UIMessage
   onBranchFromMessage?: (messageId: string) => void
@@ -151,20 +191,13 @@ export function UserMessageBubble({
             ))}
           </div>
         )}
-        {contentParts.length > 0 && (
-          <div className="prose prose-user max-w-none break-words [overflow-wrap:anywhere]">
-            {contentParts.map((p, i) => (
-              <ReactMarkdown
-                key={`${message.id}-text-${String(i)}`}
-                remarkPlugins={USER_REMARK_PLUGINS}
-                rehypePlugins={safeMarkdownRehypePlugins}
-                urlTransform={safeMarkdownUrlTransform}
-                components={userMarkdownComponents}
-              >
-                {p.content}
-              </ReactMarkdown>
-            ))}
+        {message.metadata?.waggleInvocation ? (
+          <div className="flex min-w-0 items-start gap-2" data-waggle-invocation-line="true">
+            <WaggleInvocationChip message={message} />
+            <UserMessageContent message={message} contentParts={contentParts} />
           </div>
+        ) : (
+          <UserMessageContent message={message} contentParts={contentParts} />
         )}
         <div className="absolute -bottom-7 right-0 flex items-center gap-2 opacity-0 group-hover/user-msg:opacity-100 transition-opacity">
           {onBranchFromMessage ? (

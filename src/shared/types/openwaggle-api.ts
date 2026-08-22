@@ -10,7 +10,6 @@ import type {
   SessionBranchId,
   SessionId,
   SessionNodeId,
-  WagglePresetId,
   WorkingPath,
 } from './brand'
 import type { FileSuggestion } from './composer'
@@ -52,10 +51,14 @@ import type {
 import type { IpcEventPayload } from './ipc'
 import type { ChangeRequestAdoption } from './ipc-invoke-git'
 import type { ProviderInfo, SupportedModelId } from './llm'
+import type { OpenWaggleWaggleApi } from './openwaggle-api-waggle'
 import type { OpenWaggleExtensionApi } from './openwaggle-extension-api'
 import type { OpenWaggleMcpApi } from './openwaggle-mcp-api'
+import type { OpenWaggleWorkspaceFilesApi } from './openwaggle-workspace-files-api'
 import type { AgentPhaseState } from './phase'
 import type {
+  PinnedSession,
+  PinnedSessionMove,
   SessionCopyToNewResult,
   SessionDetail,
   SessionNavigateTreeOptions,
@@ -76,9 +79,12 @@ import type {
 import type { TurnCheckpointSummary, TurnDiff } from './turn-diff'
 import type { UpdateStatus } from './updater'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
-import type { WaggleConfig, WagglePreset } from './waggle'
 
-export interface OpenWaggleApi extends OpenWaggleExtensionApi, OpenWaggleMcpApi {
+export interface OpenWaggleApi
+  extends OpenWaggleExtensionApi,
+    OpenWaggleMcpApi,
+    OpenWaggleWaggleApi,
+    OpenWaggleWorkspaceFilesApi {
   // Agent
   sendMessage(
     sessionId: SessionId,
@@ -142,6 +148,12 @@ export interface OpenWaggleApi extends OpenWaggleExtensionApi, OpenWaggleMcpApi 
   getSessionDetail(id: SessionId): Promise<SessionDetail | null>
   listTurnCheckpoints(id: SessionId): Promise<TurnCheckpointSummary[]>
   getTurnDiff(id: SessionId, turnId: string): Promise<TurnDiff | null>
+  /** Every Pinned session in Manual order, archived ones included (issue #97). */
+  listPinnedSessions(): Promise<PinnedSession[]>
+  pinSession(id: SessionId): Promise<void>
+  unpinSession(id: SessionId): Promise<void>
+  /** Reposition one pin between the neighbours it should land between. */
+  movePinnedSession(move: PinnedSessionMove): Promise<void>
   createSession(projectPath: string): Promise<SessionDetail>
   forkSessionToNew(
     sessionId: SessionId,
@@ -265,17 +277,6 @@ export interface OpenWaggleApi extends OpenWaggleExtensionApi, OpenWaggleMcpApi 
   getLogsPath(): Promise<string>
   openPath(path: string): Promise<void>
 
-  // Waggle mode
-  sendWaggleMessage(
-    sessionId: SessionId,
-    payload: AgentSendPayload,
-    model: SupportedModelId,
-    config: WaggleConfig,
-  ): Promise<AgentSendReport>
-  cancelWaggle(sessionId: SessionId): void
-  onWaggleEvent(callback: (payload: IpcEventPayload<'waggle:event'>) => void): () => void
-  onWaggleTurnEvent(callback: (payload: IpcEventPayload<'waggle:turn-event'>) => void): () => void
-
   // Auth
   startOAuth(provider: OAuthProvider): Promise<void>
   submitAuthCode(provider: OAuthProvider, code: string): Promise<void>
@@ -284,11 +285,6 @@ export interface OpenWaggleApi extends OpenWaggleExtensionApi, OpenWaggleMcpApi 
   disconnectAuth(provider: OAuthProvider): Promise<void>
   getAuthAccountInfo(provider: OAuthProvider): Promise<OAuthAccountInfo>
   onOAuthStatus(callback: (status: IpcEventPayload<'auth:oauth-status'>) => void): () => void
-
-  // Waggle presets
-  listWagglePresets(projectPath?: string | null): Promise<WagglePreset[]>
-  saveWagglePreset(preset: WagglePreset, projectPath?: string | null): Promise<WagglePreset>
-  deleteWagglePreset(id: WagglePresetId, projectPath?: string | null): Promise<void>
 
   // Feedback
   checkGhCli(): Promise<GhCliStatus>

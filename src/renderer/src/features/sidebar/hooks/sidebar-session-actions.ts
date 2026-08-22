@@ -24,6 +24,8 @@ interface SidebarSessionActionDeps {
   readonly loadChatSessions: () => Promise<void>
   readonly loadSessionTrees: () => Promise<void>
   readonly refreshSessionWorkspace: (sessionId: SessionId | null) => Promise<void>
+  /** Pin or unpin the session, resolved against the current Pinned sessions. */
+  readonly togglePin: (sessionId: SessionId) => void
 }
 
 function navigateHomeAfterActiveSessionChange(
@@ -124,6 +126,9 @@ export function createSidebarSessionActions(deps: SidebarSessionActionDeps) {
       deps.clearTransientDraftContext()
       useChatStore.getState().setActiveSession(id)
       void deps.navigate({ to: '/sessions/$sessionId', params: { sessionId: String(id) } })
+    },
+    togglePin(id: SessionId) {
+      deps.togglePin(id)
     },
   }
 }

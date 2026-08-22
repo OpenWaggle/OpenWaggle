@@ -23,6 +23,8 @@ const SORT_OPTIONS: { value: SidebarSessionSortMode; label: string; icon: typeof
   { value: 'name', label: 'Name (A->Z)', icon: ArrowDownAZ },
 ]
 
+import { SidebarIconButton, SidebarSectionHead } from './SidebarSectionHead'
+
 export function SidebarBrandArea({ isFullscreen }: { readonly isFullscreen: boolean }) {
   return (
     <>
@@ -30,11 +32,19 @@ export function SidebarBrandArea({ isFullscreen }: { readonly isFullscreen: bool
         className="drag-region shrink-0 transition-[height] duration-200 ease-out"
         style={{ height: isFullscreen ? 0 : SIDEBAR_LAYOUT.DRAG_REGION_HEIGHT }}
       />
-      <div className="drag-region flex shrink-0 items-center px-4 py-1">
+      {/*
+       * Prototype metrics: a 38px block with 14px side padding. The lockup keeps the product's
+       * real artwork rather than the prototype's placeholder square, scaled to the 22px mark the
+       * design allows for. It was 48px inside an 88px block, which pushed every row down.
+       */}
+      <div
+        className="drag-region flex shrink-0 items-center px-3.5 pt-2.5 pb-1.5"
+        data-qa="sidebar-brand"
+      >
         <img
           src={openwaggleLockup}
           alt="OpenWaggle"
-          className="no-drag h-12 w-auto object-contain"
+          className="no-drag h-[22px] w-auto object-contain"
         />
       </div>
       <div
@@ -49,6 +59,11 @@ export function SidebarBrandArea({ isFullscreen }: { readonly isFullscreen: bool
   )
 }
 
+/**
+ * Primary actions, ported to the prototype's metrics: 30px rows, 8px inset, 13px text and an
+ * 8px gap, inside a 6px gutter with 1px between rows. The app had 34px and 32px rows at 14px
+ * with a 12px inset, so the two lists sat at different rhythms.
+ */
 export function SidebarPrimaryActions({
   activeView,
   onNewSession,
@@ -59,42 +74,62 @@ export function SidebarPrimaryActions({
   readonly onOpenSkills: () => void
 }) {
   return (
-    <div className="shrink-0">
+    <div className="flex shrink-0 flex-col gap-px px-1.5 pt-0.5 pb-1.5">
       <Button
         variant="row"
         size="none"
-        radius="none"
+        radius="md"
         aria-label="New session"
+        data-qa="sidebar-primary-action"
         onClick={onNewSession}
-        className="no-drag h-[34px] gap-2 px-3"
+        className="no-drag flex h-[30px] w-full gap-2 px-2 font-normal text-[13px] text-text-secondary"
       >
         <Edit3 className="size-3.5 shrink-0 text-text-tertiary" />
-        <span className="text-[14px] text-text-secondary">New session</span>
+        <span>New session</span>
+        {/* The prototype advertises the shortcut on the row that uses it. */}
+        <span
+          data-qa="sidebar-kb"
+          aria-hidden="true"
+          className="ml-auto flex-none rounded border border-border-light bg-bg-tertiary px-1 py-0.5 font-mono text-[10px] text-text-muted leading-none"
+        >
+          ⌘N
+        </span>
       </Button>
 
       <Button
         variant={activeView === 'skills' ? 'subtle' : 'row'}
         size="none"
-        radius="none"
+        radius="md"
         aria-label="Skills"
         onClick={onOpenSkills}
-        className={cn('no-drag h-8 gap-2 px-3', activeView === 'skills' && 'text-text-primary')}
+        className={cn(
+          'no-drag flex h-[30px] w-full gap-2 px-2 font-normal text-[13px] text-text-secondary',
+          activeView === 'skills' && 'text-text-primary',
+        )}
         title="Open skills"
       >
         <Sparkles className="size-3.5 shrink-0 text-text-tertiary" />
-        <span className="text-[14px]">Skills</span>
+        <span>Skills</span>
       </Button>
     </div>
   )
 }
 
+/**
+ * The Projects heading, on the prototype's shared section-head primitive.
+ *
+ * Actions are hidden until hover, as in the prototype, so a resting sidebar shows content
+ * rather than controls.
+ */
 export function SidebarProjectsHeader({
+  projectCount,
   sortMenuOpen,
   sortMode,
   onOpenProject,
   onSetSortMenuOpen,
   onSetSortMode,
 }: {
+  readonly projectCount: number
   readonly sortMenuOpen: boolean
   readonly sortMode: SidebarSessionSortMode
   readonly onOpenProject: () => void
@@ -102,74 +137,70 @@ export function SidebarProjectsHeader({
   readonly onSetSortMode: (mode: SidebarSessionSortMode) => void
 }) {
   return (
-    <div className="no-drag flex h-[30px] shrink-0 items-center justify-between px-4">
-      <span className="text-[12px] font-medium text-text-tertiary">Projects</span>
-      <div className="flex items-center gap-1.5">
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          radius="sm"
-          aria-label="Open project folder"
-          onClick={onOpenProject}
-          title="Open project folder"
-        >
-          <FolderPlus className="size-[13px]" />
-        </Button>
-        <Popover
-          open={sortMenuOpen}
-          onOpenChange={onSetSortMenuOpen}
-          placement="bottom-end"
-          className="min-w-[150px] py-1"
-          trigger={
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              radius="sm"
-              aria-label="Sort sessions"
-              onClick={() => onSetSortMenuOpen(!sortMenuOpen)}
-              className={cn(sortMenuOpen && 'text-text-primary')}
-              title="Sort sessions"
-            >
-              <LayoutList className="size-3" />
-            </Button>
-          }
-        >
-          {SORT_OPTIONS.map((option) => (
-            <Button
-              variant="row"
-              size="xs"
-              radius="none"
-              key={option.value}
-              onClick={() => {
-                onSetSortMode(option.value)
-                onSetSortMenuOpen(false)
-              }}
-              className={cn('gap-2', sortMode === option.value && 'text-accent')}
-            >
-              <option.icon className="size-3 shrink-0" />
-              <span className="flex-1">{option.label}</span>
-              {sortMode === option.value ? <Check className="size-3 shrink-0" /> : null}
-            </Button>
-          ))}
-        </Popover>
-      </div>
-    </div>
+    <SidebarSectionHead label="Projects" count={projectCount}>
+      <SidebarIconButton label="Open project folder" onClick={onOpenProject}>
+        <FolderPlus className="size-[13px]" />
+      </SidebarIconButton>
+      <Popover
+        open={sortMenuOpen}
+        onOpenChange={onSetSortMenuOpen}
+        placement="bottom-end"
+        className="min-w-[196px] py-1"
+        role="menu"
+        trigger={
+          <SidebarIconButton
+            label="Sort sessions"
+            isActive={sortMenuOpen}
+            onClick={() => onSetSortMenuOpen(!sortMenuOpen)}
+          >
+            <LayoutList className="size-[13px]" />
+          </SidebarIconButton>
+        }
+      >
+        {SORT_OPTIONS.map((option) => (
+          <Button
+            variant="row"
+            size="xs"
+            radius="none"
+            key={option.value}
+            aria-checked={sortMode === option.value}
+            role="menuitemradio"
+            onClick={() => {
+              onSetSortMode(option.value)
+              onSetSortMenuOpen(false)
+            }}
+            className={cn('gap-2 px-3 text-[12px]', sortMode === option.value && 'text-accent')}
+          >
+            <option.icon className="size-3 shrink-0" />
+            <span className="flex-1">{option.label}</span>
+            {sortMode === option.value ? <Check className="size-3 shrink-0" /> : null}
+          </Button>
+        ))}
+      </Popover>
+    </SidebarSectionHead>
   )
 }
 
+/**
+ * The footer, on the prototype's metrics: a top border, a 6px gutter, and a 30px row at 12px.
+ *
+ * The gear icon is deliberately the app's existing one. The prototype swapped in a different
+ * glyph and the maintainer asked to keep this.
+ */
 export function SidebarSettingsButton({ onOpenSettings }: { readonly onOpenSettings: () => void }) {
   return (
-    <div className="no-drag shrink-0">
+    <div className="no-drag shrink-0 border-t border-border px-1.5 py-1">
       <Button
         variant="row"
         size="none"
-        radius="none"
+        radius="md"
         aria-label="Settings"
+        data-qa="sidebar-settings"
         onClick={onOpenSettings}
-        className="h-9 gap-2.5 px-4"
+        className="flex h-[30px] w-full gap-2 px-2 font-normal text-[12px] text-text-tertiary"
       >
         <Settings className="size-3.5" />
-        <span className="text-[14px] text-text-secondary">Settings</span>
+        <span>Settings</span>
       </Button>
     </div>
   )

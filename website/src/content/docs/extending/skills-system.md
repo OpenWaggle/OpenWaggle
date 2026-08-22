@@ -34,7 +34,7 @@ Open the Skills panel from the sidebar. It shows:
 
 ## Slash References
 
-Type `/` in the composer to open the command palette and insert a skill reference into the message.
+Type `/` in the composer to open the slash command menu and insert a skill reference into the message.
 
 Slash references stay visible in the message text. Pi also registers loaded skills as `/skill:name` commands according to its own resource-loader behavior.
 

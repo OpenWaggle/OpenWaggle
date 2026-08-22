@@ -11,11 +11,14 @@ import { createRendererLogger } from '@/shared/lib/logger'
 import { FileMentionNode } from './nodes/FileMentionNode'
 import { SkillMentionNode } from './nodes/SkillMentionNode'
 import { SymbolMentionNode } from './nodes/SymbolMentionNode'
+import { WaggleMentionNode } from './nodes/WaggleMentionNode'
 import { AutoResizePlugin } from './plugins/AutoResizePlugin'
+import { EditablePlugin } from './plugins/EditablePlugin'
 import { EditorRefPlugin } from './plugins/EditorRefPlugin'
 import { KeyboardPlugin } from './plugins/KeyboardPlugin'
 import { MentionTypeaheadPlugin } from './plugins/MentionTypeaheadPlugin'
 import { PastePlugin } from './plugins/PastePlugin'
+import { SlashCommandPlugin } from './plugins/SlashCommandPlugin'
 import { SyncPlugin } from './plugins/SyncPlugin'
 
 interface LexicalComposerEditorProps {
@@ -33,6 +36,15 @@ const EDITOR_THEME = {
   paragraph: 'composer-lexical-paragraph m-0',
 }
 
+const EDITOR_CONFIG = {
+  namespace: 'composer',
+  theme: EDITOR_THEME,
+  nodes: [FileMentionNode, SkillMentionNode, SymbolMentionNode, WaggleMentionNode],
+  onError: (error: Error) => {
+    logger.error('Lexical editor error', { message: error.message })
+  },
+}
+
 export function LexicalComposerEditor({
   onSubmit,
   disabled,
@@ -40,22 +52,13 @@ export function LexicalComposerEditor({
   editorRef,
   checkAndConvertPaste,
 }: LexicalComposerEditorProps) {
-  const initialConfig = {
-    namespace: 'composer',
-    theme: EDITOR_THEME,
-    nodes: [FileMentionNode, SkillMentionNode, SymbolMentionNode],
-    editable: !disabled,
-    onError: (error: Error) => {
-      logger.error('Lexical editor error', { message: error.message })
-    },
-  }
-
   return (
-    <LexicalComposer initialConfig={initialConfig}>
+    <LexicalComposer initialConfig={EDITOR_CONFIG}>
       <PlainTextPlugin
         contentEditable={
           <ContentEditable
             aria-label="Message input"
+            aria-disabled={disabled}
             className={cn(
               'w-full min-h-[24px] resize-none bg-transparent text-[14px] text-text-primary',
               'focus:outline-none focus-visible:shadow-none',
@@ -72,8 +75,10 @@ export function LexicalComposerEditor({
       />
       <HistoryPlugin />
       <AutoFocusPlugin />
+      <EditablePlugin disabled={disabled} />
       <KeyboardPlugin onSubmit={onSubmit} />
       <SyncPlugin />
+      <SlashCommandPlugin />
       <AutoResizePlugin />
       <PastePlugin checkAndConvertPaste={checkAndConvertPaste} />
       <MentionTypeaheadPlugin />

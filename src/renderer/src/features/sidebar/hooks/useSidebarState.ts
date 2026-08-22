@@ -1,6 +1,6 @@
 import { SessionId } from '@shared/types/brand'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useChat } from '@/features/chat/hooks'
 import { useGit } from '@/features/git/hooks'
 import { useProject, useSessions } from '@/features/sessions/hooks'
@@ -8,11 +8,13 @@ import { usePreferencesStore } from '@/features/settings/state'
 import { projectName } from '@/shared/lib/format'
 import { useUIStore } from '@/shell/ui-store'
 import { useFullscreen } from '@/shell/useFullscreen'
-import {
-  buildSidebarProjectGroups,
-  type SidebarSessionSortMode,
-} from '../lib/sidebar-project-groups'
+import { buildPinnedSessionRows } from '../lib/pinned-sessions'
+import { buildSidebarProjectGroups } from '../lib/sidebar-project-groups'
+import { usePinnedSessionsStore } from '../state/pinned-sessions-store'
+import { useSidebarFilterStore } from '../state/sidebar-filter-store'
+import { isProjectExpanded, useSidebarViewStore } from '../state/sidebar-view-store'
 import { activeViewFromPathname } from './sidebar-view'
+import { useSidebarRowStates } from './useSidebarRowStates'
 
 type SidebarSessionsState = ReturnType<typeof useSessions>
 
@@ -62,18 +64,75 @@ export function useSidebarState() {
   const sessions = useSessions()
   const git = useGit()
   const isFullscreen = useFullscreen()
-  const [sortMode, setSortMode] = useState<SidebarSessionSortMode>('recent')
+  // Sort mode and project expansion persist across launches, so a collapsed tree stays
+  // collapsed. See sidebar-view-store for why the chip filter deliberately does not.
+  const sortMode = useSidebarViewStore((s) => s.sessionSortMode)
+  const setSortMode = useSidebarViewStore((s) => s.setSessionSortMode)
+  const projectExpandedByPath = useSidebarViewStore((s) => s.projectExpandedByPath)
+  const setProjectExpanded = useSidebarViewStore((s) => s.setProjectExpanded)
+  const toggleProjectExpanded = useSidebarViewStore((s) => s.toggleProjectExpanded)
   const [sortMenuOpen, setSortMenuOpen] = useState(false)
-  const [collapsedProjectPaths, setCollapsedProjectPaths] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  )
+  const [pinnedSortMenuOpen, setPinnedSortMenuOpen] = useState(false)
+  const pins = usePinnedSessionsStore((s) => s.pins)
+  const pinnedSortMode = usePinnedSessionsStore((s) => s.sortMode)
+  const setPinnedSortMode = usePinnedSessionsStore((s) => s.setSortMode)
 
   const activeSession = resolveActiveSessionState(chat.activeSessionId, sessions)
-  const sessionGroups = buildSidebarProjectGroups({
+
+  /*
+   * Chip counts come from every session, the tree from the filtered set. Counting after
+   * filtering would leave one chip on screen and hide the states the user wants to switch to.
+   */
+  const rowStates = useSidebarRowStates(sessions.sessions)
+  const filterState = useSidebarFilterStore((s) => s.activeState)
+  const toggleFilterState = useSidebarFilterStore((s) => s.toggleState)
+  const searchQuery = useSidebarFilterStore((s) => s.query)
+  const setSearchQuery = useSidebarFilterStore((s) => s.setQuery)
+
+  /*
+   * Returns the original array when nothing is narrowed, rather than a filtered copy.
+   *
+   * Identity matters here: this list feeds the per-session git indicator effect, which keys its
+   * memo on the array. A fresh array on every render made that effect re-run on every render,
+   * which spun the renderer.
+   */
+  const normalizedQuery = searchQuery.trim().toLowerCase()
+  const visibleSessions = useMemo(() => {
+    if (filterState === null && normalizedQuery === '') return sessions.sessions
+    return sessions.sessions.filter((session) => {
+      if (filterState !== null && rowStates.stateOf(session) !== filterState) return false
+      if (normalizedQuery === '') return true
+      // A project match keeps its sessions, so searching a repository name finds its work.
+      const label = session.projectPath === null ? '' : projectName(session.projectPath)
+      const custom =
+        session.projectPath === null ? '' : (projectDisplayNames[session.projectPath] ?? '')
+      return (
+        session.title.toLowerCase().includes(normalizedQuery) ||
+        label.toLowerCase().includes(normalizedQuery) ||
+        custom.toLowerCase().includes(normalizedQuery)
+      )
+    })
+  }, [sessions.sessions, filterState, normalizedQuery, rowStates, projectDisplayNames])
+
+  /*
+   * Positions come from the unfiltered section, then the rows are narrowed for display. A Pinned
+   * shortcut is positional over the whole section, so indexing the rendered rows would make ⌘2
+   * open one session while a different row wore the ⌘2 badge whenever a filter was active.
+   */
+  const visibleSessionIds = new Set(visibleSessions.map((session) => String(session.id)))
+  const pinnedRows = buildPinnedSessionRows({
+    pins,
     sessions: sessions.sessions,
+    sortMode: pinnedSortMode,
+  }).filter((row) => visibleSessionIds.has(String(row.session.id)))
+  const sessionGroups = buildSidebarProjectGroups({
+    sessions: visibleSessions,
     currentProjectPath: project.projectPath,
     recentProjects,
     sortMode,
+    pinnedSessionIds: pinnedRows.map((row) => String(row.session.id)),
+    // Project-wide actions act on the project, not on what the filter happens to show.
+    allSessions: sessions.sessions,
   })
 
   function displayProjectName(path: string) {
@@ -85,23 +144,36 @@ export function useSidebarState() {
     activeSessionId: activeSession.activeSessionId,
     activeView: activeViewFromPathname(pathname),
     chat,
-    collapsedProjectPaths,
+    chipCounts: rowStates.chipCounts,
     displayProjectName,
+    filterState,
+    projectRollUp: rowStates.rollUpFor,
+    searchQuery,
+    setSearchQuery,
     git,
     isFullscreen,
+    isProjectCollapsed: (path: string) => !isProjectExpanded(projectExpandedByPath, path),
     matchingActiveSessionTree: activeSession.matchingActiveSessionTree,
     matchingActiveWorkspace: activeSession.matchingActiveWorkspace,
     navigate,
+    pinnedRows,
+    pinnedSortMenuOpen,
+    pinnedSortMode,
     preferences: { removeProjectReferences, selectedModel, setProjectDisplayName },
     project,
+    projectExpandedByPath,
     sessionGroups,
     sessions,
-    setCollapsedProjectPaths,
+    setPinnedSortMenuOpen,
+    setPinnedSortMode,
+    setProjectExpanded,
     setSortMenuOpen,
     setSortMode,
     showToast,
     sidebarOpen,
     sortMenuOpen,
     sortMode,
+    toggleFilterState,
+    toggleProjectExpanded,
   }
 }

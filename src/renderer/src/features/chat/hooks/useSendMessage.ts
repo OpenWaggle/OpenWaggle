@@ -8,6 +8,7 @@ import { createOptimisticUserMessage } from '@/features/chat/lib/useAgentChat.ut
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useOptimisticUserMessageStore } from '@/features/chat/state/optimistic-user-message-store'
 import { flushDraftWorktreePlanToSession } from '@/features/git'
+import { useWaggleStore } from '@/features/waggle/state'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 
@@ -25,6 +26,7 @@ interface SendMessageDeps {
     config: WaggleConfig | null,
   ) => Promise<void>
   readonly sendWaggleMessage: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
+  readonly startWaggleCollaboration: (sessionId: SessionId, config: WaggleConfig) => void
 }
 
 interface SendMessageHandlers {
@@ -43,6 +45,7 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
     sendMessage,
     sendMessageToSession,
     sendWaggleMessage,
+    startWaggleCollaboration,
   } = deps
 
   async function handleSend(payload: AgentSendPayload) {
@@ -74,7 +77,14 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       }
       const sessionId = await createSession(projectPath)
       await flushDraftWorktreePlanToSession(projectPath, sessionId)
-      void sendMessageToSession(sessionId, payload, config)
+      startWaggleCollaboration(sessionId, config)
+      /*
+       * Awaited, and its failure propagates - the same reason the classic path does it. Dispatched
+       * fire-and-forget the caller was told the send had succeeded, so a review submitted as a waggle session's
+       * first message was cleared and never restored, and the rejection surfaced as an unhandled error instead
+       * of reaching the caller that was holding the work.
+       */
+      await sendMessageToSession(sessionId, payload, config)
       return
     }
     await sendWaggleMessage(payload, config)
@@ -124,6 +134,7 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
        */
       throw new MessageNotDelivered(report.outcome, report.message)
     } catch (error) {
+      if (config) useWaggleStore.getState().stopCollaboration(sessionId)
       useBackgroundRunStore.getState().clearRunRenderSnapshot(sessionId)
       logger.error('First message send failed', {
         sessionId: String(sessionId),
@@ -147,5 +158,6 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
     sendMessage,
     sendMessageToSession,
     sendWaggleMessage,
+    startWaggleCollaboration: useWaggleStore.getState().startCollaboration,
   })
 }

@@ -1,7 +1,8 @@
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
-import { $getRoot } from 'lexical'
+import { $getRoot, $nodesOfType } from 'lexical'
 import { useEffect } from 'react'
 import { useComposerStore } from '@/features/composer/state/composer-store'
+import { WaggleMentionNode } from '../nodes/WaggleMentionNode'
 
 /**
  * Syncs Lexical editor text content to the Zustand composer store.
@@ -14,7 +15,12 @@ export function SyncPlugin(): null {
     return editor.registerUpdateListener(({ editorState }) => {
       editorState.read(() => {
         const text = $getRoot().getTextContent()
-        useComposerStore.getState().setInput(text)
+        const store = useComposerStore.getState()
+        store.setInput(text)
+        const preset = $nodesOfType(WaggleMentionNode)[0]?.getPreset() ?? null
+        if (store.selectedWagglePreset?.id !== preset?.id) {
+          store.setSelectedWagglePreset(preset)
+        }
       })
     })
   }, [editor])

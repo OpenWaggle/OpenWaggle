@@ -30,6 +30,7 @@ describe("a session's first send", () => {
       sendMessageToSession: vi.fn(async () => {
         throw new Error("This session's worktree no longer exists.")
       }),
+      startWaggleCollaboration: vi.fn(),
       sendWaggleMessage: vi.fn(async () => {}),
     })
 

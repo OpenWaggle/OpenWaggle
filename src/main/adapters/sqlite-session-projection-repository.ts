@@ -30,6 +30,10 @@ type RepoOperation =
   | 'listTurnCheckpoints'
   | 'getTurnDiff'
   | 'setTurnCheckpointAnchor'
+  | 'listPinnedSessions'
+  | 'pinSession'
+  | 'unpinSession'
+  | 'movePinnedSession'
 
 function repoOp<A>(operation: RepoOperation, thunk: () => Promise<A>) {
   return Effect.tryPromise({
@@ -39,10 +43,11 @@ function repoOp<A>(operation: RepoOperation, thunk: () => Promise<A>) {
 }
 
 export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => {
-  const [store, turnCheckpoints, worktreePrune] = await Promise.all([
+  const [store, turnCheckpoints, worktreePrune, pinnedSessions] = await Promise.all([
     import('../store/session-details'),
     import('../store/turn-checkpoints'),
     import('../services/git/session-worktree-prune'),
+    import('../store/pinned-sessions'),
   ])
   const { pruneSessionWorktree } = worktreePrune
   const { deleteTurnCheckpointsForSession } = turnCheckpoints
@@ -138,6 +143,16 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
         repoOp('setTurnCheckpointAnchor', () =>
           turnCheckpoints.setTurnCheckpointAnchor(id, turnId, anchorNodeId),
         ),
+
+      listPinnedSessions: () =>
+        repoOp('listPinnedSessions', () => pinnedSessions.listPinnedSessions()),
+
+      pinSession: (id) => repoOp('pinSession', () => pinnedSessions.pinSession(id)),
+
+      unpinSession: (id) => repoOp('unpinSession', () => pinnedSessions.unpinSession(id)),
+
+      movePinnedSession: (move) =>
+        repoOp('movePinnedSession', () => pinnedSessions.movePinnedSession(move)),
     } satisfies SessionProjectionRepositoryShape),
   )
 }).pipe(Layer.unwrapEffect)

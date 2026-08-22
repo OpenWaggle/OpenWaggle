@@ -15,6 +15,8 @@ export interface SidebarSessionActions {
   readonly archive: (id: SessionId) => void
   readonly markUnread: (id: SessionId) => void
   readonly clone: (id: SessionId) => void
+  /** Pin or unpin the session, depending on whether it is already a Pinned session. */
+  readonly togglePin: (id: SessionId) => void
 }
 
 export interface SidebarBranchActions {
@@ -40,7 +42,8 @@ export interface SidebarProjectRenderState {
   readonly activeBranchId: SessionTree['session']['lastActiveBranchId']
   readonly activeSessionId: SessionId | null
   readonly activeSessionTree: SessionTree | null
-  readonly collapsedProjectPaths: ReadonlySet<string>
+  /** True when this project's sessions are hidden. Absent means expanded. */
+  readonly isProjectCollapsed: (projectPath: string) => boolean
   readonly draftBranch: SidebarDraftBranch | null
   readonly draftSessionProjectPath: string | null
   readonly projectPath: string | null

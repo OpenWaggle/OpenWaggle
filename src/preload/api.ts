@@ -135,6 +135,10 @@ export const api: OpenWaggleApi = {
   getSessionDetail: invoke('sessions:get-detail'),
   listTurnCheckpoints: invoke('sessions:turn-checkpoints:list'),
   getTurnDiff: invoke('sessions:turn-diff:get'),
+  listPinnedSessions: invoke('sessions:pins:list'),
+  pinSession: invoke('sessions:pins:pin'),
+  unpinSession: invoke('sessions:pins:unpin'),
+  movePinnedSession: invoke('sessions:pins:move'),
   createSession: invoke('sessions:create'),
   forkSessionToNew: invoke('sessions:fork-to-new'),
   cloneSessionToNew: invoke('sessions:clone-to-new'),
@@ -240,6 +244,14 @@ export const api: OpenWaggleApi = {
 
   // Composer
   suggestFiles: invoke('composer:file-suggest'),
+
+  // Workspace files
+  searchWorkspaceFiles: invoke('workspace-files:search'),
+  searchWorkspaceContent: invoke('workspace-files:search-content'),
+  cancelWorkspaceContentSearch: invoke('workspace-files:cancel-content-search'),
+  readWorkspaceFile: invoke('workspace-files:read'),
+  writeWorkspaceFile: invoke('workspace-files:write'),
+  openWorkspaceFileExternal: invoke('workspace-files:open-external'),
 
   // Auto-updater
   checkForUpdates: invoke('updater:check'),

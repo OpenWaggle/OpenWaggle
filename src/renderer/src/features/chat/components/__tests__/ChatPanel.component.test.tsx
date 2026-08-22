@@ -74,7 +74,14 @@ describe('ChatPanel', () => {
   it('shows welcome screen when no messages', () => {
     renderPanel()
     expect(screen.getByText("Let's build")).toBeInTheDocument()
-    expect(screen.queryByText('Explore more')).toBeNull()
+    expect(screen.queryByText('Build a coding game in this repo')).not.toBeInTheDocument()
+    expect(screen.queryByText('Draft a one-page summary of this app')).not.toBeInTheDocument()
+    expect(screen.queryByText('Create a refactor plan for this codebase')).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Welcome' })).toHaveClass(
+      'flex-1',
+      'items-center',
+      'justify-center',
+    )
   })
 
   it('renders the welcome heading smaller and lighter than the project name', () => {

@@ -1,4 +1,5 @@
 import type { SessionId } from '@shared/types/brand'
+import type { AgentPhaseLabel } from '@shared/types/phase'
 import { type SessionStatus, TERMINAL_STATUSES } from '@shared/types/session-status'
 import { create } from 'zustand'
 
@@ -8,10 +9,21 @@ interface SessionStatusState {
   completedAt: Map<SessionId, number>
   /** When the user last visited (navigated to) a session */
   lastVisitedAt: Map<SessionId, number>
+  /**
+   * What the agent is doing right now, per session.
+   *
+   * The `agent:phase` event already crossed IPC and was used only as a liveness signal,
+   * then discarded. Keeping it lets a sidebar row say "Refactoring" instead of repeating
+   * "Working", which is the difference between knowing a session is alive and knowing what
+   * it is alive doing. Cleared whenever a run reaches a terminal status.
+   */
+  phases: Map<SessionId, AgentPhaseLabel>
 
   setStatus: (id: SessionId, status: SessionStatus) => void
   clearStatus: (id: SessionId) => void
   getStatus: (id: SessionId) => SessionStatus
+  setPhase: (id: SessionId, phase: AgentPhaseLabel | null) => void
+  getPhase: (id: SessionId) => AgentPhaseLabel | null
   markVisited: (id: SessionId) => void
   markUnread: (id: SessionId) => void
 }
@@ -20,6 +32,7 @@ export const useSessionStatusStore = create<SessionStatusState>((set, get) => ({
   statuses: new Map<SessionId, SessionStatus>(),
   completedAt: new Map<SessionId, number>(),
   lastVisitedAt: new Map<SessionId, number>(),
+  phases: new Map<SessionId, AgentPhaseLabel>(),
 
   setStatus(id: SessionId, status: SessionStatus) {
     set((state) => {
@@ -51,6 +64,13 @@ export const useSessionStatusStore = create<SessionStatusState>((set, get) => ({
         next.completedAt = nextCompleted
       }
 
+      // A finished run has no current phase, so a stale label never outlives it.
+      if (isTerminal && state.phases.has(id)) {
+        const nextPhases = new Map(state.phases)
+        nextPhases.delete(id)
+        next.phases = nextPhases
+      }
+
       // If nothing changed, bail
       if (Object.keys(next).length === 0) return state
       return { ...state, ...next }
@@ -59,17 +79,34 @@ export const useSessionStatusStore = create<SessionStatusState>((set, get) => ({
 
   clearStatus(id: SessionId) {
     set((state) => {
-      if (!state.statuses.has(id)) return state
+      if (!state.statuses.has(id) && !state.phases.has(id)) return state
       const next = new Map(state.statuses)
       next.delete(id)
       const nextCompleted = new Map(state.completedAt)
       nextCompleted.delete(id)
-      return { statuses: next, completedAt: nextCompleted }
+      const nextPhases = new Map(state.phases)
+      nextPhases.delete(id)
+      return { statuses: next, completedAt: nextCompleted, phases: nextPhases }
     })
   },
 
   getStatus(id: SessionId) {
     return get().statuses.get(id) ?? 'idle'
+  },
+
+  setPhase(id: SessionId, phase: AgentPhaseLabel | null) {
+    set((state) => {
+      const current = state.phases.get(id) ?? null
+      if (current === phase) return state
+      const nextPhases = new Map(state.phases)
+      if (phase === null) nextPhases.delete(id)
+      else nextPhases.set(id, phase)
+      return { phases: nextPhases }
+    })
+  },
+
+  getPhase(id: SessionId) {
+    return get().phases.get(id) ?? null
   },
 
   markVisited(id: SessionId) {

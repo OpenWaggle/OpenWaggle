@@ -17,6 +17,7 @@ const PRIMARY_MODEL = 'openai/gpt-5.5'
 const SECONDARY_MODEL = 'anthropic/claude-sonnet-4'
 
 type RegisteredCommandOptions = Parameters<ExtensionAPI['registerCommand']>[1]
+type RegisteredToolOptions = Parameters<ExtensionAPI['registerTool']>[0]
 
 function modelFor(modelReference: string): PiWaggleModel {
   const separatorIndex = modelReference.indexOf('/')
@@ -105,6 +106,7 @@ function enabledModeStateEntry() {
 
 function createHarness(input: { readonly branchEntries?: readonly unknown[] } = {}) {
   const commands = new Map<string, RegisteredCommandOptions>()
+  const tools = new Map<string, RegisteredToolOptions>()
   const eventHandlers = new Map<string, (...args: unknown[]) => unknown>()
   const sendMessage = vi.fn<ExtensionAPI['sendMessage']>()
   const sendUserMessage = vi.fn<ExtensionAPI['sendUserMessage']>()
@@ -117,6 +119,9 @@ function createHarness(input: { readonly branchEntries?: readonly unknown[] } = 
     }),
     registerCommand: vi.fn((name: string, options: RegisteredCommandOptions) => {
       commands.set(name, options)
+    }),
+    registerTool: vi.fn((tool: RegisteredToolOptions) => {
+      tools.set(tool.name, tool)
     }),
     registerMessageRenderer: vi.fn(),
     sendMessage,
@@ -138,10 +143,49 @@ function createHarness(input: { readonly branchEntries?: readonly unknown[] } = 
   })
 
   defaultPiWaggleExtension(pi)
-  return { commands, ctx, eventHandlers, sendMessage, sendUserMessage }
+  return { commands, ctx, eventHandlers, sendMessage, sendUserMessage, tools }
 }
 
 describe('pi-waggle default extension runtime flow', () => {
+  it('registers the terminating Waggle invocation tool for standard agents', () => {
+    const harness = createHarness()
+    const tool = harness.tools.get('waggle_invoke')
+
+    expect(tool).toMatchObject({
+      name: 'waggle_invoke',
+      label: 'Invoke Waggle',
+      executionMode: 'sequential',
+    })
+    expect(tool?.promptGuidelines).toEqual(
+      expect.arrayContaining([expect.stringContaining('only tool in its batch')]),
+    )
+  })
+
+  it('resolves a preset and returns a visible terminating handoff request', async () => {
+    const harness = createHarness()
+    const tool = harness.tools.get('waggle_invoke')
+    if (!tool) throw new Error('Expected waggle_invoke tool')
+
+    const result = await tool.execute(
+      'tool-call-1',
+      { preset: 'code-review', prompt: 'Review the current changes.' },
+      undefined,
+      undefined,
+      harness.ctx,
+    )
+
+    expect(result).toMatchObject({
+      terminate: true,
+      details: {
+        kind: 'waggle-handoff',
+        presetId: 'code-review',
+        presetName: 'Code Review',
+        source: 'agent',
+        prompt: 'Review the current changes.',
+      },
+    })
+  })
+
   it('preserves original image context when rewriting automatic Waggle turns', async () => {
     const image = inputImage()
     const harness = createHarness({ branchEntries: [enabledModeStateEntry()] })

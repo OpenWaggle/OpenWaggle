@@ -75,6 +75,28 @@ export async function writeProviderPackage(
   )
 }
 
+export async function writeNpmProviderPackage(
+  agentDir: string,
+  packageName: string,
+  version: string,
+  providerId: string,
+) {
+  const packageDir = path.join(agentDir, 'npm', 'node_modules', packageName)
+  await writeJson(path.join(packageDir, 'package.json'), {
+    name: packageName,
+    version,
+    pi: {
+      extensions: ['extensions/provider.js'],
+    },
+  })
+  await fs.mkdir(path.join(packageDir, 'extensions'), { recursive: true })
+  await fs.writeFile(
+    path.join(packageDir, 'extensions', 'provider.js'),
+    providerExtensionModule(providerId),
+    'utf8',
+  )
+}
+
 export async function writeThrowingProviderPackage(baseDir: string, packageSource: string) {
   const packageDir = path.join(baseDir, packageSource)
   await writeJson(path.join(packageDir, 'package.json'), {

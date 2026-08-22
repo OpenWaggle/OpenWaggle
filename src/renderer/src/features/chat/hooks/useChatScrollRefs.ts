@@ -8,6 +8,7 @@ interface ChatScrollRefs extends ScrollEffectRefs {
   readonly activeSessionIdRef: MutableValueRef<string | null>
   readonly pendingAutoScrollFrameRef: MutableValueRef<number | null>
   readonly pendingRestoreTimerRef: MutableValueRef<ReturnType<typeof setTimeout> | null>
+  readonly lastRestoreMaxScrollTopRef: MutableValueRef<number | null>
   readonly effectRefs: ScrollEffectRefs
 }
 
@@ -25,6 +26,14 @@ export function useChatScrollRefs(
   const pendingAutoScrollFrameRef = useRef<number | null>(null)
   const pendingRestoreTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingRestoreScrollTopRef = useRef<number | null>(null)
+  /**
+   * The reachable scroll extent at the previous restore attempt.
+   *
+   * A restore retries while the content is still growing toward a saved offset. Since the
+   * transcript renders a capped window, a saved offset taken from a taller transcript may never be
+   * reachable, and without this the retry would rearm forever.
+   */
+  const lastRestoreMaxScrollTopRef = useRef<number | null>(null)
   const lastRestoredSessionRef = useRef<string | null>(null)
   const hasRestoredScrollRef = useRef(false)
   const activeSessionIdRef = useRef(activeSessionId)
@@ -70,6 +79,7 @@ export function useChatScrollRefs(
     activeSessionIdRef,
     pendingAutoScrollFrameRef,
     pendingRestoreTimerRef,
+    lastRestoreMaxScrollTopRef,
     effectRefs,
   }
 }

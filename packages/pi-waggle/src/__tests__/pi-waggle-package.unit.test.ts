@@ -73,6 +73,7 @@ function createPackageLoadHarness(input: { readonly resolveCurrentModel?: boolea
     registerCommand: vi.fn((name: string, options: RegisteredCommandOptions) => {
       commands.set(name, options)
     }),
+    registerTool: vi.fn(),
     registerMessageRenderer: vi.fn(),
     sendMessage,
     sendUserMessage,

@@ -27,7 +27,7 @@ Do not apply the app release-intent policy to npm package versions, and do not l
 
 ## App release core policy
 
-Keep automation, but make release intent explicit.
+Keep automation, but make both release intent and publication approval explicit. Every generated desktop app release PR remains open until a maintainer or explicitly authorized human merges it; the workflow must never merge its own release PR.
 
 ## Runtime/SDK agnosticism
 
@@ -151,11 +151,14 @@ Stable `1.0.0` must rebuild from the same source content as the final validated 
 
 ## Release publication
 
-- Product-impacting merge to `main` publishes the active prerelease stage automatically:
+- Product-impacting merge to `main` opens or updates a generated release PR for the active prerelease stage:
   - active Alpha stage -> next `1.0.0-alpha.N`;
   - active Beta stage -> next `1.0.0-beta.N`.
+- Exact-head CI must pass on the generated release PR, but passing CI does not merge or publish it.
+- Merging the generated release PR is the explicit maintainer publication decision. Its protected merge starts tag creation, platform builds, installer verification, and GitHub Release publication.
+- Never auto-merge a desktop app release PR and never depend on a ruleset bypass.
 - `release:none` merges do not publish app releases.
-- One product-impacting merged PR produces one app prerelease build, even when the PR contains multiple release-intent files.
+- One manually merged app release PR produces one app prerelease build, even when it consumes multiple product-impacting changes or release-intent files.
 - RC and Stable require a release PR / release-plan gate before publishing.
 - Bot release commits update `package.json`, `CHANGELOG.md`, and consumed release-intent files.
 - Prevent release loops from bot commits.

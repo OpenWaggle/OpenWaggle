@@ -1,17 +1,17 @@
 import type { SkillDiscoveryItem } from '@shared/types/standards'
-import type { WaggleConfig } from '@shared/types/waggle'
-import { useEffect, useRef, useState } from 'react'
-import { useEscapeHotkey } from '@/shared/hooks/useEscapeHotkey'
+import type { WagglePreset } from '@shared/types/waggle'
+import { useEffect, useRef } from 'react'
+import { useComposerStore } from '@/features/composer/state'
+import { useClickOutside } from '@/shared/hooks/useClickOutside'
 import { useUIStore } from '@/shell/ui-store'
 import { useCommandPaletteItems } from '../hooks/useCommandPaletteItems'
 import { useCommandPaletteKeyboard } from '../hooks/useCommandPaletteKeyboard'
 import { CommandPaletteList } from './CommandPaletteList'
-import { CommandPaletteSearch } from './CommandPaletteSearch'
 
 interface CommandPaletteProps {
   readonly slashSkills: readonly SkillDiscoveryItem[]
   readonly onSelectSkill: (skillId: string, skillName?: string) => void
-  readonly onStartWaggle: (config: WaggleConfig) => void
+  readonly onStartWaggle: (preset: WagglePreset) => void
   readonly onOpenSessionTree?: () => void
   readonly onForkToNewSession?: () => void
   readonly onCloneToNewSession?: () => void
@@ -25,11 +25,15 @@ export function CommandPalette({
   onForkToNewSession,
   onCloneToNewSession,
 }: CommandPaletteProps) {
-  const closeCommandPalette = useUIStore((s) => s.closeCommandPalette)
-  const [query, setQuery] = useState('')
-  const [highlightIndex, setHighlightIndex] = useState(0)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const closeSlashCommandMenu = useUIStore((s) => s.closeSlashCommandMenu)
+  const editor = useComposerStore((s) => s.lexicalEditor)
+  const activeSlashCommand = useComposerStore((s) => s.activeSlashCommand)
+  const highlightIndex = useComposerStore((s) => s.slashHighlightIndex)
+  const setHighlightIndex = useComposerStore((s) => s.setSlashHighlightIndex)
+  const setDismissedSlashToken = useComposerStore((s) => s.setDismissedSlashToken)
+  const containerRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const query = activeSlashCommand?.query ?? ''
   const items = useCommandPaletteItems({
     query,
     slashSkills,
@@ -39,32 +43,31 @@ export function CommandPalette({
     onForkToNewSession,
     onCloneToNewSession,
   })
-  const handleKeyDown = useCommandPaletteKeyboard({
+  function dismiss() {
+    setDismissedSlashToken(activeSlashCommand?.token ?? null)
+    closeSlashCommandMenu()
+  }
+  useCommandPaletteKeyboard({
+    editor,
     items,
     highlightIndex,
     setHighlightIndex,
     listRef,
+    onClose: dismiss,
   })
+  useClickOutside(containerRef, dismiss)
 
   useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
-
-  useEscapeHotkey(closeCommandPalette)
-
-  function handleQueryChange(nextQuery: string) {
-    setQuery(nextQuery)
-    setHighlightIndex(0)
-  }
+    if (highlightIndex >= items.length) setHighlightIndex(0)
+  }, [highlightIndex, items.length, setHighlightIndex])
 
   return (
-    <div className="w-full overflow-hidden rounded-xl border border-[#2a2f3a] bg-[#161a20]">
-      <CommandPaletteSearch
-        inputRef={inputRef}
-        query={query}
-        onKeyDown={handleKeyDown}
-        onQueryChange={handleQueryChange}
-      />
+    <div
+      ref={containerRef}
+      role="menu"
+      aria-label="Slash command menu"
+      className="w-full overflow-hidden rounded-xl border border-[#2a2f3a] bg-[#161a20] shadow-xl"
+    >
       <CommandPaletteList
         items={items}
         highlightIndex={highlightIndex}

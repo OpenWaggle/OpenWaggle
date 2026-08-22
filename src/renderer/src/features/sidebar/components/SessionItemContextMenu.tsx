@@ -1,18 +1,26 @@
 import type { SessionId } from '@shared/types/brand'
-import { Archive, Copy, Eye, Trash2 } from 'lucide-react'
+import { Archive, ArrowDown, ArrowUp, Copy, Eye, Pin, PinOff, Trash2 } from 'lucide-react'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
 import { ContextMenu } from '@/shared/ui/ContextMenu'
+import type { SidebarSessionActions } from '../model'
 
 interface SessionItemContextMenuProps {
   readonly open: boolean
   readonly position: { readonly x: number; readonly y: number }
   readonly sessionId: SessionId
+  readonly isPinned: boolean
+  readonly actions: SidebarSessionActions
+  /**
+   * Keyboard route for reordering a pinned row, null when the move does not apply.
+   *
+   * Dragging is the only pointer route for Manual order, and dragging alone fails WCAG 2.2
+   * SC 2.1.1 Keyboard and SC 2.5.7 Dragging Movements. This menu opens from the keyboard, so these
+   * give reordering a route that needs no sustained gesture.
+   */
+  readonly onMoveUp?: (() => void) | null
+  readonly onMoveDown?: (() => void) | null
   readonly onClose: () => void
-  readonly onMarkUnread: (id: SessionId) => void
-  readonly onClone: (id: SessionId) => void
-  readonly onArchive: (id: SessionId) => void
-  readonly onDelete: (id: SessionId) => void
 }
 
 function SessionMenuButton({
@@ -43,11 +51,11 @@ export function SessionItemContextMenu({
   open,
   position,
   sessionId,
+  isPinned,
+  actions,
+  onMoveUp,
+  onMoveDown,
   onClose,
-  onMarkUnread,
-  onClone,
-  onArchive,
-  onDelete,
 }: SessionItemContextMenuProps) {
   function closeAfter(action: () => void) {
     action()
@@ -57,26 +65,41 @@ export function SessionItemContextMenu({
   function confirmDelete() {
     onClose()
     void api.showConfirm('Delete this session?', 'This cannot be undone.').then((confirmed) => {
-      if (confirmed) onDelete(sessionId)
+      if (confirmed) actions.delete(sessionId)
     })
   }
 
   return (
     <ContextMenu open={open} onClose={onClose} position={position}>
       <SessionMenuButton
+        icon={isPinned ? PinOff : Pin}
+        label={isPinned ? 'Unpin session' : 'Pin session'}
+        onClick={() => closeAfter(() => actions.togglePin(sessionId))}
+      />
+      {onMoveUp ? (
+        <SessionMenuButton icon={ArrowUp} label="Move up" onClick={() => closeAfter(onMoveUp)} />
+      ) : null}
+      {onMoveDown ? (
+        <SessionMenuButton
+          icon={ArrowDown}
+          label="Move down"
+          onClick={() => closeAfter(onMoveDown)}
+        />
+      ) : null}
+      <SessionMenuButton
         icon={Eye}
         label="Mark as unread"
-        onClick={() => closeAfter(() => onMarkUnread(sessionId))}
+        onClick={() => closeAfter(() => actions.markUnread(sessionId))}
       />
       <SessionMenuButton
         icon={Copy}
         label="Clone to new session"
-        onClick={() => closeAfter(() => onClone(sessionId))}
+        onClick={() => closeAfter(() => actions.clone(sessionId))}
       />
       <SessionMenuButton
         icon={Archive}
         label="Archive session"
-        onClick={() => closeAfter(() => onArchive(sessionId))}
+        onClick={() => closeAfter(() => actions.archive(sessionId))}
       />
       <SessionMenuButton icon={Trash2} label="Delete session" danger onClick={confirmDelete} />
     </ContextMenu>

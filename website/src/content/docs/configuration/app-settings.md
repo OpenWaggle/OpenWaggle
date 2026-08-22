@@ -7,6 +7,12 @@ section: "Configuration"
 
 Open Settings from the sidebar gear icon.
 
+Some sidebar preferences are not in Settings because they belong to the sidebar itself. Remembered
+between launches: the session sort order, which projects you have collapsed, and the Pinned
+section's own sort. Which sessions are pinned, and the order you dragged them into, are stored with
+the app's data rather than as a preference. Not remembered: state chips and the text filter, since a
+filter that hides sessions should not outlive the reason you applied it.
+
 ## Active Sections
 
 | Section | Description |

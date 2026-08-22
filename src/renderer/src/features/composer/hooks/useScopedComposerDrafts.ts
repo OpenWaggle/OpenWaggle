@@ -5,16 +5,19 @@ import { useComposerStore } from '@/features/composer/state/composer-store'
 import { useSessionStore } from '@/features/sessions/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { buildComposerDraftContextKey } from '../lib/composer-draft-context'
-import { setEditorText } from '../lib/lexical-utils'
+import { setEditorDraft } from '../lib/lexical-utils'
 
 type SessionStoreState = ReturnType<typeof useSessionStore.getState>
 type ActiveWorkspace = SessionStoreState['activeWorkspace']
 type DraftBranch = SessionStoreState['draftBranch']
 
-function syncEditorText(text: string) {
+function syncEditorDraft(draft: {
+  readonly input: string
+  readonly wagglePreset?: ReturnType<typeof useComposerStore.getState>['selectedWagglePreset']
+}) {
   const editor = useComposerStore.getState().lexicalEditor
   if (editor) {
-    setEditorText(editor, text)
+    setEditorDraft(editor, draft.input, draft.wagglePreset ?? null)
   }
 }
 
@@ -26,6 +29,7 @@ function currentDraftOverride() {
   return {
     input: prompt.draftComposerText,
     attachments: useComposerStore.getState().attachments,
+    wagglePreset: useComposerStore.getState().selectedWagglePreset,
   }
 }
 
@@ -48,7 +52,7 @@ export function useScopedComposerDrafts(activeSessionId: SessionId | null) {
     const appliedDraft = useComposerStore
       .getState()
       .switchScopedDraftContext(contextKey, undefined, currentDraftOverride())
-    syncEditorText(appliedDraft.input)
+    syncEditorDraft(appliedDraft)
   }, [contextKey])
 
   useEffect(() => {
@@ -60,6 +64,7 @@ export function useScopedComposerDrafts(activeSessionId: SessionId | null) {
           currentDraftOverride() ?? {
             input: store.input,
             attachments: store.attachments,
+            wagglePreset: store.selectedWagglePreset,
           },
         )
       }

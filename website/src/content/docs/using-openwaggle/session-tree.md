@@ -16,7 +16,7 @@ _The Session Tree keeps the selected transcript path and alternate Pi session br
 Open the right-side Session Tree from:
 
 - The tree icon in the header.
-- The command palette action **Open Session Tree**.
+- The slash command menu action **Open Session Tree**.
 
 The Session Tree shares the right-side panel slot with Diff. Opening one closes the other instead of stacking sidebars.
 
@@ -30,7 +30,7 @@ The Session Tree is the full on-demand graph view for the active session:
 - Draft state marks a transient branch target before a new message materializes it.
 - Archived branch state remains visible in the full tree even when archived branches are hidden from normal sidebar navigation.
 
-The left sidebar stays navigation-first. It shows sessions, useful materialized branch rows, and temporary draft branch rows, but it does not render the full node graph.
+The left sidebar stays navigation-first. It shows sessions, useful materialized branch rows, and temporary draft branch rows, but it does not render the full node graph. A session with more than one conversation branch shows a list-tree icon and a count on its second line; open the Session Tree for the graph itself.
 
 ## Filters And Search
 

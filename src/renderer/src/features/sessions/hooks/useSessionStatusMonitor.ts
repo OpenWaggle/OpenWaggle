@@ -19,6 +19,7 @@ const activeWaggleSessions = new Set<SessionId>()
  */
 export function useSessionStatusMonitor(): void {
   const setStatus = useSessionStatusStore((s) => s.setStatus)
+  const setPhase = useSessionStatusStore((s) => s.setPhase)
   const markVisited = useSessionStatusStore((s) => s.markVisited)
 
   useEffect(() => {
@@ -34,6 +35,9 @@ export function useSessionStatusMonitor(): void {
     }
 
     const unsubPhase = api.onAgentPhase(({ sessionId, phase }) => {
+      // Keep the label, not just the fact that something happened. A row can then say what
+      // the agent is doing rather than repeating that it is busy.
+      setPhase(sessionId, phase?.label ?? null)
       if (!phase) return
       // Don't downgrade waggle-running to working
       if (activeWaggleSessions.has(sessionId)) return
@@ -47,7 +51,7 @@ export function useSessionStatusMonitor(): void {
 
     const unsubWaggleTurn = api.onWaggleTurnEvent(({ sessionId, event }) => {
       matchBy(event, 'type')
-        .with('turn-start', () => {
+        .with('collaboration-pending', 'turn-start', () => {
           activeWaggleSessions.add(sessionId)
           setStatusWithVisitCheck(sessionId, 'waggle-running')
         })
@@ -98,5 +102,5 @@ export function useSessionStatusMonitor(): void {
       unsubWaggleTurn()
       unsubEvent()
     }
-  }, [setStatus, markVisited])
+  }, [setStatus, setPhase, markVisited])
 }

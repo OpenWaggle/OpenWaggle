@@ -1,6 +1,6 @@
 {
   "name": "openwaggle",
-  "version": "0.3.0-alpha.59",
+  "version": "0.3.0-alpha.61",
   "description": "Desktop coding agent with multi-model waggle mode",
   "main": "./out/main/index.js",
   "engines": {
@@ -25,6 +25,7 @@
     "build:linux": "pnpm build && electron-builder --linux",
     "build:website": "cd website && pnpm install && pnpm build",
     "extension:qa:install": "tsx scripts/install-extension-qa-fixture.ts",
+    "qa:seed-conversations": "tsx scripts/qa/seed-dev-conversations.ts",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc -b tsconfig.web.json --emitDeclarationOnly",
     "typecheck": "pnpm typecheck:node && pnpm typecheck:web",
@@ -98,6 +99,7 @@
     "better-sqlite3": "13.0.1",
     "electron-updater": "6.8.9",
     "hast-util-to-jsx-runtime": "2.3.6",
+    "ignore": "7.0.5",
     "jsonc-parser": "3.3.1",
     "lexical": "0.48.0",
     "ms": "2.1.3",

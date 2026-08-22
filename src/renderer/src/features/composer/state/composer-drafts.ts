@@ -9,6 +9,7 @@ export function normalizeScopedDraft(draft: ComposerScopedDraft) {
   return {
     input: draft.input,
     attachments: [...draft.attachments],
+    wagglePreset: draft.wagglePreset ?? null,
   }
 }
 
@@ -34,14 +35,25 @@ export function createScopedDraftActions(set: ComposerSet, get: ComposerGet) {
     ) {
       const state = get()
       if (state.activeDraftContextKey === contextKey) {
-        return normalizeScopedDraft({ input: state.input, attachments: state.attachments })
+        return normalizeScopedDraft({
+          input: state.input,
+          attachments: state.attachments,
+          wagglePreset: state.selectedWagglePreset,
+        })
       }
-      const currentDraft = currentDraftOverride ?? normalizeScopedDraft(state)
+      const currentDraft =
+        currentDraftOverride ??
+        normalizeScopedDraft({
+          input: state.input,
+          attachments: state.attachments,
+          wagglePreset: state.selectedWagglePreset,
+        })
       const scopedDrafts = state.activeDraftContextKey
         ? upsertScopedDraft(state.scopedDrafts, state.activeDraftContextKey, currentDraft)
         : state.scopedDrafts
       const nextDraft = normalizeScopedDraft(
-        scopedDrafts[contextKey] ?? fallbackDraft ?? { input: '', attachments: [] },
+        scopedDrafts[contextKey] ??
+          fallbackDraft ?? { input: '', attachments: [], wagglePreset: null },
       )
       set(buildDraftContextState(contextKey, scopedDrafts, nextDraft, state.promptHistory.length))
       return nextDraft
@@ -78,7 +90,7 @@ export function createScopedDraftActions(set: ComposerSet, get: ComposerGet) {
 }
 
 function isEmptyScopedDraft(draft: ComposerScopedDraft) {
-  return draft.input.trim().length === 0 && draft.attachments.length === 0
+  return draft.input.trim().length === 0 && draft.attachments.length === 0 && !draft.wagglePreset
 }
 
 function upsertScopedDraft(
@@ -107,9 +119,11 @@ function buildDraftContextState(
     input: nextDraft.input,
     cursorIndex: nextDraft.input.length,
     attachments: [...nextDraft.attachments],
+    selectedWagglePreset: nextDraft.wagglePreset ?? null,
     attachmentError: null,
     dismissedSlashToken: null,
     slashHighlightIndex: 0,
+    activeSlashCommand: null,
     historyIndex: promptHistoryLength,
     draftInput: '',
   }
@@ -145,6 +159,7 @@ function clearActiveDraftContextState() {
     input: '',
     cursorIndex: 0,
     attachments: [],
+    selectedWagglePreset: null,
     attachmentError: null,
   }
 }
