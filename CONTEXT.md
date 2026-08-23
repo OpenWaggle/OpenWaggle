@@ -549,7 +549,7 @@ _Avoid_: sandbox, isolation level
 ### Appearance and design tokens
 
 **Design token contract**:
-The single versioned set of semantic presentation roles — colour, typography, spacing, radius, focus, and elevation — published by the extension SDK and consumed by both the OpenWaggle app and extensions, so host and extension UI cannot drift apart.
+The single versioned set of semantic presentation roles — colour, typography, spacing, radius, shadow, and focus — published by the extension SDK and consumed by both the OpenWaggle app and extensions, so host and extension UI cannot drift apart and a user-authored Appearance overrides one standard-shaped surface.
 _Avoid_: theme (that is an instance), CSS variables (that is the transport), design system (broader than the token set)
 
 **Appearance**:
@@ -567,6 +567,18 @@ _Avoid_: variable, colour name, palette entry
 **Derived token**:
 An OpenWaggle-internal presentation value computed from Semantic roles for a specific surface, such as the diff panel's add/remove colours, kept out of the public contract while still re-theming automatically.
 _Avoid_: private token (it is still a CSS variable), one-off colour
+
+**Type scale**:
+The Design token contract's text steps are Tailwind's standard `text-*` scale (xs through 2xl), exposed as themeable variables so utilities consume them and an Appearance can override them. The app uses the standard steps and adds no bespoke sizes.
+_Avoid_: arbitrary text size, bespoke text role, text-[Npx]
+
+**Spacing scale**:
+The Design token contract's spacing is Tailwind's standard spacing unit, exposed as a themeable variable; every spacing and sizing utility derives from it on the numeric grid. There is no second spacing vocabulary.
+_Avoid_: arbitrary spacing value, bespoke spacing role, p-[Npx]
+
+**Radius scale**:
+The Design token contract's radius steps are Tailwind's standard `rounded-*` scale, exposed as themeable variables. The app uses the standard steps and adds no bespoke radii.
+_Avoid_: arbitrary radius, rounded-[Npx], panel radius
 
 **Changed-file navigator**:
 The diff panel's list of files in the active diff scope, used to jump to a file's section and to submit a review.
@@ -813,6 +825,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - The **Composer extension surface** is constrained to compact actions and launchers instead of arbitrary composer input injection.
 - The **Design token contract** has exactly one definition, published by the extension SDK; the app consumes it rather than maintaining a parallel token set, so extension UI cannot visually drift from host UI.
 - An **Appearance** supplies a value for every **Semantic role** in the **Design token contract** and carries one **Colour scheme**.
+- The **Design token contract** adopts Tailwind's standard scales as its vocabulary and exposes them as themeable variables: utilities are the only consumption path and variables are the only override path, so deviation is structurally impossible.
 - A **Derived token** is computed from **Semantic roles**, so it re-themes with an **Appearance** without appearing in the public contract.
 - A session's git reads and writes target its **Working path**; **Session environment mode** decides whether that is the **Session worktree** or the opened checkout. Repository-level data (branch list, worktree list, remotes) stays keyed to the project, because a linked worktree shares refs with the primary checkout.
 - The **Session context row** states where the next send runs: it owns the **Session environment mode**, and its **Run target picker** owns the **Run target**, which resolves to the checked-out branch or the **Worktree base ref** depending on the mode. It is distinct from the **Branch-diff base ref** chosen in the diff panel.
