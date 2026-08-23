@@ -36,7 +36,15 @@ export interface PiInteractionUiContextInput {
    * governs the rest of that run.
    */
   readonly resolveAuthorizationMode: () => Promise<AgentAuthorizationMode>
-  readonly projectPath: string | null
+  /**
+   * The DURABLE project root, not the run cwd.
+   *
+   * A worktree session runs in `~/.openwaggle/worktrees/...`, but persistent grants and the project
+   * authorization default both belong to the repository the user actually chose. Keying grants on
+   * the run cwd wrote them into the worktree, where Settings could not list them and therefore
+   * could not revoke them, and where they applied to nothing else.
+   */
+  readonly authorizationProjectPath: string | null
   readonly signal: AbortSignal
   readonly onEvent: (event: AgentTransportEvent) => void
 }
@@ -201,7 +209,7 @@ function createAuthorizeChannel(context: PiInteractionUiContextInput): OpenWaggl
     requestAuthorization({
       sessionId: context.sessionId,
       runId: context.runId,
-      projectPath: context.projectPath,
+      projectPath: context.authorizationProjectPath,
       title: request.title,
       message: request.message,
       scopeKey: request.scopeKey,

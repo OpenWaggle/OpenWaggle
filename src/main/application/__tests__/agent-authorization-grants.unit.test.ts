@@ -117,6 +117,19 @@ describe('project grants', () => {
     await rm(projectPath, { recursive: true, force: true })
   })
 
+  it('keeps every grant when two are written concurrently', async () => {
+    // Each write is read-modify-write, so without serialization both callers read the pre-change file
+    // and the second rename wins, dropping the first grant while the UI reports both as saved. A run
+    // can raise several authorization requests close together, so this is reachable in normal use.
+    await Promise.all([
+      grantForProject(projectPath, listIssues),
+      grantForProject(projectPath, createIssue),
+    ])
+
+    const grants = await listGrantsForProject(projectPath)
+    expect(grants.map((grant) => grant.resource).sort()).toEqual(['create_issue', 'list_issues'])
+  })
+
   it('persists a grant and covers a later request', async () => {
     await grantForProject(projectPath, listIssues)
 

@@ -7,12 +7,12 @@ import {
   isAuthorizationRequest,
   isPromptInteraction,
   queuedRequestCount,
-  ribbonEyebrow,
 } from '../lib/agent-authorization-ribbon-model'
 import { agentLoopInteractionMessage } from '../lib/agent-loop-interaction-view'
 import { restoreFocusBeforeRequest } from '../lib/pending-request-focus'
 import { AgentAuthorizationRibbon } from './AgentAuthorizationRibbon'
 import { AgentInteractionControls } from './AgentInteractionControls'
+import { PoliteAnnouncer } from './PoliteAnnouncer'
 
 type SubmitInteractionResponse = (
   interaction: AgentLoopInteraction,
@@ -36,10 +36,17 @@ function useResponseSubmission(
   function submit(response: AgentLoopInteractionResponse) {
     setError(null)
     setBusy(true)
-    onRespond(interaction, response).catch((cause: unknown) => {
-      setError(cause instanceof Error ? cause.message : String(cause))
-      setBusy(false)
-    })
+    onRespond(interaction, response)
+      .then(() => {
+        // Every control here is `disabled={busy}`, and disabling the focused element blurs it, so
+        // answering by keyboard moved focus to `<body>`: Escape stopped working and the next Tab
+        // restarted from the top of the document, mid-sentence. Hand the caret back instead.
+        restoreFocusBeforeRequest()
+      })
+      .catch((cause: unknown) => {
+        setError(cause instanceof Error ? cause.message : String(cause))
+        setBusy(false)
+      })
   }
 
   return { busy, error, submit }
@@ -62,7 +69,6 @@ function AgentQuestionRibbon({
   return (
     <section
       aria-labelledby={titleId}
-      aria-live="polite"
       className="border-b border-border/60 px-4 py-2.5"
       data-question-ribbon="true"
       data-request-ribbon="true"
@@ -76,7 +82,7 @@ function AgentQuestionRibbon({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10px] font-semibold tracking-[0.14em] text-accent uppercase">
-              {isPromptInteraction(interaction) ? ribbonEyebrow(interaction) : 'Waiting for you'}
+              Waiting for you
             </span>
             {queuedCount > 0 ? (
               <span className="text-[10px] text-text-muted tabular-nums">1/{queuedCount + 1}</span>
@@ -147,28 +153,32 @@ export function AgentInteractionComposerPrompt({
   readonly onRespond: SubmitInteractionResponse
 }) {
   const interaction = interactions.find(isPromptInteraction) ?? null
-  if (!interaction) return null
+  const queuedCount = interaction === null ? 0 : queuedRequestCount(interactions)
 
-  const queuedCount = queuedRequestCount(interactions)
-
-  if (isAuthorizationRequest(interaction)) {
-    return (
-      <AgentAuthorizationRibbonContainer
-        interaction={interaction}
-        key={interaction.interactionId}
-        onRespond={onRespond}
-        projectName={projectName}
-        queuedCount={queuedCount}
-      />
-    )
-  }
-
+  // The announcer is rendered unconditionally, even with nothing to say. A live region only
+  // announces content that changes *after* it is in the accessibility tree, so it cannot be mounted
+  // alongside the ribbon it describes.
   return (
-    <AgentQuestionRibbon
-      interaction={interaction}
-      key={interaction.interactionId}
-      onRespond={onRespond}
-      queuedCount={queuedCount}
-    />
+    <>
+      <PoliteAnnouncer
+        message={interaction === null ? null : `Waiting for you. ${interaction.title}`}
+      />
+      {interaction === null ? null : isAuthorizationRequest(interaction) ? (
+        <AgentAuthorizationRibbonContainer
+          interaction={interaction}
+          key={interaction.interactionId}
+          onRespond={onRespond}
+          projectName={projectName}
+          queuedCount={queuedCount}
+        />
+      ) : (
+        <AgentQuestionRibbon
+          interaction={interaction}
+          key={interaction.interactionId}
+          onRespond={onRespond}
+          queuedCount={queuedCount}
+        />
+      )}
+    </>
   )
 }

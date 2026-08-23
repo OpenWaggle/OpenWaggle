@@ -155,12 +155,37 @@ async function updateProjectSettingsFile(
   return next
 }
 
+/**
+ * Serializes writes per project, because every write is read-modify-write.
+ *
+ * Two overlapping calls both read the pre-change file and the second `rename` wins, silently dropping
+ * the first change. That is reachable in normal use: a run can raise several authorization requests
+ * close together, and "Always allow" on two of them would keep only one grant while the UI reported
+ * both as saved.
+ *
+ * A per-path promise chain, not a lock library: the critical section is one small file write.
+ */
+const projectWriteQueues = new Map<string, Promise<unknown>>()
+
+function enqueueProjectWrite<T>(configPath: string, operation: () => Promise<T>): Promise<T> {
+  const previous = projectWriteQueues.get(configPath) ?? Promise.resolve()
+  // Swallow the predecessor's rejection so one failed write does not fail the next caller.
+  const result = previous.then(operation, operation)
+  projectWriteQueues.set(
+    configPath,
+    result.catch(() => undefined),
+  )
+  return result
+}
+
 export async function updateProjectConfig(
   projectPath: string,
   updater: (current: ParsedProjectSettingsFile) => ParsedProjectSettingsFile,
 ): Promise<ProjectConfig> {
   const configPath = await ensureProjectSettingsFile(projectPath)
-  const next = await updateProjectSettingsFile(configPath, updater)
+  const next = await enqueueProjectWrite(configPath, () =>
+    updateProjectSettingsFile(configPath, updater),
+  )
   return parseProjectConfig(next)
 }
 
@@ -169,6 +194,29 @@ export async function getProjectPreferences(
 ): Promise<ProjectPreferences | undefined> {
   const config = await loadProjectConfig(projectPath)
   return config.preferences
+}
+
+/**
+ * Reads project preferences, THROWING when the settings file exists but cannot be understood.
+ *
+ * `getProjectPreferences` is deliberately lenient: one bad field must not stop a project from
+ * opening, so an invalid file is logged and treated as empty. That is wrong for the authorization
+ * default, because "empty" falls through to the global default, which ships as full access. A
+ * project deliberately set to Ask for Approval would silently stop asking after a hand edit, a
+ * partial write, or a downgrade from a build that knows a newer grant capability.
+ *
+ * A missing file still resolves to `undefined`: absence genuinely means "inherit". Only an
+ * unreadable or invalid file throws, so the caller can fail closed.
+ */
+export async function getProjectPreferencesStrict(
+  projectPath: string,
+): Promise<ProjectPreferences | undefined> {
+  const settings = await readValidatedProjectSettings(getProjectSettingsPath(projectPath), {
+    logLabel: '.openwaggle/settings.json',
+    strict: true,
+  })
+
+  return parseProjectConfig(settings).preferences
 }
 
 /**

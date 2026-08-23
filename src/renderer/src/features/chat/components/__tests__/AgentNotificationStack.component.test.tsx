@@ -1,6 +1,6 @@
 import type { AgentLoopNotifyLevel } from '@shared/types/agent-loop-interaction'
 import { SessionId } from '@shared/types/brand'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentInteractionEvent } from '../../lib/types-chat-row'
 import { AgentNotificationStack } from '../AgentNotificationStack'
@@ -52,8 +52,11 @@ describe('AgentNotificationStack', () => {
       />,
     )
 
-    expect(screen.getByText('Notification')).toBeInTheDocument()
-    expect(screen.getByText('Ponytail loaded: full')).toBeInTheDocument()
+    // Scoped to the visible stack: the always-present announcer carries the same message, which is
+    // the point of it, so an unscoped query would match twice.
+    const stack = screen.getByLabelText('Agent notifications')
+    expect(within(stack).getByText('Notification')).toBeInTheDocument()
+    expect(within(stack).getByText('Ponytail loaded: full')).toBeInTheDocument()
   })
 
   it('lets an informational notice go after five seconds of focused time', () => {
@@ -131,8 +134,10 @@ describe('AgentNotificationStack', () => {
       vi.advanceTimersByTime(1100)
     })
 
-    expect(screen.queryByText(/^n1$/)).not.toBeInTheDocument()
-    expect(screen.getByText(/^n2$/)).toBeInTheDocument()
+    // Scoped to the visible stack: the announcer also carries the newest message.
+    const stack = screen.getByLabelText('Agent notifications')
+    expect(within(stack).queryByText(/^n1$/)).not.toBeInTheDocument()
+    expect(within(stack).getByText(/^n2$/)).toBeInTheDocument()
   })
 
   it('expires a notice queued behind the visible slots instead of surfacing it later', () => {
@@ -175,10 +180,38 @@ describe('AgentNotificationStack', () => {
     expect(rendered[0]).toHaveTextContent('Error notification')
   })
 
-  it('announces politely rather than interrupting', () => {
+  it('announces from a region that was already present', () => {
+    // The announcer must pre-exist the notice. A live region added in the same commit as its text is
+    // not announced, so asserting `aria-live` on the stack itself was green while nothing was said.
+    const { container, rerender } = render(<AgentNotificationStack events={[]} />)
+
+    const announcer = container.querySelector('[role="status"]')
+    expect(announcer).toHaveAttribute('aria-live', 'polite')
+    expect(announcer).toHaveTextContent('')
+
+    rerender(
+      <AgentNotificationStack
+        events={[notice({ id: 'n1', level: 'info', message: 'Ponytail loaded: full' })]}
+      />,
+    )
+
+    expect(container.querySelector('[role="status"]')).toBe(announcer)
+    expect(announcer).toHaveTextContent('Ponytail loaded: full')
+  })
+
+  it('holds a notice while the pointer is on the stack', () => {
+    // Hovering is the strongest signal a notice is being read, and there is no history to recover it
+    // from once it expires.
     render(<AgentNotificationStack events={[notice({ id: 'n1', level: 'info' })]} />)
 
-    expect(screen.getByLabelText('Agent notifications')).toHaveAttribute('aria-live', 'polite')
+    const stack = screen.getByLabelText('Agent notifications')
+    fireEvent.mouseEnter(stack)
+
+    act(() => {
+      vi.advanceTimersByTime(6000)
+    })
+
+    expect(within(stack).getByText('Notification')).toBeInTheDocument()
   })
 
   it('renders nothing when there are no notifications', () => {

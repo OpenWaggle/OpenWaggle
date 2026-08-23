@@ -60,6 +60,20 @@ function applyMigrations(sql: SqlClient.SqlClient, upToId: number) {
       `
       if (existing.length > 0) continue
 
+      const skip = migration.skipIfColumn
+      if (skip) {
+        const columns = yield* sql<{ name: string }>`
+          SELECT name FROM pragma_table_info(${skip.table})
+        `
+        if (columns.some((column) => column.name === skip.column)) {
+          yield* sql`
+            INSERT INTO _migrations (id, name, applied_at)
+            VALUES (${migration.id}, ${migration.name}, ${new Date().toISOString()})
+          `
+          continue
+        }
+      }
+
       for (const statement of migration.statements) {
         yield* sql.unsafe(statement)
       }
@@ -89,6 +103,26 @@ describe('session authorization-mode migration', () => {
 
   afterEach(async () => {
     await fs.rm(tmpRoot, { recursive: true, force: true })
+  })
+
+  it('tolerates a database that already carries the column under a different ledger id', async () => {
+    // This migration was renumbered from 24 to 25 so pinned-sessions could keep 24, so a database
+    // from the earlier build already has the column. Without a guard the ALTER fails on
+    // `duplicate column name` and takes application boot with it.
+    const columns = await withDatabase((sql) =>
+      Effect.gen(function* () {
+        yield* applyMigrations(sql, BEFORE_AUTHORIZATION_ID)
+        yield* sql.unsafe(`ALTER TABLE sessions ADD COLUMN authorization_mode_override TEXT`)
+
+        yield* applyMigrations(sql, AUTHORIZATION_MIGRATION_ID)
+
+        return yield* sessionColumns(sql)
+      }),
+    )
+
+    expect(columns.filter((column) => column.name === 'authorization_mode_override')).toHaveLength(
+      1,
+    )
   })
 
   it('adds a nullable override column to a database created before it existed', async () => {

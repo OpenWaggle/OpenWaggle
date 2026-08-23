@@ -4,7 +4,7 @@ import type {
   AgentLoopInteractionResponse,
 } from '@shared/types/agent-loop-interaction'
 import { ChevronDown, LockKeyhole } from 'lucide-react'
-import { useState } from 'react'
+import { type FocusEvent, type KeyboardEvent, useRef, useState } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { allowScopeChoices, ribbonTargetLine } from '../lib/agent-authorization-ribbon-model'
 import { restoreFocusBeforeRequest } from '../lib/pending-request-focus'
@@ -68,14 +68,34 @@ function AllowScopeMenu({
   readonly submit: (response: AgentLoopInteractionResponse) => void
 }) {
   const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Escape closes the menu and stops there, so the section handler does not also return the caret on
+  // the same keystroke. Without this the menu stayed mounted, floating over the transcript with
+  // "Always allow…" armed, while focus moved back to the composer: one stray click away from writing
+  // a persistent grant, which is the exact thing holding the scopes behind `Allow…` was meant to
+  // prevent.
+  function closeOnEscape(event: KeyboardEvent<HTMLButtonElement>) {
+    if (event.key !== 'Escape' || !open) return
+    event.stopPropagation()
+    setOpen(false)
+  }
+
+  // Handlers sit on the controls rather than a wrapping div so the menu closes whenever focus
+  // genuinely leaves it, including a click elsewhere on the page.
+  function closeOnBlur(event: FocusEvent<HTMLButtonElement>) {
+    if (containerRef.current?.contains(event.relatedTarget)) return
+    setOpen(false)
+  }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <Button
         aria-expanded={open}
-        aria-haspopup="menu"
         disabled={busy}
+        onBlur={closeOnBlur}
         onClick={() => setOpen((current) => !current)}
+        onKeyDown={closeOnEscape}
         size="xs"
         variant="secondary"
       >
@@ -85,27 +105,32 @@ function AllowScopeMenu({
         </span>
       </Button>
       {open ? (
-        <div
+        // A group of buttons, not `role="menu"`. Declaring the ARIA menu pattern without arrow-key
+        // navigation or a focus move into the menu told screen-reader users a menu had opened and
+        // then gave them none of the behaviour it promises.
+        <fieldset
           className="absolute right-0 bottom-full z-20 mb-1 w-max max-w-80 overflow-hidden rounded-lg border border-border bg-bg-secondary shadow-xl shadow-black/40"
-          role="menu"
+          disabled={busy}
         >
+          <legend className="sr-only">Approval scope</legend>
           {allowScopeChoices(scopeKey, projectName).map((choice) => (
             <Button
               align="start"
               className="w-full rounded-none px-3 py-2 text-left text-[11px]"
               disabled={busy}
               key={choice.scope}
+              onBlur={closeOnBlur}
               onClick={() => {
                 setOpen(false)
                 submit({ kind: 'confirm', accepted: true, scope: choice.scope })
               }}
-              role="menuitem"
+              onKeyDown={closeOnEscape}
               variant="ghost"
             >
               {choice.label}
             </Button>
           ))}
-        </div>
+        </fieldset>
       ) : null}
     </div>
   )
@@ -160,9 +185,9 @@ export function AgentAuthorizationRibbon({
   return (
     <section
       aria-labelledby={`authorization-${interaction.interactionId}`}
-      // Polite, never assertive. Assertive would cut across whatever the user is dictating or
-      // reading, which is the audio equivalent of stealing their caret.
-      aria-live="polite"
+      // No `aria-live` here: this section is mounted together with its content, so a live region on
+      // it announces nothing. `PoliteAnnouncer` carries the announcement from a region that is
+      // always present.
       className="border-b border-border/60 px-4 py-2.5"
       data-authorization-ribbon="true"
       data-request-ribbon="true"

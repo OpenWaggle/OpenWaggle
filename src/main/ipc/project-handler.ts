@@ -13,6 +13,8 @@ import {
   listGrantsForProject,
   revokeForProject,
 } from '../application/agent-authorization-grants'
+import { resolveEffectiveAuthorizationMode } from '../application/agent-authorization-mode'
+import { grantPendingAuthorizationsWhereFullAccess } from '../application/agent-loop-interaction-broker'
 import {
   getProjectPreferences,
   type ProjectPreferencesUpdate,
@@ -148,6 +150,14 @@ export function registerProjectHandlers(): void {
       }
       const validatedPreferences = yield* validateProjectPreferences(preferences)
       yield* Effect.promise(() => setProjectPreferences(validatedProjectPath, validatedPreferences))
+
+      // A project default can reveal full access for sessions that hold no override, so the prompt
+      // already on screen has to be settled too.
+      if (validatedPreferences.authorizationMode !== undefined) {
+        yield* Effect.promise(() =>
+          grantPendingAuthorizationsWhereFullAccess(resolveEffectiveAuthorizationMode),
+        )
+      }
     }),
   )
 

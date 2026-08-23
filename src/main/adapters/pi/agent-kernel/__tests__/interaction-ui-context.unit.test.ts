@@ -35,7 +35,7 @@ function createContext(input?: {
     {
       sessionId,
       runId: 'run-pi-ui',
-      projectPath: null,
+      authorizationProjectPath: null,
       resolveAuthorizationMode: async () => input?.authorizationMode ?? 'yolo',
       signal: input?.signal ?? new AbortController().signal,
       onEvent: (event) => emitted.push(event),

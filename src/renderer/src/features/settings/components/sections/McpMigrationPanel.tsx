@@ -133,7 +133,7 @@ export function McpMigrationPanel({
           Migrate existing MCP configuration
         </h3>
         <p className="mt-1 max-w-[760px] text-[12px] leading-5 text-text-tertiary">
-          The old Pi MCP adapter is no longer loaded. Scan its global and project configuration,
+          The old MCP adapter is no longer loaded. Scan its global and project configuration,
           including disabled servers, before removing old files. Imports are previewed and remain
           disabled and untrusted until you explicitly enable and trust them.
         </p>

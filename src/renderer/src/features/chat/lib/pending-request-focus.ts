@@ -14,6 +14,15 @@ const RIBBON_SELECTOR = '[data-request-ribbon="true"]'
 const FOCUSABLE_SELECTOR =
   'button:not([disabled]), select:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
+/**
+ * The composer input, used as the fallback focus target.
+ *
+ * A user who tabbed to the request rather than using the shortcut left no remembered caret, and a
+ * decision still has to hand focus somewhere useful. `<body>` is not useful: Escape stops working
+ * and the next Tab restarts from the top of the document.
+ */
+const COMPOSER_INPUT_SELECTOR = '[data-chat-composer-form] [aria-label="Message input"]'
+
 let returnTarget: HTMLElement | null = null
 
 /**
@@ -35,11 +44,22 @@ export function focusPendingRequest(): boolean {
   return true
 }
 
-/** Returns focus to wherever it was before the request was reached. */
+/**
+ * Returns focus to wherever it was before the request was reached.
+ *
+ * Falls back to the composer input when nothing was remembered, so answering a request always lands
+ * the caret somewhere the user can keep typing.
+ */
 export function restoreFocusBeforeRequest(): void {
   const target = returnTarget
   returnTarget = null
-  if (target?.isConnected) target.focus()
+  if (target?.isConnected) {
+    target.focus()
+    return
+  }
+
+  const composer = document.querySelector(COMPOSER_INPUT_SELECTOR)
+  if (composer instanceof HTMLElement) composer.focus()
 }
 
 /** Clears the remembered caret position, for tests. */

@@ -80,7 +80,7 @@ async function openSeededSession(app: OpenWaggleApp) {
   return { mainWindow, sessionId }
 }
 
-test('the composer access control reads compact and opens to the full label', async () => {
+test('the composer access control names the mode in force, in the documented vocabulary', async () => {
   const app = await OpenWaggleApp.launch('openwaggle-e2e-access-modes-')
 
   try {
@@ -89,11 +89,21 @@ test('the composer access control reads compact and opens to the full label', as
     const select = page.getByRole('combobox', { name: 'Session access mode' })
 
     await expect(select).toBeVisible()
-    // Closed: the compact label, because the row already carries the model, run target and branch.
-    await expect(page.getByRole('option', { name: 'YOLO', exact: true })).toBeAttached()
+    // One vocabulary in both states. The contraction "Ask" is ruled out by CONTEXT.md, and swapping
+    // option text on focus depended on Chromium repainting before the native popup opened.
+    await expect(
+      page.getByRole('option', { exact: true, name: 'YOLO (Full access)' }),
+    ).toBeAttached()
+    await expect(page.getByRole('option', { exact: true, name: 'Ask for Approval' })).toBeAttached()
+    await expect(page.getByRole('option', { name: 'YOLO', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('option', { name: 'Ask', exact: true })).toHaveCount(0)
 
-    await select.focus()
-    await expect(page.getByRole('option', { name: 'YOLO (Full access)' })).toBeAttached()
+    // The seeded session holds no override, so the inherited option names the effective mode and
+    // marks it as inherited rather than showing the bare word "Default".
+    await expect(select).toHaveValue('inherit')
+    await expect(
+      page.getByRole('option', { exact: true, name: 'Default · YOLO (Full access)' }),
+    ).toBeAttached()
   } finally {
     await app.cleanup()
   }
@@ -156,8 +166,12 @@ test('notifications float clear of the composer, most severe first', async () =>
 
     const stack = page.getByLabel('Agent notifications')
     await expect(stack).toBeVisible()
-    await expect(stack).toHaveAttribute('aria-live', 'polite')
     await expect(stack.getByText('Could not reach api.github.com')).toBeVisible()
+
+    // The announcement comes from a region that already existed, which is what makes it audible. A
+    // live region added with its content is not announced.
+    const announcer = page.locator('[role="status"][aria-live="polite"]').first()
+    await expect(announcer).toHaveText('Could not reach api.github.com')
 
     // The error outranks the later informational notice, so it is the frontmost card.
     const labels = await stack.locator('[data-notification-level]').evaluateAll((cards) =>

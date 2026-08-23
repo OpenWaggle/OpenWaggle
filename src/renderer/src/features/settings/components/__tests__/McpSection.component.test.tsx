@@ -35,7 +35,7 @@ describe('McpSection', () => {
     expect(screen.getByText('Legacy compatibility')).toBeInTheDocument()
     expect(screen.getByText(/MCP 2024-11-05/)).toBeInTheDocument()
     expect(screen.getByText('alpha cannot start')).toBeInTheDocument()
-    expect(screen.getByText(/Pi's tool-capable model contract/)).toBeInTheDocument()
+    expect(screen.getByText(/tool-capable model contract/)).toBeInTheDocument()
     expect(apiMocks.getMcpSettings).toHaveBeenCalledWith({
       projectPath: PROJECT_PATH,
       sessionId: SESSION_ID,
@@ -72,7 +72,7 @@ describe('McpSection', () => {
     })
   })
 
-  it('previews and imports legacy global and project Pi MCP definitions explicitly', async () => {
+  it('previews and imports legacy global and project MCP definitions explicitly', async () => {
     apiMocks.previewMcpImports.mockResolvedValueOnce({
       candidates: [
         {

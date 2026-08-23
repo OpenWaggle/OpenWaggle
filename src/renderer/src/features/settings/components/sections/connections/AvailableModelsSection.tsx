@@ -50,9 +50,9 @@ export function AvailableModelsSection() {
       </div>
 
       {isLoading && groups.length === 0 ? (
-        <p className="text-[13px] text-text-muted">Loading Pi models…</p>
+        <p className="text-[13px] text-text-muted">Loading models…</p>
       ) : groups.length === 0 ? (
-        <p className="text-[13px] text-text-muted">Pi did not report any providers or models.</p>
+        <p className="text-[13px] text-text-muted">No providers or models were reported.</p>
       ) : (
         <div className="rounded-lg border border-border bg-[#111418] overflow-hidden">
           {groups.map((group, i) => (

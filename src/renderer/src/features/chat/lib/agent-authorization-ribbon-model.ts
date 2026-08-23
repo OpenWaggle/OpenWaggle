@@ -36,14 +36,6 @@ export function isAuthorizationRequest(
   )
 }
 
-/** State label for the ribbon's eyebrow. */
-export function ribbonEyebrow(interaction: PromptInteraction): string {
-  if (interaction.kind === 'confirm') {
-    return interaction.purpose === 'authorization' ? 'Needs decision' : 'Waiting for you'
-  }
-  return 'Waiting for you'
-}
-
 /**
  * The target line under the question: what is being reached, and to do what.
  *

@@ -78,7 +78,7 @@ function KeyEditorHeader({
 }) {
   return (
     <div className="flex items-center justify-between">
-      <span className="text-[13px] font-medium text-text-secondary">Pi Auth Key</span>
+      <span className="text-[13px] font-medium text-text-secondary">Auth key</span>
       <div className="flex items-center gap-2">
         {providerInfo.apiKeyManagementUrl && (
           <a
@@ -237,8 +237,8 @@ function KeyTestResult({ result }: { readonly result: KeyEditorProps['testResult
 function EnvironmentKeyNotice() {
   return (
     <p className="text-[11px] text-text-tertiary">
-      Pi currently sees this provider through environment variables, cloud credentials, or a custom
-      models.json provider.
+      This provider is currently detected through environment variables, cloud credentials, or a
+      custom models.json provider.
     </p>
   )
 }

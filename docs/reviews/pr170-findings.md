@@ -179,3 +179,80 @@ Decided after the grilling session. No deferrals, no follow-up PR.
 - Shared durability predicate (N2), CHECK constraint (N13), dead `CURRENT_SESSION` statement (N14),
   duplicated control components (N10), submit busy and error handling (N8), routeTree churn (N19).
 - Delete the mockup files.
+
+---
+
+# Round 2 — two independent reviews after the branch was pushed
+
+Two further independent reviewer agents (pi on Bedrock, `eu.anthropic.claude-opus-5`) reviewed the
+pushed branch read-only, with scoped briefs:
+
+| Reviewer | Scope | Report |
+| --- | --- | --- |
+| 1 | main process, authorization semantics, persistence, IPC | [`pr170-round2-reviewer-1.md`](./pr170-round2-reviewer-1.md) |
+| 2 | renderer, UX contract, accessibility, test quality | [`pr170-round2-reviewer-2.md`](./pr170-round2-reviewer-2.md) |
+
+Both recommended changes. Every finding below is closed.
+
+## Blocker
+
+- [x] **The approval scope was stripped at the IPC boundary.** `confirmResponseSchema` never declared
+  `scope`, and Effect Schema deletes undeclared keys, so "Allow for this session" and "Always allow in
+  this project" both silently degraded to once-only and no grant was ever persisted. The union's type
+  annotation hid it from the compiler, and the unit tests submitted responses without crossing the
+  schema. Fixed by declaring the field, plus `agent-loop-interaction.unit.test.ts`, which decodes every
+  response kind through the real schema. Reproduced before the fix and verified after.
+
+## Major
+
+- [x] An unreadable project settings file discarded a project's `Ask for Approval` and fell through to
+  the global default, which ships as full access — the one thing the module's own doc comment promised
+  could not happen. Added `getProjectPreferencesStrict`, and the resolver now fails closed.
+- [x] Worktree sessions wrote persistent grants into the worktree, where Settings could neither list
+  nor revoke them. Authorization now receives the durable project root, renamed
+  `authorizationProjectPath` so the run cwd cannot be passed by accident.
+- [x] Session creation returned `authorizationMode: 'yolo'` for a row holding `NULL`, so a new session's
+  control named full access while the run would ask. The projection now omits the field.
+- [x] The composer showed `YOLO` / `Ask`; CONTEXT.md rules out that contraction. One vocabulary is now
+  used in both states, and the fragile option-text swap is gone with it.
+- [x] Answering a request blurred the focused control and left focus on `<body>`, so Escape stopped
+  working mid-sentence. Focus is now returned on settle, falling back to the composer input.
+- [x] The `Allow…` scope menu could not be dismissed, and Escape returned the caret while leaving it
+  open and armed — one stray click from a persistent grant. It now closes on Escape and on focus loss,
+  and no longer claims an ARIA menu pattern it does not implement.
+- [x] No test exercised any authorization decision. Added `AgentAuthorizationDecision.component.test.tsx`
+  (exact payloads for each control, the consent wording, Escape dismissal) and
+  `agent-authorization-ribbon-model.unit.test.ts`.
+- [x] Both live regions were mounted together with their content, so nothing was announced. Added
+  `PoliteAnnouncer`, always mounted and initially empty; the tests now assert the announcement rather
+  than the attribute.
+
+## Minor
+
+- [x] A notice could expire under the pointer; hovering now pauses its clock.
+- [x] Overflowed notices were pointer-only; "N more behind" is a real control and the stack responds to
+  focus.
+- [x] The visible-identifier guard scanned two directories non-recursively and no `.ts` files. Widened to
+  recurse three trees, and verified it fails on an injected leak. It immediately caught genuine
+  user-facing mentions of the runtime, which are fixed.
+- [x] A failed revoke was silent; failures now surface on the row, and mode-write failures in Settings
+  surface too.
+- [x] Saved approvals could be painted for the wrong project; the read is cancelled on change.
+- [x] The composer's inherited mode went stale after a Settings change. The project default now lives in
+  one shared module that both surfaces read and Settings invalidates.
+- [x] A working prompt was captioned "Waiting for a renderer"; the caption is passed per surface.
+- [x] The interaction title was rendered twice and a test pinned the duplication with `toHaveLength(2)`.
+- [x] "Binds no key to a grant action" only checked command spelling; it now asserts that the sole
+  request command exists and moves focus without submitting.
+- [x] Grants keyed on the mutable server name: deliberately left as agreed, since the key is a settled
+  product decision. Recorded here rather than silently changed.
+- [x] Project config writes were read-modify-write with no serialization, so two concurrent grants lost
+  one. Serialized per project path, with a test that fails without it.
+- [x] Switching a project or global default to full access left a pending prompt parked; both writes now
+  settle pending authorizations for sessions that inherit.
+- [x] `scopeKey` was dropped when a prompt was rehydrated from history, so a reload removed the scope
+  choices. Parsed back, with the capability validated rather than trusted.
+- [x] Session grants were never cleared on session deletion; `cleanupSessionRun` now clears them.
+- [x] Migration 25 could not tolerate a database that already had the column, which is reachable because
+  it was renumbered from 24. Guarded by `skipIfColumn`, with a test.
+- [x] `ribbonEyebrow`'s authorization branch was unreachable; deleted rather than tested.

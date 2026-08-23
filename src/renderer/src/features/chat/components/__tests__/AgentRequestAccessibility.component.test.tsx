@@ -92,19 +92,31 @@ describe('request controls have accessible names', () => {
     ).toBeInTheDocument()
   })
 
-  it('announces politely rather than interrupting', () => {
-    // Assertive would cut across whatever the user is dictating or reading, which is the audio
-    // equivalent of stealing their caret.
-    const { container } = render(
+  it('announces the request from a region that was already present', () => {
+    // The announcer has to exist before the request arrives. A live region mounted in the same commit
+    // as its text is not announced by VoiceOver, so asserting `aria-live` on the ribbon itself was
+    // exactly the assertion that stayed green while nothing was ever announced.
+    const { container, rerender } = render(
+      <AgentInteractionComposerPrompt interactions={[]} onRespond={onRespond} />,
+    )
+
+    const announcer = container.querySelector('[role="status"]')
+    expect(announcer).toHaveAttribute('aria-live', 'polite')
+    expect(announcer).toHaveTextContent('')
+
+    rerender(
       <AgentInteractionComposerPrompt
         interactions={[authorizationRequest()]}
         onRespond={onRespond}
       />,
     )
 
-    const ribbon = container.querySelector('[data-request-ribbon="true"]')
-    expect(ribbon).toHaveAttribute('aria-live', 'polite')
-    expect(ribbon).not.toHaveAttribute('aria-live', 'assertive')
+    // Same node, new content: that is what produces an announcement.
+    expect(container.querySelector('[role="status"]')).toBe(announcer)
+    expect(announcer).toHaveTextContent('Allow GitHub Issues to reach api.github.com?')
+
+    // Polite, never assertive: assertive would cut across whatever the user is dictating or reading.
+    expect(announcer).not.toHaveAttribute('aria-live', 'assertive')
   })
 })
 
@@ -118,14 +130,30 @@ describe('reaching a pending request from the keyboard', () => {
     expect(DEFAULT_SHORTCUT_BINDINGS['request.focus']).toEqual({ key: 'A', mod: true, shift: true })
   })
 
-  it('binds no key to a grant action', () => {
-    // A mistyped chord must not be able to grant a capability, so the shortcut reaches the request
-    // and never answers it.
-    const grantLike = SHORTCUT_COMMANDS.filter((command) =>
-      /allow|grant|approve|authorize/i.test(command),
+  it('binds exactly one request command, and it only moves focus', () => {
+    // Asserting that no command is *named* like a grant is a spelling check: `request.confirm` or
+    // `ribbon.primary` would pass it while violating the invariant outright. What matters is that the
+    // only request-scoped command that exists is the one that moves focus.
+    const requestCommands = SHORTCUT_COMMANDS.filter((command) => command.startsWith('request.'))
+
+    expect(requestCommands).toEqual(['request.focus'])
+  })
+
+  it('reaches the request without answering it', async () => {
+    const onRespond = vi.fn(() => Promise.resolve())
+    render(
+      <AgentInteractionComposerPrompt
+        interactions={[authorizationRequest()]}
+        onRespond={onRespond}
+        projectName="myproject"
+      />,
     )
 
-    expect(grantLike).toEqual([])
+    // The behavioural half of the invariant: the shortcut's callback lands on a control and submits
+    // nothing. A binding that answered the request would fail here regardless of its name.
+    expect(focusPendingRequest()).toBe(true)
+    expect(document.activeElement?.tagName).toBe('BUTTON')
+    expect(onRespond).not.toHaveBeenCalled()
   })
 
   it('moves focus to the request and returns it on Escape, without answering anything', () => {

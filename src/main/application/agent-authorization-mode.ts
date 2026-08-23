@@ -3,7 +3,7 @@ import {
   isAgentAuthorizationMode,
 } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
-import { getProjectPreferences } from '../config/project-config'
+import { getProjectPreferencesStrict } from '../config/project-config'
 import { createLogger } from '../logger'
 
 const logger = createLogger('agent-authorization-mode')
@@ -40,14 +40,17 @@ async function readProjectDefault(projectPath: string | null) {
   if (!projectPath) return undefined
 
   try {
-    const preferences = await getProjectPreferences(projectPath)
+    const preferences = await getProjectPreferencesStrict(projectPath)
     return preferences?.authorizationMode
   } catch (cause) {
     logger.warn('Failed to read the project authorization default', {
       projectPath,
       error: cause instanceof Error ? cause.message : String(cause),
     })
-    return undefined
+    // Fail closed rather than fall through. Returning undefined here would defer to the global
+    // default, which ships as full access, so an unreadable project file would silently escalate a
+    // project that had chosen Ask for Approval.
+    return FAIL_CLOSED_AUTHORIZATION_MODE
   }
 }
 

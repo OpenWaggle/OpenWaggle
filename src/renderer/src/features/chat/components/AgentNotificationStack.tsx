@@ -9,6 +9,7 @@ import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { notificationLifetimeMs, orderNotifications } from '../lib/notification-stack-model'
 import type { AgentInteractionEvent } from '../lib/types-chat-row'
+import { PoliteAnnouncer } from './PoliteAnnouncer'
 
 const MAX_VISIBLE_NOTIFICATIONS = 3
 const DISMISS_ICON_STROKE_WIDTH = 2.25
@@ -83,14 +84,20 @@ function notificationLabel(level: AgentLoopNotifyLevel) {
  *
  * Mounted for every notice including ones queued behind the visible slots, so a hidden notice ages
  * out instead of appearing later once the visible ones go.
+ *
+ * `paused` covers pointer hover: hovering is the strongest available signal that a notice is being
+ * read, and letting one expire under the pointer as the user reaches for Dismiss contradicts the
+ * rule that a notice cannot expire unwatched. There is no history to recover it from.
  */
 function NotificationDismissClock({
   id,
   level,
+  paused,
   onExpire,
 }: {
   readonly id: string
   readonly level: AgentLoopNotifyLevel
+  readonly paused: boolean
   readonly onExpire: (id: string) => void
 }) {
   useEffect(() => {
@@ -125,7 +132,7 @@ function NotificationDismissClock({
     }
 
     const sync = () => {
-      if (document.visibilityState === 'visible' && document.hasFocus()) {
+      if (!paused && document.visibilityState === 'visible' && document.hasFocus()) {
         start()
         return
       }
@@ -144,7 +151,7 @@ function NotificationDismissClock({
       pause()
       clear()
     }
-  }, [id, level, onExpire])
+  }, [id, level, paused, onExpire])
 
   return null
 }
@@ -213,6 +220,7 @@ export function AgentNotificationStack({
 }) {
   const [dismissedIds, setDismissedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [expanded, setExpanded] = useState(false)
+  const [hovering, setHovering] = useState(false)
 
   const notifications = useMemo(
     () => toVisibleNotifications(events, dismissedIds),
@@ -236,16 +244,30 @@ export function AgentNotificationStack({
           key={notification.id}
           level={notification.level}
           onExpire={dismiss}
+          paused={hovering}
         />
       ))}
+
+      {/* Always mounted, so the newest notice is actually announced. A live region added in the same
+          commit as its text is not announced. */}
+      <PoliteAnnouncer message={notifications[0]?.message ?? null} />
 
       {notifications.length === 0 ? null : (
         <output
           aria-label="Agent notifications"
-          aria-live="polite"
           className="pointer-events-none absolute top-[calc(--spacing(4)+52px)] right-4 z-40 flex w-[calc(100%---spacing(8))] max-w-90 flex-col gap-3 sm:right-8 sm:w-[calc(100%---spacing(16))]"
-          onMouseEnter={() => setExpanded(true)}
-          onMouseLeave={() => setExpanded(false)}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) setHovering(false)
+          }}
+          onFocus={() => setHovering(true)}
+          onMouseEnter={() => {
+            setExpanded(true)
+            setHovering(true)
+          }}
+          onMouseLeave={() => {
+            setExpanded(false)
+            setHovering(false)
+          }}
         >
           {visible.map((notification, index) => (
             <div
@@ -264,9 +286,20 @@ export function AgentNotificationStack({
             </div>
           ))}
           {hiddenCount > 0 ? (
-            <p className="pointer-events-none pr-1 text-right text-[10px] text-text-muted">
-              {hiddenCount} more behind
-            </p>
+            // A button, not inert text: with four or more notices a keyboard-only user could see
+            // that more existed and had no way to reach them except dismissing the front ones one
+            // at a time. Errors persist, so errors are exactly what queues up here.
+            <div className="pointer-events-auto pr-1 text-right">
+              <Button
+                aria-expanded={expanded}
+                className="h-auto px-1 py-0 text-[10px] text-text-muted"
+                onClick={() => setExpanded((current) => !current)}
+                size="xs"
+                variant="ghost"
+              >
+                {expanded ? 'Show fewer notices' : `${String(hiddenCount)} more behind`}
+              </Button>
+            </div>
           ) : null}
         </output>
       )}

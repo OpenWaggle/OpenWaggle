@@ -13,6 +13,8 @@ import {
   shortcutBindingKey,
 } from '@shared/types/shortcuts'
 import * as Effect from 'effect/Effect'
+import { resolveEffectiveAuthorizationMode } from '../application/agent-authorization-mode'
+import { grantPendingAuthorizationsWhereFullAccess } from '../application/agent-loop-interaction-broker'
 import { testCredentials } from '../application/provider-test-service'
 import { createLogger } from '../logger'
 import { ActiveProjectChangeService } from '../ports/active-project-change-service'
@@ -214,6 +216,13 @@ function registerSettingsCrudHandlers() {
       if (result.data.projectPath !== undefined) {
         const projectChanges = yield* ActiveProjectChangeService
         yield* projectChanges.reconcileTrustedMainExtensions(projectPathValidation.value)
+      }
+      // The global default can reveal full access for sessions that hold no override of their own, so
+      // a prompt already on screen has to be settled rather than left parked.
+      if (result.data.defaultAuthorizationMode !== undefined) {
+        yield* Effect.promise(() =>
+          grantPendingAuthorizationsWhereFullAccess(resolveEffectiveAuthorizationMode),
+        )
       }
       return { ok: true } satisfies { ok: true }
     }),

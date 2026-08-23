@@ -22,9 +22,10 @@ function session(override?: 'yolo' | 'ask-for-approval'): SessionDetail {
 }
 
 describe('SessionAuthorizationModeMenu', () => {
-  it('shows the compact label while closed and the full one while choosing', () => {
-    // The composer row sits under the prompt beside the model and branch, where a parenthetical
-    // wastes scarce width. The meaning stays one interaction away rather than being lost.
+  it('uses the documented mode names, never a contraction', () => {
+    // CONTEXT.md defines the terms as "YOLO (Full access)" and "Ask for Approval", and rules out
+    // "Ask mode". An earlier version showed "YOLO"/"Ask" while closed, which both broke the
+    // vocabulary and depended on Chromium repainting option text before the native popup opened.
     render(
       <SessionAuthorizationModeMenu
         onSetAuthorizationMode={vi.fn().mockResolvedValue(undefined)}
@@ -32,17 +33,12 @@ describe('SessionAuthorizationModeMenu', () => {
       />,
     )
 
-    const select = screen.getByRole('combobox', { name: 'Session access mode' })
-    expect(screen.getByRole('option', { name: 'YOLO' })).toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: 'YOLO (Full access)' })).not.toBeInTheDocument()
-
-    fireEvent.mouseDown(select)
-
     expect(screen.getByRole('option', { name: 'YOLO (Full access)' })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'YOLO' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Ask' })).not.toBeInTheDocument()
   })
 
-  it('returns to the compact label after choosing', () => {
+  it('keeps the same names after the control is focused and blurred', () => {
     render(
       <SessionAuthorizationModeMenu
         onSetAuthorizationMode={vi.fn().mockResolvedValue(undefined)}
@@ -55,10 +51,10 @@ describe('SessionAuthorizationModeMenu', () => {
     expect(screen.getByRole('option', { name: 'YOLO (Full access)' })).toBeInTheDocument()
 
     fireEvent.blur(select)
-    expect(screen.getByRole('option', { name: 'YOLO' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'YOLO (Full access)' })).toBeInTheDocument()
   })
 
-  it('leaves the unselected mode at its full label, since it is not what is on display', () => {
+  it('lists the other mode too', () => {
     render(
       <SessionAuthorizationModeMenu
         onSetAuthorizationMode={vi.fn().mockResolvedValue(undefined)}
@@ -81,10 +77,9 @@ describe('SessionAuthorizationModeMenu', () => {
 
     const select = screen.getByRole('combobox', { name: 'Session access mode' })
     expect(select).toHaveValue('inherit')
-    expect(screen.getByRole('option', { name: 'YOLO' })).toBeInTheDocument()
-
-    fireEvent.mouseDown(select)
-    expect(screen.getByRole('option', { name: 'Use default' })).toBeInTheDocument()
+    // Names the mode in force AND marks it inherited, so it stays distinct from pinning the same
+    // mode as an explicit override without needing a state swap to tell them apart.
+    expect(screen.getByRole('option', { name: 'Default · YOLO (Full access)' })).toBeInTheDocument()
   })
 
   it('sets a session override', () => {
@@ -134,7 +129,7 @@ describe('SessionAuthorizationModeMenu', () => {
     const select = screen.getByRole('combobox', { name: 'Session access mode' })
     expect(select).toBeDisabled()
     expect(select).toHaveValue('yolo')
-    expect(screen.getByRole('option', { name: 'YOLO' })).toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: /Use default|^Default$/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'YOLO (Full access)' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /^Default/ })).not.toBeInTheDocument()
   })
 })

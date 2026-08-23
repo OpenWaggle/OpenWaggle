@@ -17,7 +17,9 @@ Ponytail calls `ui.notify()` on every `session_start`. OpenWaggle turned each no
 - Three scopes exist: once, this session, and persistent. Session grants live in memory. Persistent grants are written to project config and are listed and revocable in Settings, naming the exact requester, capability and destination. Revocation applies from the next request and never retroactively.
 - An arriving request adds a surface above the composer and changes nothing about it. The draft, caret, placeholder, enabled state and the Enter key all survive. Requests never time out.
 - Agent notifications float in a corner stack clear of the composer, ordered by severity. Information and warnings leave after five seconds of window-focused time; errors stay until dismissed. Information leaves no transcript record; a warning or error leaves exactly one.
-- No key is bound to a grant action. A remappable shortcut moves focus to a pending request and Escape returns the caret.
+- No key is bound to a grant action. A remappable shortcut moves focus to a pending request and Escape returns the caret. Answering returns the caret too, falling back to the composer when nothing was remembered, so a decision never leaves focus on the document body.
+- Both the composer control and Settings name the mode in the same vocabulary, in every state. When a session inherits, the control names the effective mode and marks it inherited rather than showing a bare "Default".
+- A blocking request and an arriving notice are announced through a live region that is always mounted and starts empty, never by putting `aria-live` on the surface itself.
 
 ## Alternatives rejected
 
@@ -29,6 +31,8 @@ Ponytail calls `ui.notify()` on every `session_start`. OpenWaggle turned each no
 - **Full access answering every confirmation.** Of the seven confirmation points in the application, five are not authorization: opening an external URL at a destination a third party chose, a disclosure that exists to name who wants the user's data, a completion check for an external flow, and two destructive preset confirmations. Auto-answering the disclosure saves no work at all, because the editor that follows still blocks; it only removes the explanation.
 - **Seizing the composer during an approval, as T3 Code does.** It buys a one-keystroke approval, at the cost of destroying a sentence in progress. Reaching the decision by a deliberate shortcut is slower and cannot lose work.
 - **Composer-adjacent notifications.** Chosen first from a rendered prototype, then reversed on purpose, so that everything docked to the composer is something the user must answer.
+- **Compact mode labels in the composer (`YOLO`, `Ask`).** They fit the row better and were reversed for two reasons. `Ask` is the contraction the domain language rules out, and it names no approval at all. The mechanism also relied on Chromium repainting `<option>` text between focus and the native popup opening; had that race been lost while a session inherited full access, the popup would have shown the same word twice with no way to tell inherit from override, and no jsdom or Playwright assertion could observe it because the popup is drawn outside the DOM.
+- **`aria-live` on the request ribbon and the notification stack.** Both are mounted together with their content, and a live region added in the same commit as its text is not announced by VoiceOver. The attribute assertions passed while nothing was ever spoken, which is the failure mode a guard is supposed to prevent.
 
 ## Consequences
 
@@ -37,3 +41,6 @@ Ponytail calls `ui.notify()` on every `session_start`. OpenWaggle turned each no
 - Because full access emits nothing, there is deliberately no audit trail of automatically granted work. Its visibility comes from the normal activity and result presentation, which is what Codex and T3 Code both do.
 - The durability rule for notifications is shared between the main process and the renderer, because two copies drift into a transcript that disagrees with itself after a reload while each side's tests stay green.
 - A keyboard user needs two steps to approve: reach the request, then choose. That is the accepted price of never binding a key to a grant.
+- The response schema, not just the response type, has to declare every field. Effect Schema deletes undeclared keys while the union's type annotation keeps that invisible to the compiler, which is how the approval scope was silently dropped at the IPC boundary with the whole grant slice inert and every unit test green. Decode tests now cross that boundary.
+- Authorization state is keyed on the durable project root, never the run cwd. A worktree session runs elsewhere, and keying grants on the cwd wrote them where Settings could not list or revoke them.
+- Project config writes are serialized per project, because each one is read-modify-write and a run can raise several requests at once.

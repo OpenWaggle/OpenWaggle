@@ -144,7 +144,9 @@ describe('ExtensionAgentLoopSurface', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '#113' }))
 
-    expect(screen.getAllByText('Select an issue')).toHaveLength(2)
+    // The heading, asserted by role. A count assertion would pin whatever duplication happens to
+    // exist and turn de-duplicating it into a failure.
+    expect(screen.getByRole('heading', { name: 'Select an issue' })).toBeInTheDocument()
     expect(onAction).toHaveBeenCalledWith('select-issue', 'issue-113')
   })
 

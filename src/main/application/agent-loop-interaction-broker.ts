@@ -1,3 +1,4 @@
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type {
   AgentLoopInteraction,
   AgentLoopInteractionErrorCode,
@@ -269,6 +270,38 @@ export function grantPendingAuthorizationsForSession(input: {
       response: { kind: 'confirm', accepted: true },
     })
     granted += 1
+  }
+  return granted
+}
+
+/**
+ * Grants pending authorization requests for every session that now resolves to full access.
+ *
+ * The per-session handler covers a session override, but the mode is an inheritance chain: changing a
+ * project or the global default can reveal full access for sessions that hold no override of their
+ * own. Without this those sessions stay parked on a prompt in a mode that promises never to prompt.
+ */
+export async function grantPendingAuthorizationsWhereFullAccess(
+  resolveMode: (sessionId: SessionId) => Promise<AgentAuthorizationMode>,
+): Promise<number> {
+  const sessionIds = new Set<SessionId>()
+  for (const [, pending] of pendingInteractions) {
+    const interaction = pending.interaction
+    if (interaction.kind !== 'confirm' || interaction.purpose !== 'authorization') continue
+    sessionIds.add(interaction.sessionId)
+  }
+
+  // Resolved per session rather than compared against the written value, so clearing an override that
+  // reveals a full-access default counts too. Concurrently, because each resolve reads the database
+  // and the project config, and one parked prompt should not wait on another's I/O.
+  const modes = await Promise.all(
+    [...sessionIds].map(async (sessionId) => ({ mode: await resolveMode(sessionId), sessionId })),
+  )
+
+  let granted = 0
+  for (const { mode, sessionId } of modes) {
+    if (mode !== 'yolo') continue
+    granted += grantPendingAuthorizationsForSession({ sessionId })
   }
   return granted
 }

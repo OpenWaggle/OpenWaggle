@@ -1,65 +1,33 @@
 import {
   AGENT_AUTHORIZATION_MODE_LABELS,
-  AGENT_AUTHORIZATION_MODE_SHORT_LABELS,
   AGENT_AUTHORIZATION_MODES,
   type AgentAuthorizationMode,
   isAgentAuthorizationMode,
 } from '@shared/types/agent-authorization'
 import type { SessionDetail } from '@shared/types/session'
-import { useEffect, useState } from 'react'
-import { usePreferencesStore } from '@/features/settings/state'
-import { api } from '@/shared/lib/ipc'
-import { createRendererLogger } from '@/shared/lib/logger'
+import { useState } from 'react'
+import { usePreferencesStore, useProjectAuthorizationDefault } from '@/features/settings/state'
 import { Select } from '@/shared/ui/Select'
-
-const logger = createRendererLogger('session-access-mode')
-
-/**
- * The project's own override, when it has one.
- *
- * Read here so the closed control can name the mode that will actually be used. Showing "Default"
- * instead would hide which mode is in force, which is the one thing this control exists to say.
- */
-function useProjectDefault(projectPath: string | null) {
-  const [projectDefault, setProjectDefault] = useState<AgentAuthorizationMode | null>(null)
-
-  useEffect(() => {
-    if (!projectPath || typeof api.getProjectPreferences !== 'function') {
-      setProjectDefault(null)
-      return
-    }
-
-    let cancelled = false
-    api
-      .getProjectPreferences(projectPath)
-      .then((preferences) => {
-        if (!cancelled) setProjectDefault(preferences?.authorizationMode ?? null)
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return
-        logger.warn('Failed to read the project access mode', { error: String(err) })
-        setProjectDefault(null)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [projectPath])
-
-  return projectDefault
-}
 
 /** Sentinel for the option that clears the session override. */
 const INHERIT_VALUE = 'inherit'
 
 /**
- * The session access-mode control in the composer row.
+ * Names the mode in force, marking it as inherited when the session holds no override.
  *
- * Shows the compact label while closed and the full one while the user is choosing. A native select
- * renders the selected option's own text when closed, so the selected option carries the short label
- * until the control opens and then carries the full one. That keeps one real `<select>`, with its
- * keyboard behaviour and platform popup, instead of a custom menu that would have to reimplement
- * both.
+ * One label vocabulary in both states, deliberately. An earlier version showed compact forms
+ * (`YOLO`, `Ask`) while closed and the full ones while open, which had two problems: `Ask` is the
+ * contraction CONTEXT.md rules out for Ask for Approval, and the swap depended on Chromium
+ * repainting `<option>` text before the native popup opened. If that race were lost while a session
+ * inherited full access, the popup showed the same word twice with no way to tell inherit from
+ * override.
+ */
+function inheritLabel(effective: AgentAuthorizationMode) {
+  return `Default · ${AGENT_AUTHORIZATION_MODE_LABELS[effective]}`
+}
+
+/**
+ * The session access-mode control in the composer row.
  *
  * `Use default` clears the override. Without it the composer could set a session override but never
  * remove one, so a session could never be returned to following its project or global default.
@@ -74,9 +42,8 @@ export function SessionAuthorizationModeMenu({
   ) => Promise<void>
 }) {
   const [saving, setSaving] = useState(false)
-  const [choosing, setChoosing] = useState(false)
   const globalDefault = usePreferencesStore((s) => s.settings.defaultAuthorizationMode)
-  const projectDefault = useProjectDefault(session?.projectPath ?? null)
+  const projectDefault = useProjectAuthorizationDefault(session?.projectPath ?? null)
 
   // Absent means the session holds no override and follows its project, then the global default.
   const override = session?.authorizationMode ?? null
@@ -100,27 +67,16 @@ export function SessionAuthorizationModeMenu({
     })
   }
 
-  function labelFor(mode: AgentAuthorizationMode) {
-    // A native select shows the selected option's own text when closed, so the selected option
-    // carries the compact label until the control opens and the full one after.
-    const isSelected = draft ? mode === effective : mode === override
-    return isSelected && !choosing
-      ? AGENT_AUTHORIZATION_MODE_SHORT_LABELS[mode]
-      : AGENT_AUTHORIZATION_MODE_LABELS[mode]
-  }
-
   return (
     <div
-      className="flex min-w-0 items-center gap-1.5 text-[11px] text-text-muted"
+      className="flex min-w-0 items-center text-[11px] text-text-muted"
       title={draft ? 'The first run uses this mode. Change it once the session exists.' : undefined}
     >
-      <span className="shrink-0">Access</span>
       <Select
         aria-label="Session access mode"
+        className="max-w-[15rem] truncate"
         disabled={saving || draft}
-        onBlur={() => setChoosing(false)}
         onChange={(event) => {
-          setChoosing(false)
           const raw = event.currentTarget.value
           if (raw === INHERIT_VALUE) {
             handleChange(null)
@@ -130,26 +86,18 @@ export function SessionAuthorizationModeMenu({
             handleChange(raw)
           }
         }}
-        // Both, because a pointer opens the popup without focusing first on some platforms and the
-        // keyboard focuses without a pointer event. The labels have to be full before it paints.
-        onFocus={() => setChoosing(true)}
-        onKeyDown={() => setChoosing(true)}
-        onMouseDown={() => setChoosing(true)}
         selectSize="xs"
         value={value}
       >
         {draft ? null : (
-          // While inheriting and closed, this is the option on display, so it names the mode in
-          // force rather than the word "Default", which would say nothing about what will happen.
-          <option value={INHERIT_VALUE}>
-            {choosing || override !== null
-              ? 'Use default'
-              : AGENT_AUTHORIZATION_MODE_SHORT_LABELS[effective]}
-          </option>
+          // Names the mode in force rather than the bare word "Default", which would say nothing
+          // about what will happen, while still marking it as inherited so it stays distinct from
+          // pinning the same mode as an explicit override.
+          <option value={INHERIT_VALUE}>{inheritLabel(effective)}</option>
         )}
         {AGENT_AUTHORIZATION_MODES.map((mode) => (
           <option key={mode} value={mode}>
-            {labelFor(mode)}
+            {AGENT_AUTHORIZATION_MODE_LABELS[mode]}
           </option>
         ))}
       </Select>

@@ -171,13 +171,18 @@ export function surfacePayload(input: ExtensionAgentLoopSurfaceInput): JsonObjec
 }
 
 export function surfaceLabel(input: ExtensionAgentLoopSurfaceInput) {
-  return matchBy(input, 'surface')
-    .with('tool', (value) => `Tool output · ${value.toolCall.name}`)
-    .with('custom-message', (value) => `Custom message · ${value.message.name}`)
-    .with('interaction', (value) => value.interaction.title)
-    .with('transcript', () => 'Transcript summary')
-    .with('status', () => 'Run status')
-    .exhaustive()
+  return (
+    matchBy(input, 'surface')
+      .with('tool', (value) => `Tool output · ${value.toolCall.name}`)
+      .with('custom-message', (value) => `Custom message · ${value.message.name}`)
+      // Deliberately not the interaction title: the card beneath already renders it as its heading,
+      // so reusing it here printed the same words twice, one above the other. Matches the neighbouring
+      // container labels instead.
+      .with('interaction', () => 'Interaction')
+      .with('transcript', () => 'Transcript summary')
+      .with('status', () => 'Run status')
+      .exhaustive()
+  )
 }
 
 export function surfaceFamily(input: ExtensionAgentLoopSurfaceInput) {

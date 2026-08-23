@@ -29,7 +29,13 @@ function buildNewSessionDetail(
     createdAt: now,
     updatedAt: now,
     environmentMode: input.environmentMode ?? 'local',
-    authorizationMode: input.authorizationMode ?? 'yolo',
+    // The row stores NULL for "inherit" (see insertSessionRow), so the projection must omit the
+    // field rather than claim a mode. Defaulting to 'yolo' here made a brand-new session report
+    // full access while its row inherited, so the composer control named the wrong mode until
+    // something refetched the detail, and treated the phantom value as a real override.
+    ...(input.authorizationMode === undefined
+      ? {}
+      : { authorizationMode: input.authorizationMode }),
   }
 }
 

@@ -75,9 +75,16 @@ function actionVariant(tone: ExtensionInteractionActionView['tone']) {
   return 'secondary'
 }
 
-/** User-facing wording for an interaction's lifecycle state. */
-function interactionStateLabel(state: ExtensionInteractionView['state']) {
-  if (state === 'pending') return 'Waiting for a renderer'
+/**
+ * User-facing wording for an interaction's lifecycle state.
+ *
+ * `pendingLabel` differs by surface. The unavailable-custom card is genuinely waiting for a renderer
+ * that does not exist, but the standard fallback is answerable right now, and captioning it "Waiting
+ * for a renderer" directly under its own enabled buttons read as "these buttons are broken" and
+ * invited the user to wait instead of act.
+ */
+function interactionStateLabel(state: ExtensionInteractionView['state'], pendingLabel: string) {
+  if (state === 'pending') return pendingLabel
   if (state === 'submitted') return 'Answered'
   return 'Dismissed'
 }
@@ -109,7 +116,7 @@ function renderInteractionFallback({
             {/* No raw interaction UUID and no internal state token: neither means anything to a
                 reader, and the contract keeps internal identifiers out of visible labels. */}
             <p className="mt-2 text-[11px] text-text-muted">
-              {interactionStateLabel(interaction.state)}
+              {interactionStateLabel(interaction.state, 'Waiting for a renderer')}
             </p>
             {onAction ? (
               <div className="mt-3">
@@ -151,7 +158,9 @@ function renderInteractionFallback({
           </Button>
         ))}
       </div>
-      <div className="text-[11px] text-text-muted">{interactionStateLabel(interaction.state)}</div>
+      <div className="text-[11px] text-text-muted">
+        {interactionStateLabel(interaction.state, 'Waiting for you')}
+      </div>
     </div>
   )
 }
