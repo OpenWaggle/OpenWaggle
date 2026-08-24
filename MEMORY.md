@@ -130,6 +130,40 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
   constant from another module leaves the dynamic import reachable and ships the chunk.
 - Guard visible strings with a source scan, not `queryByText('some-id')`. Exact-match queries stay
   green when an identifier is appended to a label, which is how `pi-tui-custom` survived its own test.
+  A source scan is only worth its name if it recurses and includes `.ts`: the first version walked two
+  directories non-recursively with a `.tsx` filter, so it could not see nested components, other
+  features, or the label maps in plain modules, and it reported green while user-facing copy named the
+  runtime. Prove such a guard fails by injecting a leak before trusting it.
+- An Effect Schema `Struct` DELETES keys it does not declare, and a union annotated
+  `Schema.Schema<SomeUnion>` makes that invisible to the compiler when the field is optional. A field
+  added to a response type but not to its schema is silently dropped at the IPC boundary. This is how
+  the approval scope was lost with the whole scoped-grant feature inert and every unit test green:
+  the tests answered the broker directly and never crossed the schema. Any response field needs a
+  decode test through the real schema.
+- The run cwd is not the project. `ensureSessionWorktreeProjectPath` returns the worktree for a
+  worktree session, so anything durable keyed on it lands somewhere the rest of the app never looks:
+  grants written there could not be listed or revoked in Settings. Pass the durable project root
+  explicitly and name the field so the cwd cannot be handed over by accident.
+- A lenient config read is wrong for a permission decision. `loadProjectConfig` logs and returns empty
+  on an invalid file, and empty falls through to the global default, which ships as full access, so one
+  bad field silently stopped a project from asking. Use a strict read where the answer is a permission
+  and fail closed.
+- `aria-live` on a conditionally mounted element announces nothing. A polite region must already be in
+  the accessibility tree before its content changes, so an always-mounted, initially empty announcer is
+  required. Asserting the attribute is precisely the test that stays green while nothing is ever
+  spoken.
+- Disabling the focused element blurs it. A busy flag that disables every control in a surface moves
+  focus to `<body>`, so Escape handlers on that surface stop firing and the next Tab restarts from the
+  top of the document. Return focus explicitly when the action settles.
+- Project config writes are read-modify-write. Without per-path serialization two concurrent writes
+  both read the pre-change file and the second rename wins, so one grant is lost while the UI reports
+  both as saved. A run can raise several authorization requests at once, so this is reachable.
+- SQLite has no `ADD COLUMN IF NOT EXISTS`, and the migration ledger only guards the same id. A column
+  that exists under a different id fails the `ALTER` and takes boot with it, which is reachable
+  whenever a migration is renumbered. Guard the column, not just the id.
+- Do not rely on the browser repainting `<option>` text before a native select popup opens. The popup
+  is drawn outside the DOM, so neither jsdom nor Playwright can observe what it shows, and a lost race
+  can render two options with identical text. Use one label vocabulary instead.
 
 ## Tooling Memory
 
