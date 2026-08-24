@@ -599,3 +599,39 @@ carrying work written in this scope. That single event now records the scope for
 following it. It is one write, from one event, about facts that event has - not a lookup that keeps answering
 questions it was never asked.
 
+## Round nineteen: clean
+
+All three reviewers returned **zero findings**, independently, and the whole-branch reviewer recommended the
+merge.
+
+| Reviewer | Scope | Result |
+| --- | --- | --- |
+| L1 | git, both default-branch gates, the whole commit path, worktree lifecycle, turn checkpoints | 0 findings |
+| L2 | reviews, both comment paths, every send ending, the diff panel | 0 findings |
+| L3 | the branch as a whole, against this record | 0 findings — merge it |
+
+L1 also ran the integration suite three times with no flake, including the `ls-remote` bound this branch was
+opened for and the case-folding tests that ask the filesystem rather than assume the platform.
+
+### What nineteen rounds cost, and what they were worth
+
+161 findings were triaged across nineteen rounds. The first four rounds accounted for 132 of them and were about
+the branch's own work. The remaining fifteen rounds found 29, and **every one of those was a defect in an earlier
+round's fix** - which is the single most useful thing this record contains, because it is measurable rather than
+felt:
+
+- Two designs were removed after repeated failed attempts: the case-folding guard (four attempts, five
+  regressions in ordinary operations) and the draft-to-session scope inference (five attempts, five different
+  ways of misfiling a reviewer's work). Both had a pre-existing limitation or a cosmetic nicety on one side and
+  everyday operations on the other, and the guard kept losing.
+- Eighteen findings were one path reimplementing what another path already owned. The fix each time was to give
+  the behaviour a single owner, not to correct the copy.
+- Three findings were a guard that could not answer its question answering "no" instead of failing closed.
+- Four were a question asked of the wrong thing or from the wrong place: `MERGE_HEAD` for "are there conflicts",
+  `stat` for "is anything there", `ls-files --unmerged` from a subdirectory, `diff-tree` on a root commit.
+
+Three limitations are recorded as knowingly left, each with what a real fix would take: case-folding renames and
+index-only changes both need commits built with `write-tree`/`commit-tree` rather than a pathspec; `push.default`
+needs a deliberate decision about naming the push destination; and the waggle run path needs its own outcome
+mapping to report a refusal rather than rejecting the invoke.
+
