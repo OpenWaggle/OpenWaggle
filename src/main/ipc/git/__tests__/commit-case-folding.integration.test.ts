@@ -18,8 +18,7 @@ const { createRepositoryWithWorktree, filesystemConflatesCase, git } = await imp
 /**
  * How `commitGit` behaves when the filesystem folds letter case, which git's pathspec matching folds with it.
  *
- * These are pinned as documented behaviour, not as desired behaviour: see the case-folding section of
- * `docs/reviews/pr163-findings.md`. Detecting the dangerous shapes was attempted three times by comparing path
+ * These are pinned as documented behaviour, not as desired behaviour. Detecting the dangerous shapes was attempted three times by comparing path
  * strings and once by verifying the commit afterwards, and every attempt broke ordinary operations instead -
  * the first commit in a repository, an amend whose HEAD is a merge, the everyday amend that reverts part of the
  * previous commit. The conflated change stays visible in `git status` rather than being guarded by something
@@ -57,7 +56,7 @@ describe('commitGit where the filesystem folds case', () => {
   /**
    * A case-only *directory* component: git's pathspec matching resolves the new spelling onto the old index
    * entry, so the rename is left out of the commit and stays staged. This is pinned as the documented
-   * behaviour, not as desired behaviour - see `docs/reviews/pr163-findings.md`. Detecting it was attempted
+   * behaviour, not as desired behaviour. Detecting it was attempted
    * three ways by path shape and once by verifying the commit afterwards, and each attempt broke ordinary
    * operations instead: the first commit in a repository, an amend whose HEAD is a merge, and the everyday
    * amend that reverts part of the previous commit. The change is left visible in `git status` rather than
