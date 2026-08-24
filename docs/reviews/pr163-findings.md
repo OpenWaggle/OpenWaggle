@@ -581,3 +581,21 @@ the caller then degraded silently to the working-tree diff. The bound exists to 
 the load, which ten seconds still does; a bound that turns a working case into a silent fallback is the same class
 of defect the branch set out to remove.
 
+## Round eighteen
+
+The git reviewer returned **zero findings**. The renderer reviewer and the whole-branch reviewer independently
+reported the same single item, and it is the direct consequence of round seventeen removing scope inheritance.
+
+| Finding | Substance |
+| --- | --- |
+| K2-1, K3-1 | A review submitted on a failed first send came back under a key the panel could not show |
+
+The key a review lives under carries its scope. Following the created session settled *where* the review went but
+not *what the panel would display*: a new session has no scope of its own and shows the working tree, so a review
+written in the Branch scope was restored under a Branch key that nothing was reading. Removing the inheritance was
+right - it was an inference standing in for a relationship nothing recorded, and it failed five times - but the
+relationship does exist at exactly one moment, and that moment is observable: this send created this session,
+carrying work written in this scope. That single event now records the scope for the created session as part of
+following it. It is one write, from one event, about facts that event has - not a lookup that keeps answering
+questions it was never asked.
+

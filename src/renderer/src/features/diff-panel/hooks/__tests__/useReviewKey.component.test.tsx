@@ -1,5 +1,6 @@
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { useDiffScopeStore } from '../../state/diff-scope-store'
 import { reviewKeyFor, selectReviewThread, useReviewStore } from '../../state/review-store'
 import { useReviewKey } from '../useReviewKey'
 
@@ -67,5 +68,24 @@ describe('useReviewKey', () => {
     expect(
       selectReviewThread(useReviewStore.getState(), reviewKeyFor('session-b', SCOPE)).comments,
     ).toEqual([])
+  })
+
+  it('settles the created session on the scope the review was written in', () => {
+    /*
+     * The key a review lives under carries its scope, so following a session without also settling that session's
+     * scope left a review written in the Branch scope under a key the panel could not show: a new session has no
+     * scope of its own and displays the working tree. This is not the inheritance that was removed - it is one
+     * concrete event, a send that created this session carrying work written in this scope, writing what it knows.
+     */
+    const branchScope = { kind: 'branch', baseRef: 'origin/main' } as const
+    useDiffScopeStore.setState({ byThreadKey: {} })
+
+    const { result } = renderHook(() =>
+      useReviewKey({ scopeKey: WORKING_PATH, draftAnchor: WORKING_PATH, selection: branchScope }),
+    )
+    const followed = result.current.keyForSession('session-created')
+
+    expect(followed).toBe(reviewKeyFor('session-created', branchScope))
+    expect(useDiffScopeStore.getState().byThreadKey['session-created']).toEqual(branchScope)
   })
 })

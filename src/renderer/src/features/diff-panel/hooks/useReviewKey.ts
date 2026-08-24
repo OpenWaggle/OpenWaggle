@@ -1,4 +1,7 @@
-import type { DiffScopeSelection } from '@/features/diff-panel/state/diff-scope-store'
+import {
+  type DiffScopeSelection,
+  useDiffScopeStore,
+} from '@/features/diff-panel/state/diff-scope-store'
 import { reviewKeyFor } from '@/features/diff-panel/state/review-store'
 
 /**
@@ -30,14 +33,24 @@ export function useReviewKey(input: {
   readonly draftAnchor: string | null
   readonly selection: DiffScopeSelection
 }) {
+  const selectScopeForThread = useDiffScopeStore((state) => state.setThreadScope)
   const reviewKey = reviewKeyFor(input.scopeKey || null, input.selection)
   const draftKey = reviewKeyFor(input.draftAnchor, input.selection)
 
   /*
-   * The scope is carried deliberately: a review written in the Branch scope must not resurface under the
-   * default scope just because a brand-new session key has no scope selection recorded yet.
+   * Where work submitted from this panel goes when the send that created a session fails, and the scope it goes
+   * under - recorded for that session as part of the same step.
+   *
+   * The key a review lives under carries its scope, so following the session without also settling the scope left
+   * a review written in the Branch scope under a key the panel could not show: a new session has no scope of its
+   * own and displays the working tree. This is not the inference that was deleted five times over. It is one
+   * concrete event - this send created this session, carrying work written in this scope - writing exactly what
+   * that event knows, once.
    */
-  const keyForSession = (sessionId: string) => reviewKeyFor(sessionId, input.selection)
+  const keyForSession = (sessionId: string) => {
+    selectScopeForThread(sessionId, input.selection)
+    return reviewKeyFor(sessionId, input.selection)
+  }
 
   return { reviewKey, draftKey, keyForSession }
 }

@@ -19,6 +19,15 @@ interface DiffScopeState {
   byThreadKey: Record<string, DiffScopeSelection>
   branchBaseRefByThreadKey: Record<string, string | null>
   selectGitScope: (threadKey: string, scope: 'branch' | 'unstaged') => void
+  /**
+   * Record a whole selection for a thread.
+   *
+   * Used when work follows a session that a send has just created: the key a review lives under carries its
+   * scope, so the session has to show that scope or the review cannot be seen. Distinct from the inheritance
+   * that was removed - this writes what one concrete event knows, rather than standing in for a relationship
+   * nothing recorded.
+   */
+  setThreadScope: (threadKey: string, selection: DiffScopeSelection) => void
 
   selectBranchBaseRef: (threadKey: string, baseRef: string | null) => void
   selectTurn: (threadKey: string, turnId: string, filePath?: string) => void
@@ -51,6 +60,8 @@ export const useDiffScopeStore = create<DiffScopeState>()(
     (set) => ({
       byThreadKey: {},
       branchBaseRefByThreadKey: {},
+      setThreadScope: (threadKey, selection) =>
+        set((state) => ({ byThreadKey: { ...state.byThreadKey, [threadKey]: selection } })),
       selectGitScope: (threadKey, scope) =>
         set((state) => {
           const previous = state.byThreadKey[threadKey]
