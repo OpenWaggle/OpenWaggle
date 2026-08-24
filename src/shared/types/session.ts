@@ -1,4 +1,5 @@
 import type { Message, MessageRole } from './agent'
+import type { AgentAuthorizationMode } from './agent-authorization'
 import type { RunMode } from './background-run'
 import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
 import type { SessionEnvironmentMode } from './git'
@@ -66,6 +67,8 @@ export interface SessionDetail {
   readonly worktreeBaseRef?: string | null
   /** When true, the Session worktree is forked from origin/<baseRef>. */
   readonly worktreeStartFromOrigin?: boolean
+  /** Authorization mode used by this session's runs. */
+  readonly authorizationMode?: AgentAuthorizationMode
 }
 
 /** Per-session worktree birth plan persisted by the composer strip (WS1b). */

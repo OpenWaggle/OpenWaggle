@@ -1,9 +1,11 @@
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { SupportedModelId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
 import {
   DEFAULT_SETTINGS,
   type DiffSyntaxTheme,
   type DiffView,
+  type Settings,
   THINKING_LEVELS,
   type ThinkingLevel,
 } from '@shared/types/settings'
@@ -116,6 +118,18 @@ async function persistShortcutBindings(shortcutBindings: ShortcutBindings, set: 
   set({ settings: persistedSettings })
 }
 
+/** Persists one scalar setting and mirrors it into the store. */
+async function persistSetting<K extends keyof Settings>(
+  key: K,
+  value: Settings[K],
+  set: PreferencesSet,
+  get: PreferencesGet,
+) {
+  const { settings } = get()
+  await api.updateSettings({ [key]: value })
+  set({ settings: { ...settings, [key]: value } })
+}
+
 export function createPreferencesActions(
   set: PreferencesSet,
   get: PreferencesGet,
@@ -169,26 +183,14 @@ export function createPreferencesActions(
       set({ settings: { ...settings, thinkingLevel: preset } })
       persistProjectPreference(settings.projectPath, { thinkingLevel: preset })
     },
-    setDefaultSessionEnvironmentMode: async (mode: SessionEnvironmentMode) => {
-      const { settings } = get()
-      await api.updateSettings({ defaultSessionEnvironmentMode: mode })
-      set({ settings: { ...settings, defaultSessionEnvironmentMode: mode } })
-    },
-    setDiffSyntaxTheme: async (theme: DiffSyntaxTheme) => {
-      const { settings } = get()
-      await api.updateSettings({ diffSyntaxTheme: theme })
-      set({ settings: { ...settings, diffSyntaxTheme: theme } })
-    },
-    setDiffView: async (view: DiffView) => {
-      const { settings } = get()
-      await api.updateSettings({ diffView: view })
-      set({ settings: { ...settings, diffView: view } })
-    },
-    setDiffWrapLines: async (wrap: boolean) => {
-      const { settings } = get()
-      await api.updateSettings({ diffWrapLines: wrap })
-      set({ settings: { ...settings, diffWrapLines: wrap } })
-    },
+    setDefaultAuthorizationMode: (mode: AgentAuthorizationMode) =>
+      persistSetting('defaultAuthorizationMode', mode, set, get),
+    setDefaultSessionEnvironmentMode: (mode: SessionEnvironmentMode) =>
+      persistSetting('defaultSessionEnvironmentMode', mode, set, get),
+    setDiffSyntaxTheme: (theme: DiffSyntaxTheme) =>
+      persistSetting('diffSyntaxTheme', theme, set, get),
+    setDiffView: (view: DiffView) => persistSetting('diffView', view, set, get),
+    setDiffWrapLines: (wrap: boolean) => persistSetting('diffWrapLines', wrap, set, get),
     setEnabledModels: (models) => setEnabledModels(models, set, get),
     setProjectDisplayName: async (path, name) => {
       const { settings } = get()

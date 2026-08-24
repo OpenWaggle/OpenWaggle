@@ -29,6 +29,13 @@ function buildNewSessionDetail(
     createdAt: now,
     updatedAt: now,
     environmentMode: input.environmentMode ?? 'local',
+    // The row stores NULL for "inherit" (see insertSessionRow), so the projection must omit the
+    // field rather than claim a mode. Defaulting to 'yolo' here made a brand-new session report
+    // full access while its row inherited, so the composer control named the wrong mode until
+    // something refetched the detail, and treated the phantom value as a real override.
+    ...(input.authorizationMode === undefined
+      ? {}
+      : { authorizationMode: input.authorizationMode }),
   }
 }
 
@@ -43,12 +50,14 @@ function insertSessionRow(input: {
   return input.sql`
     INSERT INTO sessions (
       id, pi_session_id, pi_session_file, project_path, title, archived, waggle_config_json,
-      created_at, updated_at, last_active_node_id, last_active_branch_id, environment_mode
+      created_at, updated_at, last_active_node_id, last_active_branch_id, environment_mode,
+      authorization_mode_override
     )
     VALUES (
       ${input.sessionId}, ${input.input.piSessionId}, ${input.input.piSessionFile ?? null},
       ${input.input.projectPath}, ${input.session.title}, ${0}, ${null}, ${input.now}, ${input.now},
-      ${null}, ${input.branchId}, ${input.input.environmentMode ?? 'local'}
+      ${null}, ${input.branchId}, ${input.input.environmentMode ?? 'local'},
+      ${input.input.authorizationMode ?? null}
     )
   `
 }

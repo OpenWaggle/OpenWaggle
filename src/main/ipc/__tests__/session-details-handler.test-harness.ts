@@ -13,31 +13,7 @@ import type * as SessionDetailsHandler from '../session-details-handler'
 
 type TestMock = Mock
 
-interface SessionDetailsHandlerMocks {
-  readonly typedHandleMock: TestMock
-  readonly cleanupSessionRunMock: TestMock
-  readonly createRuntimeSessionMock: TestMock
-  readonly forkRuntimeSessionMock: TestMock
-  readonly persistSnapshotMock: TestMock
-  readonly listSessionDetailsMock: TestMock
-  readonly getSessionDetailMock: TestMock
-  readonly createSessionMock: TestMock
-  readonly deleteSessionMock: TestMock
-  readonly archiveSessionMock: TestMock
-  readonly unarchiveSessionMock: TestMock
-  readonly listArchivedSessionsMock: TestMock
-  readonly updateSessionTitleMock: TestMock
-  readonly listPinnedSessionsMock: TestMock
-  readonly pinSessionMock: TestMock
-  readonly unpinSessionMock: TestMock
-  readonly movePinnedSessionMock: TestMock
-  readonly cancelSessionRunsMock: TestMock
-  readonly clearAgentPhaseMock: TestMock
-  readonly clearStreamBufferMock: TestMock
-  readonly emitRunCompletedMock: TestMock
-}
-
-const mocks: SessionDetailsHandlerMocks = vi.hoisted(() => ({
+const mocks = vi.hoisted(() => ({
   typedHandleMock: vi.fn(),
   cleanupSessionRunMock: vi.fn(),
   createRuntimeSessionMock: vi.fn(async (_input: { readonly projectPath: string }) => ({
@@ -54,6 +30,7 @@ const mocks: SessionDetailsHandlerMocks = vi.hoisted(() => ({
   unarchiveSessionMock: vi.fn(),
   listArchivedSessionsMock: vi.fn(),
   updateSessionTitleMock: vi.fn(),
+  setAuthorizationModeMock: vi.fn(),
   listPinnedSessionsMock: vi.fn(async () => []),
   pinSessionMock: vi.fn(async () => undefined),
   unpinSessionMock: vi.fn(async () => undefined),
@@ -77,6 +54,7 @@ export const archiveSessionMock: TestMock = mocks.archiveSessionMock
 export const unarchiveSessionMock: TestMock = mocks.unarchiveSessionMock
 export const listArchivedSessionsMock: TestMock = mocks.listArchivedSessionsMock
 export const updateSessionTitleMock: TestMock = mocks.updateSessionTitleMock
+export const setAuthorizationModeMock: TestMock = mocks.setAuthorizationModeMock
 export const listPinnedSessionsMock: TestMock = mocks.listPinnedSessionsMock
 export const pinSessionMock: TestMock = mocks.pinSessionMock
 export const unpinSessionMock: TestMock = mocks.unpinSessionMock
@@ -167,6 +145,14 @@ const TestSessionProjectionRepoLayer = Layer.succeed(
         catch: (cause) => new SessionProjectionRepositoryError({ operation: 'updateTitle', cause }),
       }),
     setWorktreePlan: () => Effect.void,
+    setAuthorizationMode: (id, authorizationMode) =>
+      Effect.tryPromise({
+        try: async () => {
+          await setAuthorizationModeMock(id, authorizationMode)
+        },
+        catch: (cause) =>
+          new SessionProjectionRepositoryError({ operation: 'setAuthorizationMode', cause }),
+      }),
     listTurnCheckpoints: () => Effect.succeed([]),
     getTurnDiff: () => Effect.succeed(null),
     setTurnCheckpointAnchor: () => Effect.void,
@@ -278,36 +264,16 @@ export function getInvokeHandler(name: string) {
 }
 
 export function resetSessionDetailsHandlerMocks() {
-  typedHandleMock.mockReset()
-  cleanupSessionRunMock.mockReset()
-  createRuntimeSessionMock.mockReset()
+  for (const mock of Object.values(mocks)) mock.mockReset()
   createRuntimeSessionMock.mockResolvedValue({
     piSessionId: 'pi-session-created',
     piSessionFile: '/tmp/pi-session-created.jsonl',
   })
-  forkRuntimeSessionMock.mockReset()
-  persistSnapshotMock.mockReset()
-  listSessionDetailsMock.mockReset()
-  getSessionDetailMock.mockReset()
-  createSessionMock.mockReset()
-  deleteSessionMock.mockReset()
-  archiveSessionMock.mockReset()
-  unarchiveSessionMock.mockReset()
-  listArchivedSessionsMock.mockReset()
-  updateSessionTitleMock.mockReset()
-  listPinnedSessionsMock.mockReset()
   listPinnedSessionsMock.mockResolvedValue([])
-  pinSessionMock.mockReset()
   pinSessionMock.mockResolvedValue(undefined)
-  unpinSessionMock.mockReset()
   unpinSessionMock.mockResolvedValue(undefined)
-  movePinnedSessionMock.mockReset()
   movePinnedSessionMock.mockResolvedValue(undefined)
-  cancelSessionRunsMock.mockReset()
   cancelSessionRunsMock.mockReturnValue(false)
-  clearAgentPhaseMock.mockReset()
-  clearStreamBufferMock.mockReset()
-  emitRunCompletedMock.mockReset()
 }
 
 export function loadSessionDetailsHandlers(): Promise<typeof SessionDetailsHandler> {

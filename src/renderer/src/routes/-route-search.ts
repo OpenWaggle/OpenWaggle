@@ -3,7 +3,6 @@ import { EXTENSION_SIDE_PANEL_ROUTE_PANEL, SETTINGS_TABS, type SettingsTab } fro
 
 export type ChatBuiltInRightPanel = 'diff' | 'file' | 'session-tree'
 export type ChatRightPanel = ChatBuiltInRightPanel | typeof EXTENSION_SIDE_PANEL_ROUTE_PANEL
-
 export interface ChatExtensionSidePanelTarget {
   readonly extensionId: string
   readonly sidePanelId: string

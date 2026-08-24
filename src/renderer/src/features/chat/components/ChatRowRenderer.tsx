@@ -152,8 +152,8 @@ export function ChatRowRenderer(props: ChatRowRendererProps) {
     .with('phase-indicator', 'run-summary', (row) => (
       <StatusRow row={row} extensions={context.extensions} />
     ))
-    .with('agent-loop-interaction-event', (row) => (
-      <InteractionEventRow event={row.event} extensions={context.extensions} />
+    .with('agent-loop-interaction', (row) => (
+      <InteractionEventRow item={row.item} extensions={context.extensions} />
     ))
     .with('error', (row) => (
       <ChatErrorDisplay

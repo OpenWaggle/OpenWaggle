@@ -103,7 +103,7 @@ function createSessionItems(settings: Settings, actions: CoreCommandActions): Co
     {
       id: 'open-session-tree',
       label: 'Open session tree',
-      description: 'Inspect branches and Pi session history',
+      description: 'Inspect branches and session history',
       icon: <Network className="size-3.5" />,
       section: 'Session',
       trailing: formatShortcutBinding(settings.shortcutBindings['sessionTree.toggle']),

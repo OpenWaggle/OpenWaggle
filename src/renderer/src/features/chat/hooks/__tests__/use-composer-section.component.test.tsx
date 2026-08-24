@@ -69,6 +69,7 @@ function composerSectionParams(): Parameters<typeof useComposerSection>[0] {
     handleCloseForkSelector: vi.fn(),
     handleSelectForkTarget: vi.fn(),
     handleCloneToNewSession: vi.fn(),
+    handleSetAuthorizationMode: vi.fn().mockResolvedValue(undefined),
   }
 }
 
@@ -87,5 +88,16 @@ describe('useComposerSection', () => {
     expect(result.current.isLoading).toBe(true)
     expect(useComposerStore.getState().input).toBe('Keep the existing prompt ')
     expect(useComposerStore.getState().selectedWagglePreset?.id).toBe(WagglePresetId('review'))
+  })
+
+  it('exposes the session authorization-mode action to the composer', async () => {
+    const params = composerSectionParams()
+    const { result } = renderHook(() => useComposerSection(params))
+
+    await act(async () => {
+      await result.current.onSetAuthorizationMode('ask-for-approval')
+    })
+
+    expect(params.handleSetAuthorizationMode).toHaveBeenCalledWith('ask-for-approval')
   })
 })

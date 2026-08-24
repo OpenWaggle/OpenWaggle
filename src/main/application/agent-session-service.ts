@@ -167,6 +167,7 @@ function copyAgentSessionToNewSession(input: AgentSessionCopyInput) {
       projectPath: session.projectPath,
       piSessionId: result.piSessionId,
       piSessionFile: result.piSessionFile,
+      authorizationMode: session.authorizationMode,
     })
 
     yield* persistKernelSnapshot(SessionId(String(createdProjection.id)), result)

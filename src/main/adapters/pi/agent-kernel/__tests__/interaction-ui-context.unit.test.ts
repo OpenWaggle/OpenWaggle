@@ -1,6 +1,7 @@
 import { getEventListeners } from 'node:events'
 import type { ExtensionUIContext } from '@earendil-works/pi-coding-agent'
 import { OPENWAGGLE_AGENT_LOOP } from '@shared/constants/agent-loop'
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { SessionId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import { fromPartial } from '@total-typescript/shoehorn'
@@ -10,16 +11,33 @@ import {
   submitAgentLoopInteractionResponse,
 } from '../../../../application/agent-loop-interaction-broker'
 import { createPiInteractionUiContext } from '../interaction-ui-context'
+import { getOpenWaggleAuthorize } from '../openwaggle-authorize-channel'
 
 const sessionId = SessionId('pi-ui-session')
 
-function createContext(signal = new AbortController().signal) {
+/**
+ * Waits for the microtasks `confirm` spends resolving the authorization mode.
+ *
+ * The mode is read when the request is raised rather than captured per run, so a confirm cannot
+ * emit its request event synchronously: it has to know first whether full access would grant it
+ * outright, since an auto-granted call must leave no transcript entry at all.
+ */
+async function flushAuthorizationResolution() {
+  await new Promise((resolve) => setTimeout(resolve, 0))
+}
+
+function createContext(input?: {
+  readonly signal?: AbortSignal
+  readonly authorizationMode?: AgentAuthorizationMode
+}) {
   const emitted: AgentTransportEvent[] = []
   const ui = createPiInteractionUiContext(
     {
       sessionId,
       runId: 'run-pi-ui',
-      signal,
+      authorizationProjectPath: null,
+      resolveAuthorizationMode: async () => input?.authorizationMode ?? 'yolo',
+      signal: input?.signal ?? new AbortController().signal,
       onEvent: (event) => emitted.push(event),
     },
     fromPartial<ExtensionUIContext>({}),
@@ -35,6 +53,7 @@ describe('Pi interaction UI context', () => {
   it('bridges Pi confirm to a typed OpenWaggle interaction response', async () => {
     const { emitted, ui } = createContext()
     const confirmed = ui.confirm('Proceed?', 'Run the extension tool?')
+    await flushAuthorizationResolution()
     const request = emitted[0]
 
     expect(request).toMatchObject({
@@ -54,6 +73,100 @@ describe('Pi interaction UI context', () => {
     })
 
     await expect(confirmed).resolves.toBe(true)
+  })
+
+  it('never auto-accepts a plain confirm, even in full access', async () => {
+    // Plain confirm is a question addressed to the user. Purpose used to be guessed from the title,
+    // so this exact call was auto-granted in full access; now only the declared authorization
+    // channel can be.
+    const { emitted, ui } = createContext({ authorizationMode: 'yolo' })
+
+    const confirmed = ui.confirm('Allow MCP tool call?', 'Read project files?')
+    await flushAuthorizationResolution()
+
+    expect(emitted).toMatchObject([
+      {
+        type: 'agent_interaction_request',
+        interaction: { kind: 'confirm', purpose: 'user-input' },
+      },
+    ])
+    const request = emitted[0]
+    if (request?.type !== 'agent_interaction_request') {
+      throw new Error('Expected pending interaction request')
+    }
+
+    submitAgentLoopInteractionResponse({
+      sessionId,
+      runId: 'run-pi-ui',
+      interactionId: request.interaction.interactionId,
+      kind: 'confirm',
+      response: { kind: 'confirm', accepted: false },
+    })
+    await expect(confirmed).resolves.toBe(false)
+  })
+
+  it('exposes the authorization channel, which full access grants without emitting anything', async () => {
+    const { emitted, ui } = createContext({ authorizationMode: 'yolo' })
+    const authorize = getOpenWaggleAuthorize(ui)
+    if (!authorize) throw new Error('Expected the OpenWaggle authorization channel')
+
+    await expect(
+      authorize({
+        title: 'Allow MCP tool call?',
+        message: 'Read project files?',
+        scopeKey: {
+          requester: 'github-issues',
+          requesterId: 'github-issues-id',
+          capability: 'mcp.tool-call',
+          resource: 'list_issues',
+        },
+      }),
+    ).resolves.toBe(true)
+    expect(emitted).toEqual([])
+  })
+
+  it('asks through the authorization channel in approval mode', async () => {
+    const { emitted, ui } = createContext({ authorizationMode: 'ask-for-approval' })
+    const authorize = getOpenWaggleAuthorize(ui)
+    if (!authorize) throw new Error('Expected the OpenWaggle authorization channel')
+
+    const confirmed = authorize({
+      title: 'Allow MCP tool call?',
+      message: 'Read project files?',
+      scopeKey: {
+        requester: 'github-issues',
+        requesterId: 'github-issues-id',
+        capability: 'mcp.tool-call',
+        resource: 'list_issues',
+      },
+    })
+    await flushAuthorizationResolution()
+
+    expect(emitted).toMatchObject([
+      {
+        type: 'agent_interaction_request',
+        interaction: {
+          kind: 'confirm',
+          title: 'Allow MCP tool call?',
+          purpose: 'authorization',
+          scopeKey: { capability: 'mcp.tool-call', resource: 'list_issues' },
+        },
+      },
+    ])
+    const request = emitted[0]
+    if (request?.type !== 'agent_interaction_request') {
+      throw new Error('Expected pending interaction request')
+    }
+
+    submitAgentLoopInteractionResponse({
+      sessionId,
+      runId: 'run-pi-ui',
+      interactionId: request.interaction.interactionId,
+      kind: 'confirm',
+      response: { kind: 'confirm', accepted: false },
+    })
+
+    await expect(confirmed).resolves.toBe(false)
   })
 
   it('emits Pi notify as an immediately resolved interaction', () => {
@@ -108,11 +221,12 @@ describe('Pi interaction UI context', () => {
   it('releases parent abort listeners after an interaction settles', async () => {
     const runController = new AbortController()
     const interactionController = new AbortController()
-    const { emitted, ui } = createContext(runController.signal)
+    const { emitted, ui } = createContext({ signal: runController.signal })
 
     const confirmed = ui.confirm('Proceed?', 'Run the extension tool?', {
       signal: interactionController.signal,
     })
+    await flushAuthorizationResolution()
     const request = emitted[0]
     if (request?.type !== 'agent_interaction_request') {
       throw new Error('Expected pending interaction request')

@@ -1,5 +1,6 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
+import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import { SupportedModelId } from '@shared/types/brand'
 import type { SessionTreeFilterMode } from '@shared/types/session'
 import { THINKING_LEVELS } from '@shared/types/settings'
@@ -12,6 +13,8 @@ import {
   shortcutBindingKey,
 } from '@shared/types/shortcuts'
 import * as Effect from 'effect/Effect'
+import { resolveEffectiveAuthorizationMode } from '../application/agent-authorization-mode'
+import { grantPendingAuthorizationsWhereFullAccess } from '../application/agent-loop-interaction-broker'
 import { testCredentials } from '../application/provider-test-service'
 import { createLogger } from '../logger'
 import { ActiveProjectChangeService } from '../ports/active-project-change-service'
@@ -134,6 +137,7 @@ const settingsUpdateSchema = Schema.Struct({
       }),
     ),
   ),
+  defaultAuthorizationMode: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
   shortcutBindings: Schema.optional(
     Schema.mutable(
       Schema.Record({
@@ -212,6 +216,13 @@ function registerSettingsCrudHandlers() {
       if (result.data.projectPath !== undefined) {
         const projectChanges = yield* ActiveProjectChangeService
         yield* projectChanges.reconcileTrustedMainExtensions(projectPathValidation.value)
+      }
+      // The global default can reveal full access for sessions that hold no override of their own, so
+      // a prompt already on screen has to be settled rather than left parked.
+      if (result.data.defaultAuthorizationMode !== undefined) {
+        yield* Effect.promise(() =>
+          grantPendingAuthorizationsWhereFullAccess(resolveEffectiveAuthorizationMode),
+        )
       }
       return { ok: true } satisfies { ok: true }
     }),

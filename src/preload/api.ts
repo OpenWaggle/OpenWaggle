@@ -128,6 +128,9 @@ export const api: OpenWaggleApi = {
   selectProjectFolder: invoke('project:select-folder'),
   getProjectPreferences: invoke('project-config:get-preferences'),
   setProjectPreferences: invoke('project-config:set-preferences'),
+  listAuthorizationGrants: invoke('authorization-grants:list'),
+  grantAuthorization: invoke('authorization-grants:grant'),
+  revokeAuthorization: invoke('authorization-grants:revoke'),
 
   // Sessions
   listSessions: invoke('sessions:list'),
@@ -149,6 +152,7 @@ export const api: OpenWaggleApi = {
   listArchivedSessions: invoke('sessions:list-archived'),
   updateSessionTitle: invoke('sessions:update-title'),
   setSessionWorktreePlan: invoke('sessions:set-worktree-plan'),
+  setSessionAuthorizationMode: invoke('sessions:set-authorization-mode'),
   listArchivedSessionBranches: invoke('sessions:list-archived-branches'),
   getSessionTree: invoke('sessions:get-tree'),
   getSessionWorkspace: invoke('sessions:get-workspace'),

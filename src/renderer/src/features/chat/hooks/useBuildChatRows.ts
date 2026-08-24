@@ -3,6 +3,7 @@ import type { SessionInterruptedRun } from '@shared/types/session'
 import type { AgentTransportCustomEvent } from '@shared/types/stream'
 import type { WaggleMessageMetadata } from '@shared/types/waggle'
 import type { StreamingPhaseState } from '@/features/chat/hooks/useStreamingPhase'
+import { appendInteractionEventRows } from '../lib/build-agent-loop-interaction-rows'
 import type { AgentInteractionEvent, ChatRow, MessageChatRow } from '../lib/types-chat-row'
 
 type ToolResultPart = Extract<UIMessage['parts'][number], { type: 'tool-result' }>
@@ -232,15 +233,6 @@ function appendCustomMessageRows(
 ) {
   for (const event of customMessages) {
     rows.push({ type: 'agent-loop-custom-message', event })
-  }
-}
-
-function appendInteractionEventRows(
-  rows: ChatRow[],
-  interactionEvents: readonly AgentInteractionEvent[],
-) {
-  for (const event of interactionEvents) {
-    rows.push({ type: 'agent-loop-interaction-event', event })
   }
 }
 

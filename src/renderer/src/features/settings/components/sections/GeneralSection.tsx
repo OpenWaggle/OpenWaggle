@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
+import { AgentAccessSection } from './AgentAccessSection'
 
 const logger = createRendererLogger('settings')
 
@@ -99,6 +100,8 @@ export function GeneralSection() {
 
   return (
     <div className="space-y-6">
+      <AgentAccessSection />
+
       {/* About & Updates — title outside the card */}
       <div className="space-y-3">
         <h3 className="text-[16px] font-semibold text-[#e7e9ee]">About & Updates</h3>

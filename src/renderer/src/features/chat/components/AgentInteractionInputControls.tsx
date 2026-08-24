@@ -17,16 +17,26 @@ export function AgentInteractionInputControls({
   return (
     <div className="grid gap-2">
       <TextInput
+        aria-label={interaction.title}
         disabled={busy}
         placeholder={interaction.placeholder ?? ''}
         value={value}
         onChange={(event) => setValue(event.currentTarget.value)}
       />
       <div className="flex flex-wrap gap-2">
-        <Button disabled={busy} variant="accent" onClick={() => submit({ kind: 'input', value })}>
+        <Button
+          aria-label={`Submit ${interaction.title}`}
+          disabled={busy}
+          onClick={() => submit({ kind: 'input', value })}
+          variant="accent"
+        >
           Submit
         </Button>
-        <Button disabled={busy} onClick={() => submit({ kind: 'input', value: null })}>
+        <Button
+          aria-label={`Cancel ${interaction.title}`}
+          disabled={busy}
+          onClick={() => submit({ kind: 'input', value: null })}
+        >
           Cancel
         </Button>
       </div>

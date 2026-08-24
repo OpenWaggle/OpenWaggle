@@ -1,4 +1,5 @@
 import type { AgentSendPayload } from './agent'
+import type { AgentAuthorizationMode } from './agent-authorization'
 import type {
   AgentLoopInteractionResponseInput,
   AgentLoopInteractionSubmitResult,
@@ -36,6 +37,10 @@ import type {
   ExtensionSetTrustedInput,
 } from './extensions'
 import type { ProviderInfo, SupportedModelId } from './llm'
+import type {
+  ProjectPreferencesPayload,
+  ProjectPreferencesUpdatePayload,
+} from './openwaggle-api-project'
 import type {
   SessionCopyToNewResult,
   SessionDetail,
@@ -181,10 +186,10 @@ export interface IpcCoreInvokeChannelMap {
   }
   'project-config:get-preferences': {
     args: [projectPath: string]
-    return: { model?: string; thinkingLevel?: string } | null
+    return: ProjectPreferencesPayload | null
   }
   'project-config:set-preferences': {
-    args: [projectPath: string, preferences: { model?: string; thinkingLevel?: string }]
+    args: [projectPath: string, preferences: ProjectPreferencesUpdatePayload]
     return: undefined
   }
   'sessions:list-details': {
@@ -233,6 +238,11 @@ export interface IpcCoreInvokeChannelMap {
   }
   'sessions:set-worktree-plan': {
     args: [id: SessionId, plan: SessionWorktreePlan]
+    return: undefined
+  }
+  /** `null` clears the session override so the session inherits again. */
+  'sessions:set-authorization-mode': {
+    args: [id: SessionId, mode: AgentAuthorizationMode | null]
     return: undefined
   }
   'sessions:list': {

@@ -1,3 +1,4 @@
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionDetail, SessionSummary } from '@shared/types/session'
 import { useComposerStore } from '@/features/composer/state'
@@ -113,6 +114,35 @@ async function refreshSession(id: SessionId, set: ChatSet, get: ChatGet) {
   }
 }
 
+async function setSessionAuthorizationMode(
+  id: SessionId,
+  authorizationMode: AgentAuthorizationMode | null,
+  set: ChatSet,
+  get: ChatGet,
+) {
+  const previous = get().sessionById.get(id) ?? null
+  if (previous) {
+    // `null` clears the override, so the optimistic copy must drop the field rather than store a
+    // mode. Keeping one here would show an override the session no longer has.
+    const { authorizationMode: _cleared, ...withoutOverride } = previous
+    upsertSession(
+      authorizationMode === null ? withoutOverride : { ...previous, authorizationMode },
+      set,
+    )
+  }
+
+  try {
+    await api.setSessionAuthorizationMode(id, authorizationMode)
+    refreshSessionStoreForSession(id, get().activeSessionId)
+  } catch (err) {
+    if (previous) {
+      upsertSession(previous, set)
+    }
+    handleStoreError(err, 'set session authorization mode', setError(set))
+    throw err
+  }
+}
+
 function removeMissingSession(id: SessionId, set: ChatSet) {
   set((state) => {
     const sessionById = new Map(state.sessionById)
@@ -216,6 +246,8 @@ export function createChatActions(set: ChatSet, get: ChatGet): ChatActions {
     setActiveSessionId: (id) => get().setActiveSession(id),
     setActiveSession: (id) => setActiveSession(id, set, get),
     refreshSession: (id) => refreshSession(id, set, get),
+    setSessionAuthorizationMode: (id, authorizationMode) =>
+      setSessionAuthorizationMode(id, authorizationMode, set, get),
     upsertSession: (session) => upsertSession(session, set),
     deleteSession: (id) => deleteSession(id, set, get),
     updateSessionTitle: (id, title) => updateSessionTitle(id, title, set, get),

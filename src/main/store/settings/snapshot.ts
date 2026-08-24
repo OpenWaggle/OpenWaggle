@@ -1,5 +1,6 @@
 import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
 import {
+  SETTINGS_KEY_DEFAULT_AUTHORIZATION_MODE,
   SETTINGS_KEY_DEFAULT_MODEL,
   SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE,
   SETTINGS_KEY_DIFF_SYNTAX_THEME,
@@ -19,6 +20,7 @@ import {
   isValidDiffView,
   isValidSessionEnvironmentMode,
   isValidThinkingLevel,
+  resolveDefaultAuthorizationMode,
   resolveDefaultSessionEnvironmentMode,
   resolveDiffSyntaxTheme,
   resolveDiffView,
@@ -79,6 +81,9 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
   const defaultSessionEnvironmentMode = resolveDefaultSessionEnvironmentMode(
     getStoredValue(storedSettings, SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE),
   )
+  const defaultAuthorizationMode = resolveDefaultAuthorizationMode(
+    getStoredValue(storedSettings, SETTINGS_KEY_DEFAULT_AUTHORIZATION_MODE),
+  )
   const diffSyntaxTheme = resolveDiffSyntaxTheme(
     getStoredValue(storedSettings, SETTINGS_KEY_DIFF_SYNTAX_THEME),
   )
@@ -99,6 +104,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       projectDisplayNames,
       shortcutBindings,
       defaultSessionEnvironmentMode,
+      defaultAuthorizationMode,
       diffSyntaxTheme,
       diffView,
       diffWrapLines,
@@ -161,6 +167,10 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
     isValidSessionEnvironmentMode(partial.defaultSessionEnvironmentMode)
       ? partial.defaultSessionEnvironmentMode
       : current.defaultSessionEnvironmentMode
+  const defaultAuthorizationMode =
+    partial.defaultAuthorizationMode !== undefined
+      ? resolveDefaultAuthorizationMode(partial.defaultAuthorizationMode)
+      : current.defaultAuthorizationMode
   const diffSettings = resolveNextDiffSettings(current, partial)
 
   return {
@@ -175,6 +185,7 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
     projectDisplayNames,
     shortcutBindings,
     defaultSessionEnvironmentMode,
+    defaultAuthorizationMode,
     ...diffSettings,
   } satisfies Settings
 }

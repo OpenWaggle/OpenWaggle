@@ -89,7 +89,7 @@ describe('ConnectionsSection', () => {
     expect(screen.queryByText('Connected')).not.toBeInTheDocument()
   })
 
-  it('renders API-key provider rows from the Pi catalog when expanded', () => {
+  it('renders API-key provider rows from the catalog when expanded', () => {
     render(<ConnectionsSection />)
 
     fireEvent.click(screen.getByRole('button', { name: /API Key Providers/i }))
@@ -207,7 +207,7 @@ describe('ConnectionsSection', () => {
     expect(submitAuthCode).toHaveBeenCalledWith('openai-codex', 'device-code')
   })
 
-  it('renders all Pi catalog models in settings regardless of availability', () => {
+  it('renders all catalog models in settings regardless of availability', () => {
     render(<ConnectionsSection />)
 
     expect(screen.getByRole('heading', { name: 'Available Models' })).toBeInTheDocument()
@@ -218,7 +218,7 @@ describe('ConnectionsSection', () => {
     expect(screen.getByText('Auth required')).toBeInTheDocument()
   })
 
-  it('renders an empty Pi catalog message when no providers are reported', () => {
+  it('renders an empty catalog message when no providers are reported', () => {
     useProviderStore.setState({
       ...useProviderStore.getInitialState(),
       providerModels: [],
@@ -226,6 +226,6 @@ describe('ConnectionsSection', () => {
 
     render(<ConnectionsSection />)
 
-    expect(screen.getByText(/pi did not report any providers or models/i)).toBeInTheDocument()
+    expect(screen.getByText(/no providers or models were reported/i)).toBeInTheDocument()
   })
 })

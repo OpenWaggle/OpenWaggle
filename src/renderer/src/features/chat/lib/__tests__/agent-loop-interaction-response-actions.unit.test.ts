@@ -33,6 +33,7 @@ function confirmInteraction(): AgentLoopInteraction {
     createdAt: 1,
     title: 'Approve?',
     message: 'Allow the action?',
+    purpose: 'user-input',
   }
 }
 
