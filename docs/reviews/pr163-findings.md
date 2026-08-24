@@ -545,3 +545,39 @@ pushed to it unasked - the third time on this branch that this particular confir
 draft's on every render, so whatever the *next* draft in that project chose became that session's scope
 retroactively, taking the key of any pending review with it. The session takes a copy once.
 
+## Round seventeen
+
+Both of round sixteen's repairs turned out to be incomplete, and the whole-branch reviewer refused the merge
+over one of them. Both are fixed, and one of them by deletion.
+
+| Finding | Substance |
+| --- | --- |
+| J1-1, J3-1 | The conflict guard only saw the opened directory, so a conflict elsewhere committed its markers |
+| J2-1, J2-2 | Scope inheritance still moved an existing session, and could hand it another project's scope |
+| J1-2 | A non-default `push.default` can send the push somewhere other than the confirmed ref — recorded |
+
+**`git ls-files --unmerged` is scoped to the directory it runs in.** The guard was asked before the repository
+root was resolved, so with the project opened at a subdirectory a rebase or cherry-pick conflict anywhere else was
+invisible: the guard passed, staging marked the conflict resolved with the markers still in the file, and the
+commit recorded them and reported success. It is asked from the root now - which is where every other part of this
+commit path was already careful to work, and the one place that was not.
+
+**Scope inheritance was the fifth attempt to infer the draft-to-session relationship, and it is gone.** A standing
+lookup made whatever the *next* draft chose become an existing session's scope retroactively; the one-time copy
+that replaced it ran on mount, so a session could take another project's scope and base ref. A new session now
+starts on the working-tree scope. The reviewer's pending work never depended on this: a draft review is anchored
+to the opened repository, which does not move, and a review submitted on a first send follows the session id that
+send reports. The count for this relationship is five inference attempts, five different failures, and no
+inference now.
+
+Recorded rather than fixed: **`push.default`**. The confirmation asks about the current ref, while the push itself
+is a bare `git push`, whose destination git takes from configuration - so a non-default `push.default` could send
+it elsewhere. Naming the destination explicitly changes what pushing means for anyone relying on that
+configuration, which is a deliberate behaviour choice rather than a defect fix, and belongs in its own change.
+
+A flake was also found and fixed while validating this round, in the very area the branch was opened for. The
+two-second bound on `ls-remote` was tight enough that a *local* remote lost the race under full-suite load, and
+the caller then degraded silently to the working-tree diff. The bound exists to stop an unreachable remote hanging
+the load, which ten seconds still does; a bound that turns a working case into a silent fallback is the same class
+of defect the branch set out to remove.
+

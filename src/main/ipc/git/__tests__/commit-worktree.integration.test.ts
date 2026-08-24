@@ -143,6 +143,38 @@ describe('commitGit against a linked worktree', () => {
    * resolved with the markers still in the file, and the commit either recorded them and reported success, or
    * failed after the three-stage entry was already gone so the markers looked like the user's own resolution.
    */
+  /**
+   * The same guard, asked from an opened subdirectory. `git ls-files --unmerged` is scoped to the directory it runs
+   * in, so a conflict anywhere outside that subdirectory was invisible: the guard passed, staging marked the
+   * conflict resolved with the markers still in the file, and the commit recorded them and reported success.
+   */
+  it('refuses a commit from a subdirectory while a conflict exists elsewhere', async () => {
+    const { repository } = await createRepositoryWithWorktree()
+    const nested = path.join(repository, 'packages', 'app')
+    await mkdir(nested, { recursive: true })
+    await writeFile(path.join(nested, 'own.txt'), 'own\n')
+    await writeFile(path.join(repository, 'f.txt'), 'base\n')
+    await git(repository, ['add', '--all'])
+    await git(repository, ['commit', '-m', 'base'])
+    await git(repository, ['checkout', '-b', 'side'])
+    await writeFile(path.join(repository, 'f.txt'), 'side\n')
+    await git(repository, ['commit', '-am', 'side'])
+    await git(repository, ['checkout', 'main'])
+    await writeFile(path.join(repository, 'f.txt'), 'main\n')
+    await git(repository, ['commit', '-am', 'main'])
+    await git(repository, ['rebase', 'side']).catch(() => undefined)
+    await writeFile(path.join(nested, 'own.txt'), 'edited\n')
+
+    const result = await commitGit(nested, {
+      message: 'commit from the subdirectory',
+      amend: false,
+      paths: ['packages/app/own.txt'],
+    })
+
+    expect(result).toMatchObject({ ok: false, code: 'merge-in-progress' })
+    expect(await git(repository, ['ls-files', '--unmerged'])).toContain('f.txt')
+  })
+
   it('refuses to commit while a rebase conflict is unresolved', async () => {
     const { repository } = await createRepositoryWithWorktree()
     await writeFile(path.join(repository, 'f.txt'), 'base\n')

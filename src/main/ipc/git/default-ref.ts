@@ -99,8 +99,16 @@ async function resolveAdvertisedDefaultRef(projectPath: string): Promise<string 
  */
 const CONVENTIONAL_DEFAULT_BRANCHES = ['main', 'master'] as const
 
-/** Long enough for a healthy remote to answer, short enough not to stall the UI. */
-const ADVERTISED_DEFAULT_REF_TIMEOUT_MS = 2_000
+/**
+ * Long enough for a healthy remote to answer, short enough that an unreachable one cannot hang the load.
+ *
+ * Ten seconds rather than two. The bound exists to stop an unreachable or credential-protected remote waiting
+ * forever, which it still does; two seconds was tight enough that a *local* remote lost the race under load, and
+ * a bound that turns a working case into a silent fallback is the flake this branch was opened to remove. The
+ * caller degrades gracefully either way, and the paths that must never wait - the short-TTL local status and the
+ * push confirmation - resolve the default branch offline and never reach here.
+ */
+const ADVERTISED_DEFAULT_REF_TIMEOUT_MS = 10_000
 
 /**
  * A revision for the default branch that actually exists in this repository.

@@ -54,8 +54,6 @@ export async function commitGit(
   payload: GitCommitPayload,
 ): Promise<GitCommitResult> {
   const message = payload.message.trim()
-  const preflightFailure = await validateCommitPreflight(rawProjectPath, message)
-  if (preflightFailure) return preflightFailure
 
   /*
    * Everything a correct commit needs is settled here, once, because there is more than one way into it -
@@ -70,6 +68,14 @@ export async function commitGit(
    * does not know about renames cannot get this wrong.
    */
   const projectPath = (await resolveRepositoryRoot(rawProjectPath)) ?? rawProjectPath
+  /*
+   * Checked from the root, not from the opened directory. `git ls-files --unmerged` is scoped to the directory it
+   * runs in, so a conflict anywhere outside an opened subdirectory was invisible: the guard passed, staging marked
+   * the conflict resolved with the markers still in the file, and the commit recorded them and reported success.
+   */
+  const preflightFailure = await validateCommitPreflight(projectPath, message)
+  if (preflightFailure) return preflightFailure
+
   const renames = await resolveSelectedRenames(projectPath, payload.paths)
   const paths = expandRenameSources(payload.paths, renames)
 

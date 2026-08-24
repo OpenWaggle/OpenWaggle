@@ -110,11 +110,7 @@ export function DiffPanel({
 
   const commitPaths = useCommitPaths(workingPath, refreshToken)
   const showToast = useUIStore((state) => state.showToast)
-  const selection = selectThreadDiffScopeSelection(
-    scopeByThreadKey,
-    scopeKey || null,
-    repositoryPath,
-  )
+  const selection = selectThreadDiffScopeSelection(scopeByThreadKey, scopeKey || null)
   const branchBaseRef = selection.kind === 'branch' ? selection.baseRef : null
   const baseRefChoices = useBaseRefChoices(repositoryPath)
   const turns = useSessionTurns(sessionId, refreshToken)

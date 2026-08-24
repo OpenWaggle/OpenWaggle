@@ -14,7 +14,11 @@ let hangingServer: Server | null = null
 let hangingSockets: Socket[] = []
 
 /** Comfortably above the resolver's own bound, well below a git connect timeout. */
-const MAX_ACCEPTABLE_MS = 15_000
+/*
+ * Comfortably above the ten-second bound and far below the unbounded behaviour this pins, which ran past the
+ * sixty-second test ceiling.
+ */
+const MAX_ACCEPTABLE_MS = 25_000
 
 async function git(cwd: string, args: readonly string[]): Promise<string> {
   const { stdout } = await execFileAsync('git', [...args], { cwd })

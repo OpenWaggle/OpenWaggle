@@ -19,14 +19,7 @@ interface DiffScopeState {
   byThreadKey: Record<string, DiffScopeSelection>
   branchBaseRefByThreadKey: Record<string, string | null>
   selectGitScope: (threadKey: string, scope: 'branch' | 'unstaged') => void
-  /**
-   * Take a copy of the scope a draft chose, once, when a session first has none of its own.
-   *
-   * Inheriting by lookup alone was a standing arrangement rather than a hand-off: a session with no entry read
-   * the draft's on every render, so whatever the *next* draft in that project chose became that session's scope
-   * too, retroactively - and the review key carries the scope, so a pending review moved with it.
-   */
-  adoptScope: (threadKey: string, from: string) => void
+
   selectBranchBaseRef: (threadKey: string, baseRef: string | null) => void
   selectTurn: (threadKey: string, turnId: string, filePath?: string) => void
   reconcileTurnSelection: (threadKey: string, availableTurnIds: readonly string[]) => void
@@ -58,12 +51,6 @@ export const useDiffScopeStore = create<DiffScopeState>()(
     (set) => ({
       byThreadKey: {},
       branchBaseRefByThreadKey: {},
-      adoptScope: (threadKey, from) =>
-        set((state) => {
-          const inherited = state.byThreadKey[from]
-          if (!inherited || state.byThreadKey[threadKey]) return state
-          return { byThreadKey: { ...state.byThreadKey, [threadKey]: inherited } }
-        }),
       selectGitScope: (threadKey, scope) =>
         set((state) => {
           const previous = state.byThreadKey[threadKey]
@@ -159,16 +146,6 @@ export const useDiffScopeStore = create<DiffScopeState>()(
 export function selectThreadDiffScopeSelection(
   byThreadKey: Record<string, DiffScopeSelection>,
   threadKey: string | null | undefined,
-  /**
-   * The key this panel used before a session existed: the opened repository.
-   *
-   * Sessions are created on the first send, so the scope tab the reviewer chose was recorded against the draft.
-   * Without inheriting it the panel snapped back to the working-tree scope in the very render the session
-   * appeared - discarding the choice, and orphaning a review written in another scope, because the key a review
-   * lives under carries the scope. The repository rather than the session's working path, because in worktree
-   * mode birth moves that path to the new worktree and an anchor built from it moves with it.
-   */
-  draftThreadKey?: string | null,
 ): DiffScopeSelection {
   /*
    * One default: the working tree.
@@ -179,8 +156,5 @@ export function selectThreadDiffScopeSelection(
    * worse than the dead branch: the scope would start as Branch, fire a branch diff, then flip to
    * the working tree once the status arrived. Removed rather than left as a false green.
    */
-  const own = threadKey ? byThreadKey[threadKey] : undefined
-  if (own) return own
-  const inherited = draftThreadKey ? byThreadKey[draftThreadKey] : undefined
-  return inherited ?? DEFAULT_SELECTION
+  return (threadKey ? byThreadKey[threadKey] : undefined) ?? DEFAULT_SELECTION
 }

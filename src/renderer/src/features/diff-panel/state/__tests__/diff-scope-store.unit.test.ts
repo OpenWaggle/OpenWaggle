@@ -96,63 +96,21 @@ describe('diff-scope-store', () => {
     expect(useDiffScopeStore.getState().byThreadKey.t1).toEqual({ kind: 'unstaged' })
   })
 
-  it('inherits the draft scope when a new session has none recorded', () => {
+  it('gives a session with no recorded scope the default one', () => {
     /*
-     * Sessions are created on the first send, so the scope tab the reviewer chose was recorded against the
-     * working path. Without inheriting it the panel snapped back to the working-tree scope in the very render
-     * the session appeared, discarding the choice - and orphaning a review written in another scope, because
-     * the key a review lives under carries the scope.
+     * Deliberately no inheritance from the draft. A standing lookup made whatever the *next* draft in a project
+     * chose become an existing session's scope retroactively, and a one-time copy on mount handed a session
+     * another project's scope and base ref. Five attempts at inferring this relationship failed in five
+     * different ways; a new session simply starts on the working-tree scope. The reviewer's pending work does
+     * not depend on it: a draft review is anchored to the opened repository, which does not move, and a review
+     * submitted on a first send follows the session id that send reports.
      */
     const byThreadKey = { '/repo': { kind: 'branch', baseRef: 'origin/main' } } as const
 
-    expect(selectThreadDiffScopeSelection(byThreadKey, 'session-1', '/repo')).toEqual({
+    expect(selectThreadDiffScopeSelection(byThreadKey, 'session-1')).toEqual({ kind: 'unstaged' })
+    expect(selectThreadDiffScopeSelection(byThreadKey, '/repo')).toEqual({
       kind: 'branch',
       baseRef: 'origin/main',
     })
-  })
-
-  it("prefers the session's own scope over the inherited one", () => {
-    const byThreadKey = {
-      '/repo': { kind: 'branch', baseRef: 'origin/main' },
-      'session-1': { kind: 'unstaged' },
-    } as const
-
-    expect(selectThreadDiffScopeSelection(byThreadKey, 'session-1', '/repo')).toEqual({
-      kind: 'unstaged',
-    })
-  })
-
-  it('hands the draft scope to a session once, then leaves later drafts alone', () => {
-    /*
-     * Inheriting by lookup alone was a standing arrangement rather than a hand-off: a session with no entry read
-     * the draft's entry on every render, so whatever the next draft in the project chose became that session's
-     * scope too, retroactively - and because the key a pending review lives under carries the scope, the review
-     * moved with it.
-     */
-    useDiffScopeStore.setState({
-      byThreadKey: { '/repo': { kind: 'branch', baseRef: 'origin/main' } },
-    })
-
-    useDiffScopeStore.getState().adoptScope('session-1', '/repo')
-    // A later draft chooses something else.
-    useDiffScopeStore.getState().selectGitScope('/repo', 'unstaged')
-
-    expect(useDiffScopeStore.getState().byThreadKey['session-1']).toEqual({
-      kind: 'branch',
-      baseRef: 'origin/main',
-    })
-  })
-
-  it('does not overwrite a scope the session already chose', () => {
-    useDiffScopeStore.setState({
-      byThreadKey: {
-        '/repo': { kind: 'branch', baseRef: 'origin/main' },
-        'session-1': { kind: 'unstaged' },
-      },
-    })
-
-    useDiffScopeStore.getState().adoptScope('session-1', '/repo')
-
-    expect(useDiffScopeStore.getState().byThreadKey['session-1']).toEqual({ kind: 'unstaged' })
   })
 })
