@@ -226,4 +226,29 @@ describe('useDiffReviewActions', () => {
     // The caller is told, and decides for itself that a cancellation is not worth reporting.
     expect(onReviewSendFailed).toHaveBeenCalledTimes(1)
   })
+
+  it('keeps a single comment whose send failed', async () => {
+    /*
+     * "Add comment" was dispatched without awaiting, so a refused send - a session whose worktree has gone is
+     * the everyday one - took the comment with it and said nothing. It goes into the pending review instead, so
+     * the reviewer still has what they wrote.
+     */
+    const onSendMessage = vi.fn(() =>
+      Promise.reject(new Error("This session's worktree no longer exists.")),
+    )
+    const onReviewSendFailed = vi.fn()
+    const { result } = renderHook(() =>
+      useDiffReviewActions(onSendMessage, FILES, REVIEW_KEY, () => REVIEW_KEY, onReviewSendFailed),
+    )
+
+    await result.current.onAddSingleComment(
+      { filePath: 'src/app.ts', line: 1, endLine: 1, lineType: 'add' },
+      'this one matters',
+    )
+
+    expect(
+      selectReviewThread(useReviewStore.getState(), REVIEW_KEY).comments.map((c) => c.content),
+    ).toEqual(['this one matters'])
+    expect(onReviewSendFailed).toHaveBeenCalledTimes(1)
+  })
 })

@@ -62,7 +62,14 @@ export async function getLocalVcsStatus(projectPath: string): Promise<LocalVcsSt
     isRepo: true,
     sourceControlProvider: detectSourceControlProvider(remoteUrl),
     hasPrimaryRemote: remoteUrl !== null,
-    isDefaultRef: refName !== null && defaultRef !== null && refName === defaultRef,
+    /*
+     * Unknown counts as "yes", so the confirmation that guards a push to the default branch fails closed.
+     * `refs/remotes/origin/HEAD` is what records the default branch locally, and `git clone` writes it while
+     * `git init` plus `git remote add` does not - verified. In such a repository the default branch resolved to
+     * nothing, this read false, and a one-click Commit & push reached the default branch with no confirmation
+     * at all. Asking once too often is the harmless direction.
+     */
+    isDefaultRef: refName !== null && (defaultRef === null || refName === defaultRef),
     refName,
     hasWorkingTreeChanges: workingTree.files.length > 0,
     workingTree,

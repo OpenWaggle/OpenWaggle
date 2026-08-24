@@ -20,11 +20,18 @@ import { reviewKeyFor } from '@/features/diff-panel/state/review-store'
  */
 export function useReviewKey(input: {
   readonly scopeKey: string
-  readonly workingPath: string | null
+  /**
+   * What a draft's key is built from: the opened repository, not the session's working path.
+   *
+   * A draft has no session, so its working path is the opened checkout - but in worktree mode the session's
+   * birth moves that path to the new worktree, and a key built from it moved too, leaving the reviewer's work
+   * under a path nothing looks at again.
+   */
+  readonly draftAnchor: string | null
   readonly selection: DiffScopeSelection
 }) {
   const reviewKey = reviewKeyFor(input.scopeKey || null, input.selection)
-  const draftKey = reviewKeyFor(input.workingPath, input.selection)
+  const draftKey = reviewKeyFor(input.draftAnchor, input.selection)
 
   /*
    * The scope is carried deliberately: a review written in the Branch scope must not resurface under the

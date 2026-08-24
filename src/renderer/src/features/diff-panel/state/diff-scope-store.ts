@@ -146,12 +146,13 @@ export function selectThreadDiffScopeSelection(
   byThreadKey: Record<string, DiffScopeSelection>,
   threadKey: string | null | undefined,
   /**
-   * The key this panel used before a session existed.
+   * The key this panel used before a session existed: the opened repository.
    *
-   * Sessions are created on the first send, so the scope tab the reviewer chose was recorded against the
-   * working path. Without inheriting it the panel snapped back to the working-tree scope in the very render
-   * the session appeared - discarding the choice, and orphaning a review written in another scope, because
-   * the key a review lives under carries the scope.
+   * Sessions are created on the first send, so the scope tab the reviewer chose was recorded against the draft.
+   * Without inheriting it the panel snapped back to the working-tree scope in the very render the session
+   * appeared - discarding the choice, and orphaning a review written in another scope, because the key a review
+   * lives under carries the scope. The repository rather than the session's working path, because in worktree
+   * mode birth moves that path to the new worktree and an anchor built from it moves with it.
    */
   draftThreadKey?: string | null,
 ): DiffScopeSelection {

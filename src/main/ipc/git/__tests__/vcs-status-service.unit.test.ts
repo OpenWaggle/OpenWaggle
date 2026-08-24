@@ -217,4 +217,28 @@ describe('vcs-status-service', () => {
       expect(result).toMatchObject({ ok: true, status: { changeRequest: null } })
     })
   })
+
+  it('treats an unknown default branch as the default branch', async () => {
+    /*
+     * `refs/remotes/origin/HEAD` records the default branch locally, and `git clone` writes it while `git init`
+     * plus `git remote add` does not - verified against real git. In such a repository the default branch
+     * resolved to nothing and this read false, so the confirmation that guards a push to the default branch
+     * never fired and a one-click Commit & push reached it unasked. Unknown has to mean yes.
+     */
+    runGitMock.mockImplementation(async (_path: string, args: readonly string[]) => {
+      const joined = args.join(' ')
+      if (joined.includes('symbolic-ref') && joined.includes('origin/HEAD')) {
+        return { code: 1, stdout: '', stderr: '' }
+      }
+      if (joined.includes('symbolic-ref')) return { code: 0, stdout: 'main\n', stderr: '' }
+      if (joined.includes('remote get-url')) {
+        return { code: 0, stdout: 'https://github.com/example/repo.git\n', stderr: '' }
+      }
+      return { code: 0, stdout: '', stderr: '' }
+    })
+
+    const result = await getLocalVcsStatus('/repo')
+
+    expect(result.ok && result.status.isDefaultRef).toBe(true)
+  })
 })

@@ -57,9 +57,21 @@ export function useDiffReviewActions(
   const setActiveCommentLocation = useReviewStore((s) => s.setActiveCommentLocation)
   const discardReview = useReviewStore((s) => s.discardReview)
 
-  function onAddSingleComment(location: ReviewCommentLocation, content: string) {
-    onSendMessage(formatSingleReviewComment(buildComment(files, location, content)))
+  async function onAddSingleComment(location: ReviewCommentLocation, content: string) {
+    const comment = buildComment(files, location, content)
     setActiveCommentLocation(reviewKey, null)
+    try {
+      await onSendMessage(formatSingleReviewComment(comment))
+    } catch (error) {
+      /*
+       * Kept, not dropped. This was dispatched without awaiting, so a refused send - a session whose worktree
+       * has gone is the everyday one - took the comment with it and said nothing. Putting it in the pending
+       * review means the reviewer still has what they wrote and can submit or discard it deliberately.
+       */
+      logger.warn('Keeping a single comment because the send failed', { error: String(error) })
+      addComment(reviewKey, comment)
+      onReviewSendFailed?.(error)
+    }
   }
 
   function onAddToReview(location: ReviewCommentLocation, content: string) {

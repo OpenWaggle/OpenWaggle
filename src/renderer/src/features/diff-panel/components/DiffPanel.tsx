@@ -107,14 +107,23 @@ export function DiffPanel({
   const selectBranchBaseRef = useDiffScopeStore((s) => s.selectBranchBaseRef)
   const selectTurn = useDiffScopeStore((s) => s.selectTurn)
   const scopeKey = sessionId ?? workingPath ?? ''
+
   const commitPaths = useCommitPaths(workingPath, refreshToken)
   const showToast = useUIStore((state) => state.showToast)
-  const selection = selectThreadDiffScopeSelection(scopeByThreadKey, scopeKey || null, workingPath)
+  const selection = selectThreadDiffScopeSelection(
+    scopeByThreadKey,
+    scopeKey || null,
+    repositoryPath,
+  )
   const branchBaseRef = selection.kind === 'branch' ? selection.baseRef : null
   const baseRefChoices = useBaseRefChoices(repositoryPath)
   const turns = useSessionTurns(sessionId, refreshToken)
   const displayed = useDisplayedDiff({ sessionId, workingPath, selection, refreshToken })
-  const { reviewKey, keyForSession } = useReviewKey({ scopeKey, workingPath, selection })
+  const { reviewKey, keyForSession } = useReviewKey({
+    scopeKey,
+    draftAnchor: repositoryPath,
+    selection,
+  })
   const { fileDiffs, isLoading, loadError, refreshDiff } = displayed
 
   useReconcileTurnSelection(scopeKey, turns)

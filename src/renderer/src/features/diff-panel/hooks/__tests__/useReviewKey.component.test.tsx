@@ -38,7 +38,7 @@ describe('useReviewKey', () => {
 
     const { rerender } = renderHook(
       ({ scopeKey }: { scopeKey: string }) =>
-        useReviewKey({ scopeKey, workingPath: WORKING_PATH, selection: SCOPE }),
+        useReviewKey({ scopeKey, draftAnchor: WORKING_PATH, selection: SCOPE }),
       // The panel's scope key IS the working path until a session is selected.
       { initialProps: { scopeKey: WORKING_PATH } },
     )
@@ -59,7 +59,7 @@ describe('useReviewKey', () => {
     useReviewStore.getState().addComment(draftKey, comment('belongs-to-the-draft'))
 
     renderHook(() =>
-      useReviewKey({ scopeKey: 'session-b', workingPath: WORKING_PATH, selection: SCOPE }),
+      useReviewKey({ scopeKey: 'session-b', draftAnchor: WORKING_PATH, selection: SCOPE }),
     )
 
     // Still the draft's, untouched.

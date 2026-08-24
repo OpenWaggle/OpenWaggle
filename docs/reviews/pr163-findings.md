@@ -481,3 +481,32 @@ is given. The panel expanded it too, unconditionally, and main only ever adds to
 occupied source supplied by the panel could never be taken back out. The panel now passes target paths only,
 agreeing with the header dialog, and the single owner does the rest.
 
+## Round fifteen
+
+The whole-branch reviewer again returned zero findings and recommended merging. The focused reviewers found
+three, each a case where a guard or an anchor was *nearly* right.
+
+| Finding | Substance |
+| --- | --- |
+| G1-1 | The default-branch confirmation never fired in a repository whose remote was added locally |
+| G2-1 | In worktree mode the draft anchor moved out from under the reviewer's scope and review |
+| G2-2 | "Add comment" dropped the comment, and the failure, in silence |
+
+**A guard that cannot answer must answer yes.** `refs/remotes/origin/HEAD` is what records the default branch
+locally, and `git clone` writes it while `git init` plus `git remote add` does not - verified against real git.
+In such a repository the default branch resolved to nothing, `isDefaultRef` read false, and a one-click
+Commit & push reached the default branch with no confirmation at all. Unknown now counts as yes: asking once too
+often is the harmless direction, and this is the second time on this branch that a default-branch gate had to be
+taught to fail closed.
+
+**An anchor has to be something that does not move.** Round eight recorded that a new session inherits the scope
+its draft was written in - true in local mode, where the draft's working path is the opened checkout and stays
+that way. In worktree mode the session's birth moves the working path to the new worktree, so an anchor built
+from it moved too, and both the scope the reviewer chose and the review they wrote were left under the old path.
+The anchor is the opened repository now, which does not move.
+
+**And a fire-and-forget send loses whatever it was carrying.** "Add comment" - the single-comment action, not the
+review - was dispatched without awaiting, so a refused send took the comment with it silently. It goes into the
+pending review on failure, where the reviewer still has it. That is the fourth send path on this branch to need
+the same correction, and the last one that had it missing.
+
