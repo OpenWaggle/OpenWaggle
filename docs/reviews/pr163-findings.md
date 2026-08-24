@@ -510,3 +510,38 @@ review - was dispatched without awaiting, so a refused send took the comment wit
 pending review on failure, where the reviewer still has it. That is the fourth send path on this branch to need
 the same correction, and the last one that had it missing.
 
+## Round sixteen
+
+The whole-branch reviewer returned two findings this time rather than zero, and both were the same as one of
+the focused reviewers': my round-fifteen repair to the single-comment action had reimplemented a *subset* of
+what the review path already owned. That is the shape the record has now named thirteen times, and this one was
+mine, added while fixing the previous round.
+
+| Finding | Substance |
+| --- | --- |
+| H2-1, H3-1 | "Add comment" handed back a comment the agent already had, and reported a failure that had not happened |
+| H2-2, H3-2 | "Add comment" kept a comment under a key the panel had already left |
+| H1-1 | A branch checkout left the default-branch gate reading the branch the user had left |
+| H1-2 | A rebase or cherry-pick conflict was not guarded, and staging destroyed it |
+| H2-3 | The inherited scope was a standing lookup, so a later draft moved an existing session's scope |
+
+**Both "Add comment" findings had one cause and now have one implementation.** Deciding what to do with work
+whose send failed has three parts - a failure after the agent had the message is not a lost send, a first send
+changes where the panel looks, and the user hears about it only when something went wrong - and the review path
+had all three while the comment path had one. They share a single function now.
+
+**`MERGE_HEAD` is not the same question as "are there conflicts".** A rebase or cherry-pick leaves unmerged
+index entries without writing it, verified against real git, and this is a *pathspec* commit - which git permits
+with unmerged entries where it refuses a whole-index one. Staging first marked the conflict resolved with the
+markers still in the file, so a rebase committed them and reported success, and a cherry-pick failed *after* the
+three-stage entry was gone, leaving the markers looking like the user's own resolution. The guard asks
+`git ls-files --unmerged` now.
+
+**A checkout invalidated one cache and not the other.** The VCS status carries `isDefaultRef`, which the push
+confirmation waits on, so checking out the default branch and pressing Commit & push inside the cache window
+pushed to it unasked - the third time on this branch that this particular confirmation has had to be repaired.
+
+**And inheritance had to be a hand-off, not a standing lookup.** A session with no scope of its own read the
+draft's on every render, so whatever the *next* draft in that project chose became that session's scope
+retroactively, taking the key of any pending review with it. The session takes a copy once.
+

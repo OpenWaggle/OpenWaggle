@@ -251,4 +251,50 @@ describe('useDiffReviewActions', () => {
     ).toEqual(['this one matters'])
     expect(onReviewSendFailed).toHaveBeenCalledTimes(1)
   })
+
+  it('does not hand back a single comment the agent already received', async () => {
+    /*
+     * The single-comment path reimplemented a subset of the review path's failure handling and got this wrong: a
+     * provider error after the turn began rejects long after the comment reached the transcript, so handing it
+     * back offered the agent's own copy for a second send and reported a failure that had not happened.
+     */
+    const onSendMessage = vi.fn(() =>
+      Promise.reject(new MessageDeliveredRunFailed(new Error('provider rate limit'))),
+    )
+    const onReviewSendFailed = vi.fn()
+    const { result } = renderHook(() =>
+      useDiffReviewActions(onSendMessage, FILES, REVIEW_KEY, () => REVIEW_KEY, onReviewSendFailed),
+    )
+
+    await result.current.onAddSingleComment(
+      { filePath: 'src/app.ts', line: 1, endLine: 1, lineType: 'add' },
+      'already delivered',
+    )
+
+    expect(selectReviewThread(useReviewStore.getState(), REVIEW_KEY).comments).toEqual([])
+    expect(onReviewSendFailed).not.toHaveBeenCalled()
+  })
+
+  it('files a single comment under the session a failed first send created', async () => {
+    // The other half the single-comment path was missing: a first send changes where the panel looks.
+    const draftKey = '/repo::unstaged'
+    const onSendMessage = vi.fn(() =>
+      Promise.reject(new FirstSendFailed(new Error('no session worktree'), 'session-created')),
+    )
+    const { result } = renderHook(() =>
+      useDiffReviewActions(onSendMessage, FILES, draftKey, (sessionId) => `${sessionId}::unstaged`),
+    )
+
+    await result.current.onAddSingleComment(
+      { filePath: 'src/app.ts', line: 1, endLine: 1, lineType: 'add' },
+      'follow me',
+    )
+
+    expect(
+      selectReviewThread(useReviewStore.getState(), 'session-created::unstaged').comments.map(
+        (c) => c.content,
+      ),
+    ).toEqual(['follow me'])
+    expect(selectReviewThread(useReviewStore.getState(), draftKey).comments).toEqual([])
+  })
 })

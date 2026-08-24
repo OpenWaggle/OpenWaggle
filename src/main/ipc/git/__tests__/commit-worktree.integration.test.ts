@@ -136,4 +136,37 @@ describe('commitGit against a linked worktree', () => {
     expect(result.ok).toBe(true)
     expect(await git(fresh, ['ls-tree', '-r', '--name-only', 'HEAD'])).toContain('first.txt')
   })
+
+  /**
+   * A rebase or cherry-pick leaves conflicts without writing `MERGE_HEAD`, and this is a *pathspec* commit -
+   * which git permits with unmerged entries where it refuses a whole-index one. Staging then marked the conflict
+   * resolved with the markers still in the file, and the commit either recorded them and reported success, or
+   * failed after the three-stage entry was already gone so the markers looked like the user's own resolution.
+   */
+  it('refuses to commit while a rebase conflict is unresolved', async () => {
+    const { repository } = await createRepositoryWithWorktree()
+    await writeFile(path.join(repository, 'f.txt'), 'base\n')
+    await git(repository, ['add', '--all'])
+    await git(repository, ['commit', '-m', 'base'])
+    await git(repository, ['checkout', '-b', 'side'])
+    await writeFile(path.join(repository, 'f.txt'), 'side\n')
+    await git(repository, ['commit', '-am', 'side'])
+    await git(repository, ['checkout', 'main'])
+    await writeFile(path.join(repository, 'f.txt'), 'main\n')
+    await git(repository, ['commit', '-am', 'main'])
+    await git(repository, ['rebase', 'side']).catch(() => undefined)
+
+    // No MERGE_HEAD here, which is exactly why the old check missed it.
+    await expect(git(repository, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])).rejects.toThrow()
+
+    const result = await commitGit(repository, {
+      message: 'commit during a rebase',
+      amend: false,
+      paths: ['f.txt'],
+    })
+
+    expect(result).toMatchObject({ ok: false, code: 'merge-in-progress' })
+    // The three-stage entry is intact, so the conflict is still the user's to resolve.
+    expect(await git(repository, ['ls-files', '--unmerged'])).toContain('f.txt')
+  })
 })

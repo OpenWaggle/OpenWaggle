@@ -1,5 +1,6 @@
 import type { DiffScopeSelection } from '@/features/diff-panel/state/diff-scope-store'
 import { reviewKeyFor } from '@/features/diff-panel/state/review-store'
+import { useAdoptedScope } from './useAdoptedScope'
 
 /**
  * The key the panel's pending review lives under, plus a way to name the key for a session that does not
@@ -30,6 +31,11 @@ export function useReviewKey(input: {
   readonly draftAnchor: string | null
   readonly selection: DiffScopeSelection
 }) {
+  /*
+   * The scope choice is handed over here as well, because this hook is where the draft-to-session relationship
+   * lives: a session takes a copy of the draft's scope the first time it has none of its own.
+   */
+  useAdoptedScope(input.scopeKey, input.draftAnchor)
   const reviewKey = reviewKeyFor(input.scopeKey || null, input.selection)
   const draftKey = reviewKeyFor(input.draftAnchor, input.selection)
 

@@ -108,9 +108,18 @@ async function validateCommitPreflight(projectPath: string, message: string) {
     return commitFailure('not-git-repo', 'Selected folder is not a Git repository.')
   }
 
-  const mergeCheck = await runGit(projectPath, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])
-  return mergeCheck.code === 0
-    ? commitFailure('merge-in-progress', 'Resolve the merge in progress before committing.')
+  /*
+   * Unmerged index entries, not `MERGE_HEAD`.
+   *
+   * A rebase or a cherry-pick leaves conflicts without writing `MERGE_HEAD`, and this is a *pathspec* commit -
+   * which git permits with unmerged entries where it refuses a whole-index one. Staging then marked the conflict
+   * resolved with the markers still in the file, and either committed them reporting success (rebase) or failed
+   * after destroying the three-stage entry, so the markers looked like the user's own resolution (cherry-pick).
+   * Verified against real git: a rebase conflict has an unmerged entry and no `MERGE_HEAD`.
+   */
+  const unmerged = await runGit(projectPath, ['ls-files', '--unmerged'])
+  return unmerged.code === 0 && unmerged.stdout.trim().length > 0
+    ? commitFailure('merge-in-progress', 'Resolve the conflicts in progress before committing.')
     : null
 }
 

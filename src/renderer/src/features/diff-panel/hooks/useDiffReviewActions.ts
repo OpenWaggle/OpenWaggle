@@ -57,6 +57,22 @@ export function useDiffReviewActions(
   const setActiveCommentLocation = useReviewStore((s) => s.setActiveCommentLocation)
   const discardReview = useReviewStore((s) => s.discardReview)
 
+  /**
+   * What to do with work whose send failed, for both things this hook sends.
+   *
+   * Written once because it has three properties that are easy to get partly right, and were: a failure after
+   * the agent already had the message is not a lost send and must not hand the work back, a first send changes
+   * where the panel looks and the work has to follow the session it created, and the user hears about it only
+   * when something actually went wrong. The single-comment path reimplemented a subset of this and got the
+   * first two wrong - re-offering a comment the agent had, and keeping one under a key the panel had left.
+   */
+  function keepAfterFailedSend(error: unknown, restore: (key: string) => void) {
+    if (wasMessageDelivered(error)) return
+    const createdSessionId = createdSessionIdOf(error)
+    restore(createdSessionId === null ? reviewKey : keyForSession(createdSessionId))
+    onReviewSendFailed?.(error)
+  }
+
   async function onAddSingleComment(location: ReviewCommentLocation, content: string) {
     const comment = buildComment(files, location, content)
     setActiveCommentLocation(reviewKey, null)
@@ -65,12 +81,10 @@ export function useDiffReviewActions(
     } catch (error) {
       /*
        * Kept, not dropped. This was dispatched without awaiting, so a refused send - a session whose worktree
-       * has gone is the everyday one - took the comment with it and said nothing. Putting it in the pending
-       * review means the reviewer still has what they wrote and can submit or discard it deliberately.
+       * has gone is the everyday one - took the comment with it and said nothing.
        */
       logger.warn('Keeping a single comment because the send failed', { error: String(error) })
-      addComment(reviewKey, comment)
-      onReviewSendFailed?.(error)
+      keepAfterFailedSend(error, (key) => addComment(key, comment))
     }
   }
 
@@ -107,22 +121,12 @@ export function useDiffReviewActions(
        * transcript: restoring then offered the agent's own copy back for a second submission, and reported
        * that it could not be sent.
        */
-      if (wasMessageDelivered(error)) return
       logger.warn('Restoring the pending review because the send failed', {
         error: String(error),
       })
-      state.restoreReview(reviewKey, pending.comments, pending.summary)
-      /*
-       * A first send creates the session that carries the review, which changes where the panel looks for it.
-       * The target is taken from the failure rather than from what the panel happens to show: the scope
-       * selection resets for a brand-new session key, and in local mode every session of a project shares one
-       * working path, so inferring it filed reviews into the wrong scope and into other sessions.
-       */
-      const createdSessionId = createdSessionIdOf(error)
-      if (createdSessionId !== null) {
-        state.migrateReview(reviewKey, keyForSession(createdSessionId))
-      }
-      onReviewSendFailed?.(error)
+      keepAfterFailedSend(error, (key) => {
+        state.restoreReview(key, pending.comments, pending.summary)
+      })
     }
   }
 

@@ -19,6 +19,14 @@ interface DiffScopeState {
   byThreadKey: Record<string, DiffScopeSelection>
   branchBaseRefByThreadKey: Record<string, string | null>
   selectGitScope: (threadKey: string, scope: 'branch' | 'unstaged') => void
+  /**
+   * Take a copy of the scope a draft chose, once, when a session first has none of its own.
+   *
+   * Inheriting by lookup alone was a standing arrangement rather than a hand-off: a session with no entry read
+   * the draft's on every render, so whatever the *next* draft in that project chose became that session's scope
+   * too, retroactively - and the review key carries the scope, so a pending review moved with it.
+   */
+  adoptScope: (threadKey: string, from: string) => void
   selectBranchBaseRef: (threadKey: string, baseRef: string | null) => void
   selectTurn: (threadKey: string, turnId: string, filePath?: string) => void
   reconcileTurnSelection: (threadKey: string, availableTurnIds: readonly string[]) => void
@@ -50,6 +58,12 @@ export const useDiffScopeStore = create<DiffScopeState>()(
     (set) => ({
       byThreadKey: {},
       branchBaseRefByThreadKey: {},
+      adoptScope: (threadKey, from) =>
+        set((state) => {
+          const inherited = state.byThreadKey[from]
+          if (!inherited || state.byThreadKey[threadKey]) return state
+          return { byThreadKey: { ...state.byThreadKey, [threadKey]: inherited } }
+        }),
       selectGitScope: (threadKey, scope) =>
         set((state) => {
           const previous = state.byThreadKey[threadKey]

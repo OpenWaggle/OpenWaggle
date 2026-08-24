@@ -11,6 +11,7 @@ import { checkoutGitBranch, createGitBranch } from './branch-mutations'
 import { branchCheckoutPayloadSchema, branchCreatePayloadSchema } from './branch-schemas'
 import { projectPathSchema } from './shared'
 import { invalidateGitStatusCache } from './status-cache'
+import { invalidateVcsStatus } from './vcs-status-cache'
 
 type BranchMutationPayload = GitBranchCheckoutPayload | GitBranchCreatePayload
 
@@ -23,9 +24,19 @@ function branchMutationHandler<TPayload extends BranchMutationPayload>(input: {
       const workingPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
       const payload = decodeUnknownOrThrow(input.schema, rawPayload)
       const result = yield* Effect.promise(() => input.run(workingPath, payload))
-      // A checkout or branch creation moves the working tree's HEAD, so its cached
-      // status is stale and every window watching that tree needs to know.
-      if (result.ok) invalidateGitStatusCache(workingPath)
+      /*
+       * A checkout or branch creation moves the working tree's HEAD, so both caches over it are stale and every
+       * window watching that tree needs to know.
+       *
+       * The VCS status is the one that matters most here: it carries `isDefaultRef`, which is what the
+       * confirmation before a push to the default branch waits on. Leaving it cached meant checking out the
+       * default branch and pressing Commit & push within the cache window pushed to it with no confirmation,
+       * because the status still described the branch the user had left.
+       */
+      if (result.ok) {
+        invalidateGitStatusCache(workingPath)
+        invalidateVcsStatus(workingPath)
+      }
       return result
     })
 }
