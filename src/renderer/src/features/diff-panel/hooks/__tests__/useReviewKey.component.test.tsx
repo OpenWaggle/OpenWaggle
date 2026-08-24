@@ -23,20 +23,29 @@ describe('useReviewKey', () => {
     useReviewStore.setState({ byReviewKey: {} })
   })
 
-  it('carries a draft review into the session created from it', () => {
+  it('leaves an unsubmitted draft review under the working path when a session appears', () => {
+    /*
+     * There is deliberately no inferred migration. The key also changes when the user clicks an existing session
+     * in the sidebar, and in local mode every session in a project shares one working path - so inferring the
+     * move claimed a draft review for another session and merged it into that session's thread, posting one
+     * reviewer's comments into a different conversation. A review that matters does move: a failed first send
+     * carries the id of the session it created, and the review follows that. An unsubmitted draft simply stays
+     * where it was written and reappears whenever the panel is on the draft.
+     */
     const draftKey = reviewKeyFor(WORKING_PATH, SCOPE)
-    useReviewStore.getState().addComment(draftKey, comment('written-before-the-session'))
+    const sessionKey = reviewKeyFor('session-existing', SCOPE)
+    useReviewStore.getState().addComment(draftKey, comment('c1'))
 
     const { rerender } = renderHook(
-      (scopeKey: string) => useReviewKey({ scopeKey, workingPath: WORKING_PATH, selection: SCOPE }),
-      { initialProps: WORKING_PATH },
+      ({ scopeKey }: { scopeKey: string }) =>
+        useReviewKey({ scopeKey, workingPath: WORKING_PATH, selection: SCOPE }),
+      // The panel's scope key IS the working path until a session is selected.
+      { initialProps: { scopeKey: WORKING_PATH } },
     )
-    rerender('session-a')
+    rerender({ scopeKey: 'session-existing' })
 
-    const sessionKey = reviewKeyFor('session-a', SCOPE)
-    expect(
-      selectReviewThread(useReviewStore.getState(), sessionKey).comments.map((c) => c.id),
-    ).toEqual(['written-before-the-session'])
+    expect(selectReviewThread(useReviewStore.getState(), draftKey).comments).toHaveLength(1)
+    expect(selectReviewThread(useReviewStore.getState(), sessionKey).comments).toEqual([])
   })
 
   it('does not claim a draft review for a session that already existed', () => {

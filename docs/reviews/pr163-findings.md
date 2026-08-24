@@ -455,3 +455,29 @@ staged version is therefore not in the commit, and the commit reports success. T
 partial commit rather than a defect in the panel, and changing it would mean building commits from the index with
 `write-tree`/`commit-tree` - the same change the case-folding limitation would need. Recorded together with it.
 
+## Round fourteen
+
+The whole-branch reviewer returned **zero findings** and recommended merging. The two focused reviewers found
+one each, and both were the same mistake in two places: logic duplicated on a path that already had an owner.
+
+| Finding | Substance |
+| --- | --- |
+| F2-1 | A draft review was claimed by whichever existing session the user switched to next |
+| F1-1 | The panel expanded rename sources itself, unconditionally |
+
+**F2-1 is the fourth appearance of one class, so the inference is gone rather than narrowed again.** The
+success-path review migration fired whenever the panel's key stopped being the draft key - which is the lazily
+created session appearing, and equally the user clicking an existing session in the sidebar. In local mode every
+session in a project shares one working path, so the draft key is unchanged across that switch and a review
+written against the draft was merged into another session's thread, from where submitting posts it into that
+conversation. Narrowing this condition failed in rounds seven, eight and eleven; there is no longer a condition.
+A review that must move still moves - a failed first send carries the id of the session it created and the
+review follows it there - and an unsubmitted draft simply stays under the working path, where it reappears
+whenever the panel is on the draft. Nothing lost, nothing misfiled.
+
+**F1-1 is the same lesson about the commit set.** `commitGit` expands a rename's source *conditionally*, skipping
+one that something now occupies, because `git commit -- <paths>` commits the working-tree content of the paths it
+is given. The panel expanded it too, unconditionally, and main only ever adds to the caller's selection - so an
+occupied source supplied by the panel could never be taken back out. The panel now passes target paths only,
+agreeing with the header dialog, and the single owner does the rest.
+

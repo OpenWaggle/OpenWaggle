@@ -66,9 +66,14 @@ export function useCommitPaths(workingPath: WorkingPath | null, refreshToken = 0
    * behind. Verified against real git.
    */
   return {
-    paths: (workingTreeStatus.status?.changedFiles ?? []).flatMap((file) =>
-      file.renamedFrom === undefined ? [file.path] : [file.renamedFrom, file.path],
-    ),
+    /*
+     * Target paths only. Expanding a rename's source belongs to `commitGit`, which does it conditionally -
+     * skipping a source that something now occupies, because `git commit -- <paths>` commits the working-tree
+     * content of the paths it is handed. Doing it here as well passed an occupied source through, and main only
+     * ever adds to the caller's selection, so it could never be taken back out. The header's Commit dialog
+     * already passes target paths only; this is the panel agreeing with it.
+     */
+    paths: (workingTreeStatus.status?.changedFiles ?? []).map((file) => file.path),
     error: workingTreeStatus.error,
     isLoading: workingTreeStatus.isLoading,
     changedFileCount: (workingTreeStatus.status?.changedFiles ?? []).length,

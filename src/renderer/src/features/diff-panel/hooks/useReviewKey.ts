@@ -1,21 +1,22 @@
-import { useEffect, useRef } from 'react'
 import type { DiffScopeSelection } from '@/features/diff-panel/state/diff-scope-store'
-import { reviewKeyFor, useReviewStore } from '@/features/diff-panel/state/review-store'
+import { reviewKeyFor } from '@/features/diff-panel/state/review-store'
 
 /**
- * The key the panel's pending review lives under, and the draft key it would use with no session yet.
+ * The key the panel's pending review lives under, plus a way to name the key for a session that does not
+ * exist yet.
  *
- * Threads are keyed by session id once one exists and by working path before that, so two sessions
- * sharing one checkout keep separate reviews. Sessions are created lazily on the first send, which
- * switches this panel's key mid-review: without moving the thread the panel starts reading an empty one
- * while the user's comments stay under the old key - invisible, unreachable, and not even pruned,
- * because they are not empty.
+ * Threads are keyed by session id once one exists and by working path before that, so two sessions sharing one
+ * checkout keep separate reviews.
  *
- * The move happens only when *this* panel's key changes from the draft key to a session key. An
- * unconditional migration was worse than the bug it fixed: in local mode every session in a project
- * shares one working path, so a draft review was claimed by whichever already-created session's panel
- * mounted next and merged into that session's own thread - posting one session's comments into another
- * conversation, which is exactly what keying reviews was introduced to prevent.
+ * There is deliberately no automatic migration between the two. A draft review does move when it matters -
+ * a failed first send carries the id of the session it created, and the review follows it there - but that is
+ * driven by an event that knows *which* session, rather than inferred from the panel's key changing. Four
+ * successive attempts to infer it were each wrong: the key also changes when the user clicks an existing
+ * session in the sidebar, and in local mode every session in a project shares one working path, so a draft
+ * review was claimed by another session and merged into its thread - posting one session's comments into
+ * another conversation, which is exactly what keying reviews was introduced to prevent. Without the inference
+ * an unsubmitted draft simply stays under the working path and reappears whenever the panel is on the draft:
+ * nothing is lost and nothing is misfiled.
  */
 export function useReviewKey(input: {
   readonly scopeKey: string
@@ -24,14 +25,6 @@ export function useReviewKey(input: {
 }) {
   const reviewKey = reviewKeyFor(input.scopeKey || null, input.selection)
   const draftKey = reviewKeyFor(input.workingPath, input.selection)
-  const migrateReview = useReviewStore((state) => state.migrateReview)
-  const previousKey = useRef(reviewKey)
-
-  useEffect(() => {
-    const cameFromDraft = previousKey.current === draftKey && reviewKey !== draftKey
-    previousKey.current = reviewKey
-    if (cameFromDraft) migrateReview(draftKey, reviewKey)
-  }, [draftKey, reviewKey, migrateReview])
 
   /*
    * The scope is carried deliberately: a review written in the Branch scope must not resurface under the
