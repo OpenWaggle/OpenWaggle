@@ -1,4 +1,5 @@
 import { BASE_TEN, PERCENT_BASE } from '@shared/constants/math'
+import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { SupportedModelId } from '@shared/types/brand'
 import { SESSION_ENVIRONMENT_MODES } from '@shared/types/git'
 import { parseModelRef } from '@shared/types/llm'
@@ -45,6 +46,10 @@ export function isValidSessionEnvironmentMode(value: unknown) {
 
 export function resolveDefaultSessionEnvironmentMode(raw: unknown) {
   return isValidSessionEnvironmentMode(raw) ? raw : DEFAULT_SETTINGS.defaultSessionEnvironmentMode
+}
+
+export function resolveDefaultAuthorizationMode(raw: unknown) {
+  return isAgentAuthorizationMode(raw) ? raw : DEFAULT_SETTINGS.defaultAuthorizationMode
 }
 
 export function isValidDiffSyntaxTheme(value: unknown) {

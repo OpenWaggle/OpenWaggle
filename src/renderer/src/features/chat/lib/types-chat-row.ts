@@ -13,6 +13,11 @@ export type AgentInteractionEvent =
   | AgentTransportInteractionRequestEvent
   | AgentTransportInteractionResolvedEvent
 
+export interface AgentInteractionTranscriptItem {
+  readonly request: AgentTransportInteractionRequestEvent
+  readonly resolution?: AgentTransportInteractionResolvedEvent
+}
+
 // ─── Turn Divider Props ──────────────────────────────────────
 
 export interface TurnDividerProps {
@@ -63,7 +68,7 @@ export type ChatRow =
   | MessageChatRow
   | WaggleTurnChatRow
   | { type: 'agent-loop-custom-message'; event: AgentTransportCustomEvent }
-  | { type: 'agent-loop-interaction-event'; event: AgentInteractionEvent }
+  | { type: 'agent-loop-interaction'; item: AgentInteractionTranscriptItem }
   | { type: 'branch-summary'; id: string; summary: string }
   | { type: 'compaction-summary'; id: string; summary: string; tokensBefore: number }
   | { type: 'phase-indicator'; label: string; elapsedMs: number }

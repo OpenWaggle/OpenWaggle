@@ -7,6 +7,7 @@ import type {
 import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { clampThinkingLevel } from '@shared/utils/thinking-levels'
+import { resolveEffectiveAuthorizationMode } from '../../../application/agent-authorization-mode'
 import type { AgentKernelRunInput, AgentKernelRunResult } from '../../../ports/agent-kernel-service'
 import { getPiModelAvailableThinkingLevels, type PiModel } from '../pi-provider-catalog'
 import {
@@ -106,6 +107,10 @@ export async function createPiRunSessionRuntime(
   const openWaggleUi = {
     sessionId: input.session.id,
     runId: input.runId,
+    // Deliberately the session's project, not `input.projectPath`: the latter is the run cwd, which
+    // for a worktree session is the worktree. Authorization state belongs to the repository.
+    authorizationProjectPath: input.session.projectPath,
+    resolveAuthorizationMode: () => resolveEffectiveAuthorizationMode(input.session.id),
     signal: input.signal,
     onEvent: input.onEvent,
   }

@@ -1,3 +1,7 @@
+import {
+  type AgentAuthorizationMode,
+  DEFAULT_AGENT_AUTHORIZATION_MODE,
+} from './agent-authorization'
 import { SupportedModelId } from './brand'
 import type { SessionEnvironmentMode } from './git'
 import { DEFAULT_SHORTCUT_BINDINGS, type ShortcutBindings } from './shortcuts'
@@ -44,6 +48,8 @@ export interface Settings {
   readonly shortcutBindings: ShortcutBindings
   /** Default Session environment mode applied to new sessions (ADR 0010). */
   readonly defaultSessionEnvironmentMode: SessionEnvironmentMode
+  /** Default authorization mode applied to new sessions unless a project default overrides it. */
+  readonly defaultAuthorizationMode: AgentAuthorizationMode
   /** Syntax theme for diff code text (ADR 0016). */
   readonly diffSyntaxTheme: DiffSyntaxTheme
   /** Diff view layout: unified or split. */
@@ -63,6 +69,7 @@ export const DEFAULT_SETTINGS: Settings = {
   projectDisplayNames: {},
   shortcutBindings: DEFAULT_SHORTCUT_BINDINGS,
   defaultSessionEnvironmentMode: 'local',
+  defaultAuthorizationMode: DEFAULT_AGENT_AUTHORIZATION_MODE,
   diffSyntaxTheme: 'pierre-dark',
   diffView: 'unified',
   diffWrapLines: false,

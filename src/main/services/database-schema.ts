@@ -3,8 +3,7 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 const DEFAULT_EXTENSION_BUILD_STATUS = OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.NOT_RUN
 const DEFAULT_EXTENSION_RELOAD_STATUS = OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED
 
-export const CURRENT_SESSION_SCHEMA_STATEMENTS = [
-  `
+const SESSION_TABLE_STATEMENT = `
   CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY,
     pi_session_id TEXT NOT NULL UNIQUE,
@@ -18,7 +17,10 @@ export const CURRENT_SESSION_SCHEMA_STATEMENTS = [
     last_active_node_id TEXT,
     last_active_branch_id TEXT
   )
-  `,
+  `
+
+export const CURRENT_SESSION_SCHEMA_STATEMENTS = [
+  SESSION_TABLE_STATEMENT,
   `
   CREATE INDEX IF NOT EXISTS idx_sessions_updated_at
   ON sessions (updated_at DESC)
@@ -153,6 +155,22 @@ export const EXTENSION_LIFECYCLE_RELOAD_STATE_MIGRATION_STATEMENTS = [
   `
   ALTER TABLE extension_lifecycle_state
   ADD COLUMN last_reloaded_at INTEGER
+  `,
+] as const
+
+/**
+ * Adds the session authorization-mode override.
+ *
+ * Nullable on purpose: `NULL` means the session holds no override and inherits its project
+ * default, then the global default. It never means `yolo`. Added as a new column rather than by
+ * rebuilding `sessions`, because `sessions` is the parent of cascading foreign keys and a rebuild
+ * under `PRAGMA foreign_keys = ON` would delete every node and pinned row with it.
+ */
+export const SESSION_AUTHORIZATION_MODE_OVERRIDE_MIGRATION_STATEMENTS = [
+  `
+  ALTER TABLE sessions
+  ADD COLUMN authorization_mode_override TEXT
+    CHECK (authorization_mode_override IN ('yolo', 'ask-for-approval'))
   `,
 ] as const
 

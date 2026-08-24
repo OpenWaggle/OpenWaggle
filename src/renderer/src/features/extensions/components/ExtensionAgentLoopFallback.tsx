@@ -75,6 +75,20 @@ function actionVariant(tone: ExtensionInteractionActionView['tone']) {
   return 'secondary'
 }
 
+/**
+ * User-facing wording for an interaction's lifecycle state.
+ *
+ * `pendingLabel` differs by surface. The unavailable-custom card is genuinely waiting for a renderer
+ * that does not exist, but the standard fallback is answerable right now, and captioning it "Waiting
+ * for a renderer" directly under its own enabled buttons read as "these buttons are broken" and
+ * invited the user to wait instead of act.
+ */
+function interactionStateLabel(state: ExtensionInteractionView['state'], pendingLabel: string) {
+  if (state === 'pending') return pendingLabel
+  if (state === 'submitted') return 'Answered'
+  return 'Dismissed'
+}
+
 function renderInteractionFallback({
   interaction,
   onAction,
@@ -83,8 +97,12 @@ function renderInteractionFallback({
   readonly onAction?: (interactionId: string, actionId: string) => void
 }) {
   if (interaction.kind === 'custom') {
+    // Only a pending interaction is urgent. Announcing a historical, already-resolved card
+    // interrupts a screen reader every time the transcript re-renders or a session is reopened.
+    const urgency = interaction.state === 'pending' ? { role: 'alert' } : {}
+
     return (
-      <div role="alert" className="rounded-lg border border-error/25 bg-error/5 p-3">
+      <div className="rounded-lg border border-error/25 bg-error/5 p-3" {...urgency}>
         <div className="flex items-start gap-3">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-error" />
           <div className="min-w-0">
@@ -92,19 +110,14 @@ function renderInteractionFallback({
               Custom desktop interaction renderer unavailable
             </h4>
             <p className="mt-1 text-[12px] leading-5 text-text-tertiary">
-              OpenWaggle does not execute Pi TUI custom components inside Electron. This interaction
-              needs a matching extension interaction renderer.
+              OpenWaggle does not execute terminal UI custom components inside Electron. This
+              interaction needs a matching extension interaction renderer.
             </p>
-            <dl className="mt-3 grid gap-1 text-[11px] text-text-muted">
-              <div className="flex min-w-0 gap-2">
-                <dt className="shrink-0 text-text-tertiary">Interaction</dt>
-                <dd className="truncate">{interaction.id}</dd>
-              </div>
-              <div className="flex min-w-0 gap-2">
-                <dt className="shrink-0 text-text-tertiary">State</dt>
-                <dd>{interaction.state}</dd>
-              </div>
-            </dl>
+            {/* No raw interaction UUID and no internal state token: neither means anything to a
+                reader, and the contract keeps internal identifiers out of visible labels. */}
+            <p className="mt-2 text-[11px] text-text-muted">
+              {interactionStateLabel(interaction.state, 'Waiting for a renderer')}
+            </p>
             {onAction ? (
               <div className="mt-3">
                 <Button
@@ -145,7 +158,9 @@ function renderInteractionFallback({
           </Button>
         ))}
       </div>
-      <div className="text-[11px] text-text-muted">State: {interaction.state}</div>
+      <div className="text-[11px] text-text-muted">
+        {interactionStateLabel(interaction.state, 'Waiting for you')}
+      </div>
     </div>
   )
 }

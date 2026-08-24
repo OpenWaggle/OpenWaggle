@@ -176,7 +176,9 @@ function copyAgentSessionToNewSession(input: AgentSessionCopyInput) {
       projectPath: session.projectPath,
       piSessionId: result.piSessionId,
       piSessionFile: result.piSessionFile,
+      // A fork inherits both: this branch's environment mode, and main's authorization mode.
       ...(session.environmentMode ? { environmentMode: session.environmentMode } : {}),
+      authorizationMode: session.authorizationMode,
     })
 
     yield* persistKernelSnapshot(SessionId(String(createdProjection.id)), result)

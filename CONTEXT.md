@@ -193,8 +193,64 @@ The durable chat-transcript surface for rendering Pi tool progress, tool results
 _Avoid_: ephemeral-only tool UI
 
 **Blocking agent-loop interaction**:
-An Interactive agent-loop contribution that pauses Pi progress until the user responds.
+An Interactive agent-loop contribution that pauses agent progress until the user responds.
 _Avoid_: hidden prompt
+
+**Authorization request**:
+A blocking request for the user to grant or deny a clearly identified agent capability within an explicit scope.
+_Avoid_: generic confirmation, interaction requested, Pi permission
+
+**Authorization mode**:
+The global, project, or session preference that determines whether authorization requests are granted automatically or presented to the user.
+_Avoid_: permission level, sandbox mode, interaction mode
+
+**Authorization mode override**:
+An explicitly chosen Authorization mode at project or session level that replaces the inherited default until it is cleared.
+_Avoid_: copied default, session mode snapshot, birth-time mode
+
+**Effective authorization mode**:
+The Authorization mode a session actually runs under, resolved when an authorization request occurs from the nearest Authorization mode override and otherwise from the global default.
+_Avoid_: stored session mode, snapshotted mode
+
+**YOLO (Full access)**:
+The default Authorization mode that automatically grants a request only when the agent asks to act itself inside the current workspace and session.
+_Avoid_: YOLO mode, no-safety mode, auto-answer mode, unrestricted mode
+
+**Request purpose**:
+The declared category of a blocking request — authorization, user input, disclosure, or external navigation — that decides whether an Authorization mode may answer it without the user.
+_Avoid_: interaction kind, confirm title, inferred intent
+
+**Ask for Approval**:
+An Authorization mode that presents an authorization request when no matching scoped grant already exists.
+_Avoid_: Ask mode, manual mode, confirmation mode
+
+**Scoped authorization grant**:
+A revocable authorization bound to one project, requester, capability, and resource or destination. The requester is identified by its stable id, not by its display name, so renaming it neither drops the grant nor lets a reused name inherit one.
+_Avoid_: blanket permission, global allow, trusted requester
+
+**Authorization decision**:
+The outcome of an Authorization request: continue without access, allow once, allow for the session, or create a Scoped authorization grant.
+_Avoid_: interaction response, confirmation result, approval boolean
+
+**Authorization history entry**:
+The single durable transcript record that presents an Authorization request and its eventual Authorization decision in user-facing language.
+_Avoid_: request card, resolved card, raw interaction event
+
+**Agent notification**:
+A non-blocking, attributed message from an agent run with informational, warning, or error severity that never requires a user response.
+_Avoid_: interaction request, approval, acknowledgement prompt
+
+**Notification stack**:
+The floating, corner-anchored presentation of the current session's Agent notifications, ordered by severity, collapsed to a peek behind the frontmost notice and expanded on hover.
+_Avoid_: composer banner, interaction card, application-wide toast, notification side panel
+
+**Durable notification notice**:
+The single semantic transcript record retained for a warning or error Agent notification.
+_Avoid_: notification request card, notification resolution card, raw notification event
+
+**Composer draft continuity**:
+The guarantee that an arriving agent request adds a surface above the composer without changing the composer itself, so the user can finish and send the thought they were already writing.
+_Avoid_: approval takeover, disabled composer, focus steal, placeholder swap
 
 **Extension SDK surface**:
 The intentional public API exposed to extension code for capability calls, UI mounting context, theme data, and contribution behavior.
@@ -429,7 +485,7 @@ Pi session data that can reconstruct historical agent-loop contributions after r
 _Avoid_: renderer-only history
 
 **Pending interaction state**:
-OpenWaggle-owned live state for a Pi interaction request waiting for user feedback.
+OpenWaggle-owned live state for an interaction request waiting for user feedback.
 _Avoid_: extension-local pending prompt
 
 ### Source control and diff
@@ -636,6 +692,36 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - Multiple **Agent-loop contributions** may share one **Agent-loop binding identity** across different **Extension contribution surfaces**.
 - The **Transcript agent-loop surface** is the durable fallback record for agent-loop feedback even when auxiliary surfaces such as dialogs, side panels, or status widgets are also used.
 - A **Blocking agent-loop interaction** must be surfaced prominently while preserving a durable record in the **Transcript agent-loop surface**.
+- A **Blocking agent-loop interaction** is added above the composer without altering it, so a draft, caret position, placeholder, enabled state, and the Enter key all survive its arrival untouched.
+- A user may answer a **Blocking agent-loop interaction** before or after sending a queued message, in either order, and neither choice removes the other.
+- Cancelling or steering a run denies its pending **Authorization request** rather than carrying it over, so a later run has to ask again.
+- A **Blocking agent-loop interaction** announces itself politely and is reachable without the user losing their place in the composer, and the shortcut that reaches it belongs to the **Shortcut registry**.
+- No **Authorization decision** is bound to a single keystroke, because a mistyped key must not be able to grant a capability.
+- An extension renders its own contributions freely in the **Transcript agent-loop surface** and owns a **Custom desktop interaction** end to end.
+- An **Authorization request** and the standard user-input requests are presented by OpenWaggle's own prompt, which an extension cannot replace, although it may still contribute a dialog, a transcript card, or a status widget alongside that prompt.
+- A status widget belongs to the run rather than to any single pending interaction.
+- An **Authorization request** is distinct from informational notifications and user-input requests because it can produce a reusable scoped grant.
+- An **Authorization request** identifies its action, requester, exact target, and effect in user-facing language.
+- A session **Authorization mode** overrides its project's mode, which overrides the global default.
+- A session or project without an **Authorization mode override** inherits the next level's default, and clearing an override restores that inheritance.
+- The **Effective authorization mode** is resolved when an **Authorization request** occurs rather than when the session is created, so changing a project or global default applies to existing sessions that hold no override.
+- **YOLO (Full access)** resolves **Authorization requests** automatically but leaves unrelated user-input requests pending for the user.
+- A **Request purpose** is declared where the request is raised, never inferred from its wording.
+- A request whose **Request purpose** is disclosure or external navigation is never answered automatically in any **Authorization mode**, because its consequence is the user's to accept.
+- **YOLO (Full access)** is the global default **Authorization mode** for new projects and sessions without an override.
+- **Ask for Approval** presents only **Authorization requests** that are not already covered by a **Scoped authorization grant**.
+- A **Scoped authorization grant** applies only when its project, requester, capability, and resource or destination all match.
+- An **Authorization request** produces exactly one **Authorization decision**.
+- A surfaced **Authorization request** has exactly one **Authorization history entry**, which changes from pending to the final **Authorization decision** instead of creating separate request and resolution cards.
+- Changing a session to **YOLO (Full access)** resolves its pending **Authorization request** automatically; changing to **Ask for Approval** governs subsequent requests without revoking completed authorization decisions.
+- **YOLO (Full access)** does not create authorization prompts, authorization transcript entries, approval counters, or a separate authorization log; authorized work remains visible through its normal activity or result presentation.
+- An active **Agent notification** is presented in a **Notification stack** clear of the composer, never as an authorization prompt or transcript card.
+- A **Notification stack** fronts the most severe active notice and stacks additional notices behind it.
+- The composer area is reserved for requests that hold the run, so the surface a user acts on is always the one nearest the prompt input.
+- An informational or warning **Agent notification** leaves the **Notification stack** on its own; an error one stays until the user dismisses it.
+- Time towards leaving the **Notification stack** accrues only while the application window is focused, so a notice cannot expire unwatched.
+- An informational **Agent notification** is ephemeral and does not create transcript history.
+- A warning or error **Agent notification** creates exactly one **Durable notification notice**.
 - An **Extension contribution surface** is rendered inside an **Extension contribution container**.
 - A visual **OpenWaggle desktop contribution** has exactly one **Extension contribution runtime**.
 - A visual **OpenWaggle desktop contribution** has exactly one **Extension execution placement**.
@@ -937,6 +1023,9 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 > **Domain expert:** "No — local docs are discoverable; trust and lifecycle are metadata, not visibility gates."
 
 ## Flagged ambiguities
+
+- "notification" was used for both an announcement the agent sends and a request that holds the run. Resolved: an **Agent notification** can never be answered and lives in the **Notification stack**; an **Authorization request** or user-input request holds the run and docks to the composer.
+- "composer-adjacent notifications" was chosen from a design prototype and later reversed on purpose. Resolved: notifications float clear of the composer so that everything docked to the composer is something the user must answer.
 
 - "MCP extension" can imply that MCP lifecycle belongs to a Pi or OpenWaggle extension package. Resolved: use **OpenWaggle MCP integration** for the product and **MCP runtime** for the per-session client lifecycle.
 - "MCP enabled" can mean desired configuration or applied runtime state. Resolved: use **MCP desired state** for the user's request and report separately whether the safe boundary has applied it.

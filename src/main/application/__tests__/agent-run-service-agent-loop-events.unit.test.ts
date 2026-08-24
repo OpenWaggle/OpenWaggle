@@ -41,6 +41,7 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   listArchived: () => Effect.succeed([]),
   updateTitle: () => Effect.void,
   setWorktreePlan: () => Effect.void,
+  setAuthorizationMode: () => Effect.void,
   listTurnCheckpoints: () => Effect.succeed([]),
   getTurnDiff: () => Effect.succeed(null),
   setTurnCheckpointAnchor: () => Effect.void,
@@ -191,6 +192,7 @@ describe('executeAgentRun agent-loop event durability', () => {
           createdAt: 10,
           title: 'Approve?',
           message: 'Allow the extension action?',
+          purpose: 'user-input',
         },
       })
       input.onEvent({

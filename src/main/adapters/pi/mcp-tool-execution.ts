@@ -4,6 +4,7 @@ import { decodeUnknownOrThrow } from '@shared/schema'
 import { mcpConfigValueSchema } from '@shared/schemas/mcp'
 import type { McpGatewayInput, McpGatewayResult, McpJsonValue } from '@shared/types/mcp'
 import type { McpRuntimeInteractions } from '../../ports/mcp-runtime-service'
+import { getOpenWaggleAuthorize } from './agent-kernel/openwaggle-authorize-channel'
 import { createPiMcpRuntimeInteractions } from './mcp-client-interactions'
 
 export type ExecuteGateway = (
@@ -38,17 +39,37 @@ async function showToolCallApproval(input: {
   if (!input.ctx.hasUI) {
     throw new Error('MCP tool execution requires an interactive OpenWaggle approval.')
   }
-  return input.ctx.ui.confirm(
-    'Allow MCP tool call?',
-    [
-      `Server: ${attribution.serverLabel}`,
-      `Tool: ${tool.title} (${attribution.toolName})`,
-      `Arguments: ${JSON.stringify(input.arguments, null, MCP_CONFIG.JSON_INDENT_SPACES)}`,
-      '',
-      'This approval applies only to this call.',
-    ].join('\n'),
-    { signal: input.signal },
-  )
+  const title = 'Allow MCP tool call?'
+  const message = [
+    `Server: ${attribution.serverLabel}`,
+    `Tool: ${tool.title} (${attribution.toolName})`,
+    `Arguments: ${JSON.stringify(input.arguments, null, MCP_CONFIG.JSON_INDENT_SPACES)}`,
+  ].join('\n')
+
+  // Declared as authorization, keyed on the server and the exact tool. The arguments appear in the
+  // message for the human but are deliberately absent from the key, so one kept approval covers
+  // this tool and nothing else.
+  const authorize = getOpenWaggleAuthorize(input.ctx.ui)
+  if (authorize) {
+    return authorize({
+      title,
+      message,
+      scopeKey: {
+        // `requesterId` is the identity, `requester` only the display name, so renaming a server
+        // neither drops its grants nor lets a reused name inherit them.
+        requesterId: attribution.serverInstanceId,
+        requester: attribution.serverLabel,
+        capability: 'mcp.tool-call',
+        resource: attribution.toolName,
+      },
+      ...(input.signal ? { signal: input.signal } : {}),
+    })
+  }
+
+  // No OpenWaggle channel, so degrade to always asking rather than to always allowing.
+  return input.ctx.ui.confirm(title, `${message}\n\nThis approval applies only to this call.`, {
+    signal: input.signal,
+  })
 }
 
 export async function approveMcpCall(input: {

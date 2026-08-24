@@ -10,6 +10,7 @@ export {
   MessageNotDelivered,
   wasMessageDelivered,
 } from './message-delivery'
+export { focusPendingRequest, restoreFocusBeforeRequest } from './pending-request-focus'
 export {
   isScrollContainerNearBottom,
   scrollElementToBottom,

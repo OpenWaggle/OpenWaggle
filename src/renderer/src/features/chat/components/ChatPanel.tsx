@@ -1,7 +1,7 @@
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { useChatPanelSections } from '../hooks/use-chat-panel-controller'
 import type { ChatPanelSections } from '../model'
-import { AgentInteractionsPanel } from './AgentInteractionsPanel'
+import { AgentNotificationStack } from './AgentNotificationStack'
 import { ChatComposerStack } from './ChatComposerStack'
 import { ChatTranscript } from './ChatTranscript'
 
@@ -14,20 +14,24 @@ export function ChatPanelContent({ sections, onOpenSessionTree }: ChatPanelConte
   return (
     <div className="flex size-full overflow-hidden">
       <div
-        className="flex min-w-0 flex-1 flex-col overflow-hidden bg-bg"
+        className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-bg"
         data-chat-panel-main="true"
       >
+        {/* Anchored here rather than inside the composer: the composer area is reserved for
+            requests that hold the run, so the surface a user must answer is always the one nearest
+            the prompt input, and a notice that can never be answered floats clear of it. */}
+        <PanelErrorBoundary name="Notifications">
+          <AgentNotificationStack
+            events={sections.agentInteractionEvents}
+            key={sections.transcript.activeSessionId ?? 'no-session'}
+          />
+        </PanelErrorBoundary>
+
         <PanelErrorBoundary name="Chat transcript" className="flex flex-1 flex-col overflow-hidden">
           <ChatTranscript section={sections.transcript} />
         </PanelErrorBoundary>
 
         <PanelErrorBoundary name="Composer">
-          <AgentInteractionsPanel
-            interactions={sections.agentInteractions}
-            extensionRegistry={sections.extensionRegistry}
-            extensionProjectPaths={sections.extensionProjectPaths}
-            onRespond={sections.onRespondAgentInteraction}
-          />
           <ChatComposerStack
             agentInteractions={sections.agentInteractions}
             extensionProjectPaths={sections.extensionProjectPaths}

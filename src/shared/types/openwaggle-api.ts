@@ -1,4 +1,5 @@
 import type { AgentSendPayload, AgentSendReport, PreparedAttachment } from './agent'
+import type { AgentAuthorizationMode } from './agent-authorization'
 import type {
   AgentLoopInteractionResponseInput,
   AgentLoopInteractionSubmitResult,
@@ -20,12 +21,6 @@ import type {
   DocsResolveTopicInput,
   FirstPartyDocsTopicSummary,
 } from './docs'
-import type {
-  DiagnosticsInfo,
-  FeedbackPayload,
-  FeedbackSubmitResult,
-  GhCliStatus,
-} from './feedback'
 import type {
   ChangeRequestCheckoutResult,
   ChangeRequestListResult,
@@ -51,6 +46,10 @@ import type {
 import type { IpcEventPayload } from './ipc'
 import type { ChangeRequestAdoption } from './ipc-invoke-git'
 import type { ProviderInfo, SupportedModelId } from './llm'
+import type { OpenWaggleAuthorizationGrantApi } from './openwaggle-api-authorization-grants'
+import type { OpenWaggleFeedbackApi } from './openwaggle-api-feedback'
+import type { OpenWaggleProjectConfigApi } from './openwaggle-api-project'
+import type { OpenWaggleUpdaterApi } from './openwaggle-api-updater'
 import type { OpenWaggleWaggleApi } from './openwaggle-api-waggle'
 import type { OpenWaggleExtensionApi } from './openwaggle-extension-api'
 import type { OpenWaggleMcpApi } from './openwaggle-mcp-api'
@@ -77,11 +76,14 @@ import type {
   SkillCatalogResult,
 } from './standards'
 import type { TurnCheckpointSummary, TurnDiff } from './turn-diff'
-import type { UpdateStatus } from './updater'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 
 export interface OpenWaggleApi
-  extends OpenWaggleExtensionApi,
+  extends OpenWaggleAuthorizationGrantApi,
+    OpenWaggleFeedbackApi,
+    OpenWaggleProjectConfigApi,
+    OpenWaggleUpdaterApi,
+    OpenWaggleExtensionApi,
     OpenWaggleMcpApi,
     OpenWaggleWaggleApi,
     OpenWaggleWorkspaceFilesApi {
@@ -132,16 +134,6 @@ export interface OpenWaggleApi
   // Providers
   getProviderModels(projectPath?: string | null): Promise<ProviderInfo[]>
 
-  // Project
-  selectProjectFolder(): Promise<string | null>
-  getProjectPreferences(
-    projectPath: string,
-  ): Promise<{ model?: string; thinkingLevel?: string } | null>
-  setProjectPreferences(
-    projectPath: string,
-    preferences: { model?: string; thinkingLevel?: string },
-  ): Promise<void>
-
   // Sessions
   listSessions(limit?: number): Promise<SessionSummary[]>
   listSessionDetails(limit?: number): Promise<SessionDetail[]>
@@ -172,6 +164,7 @@ export interface OpenWaggleApi
   listArchivedSessions(): Promise<SessionSummary[]>
   updateSessionTitle(id: SessionId, title: string): Promise<void>
   setSessionWorktreePlan(id: SessionId, plan: SessionWorktreePlan): Promise<void>
+  setSessionAuthorizationMode(id: SessionId, mode: AgentAuthorizationMode | null): Promise<void>
   listArchivedSessionBranches(limit?: number): Promise<SessionSummary[]>
   getSessionTree(sessionId: SessionId): Promise<SessionTree | null>
   getSessionWorkspace(
@@ -286,21 +279,11 @@ export interface OpenWaggleApi
   getAuthAccountInfo(provider: OAuthProvider): Promise<OAuthAccountInfo>
   onOAuthStatus(callback: (status: IpcEventPayload<'auth:oauth-status'>) => void): () => void
 
-  // Feedback
-  checkGhCli(): Promise<GhCliStatus>
-  collectDiagnostics(): Promise<DiagnosticsInfo>
-  getRecentLogs(lineCount: number): Promise<string>
-  submitFeedback(payload: FeedbackPayload): Promise<FeedbackSubmitResult>
-  generateFeedbackMarkdown(payload: FeedbackPayload): Promise<string>
-  openExternal(url: string): Promise<void>
+  /*
+   * Feedback moved to its own interface on main, and the Waggle presets to this branch's Waggle interface, so
+   * neither side's block belongs here any more.
+   */
 
   // Composer
   suggestFiles(projectPath: string, query: string): Promise<FileSuggestion[]>
-
-  // Auto-updater
-  checkForUpdates(): Promise<void>
-  installUpdate(): Promise<void>
-  getUpdateStatus(): Promise<UpdateStatus>
-  getAppVersion(): Promise<string>
-  onUpdateStatus(callback: (payload: UpdateStatus) => void): () => void
 }

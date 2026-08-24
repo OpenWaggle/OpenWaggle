@@ -6,6 +6,7 @@ export const SHORTCUT_COMMANDS = [
   'sidebar.toggle',
   'diff.toggle',
   'sessionTree.toggle',
+  'request.focus',
 ] as const
 
 export type ShortcutCommand = (typeof SHORTCUT_COMMANDS)[number]
@@ -96,7 +97,13 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
   {
     command: 'sessionTree.toggle',
     label: 'Toggle session tree',
-    description: 'Show or hide the Pi session tree',
+    description: 'Show or hide the session tree',
+    group: 'Workspace',
+  },
+  {
+    command: 'request.focus',
+    label: 'Go to pending request',
+    description: 'Move focus to a request waiting for you, without losing your place',
     group: 'Workspace',
   },
 ]
@@ -109,6 +116,11 @@ export const DEFAULT_SHORTCUT_BINDINGS: Readonly<Record<ShortcutCommand, Shortcu
   'sidebar.toggle': { key: 'B', mod: true },
   'diff.toggle': { key: 'D', mod: true },
   'sessionTree.toggle': { key: 'Y', mod: true, shift: true },
+  // Moves focus to a pending request without moving the caret, so a keyboard user can reach the
+  // decision and return to their sentence with Escape. Deliberately focuses the request rather than
+  // answering it: no key is ever bound to a grant, because a mistyped chord must not be able to
+  // grant a capability.
+  'request.focus': { key: 'A', mod: true, shift: true },
 }
 
 export function shortcutBindingKey(binding: ShortcutBinding) {

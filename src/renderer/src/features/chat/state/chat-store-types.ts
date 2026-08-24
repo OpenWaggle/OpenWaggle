@@ -1,3 +1,4 @@
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionDetail, SessionSummary } from '@shared/types/session'
 
@@ -20,6 +21,11 @@ export interface ChatState {
   setActiveSessionId: (id: SessionId | null) => void
   setActiveSession: (id: SessionId | null) => void
   refreshSession: (id: SessionId) => Promise<void>
+  /** `null` clears the session override so the session inherits again. */
+  setSessionAuthorizationMode: (
+    id: SessionId,
+    authorizationMode: AgentAuthorizationMode | null,
+  ) => Promise<void>
   upsertSession: (session: SessionDetail) => void
   deleteSession: (id: SessionId) => Promise<void>
   updateSessionTitle: (id: SessionId, title: string) => void

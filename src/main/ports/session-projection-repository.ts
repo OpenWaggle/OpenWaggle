@@ -4,6 +4,8 @@
  * Exposes the session detail UI projection over the canonical session/node/branch tables.
  * Runtime writes still go through SessionRepository.
  */
+
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
 import type {
@@ -34,6 +36,7 @@ export interface SessionProjectionRepositoryShape {
     readonly piSessionId: string
     readonly piSessionFile?: string
     readonly environmentMode?: SessionEnvironmentMode
+    readonly authorizationMode?: AgentAuthorizationMode
   }) => Effect.Effect<SessionDetail, SessionProjectionRepositoryError>
   readonly delete: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly archive: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
@@ -49,6 +52,11 @@ export interface SessionProjectionRepositoryShape {
   readonly setWorktreePlan: (
     id: SessionId,
     plan: SessionWorktreePlan,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  /** `null` clears the session override so the session inherits its project and global default. */
+  readonly setAuthorizationMode: (
+    id: SessionId,
+    mode: AgentAuthorizationMode | null,
   ) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly listTurnCheckpoints: (
     id: SessionId,
