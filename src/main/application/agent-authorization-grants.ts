@@ -31,6 +31,7 @@ export function grantForSession(
   const existing = sessionGrants.get(sessionId) ?? new Map<string, ScopedAuthorizationGrant>()
   existing.set(authorizationScopeKeyId(key), {
     requester: key.requester,
+    requesterId: key.requesterId,
     capability: key.capability,
     ...(key.resource === undefined ? {} : { resource: key.resource }),
     grantedAt,

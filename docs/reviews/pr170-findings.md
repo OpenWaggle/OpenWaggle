@@ -256,3 +256,31 @@ Both recommended changes. Every finding below is closed.
 - [x] Migration 25 could not tolerate a database that already had the column, which is reachable because
   it was renumbered from 24. Guarded by `skipIfColumn`, with a test.
 - [x] `ribbonEyebrow`'s authorization branch was unreachable; deleted rather than tested.
+
+---
+
+# Round 3 — the three items left open after round 2
+
+Settled in a grilling session against CONTEXT.md rather than decided unilaterally, because each one
+touched a recorded decision.
+
+- [x] **The purpose taxonomy had four members and two producers.** `external-navigation` and
+  `disclosure` existed in the type and in CONTEXT.md but nothing ever emitted them, so
+  `CONTEXT.md:710` ("a request whose purpose is disclosure or external navigation is never answered
+  automatically") described a purpose no request carried. The rule held only because both sites fell
+  back to `user-input`. My first instinct was to delete the unused members; the maintainer's direction
+  was to follow the recorded decision, which is the better call. Added a second symbol-keyed channel,
+  `OPENWAGGLE_DECLARED_CONFIRM_KEY`, whose purpose type *excludes* `authorization`, so it cannot raise
+  an auto-grantable request. Both sites now declare their real purpose, and a test asserts every
+  purpose the domain language defines has a producer.
+- [x] **Grants were keyed on the mutable server name.** Decision 4 said "server label" and also said
+  grants follow Codex, and those two clauses disagreed: Codex keys on `{ server, connector_id,
+  tool_name }`. `attribution` already carried `serverInstanceId` next to `serverLabel`. Renaming a
+  server dropped its grants, which only re-prompts, but giving a different server config a reused name
+  handed it every grant the old one held. The key now carries `requesterId` as identity with
+  `requester` kept for display, and `authorizationScopeKeyId` builds from the id.
+- [x] **The pre-existing `inspector-panels` e2e failure.** Diagnosed rather than patched: the test
+  filtered `aside` on the text "Working tree diff", copy that no longer exists anywhere in the
+  renderer, so the locator matched nothing and Playwright reported "element(s) not found". The `inert`
+  behaviour it checks was working the whole time. Retargeted at the shell's own
+  `data-right-sidebar-shell` attribute. **The full e2e suite now passes, 24 of 24.**

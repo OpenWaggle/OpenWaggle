@@ -59,28 +59,47 @@ describe('declared confirmation purpose', () => {
     expect(clientInteractions).toContain('Allow legacy MCP sampling?')
     expect(clientInteractions).toContain("capability: 'mcp.sampling'")
     expect(clientInteractions).toContain('requester: input.serverLabel')
+    // Identity is the stable instance id, so a rename cannot move the grant.
+    expect(clientInteractions).toContain('requesterId: input.serverInstanceId')
   })
 
-  it('leaves opening an external URL on the plain confirm path', () => {
-    // External navigation continues outside the app at a destination a third party chose, so no
-    // access mode may start it. Reaching plain confirm is what guarantees that.
+  it('declares opening an external URL as external navigation', () => {
+    // The consequence continues outside the app at a destination a third party chose, so no access
+    // mode may start it. Declaring the purpose is what makes that rule checkable; labelling it
+    // `user-input` happened to behave correctly but left CONTEXT.md's rule about external navigation
+    // describing a purpose no request ever carried.
     const elicitation = clientInteractions.slice(
       clientInteractions.indexOf('Open MCP elicitation URL?') - 400,
       clientInteractions.indexOf('Open MCP elicitation URL?') + 400,
     )
-    expect(elicitation).toContain('ui.confirm')
+    expect(elicitation).toContain("purpose: 'external-navigation'")
     expect(elicitation).not.toContain('getOpenWaggleAuthorize')
   })
 
-  it('leaves the input disclosure on the plain confirm path', () => {
-    // Auto-granting this would skip the screen naming the server and the requested schema, then
-    // hand the user a bare editor. It saves no work, it only removes the explanation.
+  it('declares the input request as a disclosure', () => {
+    // Auto-granting this would skip the screen naming the server and the requested schema, then hand
+    // the user a bare editor. It saves no work, it only removes the explanation.
     const disclosure = clientInteractions.slice(
       clientInteractions.indexOf('Review MCP input request?') - 400,
       clientInteractions.indexOf('Review MCP input request?') + 400,
     )
-    expect(disclosure).toContain('ui.confirm')
+    expect(disclosure).toContain("purpose: 'disclosure'")
     expect(disclosure).not.toContain('getOpenWaggleAuthorize')
+  })
+
+  it('uses every purpose the domain language defines', () => {
+    // CONTEXT.md names four purposes and states that disclosure and external navigation are never
+    // answered automatically. A purpose with no producer makes that rule unverifiable, so each one
+    // has to be declared somewhere.
+    const declared = [
+      clientInteractions,
+      uiContext,
+      read('src/main/application/agent-authorization-request.ts'),
+    ].join('\n')
+
+    for (const purpose of ['authorization', 'user-input', 'disclosure', 'external-navigation']) {
+      expect(declared).toContain(`purpose: '${purpose}'`)
+    }
   })
 
   it('leaves the elicitation completion check on the plain confirm path', () => {

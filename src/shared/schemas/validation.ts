@@ -90,12 +90,14 @@ export const projectPreferencesUpdateSchema = Schema.Struct({
 
 export const authorizationScopeKeySchema = Schema.Struct({
   requester: Schema.String,
+  requesterId: Schema.String,
   capability: Schema.Literal(...AGENT_AUTHORIZATION_CAPABILITIES),
   resource: Schema.optional(Schema.String),
 })
 
 export const scopedAuthorizationGrantSchema = Schema.Struct({
   requester: Schema.String,
+  requesterId: Schema.String,
   capability: Schema.Literal(...AGENT_AUTHORIZATION_CAPABILITIES),
   resource: Schema.optional(Schema.String),
   grantedAt: Schema.Number,

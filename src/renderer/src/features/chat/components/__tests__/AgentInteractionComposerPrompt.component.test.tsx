@@ -19,6 +19,7 @@ function authorizationRequest(id = 'auth-1'): AgentLoopInteraction {
     purpose: 'authorization',
     scopeKey: {
       requester: 'github-issues',
+      requesterId: 'github-issues-id',
       capability: 'mcp.tool-call',
       resource: 'list_issues',
     },

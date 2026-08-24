@@ -104,9 +104,16 @@ function validateAuthorizationScopeKey(key: unknown) {
     return Effect.fail(new Error('Authorization scope key requires a requester.'))
   }
 
+  // Identity, so an empty one would make every grant for that capability look alike.
+  const requesterId = result.data.requesterId.trim()
+  if (!requesterId) {
+    return Effect.fail(new Error('Authorization scope key requires a requester id.'))
+  }
+
   const resource = result.data.resource?.trim()
   return Effect.succeed({
     requester,
+    requesterId,
     capability: result.data.capability,
     ...(resource ? { resource } : {}),
   })

@@ -19,7 +19,12 @@ import {
   type AgentLoopInteractionRequestInput,
   requestAgentLoopInteraction,
 } from '../../../application/agent-loop-interaction-broker'
-import { OPENWAGGLE_AUTHORIZE_KEY, type OpenWaggleAuthorize } from './openwaggle-authorize-channel'
+import {
+  OPENWAGGLE_AUTHORIZE_KEY,
+  OPENWAGGLE_DECLARED_CONFIRM_KEY,
+  type OpenWaggleAuthorize,
+  type OpenWaggleDeclaredConfirm,
+} from './openwaggle-authorize-channel'
 
 type DesktopInteractionUiOverrideKey = 'select' | 'confirm' | 'input' | 'notify' | 'editor'
 type DesktopInteractionUiOverrides = Pick<ExtensionUIContext, DesktopInteractionUiOverrideKey>
@@ -221,6 +226,26 @@ function createAuthorizeChannel(context: PiInteractionUiContextInput): OpenWaggl
     })
 }
 
+function createDeclaredConfirmChannel(
+  context: PiInteractionUiContextInput,
+): OpenWaggleDeclaredConfirm {
+  return async (request) => {
+    const interaction = {
+      ...baseInteraction({ context, opts: { signal: request.signal } }),
+      kind: 'confirm',
+      title: request.title,
+      message: request.message,
+      purpose: request.purpose,
+    } satisfies AgentLoopConfirmInteraction
+    const response = await requestInteraction({
+      interaction,
+      onEvent: context.onEvent,
+      signal: mergedSignal({ runSignal: context.signal, interactionSignal: request.signal }),
+    })
+    return confirmedValue(response)
+  }
+}
+
 export function createPiInteractionUiContext(
   context: PiInteractionUiContextInput,
   base: ExtensionUIContext,
@@ -229,5 +254,6 @@ export function createPiInteractionUiContext(
     custom: (factory: PiCustomInteractionFactory, options: PiCustomInteractionOptions) =>
       requestCustomInteraction({ context, factory, options }),
     [OPENWAGGLE_AUTHORIZE_KEY]: createAuthorizeChannel(context),
+    [OPENWAGGLE_DECLARED_CONFIRM_KEY]: createDeclaredConfirmChannel(context),
   })
 }

@@ -28,6 +28,7 @@ describe('rehydrating an authorization request', () => {
       scopeKey: {
         capability: 'mcp.tool-call',
         requester: 'github-issues',
+        requesterId: 'github-issues-id',
         resource: 'list_issues',
       },
     })
@@ -37,6 +38,7 @@ describe('rehydrating an authorization request', () => {
     expect(parsed?.kind === 'confirm' && parsed.scopeKey).toEqual({
       capability: 'mcp.tool-call',
       requester: 'github-issues',
+      requesterId: 'github-issues-id',
       resource: 'list_issues',
     })
   })
@@ -44,12 +46,13 @@ describe('rehydrating an authorization request', () => {
   it('keeps a key that has no resource, such as sampling', () => {
     const parsed = parseInteraction({
       ...persisted,
-      scopeKey: { capability: 'mcp.sampling', requester: 'github-issues' },
+      scopeKey: { capability: 'mcp.sampling', requester: 'github-issues', requesterId: 'gh-id' },
     })
 
     expect(parsed?.kind === 'confirm' && parsed.scopeKey).toEqual({
       capability: 'mcp.sampling',
       requester: 'github-issues',
+      requesterId: 'gh-id',
     })
   })
 
@@ -58,7 +61,23 @@ describe('rehydrating an authorization request', () => {
     // scope choices is safe; keeping a partial key would match the wrong thing.
     const parsed = parseInteraction({
       ...persisted,
-      scopeKey: { capability: 'shell.exec', requester: 'github-issues' },
+      scopeKey: { capability: 'shell.exec', requester: 'github-issues', requesterId: 'gh-id' },
+    })
+
+    expect(parsed?.kind === 'confirm' && parsed.scopeKey).toBeUndefined()
+    expect(parsed && isAuthorizationRequest(parsed)).toBe(false)
+  })
+
+  it('drops a key with no requester id, since it could not be matched safely', () => {
+    // A grant written by an older build carries no identity. Degrading to a prompt is safe; keeping a
+    // name-only key would reintroduce the rename hazard the id exists to remove.
+    const parsed = parseInteraction({
+      ...persisted,
+      scopeKey: {
+        capability: 'mcp.tool-call',
+        requester: 'github-issues',
+        resource: 'list_issues',
+      },
     })
 
     expect(parsed?.kind === 'confirm' && parsed.scopeKey).toBeUndefined()

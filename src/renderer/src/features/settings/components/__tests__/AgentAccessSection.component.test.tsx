@@ -33,6 +33,7 @@ const PROJECT = '/tmp/project'
 
 const listIssuesGrant: ScopedAuthorizationGrant = {
   requester: 'github-issues',
+  requesterId: 'github-issues-id',
   capability: 'mcp.tool-call',
   resource: 'list_issues',
   grantedAt: 1,
@@ -40,6 +41,7 @@ const listIssuesGrant: ScopedAuthorizationGrant = {
 
 const samplingGrant: ScopedAuthorizationGrant = {
   requester: 'github-issues',
+  requesterId: 'github-issues-id',
   capability: 'mcp.sampling',
   grantedAt: 2,
 }
@@ -133,6 +135,7 @@ describe('AgentAccessSection', () => {
     await waitFor(() => {
       expect(revokeAuthorizationMock).toHaveBeenCalledWith(PROJECT, {
         requester: 'github-issues',
+        requesterId: 'github-issues-id',
         capability: 'mcp.tool-call',
         resource: 'list_issues',
       })

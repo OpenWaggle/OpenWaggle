@@ -74,6 +74,7 @@ function AuthorizationGrantRow({
     api
       .revokeAuthorization(projectPath, {
         requester: grant.requester,
+        requesterId: grant.requesterId,
         capability: grant.capability,
         ...(grant.resource === undefined ? {} : { resource: grant.resource }),
       })

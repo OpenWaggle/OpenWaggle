@@ -116,6 +116,7 @@ describe('Pi interaction UI context', () => {
         message: 'Read project files?',
         scopeKey: {
           requester: 'github-issues',
+          requesterId: 'github-issues-id',
           capability: 'mcp.tool-call',
           resource: 'list_issues',
         },
@@ -134,6 +135,7 @@ describe('Pi interaction UI context', () => {
       message: 'Read project files?',
       scopeKey: {
         requester: 'github-issues',
+        requesterId: 'github-issues-id',
         capability: 'mcp.tool-call',
         resource: 'list_issues',
       },

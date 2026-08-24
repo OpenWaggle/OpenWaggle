@@ -95,11 +95,13 @@ function parseConfirmPurpose(value: string | null): AgentLoopConfirmPurpose {
 function parseScopeKey(value: unknown): AgentAuthorizationScopeKey | null {
   if (!isObject(value)) return null
   const requester = stringField(value, 'requester')
+  const requesterId = stringField(value, 'requesterId')
+  if (requester === null || requesterId === null) return null
   const capability = stringField(value, 'capability')
-  if (requester === null || !isAgentAuthorizationCapability(capability)) return null
+  if (!isAgentAuthorizationCapability(capability)) return null
 
   const resource = stringField(value, 'resource')
-  return { capability, requester, ...(resource === null ? {} : { resource }) }
+  return { capability, requester, requesterId, ...(resource === null ? {} : { resource }) }
 }
 
 function parseConfirmInteraction(

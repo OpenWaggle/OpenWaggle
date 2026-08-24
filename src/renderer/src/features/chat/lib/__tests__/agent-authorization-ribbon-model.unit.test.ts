@@ -16,12 +16,14 @@ const SESSION_ID = SessionId('session-1')
 const toolCallKey: AgentAuthorizationScopeKey = {
   capability: 'mcp.tool-call',
   requester: 'github-issues',
+  requesterId: 'github-issues-id',
   resource: 'list_issues',
 }
 
 const samplingKey: AgentAuthorizationScopeKey = {
   capability: 'mcp.sampling',
   requester: 'github-issues',
+  requesterId: 'github-issues-id',
 }
 
 /**

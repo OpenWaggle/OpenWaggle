@@ -21,34 +21,59 @@ const sessionId = SessionId('grant-session')
 
 const listIssues = {
   requester: 'github-issues',
+  requesterId: 'github-issues-id',
   capability: 'mcp.tool-call',
   resource: 'list_issues',
 } as const
 
 const createIssue = {
   requester: 'github-issues',
+  requesterId: 'github-issues-id',
   capability: 'mcp.tool-call',
   resource: 'create_issue',
 } as const
 
-const sampling = { requester: 'github-issues', capability: 'mcp.sampling' } as const
+const sampling = {
+  requester: 'github-issues',
+  requesterId: 'github-issues-id',
+  capability: 'mcp.sampling',
+} as const
 
 describe('authorization scope keys', () => {
-  it('matches only when requester, capability and resource all agree', () => {
+  it('matches only when requester id, capability and resource all agree', () => {
     expect(authorizationScopeKeysMatch(listIssues, { ...listIssues })).toBe(true)
     expect(authorizationScopeKeysMatch(listIssues, createIssue)).toBe(false)
     expect(
-      authorizationScopeKeysMatch(listIssues, { ...listIssues, requester: 'other-server' }),
+      authorizationScopeKeysMatch(listIssues, { ...listIssues, requesterId: 'other-server-id' }),
     ).toBe(false)
     expect(
       authorizationScopeKeysMatch(listIssues, { ...listIssues, capability: 'mcp.sampling' }),
     ).toBe(false)
   })
 
+  it('follows the requester id, not the display name', () => {
+    // Two failure modes come from keying on the name. Renaming a server would drop its grants, which
+    // only re-prompts, but giving a different server config a name a previous one used would hand it
+    // every grant the old one held. Identity is the stable id; the label is display only.
+    expect(
+      authorizationScopeKeysMatch(listIssues, { ...listIssues, requester: 'Renamed In Settings' }),
+    ).toBe(true)
+    expect(
+      authorizationScopeKeysMatch(listIssues, {
+        ...listIssues,
+        requesterId: 'a-different-server',
+      }),
+    ).toBe(false)
+  })
+
   it('never treats an absent resource as a wildcard', () => {
     // The risk this guards: if an absent resource matched anything, granting one tool would also
     // authorise every other tool on that server, including tools added in a later version.
-    const serverWide = { requester: 'github-issues', capability: 'mcp.tool-call' } as const
+    const serverWide = {
+      requester: 'github-issues',
+      requesterId: 'github-issues-id',
+      capability: 'mcp.tool-call',
+    } as const
 
     expect(authorizationScopeKeysMatch(serverWide, listIssues)).toBe(false)
     expect(findMatchingGrant([{ ...serverWide, grantedAt: 1 }], listIssues)).toBeUndefined()
@@ -134,7 +159,12 @@ describe('project grants', () => {
     await grantForProject(projectPath, listIssues)
 
     await expect(listGrantsForProject(projectPath)).resolves.toMatchObject([
-      { requester: 'github-issues', capability: 'mcp.tool-call', resource: 'list_issues' },
+      {
+        requester: 'github-issues',
+        requesterId: 'github-issues-id',
+        capability: 'mcp.tool-call',
+        resource: 'list_issues',
+      },
     ])
     await expect(
       findGrantCovering({ sessionId, projectPath, key: listIssues }),

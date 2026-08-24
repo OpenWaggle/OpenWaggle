@@ -225,7 +225,7 @@ An Authorization mode that presents an authorization request when no matching sc
 _Avoid_: Ask mode, manual mode, confirmation mode
 
 **Scoped authorization grant**:
-A revocable authorization bound to one project, requester, capability, and resource or destination.
+A revocable authorization bound to one project, requester, capability, and resource or destination. The requester is identified by its stable id, not by its display name, so renaming it neither drops the grant nor lets a reused name inherit one.
 _Avoid_: blanket permission, global allow, trusted requester
 
 **Authorization decision**:

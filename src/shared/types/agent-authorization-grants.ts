@@ -20,15 +20,22 @@ export function isAgentAuthorizationCapability(
 /**
  * What a grant is bound to.
  *
- * Follows Codex's `McpToolApprovalKey { server, connector_id, tool_name }`: the requester and the
- * exact resource, never the arguments. Keying on arguments would split one intent across every
- * argument combination and let attacker-controlled values decide whether a grant applies.
+ * Follows Codex's `McpToolApprovalKey { server, connector_id, tool_name }`: the requester, a stable id
+ * for it, and the exact resource, never the arguments. Keying on arguments would split one intent
+ * across every argument combination and let attacker-controlled values decide whether a grant applies.
+ *
+ * `requesterId` is the identity; `requester` is the display name and is deliberately NOT part of
+ * matching. The first version keyed on the name alone, which had one harmless failure and one unsafe
+ * one: renaming a server dropped its grants, which merely re-prompts, but giving a different server
+ * config a name a previous one used silently handed it every grant the old one held. A grant must not
+ * move because a label was reused.
  *
  * `resource` is absent for capabilities that have no sub-resource worth naming, such as sampling,
  * where the requester and the capability are the whole identity.
  */
 export interface AgentAuthorizationScopeKey {
   readonly requester: string
+  readonly requesterId: string
   readonly capability: AgentAuthorizationCapability
   readonly resource?: string
 }
@@ -54,9 +61,14 @@ export function isAgentAuthorizationDecisionScope(
   return AGENT_AUTHORIZATION_DECISION_SCOPES.some((scope) => scope === value)
 }
 
-/** Stable string form of a key, for map lookups and for comparing two keys. */
+/**
+ * Stable string form of a key, for map lookups and for comparing two keys.
+ *
+ * Built from `requesterId`, never the display name, so a rename neither drops a grant nor lets a
+ * reused name inherit one.
+ */
 export function authorizationScopeKeyId(key: AgentAuthorizationScopeKey): string {
-  return `${key.capability}\u0000${key.requester}\u0000${key.resource ?? ''}`
+  return `${key.capability}\u0000${key.requesterId}\u0000${key.resource ?? ''}`
 }
 
 /**

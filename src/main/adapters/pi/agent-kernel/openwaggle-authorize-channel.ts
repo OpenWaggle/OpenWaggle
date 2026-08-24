@@ -1,4 +1,5 @@
 import type { AgentAuthorizationScopeKey } from '@shared/types/agent-authorization-grants'
+import type { AgentLoopConfirmPurpose } from '@shared/types/agent-loop-interaction'
 
 /**
  * How OpenWaggle's own adapter code reaches the authorization path.
@@ -21,6 +22,56 @@ export interface OpenWaggleAuthorizeRequest {
 }
 
 export type OpenWaggleAuthorize = (request: OpenWaggleAuthorizeRequest) => Promise<boolean>
+
+/**
+ * How OpenWaggle's adapter code declares a NON-authorization purpose on a confirmation.
+ *
+ * Plain `ui.confirm` is deliberately `user-input`, the purpose nothing may answer on the user's
+ * behalf, so an unlabelled request always prompts. Two of our own confirmations are more specific
+ * than that: one opens a URL at a destination a third party chose, and one discloses which server
+ * wants the user's data. `CONTEXT.md` states that neither is ever answered automatically in any
+ * access mode, and that rule can only be checked if the requests actually carry those purposes.
+ *
+ * Separate from the authorization channel on purpose. `purpose` here excludes `authorization`, so
+ * this seam cannot raise a request an access mode is allowed to auto-answer, and it carries no grant
+ * key because there is nothing to keep.
+ */
+export const OPENWAGGLE_DECLARED_CONFIRM_KEY = Symbol.for('openwaggle.ui.declaredConfirm')
+
+export type OpenWaggleDeclaredConfirmPurpose = Exclude<AgentLoopConfirmPurpose, 'authorization'>
+
+export interface OpenWaggleDeclaredConfirmRequest {
+  readonly title: string
+  readonly message: string
+  readonly purpose: OpenWaggleDeclaredConfirmPurpose
+  readonly signal?: AbortSignal
+}
+
+export type OpenWaggleDeclaredConfirm = (
+  request: OpenWaggleDeclaredConfirmRequest,
+) => Promise<boolean>
+
+interface OpenWaggleDeclaredConfirmCarrier {
+  readonly [OPENWAGGLE_DECLARED_CONFIRM_KEY]: OpenWaggleDeclaredConfirm
+}
+
+function carriesDeclaredConfirm(ui: object): ui is OpenWaggleDeclaredConfirmCarrier {
+  return (
+    OPENWAGGLE_DECLARED_CONFIRM_KEY in ui &&
+    typeof Reflect.get(ui, OPENWAGGLE_DECLARED_CONFIRM_KEY) === 'function'
+  )
+}
+
+/**
+ * Reads the declared-purpose confirmation method off a UI context, when it is OpenWaggle's.
+ *
+ * A missing channel degrades to plain `confirm`, which is `user-input` and still always prompts, so
+ * the behaviour is unchanged and only the declared category is lost.
+ */
+export function getOpenWaggleDeclaredConfirm(ui: unknown): OpenWaggleDeclaredConfirm | undefined {
+  if (typeof ui !== 'object' || ui === null) return undefined
+  return carriesDeclaredConfirm(ui) ? ui[OPENWAGGLE_DECLARED_CONFIRM_KEY] : undefined
+}
 
 /**
  * Reads the authorization method off a UI context, when it is OpenWaggle's.

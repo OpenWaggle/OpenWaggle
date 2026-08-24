@@ -44,7 +44,11 @@ test.describe('diff route sidebar', () => {
       await diffToggle.click()
 
       await expect(page).toHaveURL(/\?panel=diff/)
-      const diffAside = page.locator('aside').filter({ hasText: 'Working tree diff' })
+      // Targeted by the shell's own data attribute rather than by filtering `aside` on its heading
+      // text. The previous locator filtered on "Working tree diff", copy that no longer exists
+      // anywhere in the renderer, so it matched nothing and the test failed on "element(s) not found"
+      // while the `inert` behaviour it checks was working correctly the whole time.
+      const diffAside = page.locator('aside[data-right-sidebar-shell="true"]')
       await expect(diffAside).not.toHaveAttribute('inert', '')
       await expect(page.getByRole('button', { name: 'Resize right sidebar' })).toBeVisible()
 

@@ -55,6 +55,9 @@ async function showToolCallApproval(input: {
       title,
       message,
       scopeKey: {
+        // `requesterId` is the identity, `requester` only the display name, so renaming a server
+        // neither drops its grants nor lets a reused name inherit them.
+        requesterId: attribution.serverInstanceId,
         requester: attribution.serverLabel,
         capability: 'mcp.tool-call',
         resource: attribution.toolName,

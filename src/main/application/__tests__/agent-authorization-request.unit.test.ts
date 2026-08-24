@@ -21,6 +21,7 @@ const runId = 'run-authorization'
 
 const scopeKey = {
   requester: 'github-issues',
+  requesterId: 'github-issues-id',
   capability: 'mcp.tool-call',
   resource: 'list_issues',
 } as const

@@ -1,7 +1,5 @@
 import { type Context, complete, type Tool, type UserMessage } from '@earendil-works/pi-ai/compat'
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
-import { MCP_CONFIG } from '@shared/constants/mcp'
-import type { McpJsonValue } from '@shared/types/mcp'
 import { Type } from 'typebox'
 import type {
   McpElicitationResult,
@@ -11,45 +9,19 @@ import type {
 } from '../../ports/mcp-runtime-service'
 import { getOpenWaggleAuthorize } from './agent-kernel/openwaggle-authorize-channel'
 import { parseElicitationContent } from './mcp-elicitation-content'
+import {
+  declaredConfirm,
+  interactionSignal,
+  isLoopback,
+  isObject,
+  type JsonObject,
+  numberValue,
+  requireUi,
+  reviewText,
+  stringValue,
+} from './mcp-interaction-helpers'
 
-const MAX_REVIEW_CHARACTERS = 20_000
 const MAX_SAMPLING_TOKENS = 16_384
-
-type JsonObject = Record<string, McpJsonValue>
-
-function isObject(value: McpJsonValue | undefined): value is JsonObject {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function stringValue(value: McpJsonValue | undefined) {
-  return typeof value === 'string' ? value : undefined
-}
-
-function numberValue(value: McpJsonValue | undefined) {
-  return typeof value === 'number' ? value : undefined
-}
-
-function reviewText(value: McpJsonValue) {
-  const text = JSON.stringify(value, null, MCP_CONFIG.JSON_INDENT_SPACES)
-  return text.length <= MAX_REVIEW_CHARACTERS
-    ? text
-    : `${text.slice(0, MAX_REVIEW_CHARACTERS)}\n… review truncated by UI safety limit`
-}
-
-function interactionSignal(ctx: ExtensionContext, signal?: AbortSignal) {
-  return signal ?? ctx.signal
-}
-
-function requireUi(ctx: ExtensionContext, capability: string) {
-  if (!ctx.hasUI) {
-    throw new Error(`MCP ${capability} requires an interactive OpenWaggle approval.`)
-  }
-}
-
-function isLoopback(hostname: string) {
-  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, '')
-  return normalized === 'localhost' || normalized === '::1' || normalized.startsWith('127.')
-}
 
 async function handleUrlElicitation(input: {
   readonly ctx: ExtensionContext
@@ -64,17 +36,20 @@ async function handleUrlElicitation(input: {
     throw new Error('MCP URL elicitation requires HTTPS except on loopback.')
   }
   const signal = interactionSignal(input.ctx, input.signal)
-  const approved = await input.ctx.ui.confirm(
-    'Open MCP elicitation URL?',
-    [
+  const approved = await declaredConfirm({
+    ctx: input.ctx,
+    // The consequence is a page at a destination a third party chose, which is the user's to accept.
+    purpose: 'external-navigation',
+    title: 'Open MCP elicitation URL?',
+    message: [
       `Server: ${input.serverLabel}`,
       `Message: ${stringValue(input.request.message) ?? 'No message provided'}`,
       `Destination: ${url.origin}`,
       '',
       'The page may request sensitive information. OpenWaggle will not read the page or its values.',
     ].join('\n'),
-    { signal },
-  )
+    signal,
+  })
   if (!approved) return { action: 'decline' }
   const { shell } = await import('electron')
   await shell.openExternal(url.href)
@@ -93,9 +68,13 @@ async function handleFormElicitation(input: {
   readonly signal?: AbortSignal
 }): Promise<McpElicitationResult> {
   const signal = interactionSignal(input.ctx, input.signal)
-  const approved = await input.ctx.ui.confirm(
-    'Review MCP input request?',
-    [
+  const approved = await declaredConfirm({
+    ctx: input.ctx,
+    // Names which server wants the user's data and shows the schema being asked for. Auto-answering
+    // saves no work, because the editor that follows still blocks; it only removes the explanation.
+    purpose: 'disclosure',
+    title: 'Review MCP input request?',
+    message: [
       `Server: ${input.serverLabel}`,
       `Message: ${stringValue(input.request.message) ?? 'No message provided'}`,
       '',
@@ -104,8 +83,8 @@ async function handleFormElicitation(input: {
       '',
       'This consent applies only to this request. Your response is sent to the named server.',
     ].join('\n'),
-    { signal },
-  )
+    signal,
+  })
   if (!approved) return { action: 'decline' }
   const edited = await input.ctx.ui.editor(`MCP input for ${input.serverLabel}`, '{}')
   if (edited === undefined) return { action: 'cancel' }
@@ -187,6 +166,7 @@ function stopReason(reason: Awaited<ReturnType<typeof complete>>['stopReason']) 
  */
 async function askSamplingApproval(input: {
   readonly ctx: ExtensionContext
+  readonly serverInstanceId: string
   readonly serverLabel: string
   readonly request: JsonObject
   readonly maxTokens: number
@@ -210,7 +190,13 @@ async function askSamplingApproval(input: {
     return authorize({
       title,
       message,
-      scopeKey: { requester: input.serverLabel, capability: 'mcp.sampling' },
+      scopeKey: {
+        // Identity is the stable instance id; the label is display only, so a rename cannot move a
+        // grant and a reused name cannot inherit one.
+        requesterId: input.serverInstanceId,
+        requester: input.serverLabel,
+        capability: 'mcp.sampling',
+      },
       ...(input.signal ? { signal: input.signal } : {}),
     })
   }
@@ -225,6 +211,7 @@ async function askSamplingApproval(input: {
 
 async function handleSampling(input: {
   readonly ctx: ExtensionContext
+  readonly serverInstanceId: string
   readonly serverLabel: string
   readonly request: JsonObject
   readonly signal?: AbortSignal
@@ -240,6 +227,7 @@ async function handleSampling(input: {
   const tools = toSamplingTools(input.request)
   const approved = await askSamplingApproval({
     ctx: input.ctx,
+    serverInstanceId: input.serverInstanceId,
     serverLabel: input.serverLabel,
     request: input.request,
     maxTokens,
@@ -296,6 +284,7 @@ export function createPiMcpRuntimeInteractions(ctx: ExtensionContext): McpRuntim
       if (!isObject(input.request)) throw new Error('Invalid MCP sampling request.')
       return handleSampling({
         ctx,
+        serverInstanceId: input.serverInstanceId,
         serverLabel: input.serverLabel,
         request: input.request,
         signal: input.signal,

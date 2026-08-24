@@ -269,6 +269,7 @@ export async function grantProjectAuthorization(
         ...withoutKey,
         {
           requester: key.requester,
+          requesterId: key.requesterId,
           capability: key.capability,
           ...(key.resource === undefined ? {} : { resource: key.resource }),
           grantedAt,
