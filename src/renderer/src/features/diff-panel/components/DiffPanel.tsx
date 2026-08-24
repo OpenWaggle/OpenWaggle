@@ -115,11 +115,7 @@ export function DiffPanel({
   const baseRefChoices = useBaseRefChoices(repositoryPath)
   const turns = useSessionTurns(sessionId, refreshToken)
   const displayed = useDisplayedDiff({ sessionId, workingPath, selection, refreshToken })
-  const { reviewKey, keyForSession } = useReviewKey({
-    scopeKey,
-    draftAnchor: repositoryPath,
-    selection,
-  })
+  const { reviewKey, keyForSession } = useReviewKey({ scopeKey, selection })
   const { fileDiffs, isLoading, loadError, refreshDiff } = displayed
 
   useReconcileTurnSelection(scopeKey, turns)

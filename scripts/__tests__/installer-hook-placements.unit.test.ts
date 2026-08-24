@@ -54,10 +54,18 @@ describe('derivePlacements', () => {
       'customRemoveFiles',
     ])
 
-    // The installer pass compiles these, whatever their name suggests.
+    /*
+     * The installer pass compiles these, whatever their name suggests - and this one is resolved through the
+     * pass table, so its source is asserted too. The table is keyed by path relative to the templates directory
+     * rather than by basename: `installUtil.nsh` only exists under `include/`, so a basename lookup found the
+     * right file only while no two templates shared a name, and `include/installer.nsh` already sits beside
+     * `installer.nsi`. Pinning the source means an upstream rename that breaks the key fails here rather than
+     * silently attributing a hook to the wrong compile pass.
+     */
     expect(placements.get('customUnInstallCheck')).toMatchObject({
       passes: ['installer'],
       context: 'function',
+      source: expect.stringContaining('include/installUtil.nsh:'),
     })
     expect(placements.get('customInit')).toMatchObject({
       passes: ['installer'],

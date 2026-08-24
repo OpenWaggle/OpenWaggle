@@ -38,8 +38,7 @@ describe('useReviewKey', () => {
     useReviewStore.getState().addComment(draftKey, comment('c1'))
 
     const { rerender } = renderHook(
-      ({ scopeKey }: { scopeKey: string }) =>
-        useReviewKey({ scopeKey, draftAnchor: WORKING_PATH, selection: SCOPE }),
+      ({ scopeKey }: { scopeKey: string }) => useReviewKey({ scopeKey, selection: SCOPE }),
       // The panel's scope key IS the working path until a session is selected.
       { initialProps: { scopeKey: WORKING_PATH } },
     )
@@ -59,9 +58,7 @@ describe('useReviewKey', () => {
     const draftKey = reviewKeyFor(WORKING_PATH, SCOPE)
     useReviewStore.getState().addComment(draftKey, comment('belongs-to-the-draft'))
 
-    renderHook(() =>
-      useReviewKey({ scopeKey: 'session-b', draftAnchor: WORKING_PATH, selection: SCOPE }),
-    )
+    renderHook(() => useReviewKey({ scopeKey: 'session-b', selection: SCOPE }))
 
     // Still the draft's, untouched.
     expect(selectReviewThread(useReviewStore.getState(), draftKey).comments).toHaveLength(1)
@@ -81,7 +78,7 @@ describe('useReviewKey', () => {
     useDiffScopeStore.setState({ byThreadKey: {} })
 
     const { result } = renderHook(() =>
-      useReviewKey({ scopeKey: WORKING_PATH, draftAnchor: WORKING_PATH, selection: branchScope }),
+      useReviewKey({ scopeKey: WORKING_PATH, selection: branchScope }),
     )
     const followed = result.current.keyForSession('session-created')
 

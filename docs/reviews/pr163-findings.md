@@ -635,3 +635,32 @@ index-only changes both need commits built with `write-tree`/`commit-tree` rathe
 needs a deliberate decision about naming the push destination; and the waggle run path needs its own outcome
 mapping to report a refusal rather than rejecting the invoke.
 
+## Post-audit cleanup
+
+The completion auditor listed six residues it had seen and deliberately not counted. Each was checked against
+real git or the real code; two were mine to clean, four were verified as non-defects or stay recorded.
+
+**Fixed.**
+
+- **`useReviewKey.draftKey` was dead**, and so was the `draftAnchor` parameter that fed it. Both were introduced
+  to anchor the deleted scope inheritance, and removing that inheritance left them computing a key nothing read.
+  Gone, along with the argument `DiffPanel` was passing for them.
+- **The installer hook tables were keyed by basename.** `installUtil.nsh` only exists as
+  `include/installUtil.nsh`, so a basename lookup found the right file only while no two templates shared a name -
+  and `include/installer.nsh` already sits beside `installer.nsi`. Keyed by path relative to the templates
+  directory now, and the test pins the source so an upstream rename fails there rather than silently attributing a
+  hook to the wrong compile pass. Verified the derived placements are unchanged.
+
+**Checked and not defects.**
+
+- **A submodule pointer bump commits correctly.** `git status --porcelain` reports it as ` M sub`, so the panel
+  offers it like any other change, and the real argv - `add -A -- sub` then `commit -- sub` - records the new
+  pointer and leaves the tree clean. Verified end to end in a scratch repository with a real submodule.
+- **The diff panel's sends bypass the composer send gate**, which is true and costs nothing now: main refuses the
+  send, the refusal is reported as such, and the review is restored intact. What the user misses is the context
+  row's recover-or-switch wording rather than main's message. Routing the panel through the gate means hoisting it
+  out of the composer component into the controller, which is a wiring change to a green branch for a difference in
+  phrasing - a change worth making deliberately, not as a nineteenth-round afterthought.
+- **`PASS_BY_TEMPLATE` and newline-in-filename** were the two remaining items, and both are already recorded above
+  with what a real fix takes.
+

@@ -13,29 +13,20 @@ import { reviewKeyFor } from '@/features/diff-panel/state/review-store'
  *
  * There is deliberately no automatic migration between the two. A draft review does move when it matters -
  * a failed first send carries the id of the session it created, and the review follows it there - but that is
- * driven by an event that knows *which* session, rather than inferred from the panel's key changing. Four
+ * driven by an event that knows *which* session, rather than inferred from the panel's key changing. Five
  * successive attempts to infer it were each wrong: the key also changes when the user clicks an existing
  * session in the sidebar, and in local mode every session in a project shares one working path, so a draft
  * review was claimed by another session and merged into its thread - posting one session's comments into
  * another conversation, which is exactly what keying reviews was introduced to prevent. Without the inference
- * an unsubmitted draft simply stays under the working path and reappears whenever the panel is on the draft:
+ * an unsubmitted draft simply stays under its own key and reappears whenever the panel is on the draft:
  * nothing is lost and nothing is misfiled.
  */
 export function useReviewKey(input: {
   readonly scopeKey: string
-  /**
-   * What a draft's key is built from: the opened repository, not the session's working path.
-   *
-   * A draft has no session, so its working path is the opened checkout - but in worktree mode the session's
-   * birth moves that path to the new worktree, and a key built from it moved too, leaving the reviewer's work
-   * under a path nothing looks at again.
-   */
-  readonly draftAnchor: string | null
   readonly selection: DiffScopeSelection
 }) {
   const selectScopeForThread = useDiffScopeStore((state) => state.setThreadScope)
   const reviewKey = reviewKeyFor(input.scopeKey || null, input.selection)
-  const draftKey = reviewKeyFor(input.draftAnchor, input.selection)
 
   /*
    * Where work submitted from this panel goes when the send that created a session fails, and the scope it goes
@@ -52,5 +43,5 @@ export function useReviewKey(input: {
     return reviewKeyFor(sessionId, input.selection)
   }
 
-  return { reviewKey, draftKey, keyForSession }
+  return { reviewKey, keyForSession }
 }

@@ -43,9 +43,17 @@ const TEMPLATE_GLOB = 'node_modules/.pnpm/app-builder-lib@*/node_modules/app-bui
 const UNINSTALLER_DEFINE = 'BUILD_UNINSTALLER'
 const ALL_PASSES: readonly CompilePassName[] = ['installer', 'uninstaller']
 /** Templates the installer entry point includes only for one pass. */
+/*
+ * Keyed by path relative to the templates directory, not by basename.
+ *
+ * `installUtil.nsh` only exists as `include/installUtil.nsh`, so a basename lookup happened to find the right
+ * file - but only while no two templates share a name. `include/installer.nsh` already sits beside
+ * `installer.nsi`, so that coincidence is one upstream rename away from attributing a hook to the wrong compile
+ * pass, which is precisely the mistake this table exists to prevent.
+ */
 const PASS_BY_TEMPLATE: Readonly<Record<string, boolean>> = {
   'uninstaller.nsh': true,
-  'installUtil.nsh': false,
+  'include/installUtil.nsh': false,
   'installSection.nsh': false,
 }
 
@@ -56,6 +64,7 @@ const PASS_BY_TEMPLATE: Readonly<Record<string, boolean>> = {
  * macro bodies invoked from functions. Reading context only within a file would call these top
  * level and compile their hooks where instructions are illegal.
  */
+/** Keyed by relative path, for the reason given on {@link PASS_BY_TEMPLATE}. */
 const CONTEXT_BY_TEMPLATE: Readonly<Record<string, HookContext>> = {
   'installSection.nsh': 'section',
 }
@@ -203,8 +212,9 @@ function findPlacement(
 
     const relative = path.relative(templatesDir, file)
     const guarded = guardedForUninstaller(lines, index)
-    const byTemplate = PASS_BY_TEMPLATE[path.basename(relative)]
-    const basename = path.basename(relative)
+    // Posix separators, so the keys read the same on Windows.
+    const templateKey = relative.split(path.sep).join('/')
+    const byTemplate = PASS_BY_TEMPLATE[templateKey]
     const withinFile = contextAt(lines, index)
     const pass = guarded ?? byTemplate
     return {
@@ -213,7 +223,8 @@ function findPlacement(
        * is how electron-builder treats `installer.nsi` itself.
        */
       passes: pass === undefined || pass === null ? ALL_PASSES : [pass ? 'uninstaller' : 'installer'],
-      context: withinFile === 'top-level' ? (CONTEXT_BY_TEMPLATE[basename] ?? 'top-level') : withinFile,
+      context:
+        withinFile === 'top-level' ? (CONTEXT_BY_TEMPLATE[templateKey] ?? 'top-level') : withinFile,
       source: `${relative}:${String(index + 1)}`,
     }
   }
