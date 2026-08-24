@@ -88,6 +88,7 @@ function pendingInteraction(): AgentLoopInteraction {
     createdAt: 1,
     title: 'Approve action?',
     message: 'The extension wants to proceed.',
+    purpose: 'user-input',
   }
 }
 

@@ -1,7 +1,5 @@
 import { type Context, complete, type Tool, type UserMessage } from '@earendil-works/pi-ai/compat'
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
-import { MCP_CONFIG } from '@shared/constants/mcp'
-import type { McpJsonValue } from '@shared/types/mcp'
 import { Type } from 'typebox'
 import type {
   McpElicitationResult,
@@ -9,65 +7,21 @@ import type {
   McpSamplingContent,
   McpSamplingResult,
 } from '../../ports/mcp-runtime-service'
+import { getOpenWaggleAuthorize } from './agent-kernel/openwaggle-authorize-channel'
+import { parseElicitationContent } from './mcp-elicitation-content'
+import {
+  declaredConfirm,
+  interactionSignal,
+  isLoopback,
+  isObject,
+  type JsonObject,
+  numberValue,
+  requireUi,
+  reviewText,
+  stringValue,
+} from './mcp-interaction-helpers'
 
-const MAX_REVIEW_CHARACTERS = 20_000
 const MAX_SAMPLING_TOKENS = 16_384
-
-type JsonObject = Record<string, McpJsonValue>
-
-function isObject(value: McpJsonValue | undefined): value is JsonObject {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function stringValue(value: McpJsonValue | undefined) {
-  return typeof value === 'string' ? value : undefined
-}
-
-function numberValue(value: McpJsonValue | undefined) {
-  return typeof value === 'number' ? value : undefined
-}
-
-function reviewText(value: McpJsonValue) {
-  const text = JSON.stringify(value, null, MCP_CONFIG.JSON_INDENT_SPACES)
-  return text.length <= MAX_REVIEW_CHARACTERS
-    ? text
-    : `${text.slice(0, MAX_REVIEW_CHARACTERS)}\n… review truncated by UI safety limit`
-}
-
-function interactionSignal(ctx: ExtensionContext, signal?: AbortSignal) {
-  return signal ?? ctx.signal
-}
-
-function requireUi(ctx: ExtensionContext, capability: string) {
-  if (!ctx.hasUI) {
-    throw new Error(`MCP ${capability} requires an interactive OpenWaggle approval.`)
-  }
-}
-
-function parseElicitationContent(text: string) {
-  const parsed: unknown = JSON.parse(text)
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new Error('MCP elicitation response must be a JSON object.')
-  }
-  const content: Record<string, string | number | boolean | string[]> = {}
-  for (const [key, value] of Object.entries(parsed)) {
-    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-      content[key] = value
-      continue
-    }
-    if (Array.isArray(value) && value.every((item) => typeof item === 'string')) {
-      content[key] = value
-      continue
-    }
-    throw new Error(`MCP elicitation field ${JSON.stringify(key)} has an unsupported value.`)
-  }
-  return content
-}
-
-function isLoopback(hostname: string) {
-  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, '')
-  return normalized === 'localhost' || normalized === '::1' || normalized.startsWith('127.')
-}
 
 async function handleUrlElicitation(input: {
   readonly ctx: ExtensionContext
@@ -82,17 +36,20 @@ async function handleUrlElicitation(input: {
     throw new Error('MCP URL elicitation requires HTTPS except on loopback.')
   }
   const signal = interactionSignal(input.ctx, input.signal)
-  const approved = await input.ctx.ui.confirm(
-    'Open MCP elicitation URL?',
-    [
+  const approved = await declaredConfirm({
+    ctx: input.ctx,
+    // The consequence is a page at a destination a third party chose, which is the user's to accept.
+    purpose: 'external-navigation',
+    title: 'Open MCP elicitation URL?',
+    message: [
       `Server: ${input.serverLabel}`,
       `Message: ${stringValue(input.request.message) ?? 'No message provided'}`,
       `Destination: ${url.origin}`,
       '',
       'The page may request sensitive information. OpenWaggle will not read the page or its values.',
     ].join('\n'),
-    { signal },
-  )
+    signal,
+  })
   if (!approved) return { action: 'decline' }
   const { shell } = await import('electron')
   await shell.openExternal(url.href)
@@ -111,9 +68,13 @@ async function handleFormElicitation(input: {
   readonly signal?: AbortSignal
 }): Promise<McpElicitationResult> {
   const signal = interactionSignal(input.ctx, input.signal)
-  const approved = await input.ctx.ui.confirm(
-    'Review MCP input request?',
-    [
+  const approved = await declaredConfirm({
+    ctx: input.ctx,
+    // Names which server wants the user's data and shows the schema being asked for. Auto-answering
+    // saves no work, because the editor that follows still blocks; it only removes the explanation.
+    purpose: 'disclosure',
+    title: 'Review MCP input request?',
+    message: [
       `Server: ${input.serverLabel}`,
       `Message: ${stringValue(input.request.message) ?? 'No message provided'}`,
       '',
@@ -122,8 +83,8 @@ async function handleFormElicitation(input: {
       '',
       'This consent applies only to this request. Your response is sent to the named server.',
     ].join('\n'),
-    { signal },
-  )
+    signal,
+  })
   if (!approved) return { action: 'decline' }
   const edited = await input.ctx.ui.editor(`MCP input for ${input.serverLabel}`, '{}')
   if (edited === undefined) return { action: 'cancel' }
@@ -196,8 +157,61 @@ function stopReason(reason: Awaited<ReturnType<typeof complete>>['stopReason']) 
   return 'endTurn'
 }
 
+/**
+ * Asks permission for a legacy sampling request.
+ *
+ * Declared as authorization and keyed on the server and the capability alone: the model is chosen by
+ * OpenWaggle rather than the server, so keying on it would only invalidate a kept approval whenever
+ * the user changes model, which is noise rather than safety.
+ */
+async function askSamplingApproval(input: {
+  readonly ctx: ExtensionContext
+  readonly serverInstanceId: string
+  readonly serverLabel: string
+  readonly request: JsonObject
+  readonly maxTokens: number
+  readonly toolCount: number
+  readonly modelRef: string
+  readonly signal?: AbortSignal
+}) {
+  const title = 'Allow legacy MCP sampling?'
+  const message = [
+    `Server: ${input.serverLabel}`,
+    `Model chosen by OpenWaggle: ${input.modelRef}`,
+    `Maximum output tokens: ${String(input.maxTokens)}`,
+    `Server-provided tools: ${String(input.toolCount)}`,
+    'Task history and ambient OpenWaggle tools will not be shared.',
+    '',
+    reviewText(input.request),
+  ].join('\n')
+
+  const authorize = getOpenWaggleAuthorize(input.ctx.ui)
+  if (authorize) {
+    return authorize({
+      title,
+      message,
+      scopeKey: {
+        // Identity is the stable instance id; the label is display only, so a rename cannot move a
+        // grant and a reused name cannot inherit one.
+        requesterId: input.serverInstanceId,
+        requester: input.serverLabel,
+        capability: 'mcp.sampling',
+      },
+      ...(input.signal ? { signal: input.signal } : {}),
+    })
+  }
+
+  // No OpenWaggle channel, so degrade to always asking rather than to always allowing.
+  return input.ctx.ui.confirm(
+    title,
+    `${message}\n\nThis approval applies only to this sampling request.`,
+    { signal: input.signal },
+  )
+}
+
 async function handleSampling(input: {
   readonly ctx: ExtensionContext
+  readonly serverInstanceId: string
   readonly serverLabel: string
   readonly request: JsonObject
   readonly signal?: AbortSignal
@@ -211,21 +225,16 @@ async function handleSampling(input: {
     Math.min(requestedTokens, input.ctx.model.maxTokens, MAX_SAMPLING_TOKENS),
   )
   const tools = toSamplingTools(input.request)
-  const approved = await input.ctx.ui.confirm(
-    'Allow legacy MCP sampling?',
-    [
-      `Server: ${input.serverLabel}`,
-      `Model chosen by OpenWaggle: ${input.ctx.model.provider}/${input.ctx.model.id}`,
-      `Maximum output tokens: ${String(maxTokens)}`,
-      `Server-provided tools: ${String(tools?.length ?? 0)}`,
-      'Task history and ambient OpenWaggle tools will not be shared.',
-      '',
-      reviewText(input.request),
-      '',
-      'This approval applies only to this sampling request.',
-    ].join('\n'),
-    { signal },
-  )
+  const approved = await askSamplingApproval({
+    ctx: input.ctx,
+    serverInstanceId: input.serverInstanceId,
+    serverLabel: input.serverLabel,
+    request: input.request,
+    maxTokens,
+    toolCount: tools?.length ?? 0,
+    modelRef: `${input.ctx.model.provider}/${input.ctx.model.id}`,
+    signal,
+  })
   if (!approved) throw new Error('The user declined the MCP sampling request.')
   const model = input.ctx.modelRegistry.find(input.ctx.model.provider, input.ctx.model.id)
   if (!model) throw new Error('The selected MCP sampling model is no longer available.')
@@ -275,6 +284,7 @@ export function createPiMcpRuntimeInteractions(ctx: ExtensionContext): McpRuntim
       if (!isObject(input.request)) throw new Error('Invalid MCP sampling request.')
       return handleSampling({
         ctx,
+        serverInstanceId: input.serverInstanceId,
         serverLabel: input.serverLabel,
         request: input.request,
         signal: input.signal,

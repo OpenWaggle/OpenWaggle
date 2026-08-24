@@ -1,3 +1,4 @@
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionDetail, SessionSummary } from '@shared/types/session'
 import { type DraftSessionState, useChatStore } from '@/features/chat/state/chat-store'
@@ -11,6 +12,11 @@ export interface ChatReturn {
   startDraftSession: (projectPath?: string | null) => void
   setActiveSession: (id: SessionId | null) => void
   refreshSession: (id: SessionId) => Promise<void>
+  /** `null` clears the session override so the session inherits again. */
+  setSessionAuthorizationMode: (
+    id: SessionId,
+    authorizationMode: AgentAuthorizationMode | null,
+  ) => Promise<void>
   deleteSession: (id: SessionId) => Promise<void>
   updateSessionTitle: (id: SessionId, title: string) => void
   loadSessions: () => Promise<void>
@@ -32,6 +38,7 @@ export function useChat(): ChatReturn {
   const startDraftSession = useChatStore((s) => s.startDraftSession)
   const setActiveSession = useChatStore((s) => s.setActiveSession)
   const refreshSession = useChatStore((s) => s.refreshSession)
+  const setSessionAuthorizationMode = useChatStore((s) => s.setSessionAuthorizationMode)
   const deleteSession = useChatStore((s) => s.deleteSession)
   const updateSessionTitle = useChatStore((s) => s.updateSessionTitle)
   const loadSessions = useChatStore((s) => s.loadSessions)
@@ -45,6 +52,7 @@ export function useChat(): ChatReturn {
     startDraftSession,
     setActiveSession,
     refreshSession,
+    setSessionAuthorizationMode,
     deleteSession,
     updateSessionTitle,
     loadSessions,

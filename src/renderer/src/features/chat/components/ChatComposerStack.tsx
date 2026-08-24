@@ -14,12 +14,16 @@ import {
   QueuedMessages,
 } from '@/features/composer/components'
 import { useScopedComposerDrafts } from '@/features/composer/hooks'
-import { SessionContextRow } from '@/features/git'
+import { ExtensionAgentLoopStatusWidgets } from '@/features/extensions'
+import { SessionContextRow, type SessionContextRowState } from '@/features/git'
 import { WaggleCollaborationStatus as WaggleCollaborationStatusBanner } from '@/features/waggle/components'
 import { useComposerSendGate } from '../hooks/useComposerSendGate'
 import type { ChatComposerSectionState } from '../model'
+import { AgentCustomInteractionComposerFallback } from './AgentCustomInteractionComposerFallback'
+import { AgentInteractionComposerPrompt } from './AgentInteractionComposerPrompt'
 import { ChatComposerCommandPalette } from './ChatComposerCommandPalette'
 import { ChatComposerExtensionDialogs } from './ChatComposerExtensionDialogs'
+import { SessionAuthorizationModeMenu } from './SessionAuthorizationModeMenu'
 import { SessionForkSelector } from './SessionForkSelector'
 
 interface ChatComposerStackProps {
@@ -38,6 +42,107 @@ const EMPTY_AGENT_INTERACTIONS: readonly AgentLoopInteraction[] = []
 const EMPTY_EXTENSION_PROJECT_PATHS: readonly string[] = []
 
 function noOp() {}
+
+/** Last path segment, so a project-scoped approval names somewhere the user recognises. */
+function projectDisplayName(projectPath: string | null) {
+  if (!projectPath) return null
+  const segments = projectPath.split('/').filter((segment) => segment.length > 0)
+  return segments.at(-1) ?? null
+}
+
+function ComposerOverlays({
+  section,
+  onOpenSessionTree,
+}: {
+  readonly section: ChatComposerSectionState
+  readonly onOpenSessionTree?: () => void
+}) {
+  const {
+    activeSessionId,
+    waggleStatus,
+    slashCommandMenuOpen,
+    slashSkills,
+    forkSelectorOpen,
+    forkTargets,
+    onStopCollaboration,
+    onSelectSkill,
+    onStartWaggle,
+    onOpenForkSelector,
+    onCloseForkSelector,
+    onSelectForkTarget,
+    onCloneToNewSession,
+  } = section
+
+  return (
+    <>
+      <WaggleCollaborationStatusBanner
+        currentSessionId={activeSessionId}
+        onStop={waggleStatus !== 'idle' ? onStopCollaboration : noOp}
+      />
+      <ChatComposerCommandPalette
+        open={slashCommandMenuOpen}
+        slashSkills={slashSkills}
+        onSelectSkill={onSelectSkill}
+        onStartWaggle={onStartWaggle}
+        onOpenSessionTree={onOpenSessionTree}
+        onForkToNewSession={onOpenForkSelector}
+        onCloneToNewSession={onCloneToNewSession}
+      />
+      <SessionForkSelector
+        open={forkSelectorOpen}
+        targets={forkTargets}
+        onSelect={onSelectForkTarget}
+        onClose={onCloseForkSelector}
+      />
+    </>
+  )
+}
+
+/** Tone for the run-level status surface extensions can contribute into. */
+function runStatusTone(status: ChatComposerSectionState['status']) {
+  if (status === 'streaming' || status === 'submitted') return 'running' as const
+  if (status === 'compacting' || status === 'retrying') return 'running' as const
+  return 'neutral' as const
+}
+
+function ComposerControlRow({
+  strip,
+  section,
+  extensionRegistry,
+  extensionProjectPaths,
+}: {
+  readonly strip: SessionContextRowState
+  readonly section: ChatComposerSectionState
+  readonly extensionRegistry: ExtensionContributionRegistryView | null
+  readonly extensionProjectPaths: readonly string[]
+}) {
+  return (
+    <div className="mt-1.5 flex min-h-7 min-w-0 flex-wrap items-center justify-between gap-3 px-1">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <SessionAuthorizationModeMenu
+          session={section.session}
+          onSetAuthorizationMode={section.onSetAuthorizationMode}
+        />
+        <SessionContextRow strip={strip} />
+        {/* Status widgets belong to the run, so they mount once here rather than hanging off a
+            pending custom interaction, which is where they used to live and therefore only
+            appeared when an unrelated interaction happened to be waiting. */}
+        <ExtensionAgentLoopStatusWidgets
+          input={{
+            surface: 'status',
+            status: {
+              label: 'Run status',
+              tone: runStatusTone(section.status),
+            },
+          }}
+          projectPaths={extensionProjectPaths}
+          registry={extensionRegistry}
+        />
+      </div>
+      <ComposerBranchRow strip={strip} onToast={section.onToast} />
+    </div>
+  )
+}
 
 /**
  * The composer stack.
@@ -58,17 +163,9 @@ export function ChatComposerStack({
 }: ChatComposerStackProps) {
   const {
     activeSessionId,
-    waggleStatus,
-    slashCommandMenuOpen,
-    slashSkills,
-    forkSelectorOpen,
-    forkTargets,
     isLoading,
     status,
     compactionStatus,
-    onStopCollaboration,
-    onSelectSkill,
-    onStartWaggle,
     onSendWithWaggle,
     onSteer,
     onCancel,
@@ -77,10 +174,6 @@ export function ChatComposerStack({
     onSummarizeBranch,
     onStartCustomBranchSummary,
     onCancelBranchSummary,
-    onOpenForkSelector,
-    onCloseForkSelector,
-    onSelectForkTarget,
-    onCloneToNewSession,
   } = section
   useScopedComposerDrafts(activeSessionId)
   const { strip, guardedSend } = useComposerSendGate({
@@ -98,27 +191,7 @@ export function ChatComposerStack({
     branchSummaryMode === 'custom' ? 'Custom instructions for the branch summary' : undefined
   return (
     <>
-      <WaggleCollaborationStatusBanner
-        currentSessionId={activeSessionId}
-        onStop={waggleStatus !== 'idle' ? onStopCollaboration : noOp}
-      />
-
-      <ChatComposerCommandPalette
-        open={slashCommandMenuOpen}
-        slashSkills={slashSkills}
-        onSelectSkill={onSelectSkill}
-        onStartWaggle={onStartWaggle}
-        onOpenSessionTree={onOpenSessionTree}
-        onForkToNewSession={onOpenForkSelector}
-        onCloneToNewSession={onCloneToNewSession}
-      />
-
-      <SessionForkSelector
-        open={forkSelectorOpen}
-        targets={forkTargets}
-        onSelect={onSelectForkTarget}
-        onClose={onCloseForkSelector}
-      />
+      <ComposerOverlays section={section} onOpenSessionTree={onOpenSessionTree} />
 
       <div className="mx-auto w-full max-w-[720px] px-5 pb-5" data-chat-composer-form="true">
         {compactionStatus ? (
@@ -135,6 +208,17 @@ export function ChatComposerStack({
           onSummarize={onSummarizeBranch}
           onCustomSummary={onStartCustomBranchSummary}
           onCancel={onCancelBranchSummary}
+        />
+        <AgentInteractionComposerPrompt
+          interactions={agentInteractions}
+          onRespond={onRespondAgentInteraction}
+          projectName={projectDisplayName(section.session?.projectPath ?? null)}
+        />
+        <AgentCustomInteractionComposerFallback
+          extensionProjectPaths={extensionProjectPaths}
+          extensionRegistry={extensionRegistry}
+          interactions={agentInteractions}
+          onRespond={onRespondAgentInteraction}
         />
         <ChatComposerExtensionDialogs
           agentInteractions={agentInteractions}
@@ -162,10 +246,12 @@ export function ChatComposerStack({
           }}
           onToast={onToast}
         />
-        <div className="mt-1.5 flex min-h-7 min-w-0 flex-wrap items-center justify-between gap-3 px-1">
-          <SessionContextRow strip={strip} />
-          <ComposerBranchRow strip={strip} onToast={onToast} />
-        </div>
+        <ComposerControlRow
+          extensionProjectPaths={extensionProjectPaths}
+          extensionRegistry={extensionRegistry}
+          section={section}
+          strip={strip}
+        />
         <ActionDialog onToast={onToast} />
       </div>
     </>

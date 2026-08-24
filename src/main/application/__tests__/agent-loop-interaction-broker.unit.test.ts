@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   clearAgentLoopInteractionBrokerForTests,
   failAgentLoopInteraction,
+  grantPendingAuthorizationsForSession,
   requestAgentLoopInteraction,
   submitAgentLoopInteractionResponse,
 } from '../agent-loop-interaction-broker'
@@ -20,7 +21,8 @@ function confirmInteraction() {
     source: 'pi-ui',
     createdAt: 1,
     title: 'Continue?',
-    message: 'Allow Pi to proceed?',
+    message: 'Continue with the change?',
+    purpose: 'user-input',
   } as const
 }
 
@@ -166,5 +168,64 @@ describe('agent-loop interaction broker', () => {
         error: { code: 'custom-renderer-unavailable' },
       },
     ])
+  })
+})
+
+describe('switching a session to full access', () => {
+  beforeEach(() => {
+    clearAgentLoopInteractionBrokerForTests()
+  })
+
+  it('grants a pending authorization request so the run stops waiting', async () => {
+    const emitted: AgentTransportEvent[] = []
+    const pending = requestAgentLoopInteraction({
+      interaction: { ...confirmInteraction(), purpose: 'authorization' },
+      onEvent: (event) => emitted.push(event),
+    })
+
+    const granted = grantPendingAuthorizationsForSession({ sessionId })
+
+    expect(granted).toBe(1)
+    await expect(pending).resolves.toEqual({ kind: 'confirm', accepted: true })
+    expect(emitted.at(-1)).toMatchObject({
+      type: 'agent_interaction_resolved',
+      status: 'resolved',
+      response: { kind: 'confirm', accepted: true },
+    })
+  })
+
+  it('leaves a question addressed to the user pending', async () => {
+    const emitted: AgentTransportEvent[] = []
+    const pending = requestAgentLoopInteraction({
+      interaction: { ...confirmInteraction(), purpose: 'user-input' },
+      onEvent: (event) => emitted.push(event),
+    })
+    let settled = false
+    void pending.then(() => {
+      settled = true
+    })
+
+    expect(grantPendingAuthorizationsForSession({ sessionId })).toBe(0)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(settled).toBe(false)
+
+    submitAgentLoopInteractionResponse({
+      sessionId,
+      runId: 'run-1',
+      interactionId: 'confirm-1',
+      kind: 'confirm',
+      response: { kind: 'confirm', accepted: false },
+    })
+    await expect(pending).resolves.toEqual({ kind: 'confirm', accepted: false })
+  })
+
+  it('leaves a select request pending, because full access never answers for the user', async () => {
+    const emitted: AgentTransportEvent[] = []
+    void requestAgentLoopInteraction({
+      interaction: selectInteraction(),
+      onEvent: (event) => emitted.push(event),
+    })
+
+    expect(grantPendingAuthorizationsForSession({ sessionId })).toBe(0)
   })
 })

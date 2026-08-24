@@ -90,7 +90,7 @@ describe('KeyEditor', () => {
     )
 
     expect(screen.getByText('Invalid key')).toBeInTheDocument()
-    expect(screen.getByText(/Pi currently sees this provider/)).toBeInTheDocument()
+    expect(screen.getByText(/This provider is currently detected/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Clear' })).not.toBeInTheDocument()
   })
 

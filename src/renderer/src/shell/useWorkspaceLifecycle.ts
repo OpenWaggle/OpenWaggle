@@ -3,6 +3,7 @@ import { type UseHotkeyDefinition, useHotkeys } from '@tanstack/react-hotkeys'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { useChat } from '@/features/chat/hooks'
+import { focusPendingRequest } from '@/features/chat/lib'
 import { useDiffRouteNavigation } from '@/features/diff-panel/hooks'
 import { useGit, useGitRefresh } from '@/features/git/hooks'
 import { useProject, useSessionStatusMonitor, useSessions } from '@/features/sessions/hooks'
@@ -109,6 +110,10 @@ export function useWorkspaceLifecycle(): void {
     {
       binding: shortcutBindings['sessionTree.toggle'],
       callback: toggleSessionTree,
+    },
+    {
+      binding: shortcutBindings['request.focus'],
+      callback: focusPendingRequest,
     },
   ].flatMap((item) => (item.binding ? [{ hotkey: item.binding, callback: item.callback }] : []))
 

@@ -5,6 +5,10 @@ import type {
   AgentTransportInteractionRequestEvent,
   AgentTransportInteractionResolvedEvent,
 } from '@shared/types/stream'
+import {
+  notificationCreatesDurableRecord,
+  notificationResolutionCreatesDurableRecord,
+} from '@shared/utils/agent-notification-durability'
 import type { AgentKernelSessionSnapshot } from '../../ports/agent-kernel-service'
 import type { ProjectedSessionNodeInput } from '../../ports/session-repository'
 
@@ -38,11 +42,22 @@ type UnknownObject = { readonly [key: string]: unknown }
 export function isDurableAgentLoopEvent(
   event: AgentTransportEvent,
 ): event is DurableAgentLoopEvent {
-  return (
-    event.type === 'custom' ||
-    event.type === 'agent_interaction_request' ||
-    event.type === 'agent_interaction_resolved'
-  )
+  if (event.type === 'custom') {
+    return true
+  }
+
+  if (event.type === 'agent_interaction_request') {
+    return (
+      event.interaction.kind !== 'notify' ||
+      notificationCreatesDurableRecord(event.interaction.level)
+    )
+  }
+
+  if (event.type === 'agent_interaction_resolved') {
+    return event.kind !== 'notify' || notificationResolutionCreatesDurableRecord()
+  }
+
+  return false
 }
 
 function isObject(value: unknown): value is UnknownObject {

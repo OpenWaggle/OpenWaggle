@@ -17,6 +17,7 @@ export function AgentInteractionSelectControls({
   return (
     <div className="grid gap-2">
       <Select
+        aria-label={interaction.title}
         disabled={busy}
         value={selected}
         onChange={(event) => setSelected(event.currentTarget.value)}
@@ -29,13 +30,18 @@ export function AgentInteractionSelectControls({
       </Select>
       <div className="flex flex-wrap gap-2">
         <Button
+          aria-label={`Select for ${interaction.title}`}
           disabled={busy || selected.length === 0}
-          variant="accent"
           onClick={() => submit({ kind: 'select', selected })}
+          variant="accent"
         >
           Select
         </Button>
-        <Button disabled={busy} onClick={() => submit({ kind: 'select', selected: null })}>
+        <Button
+          aria-label={`Cancel ${interaction.title}`}
+          disabled={busy}
+          onClick={() => submit({ kind: 'select', selected: null })}
+        >
           Cancel
         </Button>
       </div>

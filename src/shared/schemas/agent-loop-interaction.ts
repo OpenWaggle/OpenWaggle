@@ -1,4 +1,5 @@
 import { Schema } from '@shared/schema'
+import { AGENT_AUTHORIZATION_DECISION_SCOPES } from '@shared/types/agent-authorization-grants'
 import type {
   AgentLoopInteractionKind,
   AgentLoopInteractionResponse,
@@ -16,9 +17,20 @@ const interactionKindSchema = Schema.Literal(
   'custom',
 )
 
+/**
+ * `scope` must be declared here, not just on the TypeScript response type.
+ *
+ * Effect Schema decodes with `onExcessProperty: "ignore"`, which *removes* undeclared keys from the
+ * decoded value rather than passing them through. An undeclared `scope` therefore never reached
+ * `requestAuthorization`, so "Allow for this session" and "Always allow in this project" both
+ * silently degraded to once-only and no grant was ever persisted. The union is annotated
+ * `Schema.Schema<AgentLoopInteractionResponse>` and `scope` is optional, so omitting it here still
+ * typechecked. Any future response field needs the same treatment plus a decode test.
+ */
 const confirmResponseSchema = Schema.Struct({
   kind: Schema.Literal('confirm'),
   accepted: Schema.Boolean,
+  scope: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_DECISION_SCOPES)),
 })
 
 const selectResponseSchema = Schema.Struct({

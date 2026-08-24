@@ -180,7 +180,7 @@ function agentLoopCustomRows(rows: readonly ChatRow[]) {
 }
 
 function agentLoopInteractionRows(rows: readonly ChatRow[]) {
-  return rows.filter((row) => row.type === 'agent-loop-interaction-event')
+  return rows.filter((row) => row.type === 'agent-loop-interaction')
 }
 
 describe('useTranscriptSection agent-loop hydration', () => {
@@ -263,9 +263,17 @@ describe('useTranscriptSection agent-loop hydration', () => {
       name: 'openwaggle.github.issues.summary',
       value: { open: 2 },
     })
-    expect(agentLoopInteractionRows(result.current.chatRows).map((row) => row.event.type)).toEqual([
-      'agent_interaction_request',
-      'agent_interaction_resolved',
-    ])
+    expect(agentLoopInteractionRows(result.current.chatRows)).toHaveLength(1)
+    expect(agentLoopInteractionRows(result.current.chatRows)[0]?.item).toMatchObject({
+      request: {
+        type: 'agent_interaction_request',
+        interaction: { interactionId: 'interaction-1', kind: 'select' },
+      },
+      resolution: {
+        type: 'agent_interaction_resolved',
+        interactionId: 'interaction-1',
+        status: 'resolved',
+      },
+    })
   })
 })

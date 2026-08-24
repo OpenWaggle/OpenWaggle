@@ -1,3 +1,4 @@
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SupportedModelId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
 import type { DiffSyntaxTheme, DiffView, Settings, ThinkingLevel } from '@shared/types/settings'
@@ -16,6 +17,7 @@ export interface PreferencesState {
   pushRecentProject: (path: string) => Promise<void>
   removeRecentProject: (path: string) => Promise<void>
   setThinkingLevel: (preset: ThinkingLevel) => Promise<void>
+  setDefaultAuthorizationMode: (mode: AgentAuthorizationMode) => Promise<void>
   setDefaultSessionEnvironmentMode: (mode: SessionEnvironmentMode) => Promise<void>
   setDiffSyntaxTheme: (theme: DiffSyntaxTheme) => Promise<void>
   setDiffView: (view: DiffView) => Promise<void>

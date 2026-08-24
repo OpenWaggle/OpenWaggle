@@ -76,14 +76,14 @@ export function ConnectionsSection() {
   const [oauthOpen, setOauthOpen] = useState(false)
   const apiKeyProviders = providerModels.filter((providerInfo) => providerInfo.auth.supportsApiKey)
   const oauthProviders = providerModels.filter((providerInfo) => providerInfo.auth.supportsOAuth)
-  const loadingText = 'Loading Pi providers…'
+  const loadingText = 'Loading providers…'
 
   return (
     <div className="space-y-6">
       <div className="space-y-1">
         <h2 className="text-[20px] font-semibold text-text-primary">Connections</h2>
         <p className="text-[13px] text-text-tertiary">
-          Manage the provider authentication methods available through Pi.
+          Manage the available provider authentication methods.
         </p>
       </div>
 
@@ -94,16 +94,16 @@ export function ConnectionsSection() {
       )}
 
       {isLoading && providerModels.length === 0 && (
-        <p className="text-[13px] text-text-muted">Loading Pi providers…</p>
+        <p className="text-[13px] text-text-muted">Loading providers…</p>
       )}
 
       <AuthProviderGroup
         title="API Key Providers"
-        description="Use Pi's API-key, environment, or custom-provider auth for key-based access."
+        description="Use API-key, environment, or custom-provider auth for key-based access."
         count={apiKeyProviders.length}
         isOpen={apiKeysOpen}
         icon={KeyRound}
-        emptyText={isLoading ? loadingText : 'Pi did not report any API-key providers.'}
+        emptyText={isLoading ? loadingText : 'No API-key providers were reported.'}
         onToggle={() => setApiKeysOpen((open) => !open)}
       >
         {apiKeyProviders.map((providerInfo, index) => (
@@ -117,7 +117,7 @@ export function ConnectionsSection() {
 
       <AuthProviderGroup
         title="OAuth Providers"
-        description="Connect with Pi OAuth. OpenWaggle starts Pi's login flow and opens your browser."
+        description="Connect with OAuth. OpenWaggle starts the provider login flow and opens your browser."
         count={oauthProviders.length}
         isOpen={oauthOpen}
         icon={ShieldCheck}

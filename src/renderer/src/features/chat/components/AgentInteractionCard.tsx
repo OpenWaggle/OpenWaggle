@@ -33,10 +33,11 @@ function InteractionHeader({ interaction }: { readonly interaction: AgentLoopInt
     <div className="flex items-start gap-3">
       <MessageSquareWarning className="mt-0.5 size-4 shrink-0 text-accent" />
       <div className="min-w-0">
-        <h3 className="text-[13px] font-semibold text-text-primary">Pi interaction pending</h3>
-        <p className="mt-1 text-[12px] leading-5 text-text-tertiary">
-          {interaction.kind} · {interaction.source}
-        </p>
+        {/* The raw discriminant said nothing to a reader and is an internal token, so the card
+            uses the same user-facing title the rest of the UI uses. */}
+        <h3 className="text-[13px] font-semibold text-text-primary">
+          {agentLoopInteractionTitle(interaction)}
+        </h3>
       </div>
     </div>
   )

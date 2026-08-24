@@ -8,6 +8,8 @@
 
 import { Schema, type SchemaType } from '@shared/schema'
 import type { AgentSendPayload } from '@shared/types/agent'
+import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
+import { AGENT_AUTHORIZATION_CAPABILITIES } from '@shared/types/agent-authorization-grants'
 import type { JsonArray, JsonObject, JsonValue } from '@shared/types/json'
 import { THINKING_LEVELS } from '@shared/types/settings'
 import { toWaggleInvocation, waggleInvocationSchema } from './waggle'
@@ -76,11 +78,37 @@ export function toAgentSendPayload(
 export const projectPreferencesSchema = Schema.Struct({
   model: Schema.optional(Schema.String),
   thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
+  authorizationMode: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
+})
+
+/** A preference write where `null` clears the key. Distinct from the read schema, which has no nulls. */
+export const projectPreferencesUpdateSchema = Schema.Struct({
+  model: Schema.optional(Schema.NullOr(Schema.String)),
+  thinkingLevel: Schema.optional(Schema.NullOr(Schema.Literal(...THINKING_LEVELS))),
+  authorizationMode: Schema.optional(Schema.NullOr(Schema.Literal(...AGENT_AUTHORIZATION_MODES))),
+})
+
+export const authorizationScopeKeySchema = Schema.Struct({
+  requester: Schema.String,
+  requesterId: Schema.String,
+  capability: Schema.Literal(...AGENT_AUTHORIZATION_CAPABILITIES),
+  resource: Schema.optional(Schema.String),
+})
+
+export const scopedAuthorizationGrantSchema = Schema.Struct({
+  requester: Schema.String,
+  requesterId: Schema.String,
+  capability: Schema.Literal(...AGENT_AUTHORIZATION_CAPABILITIES),
+  resource: Schema.optional(Schema.String),
+  grantedAt: Schema.Number,
 })
 
 export const projectSettingsFileSchema = Schema.Struct(
   {
     preferences: Schema.optional(projectPreferencesSchema),
+    authorizationGrants: Schema.optional(
+      Schema.mutable(Schema.Array(scopedAuthorizationGrantSchema)),
+    ),
     pi: Schema.optional(jsonObjectSchema),
   },
   jsonLooseRecordSchema,

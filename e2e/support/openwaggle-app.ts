@@ -92,6 +92,22 @@ export class OpenWaggleApp {
     return this.currentWindow
   }
 
+  /**
+   * Emits a real `agent:event` from the main process.
+   *
+   * Uses the channel `stream-bridge` uses, so the renderer's own preload listener, stream reducer,
+   * and projection all run. A pending authorization request and a live notification only exist
+   * in-flight, so seeding the database cannot produce either; this is the only way to see the
+   * request ribbon and the notification stack in the real application.
+   */
+  async emitAgentEvent(payload: { sessionId: string; event: unknown }): Promise<void> {
+    await this.app.evaluate(({ BrowserWindow }, eventPayload) => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        window.webContents.send('agent:event', eventPayload)
+      }
+    }, payload)
+  }
+
   mainWindow(): MainWindowPage {
     return new MainWindowPage(this.currentWindow)
   }

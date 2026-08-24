@@ -88,9 +88,10 @@ export function McpCapabilitiesPanel({
         </p>
       )}
       <p className="rounded-md border border-border bg-bg-secondary px-3 py-2 text-[12px] leading-5 text-text-muted">
-        Agent MCP tools follow Pi&apos;s tool-capable model contract; OpenWaggle does not guess from
-        model names. If a custom provider violates that contract, the run fails visibly. Switch to a
-        conforming model or fix the provider; prompts, resources, and Apps remain available here.
+        Agent MCP tools follow the runtime&apos;s tool-capable model contract; OpenWaggle does not
+        guess from model names. If a custom provider violates that contract, the run fails visibly.
+        Switch to a conforming model or fix the provider; prompts, resources, and Apps remain
+        available here.
       </p>
       {error && (
         <p

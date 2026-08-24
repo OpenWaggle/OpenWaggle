@@ -1,8 +1,11 @@
+import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { PinnedSessionMove, SessionWorktreePlan } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { cleanupSessionRun } from '../agent/session-cleanup'
+import { resolveEffectiveAuthorizationMode } from '../application/agent-authorization-mode'
+import { grantPendingAuthorizationsForSession } from '../application/agent-loop-interaction-broker'
 import { dismissInterruptedAgentRun } from '../application/agent-run-service'
 import {
   cloneAgentSessionToNewSession,
@@ -24,6 +27,15 @@ function cleanupBeforeSessionRemoval(sessionId: SessionId) {
   if (cancelledActiveRun) {
     emitRunCompleted(sessionId)
   }
+}
+
+/** `null` is valid and means "clear the override so this session inherits again". */
+function validateAuthorizationMode(mode: unknown) {
+  if (mode === null) return Effect.succeed(null)
+  if (!isAgentAuthorizationMode(mode)) {
+    return Effect.fail(new Error('Session authorization mode is invalid.'))
+  }
+  return Effect.succeed(mode)
 }
 
 function registerSessionDetailsReadHandlers() {
@@ -178,6 +190,22 @@ function registerSessionMutationHandlers() {
     Effect.gen(function* () {
       const repo = yield* SessionProjectionRepository
       yield* repo.setWorktreePlan(id, plan)
+    }),
+  )
+
+  typedHandle('sessions:set-authorization-mode', (_event, id: SessionId, mode: unknown) =>
+    Effect.gen(function* () {
+      const validatedMode = yield* validateAuthorizationMode(mode)
+      const repo = yield* SessionProjectionRepository
+      yield* repo.setAuthorizationMode(id, validatedMode)
+
+      // Switching to full access must also clear the question already on screen, otherwise the
+      // run stays parked on a prompt in a mode that promises never to prompt. Resolved rather
+      // than read from the argument, so clearing an override that reveals a YOLO default counts.
+      const effective = yield* Effect.promise(() => resolveEffectiveAuthorizationMode(id))
+      if (effective === 'yolo') {
+        yield* Effect.sync(() => grantPendingAuthorizationsForSession({ sessionId: id }))
+      }
     }),
   )
 }

@@ -161,8 +161,8 @@ function OAuthManualCodePrompt({
         </div>
       ) : (
         <p className="text-[11px] text-text-tertiary">
-          Pi is waiting for the browser callback. If it does not finish automatically, paste the
-          OAuth code or callback URL here.
+          Waiting for the browser callback. If it does not finish automatically, paste the OAuth
+          code or callback URL here.
         </p>
       )}
       <div className="flex items-center gap-2">
