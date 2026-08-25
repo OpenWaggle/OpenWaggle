@@ -37,8 +37,8 @@ function baseUiRules(selector: string) {
   return `${selector} {
   color: var(--ow-color-text);
   font-family: var(--ow-font-family-sans);
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: var(--ow-text-sm);
+  line-height: var(--ow-text-sm--line-height);
   box-sizing: border-box;
 }
 
@@ -51,28 +51,28 @@ ${selector} *::after {
 ${selector} .${classes.panel} {
   background: var(--ow-color-surface);
   border: 1px solid var(--ow-color-border);
-  border-radius: var(--ow-radius-panel);
-  box-shadow: var(--ow-elevation-card);
-  padding: var(--ow-space-lg);
+  border-radius: var(--ow-radius-3xl);
+  box-shadow: var(--ow-shadow-sm);
+  padding: calc(var(--ow-spacing) * 4);
 }
 
 ${selector} .${classes.stack} {
   display: flex;
   flex-direction: column;
-  gap: var(--ow-space-md);
+  gap: calc(var(--ow-spacing) * 3);
 }
 
 ${selector} .${classes.row} {
   align-items: center;
   display: flex;
-  gap: var(--ow-space-sm);
+  gap: calc(var(--ow-spacing) * 2);
 }
 
 ${selector} .${classes.heading} {
   color: var(--ow-color-text);
-  font-size: 14px;
+  font-size: var(--ow-text-base);
   font-weight: 650;
-  line-height: 1.25;
+  line-height: var(--ow-text-base--line-height);
   margin: 0;
 }
 
@@ -89,7 +89,7 @@ ${selector} .${classes.divider} {
   background: var(--ow-color-border);
   border: 0;
   height: 1px;
-  margin: var(--ow-space-xs) 0;
+  margin: calc(var(--ow-spacing) * 1) 0;
 }`
 }
 
@@ -101,16 +101,16 @@ function controlUiRules(selector: string) {
   align-items: center;
   background: var(--ow-color-surface-raised);
   border: 1px solid var(--ow-color-border-strong);
-  border-radius: var(--ow-radius-md);
+  border-radius: var(--ow-radius-lg);
   color: var(--ow-color-text);
   cursor: pointer;
   display: inline-flex;
   font: inherit;
   font-weight: 600;
-  gap: var(--ow-space-sm);
+  gap: calc(var(--ow-spacing) * 2);
   justify-content: center;
-  min-height: 32px;
-  padding: 0 var(--ow-space-md);
+  min-height: calc(var(--ow-spacing) * 8);
+  padding: 0 calc(var(--ow-spacing) * 3);
 }
 
 ${selector} .${classes.button}:focus-visible,
@@ -138,17 +138,17 @@ ${selector} .${classes.textarea},
 ${selector} .${classes.select} {
   background: var(--ow-color-surface-raised);
   border: 1px solid var(--ow-color-border-strong);
-  border-radius: var(--ow-radius-md);
+  border-radius: var(--ow-radius-lg);
   color: var(--ow-color-text);
   font: inherit;
-  min-height: 32px;
-  padding: 0 var(--ow-space-md);
+  min-height: calc(var(--ow-spacing) * 8);
+  padding: 0 calc(var(--ow-spacing) * 3);
 }
 
 ${selector} .${classes.textarea} {
-  min-height: 88px;
-  padding-bottom: var(--ow-space-sm);
-  padding-top: var(--ow-space-sm);
+  min-height: calc(var(--ow-spacing) * 22);
+  padding-bottom: calc(var(--ow-spacing) * 2);
+  padding-top: calc(var(--ow-spacing) * 2);
   resize: vertical;
 }
 
@@ -159,8 +159,8 @@ ${selector} .${classes.textarea}::placeholder {
 
 ${selector} .${classes.checkbox} {
   accent-color: var(--ow-color-accent);
-  min-height: 16px;
-  min-width: 16px;
+  min-height: calc(var(--ow-spacing) * 4);
+  min-width: calc(var(--ow-spacing) * 4);
 }`
 }
 
@@ -173,21 +173,21 @@ ${selector} .${classes.alert} {
   align-items: center;
   background: var(--ow-color-surface-raised);
   border: 1px solid var(--ow-color-border);
-  border-radius: var(--ow-radius-sm);
+  border-radius: var(--ow-radius-md);
   color: var(--ow-color-text-muted);
   display: inline-flex;
-  font-size: 12px;
+  font-size: var(--ow-text-xs);
   font-weight: 600;
-  gap: var(--ow-space-xs);
-  line-height: 1;
-  padding: var(--ow-space-xs) var(--ow-space-sm);
+  gap: calc(var(--ow-spacing) * 1);
+  line-height: var(--ow-text-xs--line-height);
+  padding: calc(var(--ow-spacing) * 1) calc(var(--ow-spacing) * 2);
 }
 
 ${selector} .${classes.alert} {
   align-items: flex-start;
-  border-radius: var(--ow-radius-md);
-  line-height: 1.4;
-  padding: var(--ow-space-md);
+  border-radius: var(--ow-radius-lg);
+  line-height: var(--ow-text-xs--line-height);
+  padding: calc(var(--ow-spacing) * 3);
 }
 
 ${selector} .${classes.badge}[${attributes.tone}="accent"],
@@ -208,12 +208,12 @@ ${selector} .${classes.alert}[${attributes.tone}="warning"] {
 
 ${selector} .${classes.badge}[${attributes.tone}="danger"],
 ${selector} .${classes.alert}[${attributes.tone}="danger"] {
-  color: var(--ow-color-danger);
+  color: var(--ow-color-danger-text);
 }
 
 ${selector} .${classes.badge}[${attributes.tone}="info"],
 ${selector} .${classes.alert}[${attributes.tone}="info"] {
-  color: var(--ow-color-info);
+  color: var(--ow-color-info-text);
 }`
 }
 
@@ -223,7 +223,7 @@ function formUiRules(selector: string) {
   return `${selector} .${classes.field} {
   display: flex;
   flex-direction: column;
-  gap: var(--ow-space-xs);
+  gap: calc(var(--ow-spacing) * 1);
 }`
 }
 

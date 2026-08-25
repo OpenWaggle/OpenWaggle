@@ -1,6 +1,6 @@
 {
   "name": "@openwaggle/extension-sdk",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Browser-safe OpenWaggle extension SDK schemas, types, broker helpers, theme tokens, and federated-module context helpers.",
   "type": "module",
   "license": "MIT",
@@ -12,7 +12,7 @@
     "url": "https://github.com/OpenWaggle/OpenWaggle.git",
     "directory": "packages/extension-sdk"
   },
-  "homepage": "https://openwaggle.ai/docs/packages/extension-sdk/0.1/",
+  "homepage": "https://openwaggle.ai/docs/packages/extension-sdk/0.2/",
   "bugs": {
     "url": "https://github.com/OpenWaggle/OpenWaggle/issues"
   },

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { AppErrorBoundary } from '@/shared/ui/AppErrorBoundary'
 import { App } from './App'
 import { getHighlighter } from './shared/lib/shiki/highlighter'
+import './shared/lib/appearance'
 import './styles/globals.css'
 
 // Eagerly start loading Shiki so it's ready before the first message renders.

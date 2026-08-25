@@ -20,82 +20,138 @@ export const OPENWAGGLE_EXTENSION_THEME_CSS_VARIABLES = {
     accentDim: '--ow-color-accent-dim',
     success: '--ow-color-success',
     danger: '--ow-color-danger',
+    dangerText: '--ow-color-danger-text',
     warning: '--ow-color-warning',
     info: '--ow-color-info',
+    infoText: '--ow-color-info-text',
+    review: '--ow-color-review',
+    plan: '--ow-color-plan',
+    progress: '--ow-color-progress',
+    neutral: '--ow-color-neutral',
   },
   typography: {
     sansFamily: '--ow-font-family-sans',
     monoFamily: '--ow-font-family-mono',
+    typeScale: {
+      xs: {
+        fontSize: '--ow-text-xs',
+        lineHeight: '--ow-text-xs--line-height',
+      },
+      sm: {
+        fontSize: '--ow-text-sm',
+        lineHeight: '--ow-text-sm--line-height',
+      },
+      base: {
+        fontSize: '--ow-text-base',
+        lineHeight: '--ow-text-base--line-height',
+      },
+      lg: {
+        fontSize: '--ow-text-lg',
+        lineHeight: '--ow-text-lg--line-height',
+      },
+      xl: {
+        fontSize: '--ow-text-xl',
+        lineHeight: '--ow-text-xl--line-height',
+      },
+      twoXl: {
+        fontSize: '--ow-text-2xl',
+        lineHeight: '--ow-text-2xl--line-height',
+      },
+    },
   },
   spacing: {
-    xs: '--ow-space-xs',
-    sm: '--ow-space-sm',
-    md: '--ow-space-md',
-    lg: '--ow-space-lg',
-    xl: '--ow-space-xl',
+    unit: '--ow-spacing',
   },
   radius: {
+    xs: '--ow-radius-xs',
     sm: '--ow-radius-sm',
     md: '--ow-radius-md',
     lg: '--ow-radius-lg',
-    panel: '--ow-radius-panel',
+    xl: '--ow-radius-xl',
+    twoXl: '--ow-radius-2xl',
+    threeXl: '--ow-radius-3xl',
+    fourXl: '--ow-radius-4xl',
+  },
+  shadow: {
+    twoXs: '--ow-shadow-2xs',
+    xs: '--ow-shadow-xs',
+    sm: '--ow-shadow-sm',
+    md: '--ow-shadow-md',
+    lg: '--ow-shadow-lg',
+    xl: '--ow-shadow-xl',
+    twoXl: '--ow-shadow-2xl',
   },
   focus: {
     ring: '--ow-focus-ring',
     shadow: '--ow-focus-shadow',
   },
-  elevation: {
-    card: '--ow-elevation-card',
-    overlay: '--ow-elevation-overlay',
-  },
 } as const satisfies OpenWaggleExtensionThemeCssVariables
 
 export const DEFAULT_EXTENSION_THEME_TOKENS = {
   color: {
-    background: '#141619',
+    background: '#141719',
     surface: '#1a1d22',
-    surfaceRaised: '#1f232a',
+    surfaceRaised: '#20242b',
     surfaceHover: '#262b33',
-    surfaceActive: '#1d1a10',
+    surfaceActive: '#2b313a',
     border: '#1e2229',
     borderStrong: '#2a3240',
     text: '#e7e9ee',
     textSubtle: '#c9cdd6',
     textMuted: '#9098a8',
-    textDim: '#666f7d',
+    textDim: '#8b94a4',
     accent: '#f5a623',
-    accentDim: '#b87410',
+    accentDim: '#d18a2c',
     success: '#4caf72',
     danger: '#ef4444',
-    warning: '#f5a623',
-    info: '#61a8ff',
+    dangerText: '#f87171',
+    warning: '#f97316',
+    info: '#3b82f6',
+    infoText: '#60a5fa',
+    review: '#a78bfa',
+    plan: '#e879f9',
+    progress: '#7dd3fc',
+    neutral: '#9098a8',
   },
   typography: {
     sansFamily:
-      'Inter, "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-    monoFamily: '"SF Mono", "JetBrains Mono", "Cascadia Mono", ui-monospace, monospace',
+      '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"',
+    monoFamily:
+      'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+    typeScale: {
+      xs: { fontSize: '0.75rem', lineHeight: 'calc(1 / 0.75)' },
+      sm: { fontSize: '0.875rem', lineHeight: 'calc(1.25 / 0.875)' },
+      base: { fontSize: '1rem', lineHeight: 'calc(1.5 / 1)' },
+      lg: { fontSize: '1.125rem', lineHeight: 'calc(1.75 / 1.125)' },
+      xl: { fontSize: '1.25rem', lineHeight: 'calc(1.75 / 1.25)' },
+      twoXl: { fontSize: '1.5rem', lineHeight: 'calc(2 / 1.5)' },
+    },
   },
   spacing: {
-    xs: '4px',
-    sm: '8px',
-    md: '12px',
-    lg: '16px',
-    xl: '24px',
+    unit: '0.25rem',
   },
   radius: {
-    sm: '6px',
-    md: '9px',
-    lg: '12px',
-    panel: '22px',
+    xs: '0.125rem',
+    sm: '0.25rem',
+    md: '0.375rem',
+    lg: '0.5rem',
+    xl: '0.75rem',
+    twoXl: '1rem',
+    threeXl: '1.5rem',
+    fourXl: '2rem',
+  },
+  shadow: {
+    twoXs: '0 1px rgb(0 0 0 / 0.05)',
+    xs: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
+    sm: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
+    md: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+    lg: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
+    xl: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)',
+    twoXl: '0 25px 50px -12px rgb(0 0 0 / 0.25)',
   },
   focus: {
-    ring: '#9aa3b2',
-    shadow:
-      '0 0 0 1px color-mix(in srgb, #9aa3b2 76%, transparent), 0 0 0 3px color-mix(in srgb, #9aa3b2 15%, transparent)',
-  },
-  elevation: {
-    card: 'inset 0 1px 0 rgba(255, 255, 255, 0.02)',
-    overlay: '0 24px 80px rgba(0, 0, 0, 0.45)',
+    ring: 'transparent',
+    shadow: 'none',
   },
 } as const satisfies OpenWaggleExtensionThemeTokens
 
@@ -116,17 +172,72 @@ export const SOURCE_EXTENSION_THEME_CSS_VARIABLES = {
     accentDim: '--color-accent-dim',
     success: '--color-success',
     danger: '--color-error',
+    dangerText: '--color-error-text',
     warning: '--color-warning',
     info: '--color-info',
+    infoText: '--color-info-text',
+    review: '--color-review',
+    plan: '--color-plan',
+    progress: '--color-progress',
+    neutral: '--color-neutral',
   },
   typography: {
     sansFamily: '--font-sans',
     monoFamily: '--font-mono',
+    typeScale: {
+      xs: {
+        fontSize: '--text-xs',
+        lineHeight: '--text-xs--line-height',
+      },
+      sm: {
+        fontSize: '--text-sm',
+        lineHeight: '--text-sm--line-height',
+      },
+      base: {
+        fontSize: '--text-base',
+        lineHeight: '--text-base--line-height',
+      },
+      lg: {
+        fontSize: '--text-lg',
+        lineHeight: '--text-lg--line-height',
+      },
+      xl: {
+        fontSize: '--text-xl',
+        lineHeight: '--text-xl--line-height',
+      },
+      twoXl: {
+        fontSize: '--text-2xl',
+        lineHeight: '--text-2xl--line-height',
+      },
+    },
+  },
+  spacing: {
+    unit: '--spacing',
   },
   radius: {
-    panel: '--radius-panel',
+    xs: '--radius-xs',
+    sm: '--radius-sm',
+    md: '--radius-md',
+    lg: '--radius-lg',
+    xl: '--radius-xl',
+    twoXl: '--radius-2xl',
+    threeXl: '--radius-3xl',
+    fourXl: '--radius-4xl',
   },
-} as const
+  shadow: {
+    twoXs: '--shadow-2xs',
+    xs: '--shadow-xs',
+    sm: '--shadow-sm',
+    md: '--shadow-md',
+    lg: '--shadow-lg',
+    xl: '--shadow-xl',
+    twoXl: '--shadow-2xl',
+  },
+  focus: {
+    ring: '--focus-ring',
+    shadow: '--focus-shadow',
+  },
+} as const satisfies OpenWaggleExtensionThemeCssVariables
 
 export const EXTENSION_THEME_COLOR_KEYS = [
   'background',
@@ -144,11 +255,28 @@ export const EXTENSION_THEME_COLOR_KEYS = [
   'accentDim',
   'success',
   'danger',
+  'dangerText',
   'warning',
   'info',
+  'infoText',
+  'review',
+  'plan',
+  'progress',
+  'neutral',
 ] as const
 export const EXTENSION_THEME_TYPOGRAPHY_KEYS = ['sansFamily', 'monoFamily'] as const
-export const EXTENSION_THEME_SPACING_KEYS = ['xs', 'sm', 'md', 'lg', 'xl'] as const
-export const EXTENSION_THEME_RADIUS_KEYS = ['sm', 'md', 'lg', 'panel'] as const
+export const EXTENSION_THEME_TYPE_SCALE_KEYS = ['xs', 'sm', 'base', 'lg', 'xl', 'twoXl'] as const
+export const EXTENSION_THEME_TYPE_SCALE_ENTRY_KEYS = ['fontSize', 'lineHeight'] as const
+export const EXTENSION_THEME_SPACING_KEYS = ['unit'] as const
+export const EXTENSION_THEME_RADIUS_KEYS = [
+  'xs',
+  'sm',
+  'md',
+  'lg',
+  'xl',
+  'twoXl',
+  'threeXl',
+  'fourXl',
+] as const
+export const EXTENSION_THEME_SHADOW_KEYS = ['twoXs', 'xs', 'sm', 'md', 'lg', 'xl', 'twoXl'] as const
 export const EXTENSION_THEME_FOCUS_KEYS = ['ring', 'shadow'] as const
-export const EXTENSION_THEME_ELEVATION_KEYS = ['card', 'overlay'] as const

@@ -24,7 +24,6 @@ const config: object[] = [
       'website/.astro/**',
       'website/dist/**',
       'website/node_modules/**',
-      'src/renderer/src/env.d.ts',
       'src/renderer/src/routeTree.gen.ts',
     ],
   },
