@@ -3,8 +3,10 @@ import type { GitRunStackedActionOptions, GitRunStackedActionResult } from '@sha
 import { GIT_STACKED_ACTIONS } from '@shared/types/git'
 import {
   type DefaultBranchActionDialogCopy,
+  defaultBranchActionLabel,
   requiresDefaultBranchConfirmation,
   resolveDefaultBranchActionDialogCopy,
+  targetsDefaultRef,
 } from '@shared/utils/git-stacked-action'
 import * as Effect from 'effect/Effect'
 import { BrowserWindow, dialog, type IpcMainInvokeEvent, type MessageBoxOptions } from 'electron'
@@ -150,12 +152,19 @@ function confirmDefaultBranchAction(
         continueLabel: 'Continue',
       })
     }
-    if (!requiresDefaultBranchConfirmation(options.action, local.status.isDefaultRef)) {
+    /*
+     * Either the ref you are on or the ref a push would write. A push follows the upstream mapping, so standing
+     * on `feature` with an upstream of `origin/main` writes `main` - verified against real git, which reported
+     * `feature -> main`. Judging only the current ref waved that straight through, which is precisely the push
+     * this gate exists to catch.
+     */
+    if (!requiresDefaultBranchConfirmation(options.action, targetsDefaultRef(local.status))) {
       return true
     }
     const copy = resolveDefaultBranchActionDialogCopy({
       action: options.action,
-      branchName: local.status.refName ?? 'the default branch',
+      // Name what would be written, which is the destination when it differs from the branch you are on.
+      branchName: defaultBranchActionLabel(local.status),
       includesCommit: options.action.startsWith('commit'),
       provider: local.status.sourceControlProvider?.id ?? null,
     })

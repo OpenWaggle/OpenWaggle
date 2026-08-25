@@ -77,7 +77,8 @@ export function runAgentRequestedWaggle(input: {
     })
 
     matchBy(result, 'outcome')
-      .with('validation-error', 'not-found', 'no-project', (value) =>
+      // 'error' joins these: a run that failed is reported like a run that was refused up front.
+      .with('validation-error', 'not-found', 'no-project', 'error', (value) =>
         emitErrorAndFinish(input.sessionId, value.message, value.code, runId),
       )
       .with('aborted', () => emitWaggleRunEnd(input.sessionId, runId, 'aborted'))

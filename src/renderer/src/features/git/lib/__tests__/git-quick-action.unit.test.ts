@@ -8,6 +8,8 @@ function status(overrides: Partial<VcsStatus> = {}): VcsStatus {
     sourceControlProvider: { id: 'github', host: 'github.com' },
     hasPrimaryRemote: true,
     isDefaultRef: false,
+    pushTargetRef: 'feature/x',
+    pushTargetIsDefaultRef: false,
     refName: 'feature/x',
     hasWorkingTreeChanges: false,
     workingTree: { files: [], insertions: 0, deletions: 0 },

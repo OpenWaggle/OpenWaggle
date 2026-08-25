@@ -27,9 +27,16 @@ async function currentBranch(projectPath: string): Promise<string | null> {
   return result.stdout.trim() || null
 }
 
-async function hasUpstream(projectPath: string): Promise<boolean> {
+/** The upstream as `<remote>/<branch>`, or null when the branch tracks nothing. */
+async function upstreamRef(
+  projectPath: string,
+): Promise<{ remote: string; branch: string } | null> {
   const result = await runGit(projectPath, ['rev-parse', '--abbrev-ref', '@{upstream}'])
-  return result.code === 0 && result.stdout.trim().length > 0
+  if (result.code !== 0) return null
+  const value = result.stdout.trim()
+  const separator = value.indexOf('/')
+  if (separator <= 0 || separator === value.length - 1) return null
+  return { remote: value.slice(0, separator), branch: value.slice(separator + 1) }
 }
 
 /** Push the current branch, setting upstream to origin/<branch> on first push. */
@@ -38,10 +45,23 @@ export async function pushCurrentBranch(projectPath: string): Promise<GitPushRes
     return { ok: false, code: 'not-git-repo', message: 'Selected folder is not a Git repository.' }
   }
 
-  if (await hasUpstream(projectPath)) {
-    const result = await runGit(projectPath, ['push'], networkGitOptions(PUSH_TIMEOUT_MS))
+  const upstream = await upstreamRef(projectPath)
+  if (upstream) {
+    /*
+     * The destination is named, not left to configuration.
+     *
+     * A bare `git push` resolves where to write from `push.default`, so the same command lands somewhere
+     * different depending on a setting this app never sees. Naming the upstream explicitly makes the destination
+     * the one the confirmation gate was shown - and it is still the user's own mapping, so a branch deliberately
+     * tracking a differently-named remote branch keeps working.
+     */
+    const result = await runGit(
+      projectPath,
+      ['push', upstream.remote, `HEAD:refs/heads/${upstream.branch}`],
+      networkGitOptions(PUSH_TIMEOUT_MS),
+    )
     return result.code === 0
-      ? { ok: true, code: 'ok', message: 'Pushed to upstream.' }
+      ? { ok: true, code: 'ok', message: `Pushed to ${upstream.remote}/${upstream.branch}.` }
       : { ok: false, code: 'push-failed', message: result.stderr.trim() || 'Failed to push.' }
   }
 

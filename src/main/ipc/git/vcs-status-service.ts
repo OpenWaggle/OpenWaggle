@@ -45,18 +45,36 @@ async function resolveWorkingTree(projectPath: string) {
   return toWorkingTree(changedFiles)
 }
 
+/**
+ * The branch an upstream-tracking push would update, without its remote prefix.
+ *
+ * `@{upstream}` is `origin/main` for a branch tracking main, and a push follows that mapping however the branch
+ * is named locally - so this, not the current ref, is what a push writes.
+ */
+async function resolveUpstreamBranch(projectPath: string): Promise<string | null> {
+  const upstream = await runGit(projectPath, ['rev-parse', '--abbrev-ref', '@{upstream}'])
+  if (upstream.code !== 0) return null
+  const value = upstream.stdout.trim()
+  if (value.length === 0) return null
+  const separator = value.indexOf('/')
+  return separator === -1 ? value : value.slice(separator + 1)
+}
+
 export async function getLocalVcsStatus(projectPath: string): Promise<LocalVcsStatusResult> {
   if (!(await isGitRepository(projectPath))) {
     return { ok: false, code: 'not-a-repo', message: 'Selected folder is not a Git repository.' }
   }
 
-  const [refName, remoteUrl, defaultRef, workingTree] = await Promise.all([
+  const [refName, remoteUrl, defaultRef, workingTree, upstreamBranch] = await Promise.all([
     resolveRefName(projectPath),
     resolvePrimaryRemoteUrl(projectPath),
     // Offline by contract: this status is cached with a two-second TTL and gates the quick action.
     resolveLocalDefaultRef(projectPath),
     resolveWorkingTree(projectPath),
+    resolveUpstreamBranch(projectPath),
   ])
+  // What a push would write, which is the upstream's branch when one is set - not necessarily this one.
+  const pushTargetRef = upstreamBranch ?? refName
 
   const status: LocalVcsStatus = {
     isRepo: true,
@@ -70,6 +88,9 @@ export async function getLocalVcsStatus(projectPath: string): Promise<LocalVcsSt
      * at all. Asking once too often is the harmless direction.
      */
     isDefaultRef: refName !== null && (defaultRef === null || refName === defaultRef),
+    pushTargetRef,
+    pushTargetIsDefaultRef:
+      pushTargetRef !== null && (defaultRef === null || pushTargetRef === defaultRef),
     refName,
     hasWorkingTreeChanges: workingTree.files.length > 0,
     workingTree,

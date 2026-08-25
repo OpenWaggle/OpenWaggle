@@ -1,5 +1,6 @@
 import { match } from '@diegogbrisa/ts-match'
 import type { GitActionPhase, GitStackedAction, SourceControlProviderId } from '@shared/types/git'
+import type { LocalVcsStatus } from '../types/vcs'
 import {
   type ChangeRequestTerminology,
   DEFAULT_CHANGE_REQUEST_TERMINOLOGY,
@@ -160,4 +161,37 @@ export function planStackedActionPhases(action: GitStackedAction): readonly GitA
     .with('commit_push', () => ['commit', 'push'] as const)
     .with('commit_push_pr', () => ['commit', 'push', 'pr'] as const)
     .exhaustive()
+}
+
+/**
+ * Whether a stacked action would write the default branch, from either end.
+ *
+ * A push follows the upstream mapping, so standing on `feature` with an upstream of `origin/main` writes `main` -
+ * verified against real git, which reported `feature -> main`. Judging only the ref you are on waved that
+ * straight through, which is precisely the push the confirmation exists to catch.
+ */
+export function targetsDefaultRef(
+  status: Pick<LocalVcsStatus, 'isDefaultRef' | 'pushTargetIsDefaultRef'>,
+): boolean {
+  return status.isDefaultRef || status.pushTargetIsDefaultRef
+}
+
+/**
+ * The branch the confirmation should name: the destination when a push would write somewhere else.
+ *
+ * Telling the user "you are on feature" while the push updates `main` is worse than not asking, because it
+ * invites them to confirm the wrong thing.
+ */
+export function defaultBranchActionLabel(
+  status: Pick<
+    LocalVcsStatus,
+    'isDefaultRef' | 'pushTargetIsDefaultRef' | 'pushTargetRef' | 'refName'
+  >,
+): string {
+  if (!status.isDefaultRef && status.pushTargetIsDefaultRef && status.pushTargetRef !== null) {
+    return status.refName === null
+      ? status.pushTargetRef
+      : `${status.pushTargetRef} (tracked by ${status.refName})`
+  }
+  return status.refName ?? 'the default branch'
 }

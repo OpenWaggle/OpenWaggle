@@ -36,6 +36,7 @@ import {
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
 import { assignSessionTitleFromUserText, hydratePayloadAttachments } from './run-handler-utils'
 import { extractFilePath } from './waggle-run/metadata'
+import { recoverWaggleRunFailure } from './waggle-run/outcome'
 import { persistWaggleSnapshot } from './waggle-run/persistence'
 import {
   clearDurableWaggleActiveRun,
@@ -176,6 +177,7 @@ function runPreparedWaggle(
   input: WaggleRunInput,
   prepared: PreparedWaggleRun,
   setActiveRunIdentity: (identity: WaggleActiveRunIdentity) => void,
+  markReachedAgent: () => void,
 ) {
   return Effect.gen(function* () {
     const sessionRepo = yield* SessionRepository
@@ -230,6 +232,8 @@ function runPreparedWaggle(
       },
     })
 
+    // The agent took the turn: see recoverWaggleRunFailure for why a later failure is not a refused send.
+    if (result.aborted !== true && result.newMessages.length > 0) markReachedAgent()
     const existingTree = yield* sessionRepo.getTree(input.sessionId)
     const sessionSnapshot = appendDurableAgentLoopEvents({
       snapshot: result.sessionSnapshot,
@@ -288,12 +292,34 @@ function successOutcome(
 
 export function executeWaggleRun(input: WaggleRunInput) {
   let activeRunIdentity: WaggleActiveRunIdentity | null = null
+  // Whether the agent took the turn: a failure after that point is not a refused send.
+  let reachedAgent = false
 
   return Effect.gen(function* () {
     const prepared = yield* prepareWaggleRun(input)
     if (!prepared.ok) return prepared.outcome
-    return yield* runPreparedWaggle(input, prepared.value, (identity) => {
-      activeRunIdentity = identity
-    })
-  }).pipe(Effect.ensuring(clearDurableWaggleActiveRun(() => activeRunIdentity)))
+    return yield* runPreparedWaggle(
+      input,
+      prepared.value,
+      (identity) => {
+        activeRunIdentity = identity
+      },
+      () => {
+        reachedAgent = true
+      },
+    )
+  }).pipe(
+    /*
+     * Recovered into a value, as the classic path does.
+     *
+     * Without this a kernel failure - a session whose worktree has gone, a failed `worktree add`, a provider
+     * error - failed the Effect, so the invoke rejected and the caller was told nothing about *why*: it could not
+     * tell a refusal it should report from a turn that ran and then failed. The two need opposite handling for
+     * work submitted alongside the message, which is why the classic path has reported this since round twelve.
+     */
+    Effect.catchAll((error) =>
+      recoverWaggleRunFailure({ error, input, reachedAgent: () => reachedAgent }),
+    ),
+    Effect.ensuring(clearDurableWaggleActiveRun(() => activeRunIdentity)),
+  )
 }

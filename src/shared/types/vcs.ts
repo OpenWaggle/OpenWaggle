@@ -40,6 +40,17 @@ export interface LocalVcsStatus {
   readonly hasPrimaryRemote: boolean
   readonly isDefaultRef: boolean
   readonly refName: string | null
+  /**
+   * The branch a push from here would update, which is not always the branch you are on.
+   *
+   * A push follows the upstream mapping, so standing on `feature` with an upstream of `origin/main` writes
+   * `main`. Verified against real git: a bare `git push` in that state reported `feature -> main`. The
+   * default-branch confirmation has to judge the destination, not the source, or it waves through exactly the
+   * push it exists to catch.
+   */
+  readonly pushTargetRef: string | null
+  /** Whether {@link pushTargetRef} is the default branch. Unknown counts as yes, as with `isDefaultRef`. */
+  readonly pushTargetIsDefaultRef: boolean
   readonly hasWorkingTreeChanges: boolean
   readonly workingTree: VcsWorkingTree
 }
