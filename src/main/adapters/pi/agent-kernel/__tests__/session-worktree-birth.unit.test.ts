@@ -5,8 +5,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { existsSyncMock, runGitMock, createGitWorktreeMock, setSessionWorktreeMock } = vi.hoisted(
   () => ({
-    existsSyncMock: vi.fn(() => true),
-    runGitMock: vi.fn(async () => ({ code: 0, stdout: 'main\n', stderr: '' })),
+    existsSyncMock: vi.fn((_candidate: string) => true),
+    runGitMock: vi.fn(async (_cwd: string, _args: readonly string[]) => ({
+      code: 0,
+      stdout: 'main\n',
+      stderr: '',
+    })),
     createGitWorktreeMock: vi.fn(
       async (): Promise<GitWorktreeMutationResult> => ({ ok: true, message: 'ok', path: '/wt' }),
     ),
@@ -44,7 +48,14 @@ function session(
 
 describe('ensureSessionWorktreeProjectPath', () => {
   beforeEach(() => {
-    existsSyncMock.mockReset().mockReturnValue(true)
+    /*
+     * Default to "exists", except the deterministic birth path, which by definition does not
+     * exist before the first send. Blanket `true` made the first-send tests unrealistic and
+     * hid the adopt-on-repeat behaviour below.
+     */
+    existsSyncMock
+      .mockReset()
+      .mockImplementation((candidate: string) => !candidate.includes('/.openwaggle/worktrees/'))
     runGitMock.mockReset().mockResolvedValue({ code: 0, stdout: 'main\n', stderr: '' })
     createGitWorktreeMock.mockReset().mockResolvedValue({ ok: true, message: 'ok', path: '/wt' })
     setSessionWorktreeMock.mockReset().mockResolvedValue(undefined)
@@ -70,10 +81,36 @@ describe('ensureSessionWorktreeProjectPath', () => {
     const result = await ensureSessionWorktreeProjectPath(session({ environmentMode: 'worktree' }))
     expect(createGitWorktreeMock).toHaveBeenCalledWith(
       '/repo',
-      expect.objectContaining({ baseRef: 'main', branch: 'ow/session-sess-abc' }),
+      expect.objectContaining({ baseRef: 'main', branch: 'ow/session-sess-abcdef12' }),
     )
     expect(setSessionWorktreeMock).toHaveBeenCalledWith(expect.anything(), 'worktree', result)
     expect(result).toContain('/.openwaggle/worktrees/repo/')
+  })
+
+  it('adopts the worktree on a repeat call with a stale session record instead of recreating it', async () => {
+    /*
+     * Regression for a critical defect: birth persists the new path with SQL but does not
+     * mutate the SessionDetail it was handed, so a caller holding a pre-birth copy still sees
+     * `worktreePath: null`. Creating again failed - the directory exists and the branch is
+     * already checked out there - which broke the first send of every worktree-mode session.
+     */
+    const stale = session({ environmentMode: 'worktree' })
+    // The deterministic path does not exist yet, then does once the first call created it.
+    let created = false
+    existsSyncMock.mockImplementation((candidate: string) => {
+      if (candidate.includes('/.openwaggle/worktrees/')) return created
+      return true
+    })
+    createGitWorktreeMock.mockImplementation(() => {
+      created = true
+      return Promise.resolve({ ok: true, message: 'ok', path: '/ignored' })
+    })
+
+    const first = await ensureSessionWorktreeProjectPath(stale)
+    const second = await ensureSessionWorktreeProjectPath(stale)
+
+    expect(second).toBe(first)
+    expect(createGitWorktreeMock).toHaveBeenCalledTimes(1)
   })
 
   it('uses the chosen Worktree base ref when persisted', async () => {
@@ -143,5 +180,63 @@ describe('ensureSessionWorktreeProjectPath', () => {
     ])
     expect(a).toBe(b)
     expect(createGitWorktreeMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not adopt a directory that is not a worktree of this repository', async () => {
+    /*
+     * A directory left at the deterministic path after the repository was moved or re-cloned was
+     * adopted on existence alone and recorded as the session's tree. The agent then ran with a cwd
+     * where every git command failed, turn capture silently no-opped, and the diff panel reported
+     * "not a Git repository".
+     */
+    existsSyncMock.mockReset().mockReturnValue(true)
+    runGitMock.mockReset().mockImplementation((cwd: string, args: readonly string[]) => {
+      if (args[0] === 'rev-parse' && args.includes('--git-common-dir')) {
+        // The candidate belongs to a different repository than the opened checkout.
+        return Promise.resolve({
+          code: 0,
+          stdout: cwd === '/repo' ? '/repo/.git\n' : '/elsewhere/.git\n',
+          stderr: '',
+        })
+      }
+      return Promise.resolve({ code: 0, stdout: 'main\n', stderr: '' })
+    })
+
+    /*
+     * Refusing to adopt is right, but falling through to `git worktree add` was not: it cannot write
+     * into a non-empty directory, so every send failed with git's own message and the session had no
+     * route back - no worktree was ever recorded for the recover-or-switch gate to offer.
+     */
+    await expect(
+      ensureSessionWorktreeProjectPath(session({ environmentMode: 'worktree' })),
+    ).rejects.toThrow(/already exists and is not a worktree/)
+
+    expect(createGitWorktreeMock).not.toHaveBeenCalled()
+  })
+
+  it('treats a recorded path that is no longer a worktree as missing, rather than using it', async () => {
+    /*
+     * The deterministic path was verified but the *recorded* one - checked first - was still adopted on
+     * existence alone. A directory left behind after the repository was moved or re-cloned was therefore
+     * handed to the agent as its working tree, where every git command fails and turn capture silently
+     * no-ops. The send gate already knows how to recover from a missing worktree.
+     */
+    existsSyncMock.mockReset().mockReturnValue(true)
+    runGitMock.mockReset().mockImplementation((cwd: string, args: readonly string[]) => {
+      if (args[0] === 'rev-parse' && args.includes('--git-common-dir')) {
+        return Promise.resolve({
+          code: 0,
+          stdout: cwd === '/repo' ? '/repo/.git\n' : '/elsewhere/.git\n',
+          stderr: '',
+        })
+      }
+      return Promise.resolve({ code: 0, stdout: 'main\n', stderr: '' })
+    })
+
+    await expect(
+      ensureSessionWorktreeProjectPath(
+        session({ environmentMode: 'worktree', worktreePath: '/stale/tree' }),
+      ),
+    ).rejects.toThrow(/no longer exists|not a worktree/)
   })
 })

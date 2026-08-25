@@ -1,7 +1,9 @@
+import type { AgentSendPayload } from '@shared/types/agent'
 import type {
   AgentLoopInteraction,
   AgentLoopInteractionResponse,
 } from '@shared/types/agent-loop-interaction'
+import type { SessionId } from '@shared/types/brand'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import { useMessageQueueStore } from '@/features/chat/state'
 import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-store'
@@ -153,6 +155,28 @@ function ComposerControlRow({
  * row flex shrank it to zero width and left its buttons underneath the run-target picker,
  * unclickable in the app while component tests passed.
  */
+/**
+ * Queueing runs the same gate as sending.
+ *
+ * A queued message is dispatched later with the raw send, so queueing was a way straight past the
+ * gate: main rejected it with a bare thrown error - its own comment says reaching there means
+ * something bypassed the gate - and the message was silently re-enqueued instead of the user
+ * seeing the recover-or-switch notice.
+ */
+export function enqueueIfAllowed(input: {
+  readonly payload: AgentSendPayload
+  readonly activeSessionId: SessionId | null
+  readonly sendBlockedReason: string | null
+  readonly enqueue: (sessionId: SessionId, payload: AgentSendPayload) => void
+  readonly onToast: (message: string) => void
+}) {
+  if (input.sendBlockedReason !== null) {
+    input.onToast(input.sendBlockedReason)
+    return
+  }
+  if (input.activeSessionId) input.enqueue(input.activeSessionId, input.payload)
+}
+
 export function ChatComposerStack({
   section,
   agentInteractions = EMPTY_AGENT_INTERACTIONS,
@@ -176,7 +200,7 @@ export function ChatComposerStack({
     onCancelBranchSummary,
   } = section
   useScopedComposerDrafts(activeSessionId)
-  const { strip, guardedSend } = useComposerSendGate({
+  const { strip, guardedSend, sendBlockedReason } = useComposerSendGate({
     activeSessionId,
     session: section.session,
     isFirstMessage: section.isFirstMessage,
@@ -228,11 +252,9 @@ export function ChatComposerStack({
         />
         <Composer
           onSend={guardedSend}
-          onEnqueue={(payload) => {
-            if (activeSessionId) {
-              enqueue(activeSessionId, payload)
-            }
-          }}
+          onEnqueue={(payload) =>
+            enqueueIfAllowed({ payload, activeSessionId, sendBlockedReason, enqueue, onToast })
+          }
           onCancel={onCancel}
           isLoading={isLoading}
           mode={{

@@ -31,10 +31,15 @@ export function CommitMessageDialog({
       <h2 id={headingId} className="text-[13px] font-medium text-text-primary">
         Commit message
       </h2>
+      {/*
+        Names the tree, not the tab. The count used to come from whatever scope was on display, so
+        a commit started from the Branch or Turn tab reported that scope's file count while
+        committing the working tree's changes.
+      */}
       <p className="mt-1 text-[12px] text-text-tertiary">
         {fileCount === 1
-          ? '1 file will be committed.'
-          : `${String(fileCount)} files will be committed.`}
+          ? '1 changed file in the working tree will be committed.'
+          : `${String(fileCount)} changed files in the working tree will be committed.`}
       </p>
       <Textarea
         autoFocus

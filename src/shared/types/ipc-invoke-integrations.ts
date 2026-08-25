@@ -1,4 +1,4 @@
-import type { AgentSendPayload, PreparedAttachment } from './agent'
+import type { AgentSendPayload, AgentSendReport, PreparedAttachment } from './agent'
 import type { OAuthAccountInfo, OAuthProvider } from './auth'
 import type { ActiveRunInfo, BackgroundRunSnapshot } from './background-run'
 import type { RepositoryPath, SessionId, WagglePresetId, WorkingPath } from './brand'
@@ -187,7 +187,7 @@ export interface IpcIntegrationInvokeChannelMap extends IpcWorkspaceFileInvokeCh
       model: SupportedModelId,
       config: WaggleConfig,
     ]
-    return: undefined
+    return: AgentSendReport
   }
   // Auth
   'auth:start-oauth': {

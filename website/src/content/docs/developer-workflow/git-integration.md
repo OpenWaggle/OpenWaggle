@@ -53,7 +53,7 @@ In **New worktree** mode the first send needs a base branch. Until one resolves,
 
 > Select a base branch before sending in worktree mode.
 
-Session worktrees are created outside your project, at `~/.openwaggle/worktrees/<repository>/<sessionId>`, on a branch named `ow/session-<short-session-id>`. You can list and remove them in Settings → Worktrees.
+Session worktrees are created outside your project, at `~/.openwaggle/worktrees/<repository>/<sessionId>`, on a branch named `ow/session-<sessionId>` — the same id as the directory. Worktrees created before this naming change keep their older, shortened name; **Recreate worktree** reattaches to it rather than starting a new branch, so commits made in the old tree are not stranded. You can list and remove them in Settings → Worktrees.
 
 ### Recovering a missing worktree
 
@@ -93,7 +93,16 @@ The diff panel and the [Session Tree](/docs/using-openwaggle/session-tree) share
 Tabs at the top choose what you are reviewing:
 
 - **Working tree** — Uncommitted changes in the session's working tree.
-- **Branch** — Changes on `HEAD` relative to the merge base with a base ref you pick from the dropdown. The default option, **Automatic**, sets no base ref and therefore shows the same working-tree diff as the first tab until you choose one.
+- **Branch** — Changes on `HEAD` relative to the merge base with a base ref. The default option, **Automatic**, resolves the repository's default branch and then names it, so the label reads `Automatic · origin/main` once the diff has loaded. Resolution asks the remote, in this order:
+  1. `origin/HEAD`, the remote-tracking symref a clone sets up;
+  2. the remote directly, when that symref is missing locally;
+  3. a conventional `main` or `master` that exists locally, used only when the remote named nothing at all.
+
+  It prefers the remote-tracking copy (`origin/main` over a local `main`) so the comparison reflects what you would open a change request against. When the remote does name a branch, only that branch is used: OpenWaggle will not quietly compare against a conventional `main` that merely happens to exist. `init.defaultBranch` is deliberately not consulted: it describes how *new* repositories are initialised, and it is usually read from your global git config, so it says nothing about this repository.
+
+  Pick a specific ref from the dropdown to override it; a stored ref that no longer exists is shown as `(unavailable)` rather than silently reverting to Automatic. When nothing resolves — a fresh repository with no remote and no conventional default — the panel falls back to the working-tree diff and says so.
+
+  If you are already sitting on the default branch, `HEAD` and the base are the same commit, so the Branch tab shows no changes; use **Working tree** to review uncommitted work there.
 - **Turns** — Per-turn diffs, shown only once the session has captured turn checkpoints. The dropdown lists each turn with its `+`/`−` counts.
 
 ### Reading Diffs

@@ -18,14 +18,35 @@
  *   function ... not referenced` fails the build. Without `-WX` this check would miss it.
  */
 import { execFile } from 'node:child_process'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
+import {
+  type CompilePassName,
+  derivePlacements,
+  findNsisTemplates,
+  type HookContext,
+  type HookPlacement,
+  parseDefinedMacros,
+} from './installer-hook-placements'
+
 const execFileAsync = promisify(execFile)
 
-const INSTALLER_SCRIPT = 'build/installer.nsh'
+const ELECTRON_BUILDER_CONFIG = 'electron-builder.yml'
+/** Fallback only for the error message when the config does not declare one. */
+const DEFAULT_INSTALLER_SCRIPT = 'build/installer.nsh'
+/**
+ * The `include:` that belongs to the top-level `nsis:` block.
+ *
+ * Scoped deliberately: an unanchored search would match an `include:` under any other key - `files`,
+ * `dmg`, a linux target - and compile a path that is not the installer script at all.
+ */
+const NSIS_BLOCK = /^nsis:\s*(?:#.*)?$/mu
+/** Any indented `key: value` inside the block, whatever the indent width. */
+const BLOCK_ENTRY = /^(?<indent>\s+)(?<key>[A-Za-z_][\w-]*):\s*(?<value>.*)$/u
+const TOP_LEVEL_KEY = /^\S/u
 const MAKENSIS_MISSING_EXIT_CODES = new Set(['ENOENT'])
 /** electron-builder compiles with warnings-as-errors; mirror it or the check is weaker. */
 const MAKENSIS_ARGS = ['-WX'] as const
@@ -37,12 +58,25 @@ interface CompilePass {
 }
 
 /**
- * Mirrors electron-builder's own usage: it `!include`s the custom script and inserts
- * `customInstall` into the install section, or `customUnInstall` into the uninstaller of a
- * separate `BUILD_UNINSTALLER` compilation.
+ * Mirrors electron-builder's own usage: it `!include`s the custom script, inserts the top-level
+ * hooks in both passes, the install-section hooks into the installer, and the uninstall-section
+ * hooks into the uninstaller of a separate `BUILD_UNINSTALLER` compilation.
+ *
+ * Every hook the script defines is inserted, derived from the script itself. Hardcoding
+ * `customInstall`/`customUnInstall` meant any other hook was never compiled at all: verified that
+ * an undeclared StrFunc call *and* a bogus instruction inside a `customHeader` macro both compiled
+ * clean under the old harness.
  */
-function compilePasses(installerScriptPath: string): readonly CompilePass[] {
-  const include = [
+function compilePasses(
+  installerScriptPath: string,
+  placements: ReadonlyMap<string, HookPlacement>,
+): readonly CompilePass[] {
+  const forPass = (pass: CompilePassName, context: HookContext) =>
+    [...placements.entries()]
+      .filter(([, place]) => place.passes.includes(pass) && place.context === context)
+      .map(([hook]) => hook)
+
+  const header = (extra: readonly string[]) => [
     '!include "WinMessages.nsh"',
     `!include "${installerScriptPath}"`,
     '',
@@ -50,27 +84,51 @@ function compilePasses(installerScriptPath: string): readonly CompilePass[] {
     'OutFile "installer-script-check.exe"',
     'InstallDir "$TEMP\\installer-script-check"',
     '',
+    ...extra,
+    '',
   ]
+
+  const insert = (macros: readonly string[], indent: string) =>
+    macros.map((macro) => `${indent}!insertmacro ${macro}`)
+
+  /*
+   * A function wrapper for the hooks electron-builder inserts inside `.onInit`, `un.onInit` or one of
+   * its own macro bodies. Their instructions are illegal at top level, and - the reason this matters
+   * - whether a StrFunc call is legal depends on the pass and the block it sits in.
+   */
+  const functionBlock = (name: string, macros: readonly string[]) =>
+    macros.length === 0 ? [] : [`Function ${name}`, ...insert(macros, '  '), 'FunctionEnd', '']
+  // Only call the wrapper when there is one: an unresolved Call aborts the compile.
+  const callIfDefined = (name: string, macros: readonly string[]) =>
+    macros.length === 0 ? [] : [`  Call ${name}`]
 
   return [
     {
       label: 'installer',
       defines: [],
-      script: [...include, 'Section "Install"', '  !insertmacro customInstall', 'SectionEnd', ''].join(
-        '\n',
-      ),
+      script: [
+        ...header(insert(forPass('installer', 'top-level'), '')),
+        ...functionBlock('CheckHooks', forPass('installer', 'function')),
+        'Section "Install"',
+        ...insert(forPass('installer', 'section'), '  '),
+        ...callIfDefined('CheckHooks', forPass('installer', 'function')),
+        'SectionEnd',
+        '',
+      ].join('\n'),
     },
     {
       label: 'uninstaller',
       defines: ['BUILD_UNINSTALLER'],
       script: [
-        ...include,
+        ...header(insert(forPass('uninstaller', 'top-level'), '')),
+        ...functionBlock('un.CheckHooks', forPass('uninstaller', 'function')),
         'Section "Install"',
         '  WriteUninstaller "$INSTDIR\\uninstall.exe"',
         'SectionEnd',
         '',
         'Section "Uninstall"',
-        '  !insertmacro customUnInstall',
+        ...insert(forPass('uninstaller', 'section'), '  '),
+        ...callIfDefined('un.CheckHooks', forPass('uninstaller', 'function')),
         'SectionEnd',
         '',
       ].join('\n'),
@@ -102,7 +160,7 @@ function reportMissingMakensis() {
   }
 
   console.log(
-    `Installer script check skipped: makensis not installed. ${INSTALLER_SCRIPT} is compile-checked in CI.`,
+    `Installer script check skipped: makensis not installed. ${DEFAULT_INSTALLER_SCRIPT} is compile-checked in CI.`,
   )
 }
 
@@ -125,13 +183,102 @@ function commandOutput(error: unknown) {
   return parts.length > 0 ? parts.join('\n') : error.message
 }
 
+/**
+ * The script electron-builder is actually configured to include.
+ *
+ * Read from the config rather than hardcoded, so renaming or moving the file cannot leave this
+ * check compiling a path that no longer ships - it would pass while the real installer went
+ * unchecked, or fail for a file nothing uses.
+ */
+async function resolveInstallerScript(repositoryRoot: string) {
+  const config = await readFile(path.join(repositoryRoot, ELECTRON_BUILDER_CONFIG), 'utf8')
+  return resolveInstallerScriptFrom(config)
+}
+
+/** The `nsis.include` path declared by a config, or null when there is not exactly one. */
+export function resolveInstallerScriptFrom(config: string): string | null {
+  // A CRLF file left `\r` on every value, so the path did not exist and the check died with a raw ENOENT.
+  const lines = config.split('\n').map((line) => line.replace(/\r$/u, ''))
+  const start = lines.findIndex((line) => NSIS_BLOCK.test(line))
+  if (start === -1) return null
+
+  for (const line of lines.slice(start + 1)) {
+    // Blank lines and comments do not end the block.
+    const withoutComment = line.replace(/(?:^|\s)#.*$/u, '')
+    if (withoutComment.trim().length === 0) continue
+    // The block ends at the next top-level key.
+    if (TOP_LEVEL_KEY.test(withoutComment)) return null
+
+    const entry = BLOCK_ENTRY.exec(withoutComment)
+    if (entry?.groups?.['key'] !== 'include') continue
+    const value = (entry.groups['value'] ?? '').trim()
+    // A list or an empty value is not a single path this check can compile.
+    if (value.length === 0 || value.startsWith('[') || value.startsWith('-')) return null
+    return stripYamlQuotes(value)
+  }
+  return null
+}
+
+/** Remove matching surrounding quotes, which YAML allows around a path. */
+function stripYamlQuotes(value: string) {
+  const quoted = /^(?<quote>["'])(?<inner>.*)\k<quote>$/u.exec(value)
+  return quoted?.groups?.['inner'] ?? value
+}
+
 async function main() {
   const repositoryRoot = process.cwd()
-  const installerScriptPath = path.join(repositoryRoot, INSTALLER_SCRIPT)
+  const declaredScript = await resolveInstallerScript(repositoryRoot)
+  if (declaredScript === null) {
+    console.error(
+      `Could not read a single nsis.include path from ${ELECTRON_BUILDER_CONFIG}. This check compiles ` +
+        `that script, so it cannot run without it.\n` +
+        `If the include was moved or is now a list, teach resolveInstallerScript to read it - do not ` +
+        `delete this check: it exists because two consecutive Windows releases failed on an error the ` +
+        `installer script would have shown here. It was ${DEFAULT_INSTALLER_SCRIPT}.`,
+    )
+    process.exitCode = 1
+    return
+  }
+  const installerScriptPath = path.join(repositoryRoot, declaredScript)
+  const macros = parseDefinedMacros(await readFile(installerScriptPath, 'utf8'))
+  if (macros.length === 0) {
+    console.error(
+      `${declaredScript} defines no macros, so this check would compile nothing. Refusing to pass.`,
+    )
+    process.exitCode = 1
+    return
+  }
+
+  const templatesDir = await findNsisTemplates(repositoryRoot)
+  if (templatesDir === null) {
+    console.error(
+      "electron-builder's NSIS templates were not found, so hook placements cannot be derived. " +
+        'Install dependencies before running this check.',
+    )
+    process.exitCode = 1
+    return
+  }
+
+  const derived = await derivePlacements(templatesDir, macros)
+  const unsupported = [...derived.entries()]
+    .filter(([, place]) => place === null)
+    .map(([hook]) => hook)
+  if (unsupported.length > 0) {
+    console.error(
+      `${declaredScript} defines hook(s) this electron-builder version never inserts: ` +
+        `${unsupported.join(', ')}.\n` +
+        'They would never run. Remove them, or correct the macro name.',
+    )
+    process.exitCode = 1
+    return
+  }
+  const placements = new Map<string, HookPlacement>()
+  for (const [hook, place] of derived) if (place !== null) placements.set(hook, place)
+
   const workingDirectory = await mkdtemp(path.join(tmpdir(), 'openwaggle-nsis-check-'))
 
   try {
-    for (const pass of compilePasses(installerScriptPath)) {
+    for (const pass of compilePasses(installerScriptPath, placements)) {
       const harnessPath = path.join(workingDirectory, `harness-${pass.label}.nsi`)
       await writeFile(harnessPath, pass.script, 'utf8')
       const defineArgs = pass.defines.map((define) => `-D${define}`)
@@ -140,7 +287,7 @@ async function main() {
       })
     }
     console.log(
-      `Installer script check passed: ${INSTALLER_SCRIPT} compiles for the installer and uninstaller passes.`,
+      `Installer script check passed: ${declaredScript} compiles for the installer and uninstaller passes.`,
     )
   } catch (error) {
     if (isMissingMakensis(error)) {
@@ -149,7 +296,7 @@ async function main() {
     }
 
     const detail = commandOutput(error)
-    console.error(`Installer script check failed: ${INSTALLER_SCRIPT} does not compile.\n`)
+    console.error(`Installer script check failed: ${declaredScript} does not compile.\n`)
     console.error(detail)
     console.error(
       '\nNSIS only allows `un.`-prefixed functions inside an uninstall section, so StrFunc helpers used by customUnInstall must be declared as their `Un` variant (for example `${UnStrRep}`) and called that way. Declare each helper only in the pass that uses it (`!ifdef BUILD_UNINSTALLER`): electron-builder compiles with warnings-as-errors, and a declared-but-unreferenced helper is `warning 6010`.',

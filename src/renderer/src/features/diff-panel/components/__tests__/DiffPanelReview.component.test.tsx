@@ -1,13 +1,29 @@
-import { RepositoryPath, WorkingPath } from '@shared/types/brand'
+import { RepositoryPath, SessionId, WorkingPath } from '@shared/types/brand'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useGitStore } from '@/features/git'
 import { api } from '@/shared/lib/ipc'
 import { useUIStore } from '@/shell/ui-store'
-import { useReviewStore } from '../../state/review-store'
+import { reviewKeyFor, selectReviewThread, useReviewStore } from '../../state/review-store'
 import { DiffPanel } from '../DiffPanel'
 import { FileTree } from '../FileTree'
-import { fileDiff } from './diff-panel.test-harness'
+import { fileDiff, gitStatus } from './diff-panel.test-harness'
+
+/** A minimal pending comment; only its presence matters here. */
+function makeReviewComment(id: string) {
+  return {
+    id,
+    filePath: 'src/app.ts',
+    startLine: 1,
+    endLine: 1,
+    content: 'Guard this.',
+    createdAt: 0,
+    diff: '',
+  }
+}
+
+/** The panel keys pending reviews by tree and scope; these tests use the default scope. */
+const REVIEW_KEY = reviewKeyFor('/repo', { kind: 'unstaged' })
 
 // Async factory + dynamic import: vi.mock is hoisted above imports, so the stub
 // cannot be referenced from an ordinary top-level import here.
@@ -18,6 +34,7 @@ vi.mock('@pierre/diffs/react', async () => ({
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     getGitDiff: vi.fn(),
+    getGitBranchDiff: vi.fn(),
     getGitStatus: vi.fn(),
     listGitBranches: vi.fn(),
     stageAllGitChanges: vi.fn(),
@@ -29,8 +46,9 @@ vi.mock('@/shared/lib/ipc', () => ({
 describe('Diff panel review flow', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    vi.mocked(api.listGitBranches).mockResolvedValue({ currentBranch: 'main', branches: [] })
     useGitStore.setState({ statusByWorkingPath: {} })
-    useReviewStore.setState({ comments: [], activeCommentLocation: null, summary: '' })
+    useReviewStore.setState({ byReviewKey: {} })
     useUIStore.setState({ toastMessage: null, toastData: null })
   })
 
@@ -71,7 +89,7 @@ describe('Diff panel review flow', () => {
     // The structured payload carries the anchored code, not just a line reference.
     expect(sent).toContain('<review_comment')
     expect(sent).toContain('filePath="src/app.ts"')
-    expect(useReviewStore.getState().comments).toEqual([])
+    expect(selectReviewThread(useReviewStore.getState(), REVIEW_KEY).comments).toEqual([])
   })
 
   it('discards a pending review without sending it', async () => {
@@ -93,7 +111,7 @@ describe('Diff panel review flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start a review' }))
     fireEvent.click(screen.getByRole('button', { name: /Discard review/ }))
 
-    expect(useReviewStore.getState().comments).toEqual([])
+    expect(selectReviewThread(useReviewStore.getState(), REVIEW_KEY).comments).toEqual([])
     expect(onSendMessage).not.toHaveBeenCalled()
     expect(screen.queryByText(/pending comment/)).not.toBeInTheDocument()
   })
@@ -118,7 +136,7 @@ describe('Diff panel review flow', () => {
 
     await waitFor(() => expect(onSendMessage).toHaveBeenCalledOnce())
     expect(onSendMessage.mock.calls[0]?.[0]).toContain('**Review comment**')
-    expect(useReviewStore.getState().comments).toEqual([])
+    expect(selectReviewThread(useReviewStore.getState(), REVIEW_KEY).comments).toEqual([])
   })
 
   it('renders the changed-file navigator with status and line counts', () => {
@@ -142,5 +160,49 @@ describe('Diff panel review flow', () => {
     expect(screen.getAllByRole('img', { name: 'modified' }).length).toBeGreaterThan(0)
     expect(screen.getAllByText('+1').length).toBeGreaterThan(0)
     expect(screen.getAllByText('-1').length).toBeGreaterThan(0)
+  })
+})
+
+describe('pending review isolation', () => {
+  it('does not carry pending comments from one session into another', async () => {
+    /*
+     * The review store was a single flat list with no key, and nothing cleared it on a session
+     * change. The panel is not remounted per session, so the Review bar kept showing the previous
+     * session's pending comments and submitting posted them into the conversation that happened to
+     * be open - with file and line anchors that meant something else there.
+     */
+    vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] })
+    vi.mocked(api.getGitStatus).mockResolvedValue(gitStatus([]))
+
+    useReviewStore
+      .getState()
+      .addComment(reviewKeyFor('session-a', { kind: 'unstaged' }), makeReviewComment('from-a'))
+
+    const { rerender } = render(
+      <DiffPanel
+        sessionId={SessionId('session-a')}
+        workingPath={WorkingPath('/repo')}
+        repositoryPath={RepositoryPath('/repo')}
+        onSendMessage={vi.fn()}
+      />,
+    )
+
+    expect(await screen.findByText('1 pending comment')).toBeInTheDocument()
+
+    rerender(
+      <DiffPanel
+        sessionId={SessionId('session-b')}
+        workingPath={WorkingPath('/repo')}
+        repositoryPath={RepositoryPath('/repo')}
+        onSendMessage={vi.fn()}
+      />,
+    )
+
+    // Session B has its own (empty) review, and A's comment is not discarded either.
+    await waitFor(() => expect(screen.queryByText('1 pending comment')).not.toBeInTheDocument())
+    expect(
+      selectReviewThread(useReviewStore.getState(), reviewKeyFor('session-a', { kind: 'unstaged' }))
+        .comments,
+    ).toHaveLength(1)
   })
 })

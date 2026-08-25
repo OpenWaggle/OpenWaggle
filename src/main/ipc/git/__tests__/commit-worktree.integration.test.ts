@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -55,7 +55,6 @@ afterEach(async () => {
   await rm(worktree, { recursive: true, force: true }).catch(() => undefined)
   repositoryPath = null
 })
-
 describe('commitGit against a linked worktree', () => {
   /**
    * The blocking defect this pins: the header committed to the opened checkout while a
@@ -94,5 +93,112 @@ describe('commitGit against a linked worktree', () => {
     // The branch the checkout has out must not contain it.
     const checkoutFiles = await git(repository, ['ls-tree', '-r', '--name-only', 'HEAD'])
     expect(checkoutFiles).not.toContain('only-here.txt')
+  })
+
+  /**
+   * The commit set includes both paths of a rename, so the commit covers the deletion rather than keeping
+   * both files. Two real git behaviours make that awkward, and this pins both:
+   *
+   * - a path gone from disk is refused by a plain `git add --`, so `-A` is needed for a deletion and for an
+   *   unstaged rename's source;
+   * - an *already staged* rename's source is gone from disk **and** from the index, so it matches nothing
+   *   for `add` - yet it must stay in the commit pathspec, or the commit keeps both files and leaves the
+   *   deletion staged. Batching makes that fatal (`add -A -- kept.txt moved.txt` exits 128), so staging is
+   *   per-path and an unmatched entry is skipped.
+   */
+  /**
+   * Everything a correct commit needs is settled inside `commitGit`, because there is more than one way in -
+   * the diff panel's stacked action and the header's Commit dialog - and each had a different subset right.
+   * This asserts the three properties a caller must not have to know about, from a caller that passes the
+   * plainest possible selection: target paths only, and a subdirectory as the project path.
+   */
+
+  /**
+   * The first commit in a repository has no parent, and `git diff-tree HEAD` lists nothing for such a commit
+   * unless asked with `--root`. The verification therefore read every root commit as a total omission: it was
+   * created, rolled back, and reported as a failure - so a new project could never make its first commit.
+   */
+  it('accepts the first commit in a repository', async () => {
+    const { repository } = await createRepositoryWithWorktree()
+    const fresh = path.join(repository, 'fresh-project')
+    await mkdir(fresh, { recursive: true })
+    await git(fresh, ['init', '-b', 'main', '.'])
+    await git(fresh, ['config', 'user.email', 'tests@openwaggle.ai'])
+    await git(fresh, ['config', 'user.name', 'OpenWaggle Tests'])
+    await writeFile(path.join(fresh, 'first.txt'), 'hello\n')
+
+    const result = await commitGit(fresh, {
+      message: 'first commit',
+      amend: false,
+      paths: ['first.txt'],
+    })
+
+    expect(result.ok).toBe(true)
+    expect(await git(fresh, ['ls-tree', '-r', '--name-only', 'HEAD'])).toContain('first.txt')
+  })
+
+  /**
+   * A rebase or cherry-pick leaves conflicts without writing `MERGE_HEAD`, and this is a *pathspec* commit -
+   * which git permits with unmerged entries where it refuses a whole-index one. Staging then marked the conflict
+   * resolved with the markers still in the file, and the commit either recorded them and reported success, or
+   * failed after the three-stage entry was already gone so the markers looked like the user's own resolution.
+   */
+  /**
+   * The same guard, asked from an opened subdirectory. `git ls-files --unmerged` is scoped to the directory it runs
+   * in, so a conflict anywhere outside that subdirectory was invisible: the guard passed, staging marked the
+   * conflict resolved with the markers still in the file, and the commit recorded them and reported success.
+   */
+  it('refuses a commit from a subdirectory while a conflict exists elsewhere', async () => {
+    const { repository } = await createRepositoryWithWorktree()
+    const nested = path.join(repository, 'packages', 'app')
+    await mkdir(nested, { recursive: true })
+    await writeFile(path.join(nested, 'own.txt'), 'own\n')
+    await writeFile(path.join(repository, 'f.txt'), 'base\n')
+    await git(repository, ['add', '--all'])
+    await git(repository, ['commit', '-m', 'base'])
+    await git(repository, ['checkout', '-b', 'side'])
+    await writeFile(path.join(repository, 'f.txt'), 'side\n')
+    await git(repository, ['commit', '-am', 'side'])
+    await git(repository, ['checkout', 'main'])
+    await writeFile(path.join(repository, 'f.txt'), 'main\n')
+    await git(repository, ['commit', '-am', 'main'])
+    await git(repository, ['rebase', 'side']).catch(() => undefined)
+    await writeFile(path.join(nested, 'own.txt'), 'edited\n')
+
+    const result = await commitGit(nested, {
+      message: 'commit from the subdirectory',
+      amend: false,
+      paths: ['packages/app/own.txt'],
+    })
+
+    expect(result).toMatchObject({ ok: false, code: 'merge-in-progress' })
+    expect(await git(repository, ['ls-files', '--unmerged'])).toContain('f.txt')
+  })
+
+  it('refuses to commit while a rebase conflict is unresolved', async () => {
+    const { repository } = await createRepositoryWithWorktree()
+    await writeFile(path.join(repository, 'f.txt'), 'base\n')
+    await git(repository, ['add', '--all'])
+    await git(repository, ['commit', '-m', 'base'])
+    await git(repository, ['checkout', '-b', 'side'])
+    await writeFile(path.join(repository, 'f.txt'), 'side\n')
+    await git(repository, ['commit', '-am', 'side'])
+    await git(repository, ['checkout', 'main'])
+    await writeFile(path.join(repository, 'f.txt'), 'main\n')
+    await git(repository, ['commit', '-am', 'main'])
+    await git(repository, ['rebase', 'side']).catch(() => undefined)
+
+    // No MERGE_HEAD here, which is exactly why the old check missed it.
+    await expect(git(repository, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])).rejects.toThrow()
+
+    const result = await commitGit(repository, {
+      message: 'commit during a rebase',
+      amend: false,
+      paths: ['f.txt'],
+    })
+
+    expect(result).toMatchObject({ ok: false, code: 'merge-in-progress' })
+    // The three-stage entry is intact, so the conflict is still the user's to resolve.
+    expect(await git(repository, ['ls-files', '--unmerged'])).toContain('f.txt')
   })
 })

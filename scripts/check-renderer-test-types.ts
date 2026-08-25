@@ -22,6 +22,8 @@ import { execFile } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
+import { safeDecodeUnknown } from '@shared/schema'
+import { jsonObjectSchema } from '@shared/schemas/validation'
 
 const execFileAsync = promisify(execFile)
 
@@ -35,25 +37,109 @@ const ERROR_LINE = /^(?<file>[^(]+)\((?<line>\d+),\d+\): error TS\d+:/u
 
 
 
-async function runTypecheck(): Promise<string> {
+interface TypecheckRun {
+  readonly output: string
+  readonly failed: boolean
+}
+
+async function runTypecheck(): Promise<TypecheckRun> {
   try {
     const { stdout } = await execFileAsync(
       'npx',
       ['tsc', '-b', PROJECT, '--force', '--pretty', 'false'],
       { cwd: process.cwd(), maxBuffer: TSC_OUTPUT_MAX_BUFFER_BYTES },
     )
-    return stdout
+    return { output: stdout, failed: false }
   } catch (error) {
-    // tsc exits non-zero when it reports errors; its findings are on stdout.
+    /*
+     * tsc exits non-zero when it reports errors; its findings are on stdout. The exit status is
+     * kept, not discarded: several tsc failures carry no `file(line,col):` prefix - TS18003 "No
+     * inputs were found in config file" is the dangerous one, verified to exit 2 with an
+     * unparseable message - so a verdict computed from parsed lines alone reported success for a
+     * run that checked nothing. That is exactly the `noCheck` state this guard exists to prevent.
+     */
     if (error !== null && typeof error === 'object' && 'stdout' in error) {
       const { stdout } = error
-      if (typeof stdout === 'string') return stdout
+      if (typeof stdout === 'string') return { output: stdout, failed: true }
     }
     throw error
   }
 }
 
-function countErrorsByFile(output: string): ErrorCounts {
+/**
+ * How many test files tsc actually pulled into the program.
+ *
+ * The second half of the tripwire, and it has to measure what tsc *checked* rather than what
+ * exists on disk: an `include` that stops matching test files leaves the repository untouched, so
+ * counting files in git would keep reporting a healthy number while the guard covered nothing.
+ * Emptying the exemption list removed the stale-exemption check that used to notice such a run.
+ */
+async function countCheckedTestFiles(): Promise<number> {
+  const { stdout } = await execFileAsync(
+    'npx',
+    ['tsc', '-b', PROJECT, '--force', '--pretty', 'false', '--listFiles'],
+    { cwd: process.cwd(), maxBuffer: TSC_OUTPUT_MAX_BUFFER_BYTES },
+  ).catch((error: unknown) => {
+    // A failing typecheck still lists its program; the caller reports the errors.
+    if (error !== null && typeof error === 'object' && 'stdout' in error) {
+      const { stdout: failedOutput } = error
+      if (typeof failedOutput === 'string') return { stdout: failedOutput }
+    }
+    return { stdout: '' }
+  })
+  return stdout.split('\n').filter((line) => isRendererTestFile(line.trim())).length
+}
+
+/**
+ * A renderer test file, specifically.
+ *
+ * Scoped to `src/renderer/`: this project references the Node one, whose own test files also appear
+ * in `--listFiles`, so an unscoped count stayed in the hundreds even with every renderer test
+ * excluded - measuring the wrong project's health.
+ */
+export function isRendererTestFile(filePath: string) {
+  return filePath.includes('/src/renderer/') && /\.test\.tsx?$/u.test(filePath)
+}
+
+/**
+ * Options that stop tsc reporting type errors at all.
+ *
+ * A positive control on the checker itself. Both other tripwires - a non-zero exit with no parseable
+ * errors, and a floor on the files pulled into the program - are blind to `noCheck`: with it, tsc
+ * exits 0, reports nothing, and still lists every file, so this script printed "all other test files
+ * are clean" while checking nothing. That is verbatim the state it was created to prevent, and one
+ * line in a tsconfig was enough to reach it.
+ */
+const OPTIONS_THAT_MUST_BE_OFF = ['noCheck'] as const
+/**
+ * Options that must stay ON, because switching them off silences the very class of defect this guard
+ * exists for: a mock whose shape does not match the interface it stands in for. With `strict` or
+ * `strictNullChecks` off, a fixture missing a required field compiles clean and the check still reports
+ * every file as clean - the exemption list is empty, so there is no stale-exemption signal either.
+ */
+const OPTIONS_THAT_MUST_BE_ON = ['strict', 'strictNullChecks', 'noImplicitAny'] as const
+
+/** Read the effective compiler options tsc will actually use. */
+async function readEffectiveCompilerOptions(): Promise<Readonly<Record<string, unknown>>> {
+  const { stdout } = await execFileAsync('npx', ['tsc', '-p', PROJECT, '--showConfig'], {
+    cwd: process.cwd(),
+    maxBuffer: TSC_OUTPUT_MAX_BUFFER_BYTES,
+  })
+  const parsed = safeDecodeUnknown(jsonObjectSchema, JSON.parse(stdout))
+  if (!parsed.success) return {}
+  const options = parsed.data['compilerOptions']
+  return options !== null && typeof options === 'object' ? { ...options } : {}
+}
+
+/**
+ * Below this, the project is not really checking the renderer tests any more.
+ *
+ * Well under the real count (234 renderer test files at the time of writing) so ordinary churn
+ * never trips it, but far above zero so a project that stopped matching them cannot pass.
+ */
+const MINIMUM_RENDERER_TEST_FILES = 100
+
+export function countErrorsByFile(output: string): ErrorCounts {
   const counts: Record<string, number> = {}
   for (const rawLine of output.split('\n')) {
     const match = ERROR_LINE.exec(rawLine.trim())
@@ -82,9 +168,53 @@ async function readExemptions() {
 }
 
 async function main() {
-  const output = await runTypecheck()
+  const effectiveOptions = await readEffectiveCompilerOptions()
+  const disabled = OPTIONS_THAT_MUST_BE_OFF.filter(
+    (option) => effectiveOptions[option] === true,
+  )
+  if (disabled.length > 0) {
+    console.error(
+      `${PROJECT} enables ${disabled.join(', ')}, so tsc reports no type errors at all and this ` +
+        'check would pass while checking nothing. Remove it.',
+    )
+    process.exitCode = 1
+    return
+  }
+
+  const relaxed = OPTIONS_THAT_MUST_BE_ON.filter((option) => effectiveOptions[option] === false)
+  if (relaxed.length > 0) {
+    console.error(
+      `${PROJECT} turns off ${relaxed.join(', ')}. A fixture missing a required field then compiles ` +
+        'clean, which is exactly the mismatch this check exists to catch. Restore it.',
+    )
+    process.exitCode = 1
+    return
+  }
+
+  const { output, failed } = await runTypecheck()
   const current = countErrorsByFile(output)
   const failingFiles = Object.keys(current).sort()
+
+  if (failed && failingFiles.length === 0) {
+    console.error(
+      'tsc failed but reported no file-scoped type errors, so this run checked nothing.\n' +
+        'Raw output:\n',
+    )
+    console.error(output.trim() || '(no output)')
+    process.exitCode = 1
+    return
+  }
+
+  const testFileCount = await countCheckedTestFiles()
+  if (testFileCount < MINIMUM_RENDERER_TEST_FILES) {
+    console.error(
+      `tsc pulled in only ${String(testFileCount)} test file(s), below the floor of ` +
+        `${String(MINIMUM_RENDERER_TEST_FILES)}. The project's include has stopped matching the ` +
+        'renderer tests, so this guard is checking almost nothing.',
+    )
+    process.exitCode = 1
+    return
+  }
 
   if (process.argv.includes('--update')) {
     await writeFile(EXEMPTIONS_FILE, `${JSON.stringify(failingFiles, null, JSON_INDENT)}\n`, 'utf8')

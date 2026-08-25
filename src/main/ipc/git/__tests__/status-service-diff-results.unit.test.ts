@@ -10,7 +10,7 @@ vi.mock('../shared', () => ({
   stripSurroundingQuotes: (value: string) => value,
 }))
 
-import { getGitBranchDiff, getGitDiff } from '../status-service'
+import { getGitBranchDiff, getGitDiff, getGitStatus } from '../status-service'
 
 function gitResult(code: number, stdout = '', stderr = '') {
   return { code, stdout, stderr }
@@ -88,14 +88,72 @@ describe('diff loading returns typed results', () => {
     expect(result.files[0]?.path).toBe('a.ts')
   })
 
-  it('treats an empty base ref as the working-tree diff', async () => {
+  it('resolves an empty base ref to the default branch before diffing', async () => {
     isGitRepositoryMock.mockResolvedValue(true)
-    runGitMock.mockResolvedValue(gitResult(0, ''))
+    runGitMock.mockImplementation((_path: string, args: readonly string[]) => {
+      if (args[0] === 'symbolic-ref') return Promise.resolve(gitResult(0, 'origin/main\n'))
+      if (args[0] === 'rev-parse') return Promise.resolve(gitResult(0, 'abc123\n'))
+      return Promise.resolve(gitResult(0, ''))
+    })
 
     const result = await getGitBranchDiff('/repo', '   ')
 
-    expect(result).toEqual({ ok: true, files: [] })
-    // rev-parse --verify HEAD, not a three-dot diff against a base.
-    expect(runGitMock.mock.calls[0]?.[1]).toEqual(['rev-parse', '--verify', 'HEAD'])
+    // The ref Automatic chose is reported so the user can audit which base was used.
+    expect(result).toEqual({ ok: true, files: [], resolvedBaseRef: 'origin/main' })
+    // A three-dot diff against the resolved default branch, not the working-tree diff.
+    const diffCall = runGitMock.mock.calls.find((call) => call[1]?.includes('diff'))
+    expect(diffCall?.[1]).toEqual([
+      // Path quoting is disabled on every read whose output becomes a path we hand back to git.
+      '-c',
+      'core.quotePath=false',
+      'diff',
+      '--patch',
+      '--find-renames',
+      '--no-ext-diff',
+      'origin/main...HEAD',
+    ])
+  })
+
+  it('falls back to the working-tree diff when no default branch resolves', async () => {
+    isGitRepositoryMock.mockResolvedValue(true)
+    runGitMock.mockImplementation((_path: string, args: readonly string[]) => {
+      // Nothing advertises a default branch, and no candidate ref exists: `rev-parse --verify`
+      // fails for origin/HEAD, the configured default, and the conventional main/master.
+      if (args[0] === 'rev-parse' && args[1] === '--verify' && args[2] !== 'HEAD') {
+        return Promise.resolve(gitResult(1, ''))
+      }
+      return Promise.resolve(gitResult(0, ''))
+    })
+
+    const result = await getGitBranchDiff('/repo', '   ')
+
+    // Flagged, so the panel can say it is showing a different scope than the one advertised.
+    expect(result).toEqual({ ok: true, files: [], automaticFellBackToWorkingTree: true })
+    // The working-tree path also shells out to `git diff`, so assert on the three-dot form:
+    // no `<ref>...HEAD` range means no branch comparison was attempted.
+    expect(
+      runGitMock.mock.calls.some((call) => call[1]?.some((arg: string) => arg.endsWith('...HEAD'))),
+    ).toBe(false)
+    expect(
+      runGitMock.mock.calls.some((call) => call[1]?.[0] === 'rev-parse' && call[1]?.[2] === 'HEAD'),
+    ).toBe(true)
+  })
+
+  it('refuses to report a failed status read as a clean tree', async () => {
+    /*
+     * The exit code of `git status --porcelain=v1` was ignored, so a failed read - an index.lock held by
+     * another git process is the everyday case - parsed as empty stdout and came back `clean: true` with no
+     * changed files. The renderer's guard against exactly this only sees a rejected call, so Commit offered
+     * nothing to commit and the quick action showed a clean tree, both silently.
+     */
+    // `getGitStatus` asserts the repository through `isGitRepository` before reading anything.
+    isGitRepositoryMock.mockResolvedValue(true)
+    runGitMock.mockImplementation(async (_path: string, args: readonly string[]) =>
+      args.includes('--porcelain=v1')
+        ? { code: 1, stdout: '', stderr: 'fatal: Unable to create index.lock: File exists' }
+        : { code: 0, stdout: '', stderr: '' },
+    )
+
+    await expect(getGitStatus('/repo')).rejects.toThrow(/index\.lock/u)
   })
 })

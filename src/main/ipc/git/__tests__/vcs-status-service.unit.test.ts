@@ -36,6 +36,13 @@ function gitResult(code: number, stdout = '', stderr = '') {
 }
 
 /** Route runGit responses by the git subcommand for readable expectations. */
+/** Fail if the local status reached the network: it is cached as cheap and gates the quick action. */
+function expectNoNetworkCommands() {
+  const calls = runGitMock.mock.calls.map((call) => call[1].join(' '))
+  const networkVerbs = ['fetch', 'ls-remote', 'push', 'pull', 'clone', 'remote update']
+  expect(calls.filter((call) => networkVerbs.some((verb) => call.startsWith(verb)))).toEqual([])
+}
+
 function routeGit(routes: Record<string, ReturnType<typeof gitResult>>) {
   runGitMock.mockImplementation(async (_path: string, args: string[]) => {
     const key = args.join(' ')
@@ -65,13 +72,20 @@ describe('vcs-status-service', () => {
     })
 
     it('resolves local status without any network command', async () => {
+      /*
+       * The routed map below is exhaustive: an unrouted command throws, so a network call added to
+       * this path fails the test rather than passing silently. `ls-remote` is what nearly slipped in -
+       * the shared default-ref resolver falls through to it whenever the local `origin/HEAD` symref is
+       * missing, which is the normal state of a repository built with `git init` + `git remote add`,
+       * and this status is cached with a two-second TTL precisely because it is meant to be cheap.
+       */
       routeGit({
         'symbolic-ref --quiet --short HEAD': gitResult(0, 'main\n'),
         'remote get-url origin': gitResult(0, 'git@github.com:o/r.git\n'),
         'symbolic-ref --quiet --short refs/remotes/origin/HEAD': gitResult(0, 'origin/main\n'),
-        'status --porcelain=v1': gitResult(0, ' M src/a.ts\n'),
-        'diff --numstat': gitResult(0, '2\t1\tsrc/a.ts\n'),
-        'diff --cached --numstat': gitResult(0, ''),
+        '-c core.quotePath=false status --porcelain=v1': gitResult(0, ' M src/a.ts\n'),
+        '-c core.quotePath=false diff --numstat': gitResult(0, '2\t1\tsrc/a.ts\n'),
+        '-c core.quotePath=false diff --cached --numstat': gitResult(0, ''),
       })
 
       const result = await getLocalVcsStatus('/repo')
@@ -88,9 +102,39 @@ describe('vcs-status-service', () => {
       expect(result.status.workingTree.files).toEqual([
         { path: 'src/a.ts', insertions: 2, deletions: 1 },
       ])
-      // No network commands were issued.
-      const calls = runGitMock.mock.calls.map((call) => call[1].join(' '))
-      expect(calls.some((c) => c.startsWith('fetch'))).toBe(false)
+      /*
+       * No command that reaches the network. `fetch` was the only one checked, which missed the one
+       * that nearly slipped in: the shared default-ref resolver falls through to
+       * `ls-remote --symref origin HEAD` whenever the local `origin/HEAD` symref is absent - the normal
+       * state of a repository built with `git init` + `git remote add`. This status is cached with a
+       * two-second TTL precisely because it is meant to be cheap, and the quick action and the
+       * default-branch confirmation gate both wait on it.
+       */
+      expectNoNetworkCommands()
+    })
+
+    it('stays offline even when the local origin/HEAD symref is absent', async () => {
+      /*
+       * The shape that mattered: a repository built with `git init` + `git remote add` has no
+       * `refs/remotes/origin/HEAD`, and the shared default-ref resolver falls through to
+       * `ls-remote --symref origin HEAD` in exactly that case. The test above routes the symref, so it
+       * could never have caught the fall-through.
+       */
+      routeGit({
+        'symbolic-ref --quiet --short HEAD': gitResult(0, 'main\n'),
+        'remote get-url origin': gitResult(0, 'git@github.com:o/r.git\n'),
+        // An origin exists, so nothing short-circuits before the advertisement lookup.
+        remote: gitResult(0, 'origin\n'),
+        // Deliberately unrouted: the local symref does not exist here.
+        '-c core.quotePath=false status --porcelain=v1': gitResult(0, ''),
+        '-c core.quotePath=false diff --numstat': gitResult(0, ''),
+        '-c core.quotePath=false diff --cached --numstat': gitResult(0, ''),
+      })
+
+      const result = await getLocalVcsStatus('/repo')
+
+      expect(result.ok).toBe(true)
+      expectNoNetworkCommands()
     })
   })
 
@@ -172,5 +216,29 @@ describe('vcs-status-service', () => {
       const result = await getRemoteVcsStatus('/repo')
       expect(result).toMatchObject({ ok: true, status: { changeRequest: null } })
     })
+  })
+
+  it('treats an unknown default branch as the default branch', async () => {
+    /*
+     * `refs/remotes/origin/HEAD` records the default branch locally, and `git clone` writes it while `git init`
+     * plus `git remote add` does not - verified against real git. In such a repository the default branch
+     * resolved to nothing and this read false, so the confirmation that guards a push to the default branch
+     * never fired and a one-click Commit & push reached it unasked. Unknown has to mean yes.
+     */
+    runGitMock.mockImplementation(async (_path: string, args: readonly string[]) => {
+      const joined = args.join(' ')
+      if (joined.includes('symbolic-ref') && joined.includes('origin/HEAD')) {
+        return { code: 1, stdout: '', stderr: '' }
+      }
+      if (joined.includes('symbolic-ref')) return { code: 0, stdout: 'main\n', stderr: '' }
+      if (joined.includes('remote get-url')) {
+        return { code: 0, stdout: 'https://github.com/example/repo.git\n', stderr: '' }
+      }
+      return { code: 0, stdout: '', stderr: '' }
+    })
+
+    const result = await getLocalVcsStatus('/repo')
+
+    expect(result.ok && result.status.isDefaultRef).toBe(true)
   })
 })

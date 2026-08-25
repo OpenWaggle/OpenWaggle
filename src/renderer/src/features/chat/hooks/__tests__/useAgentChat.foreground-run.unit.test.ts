@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 
+import type { AgentSendReport } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { isReportableSendFailure, MessageNotDelivered } from '@/features/chat/lib'
 import {
   apiMock,
   createDeferred,
@@ -134,7 +136,8 @@ describe('useAgentChat foreground run', () => {
   })
 
   it('does not fail a foreground send when the selected session changes mid-run', async () => {
-    const send = createDeferred<void>()
+    // The send resolves with main's report of the run, as the real channel does.
+    const send = createDeferred<AgentSendReport>()
     apiMock.sendMessage.mockReturnValueOnce(send.promise)
 
     const { result, rerender } = renderHook(
@@ -170,7 +173,7 @@ describe('useAgentChat foreground run', () => {
     })
 
     await act(async () => {
-      send.resolve(undefined)
+      send.resolve({ outcome: 'delivered' })
       await expect(sendPromise).resolves.toBeUndefined()
     })
 
@@ -220,5 +223,50 @@ describe('useAgentChat foreground run', () => {
     expect(result.current.status).toBe('ready')
     expect(result.current.backgroundStreaming).toBe(false)
     expect(result.current.messages).toEqual([])
+  })
+
+  it('reports a cancelled send without putting the session into an error state', async () => {
+    /*
+     * A cancellation has to reach the caller, because work submitted with the message - a review - was cleared
+     * before the send and is restored only on a failure. But it must not travel the run-failure path: that
+     * tears the run down and sets an error status, and "queue a follow-up, then press Stop" makes the run being
+     * torn down the *replacement*. Stopping settles the run, the queued send begins immediately, and the
+     * superseded send's reply arrives afterwards - by which time the session-wide delivery evidence has been
+     * cleared by that replacement. So the rejection carries its outcome, and the session is left alone.
+     */
+    const send = createDeferred<AgentSendReport>()
+    apiMock.sendMessage.mockReturnValueOnce(send.promise)
+
+    const { result } = renderHook(() =>
+      useAgentChat(
+        SessionId('session-1'),
+        createSessionWithId(SessionId('session-1')),
+        SupportedModelId('claude-sonnet-4-5'),
+        'medium',
+      ),
+    )
+
+    // Captured up front, so the rejection is never momentarily unobserved.
+    let sendOutcome: unknown = null
+    await act(async () => {
+      void result.current.sendMessage(SEND_PAYLOAD).catch((error: unknown) => {
+        sendOutcome = error
+      })
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      send.resolve({ outcome: 'cancelled' })
+      result.current.stop()
+      await Promise.resolve()
+    })
+
+    expect(sendOutcome).toBeInstanceOf(MessageNotDelivered)
+    expect(sendOutcome).toMatchObject({ outcome: 'cancelled' })
+    // The user's own Stop is not worth reporting to them as a failure.
+    expect(isReportableSendFailure(sendOutcome)).toBe(false)
+    // Not an error state: the run this would have torn down may be the one that replaced it.
+    expect(result.current.status).not.toBe('error')
+    expect(result.current.error).toBeUndefined()
   })
 })

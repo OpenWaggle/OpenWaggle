@@ -3,8 +3,8 @@ import { homedir } from 'node:os'
 import path from 'node:path'
 import { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
-import { sessionWorktreeBranch } from '@shared/utils/worktree'
 import { createLogger } from '../../../logger'
+import { resolveSessionWorktreeBranch } from '../../../services/git/session-branch-resolution'
 // ponytail: direct store import (persistence); route through a session port if the Pi adapter grows more store touchpoints.
 import { setSessionWorktree } from '../../../store/session-details'
 import { runGit } from '../../git/run-git'
@@ -32,12 +32,38 @@ export function ensureSessionWorktreeProjectPath(session: SessionDetail): Promis
   return pending
 }
 
+/**
+ * Whether `candidatePath` really is a linked worktree of `repositoryPath`.
+ *
+ * A directory at the deterministic path is not enough: one left over from a moved or re-cloned
+ * repository would be adopted and recorded, leaving the agent in a cwd where nothing git-related
+ * works. Compared through the common git directory, which every linked worktree of a repository
+ * shares.
+ */
+async function isWorktreeOf(repositoryPath: string, candidatePath: string): Promise<boolean> {
+  const [candidate, primary] = await Promise.all([
+    runGit(candidatePath, ['rev-parse', '--path-format=absolute', '--git-common-dir']),
+    runGit(repositoryPath, ['rev-parse', '--path-format=absolute', '--git-common-dir']),
+  ])
+  if (candidate.code !== 0 || primary.code !== 0) return false
+  return candidate.stdout.trim() !== '' && candidate.stdout.trim() === primary.stdout.trim()
+}
+
 async function ensureSessionWorktreeProjectPathUnlocked(session: SessionDetail): Promise<string> {
   const primaryPath = requireSessionProjectPath(session)
 
   if (session.environmentMode !== 'worktree') return primaryPath
   const existing = session.worktreePath?.trim()
-  if (existing && existsSync(existing)) return existing
+  /*
+   * The recorded path is verified, not merely checked for existence - the same reason the deterministic
+   * path is. A directory left behind after the repository was moved or re-cloned would otherwise be handed
+   * to the agent as its working tree, where every git command fails and turn capture silently no-ops. A
+   * record that no longer names a worktree of this repository is treated as a missing worktree, which the
+   * send gate already knows how to recover from.
+   */
+  if (existing && existsSync(existing) && (await isWorktreeOf(primaryPath, existing))) {
+    return existing
+  }
 
   if (existing) {
     /*
@@ -59,6 +85,47 @@ async function ensureSessionWorktreeProjectPathUnlocked(session: SessionDetail):
     )
   }
 
+  const sessionId = String(session.id)
+  const worktreePath = worktreePathFor(primaryPath, sessionId)
+
+  /*
+   * Adopt an existing worktree at this session's deterministic path instead of creating it again.
+   *
+   * The `existing` check above reads `session.worktreePath`, which is the *record*. Birth persists
+   * that record with SQL but does not mutate the `SessionDetail` it was handed, so a caller holding
+   * a pre-birth copy sees null even though the worktree is on disk. Creating again then fails: the
+   * directory exists and the branch is already checked out there. Keying idempotency on reality
+   * rather than on the record makes a repeat call safe whoever makes it.
+   *
+   * Adoption is verified, not assumed: the directory has to actually be a worktree of this
+   * repository. Adopting on existence alone recorded a stale directory - left behind after the
+   * repository was moved or re-cloned - as the session's tree, and the agent then ran with a cwd
+   * where every git command failed while turn capture silently no-opped.
+   *
+   * Checked before the base ref is resolved, because adoption needs no base ref: doing it after
+   * meant a repeat call for an existing tree could still fail with "no base branch is resolvable".
+   */
+  if (existsSync(worktreePath)) {
+    if (await isWorktreeOf(primaryPath, worktreePath)) {
+      await setSessionWorktree(SessionId(sessionId), 'worktree', worktreePath)
+      return worktreePath
+    }
+    /*
+     * Something else occupies this session's deterministic path - a directory left behind after the
+     * repository was moved or re-cloned. Refusing to adopt it is right, but falling through to
+     * `git worktree add` was not: that cannot write into a non-empty directory, so every send failed
+     * with git's own message and the session had no route back, since no worktree was ever recorded
+     * for the recover-or-switch gate to offer. Say what is in the way and what to do about it.
+     */
+    logger.warn('A non-worktree directory occupies the session worktree path', {
+      sessionId,
+      worktreePath,
+    })
+    throw new Error(
+      `Cannot create this session's worktree: ${worktreePath} already exists and is not a worktree of this repository. Remove or rename that directory, or switch this session to the current checkout.`,
+    )
+  }
+
   const baseRef = await resolveWorktreeBaseRef(session, primaryPath)
   if (!baseRef) {
     throw new Error(
@@ -66,9 +133,7 @@ async function ensureSessionWorktreeProjectPathUnlocked(session: SessionDetail):
     )
   }
 
-  const sessionId = String(session.id)
-  const worktreePath = worktreePathFor(primaryPath, sessionId)
-  const branch = sessionWorktreeBranch(sessionId)
+  const branch = await resolveSessionWorktreeBranch(primaryPath, sessionId)
 
   const result = await createGitWorktree(primaryPath, { path: worktreePath, branch, baseRef })
   if (!result.ok) {

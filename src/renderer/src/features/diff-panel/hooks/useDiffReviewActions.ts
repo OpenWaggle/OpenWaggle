@@ -1,4 +1,5 @@
 import type { GitFileDiff } from '@shared/types/git'
+import { createdSessionIdOf, wasMessageDelivered } from '@/features/chat/lib'
 import {
   extractDiffSnippet,
   formatReviewSubmission,
@@ -6,7 +7,10 @@ import {
   type ReviewCommentWithSnippet,
 } from '@/features/diff-panel/lib/review-comment-payload'
 import type { ReviewCommentLocation } from '@/features/diff-panel/state/review-store'
-import { useReviewStore } from '@/features/diff-panel/state/review-store'
+import { selectReviewThread, useReviewStore } from '@/features/diff-panel/state/review-store'
+import { createRendererLogger } from '@/shared/lib/logger'
+
+const logger = createRendererLogger('diff-panel-review')
 
 function buildComment(
   files: readonly GitFileDiff[],
@@ -24,6 +28,8 @@ function buildComment(
     createdAt: Date.now(),
     // Captured now, while the patch that the comment refers to is still on screen.
     diff: patch === '' ? '' : extractDiffSnippet(patch, location.line, endLine),
+    // Kept so the saved marker is drawn on the side the reviewer commented on.
+    lineType: location.lineType,
   }
 }
 
@@ -35,46 +41,106 @@ function buildComment(
  * Neither touches the composer.
  */
 export function useDiffReviewActions(
-  onSendMessage: (content: string) => void,
+  onSendMessage: (content: string) => void | Promise<void>,
   files: readonly GitFileDiff[],
+  reviewKey: string,
+  /** This panel's key for a given session, in the scope the review was written in. */
+  keyForSession: (sessionId: string) => string,
+  onReviewSendFailed?: (error: unknown) => void,
 ) {
-  const comments = useReviewStore((s) => s.comments)
-  const summary = useReviewStore((s) => s.summary)
+  const thread = useReviewStore((s) => selectReviewThread(s, reviewKey))
+  const comments = thread.comments
+  const summary = thread.summary
   const addComment = useReviewStore((s) => s.addComment)
   const removeComment = useReviewStore((s) => s.removeComment)
   const setSummary = useReviewStore((s) => s.setSummary)
-  const discardReview = useReviewStore((s) => s.discardReview)
   const setActiveCommentLocation = useReviewStore((s) => s.setActiveCommentLocation)
+  const discardReview = useReviewStore((s) => s.discardReview)
 
-  function onAddSingleComment(location: ReviewCommentLocation, content: string) {
-    onSendMessage(formatSingleReviewComment(buildComment(files, location, content)))
-    setActiveCommentLocation(null)
+  /**
+   * What to do with work whose send failed, for both things this hook sends.
+   *
+   * Written once because it has three properties that are easy to get partly right, and were: a failure after
+   * the agent already had the message is not a lost send and must not hand the work back, a first send changes
+   * where the panel looks and the work has to follow the session it created, and the user hears about it only
+   * when something actually went wrong. The single-comment path reimplemented a subset of this and got the
+   * first two wrong - re-offering a comment the agent had, and keeping one under a key the panel had left.
+   */
+  function keepAfterFailedSend(error: unknown, restore: (key: string) => void) {
+    if (wasMessageDelivered(error)) return
+    const createdSessionId = createdSessionIdOf(error)
+    restore(createdSessionId === null ? reviewKey : keyForSession(createdSessionId))
+    onReviewSendFailed?.(error)
+  }
+
+  async function onAddSingleComment(location: ReviewCommentLocation, content: string) {
+    const comment = buildComment(files, location, content)
+    setActiveCommentLocation(reviewKey, null)
+    try {
+      await onSendMessage(formatSingleReviewComment(comment))
+    } catch (error) {
+      /*
+       * Kept, not dropped. This was dispatched without awaiting, so a refused send - a session whose worktree
+       * has gone is the everyday one - took the comment with it and said nothing.
+       */
+      logger.warn('Keeping a single comment because the send failed', { error: String(error) })
+      keepAfterFailedSend(error, (key) => addComment(key, comment))
+    }
   }
 
   function onAddToReview(location: ReviewCommentLocation, content: string) {
-    addComment(buildComment(files, location, content))
+    addComment(reviewKey, buildComment(files, location, content))
   }
 
-  function onSubmitReview() {
+  async function onSubmitReview() {
     // Read imperatively rather than from the render closure. `comments` here is the
     // value from the last render, so a rapid double-click (or a key repeat on the
     // Cmd+Enter shortcut) fires this twice before React re-renders with the cleared
     // array: both calls pass the emptiness guard and the agent receives the same
     // review twice.
     const state = useReviewStore.getState()
-    if (state.comments.length === 0) return
-    onSendMessage(formatReviewSubmission(state.summary, state.comments))
-    state.clearComments()
+    const pending = selectReviewThread(state, reviewKey)
+    if (pending.comments.length === 0) return
+    /*
+     * Taken out of the store before awaiting, and put back if the send fails.
+     *
+     * Both properties matter and they pull in opposite directions. Clearing only *after* a
+     * successful send lets a rapid double-click send the same review twice, because the second call
+     * reads the store before the first await resolves. Clearing first and never restoring destroys
+     * everything the reviewer wrote when the send rejects - which main does outright for a missing
+     * session worktree. Removing it synchronously satisfies the double-submit guard; restoring on
+     * failure keeps the work.
+     */
+    state.clearComments(reviewKey)
+    try {
+      await onSendMessage(formatReviewSubmission(pending.summary, pending.comments))
+    } catch (error) {
+      /*
+       * A run that failed after the message arrived is not a failed send. Sending and running are one
+       * promise to callers, so a provider error or a rate limit rejects it long after the review reached the
+       * transcript: restoring then offered the agent's own copy back for a second submission, and reported
+       * that it could not be sent.
+       */
+      logger.warn('Restoring the pending review because the send failed', {
+        error: String(error),
+      })
+      keepAfterFailedSend(error, (key) => {
+        state.restoreReview(key, pending.comments, pending.summary)
+      })
+    }
   }
 
   return {
     comments,
     summary,
+    activeCommentLocation: thread.activeCommentLocation,
     onAddSingleComment,
     onAddToReview,
-    onRemoveComment: removeComment,
-    onSetSummary: setSummary,
+    onSetActiveComment: (location: ReviewCommentLocation | null) =>
+      setActiveCommentLocation(reviewKey, location),
+    onRemoveComment: (id: string) => removeComment(reviewKey, id),
+    onSetSummary: (next: string) => setSummary(reviewKey, next),
     onSubmitReview,
-    onDiscardReview: discardReview,
+    onDiscardReview: () => discardReview(reviewKey),
   }
 }

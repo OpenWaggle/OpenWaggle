@@ -1,6 +1,7 @@
 import type { SessionId } from '@shared/types/brand'
 import { RepositoryPath } from '@shared/types/brand'
 import type { SessionEnvironmentMode, VcsChangeRequest } from '@shared/types/git'
+import type { ChangeRequestAdoption } from '@shared/types/ipc-invoke-git'
 import type { SessionDetail } from '@shared/types/session'
 import { sessionWorktreeBranch } from '@shared/utils/worktree'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -208,7 +209,7 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
   const loadChangeRequests = useCallback(async () => {
     if (!projectPath) return
     try {
-      const result = await api.listChangeRequests(projectPath)
+      const result = await api.listChangeRequests(RepositoryPath(projectPath))
       if (result.ok) setChangeRequests(result.changeRequests)
       else logger.warn('Failed to list change requests', { code: result.code })
     } catch (error) {
@@ -219,20 +220,39 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
   const checkoutChangeRequest = useCallback(
     async (headRef: string) => {
       if (!projectPath) return false
+      /*
+       * Worktree mode fetches by change-request URL, not by head branch name: the branch only exists
+       * on `origin` for a same-repository change request, so a fork-based one either failed or
+       * silently resolved to an unrelated origin branch of the same name.
+       */
+      const selected = changeRequests.find((request) => request.headRef === headRef)
+      /*
+       * A worktree-mode session only needs the ref as a base for its own tree, so fetch it and
+       * record it. Checking it out would switch the user's opened checkout to the change-request
+       * branch - a tree this session never runs in - and would fail or leave partial state when
+       * that checkout is dirty.
+       */
+      const adoption: ChangeRequestAdoption = envMode === 'worktree' ? 'fetch' : 'checkout'
+      const reference = adoption === 'fetch' ? (selected?.url ?? headRef) : headRef
       try {
-        const result = await api.checkoutChangeRequest(projectPath, headRef)
+        const result = await api.checkoutChangeRequest(
+          RepositoryPath(projectPath),
+          reference,
+          adoption,
+        )
         if (result.ok) {
-          setBaseRef(headRef)
+          // Main reports the ref it actually made available, which for a fetch is a local ref.
+          setBaseRef(result.reference)
           return true
         }
-        logger.warn('Change request checkout failed', { code: result.code })
+        logger.warn('Change request adoption failed', { code: result.code, adoption })
         return false
       } catch (error) {
-        logger.warn('Change request checkout failed', { error: String(error) })
+        logger.warn('Change request adoption failed', { error: String(error), adoption })
         return false
       }
     },
-    [projectPath, setBaseRef],
+    [projectPath, setBaseRef, envMode, changeRequests],
   )
 
   const sendPlan = useMemo(
@@ -243,14 +263,19 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
 
   const recreateWorktree = useCallback(async () => {
     if (!projectPath || recordedWorktreePath === null) return false
-    const branch = sessionId === null ? null : sessionWorktreeBranch(String(sessionId))
     const forkPoint = baseRef?.trim()
-    if (!branch || !forkPoint) return false
+    if (sessionId === null || !forkPoint) return false
     try {
+      /*
+       * Main resolves the branch from the session id. Deriving it here missed the legacy convention
+       * entirely, so recreating an older session's tree created a fresh branch at the base ref and
+       * left the agent's commits stranded on the old one.
+       */
       const result = await api.createGitWorktree(RepositoryPath(projectPath), {
         path: recordedWorktreePath,
-        branch,
+        branch: sessionWorktreeBranch(String(sessionId)),
         baseRef: forkPoint,
+        sessionId: String(sessionId),
       })
       if (result.ok) setWorktreeExists(true)
       return result.ok
