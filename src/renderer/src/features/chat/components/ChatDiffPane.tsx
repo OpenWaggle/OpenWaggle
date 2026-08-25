@@ -62,13 +62,12 @@ export function ChatDiffPane({ section, onClose }: ChatDiffPaneProps) {
 
       <PanelErrorBoundary name="Diff" className="min-h-0 flex-1 overflow-hidden">
         <DiffPanel
-          key={diffRefreshKey}
+          refreshToken={diffRefreshKey}
           workingPath={section.workingPath}
           repositoryPath={section.repositoryPath}
           sessionId={section.sessionId}
-          onSendMessage={(content) => {
-            void section.onSendMessage(content)
-          }}
+          // The promise is returned, not dropped: the review is only cleared once the send worked.
+          onSendMessage={(content) => section.onSendMessage(content)}
         />
       </PanelErrorBoundary>
     </div>

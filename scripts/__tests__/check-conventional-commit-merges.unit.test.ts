@@ -1,56 +1,16 @@
-import { execFile as execFileCallback } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
 import { validateConventionalCommits } from '../check-conventional-commits'
-
-const execFile = promisify(execFileCallback)
-const POLICY_SCRIPT_PATH = 'scripts/check-conventional-commits.ts'
-const GIT_IDENTITY = [
-  '-c',
-  'user.name=OpenWaggle Tests',
-  '-c',
-  'user.email=tests@openwaggle.ai',
-] as const
-
-async function git(cwd: string, args: readonly string[]) {
-  const { stdout } = await execFile('git', args, { cwd })
-  return stdout.trim()
-}
-
-async function writeAndCommit(
-  cwd: string,
-  filePath: string,
-  contents: string,
-  message: string,
-) {
-  const absolutePath = path.join(cwd, filePath)
-  await fs.mkdir(path.dirname(absolutePath), { recursive: true })
-  await fs.writeFile(absolutePath, contents, 'utf8')
-  await git(cwd, ['add', filePath])
-  await git(cwd, [...GIT_IDENTITY, 'commit', '-m', message])
-  return git(cwd, ['rev-parse', 'HEAD'])
-}
-
-async function createRepository() {
-  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-commit-policy-'))
-  await git(cwd, ['init', '-b', 'main'])
-  await writeAndCommit(cwd, 'history.txt', 'history\n', 'historical commit')
-  const baseline = await writeAndCommit(
-    cwd,
-    POLICY_SCRIPT_PATH,
-    'current policy marker\n',
-    'ci: introduce commit policy',
-  )
-  return { baseline, cwd }
-}
-
-async function merge(cwd: string, branch: string, message: string) {
-  await git(cwd, [...GIT_IDENTITY, 'merge', '--no-ff', branch, '-m', message])
-  return git(cwd, ['rev-parse', 'HEAD'])
-}
+import {
+  createRepository,
+  git,
+  GIT_IDENTITY,
+  merge,
+  POLICY_SCRIPT_PATH,
+  writeAndCommit,
+} from './commit-policy.test-harness'
 
 describe('Conventional Commit merge attribution', () => {
   it('exempts a feature branch that merges an already-released base branch', async () => {
@@ -82,6 +42,47 @@ describe('Conventional Commit merge attribution', () => {
        * of them is already on the base branch with its own release commit, so this branch
        * owes no version bump for them.
        */
+      expect(result.violations).toEqual([])
+    } finally {
+      await fs.rm(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it('keeps exempting the sync merge after the base branch has advanced', async () => {
+    /*
+     * The exemption used to be asked against the *range start* of the validation, which
+     * `resolveEffectiveFrom` collapses to the bootstrap baseline whenever the requested base is no
+     * longer an ancestor of the PR head. In CI the requested base is the base branch's current tip,
+     * so one new commit on the base after the developer's sync merge re-blocked Commit Policy on
+     * every subsequent run of the same PR - with no fix available short of re-merging before each
+     * run. Reproduced against the real validator before this was changed.
+     */
+    const { baseline, cwd } = await createRepository()
+    try {
+      await writeAndCommit(
+        cwd,
+        'packages/extension-sdk/package.json',
+        '{"version":"0.2.0"}\n',
+        'fix(extension-sdk): update package metadata',
+      )
+
+      await git(cwd, ['checkout', '-b', 'feature', baseline])
+      await writeAndCommit(cwd, 'src/feature.ts', 'export {}\n', 'feat(app): add a feature')
+      const updateMerge = await merge(cwd, 'main', "Merge branch 'main' into feature")
+
+      // The base branch moves on AFTER the sync merge, exactly as it does between CI runs.
+      await git(cwd, ['checkout', 'main'])
+      await writeAndCommit(cwd, 'docs/notes.md', 'notes\n', 'docs: unrelated base commit')
+      const advancedBaseRef = await git(cwd, ['rev-parse', 'HEAD'])
+      await git(cwd, ['checkout', 'feature'])
+
+      const result = await validateConventionalCommits({
+        baseline,
+        cwd,
+        from: advancedBaseRef,
+        to: updateMerge,
+      })
+
       expect(result.violations).toEqual([])
     } finally {
       await fs.rm(cwd, { force: true, recursive: true })

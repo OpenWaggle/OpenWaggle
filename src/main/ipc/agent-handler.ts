@@ -15,7 +15,7 @@ import {
   toAgentLoopResponseInput,
 } from '@shared/schemas/agent-loop-interaction'
 import { agentSendPayloadSchema, toAgentSendPayload } from '@shared/schemas/validation'
-import type { AgentSendPayload } from '@shared/types/agent'
+import type { AgentSendPayload, AgentSendReport } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { AgentTransportEvent } from '@shared/types/stream'
@@ -61,6 +61,43 @@ function clearSessionTransportState(sessionId: SessionId) {
 function emitCancelledCompletion(sessionId: SessionId) {
   clearSessionTransportState(sessionId)
   emitRunCompleted(sessionId)
+}
+
+/**
+ * A send that produced no turn was not delivered, whatever the transport did afterwards.
+ *
+ * `aborted` is reported as its own outcome rather than as a failure. A run cancelled before its prompt was sent
+ * reports the same thing as one cancelled mid-turn, so it is evidence in neither direction - and raising it as
+ * an error dismantled the ordinary Stop flow, where a queued follow-up send begins the moment the stopped run
+ * settles and the superseded send's reply arrives afterwards.
+ */
+function describeSendOutcome(result: AgentRunResult): AgentSendReport {
+  return (
+    matchBy(result, 'outcome')
+      .with('success', () => ({ outcome: 'delivered' as const }))
+      .with('aborted', () => ({ outcome: 'cancelled' as const }))
+      /*
+       * A run that reached the transport had the message: `transportEmitted` marks a failure raised *after* the
+       * turn began, such as a provider error or a rate limit, as opposed to a refusal raised before it. Reporting
+       * both as refusals made a caller restore a review the agent already held and offer it for a second
+       * submission - and it drove the renderer to guess at delivery from stream events, which cannot tell one
+       * send from the next in the same session. Main knows; it now says so.
+       */
+      .with('error', (value) =>
+        value.transportEmitted === true
+          ? { outcome: 'delivered' as const }
+          : {
+              outcome: 'refused' as const,
+              ...(value.message === undefined ? {} : { message: value.message }),
+              ...(value.code === undefined ? {} : { code: value.code }),
+            },
+      )
+      .otherwise((value) => ({
+        outcome: 'refused' as const,
+        ...(value.message === undefined ? {} : { message: value.message }),
+        ...(value.code === undefined ? {} : { code: value.code }),
+      }))
+  )
 }
 
 function handleRunResult(sessionId: SessionId, result: AgentRunResult) {
@@ -110,7 +147,8 @@ function registerAgentRunHandlers() {
           emitTransportEvent(sessionId, event)
         }
 
-        yield* Effect.gen(function* () {
+        // The report is the handler's own result: `Effect.ensuring` runs cleanup without discarding it.
+        return yield* Effect.gen(function* () {
           // ─── Application: delegate to service ────────────
           const result = yield* executeAgentRun({
             sessionId,
@@ -151,6 +189,12 @@ function registerAgentRunHandlers() {
 
           // ─── Transport: respond based on outcome ─────────
           handleRunResult(sessionId, result)
+          /*
+           * Reported back, because main recovers every run failure into a value rather than failing the Effect:
+           * without this the invoke resolved identically whether the turn ran or was refused, and a caller with
+           * work to protect - a submitted review - cleared it on a failure that looked like success.
+           */
+          return describeSendOutcome(result)
         }).pipe(
           Effect.ensuring(
             Effect.sync(() => {
@@ -273,3 +317,6 @@ export function registerAgentHandlers(): void {
   registerAgentCompactionHandlers()
   registerAgentSteeringHandlers()
 }
+
+/** Exposed for tests: the reporting rule decides whether a caller keeps a submitted review. */
+export const describeSendOutcomeForTests = describeSendOutcome

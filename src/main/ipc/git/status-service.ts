@@ -1,6 +1,8 @@
-import type { GitDiffResult, GitStatusSummary } from '@shared/types/git'
+import type { GitDiffFailure, GitDiffResult, GitStatusSummary } from '@shared/types/git'
+import type { GitExecResult } from '../../adapters/git/run-git'
+import { resolveDefaultBranchRevision } from './default-ref'
 import { isGitRepository, runGit } from './shared'
-import { DIFF_GIT_MAX_BUFFER, GIT_PARSE_INT_RADIX } from './status-constants'
+import { DIFF_GIT_MAX_BUFFER, GIT_PARSE_INT_RADIX, GIT_RAW_PATHS } from './status-constants'
 import {
   buildChangedFiles,
   mergeDiffsByPath,
@@ -10,6 +12,10 @@ import {
 } from './status-parse'
 
 const NOT_A_REPOSITORY_MESSAGE = 'Selected folder is not a Git repository.'
+const STATUS_READ_FAILED_MESSAGE = 'Could not read the working tree.'
+const FAILED_TO_LOAD_DIFF_MESSAGE = 'Failed to load Git diff.'
+const DIFF_TOO_LARGE_MESSAGE =
+  'This diff is too large to display. Commit or stage part of the change, or exclude generated files.'
 
 interface GitStatusCommandResults {
   readonly branchResult: Awaited<ReturnType<typeof runGit>>
@@ -21,6 +27,17 @@ interface GitStatusCommandResults {
 export async function getGitStatus(projectPath: string) {
   await assertGitRepository(projectPath)
   const results = await loadGitStatusCommandResults(projectPath)
+  /*
+   * A failed read is not a clean tree.
+   *
+   * The exit code was ignored, so a `git status` that failed - an index.lock held by another git process is
+   * the everyday case - parsed as empty stdout and was reported as `clean: true` with no changed files. The
+   * renderer's guard against exactly this only sees a rejected call, so Commit offered nothing to commit and
+   * the quick action showed a clean tree, both silently. Throwing puts it on the path that guard watches.
+   */
+  if (results.porcelainResult.code !== 0) {
+    throw new Error(gitStatusReadFailureMessage(results.porcelainResult.stderr))
+  }
   const branch = await resolveBranchName(projectPath, results.branchResult)
   const aheadBehind = parseAheadBehind(results.upstreamResult)
   const numstat = await resolveNumstat(projectPath, results.numstatHeadResult)
@@ -38,19 +55,50 @@ export async function getGitStatus(projectPath: string) {
   } satisfies GitStatusSummary
 }
 
+function gitStatusReadFailureMessage(stderr: string) {
+  const detail = stderr.trim()
+  return detail.length > 0
+    ? `Could not read the working tree: ${detail}`
+    : STATUS_READ_FAILED_MESSAGE
+}
+
 export async function getGitDiff(projectPath: string): Promise<GitDiffResult> {
   if (!(await isGitRepository(projectPath))) {
     return { ok: false, code: 'not-git-repo', message: NOT_A_REPOSITORY_MESSAGE }
   }
   const hasHead = await runGit(projectPath, ['rev-parse', '--verify', 'HEAD'])
-  const files =
-    hasHead.code === 0 ? await getHeadDiff(projectPath) : await getInitialCommitDiff(projectPath)
-  return { ok: true, files }
+  return hasHead.code === 0
+    ? await getHeadDiff(projectPath)
+    : await getInitialCommitDiff(projectPath)
 }
 
 /**
- * Branch diff: changes on HEAD relative to the merge-base with a base ref
- * (three-dot diff). Empty base ref falls back to the working-tree diff.
+ * Translate a failed diff command into a typed failure.
+ *
+ * These paths used to throw, so the working-tree scope surfaced a raw IPC rejection where the
+ * branch scope returned a typed failure for the very same condition. An over-large diff is
+ * enough to trigger it: git's output exceeding the buffer normalises to `code: 1` with empty
+ * stderr, so the message would not even have said what went wrong.
+ */
+function diffCommandFailure(result: GitExecResult, fallback: string): GitDiffFailure {
+  if (result.maxBufferExceeded === true) {
+    return {
+      ok: false,
+      code: 'diff-too-large',
+      message: DIFF_TOO_LARGE_MESSAGE,
+    }
+  }
+  return { ok: false, code: 'unknown', message: result.stderr.trim() || fallback }
+}
+
+/**
+ * Branch diff: changes on HEAD relative to the merge-base with a base ref (three-dot diff).
+ *
+ * An empty base ref means the panel's "Automatic" option, which resolves to the repository's
+ * default branch. It used to fall through to the working-tree diff, which made Automatic a
+ * silent duplicate of the Working tree scope while the label promised a decision (#157).
+ * When no default branch can be resolved - a fresh repository with no remote and no created
+ * default branch - the working-tree diff remains the only honest answer.
  */
 export async function getGitBranchDiff(
   projectPath: string,
@@ -59,8 +107,16 @@ export async function getGitBranchDiff(
   if (!(await isGitRepository(projectPath))) {
     return { ok: false, code: 'not-git-repo', message: NOT_A_REPOSITORY_MESSAGE }
   }
-  const trimmed = baseRef.trim()
-  if (!trimmed) return getGitDiff(projectPath)
+  const requested = baseRef.trim()
+  const automatic = requested === ''
+  const trimmed = automatic ? await resolveDefaultBranchRevision(projectPath) : requested
+  if (trimmed === null || trimmed === '') {
+    // Say so rather than passing off a working-tree diff as a branch diff.
+    const fallback = await getGitDiff(projectPath)
+    return fallback.ok && automatic
+      ? { ...fallback, automaticFellBackToWorkingTree: true }
+      : fallback
+  }
 
   const verify = await runGit(projectPath, ['rev-parse', '--verify', `${trimmed}^{commit}`])
   if (verify.code !== 0) {
@@ -72,17 +128,18 @@ export async function getGitBranchDiff(
   }
   const result = await runGit(
     projectPath,
-    ['diff', '--patch', '--find-renames', '--no-ext-diff', `${trimmed}...HEAD`],
+    [...GIT_RAW_PATHS, 'diff', '--patch', '--find-renames', '--no-ext-diff', `${trimmed}...HEAD`],
     { maxBuffer: DIFF_GIT_MAX_BUFFER },
   )
   if (result.code !== 0) {
-    return {
-      ok: false,
-      code: 'unknown',
-      message: result.stderr.trim() || 'Failed to load branch diff.',
-    }
+    return diffCommandFailure(result, 'Failed to load branch diff.')
   }
-  return { ok: true, files: result.stdout.trim() ? parseUnifiedDiff(result.stdout) : [] }
+  return {
+    ok: true,
+    files: result.stdout.trim() ? parseUnifiedDiff(result.stdout) : [],
+    // Only report a ref the caller did not choose: Automatic has to be auditable.
+    ...(automatic ? { resolvedBaseRef: trimmed } : {}),
+  }
 }
 
 async function assertGitRepository(projectPath: string) {
@@ -94,8 +151,8 @@ async function assertGitRepository(projectPath: string) {
 async function loadGitStatusCommandResults(projectPath: string): Promise<GitStatusCommandResults> {
   const [branchResult, porcelainResult, numstatHeadResult, upstreamResult] = await Promise.all([
     runGit(projectPath, ['rev-parse', '--abbrev-ref', 'HEAD']),
-    runGit(projectPath, ['status', '--porcelain=v1']),
-    runGit(projectPath, ['diff', '--numstat', 'HEAD']),
+    runGit(projectPath, [...GIT_RAW_PATHS, 'status', '--porcelain=v1']),
+    runGit(projectPath, [...GIT_RAW_PATHS, 'diff', '--numstat', 'HEAD']),
     runGit(projectPath, ['rev-list', '--left-right', '--count', 'HEAD...@{upstream}']),
   ])
   return { branchResult, porcelainResult, numstatHeadResult, upstreamResult }
@@ -129,8 +186,8 @@ async function resolveNumstat(
   if (numstatHeadResult.code === 0) return parseNumstat(numstatHeadResult.stdout)
 
   const [worktreeResult, cachedResult] = await Promise.all([
-    runGit(projectPath, ['diff', '--numstat']),
-    runGit(projectPath, ['diff', '--cached', '--numstat']),
+    runGit(projectPath, [...GIT_RAW_PATHS, 'diff', '--numstat']),
+    runGit(projectPath, [...GIT_RAW_PATHS, 'diff', '--cached', '--numstat']),
   ])
   return parseNumstat(`${worktreeResult.stdout}\n${cachedResult.stdout}`)
 }
@@ -142,33 +199,43 @@ function sumChangedFiles(
   return changedFiles.reduce((sum, file) => sum + file[key], 0)
 }
 
-async function getHeadDiff(projectPath: string) {
+async function getHeadDiff(projectPath: string): Promise<GitDiffResult> {
   const headResult = await runGit(
     projectPath,
-    ['diff', '--patch', '--find-renames', '--no-ext-diff', 'HEAD'],
+    [...GIT_RAW_PATHS, 'diff', '--patch', '--find-renames', '--no-ext-diff', 'HEAD'],
     { maxBuffer: DIFF_GIT_MAX_BUFFER },
   )
-  if (headResult.code !== 0) throw new Error(headResult.stderr.trim() || 'Failed to load Git diff.')
-  return headResult.stdout.trim() ? parseUnifiedDiff(headResult.stdout) : []
+  if (headResult.code !== 0) {
+    return diffCommandFailure(headResult, FAILED_TO_LOAD_DIFF_MESSAGE)
+  }
+  return { ok: true, files: headResult.stdout.trim() ? parseUnifiedDiff(headResult.stdout) : [] }
 }
 
-async function getInitialCommitDiff(projectPath: string) {
+async function getInitialCommitDiff(projectPath: string): Promise<GitDiffResult> {
   const [worktreeResult, cachedResult] = await Promise.all([
-    runGit(projectPath, ['diff', '--patch', '--no-ext-diff'], { maxBuffer: DIFF_GIT_MAX_BUFFER }),
-    runGit(projectPath, ['diff', '--patch', '--cached', '--no-ext-diff'], {
+    runGit(projectPath, [...GIT_RAW_PATHS, 'diff', '--patch', '--no-ext-diff'], {
+      maxBuffer: DIFF_GIT_MAX_BUFFER,
+    }),
+    runGit(projectPath, [...GIT_RAW_PATHS, 'diff', '--patch', '--cached', '--no-ext-diff'], {
       maxBuffer: DIFF_GIT_MAX_BUFFER,
     }),
   ])
 
-  if (worktreeResult.code !== 0 && cachedResult.code !== 0) {
-    throw new Error(
-      worktreeResult.stderr.trim() || cachedResult.stderr.trim() || 'Failed to load Git diff.',
-    )
+  /*
+   * Either command failing is a failure. Requiring *both* to fail meant that when one blew the diff
+   * buffer and the other returned cleanly - one large staged file in a repository with no first
+   * commit does exactly that - the truncated stdout Node hands back on a maxBuffer kill was parsed
+   * as if it were the whole patch and returned as success. A half-written diff presented as
+   * complete is worse than an error.
+   */
+  const failing = [worktreeResult, cachedResult].find((result) => result.code !== 0)
+  if (failing !== undefined) {
+    return diffCommandFailure(failing, FAILED_TO_LOAD_DIFF_MESSAGE)
   }
 
   const parsed = [
     ...parseUnifiedDiff(worktreeResult.stdout),
     ...parseUnifiedDiff(cachedResult.stdout),
   ]
-  return parsed.length === 0 ? [] : mergeDiffsByPath(parsed)
+  return { ok: true, files: parsed.length === 0 ? [] : mergeDiffsByPath(parsed) }
 }

@@ -20,7 +20,6 @@ import { logger } from './constants'
 import { createPiRunSessionRuntime, runSubscribedPiOperation } from './run-lifecycle'
 import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
 import { createSessionListener } from './session-listener'
-import { ensureSessionWorktreeProjectPath } from './session-worktree-birth'
 import { captureTurnCheckpoint } from './turn-capture'
 import { resolveWaggleRuntimeConfig } from './waggle-model-resolution'
 import {
@@ -31,6 +30,13 @@ import {
 
 type PiWaggleKernelRunInput = AgentKernelRunInput & {
   readonly waggle: AgentKernelWaggleRunOptions
+  /**
+   * The tree this turn runs in, already resolved (and born, for a worktree-mode session) by
+   * the caller. Passed in rather than re-derived: worktree birth persists the new path with
+   * SQL without mutating the `SessionDetail` it was given, so calling it twice would try to
+   * create the same worktree again and fail.
+   */
+  readonly workingPath: string
   readonly mcpExtensionFactory?: ExtensionFactory
 } & PiRuntimeExtensionIsolationInput
 
@@ -177,7 +183,7 @@ function createConfiguredWaggleExtension(input: {
 }
 
 export async function runPiWaggle(input: PiWaggleKernelRunInput) {
-  const projectPath = await ensureSessionWorktreeProjectPath(input.session)
+  const projectPath = input.workingPath
   const waggleSessionId = randomUUID()
   const runtimeConfig = resolveWaggleRuntimeConfig({
     config: input.waggle.config,

@@ -1,20 +1,23 @@
 import type { CodeViewHandle } from '@pierre/diffs/react'
 import type { RepositoryPath, SessionId, WorkingPath } from '@shared/types/brand'
 import type { GitStackedAction } from '@shared/types/git'
+import type { TurnCheckpointSummary } from '@shared/types/turn-diff'
 import { useRef, useState } from 'react'
 import { useDiffPanelGitActions } from '@/features/diff-panel/hooks/useDiffPanelGitActions'
 import type { ReviewAnnotationMetadata } from '@/features/diff-panel/lib/code-view-items'
 import { codeViewItemId } from '@/features/diff-panel/lib/code-view-items'
 import {
-  type DiffScopeSelection,
   selectThreadDiffScopeSelection,
   useDiffScopeStore,
 } from '@/features/diff-panel/state/diff-scope-store'
 import { useCombinedVcsStatus, useStackedGitActions } from '@/features/git'
+import { useUIStore } from '@/shell/ui-store'
 import { useBaseRefChoices } from '../hooks/useBaseRefChoices'
-import { useDiffPanelDiffs } from '../hooks/useDiffPanelDiffs'
+import { type CommitPaths, useCommitPaths } from '../hooks/useCommitPaths'
+import { useDisplayedDiff } from '../hooks/useDisplayedDiff'
 import { useReconcileTurnSelection } from '../hooks/useReconcileTurnSelection'
-import { useSessionTurns, useTurnDiffFiles } from '../hooks/useSessionTurns'
+import { useReviewKey } from '../hooks/useReviewKey'
+import { useSessionTurns } from '../hooks/useSessionTurns'
 import { CommitMessageDialog } from './CommitMessageDialog'
 import { DiffBottomBar } from './DiffBottomBar'
 import { DiffPanelHeader } from './DiffPanelHeader'
@@ -24,7 +27,71 @@ interface DiffPanelProps {
   workingPath: WorkingPath | null
   repositoryPath: RepositoryPath | null
   sessionId?: SessionId | null
-  onSendMessage: (content: string) => void
+  onSendMessage: (content: string) => void | Promise<void>
+  /**
+   * Bumped when the diff should be reloaded.
+   *
+   * Refresh used to remount this panel via `key=`, which discarded every piece of panel-local
+   * state: the scroll position in a long diff, the navigator's collapsed folders, the line
+   * selection, and a commit message the user was part-way through typing. Refreshes fire on every
+   * turn end, every working-tree broadcast and every window focus, so that was routine.
+   */
+  refreshToken?: number
+}
+
+/** Switching to Turns means the latest captured turn, which the tabs do not know about. */
+function selectScope(input: {
+  readonly scope: 'branch' | 'unstaged' | 'turn'
+  readonly scopeKey: string
+  readonly turns: readonly TurnCheckpointSummary[]
+  readonly selectTurn: (scopeKey: string, turnId: string) => void
+  readonly selectGitScope: (scopeKey: string, scope: 'branch' | 'unstaged') => void
+}) {
+  if (input.scope === 'turn') {
+    const latestTurn = input.turns.at(-1)
+    if (latestTurn) input.selectTurn(input.scopeKey, latestTurn.turnId)
+    return
+  }
+  input.selectGitScope(input.scopeKey, input.scope)
+}
+
+const NOTHING_TO_COMMIT_MESSAGE = 'No changes in this working tree to commit.'
+const STILL_READING_MESSAGE = 'Still reading this working tree - try again in a moment.'
+
+/**
+ * Dispatch a quick action, collecting a commit message first when one is needed.
+ *
+ * Nothing to commit is reported rather than dispatched: an empty set produced a `nothing-to-commit`
+ * failure whose message blamed the user for not selecting files, with no dialog shown - an enabled
+ * button that silently did nothing.
+ */
+function requestStackedAction(input: {
+  readonly action: GitStackedAction
+  readonly commitPaths: CommitPaths
+  readonly run: (action: GitStackedAction, options?: { paths: readonly string[] }) => void
+  readonly showToast: (message: string, variant: 'error') => void
+  readonly onNeedsMessage: (action: GitStackedAction) => void
+}) {
+  if (!input.action.startsWith('commit')) {
+    input.run(input.action, { paths: input.commitPaths.paths })
+    return
+  }
+  // A tree that could not be read - or has not been read yet - is not a clean tree.
+  if (input.commitPaths.error !== null) {
+    input.showToast(`Could not read this working tree: ${input.commitPaths.error}`, 'error')
+    return
+  }
+  if (input.commitPaths.isLoading) {
+    input.showToast(STILL_READING_MESSAGE, 'error')
+    return
+  }
+  if (input.commitPaths.paths.length === 0) input.showToast(NOTHING_TO_COMMIT_MESSAGE, 'error')
+  else input.onNeedsMessage(input.action)
+}
+
+/** Open a change request in the user's browser, never in an Electron window. */
+function openChangeRequestUrl(url: string | undefined) {
+  if (url) window.open(url, '_blank', 'noopener')
 }
 
 export function DiffPanel({
@@ -32,6 +99,7 @@ export function DiffPanel({
   repositoryPath,
   sessionId = null,
   onSendMessage,
+  refreshToken = 0,
 }: DiffPanelProps) {
   const viewerRef = useRef<CodeViewHandle<ReviewAnnotationMetadata>>(null)
   const scopeByThreadKey = useDiffScopeStore((s) => s.byThreadKey)
@@ -39,35 +107,18 @@ export function DiffPanel({
   const selectBranchBaseRef = useDiffScopeStore((s) => s.selectBranchBaseRef)
   const selectTurn = useDiffScopeStore((s) => s.selectTurn)
   const scopeKey = sessionId ?? workingPath ?? ''
-  const selection: DiffScopeSelection = selectThreadDiffScopeSelection(
-    scopeByThreadKey,
-    scopeKey || null,
-    true,
-  )
+
+  const commitPaths = useCommitPaths(workingPath, refreshToken)
+  const showToast = useUIStore((state) => state.showToast)
+  const selection = selectThreadDiffScopeSelection(scopeByThreadKey, scopeKey || null)
   const branchBaseRef = selection.kind === 'branch' ? selection.baseRef : null
   const baseRefChoices = useBaseRefChoices(repositoryPath)
-  const turns = useSessionTurns(sessionId)
-  const branchOrTreeDiffs = useDiffPanelDiffs(workingPath, selection)
-  const turnFiles = useTurnDiffFiles(sessionId, selection)
-  const fileDiffs = selection.kind === 'turn' ? turnFiles : branchOrTreeDiffs.fileDiffs
-  const isLoading = selection.kind === 'turn' ? false : branchOrTreeDiffs.isLoading
-  const refreshDiff = branchOrTreeDiffs.refreshDiff
+  const turns = useSessionTurns(sessionId, refreshToken)
+  const displayed = useDisplayedDiff({ sessionId, workingPath, selection, refreshToken })
+  const { reviewKey, keyForSession } = useReviewKey({ scopeKey, selection })
+  const { fileDiffs, isLoading, loadError, refreshDiff } = displayed
 
   useReconcileTurnSelection(scopeKey, turns)
-
-  /** Jump the virtualized list to a file's section. */
-  function handleFileClick(path: string) {
-    viewerRef.current?.scrollTo({ type: 'item', id: codeViewItemId(path), align: 'start' })
-  }
-
-  function handleSelectScope(scope: 'branch' | 'unstaged' | 'turn') {
-    if (scope === 'turn') {
-      const latestTurn = turns.at(-1)
-      if (latestTurn) selectTurn(scopeKey, latestTurn.turnId)
-      return
-    }
-    selectGitScope(scopeKey, scope)
-  }
 
   const gitActions = useDiffPanelGitActions({
     workingPath,
@@ -76,7 +127,10 @@ export function DiffPanel({
     refreshDiff,
   })
 
-  const { status: vcsStatus, refresh: refreshVcsStatus } = useCombinedVcsStatus(workingPath)
+  const { status: vcsStatus, refresh: refreshVcsStatus } = useCombinedVcsStatus(
+    workingPath,
+    refreshToken,
+  )
   const stackedActions = useStackedGitActions({
     workingPath,
     onCompleted: () => {
@@ -86,30 +140,28 @@ export function DiffPanel({
   })
 
   const [pendingCommitAction, setPendingCommitAction] = useState<GitStackedAction | null>(null)
-  const selectedPaths = fileDiffs.map((file) => file.path)
 
   /**
    * Commit-bearing actions must collect an explicit message first (review B2);
-   * everything else dispatches immediately. Only the visible selection is staged.
+   * everything else dispatches immediately.
    */
-  function requestStackedAction(action: GitStackedAction) {
-    if (action.startsWith('commit')) {
-      setPendingCommitAction(action)
-      return
-    }
-    void stackedActions.run(action, { paths: selectedPaths })
-  }
-
   return (
     <div className="relative flex flex-col size-full bg-diff-bg">
       {workingPath ? (
         <DiffPanelHeader
           selection={selection}
-          baseRef={branchBaseRef}
-          baseRefChoices={baseRefChoices}
+          baseRefControl={{
+            current: branchBaseRef,
+            choices: baseRefChoices.choices,
+            choicesLoaded: baseRefChoices.loaded,
+            resolvedAutomatic: displayed.resolvedAutomaticBaseRef,
+            fellBackToWorkingTree: displayed.automaticFellBackToWorkingTree,
+            onChange: (baseRef) => selectBranchBaseRef(scopeKey, baseRef),
+          }}
           turns={turns}
-          onSelectScope={handleSelectScope}
-          onChangeBaseRef={(baseRef) => selectBranchBaseRef(scopeKey, baseRef)}
+          onSelectScope={(scope) =>
+            selectScope({ scope, scopeKey, turns, selectTurn, selectGitScope })
+          }
           onSelectTurn={(turnId) => selectTurn(scopeKey, turnId)}
         />
       ) : null}
@@ -117,8 +169,13 @@ export function DiffPanel({
         viewerRef={viewerRef}
         files={fileDiffs}
         isLoading={isLoading}
+        loadError={loadError}
+        onRetryLoad={displayed.retryLoad}
         onSendMessage={onSendMessage}
-        onFileClick={handleFileClick}
+        onFileClick={(path) =>
+          viewerRef.current?.scrollTo({ type: 'item', id: codeViewItemId(path), align: 'start' })
+        }
+        reviewKeys={{ reviewKey, keyForSession }}
       />
       <DiffBottomBar
         onRevertAll={gitActions.handleRevertAll}
@@ -129,23 +186,27 @@ export function DiffPanel({
         quickAction={{
           status: vcsStatus,
           isBusy: stackedActions.isRunning,
-          onRunAction: (action) => requestStackedAction(action),
+          onRunAction: (action) =>
+            requestStackedAction({
+              action,
+              commitPaths,
+              run: stackedActions.run,
+              showToast,
+              onNeedsMessage: setPendingCommitAction,
+            }),
           onPull: () => stackedActions.run('pull'),
-          onOpenChangeRequest: () => {
-            const url = vcsStatus?.changeRequest?.url
-            if (url) window.open(url, '_blank', 'noopener')
-          },
+          onOpenChangeRequest: () => openChangeRequestUrl(vcsStatus?.changeRequest?.url),
           onPublish: () => stackedActions.run('push'),
         }}
       />
       <CommitMessageDialog
         open={pendingCommitAction !== null}
-        fileCount={selectedPaths.length}
+        fileCount={commitPaths.changedFileCount}
         onCancel={() => setPendingCommitAction(null)}
         onConfirm={(commitMessage) => {
           const action = pendingCommitAction
           setPendingCommitAction(null)
-          if (action) void stackedActions.run(action, { paths: selectedPaths, commitMessage })
+          if (action) void stackedActions.run(action, { paths: commitPaths.paths, commitMessage })
         }}
       />
     </div>

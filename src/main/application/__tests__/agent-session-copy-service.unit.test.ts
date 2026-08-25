@@ -142,6 +142,8 @@ describe('agent session copy commands', () => {
       projectPath: '/tmp/project',
       piSessionId: 'pi-session-forked',
       piSessionFile: '/tmp/pi-session-forked.jsonl',
+      // Inherited from the source session, so the fork keeps its isolation.
+      environmentMode: 'worktree',
     })
     expect(persistSnapshotMock).toHaveBeenCalledWith({
       sessionId: SessionId('pi-session-forked'),

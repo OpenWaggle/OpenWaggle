@@ -68,14 +68,24 @@ describe('useSendMessage Waggle ownership', () => {
       }),
     )
 
-    await result.current.handleSendWaggle(
-      {
-        text: 'Review this',
-        thinkingLevel: 'medium',
-        attachments: [],
-      },
-      CONFIG,
-    )
+    /*
+     * Observed, because a failed first send now rejects: it names the session it created so a caller holding
+     * submitted work - a review - can follow it there rather than lose it. Left unobserved the rejection
+     * surfaces as an unhandled error and says nothing about the ownership this test is about.
+     */
+    let sendFailure: unknown = null
+    const sending = result.current
+      .handleSendWaggle(
+        {
+          text: 'Review this',
+          thinkingLevel: 'medium',
+          attachments: [],
+        },
+        CONFIG,
+      )
+      .catch((error: unknown) => {
+        sendFailure = error
+      })
     await vi.waitFor(() => expect(mocks.sendWaggleMessage).toHaveBeenCalledOnce())
     useWaggleStore.getState().startCollaboration(SESSION_B, CONFIG)
     await act(async () => {
@@ -83,10 +93,12 @@ describe('useSendMessage Waggle ownership', () => {
       await Promise.resolve()
       await Promise.resolve()
     })
+    await sending
     await vi.waitFor(() =>
       expect(useBackgroundRunStore.getState().getRunRenderSnapshot(SESSION_A)).toBeNull(),
     )
 
+    expect(sendFailure).toMatchObject({ createdSessionId: SESSION_A })
     expect(useWaggleStore.getState().activeCollaborationId).toBe(SESSION_B)
     expect(useWaggleStore.getState().status).toBe('pending')
   })

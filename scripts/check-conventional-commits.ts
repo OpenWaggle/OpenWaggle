@@ -1,5 +1,8 @@
 import { execFile as execFileCallback } from 'node:child_process'
 import { promisify } from 'node:util'
+import { isAncestor } from './git-ancestry'
+import { collectUpstreamUpdateMergeHashes } from './upstream-merge-attribution'
+import { touchesPublishablePackage } from './publishable-package-diff'
 
 const execFile = promisify(execFileCallback)
 
@@ -36,8 +39,13 @@ export function hasPackageReleaseIntent(title: string) {
   return PACKAGE_RELEASE_INTENT_PATTERN.test(title)
 }
 
+/** The published npm surface. */
+const PUBLISHABLE_PATH_PREFIX = 'packages/'
+
 function affectsPublishablePackage(commit: CommitSubject) {
-  return commit.changedPaths.some((changedPath) => changedPath.startsWith('packages/'))
+  return commit.changedPaths.some((changedPath) =>
+    changedPath.startsWith(PUBLISHABLE_PATH_PREFIX),
+  )
 }
 
 function isGeneratedNonPackageMerge(commit: CommitSubject) {
@@ -128,15 +136,6 @@ function resolveFrom(options: ConventionalCommitValidationOptions, baseline: str
     : options.from
 }
 
-async function isAncestor(cwd: string, ancestor: string, descendant: string) {
-  try {
-    await execFile('git', ['merge-base', '--is-ancestor', ancestor, descendant], { cwd })
-    return true
-  } catch {
-    return false
-  }
-}
-
 async function resolveEffectiveFrom(input: {
   readonly baseline: string
   readonly cwd: string
@@ -223,27 +222,6 @@ async function readCommitSubjects(cwd: string, from: string, to: string) {
  * Merges in the range whose incoming parents are all already contained in the base ref.
  * See {@link isUpstreamUpdateMerge} for why those are exempt from the package rule.
  */
-async function collectUpstreamUpdateMergeHashes(input: {
-  readonly base: string
-  readonly commits: readonly CommitSubject[]
-  readonly cwd: string
-}) {
-  const upstreamMergeHashes = new Set<string>()
-
-  for (const commit of input.commits) {
-    if (commit.parentHashes.length <= 1) continue
-    const incomingParents = commit.parentHashes.slice(1)
-    const containment = await Promise.all(
-      incomingParents.map((parent) => isAncestor(input.cwd, parent, input.base)),
-    )
-    if (containment.every((contained) => contained)) {
-      upstreamMergeHashes.add(commit.hash)
-    }
-  }
-
-  return upstreamMergeHashes
-}
-
 export async function validateConventionalCommits(options: ConventionalCommitValidationOptions = {}) {
   const cwd = options.cwd ?? process.cwd()
   const to = options.to ?? 'HEAD'
@@ -252,7 +230,12 @@ export async function validateConventionalCommits(options: ConventionalCommitVal
   const effectiveFrom = await resolveEffectiveFrom({ baseline, cwd, from, to })
   const commits = await readCommitSubjects(cwd, effectiveFrom, to)
   const upstreamMergeHashes = await collectUpstreamUpdateMergeHashes({
-    base: effectiveFrom,
+    /*
+     * The requested base ref first: in CI that is the base branch's current tip, which is the ref
+     * the containment question is actually about. `effectiveFrom` is only the start of the range
+     * being validated, and it collapses to the bootstrap baseline whenever the base has moved on.
+     */
+    bases: [from, effectiveFrom],
     commits,
     cwd,
   })
@@ -266,10 +249,35 @@ export async function validateConventionalCommits(options: ConventionalCommitVal
             `Pull request title "${options.prTitle}" is not an allowed Conventional Commit subject.`,
           ]
 
+  /*
+   * The same exemption as the commit-level rule: a sync merge of an already-released base branch
+   * carries `packages/` paths relative to its first parent, but those changes are already on the
+   * base with their own release commits, so this PR owes no version bump for them. Without this the
+   * exemption only half worked - the merge commit passed while the PR *title* was still required to
+   * carry release intent for changes that were never this PR's.
+   */
+  const ownedPackageChanges = commits.filter(
+    (commit) => !isUpstreamUpdateMerge(commit, upstreamMergeHashes),
+  )
+  /*
+   * Release intent is a question about the whole PR, asked against the base branch.
+   *
+   * Per-commit attribution cannot answer it. A merge's paths are read against its *first* parent, so a
+   * merge resolved to keep the branch's own older copy of a published file reports no `packages/` path at
+   * all - while relative to the base the PR reverts a released change. Every per-commit rule then exempts
+   * it and no release intent is required for a change to the published surface. Diffing the base against
+   * the head sidesteps the attribution question entirely: either the PR changes `packages/` or it does not.
+   */
+  const changesPublishedSurface = await touchesPublishablePackage({
+    base: from,
+    cwd,
+    fallbackBase: effectiveFrom,
+    to,
+  })
   const packageReleaseIntentViolations =
     options.prTitle !== undefined &&
     options.prTitle.length > 0 &&
-    commits.some(affectsPublishablePackage) &&
+    (changesPublishedSurface || ownedPackageChanges.some(affectsPublishablePackage)) &&
     !hasPackageReleaseIntent(options.prTitle)
       ? [
           `Pull request title ${JSON.stringify(options.prTitle)} changes a publishable package but would not create a Release Please version bump.`,

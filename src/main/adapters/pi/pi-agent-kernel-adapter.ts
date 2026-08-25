@@ -200,6 +200,7 @@ export const PiAgentKernelLive = Layer.effect(
                 ? runPiWaggle({
                     ...input,
                     ...runtimeExtensionIsolation,
+                    workingPath: executionPath,
                     ...(mcpTurn.extensionFactory
                       ? { mcpExtensionFactory: mcpTurn.extensionFactory }
                       : {}),
@@ -207,6 +208,7 @@ export const PiAgentKernelLive = Layer.effect(
                 : runPiSession({
                     ...input,
                     ...runtimeExtensionIsolation,
+                    workingPath: executionPath,
                     ...(mcpTurn.extensionFactory
                       ? { mcpExtensionFactory: mcpTurn.extensionFactory }
                       : {}),

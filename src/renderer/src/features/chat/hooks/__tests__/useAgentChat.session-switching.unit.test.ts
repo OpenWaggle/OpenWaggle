@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import type { AgentSendReport } from '@shared/types/agent'
 import type { BackgroundRunSnapshot } from '@shared/types/background-run'
 import { MessageId, SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
@@ -100,8 +101,9 @@ describe('useAgentChat session switching', () => {
   })
 
   it('does not cache an active session transcript under another active session during a switch', async () => {
-    const sendA = createDeferred<void>()
-    const sendB = createDeferred<void>()
+    // Both sends resolve with main's report of the run, as the real channel does.
+    const sendA = createDeferred<AgentSendReport>()
+    const sendB = createDeferred<AgentSendReport>()
     apiMock.sendMessage.mockReturnValueOnce(sendA.promise).mockReturnValueOnce(sendB.promise)
 
     const sessionA = SessionId('session-a')
@@ -216,8 +218,8 @@ describe('useAgentChat session switching', () => {
     ])
 
     await act(async () => {
-      sendA.resolve(undefined)
-      sendB.resolve(undefined)
+      sendA.resolve({ outcome: 'delivered' })
+      sendB.resolve({ outcome: 'delivered' })
     })
   })
 })

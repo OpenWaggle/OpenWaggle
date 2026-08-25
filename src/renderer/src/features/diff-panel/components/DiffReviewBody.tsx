@@ -1,8 +1,9 @@
 import type { CodeViewHandle } from '@pierre/diffs/react'
 import type { GitFileDiff } from '@shared/types/git'
 import type { Ref } from 'react'
+import { isReportableSendFailure } from '@/features/chat/lib'
 import type { ReviewAnnotationMetadata } from '@/features/diff-panel/lib/code-view-items'
-import { useReviewStore } from '@/features/diff-panel/state/review-store'
+import { useUIStore } from '@/shell/ui-store'
 import { useDiffReviewActions } from '../hooks/useDiffReviewActions'
 import { useDiffViewOptions } from '../hooks/useDiffViewOptions'
 import { DiffCodeView } from './DiffCodeView'
@@ -13,8 +14,21 @@ interface DiffReviewBodyProps {
   readonly viewerRef: Ref<CodeViewHandle<ReviewAnnotationMetadata>>
   readonly files: readonly GitFileDiff[]
   readonly isLoading: boolean
-  readonly onSendMessage: (content: string) => void
+  /** A failed diff load, surfaced instead of an empty diff. */
+  readonly loadError: string | null
+  readonly onRetryLoad: () => void
+  readonly onSendMessage: (content: string) => void | Promise<void>
   readonly onFileClick: (path: string) => void
+  /** Isolates pending comments to the tree and scope they were written against. */
+  /** The key this panel's review lives under, with the draft key it would use before a session exists. */
+  /**
+   * This panel's review key, with a way to build the key for a session that does not exist yet: a review
+   * submitted before any session exists has to follow the session created to carry it.
+   */
+  readonly reviewKeys: {
+    readonly reviewKey: string
+    readonly keyForSession: (sessionId: string) => string
+  }
 }
 
 /**
@@ -28,13 +42,30 @@ export function DiffReviewBody({
   viewerRef,
   files,
   isLoading,
+  loadError,
+  onRetryLoad,
   onSendMessage,
   onFileClick,
+  reviewKeys,
 }: DiffReviewBodyProps) {
-  const activeCommentLocation = useReviewStore((s) => s.activeCommentLocation)
-  const setActiveCommentLocation = useReviewStore((s) => s.setActiveCommentLocation)
   const { viewOptions } = useDiffViewOptions()
-  const review = useDiffReviewActions(onSendMessage, files)
+  const showToast = useUIStore((state) => state.showToast)
+  const review = useDiffReviewActions(
+    onSendMessage,
+    files,
+    reviewKeys.reviewKey,
+    reviewKeys.keyForSession,
+    (error) => {
+      /*
+       * A restored review that lands out of view is no better than a lost one if nothing says why - but a
+       * cancellation is the user's own Stop, and reporting that as a failure would be noise about something
+       * they asked for. The review comes back either way.
+       */
+      if (isReportableSendFailure(error)) {
+        showToast(`Could not send this review: ${String(error)}`, 'error')
+      }
+    },
+  )
 
   return (
     <>
@@ -43,11 +74,13 @@ export function DiffReviewBody({
           viewerRef={viewerRef}
           files={files}
           isLoading={isLoading}
+          loadError={loadError}
+          onRetryLoad={onRetryLoad}
           viewOptions={viewOptions}
           review={{
             comments: review.comments,
-            activeCommentLocation,
-            onSetActiveComment: setActiveCommentLocation,
+            activeCommentLocation: review.activeCommentLocation,
+            onSetActiveComment: review.onSetActiveComment,
             onAddSingleComment: review.onAddSingleComment,
             onAddToReview: review.onAddToReview,
             onRemoveComment: review.onRemoveComment,

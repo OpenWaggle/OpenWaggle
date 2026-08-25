@@ -85,6 +85,8 @@ describe('Pi Waggle runtime model resolution', () => {
 
     await runPiWaggle({
       session: sessionDetail(),
+      // The kernel resolves (and births) this before calling the run functions.
+      workingPath: '/repo',
       runId: 'run-waggle-pinned-first-inherited-second',
       payload: payload('Compare the design'),
       model: SECONDARY_MODEL,

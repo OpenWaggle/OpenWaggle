@@ -42,13 +42,6 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 
 - `docs/git-behaviour-test-coverage.md` — which git, diff and worktree behaviours are covered, and by which test.
 
-## Reviews
-
-Point-in-time review records for a specific change. They are historical working notes, not maintained references: read them for *why* a finding was accepted or rejected, not for current behaviour.
-
-- `docs/reviews/pr145-findings.md`, `docs/reviews/pr145-reviewer-{1,2,3}.md` — the diff-panel / git-actions review round.
-- `docs/reviews/adr16-findings.md`, `docs/reviews/adr16-reviewer-{1,2,3}.md` — the session-keyed git state review round.
-
 ## Specs
 
 Specs capture planned or in-progress product/runtime work. They may be more detailed than the stable architecture references and can become stale as implementation completes.

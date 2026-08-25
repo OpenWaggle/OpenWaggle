@@ -140,40 +140,6 @@ export async function getTurnDiff(sessionId: SessionId, turnId: string): Promise
   )
 }
 
-/**
- * Query by turn range (WS7): merge the diffs of checkpoints whose turn_index is
- * within [fromIndex, toIndex] into a single Turn diff.
- */
-export async function getTurnRangeDiff(
-  sessionId: SessionId,
-  fromIndex: number,
-  toIndex: number,
-): Promise<TurnDiff | null> {
-  return runStoreEffect(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      const [low, high] = fromIndex <= toIndex ? [fromIndex, toIndex] : [toIndex, fromIndex]
-      const rows = yield* sql<TurnCheckpointRow>`
-        SELECT turn_id, turn_index, created_at, diff, insertions, deletions
-        FROM turn_checkpoints
-        WHERE session_id = ${sessionId} AND turn_index >= ${low} AND turn_index <= ${high}
-        ORDER BY turn_index ASC
-      `
-      if (rows.length === 0) return null
-      const diff = rows.map((row) => row.diff).join('\n')
-      const files = parseTurnDiffFilesFromUnifiedDiff(diff)
-      const lastRow = rows[rows.length - 1]
-      return {
-        turnId: lastRow?.turn_id ?? '',
-        diff,
-        files,
-        insertions: sumInsertions(files),
-        deletions: sumDeletions(files),
-      }
-    }),
-  )
-}
-
 /** Retention: keep only the most recent `maxCheckpoints` turns for a session. Returns pruned turn ids. */
 export async function pruneTurnCheckpoints(
   sessionId: SessionId,

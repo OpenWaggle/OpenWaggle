@@ -13,6 +13,8 @@ interface ParsedPorcelainEntry {
   readonly status: GitFileStatus
   readonly staged: boolean
   readonly unstaged: boolean
+  /** Where a rename came from, so a pathspec commit can cover the deletion too. */
+  readonly renamedFrom?: string
 }
 
 interface LineStats {
@@ -20,11 +22,44 @@ interface LineStats {
   readonly deletions: number
 }
 
+/**
+ * The path a rename came from, or null when the entry is not a rename.
+ *
+ * Porcelain v1 spells a rename either as `old -> new` or with a brace form such as
+ * `dir/{old => new}.ts`; both have to be understood to reconstruct the source path.
+ */
+export function renameSourcePath(rawPath: string): string | null {
+  const trimmed = rawPath.trim()
+  if (!trimmed) return null
+
+  const brace = /\{([^{}]*?) => ([^{}]*?)\}/.exec(trimmed)
+  if (brace) {
+    const source = trimmed.replace(brace[0], brace[1] ?? '')
+    return stripSurroundingQuotes(source.trim())
+  }
+
+  const arrow = trimmed.indexOf(' -> ')
+  if (arrow === -1) return null
+  return stripSurroundingQuotes(trimmed.slice(0, arrow).trim())
+}
+
+/** `dir//file.ts` -> `dir/file.ts`, and a trailing slash left by a removed final component. */
+function collapseEmptySegments(pathValue: string) {
+  return pathValue.replaceAll(/\/{2,}/g, '/').replace(/\/$/, '')
+}
+
 export function normalizeGitPath(rawPath: string) {
   const trimmed = rawPath.trim()
   if (!trimmed) return ''
 
-  const braceNormalized = trimmed.replaceAll(/\{([^{}]*?) => ([^{}]*?)\}/g, '$2')
+  /*
+   * The brace form can remove a path component: git compacts such a rename as `dir/{sub => }/file.ts`, and
+   * substituting the second half leaves `dir//file.ts`, which matches no porcelain path - so the numstat
+   * stats were attached to a phantom entry instead of the file.
+   */
+  const braceNormalized = collapseEmptySegments(
+    trimmed.replaceAll(/\{([^{}]*?) => ([^{}]*?)\}/g, '$2'),
+  )
   if (braceNormalized !== trimmed) return stripSurroundingQuotes(braceNormalized.trim())
 
   const renameTarget = findPlainRenameTarget(trimmed)
@@ -124,11 +159,21 @@ function parsePorcelainLine(line: string) {
   if (line.length < GIT_STATUS_CODE_WIDTH) return null
   const x = line[0] ?? ' '
   const y = line[1] ?? ' '
+  const rawPath = line.slice(GIT_STATUS_PATH_OFFSET).trim()
+  /*
+   * Only a rename or copy has a source path. Reading the ` -> ` form unconditionally mangled an
+   * ordinary file whose own name contains that sequence: its path was truncated and a phantom source
+   * invented, which would then be staged and committed.
+   */
+  const isRenameOrCopy = x === 'R' || x === 'C' || y === 'R' || y === 'C'
+  const renamedFrom = isRenameOrCopy ? renameSourcePath(rawPath) : null
   return {
-    path: normalizeGitPath(line.slice(GIT_STATUS_PATH_OFFSET).trim()),
+    // Only a rename or copy has the `old -> new` form to strip; anything else is a literal path.
+    path: isRenameOrCopy ? normalizeGitPath(rawPath) : stripSurroundingQuotes(rawPath),
     status: mapStatusCode(x === '?' && y === '?' ? '?' : y !== ' ' ? y : x),
     staged: x !== ' ' && x !== '?',
     unstaged: y !== ' ',
+    ...(renamedFrom === null ? {} : { renamedFrom }),
   }
 }
 
@@ -137,6 +182,11 @@ function parseNumstatLine(line: string) {
   if (parts.length < GIT_STATUS_CODE_WIDTH) return null
 
   const rawPath = parts.slice(GIT_NUMSTAT_PATH_OFFSET).pop()?.trim()
+  /*
+   * A numstat line carries no status code, so a rename can only be recognised from the path shape. The
+   * brace form is unambiguous; the bare ` => ` separator is what git emits for a whole-path rename, and
+   * `git diff --numstat` never writes a literal ` => ` for anything else.
+   */
   const path = rawPath ? normalizeGitPath(rawPath) : ''
   if (!path) return null
 
@@ -162,6 +212,7 @@ function buildChangedFile(entry: ParsedPorcelainEntry, lineStats: LineStats | un
     unstaged: entry.unstaged,
     additions: lineStats?.additions ?? 0,
     deletions: lineStats?.deletions ?? 0,
+    ...(entry.renamedFrom === undefined ? {} : { renamedFrom: entry.renamedFrom }),
   } satisfies GitChangedFile
 }
 

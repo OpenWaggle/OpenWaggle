@@ -4,11 +4,16 @@ import type {
   RemoteVcsStatusResult,
   VcsChangeRequest,
 } from '@shared/types/git'
+import { networkGitOptions } from '../../adapters/git/run-git'
 import { getSourceControlProvider } from '../../adapters/source-control'
+import { resolveDefaultRef, resolveLocalDefaultRef } from './default-ref'
 import { isGitRepository, runGit } from './shared'
-import { GIT_PARSE_INT_RADIX } from './status-constants'
+import { GIT_PARSE_INT_RADIX, GIT_RAW_PATHS } from './status-constants'
 import { buildChangedFiles, parseNumstat, parsePorcelain } from './status-parse'
 import { detectSourceControlProvider, parseAheadBehind, toWorkingTree } from './vcs-status-parse'
+
+/** The remote status is refreshed in the background, so a stalled remote must not pin it open. */
+const REMOTE_FETCH_TIMEOUT_MS = 60_000
 
 async function resolveRefName(projectPath: string): Promise<string | null> {
   const result = await runGit(projectPath, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
@@ -29,30 +34,30 @@ async function resolvePrimaryRemoteUrl(projectPath: string): Promise<string | nu
   return urlResult.code === 0 ? urlResult.stdout.trim() || null : null
 }
 
-async function resolveDefaultRef(projectPath: string): Promise<string | null> {
-  const headResult = await runGit(projectPath, [
-    'symbolic-ref',
-    '--quiet',
-    '--short',
-    'refs/remotes/origin/HEAD',
-  ])
-  if (headResult.code === 0 && headResult.stdout.trim()) {
-    return headResult.stdout.trim().replace(/^origin\//, '')
-  }
-  const configResult = await runGit(projectPath, ['config', '--get', 'init.defaultBranch'])
-  if (configResult.code === 0 && configResult.stdout.trim()) return configResult.stdout.trim()
-  return null
-}
-
 async function resolveWorkingTree(projectPath: string) {
   const [porcelainResult, worktreeNumstat, cachedNumstat] = await Promise.all([
-    runGit(projectPath, ['status', '--porcelain=v1']),
-    runGit(projectPath, ['diff', '--numstat']),
-    runGit(projectPath, ['diff', '--cached', '--numstat']),
+    runGit(projectPath, [...GIT_RAW_PATHS, 'status', '--porcelain=v1']),
+    runGit(projectPath, [...GIT_RAW_PATHS, 'diff', '--numstat']),
+    runGit(projectPath, [...GIT_RAW_PATHS, 'diff', '--cached', '--numstat']),
   ])
   const numstat = parseNumstat(`${worktreeNumstat.stdout}\n${cachedNumstat.stdout}`)
   const changedFiles = buildChangedFiles(parsePorcelain(porcelainResult.stdout), numstat)
   return toWorkingTree(changedFiles)
+}
+
+/**
+ * The branch an upstream-tracking push would update, without its remote prefix.
+ *
+ * `@{upstream}` is `origin/main` for a branch tracking main, and a push follows that mapping however the branch
+ * is named locally - so this, not the current ref, is what a push writes.
+ */
+async function resolveUpstreamBranch(projectPath: string): Promise<string | null> {
+  const upstream = await runGit(projectPath, ['rev-parse', '--abbrev-ref', '@{upstream}'])
+  if (upstream.code !== 0) return null
+  const value = upstream.stdout.trim()
+  if (value.length === 0) return null
+  const separator = value.indexOf('/')
+  return separator === -1 ? value : value.slice(separator + 1)
 }
 
 export async function getLocalVcsStatus(projectPath: string): Promise<LocalVcsStatusResult> {
@@ -60,18 +65,32 @@ export async function getLocalVcsStatus(projectPath: string): Promise<LocalVcsSt
     return { ok: false, code: 'not-a-repo', message: 'Selected folder is not a Git repository.' }
   }
 
-  const [refName, remoteUrl, defaultRef, workingTree] = await Promise.all([
+  const [refName, remoteUrl, defaultRef, workingTree, upstreamBranch] = await Promise.all([
     resolveRefName(projectPath),
     resolvePrimaryRemoteUrl(projectPath),
-    resolveDefaultRef(projectPath),
+    // Offline by contract: this status is cached with a two-second TTL and gates the quick action.
+    resolveLocalDefaultRef(projectPath),
     resolveWorkingTree(projectPath),
+    resolveUpstreamBranch(projectPath),
   ])
+  // What a push would write, which is the upstream's branch when one is set - not necessarily this one.
+  const pushTargetRef = upstreamBranch ?? refName
 
   const status: LocalVcsStatus = {
     isRepo: true,
     sourceControlProvider: detectSourceControlProvider(remoteUrl),
     hasPrimaryRemote: remoteUrl !== null,
-    isDefaultRef: refName !== null && defaultRef !== null && refName === defaultRef,
+    /*
+     * Unknown counts as "yes", so the confirmation that guards a push to the default branch fails closed.
+     * `refs/remotes/origin/HEAD` is what records the default branch locally, and `git clone` writes it while
+     * `git init` plus `git remote add` does not - verified. In such a repository the default branch resolved to
+     * nothing, this read false, and a one-click Commit & push reached the default branch with no confirmation
+     * at all. Asking once too often is the harmless direction.
+     */
+    isDefaultRef: refName !== null && (defaultRef === null || refName === defaultRef),
+    pushTargetRef,
+    pushTargetIsDefaultRef:
+      pushTargetRef !== null && (defaultRef === null || pushTargetRef === defaultRef),
     refName,
     hasWorkingTreeChanges: workingTree.files.length > 0,
     workingTree,
@@ -83,6 +102,7 @@ async function resolveAheadOfDefault(
   projectPath: string,
   refName: string | null,
 ): Promise<number | null> {
+  // The remote status may reach the network; the local one may not.
   const defaultRef = await resolveDefaultRef(projectPath)
   if (!defaultRef || !refName || refName === defaultRef) return null
   const result = await runGit(projectPath, ['rev-list', '--count', `origin/${defaultRef}..HEAD`])
@@ -96,7 +116,11 @@ export async function getRemoteVcsStatus(projectPath: string): Promise<RemoteVcs
     return { ok: false, code: 'not-a-repo', message: 'Selected folder is not a Git repository.' }
   }
 
-  const fetchResult = await runGit(projectPath, ['fetch', '--quiet'])
+  const fetchResult = await runGit(
+    projectPath,
+    ['fetch', '--quiet'],
+    networkGitOptions(REMOTE_FETCH_TIMEOUT_MS),
+  )
   if (fetchResult.code !== 0) {
     return {
       ok: false,

@@ -12,13 +12,23 @@ export type DiffScopeSelection =
       readonly revealRequestId: number
     }
 
-const DEFAULT_SELECTION: DiffScopeSelection = { kind: 'branch', baseRef: null }
-const DEFAULT_WORKING_TREE_SELECTION: DiffScopeSelection = { kind: 'unstaged' }
+/** A thread with no stored scope shows its working tree. */
+const DEFAULT_SELECTION: DiffScopeSelection = { kind: 'unstaged' }
 
 interface DiffScopeState {
   byThreadKey: Record<string, DiffScopeSelection>
   branchBaseRefByThreadKey: Record<string, string | null>
   selectGitScope: (threadKey: string, scope: 'branch' | 'unstaged') => void
+  /**
+   * Record a whole selection for a thread.
+   *
+   * Used when work follows a session that a send has just created: the key a review lives under carries its
+   * scope, so the session has to show that scope or the review cannot be seen. Distinct from the inheritance
+   * that was removed - this writes what one concrete event knows, rather than standing in for a relationship
+   * nothing recorded.
+   */
+  setThreadScope: (threadKey: string, selection: DiffScopeSelection) => void
+
   selectBranchBaseRef: (threadKey: string, baseRef: string | null) => void
   selectTurn: (threadKey: string, turnId: string, filePath?: string) => void
   reconcileTurnSelection: (threadKey: string, availableTurnIds: readonly string[]) => void
@@ -50,6 +60,8 @@ export const useDiffScopeStore = create<DiffScopeState>()(
     (set) => ({
       byThreadKey: {},
       branchBaseRefByThreadKey: {},
+      setThreadScope: (threadKey, selection) =>
+        set((state) => ({ byThreadKey: { ...state.byThreadKey, [threadKey]: selection } })),
       selectGitScope: (threadKey, scope) =>
         set((state) => {
           const previous = state.byThreadKey[threadKey]
@@ -145,11 +157,15 @@ export const useDiffScopeStore = create<DiffScopeState>()(
 export function selectThreadDiffScopeSelection(
   byThreadKey: Record<string, DiffScopeSelection>,
   threadKey: string | null | undefined,
-  hasWorkingTreeChanges = false,
 ): DiffScopeSelection {
-  if (!threadKey) return DEFAULT_SELECTION
-  return (
-    byThreadKey[threadKey] ??
-    (hasWorkingTreeChanges ? DEFAULT_WORKING_TREE_SELECTION : DEFAULT_SELECTION)
-  )
+  /*
+   * One default: the working tree.
+   *
+   * There used to be a second, Branch, chosen by a `hasWorkingTreeChanges` argument - but the only
+   * caller passed a hardcoded `true`, so no real thread could ever reach it while its unit tests
+   * reported it working. Deriving the flag from the asynchronously loaded status would have been
+   * worse than the dead branch: the scope would start as Branch, fire a branch diff, then flip to
+   * the working tree once the status arrived. Removed rather than left as a false green.
+   */
+  return (threadKey ? byThreadKey[threadKey] : undefined) ?? DEFAULT_SELECTION
 }

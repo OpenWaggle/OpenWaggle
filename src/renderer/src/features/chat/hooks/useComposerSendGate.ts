@@ -23,6 +23,15 @@ interface UseComposerSendGateInput {
 export function useComposerSendGate(input: UseComposerSendGateInput): {
   readonly strip: SessionContextRowState
   readonly guardedSend: (payload: AgentSendPayload) => Promise<void>
+  /**
+   * Why sending is currently refused, or null when it is allowed.
+   *
+   * Exposed so queueing is gated by the same rule. Only the direct send path used to be checked,
+   * so queueing a message against a vanished worktree deferred it past the gate: main then
+   * rejected it with a bare thrown error and the message was silently re-enqueued, instead of the
+   * user seeing the recover-or-switch notice.
+   */
+  readonly sendBlockedReason: string | null
 } {
   const projectPath = usePreferencesStore((s) => s.settings.projectPath)
   const defaultEnvironmentMode = usePreferencesStore(
@@ -35,11 +44,15 @@ export function useComposerSendGate(input: UseComposerSendGateInput): {
     session: input.session,
     defaultEnvironmentMode,
   })
+  // Both blocking outcomes stop a send. 'worktree-missing' additionally offers recover-or-switch
+  // actions in the context row, so the user is not stuck.
+  const sendBlockedReason =
+    strip.sendPlan.kind === 'blocked' || strip.sendPlan.kind === 'worktree-missing'
+      ? strip.sendPlan.reason
+      : null
   const guardedSend = async (payload: AgentSendPayload) => {
-    // Both blocking outcomes stop the send. 'worktree-missing' additionally offers
-    // recover-or-switch actions in the context row, so the user is not stuck.
-    if (strip.sendPlan.kind === 'blocked' || strip.sendPlan.kind === 'worktree-missing') {
-      input.onToast(strip.sendPlan.reason)
+    if (sendBlockedReason !== null) {
+      input.onToast(sendBlockedReason)
       return
     }
     // Persist the resolved plan onto the draft key so the lazily-created session
@@ -53,5 +66,5 @@ export function useComposerSendGate(input: UseComposerSendGateInput): {
     }
     await input.onSend(payload)
   }
-  return { strip, guardedSend }
+  return { strip, guardedSend, sendBlockedReason }
 }

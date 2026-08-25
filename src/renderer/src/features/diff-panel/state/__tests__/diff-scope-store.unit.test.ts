@@ -8,17 +8,16 @@ function reset() {
 describe('diff-scope-store', () => {
   beforeEach(reset)
 
-  it('defaults to branch scope, or unstaged when the working tree is dirty', () => {
+  it('defaults an unseen thread to its working tree', () => {
+    /*
+     * This used to assert a Branch default plus an "unstaged when dirty" override selected by a
+     * `hasWorkingTreeChanges` argument. The only caller passed a hardcoded `true`, so the Branch
+     * default was unreachable in production and this test was a false green: it verified a path
+     * nothing could take. The argument and that branch are gone.
+     */
     const { byThreadKey } = useDiffScopeStore.getState()
-    expect(selectThreadDiffScopeSelection(byThreadKey, 't1')).toEqual({
-      kind: 'branch',
-      baseRef: null,
-    })
-    expect(selectThreadDiffScopeSelection(byThreadKey, 't1', true)).toEqual({ kind: 'unstaged' })
-    expect(selectThreadDiffScopeSelection(byThreadKey, null)).toEqual({
-      kind: 'branch',
-      baseRef: null,
-    })
+    expect(selectThreadDiffScopeSelection(byThreadKey, 't1')).toEqual({ kind: 'unstaged' })
+    expect(selectThreadDiffScopeSelection(byThreadKey, null)).toEqual({ kind: 'unstaged' })
   })
 
   it('remembers the base ref across scope switches (base-ref memory)', () => {
@@ -79,11 +78,11 @@ describe('diff-scope-store', () => {
     expect(state.branchBaseRefByThreadKey.t1).toBeUndefined()
   })
 
-  it('preserves an explicit scope selection when the working-tree state changes', () => {
+  it('preserves an explicit scope selection over the default', () => {
     useDiffScopeStore.getState().selectGitScope('t1', 'branch')
     const { byThreadKey } = useDiffScopeStore.getState()
-    // Even with a dirty working tree, the explicit branch selection stands.
-    expect(selectThreadDiffScopeSelection(byThreadKey, 't1', true)).toEqual({
+    // The stored choice wins; only an unseen thread falls back to the default.
+    expect(selectThreadDiffScopeSelection(byThreadKey, 't1')).toEqual({
       kind: 'branch',
       baseRef: null,
     })
@@ -95,5 +94,23 @@ describe('diff-scope-store', () => {
     store.selectGitScope('t1', 'unstaged')
     // The unstaged selection carries no baseRef field.
     expect(useDiffScopeStore.getState().byThreadKey.t1).toEqual({ kind: 'unstaged' })
+  })
+
+  it('gives a session with no recorded scope the default one', () => {
+    /*
+     * Deliberately no inheritance from the draft. A standing lookup made whatever the *next* draft in a project
+     * chose become an existing session's scope retroactively, and a one-time copy on mount handed a session
+     * another project's scope and base ref. Five attempts at inferring this relationship failed in five
+     * different ways; a new session simply starts on the working-tree scope. The reviewer's pending work does
+     * not depend on it: a draft review is anchored to the opened repository, which does not move, and a review
+     * submitted on a first send follows the session id that send reports.
+     */
+    const byThreadKey = { '/repo': { kind: 'branch', baseRef: 'origin/main' } } as const
+
+    expect(selectThreadDiffScopeSelection(byThreadKey, 'session-1')).toEqual({ kind: 'unstaged' })
+    expect(selectThreadDiffScopeSelection(byThreadKey, '/repo')).toEqual({
+      kind: 'branch',
+      baseRef: 'origin/main',
+    })
   })
 })

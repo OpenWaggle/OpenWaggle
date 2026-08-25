@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildGitActionProgressStages,
+  defaultBranchActionLabel,
   planStackedActionPhases,
   requiresDefaultBranchConfirmation,
   resolveAutoFeatureBranchName,
   resolveDefaultBranchActionDialogCopy,
   sanitizeFeatureBranchName,
+  targetsDefaultRef,
 } from '../git-stacked-action'
 
 describe('git-stacked-action pure logic', () => {
@@ -91,6 +93,50 @@ describe('git-stacked-action pure logic', () => {
       expect(planStackedActionPhases('commit_push_pr')).toEqual(['commit', 'push', 'pr'])
       expect(planStackedActionPhases('create_pr')).toEqual(['push', 'pr'])
       expect(planStackedActionPhases('commit')).toEqual(['commit'])
+    })
+  })
+
+  describe('targetsDefaultRef', () => {
+    /*
+     * A push follows the upstream mapping, so standing on `feature` with an upstream of `origin/main` writes
+     * `main` - verified against real git, which reported `feature -> main`. Judging only the ref you are on waved
+     * that straight through, which is exactly the push this confirmation exists to catch.
+     */
+    it('is true when a push would write the default branch from another ref', () => {
+      expect(targetsDefaultRef({ isDefaultRef: false, pushTargetIsDefaultRef: true })).toBe(true)
+    })
+
+    it('is true when the current ref is the default branch', () => {
+      expect(targetsDefaultRef({ isDefaultRef: true, pushTargetIsDefaultRef: false })).toBe(true)
+    })
+
+    it('is false only when neither end is the default branch', () => {
+      expect(targetsDefaultRef({ isDefaultRef: false, pushTargetIsDefaultRef: false })).toBe(false)
+    })
+  })
+
+  describe('defaultBranchActionLabel', () => {
+    it('names the destination when a push would write elsewhere', () => {
+      // "You are on feature" while the push updates main invites confirming the wrong thing.
+      expect(
+        defaultBranchActionLabel({
+          isDefaultRef: false,
+          pushTargetIsDefaultRef: true,
+          pushTargetRef: 'main',
+          refName: 'feature',
+        }),
+      ).toBe('main (tracked by feature)')
+    })
+
+    it('names the current ref when that is what would be written', () => {
+      expect(
+        defaultBranchActionLabel({
+          isDefaultRef: true,
+          pushTargetIsDefaultRef: true,
+          pushTargetRef: 'main',
+          refName: 'main',
+        }),
+      ).toBe('main')
     })
   })
 })

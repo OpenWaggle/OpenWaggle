@@ -2,8 +2,11 @@ import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { GitRunStackedActionOptions, GitRunStackedActionResult } from '@shared/types/git'
 import { GIT_STACKED_ACTIONS } from '@shared/types/git'
 import {
+  type DefaultBranchActionDialogCopy,
+  defaultBranchActionLabel,
   requiresDefaultBranchConfirmation,
   resolveDefaultBranchActionDialogCopy,
+  targetsDefaultRef,
 } from '@shared/utils/git-stacked-action'
 import * as Effect from 'effect/Effect'
 import { BrowserWindow, dialog, type IpcMainInvokeEvent, type MessageBoxOptions } from 'electron'
@@ -16,8 +19,10 @@ import { pullCurrentBranch, pushCurrentBranch } from './push-service'
 import { projectPathSchema, runGit } from './shared'
 import { runStackedGitAction, type StackedActionDeps } from './stacked-action-service'
 import { invalidateGitStatusCache } from './status-cache'
+import { GIT_RAW_PATHS } from './status-constants'
 import { invalidateVcsStatus, readLocalVcsStatus } from './vcs-status-cache'
 import { detectSourceControlProvider } from './vcs-status-parse'
+import { resolveRepositoryRoot } from './working-tree-service'
 
 const stackedActionOptionsSchema = Schema.Struct({
   action: Schema.Literal(...GIT_STACKED_ACTIONS),
@@ -39,8 +44,13 @@ async function resolveProviderRemoteUrl(projectPath: string): Promise<string | n
 function createStackedActionDeps(): StackedActionDeps {
   return {
     hasWorkingTreeChanges: async (projectPath) => {
-      const result = await runGit(projectPath, ['status', '--porcelain=v1'])
-      return result.stdout.trim().length > 0
+      const result = await runGit(projectPath, [...GIT_RAW_PATHS, 'status', '--porcelain=v1'])
+      if (result.code !== 0) {
+        // Ignoring the exit code made an unreadable repository indistinguishable from a clean
+        // one, so the commit phase was skipped and the action reported success regardless.
+        return { ok: false, message: result.stderr.trim() || 'Could not read the working tree.' }
+      }
+      return { ok: true, hasChanges: result.stdout.trim().length > 0 }
     },
     listBranchNames: async (projectPath) => {
       const list = await listGitBranches(projectPath)
@@ -59,16 +69,39 @@ function createStackedActionDeps(): StackedActionDeps {
       return { ok: result.ok, message: result.message }
     },
     commit: async (projectPath, message, paths) => {
-      // Stage the caller's selection when provided; only fall back to staging the
-      // whole working tree when nothing was selected (avoids sweeping in the
-      // user's unrelated in-flight work in `local` environment mode).
+      /*
+       * Stage exactly what the caller selected, and nothing when the selection is empty.
+       *
+       * This used to fall back to `git add --all`, which has no pathspec and therefore covers
+       * the whole repository - not just the opened directory. In `local` environment mode that
+       * swept every unrelated in-flight edit in the user's own checkout into the commit, and
+       * `commit_push*` then pushed it. The fallback was reached exactly when nothing was on
+       * display, which is the case where committing everything is least defensible, so an
+       * empty selection now reports that there is nothing to commit.
+       */
       const selected = paths?.filter((entry) => entry.trim().length > 0) ?? []
-      if (selected.length > 0) {
-        await runGit(projectPath, ['add', '--', ...selected])
-        return commitGit(projectPath, { message, amend: false, paths: [...selected] })
+      if (selected.length === 0) {
+        return {
+          ok: false,
+          code: 'nothing-to-commit',
+          message: 'Select the files to commit: nothing was staged for this action.',
+        }
       }
-      await runGit(projectPath, ['add', '--all'])
-      return commitGit(projectPath, { message, amend: false, paths: [] })
+      /*
+       * Staged and committed from the repository root, because the paths are repository-relative -
+       * that is what `git status --porcelain` reports, and what the renderer passes through. Running
+       * them from an opened subdirectory resolved them relative to that subdirectory instead:
+       * verified that `git add -- packages/app/x.txt` from `packages/app` fails with
+       * "pathspec ... did not match any files". `git add --all` hid this because it takes no
+       * pathspec. Revert all is already re-based onto the root; commit now agrees with it.
+       */
+      const repositoryRoot = (await resolveRepositoryRoot(projectPath)) ?? projectPath
+      /*
+       * Staging is left to `commitGit`, which handles the awkward cases: a path gone from disk needs `-A`,
+       * and an already-staged rename's source matches nothing for `add` while still needing to be in the
+       * commit pathspec. Adding here as well duplicated that logic badly - it batched, which is fatal.
+       */
+      return commitGit(repositoryRoot, { message, amend: false, paths: [...selected] })
     },
     push: (projectPath) => pushCurrentBranch(projectPath),
     pull: (projectPath) => pullCurrentBranch(projectPath),
@@ -106,18 +139,45 @@ function confirmDefaultBranchAction(
 ) {
   return Effect.gen(function* () {
     const local = yield* Effect.promise(() => readLocalVcsStatus(projectPath))
-    if (
-      !local.ok ||
-      !requiresDefaultBranchConfirmation(options.action, local.status.isDefaultRef)
-    ) {
+    /*
+     * Fail closed. A gate that skips itself whenever it cannot read the repository is not a
+     * gate: any `git status` failure used to wave a commit-and-push straight through. When the
+     * ref is unknown, treat it as risky and ask - the action itself may still be fine, the user
+     * just gets the last word.
+     */
+    if (!local.ok) {
+      return yield* askDefaultBranchConfirmation(event, {
+        title: 'Continue without checking the current ref?',
+        description: `The current ref could not be read (${local.message}), so it is not known whether this action targets the default ref. Continue anyway?`,
+        continueLabel: 'Continue',
+      })
+    }
+    /*
+     * Either the ref you are on or the ref a push would write. A push follows the upstream mapping, so standing
+     * on `feature` with an upstream of `origin/main` writes `main` - verified against real git, which reported
+     * `feature -> main`. Judging only the current ref waved that straight through, which is precisely the push
+     * this gate exists to catch.
+     */
+    if (!requiresDefaultBranchConfirmation(options.action, targetsDefaultRef(local.status))) {
       return true
     }
     const copy = resolveDefaultBranchActionDialogCopy({
       action: options.action,
-      branchName: local.status.refName ?? 'the default branch',
+      // Name what would be written, which is the destination when it differs from the branch you are on.
+      branchName: defaultBranchActionLabel(local.status),
       includesCommit: options.action.startsWith('commit'),
       provider: local.status.sourceControlProvider?.id ?? null,
     })
+    return yield* askDefaultBranchConfirmation(event, copy)
+  })
+}
+
+/** Modal confirmation shown from main, so the renderer cannot skip it. */
+function askDefaultBranchConfirmation(
+  event: IpcMainInvokeEvent,
+  copy: DefaultBranchActionDialogCopy,
+) {
+  return Effect.gen(function* () {
     const ownerWindow = BrowserWindow.fromWebContents(event.sender)
     const dialogOptions = {
       type: 'warning',

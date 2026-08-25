@@ -1,4 +1,5 @@
 import type { ReviewComment } from '@shared/types/review'
+import type { ReviewCommentLineType } from '@/features/diff-panel/state/review-store'
 
 /**
  * Serialises Review comments into the message sent to the agent.
@@ -130,6 +131,14 @@ export function formatLineRange(startLine: number, endLine: number) {
 export interface ReviewCommentWithSnippet extends ReviewComment {
   /** Unified-diff snippet for the commented range; empty when unavailable. */
   readonly diff: string
+  /**
+   * Which kind of line the comment was anchored to.
+   *
+   * Captured so a saved comment can be drawn on the side it was written against. Without it the
+   * marker for a comment on a deleted line relocated to the additions column at the same line
+   * number, pointing at unrelated code, while the payload still named the old line.
+   */
+  readonly lineType?: ReviewCommentLineType
 }
 
 /**

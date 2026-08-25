@@ -114,3 +114,26 @@ export function isToolCallPart(part: MessagePart): part is ToolCallPart {
 export function getMessageText(message: Message): string {
   return message.parts.reduce((text, part) => (isTextPart(part) ? text + part.text : text), '')
 }
+
+/**
+ * What became of a send, as reported back to the caller of `agent:send-message`.
+ *
+ * The invoke used to return nothing, and main recovers every run failure into a value rather than failing the
+ * Effect - so a caller awaiting the invoke could not tell a completed turn from a refused one. A review
+ * submitted as a session's first message was therefore cleared on a failure that looked exactly like success.
+ *
+ * Three outcomes, not two, because "not delivered" and "cannot tell" call for different behaviour:
+ *
+ * - `delivered`: the run produced a turn.
+ * - `refused`: the run never started, and the reason is known. A caller may treat this as an error.
+ * - `cancelled`: the run was aborted. This says nothing about whether the message arrived - a cancellation
+ *   before the prompt was sent reports the same outcome as one mid-turn - so it must not be raised as an
+ *   error, while a caller holding work the user might still want should keep it.
+ */
+export type AgentSendOutcome = 'delivered' | 'refused' | 'cancelled'
+
+export interface AgentSendReport {
+  readonly outcome: AgentSendOutcome
+  readonly message?: string
+  readonly code?: string
+}

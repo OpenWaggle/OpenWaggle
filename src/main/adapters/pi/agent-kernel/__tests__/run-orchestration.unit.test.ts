@@ -67,6 +67,8 @@ describe('Pi run orchestration', () => {
     runMocks.createOpenWaggleAgentSessionFromServices.mockResolvedValue({ session })
     const result = await runPiSession({
       session: sessionDetail(),
+      // The kernel resolves (and births) this before calling the run functions.
+      workingPath: '/repo',
       runId: 'run-1',
       payload: payload('Run tests'),
       model: PRIMARY_MODEL,
@@ -119,6 +121,7 @@ describe('Pi run orchestration', () => {
     runMocks.createOpenWaggleAgentSessionFromServices.mockResolvedValue({ session })
     await runPiWaggle({
       session: sessionDetail(),
+      workingPath: '/repo',
       runId: 'run-waggle-attachments',
       payload: payload('Review attached context', { attachments }),
       model: PRIMARY_MODEL,
@@ -178,6 +181,7 @@ describe('Pi run orchestration', () => {
     runMocks.createOpenWaggleAgentSessionFromServices.mockResolvedValue({ session })
     await runPiWaggle({
       session: sessionDetail(),
+      workingPath: '/repo',
       runId: 'run-waggle-inherited-model',
       payload: payload('Compare the design'),
       model: PRIMARY_MODEL,
@@ -213,6 +217,7 @@ describe('Pi run orchestration', () => {
     runMocks.createOpenWaggleAgentSessionFromServices.mockResolvedValue({ session })
     const result = await runPiWaggle({
       session: sessionDetail(),
+      workingPath: '/repo',
       runId: 'run-waggle',
       payload: payload('Compare the design'),
       model: PRIMARY_MODEL,

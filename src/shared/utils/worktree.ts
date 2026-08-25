@@ -37,17 +37,20 @@ export function resolveSessionWorkingDir(
 }
 
 /**
- * Length of the session-id prefix used in a Session worktree's branch name.
+ * Length of the session-id prefix used by the *legacy* Session worktree branch convention.
+ *
+ * Kept only to find branches minted before the convention changed - see
+ * {@link legacySessionWorktreeBranch}. Do not use it for new branches.
  */
-const SESSION_WORKTREE_SHORT_ID_LENGTH = 8
+const LEGACY_SESSION_WORKTREE_SHORT_ID_LENGTH = 8
 
 /**
  * The single owner of the Session worktree branch namespace.
  *
- * Two independent features mint branches here: ADR 0010/0018 Session worktrees (keyed by a
- * session-id prefix) and MCP session-control worktrees (keyed by a content hash that also
- * names their directory). Their ids differ on purpose, but the namespace must be defined
- * once so renaming it cannot leave one feature behind.
+ * Two independent features mint branches here: ADR 0010/0018 Session worktrees (keyed by the
+ * session id) and MCP session-control worktrees (keyed by a content hash that also names
+ * their directory). Their ids differ on purpose, but the namespace must be defined once so
+ * renaming it cannot leave one feature behind.
  */
 export const SESSION_WORKTREE_BRANCH_PREFIX = 'ow/session-'
 
@@ -59,11 +62,30 @@ export function sessionWorktreeBranchForId(worktreeId: string): string {
 /**
  * The branch a Session worktree lives on.
  *
- * Single source of truth for this convention: worktree birth and worktree recreation
- * must agree exactly, because recreation reattaches the surviving branch to preserve
- * commits made in the old tree. When the two derived the name differently, recreation
- * silently created a divergent branch and stranded the session's commits on the old one.
+ * Single source of truth for this convention: worktree birth and worktree recreation must
+ * agree exactly, because recreation reattaches the surviving branch to preserve commits made
+ * in the old tree. When the two derived the name differently, recreation silently created a
+ * divergent branch and stranded the session's commits on the old one.
+ *
+ * Uses the **full** session id, matching the worktree directory. It previously used the first
+ * 8 characters, which collide: the session id is a UUIDv7 whose leading 32 bits are the top
+ * bits of a millisecond timestamp, so the first 8 hex characters only change once every
+ * ~65 seconds (measured: ids 10s apart share `01a014fc`). Two worktree-mode sessions created
+ * in the same bucket therefore derived the *same* branch, which either made the second
+ * session unable to run or - if the first session's worktree had been removed while its
+ * branch survived - silently attached the second session to the first session's commits.
  */
 export function sessionWorktreeBranch(sessionId: string): string {
-  return sessionWorktreeBranchForId(sessionId.slice(0, SESSION_WORKTREE_SHORT_ID_LENGTH))
+  return sessionWorktreeBranchForId(sessionId)
+}
+
+/**
+ * The branch a Session worktree was given before the collision fix.
+ *
+ * Sessions born under the old convention still own a branch named from the first 8 characters
+ * of their id, and that branch may carry commits. Recreation checks for it so those commits
+ * are reattached instead of stranded; nothing should ever *create* this name.
+ */
+export function legacySessionWorktreeBranch(sessionId: string): string {
+  return sessionWorktreeBranchForId(sessionId.slice(0, LEGACY_SESSION_WORKTREE_SHORT_ID_LENGTH))
 }

@@ -1,7 +1,7 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { agentSendPayloadSchema, toAgentSendPayload } from '@shared/schemas/validation'
-import type { AgentSendPayload, Message } from '@shared/types/agent'
+import type { AgentSendPayload, AgentSendReport, Message } from '@shared/types/agent'
 import type { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { WaggleConfig } from '@shared/types/waggle'
 import * as Effect from 'effect/Effect'
@@ -44,6 +44,20 @@ interface WaggleAbortedResult {
   readonly outcome: 'aborted'
 }
 
+/**
+ * A run that failed rather than being refused up front or cancelled.
+ *
+ * `transportEmitted` marks a failure raised *after* the agent took the turn - a provider error, a rate limit -
+ * as opposed to a refusal raised before it. A caller holding work submitted with the message needs the two apart:
+ * one means "keep it, it never arrived", the other means "the agent has it, do not offer it again".
+ */
+interface WaggleErrorResult {
+  readonly outcome: 'error'
+  readonly message: string
+  readonly code: string
+  readonly transportEmitted?: boolean
+}
+
 interface WaggleSuccessResult {
   readonly outcome: 'success'
   readonly newMessages: readonly Message[]
@@ -55,6 +69,7 @@ type WaggleHandlerResult =
   | WaggleNotFoundResult
   | WaggleNoProjectResult
   | WaggleAbortedResult
+  | WaggleErrorResult
   | WaggleSuccessResult
 
 export function registerWaggleHandlers() {
@@ -106,7 +121,7 @@ function handleSendWaggleMessage(
     const runId = waggleRunId(sessionId)
     activeWaggleRuns.register(sessionId, abortController, {})
 
-    yield* Effect.ensuring(
+    return yield* Effect.ensuring(
       runRegisteredWaggleMessage(
         sessionId,
         runId,
@@ -150,6 +165,11 @@ function runRegisteredWaggleMessage(
     })
 
     handleWaggleResult(sessionId, runId, result)
+    /*
+     * Reported back for the same reason the classic path does it: this Effect succeeds whether the turn ran or
+     * was refused, so a caller with work to protect could not tell the difference.
+     */
+    return describeWaggleSendOutcome(result)
   })
 }
 
@@ -164,6 +184,35 @@ function startWaggleStream(sessionId: SessionId, runId: string, runtimeModel: Su
   emitTransportEvent(sessionId, { type: 'agent_start', timestamp: Date.now(), runId })
 }
 
+/**
+ * A send that produced no turn was not delivered, whatever the transport did afterwards.
+ *
+ * `aborted` is its own outcome for the same reason it is on the classic path: a cancellation before the prompt
+ * was sent reports the same thing as one mid-turn, and raising it as an error broke the Stop flow.
+ */
+function describeWaggleSendOutcome(result: WaggleHandlerResult): AgentSendReport {
+  return (
+    matchBy(result, 'outcome')
+      .with('success', () => ({ outcome: 'delivered' as const }))
+      .with('aborted', () => ({ outcome: 'cancelled' as const }))
+      /*
+       * A run that reached the agent had the message, so its later failure is not a refusal - the same distinction
+       * the classic path draws, and for the same reason: a caller holding a submitted review must not be handed it
+       * back after the agent already received it.
+       */
+      .with('error', (value) =>
+        value.transportEmitted === true
+          ? { outcome: 'delivered' as const }
+          : { outcome: 'refused' as const, message: value.message, code: value.code },
+      )
+      .otherwise((value) => ({
+        outcome: 'refused' as const,
+        message: value.message,
+        code: value.code,
+      }))
+  )
+}
+
 function handleWaggleResult(sessionId: SessionId, runId: string, result: WaggleHandlerResult) {
   matchBy(result, 'outcome')
     .with('validation-error', (value) =>
@@ -171,6 +220,7 @@ function handleWaggleResult(sessionId: SessionId, runId: string, result: WaggleH
     )
     .with('not-found', (value) => emitErrorAndFinish(sessionId, value.message, value.code, runId))
     .with('no-project', (value) => emitErrorAndFinish(sessionId, value.message, value.code, runId))
+    .with('error', (value) => emitErrorAndFinish(sessionId, value.message, value.code, runId))
     .with('aborted', () => emitWaggleEnd(sessionId, runId, 'aborted'))
     .with('success', (value) => handleWaggleSuccess(sessionId, runId, value))
     .exhaustive()

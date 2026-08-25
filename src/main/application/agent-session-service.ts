@@ -163,10 +163,21 @@ function copyAgentSessionToNewSession(input: AgentSessionCopyInput) {
     }
 
     const sessionProjectionRepo = yield* SessionProjectionRepository
+    /*
+     * The fork inherits the source session's isolation.
+     *
+     * Omitting it defaulted the copy to local mode, so a fork of a worktree-mode session ran in the
+     * user's opened checkout - the agent editing exactly the tree worktree mode exists to protect -
+     * and the context row that would have shown it is hidden for a fork, because it only appears
+     * before the first message. The copy gets its own worktree at its own deterministic path on the
+     * first send; nothing is shared with the session it came from.
+     */
     const createdProjection = yield* sessionProjectionRepo.create({
       projectPath: session.projectPath,
       piSessionId: result.piSessionId,
       piSessionFile: result.piSessionFile,
+      // A fork inherits both: this branch's environment mode, and main's authorization mode.
+      ...(session.environmentMode ? { environmentMode: session.environmentMode } : {}),
       authorizationMode: session.authorizationMode,
     })
 
