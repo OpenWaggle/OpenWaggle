@@ -12,6 +12,7 @@ import { noReactLegacyPatternsRule } from './rules/no-react-legacy-patterns'
 import { noShoehornOutsideTestsRule } from './rules/no-shoehorn-outside-tests'
 import { preferInferredInternalReturnTypesRule } from './rules/prefer-inferred-internal-return-types'
 import { rendererImportBoundariesRule } from './rules/renderer-import-boundaries-rule'
+import { rendererDesignTokenGuardrailsRule } from './rules/renderer-design-token-guardrails'
 import { testColocationRule } from './rules/test-colocation'
 
 export const openwagglePlugin: ESLint.Plugin = {
@@ -34,6 +35,7 @@ export const openwagglePlugin: ESLint.Plugin = {
     'no-shoehorn-outside-tests': noShoehornOutsideTestsRule,
     'prefer-inferred-internal-return-types': preferInferredInternalReturnTypesRule,
     'renderer-import-boundaries': rendererImportBoundariesRule,
+    'renderer-design-token-guardrails': rendererDesignTokenGuardrailsRule,
     'test-colocation': testColocationRule,
   },
 }
