@@ -61,7 +61,7 @@ function PinnedSortMenu({ sort }: { readonly sort: PinnedSortControlState }) {
       open={sortMenuOpen}
       onOpenChange={onSetMenuOpen}
       placement="bottom-end"
-      className="min-w-[196px] py-1"
+      className="min-w-49 py-1"
       role="menu"
       trigger={
         <SidebarIconButton
@@ -69,7 +69,7 @@ function PinnedSortMenu({ sort }: { readonly sort: PinnedSortControlState }) {
           isActive={sortMenuOpen}
           onClick={() => onSetMenuOpen(!sortMenuOpen)}
         >
-          <LayoutList className="size-[13px]" />
+          <LayoutList className="size-3.5" />
         </SidebarIconButton>
       }
     >
@@ -85,7 +85,7 @@ function PinnedSortMenu({ sort }: { readonly sort: PinnedSortControlState }) {
             onSetMode(option.value)
             onSetMenuOpen(false)
           }}
-          className={cn('gap-2 px-3 text-[12px]', sortMode === option.value && 'text-accent')}
+          className={cn('gap-2 px-3 text-xs', sortMode === option.value && 'text-accent')}
         >
           <option.icon className="size-3 shrink-0" />
           <span className="flex-1">{option.label}</span>

@@ -13,7 +13,7 @@ export function ComposerDropZone({ fileAttachment, children }: ComposerDropZoneP
     <section
       aria-label="Composer file drop zone"
       className={cn(
-        'relative rounded-[var(--radius-panel)] bg-bg-secondary border transition-all',
+        'relative rounded-3xl bg-bg-secondary border transition-all',
         'border-input-card-border',
         'has-[:focus]:border-accent/50 has-[:focus]:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]',
         fileAttachment.isDragOver &&
@@ -21,7 +21,7 @@ export function ComposerDropZone({ fileAttachment, children }: ComposerDropZoneP
           'border-accent ring-2 ring-accent/30',
         fileAttachment.isDragOver &&
           fileAttachment.isAtCapacity &&
-          'border-red-400/60 ring-2 ring-red-400/20',
+          'border-error/60 ring-2 ring-error/20',
       )}
       onDragEnter={fileAttachment.handleDragEnter}
       onDragLeave={fileAttachment.handleDragLeave}

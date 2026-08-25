@@ -24,7 +24,7 @@ export function SidebarSectionHead({
   return (
     <div
       data-qa="sidebar-section-head"
-      className="group/head sticky top-0 z-2 flex h-[26px] items-center gap-1.5 bg-bg-secondary px-3.5 font-semibold text-[11px] text-text-tertiary uppercase tracking-[0.04em]"
+      className="group/head sticky top-0 z-2 flex h-6.5 items-center gap-1.5 bg-bg-secondary px-3.5 font-semibold text-xs text-text-tertiary uppercase tracking-wider"
     >
       <span>{label}</span>
       <span className="font-medium text-text-muted tracking-normal">{count}</span>
@@ -83,7 +83,5 @@ export function SidebarIconButton({
  * situations and an empty group cannot distinguish them on its own.
  */
 export function SidebarHintRow({ children }: { readonly children: React.ReactNode }) {
-  return (
-    <div className="px-2.5 pt-0.5 pb-1.5 pl-8 text-[11px] text-text-muted italic">{children}</div>
-  )
+  return <div className="px-2.5 pt-0.5 pb-1.5 pl-8 text-xs text-text-muted italic">{children}</div>
 }

@@ -60,14 +60,14 @@ export function LexicalComposerEditor({
             aria-label="Message input"
             aria-disabled={disabled}
             className={cn(
-              'w-full min-h-[24px] resize-none bg-transparent text-[14px] text-text-primary',
+              'w-full min-h-6 resize-none bg-transparent text-sm text-text-primary',
               'focus:outline-none focus-visible:shadow-none',
               'disabled:opacity-50',
             )}
           />
         }
         placeholder={
-          <div className="pointer-events-none absolute top-[14px] left-4 text-[14px] text-text-tertiary select-none">
+          <div className="pointer-events-none absolute top-4 left-4 text-sm text-text-tertiary select-none">
             {placeholder}
           </div>
         }

@@ -54,11 +54,11 @@ export function SidebarSearchBox({
           onBlur={() => setSearchFocused(false)}
           aria-label="Filter projects and sessions"
           placeholder="Filter projects and sessions…"
-          className="min-w-0 flex-1 border-0 bg-transparent text-[12px] text-text-primary outline-none placeholder:text-text-tertiary"
+          className="min-w-0 flex-1 border-0 bg-transparent text-xs text-text-primary outline-none placeholder:text-text-tertiary"
         />
         <span
           aria-hidden="true"
-          className="flex-none rounded border border-border-light bg-bg-tertiary px-1 py-0.5 font-mono text-[10px] text-text-muted leading-none"
+          className="flex-none rounded border border-border-light bg-bg-tertiary px-1 py-0.5 font-mono text-xs text-text-muted leading-none"
         >
           {SIDEBAR_SEARCH_HOTKEY_LABEL}
         </span>

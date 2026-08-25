@@ -29,7 +29,7 @@ export function VoiceRecorder({ fileInputRef, voice }: VoiceRecorderProps) {
             <VoiceVisualizer {...buildInlineVisualizerProps(voice.visualizerControls)} />
           </div>
 
-          <span className="w-10 text-right text-[12px] tabular-nums text-text-tertiary">
+          <span className="w-10 text-right text-xs tabular-nums text-text-tertiary">
             {formatVoiceDuration(voice.elapsedSeconds)}
           </span>
         </div>
@@ -91,11 +91,11 @@ function buildInlineVisualizerProps(controls: VoiceCaptureController['visualizer
     isProgressIndicatorShown: false,
     isProgressIndicatorTimeOnHoverShown: false,
     isProgressIndicatorTimeShown: false,
-    mainBarColor: '#FFFFFF',
+    mainBarColor: 'var(--color-text-primary)',
     mainContainerClassName: '!m-0 !h-full !w-full !bg-transparent !border-0 !p-0 !shadow-none',
     onlyRecording: false,
     rounded: INLINE_WAVEFORM_BAR_RADIUS_PX,
-    secondaryBarColor: '#5e5e5e',
+    secondaryBarColor: 'var(--color-text-muted)',
     speed: VISUALIZER_SPEED,
     width: '100%',
   }

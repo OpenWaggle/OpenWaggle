@@ -85,9 +85,9 @@ export function SidebarStatusChips({
             data-qa="sidebar-chip"
             style={chipStyle}
             className={cn(
-              'flex h-6 items-center gap-[5px] rounded-full border px-[9px] font-semibold text-[11px] transition-colors',
+              'flex h-6 items-center gap-1.5 rounded-full border px-2.5 font-semibold text-xs transition-colors',
               isActive
-                ? 'border-[color-mix(in_srgb,var(--chip)_60%,transparent)] bg-[color-mix(in_srgb,var(--chip)_16%,transparent)] text-[color:var(--chip-text)]'
+                ? 'border-[color-mix(in_srgb,var(--chip)_60%,transparent)] bg-[color-mix(in_srgb,var(--chip)_16%,transparent)] text-(--chip-text)'
                 : 'border-border-light bg-bg text-text-tertiary hover:border-text-muted hover:text-text-primary',
             )}
           >
@@ -132,10 +132,10 @@ export function SidebarProjectStatusPips({
             title={`${meta.label}: ${String(count)}`}
             data-qa="sidebar-pip"
             style={pipStyle}
-            className="flex items-center gap-[3px] rounded-full border border-[color-mix(in_srgb,var(--pip)_45%,transparent)] bg-[color-mix(in_srgb,var(--pip)_18%,transparent)] py-px pr-[5px] pl-1 font-bold text-[10px] text-[color:var(--pip-text)]"
+            className="flex items-center gap-1 rounded-full border border-[color-mix(in_srgb,var(--pip)_45%,transparent)] bg-[color-mix(in_srgb,var(--pip)_18%,transparent)] py-px pr-1.5 pl-1 font-bold text-xs text-(--pip-text)"
           >
-            <span className="grid size-[9px] place-items-center">
-              <StateIcon state={state} className="size-[9px]" />
+            <span className="grid size-2.5 place-items-center">
+              <StateIcon state={state} className="size-2.5" />
             </span>
             <span className="tabular-nums">{count}</span>
           </span>

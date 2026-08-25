@@ -139,7 +139,7 @@ export function SessionListItem({
       {...rowProps}
       style={rowStyle}
       className={cn(
-        'group relative flex min-h-[44px] w-full items-start gap-2 py-1.5',
+        'group relative flex min-h-11 w-full items-start gap-2 py-1.5',
         ITEM_VARIANT_CLASS[variant],
         isActive ? 'bg-bg-active' : 'hover:bg-bg-hover',
         // A row needing a human carries a leading border, so attention is never colour alone.

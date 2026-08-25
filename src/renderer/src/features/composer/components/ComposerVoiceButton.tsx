@@ -24,11 +24,7 @@ export function ComposerVoiceButton({ mode, onToggleVoice }: ComposerVoiceButton
       )}
       title={getVoiceButtonTitle(mode)}
     >
-      {isTranscribing ? (
-        <Loader2 className="size-[15px] animate-spin" />
-      ) : (
-        <Mic className="size-[15px]" />
-      )}
+      {isTranscribing ? <Loader2 className="size-4 animate-spin" /> : <Mic className="size-4" />}
     </Button>
   )
 }

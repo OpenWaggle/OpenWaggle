@@ -13,13 +13,13 @@ export function SymbolMentionChip({ symbolName }: SymbolMentionChipProps) {
   return (
     <span
       className={cn(
-        'bg-success/10 text-success rounded px-1.5 py-0.5 text-[13px]',
+        'bg-success/10 text-success rounded px-1.5 py-0.5 text-sm',
         'inline-flex items-center gap-1',
         'select-none cursor-default',
       )}
     >
       <Code size={ICON_SIZE} className="shrink-0" />
-      <span className="truncate max-w-[200px] font-mono">{symbolName}</span>
+      <span className="max-w-50 truncate font-mono">{symbolName}</span>
     </span>
   )
 }

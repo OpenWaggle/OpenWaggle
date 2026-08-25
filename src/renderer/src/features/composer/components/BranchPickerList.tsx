@@ -18,7 +18,7 @@ export function BranchPickerList({
   onSelectRef,
 }: BranchPickerListProps) {
   return (
-    <div className="max-h-[220px] overflow-y-auto rounded-md border border-border bg-bg">
+    <div className="max-h-55 overflow-y-auto rounded-md border border-border bg-bg">
       {filteredBranches.length === 0 ? <BranchPickerEmptyState /> : null}
       {localBranches.length > 0 ? (
         <BranchPickerSection
@@ -41,7 +41,7 @@ export function BranchPickerList({
 }
 
 function BranchPickerEmptyState() {
-  return <div className="px-2.5 py-2 text-[12px] text-text-tertiary">No branches found.</div>
+  return <div className="px-2.5 py-2 text-xs text-text-tertiary">No branches found.</div>
 }
 
 interface BranchPickerSectionProps {
@@ -59,7 +59,7 @@ function BranchPickerSection({
 }: BranchPickerSectionProps) {
   return (
     <div>
-      <div className="border-b border-border px-2.5 py-1 text-[11px] uppercase tracking-wide text-text-muted">
+      <div className="border-b border-border px-2.5 py-1 text-xs uppercase tracking-wide text-text-muted">
         {label}
       </div>
       {branches.map((branch) => (
@@ -95,7 +95,7 @@ function RefRow({ branch, isSelected, onSelectRef }: RefRowProps) {
       // absent, but some screen readers announce "not current" on every row.
       aria-current={isSelected || undefined}
       className={cn(
-        'flex w-full items-center justify-between border-b border-border px-2.5 py-1.5 text-left text-[12px] transition-colors last:border-b-0 hover:bg-bg-hover',
+        'flex w-full items-center justify-between border-b border-border px-2.5 py-1.5 text-left text-xs transition-colors last:border-b-0 hover:bg-bg-hover',
         isSelected ? 'text-accent' : 'text-text-secondary',
       )}
     >

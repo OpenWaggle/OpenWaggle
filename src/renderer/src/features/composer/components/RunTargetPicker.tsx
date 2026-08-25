@@ -63,7 +63,7 @@ export function RunTargetPicker({ strip, onToast }: RunTargetPickerProps) {
       open={controller.branchMenuOpen}
       onOpenChange={(open) => controller.openMenu(open ? 'branch' : null)}
       placement="top-end"
-      className="w-[320px] p-2"
+      className="w-80 p-2"
       trigger={
         <RunTargetTrigger
           selectedRef={selectedRef}

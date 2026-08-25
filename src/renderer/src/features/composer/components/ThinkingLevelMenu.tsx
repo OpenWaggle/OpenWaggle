@@ -35,7 +35,7 @@ export function ThinkingLevelMenu() {
       open={thinkingMenuOpen && canOpenThinkingMenu}
       onOpenChange={(open) => openMenu(open && canOpenThinkingMenu ? 'thinking' : null)}
       placement="top-start"
-      className="min-w-[140px] py-1"
+      className="min-w-35 py-1"
       trigger={
         <ThinkingLevelTrigger
           open={thinkingMenuOpen}
@@ -90,13 +90,13 @@ function ThinkingLevelTrigger({
       onClick={() => onToggle(!open && canOpen)}
       disabled={!canOpen}
       className={cn(
-        'flex h-[26px] items-center gap-[5px] rounded-md border border-button-border px-2.5 transition-colors',
+        'flex h-6.5 items-center gap-1.5 rounded-md border border-button-border px-2.5 transition-colors',
         canOpen ? 'hover:bg-bg-hover' : 'cursor-not-allowed opacity-70',
       )}
       title={title}
     >
-      <span className="text-[12px] text-text-secondary">{label}</span>
-      <span className="text-[9px] text-text-tertiary">&#x2228;</span>
+      <span className="text-xs text-text-secondary">{label}</span>
+      <span className="text-xs text-text-tertiary">&#x2228;</span>
     </Button>
   )
 }
@@ -119,7 +119,7 @@ function ThinkingLevelOptions({
       type="button"
       onClick={() => onSelect(level)}
       className={cn(
-        'flex w-full items-center justify-between px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-bg-hover',
+        'flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition-colors hover:bg-bg-hover',
         effectiveThinkingLevel === level ? 'text-accent' : 'text-text-secondary',
       )}
     >
