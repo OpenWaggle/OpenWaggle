@@ -176,6 +176,58 @@ describe('package release namespace bootstrap GitHub policy', () => {
     expect(requests.filter((request) => request.mutates)).toEqual([])
   })
 
+  it('upgrades the prior managed ruleset by adding only the Electron E2E check', async () => {
+    const legacyRuleset = compatibleRuleset([
+      { context: 'Package Release Gate' },
+      { context: 'Commit Policy' },
+      { context: 'Typecheck & Lint' },
+      { context: 'Unit & Component Tests' },
+    ])
+    const detailKey =
+      'gh api --hostname github.com repos/OpenWaggle/OpenWaggle/rulesets/42'
+    const updateKey =
+      'gh api --hostname github.com --method PUT repos/OpenWaggle/OpenWaggle/rulesets/42 --input -'
+    const overrides = new Map<string, BootstrapCommandResult>([
+      ...rulesetOverrides(legacyRuleset),
+      [updateKey, successful()],
+    ])
+    const sequenceOverrides = new Map<string, BootstrapCommandResult[]>([
+      [
+        detailKey,
+        [
+          successful(JSON.stringify(legacyRuleset)),
+          successful(JSON.stringify(compatibleRuleset())),
+        ],
+      ],
+    ])
+    const { dependencies, requests } = createDependencies(overrides, sequenceOverrides)
+
+    await createAndVerifyRuleset('/workspace/OpenWaggle', dependencies)
+
+    const mutation = requests.find((request) => commandKey(request) === updateKey)
+    expect(mutation).toBeDefined()
+    expect(mutation?.input).toContain('"name":"OpenWaggle main protections"')
+    expect(mutation?.input).toContain('"context":"Electron E2E (macOS)"')
+  })
+
+  it('reports the prior managed ruleset as pending during preflight', async () => {
+    const legacyRuleset = compatibleRuleset([
+      { context: 'Package Release Gate' },
+      { context: 'Commit Policy' },
+      { context: 'Typecheck & Lint' },
+      { context: 'Unit & Component Tests' },
+    ])
+    const { dependencies, requests } = createDependencies(rulesetOverrides(legacyRuleset))
+
+    const result = await runPackageReleaseBootstrap(
+      { args: [], projectRoot: '/workspace/OpenWaggle' },
+      dependencies,
+    )
+
+    expect(result.github.ruleset).toBe('pending')
+    expect(requests.filter((request) => request.mutates)).toEqual([])
+  })
+
   it('fails closed when the managed ruleset contains an untyped extra rule', async () => {
     const ruleset = compatibleRuleset()
     ruleset.rules.push({})
@@ -196,6 +248,7 @@ describe('package release namespace bootstrap GitHub policy', () => {
       { context: 'Commit Policy' },
       { context: 'Typecheck & Lint' },
       { context: 'Unit & Component Tests' },
+      { context: 'Electron E2E (macOS)' },
       {},
     ])
     const { dependencies, requests } = createDependencies(rulesetOverrides(ruleset))

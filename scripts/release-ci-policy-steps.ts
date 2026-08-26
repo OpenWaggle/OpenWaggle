@@ -13,6 +13,8 @@
 const ACTION_CHECKOUT = 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6'
 const ACTION_SETUP_NODE = 'actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6'
 const PNPM_ACTION_SETUP = 'pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4'
+const ACTION_UPLOAD_ARTIFACT =
+  'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7'
 export const IMMUTABLE_ACTIONS = [ACTION_CHECKOUT, PNPM_ACTION_SETUP, ACTION_SETUP_NODE] as const
 export const CONCURRENCY_GROUP =
   'group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || inputs.head_sha || github.ref }}'
@@ -39,6 +41,14 @@ const NODE_SETUP_STEP = `      - uses: ${ACTION_SETUP_NODE}
           node-version: 24.14.0
           cache: pnpm`
 const INSTALL_STEP = '      - run: pnpm install --frozen-lockfile'
+const E2E_FAILURE_ARTIFACT_STEP = `      - name: Upload Electron E2E failure artifacts
+        if: failure()
+        uses: ${ACTION_UPLOAD_ARTIFACT}
+        with:
+          name: electron-e2e-macos-failure
+          path: test-results
+          if-no-files-found: ignore
+          retention-days: 7`
 /*
  * NSIS is required by `pnpm check:installer`, which compile-checks build/installer.nsh.
  * Pinned here because a broken installer script otherwise only surfaces when the release
@@ -89,6 +99,18 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
       NODE_SETUP_STEP,
       INSTALL_STEP,
       '      - run: pnpm test',
+    ],
+  ],
+  [
+    'Electron E2E (macOS)',
+    [
+      DISPATCH_GUARD_STEP,
+      CHECKOUT_STEP,
+      PNPM_SETUP_STEP,
+      NODE_SETUP_STEP,
+      INSTALL_STEP,
+      '      - run: pnpm test:e2e',
+      E2E_FAILURE_ARTIFACT_STEP,
     ],
   ],
 ])

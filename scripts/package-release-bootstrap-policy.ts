@@ -84,6 +84,29 @@ function hasExactStatusChecks(value: JsonObject) {
   )
 }
 
+function hasLegacyStatusChecks(value: JsonObject) {
+  const statusRule = findRule(value.rules, 'required_status_checks')
+  if (!isJsonObject(statusRule) || !isJsonObject(statusRule.parameters)) return false
+  const checks = statusRule.parameters.required_status_checks
+  if (!isUnknownArray(checks) || checks.length !== REQUIRED_CHECK_CONTEXTS.length - 1) return false
+  const contexts = checks.flatMap((check) =>
+    isJsonObject(check) &&
+    typeof check.context === 'string' &&
+    (check.integration_id === undefined || check.integration_id === null)
+      ? [check.context]
+      : [],
+  )
+  const legacyContexts = REQUIRED_CHECK_CONTEXTS.filter(
+    (context) => context !== 'Electron E2E (macOS)',
+  )
+  return (
+    statusRule.parameters.do_not_enforce_on_create === true &&
+    statusRule.parameters.strict_required_status_checks_policy === true &&
+    contexts.length === legacyContexts.length &&
+    legacyContexts.every((context) => contexts.includes(context))
+  )
+}
+
 function hasRequiredPullRequests(value: JsonObject) {
   const pullRequestRule = findRule(value.rules, 'pull_request')
   if (!isJsonObject(pullRequestRule) || !isJsonObject(pullRequestRule.parameters)) return false
@@ -117,6 +140,26 @@ export function isCompatibleRuleset(value: unknown) {
     hasCoreRules(value) &&
     hasRequiredPullRequests(value) &&
     hasExactStatusChecks(value)
+  )
+}
+
+export function isRulesetMissingElectronE2eCheck(value: unknown) {
+  if (!isJsonObject(value)) return false
+  if (
+    value.name !== MANAGED_RULESET_NAME ||
+    value.target !== 'branch' ||
+    value.enforcement !== 'active' ||
+    value.source_type !== 'Repository' ||
+    value.source !== REPOSITORY
+  ) {
+    return false
+  }
+  return (
+    hasMainOnlyCondition(value) &&
+    hasAdminBypass(value) &&
+    hasCoreRules(value) &&
+    hasRequiredPullRequests(value) &&
+    hasLegacyStatusChecks(value)
   )
 }
 

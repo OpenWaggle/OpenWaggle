@@ -1,11 +1,16 @@
 # Changelog
 
-## [0.1.2](https://github.com/OpenWaggle/OpenWaggle/compare/extension-react-v0.1.1...extension-react-v0.1.2) (2026-08-26)
+## [0.2.0](https://github.com/OpenWaggle/OpenWaggle/compare/extension-react-v0.1.1...extension-react-v0.2.0) (2026-08-26)
 
 
-### Bug Fixes
+### ⚠ BREAKING CHANGES
 
-* **packages:** align the React stylesheet with the ADR 0024 Tailwind-standard SDK contract
+* **packages:** replace the 0.1 stylesheet variables with the ADR 0024 Tailwind-standard SDK contract. Extension surfaces must mount beneath `.ow-extension-root`; the OpenWaggle host applies this class automatically.
+
+
+### Features
+
+* **packages:** align React primitives with the SDK 0.2 colour, typography, spacing, radius, shadow, and focus tokens
 
 
 ### Dependencies

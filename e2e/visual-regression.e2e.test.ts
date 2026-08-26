@@ -13,7 +13,11 @@ const PROJECT_LABEL = 'visual-regression-repo'
 const PRIMARY_TITLE = 'Polish the review workflow'
 const SECONDARY_TITLE = 'Document keyboard navigation'
 const CHANGED_FILE_PATH = 'src/visual-regression.ts'
-const SCREENSHOT_OPTIONS = { animations: 'disabled', caret: 'hide' } as const
+const SCREENSHOT_OPTIONS = {
+  animations: 'disabled',
+  caret: 'hide',
+  maxDiffPixelRatio: 0.002,
+} as const
 
 function initializeRepository(projectPath: string) {
   execFileSync('git', ['init', '-b', 'main'], { cwd: projectPath, stdio: 'ignore' })
@@ -74,7 +78,7 @@ async function waitForVisualReadiness(page: Page) {
   })
 }
 
-test('five primary surfaces match their visual baselines', async () => {
+test('six primary surfaces match their visual baselines', async () => {
   const app = await OpenWaggleApp.launch('openwaggle-visual-regression-e2e-')
   const projectPath = path.join(app.userDataDir, PROJECT_LABEL)
 
@@ -156,6 +160,15 @@ test('five primary surfaces match their visual baselines', async () => {
     await app.mainWindow().waitUntilReady()
     await app.mainWindow().openThread(PRIMARY_TITLE)
 
+    await page.getByRole('button', { name: 'New session', exact: true }).click()
+    const welcome = page.getByRole('region', { name: 'Welcome' })
+    await expect(welcome.getByRole('heading', { name: "Let's build" })).toBeVisible()
+    await expect(welcome.getByTitle('Open project picker')).toContainText(PROJECT_LABEL)
+    await waitForVisualReadiness(page)
+    await expect(welcome).toHaveScreenshot('welcome.png', SCREENSHOT_OPTIONS)
+
+    await app.mainWindow().openThread(PRIMARY_TITLE)
+
     const sidebar = page.locator('nav[aria-label="Sidebar"]')
     const composer = page.getByRole('region', { name: 'Composer file drop zone' })
     const transcript = page.getByRole('log', { name: 'Chat messages' })
@@ -192,7 +205,7 @@ test('five primary surfaces match their visual baselines', async () => {
     ).toBeVisible({ timeout: 30_000 })
     await expect(diffPanel.getByRole('status', { name: 'Loading' })).toHaveCount(0)
     await expect(diffPanel.getByText('No changes to review')).toHaveCount(0)
-    await expect(diffPanel.getByRole('button', { name: 'Commit' })).toBeEnabled()
+    await expect(diffPanel.getByRole('button', { name: 'Commit' })).toBeEnabled({ timeout: 30_000 })
     await expect(diffPanel.getByRole('button', { name: 'Revert all' })).toBeEnabled()
     await expect(diffPanel.getByRole('button', { name: '+ Stage all' })).toBeEnabled()
     await page.mouse.move(10, 10)

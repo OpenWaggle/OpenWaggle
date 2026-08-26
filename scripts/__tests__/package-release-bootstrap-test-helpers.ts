@@ -76,6 +76,7 @@ export function compatibleRuleset(
     { context: 'Commit Policy' },
     { context: 'Typecheck & Lint' },
     { context: 'Unit & Component Tests' },
+    { context: 'Electron E2E (macOS)' },
   ],
 ): CompatibleRulesetFixture {
   return {

@@ -32,11 +32,7 @@ export function SidebarBrandArea({ isFullscreen }: { readonly isFullscreen: bool
         className="drag-region shrink-0 transition-[height] duration-200 ease-out"
         style={{ height: isFullscreen ? 0 : SIDEBAR_LAYOUT.DRAG_REGION_HEIGHT }}
       />
-      {/*
-       * Prototype metrics: a 38px block with 14px side padding. The lockup keeps the product's
-       * real artwork rather than the prototype's placeholder square, scaled to the 22px mark the
-       * design allows for. It was 48px inside an 88px block, which pushed every row down.
-       */}
+      {/* The 28px lockup stays legible without returning to the old 88px brand block. */}
       <div
         className="drag-region flex shrink-0 items-center px-3.5 pt-2.5 pb-1.5"
         data-qa="sidebar-brand"
@@ -44,7 +40,7 @@ export function SidebarBrandArea({ isFullscreen }: { readonly isFullscreen: bool
         <img
           src={openwaggleLockup}
           alt="OpenWaggle"
-          className="no-drag h-5.5 w-auto object-contain"
+          className="no-drag h-7 w-auto object-contain"
         />
       </div>
       <div

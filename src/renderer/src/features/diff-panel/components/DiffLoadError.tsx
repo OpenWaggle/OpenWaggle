@@ -20,8 +20,8 @@ export function DiffLoadError({ message, onRetry }: DiffLoadErrorProps) {
       role="alert"
       className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center"
     >
-      <span className="text-[12px] font-medium text-text-primary">Could not load this diff</span>
-      <span className="max-w-prose text-[11px] text-text-tertiary">{message}</span>
+      <span className="text-xs font-medium text-text-primary">Could not load this diff</span>
+      <span className="max-w-prose text-xs text-text-tertiary">{message}</span>
       <Button variant="secondary" size="sm" type="button" onClick={onRetry}>
         Try again
       </Button>

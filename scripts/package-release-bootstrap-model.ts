@@ -43,6 +43,7 @@ export const REQUIRED_CHECK_CONTEXTS = [
   'Commit Policy',
   'Typecheck & Lint',
   'Unit & Component Tests',
+  'Electron E2E (macOS)',
 ] as const
 
 export function isJsonObject(value: unknown): value is JsonObject {

@@ -22,6 +22,7 @@ import {
   isCompatibleEnvironment,
   isCompatibleRepositoryMergePolicy,
   isCompatibleRuleset,
+  isRulesetMissingElectronE2eCheck,
 } from './package-release-bootstrap-policy'
 import type {
   BootstrapDependencies,
@@ -108,10 +109,15 @@ async function inspectEnvironment(
   )
 }
 
-async function inspectRuleset(
+type ManagedRuleset =
+  | { readonly state: 'pending' }
+  | { readonly state: 'conflict' }
+  | { readonly id: number; readonly ruleset: unknown; readonly state: 'found' }
+
+async function readManagedRuleset(
   projectRoot: string,
   dependencies: BootstrapDependencies,
-): Promise<BootstrapGithubProgress['ruleset']> {
+): Promise<ManagedRuleset> {
   const rulesets = flattenRulesetPages(parseJson(
     await runRequired(dependencies, {
       args: [...GH_API_ARGS, RULESETS_LIST_ENDPOINT, '--paginate', '--slurp'],
@@ -123,10 +129,10 @@ async function inspectRuleset(
   const managed = rulesets.filter(
     (ruleset) => isJsonObject(ruleset) && ruleset.name === MANAGED_RULESET_NAME,
   )
-  if (managed.length === 0) return 'pending'
-  if (managed.length !== 1) return 'conflict'
+  if (managed.length === 0) return { state: 'pending' }
+  if (managed.length !== 1) return { state: 'conflict' }
   const summary: unknown = managed[0]
-  if (!isJsonObject(summary) || typeof summary.id !== 'number') return 'conflict'
+  if (!isJsonObject(summary) || typeof summary.id !== 'number') return { state: 'conflict' }
   const ruleset = parseJson(
     await runRequired(dependencies, {
       args: [...GH_API_ARGS, `${RULESETS_ENDPOINT}/${String(summary.id)}`],
@@ -135,7 +141,17 @@ async function inspectRuleset(
     }),
     'GitHub managed ruleset',
   )
-  return isCompatibleRuleset(ruleset) ? 'compatible' : 'conflict'
+  return { id: summary.id, ruleset, state: 'found' }
+}
+
+async function inspectRuleset(
+  projectRoot: string,
+  dependencies: BootstrapDependencies,
+): Promise<BootstrapGithubProgress['ruleset']> {
+  const managed = await readManagedRuleset(projectRoot, dependencies)
+  if (managed.state !== 'found') return managed.state
+  if (isCompatibleRuleset(managed.ruleset)) return 'compatible'
+  return isRulesetMissingElectronE2eCheck(managed.ruleset) ? 'pending' : 'conflict'
 }
 
 async function inspectRepositoryMergePolicy(
@@ -218,11 +234,11 @@ export async function createAndVerifyRuleset(
     }
   }
 
-  const rulesetState = await inspectRuleset(projectRoot, dependencies)
-  if (rulesetState === 'conflict') {
+  const managed = await readManagedRuleset(projectRoot, dependencies)
+  if (managed.state === 'conflict') {
     throw new Error('GitHub managed main ruleset conflicts with the required policy.')
   }
-  if (rulesetState === 'pending') {
+  if (managed.state === 'pending') {
     dependencies.writeLine(`[github] create additive ${MANAGED_RULESET_NAME} ruleset`)
     const created = parseJsonObject(
       await runMutation(dependencies, {
@@ -247,5 +263,31 @@ export async function createAndVerifyRuleset(
     if (!isCompatibleRuleset(ruleset)) {
       throw new Error('GitHub managed main ruleset verification failed.')
     }
+    return
+  }
+
+  if (isRulesetMissingElectronE2eCheck(managed.ruleset)) {
+    dependencies.writeLine(`[github] add Electron E2E to ${MANAGED_RULESET_NAME}`)
+    await runMutation(dependencies, {
+      args: [
+        ...GH_API_ARGS,
+        '--method',
+        'PUT',
+        `${RULESETS_ENDPOINT}/${String(managed.id)}`,
+        '--input',
+        '-',
+      ],
+      command: 'gh',
+      cwd: projectRoot,
+      input: JSON.stringify(createRulesetPayload()),
+    })
+    if ((await inspectRuleset(projectRoot, dependencies)) !== 'compatible') {
+      throw new Error('GitHub managed main ruleset verification failed.')
+    }
+    return
+  }
+
+  if (!isCompatibleRuleset(managed.ruleset)) {
+    throw new Error('GitHub managed main ruleset conflicts with the required policy.')
   }
 }

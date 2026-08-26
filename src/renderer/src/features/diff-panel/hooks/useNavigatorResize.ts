@@ -60,6 +60,7 @@ export function useNavigatorResize() {
     handleLostPointerCapture: resize.handleLostPointerCapture,
     handlePointerCancel: resize.handlePointerCancel,
     handlePointerDown(event: PointerEvent<HTMLButtonElement>) {
+      if (event.button !== 0) return
       resize.startResize(event, widthRef.current)
     },
     handlePointerMove: resize.handlePointerMove,

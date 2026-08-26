@@ -129,6 +129,18 @@ test('sidebar filtering: chips, pips, search and Escape', async () => {
       await expect(rows).toHaveCount(3)
     })
 
+    await test.step('Escape clears both text and state filters together', async () => {
+      await interruptedChip.click()
+      await searchInput.fill('Calm')
+      await expect(rows).toHaveCount(0)
+
+      await searchInput.press('Escape')
+
+      await expect(searchInput).toHaveValue('')
+      await expect(interruptedChip).toHaveAttribute('aria-pressed', 'false')
+      await expect(rows).toHaveCount(3)
+    })
+
     await test.step('focus reaches the field and draws nothing', async () => {
       await page.keyboard.press('ControlOrMeta+f')
       // The shortcut focuses on the next frame, so measuring immediately can catch the wrong state.

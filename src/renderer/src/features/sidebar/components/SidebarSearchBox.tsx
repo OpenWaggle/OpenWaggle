@@ -23,6 +23,7 @@ export function SidebarSearchBox({
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const focusRequest = useSidebarFilterStore((state) => state.focusRequest)
+  const clearFilters = useSidebarFilterStore((state) => state.clear)
 
   /*
    * The field focuses itself when asked, rather than the shortcut reaching across the tree for it.
@@ -53,7 +54,7 @@ export function SidebarSearchBox({
             if (event.key !== 'Escape') return
             event.preventDefault()
             event.stopPropagation()
-            onChange('')
+            clearFilters()
             event.currentTarget.blur()
           }}
           aria-label="Filter projects and sessions"

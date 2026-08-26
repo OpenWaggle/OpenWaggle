@@ -156,7 +156,7 @@
     height: 100%;
     width: 100%;
     overflow: hidden;
-    background: #0d0f12;
+    background: var(--color-bg);
     color: var(--color-text-primary);
     font-family: var(--font-sans);
     font-size: var(--text-base);
@@ -338,15 +338,15 @@
   /* Code blocks */
   pre code {
     font-family: var(--font-mono);
-    font-size: 13.5px;
-    line-height: 1.55;
+    font-size: var(--text-sm);
+    line-height: var(--text-sm--line-height);
   }
 
   /* Markdown prose */
   .prose {
     color: var(--color-text-primary);
-    line-height: 1.65;
-    font-size: 14px;
+    font-size: var(--text-sm);
+    line-height: var(--text-sm--line-height);
   }
 
   .prose p {

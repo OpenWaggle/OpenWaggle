@@ -201,6 +201,7 @@ describe('package release namespace bootstrap execution', () => {
                 { context: 'Commit Policy' },
                 { context: 'Typecheck & Lint' },
                 { context: 'Unit & Component Tests' },
+                { context: 'Electron E2E (macOS)' },
               ],
             }),
             type: 'required_status_checks',

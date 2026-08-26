@@ -127,6 +127,17 @@ describe('useNavigatorResize', () => {
     expect(window.localStorage.getItem(STORAGE_KEY)).toBe(String(MAX_WIDTH))
   })
 
+  it('ignores non-primary pointer buttons', () => {
+    render(<NavigatorResizeHarness />)
+    const rail = screen.getByRole('button', { name: 'Resize navigator' })
+    const capture = installPointerCapture(rail)
+
+    fireEvent.pointerDown(rail, { button: 2, clientX: START_X, pointerId: POINTER_ID })
+
+    expect(rail).toHaveAttribute('data-resizing', 'false')
+    expect(capture.setPointerCapture).not.toHaveBeenCalled()
+  })
+
   it('cancels a pending frame and releases capture when its consumer unmounts', () => {
     const animationFrame = installAnimationFrame()
     const view = render(<NavigatorResizeHarness />)

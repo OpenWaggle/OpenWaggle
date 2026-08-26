@@ -91,8 +91,10 @@ describe('ChatPanel', () => {
     const projectPickerButton = screen.getByTitle('Open project picker')
 
     expect(heading).toHaveClass('text-2xl', 'font-normal')
+    expect(heading).toHaveClass('whitespace-nowrap')
+    expect(heading.parentElement).toHaveClass('flex', 'items-center', 'gap-2')
     expect(heading).not.toHaveClass('font-semibold')
-    expect(projectPickerButton).toHaveClass('text-2xl', 'font-light')
+    expect(projectPickerButton).toHaveClass('gap-1.5', 'text-2xl', 'font-light')
   })
 
   it('opens the folder picker directly from the empty-state CTA', () => {

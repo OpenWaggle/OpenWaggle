@@ -54,7 +54,7 @@ export function DiffScopeTabs({
   const { current: baseRef, choices: baseRefChoices } = baseRefControl
   const selectedTurnId = selection.kind === 'turn' ? selection.turnId : ''
   return (
-    <div className="flex items-center gap-2 h-9 px-4 border-b border-border shrink-0">
+    <div className="flex min-w-0 items-center gap-2">
       {/*
         `aria-pressed` on each tab: selection was signalled by colour alone, so a screen-reader or
         high-contrast user heard three identical buttons with no way to tell which tree they were
@@ -96,7 +96,7 @@ export function DiffScopeTabs({
           aria-label="Branch diff base ref"
           value={baseRef ?? AUTOMATIC_VALUE}
           onChange={(event) => baseRefControl.onChange(event.target.value)}
-          className="ml-1 max-w-60"
+          className="ml-1 min-w-0 max-w-60 flex-1"
         >
           <option value={AUTOMATIC_VALUE}>
             {automaticOptionLabel(baseRefControl.resolvedAutomatic)}
@@ -124,7 +124,7 @@ export function DiffScopeTabs({
       {selection.kind === 'branch' && baseRefControl.fellBackToWorkingTree ? (
         // Automatic resolved no default branch, so this is the working-tree diff under a tab that
         // claims a branch comparison. Announced, not merely visible, for the same reason.
-        <span role="status" className="text-[11px] text-text-tertiary">
+        <span role="status" className="min-w-0 truncate text-xs text-text-tertiary">
           No default branch; showing the working tree
         </span>
       ) : null}
@@ -134,7 +134,7 @@ export function DiffScopeTabs({
           aria-label="Turn"
           value={selectedTurnId}
           onChange={(event) => onSelectTurn(event.target.value)}
-          className="ml-1 max-w-60"
+          className="ml-1 min-w-0 max-w-60 flex-1"
         >
           {turns.map((turn) => (
             <option key={turn.turnId} value={turn.turnId}>
@@ -148,7 +148,7 @@ export function DiffScopeTabs({
 }
 
 function tabClass(active: boolean) {
-  return `h-6 rounded-md px-2 text-xs ${
+  return `h-6 shrink-0 whitespace-nowrap rounded-md px-2 text-xs ${
     active ? 'bg-diff-stage-bg text-accent font-medium' : 'text-text-tertiary hover:bg-bg-hover'
   }`
 }
