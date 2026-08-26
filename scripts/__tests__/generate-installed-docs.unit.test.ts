@@ -125,7 +125,7 @@ describe('installed docs generator output', () => {
     const packageOverview = await lifecycleFs.readFile(packageOverviewPath, 'utf8')
 
     expect(packageOverview).toContain(
-      '[`@openwaggle/extension-sdk`](./extension-sdk/0.2/index.md)',
+      '[`@openwaggle/extension-sdk`](./extension-sdk/0.1/index.md)',
     )
     expect(packageOverview).toContain(
       '[OpenWaggle Extensions](../extending/openwaggle-extensions.md)',

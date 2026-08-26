@@ -12,6 +12,7 @@ import type {
 } from './package-documentation-model'
 import {
   availablePackageDocumentationVersions,
+  hasPendingPackageDocumentation,
   pendingPackageDocumentationViolations,
   preparePackageDocumentationLine,
 } from './package-documentation-lines'
@@ -197,6 +198,9 @@ export async function checkPackageDocumentation(
       historicalVersions,
       manifest.version,
     )
+    const deferGeneratedDocumentation =
+      historicalVersions.includes(resolvedVersions.currentVersion) &&
+      (await hasPendingPackageDocumentation(projectRoot, baseDefinition))
     violations.push(
       ...(await pendingPackageDocumentationViolations(projectRoot, baseDefinition)),
     )
@@ -245,6 +249,10 @@ export async function checkPackageDocumentation(
       }
     }
 
+    // A pending major/minor guide means Release Please, not this feature branch, owns the
+    // version bump and regenerated README/API page. Keep the published current line immutable.
+    if (deferGeneratedDocumentation) continue
+
     for (const generatedFile of await generatedFilesForPackage(projectRoot, definition)) {
       const expected = normalizeMarkdown(generatedFile.contents)
       const actual = await readIfPresent(generatedFile.path)
@@ -284,4 +292,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   void runCli()
 }
 
-export { preparePackageDocumentationLine } from './package-documentation-lines'
+export {
+  hasPendingPackageDocumentation,
+  preparePackageDocumentationLine,
+} from './package-documentation-lines'

@@ -172,6 +172,22 @@ describe('ConnectionsSection', () => {
     expect(cancelOAuth).toHaveBeenCalledWith('openai-codex')
   })
 
+  it('keeps OAuth error text at full contrast', () => {
+    useAuthStore.setState({
+      oauthStatuses: {
+        'openai-codex': { type: 'error', message: 'Sign in failed' },
+      },
+    })
+
+    render(<ConnectionsSection />)
+    fireEvent.click(screen.getByRole('button', { name: /OAuth Providers/i }))
+
+    expect(screen.getByText('Sign in failed')).toHaveClass('text-error-text')
+    const retry = screen.getByRole('button', { name: 'Try again' })
+    expect(retry).toHaveClass('text-error-text')
+    expect(retry).not.toHaveClass('hover:text-error-text/80')
+  })
+
   it('renders Pi OAuth selection choices and submits the selected option', () => {
     const submitAuthCode = vi.fn()
     useAuthStore.setState({

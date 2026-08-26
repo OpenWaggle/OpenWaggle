@@ -2,6 +2,7 @@ import type { ExtensionContributionRegistryEntry } from '@shared/types/extension
 import type { JsonValue } from '@shared/types/json'
 import { RefreshCw, ShieldAlert } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
+import { useAppearanceName } from '@/shared/hooks/useAppearanceName'
 import { cn } from '@/shared/lib/cn'
 import {
   federatedModuleMountKey,
@@ -77,6 +78,10 @@ function statusFor(input: {
       })
 }
 
+function useAppearanceMountKey(mountKey: string) {
+  return JSON.stringify([mountKey, useAppearanceName()])
+}
+
 function sameMountStatus(
   left: ReturnType<typeof initialMountStatus>,
   right: ReturnType<typeof initialMountStatus>,
@@ -144,7 +149,9 @@ export function ExtensionFederatedModuleHost({
   const moduleUrl = createExtensionModuleUrl(entry)
   const frameRuntimeSupported = supportsExtensionFrameRuntime(entry)
   const surfacePayloadJson = federatedModuleSurfacePayloadJson(surfacePayload)
-  const mountKey = federatedModuleMountKey(entry, moduleUrl, surfacePayloadJson)
+  const mountKey = useAppearanceMountKey(
+    federatedModuleMountKey(entry, moduleUrl, surfacePayloadJson),
+  )
   const shouldAutoHeight = autoHeight && !fill
   const layout = hostLayout({ chrome, fill, shouldAutoHeight })
   const resolvedAutoHeight = clampFrameHeight({

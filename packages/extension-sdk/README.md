@@ -3,11 +3,11 @@
 
 # @openwaggle/extension-sdk
 
-[![npm version](https://img.shields.io/npm/v/@openwaggle/extension-sdk?color=f5a623)](https://www.npmjs.com/package/@openwaggle/extension-sdk) [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.19-43853d)](https://openwaggle.ai/docs/packages/extension-sdk/0.2/) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/OpenWaggle/OpenWaggle/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/@openwaggle/extension-sdk?color=f5a623)](https://www.npmjs.com/package/@openwaggle/extension-sdk) [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.19-43853d)](https://openwaggle.ai/docs/packages/extension-sdk/0.1/) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/OpenWaggle/OpenWaggle/blob/main/LICENSE)
 
 Browser-safe OpenWaggle extension SDK schemas, types, broker helpers, theme tokens, and federated-module context helpers.
 
-[Full documentation](https://openwaggle.ai/docs/packages/extension-sdk/0.2/) · [OpenWaggle](https://openwaggle.ai/) · [Issues](https://github.com/OpenWaggle/OpenWaggle/issues)
+[Full documentation](https://openwaggle.ai/docs/packages/extension-sdk/0.1/) · [OpenWaggle](https://openwaggle.ai/) · [Issues](https://github.com/OpenWaggle/OpenWaggle/issues)
 
 `@openwaggle/extension-sdk` is the browser-safe author package for OpenWaggle extension surfaces.
 
@@ -146,7 +146,7 @@ export default {
   id: 'example-extension',
   name: 'Example Extension',
   version: '0.1.0',
-  sdk: { openwaggle: '>=0.2.0 <0.3.0' },
+  sdk: { openwaggle: '>=0.1.0 <0.2.0' },
   sourceFiles: ['package.json', 'src/settings.ts'],
   builtArtifacts: ['dist/settings.js'],
   install: { source: 'prebuilt' },
@@ -173,42 +173,6 @@ export default {
 } satisfies OpenWaggleExtensionManifest
 ```
 
-## Theme Contract
-
-`context.theme` is one projection of the host's Appearance across the SDK boundary. Every role in the contract resolves to a real host CSS variable when the extension runs inside OpenWaggle, so extension UI matches the host without a second token system.
-
-The contract covers:
-
-- **Colour**: 23 semantic roles under `color`, including `dangerText` and `infoText` for small text plus `review`, `plan`, `progress`, and `neutral`.
-- **Typography**: `sansFamily`, `monoFamily`, and `typeScale` entries `xs`, `sm`, `base`, `lg`, `xl`, and `twoXl`. Each type-scale entry has `fontSize` and `lineHeight`.
-- **Spacing**: the Tailwind spacing unit at `spacing.unit`. Use it through `calc(var(--ow-spacing) * N)`.
-- **Radius**: `xs`, `sm`, `md`, `lg`, `xl`, `twoXl`, `threeXl`, and `fourXl`.
-- **Shadow**: `twoXs`, `xs`, `sm`, `md`, `lg`, `xl`, and `twoXl`.
-- **Focus**: `ring` and `shadow`, with `transparent` and `none` fallbacks.
-
-The type, spacing, radius, and shadow fallbacks match Tailwind 4.3.3. The contract has no `controlSize` or `elevation` group. Express control dimensions as spacing multiples and use the standard shadow scale.
-
-Read roles through the theme object rather than hardcoding values, and let the stylesheet helpers emit the `--ow-*` variables for you:
-
-```ts
-import {
-  createOpenWaggleExtensionTheme,
-  extensionThemeCssVariableEntries,
-} from '@openwaggle/extension-sdk/theme'
-
-// Inside OpenWaggle, every role resolves from the host's Appearance:
-const theme = createOpenWaggleExtensionTheme({
-  resolveCssVariable: (cssVariable, fallback) =>
-    getComputedStyle(document.documentElement).getPropertyValue(cssVariable).trim() || fallback,
-})
-
-for (const entry of extensionThemeCssVariableEntries(theme)) {
-  document.documentElement.style.setProperty(entry.name, entry.value)
-}
-```
-
-Outside OpenWaggle, `createOpenWaggleExtensionTheme()` falls back to the published default tokens, so extension tooling and previews stay stable.
-
 ## Boundary Rules
 
 `@openwaggle/extension-sdk` is browser-safe. Extension modules that use it must still stay inside the public SDK surface:
@@ -222,7 +186,7 @@ For the full extension package lifecycle and manifest model, see [OpenWaggle Ext
 
 ## Reference And Support
 
-- [Complete API reference](https://openwaggle.ai/docs/packages/extension-sdk/0.2/api-reference/)
+- [Complete API reference](https://openwaggle.ai/docs/packages/extension-sdk/0.1/api-reference/)
 - [npm package](https://www.npmjs.com/package/@openwaggle/extension-sdk)
 - [Package changelog](https://github.com/OpenWaggle/OpenWaggle/blob/main/packages/extension-sdk/CHANGELOG.md)
 - [Report an issue](https://github.com/OpenWaggle/OpenWaggle/issues/new)
@@ -235,7 +199,7 @@ For the full extension package lifecycle and manifest model, see [OpenWaggle Ext
 
 **Styles do not match the host.** Use `context.theme`, `createOpenWaggleExtensionUiStylesheet`, and the exported UI class names instead of copying OpenWaggle renderer CSS.
 
-The `0.2` documentation line uses the ADR 0024 contract. Migrate bespoke type roles to `xs` through `twoXl`, replace named spacing values with `spacing.unit` multiples, replace `radius.panel` with a standard radius, replace `elevation` with `shadow`, and remove `controlSize`.
+There are no migrations within the `0.1` documentation line. Future incompatible changes will receive a new versioned documentation line and migration guide.
 
 ## License
 

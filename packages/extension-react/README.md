@@ -3,13 +3,15 @@
 
 # @openwaggle/extension-react
 
-[![npm version](https://img.shields.io/npm/v/@openwaggle/extension-react?color=f5a623)](https://www.npmjs.com/package/@openwaggle/extension-react) [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.19-43853d)](https://openwaggle.ai/docs/packages/extension-react/0.2/) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/OpenWaggle/OpenWaggle/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/@openwaggle/extension-react?color=f5a623)](https://www.npmjs.com/package/@openwaggle/extension-react) [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.19-43853d)](https://openwaggle.ai/docs/packages/extension-react/0.1/) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/OpenWaggle/OpenWaggle/blob/main/LICENSE)
 
 React UI primitives for OpenWaggle extensions that follow the host extension theme contract.
 
-[Full documentation](https://openwaggle.ai/docs/packages/extension-react/0.2/) · [OpenWaggle](https://openwaggle.ai/) · [Issues](https://github.com/OpenWaggle/OpenWaggle/issues)
+[Full documentation](https://openwaggle.ai/docs/packages/extension-react/0.1/) · [OpenWaggle](https://openwaggle.ai/) · [Issues](https://github.com/OpenWaggle/OpenWaggle/issues)
 
-`@openwaggle/extension-react` provides small React primitives for extension surfaces that should match OpenWaggle without importing application renderer code.
+`@openwaggle/extension-react` provides small React primitives for OpenWaggle extension surfaces.
+
+Use it when an extension contribution is implemented in React and should match the OpenWaggle extension theme contract. It is optional; non-React extensions can use `@openwaggle/extension-sdk` UI helpers directly.
 
 ## Install
 
@@ -37,15 +39,38 @@ yarn add @openwaggle/extension-react @openwaggle/extension-sdk react react-dom
 bun add @openwaggle/extension-react @openwaggle/extension-sdk react react-dom
 ```
 
-`react` and `react-dom` are peer dependencies. The supported peer line is React 19.
+`react` and `react-dom` are peer dependencies. The initial peer range is React 19.
 
-Import the default host-aligned stylesheet once in the extension bundle:
+Import the stylesheet when you want the default host-aligned styles:
 
 ```ts
 import '@openwaggle/extension-react/styles.css'
 ```
 
-## Mount A React Surface
+## Components
+
+The package exports primitives for common extension settings, forms, status, and surface layout:
+
+```tsx
+import {
+  Alert,
+  Badge,
+  Button,
+  Checkbox,
+  Field,
+  Input,
+  Panel,
+  Select,
+  Stack,
+  Textarea,
+} from '@openwaggle/extension-react'
+```
+
+These primitives use extension SDK class names and data attributes. They are not OpenWaggle app renderer components and they do not import the app's Tailwind or renderer CSS.
+
+Explore every primitive, tone, variant, form state, and accessibility contract in the [visual component catalogue](https://openwaggle.ai/docs/packages/extension-react/0.1/components/).
+
+## React Mount Example
 
 ```tsx
 import '@openwaggle/extension-react/styles.css'
@@ -58,37 +83,42 @@ function SettingsSurface() {
     <Panel>
       <Stack gap="0.75rem">
         <Badge tone="info">Project</Badge>
-        <Field htmlFor="default-label" label="Default label">
-          <Input id="default-label" defaultValue="Architect" />
+        <Field
+          htmlFor="default-label"
+          label="Default label"
+          description="Stored in package configuration through the extension SDK."
+        >
+          <Input id="default-label" name="default-label" defaultValue="Architect" />
         </Field>
-        <Button type="button" variant="primary">Save</Button>
+        <Button type="button" variant="primary">
+          Save
+        </Button>
       </Stack>
     </Panel>
   )
 }
 
-export const mount: OpenWaggleFederatedModule['mount'] = (context) => {
-  const root = createRoot(context.root)
-  root.render(<SettingsSurface />)
-  return () => root.unmount()
+const module: OpenWaggleFederatedModule = {
+  mount(context) {
+    const root = createRoot(context.root)
+    root.render(<SettingsSurface />)
+
+    return () => {
+      root.unmount()
+    }
+  },
 }
+
+export const mount = module.mount
 ```
 
-The OpenWaggle host adds `.ow-extension-root` to `context.root` and projects the SDK 0.2 appearance variables onto it. Standalone harnesses must add the same class and provide the SDK theme variables before rendering the primitives.
+Use the broker SDK from `context.sdk` or `@openwaggle/extension-sdk` for persistence and OpenWaggle capability calls. The React package only supplies UI primitives.
 
-## Migrating From 0.1
+## When Not To Use It
 
-Version 0.2 replaces the bespoke 0.1 spacing, radius, elevation, and fallback values with the Tailwind-standard extension theme contract from `@openwaggle/extension-sdk` 0.2.
+Do not use `@openwaggle/extension-react` if your extension uses plain DOM, Vue, Preact, Svelte, or another renderer. The federated-module contract is framework-neutral, so those extensions can use `@openwaggle/extension-sdk` types, theme helpers, and UI stylesheet helpers directly.
 
-- Mount all primitives beneath `.ow-extension-root`.
-- Replace `--ow-space-*` overrides with multiples of `--ow-spacing`.
-- Replace `--ow-radius-panel`, `--ow-radius-sm`, and `--ow-radius-md` overrides with the standard radius variables.
-- Replace `--ow-elevation-card` with `--ow-shadow-sm` and use the projected text-size and line-height pairs.
-- Do not rely on stylesheet fallback colours; the host or standalone harness owns the complete theme projection.
-
-## Components
-
-The package exports `Alert`, `Badge`, `Button`, `Checkbox`, `Field`, `Input`, `Panel`, `Select`, `Stack`, and `Textarea`. See the [visual component catalogue](https://openwaggle.ai/docs/packages/extension-react/0.2/components/) and [complete API reference](https://openwaggle.ai/docs/packages/extension-react/0.2/api-reference/).
+Do not import OpenWaggle renderer components to fill gaps. If a primitive is missing, build a scoped extension-owned component on top of the extension UI style contract.
 
 ## Compatibility
 
@@ -97,14 +127,26 @@ The package exports `Alert`, `Badge`, `Button`, `Checkbox`, `Field`, `Input`, `P
 | Node.js | 22.19 and newer |
 | React | 19.x |
 | React DOM | 19.x |
-| Extension SDK | 0.2.x |
 | Module format | ESM and CommonJS |
+| OpenWaggle package docs | 0.1 |
 
-## Support
+## Reference And Support
 
+- [Visual component catalogue](https://openwaggle.ai/docs/packages/extension-react/0.1/components/)
+- [Complete API reference](https://openwaggle.ai/docs/packages/extension-react/0.1/api-reference/)
 - [npm package](https://www.npmjs.com/package/@openwaggle/extension-react)
 - [Package changelog](https://github.com/OpenWaggle/OpenWaggle/blob/main/packages/extension-react/CHANGELOG.md)
 - [Report an issue](https://github.com/OpenWaggle/OpenWaggle/issues/new)
+
+## Troubleshooting
+
+**Components render without OpenWaggle styling.** Import `@openwaggle/extension-react/styles.css` once in the extension bundle.
+
+**React is installed twice.** Keep React and React DOM in the extension project and resolve them as shared peer dependencies. Do not bundle a second incompatible React runtime.
+
+**A non-React extension needs the same visual language.** Use the framework-neutral classes and stylesheet helpers from `@openwaggle/extension-sdk` instead.
+
+There are no migrations within the `0.1` documentation line. Future incompatible changes will receive a new versioned documentation line and migration guide.
 
 ## License
 

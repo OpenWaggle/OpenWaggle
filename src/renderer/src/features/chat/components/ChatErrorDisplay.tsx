@@ -171,7 +171,7 @@ export function ChatErrorDisplay({
       <div className="flex items-start gap-3">
         <AlertCircle className="size-4 shrink-0 text-error mt-0.5" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-error/90">{info.userMessage}</p>
+          <p className="text-sm text-error-text">{info.userMessage}</p>
           {info.suggestion && <p className="text-sm text-text-tertiary mt-1">{info.suggestion}</p>}
           {details && (
             <div className="mt-1.5">

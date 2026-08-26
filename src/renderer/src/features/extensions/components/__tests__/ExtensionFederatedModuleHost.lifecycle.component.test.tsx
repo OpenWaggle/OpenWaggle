@@ -105,6 +105,7 @@ describe('ExtensionFederatedModuleHost lifecycle performance', () => {
       }),
     )
     apiMock.unregisterExtensionFrame.mockResolvedValue(undefined)
+    document.documentElement.setAttribute('data-theme', 'dark')
   })
 
   it('does not remount when an equivalent registry entry object is recreated', async () => {
@@ -119,6 +120,21 @@ describe('ExtensionFederatedModuleHost lifecycle performance', () => {
 
     expect(frame.getAttribute('src')).toBe(mountedFrameUrl)
     expect(apiMock.registerExtensionFrame).toHaveBeenCalledTimes(1)
+  })
+
+  it('remounts with a fresh theme context when the appearance changes', async () => {
+    render(<ExtensionFederatedModuleHost entry={ENTRY} />)
+    const frame = extensionFrame()
+    await waitFor(() => {
+      expect(frame).toHaveAttribute('src', frameUrl(extensionFrameId(frame)))
+    })
+
+    document.documentElement.setAttribute('data-theme', 'debug')
+
+    await waitFor(() => {
+      expect(apiMock.unregisterExtensionFrame).toHaveBeenCalledTimes(1)
+      expect(apiMock.registerExtensionFrame).toHaveBeenCalledTimes(2)
+    })
   })
 
   it('deduplicates repeated sandbox resize messages before notifying the host', async () => {

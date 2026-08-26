@@ -176,9 +176,8 @@ describe('package release namespace bootstrap GitHub policy', () => {
     expect(requests.filter((request) => request.mutates)).toEqual([])
   })
 
-  it('upgrades the prior managed ruleset by adding only the Electron E2E check', async () => {
+  it('upgrades the deployed ruleset checks without weakening its review policy', async () => {
     const legacyRuleset = compatibleRuleset([
-      { context: 'Package Release Gate' },
       { context: 'Commit Policy' },
       { context: 'Typecheck & Lint' },
       { context: 'Unit & Component Tests' },
@@ -207,12 +206,16 @@ describe('package release namespace bootstrap GitHub policy', () => {
     const mutation = requests.find((request) => commandKey(request) === updateKey)
     expect(mutation).toBeDefined()
     expect(mutation?.input).toContain('"name":"OpenWaggle main protections"')
+    expect(mutation?.input).toContain('"context":"Package Release Gate"')
     expect(mutation?.input).toContain('"context":"Electron E2E (macOS)"')
+    expect(mutation?.input).toContain(
+      '"require_extra_approval_for_unattributed_changes":true',
+    )
+    expect(mutation?.input).toContain('"automatic_copilot_code_review_enabled":false')
   })
 
   it('reports the prior managed ruleset as pending during preflight', async () => {
     const legacyRuleset = compatibleRuleset([
-      { context: 'Package Release Gate' },
       { context: 'Commit Policy' },
       { context: 'Typecheck & Lint' },
       { context: 'Unit & Component Tests' },

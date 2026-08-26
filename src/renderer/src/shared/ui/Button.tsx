@@ -37,7 +37,7 @@ const BUTTON_VARIANT_CLASS = {
   secondary:
     'border border-border bg-bg text-text-secondary hover:bg-bg-hover hover:text-text-primary',
   accent: 'border border-accent/30 bg-accent/5 text-accent hover:bg-accent/10',
-  danger: 'border border-error/30 bg-error/10 text-error hover:bg-error/18',
+  danger: 'border border-error/30 bg-error/10 text-error-text hover:bg-error/18',
   ghost: 'text-text-tertiary hover:bg-bg-hover hover:text-text-secondary',
   subtle: 'bg-bg-hover text-text-tertiary hover:text-text-secondary',
   row: 'w-full text-left text-text-secondary hover:bg-bg-hover',

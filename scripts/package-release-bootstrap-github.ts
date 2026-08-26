@@ -9,6 +9,7 @@ import {
   createEnvironmentPayload,
   createRepositoryMergePolicyPayload,
   createRulesetPayload,
+  createRulesetUpgradePayload,
   isJsonObject,
   MANAGED_RULESET_NAME,
   parseJson,
@@ -22,7 +23,7 @@ import {
   isCompatibleEnvironment,
   isCompatibleRepositoryMergePolicy,
   isCompatibleRuleset,
-  isRulesetMissingElectronE2eCheck,
+  isRulesetMissingRequiredChecks,
 } from './package-release-bootstrap-policy'
 import type {
   BootstrapDependencies,
@@ -151,7 +152,7 @@ async function inspectRuleset(
   const managed = await readManagedRuleset(projectRoot, dependencies)
   if (managed.state !== 'found') return managed.state
   if (isCompatibleRuleset(managed.ruleset)) return 'compatible'
-  return isRulesetMissingElectronE2eCheck(managed.ruleset) ? 'pending' : 'conflict'
+  return isRulesetMissingRequiredChecks(managed.ruleset) ? 'pending' : 'conflict'
 }
 
 async function inspectRepositoryMergePolicy(
@@ -266,8 +267,8 @@ export async function createAndVerifyRuleset(
     return
   }
 
-  if (isRulesetMissingElectronE2eCheck(managed.ruleset)) {
-    dependencies.writeLine(`[github] add Electron E2E to ${MANAGED_RULESET_NAME}`)
+  if (isRulesetMissingRequiredChecks(managed.ruleset)) {
+    dependencies.writeLine(`[github] add required checks to ${MANAGED_RULESET_NAME}`)
     await runMutation(dependencies, {
       args: [
         ...GH_API_ARGS,
@@ -279,7 +280,7 @@ export async function createAndVerifyRuleset(
       ],
       command: 'gh',
       cwd: projectRoot,
-      input: JSON.stringify(createRulesetPayload()),
+      input: JSON.stringify(createRulesetUpgradePayload(managed.ruleset)),
     })
     if ((await inspectRuleset(projectRoot, dependencies)) !== 'compatible') {
       throw new Error('GitHub managed main ruleset verification failed.')

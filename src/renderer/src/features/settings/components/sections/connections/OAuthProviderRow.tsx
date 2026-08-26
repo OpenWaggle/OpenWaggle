@@ -240,14 +240,14 @@ function OAuthErrorMessage({
     <div className="mx-5 mb-3 flex items-start gap-2 rounded-lg border border-error/25 bg-error/6 px-3 py-2">
       <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-error" />
       <div className="min-w-0 flex-1">
-        <p className="text-xs text-error-text/80">{message}</p>
+        <p className="text-xs text-error-text">{message}</p>
         <Button
           variant="unstyled"
           type="button"
           onClick={() => {
             void startOAuth(provider)
           }}
-          className="mt-1 text-xs font-medium text-error-text transition-colors hover:text-error-text/80"
+          className="mt-1 text-xs font-medium text-error-text transition-colors"
         >
           Try again
         </Button>

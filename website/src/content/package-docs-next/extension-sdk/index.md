@@ -160,26 +160,16 @@ The contract covers:
 
 The type, spacing, radius, and shadow fallbacks match Tailwind 4.3.3. The contract has no `controlSize` or `elevation` group. Express control dimensions as spacing multiples and use the standard shadow scale.
 
-Read roles through the theme object rather than hardcoding values, and let the stylesheet helpers emit the `--ow-*` variables for you:
+Hosted extensions receive the resolved Appearance through their mount context. Read that object rather than resolving the host's private `--color-*` source variables from inside the isolated frame:
 
 ```ts
-import {
-  createOpenWaggleExtensionTheme,
-  extensionThemeCssVariableEntries,
-} from '@openwaggle/extension-sdk/theme'
-
-// Inside OpenWaggle, every role resolves from the host's Appearance:
-const theme = createOpenWaggleExtensionTheme({
-  resolveCssVariable: (cssVariable, fallback) =>
-    getComputedStyle(document.documentElement).getPropertyValue(cssVariable).trim() || fallback,
-})
-
-for (const entry of extensionThemeCssVariableEntries(theme)) {
-  document.documentElement.style.setProperty(entry.name, entry.value)
+export function mount(context: OpenWaggleExtensionMountContext) {
+  const { theme } = context
+  // Use theme.color, theme.typography, theme.spacing, theme.radius, and theme.shadow.
 }
 ```
 
-Outside OpenWaggle, `createOpenWaggleExtensionTheme()` falls back to the published default tokens, so extension tooling and previews stay stable.
+Outside OpenWaggle, `createOpenWaggleExtensionTheme()` provides published fallback tokens for extension tooling and standalone previews.
 
 ## Boundary Rules
 

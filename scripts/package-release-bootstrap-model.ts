@@ -46,6 +46,12 @@ export const REQUIRED_CHECK_CONTEXTS = [
   'Electron E2E (macOS)',
 ] as const
 
+export const DEPLOYED_LEGACY_CHECK_CONTEXTS = [
+  'Commit Policy',
+  'Typecheck & Lint',
+  'Unit & Component Tests',
+] as const
+
 export function isJsonObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -123,6 +129,7 @@ export function createRulesetPayload() {
         parameters: {
           allowed_merge_methods: ['squash', 'rebase'],
           dismiss_stale_reviews_on_push: false,
+          require_extra_approval_for_unattributed_changes: true,
           require_code_owner_review: false,
           require_last_push_approval: false,
           required_approving_review_count: 0,
@@ -140,6 +147,46 @@ export function createRulesetPayload() {
       },
     ],
     target: 'branch',
+  }
+}
+
+function rulesetRule(value: JsonObject, type: string) {
+  if (!isUnknownArray(value.rules)) return undefined
+  return value.rules.find((rule) => isJsonObject(rule) && rule.type === type)
+}
+
+export function createRulesetUpgradePayload(value: unknown) {
+  if (!isJsonObject(value)) {
+    throw new Error('GitHub managed ruleset must be an object before it can be upgraded.')
+  }
+  const pullRequestRule = rulesetRule(value, 'pull_request')
+  const statusRule = rulesetRule(value, 'required_status_checks')
+  if (
+    !isJsonObject(pullRequestRule) ||
+    !isJsonObject(pullRequestRule.parameters) ||
+    !isJsonObject(statusRule) ||
+    !isJsonObject(statusRule.parameters)
+  ) {
+    throw new Error('GitHub managed ruleset is missing required rule parameters.')
+  }
+
+  return {
+    ...createRulesetPayload(),
+    rules: [
+      { type: 'deletion' },
+      { type: 'non_fast_forward' },
+      {
+        parameters: { ...pullRequestRule.parameters },
+        type: 'pull_request',
+      },
+      {
+        parameters: {
+          ...statusRule.parameters,
+          required_status_checks: REQUIRED_CHECK_CONTEXTS.map((context) => ({ context })),
+        },
+        type: 'required_status_checks',
+      },
+    ],
   }
 }
 

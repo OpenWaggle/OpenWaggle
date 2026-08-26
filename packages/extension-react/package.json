@@ -1,6 +1,6 @@
 {
   "name": "@openwaggle/extension-react",
-  "version": "0.2.0",
+  "version": "0.1.1",
   "description": "React UI primitives for OpenWaggle extensions that follow the host extension theme contract.",
   "type": "module",
   "license": "MIT",
@@ -12,7 +12,7 @@
     "url": "https://github.com/OpenWaggle/OpenWaggle.git",
     "directory": "packages/extension-react"
   },
-  "homepage": "https://openwaggle.ai/docs/packages/extension-react/0.2/",
+  "homepage": "https://openwaggle.ai/docs/packages/extension-react/0.1/",
   "bugs": {
     "url": "https://github.com/OpenWaggle/OpenWaggle/issues"
   },

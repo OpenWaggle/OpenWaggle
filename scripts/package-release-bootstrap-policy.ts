@@ -1,5 +1,6 @@
 import {
   ADMIN_REPOSITORY_ROLE_ID,
+  DEPLOYED_LEGACY_CHECK_CONTEXTS,
   isJsonObject,
   MANAGED_RULESET_NAME,
   REPOSITORY,
@@ -84,11 +85,11 @@ function hasExactStatusChecks(value: JsonObject) {
   )
 }
 
-function hasLegacyStatusChecks(value: JsonObject) {
+function hasDeployedLegacyStatusChecks(value: JsonObject) {
   const statusRule = findRule(value.rules, 'required_status_checks')
   if (!isJsonObject(statusRule) || !isJsonObject(statusRule.parameters)) return false
   const checks = statusRule.parameters.required_status_checks
-  if (!isUnknownArray(checks) || checks.length !== REQUIRED_CHECK_CONTEXTS.length - 1) return false
+  if (!isUnknownArray(checks) || checks.length !== DEPLOYED_LEGACY_CHECK_CONTEXTS.length) return false
   const contexts = checks.flatMap((check) =>
     isJsonObject(check) &&
     typeof check.context === 'string' &&
@@ -96,14 +97,11 @@ function hasLegacyStatusChecks(value: JsonObject) {
       ? [check.context]
       : [],
   )
-  const legacyContexts = REQUIRED_CHECK_CONTEXTS.filter(
-    (context) => context !== 'Electron E2E (macOS)',
-  )
   return (
     statusRule.parameters.do_not_enforce_on_create === true &&
     statusRule.parameters.strict_required_status_checks_policy === true &&
-    contexts.length === legacyContexts.length &&
-    legacyContexts.every((context) => contexts.includes(context))
+    contexts.length === DEPLOYED_LEGACY_CHECK_CONTEXTS.length &&
+    DEPLOYED_LEGACY_CHECK_CONTEXTS.every((context) => contexts.includes(context))
   )
 }
 
@@ -116,6 +114,7 @@ function hasRequiredPullRequests(value: JsonObject) {
     mergeMethods?.length === ALLOWED_MERGE_METHODS.length &&
     ALLOWED_MERGE_METHODS.every((method) => mergeMethods.includes(method)) &&
     parameters.dismiss_stale_reviews_on_push === false &&
+    parameters.require_extra_approval_for_unattributed_changes === true &&
     parameters.require_code_owner_review === false &&
     parameters.require_last_push_approval === false &&
     parameters.required_approving_review_count === 0 &&
@@ -143,7 +142,7 @@ export function isCompatibleRuleset(value: unknown) {
   )
 }
 
-export function isRulesetMissingElectronE2eCheck(value: unknown) {
+export function isRulesetMissingRequiredChecks(value: unknown) {
   if (!isJsonObject(value)) return false
   if (
     value.name !== MANAGED_RULESET_NAME ||
@@ -159,7 +158,7 @@ export function isRulesetMissingElectronE2eCheck(value: unknown) {
     hasAdminBypass(value) &&
     hasCoreRules(value) &&
     hasRequiredPullRequests(value) &&
-    hasLegacyStatusChecks(value)
+    hasDeployedLegacyStatusChecks(value)
   )
 }
 

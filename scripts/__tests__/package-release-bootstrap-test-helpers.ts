@@ -95,7 +95,9 @@ export function compatibleRuleset(
       {
         parameters: {
           allowed_merge_methods: ['squash', 'rebase'],
+          automatic_copilot_code_review_enabled: false,
           dismiss_stale_reviews_on_push: false,
+          require_extra_approval_for_unattributed_changes: true,
           require_code_owner_review: false,
           require_last_push_approval: false,
           required_approving_review_count: 0,
