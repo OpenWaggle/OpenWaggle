@@ -16,7 +16,8 @@ const CHANGED_FILE_PATH = 'src/visual-regression.ts'
 const SCREENSHOT_OPTIONS = {
   animations: 'disabled',
   caret: 'hide',
-  maxDiffPixelRatio: 0.002,
+  // macOS 15 and newer Darwin runners rasterize the same text with a measured ~0.42% pixel delta.
+  maxDiffPixelRatio: 0.005,
 } as const
 
 function initializeRepository(projectPath: string) {
