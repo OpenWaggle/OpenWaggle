@@ -24,12 +24,12 @@ const TEXTAREA_BASE_CLASS =
   'block w-full rounded-lg border border-input-card-border bg-bg px-3 py-2 text-text-secondary outline-none transition-colors [scrollbar-width:none] [&::-webkit-scrollbar]:hidden placeholder:text-text-muted focus:border-border-light'
 
 const TEXTAREA_VARIANT_CLASS: Record<TextareaVariant, string> = {
-  default: 'text-[13px]',
-  mono: 'font-mono text-[12px] leading-5',
+  default: 'text-sm',
+  mono: 'font-mono text-xs leading-5',
 }
 
 const TEXTAREA_LINE_CLASS: Record<TextareaVariant, string> = {
-  default: 'min-h-[1.45em]',
+  default: 'min-h-5',
   mono: 'min-h-5',
 }
 

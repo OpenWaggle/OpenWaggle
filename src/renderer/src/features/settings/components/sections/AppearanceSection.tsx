@@ -61,11 +61,11 @@ export function AppearanceSection() {
   return (
     <div className="space-y-6">
       <div className="space-y-3">
-        <h3 className="text-[16px] font-semibold text-text-primary">Diff view</h3>
-        <p className="text-[12px] text-text-tertiary">
+        <h3 className="text-base font-semibold text-text-primary">Diff view</h3>
+        <p className="text-xs text-text-tertiary">
           Applies to the diff panel. The panel's own toggles change this same setting.
         </p>
-        <div className="overflow-hidden rounded-lg border border-border bg-diff-header-bg">
+        <div className="overflow-hidden rounded-lg border border-border bg-bg">
           {DIFF_VIEWS.map((view) => (
             <Button
               variant="unstyled"
@@ -76,12 +76,10 @@ export function AppearanceSection() {
               className={ROW_CLASS}
             >
               <div className="flex flex-col gap-0.5">
-                <span className="text-[13px] font-medium text-text-primary">
+                <span className="text-xs font-medium text-text-primary">
                   {DIFF_VIEW_LABELS[view]}
                 </span>
-                <span className="text-[12px] text-text-tertiary">
-                  {DIFF_VIEW_DESCRIPTIONS[view]}
-                </span>
+                <span className="text-xs text-text-tertiary">{DIFF_VIEW_DESCRIPTIONS[view]}</span>
               </div>
               <RadioDot active={diffView === view} />
             </Button>
@@ -90,8 +88,8 @@ export function AppearanceSection() {
       </div>
 
       <div className="space-y-3">
-        <h3 className="text-[16px] font-semibold text-text-primary">Long lines</h3>
-        <div className="overflow-hidden rounded-lg border border-border bg-diff-header-bg">
+        <h3 className="text-base font-semibold text-text-primary">Long lines</h3>
+        <div className="overflow-hidden rounded-lg border border-border bg-bg">
           <Button
             variant="unstyled"
             type="button"
@@ -104,8 +102,8 @@ export function AppearanceSection() {
             className={ROW_CLASS}
           >
             <div className="flex flex-col gap-0.5">
-              <span className="text-[13px] font-medium text-text-primary">Wrap long lines</span>
-              <span className="text-[12px] text-text-tertiary">
+              <span className="text-xs font-medium text-text-primary">Wrap long lines</span>
+              <span className="text-xs text-text-tertiary">
                 Wrap instead of scrolling horizontally, so review controls stay in view.
               </span>
             </div>
@@ -125,12 +123,12 @@ export function AppearanceSection() {
       </div>
 
       <div className="space-y-3">
-        <h3 className="text-[16px] font-semibold text-text-primary">Syntax theme</h3>
-        <p className="text-[12px] text-text-tertiary">
+        <h3 className="text-base font-semibold text-text-primary">Syntax theme</h3>
+        <p className="text-xs text-text-tertiary">
           Colours code text inside diffs. The panel's own colours follow the app appearance.
         </p>
         <SyntaxThemePreview theme={diffSyntaxTheme} />
-        <div className="overflow-hidden rounded-lg border border-border bg-diff-header-bg">
+        <div className="overflow-hidden rounded-lg border border-border bg-bg">
           {DIFF_SYNTAX_THEMES.map((theme) => (
             <Button
               variant="unstyled"
@@ -141,10 +139,10 @@ export function AppearanceSection() {
               className={ROW_CLASS}
             >
               <div className="flex flex-col gap-0.5">
-                <span className="text-[13px] font-medium text-text-primary">
+                <span className="text-xs font-medium text-text-primary">
                   {SYNTAX_THEME_LABELS[theme]}
                 </span>
-                <span className="text-[12px] text-text-tertiary">
+                <span className="text-xs text-text-tertiary">
                   {SYNTAX_THEME_DESCRIPTIONS[theme]}
                 </span>
               </div>

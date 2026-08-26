@@ -13,49 +13,49 @@ type ProviderIcon = typeof OpenAIIcon
 
 export interface ProviderMeta {
   readonly icon: ProviderIcon
-  readonly color: string
+  readonly iconClassName: string
 }
 
 export const PROVIDER_META: Partial<Record<Provider, ProviderMeta>> = {
   openai: {
     icon: OpenAIIcon,
-    color: '#10a37f',
+    iconClassName: 'text-success',
   },
   anthropic: {
     icon: AnthropicIcon,
-    color: '#d4a27f',
+    iconClassName: 'text-accent-dim',
   },
   google: {
     icon: GeminiIcon,
-    color: '#4285f4',
+    iconClassName: 'text-info-text',
   },
   'google-gemini-cli': {
     icon: GeminiIcon,
-    color: '#4285f4',
+    iconClassName: 'text-info-text',
   },
   'google-antigravity': {
     icon: GeminiIcon,
-    color: '#4285f4',
+    iconClassName: 'text-info-text',
   },
   xai: {
     icon: getProviderIcon('xai'),
-    color: '#e44d26',
+    iconClassName: 'text-warning',
   },
   groq: {
     icon: GroqIcon,
-    color: '#e44d26',
+    iconClassName: 'text-warning',
   },
   deepseek: {
     icon: getProviderIcon('deepseek'),
-    color: '#4d6bfe',
+    iconClassName: 'text-info',
   },
   openrouter: {
     icon: OpenRouterIcon,
-    color: '#7c5cfc',
+    iconClassName: 'text-review',
   },
   ollama: {
     icon: OllamaIcon,
-    color: '#555d6e',
+    iconClassName: 'text-neutral',
   },
 }
 
@@ -63,7 +63,7 @@ export function getProviderMeta(provider: Provider): ProviderMeta {
   return (
     PROVIDER_META[provider] ?? {
       icon: getProviderIcon(provider),
-      color: '#8da2c0',
+      iconClassName: 'text-text-tertiary',
     }
   )
 }

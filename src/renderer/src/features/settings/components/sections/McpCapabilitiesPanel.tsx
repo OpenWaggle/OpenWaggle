@@ -65,10 +65,10 @@ export function McpCapabilitiesPanel({
     <section aria-labelledby="mcp-capabilities-heading" className="space-y-3">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 id="mcp-capabilities-heading" className="text-[15px] font-semibold text-text-primary">
+          <h3 id="mcp-capabilities-heading" className="text-base font-semibold text-text-primary">
             Capabilities
           </h3>
-          <p className="mt-1 text-[12px] text-text-tertiary">
+          <p className="mt-1 text-xs text-text-tertiary">
             Browsing is explicit and lazy. Prompts create drafts; resources remain attributed and
             untrusted.
           </p>
@@ -83,11 +83,11 @@ export function McpCapabilitiesPanel({
         </Button>
       </div>
       {!enabled && (
-        <p className="rounded-md border border-border bg-bg-secondary px-3 py-2 text-[12px] text-text-muted">
+        <p className="rounded-md border border-border bg-bg-secondary px-3 py-2 text-xs text-text-muted">
           Enable MCP for this scope before connecting to browse capabilities.
         </p>
       )}
-      <p className="rounded-md border border-border bg-bg-secondary px-3 py-2 text-[12px] leading-5 text-text-muted">
+      <p className="rounded-md border border-border bg-bg-secondary px-3 py-2 text-xs leading-5 text-text-muted">
         Agent MCP tools follow the runtime&apos;s tool-capable model contract; OpenWaggle does not
         guess from model names. If a custom provider violates that contract, the run fails visibly.
         Switch to a conforming model or fix the provider; prompts, resources, and Apps remain
@@ -96,13 +96,13 @@ export function McpCapabilitiesPanel({
       {error && (
         <p
           role="alert"
-          className="rounded-md border border-error/25 bg-error/6 px-3 py-2 text-[12px] text-error"
+          className="rounded-md border border-error/25 bg-error/6 px-3 py-2 text-xs text-error-text"
         >
           {error}
         </p>
       )}
       {loaded && catalogIsEmpty(catalog) && (
-        <p className="rounded-md border border-border bg-bg-secondary px-3 py-3 text-[12px] text-text-muted">
+        <p className="rounded-md border border-border bg-bg-secondary px-3 py-3 text-xs text-text-muted">
           No instructions, prompts, resources, Apps, Tasks, or opted-in remote Skills were
           advertised by the connected servers.
         </p>

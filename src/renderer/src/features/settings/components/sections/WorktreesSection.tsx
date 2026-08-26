@@ -86,8 +86,8 @@ export function WorktreesSection() {
   return (
     <div className="space-y-6">
       <div className="space-y-3">
-        <h3 className="text-[16px] font-semibold text-text-primary">Session environment mode</h3>
-        <div className="overflow-hidden rounded-lg border border-border bg-diff-header-bg">
+        <h3 className="text-base font-semibold text-text-primary">Session environment mode</h3>
+        <div className="overflow-hidden rounded-lg border border-border bg-bg">
           {SESSION_ENVIRONMENT_MODES.map((mode) => {
             const isActive = settings.defaultSessionEnvironmentMode === mode
             return (
@@ -102,10 +102,8 @@ export function WorktreesSection() {
                 className="flex w-full items-center justify-between border-b border-border px-5 py-3 text-left last:border-b-0 hover:bg-bg-hover"
               >
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-[13px] font-medium text-text-primary">
-                    {MODE_LABELS[mode]}
-                  </span>
-                  <span className="text-[12px] text-text-tertiary">{MODE_DESCRIPTIONS[mode]}</span>
+                  <span className="text-xs font-medium text-text-primary">{MODE_LABELS[mode]}</span>
+                  <span className="text-xs text-text-tertiary">{MODE_DESCRIPTIONS[mode]}</span>
                 </div>
                 <div
                   className={`size-3 shrink-0 rounded-full border ${
@@ -120,30 +118,30 @@ export function WorktreesSection() {
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-[16px] font-semibold text-text-primary">Worktrees</h3>
+          <h3 className="text-base font-semibold text-text-primary">Worktrees</h3>
           <Button variant="secondary" size="xs" disabled={isLoading} onClick={() => void refresh()}>
             Refresh
           </Button>
         </div>
         {!projectPath ? (
-          <p className="text-[12px] text-text-tertiary">Open a project to manage its worktrees.</p>
+          <p className="text-xs text-text-tertiary">Open a project to manage its worktrees.</p>
         ) : worktrees.length === 0 ? (
-          <p className="text-[12px] text-text-tertiary">
+          <p className="text-xs text-text-tertiary">
             {isLoading ? 'Loading worktrees…' : 'No worktrees for this repository.'}
           </p>
         ) : (
-          <div className="overflow-hidden rounded-lg border border-border bg-diff-header-bg">
+          <div className="overflow-hidden rounded-lg border border-border bg-bg">
             {worktrees.map((worktree) => (
               <div
                 key={worktree.path}
                 className="flex items-center justify-between border-b border-border px-5 py-3 last:border-b-0"
               >
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-[13px] font-medium text-text-primary">
+                  <span className="text-xs font-medium text-text-primary">
                     {formatWorktreePathForDisplay(worktree.path)}
                     {worktree.isMain ? ' (main)' : ''}
                   </span>
-                  <span className="text-[12px] text-text-tertiary">
+                  <span className="text-xs text-text-tertiary">
                     {worktree.branch ?? 'detached'} · {worktree.path}
                   </span>
                 </div>

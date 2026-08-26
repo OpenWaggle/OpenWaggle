@@ -17,7 +17,7 @@ function ChatRouteSurfaceFallback() {
   return (
     <output
       aria-live="polite"
-      className="flex min-h-0 min-w-0 flex-1 items-center justify-center bg-bg text-[13px] text-text-tertiary"
+      className="flex min-h-0 min-w-0 flex-1 items-center justify-center bg-bg text-sm text-text-tertiary"
     >
       Loading chat…
     </output>

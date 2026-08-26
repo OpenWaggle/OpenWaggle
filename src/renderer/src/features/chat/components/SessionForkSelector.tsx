@@ -30,24 +30,24 @@ export function SessionForkSelector({
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4">
-      <section className="w-full max-w-[520px] rounded-xl border border-border-light bg-bg-secondary p-4 shadow-2xl">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-bg/45 p-4">
+      <section className="w-full max-w-130 rounded-xl border border-border-light bg-bg-secondary p-4 shadow-2xl">
         <div className="flex items-start gap-3">
           <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
             <GitBranch className="size-4" />
           </span>
           <div className="min-w-0 flex-1">
             <h3 className="text-sm font-semibold text-text-primary">Fork to new session</h3>
-            <p className="mt-1 text-[12px] text-text-tertiary">
+            <p className="mt-1 text-xs text-text-tertiary">
               Select a previous user message. The new session starts before it and prefills the
               composer with that text.
             </p>
           </div>
         </div>
 
-        <div className="mt-4 max-h-[360px] overflow-y-auto rounded-lg border border-border bg-bg">
+        <div className="mt-4 max-h-90 overflow-y-auto rounded-lg border border-border bg-bg">
           {targets.length === 0 ? (
-            <div className="px-3 py-6 text-center text-[13px] text-text-tertiary">
+            <div className="px-3 py-6 text-center text-sm text-text-tertiary">
               No user messages are available to fork.
             </div>
           ) : (
@@ -62,10 +62,10 @@ export function SessionForkSelector({
                   'hover:bg-bg-hover focus:bg-bg-hover focus:outline-none',
                 )}
               >
-                <span className="block text-[12px] font-medium text-text-secondary">
+                <span className="block text-xs font-medium text-text-secondary">
                   {String(target.entryId)}
                 </span>
-                <span className="mt-1 line-clamp-3 block text-[12px] leading-5 text-text-tertiary">
+                <span className="mt-1 line-clamp-3 block text-xs leading-5 text-text-tertiary">
                   {previewText(target.text)}
                 </span>
               </Button>
@@ -78,7 +78,7 @@ export function SessionForkSelector({
             variant="unstyled"
             type="button"
             onClick={onClose}
-            className="h-8 rounded-md border border-border px-3 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+            className="h-8 rounded-md border border-border px-3 text-xs text-text-secondary transition-colors hover:bg-bg-hover"
           >
             Cancel
           </Button>

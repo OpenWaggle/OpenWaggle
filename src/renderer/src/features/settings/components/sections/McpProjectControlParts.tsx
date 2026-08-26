@@ -25,13 +25,13 @@ export function GlobalMasterCard({
   return (
     <div
       className={cn(
-        'flex items-center gap-4 rounded-lg border bg-[#111418] px-4 py-3.5',
-        globalOn ? 'border-emerald-500/30' : 'border-border',
+        'flex items-center gap-4 rounded-lg border bg-bg px-4 py-3.5',
+        globalOn ? 'border-success/30' : 'border-border',
       )}
     >
       <div className="min-w-0 flex-1">
-        <div className="text-[14px] font-semibold text-text-primary">Global MCP</div>
-        <div className="text-[12px] text-text-tertiary">
+        <div className="text-sm font-semibold text-text-primary">Global MCP</div>
+        <div className="text-xs text-text-tertiary">
           {globalOn
             ? 'Master is on. Configure projects and servers below.'
             : 'Master is off — every project and server is disconnected.'}
@@ -67,7 +67,7 @@ export function ProjectList({
   readonly onSetMaster: (projectPath: string, on: boolean) => void
 }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-[#111418]">
+    <div className="overflow-hidden rounded-lg border border-border bg-bg">
       {projects.map((projectPath) => {
         const masterOn = projectMasterOn(projectStates, projectPath)
         return (
@@ -84,10 +84,10 @@ export function ProjectList({
               onClick={() => onSelect(projectPath)}
               className="min-w-0 flex-1 text-left"
             >
-              <span className="block truncate text-[12px] font-medium text-text-primary">
+              <span className="block truncate text-xs font-medium text-text-primary">
                 {projectLabel(projectPath)}
               </span>
-              <span className="block truncate text-[10px] text-text-muted">
+              <span className="block truncate text-xs text-text-muted">
                 {tildifyPath(projectPath)}
               </span>
             </Button>

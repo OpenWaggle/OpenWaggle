@@ -1,38 +1,57 @@
 import { FitAddon } from '@xterm/addon-fit'
-import { Terminal } from '@xterm/xterm'
+import { type ITheme, Terminal } from '@xterm/xterm'
 import { type RefObject, useEffect, useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 
 const FONT_SIZE = 14
+const TERMINAL_SELECTION_OPACITY = 0.3
 
-const TERMINAL_THEME = {
-  background: '#0a0a0a',
-  foreground: '#e5e5e5',
-  cursor: '#f59e0b',
-  selectionBackground: 'rgba(245, 158, 11, 0.3)',
-  black: '#0a0a0a',
-  red: '#ef4444',
-  green: '#22c55e',
-  yellow: '#f59e0b',
-  blue: '#3b82f6',
-  magenta: '#a855f7',
-  cyan: '#06b6d4',
-  white: '#e5e5e5',
-  brightBlack: '#666666',
-  brightRed: '#f87171',
-  brightGreen: '#4ade80',
-  brightYellow: '#fbbf24',
-  brightBlue: '#60a5fa',
-  brightMagenta: '#c084fc',
-  brightCyan: '#22d3ee',
-  brightWhite: '#ffffff',
+function colorWithOpacity(color: string, opacity: number) {
+  const context = document.createElement('canvas').getContext('2d')
+  if (context === null) return color
+
+  context.fillStyle = color
+  context.fillRect(0, 0, 1, 1)
+  const [red, green, blue] = context.getImageData(0, 0, 1, 1).data
+  return `rgba(${red}, ${green}, ${blue}, ${opacity})`
+}
+
+function terminalAppearance() {
+  const styles = getComputedStyle(document.documentElement)
+  const color = (name: string) => styles.getPropertyValue(name).trim()
+  const accent = color('--color-accent')
+  const theme: ITheme = {
+    background: color('--color-bg'),
+    foreground: color('--color-text-primary'),
+    cursor: accent,
+    selectionBackground: colorWithOpacity(accent, TERMINAL_SELECTION_OPACITY),
+    black: color('--color-diff-bg'),
+    red: color('--color-error'),
+    green: color('--color-success'),
+    yellow: accent,
+    blue: color('--color-info'),
+    magenta: color('--color-review'),
+    cyan: color('--color-progress'),
+    white: color('--color-text-secondary'),
+    brightBlack: color('--color-text-muted'),
+    brightRed: color('--color-error-text'),
+    brightGreen: color('--color-success'),
+    brightYellow: accent,
+    brightBlue: color('--color-info-text'),
+    brightMagenta: color('--color-plan'),
+    brightCyan: color('--color-progress'),
+    brightWhite: color('--color-text-primary'),
+  }
+
+  return { fontFamily: styles.getPropertyValue('--font-mono').trim(), theme }
 }
 
 function createTerminal() {
+  const appearance = terminalAppearance()
   return new Terminal({
-    theme: TERMINAL_THEME,
+    theme: appearance.theme,
     fontSize: FONT_SIZE,
-    fontFamily: '"SF Mono", "Fira Code", "JetBrains Mono", monospace',
+    fontFamily: appearance.fontFamily,
     cursorBlink: true,
     allowProposedApi: true,
   })
@@ -85,6 +104,15 @@ export function useTerminalSession(projectPath: string | null) {
     term.loadAddon(fitAddon)
     term.open(containerRef.current)
     requestAnimationFrame(() => fitAddon.fit())
+    const appearanceObserver = new MutationObserver(() => {
+      const appearance = terminalAppearance()
+      term.options.theme = appearance.theme
+      term.options.fontFamily = appearance.fontFamily
+    })
+    appearanceObserver.observe(document.documentElement, {
+      attributeFilter: ['data-theme'],
+      attributes: true,
+    })
 
     const cwd = projectPath ?? ''
     // This effect owns the terminal it creates. Tracking the id in an
@@ -125,6 +153,7 @@ export function useTerminalSession(projectPath: string | null) {
       cleanedUp = true
       inputDispose.dispose()
       unsubscribe()
+      appearanceObserver.disconnect()
       resizeObserver.disconnect()
       if (createdTerminalId) void api.closeTerminal(createdTerminalId)
       term.dispose()

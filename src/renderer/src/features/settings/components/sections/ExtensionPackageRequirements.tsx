@@ -33,9 +33,9 @@ function RuntimeRequirement({
       <div className="flex items-start gap-2">
         <TerminalSquare className="mt-0.5 size-3.5 shrink-0 text-text-tertiary" />
         <div className="min-w-0">
-          <div className="text-[12px] font-medium text-text-secondary">{requirement.label}</div>
-          <div className="mt-0.5 text-[11px] text-text-muted">{detail}</div>
-          <div className="mt-1 text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
+          <div className="text-xs font-medium text-text-secondary">{requirement.label}</div>
+          <div className="mt-0.5 text-xs text-text-muted">{detail}</div>
+          <div className="mt-1 text-xs uppercase tracking-widest text-text-tertiary">
             Diagnostic only · OpenWaggle does not install this automatically
           </div>
         </div>
@@ -81,23 +81,23 @@ function PrivilegeRequirement({
     <li className="rounded-md border border-border/70 bg-bg-tertiary/40 px-3 py-2">
       <div className="flex items-start gap-2">
         {granted ? (
-          <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-emerald-300" />
+          <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-success" />
         ) : (
-          <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-300" />
+          <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warning" />
         )}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[12px] font-medium text-text-secondary">{requirement.label}</span>
+            <span className="text-xs font-medium text-text-secondary">{requirement.label}</span>
             <span
               className={cn(
-                'rounded px-1.5 py-0.5 text-[10px] font-medium',
-                granted ? 'bg-emerald-500/10 text-emerald-300' : 'bg-amber-500/10 text-amber-300',
+                'rounded px-1.5 py-0.5 text-xs font-medium',
+                granted ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning',
               )}
             >
               {granted ? 'Granted' : 'Needs consent'}
             </span>
           </div>
-          <div className="mt-0.5 text-[11px] text-text-muted">{privilegeDetail(requirement)}</div>
+          <div className="mt-0.5 text-xs text-text-muted">{privilegeDetail(requirement)}</div>
         </div>
       </div>
     </li>
@@ -120,14 +120,14 @@ export function ExtensionPackageRequirements({
     <section className="mt-4 rounded-lg border border-border bg-bg-secondary/40 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h4 className="text-[12px] font-semibold text-text-secondary">Extension requirements</h4>
-          <p className="mt-1 text-[11px] text-text-muted">
+          <h4 className="text-xs font-semibold text-text-secondary">Extension requirements</h4>
+          <p className="mt-1 text-xs text-text-muted">
             Review these before trusting this package. Trust grants permissions for the current
             content hash only.
           </p>
         </div>
         {requirements.consentRequired ? (
-          <span className="rounded bg-amber-500/10 px-2 py-1 text-[10px] font-medium text-amber-300">
+          <span className="rounded bg-warning/10 px-2 py-1 text-xs font-medium text-warning">
             {requirements.missingGrantIds.length} consent pending
           </span>
         ) : null}

@@ -71,8 +71,8 @@ export function McpCapabilityCatalogGroups({
               key={`${app.serverInstanceId}:${app.toolName}`}
               className="rounded-md border border-border bg-bg px-3 py-3"
             >
-              <p className="text-[13px] font-medium text-text-primary">{app.toolTitle}</p>
-              <p className="text-[11px] text-text-muted">
+              <p className="text-xs font-medium text-text-primary">{app.toolTitle}</p>
+              <p className="text-xs text-text-muted">
                 {app.serverLabel} · sandboxed ui:// resource
               </p>
             </div>

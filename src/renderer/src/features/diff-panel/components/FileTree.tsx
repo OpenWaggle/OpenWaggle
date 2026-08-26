@@ -52,16 +52,16 @@ function FileChangeBadges({ stats }: { readonly stats: FileChangeStats }) {
   return (
     <span className="ml-auto flex shrink-0 items-center gap-1 pl-1">
       {stats.additions > 0 ? (
-        <span className="text-[10px] text-diff-add-mark">+{String(stats.additions)}</span>
+        <span className="text-xs text-diff-add-mark">+{String(stats.additions)}</span>
       ) : null}
       {stats.deletions > 0 ? (
-        <span className="text-[10px] text-diff-remove-text">-{String(stats.deletions)}</span>
+        <span className="text-xs text-diff-remove-text">-{String(stats.deletions)}</span>
       ) : null}
       <span
         role="img"
         aria-label={stats.status}
         title={stats.status}
-        className={cn('w-2 text-center text-[10px] font-semibold', STATUS_CLASS[stats.status])}
+        className={cn('w-2 text-center text-xs font-semibold', STATUS_CLASS[stats.status])}
       >
         {STATUS_GLYPH[stats.status]}
       </span>
@@ -137,7 +137,7 @@ export function FileTree({ files, onFileClick }: FileTreeProps) {
     <div
       // max-w guard: the stored width is absolute pixels, so in a narrow docked
       // panel a wide navigator would starve the diff body and clip the code.
-      className="relative flex h-full max-w-[45%] shrink-0 flex-col border-l border-border bg-diff-bg py-2"
+      className="relative flex h-full max-w-1/2 shrink-0 flex-col border-l border-border bg-diff-bg py-2"
       style={{ width: `${String(width)}px` }}
     >
       {/*
@@ -203,20 +203,20 @@ export function FileTree({ files, onFileClick }: FileTreeProps) {
                 paddingLeft: `${String(item.getItemMeta().level * INDENT_PX + ROW_PADDING_PX)}px`,
               }}
               className={cn(
-                'flex h-[22px] w-full items-center gap-1.5 pr-1.5 text-left outline-none',
+                'flex h-5.5 w-full items-center gap-1.5 pr-1.5 text-left outline-none',
                 item.isFocused() && 'bg-bg-hover',
                 item.isSelected() && 'bg-diff-highlight-bg',
                 'hover:bg-bg-hover',
               )}
             >
               {isFolder ? (
-                <ChevIcon className="size-[11px] shrink-0 text-text-tertiary" />
+                <ChevIcon className="size-3 shrink-0 text-text-tertiary" />
               ) : (
-                <span className="size-[11px] shrink-0" />
+                <span className="size-3 shrink-0" />
               )}
               <span
                 className={cn(
-                  'truncate text-[12px]',
+                  'truncate text-xs',
                   data.isFile ? 'text-text-primary' : 'text-text-secondary',
                 )}
               >

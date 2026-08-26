@@ -63,7 +63,7 @@ export function AgentCustomInteractionComposerFallback({
           submit={submit}
         />
       ))}
-      {error ? <p className="text-[12px] leading-5 text-error">{error}</p> : null}
+      {error ? <p className="text-xs leading-5 text-error">{error}</p> : null}
     </div>
   )
 }

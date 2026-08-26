@@ -49,7 +49,7 @@ export function SettingsNav({ activeTab }: SettingsNavProps) {
   }
 
   return (
-    <nav className="flex w-[200px] shrink-0 flex-col gap-0.5 border-r border-border p-2">
+    <nav className="flex w-50 shrink-0 flex-col gap-0.5 border-r border-border p-2">
       {NAV_ITEMS.map((item) => {
         const isActive = activeTab === item.id
         return (
@@ -60,7 +60,7 @@ export function SettingsNav({ activeTab }: SettingsNavProps) {
             fullWidth
             key={item.id}
             onClick={() => navigateToTab(item.id)}
-            className={cn('gap-2.5', isActive ? 'bg-[#17130a] font-medium' : 'text-text-tertiary')}
+            className={cn('gap-2.5', isActive ? 'bg-accent/10 font-medium' : 'text-text-tertiary')}
           >
             <item.icon className="size-4 shrink-0" />
             <span>{item.label}</span>

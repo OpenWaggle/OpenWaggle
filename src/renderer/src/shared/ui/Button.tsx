@@ -41,16 +41,16 @@ const BUTTON_VARIANT_CLASS = {
   ghost: 'text-text-tertiary hover:bg-bg-hover hover:text-text-secondary',
   subtle: 'bg-bg-hover text-text-tertiary hover:text-text-secondary',
   row: 'w-full text-left text-text-secondary hover:bg-bg-hover',
-  link: 'font-medium text-link-yellow underline-offset-2 hover:underline',
+  link: 'font-medium text-accent underline-offset-2 hover:underline',
   unstyled: '',
 }
 
 const BUTTON_SIZE_CLASS = {
   none: '',
-  xs: 'px-2 py-1 text-[11px]',
-  sm: 'px-2.5 py-1.5 text-[12px]',
-  md: 'px-3 py-2 text-[13px]',
-  lg: 'px-7 py-3.5 text-[15px]',
+  xs: 'px-2 py-1 text-xs',
+  sm: 'px-2.5 py-1.5 text-xs',
+  md: 'px-3 py-2 text-sm',
+  lg: 'px-7 py-3.5 text-base',
   'icon-xs': 'size-5 p-0',
   'icon-sm': 'size-6 p-0',
   'icon-md': 'size-8 p-0',

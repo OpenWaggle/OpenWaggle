@@ -20,19 +20,19 @@ export function CollaborationSettingsCard({
   onMaxTurnsChange,
 }: CollaborationSettingsCardProps) {
   return (
-    <div className="rounded-lg border border-border bg-[#111418] p-5 space-y-4">
+    <div className="rounded-lg border border-border bg-bg p-5 space-y-4">
       <h3 className="text-sm font-medium text-text-secondary">Collaboration</h3>
 
-      <div className="flex items-center justify-between h-[40px]">
-        <span className="text-[13px] text-text-primary">Stop when</span>
+      <div className="flex items-center justify-between h-10">
+        <span className="text-xs text-text-primary">Stop when</span>
         <StopConditionToggle
           stopCondition={stopCondition}
           onStopConditionChange={onStopConditionChange}
         />
       </div>
 
-      <div className="flex items-center justify-between h-[40px]">
-        <span className="text-[13px] text-text-primary">Max turns</span>
+      <div className="flex items-center justify-between h-10">
+        <span className="text-xs text-text-primary">Max turns</span>
         <MaxTurnsSlider maxTurns={maxTurns} onMaxTurnsChange={onMaxTurnsChange} />
       </div>
     </div>
@@ -52,7 +52,7 @@ function StopConditionToggle({ stopCondition, onStopConditionChange }: StopCondi
         type="button"
         onClick={() => onStopConditionChange('consensus')}
         className={cn(
-          'px-3 py-1.5 text-[12px] font-medium transition-colors',
+          'px-3 py-1.5 text-xs font-medium transition-colors',
           stopCondition === 'consensus'
             ? 'bg-accent/15 text-accent'
             : 'bg-bg text-text-tertiary hover:text-text-secondary',
@@ -65,7 +65,7 @@ function StopConditionToggle({ stopCondition, onStopConditionChange }: StopCondi
         type="button"
         onClick={() => onStopConditionChange('user-stop')}
         className={cn(
-          'px-3 py-1.5 text-[12px] font-medium transition-colors border-l border-border',
+          'px-3 py-1.5 text-xs font-medium transition-colors border-l border-border',
           stopCondition === 'user-stop'
             ? 'bg-accent/15 text-accent'
             : 'bg-bg text-text-tertiary hover:text-text-secondary',
@@ -90,9 +90,9 @@ function MaxTurnsSlider({ maxTurns, onMaxTurnsChange }: MaxTurnsSliderProps) {
         max={MAX_TURNS}
         value={maxTurns}
         onChange={(event) => onMaxTurnsChange(Number(event.target.value))}
-        className="w-[120px] accent-accent"
+        className="w-30 accent-accent"
       />
-      <span className="text-[13px] text-text-secondary w-6 text-right">{maxTurns}</span>
+      <span className="text-xs text-text-secondary w-6 text-right">{maxTurns}</span>
     </div>
   )
 }

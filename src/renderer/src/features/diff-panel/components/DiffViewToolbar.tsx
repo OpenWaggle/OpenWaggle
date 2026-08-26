@@ -9,8 +9,7 @@ interface DiffViewToolbarProps {
   readonly onToggleWrapLines: () => void
 }
 
-const TOGGLE_CLASS =
-  'flex size-6 items-center justify-center rounded-[5px] border transition-colors'
+const TOGGLE_CLASS = 'flex size-6 items-center justify-center rounded-md border transition-colors'
 
 function toggleClassName(active: boolean) {
   return active

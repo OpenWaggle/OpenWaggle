@@ -85,7 +85,7 @@ function SkillReferenceChip({ reference }: { readonly reference: string }) {
 
 function referenceChipClassName() {
   return cn(
-    'bg-accent/10 text-accent rounded px-1.5 py-0.5 text-[13px]',
+    'bg-accent/10 text-accent rounded px-1.5 py-0.5 text-sm',
     'inline-flex items-center gap-1',
     'select-none cursor-default',
   )

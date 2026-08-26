@@ -13,10 +13,9 @@ interface WelcomeScreenProps {
   onSelectProjectPath?: (path: string) => Promise<void> | void
 }
 
-const WELCOME_KICKER_CLASS =
-  'text-[clamp(22px,2.6vw,28px)] leading-[1.12] font-normal tracking-[-0.02em] text-text-secondary'
+const WELCOME_KICKER_CLASS = 'text-2xl font-normal tracking-tight text-text-secondary'
 const WELCOME_PROJECT_CLASS =
-  'text-[clamp(28px,3.8vw,40px)] leading-[1.18] font-light tracking-tight text-text-primary transition-colors hover:text-text-primary'
+  'text-2xl font-light tracking-tight text-text-primary transition-colors hover:text-text-primary'
 
 export function WelcomeScreen({
   projectPath,
@@ -35,7 +34,7 @@ export function WelcomeScreen({
   return (
     <section
       aria-label="Welcome"
-      className="mx-auto flex min-h-full w-full max-w-[720px] flex-1 items-center justify-center px-5 py-10"
+      className="mx-auto flex min-h-full w-full max-w-180 flex-1 items-center justify-center px-5 py-10"
     >
       <div className="flex flex-col items-center text-center">
         <img src={openwaggleMark} alt="OpenWaggle logo" className="size-20 object-contain" />
@@ -46,13 +45,13 @@ export function WelcomeScreen({
               open={projectMenuOpen}
               onOpenChange={setProjectMenuOpen}
               placement="bottom-start"
-              className="w-[340px] p-2 left-1/2 -translate-x-1/2 mt-2"
+              className="w-85 p-2 left-1/2 -translate-x-1/2 mt-2"
               trigger={
                 <Button
                   variant="unstyled"
                   type="button"
                   onClick={() => setProjectMenuOpen((prev) => !prev)}
-                  className={`relative inline-flex max-w-full items-center justify-center px-[0.45em] pb-[0.08em] ${WELCOME_PROJECT_CLASS}`}
+                  className={`relative inline-flex max-w-full items-center justify-center px-3 pb-0.5 ${WELCOME_PROJECT_CLASS}`}
                   title="Open project picker"
                 >
                   <span className="truncate">{projectName(projectPath)}</span>
@@ -67,7 +66,7 @@ export function WelcomeScreen({
                   setProjectMenuOpen(false)
                   onOpenProject?.()
                 }}
-                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] text-text-secondary transition-colors hover:bg-bg-hover"
+                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-text-secondary transition-colors hover:bg-bg-hover"
               >
                 <FolderOpen className="size-3.5 shrink-0" />
                 Select folder…
@@ -75,7 +74,7 @@ export function WelcomeScreen({
 
               {recentProjects.length > 0 && (
                 <div className="mt-1 border-t border-border pt-1">
-                  <div className="px-2.5 py-1 text-[11px] uppercase tracking-wide text-text-muted">
+                  <div className="px-2.5 py-1 text-xs uppercase tracking-wide text-text-muted">
                     Recent projects
                   </div>
                   {recentProjects.map((path) => (
@@ -84,12 +83,12 @@ export function WelcomeScreen({
                       key={path}
                       type="button"
                       onClick={() => handleChooseProject(path)}
-                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] text-text-secondary transition-colors hover:bg-bg-hover"
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-text-secondary transition-colors hover:bg-bg-hover"
                     >
                       <FolderOpen className="size-3.5 shrink-0 text-text-tertiary" />
                       <span className="min-w-0 flex-1 truncate">{projectName(path)}</span>
                       {path === projectPath && (
-                        <span className="text-[11px] text-text-muted">Current</span>
+                        <span className="text-xs text-text-muted">Current</span>
                       )}
                     </Button>
                   ))}

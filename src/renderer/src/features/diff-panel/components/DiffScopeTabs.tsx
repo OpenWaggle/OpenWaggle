@@ -96,7 +96,7 @@ export function DiffScopeTabs({
           aria-label="Branch diff base ref"
           value={baseRef ?? AUTOMATIC_VALUE}
           onChange={(event) => baseRefControl.onChange(event.target.value)}
-          className="ml-1 max-w-[240px]"
+          className="ml-1 max-w-60"
         >
           <option value={AUTOMATIC_VALUE}>
             {automaticOptionLabel(baseRefControl.resolvedAutomatic)}
@@ -134,7 +134,7 @@ export function DiffScopeTabs({
           aria-label="Turn"
           value={selectedTurnId}
           onChange={(event) => onSelectTurn(event.target.value)}
-          className="ml-1 max-w-[240px]"
+          className="ml-1 max-w-60"
         >
           {turns.map((turn) => (
             <option key={turn.turnId} value={turn.turnId}>
@@ -148,7 +148,7 @@ export function DiffScopeTabs({
 }
 
 function tabClass(active: boolean) {
-  return `h-[24px] px-2 rounded-[5px] text-[12px] ${
+  return `h-6 rounded-md px-2 text-xs ${
     active ? 'bg-diff-stage-bg text-accent font-medium' : 'text-text-tertiary hover:bg-bg-hover'
   }`
 }

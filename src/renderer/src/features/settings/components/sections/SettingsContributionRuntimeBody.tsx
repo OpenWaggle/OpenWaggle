@@ -6,5 +6,5 @@ export function SettingsContributionRuntimeBody({
 }: {
   readonly entry: ExtensionContributionRegistryEntry
 }) {
-  return <ExtensionFederatedModuleHost className="min-h-[420px]" entry={entry} />
+  return <ExtensionFederatedModuleHost className="min-h-105" entry={entry} />
 }

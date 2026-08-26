@@ -27,8 +27,8 @@ function ServerRow({
   return (
     <div className="flex items-center gap-3 border-t border-border px-4 py-2.5 first:border-t-0">
       <div className="min-w-0 flex-1">
-        <div className="text-[12px] font-medium text-text-primary">{server.name}</div>
-        {hint && <div className="text-[10px] text-text-muted">{hint}</div>}
+        <div className="text-xs font-medium text-text-primary">{server.name}</div>
+        {hint && <div className="text-xs text-text-muted">{hint}</div>}
       </div>
       <StatusPill tone={isSharedServer(server) ? 'accent' : 'neutral'}>
         {isSharedServer(server) ? 'shared' : 'project'}
@@ -61,11 +61,11 @@ function ServerGroup({
 }) {
   return (
     <div>
-      <div className="px-4 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
+      <div className="px-4 pb-1 pt-3 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
         {title}
       </div>
       {servers.length === 0 ? (
-        <div className="px-4 py-2.5 text-[11px] text-text-muted">No servers.</div>
+        <div className="px-4 py-2.5 text-xs text-text-muted">No servers.</div>
       ) : (
         servers.map((server) => (
           <ServerRow
@@ -103,13 +103,13 @@ export function McpProjectServerDetail({
   const shared = servers.filter(isSharedServer)
   const own = servers.filter((server) => !isSharedServer(server))
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-[#111418]">
+    <div className="overflow-hidden rounded-lg border border-border bg-bg">
       <div className="flex items-center gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0 flex-1">
-          <div className="text-[13px] font-semibold text-text-primary">{label}</div>
-          <div className="truncate text-[10px] text-text-muted">{tildifyPath(projectPath)}</div>
+          <div className="text-xs font-semibold text-text-primary">{label}</div>
+          <div className="truncate text-xs text-text-muted">{tildifyPath(projectPath)}</div>
         </div>
-        <span className="text-[11px] text-text-tertiary">project MCP</span>
+        <span className="text-xs text-text-tertiary">project MCP</span>
         <ToggleSwitch
           checked={masterOn}
           disabled={busy}
@@ -119,7 +119,7 @@ export function McpProjectServerDetail({
       </div>
       <div className={cn(!masterOn && 'pointer-events-none opacity-40')}>
         {loading ? (
-          <div className="px-4 py-6 text-center text-[11px] text-text-muted">Loading…</div>
+          <div className="px-4 py-6 text-center text-xs text-text-muted">Loading…</div>
         ) : (
           <>
             <ServerGroup

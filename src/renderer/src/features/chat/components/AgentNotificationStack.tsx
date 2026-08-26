@@ -169,7 +169,7 @@ function NotificationCard({
   return (
     <div
       className={cn(
-        'pointer-events-auto relative w-full select-none overflow-visible rounded-lg border px-3.5 py-3 text-sm text-text-primary shadow-xl shadow-black/25 backdrop-blur-sm',
+        'pointer-events-auto relative w-full select-none overflow-visible rounded-lg border px-3.5 py-3 text-sm text-text-primary shadow-xl shadow-bg/25 backdrop-blur-sm',
         tone.border,
       )}
       data-notification-level={notification.level}
@@ -189,12 +189,10 @@ function NotificationCard({
       <div className="flex min-w-0 gap-2">
         <Icon className={cn('mt-0.5 size-4 shrink-0', tone.icon)} />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5 pr-4">
-          <p className="text-[11px] font-medium tracking-[0.16em] text-text-muted uppercase">
+          <p className="text-xs font-medium tracking-widest text-text-muted uppercase">
             {notificationLabel(notification.level)}
           </p>
-          <p className="min-w-0 text-[12px] leading-5 text-text-secondary">
-            {notification.message}
-          </p>
+          <p className="min-w-0 text-xs leading-5 text-text-secondary">{notification.message}</p>
         </div>
       </div>
     </div>
@@ -255,7 +253,7 @@ export function AgentNotificationStack({
       {notifications.length === 0 ? null : (
         <output
           aria-label="Agent notifications"
-          className="pointer-events-none absolute top-[calc(--spacing(4)+52px)] right-4 z-40 flex w-[calc(100%---spacing(8))] max-w-90 flex-col gap-3 sm:right-8 sm:w-[calc(100%---spacing(16))]"
+          className="pointer-events-none absolute top-17 right-4 left-4 z-40 ml-auto flex max-w-90 flex-col gap-3 sm:right-8 sm:left-8"
           onBlur={(event) => {
             if (!event.currentTarget.contains(event.relatedTarget)) setHovering(false)
           }}
@@ -292,7 +290,7 @@ export function AgentNotificationStack({
             <div className="pointer-events-auto pr-1 text-right">
               <Button
                 aria-expanded={expanded}
-                className="h-auto px-1 py-0 text-[10px] text-text-muted"
+                className="h-auto px-1 py-0 text-xs text-text-muted"
                 onClick={() => setExpanded((current) => !current)}
                 size="xs"
                 variant="ghost"

@@ -131,7 +131,7 @@ describe('ExtensionAgentLoopSurface', () => {
             description: 'Pick one issue for the next step.',
             state: 'pending',
             actions: [
-              { id: 'issue-113', label: '#113' },
+              { id: 'issue-113', label: `#${113}` },
               { id: 'cancel', label: 'Cancel', tone: 'secondary' },
             ],
           },
@@ -142,7 +142,7 @@ describe('ExtensionAgentLoopSurface', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '#113' }))
+    fireEvent.click(screen.getByRole('button', { name: `#${113}` }))
 
     // The heading, asserted by role. A count assertion would pin whatever duplication happens to
     // exist and turn de-duplicating it into a failure.

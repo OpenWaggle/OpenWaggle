@@ -1,6 +1,7 @@
 import { SupportedModelId } from '@shared/types/brand'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { AGENT_TEXT } from '@/features/waggle/lib'
 import { AgentLabel } from '../AgentLabel'
 
 describe('AgentLabel', () => {
@@ -34,6 +35,6 @@ describe('AgentLabel', () => {
       />,
     )
     const el = screen.getByText(/Reviewer/).parentElement
-    expect(el?.className).toContain('text-[#f5a623]')
+    expect(el?.className).toContain(AGENT_TEXT.amber)
   })
 })

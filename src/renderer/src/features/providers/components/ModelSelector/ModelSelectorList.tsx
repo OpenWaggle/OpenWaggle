@@ -14,7 +14,7 @@ export function ModelSelectorList({
 }: ModelSelectorListProps) {
   if (models.length === 0) {
     return (
-      <div className="px-4 py-6 text-[13px] text-[#9098a8]">
+      <div className="px-4 py-6 text-sm text-text-tertiary">
         No models available. Configure providers in Connections.
       </div>
     )

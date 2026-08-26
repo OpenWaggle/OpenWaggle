@@ -48,7 +48,7 @@ export function PackageMetadata({
 }) {
   const manifest = extensionPackage.manifest
   return (
-    <div className="mt-4 grid gap-3 text-[12px] text-text-tertiary md:grid-cols-2">
+    <div className="mt-4 grid gap-3 text-xs text-text-tertiary md:grid-cols-2">
       <MetadataItem label="Version">{manifest?.version ?? 'Unknown'}</MetadataItem>
       <MetadataItem label="SDK range">{manifest?.sdkRange ?? 'Unknown'}</MetadataItem>
       <MetadataItem label="Content hash" valueClassName="font-mono">

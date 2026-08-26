@@ -41,8 +41,8 @@ export function ServerInstructionsCard({
   return (
     <div className="space-y-2 rounded-md border border-border bg-bg px-3 py-3">
       <div>
-        <p className="text-[13px] font-medium text-text-primary">Server instructions</p>
-        <p className="text-[11px] text-text-muted">
+        <p className="text-xs font-medium text-text-primary">Server instructions</p>
+        <p className="text-xs text-text-muted">
           {descriptor.serverLabel} · untrusted · never injected automatically
           {descriptor.truncated ? ' · truncated' : ''}
         </p>
@@ -56,7 +56,7 @@ export function ServerInstructionsCard({
         </Button>
       </div>
       {expanded && (
-        <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded bg-bg-secondary p-2 text-[11px] text-text-secondary">
+        <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded bg-bg-secondary p-2 text-xs text-text-secondary">
           {descriptor.instructions}
         </pre>
       )}
@@ -109,12 +109,12 @@ export function RemoteSkillCard({
   return (
     <div className="space-y-2 rounded-md border border-border bg-bg px-3 py-3">
       <div>
-        <p className="text-[13px] font-medium text-text-primary">{skill.name}</p>
-        <p className="break-all text-[11px] text-text-muted">
+        <p className="text-xs font-medium text-text-primary">{skill.name}</p>
+        <p className="break-all text-xs text-text-muted">
           {skill.serverLabel} · experimental SEP-2640 · {skill.integrity}
         </p>
-        <p className="mt-1 text-[12px] text-text-tertiary">{skill.description}</p>
-        <p className="mt-1 break-all text-[10px] text-text-muted">{skill.uri}</p>
+        <p className="mt-1 text-xs text-text-tertiary">{skill.description}</p>
+        <p className="mt-1 break-all text-xs text-text-muted">{skill.uri}</p>
       </div>
       <div className="flex gap-2">
         <Button type="button" disabled={busy} onClick={() => void inspect()}>
@@ -128,12 +128,12 @@ export function RemoteSkillCard({
       </div>
       {review && (
         <div className="space-y-2">
-          <p className="text-[11px] text-text-muted">
+          <p className="text-xs text-text-muted">
             {review.digestVerified
               ? 'SKILL.md digest and frontmatter verified.'
               : 'Dynamic content: no digest manifest; approval cannot persist.'}
           </p>
-          <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded bg-bg-secondary p-2 text-[11px] text-text-secondary">
+          <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded bg-bg-secondary p-2 text-xs text-text-secondary">
             {review.markdown}
           </pre>
         </div>

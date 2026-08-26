@@ -23,14 +23,14 @@ export function InterruptedRunNotice({
   onDismiss,
 }: InterruptedRunNoticeProps) {
   return (
-    <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-text-secondary">
+    <div className="rounded-xl border border-warning/20 bg-warning/10 px-4 py-3 text-text-secondary">
       <div className="flex items-start gap-3">
-        <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-400" />
+        <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-sm font-medium text-text-primary">Run interrupted</p>
-              <p className="mt-1 text-[13px] text-text-tertiary">
+              <p className="mt-1 text-sm text-text-tertiary">
                 OpenWaggle closed before this {runMode === 'waggle' ? 'Waggle' : 'standard'} run
                 finished. The latest session state was restored without auto-resuming.
               </p>
@@ -47,7 +47,7 @@ export function InterruptedRunNotice({
               </Button>
             ) : null}
           </div>
-          <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-text-muted">
+          <div className="mt-2 flex flex-wrap gap-2 text-xs text-text-muted">
             <span className="rounded-md bg-bg-hover px-2 py-0.5">{String(model)}</span>
             <span className="rounded-md bg-bg-hover px-2 py-0.5">
               {formatRelativeTime(interruptedAt)}

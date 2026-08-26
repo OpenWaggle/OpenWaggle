@@ -106,11 +106,11 @@ export function TranscriptWindow({
       {/* Focus lands here when the transcript reaches its start, so a keyboard user keeps a place. */}
       <div ref={startRef} tabIndex={-1} className="outline-none" />
       {hiddenCount > 0 ? (
-        <div className="mx-auto w-full max-w-[720px] px-12 pt-5 pb-6">
+        <div className="mx-auto w-full max-w-180 px-12 pt-5 pb-6">
           <Button
             variant="secondary"
             type="button"
-            className="w-full justify-center text-[12px]"
+            className="w-full justify-center text-xs"
             onClick={loadEarlier}
           >
             {`Load earlier messages (${hiddenCount} above)`}
@@ -139,7 +139,7 @@ function TranscriptRows({
         return (
           <div
             key={getChatRowKey(row)}
-            className="mx-auto w-full max-w-[720px] px-12 pb-6"
+            className="mx-auto w-full max-w-180 px-12 pb-6"
             {...(isUserMessage ? { 'data-user-message-id': row.message.id } : {})}
             style={index === 0 && !hasEarlier ? { paddingTop: PADDING_TOP } : undefined}
           >

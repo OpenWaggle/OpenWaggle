@@ -24,7 +24,7 @@ function ExtensionAgentLoopStatusWidget({
   return (
     <PanelErrorBoundary name={`Extension status widget: ${entry.title}`}>
       <section className="rounded-lg border border-border/80 bg-bg-secondary/40 p-2">
-        <div className="mb-2 flex min-w-0 items-center gap-2 text-[11px] text-text-tertiary">
+        <div className="mb-2 flex min-w-0 items-center gap-2 text-xs text-text-tertiary">
           <Activity className="size-3.5 shrink-0 text-accent" />
           <span className="truncate font-medium text-text-secondary">{entry.title}</span>
         </div>

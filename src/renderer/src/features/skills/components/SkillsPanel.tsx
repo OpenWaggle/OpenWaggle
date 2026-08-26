@@ -17,7 +17,7 @@ function SkillsPanelHeader({ onRefresh }: { readonly onRefresh: () => void }) {
     <div className="flex items-center justify-between border-b border-border px-5 py-3">
       <div>
         <h2 className="text-sm font-semibold text-text-primary">Skills</h2>
-        <p className="text-[12px] text-text-tertiary">Discover and manage project skills.</p>
+        <p className="text-xs text-text-tertiary">Discover and manage project skills.</p>
       </div>
       <Button
         variant="secondary"
@@ -41,15 +41,13 @@ function StandardsSection({
   return (
     <section className="border-b border-border px-4 py-3">
       <div className="flex items-center justify-between">
-        <span className="text-[12px] font-medium text-text-secondary">AGENTS.md</span>
+        <span className="text-xs font-medium text-text-secondary">AGENTS.md</span>
         <StatusBadge status={standardsStatus?.agents ?? 'missing'} />
       </div>
-      <p className="mt-1 truncate text-[11px] text-text-tertiary">
+      <p className="mt-1 truncate text-xs text-text-tertiary">
         {standardsStatus?.agentsPath || `${projectPath}/AGENTS.md`}
       </p>
-      {standardsStatus?.error && (
-        <p className="mt-1 text-[11px] text-error">{standardsStatus.error}</p>
-      )}
+      {standardsStatus?.error && <p className="mt-1 text-xs text-error">{standardsStatus.error}</p>}
     </section>
   )
 }
@@ -80,13 +78,9 @@ function SkillListItem({
         onClick={onSelect}
         className="min-w-0 flex-1 text-left"
       >
-        <span className="block truncate text-[12px] font-medium text-text-primary">
-          {skill.name}
-        </span>
-        <p className="mt-1 text-[11px] text-text-tertiary">
-          {skill.description || 'No description'}
-        </p>
-        <div className="mt-1.5 flex items-center gap-2 text-[10px] text-text-muted">
+        <span className="block truncate text-xs font-medium text-text-primary">{skill.name}</span>
+        <p className="mt-1 text-xs text-text-tertiary">{skill.description || 'No description'}</p>
+        <div className="mt-1.5 flex items-center gap-2 text-xs text-text-muted">
           <span>{skill.id}</span>
           {skill.hasScripts && (
             <span className="inline-flex items-center gap-1">
@@ -165,7 +159,7 @@ function SkillsSidebar({
   readonly toggleSkill: (skillId: string, enabled: boolean) => Promise<void>
 }) {
   return (
-    <div className="flex min-h-0 flex-col border-r border-border">
+    <div className="flex w-75 shrink-0 min-h-0 flex-col border-r border-border">
       <StandardsSection projectPath={projectPath} standardsStatus={standardsStatus} />
       <section className="min-h-0 flex-1 overflow-y-auto p-2">
         <SkillsList
@@ -198,7 +192,7 @@ function SkillsPanelContent({ projectPath }: { readonly projectPath: string }) {
   return (
     <div className="flex h-full flex-col overflow-hidden bg-bg">
       <SkillsPanelHeader onRefresh={() => void refresh()} />
-      <div className="grid min-h-0 flex-1 grid-cols-[300px_1fr]">
+      <div className="flex min-h-0 flex-1">
         <SkillsSidebar
           projectPath={projectPath}
           standardsStatus={standardsStatus}

@@ -49,10 +49,10 @@ export function McpProjectControl({
   return (
     <section aria-labelledby="mcp-projects-heading" className="space-y-3">
       <div>
-        <h3 id="mcp-projects-heading" className="text-[15px] font-semibold text-text-primary">
+        <h3 id="mcp-projects-heading" className="text-base font-semibold text-text-primary">
           Activation
         </h3>
-        <p className="mt-1 text-[12px] text-text-tertiary">
+        <p className="mt-1 text-xs text-text-tertiary">
           Global master, then on/off per project. When Global is off nothing runs. Disabling a
           server for one project never affects other projects.
         </p>
@@ -61,13 +61,13 @@ export function McpProjectControl({
       <GlobalMasterCard globalOn={globalOn} busy={busy} onSetGlobal={onSetGlobal} />
 
       {error && (
-        <p role="alert" className="text-[11px] text-error">
+        <p role="alert" className="text-xs text-error-text">
           {error}
         </p>
       )}
 
       {projects.length === 0 ? (
-        <div className="rounded-lg border border-border bg-[#111418] px-4 py-6 text-center text-[12px] text-text-muted">
+        <div className="rounded-lg border border-border bg-bg px-4 py-6 text-center text-xs text-text-muted">
           Open a project to configure per-project MCP.
         </div>
       ) : (

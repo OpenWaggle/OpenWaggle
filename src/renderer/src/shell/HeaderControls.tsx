@@ -65,12 +65,12 @@ export function HeaderLeft({
       )}
 
       <Hash className="no-drag size-3.5 text-text-tertiary" />
-      <span className="no-drag text-[14px] font-medium text-text-primary">{title}</span>
-      <span className="no-drag text-[12px] text-text-tertiary">/ {activeBranchName}</span>
-      <span className="no-drag flex items-center h-5 px-2 rounded border border-border bg-bg-tertiary text-[12px] text-text-secondary">
+      <span className="no-drag text-sm font-medium text-text-primary">{title}</span>
+      <span className="no-drag text-xs text-text-tertiary">/ {activeBranchName}</span>
+      <span className="no-drag flex items-center h-5 px-2 rounded border border-border bg-bg-tertiary text-xs text-text-secondary">
         {projectName(projectPath)}
       </span>
-      <span className="no-drag text-[16px] leading-none text-text-tertiary">···</span>
+      <span className="no-drag text-base leading-none text-text-tertiary">···</span>
     </div>
   )
 }
@@ -100,8 +100,8 @@ export function TerminalButton({ open, projectPath, onToggle }: TerminalButtonPr
       title={terminalTitle(projectPath, open)}
     >
       <SquareTerminal className="size-3.5 text-text-secondary" />
-      <span className="text-[13px] font-medium text-text-primary">{open ? 'Hide' : 'Open'}</span>
-      <span className="text-[9px] text-text-tertiary">&#x2228;</span>
+      <span className="text-sm font-medium text-text-primary">{open ? 'Hide' : 'Open'}</span>
+      <span className="text-xs text-text-tertiary">&#x2228;</span>
     </Button>
   )
 }
@@ -120,8 +120,8 @@ export function CommitButton({ isCommitting, projectPath, onOpen }: CommitButton
       disabled={disabled}
       title={projectPath ? 'Open commit dialog' : 'No project selected'}
     >
-      <span className="text-[13px] font-semibold text-bg">Commit</span>
-      <span className="text-[9px] text-bg/50">&#x2228;</span>
+      <span className="text-sm font-semibold text-bg">Commit</span>
+      <span className="text-xs text-bg/50">&#x2228;</span>
     </Button>
   )
 }
@@ -189,11 +189,11 @@ export function DiffToggleButton({
     >
       {status ? (
         <>
-          <span className="text-[13px] font-medium text-success">+{status.additions}</span>
-          <span className="text-[13px] font-medium text-error">-{status.deletions}</span>
+          <span className="text-sm font-medium text-success">+{status.additions}</span>
+          <span className="text-sm font-medium text-error">-{status.deletions}</span>
         </>
       ) : (
-        <span className="text-[13px] font-medium text-text-tertiary">
+        <span className="text-sm font-medium text-text-tertiary">
           {diffStatusText(error, isLoading)}
         </span>
       )}

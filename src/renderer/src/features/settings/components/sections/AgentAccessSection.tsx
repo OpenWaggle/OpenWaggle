@@ -117,13 +117,13 @@ export function AgentAccessSection() {
 
   return (
     <div className="space-y-3">
-      <h3 className="text-[16px] font-semibold text-[#e7e9ee]">Agent access</h3>
+      <h3 className="text-base font-semibold text-text-primary">Agent access</h3>
 
-      <div className="overflow-hidden rounded-lg border border-[#1e2229] bg-[#111418]">
-        <div className="flex min-h-14 items-center justify-between gap-4 border-b border-[#1e2229] px-5 py-3">
+      <div className="overflow-hidden rounded-lg border border-border bg-bg">
+        <div className="flex min-h-14 items-center justify-between gap-4 border-b border-border px-5 py-3">
           <div className="flex flex-col gap-0.5">
-            <span className="text-[13px] font-medium text-[#e7e9ee]">Default access mode</span>
-            <span className="text-[12px] text-[#9098a8]">
+            <span className="text-xs font-medium text-text-primary">Default access mode</span>
+            <span className="text-xs text-text-tertiary">
               Used by any session and any project that has not set its own.
             </span>
           </div>
@@ -143,8 +143,8 @@ export function AgentAccessSection() {
 
         <div className="flex min-h-14 items-center justify-between gap-4 px-5 py-3">
           <div className="flex flex-col gap-0.5">
-            <span className="text-[13px] font-medium text-[#e7e9ee]">Current project</span>
-            <span className="text-[12px] text-[#9098a8]">
+            <span className="text-xs font-medium text-text-primary">Current project</span>
+            <span className="text-xs text-text-tertiary">
               {settings.projectPath
                 ? projectAuthorization.mode
                   ? 'This project overrides the default above.'
@@ -174,7 +174,7 @@ export function AgentAccessSection() {
       </div>
 
       {modeError ? (
-        <p className="text-[12px] text-error" role="alert">
+        <p className="text-xs text-error-text" role="alert">
           {modeError}
         </p>
       ) : null}

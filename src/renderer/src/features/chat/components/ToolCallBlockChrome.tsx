@@ -31,13 +31,13 @@ export function ToolCallHeader({
         aria-expanded={expanded}
         aria-label={`${view.actionText} — ${expanded ? 'collapse' : 'expand'} details`}
         onClick={onToggleExpanded}
-        className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-[13px] transition-colors"
+        className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-sm transition-colors"
       >
         <ToolStatusIcon view={view} result={result} />
         <ToolActionLabel view={view} result={result} />
         <ToolDiffSummary view={view} />
         {duration > 0 && !view.isRunning && (
-          <span className="text-[12px] text-text-muted shrink-0">{formatDuration(duration)}</span>
+          <span className="text-xs text-text-muted shrink-0">{formatDuration(duration)}</span>
         )}
         <ChevronRight
           className={cn(
@@ -103,7 +103,7 @@ function ToolDiffSummary({ view }: { readonly view: ToolCallViewModel }) {
     return null
   }
   return (
-    <span className="flex items-center gap-1 text-[12px] shrink-0">
+    <span className="flex items-center gap-1 text-xs shrink-0">
       <span className="text-success">+{view.diff.additions}</span>
       <span className="text-error">-{view.diff.deletions}</span>
     </span>
@@ -160,10 +160,10 @@ function ToolPreview({ text, tone }: { readonly text: string; readonly tone: 'mu
   return (
     <pre
       className={cn(
-        'ml-5 mt-1 overflow-hidden rounded-md px-3 py-2 text-[12px] font-mono whitespace-pre-wrap break-words',
+        'ml-5 mt-1 overflow-hidden rounded-md px-3 py-2 text-xs font-mono whitespace-pre-wrap break-words',
         tone === 'error'
-          ? 'max-h-[160px] border border-error/20 bg-error/5 text-error'
-          : 'max-h-[120px] bg-bg-secondary/60 text-text-tertiary',
+          ? 'max-h-40 border border-error/20 bg-error/5 text-error'
+          : 'max-h-30 bg-bg-secondary/60 text-text-tertiary',
       )}
     >
       {text}

@@ -49,7 +49,7 @@ function hostLayout(input: {
     ? 'flex size-full min-h-0 flex-col'
     : input.shouldAutoHeight
       ? 'flex min-h-0 flex-col'
-      : 'flex min-h-[220px] flex-col'
+      : 'flex min-h-55 flex-col'
   const containerChrome =
     input.chrome === 'card'
       ? 'rounded-md border border-border/70 bg-bg-secondary/30 p-3'
@@ -58,7 +58,7 @@ function hostLayout(input: {
     ? 'min-h-0 w-full flex-1 bg-transparent'
     : input.shouldAutoHeight
       ? 'w-full shrink-0 bg-transparent'
-      : 'min-h-[220px] w-full flex-1 bg-transparent'
+      : 'min-h-55 w-full flex-1 bg-transparent'
 
   return { containerChrome, containerLayout, iframeClassName }
 }
@@ -95,7 +95,7 @@ function sameMountStatus(
 function MountStatusBanner({ status }: { readonly status: ReturnType<typeof initialMountStatus> }) {
   if (status.kind === 'loading') {
     return (
-      <div className="mb-3 flex items-center gap-2 text-[12px] text-text-tertiary">
+      <div className="mb-3 flex items-center gap-2 text-xs text-text-tertiary">
         <RefreshCw className="size-3 animate-spin text-accent" />
         Mounting extension module...
       </div>
@@ -104,7 +104,7 @@ function MountStatusBanner({ status }: { readonly status: ReturnType<typeof init
 
   if (status.kind === 'error') {
     return (
-      <div role="alert" className="mb-3 flex items-start gap-2 text-[12px] text-error">
+      <div role="alert" className="mb-3 flex items-start gap-2 text-xs text-error">
         <ShieldAlert className="mt-0.5 size-3 shrink-0" />
         <span>{status.message}</span>
       </div>
@@ -198,7 +198,7 @@ export function ExtensionFederatedModuleHost({
       <div
         role="alert"
         className={cn(
-          'rounded-md border border-error/25 bg-error/5 p-3 text-[12px] text-error',
+          'rounded-md border border-error/25 bg-error/5 p-3 text-xs text-error',
           className,
         )}
       >
@@ -212,7 +212,7 @@ export function ExtensionFederatedModuleHost({
       <div
         role="alert"
         className={cn(
-          'rounded-md border border-border/70 bg-bg-secondary/40 p-3 text-[12px] text-text-tertiary',
+          'rounded-md border border-border/70 bg-bg-secondary/40 p-3 text-xs text-text-tertiary',
           className,
         )}
       >

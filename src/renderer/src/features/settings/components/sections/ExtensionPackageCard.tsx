@@ -27,17 +27,17 @@ export function ExtensionPackageCard({
   readonly actions: ExtensionPackageCardActions
 }) {
   return (
-    <div className="rounded-lg border border-border bg-[#111418] p-4">
+    <div className="rounded-lg border border-border bg-bg p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <PackageOpen className="size-4 text-accent" />
-            <h3 className="text-[15px] font-semibold text-text-primary">
+            <h3 className="text-base font-semibold text-text-primary">
               {packageTitle(extensionPackage)}
             </h3>
             <PackageStatusPills extensionPackage={extensionPackage} />
           </div>
-          <div className="mt-1 truncate text-[12px] text-text-muted">
+          <div className="mt-1 truncate text-xs text-text-muted">
             {extensionPackage.packagePath}
           </div>
         </div>

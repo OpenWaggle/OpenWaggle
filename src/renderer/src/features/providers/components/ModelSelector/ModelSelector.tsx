@@ -6,7 +6,7 @@ import { cn } from '@/shared/lib/cn'
 import { formatContextWindow } from '@/shared/lib/format-tokens'
 import { Button } from '@/shared/ui/Button'
 import { ModelSelectorDropdown } from './ModelSelectorDropdown'
-import { ProviderModelIcon, resolveIconColor } from './provider-icon'
+import { ProviderModelIcon } from './provider-icon'
 import type { FlatModel } from './types'
 
 interface ModelSelectorProps {
@@ -87,8 +87,7 @@ interface SelectedModelIconProps {
 }
 
 function SelectedModelIcon({ provider }: SelectedModelIconProps) {
-  const color = resolveIconColor(provider)
-  return <ProviderModelIcon provider={provider} className="size-3.5 shrink-0" style={{ color }} />
+  return <ProviderModelIcon provider={provider} className="size-3.5 shrink-0" />
 }
 
 export function ModelSelector({
@@ -151,15 +150,13 @@ export function ModelSelector({
         aria-expanded={isOpen}
         aria-haspopup="listbox"
         className={cn(
-          'no-drag flex h-[26px] items-center gap-[5px] rounded-md border border-button-border px-2.5 transition-colors hover:bg-bg-hover hover:text-text-primary',
+          'no-drag flex h-6.5 items-center gap-1.5 rounded-md border border-button-border px-2.5 transition-colors hover:bg-bg-hover hover:text-text-primary',
           selectedModel ? 'text-text-secondary' : 'text-text-muted',
         )}
       >
         {selectedModel && <SelectedModelIcon provider={selectedModel.provider} />}
-        <span className="max-w-[180px] truncate text-[12px]">
-          {selectedModel?.name ?? 'Select model'}
-        </span>
-        <span className="text-[9px] text-text-tertiary">&#x2228;</span>
+        <span className="max-w-45 truncate text-xs">{selectedModel?.name ?? 'Select model'}</span>
+        <span className="text-xs text-text-tertiary">&#x2228;</span>
       </Button>
 
       {isOpen && (

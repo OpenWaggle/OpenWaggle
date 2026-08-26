@@ -46,7 +46,7 @@ export function DiffBottomBar({
           type="button"
           onClick={onRevertAll}
           disabled={!canRevertAll || isActionRunning}
-          className="flex items-center gap-1 h-[26px] px-3 rounded-[5px] border border-button-border text-[12px] text-text-secondary disabled:opacity-40 transition-opacity hover:bg-bg-hover"
+          className="flex h-6.5 items-center gap-1 rounded-md border border-button-border px-3 text-xs text-text-secondary transition-opacity hover:bg-bg-hover disabled:opacity-40"
         >
           Revert all
         </Button>
@@ -55,9 +55,9 @@ export function DiffBottomBar({
           type="button"
           onClick={onStageAll}
           disabled={!canStageAll || isActionRunning}
-          className="flex items-center gap-1 h-[26px] px-3 rounded-[5px] bg-diff-stage-bg border border-accent text-[12px] disabled:opacity-40 transition-opacity"
+          className="flex h-6.5 items-center gap-1 rounded-md border border-accent bg-diff-stage-bg px-3 text-xs transition-opacity disabled:opacity-40"
         >
-          <span className="text-[14px] font-semibold text-accent">+</span>
+          <span className="text-sm font-semibold text-accent">+</span>
           <span className="font-medium text-accent">Stage all</span>
         </Button>
       </div>

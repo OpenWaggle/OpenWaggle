@@ -131,7 +131,7 @@ export function GlobalCommandPalette() {
           }
           placeholder="Search commands…"
           aria-label="Search commands"
-          className="h-12 px-0 text-[14px]"
+          className="h-12 px-0 text-sm"
         />
       </div>
       <CommandPaletteList

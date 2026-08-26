@@ -54,8 +54,8 @@ export function CommitDialogBody({
         isRefreshing={isRefreshing}
         onRefresh={actions.onRefresh}
       />
-      {statusError && <p className="text-[13px] text-error">{statusError}</p>}
-      {error && <p className="text-[13px] text-error">{error}</p>}
+      {statusError && <p className="text-sm text-error">{statusError}</p>}
+      {error && <p className="text-sm text-error">{error}</p>}
       <CommitMessageFields form={form} actions={actions} />
       <ChangedFilesSelector
         changedFiles={changedFiles}
@@ -80,7 +80,7 @@ function CommitStatusSummary({
 }) {
   return (
     <div className="flex items-center justify-between rounded-md border border-border bg-bg px-3 py-2">
-      <div className="text-[13px] text-text-secondary">
+      <div className="text-sm text-text-secondary">
         {status
           ? `${selectedCount}/${status.filesChanged} files selected • +${status.additions} / -${status.deletions}`
           : 'Git status unavailable'}
@@ -112,9 +112,7 @@ function CommitMessageFields({
   return (
     <>
       <label className="block" htmlFor={COMMIT_MESSAGE_ID}>
-        <span className="mb-1.5 block text-[13px] font-medium text-text-secondary">
-          Commit message
-        </span>
+        <span className="mb-1.5 block text-sm font-medium text-text-secondary">Commit message</span>
         <Textarea
           id={COMMIT_MESSAGE_ID}
           rows={ROWS}
@@ -146,17 +144,17 @@ function ChangedFilesSelector({
   readonly onTogglePath: (filePath: string) => void
 }) {
   return (
-    <div className="max-h-[220px] overflow-y-auto rounded-md border border-border bg-bg">
+    <div className="max-h-55 overflow-y-auto rounded-md border border-border bg-bg">
       {changedFiles.length > 0 && (
         <div className="flex items-center gap-2 border-b border-border px-3 py-1.5">
           <Checkbox checked={selectedPaths.size === changedFiles.length} onChange={onToggleAll} />
-          <span className="text-[12px] font-medium text-text-tertiary">
+          <span className="text-xs font-medium text-text-tertiary">
             {selectedPaths.size === changedFiles.length ? 'Deselect all' : 'Select all'}
           </span>
         </div>
       )}
       {changedFiles.length === 0 ? (
-        <div className="px-3 py-2 text-[13px] text-text-tertiary">No file changes detected.</div>
+        <div className="px-3 py-2 text-sm text-text-tertiary">No file changes detected.</div>
       ) : (
         changedFiles.map((file) => (
           <Checkbox
@@ -165,10 +163,10 @@ function ChangedFilesSelector({
             onChange={() => onTogglePath(file.path)}
             label={
               <>
-                <span className={cn('truncate text-[13px] flex-1', STATUS_CLASS[file.status])}>
+                <span className={cn('flex-1 truncate text-sm', STATUS_CLASS[file.status])}>
                   {file.path}
                 </span>
-                <span className="shrink-0 text-[12px] text-text-tertiary">
+                <span className="shrink-0 text-xs text-text-tertiary">
                   {file.additions > 0 ? `+${file.additions}` : ''}
                   {file.additions > 0 && file.deletions > 0 ? ' / ' : ''}
                   {file.deletions > 0 ? `-${file.deletions}` : ''}

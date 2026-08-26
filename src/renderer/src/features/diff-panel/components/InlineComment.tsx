@@ -1,4 +1,5 @@
 import { MessageSquare } from 'lucide-react'
+import type { CSSProperties } from 'react'
 import { useState } from 'react'
 import { formatLineRange } from '@/features/diff-panel/lib/review-comment-payload'
 import { Button } from '@/shared/ui/Button'
@@ -22,6 +23,9 @@ interface InlineCommentProps {
  * push its own actions off-screen.
  */
 const TEXTAREA_ROWS = 3
+const COMMENT_WIDTH_STYLE: CSSProperties & { '--diff-comment-width': string } = {
+  '--diff-comment-width': 'min(40rem, calc(100cqw - 4rem))',
+}
 
 export function InlineComment({
   startLine,
@@ -48,10 +52,13 @@ export function InlineComment({
   }
 
   return (
-    <div className="sticky left-0 flex w-[min(640px,calc(100cqw-4rem))] max-w-[calc(100cqw-4rem)] flex-col gap-2 border-y border-border bg-diff-header-bg px-3 py-2">
+    <div
+      className="sticky left-0 flex w-(--diff-comment-width) flex-col gap-2 border-y border-border bg-diff-header-bg px-3 py-2"
+      style={COMMENT_WIDTH_STYLE}
+    >
       <div className="flex items-center gap-1.5">
         <MessageSquare className="size-3 shrink-0 text-text-tertiary" />
-        <span className="text-[11px] text-text-tertiary">
+        <span className="text-xs text-text-tertiary">
           Comment on {formatLineRange(startLine, endLine)}
         </span>
       </div>
@@ -62,7 +69,7 @@ export function InlineComment({
         onChange={(event) => setContent(event.target.value)}
         placeholder="Leave feedback on this change…"
         rows={TEXTAREA_ROWS}
-        className="text-[12px]"
+        className="text-xs"
         onKeyDown={(event) => {
           if (event.key === 'Escape') {
             event.preventDefault()
@@ -82,7 +89,7 @@ export function InlineComment({
           variant="unstyled"
           type="button"
           onClick={onCancel}
-          className="h-[26px] rounded-[5px] px-2 text-[12px] text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
+          className="h-6.5 rounded-md px-2 text-xs text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
         >
           Cancel
         </Button>
@@ -91,7 +98,7 @@ export function InlineComment({
           type="button"
           onClick={handleAddSingle}
           disabled={!canSubmit}
-          className="h-[26px] rounded-[5px] border border-button-border px-2.5 text-[12px] text-text-secondary transition-opacity hover:bg-bg-hover disabled:opacity-40"
+          className="h-6.5 rounded-md border border-button-border px-2.5 text-xs text-text-secondary transition-opacity hover:bg-bg-hover disabled:opacity-40"
         >
           Add comment
         </Button>
@@ -100,7 +107,7 @@ export function InlineComment({
           type="button"
           onClick={handleAddToReview}
           disabled={!canSubmit}
-          className="h-[26px] rounded-[5px] border border-accent bg-diff-stage-bg px-2.5 text-[12px] font-medium text-accent transition-opacity disabled:opacity-40"
+          className="h-6.5 rounded-md border border-accent bg-diff-stage-bg px-2.5 text-xs font-medium text-accent transition-opacity disabled:opacity-40"
         >
           {hasPendingReview ? 'Add to review' : 'Start a review'}
         </Button>

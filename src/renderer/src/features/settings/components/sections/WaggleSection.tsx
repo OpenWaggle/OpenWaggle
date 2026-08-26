@@ -24,11 +24,11 @@ export function WaggleSection() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-[20px] font-semibold text-text-primary">Waggle Mode</h2>
+      <h2 className="text-xl font-semibold text-text-primary">Waggle Mode</h2>
       {displayedError && (
         <p
           role="alert"
-          className="rounded-lg border border-error/25 bg-error/6 px-3 py-2 text-sm text-error"
+          className="rounded-lg border border-error/25 bg-error/6 px-3 py-2 text-sm text-error-text"
         >
           {displayedError}
         </p>

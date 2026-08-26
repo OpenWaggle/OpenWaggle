@@ -56,10 +56,10 @@ export function PromptCard({
   return (
     <div className="space-y-2 rounded-md border border-border bg-bg px-3 py-3">
       <div>
-        <p className="text-[13px] font-medium text-text-primary">{prompt.title ?? prompt.name}</p>
-        <p className="text-[11px] text-text-muted">{prompt.serverLabel}</p>
+        <p className="text-xs font-medium text-text-primary">{prompt.title ?? prompt.name}</p>
+        <p className="text-xs text-text-muted">{prompt.serverLabel}</p>
         {prompt.description && (
-          <p className="mt-1 text-[12px] text-text-tertiary">{prompt.description}</p>
+          <p className="mt-1 text-xs text-text-tertiary">{prompt.description}</p>
         )}
       </div>
       {prompt.arguments.map((argument) => {
@@ -68,7 +68,7 @@ export function PromptCard({
           <label
             key={argument.name}
             htmlFor={fieldId}
-            className="block space-y-1 text-[11px] text-text-secondary"
+            className="block space-y-1 text-xs text-text-secondary"
           >
             <span>
               {argument.name}
@@ -155,10 +155,8 @@ export function ResourceCard({
   return (
     <div className="space-y-2 rounded-md border border-border bg-bg px-3 py-3">
       <div>
-        <p className="text-[13px] font-medium text-text-primary">
-          {resource.title ?? resource.name}
-        </p>
-        <p className="break-all text-[11px] text-text-muted">
+        <p className="text-xs font-medium text-text-primary">{resource.title ?? resource.name}</p>
+        <p className="break-all text-xs text-text-muted">
           {resource.serverLabel} · {resource.uri}
         </p>
       </div>
@@ -173,7 +171,7 @@ export function ResourceCard({
         )}
       </div>
       {result && (
-        <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded bg-bg-secondary p-2 text-[11px] text-text-secondary">
+        <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded bg-bg-secondary p-2 text-xs text-text-secondary">
           {resourceAttachmentText(result, resource.uri)}
         </pre>
       )}
@@ -217,10 +215,8 @@ export function TaskCard({
   return (
     <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-bg px-3 py-3">
       <div className="min-w-0">
-        <p className="truncate text-[13px] font-medium text-text-primary">
-          {taskId ?? 'Remote task'}
-        </p>
-        <p className="text-[11px] text-text-muted">
+        <p className="truncate text-xs font-medium text-text-primary">{taskId ?? 'Remote task'}</p>
+        <p className="text-xs text-text-muted">
           {record.serverLabel} · {status}
           {record.disabled ? ' · server disabled; remote work may continue' : ''}
         </p>
@@ -247,7 +243,7 @@ export function CapabilityGroup({
 }) {
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 text-[12px] font-medium text-text-secondary">
+      <div className="flex items-center gap-2 text-xs font-medium text-text-secondary">
         {icon}
         {title}
       </div>

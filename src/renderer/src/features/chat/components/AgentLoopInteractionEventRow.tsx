@@ -180,7 +180,7 @@ function InteractionStatusBadge({
   return (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-medium',
+        'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-1 text-xs font-medium',
         statusClassName(status.tone),
       )}
     >
@@ -216,14 +216,14 @@ function NotificationRow({ item }: { readonly item: AgentInteractionTranscriptIt
         <Icon className={cn('mt-0.5 size-4 shrink-0', isError ? 'text-error' : 'text-warning')} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-[12px] font-semibold text-text-primary">
+            <h3 className="text-xs font-semibold text-text-primary">
               {interactionEyebrow(interaction)}
             </h3>
-            <span className="text-[11px] text-text-muted tabular-nums">
+            <span className="text-xs text-text-muted tabular-nums">
               {eventTimeLabel(item.request.timestamp)}
             </span>
           </div>
-          <p className="mt-1 text-[12px] leading-5 text-text-secondary">{interaction.message}</p>
+          <p className="mt-1 text-xs leading-5 text-text-secondary">{interaction.message}</p>
         </div>
       </div>
     </section>
@@ -251,23 +251,23 @@ function StandardInteractionRow({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-text-muted">
+              <p className="text-xs font-medium uppercase tracking-widest text-text-muted">
                 {interactionEyebrow(interaction)}
               </p>
-              <h3 className="mt-1 truncate text-[13px] font-semibold text-text-primary">
+              <h3 className="mt-1 truncate text-sm font-semibold text-text-primary">
                 {agentLoopInteractionTitle(interaction)}
               </h3>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <InteractionStatusBadge interaction={interaction} resolution={item.resolution} />
-              <span className="text-[11px] text-text-muted tabular-nums">
+              <span className="text-xs text-text-muted tabular-nums">
                 {eventTimeLabel(item.request.timestamp)}
               </span>
             </div>
           </div>
           {message ? <InteractionMessage message={message} /> : null}
           {item.resolution?.error ? (
-            <p className="mt-2 text-[12px] leading-5 text-error">{item.resolution.error.message}</p>
+            <p className="mt-2 text-xs leading-5 text-error">{item.resolution.error.message}</p>
           ) : null}
         </div>
       </div>

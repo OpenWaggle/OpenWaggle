@@ -28,14 +28,14 @@ export function McpSectionHeading({
       <div className="space-y-1">
         <div className="flex items-center gap-2">
           <Network className="size-5 text-accent" />
-          <h2 className="text-[20px] font-semibold text-text-primary">MCP</h2>
+          <h2 className="text-xl font-semibold text-text-primary">MCP</h2>
           {view && (
             <StatusPill tone={integrationOn ? 'success' : 'neutral'}>
               {integrationOn ? 'On' : 'Off'} · {titleCase(view.integration.desired.source)}
             </StatusPill>
           )}
         </div>
-        <p className="max-w-[760px] text-[13px] leading-5 text-text-tertiary">
+        <p className="max-w-190 text-xs leading-5 text-text-tertiary">
           Connect tools, prompts, resources, apps, and long-running tasks through OpenWaggle's
           first-party MCP runtime. Nothing starts or enters agent context while the effective scope
           is off.
@@ -53,7 +53,7 @@ export function McpErrorAlert({ message }: { readonly message: string | null | u
   return (
     <p
       role="alert"
-      className="rounded-lg border border-error/25 bg-error/6 px-3 py-2 text-sm text-error"
+      className="rounded-lg border border-error/25 bg-error/6 px-3 py-2 text-sm text-error-text"
     >
       {message}
     </p>
@@ -62,15 +62,15 @@ export function McpErrorAlert({ message }: { readonly message: string | null | u
 
 function noticeTone(notice: McpRuntimeNotice) {
   if (notice.severity === 'error') return 'border-error/25 bg-error/6'
-  if (notice.severity === 'warning') return 'border-amber-500/20 bg-amber-500/5'
-  return 'border-border bg-[#111418]'
+  if (notice.severity === 'warning') return 'border-warning/30 bg-warning/5'
+  return 'border-border bg-bg'
 }
 
 export function McpNoticesPanel({ notices }: { readonly notices: readonly McpRuntimeNotice[] }) {
   if (notices.length === 0) return null
   return (
     <section aria-labelledby="mcp-notices-heading" className="space-y-2">
-      <h3 id="mcp-notices-heading" className="text-[15px] font-semibold text-text-primary">
+      <h3 id="mcp-notices-heading" className="text-base font-semibold text-text-primary">
         Action required
       </h3>
       {notices.map((notice) => (
@@ -79,14 +79,14 @@ export function McpNoticesPanel({ notices }: { readonly notices: readonly McpRun
             <AlertTriangle
               className={cn(
                 'mt-0.5 size-3.5 shrink-0',
-                notice.severity === 'error' ? 'text-error' : 'text-amber-300',
+                notice.severity === 'error' ? 'text-error' : 'text-warning',
               )}
             />
             <div>
-              <p className="text-[12px] font-medium text-text-primary">{notice.title}</p>
-              <p className="mt-0.5 text-[11px] leading-4 text-text-tertiary">{notice.detail}</p>
+              <p className="text-xs font-medium text-text-primary">{notice.title}</p>
+              <p className="mt-0.5 text-xs leading-4 text-text-tertiary">{notice.detail}</p>
               {notice.action && (
-                <p className="mt-1 text-[11px] text-text-secondary">Next: {notice.action}</p>
+                <p className="mt-1 text-xs text-text-secondary">Next: {notice.action}</p>
               )}
             </div>
           </div>
@@ -108,10 +108,10 @@ export function McpSourcesPanel({
   return (
     <section aria-labelledby="mcp-sources-heading" className="space-y-3">
       <div>
-        <h3 id="mcp-sources-heading" className="text-[15px] font-semibold text-text-primary">
+        <h3 id="mcp-sources-heading" className="text-base font-semibold text-text-primary">
           Configuration sources
         </h3>
-        <p className="mt-1 text-[12px] text-text-tertiary">
+        <p className="mt-1 text-xs text-text-tertiary">
           OpenWaggle merges standard project MCP configuration with its global and project files.
         </p>
       </div>
@@ -131,8 +131,8 @@ export function McpSourcesPanel({
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-[13px] font-medium">{source.label}</div>
-                <div className="mt-1 truncate text-[11px] text-text-muted">
+                <div className="text-xs font-medium">{source.label}</div>
+                <div className="mt-1 truncate text-xs text-text-muted">
                   {tildifyPath(source.path)}
                 </div>
               </div>
@@ -142,7 +142,7 @@ export function McpSourcesPanel({
                 {source.parseError ? 'Invalid' : source.exists ? 'Found' : 'Empty'}
               </StatusPill>
             </div>
-            <div className="mt-2 text-[11px] text-text-tertiary">
+            <div className="mt-2 text-xs text-text-tertiary">
               {source.serverCount} {source.serverCount === 1 ? 'server' : 'servers'}
               {source.ignoredFields.length > 0 &&
                 ` · ${source.ignoredFields.length} ignored fields`}

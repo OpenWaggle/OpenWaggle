@@ -52,7 +52,7 @@ interface StatusRow {
 
 const UP_TO_DATE: StatusRow = {
   subtitle: 'You are up to date',
-  subtitleClass: 'text-[#9098a8]',
+  subtitleClass: 'text-text-tertiary',
   dotClass: null,
 }
 
@@ -62,28 +62,28 @@ function getStatusRow(status: UpdateStatus) {
     .with('not-available', () => UP_TO_DATE)
     .with('checking', () => ({
       subtitle: 'Checking for updates…',
-      subtitleClass: 'text-[#9098a8]',
+      subtitleClass: 'text-text-tertiary',
       dotClass: null,
     }))
     .with('available', (s) => ({
       subtitle: `Downloading v${s.version}…`,
-      subtitleClass: 'text-[#61a8ff]',
-      dotClass: 'bg-[#61a8ff]',
+      subtitleClass: 'text-info-text',
+      dotClass: 'bg-info',
     }))
     .with('downloading', (s) => ({
       subtitle: `Downloading v${s.version}… ${Math.round(s.percent)}%`,
-      subtitleClass: 'text-[#61a8ff]',
-      dotClass: 'bg-[#61a8ff]',
+      subtitleClass: 'text-info-text',
+      dotClass: 'bg-info',
     }))
     .with('downloaded', (s) => ({
       subtitle: `v${s.version} ready to install`,
-      subtitleClass: 'text-[#4caf72]',
-      dotClass: 'bg-[#4caf72]',
+      subtitleClass: 'text-success',
+      dotClass: 'bg-success',
     }))
     .with('error', () => ({
       subtitle: 'Update check failed',
-      subtitleClass: 'text-[#ef4444]',
-      dotClass: 'bg-[#ef4444]',
+      subtitleClass: 'text-error-text',
+      dotClass: 'bg-error',
     }))
     .exhaustive()
 }
@@ -104,14 +104,14 @@ export function GeneralSection() {
 
       {/* About & Updates — title outside the card */}
       <div className="space-y-3">
-        <h3 className="text-[16px] font-semibold text-[#e7e9ee]">About & Updates</h3>
+        <h3 className="text-base font-semibold text-text-primary">About & Updates</h3>
 
-        <div className="overflow-hidden rounded-lg border border-[#1e2229] bg-[#111418]">
+        <div className="overflow-hidden rounded-lg border border-border bg-bg">
           {/* Row 1 — Version */}
-          <div className="flex h-14 items-center justify-between border-b border-[#1e2229] px-5">
+          <div className="flex h-14 items-center justify-between border-b border-border px-5">
             <div className="flex flex-col gap-0.5">
-              <span className="text-[13px] font-medium text-[#e7e9ee]">Version</span>
-              <span className="text-[12px] text-[#9098a8]">OpenWaggle v{version}</span>
+              <span className="text-xs font-medium text-text-primary">Version</span>
+              <span className="text-xs text-text-tertiary">OpenWaggle v{version}</span>
             </div>
           </div>
 
@@ -121,13 +121,11 @@ export function GeneralSection() {
               {statusRow.dotClass ? (
                 <div className={`size-2 shrink-0 rounded-full ${statusRow.dotClass}`} />
               ) : isChecking ? (
-                <Loader2 className="size-3 shrink-0 animate-spin text-[#9098a8]" />
+                <Loader2 className="size-3 shrink-0 animate-spin text-text-tertiary" />
               ) : null}
               <div className="flex flex-col gap-0.5">
-                <span className="text-[13px] font-medium text-[#e7e9ee]">Latest version</span>
-                <span className={`text-[12px] ${statusRow.subtitleClass}`}>
-                  {statusRow.subtitle}
-                </span>
+                <span className="text-xs font-medium text-text-primary">Latest version</span>
+                <span className={`text-xs ${statusRow.subtitleClass}`}>{statusRow.subtitle}</span>
               </div>
             </div>
             <div>
@@ -142,7 +140,7 @@ export function GeneralSection() {
                       })
                     }
                   }}
-                  className="h-7 border-[#2a2f3a] bg-[#1a1f28] text-[#c9cdd6] hover:bg-[#222830]"
+                  className="h-7 border-border-light bg-bg-secondary text-text-secondary hover:bg-bg-hover"
                 >
                   <RefreshCw className="size-3" />
                   Check now
@@ -159,7 +157,7 @@ export function GeneralSection() {
                       })
                     }
                   }}
-                  className="h-7 bg-[#f5a623] text-white hover:bg-[#e09520]"
+                  className="h-7 bg-accent text-bg hover:bg-accent-dim"
                 >
                   <RotateCcw className="size-3" />
                   Restart to update

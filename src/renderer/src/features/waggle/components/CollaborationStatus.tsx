@@ -51,13 +51,11 @@ export function WaggleCollaborationStatus({ currentSessionId, onStop }: Collabor
   }
 
   return (
-    <div className="mx-auto w-full max-w-[720px] px-5 pb-2 space-y-1.5">
+    <div className="mx-auto w-full max-w-180 px-5 pb-2 space-y-1.5">
       <div
         className={cn(
           'flex items-center gap-3 rounded-lg border px-3 py-2',
-          status === 'pending'
-            ? 'border-[#f5a623]/20 bg-[#f5a623]/5'
-            : 'border-border bg-bg-secondary',
+          status === 'pending' ? 'border-accent/20 bg-accent/5' : 'border-border bg-bg-secondary',
         )}
       >
         {/* Agent dots — always visible */}
@@ -71,8 +69,8 @@ export function WaggleCollaborationStatus({ currentSessionId, onStop }: Collabor
                 title={`${agent.label} · ${displayModel}`}
               >
                 <div className={cn('size-2 rounded-full', AGENT_BG[agent.color])} />
-                <span className="text-[11px] font-medium text-text-secondary">{agent.label}</span>
-                <span className="hidden text-[11px] text-text-tertiary sm:inline">
+                <span className="text-xs font-medium text-text-secondary">{agent.label}</span>
+                <span className="hidden text-xs text-text-tertiary sm:inline">
                   · {displayModel}
                 </span>
               </div>
@@ -84,7 +82,7 @@ export function WaggleCollaborationStatus({ currentSessionId, onStop }: Collabor
 
         {/* Status-specific content */}
         {status === 'pending' && (
-          <span className="text-[12px] text-text-tertiary truncate">
+          <span className="text-xs text-text-tertiary truncate">
             Waggle starting · Sequential · {turnCountLabel(maxTurns)}
           </span>
         )}
@@ -92,7 +90,7 @@ export function WaggleCollaborationStatus({ currentSessionId, onStop }: Collabor
         {status === 'running' && (
           <div className="flex items-center gap-2 min-w-0">
             <Loader2 className="size-3 animate-spin text-accent shrink-0" />
-            <span className="text-[12px] text-text-secondary truncate">
+            <span className="text-xs text-text-secondary truncate">
               Turn {currentTurn + SINGLE_TURN_COUNT}/{maxTurns}: {currentAgentLabel}
               {currentAgent ? ` · ${displayModelForAgent(currentAgent, selectedModel)}` : ''}
             </span>
@@ -103,7 +101,7 @@ export function WaggleCollaborationStatus({ currentSessionId, onStop }: Collabor
           variant="unstyled"
           type="button"
           onClick={handleDismiss}
-          className="ml-auto shrink-0 rounded-md p-1 text-text-muted hover:text-text-primary hover:bg-[#1e2229] transition-colors"
+          className="ml-auto shrink-0 rounded-md p-1 text-text-muted hover:text-text-primary hover:bg-border transition-colors"
           title="Stop & dismiss Waggle"
         >
           <X className="size-3" />
@@ -119,7 +117,7 @@ export function WaggleCollaborationStatus({ currentSessionId, onStop }: Collabor
               className="flex items-center gap-2 rounded-md border border-warning/20 bg-warning/5 px-2.5 py-1.5"
             >
               <AlertTriangle className="size-3 shrink-0 text-warning" />
-              <span className="text-[11px] text-warning/90">
+              <span className="text-xs text-warning/90">
                 {conflict.currentAgent} edited {conflict.path} (previously by{' '}
                 {conflict.previousAgent})
               </span>

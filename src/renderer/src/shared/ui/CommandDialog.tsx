@@ -33,7 +33,7 @@ export function CommandDialog({
       ref={dialogRef}
       aria-modal="true"
       aria-label={title}
-      className="fixed inset-0 z-50 m-0 flex size-full max-h-none max-w-none items-start justify-center border-0 bg-black/60 px-4 pt-[14vh] text-text-primary backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 m-0 flex size-full max-h-none max-w-none items-start justify-center border-0 bg-bg/60 px-4 pt-(--command-dialog-top-padding) text-text-primary backdrop-blur-[2px] [--command-dialog-top-padding:14vh]"
       onMouseDown={(event) => {
         if (event.currentTarget === event.target) onClose()
       }}
@@ -42,11 +42,11 @@ export function CommandDialog({
         onClose()
       }}
     >
-      <section className="flex max-h-[70vh] w-full max-w-[680px] flex-col overflow-hidden rounded-xl border border-border-light bg-bg-secondary shadow-2xl shadow-black/60">
+      <section className="flex max-h-(--command-dialog-max-height) w-full max-w-170 flex-col overflow-hidden rounded-xl border border-border-light bg-bg-secondary shadow-2xl shadow-bg/60 [--command-dialog-max-height:70vh]">
         <header className="flex min-h-12 items-center gap-3 border-b border-border px-4">
           <div className="min-w-0 flex-1">
-            <h2 className="truncate text-[13px] font-semibold text-text-primary">{title}</h2>
-            {description && <p className="truncate text-[10px] text-text-muted">{description}</p>}
+            <h2 className="truncate text-sm font-semibold text-text-primary">{title}</h2>
+            {description && <p className="truncate text-xs text-text-muted">{description}</p>}
           </div>
           <Button
             variant="ghost"
@@ -60,7 +60,7 @@ export function CommandDialog({
         </header>
         <div className="min-h-0 flex-1">{children}</div>
         {footer && (
-          <footer className="flex min-h-9 items-center gap-4 border-t border-border px-4 text-[10px] text-text-muted">
+          <footer className="flex min-h-9 items-center gap-4 border-t border-border px-4 text-xs text-text-muted">
             {footer}
           </footer>
         )}

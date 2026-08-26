@@ -85,10 +85,10 @@ export function ProjectFilePicker() {
           onKeyDown={handleKeyDown}
           placeholder="Search project files…"
           aria-label="Search project files"
-          className="h-12 px-0 text-[14px]"
+          className="h-12 px-0 text-sm"
         />
       </div>
-      <div className="max-h-[52vh] overflow-y-auto p-1.5">
+      <div className="max-h-(--workspace-results-height) overflow-y-auto p-1.5 [--workspace-results-height:52vh]">
         {!projectPath ? (
           <EmptyState text="Open a project to search its files." />
         ) : filesQuery.isLoading ? (
@@ -110,10 +110,10 @@ export function ProjectFilePicker() {
               }`}
             >
               <File className="size-4 shrink-0 text-text-muted" />
-              <span className="min-w-0 flex-1 truncate text-[13px] text-text-secondary">
+              <span className="min-w-0 flex-1 truncate text-sm text-text-secondary">
                 {file.basename}
               </span>
-              <span className="max-w-[60%] truncate font-mono text-[10px] text-text-muted">
+              <span className="max-w-3/5 truncate font-mono text-xs text-text-muted">
                 {file.path}
               </span>
             </Button>
@@ -127,7 +127,7 @@ export function ProjectFilePicker() {
 function EmptyState({ text, error = false }: { readonly text: string; readonly error?: boolean }) {
   return (
     <output
-      className={`flex min-h-36 items-center justify-center px-6 text-center text-[12px] ${
+      className={`flex min-h-36 items-center justify-center px-6 text-center text-xs ${
         error ? 'text-error' : 'text-text-tertiary'
       }`}
     >
