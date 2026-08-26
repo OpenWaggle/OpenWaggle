@@ -20,7 +20,6 @@ interface FileTreeProps {
 }
 
 const INDENT_PX = 10
-const NUDGE_STEP = 16
 const ROW_PADDING_PX = 8
 
 const STATUS_GLYPH: Record<FileChangeStatus, string> = {
@@ -131,7 +130,8 @@ export function FileTree({ files, onFileClick }: FileTreeProps) {
   'use no memo'
 
   const tree = useNavigatorTree(files)
-  const { width, isResizing, startResizing, nudge } = useNavigatorResize()
+  const resize = useNavigatorResize()
+  const { width, isResizing } = resize
 
   return (
     <div
@@ -151,21 +151,12 @@ export function FileTree({ files, onFileClick }: FileTreeProps) {
         type="button"
         aria-label={`Resize changed file list, currently ${String(width)} pixels`}
         title="Drag or use arrow keys to resize"
-        onPointerDown={(event) => {
-          event.preventDefault()
-          startResizing()
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'ArrowLeft') {
-            event.preventDefault()
-            nudge(NUDGE_STEP)
-            return
-          }
-          if (event.key === 'ArrowRight') {
-            event.preventDefault()
-            nudge(-NUDGE_STEP)
-          }
-        }}
+        onKeyDown={resize.handleKeyDown}
+        onLostPointerCapture={resize.handleLostPointerCapture}
+        onPointerCancel={resize.handlePointerCancel}
+        onPointerDown={resize.handlePointerDown}
+        onPointerMove={resize.handlePointerMove}
+        onPointerUp={resize.handlePointerUp}
         className={cn(
           'absolute inset-y-0 left-0 z-10 w-1 cursor-col-resize border-0 bg-transparent p-0 transition-colors',
           isResizing ? 'bg-accent/60' : 'hover:bg-accent/40 focus-visible:bg-accent/60',

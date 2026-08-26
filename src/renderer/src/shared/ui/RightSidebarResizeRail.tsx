@@ -45,11 +45,11 @@ export function RightSidebarResizeRail({
       )}
       style={resizeRailStyle(state.open, state.width, bounds.mainMinWidth)}
       onClick={resize.handleClick}
-      onLostPointerCapture={(event) => resize.cleanupResizeState(event.pointerId)}
-      onPointerCancel={resize.endResize}
+      onLostPointerCapture={resize.handleLostPointerCapture}
+      onPointerCancel={resize.handlePointerCancel}
       onPointerDown={resize.handlePointerDown}
       onPointerMove={resize.handlePointerMove}
-      onPointerUp={resize.endResize}
+      onPointerUp={resize.handlePointerUp}
       tabIndex={-1}
       title="Drag to resize right sidebar"
     />

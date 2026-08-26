@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import type { PointerEvent } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useResizeGesture } from '@/shared/hooks/useResizeGesture'
 
 const PARSE_RADIX = 10
 const STORAGE_KEY = 'openwaggle:changed-file-navigator-width:v1'
 const DEFAULT_WIDTH = 220
 const MIN_WIDTH = 140
 const MAX_WIDTH = 480
+const NUDGE_STEP = 16
 
 function readStoredWidth() {
   try {
@@ -19,71 +22,49 @@ function readStoredWidth() {
   }
 }
 
-/**
- * Width of the Changed-file navigator, draggable and persisted.
- *
- * Deliberately local rather than reusing useRightSidebarResizeRail: that hook is
- * typed and positioned for the app-level right sidebar (absolute inset rail,
- * main-content min-width coupling), so reusing it would mean generalising it
- * first. This is the smaller half of that work, kept until a second caller earns
- * the abstraction.
- */
+function persistWidth(width: number) {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, String(width))
+  } catch {
+    // Persistence is a convenience; a failure must not break resizing.
+  }
+}
+
+/** Width of the Changed-file navigator, draggable and persisted. */
 export function useNavigatorResize() {
   const [width, setWidth] = useState(readStoredWidth)
-  const [isResizing, setIsResizing] = useState(false)
-  const frameRef = useRef<number | null>(null)
-  const pendingWidthRef = useRef(width)
+  const widthRef = useRef(width)
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, String(width))
-    } catch {
-      // Persistence is a convenience; a failure must not break resizing.
-    }
+    persistWidth(width)
   }, [width])
 
-  const stopResizing = useCallback(() => setIsResizing(false), [])
+  function applyWidth(nextWidth: number) {
+    widthRef.current = nextWidth
+    setWidth(nextWidth)
+  }
 
-  useEffect(() => {
-    if (!isResizing) return
-
-    // Dragging leftwards widens the navigator, because it is docked on the right.
-    function onPointerMove(event: PointerEvent) {
-      pendingWidthRef.current = Math.min(
-        MAX_WIDTH,
-        Math.max(MIN_WIDTH, window.innerWidth - event.clientX),
-      )
-      if (frameRef.current !== null) return
-      frameRef.current = window.requestAnimationFrame(() => {
-        frameRef.current = null
-        setWidth(pendingWidthRef.current)
-      })
-    }
-
-    window.addEventListener('pointermove', onPointerMove)
-    window.addEventListener('pointerup', stopResizing)
-    window.addEventListener('pointercancel', stopResizing)
-    return () => {
-      window.removeEventListener('pointermove', onPointerMove)
-      window.removeEventListener('pointerup', stopResizing)
-      window.removeEventListener('pointercancel', stopResizing)
-      if (frameRef.current !== null) {
-        window.cancelAnimationFrame(frameRef.current)
-        frameRef.current = null
-      }
-    }
-  }, [isResizing, stopResizing])
-
-  /** Keyboard resizing, so the rail is not pointer-only. */
-  const nudge = useCallback((delta: number) => {
-    setWidth((current) => Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, current + delta)))
-  }, [])
+  const resize = useResizeGesture<HTMLButtonElement>({
+    getWidth: () => widthRef.current,
+    growDirection: 'left',
+    keyboardStep: NUDGE_STEP,
+    maxWidth: MAX_WIDTH,
+    minWidth: MIN_WIDTH,
+    onCommit: persistWidth,
+    onPreview: applyWidth,
+  })
 
   return {
     width,
-    isResizing,
-    startResizing: useCallback(() => setIsResizing(true), []),
-    nudge,
+    handleKeyDown: resize.handleKeyDown,
+    handleLostPointerCapture: resize.handleLostPointerCapture,
+    handlePointerCancel: resize.handlePointerCancel,
+    handlePointerDown(event: PointerEvent<HTMLButtonElement>) {
+      resize.startResize(event, widthRef.current)
+    },
+    handlePointerMove: resize.handlePointerMove,
+    handlePointerUp: resize.handlePointerUp,
+    isResizing: resize.isResizing,
     minWidth: MIN_WIDTH,
     maxWidth: MAX_WIDTH,
   }
