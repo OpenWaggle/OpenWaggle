@@ -18,6 +18,7 @@ const RENDERER_PATH_PREFIX = 'src/renderer/src/'
 const RENDERER_PATH_MARKER = `/${RENDERER_PATH_PREFIX}`
 
 const RAW_HEX_COLOR = /(?<![0-9A-Fa-f])#(?:[0-9A-Fa-f]{8}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{3})(?![0-9A-Fa-f])/gu
+const NUMERIC_REFERENCE = /^#\d{3,4}$/u
 
 const ARBITRARY_VALUE_UTILITY = /^(?:text|leading|tracking|indent|p[xysetrlb]?|m[xysetrlb]?|gap(?:-[xy])?|space-[xy]|inset(?:-[xyse])?|top|right|bottom|left|start|end|scroll-[mp][xysetrlb]?|border-spacing(?:-[xy])?|translate-[xy]|size|w|min-w|max-w|h|min-h|max-h|basis|rounded(?:-[setrlb]|-[setb][se]?|-[tblr][lr])?)-\[.+\](?:\/.+)?$/u
 
@@ -108,19 +109,21 @@ function collectTailwindFindings(node: Rule.Node, value: string) {
   return findings
 }
 
-function collectStringFindings(node: Rule.Node) {
+function collectStringFindings(node: Rule.Node, allowNumericReference: boolean) {
   const value = staticStringValue(node)
   if (value === null) {
     return []
   }
 
   const findings = collectTailwindFindings(node, value)
-  for (const match of value.matchAll(RAW_HEX_COLOR)) {
-    findings.push({
-      detail: match[0],
-      messageId: 'rawHexColor',
-      node,
-    })
+  if (!(allowNumericReference && NUMERIC_REFERENCE.test(value))) {
+    for (const match of value.matchAll(RAW_HEX_COLOR)) {
+      findings.push({
+        detail: match[0],
+        messageId: 'rawHexColor',
+        node,
+      })
+    }
   }
 
   return findings
@@ -156,11 +159,12 @@ export const rendererDesignTokenGuardrailsRule: Rule.RuleModule = {
   create(context) {
     const exemptFiles = exemptionSet(context)
     const filename = repositoryRelativeRendererFilename(context.filename)
+    const allowNumericReference = /\.(?:test|spec)\.[^/]+$/u.test(filename)
     const findings: Finding[] = []
 
     return {
       Literal(node: Rule.Node) {
-        findings.push(...collectStringFindings(node))
+        findings.push(...collectStringFindings(node, allowNumericReference))
       },
       'Program:exit'() {
         const isExempt = exemptFiles.has(filename)
@@ -182,7 +186,7 @@ export const rendererDesignTokenGuardrailsRule: Rule.RuleModule = {
         }
       },
       TemplateElement(node: Rule.Node) {
-        findings.push(...collectStringFindings(node))
+        findings.push(...collectStringFindings(node, allowNumericReference))
       },
     }
   },

@@ -26,8 +26,8 @@ vi.mock('@/shared/lib/ipc', () => ({
 
 const SESSION_ID = SessionId('session-1')
 const MAIN_BRANCH_ID = SessionBranchId('session-1:main')
-const ISSUE_113 = `#${113}`
-const ISSUE_114 = `#${114}`
+const ISSUE_113 = '#113'
+const ISSUE_114 = '#114'
 
 type PersistedAgentLoopEvent =
   | AgentTransportCustomEvent

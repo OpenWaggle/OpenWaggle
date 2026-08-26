@@ -72,6 +72,15 @@ describe('renderer design-token guardrails', () => {
     expect(messages).toHaveLength(0)
   })
 
+  it('allows standalone numeric references without allowing numeric utility colors', () => {
+    const testFilename = 'src/renderer/src/features/chat/components/Example.component.test.tsx'
+    const messages = lint(`const issueLabel = '#113'\nconst classes = 'bg-[#113]'`, testFilename)
+
+    expect(messages).toHaveLength(1)
+    expect(messages.at(0)?.message).toContain('raw color')
+    expect(lint(`const color = '#113'`)).toHaveLength(1)
+  })
+
   it('reports Tailwind palette colors through variants and opacity modifiers', () => {
     const messages = lint(
       `const classes = 'hover:bg-red-500 dark:text-amber-300 border-t-zinc-400/60 ring-white/40 from-violet-500/20'`,
