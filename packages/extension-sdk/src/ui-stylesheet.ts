@@ -113,6 +113,15 @@ function controlUiRules(selector: string) {
   padding: 0 calc(var(--ow-spacing) * 3);
 }
 
+${selector} .${classes.button}:disabled,
+${selector} .${classes.input}:disabled,
+${selector} .${classes.textarea}:disabled,
+${selector} .${classes.select}:disabled,
+${selector} .${classes.checkbox}:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 ${selector} .${classes.button}:focus-visible,
 ${selector} .${classes.input}:focus-visible,
 ${selector} .${classes.textarea}:focus-visible,

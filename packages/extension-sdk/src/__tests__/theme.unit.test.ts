@@ -260,6 +260,7 @@ describe('createOpenWaggleExtensionUiStylesheet', () => {
     expect(stylesheet).toContain('border-radius: var(--ow-radius-lg);')
     expect(stylesheet).toContain('border-radius: var(--ow-radius-md);')
     expect(stylesheet).toContain('box-shadow: var(--ow-shadow-sm);')
+    expect(stylesheet).toContain('.ow-extension-button:disabled,')
     expect(stylesheet).toContain('color: var(--ow-color-danger-text);')
     expect(stylesheet).toContain('color: var(--ow-color-info-text);')
     expect(stylesheet).not.toContain('--ow-space-')

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.2](https://github.com/OpenWaggle/OpenWaggle/compare/extension-react-v0.1.1...extension-react-v0.1.2) (2026-08-26)
+
+
+### Bug Fixes
+
+* **packages:** align the React stylesheet with the ADR 0024 Tailwind-standard SDK contract
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @openwaggle/extension-sdk bumped to 0.2.0
+
 ## [0.1.1](https://github.com/OpenWaggle/OpenWaggle/compare/extension-react-v0.1.0...extension-react-v0.1.1) (2026-07-16)
 
 

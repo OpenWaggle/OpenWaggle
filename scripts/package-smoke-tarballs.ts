@@ -1,6 +1,7 @@
 import { execFile as execFileCallback } from 'node:child_process'
 import path from 'node:path'
 import { promisify } from 'node:util'
+import { createOpenWaggleExtensionUiStylesheet } from '@openwaggle/extension-sdk'
 
 import {
   assertDualModuleExports,
@@ -28,6 +29,15 @@ export interface PackageSpec {
 
 export interface PackedPackage extends PackedPackageReference {
   readonly manifest: unknown
+}
+
+export function assertCanonicalExtensionReactStylesheet(stylesheet: string) {
+  const canonicalStylesheet = `${createOpenWaggleExtensionUiStylesheet({ includeThemeVariables: false })}\n`
+  if (stylesheet !== canonicalStylesheet) {
+    throw new Error(
+      '@openwaggle/extension-react styles.css must match the canonical @openwaggle/extension-sdk UI stylesheet.',
+    )
+  }
 }
 
 async function readPackedManifest(tarballPath: string) {
@@ -74,7 +84,12 @@ export async function validatePackedPackage(
   assertPackedDocumentationMetadata(manifest, spec.directory)
   assertPackedPackageReadme({ packageName: spec.name, readme })
   assertDualModuleExports(spec.name, manifest)
-  if (spec.name === '@openwaggle/extension-react') assertReactPeerDependencies(manifest)
+  if (spec.name === '@openwaggle/extension-react') {
+    assertReactPeerDependencies(manifest)
+    assertCanonicalExtensionReactStylesheet(
+      await readPackedTextFile(tarballPath, 'styles.css'),
+    )
+  }
 
   console.log(`validated ${spec.name} tarball: ${path.basename(tarballPath)}`)
   return { name: spec.name, tarballPath, manifest }
