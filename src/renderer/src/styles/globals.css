@@ -31,8 +31,8 @@
   --color-text-primary: #e7e9ee;
   --color-text-secondary: #c9cdd6;
   --color-text-tertiary: #9098a8;
-  /* Lifted from #666f7d to clear the 4.5:1 floor on every surface (was 2.76–3.52:1). */
-  --color-text-muted: #8b94a4;
+  /* Lifted to clear the 4.5:1 floor on every surface, including --color-bg-active. */
+  --color-text-muted: #8f98a8;
 
   /* Semantic + brand */
   --color-accent: #f5a623;
@@ -668,7 +668,7 @@
   --color-text-primary: #e7e9ee;
   --color-text-secondary: #c9cdd6;
   --color-text-tertiary: #9098a8;
-  --color-text-muted: #8b94a4;
+  --color-text-muted: #8f98a8;
   --color-accent: #f5a623;
   --color-accent-dim: #d18a2c;
   --color-success: #4caf72;

@@ -2221,7 +2221,7 @@ export declare const DEFAULT_EXTENSION_THEME_TOKENS: {
         readonly text: '#e7e9ee';
         readonly textSubtle: '#c9cdd6';
         readonly textMuted: '#9098a8';
-        readonly textDim: '#8b94a4';
+        readonly textDim: '#8f98a8';
         readonly accent: '#f5a623';
         readonly accentDim: '#d18a2c';
         readonly success: '#4caf72';
@@ -6685,7 +6685,7 @@ export declare const DEFAULT_EXTENSION_THEME_TOKENS: {
         readonly text: '#e7e9ee';
         readonly textSubtle: '#c9cdd6';
         readonly textMuted: '#9098a8';
-        readonly textDim: '#8b94a4';
+        readonly textDim: '#8f98a8';
         readonly accent: '#f5a623';
         readonly accentDim: '#d18a2c';
         readonly success: '#4caf72';
@@ -9948,7 +9948,7 @@ export declare const DEFAULT_EXTENSION_THEME_TOKENS: {
         readonly text: '#e7e9ee';
         readonly textSubtle: '#c9cdd6';
         readonly textMuted: '#9098a8';
-        readonly textDim: '#8b94a4';
+        readonly textDim: '#8f98a8';
         readonly accent: '#f5a623';
         readonly accentDim: '#d18a2c';
         readonly success: '#4caf72';

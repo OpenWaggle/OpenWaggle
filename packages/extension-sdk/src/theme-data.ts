@@ -99,7 +99,7 @@ export const DEFAULT_EXTENSION_THEME_TOKENS = {
     text: '#e7e9ee',
     textSubtle: '#c9cdd6',
     textMuted: '#9098a8',
-    textDim: '#8b94a4',
+    textDim: '#8f98a8',
     accent: '#f5a623',
     accentDim: '#d18a2c',
     success: '#4caf72',
