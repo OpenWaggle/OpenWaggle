@@ -62,7 +62,10 @@ export function Composer({ onSend, onEnqueue, onCancel, isLoading, mode, onToast
   })
 
   useEffect(() => {
-    if (!isLoading) editorRef.current?.focus()
+    const activeElement = document.activeElement
+    if (!isLoading && (activeElement === null || activeElement === document.body)) {
+      editorRef.current?.focus()
+    }
   }, [isLoading])
 
   return (

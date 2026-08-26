@@ -55,6 +55,7 @@ test('sidebar filtering: chips, pips, search and Escape', async () => {
     const { page } = app.mainWindow()
     const chipGroup = page.getByRole('group', { name: 'Filter sessions by state' })
     const rows = page.locator('[data-qa="sidebar-session-row"]')
+    const searchInput = page.locator('[data-qa="sidebar-search"] input')
     const interruptedChip = chipGroup.getByRole('button', {
       name: /Run interrupted, resumable, 2/,
     })
@@ -103,18 +104,19 @@ test('sidebar filtering: chips, pips, search and Escape', async () => {
     await test.step('Cmd+F focuses the filter field', async () => {
       await page.keyboard.press('ControlOrMeta+f')
 
-      await expect(page.locator('[data-qa="sidebar-search"] input')).toBeFocused()
+      await expect(searchInput).toBeFocused()
     })
 
     await test.step('typing narrows by title', async () => {
       await page.keyboard.type('Calm')
 
+      await expect(searchInput).toHaveValue('Calm')
       await expect(rows.filter({ hasText: CALM_TITLE })).toHaveCount(1)
       await expect(rows.filter({ hasText: STUCK_TITLE })).toHaveCount(0)
     })
 
     await test.step('typing a project name keeps that project sessions', async () => {
-      await page.locator('[data-qa="sidebar-search"] input').fill(BETA)
+      await searchInput.fill(BETA)
 
       await expect(rows.filter({ hasText: OTHER_STUCK_TITLE })).toHaveCount(1)
       await expect(rows.filter({ hasText: CALM_TITLE })).toHaveCount(0)
@@ -123,14 +125,14 @@ test('sidebar filtering: chips, pips, search and Escape', async () => {
     await test.step('Escape clears the filter and returns every row', async () => {
       await page.keyboard.press('Escape')
 
-      await expect(page.locator('[data-qa="sidebar-search"] input')).toHaveValue('')
+      await expect(searchInput).toHaveValue('')
       await expect(rows).toHaveCount(3)
     })
 
     await test.step('focus reaches the field and draws nothing', async () => {
       await page.keyboard.press('ControlOrMeta+f')
       // The shortcut focuses on the next frame, so measuring immediately can catch the wrong state.
-      await expect(page.locator('[data-qa="sidebar-search"] input')).toBeFocused()
+      await expect(searchInput).toBeFocused()
 
       const marks = await page.evaluate(() => {
         const field = document.querySelector('[data-qa="sidebar-search"]')
