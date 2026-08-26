@@ -9,9 +9,9 @@ export type ContributionPillTone = 'neutral' | 'good' | 'warning' | 'error'
 
 export function contributionPillToneClassName(tone: ContributionPillTone) {
   return match(tone)
-    .with('good', () => 'bg-emerald-500/10 text-emerald-300')
-    .with('warning', () => 'bg-amber-500/10 text-amber-300')
-    .with('error', () => 'bg-error/10 text-error')
+    .with('good', () => 'bg-success/10 text-success')
+    .with('warning', () => 'bg-warning/10 text-warning')
+    .with('error', () => 'bg-error/10 text-error-text')
     .with('neutral', () => 'bg-bg-tertiary text-text-tertiary')
     .exhaustive()
 }

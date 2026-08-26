@@ -22,32 +22,64 @@ const colorThemeGroupSchema: Schema.Schema<OpenWaggleExtensionThemeTokens['color
     accentDim: Schema.String,
     success: Schema.String,
     danger: Schema.String,
+    dangerText: Schema.String,
     warning: Schema.String,
     info: Schema.String,
+    infoText: Schema.String,
+    review: Schema.String,
+    plan: Schema.String,
+    progress: Schema.String,
+    neutral: Schema.String,
   },
 )
+
+const typeScaleEntrySchema: Schema.Schema<
+  OpenWaggleExtensionThemeTokens['typography']['typeScale']['xs']
+> = Schema.Struct({
+  fontSize: Schema.String,
+  lineHeight: Schema.String,
+})
 
 const typographyThemeGroupSchema: Schema.Schema<OpenWaggleExtensionThemeTokens['typography']> =
   Schema.Struct({
     sansFamily: Schema.String,
     monoFamily: Schema.String,
+    typeScale: Schema.Struct({
+      xs: typeScaleEntrySchema,
+      sm: typeScaleEntrySchema,
+      base: typeScaleEntrySchema,
+      lg: typeScaleEntrySchema,
+      xl: typeScaleEntrySchema,
+      twoXl: typeScaleEntrySchema,
+    }),
   })
 
 const spacingThemeGroupSchema: Schema.Schema<OpenWaggleExtensionThemeTokens['spacing']> =
+  Schema.Struct({
+    unit: Schema.String,
+  })
+
+const radiusThemeGroupSchema: Schema.Schema<OpenWaggleExtensionThemeTokens['radius']> =
   Schema.Struct({
     xs: Schema.String,
     sm: Schema.String,
     md: Schema.String,
     lg: Schema.String,
     xl: Schema.String,
+    twoXl: Schema.String,
+    threeXl: Schema.String,
+    fourXl: Schema.String,
   })
 
-const radiusThemeGroupSchema: Schema.Schema<OpenWaggleExtensionThemeTokens['radius']> =
+const shadowThemeGroupSchema: Schema.Schema<OpenWaggleExtensionThemeTokens['shadow']> =
   Schema.Struct({
+    twoXs: Schema.String,
+    xs: Schema.String,
     sm: Schema.String,
     md: Schema.String,
     lg: Schema.String,
-    panel: Schema.String,
+    xl: Schema.String,
+    twoXl: Schema.String,
   })
 
 const focusThemeGroupSchema: Schema.Schema<OpenWaggleExtensionThemeTokens['focus']> = Schema.Struct(
@@ -57,27 +89,21 @@ const focusThemeGroupSchema: Schema.Schema<OpenWaggleExtensionThemeTokens['focus
   },
 )
 
-const elevationThemeGroupSchema: Schema.Schema<OpenWaggleExtensionThemeTokens['elevation']> =
-  Schema.Struct({
-    card: Schema.String,
-    overlay: Schema.String,
-  })
-
 export const extensionThemeTokensSchema: Schema.Schema<OpenWaggleExtensionThemeTokens> =
   Schema.Struct({
     color: colorThemeGroupSchema,
     typography: typographyThemeGroupSchema,
     spacing: spacingThemeGroupSchema,
     radius: radiusThemeGroupSchema,
+    shadow: shadowThemeGroupSchema,
     focus: focusThemeGroupSchema,
-    elevation: elevationThemeGroupSchema,
   })
 
 export const extensionThemeCssVariablesSchema: Schema.Schema<OpenWaggleExtensionThemeCssVariables> =
   extensionThemeTokensSchema
 
 export const extensionThemeSchema: Schema.Schema<OpenWaggleExtensionTheme> = Schema.Struct({
-  colorScheme: Schema.Literal('dark'),
+  colorScheme: Schema.Literal('dark', 'light'),
   tokens: extensionThemeTokensSchema,
   cssVariables: extensionThemeCssVariablesSchema,
 })

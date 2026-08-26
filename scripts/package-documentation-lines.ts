@@ -86,6 +86,13 @@ async function exists(filePath: string) {
   }
 }
 
+export async function hasPendingPackageDocumentation(
+  projectRoot: string,
+  definition: PackageDocumentationDefinition,
+) {
+  return exists(pendingDocumentationRoot(projectRoot, definition))
+}
+
 export async function pendingPackageDocumentationViolations(
   projectRoot: string,
   definition: PackageDocumentationDefinition,

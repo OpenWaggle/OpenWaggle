@@ -15,6 +15,7 @@ import {
   versionPackageDocumentation,
 } from '../package-documentation-model'
 import {
+  hasPendingPackageDocumentation,
   preparePackageDocumentationLine,
   requiredAuthoredPackageDocumentationFiles,
 } from '../package-documentation'
@@ -72,6 +73,10 @@ describe('package documentation rendering', () => {
           ),
         ],
       )
+
+      await expect(
+        hasPendingPackageDocumentation(projectRoot, definition),
+      ).resolves.toBe(true)
 
       const result = await preparePackageDocumentationLine(
         projectRoot,

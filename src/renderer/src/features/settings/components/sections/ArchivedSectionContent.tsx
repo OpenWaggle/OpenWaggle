@@ -27,10 +27,8 @@ export function ArchivedSectionContent({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-[15px] font-medium text-text-primary">
-          Archived sessions and branches
-        </h2>
-        <p className="mt-1 text-[13px] text-text-tertiary">
+        <h2 className="text-base font-medium text-text-primary">Archived sessions and branches</h2>
+        <p className="mt-1 text-xs text-text-tertiary">
           Sessions and branches removed from normal navigation. Restore them to bring them back.
         </p>
       </div>
@@ -38,7 +36,7 @@ export function ArchivedSectionContent({
       {queryError && <ArchivedErrorAlert message={queryError} subtle />}
       {groups.length > 0 ? (
         <div className="space-y-2">
-          <h3 className="px-2 text-[12px] font-medium text-text-tertiary">Archived sessions</h3>
+          <h3 className="px-2 text-xs font-medium text-text-tertiary">Archived sessions</h3>
           {groups.map((group) => (
             <ArchivedSessionGroup
               key={group.path ?? '__none__'}
@@ -51,7 +49,7 @@ export function ArchivedSectionContent({
       ) : null}
       {branchGroups.length > 0 ? (
         <div className="space-y-2">
-          <h3 className="px-2 text-[12px] font-medium text-text-tertiary">Archived branches</h3>
+          <h3 className="px-2 text-xs font-medium text-text-tertiary">Archived branches</h3>
           {branchGroups.map((group) => (
             <ArchivedBranchGroup
               key={group.path ?? '__none__'}

@@ -29,8 +29,8 @@ function TrustControls({
   if (reviewMode) {
     const { readRoots, writeRoots, allowNetwork } = server.requestedPermissions
     return (
-      <div className="max-w-xl space-y-2 rounded-md border border-amber-400/30 bg-amber-400/5 p-2.5 text-[11px] text-text-secondary">
-        <p className="font-medium text-amber-200">
+      <div className="max-w-xl space-y-2 rounded-md border border-warning/30 bg-warning/5 p-2.5 text-xs text-text-secondary">
+        <p className="font-medium text-warning">
           Approve these permissions for this exact configuration
         </p>
         <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1">
@@ -93,7 +93,7 @@ function ServerBadges({ server }: { readonly server: McpServerSummary }) {
       server.negotiatedProtocolVersion !== '2026-07-28')
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <span className="text-[13px] font-medium text-text-primary">{server.name}</span>
+      <span className="text-xs font-medium text-text-primary">{server.name}</span>
       <StatusPill tone={server.trusted === 'trusted' ? 'success' : 'warning'}>
         {server.trusted === 'trusted' ? (
           <ShieldCheck className="size-3" />
@@ -139,7 +139,7 @@ function RemoveControls({
   }
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-[11px] text-error">Remove from {server.sourceLabel}?</span>
+      <span className="text-xs text-error-text">Remove from {server.sourceLabel}?</span>
       <Button variant="danger" size="xs" disabled={busy} onClick={onRemove}>
         Confirm remove
       </Button>
@@ -176,20 +176,18 @@ function ServerRow({
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <ServerBadges server={server} />
-          <p className="mt-1 truncate text-[12px] text-text-tertiary">
-            {formatServerDetail(server)}
-          </p>
-          <p className="mt-1 truncate text-[11px] text-text-muted">
+          <p className="mt-1 truncate text-xs text-text-tertiary">{formatServerDetail(server)}</p>
+          <p className="mt-1 truncate text-xs text-text-muted">
             {titleCase(server.transport)} · {server.sourceLabel}
             {server.negotiatedProtocolVersion && ` · MCP ${server.negotiatedProtocolVersion}`}
           </p>
           {server.capabilities.length > 0 && (
-            <p className="mt-1 text-[11px] text-text-tertiary">
+            <p className="mt-1 text-xs text-text-tertiary">
               {server.capabilities.map(titleCase).join(' · ')}
             </p>
           )}
           {(server.blockedReason || server.lastError) && (
-            <p className="mt-2 text-[11px] leading-4 text-amber-300">
+            <p className="mt-2 text-xs leading-4 text-warning">
               {server.blockedReason ?? server.lastError}
             </p>
           )}
@@ -246,15 +244,15 @@ export function McpServersPanel({
   return (
     <section aria-labelledby="mcp-servers-heading" className="space-y-3">
       <div>
-        <h3 id="mcp-servers-heading" className="text-[15px] font-semibold text-text-primary">
+        <h3 id="mcp-servers-heading" className="text-base font-semibold text-text-primary">
           Servers
         </h3>
-        <p className="mt-1 text-[12px] text-text-tertiary">
+        <p className="mt-1 text-xs text-text-tertiary">
           Enablement controls selection. Trust authorizes the exact configuration hash; edits revoke
           that trust automatically.
         </p>
       </div>
-      <div className="overflow-hidden rounded-lg border border-border bg-[#111418]">
+      <div className="overflow-hidden rounded-lg border border-border bg-bg">
         {servers.length > 0 ? (
           servers.map((server) => (
             <ServerRow
@@ -271,7 +269,7 @@ export function McpServersPanel({
             />
           ))
         ) : (
-          <p className="px-4 py-6 text-[13px] text-text-muted">No MCP servers configured.</p>
+          <p className="px-4 py-6 text-xs text-text-muted">No MCP servers configured.</p>
         )}
       </div>
     </section>

@@ -34,23 +34,23 @@ function RibbonIdentity({
       <LockKeyhole className="size-3.5 shrink-0 text-accent" />
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-semibold tracking-[0.14em] text-accent uppercase">
+          <span className="text-xs font-semibold tracking-widest text-accent uppercase">
             Needs decision
           </span>
-          <span className="rounded bg-bg-tertiary px-1.5 py-0.5 font-mono text-[10px] text-text-tertiary">
+          <span className="rounded bg-bg-tertiary px-1.5 py-0.5 font-mono text-xs text-text-tertiary">
             {scopeKey.requester}
           </span>
           {queuedCount > 0 ? (
-            <span className="text-[10px] text-text-muted tabular-nums">1/{queuedCount + 1}</span>
+            <span className="text-xs text-text-muted tabular-nums">1/{queuedCount + 1}</span>
           ) : null}
         </div>
         <p
-          className="mt-0.5 truncate text-[12px] font-medium text-text-primary"
+          className="mt-0.5 truncate text-xs font-medium text-text-primary"
           id={`authorization-${interaction.interactionId}`}
         >
           {interaction.title}
         </p>
-        <p className="mt-0.5 truncate text-[10px] text-text-muted">{ribbonTargetLine(scopeKey)}</p>
+        <p className="mt-0.5 truncate text-xs text-text-muted">{ribbonTargetLine(scopeKey)}</p>
       </div>
     </div>
   )
@@ -109,14 +109,14 @@ function AllowScopeMenu({
         // navigation or a focus move into the menu told screen-reader users a menu had opened and
         // then gave them none of the behaviour it promises.
         <fieldset
-          className="absolute right-0 bottom-full z-20 mb-1 w-max max-w-80 overflow-hidden rounded-lg border border-border bg-bg-secondary shadow-xl shadow-black/40"
+          className="absolute right-0 bottom-full z-20 mb-1 w-max max-w-80 overflow-hidden rounded-lg border border-border bg-bg-secondary shadow-xl shadow-bg/40"
           disabled={busy}
         >
           <legend className="sr-only">Approval scope</legend>
           {allowScopeChoices(scopeKey, projectName).map((choice) => (
             <Button
               align="start"
-              className="w-full rounded-none px-3 py-2 text-left text-[11px]"
+              className="w-full rounded-none px-3 py-2 text-left text-xs"
               disabled={busy}
               key={choice.scope}
               onBlur={closeOnBlur}
@@ -143,7 +143,7 @@ function RibbonDetails({ message }: { readonly message: string }) {
     <>
       <Button
         aria-expanded={open}
-        className="mt-2 gap-1 text-[10px] text-text-muted"
+        className="mt-2 gap-1 text-xs text-text-muted"
         onClick={() => setOpen((current) => !current)}
         size="xs"
         variant="ghost"
@@ -156,7 +156,7 @@ function RibbonDetails({ message }: { readonly message: string }) {
           {/* The payload lives here, never in the label. Pre-wrapped because every consent body is
               built as several lines, and capped so a large one scrolls instead of pushing the
               composer off screen. */}
-          <pre className="max-h-40 max-w-full min-w-0 overflow-auto font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-text-secondary [overflow-wrap:anywhere]">
+          <pre className="max-h-40 max-w-full min-w-0 overflow-auto font-mono text-xs leading-relaxed whitespace-pre-wrap text-text-secondary [overflow-wrap:anywhere]">
             {message}
           </pre>
         </div>
@@ -228,7 +228,7 @@ export function AgentAuthorizationRibbon({
       {interaction.message ? <RibbonDetails message={interaction.message} /> : null}
 
       {error ? (
-        <p className="mt-2 text-[11px] leading-5 text-error" role="alert">
+        <p className="mt-2 text-xs leading-5 text-error" role="alert">
           {error}
         </p>
       ) : null}

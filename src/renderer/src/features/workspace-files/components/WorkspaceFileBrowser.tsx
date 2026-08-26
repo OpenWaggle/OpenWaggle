@@ -94,7 +94,7 @@ function TreeRows({
           <div key={directory.path}>
             <Button
               variant="unstyled"
-              className="flex h-7 w-full items-center gap-1.5 rounded px-1.5 text-left text-[11px] text-text-tertiary hover:bg-bg-hover hover:text-text-secondary"
+              className="flex h-7 w-full items-center gap-1.5 rounded px-1.5 text-left text-xs text-text-tertiary hover:bg-bg-hover hover:text-text-secondary"
               style={{ paddingLeft: `${String(depth * TREE_INDENT_PX + DIRECTORY_OFFSET_PX)}px` }}
               onClick={() => onToggleDirectory(directory.path)}
             >
@@ -119,7 +119,7 @@ function TreeRows({
         <Button
           key={file.path}
           variant="unstyled"
-          className={`flex h-7 w-full items-center gap-1.5 rounded px-1.5 text-left text-[11px] ${
+          className={`flex h-7 w-full items-center gap-1.5 rounded px-1.5 text-left text-xs ${
             file.path === currentPath
               ? 'bg-accent/10 text-accent'
               : 'text-text-tertiary hover:bg-bg-hover hover:text-text-secondary'
@@ -167,7 +167,7 @@ export function WorkspaceFileBrowser({
   }
 
   return (
-    <aside className="flex w-[210px] shrink-0 flex-col border-r border-border bg-bg-secondary/80">
+    <aside className="flex w-52.5 shrink-0 flex-col border-r border-border bg-bg-secondary/80">
       <div className="flex h-9 items-center gap-1.5 border-b border-border px-2">
         <Search className="size-3.5 text-text-muted" />
         <TextInput
@@ -177,21 +177,21 @@ export function WorkspaceFileBrowser({
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Filter files"
           aria-label="Filter file explorer"
-          className="h-8 px-0 text-[11px]"
+          className="h-8 px-0 text-xs"
         />
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-1">
         {filesQuery.isLoading ? (
-          <p className="p-3 text-[11px] text-text-muted">Loading files…</p>
+          <p className="p-3 text-xs text-text-muted">Loading files…</p>
         ) : filesQuery.error ? (
-          <p className="p-3 text-[11px] text-error">{filesQuery.error.message}</p>
+          <p className="p-3 text-xs text-error">{filesQuery.error.message}</p>
         ) : normalizedQuery ? (
           visibleFiles.map((file) => (
             <Button
               key={file.path}
               variant="unstyled"
               onClick={() => onOpenFile(file.path)}
-              className={`flex h-7 w-full items-center gap-1.5 rounded px-2 text-left text-[11px] ${
+              className={`flex h-7 w-full items-center gap-1.5 rounded px-2 text-left text-xs ${
                 file.path === currentPath
                   ? 'bg-accent/10 text-accent'
                   : 'text-text-tertiary hover:bg-bg-hover'
@@ -214,7 +214,7 @@ export function WorkspaceFileBrowser({
         )}
       </div>
       {truncated && (
-        <p className="border-t border-border px-2 py-1.5 text-[10px] text-text-muted">
+        <p className="border-t border-border px-2 py-1.5 text-xs text-text-muted">
           Showing the first {WORKSPACE_FILES.EXPLORER_RESULT_LIMIT.toLocaleString()} files. Filter
           to find files outside this list.
         </p>

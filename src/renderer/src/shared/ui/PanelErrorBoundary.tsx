@@ -66,10 +66,10 @@ export class PanelErrorBoundary extends Component<
         <div className="w-full max-w-sm rounded-lg border border-error/30 bg-bg-secondary p-4">
           <div className="mb-2 flex items-center gap-2 text-error">
             <AlertTriangle className="size-3.5" />
-            <h2 className="text-[13px] font-semibold">{this.props.name} panel error</h2>
+            <h2 className="text-sm font-semibold">{this.props.name} panel error</h2>
           </div>
           {this.state.message && (
-            <p className="mb-3 text-[12px] text-text-tertiary break-words">{this.state.message}</p>
+            <p className="mb-3 text-xs text-text-tertiary break-words">{this.state.message}</p>
           )}
           <Button variant="accent" size="xs" aria-label="Retry" onClick={this.handleRetry}>
             <RefreshCw className="size-3" />

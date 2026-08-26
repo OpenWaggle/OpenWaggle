@@ -81,7 +81,7 @@ function DiffPlaceholder({
   }
   if (kind === 'error') return <DiffLoadError message={message} onRetry={onRetryLoad} />
   return (
-    <div className="flex flex-1 items-center justify-center text-[12px] text-text-tertiary">
+    <div className="flex flex-1 items-center justify-center text-xs text-text-tertiary">
       No changes to review
     </div>
   )

@@ -81,19 +81,17 @@ function AgentQuestionRibbon({
       <div className="flex min-w-0 items-center gap-2">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] font-semibold tracking-[0.14em] text-accent uppercase">
+            <span className="text-xs font-semibold tracking-widest text-accent uppercase">
               Waiting for you
             </span>
             {queuedCount > 0 ? (
-              <span className="text-[10px] text-text-muted tabular-nums">1/{queuedCount + 1}</span>
+              <span className="text-xs text-text-muted tabular-nums">1/{queuedCount + 1}</span>
             ) : null}
           </div>
-          <p className="mt-0.5 truncate text-[12px] font-medium text-text-primary" id={titleId}>
+          <p className="mt-0.5 truncate text-xs font-medium text-text-primary" id={titleId}>
             {'title' in interaction ? interaction.title : 'Waiting for your answer'}
           </p>
-          {message ? (
-            <p className="mt-0.5 truncate text-[10px] text-text-muted">{message}</p>
-          ) : null}
+          {message ? <p className="mt-0.5 truncate text-xs text-text-muted">{message}</p> : null}
         </div>
       </div>
 
@@ -102,7 +100,7 @@ function AgentQuestionRibbon({
       </div>
 
       {error ? (
-        <p className="mt-2 text-[11px] leading-5 text-error" role="alert">
+        <p className="mt-2 text-xs leading-5 text-error" role="alert">
           {error}
         </p>
       ) : null}

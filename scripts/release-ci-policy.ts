@@ -18,11 +18,16 @@ export const REQUIRED_CI_CHECKS = [
   'Commit Policy',
   'Typecheck & Lint',
   'Unit & Component Tests',
+  'Electron E2E (macOS)',
 ] as const
-const EXPECTED_CI_JOBS = [...REQUIRED_CI_CHECKS, 'Package release rehearsal (Node ${{ matrix.node }})',
+const EXPECTED_CI_JOBS = [
+  ...REQUIRED_CI_CHECKS,
+  'Package release rehearsal (Node ${{ matrix.node }})',
   'Classify Package Release Candidate',
   'Build and attest package artifacts (Release Please PR only)',
-  'Package Release Candidate', 'Package Release Gate'] as const
+  'Package Release Candidate',
+  'Package Release Gate',
+] as const
 
 const CI_WORKFLOW_PATH = '.github/workflows/ci.yml'
 const CONCURRENCY_POLICY_FIELD_COUNT = 2
@@ -169,6 +174,19 @@ function validateSecurity(
 function validateRequiredJobContract(job: ReleaseCiWorkflowJob, violations: string[]) {
   if (!isRequiredCheck(job.name)) return
   const jobKeys = job.keys
+  if (job.name === 'Electron E2E (macOS)') {
+    const e2eJobKeys = [...REQUIRED_JOB_KEYS, 'timeout-minutes']
+    const hasExactE2eContract =
+      jobKeys.length === e2eJobKeys.length &&
+      e2eJobKeys.every((key) => jobKeys.includes(key)) &&
+      /^ {4}runs-on: macos-15$/m.test(job.block)
+    if (!hasExactE2eContract) {
+      violations.push(
+        'CI job Electron E2E (macOS) must keep the exact blocking job contract: name, macos-15 runner, timeout, and steps only.',
+      )
+    }
+    return
+  }
   const hasExactJobContract =
     jobKeys.length === REQUIRED_JOB_KEYS.length &&
     REQUIRED_JOB_KEYS.every((key) => jobKeys.includes(key)) &&
@@ -218,7 +236,9 @@ function validateRequiredChecks(
         ? 'pnpm check'
         : job.name === 'Unit & Component Tests'
           ? 'pnpm test'
-          : undefined
+          : job.name === 'Electron E2E (macOS)'
+            ? 'pnpm test:e2e'
+            : undefined
     if (requiredCommand !== undefined) {
       const exactStep = `      - run: ${requiredCommand}`
       if (!actual.includes(exactStep)) {

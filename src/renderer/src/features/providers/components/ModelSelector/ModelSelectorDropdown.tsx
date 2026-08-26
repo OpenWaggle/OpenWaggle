@@ -27,7 +27,7 @@ export function ModelSelectorDropdown({
       role="listbox"
       tabIndex={0}
       onKeyDown={onKeyDown}
-      className="absolute z-[9999] flex flex-col overflow-hidden rounded-xl border border-[#1e2229] bg-[#0d0f12] p-1.5 shadow-2xl"
+      className="absolute z-[9999] flex flex-col overflow-hidden rounded-xl border border-border bg-bg p-1.5 shadow-2xl"
       style={{
         bottom: `calc(100% + ${VERTICAL_GAP}px)`,
         left: 0,
@@ -37,8 +37,8 @@ export function ModelSelectorDropdown({
     >
       {models.length === 0 ? (
         <div className="px-3 py-4 text-center">
-          <p className="text-[12px] text-text-tertiary">No models configured.</p>
-          <p className="mt-1 text-[11px] text-text-muted">
+          <p className="text-xs text-text-tertiary">No models configured.</p>
+          <p className="mt-1 text-xs text-text-muted">
             Go to Settings → Connections to enable models.
           </p>
         </div>

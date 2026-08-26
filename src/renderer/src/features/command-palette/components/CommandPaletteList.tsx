@@ -19,7 +19,7 @@ export function CommandPaletteList({
   const entries = buildCommandPaletteEntries(items)
 
   return (
-    <div ref={listRef} className="max-h-[400px] overflow-y-auto">
+    <div ref={listRef} className="max-h-100 overflow-y-auto">
       {items.length === 0 ? <CommandPaletteEmptyState /> : null}
       {entries.map((entry) => {
         if (entry.type === 'section')
@@ -42,7 +42,7 @@ export function CommandPaletteList({
 
 function CommandPaletteEmptyState() {
   return (
-    <div className="flex h-16 items-center justify-center text-[13px] text-text-muted">
+    <div className="flex h-16 items-center justify-center text-sm text-text-muted">
       No matching commands
     </div>
   )
@@ -55,7 +55,7 @@ interface CommandPaletteSectionHeaderProps {
 function CommandPaletteSectionHeader({ label }: CommandPaletteSectionHeaderProps) {
   return (
     <div className="flex h-7 items-center border-t border-border px-3.5">
-      <span className="text-[11px] font-medium text-text-muted">{label}</span>
+      <span className="text-xs font-medium text-text-muted">{label}</span>
     </div>
   )
 }

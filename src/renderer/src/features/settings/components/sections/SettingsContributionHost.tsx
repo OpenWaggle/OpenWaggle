@@ -20,8 +20,8 @@ export function SettingsContributionHost({
   return (
     <section aria-label="Extension settings contributions" className="space-y-3">
       <div>
-        <h3 className="text-[13px] font-semibold text-text-secondary">Extension settings</h3>
-        <p className="mt-0.5 text-[11px] text-text-muted">
+        <h3 className="text-xs font-semibold text-text-secondary">Extension settings</h3>
+        <p className="mt-0.5 text-xs text-text-muted">
           {entries.length} settings section{entries.length === 1 ? '' : 's'} from enabled
           extensions.
         </p>

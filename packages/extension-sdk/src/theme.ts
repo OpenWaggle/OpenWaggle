@@ -1,12 +1,6 @@
-import { isRecord } from './internal-validation.js'
 import {
   DEFAULT_EXTENSION_THEME_TOKENS,
-  EXTENSION_THEME_COLOR_KEYS,
-  EXTENSION_THEME_ELEVATION_KEYS,
-  EXTENSION_THEME_FOCUS_KEYS,
-  EXTENSION_THEME_RADIUS_KEYS,
-  EXTENSION_THEME_SPACING_KEYS,
-  EXTENSION_THEME_TYPOGRAPHY_KEYS,
+  EXTENSION_THEME_TYPE_SCALE_KEYS,
   OPENWAGGLE_EXTENSION_THEME_CSS_VARIABLES,
   SOURCE_EXTENSION_THEME_CSS_VARIABLES,
 } from './theme-data.js'
@@ -27,7 +21,9 @@ export type {
   OpenWaggleExtensionThemeCssVariableEntry,
   OpenWaggleExtensionThemeCssVariables,
   OpenWaggleExtensionThemeTokens,
+  OpenWaggleExtensionTypeScaleEntry,
 } from './theme-types.js'
+export { isOpenWaggleExtensionTheme } from './theme-validation.js'
 
 const EMPTY_LENGTH = 0
 
@@ -66,8 +62,27 @@ function colorTokens(
     accentDim: resolvedCssValue(resolve, source.accentDim, fallback.accentDim),
     success: resolvedCssValue(resolve, source.success, fallback.success),
     danger: resolvedCssValue(resolve, source.danger, fallback.danger),
+    dangerText: resolvedCssValue(resolve, source.dangerText, fallback.dangerText),
     warning: resolvedCssValue(resolve, source.warning, fallback.warning),
     info: resolvedCssValue(resolve, source.info, fallback.info),
+    infoText: resolvedCssValue(resolve, source.infoText, fallback.infoText),
+    review: resolvedCssValue(resolve, source.review, fallback.review),
+    plan: resolvedCssValue(resolve, source.plan, fallback.plan),
+    progress: resolvedCssValue(resolve, source.progress, fallback.progress),
+    neutral: resolvedCssValue(resolve, source.neutral, fallback.neutral),
+  }
+}
+
+function typeScaleEntryTokens(
+  resolve: ExtensionThemeCssVariableResolver | undefined,
+  role: (typeof EXTENSION_THEME_TYPE_SCALE_KEYS)[number],
+) {
+  const source = SOURCE_EXTENSION_THEME_CSS_VARIABLES.typography.typeScale[role]
+  const fallback = DEFAULT_EXTENSION_THEME_TOKENS.typography.typeScale[role]
+
+  return {
+    fontSize: resolvedCssValue(resolve, source.fontSize, fallback.fontSize),
+    lineHeight: resolvedCssValue(resolve, source.lineHeight, fallback.lineHeight),
   }
 }
 
@@ -80,50 +95,73 @@ function typographyTokens(
   return {
     sansFamily: resolvedCssValue(resolve, source.sansFamily, fallback.sansFamily),
     monoFamily: resolvedCssValue(resolve, source.monoFamily, fallback.monoFamily),
+    typeScale: {
+      xs: typeScaleEntryTokens(resolve, 'xs'),
+      sm: typeScaleEntryTokens(resolve, 'sm'),
+      base: typeScaleEntryTokens(resolve, 'base'),
+      lg: typeScaleEntryTokens(resolve, 'lg'),
+      xl: typeScaleEntryTokens(resolve, 'xl'),
+      twoXl: typeScaleEntryTokens(resolve, 'twoXl'),
+    },
+  }
+}
+
+function spacingTokens(
+  resolve: ExtensionThemeCssVariableResolver | undefined,
+): OpenWaggleExtensionThemeTokens['spacing'] {
+  const source = SOURCE_EXTENSION_THEME_CSS_VARIABLES.spacing
+  const fallback = DEFAULT_EXTENSION_THEME_TOKENS.spacing
+
+  return {
+    unit: resolvedCssValue(resolve, source.unit, fallback.unit),
   }
 }
 
 function radiusTokens(
   resolve: ExtensionThemeCssVariableResolver | undefined,
 ): OpenWaggleExtensionThemeTokens['radius'] {
+  const source = SOURCE_EXTENSION_THEME_CSS_VARIABLES.radius
   const fallback = DEFAULT_EXTENSION_THEME_TOKENS.radius
 
   return {
-    sm: fallback.sm,
-    md: fallback.md,
-    lg: fallback.lg,
-    panel: resolvedCssValue(
-      resolve,
-      SOURCE_EXTENSION_THEME_CSS_VARIABLES.radius.panel,
-      fallback.panel,
-    ),
+    xs: resolvedCssValue(resolve, source.xs, fallback.xs),
+    sm: resolvedCssValue(resolve, source.sm, fallback.sm),
+    md: resolvedCssValue(resolve, source.md, fallback.md),
+    lg: resolvedCssValue(resolve, source.lg, fallback.lg),
+    xl: resolvedCssValue(resolve, source.xl, fallback.xl),
+    twoXl: resolvedCssValue(resolve, source.twoXl, fallback.twoXl),
+    threeXl: resolvedCssValue(resolve, source.threeXl, fallback.threeXl),
+    fourXl: resolvedCssValue(resolve, source.fourXl, fallback.fourXl),
   }
 }
 
-function hasStringKeys(value: unknown, keys: readonly string[]) {
-  if (!isRecord(value)) {
-    return false
-  }
+function shadowTokens(
+  resolve: ExtensionThemeCssVariableResolver | undefined,
+): OpenWaggleExtensionThemeTokens['shadow'] {
+  const source = SOURCE_EXTENSION_THEME_CSS_VARIABLES.shadow
+  const fallback = DEFAULT_EXTENSION_THEME_TOKENS.shadow
 
-  for (const key of keys) {
-    if (typeof value[key] !== 'string') {
-      return false
-    }
+  return {
+    twoXs: resolvedCssValue(resolve, source.twoXs, fallback.twoXs),
+    xs: resolvedCssValue(resolve, source.xs, fallback.xs),
+    sm: resolvedCssValue(resolve, source.sm, fallback.sm),
+    md: resolvedCssValue(resolve, source.md, fallback.md),
+    lg: resolvedCssValue(resolve, source.lg, fallback.lg),
+    xl: resolvedCssValue(resolve, source.xl, fallback.xl),
+    twoXl: resolvedCssValue(resolve, source.twoXl, fallback.twoXl),
   }
-
-  return true
 }
 
-function hasThemeTokenGroups(value: unknown) {
-  return (
-    isRecord(value) &&
-    hasStringKeys(value.color, EXTENSION_THEME_COLOR_KEYS) &&
-    hasStringKeys(value.typography, EXTENSION_THEME_TYPOGRAPHY_KEYS) &&
-    hasStringKeys(value.spacing, EXTENSION_THEME_SPACING_KEYS) &&
-    hasStringKeys(value.radius, EXTENSION_THEME_RADIUS_KEYS) &&
-    hasStringKeys(value.focus, EXTENSION_THEME_FOCUS_KEYS) &&
-    hasStringKeys(value.elevation, EXTENSION_THEME_ELEVATION_KEYS)
-  )
+function focusTokens(
+  resolve: ExtensionThemeCssVariableResolver | undefined,
+): OpenWaggleExtensionThemeTokens['focus'] {
+  const source = SOURCE_EXTENSION_THEME_CSS_VARIABLES.focus
+  const fallback = DEFAULT_EXTENSION_THEME_TOKENS.focus
+
+  return {
+    ring: resolvedCssValue(resolve, source.ring, fallback.ring),
+    shadow: resolvedCssValue(resolve, source.shadow, fallback.shadow),
+  }
 }
 
 export function createOpenWaggleExtensionTheme(
@@ -136,10 +174,10 @@ export function createOpenWaggleExtensionTheme(
     tokens: {
       color: colorTokens(resolve),
       typography: typographyTokens(resolve),
-      spacing: DEFAULT_EXTENSION_THEME_TOKENS.spacing,
+      spacing: spacingTokens(resolve),
       radius: radiusTokens(resolve),
-      focus: DEFAULT_EXTENSION_THEME_TOKENS.focus,
-      elevation: DEFAULT_EXTENSION_THEME_TOKENS.elevation,
+      shadow: shadowTokens(resolve),
+      focus: focusTokens(resolve),
     },
     cssVariables: OPENWAGGLE_EXTENSION_THEME_CSS_VARIABLES,
   }
@@ -148,6 +186,17 @@ export function createOpenWaggleExtensionTheme(
 export function extensionThemeCssVariableEntries(
   theme: OpenWaggleExtensionTheme,
 ): readonly OpenWaggleExtensionThemeCssVariableEntry[] {
+  const typeScaleEntries = EXTENSION_THEME_TYPE_SCALE_KEYS.flatMap((role) => [
+    {
+      name: theme.cssVariables.typography.typeScale[role].fontSize,
+      value: theme.tokens.typography.typeScale[role].fontSize,
+    },
+    {
+      name: theme.cssVariables.typography.typeScale[role].lineHeight,
+      value: theme.tokens.typography.typeScale[role].lineHeight,
+    },
+  ])
+
   return [
     { name: theme.cssVariables.color.background, value: theme.tokens.color.background },
     { name: theme.cssVariables.color.surface, value: theme.tokens.color.surface },
@@ -164,31 +213,34 @@ export function extensionThemeCssVariableEntries(
     { name: theme.cssVariables.color.accentDim, value: theme.tokens.color.accentDim },
     { name: theme.cssVariables.color.success, value: theme.tokens.color.success },
     { name: theme.cssVariables.color.danger, value: theme.tokens.color.danger },
+    { name: theme.cssVariables.color.dangerText, value: theme.tokens.color.dangerText },
     { name: theme.cssVariables.color.warning, value: theme.tokens.color.warning },
     { name: theme.cssVariables.color.info, value: theme.tokens.color.info },
+    { name: theme.cssVariables.color.infoText, value: theme.tokens.color.infoText },
+    { name: theme.cssVariables.color.review, value: theme.tokens.color.review },
+    { name: theme.cssVariables.color.plan, value: theme.tokens.color.plan },
+    { name: theme.cssVariables.color.progress, value: theme.tokens.color.progress },
+    { name: theme.cssVariables.color.neutral, value: theme.tokens.color.neutral },
     { name: theme.cssVariables.typography.sansFamily, value: theme.tokens.typography.sansFamily },
     { name: theme.cssVariables.typography.monoFamily, value: theme.tokens.typography.monoFamily },
-    { name: theme.cssVariables.spacing.xs, value: theme.tokens.spacing.xs },
-    { name: theme.cssVariables.spacing.sm, value: theme.tokens.spacing.sm },
-    { name: theme.cssVariables.spacing.md, value: theme.tokens.spacing.md },
-    { name: theme.cssVariables.spacing.lg, value: theme.tokens.spacing.lg },
-    { name: theme.cssVariables.spacing.xl, value: theme.tokens.spacing.xl },
+    ...typeScaleEntries,
+    { name: theme.cssVariables.spacing.unit, value: theme.tokens.spacing.unit },
+    { name: theme.cssVariables.radius.xs, value: theme.tokens.radius.xs },
     { name: theme.cssVariables.radius.sm, value: theme.tokens.radius.sm },
     { name: theme.cssVariables.radius.md, value: theme.tokens.radius.md },
     { name: theme.cssVariables.radius.lg, value: theme.tokens.radius.lg },
-    { name: theme.cssVariables.radius.panel, value: theme.tokens.radius.panel },
+    { name: theme.cssVariables.radius.xl, value: theme.tokens.radius.xl },
+    { name: theme.cssVariables.radius.twoXl, value: theme.tokens.radius.twoXl },
+    { name: theme.cssVariables.radius.threeXl, value: theme.tokens.radius.threeXl },
+    { name: theme.cssVariables.radius.fourXl, value: theme.tokens.radius.fourXl },
+    { name: theme.cssVariables.shadow.twoXs, value: theme.tokens.shadow.twoXs },
+    { name: theme.cssVariables.shadow.xs, value: theme.tokens.shadow.xs },
+    { name: theme.cssVariables.shadow.sm, value: theme.tokens.shadow.sm },
+    { name: theme.cssVariables.shadow.md, value: theme.tokens.shadow.md },
+    { name: theme.cssVariables.shadow.lg, value: theme.tokens.shadow.lg },
+    { name: theme.cssVariables.shadow.xl, value: theme.tokens.shadow.xl },
+    { name: theme.cssVariables.shadow.twoXl, value: theme.tokens.shadow.twoXl },
     { name: theme.cssVariables.focus.ring, value: theme.tokens.focus.ring },
     { name: theme.cssVariables.focus.shadow, value: theme.tokens.focus.shadow },
-    { name: theme.cssVariables.elevation.card, value: theme.tokens.elevation.card },
-    { name: theme.cssVariables.elevation.overlay, value: theme.tokens.elevation.overlay },
   ]
-}
-
-export function isOpenWaggleExtensionTheme(value: unknown): value is OpenWaggleExtensionTheme {
-  return (
-    isRecord(value) &&
-    value.colorScheme === 'dark' &&
-    hasThemeTokenGroups(value.tokens) &&
-    hasThemeTokenGroups(value.cssVariables)
-  )
 }

@@ -20,7 +20,6 @@ interface FileTreeProps {
 }
 
 const INDENT_PX = 10
-const NUDGE_STEP = 16
 const ROW_PADDING_PX = 8
 
 const STATUS_GLYPH: Record<FileChangeStatus, string> = {
@@ -52,16 +51,16 @@ function FileChangeBadges({ stats }: { readonly stats: FileChangeStats }) {
   return (
     <span className="ml-auto flex shrink-0 items-center gap-1 pl-1">
       {stats.additions > 0 ? (
-        <span className="text-[10px] text-diff-add-mark">+{String(stats.additions)}</span>
+        <span className="text-xs text-diff-add-mark">+{String(stats.additions)}</span>
       ) : null}
       {stats.deletions > 0 ? (
-        <span className="text-[10px] text-diff-remove-text">-{String(stats.deletions)}</span>
+        <span className="text-xs text-diff-remove-text">-{String(stats.deletions)}</span>
       ) : null}
       <span
         role="img"
         aria-label={stats.status}
         title={stats.status}
-        className={cn('w-2 text-center text-[10px] font-semibold', STATUS_CLASS[stats.status])}
+        className={cn('w-2 text-center text-xs font-semibold', STATUS_CLASS[stats.status])}
       >
         {STATUS_GLYPH[stats.status]}
       </span>
@@ -131,13 +130,14 @@ export function FileTree({ files, onFileClick }: FileTreeProps) {
   'use no memo'
 
   const tree = useNavigatorTree(files)
-  const { width, isResizing, startResizing, nudge } = useNavigatorResize()
+  const resize = useNavigatorResize()
+  const { width, isResizing } = resize
 
   return (
     <div
       // max-w guard: the stored width is absolute pixels, so in a narrow docked
       // panel a wide navigator would starve the diff body and clip the code.
-      className="relative flex h-full max-w-[45%] shrink-0 flex-col border-l border-border bg-diff-bg py-2"
+      className="relative flex h-full max-w-1/2 shrink-0 flex-col border-l border-border bg-diff-bg py-2"
       style={{ width: `${String(width)}px` }}
     >
       {/*
@@ -151,21 +151,12 @@ export function FileTree({ files, onFileClick }: FileTreeProps) {
         type="button"
         aria-label={`Resize changed file list, currently ${String(width)} pixels`}
         title="Drag or use arrow keys to resize"
-        onPointerDown={(event) => {
-          event.preventDefault()
-          startResizing()
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'ArrowLeft') {
-            event.preventDefault()
-            nudge(NUDGE_STEP)
-            return
-          }
-          if (event.key === 'ArrowRight') {
-            event.preventDefault()
-            nudge(-NUDGE_STEP)
-          }
-        }}
+        onKeyDown={resize.handleKeyDown}
+        onLostPointerCapture={resize.handleLostPointerCapture}
+        onPointerCancel={resize.handlePointerCancel}
+        onPointerDown={resize.handlePointerDown}
+        onPointerMove={resize.handlePointerMove}
+        onPointerUp={resize.handlePointerUp}
         className={cn(
           'absolute inset-y-0 left-0 z-10 w-1 cursor-col-resize border-0 bg-transparent p-0 transition-colors',
           isResizing ? 'bg-accent/60' : 'hover:bg-accent/40 focus-visible:bg-accent/60',
@@ -203,20 +194,20 @@ export function FileTree({ files, onFileClick }: FileTreeProps) {
                 paddingLeft: `${String(item.getItemMeta().level * INDENT_PX + ROW_PADDING_PX)}px`,
               }}
               className={cn(
-                'flex h-[22px] w-full items-center gap-1.5 pr-1.5 text-left outline-none',
+                'flex h-5.5 w-full items-center gap-1.5 pr-1.5 text-left outline-none',
                 item.isFocused() && 'bg-bg-hover',
                 item.isSelected() && 'bg-diff-highlight-bg',
                 'hover:bg-bg-hover',
               )}
             >
               {isFolder ? (
-                <ChevIcon className="size-[11px] shrink-0 text-text-tertiary" />
+                <ChevIcon className="size-3 shrink-0 text-text-tertiary" />
               ) : (
-                <span className="size-[11px] shrink-0" />
+                <span className="size-3 shrink-0" />
               )}
               <span
                 className={cn(
-                  'truncate text-[12px]',
+                  'truncate text-xs',
                   data.isFile ? 'text-text-primary' : 'text-text-secondary',
                 )}
               >

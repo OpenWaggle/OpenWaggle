@@ -10,7 +10,7 @@ const ENV_MODE_LABELS: Record<SessionEnvironmentMode, string> = {
 }
 
 const NOTICE_ACTION_CLASS =
-  'shrink-0 whitespace-nowrap rounded-[5px] border border-border px-1.5 py-0.5 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover'
+  'shrink-0 whitespace-nowrap rounded-md border border-border px-1.5 py-0.5 text-xs text-text-secondary transition-colors hover:bg-bg-hover'
 
 function toEnvMode(value: string): SessionEnvironmentMode {
   return value === 'worktree' ? 'worktree' : 'local'
@@ -77,7 +77,7 @@ export function SessionContextRow({ strip }: SessionContextRowProps) {
   }
 
   return (
-    <div className="flex min-w-0 items-center gap-1.5 text-[12px] text-text-tertiary">
+    <div className="flex min-w-0 items-center gap-1.5 text-xs text-text-tertiary">
       <span className="shrink-0">Run in</span>
       <Select
         aria-label="Session environment mode"

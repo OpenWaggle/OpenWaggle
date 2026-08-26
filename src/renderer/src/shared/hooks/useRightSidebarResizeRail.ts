@@ -1,7 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
+import { useResizeGesture } from '@/shared/hooks/useResizeGesture'
 import {
   clampedVisibleWidth,
-  clampWidth,
   RESIZE_BODY_CLASS,
   RESIZE_MOVE_THRESHOLD_PX,
   RESIZE_RAIL_HALF_WIDTH_PX,
@@ -15,18 +15,11 @@ import type {
   WidthAcceptanceContext,
 } from '@/shared/ui/right-sidebar-layout-types'
 
-interface ResizeState {
+interface ResizeElements {
   readonly panel: HTMLDivElement
-  readonly pointerId: number
   readonly rail: HTMLButtonElement
   readonly root: HTMLDivElement
   readonly sidebar: HTMLDivElement
-  readonly startWidth: number
-  readonly startX: number
-  moved: boolean
-  pendingWidth: number
-  rafId: number | null
-  width: number
 }
 
 interface ResizeRailControllerParams {
@@ -44,30 +37,57 @@ export function useRightSidebarResizeRail({
   state,
   shouldAcceptWidth,
 }: ResizeRailControllerParams) {
-  const resizeStateRef = useRef<ResizeState | null>(null)
+  const resizeElementsRef = useRef<ResizeElements | null>(null)
   const suppressClickRef = useRef(false)
 
-  function cleanupResizeState(pointerId: number) {
-    const resizeState = resizeStateRef.current
-    if (!resizeState) return
-    const nextStoredWidth = resizeState.moved ? resizeState.width : state.width
+  const resize = useResizeGesture<HTMLButtonElement>({
+    getWidth: () => refs.width.current,
+    growDirection: 'left',
+    maxWidth: bounds.maxWidth,
+    minWidth: bounds.minWidth,
+    moveThreshold: RESIZE_MOVE_THRESHOLD_PX,
+    onCommit: actions.commitWidth,
+    onFinish({ moved, reason, width }) {
+      const elements = resizeElementsRef.current
+      if (!elements) return
 
-    resizeStateRef.current = null
-    if (resizeState.rafId !== null) window.cancelAnimationFrame(resizeState.rafId)
-    resizeState.panel.style.removeProperty('transition-duration')
-    resizeState.rail.style.removeProperty('transition-duration')
-    resizeState.sidebar.style.removeProperty('transition-duration')
-    resizeState.rail.style.setProperty(
-      'right',
-      resizeRailRightValue(state.open, nextStoredWidth, bounds.mainMinWidth),
-    )
-    actions.applyWidth(nextStoredWidth)
-    document.body.classList.remove(RESIZE_BODY_CLASS)
+      resizeElementsRef.current = null
+      elements.panel.style.removeProperty('transition-duration')
+      elements.rail.style.removeProperty('transition-duration')
+      elements.sidebar.style.removeProperty('transition-duration')
+      document.body.classList.remove(RESIZE_BODY_CLASS)
+      if (reason === 'cancel') return
 
-    if (resizeState.rail.hasPointerCapture(pointerId))
-      resizeState.rail.releasePointerCapture(pointerId)
-    if (resizeState.moved) actions.commitWidth(nextStoredWidth)
-  }
+      const nextStoredWidth = moved ? width : state.width
+      elements.rail.style.setProperty(
+        'right',
+        resizeRailRightValue(state.open, nextStoredWidth, bounds.mainMinWidth),
+      )
+      actions.applyWidth(nextStoredWidth)
+      if (reason === 'pointer-cancel' || reason === 'pointer-up') {
+        suppressClickRef.current = moved
+      }
+    },
+    onPreview(nextWidth) {
+      const elements = resizeElementsRef.current
+      if (!elements) return
+
+      elements.rail.style.setProperty('right', `${String(nextWidth - RESIZE_RAIL_HALF_WIDTH_PX)}px`)
+      actions.applyWidth(nextWidth)
+    },
+    shouldAcceptWidth(nextWidth) {
+      const elements = resizeElementsRef.current
+      if (!elements) return false
+      return (
+        shouldAcceptWidth?.({
+          nextWidth,
+          panel: elements.panel,
+          root: elements.root,
+          sidebar: elements.sidebar,
+        }) ?? true
+      )
+    },
+  })
 
   function handlePointerDown(event: React.PointerEvent<HTMLButtonElement>) {
     if (!state.open || event.button !== 0) return
@@ -98,91 +118,25 @@ export function useRightSidebarResizeRail({
     )
     document.body.classList.add(RESIZE_BODY_CLASS)
 
-    resizeStateRef.current = {
-      moved: false,
+    resizeElementsRef.current = {
       panel,
-      pendingWidth: startWidth,
-      pointerId: event.pointerId,
-      rafId: null,
       rail: event.currentTarget,
       root,
       sidebar,
-      startWidth,
-      startX: event.clientX,
-      width: startWidth,
     }
-    event.currentTarget.setPointerCapture(event.pointerId)
+    resize.startResize(event, startWidth)
   }
-
-  function applyPendingResize() {
-    const activeState = resizeStateRef.current
-    if (!activeState) return
-
-    activeState.rafId = null
-    const nextWidth = activeState.pendingWidth
-    const accepted =
-      shouldAcceptWidth?.({
-        nextWidth,
-        panel: activeState.panel,
-        root: activeState.root,
-        sidebar: activeState.sidebar,
-      }) ?? true
-    if (!accepted) return
-
-    activeState.width = nextWidth
-    activeState.rail.style.setProperty(
-      'right',
-      `${String(nextWidth - RESIZE_RAIL_HALF_WIDTH_PX)}px`,
-    )
-    actions.applyWidth(nextWidth)
-  }
-
-  function handlePointerMove(event: React.PointerEvent<HTMLButtonElement>) {
-    const resizeState = resizeStateRef.current
-    if (!resizeState || resizeState.pointerId !== event.pointerId) return
-
-    event.preventDefault()
-    const delta = resizeState.startX - event.clientX
-    if (Math.abs(delta) > RESIZE_MOVE_THRESHOLD_PX) resizeState.moved = true
-    resizeState.pendingWidth = clampWidth(
-      resizeState.startWidth + delta,
-      bounds.minWidth,
-      bounds.maxWidth,
-    )
-    if (resizeState.rafId !== null) return
-    resizeState.rafId = window.requestAnimationFrame(applyPendingResize)
-  }
-
-  function endResize(event: React.PointerEvent<HTMLButtonElement>) {
-    const resizeState = resizeStateRef.current
-    if (!resizeState || resizeState.pointerId !== event.pointerId) return
-
-    event.preventDefault()
-    suppressClickRef.current = resizeState.moved
-    cleanupResizeState(event.pointerId)
-  }
-
-  useEffect(() => {
-    return () => {
-      const resizeState = resizeStateRef.current
-      if (!resizeState) return
-      if (resizeState.rafId !== null) window.cancelAnimationFrame(resizeState.rafId)
-      resizeState.panel.style.removeProperty('transition-duration')
-      resizeState.rail.style.removeProperty('transition-duration')
-      resizeState.sidebar.style.removeProperty('transition-duration')
-      document.body.classList.remove(RESIZE_BODY_CLASS)
-    }
-  }, [])
 
   return {
-    cleanupResizeState,
-    endResize,
     handleClick(event: React.MouseEvent<HTMLButtonElement>) {
       if (!suppressClickRef.current) return
       suppressClickRef.current = false
       event.preventDefault()
     },
+    handleLostPointerCapture: resize.handleLostPointerCapture,
+    handlePointerCancel: resize.handlePointerCancel,
     handlePointerDown,
-    handlePointerMove,
+    handlePointerMove: resize.handlePointerMove,
+    handlePointerUp: resize.handlePointerUp,
   }
 }

@@ -12,7 +12,7 @@ function LineGutter({ content }: { readonly content: string }) {
   return (
     <pre
       aria-hidden="true"
-      className="select-none border-r border-border bg-bg-secondary px-2 py-3 text-right font-mono text-[11px] leading-5 text-text-muted"
+      className="select-none border-r border-border bg-bg-secondary px-2 py-3 text-right font-mono text-xs leading-5 text-text-muted"
     >
       {Array.from({ length: count }, (_, index) => index + 1).join('\n')}
     </pre>
@@ -49,7 +49,7 @@ function EditorToolbar({
   const { status, errorMessage } = saveState
   return (
     <div className="flex h-9 shrink-0 items-center justify-between border-b border-border px-2">
-      <div className="flex items-center gap-1.5 text-[10px] text-text-muted">
+      <div className="flex items-center gap-1.5 text-xs text-text-muted">
         <Save className="size-3" />
         <span
           className={status === 'conflict' || status === 'error' ? 'text-error' : undefined}
@@ -136,7 +136,7 @@ function TextEditor({
         spellCheck={false}
         wrap={wordWrap ? 'soft' : 'off'}
         aria-label={`Edit ${file.path}`}
-        className="min-h-0 min-w-0 flex-1 resize-none overflow-auto border-0 bg-bg p-3 font-mono text-[12px] leading-5 text-text-secondary outline-none selection:bg-accent/25"
+        className="min-h-0 min-w-0 flex-1 resize-none overflow-auto border-0 bg-bg p-3 font-mono text-xs leading-5 text-text-secondary outline-none selection:bg-accent/25"
       />
     </div>
   )
@@ -151,7 +151,7 @@ function EditorContent({
 }) {
   if (editing.preview && file.previewKind === 'markdown') {
     return (
-      <article className="prose prose-invert min-h-0 flex-1 overflow-auto p-6 text-[13px] text-text-secondary">
+      <article className="prose prose-invert min-h-0 flex-1 overflow-auto p-6 text-sm text-text-secondary">
         <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
           {editing.content}
         </ReactMarkdown>
@@ -164,7 +164,7 @@ function EditorContent({
         title={`Preview ${file.basename}`}
         sandbox=""
         srcDoc={editing.content}
-        className="min-h-0 flex-1 border-0 bg-white"
+        className="min-h-0 flex-1 border-0 bg-text-primary"
       />
     )
   }

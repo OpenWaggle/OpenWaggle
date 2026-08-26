@@ -91,11 +91,11 @@ function AuthorizationGrantRow({
   }
 
   return (
-    <div className="flex min-h-14 flex-col gap-1 border-b border-[#1e2229] px-5 py-3 last:border-b-0">
+    <div className="flex min-h-14 flex-col gap-1 border-b border-border px-5 py-3 last:border-b-0">
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="truncate text-[13px] font-medium text-[#e7e9ee]">{grant.requester}</span>
-          <span className="truncate text-[12px] text-[#9098a8]">{grantDescription(grant)}</span>
+          <span className="truncate text-xs font-medium text-text-primary">{grant.requester}</span>
+          <span className="truncate text-xs text-text-tertiary">{grantDescription(grant)}</span>
         </div>
         <Button
           aria-label={`Revoke ${grantDescription(grant)} for ${grant.requester}`}
@@ -108,7 +108,7 @@ function AuthorizationGrantRow({
         </Button>
       </div>
       {error ? (
-        <p className="text-[12px] text-error" role="alert">
+        <p className="text-xs text-error-text" role="alert">
           {error}
         </p>
       ) : null}
@@ -122,21 +122,21 @@ export function AuthorizationGrantsCard({ projectPath }: { readonly projectPath:
   return (
     <div className="space-y-2">
       <div className="flex flex-col gap-0.5">
-        <span className="text-[13px] font-medium text-[#e7e9ee]">Saved approvals</span>
-        <span className="text-[12px] text-[#9098a8]">
+        <span className="text-xs font-medium text-text-primary">Saved approvals</span>
+        <span className="text-xs text-text-tertiary">
           Revoking stops future use. It does not recall work already done.
         </span>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-[#1e2229] bg-[#111418]">
+      <div className="overflow-hidden rounded-lg border border-border bg-bg">
         {!projectPath ? (
-          <p className="px-5 py-3 text-[12px] text-[#9098a8]">
+          <p className="px-5 py-3 text-xs text-text-tertiary">
             Open a project to see what it has approved.
           </p>
         ) : loading ? (
-          <p className="px-5 py-3 text-[12px] text-[#9098a8]">Loading saved approvals…</p>
+          <p className="px-5 py-3 text-xs text-text-tertiary">Loading saved approvals…</p>
         ) : grants.length === 0 ? (
-          <p className="px-5 py-3 text-[12px] text-[#9098a8]">
+          <p className="px-5 py-3 text-xs text-text-tertiary">
             This project has no saved approvals. Approvals you keep will appear here.
           </p>
         ) : (

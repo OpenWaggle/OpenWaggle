@@ -23,7 +23,7 @@ export function ContextMenu({ open, onClose, position, children }: ContextMenuPr
     <div
       ref={menuRef}
       className={cn(
-        'fixed z-50 min-w-[160px] py-1 rounded-lg border border-border-light bg-bg-secondary shadow-lg',
+        'fixed z-50 min-w-40 py-1 rounded-lg border border-border-light bg-bg-secondary shadow-lg',
       )}
       style={{ left: position.x, top: position.y }}
     >

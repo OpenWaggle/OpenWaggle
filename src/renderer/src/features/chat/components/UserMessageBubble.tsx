@@ -101,11 +101,11 @@ function AttachmentChip({ name }: { readonly name: string }) {
     <div
       className={cn(
         'inline-flex items-center gap-1.5 rounded-md border border-border',
-        'bg-bg-tertiary px-2 py-1 text-[12px] text-text-secondary',
+        'bg-bg-tertiary px-2 py-1 text-xs text-text-secondary',
       )}
     >
       <AttachmentIcon name={name} />
-      <span className="truncate max-w-[200px]">{name}</span>
+      <span className="truncate max-w-50">{name}</span>
     </div>
   )
 }
@@ -115,11 +115,11 @@ function WaggleInvocationChip({ message }: { readonly message: UIMessage }) {
   if (!invocation) return null
 
   return (
-    <span className="mt-px inline-flex shrink-0 items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[12px] text-amber-200">
+    <span className="mt-px inline-flex shrink-0 items-center gap-1.5 rounded-md border border-accent/30 bg-accent/10 px-2 py-1 text-xs text-accent">
       <Waypoints className="size-3.5" />
       <span>{invocation.presetName}</span>
       {invocation.source === 'agent' ? (
-        <span className="text-[10px] uppercase tracking-wide text-amber-200/60">agent</span>
+        <span className="text-xs uppercase tracking-wide text-accent/60">agent</span>
       ) : null}
     </span>
   )
@@ -177,7 +177,7 @@ export function UserMessageBubble({
     <div className="group/user-msg flex justify-end w-full">
       <div
         className={cn(
-          'relative min-w-0 max-w-full rounded-[16px_16px_2px_16px]',
+          'relative min-w-0 max-w-full rounded-2xl rounded-br-xs',
           'border border-border-light bg-bg-hover px-3.5 py-2.5',
         )}
       >
@@ -206,7 +206,7 @@ export function UserMessageBubble({
               type="button"
               title="Branch from message"
               onClick={() => onBranchFromMessage(message.id)}
-              className="flex items-center gap-1 text-[12px] text-text-muted hover:text-text-secondary cursor-pointer"
+              className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary cursor-pointer"
             >
               <GitBranch className="size-3" />
             </Button>
@@ -218,7 +218,7 @@ export function UserMessageBubble({
               type="button"
               title="Fork to new session"
               onClick={() => onForkFromMessage(message.id)}
-              className="flex cursor-pointer items-center gap-1 text-[12px] text-text-muted hover:text-text-secondary"
+              className="flex cursor-pointer items-center gap-1 text-xs text-text-muted hover:text-text-secondary"
             >
               <GitFork className="size-3" />
             </Button>
@@ -229,7 +229,7 @@ export function UserMessageBubble({
             type="button"
             title="Copy message"
             onClick={handleCopy}
-            className="flex items-center gap-1 text-[12px] text-text-muted hover:text-text-secondary cursor-pointer"
+            className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary cursor-pointer"
           >
             {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
           </Button>

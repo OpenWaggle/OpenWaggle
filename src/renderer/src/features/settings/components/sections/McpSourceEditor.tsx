@@ -22,20 +22,20 @@ export function McpSourceEditor({
   onRawJsonChange,
 }: McpSourceEditorProps) {
   return (
-    <div className="rounded-lg border border-border bg-[#111418] p-5">
+    <div className="rounded-lg border border-border bg-bg p-5">
       <div className="mb-3 flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <FileJson2 className="size-4 text-text-tertiary" />
-            <h3 className="text-[16px] font-semibold text-text-primary">Edit selected source</h3>
+            <h3 className="text-base font-semibold text-text-primary">Edit selected source</h3>
           </div>
-          <p className="mt-1 truncate text-[12px] text-text-tertiary">
+          <p className="mt-1 truncate text-xs text-text-tertiary">
             {selectedSource ? tildifyPath(selectedSource.path) : 'Select a source'}
           </p>
           {selectedSource?.parseError && (
             <p
               role="alert"
-              className="mt-2 rounded-md border border-error/25 bg-error/6 px-3 py-2 text-[12px] text-error"
+              className="mt-2 rounded-md border border-error/25 bg-error/6 px-3 py-2 text-xs text-error-text"
             >
               {selectedSource.parseError}
             </p>
@@ -59,7 +59,7 @@ export function McpSourceEditor({
           onRawJsonChange(selectedSource.id, event.target.value)
         }}
       />
-      <p className="mt-2 text-[11px] text-text-muted">
+      <p className="mt-2 text-xs text-text-muted">
         OpenWaggle preserves unknown fields for forward compatibility and reports any fields the
         current runtime cannot apply. Protocol pins and legacy compatibility profiles remain
         available here.

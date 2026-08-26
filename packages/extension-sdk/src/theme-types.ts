@@ -1,4 +1,9 @@
-export type OpenWaggleExtensionColorScheme = 'dark'
+export type OpenWaggleExtensionColorScheme = 'dark' | 'light'
+
+export interface OpenWaggleExtensionTypeScaleEntry {
+  readonly fontSize: string
+  readonly lineHeight: string
+}
 
 export interface OpenWaggleExtensionThemeTokens {
   readonly color: {
@@ -17,33 +22,52 @@ export interface OpenWaggleExtensionThemeTokens {
     readonly accentDim: string
     readonly success: string
     readonly danger: string
+    readonly dangerText: string
     readonly warning: string
     readonly info: string
+    readonly infoText: string
+    readonly review: string
+    readonly plan: string
+    readonly progress: string
+    readonly neutral: string
   }
   readonly typography: {
     readonly sansFamily: string
     readonly monoFamily: string
+    readonly typeScale: {
+      readonly xs: OpenWaggleExtensionTypeScaleEntry
+      readonly sm: OpenWaggleExtensionTypeScaleEntry
+      readonly base: OpenWaggleExtensionTypeScaleEntry
+      readonly lg: OpenWaggleExtensionTypeScaleEntry
+      readonly xl: OpenWaggleExtensionTypeScaleEntry
+      readonly twoXl: OpenWaggleExtensionTypeScaleEntry
+    }
   }
   readonly spacing: {
+    readonly unit: string
+  }
+  readonly radius: {
     readonly xs: string
     readonly sm: string
     readonly md: string
     readonly lg: string
     readonly xl: string
+    readonly twoXl: string
+    readonly threeXl: string
+    readonly fourXl: string
   }
-  readonly radius: {
+  readonly shadow: {
+    readonly twoXs: string
+    readonly xs: string
     readonly sm: string
     readonly md: string
     readonly lg: string
-    readonly panel: string
+    readonly xl: string
+    readonly twoXl: string
   }
   readonly focus: {
     readonly ring: string
     readonly shadow: string
-  }
-  readonly elevation: {
-    readonly card: string
-    readonly overlay: string
   }
 }
 

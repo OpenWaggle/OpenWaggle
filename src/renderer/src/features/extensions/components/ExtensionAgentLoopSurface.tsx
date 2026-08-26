@@ -53,10 +53,10 @@ function ExtensionAgentLoopChrome({
   readonly children: ReactNode
 }) {
   return (
-    <section className="rounded-xl border border-border bg-[#111418] p-3 text-text-secondary">
+    <section className="rounded-xl border border-border bg-bg-secondary p-3 text-text-secondary">
       <div className="mb-3 flex min-w-0 items-center gap-2">
         <Bot className="size-4 shrink-0 text-accent" />
-        <h3 className="truncate text-[12px] font-semibold text-text-primary">{title}</h3>
+        <h3 className="truncate text-xs font-semibold text-text-primary">{title}</h3>
       </div>
       {children}
     </section>

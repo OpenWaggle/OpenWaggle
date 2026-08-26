@@ -217,7 +217,7 @@ export function ChatComposerStack({
     <>
       <ComposerOverlays section={section} onOpenSessionTree={onOpenSessionTree} />
 
-      <div className="mx-auto w-full max-w-[720px] px-5 pb-5" data-chat-composer-form="true">
+      <div className="mx-auto w-full max-w-180 px-5 pb-5" data-chat-composer-form="true">
         {compactionStatus ? (
           <CompactionStatusStrip state={compactionStatus} onCancel={onCancel} />
         ) : null}

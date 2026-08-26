@@ -32,11 +32,7 @@ export function SidebarBrandArea({ isFullscreen }: { readonly isFullscreen: bool
         className="drag-region shrink-0 transition-[height] duration-200 ease-out"
         style={{ height: isFullscreen ? 0 : SIDEBAR_LAYOUT.DRAG_REGION_HEIGHT }}
       />
-      {/*
-       * Prototype metrics: a 38px block with 14px side padding. The lockup keeps the product's
-       * real artwork rather than the prototype's placeholder square, scaled to the 22px mark the
-       * design allows for. It was 48px inside an 88px block, which pushed every row down.
-       */}
+      {/* The 28px lockup stays legible without returning to the old 88px brand block. */}
       <div
         className="drag-region flex shrink-0 items-center px-3.5 pt-2.5 pb-1.5"
         data-qa="sidebar-brand"
@@ -44,7 +40,7 @@ export function SidebarBrandArea({ isFullscreen }: { readonly isFullscreen: bool
         <img
           src={openwaggleLockup}
           alt="OpenWaggle"
-          className="no-drag h-[22px] w-auto object-contain"
+          className="no-drag h-7 w-auto object-contain"
         />
       </div>
       <div
@@ -82,7 +78,7 @@ export function SidebarPrimaryActions({
         aria-label="New session"
         data-qa="sidebar-primary-action"
         onClick={onNewSession}
-        className="no-drag flex h-[30px] w-full gap-2 px-2 font-normal text-[13px] text-text-secondary"
+        className="no-drag flex h-7.5 w-full gap-2 px-2 font-normal text-sm text-text-secondary"
       >
         <Edit3 className="size-3.5 shrink-0 text-text-tertiary" />
         <span>New session</span>
@@ -90,7 +86,7 @@ export function SidebarPrimaryActions({
         <span
           data-qa="sidebar-kb"
           aria-hidden="true"
-          className="ml-auto flex-none rounded border border-border-light bg-bg-tertiary px-1 py-0.5 font-mono text-[10px] text-text-muted leading-none"
+          className="ml-auto flex-none rounded border border-border-light bg-bg-tertiary px-1 py-0.5 font-mono text-xs text-text-muted leading-none"
         >
           ⌘N
         </span>
@@ -103,7 +99,7 @@ export function SidebarPrimaryActions({
         aria-label="Skills"
         onClick={onOpenSkills}
         className={cn(
-          'no-drag flex h-[30px] w-full gap-2 px-2 font-normal text-[13px] text-text-secondary',
+          'no-drag flex h-7.5 w-full gap-2 px-2 font-normal text-sm text-text-secondary',
           activeView === 'skills' && 'text-text-primary',
         )}
         title="Open skills"
@@ -139,13 +135,13 @@ export function SidebarProjectsHeader({
   return (
     <SidebarSectionHead label="Projects" count={projectCount}>
       <SidebarIconButton label="Open project folder" onClick={onOpenProject}>
-        <FolderPlus className="size-[13px]" />
+        <FolderPlus className="size-3.5" />
       </SidebarIconButton>
       <Popover
         open={sortMenuOpen}
         onOpenChange={onSetSortMenuOpen}
         placement="bottom-end"
-        className="min-w-[196px] py-1"
+        className="min-w-49 py-1"
         role="menu"
         trigger={
           <SidebarIconButton
@@ -153,7 +149,7 @@ export function SidebarProjectsHeader({
             isActive={sortMenuOpen}
             onClick={() => onSetSortMenuOpen(!sortMenuOpen)}
           >
-            <LayoutList className="size-[13px]" />
+            <LayoutList className="size-3.5" />
           </SidebarIconButton>
         }
       >
@@ -169,7 +165,7 @@ export function SidebarProjectsHeader({
               onSetSortMode(option.value)
               onSetSortMenuOpen(false)
             }}
-            className={cn('gap-2 px-3 text-[12px]', sortMode === option.value && 'text-accent')}
+            className={cn('gap-2 px-3 text-xs', sortMode === option.value && 'text-accent')}
           >
             <option.icon className="size-3 shrink-0" />
             <span className="flex-1">{option.label}</span>
@@ -197,7 +193,7 @@ export function SidebarSettingsButton({ onOpenSettings }: { readonly onOpenSetti
         aria-label="Settings"
         data-qa="sidebar-settings"
         onClick={onOpenSettings}
-        className="flex h-[30px] w-full gap-2 px-2 font-normal text-[12px] text-text-tertiary"
+        className="flex h-7.5 w-full gap-2 px-2 font-normal text-xs text-text-tertiary"
       >
         <Settings className="size-3.5" />
         <span>Settings</span>

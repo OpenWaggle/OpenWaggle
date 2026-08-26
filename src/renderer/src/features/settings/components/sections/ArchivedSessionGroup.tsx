@@ -25,10 +25,10 @@ export function ArchivedSessionGroup({ group, onRestore, onDelete }: ArchivedSes
         className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-bg-hover"
       >
         <Chevron className="size-3 shrink-0 text-text-muted" />
-        <span className="text-[13px] font-medium text-text-secondary">
+        <span className="text-xs font-medium text-text-secondary">
           {group.path ? projectName(group.path) : 'No project'}
         </span>
-        <span className="text-[11px] text-text-muted">({group.sessions.length})</span>
+        <span className="text-xs text-text-muted">({group.sessions.length})</span>
       </Button>
 
       <div

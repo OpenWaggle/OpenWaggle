@@ -34,7 +34,7 @@ export function SidebarProjectList({
     return (
       <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
         <Folder className="size-5 text-text-muted/75" />
-        <p className="text-[13px] text-text-muted">No projects yet</p>
+        <p className="text-sm text-text-muted">No projects yet</p>
       </div>
     )
   }

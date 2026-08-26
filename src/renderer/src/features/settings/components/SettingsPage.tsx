@@ -44,7 +44,7 @@ export function SettingsPage({ activeTab }: SettingsPageProps) {
       <div
         className={cn(
           'drag-region flex shrink-0 items-center gap-3 border-b border-border px-4 h-12',
-          !isFullscreen && 'pl-[80px]',
+          !isFullscreen && 'pl-20',
         )}
       >
         <Button
@@ -54,9 +54,9 @@ export function SettingsPage({ activeTab }: SettingsPageProps) {
           className="no-drag flex items-center gap-2 rounded-md px-2 py-1 text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors"
         >
           <ArrowLeft className="size-4" />
-          <span className="text-[13px]">Back to app</span>
+          <span className="text-xs">Back to app</span>
         </Button>
-        <span className="no-drag text-[15px] font-medium text-text-primary">Settings</span>
+        <span className="no-drag text-base font-medium text-text-primary">Settings</span>
       </div>
 
       {/* Body: Nav + Content */}

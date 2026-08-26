@@ -18,6 +18,7 @@ import {
   assertRequiredPackageManagers,
   availablePackageManagers,
 } from '../package-smoke-package-managers'
+import { assertCanonicalExtensionReactStylesheet } from '../package-smoke-tarballs'
 
 describe('package smoke tarball assertions', () => {
   it('probes package managers outside the repository and fails closed for required managers', async () => {
@@ -85,6 +86,12 @@ describe('package smoke tarball assertions', () => {
       'Browser package smoke must emit executable JavaScript.',
     )
     expect(() => assertBrowserBundleContent('export const packageSmoke = true;')).not.toThrow()
+  })
+
+  it('rejects an extension-react stylesheet that drifted from the SDK generator', () => {
+    expect(() => assertCanonicalExtensionReactStylesheet('stale stylesheet\n')).toThrow(
+      '@openwaggle/extension-react styles.css must match the canonical @openwaggle/extension-sdk UI stylesheet.',
+    )
   })
 
   it('reads the tarball path from pnpm pack JSON output', () => {

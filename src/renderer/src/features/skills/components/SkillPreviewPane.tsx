@@ -19,9 +19,9 @@ export function SkillPreviewPane({
   previewMarkdown,
 }: SkillPreviewPaneProps) {
   return (
-    <div className="min-h-0 overflow-y-auto px-5 py-4">
+    <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-5 py-4">
       {error && (
-        <div className="mb-3 rounded-md border border-error/30 bg-error/10 px-3 py-2 text-[12px] text-error">
+        <div className="mb-3 rounded-md border border-error/30 bg-error/10 px-3 py-2 text-xs text-error">
           {error}
         </div>
       )}
@@ -41,7 +41,7 @@ function SkillPreviewContent({
 }: Omit<SkillPreviewPaneProps, 'error'>) {
   if (!selectedSkill) {
     return (
-      <div className="rounded-lg border border-border bg-bg-secondary p-4 text-[13px] text-text-tertiary">
+      <div className="rounded-lg border border-border bg-bg-secondary p-4 text-sm text-text-tertiary">
         Select a skill to preview its instructions.
       </div>
     )
@@ -49,7 +49,7 @@ function SkillPreviewContent({
 
   if (selectedSkill.loadStatus === 'error') {
     return (
-      <div className="rounded-lg border border-error/30 bg-error/10 p-4 text-[13px] text-error">
+      <div className="rounded-lg border border-error/30 bg-error/10 p-4 text-sm text-error">
         {selectedSkill.loadError ?? 'This skill file is invalid.'}
       </div>
     )
@@ -57,7 +57,7 @@ function SkillPreviewContent({
 
   if (isPreviewLoading) {
     return (
-      <div className="flex items-center gap-2 text-[13px] text-text-tertiary">
+      <div className="flex items-center gap-2 text-sm text-text-tertiary">
         <Spinner />
         Loading preview…
       </div>
@@ -69,7 +69,7 @@ function SkillPreviewContent({
 
 function SkillPreviewMarkdown({ previewMarkdown }: { readonly previewMarkdown: string }) {
   return (
-    <article className="prose max-w-none text-[13px]">
+    <article className="prose max-w-none text-sm">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={safeMarkdownRehypePlugins}

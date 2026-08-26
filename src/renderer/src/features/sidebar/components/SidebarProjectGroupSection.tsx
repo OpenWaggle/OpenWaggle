@@ -27,7 +27,7 @@ interface ProjectGroupSectionProps {
 /**
  * A draft's accent never varies, so the style object is built once rather than per render.
  *
- * text-tertiary rather than text-muted: on the active row background (#2b313a) muted measures
+ * text-tertiary rather than text-muted: on the active row background, muted measures
  * 2.58:1, well under the 4.5:1 that AA requires for text, and this row always renders on that
  * background. Nothing in this palette clears 4.5:1 against text-muted, so it should never carry
  * text.
@@ -60,22 +60,20 @@ function DraftSessionRow({
       onClick={onSelect}
       data-qa="sidebar-draft-row"
       style={DRAFT_ROW_STYLE}
-      className="group flex min-h-[44px] w-full items-start gap-2 bg-bg-active py-1.5 pr-2 pl-6 text-left transition-colors hover:bg-bg-hover"
+      className="group flex min-h-11 w-full items-start gap-2 bg-bg-active py-1.5 pr-2 pl-6 text-left transition-colors hover:bg-bg-hover"
     >
-      <span className="grid h-[17px] w-3.5 flex-none place-items-center text-[color:var(--row-color)]">
+      <span className="grid h-4.5 w-3.5 flex-none place-items-center text-(--row-color)">
         <Edit3 className="size-3" />
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="flex h-[18.13px] min-w-0 items-center">
-          <span className="block w-full truncate font-medium text-[12.5px] text-text-primary leading-[1.45]">
+        <span className="flex h-4.5 min-w-0 items-center">
+          <span className="block w-full truncate font-medium text-sm text-text-primary leading-normal">
             New session
           </span>
         </span>
-        <span className="flex h-4 min-w-0 items-center gap-1.5 text-[10.5px] text-text-tertiary leading-[1.45]">
-          <span className="flex min-w-0 flex-auto items-center gap-[5px] overflow-hidden whitespace-nowrap">
-            <span className="shrink-0 font-bold tracking-[0.02em] text-[color:var(--row-color)]">
-              Draft
-            </span>
+        <span className="flex h-4 min-w-0 items-center gap-1.5 text-xs text-text-tertiary leading-normal">
+          <span className="flex min-w-0 flex-auto items-center gap-1.5 overflow-hidden whitespace-nowrap">
+            <span className="shrink-0 font-bold tracking-wide text-(--row-color)">Draft</span>
           </span>
           <span className="flex flex-none items-center">unsaved</span>
         </span>
@@ -123,7 +121,7 @@ function ProjectSessionRows({
       group.hoistedPinnedCount > 0
         ? `${group.hoistedPinnedCount} session${group.hoistedPinnedCount === 1 ? '' : 's'} pinned above`
         : 'No sessions'
-    return <div className="px-10 py-1.5 text-[12px] text-text-muted">{label}</div>
+    return <div className="px-10 py-1.5 text-xs text-text-muted">{label}</div>
   }
 
   return (

@@ -101,14 +101,11 @@ export function McpEventInbox({
         <div>
           <div className="flex items-center gap-2">
             <BellRing className="size-4 text-text-secondary" />
-            <h3
-              id="mcp-event-inbox-heading"
-              className="text-[15px] font-semibold text-text-primary"
-            >
+            <h3 id="mcp-event-inbox-heading" className="text-base font-semibold text-text-primary">
               Event Inbox
             </h3>
           </div>
-          <p className="mt-1 text-[12px] text-text-tertiary">
+          <p className="mt-1 text-xs text-text-tertiary">
             Subscriptions are opt-in per server. Events stay local and never enter model context
             until you select one.
           </p>
@@ -171,8 +168,8 @@ function McpEventInboxContents({
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-[13px] font-medium text-text-primary">{server.name}</p>
-                  <p className="text-[11px] text-text-muted">
+                  <p className="text-xs font-medium text-text-primary">{server.name}</p>
+                  <p className="text-xs text-text-muted">
                     {active ? state.mode.replaceAll('-', ' ') : 'Not subscribed'}
                   </p>
                 </div>
@@ -184,16 +181,16 @@ function McpEventInboxContents({
                   {active ? 'Stop events' : 'Start events'}
                 </Button>
               </div>
-              {state?.detail && <p className="text-[11px] text-text-tertiary">{state.detail}</p>}
+              {state?.detail && <p className="text-xs text-text-tertiary">{state.detail}</p>}
               {!active && server.trusted !== 'trusted' && (
-                <p className="text-[11px] text-amber-300">Trust this server before subscribing.</p>
+                <p className="text-xs text-warning">Trust this server before subscribing.</p>
               )}
             </div>
           )
         })}
       </div>
       {events.length === 0 && (
-        <p className="rounded-md border border-border bg-bg-secondary px-3 py-2 text-[12px] text-text-muted">
+        <p className="rounded-md border border-border bg-bg-secondary px-3 py-2 text-xs text-text-muted">
           No events received. Opening the inbox alone does not start any server subscription.
         </p>
       )}
@@ -204,8 +201,8 @@ function McpEventInboxContents({
         >
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-[13px] font-medium text-text-primary">{event.kind}</p>
-              <p className="text-[11px] text-text-muted">
+              <p className="text-xs font-medium text-text-primary">{event.kind}</p>
+              <p className="text-xs text-text-muted">
                 {event.serverLabel} · {new Date(event.receivedAt).toLocaleString()}
               </p>
             </div>
@@ -213,7 +210,7 @@ function McpEventInboxContents({
               Add to editable draft
             </Button>
           </div>
-          <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded bg-bg-secondary p-2 text-[11px] text-text-secondary">
+          <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded bg-bg-secondary p-2 text-xs text-text-secondary">
             {JSON.stringify(event.payload, null, JSON_INDENT_SPACES)}
           </pre>
         </article>

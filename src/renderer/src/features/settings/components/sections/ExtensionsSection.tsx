@@ -160,8 +160,8 @@ function ExtensionScopeSection({
   return (
     <section className="space-y-3 rounded-xl border border-border bg-bg-secondary/30 p-3">
       <div>
-        <h3 className="text-[13px] font-semibold text-text-secondary">{group.title}</h3>
-        <p className="mt-0.5 text-[11px] text-text-muted">{group.subtitle}</p>
+        <h3 className="text-xs font-semibold text-text-secondary">{group.title}</h3>
+        <p className="mt-0.5 text-xs text-text-muted">{group.subtitle}</p>
       </div>
       {group.packages.length > 0 ? (
         <div className="space-y-3">
@@ -180,7 +180,7 @@ function ExtensionScopeSection({
           ))}
         </div>
       ) : (
-        <p className="rounded-lg border border-border/70 bg-[#111418] p-4 text-[13px] text-text-muted">
+        <p className="rounded-lg border border-border/70 bg-bg p-4 text-xs text-text-muted">
           No extension packages in this scope.
         </p>
       )}
@@ -203,10 +203,10 @@ function ContributionRegistryDiagnostics({
       aria-label="Extension contribution registry diagnostics"
       className="rounded-xl border border-border bg-bg-secondary/30 p-3"
     >
-      <h3 className="text-[13px] font-semibold text-text-secondary">
+      <h3 className="text-xs font-semibold text-text-secondary">
         Contribution registry diagnostics
       </h3>
-      <p className="mt-0.5 text-[11px] text-text-muted">
+      <p className="mt-0.5 text-xs text-text-muted">
         Some extension contributions could not be registered.
       </p>
       <ExtensionDiagnostics diagnostics={diagnostics} />
@@ -270,7 +270,7 @@ export function ExtensionsSection() {
       <ContributionRegistryDiagnostics registry={contributionRegistry} />
       <SettingsContributionHost registry={contributionRegistry} />
       {loading && !view ? (
-        <p className="rounded-lg border border-border bg-[#111418] px-4 py-6 text-[13px] text-text-muted">
+        <p className="rounded-lg border border-border bg-bg px-4 py-6 text-xs text-text-muted">
           Loading extensions…
         </p>
       ) : hasUnrecoveredError ? null : scopeGroups.length > 0 ? (
@@ -287,7 +287,7 @@ export function ExtensionsSection() {
           ))}
         </div>
       ) : (
-        <p className="rounded-lg border border-border bg-[#111418] px-4 py-6 text-[13px] text-text-muted">
+        <p className="rounded-lg border border-border bg-bg px-4 py-6 text-xs text-text-muted">
           No extension packages discovered.
         </p>
       )}

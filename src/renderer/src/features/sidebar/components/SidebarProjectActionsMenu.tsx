@@ -29,7 +29,7 @@ function ProjectMenuButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        'flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-bg-hover disabled:cursor-not-allowed disabled:text-text-muted disabled:hover:bg-transparent',
+        'flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-bg-hover disabled:cursor-not-allowed disabled:text-text-muted disabled:hover:bg-transparent',
         danger ? 'text-error' : 'text-text-secondary',
       )}
     >
@@ -74,7 +74,7 @@ export function ProjectActionsMenu({
       open={menuOpen}
       onOpenChange={setMenuOpen}
       placement="bottom-end"
-      className="min-w-[190px] py-1"
+      className="min-w-47.5 py-1"
       trigger={({ isOpen, toggle }) => (
         <Button
           variant="unstyled"
@@ -87,7 +87,7 @@ export function ProjectActionsMenu({
           }}
           className="grid size-5 flex-none place-items-center rounded text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
         >
-          <MoreHorizontal className="size-[13px]" />
+          <MoreHorizontal className="size-3.5" />
         </Button>
       )}
     >

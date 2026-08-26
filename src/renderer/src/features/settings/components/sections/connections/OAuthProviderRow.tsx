@@ -29,7 +29,7 @@ interface OAuthRowState {
   readonly isAwaitingSelection: boolean
   readonly isCodeReceived: boolean
   readonly isError: boolean
-  readonly statusColor: string
+  readonly statusClassName: string
   readonly statusText: string
   readonly toggleActive: boolean
   readonly toggleLabel: string
@@ -54,7 +54,7 @@ function resolveOAuthRowState(input: {
     isAwaitingSelection: input.oauthStatus.type === 'awaiting-selection',
     isCodeReceived: input.oauthStatus.type === 'code-received',
     isError: input.oauthStatus.type === 'error',
-    statusColor: connected ? '#34d399' : '#6b7280',
+    statusClassName: connected ? 'text-success' : 'text-neutral',
     statusText: connected ? 'Connected' : 'Disconnected',
     toggleActive: connected || isBusy,
     toggleLabel: isBusy
@@ -77,15 +77,15 @@ function OAuthProviderIdentity({
 
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-input-card-border bg-[#151a22]">
-        <Icon className="size-4" style={{ color: meta.color }} />
+      <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border-light bg-bg">
+        <Icon className={cn('size-4', meta.iconClassName)} />
       </div>
       <div className="min-w-0">
-        <div className="truncate text-[13px] font-medium text-text-primary">
+        <div className="truncate text-xs font-medium text-text-primary">
           {providerInfo.displayName}
         </div>
         {connected && accountInfo?.label && (
-          <div className="truncate text-[11px] text-text-tertiary">{accountInfo.label}</div>
+          <div className="truncate text-xs text-text-tertiary">{accountInfo.label}</div>
         )}
       </div>
     </div>
@@ -95,7 +95,7 @@ function OAuthProviderIdentity({
 function OAuthStatusIndicator({ rowState }: { readonly rowState: OAuthRowState }) {
   if (rowState.isBusy) {
     return (
-      <div className="flex h-[22px] items-center gap-1.5 px-2">
+      <div className="flex h-5.5 items-center gap-1.5 px-2">
         {rowState.isCodeReceived ? (
           <Check className="size-3 text-success" />
         ) : (
@@ -103,7 +103,7 @@ function OAuthStatusIndicator({ rowState }: { readonly rowState: OAuthRowState }
         )}
         <span
           className={cn(
-            'text-[11px] font-medium',
+            'text-xs font-medium',
             rowState.isCodeReceived ? 'text-success' : 'text-accent',
           )}
         >
@@ -120,9 +120,11 @@ function OAuthStatusIndicator({ rowState }: { readonly rowState: OAuthRowState }
   }
 
   return (
-    <div className="flex h-[22px] items-center gap-1 rounded-[10px] px-2">
-      <div className="size-1.5 rounded-full" style={{ backgroundColor: rowState.statusColor }} />
-      <span className="text-[11px] font-medium" style={{ color: rowState.statusColor }}>
+    <div className="flex h-5.5 items-center gap-1 rounded-xl px-2">
+      <div
+        className={cn('size-1.5 rounded-full', rowState.connected ? 'bg-success' : 'bg-neutral')}
+      />
+      <span className={cn('text-xs font-medium', rowState.statusClassName)}>
         {rowState.statusText}
       </span>
     </div>
@@ -152,15 +154,15 @@ function OAuthManualCodePrompt({
   return (
     <div className="mx-5 mb-3 space-y-2">
       {deviceCode ? (
-        <div className="space-y-1 rounded-lg border border-input-card-border bg-input-card px-3 py-2">
-          <p className="text-[11px] text-text-tertiary">Enter this code in the browser window:</p>
-          <p className="font-mono text-[16px] font-semibold tracking-normal text-text-primary">
+        <div className="space-y-1 rounded-lg border border-border-light bg-bg-secondary px-3 py-2">
+          <p className="text-xs text-text-tertiary">Enter this code in the browser window:</p>
+          <p className="font-mono text-base font-semibold tracking-normal text-text-primary">
             {deviceCode.userCode}
           </p>
-          <p className="break-all text-[11px] text-text-muted">{deviceCode.verificationUri}</p>
+          <p className="break-all text-xs text-text-muted">{deviceCode.verificationUri}</p>
         </div>
       ) : (
-        <p className="text-[11px] text-text-tertiary">
+        <p className="text-xs text-text-tertiary">
           Waiting for the browser callback. If it does not finish automatically, paste the OAuth
           code or callback URL here.
         </p>
@@ -175,14 +177,14 @@ function OAuthManualCodePrompt({
           }}
           placeholder="Paste OAuth code or callback URL"
           monospace
-          className="flex-1 rounded-lg border-input-card-border text-[12px] placeholder:text-text-muted focus:border-border-light"
+          className="flex-1 rounded-lg border-border-light text-xs placeholder:text-text-muted focus:border-border-light"
         />
         <Button
           variant="primary"
           size="md"
           onClick={handleSubmitCode}
           disabled={!pasteValue.trim()}
-          className="text-[12px]"
+          className="text-xs"
         >
           Connect
         </Button>
@@ -203,8 +205,8 @@ function OAuthSelectionPrompt({
   if (oauthStatus.type !== 'awaiting-selection') return null
 
   return (
-    <div className="mx-5 mb-3 space-y-2 rounded-lg border border-input-card-border bg-input-card px-3 py-2">
-      <p className="text-[11px] text-text-tertiary">{oauthStatus.selection.message}</p>
+    <div className="mx-5 mb-3 space-y-2 rounded-lg border border-border-light bg-bg-secondary px-3 py-2">
+      <p className="text-xs text-text-tertiary">{oauthStatus.selection.message}</p>
       <div className="flex flex-wrap items-center gap-2">
         {oauthStatus.selection.options.map((option) => (
           <Button
@@ -215,7 +217,7 @@ function OAuthSelectionPrompt({
             onClick={() => {
               void submitAuthCode(provider, option.id)
             }}
-            className="text-[12px]"
+            className="text-xs"
           >
             {option.label}
           </Button>
@@ -238,14 +240,14 @@ function OAuthErrorMessage({
     <div className="mx-5 mb-3 flex items-start gap-2 rounded-lg border border-error/25 bg-error/6 px-3 py-2">
       <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-error" />
       <div className="min-w-0 flex-1">
-        <p className="text-[11px] text-error/80">{message}</p>
+        <p className="text-xs text-error-text">{message}</p>
         <Button
           variant="unstyled"
           type="button"
           onClick={() => {
             void startOAuth(provider)
           }}
-          className="mt-1 text-[11px] font-medium text-error transition-colors hover:text-error/80"
+          className="mt-1 text-xs font-medium text-error-text transition-colors"
         >
           Try again
         </Button>

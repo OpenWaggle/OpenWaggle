@@ -21,7 +21,7 @@ export function ToastOverlay() {
   return (
     <div
       className={cn(
-        'pointer-events-auto fixed right-5 top-16 z-[9999] flex items-center gap-2 rounded-lg border px-3.5 py-2.5 text-[13px] text-text-secondary shadow-lg',
+        'pointer-events-auto fixed right-5 top-16 z-[9999] flex items-center gap-2 rounded-lg border px-3.5 py-2.5 text-sm text-text-secondary shadow-lg',
         isSuccess && 'border-success/30 bg-success/8',
         isError && 'border-error/30 bg-error/8 text-error',
         !isSuccess && !isError && 'border-border-light bg-bg-secondary',
@@ -43,7 +43,7 @@ export function ToastOverlay() {
             }
             clearToast()
           }}
-          className="inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-[12px] font-medium text-accent transition-colors hover:bg-accent/10"
+          className="inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-accent transition-colors hover:bg-accent/10"
         >
           {toastData.action.label}
           {toastData.action.url && <ExternalLink className="size-3" />}

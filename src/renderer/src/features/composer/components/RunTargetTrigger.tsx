@@ -34,13 +34,13 @@ export function RunTargetTrigger({
       aria-label={`Run target: ${label}`}
       title="Choose the branch this run uses"
       className={cn(
-        'flex h-6 min-w-0 shrink items-center gap-1 whitespace-nowrap rounded-[5px] border border-border px-2 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover',
-        isMissing && 'border-status-error/60',
+        'flex h-6 min-w-0 shrink items-center gap-1 whitespace-nowrap rounded-md border border-border px-2 text-xs text-text-secondary transition-colors hover:bg-bg-hover',
+        isMissing && 'border-error/60',
       )}
     >
-      <GitBranch className="size-[13px] shrink-0 text-text-tertiary" />
+      <GitBranch className="size-3.5 shrink-0 text-text-tertiary" />
       <span className="min-w-0 truncate">{label}</span>
-      <span className="shrink-0 text-[9px] text-text-tertiary">&#x2228;</span>
+      <span className="shrink-0 text-xs text-text-tertiary">&#x2228;</span>
     </Button>
   )
 }

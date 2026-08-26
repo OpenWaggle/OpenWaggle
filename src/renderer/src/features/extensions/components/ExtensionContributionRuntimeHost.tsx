@@ -48,7 +48,7 @@ export function ExtensionContributionRuntimeHost({
     <div
       role="alert"
       className={cn(
-        'rounded-md border border-error/25 bg-error/5 p-3 text-[12px] text-error',
+        'rounded-md border border-error/25 bg-error/5 p-3 text-xs text-error',
         className,
       )}
     >

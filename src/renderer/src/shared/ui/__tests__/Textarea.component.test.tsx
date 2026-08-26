@@ -33,12 +33,12 @@ describe('Textarea', () => {
 
   it('renders a Shiki token overlay when a highlight language is provided', async () => {
     codeToTokensBaseMock.mockReturnValue([
-      [{ content: '{', offset: 0, color: '#f0f6fc' }],
+      [{ content: '{', offset: 0, color: 'var(--color-text-primary)' }],
       [
         { content: '  ', offset: 1 },
-        { content: '"mcpServers"', offset: 3, color: '#79c0ff' },
+        { content: '"mcpServers"', offset: 3, color: 'var(--color-info-text)' },
       ],
-      [{ content: '}', offset: 15, color: '#f0f6fc' }],
+      [{ content: '}', offset: 15, color: 'var(--color-text-primary)' }],
     ])
 
     const { container } = render(
@@ -54,12 +54,14 @@ describe('Textarea', () => {
 
     expect(screen.getByRole('textbox')).toHaveClass('!text-transparent')
     expect(container.querySelector('pre')).toHaveClass('m-0')
-    expect(container.querySelector('code')).toHaveClass('text-[13px]')
-    expect(screen.getByText('"mcpServers"')).toHaveStyle({ color: '#79c0ff' })
+    expect(container.querySelector('code')).toHaveClass('text-sm')
+    expect(screen.getByText('"mcpServers"')).toHaveStyle({ color: 'var(--color-info-text)' })
   })
 
   it('uses matching mono text metrics for highlighted code and the textarea caret layer', async () => {
-    codeToTokensBaseMock.mockReturnValue([[{ content: '{}', offset: 0, color: '#f0f6fc' }]])
+    codeToTokensBaseMock.mockReturnValue([
+      [{ content: '{}', offset: 0, color: 'var(--color-text-primary)' }],
+    ])
 
     const { container } = render(
       <Textarea highlightLanguage="json" variant="mono" value="{}" readOnly />,
@@ -69,8 +71,8 @@ describe('Textarea', () => {
       expect(codeToTokensBaseMock).toHaveBeenCalled()
     })
 
-    expect(screen.getByRole('textbox')).toHaveClass('font-mono', 'text-[12px]', 'leading-5')
-    expect(container.querySelector('code')).toHaveClass('font-mono', 'text-[12px]', 'leading-5')
+    expect(screen.getByRole('textbox')).toHaveClass('font-mono', 'text-xs', 'leading-5')
+    expect(container.querySelector('code')).toHaveClass('font-mono', 'text-xs', 'leading-5')
   })
 
   it('logs and falls back when the syntax highlighter cannot load', async () => {

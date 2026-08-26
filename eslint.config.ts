@@ -6,6 +6,7 @@ import tanstackRouterPlugin from '@tanstack/eslint-plugin-router'
 import { createTypeScriptImportResolver } from 'eslint-import-resolver-typescript'
 import importPlugin from 'eslint-plugin-import-x'
 import { openwagglePlugin } from './scripts/eslint/openwaggle-plugin'
+import { readRendererDesignTokenExemptions } from './scripts/standards/renderer-design-token-exemptions'
 import { tsMatchPlugin } from './scripts/eslint/ts-match-plugin'
 
 // ESLint 10 and TanStack currently expose incompatible plugin type generations.
@@ -23,7 +24,6 @@ const config: object[] = [
       'website/.astro/**',
       'website/dist/**',
       'website/node_modules/**',
-      'src/renderer/src/env.d.ts',
       'src/renderer/src/routeTree.gen.ts',
     ],
   },
@@ -123,6 +123,15 @@ const config: object[] = [
       '@tanstack/query/prefer-query-options': 'error',
       '@tanstack/router/create-route-property-order': 'error',
       '@tanstack/router/route-param-names': 'error',
+    },
+  },
+  {
+    files: ['src/renderer/src/**/*.{ts,tsx}'],
+    rules: {
+      'openwaggle/renderer-design-token-guardrails': [
+        'error',
+        { exemptFiles: readRendererDesignTokenExemptions() },
+      ],
     },
   },
   {

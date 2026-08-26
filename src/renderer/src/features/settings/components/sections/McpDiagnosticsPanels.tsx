@@ -11,8 +11,8 @@ const MCP_SECRET_DATE_FORMATTER = new Intl.DateTimeFormat(undefined, {
 })
 
 function doctorIcon(status: McpDoctorResult['checks'][number]['status']) {
-  if (status === 'pass') return <CheckCircle2 className="size-3.5 text-emerald-300" />
-  if (status === 'warning') return <AlertTriangle className="size-3.5 text-amber-300" />
+  if (status === 'pass') return <CheckCircle2 className="size-3.5 text-success" />
+  if (status === 'warning') return <AlertTriangle className="size-3.5 text-warning" />
   return <CircleOff className="size-3.5 text-error" />
 }
 
@@ -22,21 +22,21 @@ export function McpDoctorPanel({ doctor }: { readonly doctor: McpDoctorResult | 
     <section aria-labelledby="mcp-doctor-heading" className="space-y-3">
       <div className="flex items-center gap-2">
         <Activity className="size-4 text-text-tertiary" />
-        <h3 id="mcp-doctor-heading" className="text-[15px] font-semibold text-text-primary">
+        <h3 id="mcp-doctor-heading" className="text-base font-semibold text-text-primary">
           Runtime diagnostics
         </h3>
         <StatusPill tone={doctor.ok ? 'success' : 'warning'}>
           {doctor.ok ? 'Ready' : 'Attention needed'}
         </StatusPill>
       </div>
-      <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-[#111418]">
+      <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-bg">
         {doctor.checks.map((check) => (
           <div key={check.id} className="flex items-start gap-2.5 px-3 py-2.5">
             <span className="mt-0.5">{doctorIcon(check.status)}</span>
             <div>
-              <p className="text-[12px] text-text-secondary">{check.message}</p>
+              <p className="text-xs text-text-secondary">{check.message}</p>
               {check.action && (
-                <p className="mt-0.5 text-[11px] text-text-muted">Next: {check.action}</p>
+                <p className="mt-0.5 text-xs text-text-muted">Next: {check.action}</p>
               )}
             </div>
           </div>
@@ -75,17 +75,17 @@ export function McpSecretVault({
       <div>
         <div className="flex items-center gap-2">
           <KeyRound className="size-4 text-text-tertiary" />
-          <h3 id="mcp-vault-heading" className="text-[15px] font-semibold text-text-primary">
+          <h3 id="mcp-vault-heading" className="text-base font-semibold text-text-primary">
             Secret vault
           </h3>
         </div>
-        <p className="mt-1 text-[12px] text-text-tertiary">
+        <p className="mt-1 text-xs text-text-tertiary">
           Values are encrypted by the operating system and never returned to the renderer. Reference
           one in JSON as{' '}
           <code className="font-mono text-text-secondary">{'{"secret":"NAME"}'}</code>.
         </p>
       </div>
-      <div className="rounded-lg border border-border bg-[#111418] p-4">
+      <div className="rounded-lg border border-border bg-bg p-4">
         <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_auto] gap-2">
           <TextInput
             value={name}
@@ -117,8 +117,8 @@ export function McpSecretVault({
             {secrets.map((secret) => (
               <div key={secret.name} className="flex items-center justify-between gap-3 py-2.5">
                 <div>
-                  <p className="font-mono text-[12px] text-text-primary">{secret.name}</p>
-                  <p className="mt-0.5 text-[10px] text-text-muted">
+                  <p className="font-mono text-xs text-text-primary">{secret.name}</p>
+                  <p className="mt-0.5 text-xs text-text-muted">
                     Updated {formatSecretDate(secret.updatedAt)}
                   </p>
                 </div>
@@ -134,7 +134,7 @@ export function McpSecretVault({
             ))}
           </div>
         ) : (
-          <p className="mt-3 border-t border-border pt-3 text-[11px] text-text-muted">
+          <p className="mt-3 border-t border-border pt-3 text-xs text-text-muted">
             No saved MCP secrets.
           </p>
         )}

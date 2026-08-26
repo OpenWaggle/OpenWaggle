@@ -4,6 +4,10 @@ import fg from 'fast-glob'
 import { withoutCommentLines } from './standards/comment-stripping'
 import { collectDuplicateExportedTypes } from './standards/duplicate-exported-types'
 import {
+  collectRendererDesignTokenExemptionViolations,
+  readRendererDesignTokenExemptions,
+} from './standards/renderer-design-token-exemptions'
+import {
   collectPackageBoundaryViolations,
   packageBoundarySourceGlobs,
   type RepositoryViolation,
@@ -308,6 +312,12 @@ async function main() {
   }
 
   violations.push(...collectDuplicateExportedTypes(contentsByFile))
+  violations.push(
+    ...collectRendererDesignTokenExemptionViolations(
+      new Set(contentsByFile.keys()),
+      readRendererDesignTokenExemptions(),
+    ),
+  )
 
   if (violations.length === 0) {
     return

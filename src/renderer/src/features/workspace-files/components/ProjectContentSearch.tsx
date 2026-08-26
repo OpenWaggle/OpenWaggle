@@ -113,10 +113,10 @@ export function ProjectContentSearch() {
           onKeyDown={handleKeyDown}
           placeholder="Search text across the project…"
           aria-label="Search project contents"
-          className="h-12 px-0 text-[14px]"
+          className="h-12 px-0 text-sm"
         />
       </div>
-      <div className="max-h-[52vh] overflow-y-auto p-1.5">
+      <div className="max-h-(--workspace-results-height) overflow-y-auto p-1.5 [--workspace-results-height:52vh]">
         {!projectPath ? (
           <ContentEmptyState text="Open a project to search its contents." />
         ) : query.trim().length === 0 ? (
@@ -142,12 +142,12 @@ export function ProjectContentSearch() {
               <TextSearch className="mt-0.5 size-4 shrink-0 text-text-muted" />
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-2">
-                  <span className="truncate text-[12px] font-medium text-text-secondary">
+                  <span className="truncate text-xs font-medium text-text-secondary">
                     {match.path}
                   </span>
-                  <span className="font-mono text-[10px] text-accent">:{match.lineNumber}</span>
+                  <span className="font-mono text-xs text-accent">:{match.lineNumber}</span>
                 </span>
-                <span className="mt-0.5 block truncate font-mono text-[11px] text-text-tertiary">
+                <span className="mt-0.5 block truncate font-mono text-xs text-text-tertiary">
                   {match.lineText}
                 </span>
               </span>
@@ -168,7 +168,7 @@ function ContentEmptyState({
 }) {
   return (
     <output
-      className={`flex min-h-36 items-center justify-center px-6 text-center text-[12px] ${
+      className={`flex min-h-36 items-center justify-center px-6 text-center text-xs ${
         error ? 'text-error' : 'text-text-tertiary'
       }`}
     >

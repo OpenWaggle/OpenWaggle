@@ -25,14 +25,14 @@ export function ChatDiffPane({ section, onClose }: ChatDiffPaneProps) {
     <div className="flex size-full min-w-0 flex-col overflow-hidden bg-diff-bg">
       <header className="drag-region flex h-12 shrink-0 items-center justify-between border-b border-border bg-diff-header-bg px-3">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="no-drag text-[13px] font-medium text-text-primary">Changes</span>
+          <span className="no-drag text-sm font-medium text-text-primary">Changes</span>
           {/*
             Name the tree, not just the scope. Stage all, Revert all and Commit act on
             whatever this panel is showing, and for a worktree-mode session that is the
             Session worktree rather than the opened checkout — which must not be
             something the user has to infer (ADR 0018).
           */}
-          <span className="no-drag truncate text-[11px] text-text-tertiary">
+          <span className="no-drag truncate text-xs text-text-tertiary">
             {worktreeLabel === null ? 'Opened checkout' : `Worktree · ${worktreeLabel}`}
           </span>
         </div>

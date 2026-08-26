@@ -32,7 +32,7 @@ function McpMigrationReview({
     <div className="mt-3 space-y-3 border-t border-border pt-3">
       <ul className="max-h-48 space-y-2 overflow-y-auto">
         {preview.candidates.map((candidate) => (
-          <li key={candidate.fingerprint} className="text-[11px] leading-4">
+          <li key={candidate.fingerprint} className="text-xs leading-4">
             <p className="font-medium text-text-primary">
               {candidate.name} · {candidate.suggestedTarget}
             </p>
@@ -40,7 +40,7 @@ function McpMigrationReview({
               {tildifyPath(candidate.sourcePath)}
             </p>
             {candidate.warnings.map((warning) => (
-              <p key={warning} className="text-amber-300">
+              <p key={warning} className="text-warning">
                 {warning}
               </p>
             ))}
@@ -129,18 +129,18 @@ export function McpMigrationPanel({
   return (
     <section aria-labelledby="mcp-migration-heading" className="space-y-3">
       <div>
-        <h3 id="mcp-migration-heading" className="text-[15px] font-semibold text-text-primary">
+        <h3 id="mcp-migration-heading" className="text-base font-semibold text-text-primary">
           Migrate existing MCP configuration
         </h3>
-        <p className="mt-1 max-w-[760px] text-[12px] leading-5 text-text-tertiary">
+        <p className="mt-1 max-w-190 text-xs leading-5 text-text-tertiary">
           The old MCP adapter is no longer loaded. Scan its global and project configuration,
           including disabled servers, before removing old files. Imports are previewed and remain
           disabled and untrusted until you explicitly enable and trust them.
         </p>
       </div>
-      <div className="rounded-lg border border-border bg-[#111418] p-3">
+      <div className="rounded-lg border border-border bg-bg p-3">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-[11px] leading-4 text-text-tertiary">
+          <p className="text-xs leading-4 text-text-tertiary">
             Scanning is read-only. Existing target definitions win on conflicts, and source paths
             remain recorded as provenance.
           </p>
@@ -155,12 +155,12 @@ export function McpMigrationPanel({
           </Button>
         </div>
         {error && (
-          <p role="alert" className="mt-3 text-[11px] text-error">
+          <p role="alert" className="mt-3 text-xs text-error-text">
             Legacy MCP scan or import failed: {error}
           </p>
         )}
         {message && (
-          <p role="status" className="mt-3 text-[11px] text-text-secondary">
+          <p role="status" className="mt-3 text-xs text-text-secondary">
             {message}
           </p>
         )}

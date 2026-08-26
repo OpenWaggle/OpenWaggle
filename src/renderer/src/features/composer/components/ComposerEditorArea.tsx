@@ -20,7 +20,7 @@ export function ComposerEditorArea({
   checkAndConvertPaste,
 }: ComposerEditorAreaProps) {
   return (
-    <div className="relative min-h-[60px] px-4 py-[14px]">
+    <div className="relative px-4 py-4">
       <LexicalComposerEditor
         onSubmit={onSubmit}
         disabled={disabled}

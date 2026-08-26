@@ -20,8 +20,8 @@ const SELECT_BASE_CLASS =
 
 const SELECT_SIZE_CLASS = {
   // Chip size, matching BranchPickerTrigger so selects can sit in a control row.
-  xs: 'h-6 rounded-[5px] border-border px-1.5 text-[12px]',
-  sm: 'h-8 rounded-lg border-input-card-border px-2.5 text-[13px]',
+  xs: 'h-6 rounded-md border-border px-1.5 text-xs',
+  sm: 'h-8 rounded-lg border-input-card-border px-2.5 text-sm',
   md: 'rounded-lg border-input-card-border px-3 py-2 text-sm',
 }
 

@@ -29,22 +29,22 @@ function renderToolFallback({
 }) {
   return (
     <div className="grid gap-3">
-      <div className="flex items-center gap-2 text-[13px] font-medium text-text-primary">
+      <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
         <Wrench className="size-4 text-accent" />
         <span>{toolCall.name}</span>
-        <span className="rounded bg-bg-tertiary px-2 py-0.5 text-[10px] text-text-tertiary">
+        <span className="rounded bg-bg-tertiary px-2 py-0.5 text-xs text-text-tertiary">
           {toolCall.state}
         </span>
       </div>
-      <pre className="max-h-40 overflow-auto rounded-lg border border-border/80 bg-bg p-3 text-[11px] leading-5 text-text-tertiary">
+      <pre className="max-h-40 overflow-auto rounded-lg border border-border/80 bg-bg p-3 text-xs leading-5 text-text-tertiary">
         {toolCall.arguments || '{}'}
       </pre>
       {toolResult ? (
         <div className="rounded-lg border border-border/80 bg-bg-secondary/50 p-3">
-          <div className="mb-1 text-[10px] tracking-wide text-text-muted uppercase">
+          <div className="mb-1 text-xs tracking-wide text-text-muted uppercase">
             Result · {toolResult.state}
           </div>
-          <p className="whitespace-pre-wrap text-[12px] leading-5 text-text-secondary">
+          <p className="whitespace-pre-wrap text-xs leading-5 text-text-secondary">
             {toolResult.error ?? toolResult.content}
           </p>
         </div>
@@ -56,11 +56,11 @@ function renderToolFallback({
 function renderCustomMessageFallback(message: ExtensionCustomMessageView) {
   return (
     <div className="grid gap-2">
-      <div className="flex items-center gap-2 text-[13px] font-medium text-text-primary">
+      <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
         <MessagesSquare className="size-4 text-accent" />
         <span>{message.name}</span>
       </div>
-      <pre className="max-h-48 overflow-auto rounded-lg border border-border/80 bg-bg p-3 text-[11px] leading-5 text-text-tertiary">
+      <pre className="max-h-48 overflow-auto rounded-lg border border-border/80 bg-bg p-3 text-xs leading-5 text-text-tertiary">
         {prettyJson(message.value)}
       </pre>
     </div>
@@ -106,16 +106,16 @@ function renderInteractionFallback({
         <div className="flex items-start gap-3">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-error" />
           <div className="min-w-0">
-            <h4 className="text-[13px] font-semibold text-text-primary">
+            <h4 className="text-sm font-semibold text-text-primary">
               Custom desktop interaction renderer unavailable
             </h4>
-            <p className="mt-1 text-[12px] leading-5 text-text-tertiary">
+            <p className="mt-1 text-xs leading-5 text-text-tertiary">
               OpenWaggle does not execute terminal UI custom components inside Electron. This
               interaction needs a matching extension interaction renderer.
             </p>
             {/* No raw interaction UUID and no internal state token: neither means anything to a
                 reader, and the contract keeps internal identifiers out of visible labels. */}
-            <p className="mt-2 text-[11px] text-text-muted">
+            <p className="mt-2 text-xs text-text-muted">
               {interactionStateLabel(interaction.state, 'Waiting for a renderer')}
             </p>
             {onAction ? (
@@ -139,9 +139,9 @@ function renderInteractionFallback({
   return (
     <div className="grid gap-3">
       <div>
-        <h4 className="text-[13px] font-semibold text-text-primary">{interaction.title}</h4>
+        <h4 className="text-sm font-semibold text-text-primary">{interaction.title}</h4>
         {interaction.description ? (
-          <p className="mt-1 text-[12px] leading-5 text-text-tertiary">{interaction.description}</p>
+          <p className="mt-1 text-xs leading-5 text-text-tertiary">{interaction.description}</p>
         ) : null}
       </div>
       <div className="flex flex-wrap gap-2">
@@ -158,7 +158,7 @@ function renderInteractionFallback({
           </Button>
         ))}
       </div>
-      <div className="text-[11px] text-text-muted">
+      <div className="text-xs text-text-muted">
         {interactionStateLabel(interaction.state, 'Waiting for you')}
       </div>
     </div>
@@ -168,9 +168,11 @@ function renderInteractionFallback({
 function renderStatusFallback(status: ExtensionStatusView) {
   const icon =
     status.tone === 'success' ? (
-      <CheckCircle2 className="size-4 text-emerald-300" />
-    ) : status.tone === 'warning' || status.tone === 'error' ? (
-      <AlertTriangle className="size-4 text-amber-300" />
+      <CheckCircle2 className="size-4 text-success" />
+    ) : status.tone === 'warning' ? (
+      <AlertTriangle className="size-4 text-warning" />
+    ) : status.tone === 'error' ? (
+      <AlertTriangle className="size-4 text-error" />
     ) : (
       <CircleDashed className="size-4 text-accent" />
     )
@@ -179,9 +181,9 @@ function renderStatusFallback(status: ExtensionStatusView) {
     <div className="flex items-start gap-3 rounded-lg border border-border/80 bg-bg-secondary/50 p-3">
       {icon}
       <div className="min-w-0">
-        <div className="text-[13px] font-medium text-text-primary">{status.label}</div>
+        <div className="text-sm font-medium text-text-primary">{status.label}</div>
         {status.detail ? (
-          <p className="mt-1 text-[12px] leading-5 text-text-tertiary">{status.detail}</p>
+          <p className="mt-1 text-xs leading-5 text-text-tertiary">{status.detail}</p>
         ) : null}
       </div>
     </div>
@@ -191,8 +193,8 @@ function renderStatusFallback(status: ExtensionStatusView) {
 function renderTranscriptFallback(transcript: ExtensionTranscriptView) {
   return (
     <div className="rounded-lg border border-border/80 bg-bg-secondary/50 p-3">
-      <div className="text-[13px] font-medium text-text-primary">Transcript extension card</div>
-      <p className="mt-1 text-[12px] leading-5 text-text-tertiary">
+      <div className="text-sm font-medium text-text-primary">Transcript extension card</div>
+      <p className="mt-1 text-xs leading-5 text-text-tertiary">
         {transcript.messageCount} messages · {transcript.state}
       </p>
     </div>

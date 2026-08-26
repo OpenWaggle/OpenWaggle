@@ -1,5 +1,6 @@
 import {
   ADMIN_REPOSITORY_ROLE_ID,
+  DEPLOYED_LEGACY_CHECK_CONTEXTS,
   isJsonObject,
   MANAGED_RULESET_NAME,
   REPOSITORY,
@@ -84,6 +85,26 @@ function hasExactStatusChecks(value: JsonObject) {
   )
 }
 
+function hasDeployedLegacyStatusChecks(value: JsonObject) {
+  const statusRule = findRule(value.rules, 'required_status_checks')
+  if (!isJsonObject(statusRule) || !isJsonObject(statusRule.parameters)) return false
+  const checks = statusRule.parameters.required_status_checks
+  if (!isUnknownArray(checks) || checks.length !== DEPLOYED_LEGACY_CHECK_CONTEXTS.length) return false
+  const contexts = checks.flatMap((check) =>
+    isJsonObject(check) &&
+    typeof check.context === 'string' &&
+    (check.integration_id === undefined || check.integration_id === null)
+      ? [check.context]
+      : [],
+  )
+  return (
+    statusRule.parameters.do_not_enforce_on_create === true &&
+    statusRule.parameters.strict_required_status_checks_policy === true &&
+    contexts.length === DEPLOYED_LEGACY_CHECK_CONTEXTS.length &&
+    DEPLOYED_LEGACY_CHECK_CONTEXTS.every((context) => contexts.includes(context))
+  )
+}
+
 function hasRequiredPullRequests(value: JsonObject) {
   const pullRequestRule = findRule(value.rules, 'pull_request')
   if (!isJsonObject(pullRequestRule) || !isJsonObject(pullRequestRule.parameters)) return false
@@ -93,6 +114,7 @@ function hasRequiredPullRequests(value: JsonObject) {
     mergeMethods?.length === ALLOWED_MERGE_METHODS.length &&
     ALLOWED_MERGE_METHODS.every((method) => mergeMethods.includes(method)) &&
     parameters.dismiss_stale_reviews_on_push === false &&
+    parameters.require_extra_approval_for_unattributed_changes === true &&
     parameters.require_code_owner_review === false &&
     parameters.require_last_push_approval === false &&
     parameters.required_approving_review_count === 0 &&
@@ -117,6 +139,26 @@ export function isCompatibleRuleset(value: unknown) {
     hasCoreRules(value) &&
     hasRequiredPullRequests(value) &&
     hasExactStatusChecks(value)
+  )
+}
+
+export function isRulesetMissingRequiredChecks(value: unknown) {
+  if (!isJsonObject(value)) return false
+  if (
+    value.name !== MANAGED_RULESET_NAME ||
+    value.target !== 'branch' ||
+    value.enforcement !== 'active' ||
+    value.source_type !== 'Repository' ||
+    value.source !== REPOSITORY
+  ) {
+    return false
+  }
+  return (
+    hasMainOnlyCondition(value) &&
+    hasAdminBypass(value) &&
+    hasCoreRules(value) &&
+    hasRequiredPullRequests(value) &&
+    hasDeployedLegacyStatusChecks(value)
   )
 }
 

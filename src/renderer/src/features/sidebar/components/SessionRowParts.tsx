@@ -64,10 +64,10 @@ export function SessionRowGlyph({
     <span
       data-qa="sidebar-row-glyph"
       title={hasInterruptedRun ? 'A run was interrupted in this session' : undefined}
-      className="grid h-[17px] w-3.5 flex-none place-items-center text-[color:var(--row-color)]"
+      className="grid h-4.5 w-3.5 flex-none place-items-center text-(--row-color)"
     >
       {Icon === null ? null : (
-        <Icon className={cn('size-[13px]', hasInterruptedRun ? null : animateClass)} />
+        <Icon className={cn('size-3.5', hasInterruptedRun ? null : animateClass)} />
       )}
     </span>
   )
@@ -87,10 +87,7 @@ export function SessionRowTitle({
   readonly onSelect: () => void
 }) {
   return (
-    <span
-      data-qa="sidebar-row-title-line"
-      className="flex h-[18.13px] min-w-0 items-center gap-1.5"
-    >
+    <span data-qa="sidebar-row-title-line" className="flex h-4.5 min-w-0 items-center gap-1.5">
       {/*
        * The hit area is the whole row, not the width of the title text.
        *
@@ -104,12 +101,12 @@ export function SessionRowTitle({
         variant="unstyled"
         type="button"
         onClick={onSelect}
-        className="min-w-0 flex-1 truncate text-left leading-[1.45] after:absolute after:inset-0 after:content-['']"
+        className="min-w-0 flex-1 truncate text-left leading-normal after:absolute after:inset-0 after:content-['']"
       >
         <span
           data-qa="sidebar-row-title"
           className={cn(
-            'block w-full truncate font-medium text-[12.5px] leading-[1.45]',
+            'block w-full truncate font-medium text-sm leading-normal',
             isActive
               ? 'text-text-primary'
               : isInFlight

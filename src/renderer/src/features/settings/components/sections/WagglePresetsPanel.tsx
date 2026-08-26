@@ -25,7 +25,7 @@ export function WagglePresetsPanel({
   onNewCustom,
 }: WagglePresetsPanelProps) {
   return (
-    <div className="rounded-lg border border-border bg-[#111418] p-5">
+    <div className="rounded-lg border border-border bg-bg p-5">
       <h3 className="text-sm font-medium text-text-secondary mb-4">Waggle Presets</h3>
 
       <div className="grid grid-cols-2 gap-3">
@@ -47,7 +47,7 @@ export function WagglePresetsPanel({
             variant="unstyled"
             type="button"
             onClick={() => void onSaveEdits()}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-accent/30 bg-accent/5 p-2.5 text-[12px] font-medium text-accent hover:bg-accent/10 transition-colors"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-accent/30 bg-accent/5 p-2.5 text-xs font-medium text-accent hover:bg-accent/10 transition-colors"
           >
             <Save className="size-3" />
             Save Changes
@@ -58,7 +58,7 @@ export function WagglePresetsPanel({
           variant="unstyled"
           type="button"
           onClick={() => void onNewCustom()}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-border p-2.5 text-[12px] font-medium text-text-muted hover:border-border-light hover:text-text-secondary transition-colors"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-border p-2.5 text-xs font-medium text-text-muted hover:border-border-light hover:text-text-secondary transition-colors"
         >
           <Plus className="size-3" />
           New Custom Preset
@@ -98,25 +98,23 @@ function WagglePresetCard({
       <div className="flex items-start justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-[13px] font-medium text-text-primary truncate">
-              {preset.name}
-            </span>
-            <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium bg-bg-tertiary text-text-muted">
+            <span className="text-xs font-medium text-text-primary truncate">{preset.name}</span>
+            <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium bg-bg-tertiary text-text-muted">
               Sequential
             </span>
             {!preset.isBuiltIn && (
-              <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium bg-accent/10 text-accent">
+              <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium bg-accent/10 text-accent">
                 Custom
               </span>
             )}
             {isActiveModified && (
-              <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium bg-blue-500/10 text-blue-400">
+              <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium bg-info/10 text-info-text">
                 Edited
               </span>
             )}
           </div>
-          <p className="text-[12px] text-text-tertiary line-clamp-2">{preset.description}</p>
-          <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-text-muted">
+          <p className="text-xs text-text-tertiary line-clamp-2">{preset.description}</p>
+          <div className="mt-1.5 flex items-center gap-1.5 text-xs text-text-muted">
             <div className={cn('size-1.5 rounded-full', AGENT_BG[preset.config.agents[0].color])} />
             <span className="truncate">{generateDisplayName(preset.config.agents[0].model)}</span>
             <span className="text-text-tertiary">vs</span>

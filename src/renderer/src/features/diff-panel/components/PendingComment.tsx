@@ -1,4 +1,5 @@
 import { MessageSquare, X } from 'lucide-react'
+import type { CSSProperties } from 'react'
 import type { ReviewCommentWithSnippet } from '@/features/diff-panel/lib/review-comment-payload'
 import { formatLineRange } from '@/features/diff-panel/lib/review-comment-payload'
 import { Button } from '@/shared/ui/Button'
@@ -8,6 +9,10 @@ interface PendingCommentProps {
   readonly onRemove: () => void
 }
 
+const COMMENT_WIDTH_STYLE: CSSProperties & { '--diff-comment-width': string } = {
+  '--diff-comment-width': 'min(40rem, calc(100cqw - 4rem))',
+}
+
 /**
  * A saved-but-unsent Review comment, shown inline where it is anchored. Marked
  * "Pending" so it is obvious the agent has not received it yet -- the same signal
@@ -15,13 +20,16 @@ interface PendingCommentProps {
  */
 export function PendingComment({ comment, onRemove }: PendingCommentProps) {
   return (
-    <div className="sticky left-0 flex w-[min(640px,calc(100cqw-4rem))] max-w-[calc(100cqw-4rem)] flex-col gap-1.5 border-y border-border bg-diff-header-bg px-3 py-2">
+    <div
+      className="sticky left-0 flex w-(--diff-comment-width) flex-col gap-1.5 border-y border-border bg-diff-header-bg px-3 py-2"
+      style={COMMENT_WIDTH_STYLE}
+    >
       <div className="flex items-center gap-1.5">
         <MessageSquare className="size-3 shrink-0 text-text-tertiary" />
-        <span className="text-[11px] text-text-tertiary">
+        <span className="text-xs text-text-tertiary">
           {formatLineRange(comment.startLine, comment.endLine)}
         </span>
-        <span className="rounded-[4px] bg-bg-tertiary px-1 text-[10px] font-medium text-accent">
+        <span className="rounded-sm bg-bg-tertiary px-1 text-xs font-medium text-accent">
           Pending
         </span>
         <Button
@@ -29,12 +37,12 @@ export function PendingComment({ comment, onRemove }: PendingCommentProps) {
           type="button"
           onClick={onRemove}
           aria-label="Remove comment"
-          className="ml-auto flex size-4 items-center justify-center rounded-[4px] text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
+          className="ml-auto flex size-4 items-center justify-center rounded-sm text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
         >
           <X className="size-3" />
         </Button>
       </div>
-      <p className="whitespace-pre-wrap text-[12px] text-text-secondary">{comment.content}</p>
+      <p className="whitespace-pre-wrap text-xs text-text-secondary">{comment.content}</p>
     </div>
   )
 }

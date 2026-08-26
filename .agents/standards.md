@@ -94,6 +94,7 @@ Mechanical enforcement:
 
 - `openwaggle/renderer-import-boundaries` enforces feature boundaries.
 - `openwaggle/no-raw-renderer-buttons` enforces shared button usage.
+- `openwaggle/renderer-design-token-guardrails` rejects arbitrary snapped-family values, raw renderer hex colors, and Tailwind palette colors. Its binary per-file exemption list can only shrink.
 - `openwaggle/jsx-max-props` discourages prop-drilled components.
 - React Doctor catches React Compiler and renderer anti-patterns.
 

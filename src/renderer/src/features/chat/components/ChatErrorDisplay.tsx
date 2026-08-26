@@ -171,10 +171,8 @@ export function ChatErrorDisplay({
       <div className="flex items-start gap-3">
         <AlertCircle className="size-4 shrink-0 text-error mt-0.5" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-error/90">{info.userMessage}</p>
-          {info.suggestion && (
-            <p className="text-[13px] text-text-tertiary mt-1">{info.suggestion}</p>
-          )}
+          <p className="text-sm text-error-text">{info.userMessage}</p>
+          {info.suggestion && <p className="text-sm text-text-tertiary mt-1">{info.suggestion}</p>}
           {details && (
             <div className="mt-1.5">
               <Button variant="ghost" size="xs" onClick={() => setShowDetails(!showDetails)}>
@@ -186,7 +184,7 @@ export function ChatErrorDisplay({
                 Show details
               </Button>
               {showDetails && (
-                <pre className="mt-1.5 max-h-40 overflow-auto rounded-md bg-bg/50 p-2 text-[11px] text-text-tertiary font-mono whitespace-pre-wrap break-all">
+                <pre className="mt-1.5 max-h-40 overflow-auto rounded-md bg-bg/50 p-2 text-xs text-text-tertiary font-mono whitespace-pre-wrap break-all">
                   {details}
                 </pre>
               )}

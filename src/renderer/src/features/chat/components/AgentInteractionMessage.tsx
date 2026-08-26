@@ -16,15 +16,15 @@ export function InteractionMessage({ message }: { readonly message: string }) {
   const isMultiLine = message.trimEnd().includes('\n')
 
   if (!isMultiLine) {
-    return <p className="mt-2 text-[12px] leading-5 text-text-secondary">{message}</p>
+    return <p className="mt-2 text-xs leading-5 text-text-secondary">{message}</p>
   }
 
   return (
     <div className="mt-2">
-      <p className="truncate text-[12px] leading-5 text-text-secondary">{firstLine}</p>
+      <p className="truncate text-xs leading-5 text-text-secondary">{firstLine}</p>
       <Button
         aria-expanded={open}
-        className="mt-1 gap-1 text-[10px] text-text-muted"
+        className="mt-1 gap-1 text-xs text-text-muted"
         onClick={() => setOpen((current) => !current)}
         size="xs"
         variant="ghost"
@@ -33,7 +33,7 @@ export function InteractionMessage({ message }: { readonly message: string }) {
         Details
       </Button>
       {open ? (
-        <pre className="mt-1 max-h-40 max-w-full min-w-0 overflow-auto rounded-lg border border-border/65 bg-bg/70 p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-text-secondary [overflow-wrap:anywhere]">
+        <pre className="mt-1 max-h-40 max-w-full min-w-0 overflow-auto rounded-lg border border-border/65 bg-bg/70 p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap text-text-secondary [overflow-wrap:anywhere]">
           {message}
         </pre>
       ) : null}

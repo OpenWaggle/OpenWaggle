@@ -37,16 +37,16 @@ export function SessionRowSecondLine({
   return (
     <span
       data-qa="sidebar-row-line2"
-      className="flex h-4 min-w-0 max-w-full items-center gap-1.5 text-[10.5px] text-text-tertiary leading-[1.45]"
+      className="flex h-4 min-w-0 max-w-full items-center gap-1.5 text-xs text-text-tertiary leading-normal"
     >
       <span
         data-qa="sidebar-row-lead"
-        className="flex min-w-0 flex-auto items-center gap-[5px] overflow-hidden whitespace-nowrap"
+        className="flex min-w-0 flex-auto items-center gap-1.5 overflow-hidden whitespace-nowrap"
       >
         {stateLabel === '' ? null : (
           <span
             data-qa="sidebar-row-state"
-            className="shrink-0 font-bold tracking-[0.02em]"
+            className="shrink-0 font-bold tracking-wide"
             style={{ color: stateColorVar }}
           >
             {stateLabel}
@@ -74,7 +74,7 @@ export function SessionRowSecondLine({
         {showShortcut ? (
           <span
             aria-hidden="true"
-            className="flex-none rounded border border-border-light bg-bg-tertiary px-1 py-0.5 font-mono text-[10px] text-text-tertiary leading-none"
+            className="flex-none rounded border border-border-light bg-bg-tertiary px-1 py-0.5 font-mono text-xs text-text-tertiary leading-none"
           >
             {`\u2318${String(shortcutIndex + 1)}`}
           </span>
@@ -119,7 +119,7 @@ export function SessionRowHoverActions({
   return (
     <span
       className={cn(
-        'absolute top-[5px] right-2 z-10 flex gap-px pl-3.5 transition-opacity',
+        'absolute top-1.5 right-2 z-10 flex gap-px pl-3.5 transition-opacity',
         'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
         menuOpen ? 'opacity-100' : null,
         isActive

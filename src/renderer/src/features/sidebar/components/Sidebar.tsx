@@ -53,7 +53,7 @@ export function Sidebar() {
          * which the prototype does not have, so every inherited size and every letter gap
          * inside the sidebar was wrong before this.
          */
-        className={`flex h-full ${SIDEBAR_LAYOUT.WIDTH_CLASS} shrink-0 flex-col justify-between border-r border-border bg-bg-secondary text-[13px] leading-[1.45] tracking-normal`}
+        className={`flex h-full ${SIDEBAR_LAYOUT.WIDTH_CLASS} shrink-0 flex-col justify-between border-r border-border bg-bg-secondary text-sm leading-normal tracking-normal`}
       >
         <div className="flex flex-1 flex-col overflow-hidden">
           <SidebarBrandArea isFullscreen={controller.isFullscreen} />

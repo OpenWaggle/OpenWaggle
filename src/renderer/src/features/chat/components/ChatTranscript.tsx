@@ -25,7 +25,7 @@ function TranscriptExtensionCards({
   readonly rowsLength: number
 }) {
   return (
-    <div className="mx-auto w-full max-w-[720px] px-12 pb-6">
+    <div className="mx-auto w-full max-w-180 px-12 pb-6">
       <ExtensionAgentLoopSurface
         fallback={null}
         input={{

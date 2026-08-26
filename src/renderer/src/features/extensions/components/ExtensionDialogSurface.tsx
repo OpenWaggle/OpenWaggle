@@ -1,7 +1,7 @@
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { JsonValue } from '@shared/types/json'
 import { MessageSquare, RefreshCw, ShieldAlert, X } from 'lucide-react'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { useEffect, useRef } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
@@ -16,6 +16,14 @@ interface ExtensionDialogSurfaceActions {
   readonly onRefresh: () => void
   readonly onClose: () => void
   readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
+}
+
+const DIALOG_SIZE_STYLE: CSSProperties & {
+  '--extension-dialog-max-height': string
+  '--extension-dialog-width': string
+} = {
+  '--extension-dialog-max-height': 'calc(100vh - 2rem)',
+  '--extension-dialog-width': 'calc(100% - 2rem)',
 }
 
 function ExtensionDialogShell({
@@ -55,23 +63,24 @@ function ExtensionDialogShell({
   return (
     <dialog
       aria-label={title}
-      className="m-auto max-h-[calc(100vh-32px)] min-h-[420px] w-[calc(100%-32px)] max-w-3xl overflow-hidden rounded-2xl border border-border bg-bg p-0 shadow-2xl backdrop:bg-black/60"
+      className="m-auto max-h-(--extension-dialog-max-height) min-h-105 w-(--extension-dialog-width) max-w-3xl overflow-hidden rounded-2xl border border-border bg-bg p-0 shadow-2xl backdrop:bg-bg/60"
       onCancel={(event) => {
         event.preventDefault()
         onClose()
       }}
       ref={dialogRef}
+      style={DIALOG_SIZE_STYLE}
     >
-      <section className="flex max-h-[calc(100vh-32px)] min-h-[420px] flex-col overflow-hidden">
+      <section className="flex max-h-(--extension-dialog-max-height) min-h-105 flex-col overflow-hidden">
         <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-bg-secondary/90 px-3">
           <div className="flex size-7 shrink-0 items-center justify-center rounded-md border border-accent/25 bg-accent/10 text-accent">
             <MessageSquare className="size-3.5" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-medium tracking-wide text-text-muted uppercase">
+            <p className="text-xs font-medium tracking-wide text-text-muted uppercase">
               Extension dialog
             </p>
-            <h2 className="truncate text-[13px] font-semibold text-text-primary">{title}</h2>
+            <h2 className="truncate text-sm font-semibold text-text-primary">{title}</h2>
           </div>
           <Button
             aria-label="Close extension dialog"
@@ -101,12 +110,12 @@ function ExtensionDialogStatusCard({
   readonly action?: ReactNode
 }) {
   return (
-    <section role="alert" className="rounded-xl border border-border bg-[#111418] p-4">
+    <section role="alert" className="rounded-xl border border-border bg-bg-secondary p-4">
       <div className="flex items-start gap-3">
         <div className="mt-0.5 text-accent">{icon}</div>
         <div className="min-w-0 flex-1">
-          <h3 className="text-[13px] font-semibold text-text-primary">{title}</h3>
-          <p className="mt-1 text-[12px] leading-5 text-text-tertiary">{message}</p>
+          <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
+          <p className="mt-1 text-xs leading-5 text-text-tertiary">{message}</p>
           {action ? <div className="mt-3">{action}</div> : null}
         </div>
       </div>
@@ -116,8 +125,8 @@ function ExtensionDialogStatusCard({
 
 function ExtensionDialogLoadingCard() {
   return (
-    <output className="rounded-xl border border-border bg-[#111418] p-4">
-      <div className="flex items-center gap-3 text-[12px] text-text-tertiary">
+    <output className="rounded-xl border border-border bg-bg-secondary p-4">
+      <div className="flex items-center gap-3 text-xs text-text-tertiary">
         <RefreshCw className="size-4 animate-spin text-accent" />
         Loading extension dialog registry...
       </div>

@@ -2028,16 +2028,20 @@ export declare function createOpenWaggleExtensionSurfaceContext(input: CreateOpe
 ```ts
 import type { CreateOpenWaggleExtensionThemeOptions, OpenWaggleExtensionTheme, OpenWaggleExtensionThemeCssVariableEntry } from './theme-types.js';
 export { OPENWAGGLE_EXTENSION_THEME_CSS_VARIABLES } from './theme-data.js';
-export type { CreateOpenWaggleExtensionThemeOptions, ExtensionThemeCssVariableResolver, OpenWaggleExtensionColorScheme, OpenWaggleExtensionTheme, OpenWaggleExtensionThemeCssVariableEntry, OpenWaggleExtensionThemeCssVariables, OpenWaggleExtensionThemeTokens, } from './theme-types.js';
+export type { CreateOpenWaggleExtensionThemeOptions, ExtensionThemeCssVariableResolver, OpenWaggleExtensionColorScheme, OpenWaggleExtensionTheme, OpenWaggleExtensionThemeCssVariableEntry, OpenWaggleExtensionThemeCssVariables, OpenWaggleExtensionThemeTokens, OpenWaggleExtensionTypeScaleEntry, } from './theme-types.js';
+export { isOpenWaggleExtensionTheme } from './theme-validation.js';
 export declare function createOpenWaggleExtensionTheme(options?: CreateOpenWaggleExtensionThemeOptions): OpenWaggleExtensionTheme;
 export declare function extensionThemeCssVariableEntries(theme: OpenWaggleExtensionTheme): readonly OpenWaggleExtensionThemeCssVariableEntry[];
-export declare function isOpenWaggleExtensionTheme(value: unknown): value is OpenWaggleExtensionTheme;
 ```
 
 ### Declarations from `dist/theme-types.d.ts`
 
 ```ts
-export type OpenWaggleExtensionColorScheme = 'dark';
+export type OpenWaggleExtensionColorScheme = 'dark' | 'light';
+export interface OpenWaggleExtensionTypeScaleEntry {
+    readonly fontSize: string;
+    readonly lineHeight: string;
+}
 export interface OpenWaggleExtensionThemeTokens {
     readonly color: {
         readonly background: string;
@@ -2055,33 +2059,52 @@ export interface OpenWaggleExtensionThemeTokens {
         readonly accentDim: string;
         readonly success: string;
         readonly danger: string;
+        readonly dangerText: string;
         readonly warning: string;
         readonly info: string;
+        readonly infoText: string;
+        readonly review: string;
+        readonly plan: string;
+        readonly progress: string;
+        readonly neutral: string;
     };
     readonly typography: {
         readonly sansFamily: string;
         readonly monoFamily: string;
+        readonly typeScale: {
+            readonly xs: OpenWaggleExtensionTypeScaleEntry;
+            readonly sm: OpenWaggleExtensionTypeScaleEntry;
+            readonly base: OpenWaggleExtensionTypeScaleEntry;
+            readonly lg: OpenWaggleExtensionTypeScaleEntry;
+            readonly xl: OpenWaggleExtensionTypeScaleEntry;
+            readonly twoXl: OpenWaggleExtensionTypeScaleEntry;
+        };
     };
     readonly spacing: {
+        readonly unit: string;
+    };
+    readonly radius: {
         readonly xs: string;
         readonly sm: string;
         readonly md: string;
         readonly lg: string;
         readonly xl: string;
+        readonly twoXl: string;
+        readonly threeXl: string;
+        readonly fourXl: string;
     };
-    readonly radius: {
+    readonly shadow: {
+        readonly twoXs: string;
+        readonly xs: string;
         readonly sm: string;
         readonly md: string;
         readonly lg: string;
-        readonly panel: string;
+        readonly xl: string;
+        readonly twoXl: string;
     };
     readonly focus: {
         readonly ring: string;
         readonly shadow: string;
-    };
-    readonly elevation: {
-        readonly card: string;
-        readonly overlay: string;
     };
 }
 export type OpenWaggleExtensionThemeCssVariables = OpenWaggleExtensionThemeTokens;
@@ -2120,79 +2143,153 @@ export declare const OPENWAGGLE_EXTENSION_THEME_CSS_VARIABLES: {
         readonly accentDim: '--ow-color-accent-dim';
         readonly success: '--ow-color-success';
         readonly danger: '--ow-color-danger';
+        readonly dangerText: '--ow-color-danger-text';
         readonly warning: '--ow-color-warning';
         readonly info: '--ow-color-info';
+        readonly infoText: '--ow-color-info-text';
+        readonly review: '--ow-color-review';
+        readonly plan: '--ow-color-plan';
+        readonly progress: '--ow-color-progress';
+        readonly neutral: '--ow-color-neutral';
     };
     readonly typography: {
         readonly sansFamily: '--ow-font-family-sans';
         readonly monoFamily: '--ow-font-family-mono';
+        readonly typeScale: {
+            readonly xs: {
+                readonly fontSize: '--ow-text-xs';
+                readonly lineHeight: '--ow-text-xs--line-height';
+            };
+            readonly sm: {
+                readonly fontSize: '--ow-text-sm';
+                readonly lineHeight: '--ow-text-sm--line-height';
+            };
+            readonly base: {
+                readonly fontSize: '--ow-text-base';
+                readonly lineHeight: '--ow-text-base--line-height';
+            };
+            readonly lg: {
+                readonly fontSize: '--ow-text-lg';
+                readonly lineHeight: '--ow-text-lg--line-height';
+            };
+            readonly xl: {
+                readonly fontSize: '--ow-text-xl';
+                readonly lineHeight: '--ow-text-xl--line-height';
+            };
+            readonly twoXl: {
+                readonly fontSize: '--ow-text-2xl';
+                readonly lineHeight: '--ow-text-2xl--line-height';
+            };
+        };
     };
     readonly spacing: {
-        readonly xs: '--ow-space-xs';
-        readonly sm: '--ow-space-sm';
-        readonly md: '--ow-space-md';
-        readonly lg: '--ow-space-lg';
-        readonly xl: '--ow-space-xl';
+        readonly unit: '--ow-spacing';
     };
     readonly radius: {
+        readonly xs: '--ow-radius-xs';
         readonly sm: '--ow-radius-sm';
         readonly md: '--ow-radius-md';
         readonly lg: '--ow-radius-lg';
-        readonly panel: '--ow-radius-panel';
+        readonly xl: '--ow-radius-xl';
+        readonly twoXl: '--ow-radius-2xl';
+        readonly threeXl: '--ow-radius-3xl';
+        readonly fourXl: '--ow-radius-4xl';
+    };
+    readonly shadow: {
+        readonly twoXs: '--ow-shadow-2xs';
+        readonly xs: '--ow-shadow-xs';
+        readonly sm: '--ow-shadow-sm';
+        readonly md: '--ow-shadow-md';
+        readonly lg: '--ow-shadow-lg';
+        readonly xl: '--ow-shadow-xl';
+        readonly twoXl: '--ow-shadow-2xl';
     };
     readonly focus: {
         readonly ring: '--ow-focus-ring';
         readonly shadow: '--ow-focus-shadow';
     };
-    readonly elevation: {
-        readonly card: '--ow-elevation-card';
-        readonly overlay: '--ow-elevation-overlay';
-    };
 };
 export declare const DEFAULT_EXTENSION_THEME_TOKENS: {
     readonly color: {
-        readonly background: '#141619';
+        readonly background: '#141719';
         readonly surface: '#1a1d22';
-        readonly surfaceRaised: '#1f232a';
+        readonly surfaceRaised: '#20242b';
         readonly surfaceHover: '#262b33';
-        readonly surfaceActive: '#1d1a10';
+        readonly surfaceActive: '#2b313a';
         readonly border: '#1e2229';
         readonly borderStrong: '#2a3240';
         readonly text: '#e7e9ee';
         readonly textSubtle: '#c9cdd6';
         readonly textMuted: '#9098a8';
-        readonly textDim: '#666f7d';
+        readonly textDim: '#8f98a8';
         readonly accent: '#f5a623';
-        readonly accentDim: '#b87410';
+        readonly accentDim: '#d18a2c';
         readonly success: '#4caf72';
         readonly danger: '#ef4444';
-        readonly warning: '#f5a623';
-        readonly info: '#61a8ff';
+        readonly dangerText: '#f87171';
+        readonly warning: '#f97316';
+        readonly info: '#3b82f6';
+        readonly infoText: '#60a5fa';
+        readonly review: '#a78bfa';
+        readonly plan: '#e879f9';
+        readonly progress: '#7dd3fc';
+        readonly neutral: '#9098a8';
     };
     readonly typography: {
-        readonly sansFamily: 'Inter, "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-        readonly monoFamily: '"SF Mono", "JetBrains Mono", "Cascadia Mono", ui-monospace, monospace';
+        readonly sansFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"';
+        readonly monoFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+        readonly typeScale: {
+            readonly xs: {
+                readonly fontSize: '0.75rem';
+                readonly lineHeight: 'calc(1 / 0.75)';
+            };
+            readonly sm: {
+                readonly fontSize: '0.875rem';
+                readonly lineHeight: 'calc(1.25 / 0.875)';
+            };
+            readonly base: {
+                readonly fontSize: '1rem';
+                readonly lineHeight: 'calc(1.5 / 1)';
+            };
+            readonly lg: {
+                readonly fontSize: '1.125rem';
+                readonly lineHeight: 'calc(1.75 / 1.125)';
+            };
+            readonly xl: {
+                readonly fontSize: '1.25rem';
+                readonly lineHeight: 'calc(1.75 / 1.25)';
+            };
+            readonly twoXl: {
+                readonly fontSize: '1.5rem';
+                readonly lineHeight: 'calc(2 / 1.5)';
+            };
+        };
     };
     readonly spacing: {
-        readonly xs: '4px';
-        readonly sm: '8px';
-        readonly md: '12px';
-        readonly lg: '16px';
-        readonly xl: '24px';
+        readonly unit: '0.25rem';
     };
     readonly radius: {
-        readonly sm: '6px';
-        readonly md: '9px';
-        readonly lg: '12px';
-        readonly panel: '22px';
+        readonly xs: '0.125rem';
+        readonly sm: '0.25rem';
+        readonly md: '0.375rem';
+        readonly lg: '0.5rem';
+        readonly xl: '0.75rem';
+        readonly twoXl: '1rem';
+        readonly threeXl: '1.5rem';
+        readonly fourXl: '2rem';
+    };
+    readonly shadow: {
+        readonly twoXs: '0 1px rgb(0 0 0 / 0.05)';
+        readonly xs: '0 1px 2px 0 rgb(0 0 0 / 0.05)';
+        readonly sm: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)';
+        readonly md: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)';
+        readonly lg: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)';
+        readonly xl: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)';
+        readonly twoXl: '0 25px 50px -12px rgb(0 0 0 / 0.25)';
     };
     readonly focus: {
-        readonly ring: '#9aa3b2';
-        readonly shadow: '0 0 0 1px color-mix(in srgb, #9aa3b2 76%, transparent), 0 0 0 3px color-mix(in srgb, #9aa3b2 15%, transparent)';
-    };
-    readonly elevation: {
-        readonly card: 'inset 0 1px 0 rgba(255, 255, 255, 0.02)';
-        readonly overlay: '0 24px 80px rgba(0, 0, 0, 0.45)';
+        readonly ring: 'transparent';
+        readonly shadow: 'none';
     };
 };
 export declare const SOURCE_EXTENSION_THEME_CSS_VARIABLES: {
@@ -2212,23 +2309,87 @@ export declare const SOURCE_EXTENSION_THEME_CSS_VARIABLES: {
         readonly accentDim: '--color-accent-dim';
         readonly success: '--color-success';
         readonly danger: '--color-error';
+        readonly dangerText: '--color-error-text';
         readonly warning: '--color-warning';
         readonly info: '--color-info';
+        readonly infoText: '--color-info-text';
+        readonly review: '--color-review';
+        readonly plan: '--color-plan';
+        readonly progress: '--color-progress';
+        readonly neutral: '--color-neutral';
     };
     readonly typography: {
         readonly sansFamily: '--font-sans';
         readonly monoFamily: '--font-mono';
+        readonly typeScale: {
+            readonly xs: {
+                readonly fontSize: '--text-xs';
+                readonly lineHeight: '--text-xs--line-height';
+            };
+            readonly sm: {
+                readonly fontSize: '--text-sm';
+                readonly lineHeight: '--text-sm--line-height';
+            };
+            readonly base: {
+                readonly fontSize: '--text-base';
+                readonly lineHeight: '--text-base--line-height';
+            };
+            readonly lg: {
+                readonly fontSize: '--text-lg';
+                readonly lineHeight: '--text-lg--line-height';
+            };
+            readonly xl: {
+                readonly fontSize: '--text-xl';
+                readonly lineHeight: '--text-xl--line-height';
+            };
+            readonly twoXl: {
+                readonly fontSize: '--text-2xl';
+                readonly lineHeight: '--text-2xl--line-height';
+            };
+        };
+    };
+    readonly spacing: {
+        readonly unit: '--spacing';
     };
     readonly radius: {
-        readonly panel: '--radius-panel';
+        readonly xs: '--radius-xs';
+        readonly sm: '--radius-sm';
+        readonly md: '--radius-md';
+        readonly lg: '--radius-lg';
+        readonly xl: '--radius-xl';
+        readonly twoXl: '--radius-2xl';
+        readonly threeXl: '--radius-3xl';
+        readonly fourXl: '--radius-4xl';
+    };
+    readonly shadow: {
+        readonly twoXs: '--shadow-2xs';
+        readonly xs: '--shadow-xs';
+        readonly sm: '--shadow-sm';
+        readonly md: '--shadow-md';
+        readonly lg: '--shadow-lg';
+        readonly xl: '--shadow-xl';
+        readonly twoXl: '--shadow-2xl';
+    };
+    readonly focus: {
+        readonly ring: '--focus-ring';
+        readonly shadow: '--focus-shadow';
     };
 };
-export declare const EXTENSION_THEME_COLOR_KEYS: readonly ['background', 'surface', 'surfaceRaised', 'surfaceHover', 'surfaceActive', 'border', 'borderStrong', 'text', 'textSubtle', 'textMuted', 'textDim', 'accent', 'accentDim', 'success', 'danger', 'warning', 'info'];
+export declare const EXTENSION_THEME_COLOR_KEYS: readonly ['background', 'surface', 'surfaceRaised', 'surfaceHover', 'surfaceActive', 'border', 'borderStrong', 'text', 'textSubtle', 'textMuted', 'textDim', 'accent', 'accentDim', 'success', 'danger', 'dangerText', 'warning', 'info', 'infoText', 'review', 'plan', 'progress', 'neutral'];
 export declare const EXTENSION_THEME_TYPOGRAPHY_KEYS: readonly ['sansFamily', 'monoFamily'];
-export declare const EXTENSION_THEME_SPACING_KEYS: readonly ['xs', 'sm', 'md', 'lg', 'xl'];
-export declare const EXTENSION_THEME_RADIUS_KEYS: readonly ['sm', 'md', 'lg', 'panel'];
+export declare const EXTENSION_THEME_TYPE_SCALE_KEYS: readonly ['xs', 'sm', 'base', 'lg', 'xl', 'twoXl'];
+export declare const EXTENSION_THEME_TYPE_SCALE_ENTRY_KEYS: readonly ['fontSize', 'lineHeight'];
+export declare const EXTENSION_THEME_SPACING_KEYS: readonly ['unit'];
+export declare const EXTENSION_THEME_RADIUS_KEYS: readonly ['xs', 'sm', 'md', 'lg', 'xl', 'twoXl', 'threeXl', 'fourXl'];
+export declare const EXTENSION_THEME_SHADOW_KEYS: readonly ['twoXs', 'xs', 'sm', 'md', 'lg', 'xl', 'twoXl'];
 export declare const EXTENSION_THEME_FOCUS_KEYS: readonly ['ring', 'shadow'];
-export declare const EXTENSION_THEME_ELEVATION_KEYS: readonly ['card', 'overlay'];
+```
+
+### Declarations from `dist/theme-validation.d.ts`
+
+```ts
+import type { OpenWaggleExtensionTheme } from './theme-types.js';
+export declare function isOpenWaggleExtensionTheme(value: unknown): value is OpenWaggleExtensionTheme;
 ```
 
 ### Declarations from `dist/ui.d.ts`
@@ -6331,16 +6492,20 @@ export {};
 ```ts
 import type { CreateOpenWaggleExtensionThemeOptions, OpenWaggleExtensionTheme, OpenWaggleExtensionThemeCssVariableEntry } from './theme-types.js';
 export { OPENWAGGLE_EXTENSION_THEME_CSS_VARIABLES } from './theme-data.js';
-export type { CreateOpenWaggleExtensionThemeOptions, ExtensionThemeCssVariableResolver, OpenWaggleExtensionColorScheme, OpenWaggleExtensionTheme, OpenWaggleExtensionThemeCssVariableEntry, OpenWaggleExtensionThemeCssVariables, OpenWaggleExtensionThemeTokens, } from './theme-types.js';
+export type { CreateOpenWaggleExtensionThemeOptions, ExtensionThemeCssVariableResolver, OpenWaggleExtensionColorScheme, OpenWaggleExtensionTheme, OpenWaggleExtensionThemeCssVariableEntry, OpenWaggleExtensionThemeCssVariables, OpenWaggleExtensionThemeTokens, OpenWaggleExtensionTypeScaleEntry, } from './theme-types.js';
+export { isOpenWaggleExtensionTheme } from './theme-validation.js';
 export declare function createOpenWaggleExtensionTheme(options?: CreateOpenWaggleExtensionThemeOptions): OpenWaggleExtensionTheme;
 export declare function extensionThemeCssVariableEntries(theme: OpenWaggleExtensionTheme): readonly OpenWaggleExtensionThemeCssVariableEntry[];
-export declare function isOpenWaggleExtensionTheme(value: unknown): value is OpenWaggleExtensionTheme;
 ```
 
 ### Declarations from `dist/theme-types.d.ts`
 
 ```ts
-export type OpenWaggleExtensionColorScheme = 'dark';
+export type OpenWaggleExtensionColorScheme = 'dark' | 'light';
+export interface OpenWaggleExtensionTypeScaleEntry {
+    readonly fontSize: string;
+    readonly lineHeight: string;
+}
 export interface OpenWaggleExtensionThemeTokens {
     readonly color: {
         readonly background: string;
@@ -6358,33 +6523,52 @@ export interface OpenWaggleExtensionThemeTokens {
         readonly accentDim: string;
         readonly success: string;
         readonly danger: string;
+        readonly dangerText: string;
         readonly warning: string;
         readonly info: string;
+        readonly infoText: string;
+        readonly review: string;
+        readonly plan: string;
+        readonly progress: string;
+        readonly neutral: string;
     };
     readonly typography: {
         readonly sansFamily: string;
         readonly monoFamily: string;
+        readonly typeScale: {
+            readonly xs: OpenWaggleExtensionTypeScaleEntry;
+            readonly sm: OpenWaggleExtensionTypeScaleEntry;
+            readonly base: OpenWaggleExtensionTypeScaleEntry;
+            readonly lg: OpenWaggleExtensionTypeScaleEntry;
+            readonly xl: OpenWaggleExtensionTypeScaleEntry;
+            readonly twoXl: OpenWaggleExtensionTypeScaleEntry;
+        };
     };
     readonly spacing: {
+        readonly unit: string;
+    };
+    readonly radius: {
         readonly xs: string;
         readonly sm: string;
         readonly md: string;
         readonly lg: string;
         readonly xl: string;
+        readonly twoXl: string;
+        readonly threeXl: string;
+        readonly fourXl: string;
     };
-    readonly radius: {
+    readonly shadow: {
+        readonly twoXs: string;
+        readonly xs: string;
         readonly sm: string;
         readonly md: string;
         readonly lg: string;
-        readonly panel: string;
+        readonly xl: string;
+        readonly twoXl: string;
     };
     readonly focus: {
         readonly ring: string;
         readonly shadow: string;
-    };
-    readonly elevation: {
-        readonly card: string;
-        readonly overlay: string;
     };
 }
 export type OpenWaggleExtensionThemeCssVariables = OpenWaggleExtensionThemeTokens;
@@ -6423,79 +6607,153 @@ export declare const OPENWAGGLE_EXTENSION_THEME_CSS_VARIABLES: {
         readonly accentDim: '--ow-color-accent-dim';
         readonly success: '--ow-color-success';
         readonly danger: '--ow-color-danger';
+        readonly dangerText: '--ow-color-danger-text';
         readonly warning: '--ow-color-warning';
         readonly info: '--ow-color-info';
+        readonly infoText: '--ow-color-info-text';
+        readonly review: '--ow-color-review';
+        readonly plan: '--ow-color-plan';
+        readonly progress: '--ow-color-progress';
+        readonly neutral: '--ow-color-neutral';
     };
     readonly typography: {
         readonly sansFamily: '--ow-font-family-sans';
         readonly monoFamily: '--ow-font-family-mono';
+        readonly typeScale: {
+            readonly xs: {
+                readonly fontSize: '--ow-text-xs';
+                readonly lineHeight: '--ow-text-xs--line-height';
+            };
+            readonly sm: {
+                readonly fontSize: '--ow-text-sm';
+                readonly lineHeight: '--ow-text-sm--line-height';
+            };
+            readonly base: {
+                readonly fontSize: '--ow-text-base';
+                readonly lineHeight: '--ow-text-base--line-height';
+            };
+            readonly lg: {
+                readonly fontSize: '--ow-text-lg';
+                readonly lineHeight: '--ow-text-lg--line-height';
+            };
+            readonly xl: {
+                readonly fontSize: '--ow-text-xl';
+                readonly lineHeight: '--ow-text-xl--line-height';
+            };
+            readonly twoXl: {
+                readonly fontSize: '--ow-text-2xl';
+                readonly lineHeight: '--ow-text-2xl--line-height';
+            };
+        };
     };
     readonly spacing: {
-        readonly xs: '--ow-space-xs';
-        readonly sm: '--ow-space-sm';
-        readonly md: '--ow-space-md';
-        readonly lg: '--ow-space-lg';
-        readonly xl: '--ow-space-xl';
+        readonly unit: '--ow-spacing';
     };
     readonly radius: {
+        readonly xs: '--ow-radius-xs';
         readonly sm: '--ow-radius-sm';
         readonly md: '--ow-radius-md';
         readonly lg: '--ow-radius-lg';
-        readonly panel: '--ow-radius-panel';
+        readonly xl: '--ow-radius-xl';
+        readonly twoXl: '--ow-radius-2xl';
+        readonly threeXl: '--ow-radius-3xl';
+        readonly fourXl: '--ow-radius-4xl';
+    };
+    readonly shadow: {
+        readonly twoXs: '--ow-shadow-2xs';
+        readonly xs: '--ow-shadow-xs';
+        readonly sm: '--ow-shadow-sm';
+        readonly md: '--ow-shadow-md';
+        readonly lg: '--ow-shadow-lg';
+        readonly xl: '--ow-shadow-xl';
+        readonly twoXl: '--ow-shadow-2xl';
     };
     readonly focus: {
         readonly ring: '--ow-focus-ring';
         readonly shadow: '--ow-focus-shadow';
     };
-    readonly elevation: {
-        readonly card: '--ow-elevation-card';
-        readonly overlay: '--ow-elevation-overlay';
-    };
 };
 export declare const DEFAULT_EXTENSION_THEME_TOKENS: {
     readonly color: {
-        readonly background: '#141619';
+        readonly background: '#141719';
         readonly surface: '#1a1d22';
-        readonly surfaceRaised: '#1f232a';
+        readonly surfaceRaised: '#20242b';
         readonly surfaceHover: '#262b33';
-        readonly surfaceActive: '#1d1a10';
+        readonly surfaceActive: '#2b313a';
         readonly border: '#1e2229';
         readonly borderStrong: '#2a3240';
         readonly text: '#e7e9ee';
         readonly textSubtle: '#c9cdd6';
         readonly textMuted: '#9098a8';
-        readonly textDim: '#666f7d';
+        readonly textDim: '#8f98a8';
         readonly accent: '#f5a623';
-        readonly accentDim: '#b87410';
+        readonly accentDim: '#d18a2c';
         readonly success: '#4caf72';
         readonly danger: '#ef4444';
-        readonly warning: '#f5a623';
-        readonly info: '#61a8ff';
+        readonly dangerText: '#f87171';
+        readonly warning: '#f97316';
+        readonly info: '#3b82f6';
+        readonly infoText: '#60a5fa';
+        readonly review: '#a78bfa';
+        readonly plan: '#e879f9';
+        readonly progress: '#7dd3fc';
+        readonly neutral: '#9098a8';
     };
     readonly typography: {
-        readonly sansFamily: 'Inter, "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-        readonly monoFamily: '"SF Mono", "JetBrains Mono", "Cascadia Mono", ui-monospace, monospace';
+        readonly sansFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"';
+        readonly monoFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+        readonly typeScale: {
+            readonly xs: {
+                readonly fontSize: '0.75rem';
+                readonly lineHeight: 'calc(1 / 0.75)';
+            };
+            readonly sm: {
+                readonly fontSize: '0.875rem';
+                readonly lineHeight: 'calc(1.25 / 0.875)';
+            };
+            readonly base: {
+                readonly fontSize: '1rem';
+                readonly lineHeight: 'calc(1.5 / 1)';
+            };
+            readonly lg: {
+                readonly fontSize: '1.125rem';
+                readonly lineHeight: 'calc(1.75 / 1.125)';
+            };
+            readonly xl: {
+                readonly fontSize: '1.25rem';
+                readonly lineHeight: 'calc(1.75 / 1.25)';
+            };
+            readonly twoXl: {
+                readonly fontSize: '1.5rem';
+                readonly lineHeight: 'calc(2 / 1.5)';
+            };
+        };
     };
     readonly spacing: {
-        readonly xs: '4px';
-        readonly sm: '8px';
-        readonly md: '12px';
-        readonly lg: '16px';
-        readonly xl: '24px';
+        readonly unit: '0.25rem';
     };
     readonly radius: {
-        readonly sm: '6px';
-        readonly md: '9px';
-        readonly lg: '12px';
-        readonly panel: '22px';
+        readonly xs: '0.125rem';
+        readonly sm: '0.25rem';
+        readonly md: '0.375rem';
+        readonly lg: '0.5rem';
+        readonly xl: '0.75rem';
+        readonly twoXl: '1rem';
+        readonly threeXl: '1.5rem';
+        readonly fourXl: '2rem';
+    };
+    readonly shadow: {
+        readonly twoXs: '0 1px rgb(0 0 0 / 0.05)';
+        readonly xs: '0 1px 2px 0 rgb(0 0 0 / 0.05)';
+        readonly sm: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)';
+        readonly md: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)';
+        readonly lg: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)';
+        readonly xl: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)';
+        readonly twoXl: '0 25px 50px -12px rgb(0 0 0 / 0.25)';
     };
     readonly focus: {
-        readonly ring: '#9aa3b2';
-        readonly shadow: '0 0 0 1px color-mix(in srgb, #9aa3b2 76%, transparent), 0 0 0 3px color-mix(in srgb, #9aa3b2 15%, transparent)';
-    };
-    readonly elevation: {
-        readonly card: 'inset 0 1px 0 rgba(255, 255, 255, 0.02)';
-        readonly overlay: '0 24px 80px rgba(0, 0, 0, 0.45)';
+        readonly ring: 'transparent';
+        readonly shadow: 'none';
     };
 };
 export declare const SOURCE_EXTENSION_THEME_CSS_VARIABLES: {
@@ -6515,23 +6773,87 @@ export declare const SOURCE_EXTENSION_THEME_CSS_VARIABLES: {
         readonly accentDim: '--color-accent-dim';
         readonly success: '--color-success';
         readonly danger: '--color-error';
+        readonly dangerText: '--color-error-text';
         readonly warning: '--color-warning';
         readonly info: '--color-info';
+        readonly infoText: '--color-info-text';
+        readonly review: '--color-review';
+        readonly plan: '--color-plan';
+        readonly progress: '--color-progress';
+        readonly neutral: '--color-neutral';
     };
     readonly typography: {
         readonly sansFamily: '--font-sans';
         readonly monoFamily: '--font-mono';
+        readonly typeScale: {
+            readonly xs: {
+                readonly fontSize: '--text-xs';
+                readonly lineHeight: '--text-xs--line-height';
+            };
+            readonly sm: {
+                readonly fontSize: '--text-sm';
+                readonly lineHeight: '--text-sm--line-height';
+            };
+            readonly base: {
+                readonly fontSize: '--text-base';
+                readonly lineHeight: '--text-base--line-height';
+            };
+            readonly lg: {
+                readonly fontSize: '--text-lg';
+                readonly lineHeight: '--text-lg--line-height';
+            };
+            readonly xl: {
+                readonly fontSize: '--text-xl';
+                readonly lineHeight: '--text-xl--line-height';
+            };
+            readonly twoXl: {
+                readonly fontSize: '--text-2xl';
+                readonly lineHeight: '--text-2xl--line-height';
+            };
+        };
+    };
+    readonly spacing: {
+        readonly unit: '--spacing';
     };
     readonly radius: {
-        readonly panel: '--radius-panel';
+        readonly xs: '--radius-xs';
+        readonly sm: '--radius-sm';
+        readonly md: '--radius-md';
+        readonly lg: '--radius-lg';
+        readonly xl: '--radius-xl';
+        readonly twoXl: '--radius-2xl';
+        readonly threeXl: '--radius-3xl';
+        readonly fourXl: '--radius-4xl';
+    };
+    readonly shadow: {
+        readonly twoXs: '--shadow-2xs';
+        readonly xs: '--shadow-xs';
+        readonly sm: '--shadow-sm';
+        readonly md: '--shadow-md';
+        readonly lg: '--shadow-lg';
+        readonly xl: '--shadow-xl';
+        readonly twoXl: '--shadow-2xl';
+    };
+    readonly focus: {
+        readonly ring: '--focus-ring';
+        readonly shadow: '--focus-shadow';
     };
 };
-export declare const EXTENSION_THEME_COLOR_KEYS: readonly ['background', 'surface', 'surfaceRaised', 'surfaceHover', 'surfaceActive', 'border', 'borderStrong', 'text', 'textSubtle', 'textMuted', 'textDim', 'accent', 'accentDim', 'success', 'danger', 'warning', 'info'];
+export declare const EXTENSION_THEME_COLOR_KEYS: readonly ['background', 'surface', 'surfaceRaised', 'surfaceHover', 'surfaceActive', 'border', 'borderStrong', 'text', 'textSubtle', 'textMuted', 'textDim', 'accent', 'accentDim', 'success', 'danger', 'dangerText', 'warning', 'info', 'infoText', 'review', 'plan', 'progress', 'neutral'];
 export declare const EXTENSION_THEME_TYPOGRAPHY_KEYS: readonly ['sansFamily', 'monoFamily'];
-export declare const EXTENSION_THEME_SPACING_KEYS: readonly ['xs', 'sm', 'md', 'lg', 'xl'];
-export declare const EXTENSION_THEME_RADIUS_KEYS: readonly ['sm', 'md', 'lg', 'panel'];
+export declare const EXTENSION_THEME_TYPE_SCALE_KEYS: readonly ['xs', 'sm', 'base', 'lg', 'xl', 'twoXl'];
+export declare const EXTENSION_THEME_TYPE_SCALE_ENTRY_KEYS: readonly ['fontSize', 'lineHeight'];
+export declare const EXTENSION_THEME_SPACING_KEYS: readonly ['unit'];
+export declare const EXTENSION_THEME_RADIUS_KEYS: readonly ['xs', 'sm', 'md', 'lg', 'xl', 'twoXl', 'threeXl', 'fourXl'];
+export declare const EXTENSION_THEME_SHADOW_KEYS: readonly ['twoXs', 'xs', 'sm', 'md', 'lg', 'xl', 'twoXl'];
 export declare const EXTENSION_THEME_FOCUS_KEYS: readonly ['ring', 'shadow'];
-export declare const EXTENSION_THEME_ELEVATION_KEYS: readonly ['card', 'overlay'];
+```
+
+### Declarations from `dist/theme-validation.d.ts`
+
+```ts
+import type { OpenWaggleExtensionTheme } from './theme-types.js';
+export declare function isOpenWaggleExtensionTheme(value: unknown): value is OpenWaggleExtensionTheme;
 ```
 
 ### Declarations from `dist/ui.d.ts`
@@ -9433,16 +9755,20 @@ Types: `dist/theme.d.ts`
 ```ts
 import type { CreateOpenWaggleExtensionThemeOptions, OpenWaggleExtensionTheme, OpenWaggleExtensionThemeCssVariableEntry } from './theme-types.js';
 export { OPENWAGGLE_EXTENSION_THEME_CSS_VARIABLES } from './theme-data.js';
-export type { CreateOpenWaggleExtensionThemeOptions, ExtensionThemeCssVariableResolver, OpenWaggleExtensionColorScheme, OpenWaggleExtensionTheme, OpenWaggleExtensionThemeCssVariableEntry, OpenWaggleExtensionThemeCssVariables, OpenWaggleExtensionThemeTokens, } from './theme-types.js';
+export type { CreateOpenWaggleExtensionThemeOptions, ExtensionThemeCssVariableResolver, OpenWaggleExtensionColorScheme, OpenWaggleExtensionTheme, OpenWaggleExtensionThemeCssVariableEntry, OpenWaggleExtensionThemeCssVariables, OpenWaggleExtensionThemeTokens, OpenWaggleExtensionTypeScaleEntry, } from './theme-types.js';
+export { isOpenWaggleExtensionTheme } from './theme-validation.js';
 export declare function createOpenWaggleExtensionTheme(options?: CreateOpenWaggleExtensionThemeOptions): OpenWaggleExtensionTheme;
 export declare function extensionThemeCssVariableEntries(theme: OpenWaggleExtensionTheme): readonly OpenWaggleExtensionThemeCssVariableEntry[];
-export declare function isOpenWaggleExtensionTheme(value: unknown): value is OpenWaggleExtensionTheme;
 ```
 
 ### Declarations from `dist/theme-types.d.ts`
 
 ```ts
-export type OpenWaggleExtensionColorScheme = 'dark';
+export type OpenWaggleExtensionColorScheme = 'dark' | 'light';
+export interface OpenWaggleExtensionTypeScaleEntry {
+    readonly fontSize: string;
+    readonly lineHeight: string;
+}
 export interface OpenWaggleExtensionThemeTokens {
     readonly color: {
         readonly background: string;
@@ -9460,33 +9786,52 @@ export interface OpenWaggleExtensionThemeTokens {
         readonly accentDim: string;
         readonly success: string;
         readonly danger: string;
+        readonly dangerText: string;
         readonly warning: string;
         readonly info: string;
+        readonly infoText: string;
+        readonly review: string;
+        readonly plan: string;
+        readonly progress: string;
+        readonly neutral: string;
     };
     readonly typography: {
         readonly sansFamily: string;
         readonly monoFamily: string;
+        readonly typeScale: {
+            readonly xs: OpenWaggleExtensionTypeScaleEntry;
+            readonly sm: OpenWaggleExtensionTypeScaleEntry;
+            readonly base: OpenWaggleExtensionTypeScaleEntry;
+            readonly lg: OpenWaggleExtensionTypeScaleEntry;
+            readonly xl: OpenWaggleExtensionTypeScaleEntry;
+            readonly twoXl: OpenWaggleExtensionTypeScaleEntry;
+        };
     };
     readonly spacing: {
+        readonly unit: string;
+    };
+    readonly radius: {
         readonly xs: string;
         readonly sm: string;
         readonly md: string;
         readonly lg: string;
         readonly xl: string;
+        readonly twoXl: string;
+        readonly threeXl: string;
+        readonly fourXl: string;
     };
-    readonly radius: {
+    readonly shadow: {
+        readonly twoXs: string;
+        readonly xs: string;
         readonly sm: string;
         readonly md: string;
         readonly lg: string;
-        readonly panel: string;
+        readonly xl: string;
+        readonly twoXl: string;
     };
     readonly focus: {
         readonly ring: string;
         readonly shadow: string;
-    };
-    readonly elevation: {
-        readonly card: string;
-        readonly overlay: string;
     };
 }
 export type OpenWaggleExtensionThemeCssVariables = OpenWaggleExtensionThemeTokens;
@@ -9525,79 +9870,153 @@ export declare const OPENWAGGLE_EXTENSION_THEME_CSS_VARIABLES: {
         readonly accentDim: '--ow-color-accent-dim';
         readonly success: '--ow-color-success';
         readonly danger: '--ow-color-danger';
+        readonly dangerText: '--ow-color-danger-text';
         readonly warning: '--ow-color-warning';
         readonly info: '--ow-color-info';
+        readonly infoText: '--ow-color-info-text';
+        readonly review: '--ow-color-review';
+        readonly plan: '--ow-color-plan';
+        readonly progress: '--ow-color-progress';
+        readonly neutral: '--ow-color-neutral';
     };
     readonly typography: {
         readonly sansFamily: '--ow-font-family-sans';
         readonly monoFamily: '--ow-font-family-mono';
+        readonly typeScale: {
+            readonly xs: {
+                readonly fontSize: '--ow-text-xs';
+                readonly lineHeight: '--ow-text-xs--line-height';
+            };
+            readonly sm: {
+                readonly fontSize: '--ow-text-sm';
+                readonly lineHeight: '--ow-text-sm--line-height';
+            };
+            readonly base: {
+                readonly fontSize: '--ow-text-base';
+                readonly lineHeight: '--ow-text-base--line-height';
+            };
+            readonly lg: {
+                readonly fontSize: '--ow-text-lg';
+                readonly lineHeight: '--ow-text-lg--line-height';
+            };
+            readonly xl: {
+                readonly fontSize: '--ow-text-xl';
+                readonly lineHeight: '--ow-text-xl--line-height';
+            };
+            readonly twoXl: {
+                readonly fontSize: '--ow-text-2xl';
+                readonly lineHeight: '--ow-text-2xl--line-height';
+            };
+        };
     };
     readonly spacing: {
-        readonly xs: '--ow-space-xs';
-        readonly sm: '--ow-space-sm';
-        readonly md: '--ow-space-md';
-        readonly lg: '--ow-space-lg';
-        readonly xl: '--ow-space-xl';
+        readonly unit: '--ow-spacing';
     };
     readonly radius: {
+        readonly xs: '--ow-radius-xs';
         readonly sm: '--ow-radius-sm';
         readonly md: '--ow-radius-md';
         readonly lg: '--ow-radius-lg';
-        readonly panel: '--ow-radius-panel';
+        readonly xl: '--ow-radius-xl';
+        readonly twoXl: '--ow-radius-2xl';
+        readonly threeXl: '--ow-radius-3xl';
+        readonly fourXl: '--ow-radius-4xl';
+    };
+    readonly shadow: {
+        readonly twoXs: '--ow-shadow-2xs';
+        readonly xs: '--ow-shadow-xs';
+        readonly sm: '--ow-shadow-sm';
+        readonly md: '--ow-shadow-md';
+        readonly lg: '--ow-shadow-lg';
+        readonly xl: '--ow-shadow-xl';
+        readonly twoXl: '--ow-shadow-2xl';
     };
     readonly focus: {
         readonly ring: '--ow-focus-ring';
         readonly shadow: '--ow-focus-shadow';
     };
-    readonly elevation: {
-        readonly card: '--ow-elevation-card';
-        readonly overlay: '--ow-elevation-overlay';
-    };
 };
 export declare const DEFAULT_EXTENSION_THEME_TOKENS: {
     readonly color: {
-        readonly background: '#141619';
+        readonly background: '#141719';
         readonly surface: '#1a1d22';
-        readonly surfaceRaised: '#1f232a';
+        readonly surfaceRaised: '#20242b';
         readonly surfaceHover: '#262b33';
-        readonly surfaceActive: '#1d1a10';
+        readonly surfaceActive: '#2b313a';
         readonly border: '#1e2229';
         readonly borderStrong: '#2a3240';
         readonly text: '#e7e9ee';
         readonly textSubtle: '#c9cdd6';
         readonly textMuted: '#9098a8';
-        readonly textDim: '#666f7d';
+        readonly textDim: '#8f98a8';
         readonly accent: '#f5a623';
-        readonly accentDim: '#b87410';
+        readonly accentDim: '#d18a2c';
         readonly success: '#4caf72';
         readonly danger: '#ef4444';
-        readonly warning: '#f5a623';
-        readonly info: '#61a8ff';
+        readonly dangerText: '#f87171';
+        readonly warning: '#f97316';
+        readonly info: '#3b82f6';
+        readonly infoText: '#60a5fa';
+        readonly review: '#a78bfa';
+        readonly plan: '#e879f9';
+        readonly progress: '#7dd3fc';
+        readonly neutral: '#9098a8';
     };
     readonly typography: {
-        readonly sansFamily: 'Inter, "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-        readonly monoFamily: '"SF Mono", "JetBrains Mono", "Cascadia Mono", ui-monospace, monospace';
+        readonly sansFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"';
+        readonly monoFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+        readonly typeScale: {
+            readonly xs: {
+                readonly fontSize: '0.75rem';
+                readonly lineHeight: 'calc(1 / 0.75)';
+            };
+            readonly sm: {
+                readonly fontSize: '0.875rem';
+                readonly lineHeight: 'calc(1.25 / 0.875)';
+            };
+            readonly base: {
+                readonly fontSize: '1rem';
+                readonly lineHeight: 'calc(1.5 / 1)';
+            };
+            readonly lg: {
+                readonly fontSize: '1.125rem';
+                readonly lineHeight: 'calc(1.75 / 1.125)';
+            };
+            readonly xl: {
+                readonly fontSize: '1.25rem';
+                readonly lineHeight: 'calc(1.75 / 1.25)';
+            };
+            readonly twoXl: {
+                readonly fontSize: '1.5rem';
+                readonly lineHeight: 'calc(2 / 1.5)';
+            };
+        };
     };
     readonly spacing: {
-        readonly xs: '4px';
-        readonly sm: '8px';
-        readonly md: '12px';
-        readonly lg: '16px';
-        readonly xl: '24px';
+        readonly unit: '0.25rem';
     };
     readonly radius: {
-        readonly sm: '6px';
-        readonly md: '9px';
-        readonly lg: '12px';
-        readonly panel: '22px';
+        readonly xs: '0.125rem';
+        readonly sm: '0.25rem';
+        readonly md: '0.375rem';
+        readonly lg: '0.5rem';
+        readonly xl: '0.75rem';
+        readonly twoXl: '1rem';
+        readonly threeXl: '1.5rem';
+        readonly fourXl: '2rem';
+    };
+    readonly shadow: {
+        readonly twoXs: '0 1px rgb(0 0 0 / 0.05)';
+        readonly xs: '0 1px 2px 0 rgb(0 0 0 / 0.05)';
+        readonly sm: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)';
+        readonly md: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)';
+        readonly lg: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)';
+        readonly xl: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)';
+        readonly twoXl: '0 25px 50px -12px rgb(0 0 0 / 0.25)';
     };
     readonly focus: {
-        readonly ring: '#9aa3b2';
-        readonly shadow: '0 0 0 1px color-mix(in srgb, #9aa3b2 76%, transparent), 0 0 0 3px color-mix(in srgb, #9aa3b2 15%, transparent)';
-    };
-    readonly elevation: {
-        readonly card: 'inset 0 1px 0 rgba(255, 255, 255, 0.02)';
-        readonly overlay: '0 24px 80px rgba(0, 0, 0, 0.45)';
+        readonly ring: 'transparent';
+        readonly shadow: 'none';
     };
 };
 export declare const SOURCE_EXTENSION_THEME_CSS_VARIABLES: {
@@ -9617,23 +10036,87 @@ export declare const SOURCE_EXTENSION_THEME_CSS_VARIABLES: {
         readonly accentDim: '--color-accent-dim';
         readonly success: '--color-success';
         readonly danger: '--color-error';
+        readonly dangerText: '--color-error-text';
         readonly warning: '--color-warning';
         readonly info: '--color-info';
+        readonly infoText: '--color-info-text';
+        readonly review: '--color-review';
+        readonly plan: '--color-plan';
+        readonly progress: '--color-progress';
+        readonly neutral: '--color-neutral';
     };
     readonly typography: {
         readonly sansFamily: '--font-sans';
         readonly monoFamily: '--font-mono';
+        readonly typeScale: {
+            readonly xs: {
+                readonly fontSize: '--text-xs';
+                readonly lineHeight: '--text-xs--line-height';
+            };
+            readonly sm: {
+                readonly fontSize: '--text-sm';
+                readonly lineHeight: '--text-sm--line-height';
+            };
+            readonly base: {
+                readonly fontSize: '--text-base';
+                readonly lineHeight: '--text-base--line-height';
+            };
+            readonly lg: {
+                readonly fontSize: '--text-lg';
+                readonly lineHeight: '--text-lg--line-height';
+            };
+            readonly xl: {
+                readonly fontSize: '--text-xl';
+                readonly lineHeight: '--text-xl--line-height';
+            };
+            readonly twoXl: {
+                readonly fontSize: '--text-2xl';
+                readonly lineHeight: '--text-2xl--line-height';
+            };
+        };
+    };
+    readonly spacing: {
+        readonly unit: '--spacing';
     };
     readonly radius: {
-        readonly panel: '--radius-panel';
+        readonly xs: '--radius-xs';
+        readonly sm: '--radius-sm';
+        readonly md: '--radius-md';
+        readonly lg: '--radius-lg';
+        readonly xl: '--radius-xl';
+        readonly twoXl: '--radius-2xl';
+        readonly threeXl: '--radius-3xl';
+        readonly fourXl: '--radius-4xl';
+    };
+    readonly shadow: {
+        readonly twoXs: '--shadow-2xs';
+        readonly xs: '--shadow-xs';
+        readonly sm: '--shadow-sm';
+        readonly md: '--shadow-md';
+        readonly lg: '--shadow-lg';
+        readonly xl: '--shadow-xl';
+        readonly twoXl: '--shadow-2xl';
+    };
+    readonly focus: {
+        readonly ring: '--focus-ring';
+        readonly shadow: '--focus-shadow';
     };
 };
-export declare const EXTENSION_THEME_COLOR_KEYS: readonly ['background', 'surface', 'surfaceRaised', 'surfaceHover', 'surfaceActive', 'border', 'borderStrong', 'text', 'textSubtle', 'textMuted', 'textDim', 'accent', 'accentDim', 'success', 'danger', 'warning', 'info'];
+export declare const EXTENSION_THEME_COLOR_KEYS: readonly ['background', 'surface', 'surfaceRaised', 'surfaceHover', 'surfaceActive', 'border', 'borderStrong', 'text', 'textSubtle', 'textMuted', 'textDim', 'accent', 'accentDim', 'success', 'danger', 'dangerText', 'warning', 'info', 'infoText', 'review', 'plan', 'progress', 'neutral'];
 export declare const EXTENSION_THEME_TYPOGRAPHY_KEYS: readonly ['sansFamily', 'monoFamily'];
-export declare const EXTENSION_THEME_SPACING_KEYS: readonly ['xs', 'sm', 'md', 'lg', 'xl'];
-export declare const EXTENSION_THEME_RADIUS_KEYS: readonly ['sm', 'md', 'lg', 'panel'];
+export declare const EXTENSION_THEME_TYPE_SCALE_KEYS: readonly ['xs', 'sm', 'base', 'lg', 'xl', 'twoXl'];
+export declare const EXTENSION_THEME_TYPE_SCALE_ENTRY_KEYS: readonly ['fontSize', 'lineHeight'];
+export declare const EXTENSION_THEME_SPACING_KEYS: readonly ['unit'];
+export declare const EXTENSION_THEME_RADIUS_KEYS: readonly ['xs', 'sm', 'md', 'lg', 'xl', 'twoXl', 'threeXl', 'fourXl'];
+export declare const EXTENSION_THEME_SHADOW_KEYS: readonly ['twoXs', 'xs', 'sm', 'md', 'lg', 'xl', 'twoXl'];
 export declare const EXTENSION_THEME_FOCUS_KEYS: readonly ['ring', 'shadow'];
-export declare const EXTENSION_THEME_ELEVATION_KEYS: readonly ['card', 'overlay'];
+```
+
+### Declarations from `dist/theme-validation.d.ts`
+
+```ts
+import type { OpenWaggleExtensionTheme } from './theme-types.js';
+export declare function isOpenWaggleExtensionTheme(value: unknown): value is OpenWaggleExtensionTheme;
 ```
 
 ## Export `./types`
@@ -11198,7 +11681,11 @@ export declare function createOpenWaggleExtensionUiStylesheet(options?: CreateOp
 ### Declarations from `dist/theme-types.d.ts`
 
 ```ts
-export type OpenWaggleExtensionColorScheme = 'dark';
+export type OpenWaggleExtensionColorScheme = 'dark' | 'light';
+export interface OpenWaggleExtensionTypeScaleEntry {
+    readonly fontSize: string;
+    readonly lineHeight: string;
+}
 export interface OpenWaggleExtensionThemeTokens {
     readonly color: {
         readonly background: string;
@@ -11216,33 +11703,52 @@ export interface OpenWaggleExtensionThemeTokens {
         readonly accentDim: string;
         readonly success: string;
         readonly danger: string;
+        readonly dangerText: string;
         readonly warning: string;
         readonly info: string;
+        readonly infoText: string;
+        readonly review: string;
+        readonly plan: string;
+        readonly progress: string;
+        readonly neutral: string;
     };
     readonly typography: {
         readonly sansFamily: string;
         readonly monoFamily: string;
+        readonly typeScale: {
+            readonly xs: OpenWaggleExtensionTypeScaleEntry;
+            readonly sm: OpenWaggleExtensionTypeScaleEntry;
+            readonly base: OpenWaggleExtensionTypeScaleEntry;
+            readonly lg: OpenWaggleExtensionTypeScaleEntry;
+            readonly xl: OpenWaggleExtensionTypeScaleEntry;
+            readonly twoXl: OpenWaggleExtensionTypeScaleEntry;
+        };
     };
     readonly spacing: {
+        readonly unit: string;
+    };
+    readonly radius: {
         readonly xs: string;
         readonly sm: string;
         readonly md: string;
         readonly lg: string;
         readonly xl: string;
+        readonly twoXl: string;
+        readonly threeXl: string;
+        readonly fourXl: string;
     };
-    readonly radius: {
+    readonly shadow: {
+        readonly twoXs: string;
+        readonly xs: string;
         readonly sm: string;
         readonly md: string;
         readonly lg: string;
-        readonly panel: string;
+        readonly xl: string;
+        readonly twoXl: string;
     };
     readonly focus: {
         readonly ring: string;
         readonly shadow: string;
-    };
-    readonly elevation: {
-        readonly card: string;
-        readonly overlay: string;
     };
 }
 export type OpenWaggleExtensionThemeCssVariables = OpenWaggleExtensionThemeTokens;

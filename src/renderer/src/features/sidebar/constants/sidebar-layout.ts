@@ -10,7 +10,7 @@ export const SIDEBAR_LAYOUT = {
    * where nothing truncated; 316px is the width the approved design was drawn at and leaves
    * the title 242px.
    */
-  WIDTH_CLASS: 'w-[316px]',
+  WIDTH_CLASS: 'w-79',
   DRAG_REGION_HEIGHT: 32,
   /**
    * Breathing room under the lockup, above New session. Kept small: it is dead space in

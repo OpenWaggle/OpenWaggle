@@ -223,7 +223,7 @@ function ActiveComposerSidePanelSurface({
   }
 
   return (
-    <div className="fixed inset-y-4 right-4 z-50 w-[min(420px,calc(100vw-32px))] overflow-hidden rounded-2xl border border-border bg-diff-bg shadow-2xl">
+    <div className="fixed inset-y-4 right-4 left-4 z-50 ml-auto max-w-105 overflow-hidden rounded-2xl border border-border bg-diff-bg shadow-2xl">
       <ExtensionSidePanelSurfaceContent {...surfaceProps} />
     </div>
   )
@@ -287,7 +287,7 @@ export function ChatComposerExtensionDialogs({
   return (
     <>
       <ComposerExtensionActions launchers={launchers} />
-      {error ? <p className="mb-2 text-[12px] text-error">{error}</p> : null}
+      {error ? <p className="mb-2 text-xs text-error">{error}</p> : null}
       {activeSurface?.kind === 'dialog' ? (
         <ExtensionDialogSurfaceContent
           actions={{

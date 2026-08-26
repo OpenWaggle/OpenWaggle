@@ -16,7 +16,7 @@ interface ChatComposerCommandPaletteProps {
 export function ChatComposerCommandPalette(props: ChatComposerCommandPaletteProps) {
   if (!props.open) return null
   return (
-    <div className="mx-auto w-full max-w-[720px] px-5 pb-2">
+    <div className="mx-auto w-full max-w-180 px-5 pb-2">
       <CommandPalette
         slashSkills={props.slashSkills}
         onSelectSkill={props.onSelectSkill}

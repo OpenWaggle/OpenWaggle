@@ -39,7 +39,7 @@ function SessionMenuButton({
       variant="unstyled"
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover${danger ? ' hover:text-error' : ''}`}
+      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-text-secondary transition-colors hover:bg-bg-hover${danger ? ' hover:text-error' : ''}`}
     >
       <Icon className="size-3 shrink-0" />
       <span>{label}</span>

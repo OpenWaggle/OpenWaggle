@@ -69,12 +69,12 @@ export function SessionAuthorizationModeMenu({
 
   return (
     <div
-      className="flex min-w-0 items-center text-[11px] text-text-muted"
+      className="flex min-w-0 items-center text-xs text-text-muted"
       title={draft ? 'The first run uses this mode. Change it once the session exists.' : undefined}
     >
       <Select
         aria-label="Session access mode"
-        className="max-w-[15rem] truncate"
+        className="max-w-60 truncate"
         disabled={saving || draft}
         onChange={(event) => {
           const raw = event.currentTarget.value

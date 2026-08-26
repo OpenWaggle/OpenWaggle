@@ -95,8 +95,8 @@ function ShortcutRow({
       }`}
     >
       <div className="min-w-0 flex-1">
-        <div className="text-[13px] font-medium text-text-primary">{definition.label}</div>
-        <div className="mt-0.5 text-[11px] text-text-tertiary">{definition.description}</div>
+        <div className="text-xs font-medium text-text-primary">{definition.label}</div>
+        <div className="mt-0.5 text-xs text-text-tertiary">{definition.description}</div>
       </div>
       {!isDefault && (
         <Button
@@ -113,7 +113,7 @@ function ShortcutRow({
         variant="unstyled"
         onClick={() => onRecord(definition.command)}
         onKeyDown={(event) => onKeyDown(definition.command, event)}
-        className={`min-w-28 rounded-md border px-3 py-1.5 font-mono text-[11px] outline-none ${
+        className={`min-w-28 rounded-md border px-3 py-1.5 font-mono text-xs outline-none ${
           isRecording
             ? 'border-accent bg-accent/10 text-accent ring-2 ring-accent/20'
             : 'border-border-light bg-bg text-text-secondary hover:bg-bg-hover'
@@ -186,8 +186,8 @@ export function ShortcutsSection() {
     <div className="max-w-3xl space-y-5">
       <div className="flex items-start justify-between gap-6">
         <div>
-          <h2 className="text-[16px] font-semibold text-text-primary">Keyboard shortcuts</h2>
-          <p className="mt-1 text-[12px] leading-5 text-text-tertiary">
+          <h2 className="text-base font-semibold text-text-primary">Keyboard shortcuts</h2>
+          <p className="mt-1 text-xs leading-5 text-text-tertiary">
             Select a shortcut, then press the replacement. Conflicting bindings are rejected.
           </p>
         </div>
@@ -223,11 +223,11 @@ export function ShortcutsSection() {
       </div>
 
       {error && (
-        <p role="alert" className="text-[12px] text-error">
+        <p role="alert" className="text-xs text-error-text">
           {error}
         </p>
       )}
-      <p className="text-[11px] text-text-muted">
+      <p className="text-xs text-text-muted">
         Workspace shortcuts can be cleared with Backspace while recording. Command palette, Go to
         file, and New session always require a binding.
       </p>

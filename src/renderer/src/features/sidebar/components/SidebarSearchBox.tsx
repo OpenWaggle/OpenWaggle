@@ -23,7 +23,7 @@ export function SidebarSearchBox({
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const focusRequest = useSidebarFilterStore((state) => state.focusRequest)
-  const setSearchFocused = useSidebarFilterStore((state) => state.setSearchFocused)
+  const clearFilters = useSidebarFilterStore((state) => state.clear)
 
   /*
    * The field focuses itself when asked, rather than the shortcut reaching across the tree for it.
@@ -50,15 +50,20 @@ export function SidebarSearchBox({
           type="text"
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          onFocus={() => setSearchFocused(true)}
-          onBlur={() => setSearchFocused(false)}
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape') return
+            event.preventDefault()
+            event.stopPropagation()
+            clearFilters()
+            event.currentTarget.blur()
+          }}
           aria-label="Filter projects and sessions"
           placeholder="Filter projects and sessions…"
-          className="min-w-0 flex-1 border-0 bg-transparent text-[12px] text-text-primary outline-none placeholder:text-text-tertiary"
+          className="min-w-0 flex-1 border-0 bg-transparent text-xs text-text-primary outline-none placeholder:text-text-tertiary"
         />
         <span
           aria-hidden="true"
-          className="flex-none rounded border border-border-light bg-bg-tertiary px-1 py-0.5 font-mono text-[10px] text-text-muted leading-none"
+          className="flex-none rounded border border-border-light bg-bg-tertiary px-1 py-0.5 font-mono text-xs text-text-muted leading-none"
         >
           {SIDEBAR_SEARCH_HOTKEY_LABEL}
         </span>

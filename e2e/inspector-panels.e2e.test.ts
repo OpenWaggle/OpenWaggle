@@ -44,18 +44,15 @@ test.describe('diff route sidebar', () => {
       await diffToggle.click()
 
       await expect(page).toHaveURL(/\?panel=diff/)
-      // Targeted by the shell's own data attribute rather than by filtering `aside` on its heading
-      // text. The previous locator filtered on "Working tree diff", copy that no longer exists
-      // anywhere in the renderer, so it matched nothing and the test failed on "element(s) not found"
-      // while the `inert` behaviour it checks was working correctly the whole time.
-      const diffAside = page.locator('aside[data-right-sidebar-shell="true"]')
-      await expect(diffAside).not.toHaveAttribute('inert', '')
-      await expect(page.getByRole('button', { name: 'Resize right sidebar' })).toBeVisible()
+      // The same route renders as a docked panel or a responsive sheet depending on available
+      // viewport width. Its complementary landmark is the stable contract across both modes.
+      const diffAside = page.getByRole('complementary')
+      await expect(diffAside).toBeVisible()
 
       await page.getByRole('button', { name: 'Close diff sidebar' }).click()
 
       await expect(page).not.toHaveURL(/\?panel=diff/)
-      await expect(diffAside).toHaveAttribute('inert', '')
+      await expect(diffAside).toBeHidden()
     } finally {
       await app.cleanup()
       await fs.rm(projectPath, { recursive: true, force: true })

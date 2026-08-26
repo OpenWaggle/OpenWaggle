@@ -197,7 +197,7 @@ function createWindow() {
     show: false,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: X, y: Y },
-    backgroundColor: '#141619',
+    backgroundColor: '#141719',
     icon: appIconPath,
     webPreferences,
   })

@@ -76,7 +76,7 @@ export function McpAppHost({
       <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
         <div>
           <p className="text-xs font-medium text-text-primary">{descriptor.toolTitle}</p>
-          <p className="text-[10px] text-text-muted">{descriptor.serverLabel} · isolated MCP App</p>
+          <p className="text-xs text-text-muted">{descriptor.serverLabel} · isolated MCP App</p>
         </div>
         {onClose && (
           <Button variant="unstyled" aria-label="Close MCP App" onClick={onClose}>
@@ -85,7 +85,7 @@ export function McpAppHost({
         )}
       </div>
       {resource.requestedPermissions.length > 0 && (
-        <div className="flex items-center gap-2 border-b border-warning/20 bg-warning/5 px-3 py-2 text-[11px] text-warning">
+        <div className="flex items-center gap-2 border-b border-warning/20 bg-warning/5 px-3 py-2 text-xs text-warning">
           <ShieldAlert className="size-3" />
           Blocked device permissions: {resource.requestedPermissions.join(', ')}
         </div>
@@ -96,13 +96,13 @@ export function McpAppHost({
         sandbox="allow-scripts"
         allow=""
         srcDoc={resource.html}
-        className="w-full border-0 bg-white"
+        className="w-full border-0 bg-bg"
         style={{ height: frameHeight }}
         onLoad={() => setFrameReady(true)}
       />
       {stagedContext !== null && (
         <div className="flex items-center justify-between gap-3 border-t border-border px-3 py-2">
-          <p className="text-[11px] text-text-muted">
+          <p className="text-xs text-text-muted">
             This App staged attributed context; it is not in the model context.
           </p>
           <Button

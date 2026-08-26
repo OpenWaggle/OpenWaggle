@@ -43,18 +43,18 @@ export function AvailableModelsSection() {
   return (
     <div className="space-y-3">
       <div className="space-y-1">
-        <h3 className="text-[16px] font-semibold text-text-primary">Available Models</h3>
-        <p className="text-[13px] text-text-tertiary">
+        <h3 className="text-base font-semibold text-text-primary">Available Models</h3>
+        <p className="text-xs text-text-tertiary">
           Choose which models appear in the model selector.
         </p>
       </div>
 
       {isLoading && groups.length === 0 ? (
-        <p className="text-[13px] text-text-muted">Loading models…</p>
+        <p className="text-xs text-text-muted">Loading models…</p>
       ) : groups.length === 0 ? (
-        <p className="text-[13px] text-text-muted">No providers or models were reported.</p>
+        <p className="text-xs text-text-muted">No providers or models were reported.</p>
       ) : (
-        <div className="rounded-lg border border-border bg-[#111418] overflow-hidden">
+        <div className="rounded-lg border border-border bg-bg overflow-hidden">
           {groups.map((group, i) => (
             <ModelGroupAccordion
               key={group.key}

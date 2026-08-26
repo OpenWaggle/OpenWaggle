@@ -57,9 +57,9 @@ function contributionStats({
 
 function ContributionStat({ label, value }: { readonly label: string; readonly value: number }) {
   return (
-    <div className="rounded-lg border border-border/70 bg-[#111418] px-3 py-2">
-      <div className="text-[18px] font-semibold text-text-primary">{value}</div>
-      <div className="text-[11px] text-text-muted">{label}</div>
+    <div className="rounded-lg border border-border/70 bg-bg px-3 py-2">
+      <div className="text-lg font-semibold text-text-primary">{value}</div>
+      <div className="text-xs text-text-muted">{label}</div>
     </div>
   )
 }
@@ -106,14 +106,14 @@ export function PackageContributionDetails({
           {familyCounts.map((entry) => (
             <span
               key={entry.family}
-              className="rounded border border-border/70 bg-bg-tertiary px-1.5 py-0.5 text-[10px] text-text-tertiary"
+              className="rounded border border-border/70 bg-bg-tertiary px-1.5 py-0.5 text-xs text-text-tertiary"
             >
               {FAMILY_LABELS[entry.family]} {entry.count}
             </span>
           ))}
         </div>
       ) : (
-        <span className="text-[11px] text-text-muted">No families</span>
+        <span className="text-xs text-text-muted">No families</span>
       )}
     </div>
   )

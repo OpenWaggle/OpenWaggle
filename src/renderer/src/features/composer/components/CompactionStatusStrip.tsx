@@ -42,14 +42,14 @@ export function CompactionStatusStrip({ state, onCancel }: CompactionStatusStrip
   const cancelLabel = isRetrying ? 'Cancel retry' : 'Cancel compaction'
 
   return (
-    <div className="mx-auto flex w-[calc(100%-28px)] items-center gap-2 rounded-t-[var(--radius-panel)] border-x border-t border-border-light bg-bg-secondary p-[8px_10px_6px_10px] text-text-tertiary">
+    <div className="mx-3.5 flex items-center gap-2 rounded-t-3xl border-x border-t border-border-light bg-bg-secondary px-2.5 pt-2 pb-1.5 text-text-tertiary">
       <Spinner size="sm" className={isRetrying ? 'text-warning' : 'text-accent'} />
-      <span className="min-w-0 flex-1 text-[12px] font-medium">{label}</span>
+      <span className="min-w-0 flex-1 text-xs font-medium">{label}</span>
       <Button
         variant="unstyled"
         type="button"
         onClick={onCancel}
-        className="flex h-6 items-center gap-1 rounded-md border border-error/30 bg-error/10 px-2 text-[11px] font-semibold text-error transition-colors hover:bg-error/18"
+        className="flex h-6 items-center gap-1 rounded-md border border-error/30 bg-error/10 px-2 text-xs font-semibold text-error-text transition-colors hover:bg-error/18"
         aria-label={cancelLabel}
         title={cancelLabel}
       >

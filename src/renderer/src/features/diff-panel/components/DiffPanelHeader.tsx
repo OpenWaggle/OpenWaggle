@@ -23,7 +23,7 @@ export function DiffPanelHeader({
   const { viewOptions, setDiffView, toggleWrapLines } = useDiffViewOptions()
 
   return (
-    <div className="flex items-center gap-2 pr-2">
+    <div className="flex min-h-11 items-center gap-3 border-b border-border px-3 py-1.5">
       <div className="min-w-0 flex-1">
         <DiffScopeTabs
           selection={selection}

@@ -31,7 +31,7 @@ export function ComposerExtensionActions({ launchers }: ComposerExtensionActions
   return (
     <div className="mb-2 flex justify-end">
       <Popover
-        className="w-[300px] overflow-hidden py-1"
+        className="w-75 overflow-hidden py-1"
         onOpenChange={setOpen}
         open={open}
         placement="top-end"
@@ -39,7 +39,7 @@ export function ComposerExtensionActions({ launchers }: ComposerExtensionActions
           <Button
             aria-expanded={open}
             className={cn(
-              'h-7 rounded-full border px-2.5 text-[11px]',
+              'h-7 rounded-full border px-2.5 text-xs',
               open
                 ? 'border-accent/40 bg-accent/10 text-accent'
                 : 'border-border bg-bg-secondary/80 text-text-tertiary hover:bg-bg-hover hover:text-text-secondary',
@@ -51,21 +51,21 @@ export function ComposerExtensionActions({ launchers }: ComposerExtensionActions
           >
             <MessageSquareMore className="size-3.5" />
             <span>Extensions</span>
-            <span className="rounded-full bg-bg-tertiary px-1.5 text-[10px] text-text-muted">
+            <span className="rounded-full bg-bg-tertiary px-1.5 text-xs text-text-muted">
               {launchers.length}
             </span>
           </Button>
         }
       >
         <div className="border-b border-border px-3 py-2">
-          <div className="text-[11px] font-semibold text-text-primary">
+          <div className="text-xs font-semibold text-text-primary">
             Composer extension launchers
           </div>
-          <div className="mt-0.5 text-[10px] text-text-muted">
+          <div className="mt-0.5 text-xs text-text-muted">
             Compact actions only. Extensions cannot inject composer input controls.
           </div>
         </div>
-        <div className="max-h-[260px] overflow-y-auto py-1">
+        <div className="max-h-65 overflow-y-auto py-1">
           {launchers.map((launcher) => (
             <Button
               align="start"
@@ -77,14 +77,14 @@ export function ComposerExtensionActions({ launchers }: ComposerExtensionActions
             >
               <PackageOpen className="mt-0.5 size-3.5 text-accent" />
               <span className="min-w-0">
-                <span className="block truncate text-[12px] font-medium text-text-primary">
+                <span className="block truncate text-xs font-medium text-text-primary">
                   {launcher.title}
                 </span>
-                <span className="mt-0.5 block truncate text-[11px] text-text-tertiary">
+                <span className="mt-0.5 block truncate text-xs text-text-tertiary">
                   {launcher.description}
                 </span>
               </span>
-              <span className="rounded bg-bg-tertiary px-1.5 py-0.5 text-[10px] text-text-muted">
+              <span className="rounded bg-bg-tertiary px-1.5 py-0.5 text-xs text-text-muted">
                 {launcher.badge}
               </span>
             </Button>

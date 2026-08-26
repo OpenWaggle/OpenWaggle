@@ -1,6 +1,7 @@
 import type { Provider } from '@shared/types/settings'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { ModelGroup } from '@/features/providers/model'
+import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { ModelCheckboxRow } from './ModelCheckboxRow'
 import { getProviderMeta } from './meta'
@@ -23,13 +24,12 @@ interface ModelGroupAccordionProps {
 export function ModelGroupAccordion({ group, state, actions }: ModelGroupAccordionProps) {
   const providerMeta = getProviderMeta(group.provider)
   const Icon = providerMeta.icon
-  const iconColor = providerMeta.color
   const enabledCount = group.models.filter((model) => state.enabledSet.has(model.id)).length
 
   return (
     <div className={!state.isLast ? 'border-b border-border' : ''}>
       {/* Accordion header */}
-      <div className="flex items-center h-[52px] px-4 gap-3">
+      <div className="flex items-center h-13 px-4 gap-3">
         <Button
           variant="unstyled"
           type="button"
@@ -37,11 +37,11 @@ export function ModelGroupAccordion({ group, state, actions }: ModelGroupAccordi
           aria-expanded={state.isExpanded}
           className="flex items-center gap-3 flex-1 min-w-0 text-left"
         >
-          <Icon className="size-4 shrink-0" style={{ color: iconColor }} />
+          <Icon className={cn('size-4 shrink-0', providerMeta.iconClassName)} />
           <div className="flex-1 min-w-0">
-            <span className="text-[13px] font-medium text-text-primary">{group.label}</span>
+            <span className="text-xs font-medium text-text-primary">{group.label}</span>
             {group.models.length > 0 && (
-              <span className="ml-2 text-[11px] text-text-muted">
+              <span className="ml-2 text-xs text-text-muted">
                 {enabledCount}/{group.models.length} selected
               </span>
             )}
@@ -58,7 +58,7 @@ export function ModelGroupAccordion({ group, state, actions }: ModelGroupAccordi
             type="button"
             onClick={() => actions.onSelectAll(group)}
             aria-label={`Select all ${group.label} models`}
-            className="text-[11px] text-accent hover:text-accent/80 transition-colors"
+            className="text-xs text-accent hover:text-accent/80 transition-colors"
           >
             All
           </Button>
@@ -67,7 +67,7 @@ export function ModelGroupAccordion({ group, state, actions }: ModelGroupAccordi
             type="button"
             onClick={() => actions.onClear(group)}
             aria-label={`Deselect all ${group.label} models`}
-            className="text-[11px] text-text-tertiary hover:text-text-secondary transition-colors"
+            className="text-xs text-text-tertiary hover:text-text-secondary transition-colors"
           >
             None
           </Button>
@@ -78,7 +78,7 @@ export function ModelGroupAccordion({ group, state, actions }: ModelGroupAccordi
       {state.isExpanded && (
         <div className="px-4 pb-2 border-t border-border/50">
           {group.models.length === 0 ? (
-            <p className="py-3 text-[12px] text-text-muted">Loading models&hellip;</p>
+            <p className="py-3 text-xs text-text-muted">Loading models&hellip;</p>
           ) : (
             <div className="space-y-px pt-1">
               {group.models.map((model) => (

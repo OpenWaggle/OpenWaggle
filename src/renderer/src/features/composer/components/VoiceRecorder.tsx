@@ -1,6 +1,7 @@
 import { ArrowUp, Loader2, Square } from 'lucide-react'
 import type { RefObject } from 'react'
 import { VoiceVisualizer } from 'react-voice-visualizer'
+import { useAppearanceName } from '@/shared/hooks/useAppearanceName'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import type { VoiceCaptureController } from '../hooks/useVoiceCapture'
@@ -12,6 +13,8 @@ const INLINE_WAVEFORM_BAR_WIDTH_PX = 2
 const INLINE_WAVEFORM_HEIGHT_PX = 40
 const INLINE_WAVEFORM_BAR_RADIUS_PX = 5
 const VISUALIZER_SPEED = 3
+const PRIMARY_BAR_COLOR = '--color-text-primary'
+const SECONDARY_BAR_COLOR = '--color-text-muted'
 
 interface VoiceRecorderProps {
   fileInputRef: RefObject<HTMLInputElement | null>
@@ -19,6 +22,8 @@ interface VoiceRecorderProps {
 }
 
 export function VoiceRecorder({ fileInputRef, voice }: VoiceRecorderProps) {
+  const appearanceName = useAppearanceName()
+
   return (
     <div className="flex h-11 items-center justify-between px-4">
       <div className="flex size-full items-center gap-3">
@@ -26,10 +31,13 @@ export function VoiceRecorder({ fileInputRef, voice }: VoiceRecorderProps) {
 
         <div className="flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden">
           <div className="relative flex h-9 flex-1 items-center overflow-hidden">
-            <VoiceVisualizer {...buildInlineVisualizerProps(voice.visualizerControls)} />
+            <VoiceVisualizer
+              key={appearanceName}
+              {...buildInlineVisualizerProps(voice.visualizerControls, appearanceName)}
+            />
           </div>
 
-          <span className="w-10 text-right text-[12px] tabular-nums text-text-tertiary">
+          <span className="w-10 text-right text-xs tabular-nums text-text-tertiary">
             {formatVoiceDuration(voice.elapsedSeconds)}
           </span>
         </div>
@@ -72,7 +80,22 @@ export function VoiceRecorder({ fileInputRef, voice }: VoiceRecorderProps) {
   )
 }
 
-function buildInlineVisualizerProps(controls: VoiceCaptureController['visualizerControls']) {
+function resolvedVisualizerColors(appearanceName: ReturnType<typeof useAppearanceName>) {
+  const appearanceRoot =
+    document.querySelector<HTMLElement>(`:root[data-theme="${appearanceName}"]`) ??
+    document.documentElement
+  const styles = getComputedStyle(appearanceRoot)
+  return {
+    mainBarColor: styles.getPropertyValue(PRIMARY_BAR_COLOR).trim(),
+    secondaryBarColor: styles.getPropertyValue(SECONDARY_BAR_COLOR).trim(),
+  }
+}
+
+function buildInlineVisualizerProps(
+  controls: VoiceCaptureController['visualizerControls'],
+  appearanceName: ReturnType<typeof useAppearanceName>,
+) {
+  const colors = resolvedVisualizerColors(appearanceName)
   return {
     animateCurrentPick: true,
     backgroundColor: 'transparent',
@@ -91,11 +114,11 @@ function buildInlineVisualizerProps(controls: VoiceCaptureController['visualizer
     isProgressIndicatorShown: false,
     isProgressIndicatorTimeOnHoverShown: false,
     isProgressIndicatorTimeShown: false,
-    mainBarColor: '#FFFFFF',
+    mainBarColor: colors.mainBarColor,
     mainContainerClassName: '!m-0 !h-full !w-full !bg-transparent !border-0 !p-0 !shadow-none',
     onlyRecording: false,
     rounded: INLINE_WAVEFORM_BAR_RADIUS_PX,
-    secondaryBarColor: '#5e5e5e',
+    secondaryBarColor: colors.secondaryBarColor,
     speed: VISUALIZER_SPEED,
     width: '100%',
   }

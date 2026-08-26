@@ -66,7 +66,7 @@ export function CommandPalette({
       ref={containerRef}
       role="menu"
       aria-label="Slash command menu"
-      className="w-full overflow-hidden rounded-xl border border-[#2a2f3a] bg-[#161a20] shadow-xl"
+      className="w-full overflow-hidden rounded-xl border border-input-card-border bg-bg shadow-xl"
     >
       <CommandPaletteList
         items={items}

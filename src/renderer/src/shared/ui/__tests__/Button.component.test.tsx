@@ -40,6 +40,14 @@ describe('Button', () => {
     )
   })
 
+  it('uses the contrast-safe text role for danger actions', () => {
+    render(<Button variant="danger">Retry</Button>)
+
+    const button = screen.getByRole('button', { name: 'Retry' })
+    expect(button).toHaveClass('text-error-text')
+    expect(button).not.toHaveClass('text-error')
+  })
+
   it('allows exact layout control for specialized buttons', () => {
     render(
       <Button variant="unstyled" className="flex size-5 items-center">

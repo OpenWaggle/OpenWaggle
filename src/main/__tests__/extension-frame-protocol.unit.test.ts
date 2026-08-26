@@ -76,7 +76,9 @@ describe('extension frame protocol', () => {
     const documentText = await documentResponse.text()
     const csp = documentResponse.headers.get('content-security-policy') ?? ''
 
-    expect(documentText).toContain('<div id="openwaggle-extension-root"></div>')
+    expect(documentText).toContain(
+      '<div id="openwaggle-extension-root" class="ow-extension-root"></div>',
+    )
     expect(documentText).toContain('<link rel="stylesheet" href="./frame.css">')
     expect(documentText).toContain('<script type="module" src="./bootstrap.js"></script>')
     expect(documentText).not.toContain(EXTENSION_FRAME_MESSAGE_CHANNEL)

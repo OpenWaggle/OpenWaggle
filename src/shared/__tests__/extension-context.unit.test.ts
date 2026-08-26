@@ -78,14 +78,14 @@ describe('OpenWaggle extension context', () => {
         tokens: {
           color: {
             accent: '#ffcc00',
-            background: '#141619',
+            background: '#141719',
             text: '#e7e9ee',
           },
           radius: {
-            panel: '22px',
+            threeXl: '1.5rem',
           },
           spacing: {
-            md: '12px',
+            unit: '0.25rem',
           },
         },
         cssVariables: {
@@ -93,7 +93,7 @@ describe('OpenWaggle extension context', () => {
             accent: '--ow-color-accent',
           },
           radius: {
-            panel: '--ow-radius-panel',
+            threeXl: '--ow-radius-3xl',
           },
         },
       },
@@ -106,7 +106,7 @@ describe('OpenWaggle extension context', () => {
     const modules = createOpenWaggleExtensionSharedModules()
 
     expect(entries).toContainEqual({ name: '--ow-color-accent', value: '#f5a623' })
-    expect(entries).toContainEqual({ name: '--ow-radius-panel', value: '22px' })
+    expect(entries).toContainEqual({ name: '--ow-radius-3xl', value: '1.5rem' })
     expect(modules.sdk.openWaggleVersion).toBe(OPENWAGGLE_EXTENSION.SDK_VERSION)
     expect(modules.theme.cssVariableEntries(modules.theme.current)).toContainEqual({
       name: '--ow-color-accent',

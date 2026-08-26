@@ -12,10 +12,10 @@ export function ActionDialog({ onToast }: ActionDialogProps) {
   if (!dialog.actionDialog || !dialog.config) return null
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4">
-      <div className="w-full max-w-[360px] rounded-xl border border-border-light bg-bg-secondary p-4 shadow-2xl">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-bg/45 p-4">
+      <div className="w-full max-w-90 rounded-xl border border-border-light bg-bg-secondary p-4 shadow-2xl">
         <h3 className="text-sm font-semibold text-text-primary">{dialog.config.title}</h3>
-        <p className="mt-1 text-[12px] text-text-tertiary">{dialog.config.description}</p>
+        <p className="mt-1 text-xs text-text-tertiary">{dialog.config.description}</p>
         <ActionDialogInput
           inputRef={dialog.inputRef}
           value={dialog.actionDialogInput}

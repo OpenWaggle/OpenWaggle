@@ -176,7 +176,7 @@ function ExpandedToolDetails({
       <ExpandedCopyActions args={args} view={view} />
       <ExpandedDiffSection diff={view.diff} />
       <div className="px-3 py-2">
-        <div className="text-[13px] text-text-tertiary mb-1">Arguments</div>
+        <div className="text-sm text-text-tertiary mb-1">Arguments</div>
         <ToolArgs name={name} args={view.parsedArgs} rawArgs={args} path={view.path} />
       </div>
       <ExpandedResultSection name={name} result={result} view={view} />
@@ -227,7 +227,7 @@ function ExpandedResultSection({
   }
   return (
     <div className="border-t border-border px-3 py-2">
-      <div className="text-[13px] text-text-tertiary mb-1">Result</div>
+      <div className="text-sm text-text-tertiary mb-1">Result</div>
       <ToolResult content={result.content} isError={view.isError} name={name} path={view.path} />
     </div>
   )
@@ -247,7 +247,7 @@ function ExpandedErrorSection({
   }
   return (
     <div role="alert" className="border-t border-border px-3 py-2">
-      <div className="text-[13px] text-text-tertiary mb-1">Error</div>
+      <div className="text-sm text-text-tertiary mb-1">Error</div>
       <ToolResult
         content={view.resultError ?? result.content}
         isError

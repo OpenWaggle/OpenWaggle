@@ -41,7 +41,7 @@ export function ModalDialog({ label, labelledBy, onClose, className, children }:
         // Tailwind's preflight sets `margin: 0` on every element, which overrides the
         // UA stylesheet's `margin: auto` that centres a modal dialog — so centring
         // must be restored explicitly here.
-        'z-50 m-auto max-h-[90vh] w-full max-w-[620px] overflow-y-auto rounded-xl border border-border-light bg-bg-secondary text-text-primary shadow-2xl backdrop:bg-black/55',
+        'z-50 m-auto max-h-(--modal-max-height) w-full max-w-155 overflow-y-auto rounded-xl border border-border-light bg-bg-secondary text-text-primary shadow-2xl backdrop:bg-bg/55 [--modal-max-height:90vh]',
         className,
       )}
     >

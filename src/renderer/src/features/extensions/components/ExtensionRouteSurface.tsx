@@ -45,7 +45,7 @@ function ExtensionRouteShell({
       <header
         className={cn(
           'drag-region flex h-12 shrink-0 items-center gap-3 border-b border-border px-4',
-          !isFullscreen && 'pl-[80px]',
+          !isFullscreen && 'pl-20',
         )}
       >
         <Button
@@ -55,11 +55,11 @@ function ExtensionRouteShell({
           variant="unstyled"
         >
           <ArrowLeft className="size-4 shrink-0" />
-          <span className="whitespace-nowrap text-[13px]">Extensions</span>
+          <span className="whitespace-nowrap text-sm">Extensions</span>
         </Button>
         <nav
           aria-label="Extension route breadcrumbs"
-          className="no-drag flex min-w-0 flex-1 items-center gap-2 text-[13px] text-text-muted"
+          className="no-drag flex min-w-0 flex-1 items-center gap-2 text-sm text-text-muted"
         >
           <PackageOpen className="size-4 shrink-0 text-accent" />
           <span className="min-w-0 truncate">{extensionId}</span>
@@ -74,13 +74,13 @@ function ExtensionRouteShell({
           <section className="rounded-xl border border-border bg-bg-secondary/30 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
-                <h1 className="text-[18px] font-semibold text-text-primary">Extension route</h1>
-                <p className="mt-1 text-[12px] text-text-muted">
+                <h1 className="text-lg font-semibold text-text-primary">Extension route</h1>
+                <p className="mt-1 text-xs text-text-muted">
                   Controlled namespace mounted at /extensions/&lt;extension-id&gt;/&lt;route-id&gt;.
                   Extension UI is contained and cannot replace the OpenWaggle shell or theme.
                 </p>
               </div>
-              <span className="rounded-full border border-border/80 bg-bg-tertiary px-2.5 py-1 text-[11px] text-text-tertiary">
+              <span className="rounded-full border border-border/80 bg-bg-tertiary px-2.5 py-1 text-xs text-text-tertiary">
                 {projectScopeLabel(projectPaths)}
               </span>
             </div>
@@ -104,12 +104,12 @@ function ExtensionRouteStatusCard({
   readonly action?: ReactNode
 }) {
   return (
-    <section role="alert" className="rounded-xl border border-border bg-[#111418] p-6">
+    <section role="alert" className="rounded-xl border border-border bg-bg-secondary p-6">
       <div className="flex items-start gap-3">
         <div className="mt-0.5 text-accent">{icon}</div>
         <div className="min-w-0 flex-1">
-          <h2 className="text-[15px] font-semibold text-text-primary">{title}</h2>
-          <p className="mt-1 text-[13px] leading-6 text-text-tertiary">{message}</p>
+          <h2 className="text-base font-semibold text-text-primary">{title}</h2>
+          <p className="mt-1 text-sm leading-6 text-text-tertiary">{message}</p>
           {action ? <div className="mt-4">{action}</div> : null}
         </div>
       </div>
@@ -119,8 +119,8 @@ function ExtensionRouteStatusCard({
 
 function ExtensionRouteLoadingCard() {
   return (
-    <output className="rounded-xl border border-border bg-[#111418] p-6">
-      <div className="flex items-center gap-3 text-[13px] text-text-tertiary">
+    <output className="rounded-xl border border-border bg-bg-secondary p-6">
+      <div className="flex items-center gap-3 text-sm text-text-tertiary">
         <RefreshCw className="size-4 animate-spin text-accent" />
         Loading extension route registry…
       </div>
@@ -138,28 +138,28 @@ function ExtensionRouteContributionCard({
 
   return (
     <PanelErrorBoundary name={`Extension route: ${entry.title}`}>
-      <section className="rounded-xl border border-border bg-[#111418] p-4">
+      <section className="rounded-xl border border-border bg-bg-secondary p-4">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-[16px] font-semibold text-text-primary">{entry.title}</h2>
-            <p className="mt-1 text-[12px] text-text-muted">
+            <h2 className="text-base font-semibold text-text-primary">{entry.title}</h2>
+            <p className="mt-1 text-xs text-text-muted">
               {entry.extensionName} {entry.extensionVersion}
             </p>
           </div>
           <div className="flex flex-wrap gap-1.5">
-            <span className="rounded bg-accent/10 px-2 py-1 text-[10px] font-medium text-accent">
+            <span className="rounded bg-accent/10 px-2 py-1 text-xs font-medium text-accent">
               {contribution.runtime}
             </span>
-            <span className="rounded bg-bg-tertiary px-2 py-1 text-[10px] font-medium text-text-tertiary">
+            <span className="rounded bg-bg-tertiary px-2 py-1 text-xs font-medium text-text-tertiary">
               {contribution.execution}
             </span>
-            <span className="rounded bg-bg-tertiary px-2 py-1 text-[10px] font-medium text-text-tertiary">
+            <span className="rounded bg-bg-tertiary px-2 py-1 text-xs font-medium text-text-tertiary">
               {entry.scope.label}
             </span>
           </div>
         </div>
-        <ExtensionContributionRuntimeHost className="min-h-[420px]" entry={entry} />
-        <dl className="mt-4 grid gap-3 text-[12px] text-text-tertiary md:grid-cols-2">
+        <ExtensionContributionRuntimeHost className="min-h-105" entry={entry} />
+        <dl className="mt-4 grid gap-3 text-xs text-text-tertiary md:grid-cols-2">
           <div className="min-w-0">
             <dt className="text-text-muted">Contribution ID</dt>
             <dd className="truncate text-text-secondary">{entry.contributionId}</dd>

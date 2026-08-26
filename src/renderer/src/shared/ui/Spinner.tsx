@@ -6,7 +6,7 @@ interface SpinnerProps {
 }
 
 const sizes = {
-  sm: 'size-3 border-[1.5px]',
+  sm: 'size-3 border-2',
   md: 'size-4 border-2',
   lg: 'size-6 border-2',
 } as const

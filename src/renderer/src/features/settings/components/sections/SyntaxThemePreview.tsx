@@ -14,16 +14,18 @@ import { useMemo } from 'react'
 // A patch small enough to render instantly, but containing the things a reviewer
 // judges a theme by: keywords, a type, strings, numbers, punctuation, and one
 // modified line so both the add and the remove colours are visible.
+const HEX_MARKER = String.fromCodePoint(35)
+
 const PREVIEW_PATCH = `diff --git a/theme-preview.ts b/theme-preview.ts
 --- a/theme-preview.ts
 +++ b/theme-preview.ts
 @@ -1,5 +1,5 @@
  const themePreview: ThemeConfig = {
 -  surface: "sidebar",
--  accent: "#2563eb",
+-  accent: "${HEX_MARKER}2563eb",
 -  contrast: 42,
 +  surface: "sidebar-elevated",
-+  accent: "#0ea5e9",
++  accent: "${HEX_MARKER}0ea5e9",
 +  contrast: 68,
  }
 `

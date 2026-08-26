@@ -177,7 +177,7 @@ OpenWaggle can represent `trusted.renderer` as privileged manifest metadata. `ru
 - `context.contribution`: package id, contribution id, contribution family, and manifest-declared metadata for the mounted contribution.
 - `context.surface`: surface-specific data such as the active settings section, side panel container, transcript record, tool event, or pending interaction.
 - `context.sdk`: typed capability calls for package storage, selected OpenWaggle state/actions/settings/docs discovery, runtime contribution registration/unregistration, and surface behavior such as sending surface actions or responding to pending interactions.
-- `context.theme`: semantic host theme data, including tokens and CSS-variable-shaped values for color, typography, spacing, radius, focus, and elevation.
+- `context.theme`: semantic host theme data, including tokens and CSS-variable-shaped values for color, typography, spacing, radius, focus, and shadow.
 
 Use theme tokens from `context.theme` instead of importing OpenWaggle CSS internals or hard-coding app colors. The host owns token values and can adapt them to user settings, high-contrast modes, and future themes. The extension owns only its mounted content and should keep styles scoped to that content.
 

@@ -84,15 +84,17 @@ describe('ChatPanel', () => {
     )
   })
 
-  it('renders the welcome heading smaller and lighter than the project name', () => {
+  it('renders the welcome heading and project name with standard type steps', () => {
     renderPanel()
 
     const heading = screen.getByRole('heading', { name: "Let's build" })
     const projectPickerButton = screen.getByTitle('Open project picker')
 
-    expect(heading).toHaveClass('font-normal')
+    expect(heading).toHaveClass('text-2xl', 'font-normal')
+    expect(heading).toHaveClass('whitespace-nowrap')
+    expect(heading.parentElement).toHaveClass('flex', 'items-center', 'gap-2')
     expect(heading).not.toHaveClass('font-semibold')
-    expect(projectPickerButton).toHaveClass('text-[clamp(28px,3.8vw,40px)]', 'font-light')
+    expect(projectPickerButton).toHaveClass('gap-1.5', 'text-2xl', 'font-light')
   })
 
   it('opens the folder picker directly from the empty-state CTA', () => {

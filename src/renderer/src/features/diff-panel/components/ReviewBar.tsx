@@ -38,7 +38,7 @@ export function ReviewBar({
     <div className="relative shrink-0 border-t border-accent/30 bg-diff-highlight-bg">
       {isSubmitOpen ? (
         <div className="flex flex-col gap-2 border-b border-border px-3 py-2.5">
-          <label htmlFor="review-summary" className="text-[11px] font-medium text-text-secondary">
+          <label htmlFor="review-summary" className="text-xs font-medium text-text-secondary">
             Overall instructions <span className="text-text-muted">(optional)</span>
           </label>
           <Textarea
@@ -48,7 +48,7 @@ export function ReviewBar({
             onChange={(event) => onSummaryChange(event.target.value)}
             placeholder="Frame the review for the agent — e.g. “these all need tests first”"
             rows={TEXTAREA_ROWS}
-            className="text-[12px]"
+            className="text-xs"
             onKeyDown={(event) => {
               if (event.key === 'Escape') {
                 event.preventDefault()
@@ -67,7 +67,7 @@ export function ReviewBar({
               variant="unstyled"
               type="button"
               onClick={() => setIsSubmitOpen(false)}
-              className="h-[26px] rounded-[5px] px-2 text-[12px] text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
+              className="h-6.5 rounded-md px-2 text-xs text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
             >
               Back
             </Button>
@@ -78,7 +78,7 @@ export function ReviewBar({
                 setIsSubmitOpen(false)
                 void onSubmit()
               }}
-              className="flex h-[26px] items-center gap-1.5 rounded-[5px] border border-accent bg-diff-stage-bg px-2.5 text-[12px] font-medium text-accent"
+              className="flex h-6.5 items-center gap-1.5 rounded-md border border-accent bg-diff-stage-bg px-2.5 text-xs font-medium text-accent"
             >
               <Send className="size-3" />
               Send to agent · {commentLabel}
@@ -90,14 +90,14 @@ export function ReviewBar({
       <div className="flex h-10 items-center justify-between gap-2 px-4">
         <div className="flex items-center gap-1.5">
           <MessageSquare className="size-3.5 text-accent" />
-          <span className="text-[12px] font-medium text-text-primary">{commentLabel}</span>
+          <span className="text-xs font-medium text-text-primary">{commentLabel}</span>
         </div>
         <div className="flex items-center gap-2">
           <Button
             variant="unstyled"
             type="button"
             onClick={onDiscard}
-            className="flex h-[26px] items-center gap-1 rounded-[5px] px-2 text-[12px] text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
+            className="flex h-6.5 items-center gap-1 rounded-md px-2 text-xs text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
           >
             <Trash2 className="size-3" />
             Discard review
@@ -107,7 +107,7 @@ export function ReviewBar({
             type="button"
             onClick={() => setIsSubmitOpen((open) => !open)}
             aria-expanded={isSubmitOpen}
-            className="flex h-[26px] items-center gap-1.5 rounded-[5px] border border-accent bg-diff-stage-bg px-3 text-[12px] font-medium text-accent"
+            className="flex h-6.5 items-center gap-1.5 rounded-md border border-accent bg-diff-stage-bg px-3 text-xs font-medium text-accent"
           >
             <Send className="size-3" />
             Submit review

@@ -48,11 +48,11 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
             <AlertTriangle className="size-4" />
             <h1 className="text-sm font-semibold">Something went wrong</h1>
           </div>
-          <p className="text-[13px] text-text-secondary">
+          <p className="text-sm text-text-secondary">
             The renderer hit an unexpected error. You can reload to recover.
           </p>
           {this.state.message && (
-            <pre className="mt-3 max-h-40 overflow-auto rounded-md border border-border bg-bg p-2 text-[12px] text-text-tertiary whitespace-pre-wrap break-words">
+            <pre className="mt-3 max-h-40 overflow-auto rounded-md border border-border bg-bg p-2 text-xs text-text-tertiary whitespace-pre-wrap break-words">
               {this.state.message}
             </pre>
           )}

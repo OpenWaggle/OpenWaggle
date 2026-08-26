@@ -71,13 +71,13 @@ function SessionTreeRowItem({ actions, index, refs, row, view }: SessionTreeRowI
         <span className="min-w-0 flex-1 truncate">
           <span
             className={cn(
-              'mr-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted',
+              'mr-1 text-xs font-semibold tracking-widest text-text-muted uppercase',
               rowState.nodeHighlighted && 'text-accent/80',
             )}
           >
             {sessionTreeNodeRoleLabel(rowState.node)}
           </span>
-          <span className="text-[12px]">{sessionTreeNodeLabel(rowState.node)}</span>
+          <span className="text-xs">{sessionTreeNodeLabel(rowState.node)}</span>
         </span>
         <SessionTreeRowBadges
           archivedBranch={rowState.archivedBranch}

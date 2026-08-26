@@ -13,7 +13,7 @@ interface RunTargetOptionsProps {
 }
 
 const OPTION_ROW_CLASS =
-  'h-7 w-full rounded-[5px] px-2 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover disabled:opacity-50'
+  'h-7 w-full rounded-md px-2 text-left text-xs text-text-secondary transition-colors hover:bg-bg-hover disabled:opacity-50'
 
 /**
  * Everything that used to live in the separate "Options" popover, plus the ref
@@ -67,7 +67,7 @@ function WorktreeOptions({ strip }: { readonly strip: SessionContextRowState }) 
         switch is announced exactly once.
       */}
       <div className="flex h-7 items-center justify-between gap-2 px-2">
-        <span aria-hidden="true" className="text-[12px] text-text-secondary">
+        <span aria-hidden="true" className="text-xs text-text-secondary">
           Start from origin
         </span>
         <ToggleSwitch
@@ -97,7 +97,7 @@ function ChangeRequestCheckout({ strip }: { readonly strip: SessionContextRowSta
   }
   return (
     <div className="flex flex-col gap-1 px-2 pb-1">
-      <span className="text-[11px] font-medium text-text-tertiary">Change request</span>
+      <span className="text-xs font-medium text-text-tertiary">Change request</span>
       <Select
         aria-label="Checkout change request"
         value=""

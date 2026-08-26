@@ -27,10 +27,10 @@ function ExtensionSidePanelShell({
           <PanelRight className="size-3.5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-medium tracking-wide text-text-muted uppercase">
+          <p className="text-xs font-medium tracking-wide text-text-muted uppercase">
             Extension side panel
           </p>
-          <h2 className="truncate text-[13px] font-semibold text-text-primary">{title}</h2>
+          <h2 className="truncate text-sm font-semibold text-text-primary">{title}</h2>
         </div>
         <Button
           aria-label="Close extension side panel"
@@ -59,12 +59,12 @@ function ExtensionSidePanelStatusCard({
   readonly action?: ReactNode
 }) {
   return (
-    <section role="alert" className="rounded-xl border border-border bg-[#111418] p-4">
+    <section role="alert" className="rounded-xl border border-border bg-bg-secondary p-4">
       <div className="flex items-start gap-3">
         <div className="mt-0.5 text-accent">{icon}</div>
         <div className="min-w-0 flex-1">
-          <h3 className="text-[13px] font-semibold text-text-primary">{title}</h3>
-          <p className="mt-1 text-[12px] leading-5 text-text-tertiary">{message}</p>
+          <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
+          <p className="mt-1 text-xs leading-5 text-text-tertiary">{message}</p>
           {action ? <div className="mt-3">{action}</div> : null}
         </div>
       </div>
@@ -74,8 +74,8 @@ function ExtensionSidePanelStatusCard({
 
 function ExtensionSidePanelLoadingCard() {
   return (
-    <output className="rounded-xl border border-border bg-[#111418] p-4">
-      <div className="flex items-center gap-3 text-[12px] text-text-tertiary">
+    <output className="rounded-xl border border-border bg-bg-secondary p-4">
+      <div className="flex items-center gap-3 text-xs text-text-tertiary">
         <RefreshCw className="size-4 animate-spin text-accent" />
         Loading extension side panel registry…
       </div>

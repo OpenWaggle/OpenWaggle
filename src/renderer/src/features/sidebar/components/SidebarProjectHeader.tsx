@@ -81,7 +81,7 @@ function ProjectTitleArea({
         <span className="grid w-3.5 flex-none place-items-center text-text-muted">
           <state.DisclosureIcon className="size-3" />
         </span>
-        <Folder className="size-[13px] shrink-0 text-text-tertiary" />
+        <Folder className="size-3.5 shrink-0 text-text-tertiary" />
         <ProjectRenameInput
           value={state.renameValue}
           inputRef={state.renameInputRef}
@@ -105,11 +105,11 @@ function ProjectTitleArea({
       <span className="grid w-3.5 flex-none place-items-center text-text-muted">
         <state.DisclosureIcon className="size-3" />
       </span>
-      <Folder className="size-[13px] shrink-0 text-text-tertiary" />
+      <Folder className="size-3.5 shrink-0 text-text-tertiary" />
       <span
         data-qa="sidebar-project-name"
         className={cn(
-          'min-w-0 flex-1 truncate font-semibold text-[12.5px]',
+          'min-w-0 flex-1 truncate font-semibold text-sm',
           state.isCurrentProject ? 'text-text-primary' : 'text-text-secondary',
         )}
       >
@@ -150,7 +150,7 @@ export function SidebarProjectHeader({
     <div
       data-qa="sidebar-project-row"
       className={cn(
-        'group flex h-[30px] w-full items-center gap-1.5 pr-2.5 pl-2 transition-colors hover:bg-bg-hover',
+        'group flex h-7.5 w-full items-center gap-1.5 pr-2.5 pl-2 transition-colors hover:bg-bg-hover',
         isCurrentProject ? 'text-text-secondary' : 'text-text-tertiary',
       )}
       title={group.projectPath}
@@ -190,7 +190,7 @@ export function SidebarProjectHeader({
         {rollUp.length === 0 ? (
           <span
             data-qa="sidebar-project-count"
-            className="flex-none text-[10.5px] text-text-muted group-focus-within:hidden group-hover:hidden"
+            className="flex-none text-xs text-text-muted group-focus-within:hidden group-hover:hidden"
           >
             {group.sessions.length}
           </span>

@@ -26,6 +26,8 @@ vi.mock('@/shared/lib/ipc', () => ({
 
 const SESSION_ID = SessionId('session-1')
 const MAIN_BRANCH_ID = SessionBranchId('session-1:main')
+const ISSUE_113 = '#113'
+const ISSUE_114 = '#114'
 
 type PersistedAgentLoopEvent =
   | AgentTransportCustomEvent
@@ -218,7 +220,7 @@ describe('useTranscriptSection agent-loop hydration', () => {
           source: 'pi-ui',
           createdAt: 30,
           title: 'Pick issue',
-          choices: ['#113', '#114'],
+          choices: [ISSUE_113, ISSUE_114],
         },
       },
       2,
@@ -233,7 +235,7 @@ describe('useTranscriptSection agent-loop hydration', () => {
         interactionId: 'interaction-1',
         kind: 'select',
         status: 'resolved',
-        response: { kind: 'select', selected: '#113' },
+        response: { kind: 'select', selected: ISSUE_113 },
       },
       3,
     )

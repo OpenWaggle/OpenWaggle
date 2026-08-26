@@ -18,7 +18,7 @@ export function SessionGitBadge({ session }: { readonly session: SessionSummary 
       role="img"
       title={indicator.description}
       aria-label={indicator.description}
-      className="ml-1 shrink-0 whitespace-nowrap text-[10px] text-text-tertiary tabular-nums"
+      className="ml-1 shrink-0 whitespace-nowrap text-xs text-text-tertiary tabular-nums"
     >
       {indicator.label}
     </span>

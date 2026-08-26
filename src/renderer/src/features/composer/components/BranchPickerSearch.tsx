@@ -19,7 +19,7 @@ export function BranchPickerSearch({
         onChange={(event) => onQueryChange(event.target.value)}
         placeholder="Search branches"
         inputSize="sm"
-        className="flex-1 border-border px-2 text-[12px]"
+        className="flex-1 border-border px-2 text-xs"
       />
       {isBranchActionRunning ? <Loader2 className="size-3.5 animate-spin text-accent" /> : null}
     </div>

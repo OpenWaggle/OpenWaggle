@@ -24,7 +24,7 @@ function BlobPreview({ file }: { readonly file: WorkspaceBinaryFileReadResult })
 
   if (file.previewKind === 'image') {
     return (
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-[radial-gradient(circle_at_center,var(--color-bg-hover)_1px,transparent_1px)] bg-[size:16px_16px] p-6">
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-[radial-gradient(circle_at_center,var(--color-bg-hover)_1px,transparent_1px)] bg-size-(--preview-grid-size) p-6 [--preview-grid-size:1rem_1rem]">
         <img src={url} alt={file.basename} className="max-h-full max-w-full object-contain" />
       </div>
     )
@@ -34,7 +34,7 @@ function BlobPreview({ file }: { readonly file: WorkspaceBinaryFileReadResult })
       title={file.basename}
       src={url}
       sandbox=""
-      className="min-h-0 flex-1 border-0 bg-white"
+      className="min-h-0 flex-1 border-0 bg-text-primary"
     />
   )
 }
@@ -42,8 +42,8 @@ function BlobPreview({ file }: { readonly file: WorkspaceBinaryFileReadResult })
 function UnavailablePreview({ file }: { readonly file: WorkspaceUnavailableFileReadResult }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
-      <p className="text-[13px] font-medium text-text-secondary">Preview unavailable</p>
-      <p className="max-w-sm text-[11px] leading-5 text-text-tertiary">{file.reason}</p>
+      <p className="text-sm font-medium text-text-secondary">Preview unavailable</p>
+      <p className="max-w-sm text-xs leading-5 text-text-tertiary">{file.reason}</p>
     </div>
   )
 }
@@ -113,7 +113,7 @@ export function WorkspaceFilePanel({
           <FolderTree className="size-3.5" />
         </Button>
         <span
-          className="min-w-0 flex-1 truncate font-mono text-[11px] text-text-secondary"
+          className="min-w-0 flex-1 truncate font-mono text-xs text-text-secondary"
           title={relativePath}
         >
           {relativePath}
@@ -176,7 +176,7 @@ function PanelMessage({
 }) {
   return (
     <output
-      className={`flex min-h-0 flex-1 items-center justify-center p-8 text-center text-[12px] ${
+      className={`flex min-h-0 flex-1 items-center justify-center p-8 text-center text-xs ${
         error ? 'text-error' : 'text-text-tertiary'
       }`}
     >

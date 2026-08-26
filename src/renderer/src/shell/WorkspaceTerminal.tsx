@@ -13,7 +13,7 @@ export function WorkspaceTerminal() {
     <div
       className={cn(
         'overflow-hidden transition-[height] duration-200 ease-out',
-        terminalOpen ? 'h-[228px]' : 'h-0',
+        terminalOpen ? 'h-57' : 'h-0',
       )}
     >
       {terminalOpen && (
