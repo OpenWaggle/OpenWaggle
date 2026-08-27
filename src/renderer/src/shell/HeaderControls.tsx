@@ -48,8 +48,13 @@ export function HeaderLeft({
   title,
   onToggleSidebar,
 }: HeaderLeftProps) {
+  const currentProjectName = projectName(projectPath)
+
   return (
-    <div className="flex items-center gap-2">
+    <div
+      data-qa="header-identity"
+      className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden whitespace-nowrap"
+    >
       {!sidebarOpen && (
         <Button
           variant="ghost"
@@ -57,22 +62,35 @@ export function HeaderLeft({
           aria-label="Show sidebar"
           aria-expanded={sidebarOpen}
           onClick={onToggleSidebar}
-          className="no-drag"
+          className="no-drag shrink-0"
           title="Show sidebar"
         >
           <PanelLeft className="size-4" />
         </Button>
       )}
 
-      <Hash className="no-drag size-3.5 text-text-tertiary" />
-      <span className="no-drag text-sm font-medium text-text-primary">{title}</span>
-      {activeBranchName ? (
-        <span className="no-drag text-xs text-text-tertiary">/ {activeBranchName}</span>
-      ) : null}
-      <span className="no-drag flex items-center h-5 px-2 rounded border border-border bg-bg-tertiary text-xs text-text-secondary">
-        {projectName(projectPath)}
+      <Hash className="no-drag size-3.5 shrink-0 text-text-tertiary" />
+      <span
+        data-qa="header-session-title"
+        className="no-drag min-w-0 truncate text-sm font-medium text-text-primary"
+        title={title}
+      >
+        {title}
       </span>
-      <span className="no-drag text-base leading-none text-text-tertiary">···</span>
+      {activeBranchName ? (
+        <span
+          className="no-drag min-w-0 max-w-40 shrink truncate text-xs text-text-tertiary"
+          title={activeBranchName}
+        >
+          / {activeBranchName}
+        </span>
+      ) : null}
+      <span
+        className="no-drag flex h-5 max-w-36 shrink-0 items-center truncate rounded border border-border bg-bg-tertiary px-2 text-xs text-text-secondary"
+        title={currentProjectName}
+      >
+        <span className="truncate">{currentProjectName}</span>
+      </span>
     </div>
   )
 }

@@ -88,6 +88,31 @@ test('the composer access control names the mode in force, in the documented voc
     const page = mainWindow.page
     const trigger = page.getByRole('button', { name: 'Session access mode: YOLO' })
 
+    const header = page.locator('header')
+    const headerIdentity = header.locator('[data-qa="header-identity"]')
+    const headerActions = header.locator('[data-qa="header-actions"]')
+    const headerTitle = header.locator('[data-qa="header-session-title"]')
+    const headerLayout = await Promise.all([
+      header.boundingBox(),
+      headerIdentity.boundingBox(),
+      headerActions.boundingBox(),
+      headerTitle.boundingBox(),
+    ])
+    const [headerBox, identityBox, actionsBox, titleBox] = headerLayout
+
+    expect(headerBox).not.toBeNull()
+    expect(identityBox).not.toBeNull()
+    expect(actionsBox).not.toBeNull()
+    expect(titleBox).not.toBeNull()
+    if (headerBox && identityBox && actionsBox && titleBox) {
+      expect(titleBox.height).toBeLessThanOrEqual(20)
+      expect(identityBox.x + identityBox.width).toBeLessThanOrEqual(actionsBox.x)
+      expect(identityBox.y).toBeGreaterThanOrEqual(headerBox.y)
+      expect(identityBox.y + identityBox.height).toBeLessThanOrEqual(
+        headerBox.y + headerBox.height,
+      )
+    }
+
     await expect(trigger).toBeVisible()
     await trigger.click()
     // The compact trigger stays short while the menu uses the canonical documented vocabulary.

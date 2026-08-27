@@ -78,7 +78,7 @@ export function Header() {
 
   return (
     <>
-      <header className="drag-region flex shrink-0 items-center justify-between h-12 px-5 gap-3 bg-bg border-b border-border">
+      <header className="drag-region flex h-12 shrink-0 items-center gap-3 overflow-hidden border-b border-border bg-bg px-5">
         <HeaderLeft
           activeBranchName={activeBranchName}
           projectPath={projectPath}
@@ -87,7 +87,7 @@ export function Header() {
           onToggleSidebar={toggleSidebar}
         />
 
-        <div className="flex items-center gap-2">
+        <div data-qa="header-actions" className="flex shrink-0 items-center gap-2">
           <TerminalButton open={terminalOpen} projectPath={projectPath} onToggle={toggleTerminal} />
           <CommitButton
             isCommitting={gitCommitting}
