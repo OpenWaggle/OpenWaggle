@@ -6,6 +6,21 @@ test('app launches and persists a created thread', async () => {
   const app = await OpenWaggleApp.launch('openwaggle-e2e-')
 
   try {
+    if (app.hidden) {
+      await expect(app.desktopState()).resolves.toEqual({
+        active: false,
+        focused: false,
+        visible: false,
+      })
+      await expect(app.desktopPolicyProbe()).resolves.toEqual({
+        baseConstructedVisible: false,
+        baseFocusBlocked: true,
+        baseShowBlocked: true,
+        constructedVisible: false,
+        focusBlocked: true,
+        showBlocked: true,
+      })
+    }
     const mainWindow = app.mainWindow()
     await expect(mainWindow.page.getByText('No projects yet')).toBeVisible()
 

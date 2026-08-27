@@ -6,12 +6,12 @@ import path from 'node:path'
 import type { Readable } from 'node:stream'
 import { setTimeout as delay } from 'node:timers/promises'
 import { chromium, type Browser, type Page } from '@playwright/test'
+import { buildSafeElectronEnvironment } from './safe-electron-environment'
 
 const STARTUP_TIMINGS_SWITCH = 'openwaggle-startup-timings'
 const TEMP_DIR_PREFIX = 'openwaggle-startup-'
 const LOCALHOST = '127.0.0.1'
 const LOCALHOST_RENDERER_MARKER = 'localhost:'
-const OPENWAGGLE_PROTOCOL_PREFIX = 'openwaggle://'
 const OPTION_RUNS = '--runs'
 const OPTION_TIMEOUT_MS = '--timeout-ms'
 const OPTION_PORT = '--port'
@@ -134,14 +134,12 @@ function collectStartupTimings(lines: readonly string[]) {
 }
 
 function createElectronEnv(userDataDir: string): NodeJS.ProcessEnv {
-  const childEnv: NodeJS.ProcessEnv = {
-    ...process.env,
+  return buildSafeElectronEnvironment({
     ELECTRON_ENABLE_LOGGING: '1',
+    OPENWAGGLE_AUTOMATION: '1',
     OPENWAGGLE_DISABLE_SINGLE_INSTANCE: '1',
     OPENWAGGLE_USER_DATA_DIR: userDataDir,
-  }
-  delete childEnv.ELECTRON_RUN_AS_NODE
-  return childEnv
+  })
 }
 
 function spawnElectronDev(port: number, userDataDir: string) {
@@ -182,7 +180,7 @@ async function waitForCdp(port: number, startedAt: number, timeoutMs: number) {
 
 function isOpenWagglePage(page: Page) {
   const url = page.url()
-  return url.includes(LOCALHOST_RENDERER_MARKER) || url.startsWith(OPENWAGGLE_PROTOCOL_PREFIX)
+  return url.includes(LOCALHOST_RENDERER_MARKER) || url.startsWith('openwaggle://')
 }
 
 async function waitForOpenWagglePage(browser: Browser, timeoutMs: number) {

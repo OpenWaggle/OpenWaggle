@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { extname, join, posix, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { is } from '@electron-toolkit/utils'
+import { AUTOMATION_IDENTITY_QUERY_PARAM } from '@shared/constants/electron-automation'
 import { OPENWAGGLE_EXTENSION_FRAME_PROTOCOL } from '@shared/constants/extension-frame'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { net, protocol } from 'electron'
@@ -103,6 +104,34 @@ function resolveRendererFilePath(rendererRoot: string, requestUrl: string) {
 
 export function devRendererUrl() {
   return is.dev && env.ELECTRON_RENDERER_URL ? env.ELECTRON_RENDERER_URL : null
+}
+
+export function rendererUrlWithAutomationIdentity(url: string) {
+  if (!env.OPENWAGGLE_AUTOMATION_LEASE_TOKEN) return url
+  const rendererUrl = new URL(url)
+  rendererUrl.searchParams.set(
+    AUTOMATION_IDENTITY_QUERY_PARAM,
+    env.OPENWAGGLE_AUTOMATION_LEASE_TOKEN,
+  )
+  return rendererUrl.toString()
+}
+
+export function isTrustedRendererRequest(url: string) {
+  if (url.startsWith('file://')) return true
+
+  try {
+    const parsedUrl = new URL(url)
+    if (
+      parsedUrl.protocol === `${RENDERER_PROTOCOL}:` &&
+      parsedUrl.host === RENDERER_PROTOCOL_HOST
+    ) {
+      return true
+    }
+    if (!env.ELECTRON_RENDERER_URL) return false
+    return parsedUrl.origin === new URL(env.ELECTRON_RENDERER_URL).origin
+  } catch {
+    return false
+  }
 }
 
 async function fileResponse(filePath: string) {

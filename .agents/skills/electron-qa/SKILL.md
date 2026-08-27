@@ -1,6 +1,6 @@
 ---
 name: electron-qa
-description: QA testing skill for OpenWaggle's Electron app using the configured Chrome DevTools MCP server. Use after renderer, preload, IPC, or interactive main-process changes to verify behavior in the real Electron app via CDP on port 9222.
+description: QA testing skill for OpenWaggle's Electron app using the configured Chrome DevTools MCP server. Use after renderer, preload, IPC, or interactive main-process changes to verify behavior in the real Electron app via CDP on port 9223.
 ---
 
 # Electron QA
@@ -23,10 +23,14 @@ Start the app with CDP enabled:
 pnpm dev:debug
 ```
 
+This command is non-disruptive and keeps the Electron window hidden. Never run `pnpm dev:debug:headed` unless the maintainer explicitly approves that exact run.
+
+The managed hidden profile selects the current worktree but contains no fabricated sessions. Seed only the deterministic fixture required by the feature under test.
+
 Verify CDP is reachable:
 
 ```bash
-curl -s http://127.0.0.1:9222/json/version
+curl -s http://127.0.0.1:9223/json/version
 ```
 
 The configured MCP server is `electron-devtools` in `.mcp.json`.
@@ -39,7 +43,10 @@ The configured MCP server is `electron-devtools` in `.mcp.json`.
 4. `take_screenshot`: capture the current visual state.
 5. Interact with the changed feature using `click`, `type_text`, `fill`, and `press_key`.
 6. `list_console_messages` filtered to errors: verify no unexpected console errors.
-7. Report the result with pass/fail rows and any gaps.
+7. Capture at least one representative final-state screenshot, plus additional states needed to prove the interaction.
+8. Save QA evidence under a run-specific directory in the OS temporary directory, never inside the repository. Intentional visual-regression baselines are separate test assets and do not count as QA evidence.
+9. Render every evidence screenshot in the final user response using its absolute path.
+10. Report the result with pass/fail rows and any gaps.
 
 ## Useful Evaluation
 
@@ -85,6 +92,10 @@ IPC/preload:
 | Screenshot/snapshot reviewed | Pass/Fail | |
 | Console errors checked | Pass/Fail | |
 ```
+
+After the table, render the evidence images. A path alone is not sufficient.
+
+If hidden screenshot capture fails, report QA as incomplete and ask the maintainer for exact-run approval before using headed QA. Never treat screenshot failure as implicit headed permission.
 
 ## Troubleshooting
 

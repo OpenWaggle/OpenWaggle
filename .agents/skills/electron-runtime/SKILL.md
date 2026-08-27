@@ -39,8 +39,15 @@ pnpm prepare:native:electron
 
 ## Playwright And CDP
 
-- `pnpm dev:debug` starts Electron with CDP on port 9222.
+- `pnpm dev:debug` starts non-disruptive Electron automation with CDP on reserved port 9223. It fails before launch if that port is occupied. Use `pnpm dev:debug:headed` for visible QA on port 9222; `pnpm dev` remains visible for normal development.
+- Hidden `pnpm dev:debug` uses an ephemeral user-data directory and disables the single-instance lock. It never reuses or focuses an existing OpenWaggle process and never mutates the normal development profile.
+- The hidden launcher owns its Electron child, exclusive port lease, ephemeral profile, forwarded logs, signal handling, stale-dead-process metadata recovery, and profile cleanup.
+- The managed CDP page must match the launcher's per-run identity; a free-port preflight alone does not prove ownership. Lease recovery and acquisition are process-serialized, and evidence failure must not skip process-tree cleanup.
+- Apply non-disruptive automation mode to every scripted Electron launch, including E2E, CDP QA, startup measurement, and website screenshot capture. Only ordinary `pnpm dev` and explicitly headed commands may show the app.
 - Playwright Electron E2E needs isolated user data and single-instance lock opt-out when another app instance is open.
+- Agent-run E2E and QA must not show or focus an Electron window, open native OS dialogs, or launch external applications. Those automated paths fail closed when an interaction would expose OS UI. A visible app requires an explicit headed command.
+- Enforce the automation policy in the Electron main process. Repository checks must reject unguarded window-show/focus, native-dialog, and external-application calls outside the centralized policy.
+- Do not load trusted-main or Pi runtime extensions during non-disruptive automation. Electron's window constructor exports are non-configurable, so dynamic main-process extension code cannot be made subject to the repository's static hidden-window construction boundary. Keep non-executable Pi resources available.
 - Playwright Electron can run an unpackaged runtime where `is.dev` is true but no Vite dev URL exists; protocol registration must handle that.
 - CDP `setInputFiles` may not prove native file-path extraction; cover preload path extraction separately.
 

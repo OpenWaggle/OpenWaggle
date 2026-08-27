@@ -75,6 +75,7 @@ OpenWaggle publishable packages must preserve their public contract boundaries.
 - Native modules need separate Node and Electron rebuild paths.
 - Packaged runtime behavior must be validated in packaged app builds when the bug only appears after packaging.
 - Main process logging uses structured loggers, not raw `console.*` outside logger modules.
+- Automated Electron runs must route OS-visible actions through the centralized automation policy. Repository checks reject unguarded window-show/focus, native-dialog, and external-application calls outside that boundary.
 
 Load `.agents/skills/electron-runtime/SKILL.md` for child-process env, native ABI, packaging, CDP, or Electron runtime startup issues.
 

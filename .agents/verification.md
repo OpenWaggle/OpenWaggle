@@ -44,13 +44,17 @@ For renderer interaction, preload, IPC, or main-process behavior that affects th
 pnpm dev:debug
 ```
 
-Then load `.agents/skills/electron-qa/SKILL.md` and verify through the real Electron app on CDP port 9222:
+This is the non-disruptive hidden QA path. Headed Electron QA requires the maintainer's explicit approval for that exact run.
+
+Then load `.agents/skills/electron-qa/SKILL.md` and verify through the real Electron app on CDP port 9223:
 
 - app page is reachable
 - `window.api` exists
 - target interaction works
 - screenshot or DOM snapshot confirms behavior
 - console errors are checked
+
+Every completed agent-run Electron QA saves representative screenshots outside the repository and renders them in the final user response. A DOM snapshot does not replace this evidence requirement.
 
 ## Pi Runtime Work
 

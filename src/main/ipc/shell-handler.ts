@@ -1,5 +1,6 @@
 import * as Effect from 'effect/Effect'
-import { app, clipboard, shell } from 'electron'
+import { app, clipboard } from 'electron'
+import { openExternal, openPath } from '../desktop-ui'
 import { createLogger } from '../logger'
 import { typedHandle, typedOn } from './typed-ipc'
 
@@ -9,8 +10,9 @@ const ALLOWED_URL_PROTOCOLS = new Set(['https:', 'http:'])
 
 export function registerShellHandlers(): void {
   typedHandle('app:open-logs-dir', () =>
-    Effect.sync(() => {
-      shell.openPath(app.getPath('logs'))
+    Effect.gen(function* () {
+      const result = yield* Effect.promise(() => openPath(app.getPath('logs')))
+      if (result) return yield* Effect.fail(new Error(result))
     }),
   )
 
@@ -24,7 +26,7 @@ export function registerShellHandlers(): void {
       if (!trimmedPath) {
         return yield* Effect.fail(new Error('Path is required.'))
       }
-      const result = yield* Effect.promise(() => shell.openPath(trimmedPath))
+      const result = yield* Effect.promise(() => openPath(trimmedPath))
       if (result) {
         return yield* Effect.fail(new Error(result))
       }
@@ -40,7 +42,7 @@ export function registerShellHandlers(): void {
         })
         return yield* Effect.fail(new Error(`Disallowed URL protocol: ${parsed.protocol}`))
       }
-      yield* Effect.promise(() => shell.openExternal(url))
+      yield* Effect.promise(() => openExternal(url))
     }),
   )
 }

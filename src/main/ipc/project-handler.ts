@@ -7,7 +7,7 @@ import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { THINKING_LEVELS } from '@shared/types/settings'
 import { includes } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
-import { BrowserWindow, dialog, type OpenDialogOptions } from 'electron'
+import type { OpenDialogOptions } from 'electron'
 import {
   grantForProject,
   listGrantsForProject,
@@ -20,6 +20,7 @@ import {
   type ProjectPreferencesUpdate,
   setProjectPreferences,
 } from '../config/project-config'
+import { browserWindowFromWebContents, showMessageBox, showOpenDialog } from '../desktop-ui'
 import { validateProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
 
@@ -122,13 +123,9 @@ function validateAuthorizationScopeKey(key: unknown) {
 export function registerProjectHandlers(): void {
   typedHandle('project:select-folder', (event) =>
     Effect.gen(function* () {
-      const ownerWindow = BrowserWindow.fromWebContents(event.sender)
+      const ownerWindow = browserWindowFromWebContents(event.sender)
       const dialogOptions = createProjectFolderDialogOptions()
-      const result = yield* Effect.promise(() =>
-        ownerWindow
-          ? dialog.showOpenDialog(ownerWindow, dialogOptions)
-          : dialog.showOpenDialog(dialogOptions),
-      )
+      const result = yield* Effect.promise(() => showOpenDialog(ownerWindow, dialogOptions))
 
       if (result.canceled || result.filePaths.length === 0) {
         return null
@@ -202,7 +199,7 @@ export function registerProjectHandlers(): void {
   typedHandle('dialog:confirm', (_event, message: string, detail?: string) =>
     Effect.gen(function* () {
       const result = yield* Effect.promise(() =>
-        dialog.showMessageBox({
+        showMessageBox(null, {
           type: 'warning',
           buttons: ['Cancel', 'Confirm'],
           defaultId: 0,

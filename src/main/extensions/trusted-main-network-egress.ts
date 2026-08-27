@@ -1,7 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import type { EventEmitter } from 'node:events'
-import type { ClientRequestConstructorOptions } from 'electron'
-import * as electronRuntime from 'electron'
+import { type ClientRequestConstructorOptions, net as electronNet } from 'electron'
 import {
   installTrustedMainNetworkCallbackGuard,
   type TrustedMainEventListener,
@@ -301,7 +300,6 @@ function electronRequestOptionsWithRedirectError(
 }
 
 function installElectronNetGuard() {
-  const electronNet = electronRuntime.net
   if (typeof electronNet !== 'object' || electronNet === null) {
     return
   }

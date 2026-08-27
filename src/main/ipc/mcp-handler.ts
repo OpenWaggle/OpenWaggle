@@ -2,12 +2,12 @@ import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { mcpServerDefinitionSchema } from '@shared/schemas/mcp'
 import { MCP_CONFIG_SOURCE_IDS } from '@shared/types/mcp'
 import * as Effect from 'effect/Effect'
-import { shell } from 'electron'
 import { authorizeMcpServer, logoutMcpOAuth } from '../adapters/mcp/oauth-provider'
 import {
   reconcileMcpRuntimeSettings,
   withMcpRuntimeSettings,
 } from '../application/mcp-runtime-settings'
+import { openExternal } from '../desktop-ui'
 import { createLogger } from '../logger'
 import { McpConfigService } from '../ports/mcp-config-service'
 import { McpRuntimeService } from '../ports/mcp-runtime-service'
@@ -216,7 +216,7 @@ function registerMcpAuthorizationHandlers() {
               set: (name, value) => Effect.runPromise(vault.set({ name, value })),
               remove: (name) => Effect.runPromise(vault.remove({ name })),
             },
-            openExternal: (url) => shell.openExternal(url),
+            openExternal,
           }),
         catch: (error) => (error instanceof Error ? error : new Error(String(error))),
       })
