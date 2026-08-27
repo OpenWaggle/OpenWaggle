@@ -40,7 +40,10 @@ export function useBranchPickerController({ onToast }: UseBranchPickerController
           onToast,
         ),
       )
-      .with({ ok: true }, () => openMenu(null))
+      .with({ ok: true }, () => {
+        setBranchQuery('')
+        openMenu(null)
+      })
       .with({ ok: false }, () => undefined)
       .exhaustive()
   }

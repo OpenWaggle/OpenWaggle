@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerStore } from '@/features/composer/state'
 import { useWaggleStore } from '@/features/waggle/state'
 import { useBackgroundRunStore } from '../../state/background-run-store'
+import { useChatStore } from '../../state/chat-store'
 import { useOptimisticUserMessageStore } from '../../state/optimistic-user-message-store'
 
 const { apiMock } = vi.hoisted(() => ({
@@ -34,6 +35,9 @@ vi.mock('@/shared/lib/ipc', () => ({ api: apiMock }))
 const { cancelFirstSend, retryFirstSend } = await import('../worktree-launch-recovery')
 
 const SESSION_ID = SessionId('session-recovery')
+const OTHER_SESSION_ID = SessionId('session-other')
+const SESSION_DRAFT_KEY = 'project:/tmp:session:session-recovery:main'
+const OTHER_DRAFT_KEY = 'project:/tmp:session:session-other:main'
 const MODEL = SupportedModelId('openai/gpt-5')
 const PAYLOAD = {
   text: 'Keep this exact prompt',
@@ -79,7 +83,17 @@ describe('worktree launch recovery', () => {
     })
     useOptimisticUserMessageStore.setState({ messagesBySessionId: new Map() })
     useComposerStore.getState().reset()
+    useComposerStore.getState().setActiveDraftContextKey(SESSION_DRAFT_KEY)
+    useChatStore.setState({ activeSessionId: SESSION_ID })
     useWaggleStore.getState().reset()
+    useBackgroundRunStore.getState().setWorktreeLaunch(SESSION_ID, {
+      status: 'failed',
+      stage: 'checking-out-files',
+      startedAt: 1,
+      updatedAt: 2,
+      details: ['Checkout failed'],
+      errorMessage: 'Checkout failed',
+    })
     useBackgroundRunStore.getState().setFirstSendRecovery(SESSION_ID, {
       payload: PAYLOAD,
       waggleConfig: null,
@@ -88,6 +102,13 @@ describe('worktree launch recovery', () => {
   })
 
   it('switches to local mode and retries the exact retained first-send payload once', async () => {
+    apiMock.sendMessage.mockImplementationOnce(async () => {
+      expect(useBackgroundRunStore.getState().getWorktreeLaunch(SESSION_ID)).toMatchObject({
+        status: 'failed',
+      })
+      return { outcome: 'delivered' }
+    })
+
     await retryFirstSend(SESSION_ID, true)
 
     expect(apiMock.cancelAgent).toHaveBeenCalledWith(SESSION_ID)
@@ -102,6 +123,7 @@ describe('worktree launch recovery', () => {
     expect(useBackgroundRunStore.getState().firstSendRecoveryBySessionId.has(SESSION_ID)).toBe(
       false,
     )
+    expect(useBackgroundRunStore.getState().getWorktreeLaunch(SESSION_ID)).toBeNull()
   })
 
   it('cancels the run, removes the optimistic turn, and restores text and attachments', async () => {
@@ -131,6 +153,10 @@ describe('worktree launch recovery', () => {
 
     expect(useWaggleStore.getState().status).toBe('stopped')
     expect(useBackgroundRunStore.getState().firstSendRecoveryBySessionId.has(SESSION_ID)).toBe(true)
+    expect(useBackgroundRunStore.getState().getWorktreeLaunch(SESSION_ID)).toMatchObject({
+      status: 'failed',
+      errorMessage: 'The first message was not delivered. Try again or work locally.',
+    })
   })
 
   it('stops a Waggle collaboration when retry transport throws', async () => {
@@ -145,5 +171,27 @@ describe('worktree launch recovery', () => {
 
     expect(useWaggleStore.getState().status).toBe('stopped')
     expect(useBackgroundRunStore.getState().firstSendRecoveryBySessionId.has(SESSION_ID)).toBe(true)
+    expect(useBackgroundRunStore.getState().getWorktreeLaunch(SESSION_ID)).toMatchObject({
+      status: 'failed',
+      errorMessage: 'IPC disconnected',
+    })
+  })
+
+  it('restores a cancelled prompt to its originating draft without overwriting another session', async () => {
+    apiMock.cancelAgent.mockImplementationOnce(async () => {
+      useChatStore.setState({ activeSessionId: OTHER_SESSION_ID })
+      useComposerStore.getState().switchScopedDraftContext(OTHER_DRAFT_KEY, {
+        input: 'Other session draft',
+        attachments: [],
+      })
+    })
+
+    await cancelFirstSend(SESSION_ID)
+
+    expect(useComposerStore.getState().input).toBe('Other session draft')
+    expect(useComposerStore.getState().getScopedDraft(SESSION_DRAFT_KEY)).toMatchObject({
+      input: PAYLOAD.text,
+      attachments: PAYLOAD.attachments,
+    })
   })
 })

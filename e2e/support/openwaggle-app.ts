@@ -179,6 +179,13 @@ export class OpenWaggleApp {
     return this.currentWindow
   }
 
+  async resizeMainWindow(width: number, height: number): Promise<void> {
+    await this.app.evaluate(
+      ({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]?.setSize(size.width, size.height),
+      { width, height },
+    )
+  }
+
   /**
    * Emits a real `agent:event` from the main process.
    *

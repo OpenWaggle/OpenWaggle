@@ -98,10 +98,15 @@ export function Popover({
 
   useEffect(() => {
     if (!isOpen || !isDialog) return
+    const restoreFocus =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
     const firstFocusable = dialogPanelRef.current?.querySelector<HTMLElement>(
       'input:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])',
     )
     firstFocusable?.focus()
+    return () => {
+      if (restoreFocus?.isConnected) restoreFocus.focus()
+    }
   }, [isDialog, isOpen])
 
   const panelClass = cn(

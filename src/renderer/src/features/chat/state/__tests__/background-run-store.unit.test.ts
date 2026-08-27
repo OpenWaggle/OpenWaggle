@@ -3,6 +3,7 @@
 import type { WorktreeLaunchSnapshot } from '@shared/types/background-run'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
+import type { SessionDetail } from '@shared/types/session'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BACKGROUND_RUN_RECOVERY_STORAGE_KEY } from '../background-run-recovery-storage'
@@ -12,6 +13,7 @@ const { apiMock } = vi.hoisted(() => ({
   apiMock: {
     listActiveRuns: vi.fn(async () => []),
     getBackgroundRun: vi.fn(async () => null),
+    getSessionDetail: vi.fn(async (): Promise<SessionDetail | null> => null),
   },
 }))
 
@@ -52,12 +54,29 @@ function assistantTextEvent(messageId: string, delta: string): AgentTransportEve
   }
 }
 
+function sessionDetail(
+  messages: SessionDetail['messages'] = [],
+  environmentMode: SessionDetail['environmentMode'] = 'worktree',
+): SessionDetail {
+  return {
+    id: SESSION_A,
+    title: 'Session A',
+    projectPath: '/repo',
+    messages,
+    createdAt: 1,
+    updatedAt: 2,
+    environmentMode,
+    worktreePath: '/repo-worktree',
+  }
+}
+
 describe('useBackgroundRunStore', () => {
   beforeEach(() => {
     window.localStorage.clear()
     vi.clearAllMocks()
     apiMock.listActiveRuns.mockResolvedValue([])
     apiMock.getBackgroundRun.mockResolvedValue(null)
+    apiMock.getSessionDetail.mockResolvedValue(sessionDetail())
     resetStore()
   })
 

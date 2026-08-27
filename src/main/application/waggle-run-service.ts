@@ -24,7 +24,6 @@ import * as Effect from 'effect/Effect'
 import { makeErrorInfo } from '../agent/error-classifier'
 import { FileConflictTracker } from '../agent/file-conflict-tracker'
 import { createLogger } from '../logger'
-import type { AgentKernelRunResult } from '../ports/agent-kernel-service'
 import { AgentKernelService } from '../ports/agent-kernel-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
@@ -34,10 +33,11 @@ import {
   type DurableAgentLoopEvent,
   isDurableAgentLoopEvent,
 } from './agent-run/agent-loop-events'
+import { createWorktreeLaunchEventCollector } from './agent-run/worktree-launch-event'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
 import { assignSessionTitleFromUserText, hydratePayloadAttachments } from './run-handler-utils'
 import { extractFilePath } from './waggle-run/metadata'
-import { recoverWaggleRunFailure } from './waggle-run/outcome'
+import { createWaggleSuccessOutcome, recoverWaggleRunFailure } from './waggle-run/outcome'
 import { persistWaggleSnapshot } from './waggle-run/persistence'
 import {
   clearDurableWaggleActiveRun,
@@ -198,6 +198,7 @@ function runPreparedWaggle(
 
     const conflictTracker = new FileConflictTracker()
     const durableAgentLoopEvents: DurableAgentLoopEvent[] = []
+    const worktreeLaunchEvents = createWorktreeLaunchEventCollector()
     const agentKernel = yield* AgentKernelService
     const result = yield* agentKernel.run({
       session: prepared.session,
@@ -208,7 +209,10 @@ function runPreparedWaggle(
       skillToggles: prepared.skillToggles,
       enabledOpenWaggleExtensionPackagePaths: prepared.enabledOpenWaggleExtensionPackagePaths,
       onEvent: () => undefined,
-      ...(input.onWorktreeLaunch ? { onWorktreeLaunch: input.onWorktreeLaunch } : {}),
+      onWorktreeLaunch: (progress) => {
+        input.onWorktreeLaunch?.(progress)
+        worktreeLaunchEvents.record(progress)
+      },
       waggle: {
         config: input.config,
         inheritedModel: prepared.inheritedModel,
@@ -236,7 +240,12 @@ function runPreparedWaggle(
     })
 
     // The agent took the turn: see recoverWaggleRunFailure for why a later failure is not a refused send.
-    if (result.aborted !== true && result.newMessages.length > 0) markReachedAgent()
+    const reachedAgent = result.aborted !== true && result.newMessages.length > 0
+    if (reachedAgent) markReachedAgent()
+    const worktreeCreatedEvent = worktreeLaunchEvents.createdEvent()
+    if (reachedAgent && worktreeCreatedEvent) {
+      durableAgentLoopEvents.unshift(worktreeCreatedEvent)
+    }
     const existingTree = yield* sessionRepo.getTree(input.sessionId)
     const sessionSnapshot = appendDurableAgentLoopEvents({
       snapshot: result.sessionSnapshot,
@@ -260,7 +269,11 @@ function runPreparedWaggle(
       }
     }
 
-    return successOutcome(input, prepared, result)
+    return createWaggleSuccessOutcome({
+      sessionId: input.sessionId,
+      result,
+      ...(prepared.assignedTitle ? { assignedTitle: prepared.assignedTitle } : {}),
+    })
   })
 }
 
@@ -271,26 +284,6 @@ function logWaggleStart(input: WaggleRunInput) {
     maxTurns: input.config.stop.maxTurnsSafety,
     stopCondition: input.config.stop.primary,
   })
-}
-
-function successOutcome(
-  input: WaggleRunInput,
-  prepared: PreparedWaggleRun,
-  result: AgentKernelRunResult,
-) {
-  logger.info('Pi-native Waggle collaboration finished', {
-    sessionId: input.sessionId,
-    aborted: result.aborted ?? false,
-    terminalError: result.terminalError ?? null,
-    assistantMessages: result.newMessages.filter((message) => message.role === 'assistant').length,
-  })
-
-  return {
-    outcome: 'success' as const,
-    newMessages: result.newMessages,
-    ...(result.terminalError ? { lastError: result.terminalError } : {}),
-    ...(prepared.assignedTitle ? { assignedTitle: prepared.assignedTitle } : {}),
-  }
 }
 
 export function executeWaggleRun(input: WaggleRunInput) {

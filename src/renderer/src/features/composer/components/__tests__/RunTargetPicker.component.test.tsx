@@ -155,6 +155,23 @@ describe('RunTargetPicker', () => {
     expect(screen.getByText('No branches found.')).toBeInTheDocument()
   })
 
+  it('starts with an unfiltered branch list whenever the picker reopens', () => {
+    render(<RunTargetPicker strip={stripState()} />)
+    const trigger = screen.getByRole('button', { name: /Run target/ })
+
+    fireEvent.click(trigger)
+    fireEvent.change(screen.getByPlaceholderText('Search branches'), {
+      target: { value: 'dev' },
+    })
+    expect(screen.queryByText('origin/main')).toBeNull()
+
+    fireEvent.click(trigger)
+    fireEvent.click(trigger)
+
+    expect(screen.getByText('origin/main')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Search branches')).toHaveValue('')
+  })
+
   // The whole point of merging the two controls: in worktree mode the highlighted
   // ref is the base to branch from, which is usually NOT the checked-out branch.
   it('marks the base ref as selected in worktree mode, not the checked-out branch', () => {
@@ -168,10 +185,12 @@ describe('RunTargetPicker', () => {
   it('sets the base ref instead of checking out when creating a worktree', () => {
     const setBaseRef = vi.fn()
     useComposerStore.setState({ branchMenuOpen: true })
+    useComposerActionStore.setState({ branchQuery: 'dev' })
     render(<RunTargetPicker strip={stripState({ setBaseRef })} />)
     fireEvent.click(screen.getByRole('button', { name: /^develop/ }))
     expect(setBaseRef).toHaveBeenCalledWith('develop')
     expect(useComposerStore.getState().branchMenuOpen).toBe(false)
+    expect(useComposerActionStore.getState().branchQuery).toBe('')
   })
 
   // Guards the mode branch in selectRef: without this, removing the worktree early

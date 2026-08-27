@@ -256,6 +256,28 @@ describe('ToolCallBlock', () => {
     expect(screen.getByText('+++ src/app.ts')).toBeInTheDocument()
   })
 
+  it('preserves exact source returned by read when it contains the worktree path', () => {
+    const worktreePath = '/Users/diego/.openwaggle/worktrees/OpenWaggle/session-1'
+    const sourceLine = `const skill = '${worktreePath}/.agents/skills/code-review/SKILL.md'`
+    const { container } = render(
+      <ChatDisplayPathProvider projectPath="/Users/diego/OpenWaggle" worktreePath={worktreePath}>
+        <ToolCallBlock
+          name="read"
+          args='{"path":"src/app.ts"}'
+          state="complete"
+          result={{ content: sourceLine, state: 'complete' }}
+        />
+      </ChatDisplayPathProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /Read src\/app\.ts/ }))
+    expect(
+      [...container.querySelectorAll('code')].some((node) =>
+        node.textContent?.includes(sourceLine),
+      ),
+    ).toBe(true)
+  })
+
   it('syntax highlights read tool file content using the existing Shiki pipeline', async () => {
     const { container } = render(
       <ToolCallBlock

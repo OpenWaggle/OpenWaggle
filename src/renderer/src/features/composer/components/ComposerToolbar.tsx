@@ -28,12 +28,18 @@ export function ComposerToolbar({
   fileInputRef,
 }: ComposerToolbarProps) {
   return (
-    <div className="flex h-11 items-center justify-between px-4">
+    <div
+      data-testid="composer-toolbar"
+      className="flex min-h-11 flex-wrap items-center justify-between gap-x-2 gap-y-2 px-4 py-2"
+    >
       <div className="flex items-center gap-1.5">
         <ComposerAttachButton fileInputRef={fileInputRef} />
         {accessControl}
       </div>
-      <div className="flex items-center gap-2">
+      <div
+        data-testid="composer-toolbar-actions"
+        className="ml-auto flex max-w-full shrink-0 items-center gap-2"
+      >
         <ComposerModelPicker />
         <ThinkingLevelMenu />
         <ContextMeter />

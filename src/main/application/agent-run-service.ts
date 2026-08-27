@@ -6,7 +6,6 @@
  * (abort controllers, active run tracking, stream buffers, IPC emission).
  */
 
-import { WORKTREE_CREATED_CUSTOM_EVENT } from '@shared/types/background-run'
 import { formatErrorMessage } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
@@ -24,6 +23,7 @@ import { hydrateAgentRunPayload, runAgentKernel } from './agent-run/kernel'
 import { buildAgentRunOutcome, recoverAgentRunFailure } from './agent-run/outcome'
 import { loadAgentRunPreflight } from './agent-run/preflight'
 import type { ActiveRunIdentity, AgentRunInput, AgentRunResult } from './agent-run/types'
+import { createWorktreeLaunchEventCollector } from './agent-run/worktree-launch-event'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
 
 export type { AgentRunInput, AgentRunResult } from './agent-run/types'
@@ -54,9 +54,7 @@ export function executeAgentRun(input: AgentRunInput) {
   // Whether the agent got the message: a failure after that point is not a refused send.
   let reachedAgent = false
   const durableAgentLoopEvents: DurableAgentLoopEvent[] = []
-  let worktreeCreatedEvent: DurableAgentLoopEvent | null = null
-  const worktreeLaunchDetails: string[] = []
-  const worktreeLaunchDetailSet = new Set<string>()
+  const worktreeLaunchEvents = createWorktreeLaunchEventCollector()
 
   return Effect.gen(function* () {
     const preflight = yield* loadAgentRunPreflight(input)
@@ -73,26 +71,7 @@ export function executeAgentRun(input: AgentRunInput) {
         ...input,
         onWorktreeLaunch: (progress) => {
           input.onWorktreeLaunch?.(progress)
-          for (const detail of progress.details) {
-            if (worktreeLaunchDetailSet.has(detail)) continue
-            worktreeLaunchDetailSet.add(detail)
-            worktreeLaunchDetails.push(detail)
-          }
-          if (progress.stage === 'worktree-created') {
-            worktreeCreatedEvent = {
-              type: 'custom',
-              name: WORKTREE_CREATED_CUSTOM_EVENT,
-              timestamp: Date.now(),
-              value: {
-                stage: 'starting-task',
-                status: 'complete',
-                details: worktreeLaunchDetails,
-                ...(progress.worktreePath ? { worktreePath: progress.worktreePath } : {}),
-                ...(progress.branch ? { branch: progress.branch } : {}),
-                ...(progress.baseRef ? { baseRef: progress.baseRef } : {}),
-              },
-            }
-          }
+          worktreeLaunchEvents.record(progress)
         },
         onEvent: (event) => {
           if (isDurableAgentLoopEvent(event)) {
@@ -113,6 +92,7 @@ export function executeAgentRun(input: AgentRunInput) {
      * run whose persistence then failed was reported as delivered, and the submitted review was discarded.
      */
     reachedAgent = agentResult.aborted !== true && agentResult.newMessages.length > 0
+    const worktreeCreatedEvent = worktreeLaunchEvents.createdEvent()
     if (reachedAgent && worktreeCreatedEvent) {
       durableAgentLoopEvents.unshift(worktreeCreatedEvent)
     }

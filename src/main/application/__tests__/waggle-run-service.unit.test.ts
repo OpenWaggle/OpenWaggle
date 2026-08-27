@@ -1,3 +1,4 @@
+import { WORKTREE_CREATED_CUSTOM_EVENT } from '@shared/types/background-run'
 import { SessionBranchId, SupportedModelId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import {
@@ -190,7 +191,56 @@ describe('executeWaggleRun', () => {
     )
 
     const [kernelInput] = runMock.mock.calls[0] ?? []
-    expect(kernelInput).toEqual(expect.objectContaining({ onWorktreeLaunch }))
+    const progress = {
+      stage: 'preparing-workspace' as const,
+      details: ['Preparing the session worktree'],
+    }
+    kernelInput.onWorktreeLaunch(progress)
+    expect(onWorktreeLaunch).toHaveBeenCalledWith(progress)
+  })
+
+  it('persists a successful first-send worktree launch as a compact trace', async () => {
+    runMock.mockImplementationOnce((kernelInput) => {
+      kernelInput.onWorktreeLaunch?.({
+        stage: 'preparing-workspace',
+        details: ['Preparing the session worktree'],
+      })
+      kernelInput.onWorktreeLaunch?.({
+        stage: 'worktree-created',
+        details: ['Created ow/session-1 from main'],
+        worktreePath: '/tmp/worktrees/session-1',
+        branch: 'ow/session-1',
+        baseRef: 'main',
+      })
+    })
+
+    const result = await Effect.runPromise(
+      executeWaggleRun(runInput(waggleConfig, 'run-waggle-worktree-trace')).pipe(
+        Effect.provide(TestLayer),
+      ),
+    )
+
+    expect(result.outcome).toBe('success')
+    const persisted = persistSnapshotMock.mock.calls[0]?.[0]
+    expect(persisted.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'run-waggle-worktree-trace:agent-loop:0',
+          contentJson: expect.stringContaining(WORKTREE_CREATED_CUSTOM_EVENT),
+        }),
+      ]),
+    )
+    const trace = persisted.nodes.find((node: { contentJson: string }) =>
+      node.contentJson.includes(WORKTREE_CREATED_CUSTOM_EVENT),
+    )
+    expect(JSON.parse(trace.contentJson).event.value).toEqual({
+      stage: 'starting-task',
+      status: 'complete',
+      details: ['Preparing the session worktree', 'Created ow/session-1 from main'],
+      worktreePath: '/tmp/worktrees/session-1',
+      branch: 'ow/session-1',
+      baseRef: 'main',
+    })
   })
 
   it('persists durable agent-loop events emitted during a Waggle run', async () => {

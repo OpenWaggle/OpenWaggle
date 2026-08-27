@@ -50,6 +50,13 @@ describe('formatDisplayPath', () => {
     expect(formatDisplayPath(`${WORKTREE_ROOT}/src/main.ts`, [])).toBe('src/main.ts')
     expect(formatDisplayPath(WORKTREE_ROOT, [])).toBe('.')
   })
+
+  it('recognizes unscoped Session worktrees whose project name contains spaces', () => {
+    const root = '/Users/diego/.openwaggle/worktrees/My Project/session-a'
+
+    expect(formatDisplayPath(`${root}/src/main.ts`, [])).toBe('src/main.ts')
+    expect(formatDisplayPath(root, [])).toBe('.')
+  })
 })
 
 describe('formatDisplayPathsInText', () => {
@@ -94,6 +101,14 @@ describe('formatDisplayPathsInText', () => {
     )
     expect(formatDisplayPathsInText(`Working directory: ${WORKTREE_ROOT}`, [])).toBe(
       'Working directory: .',
+    )
+  })
+
+  it('removes an unscoped worktree prefix when the project name contains spaces', () => {
+    const root = '/Users/diego/.openwaggle/worktrees/My Project/session-a'
+
+    expect(formatDisplayPathsInText(`Could not read ${root}/src/main.ts`, [])).toBe(
+      'Could not read src/main.ts',
     )
   })
 })

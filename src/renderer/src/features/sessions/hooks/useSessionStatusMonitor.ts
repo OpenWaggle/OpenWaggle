@@ -47,10 +47,7 @@ export function useSessionStatusMonitor(): void {
     const unsubCompleted = api.onRunCompleted(({ sessionId }) => {
       activeWaggleSessions.delete(sessionId)
       setStatusWithVisitCheck(sessionId, 'completed')
-      const backgroundRuns = useBackgroundRunStore.getState()
-      if (backgroundRuns.getWorktreeLaunch(sessionId)?.status !== 'failed') {
-        backgroundRuns.setWorktreeLaunch(sessionId, null)
-      }
+      void useBackgroundRunStore.getState().reconcileTerminalRun(sessionId)
     })
 
     const unsubWorktreeLaunch = api.onWorktreeLaunch(({ sessionId, launch }) => {

@@ -1,6 +1,7 @@
 import * as Effect from 'effect/Effect'
 import { classifyAgentError } from '../../agent/error-classifier'
 import { createLogger } from '../../logger'
+import type { AgentKernelRunResult } from '../../ports/agent-kernel-service'
 
 const logger = createLogger('waggle-run-outcome')
 
@@ -36,4 +37,24 @@ export function recoverWaggleRunFailure(failure: WaggleRunFailure) {
       ...(reachedAgent ? { transportEmitted: true } : {}),
     }
   })
+}
+
+export function createWaggleSuccessOutcome(input: {
+  readonly sessionId: unknown
+  readonly assignedTitle?: string
+  readonly result: AgentKernelRunResult
+}) {
+  logger.info('Pi-native Waggle collaboration finished', {
+    sessionId: input.sessionId,
+    aborted: input.result.aborted ?? false,
+    terminalError: input.result.terminalError ?? null,
+    assistantMessages: input.result.newMessages.filter((message) => message.role === 'assistant')
+      .length,
+  })
+  return {
+    outcome: 'success' as const,
+    newMessages: input.result.newMessages,
+    ...(input.result.terminalError ? { lastError: input.result.terminalError } : {}),
+    ...(input.assignedTitle ? { assignedTitle: input.assignedTitle } : {}),
+  }
 }

@@ -6,7 +6,7 @@ import { type RehypePlugins, safeMarkdownSanitizeSchema } from '@/shared/lib/mar
 import { getHighlighter } from '@/shared/lib/shiki/highlighter'
 import { createRehypeShikiPlugin } from '@/shared/lib/shiki/rehype-shiki-plugin'
 import { ShikiCache } from '@/shared/lib/shiki/shiki-cache'
-import { useChatDisplayText } from './ChatDisplayPathContext'
+import { useChatDisplayMarkdown } from './ChatDisplayPathContext'
 import { IncrementalMarkdown } from './IncrementalMarkdown'
 
 /** Module-level cache shared by all StreamingText instances. */
@@ -81,7 +81,7 @@ function getRehypePlugins(highlighter: Highlighter | undefined) {
 
 export function StreamingText({ text, isStreaming = false, className }: StreamingTextProps) {
   const highlighter = useShikiHighlighter()
-  const displayText = useChatDisplayText(text)
+  const displayText = useChatDisplayMarkdown(text)
 
   if (!text) return null
 

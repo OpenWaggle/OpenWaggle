@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerStore } from '@/features/composer/state/composer-store'
 import { useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
+import { Button } from '@/shared/ui/Button'
 import { ComposerToolbar } from '../ComposerToolbar'
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -90,6 +91,20 @@ describe('ComposerToolbar', () => {
   it('renders thinking level label', () => {
     renderToolbar()
     expect(screen.getByTitle('Select thinking level')).toBeInTheDocument()
+  })
+
+  it('can wrap controls instead of clipping them in a narrow composer', () => {
+    renderToolbar({
+      accessControl: (
+        <Button variant="unstyled" type="button">
+          YOLO
+        </Button>
+      ),
+    })
+
+    expect(screen.getByTestId('composer-toolbar')).toHaveClass('min-h-11', 'flex-wrap')
+    expect(screen.getByTestId('composer-toolbar')).not.toHaveClass('h-11')
+    expect(screen.getByTestId('composer-toolbar-actions')).toHaveClass('ml-auto', 'shrink-0')
   })
 
   it('opens thinking menu on click', () => {

@@ -32,11 +32,12 @@ const DISPLAY_ROOT_PREFIX_TERMINATORS = new Set([
   '=',
   ':',
 ])
+const ESCAPE_PARITY_DIVISOR = 2
 
 const OPENWAGGLE_WORKTREE_PREFIX =
-  /(?:[a-z]:)?(?:[\\/][^\\/\s"'`<>|]+)*[\\/]\.openwaggle[\\/]worktrees[\\/][^\\/\s"'`<>|]+[\\/][^\\/\s"'`<>|]+[\\/]+/giu
+  /(?:[a-z]:)?(?:[\\/][^\\/\s"'`<>|]+)*[\\/]\.openwaggle[\\/]worktrees[\\/][^\\/\r\n"'`<>|]+[\\/][^\\/\s"'`<>|]+[\\/]+/giu
 const OPENWAGGLE_WORKTREE_ROOT =
-  /(?:[a-z]:)?(?:[\\/][^\\/\s"'`<>|]+)*[\\/]\.openwaggle[\\/]worktrees[\\/][^\\/\s"'`<>|]+[\\/][^\\/\s"'`<>|]+(?=$|[\s"'`<>|)\]},:;!?])/giu
+  /(?:[a-z]:)?(?:[\\/][^\\/\s"'`<>|]+)*[\\/]\.openwaggle[\\/]worktrees[\\/][^\\/\r\n"'`<>|]+[\\/][^\\/\s"'`<>|]+(?=$|[\s"'`<>|)\]},:;!?])/giu
 
 function normalizePath(path: string) {
   const normalized = path
@@ -155,4 +156,132 @@ export function formatDisplayPathsInText(
     result = replaceRootInText(result, root)
   }
   return result.replace(OPENWAGGLE_WORKTREE_PREFIX, '').replace(OPENWAGGLE_WORKTREE_ROOT, '.')
+}
+
+function isEscaped(text: string, index: number) {
+  let backslashes = 0
+  for (let cursor = index - 1; cursor >= 0 && text[cursor] === '\\'; cursor -= 1) {
+    backslashes += 1
+  }
+  return backslashes % ESCAPE_PARITY_DIVISOR === 1
+}
+
+function backtickRunLength(text: string, index: number) {
+  let length = 0
+  while (text[index + length] === '`') length += 1
+  return length
+}
+
+function matchingInlineCodeClose(text: string, start: number, delimiterLength: number) {
+  let cursor = start
+  while (cursor < text.length) {
+    const next = text.indexOf('`', cursor)
+    if (next < 0) return -1
+    const runLength = backtickRunLength(text, next)
+    if (!isEscaped(text, next) && runLength === delimiterLength) return next
+    cursor = next + runLength
+  }
+  return -1
+}
+
+function formatMarkdownLine(line: string, roots: readonly (string | null | undefined)[]) {
+  let result = ''
+  let proseStart = 0
+  let cursor = 0
+
+  while (cursor < line.length) {
+    const opening = line.indexOf('`', cursor)
+    if (opening < 0) break
+    const delimiterLength = backtickRunLength(line, opening)
+    if (isEscaped(line, opening)) {
+      cursor = opening + delimiterLength
+      continue
+    }
+    const closing = matchingInlineCodeClose(line, opening + delimiterLength, delimiterLength)
+    if (closing < 0) break
+
+    result += formatDisplayPathsInText(line.slice(proseStart, opening), roots)
+    const codeEnd = closing + delimiterLength
+    result += line.slice(opening, codeEnd)
+    proseStart = codeEnd
+    cursor = codeEnd
+  }
+
+  return result + formatDisplayPathsInText(line.slice(proseStart), roots)
+}
+
+interface MarkdownFence {
+  readonly marker: '`' | '~'
+  readonly length: number
+  readonly prefixLength: number
+}
+
+interface MarkdownCodeState {
+  fence: MarkdownFence | null
+  indentedCode: boolean
+  previousLineBlank: boolean
+}
+
+function markdownFence(line: string): MarkdownFence | null {
+  const match = /^(?: {0,3})(`{3,}|~{3,})/.exec(line)
+  const markerRun = match?.[1]
+  const marker = markerRun?.[0]
+  if (!match || !markerRun || (marker !== '`' && marker !== '~')) return null
+  return { marker, length: markerRun.length, prefixLength: match[0].length }
+}
+
+function closesMarkdownFence(line: string, candidate: MarkdownFence | null, open: MarkdownFence) {
+  return (
+    candidate?.marker === open.marker &&
+    candidate.length >= open.length &&
+    line.slice(candidate.prefixLength).trim() === ''
+  )
+}
+
+function formatMarkdownBlockLine(
+  line: string,
+  roots: readonly (string | null | undefined)[],
+  state: MarkdownCodeState,
+) {
+  if (line === '\n' || line === '\r\n') return line
+  const fence = markdownFence(line)
+  if (state.fence) {
+    if (closesMarkdownFence(line, fence, state.fence)) state.fence = null
+    return line
+  }
+  if (fence) {
+    state.fence = fence
+    state.previousLineBlank = false
+    return line
+  }
+
+  const blank = line.trim() === ''
+  const codeIndented = /^(?: {4}|\t)/.test(line)
+  if (state.indentedCode && (blank || codeIndented)) return line
+  state.indentedCode = false
+  if (codeIndented && state.previousLineBlank) {
+    state.indentedCode = true
+    state.previousLineBlank = false
+    return line
+  }
+
+  state.previousLineBlank = blank
+  return formatMarkdownLine(line, roots)
+}
+
+/** Shorten paths in Markdown prose while preserving the exact contents of inline and fenced code. */
+export function formatDisplayPathsInMarkdown(
+  markdown: string,
+  roots: readonly (string | null | undefined)[],
+): string {
+  const state: MarkdownCodeState = {
+    fence: null,
+    indentedCode: false,
+    previousLineBlank: true,
+  }
+
+  return markdown
+    .split(/(\r?\n)/)
+    .map((line) => formatMarkdownBlockLine(line, roots, state))
+    .join('')
 }

@@ -128,6 +128,24 @@ test('the composer access control names the mode in force, in the documented voc
     ).toBeChecked()
     await expect(page.getByRole('menuitemradio')).toHaveCount(2)
     await expect(page.getByText(/Default/)).toHaveCount(0)
+
+    await page.keyboard.press('Escape')
+    await app.resizeMainWindow(800, 700)
+    const toolbar = page.getByTestId('composer-toolbar')
+    const toolbarActions = page.getByTestId('composer-toolbar-actions')
+    await expect(toolbar).toBeVisible()
+    const [toolbarBox, toolbarActionsBox] = await Promise.all([
+      toolbar.boundingBox(),
+      toolbarActions.boundingBox(),
+    ])
+    expect(toolbarBox).not.toBeNull()
+    expect(toolbarActionsBox).not.toBeNull()
+    if (toolbarBox && toolbarActionsBox) {
+      expect(toolbarActionsBox.x).toBeGreaterThanOrEqual(toolbarBox.x)
+      expect(toolbarActionsBox.x + toolbarActionsBox.width).toBeLessThanOrEqual(
+        toolbarBox.x + toolbarBox.width,
+      )
+    }
   } finally {
     await app.cleanup()
   }

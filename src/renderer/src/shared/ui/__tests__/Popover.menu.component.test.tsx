@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { Button } from '../Button'
 import { Popover } from '../Popover'
@@ -58,6 +59,33 @@ function MenuFixture({ onSelect = vi.fn() }: { readonly onSelect?: () => void })
 
 function items() {
   return screen.getAllByRole('menuitemradio')
+}
+
+function DialogFixture() {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Popover
+        ariaLabel="Choose a project"
+        role="dialog"
+        trigger={
+          <Button variant="unstyled" type="button" onClick={() => setOpen((value) => !value)}>
+            Project
+          </Button>
+        }
+        open={open}
+        onOpenChange={setOpen}
+      >
+        <input aria-label="Search projects" />
+        <Button variant="unstyled" type="button" onClick={() => setOpen(false)}>
+          Select project
+        </Button>
+      </Popover>
+      <Button variant="unstyled" type="button">
+        Outside
+      </Button>
+    </>
+  )
 }
 
 describe('Popover with role="menu"', () => {
@@ -226,5 +254,42 @@ describe('Popover without a menu role', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('dialog', { name: 'Choose a project' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Search projects' })).toHaveFocus()
+  })
+
+  it('returns focus to the dialog trigger after Escape', () => {
+    render(<DialogFixture />)
+    const trigger = screen.getByRole('button', { name: 'Project' })
+
+    trigger.focus()
+    fireEvent.click(trigger)
+    expect(screen.getByRole('textbox', { name: 'Search projects' })).toHaveFocus()
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+  })
+
+  it('returns focus to the dialog trigger after selecting an item', () => {
+    render(<DialogFixture />)
+    const trigger = screen.getByRole('button', { name: 'Project' })
+
+    trigger.focus()
+    fireEvent.click(trigger)
+    fireEvent.click(screen.getByRole('button', { name: 'Select project' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+  })
+
+  it('returns focus to the dialog trigger after an outside press closes it', () => {
+    render(<DialogFixture />)
+    const trigger = screen.getByRole('button', { name: 'Project' })
+
+    trigger.focus()
+    fireEvent.click(trigger)
+    fireEvent.mouseDown(screen.getByRole('button', { name: 'Outside' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
   })
 })

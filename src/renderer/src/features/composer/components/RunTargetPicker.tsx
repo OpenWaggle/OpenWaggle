@@ -61,10 +61,15 @@ export function RunTargetPicker({ strip, onToast }: RunTargetPickerProps) {
     )
   }
 
+  function setBranchMenuOpen(open: boolean) {
+    if (!open) controller.setBranchQuery('')
+    controller.openMenu(open ? 'branch' : null)
+  }
+
   function selectRef(name: string) {
     if (isWorktree && strip) {
       strip.setBaseRef(name)
-      controller.openMenu(null)
+      setBranchMenuOpen(false)
       return
     }
     void controller.checkoutBranch(name)
@@ -74,7 +79,7 @@ export function RunTargetPicker({ strip, onToast }: RunTargetPickerProps) {
     <Popover
       ariaLabel="Choose a run target"
       open={controller.branchMenuOpen}
-      onOpenChange={(open) => controller.openMenu(open ? 'branch' : null)}
+      onOpenChange={setBranchMenuOpen}
       placement="top-end"
       className={DOCK_MENU_POPOVER_CLASS}
       role="dialog"
@@ -83,7 +88,7 @@ export function RunTargetPicker({ strip, onToast }: RunTargetPickerProps) {
           selectedRef={selectedRef}
           isOpen={controller.branchMenuOpen}
           isMissing={isMissing}
-          onToggle={(open) => controller.openMenu(open ? 'branch' : null)}
+          onToggle={setBranchMenuOpen}
         />
       }
     >

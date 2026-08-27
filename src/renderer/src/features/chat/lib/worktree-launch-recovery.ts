@@ -1,6 +1,8 @@
 import type { AgentSendReport } from '@shared/types/agent'
+import type { WorktreeLaunchSnapshot } from '@shared/types/background-run'
 import { SessionId, WagglePresetId } from '@shared/types/brand'
 import type { WagglePreset } from '@shared/types/waggle'
+import { useChatStore } from '@/features/chat/state/chat-store'
 import { setEditorDraft } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
 import { useWaggleStore } from '@/features/waggle/state'
@@ -28,10 +30,31 @@ function presetFromRecovery(
   }
 }
 
+function restoreFailedLaunch(
+  sessionId: SessionId,
+  previousLaunch: WorktreeLaunchSnapshot | null,
+  errorMessage: string,
+) {
+  const now = Date.now()
+  useBackgroundRunStore.getState().setWorktreeLaunch(sessionId, {
+    status: 'failed',
+    stage: previousLaunch?.stage ?? 'preparing-workspace',
+    startedAt: previousLaunch?.startedAt ?? now,
+    updatedAt: now,
+    details: previousLaunch?.details ?? [],
+    progressPercentage: previousLaunch?.progressPercentage,
+    worktreePath: previousLaunch?.worktreePath,
+    branch: previousLaunch?.branch,
+    baseRef: previousLaunch?.baseRef,
+    errorMessage,
+  })
+}
+
 export async function retryFirstSend(sessionIdValue: string, workLocally = false) {
   const sessionId = SessionId(sessionIdValue)
   const recovery = recoveryFor(sessionId)
   if (!recovery) return
+  const previousLaunch = useBackgroundRunStore.getState().getWorktreeLaunch(sessionId)
 
   if (workLocally) {
     await api.cancelAgent(sessionId)
@@ -42,7 +65,6 @@ export async function retryFirstSend(sessionIdValue: string, workLocally = false
     })
   }
 
-  useBackgroundRunStore.getState().setWorktreeLaunch(sessionId, null)
   if (recovery.waggleConfig) {
     useWaggleStore.getState().startCollaboration(sessionId, recovery.waggleConfig)
   }
@@ -58,28 +80,55 @@ export async function retryFirstSend(sessionIdValue: string, workLocally = false
       : await api.sendMessage(sessionId, recovery.payload, recovery.model)
   } catch (error) {
     if (recovery.waggleConfig) useWaggleStore.getState().stopCollaboration(sessionId)
+    restoreFailedLaunch(
+      sessionId,
+      previousLaunch,
+      error instanceof Error ? error.message : String(error),
+    )
     throw error
   }
 
   if (report.outcome === 'delivered') {
+    if (useBackgroundRunStore.getState().getWorktreeLaunch(sessionId) === previousLaunch) {
+      useBackgroundRunStore.getState().setWorktreeLaunch(sessionId, null)
+    }
     useBackgroundRunStore.getState().setFirstSendRecovery(sessionId, null)
     return
   }
   if (recovery.waggleConfig) useWaggleStore.getState().stopCollaboration(sessionId)
+  restoreFailedLaunch(
+    sessionId,
+    previousLaunch,
+    'The first message was not delivered. Try again or work locally.',
+  )
 }
 
 export async function cancelFirstSend(sessionIdValue: string) {
   const sessionId = SessionId(sessionIdValue)
   const recovery = recoveryFor(sessionId)
+  const targetDraftContextKey = useComposerStore.getState().activeDraftContextKey
   await api.cancelAgent(sessionId)
   if (recovery) {
     const composer = useComposerStore.getState()
     const preset = presetFromRecovery(recovery)
-    composer.setInput(recovery.payload.text)
-    composer.replaceAttachments(recovery.payload.attachments)
-    composer.setSelectedWagglePreset(preset)
-    if (composer.lexicalEditor) {
-      setEditorDraft(composer.lexicalEditor, recovery.payload.text, preset)
+    const recoveredDraft = {
+      input: recovery.payload.text,
+      attachments: recovery.payload.attachments,
+      wagglePreset: preset,
+    }
+    const originStillActive =
+      useChatStore.getState().activeSessionId === sessionId &&
+      composer.activeDraftContextKey === targetDraftContextKey
+    if (originStillActive) {
+      composer.setInput(recoveredDraft.input)
+      composer.replaceAttachments(recoveredDraft.attachments)
+      composer.setSelectedWagglePreset(recoveredDraft.wagglePreset)
+      if (composer.lexicalEditor) {
+        setEditorDraft(composer.lexicalEditor, recoveredDraft.input, recoveredDraft.wagglePreset)
+      }
+    }
+    if (!originStillActive && targetDraftContextKey) {
+      composer.saveScopedDraft(targetDraftContextKey, recoveredDraft)
     }
   }
   useOptimisticUserMessageStore.getState().clear(sessionId)
