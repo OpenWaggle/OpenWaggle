@@ -16,6 +16,8 @@ import { seedSingleSession } from './support/session-fixtures'
 const SEEDED_SESSION_TITLE = 'Extension host proof session'
 const SEEDED_MESSAGE_TEXT = 'extension-host-proof-project'
 const EXTENSION_FRAME_TITLE = `Extension module: ${GITHUB_ISSUES_SETTINGS_TITLE}`
+const SAVED_REPOSITORY_OWNER = 'OpenWaggle-e2e'
+const SAVED_REPOSITORY_NAME = 'OpenWaggle-e2e-fixture'
 
 function seededProjectMessage() {
   return {
@@ -96,12 +98,14 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
     await expect(settingsFrame.getByText('Extension configuration')).toBeVisible()
     await expect(settingsFrame.getByRole('heading', { name: 'GitHub Issues' })).toBeVisible()
 
-    await settingsFrame.getByLabel('Repository owner').fill('OpenWaggle')
-    await settingsFrame.getByLabel('Repository name').fill('OpenWaggle')
-    await settingsFrame.getByRole('button', { name: 'Save configuration' }).click()
+    await settingsFrame.getByLabel('Repository owner').fill(SAVED_REPOSITORY_OWNER)
+    await settingsFrame.getByLabel('Repository name').fill(SAVED_REPOSITORY_NAME)
+    const saveConfiguration = settingsFrame.getByRole('button', { name: 'Save configuration' })
+    await saveConfiguration.click()
+    await expect(saveConfiguration).toBeEnabled({ timeout: 30_000 })
     await expect(
       settingsFrame.getByText('Configuration saved. The side panel will use it on the next refresh.'),
-    ).toBeVisible({ timeout: 30_000 })
+    ).toBeVisible()
 
     await lifecycleButton(page, 'Disable').click()
     await expect(lifecycleButton(page, 'Enable')).toBeVisible()
