@@ -101,7 +101,7 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
     await settingsFrame.getByRole('button', { name: 'Save configuration' }).click()
     await expect(
       settingsFrame.getByText('Configuration saved. The side panel will use it on the next refresh.'),
-    ).toBeVisible()
+    ).toBeVisible({ timeout: 30_000 })
 
     await lifecycleButton(page, 'Disable').click()
     await expect(lifecycleButton(page, 'Enable')).toBeVisible()

@@ -64,6 +64,6 @@ export function truncate(str: string, maxLength: number): string {
  */
 export function projectName(path: string | null): string {
   if (!path) return 'No project'
-  const parts = path.split('/')
-  return parts[parts.length - 1] || path
+  const parts = path.split(/[\\/]/u).filter((part) => part.length > 0)
+  return parts.at(-1) ?? path
 }
