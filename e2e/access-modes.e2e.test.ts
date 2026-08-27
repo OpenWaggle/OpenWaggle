@@ -134,18 +134,20 @@ test('the composer access control names the mode in force, in the documented voc
     const toolbar = page.getByTestId('composer-toolbar')
     const toolbarActions = page.getByTestId('composer-toolbar-actions')
     await expect(toolbar).toBeVisible()
-    const [toolbarBox, toolbarActionsBox] = await Promise.all([
-      toolbar.boundingBox(),
-      toolbarActions.boundingBox(),
-    ])
-    expect(toolbarBox).not.toBeNull()
-    expect(toolbarActionsBox).not.toBeNull()
-    if (toolbarBox && toolbarActionsBox) {
-      expect(toolbarActionsBox.x).toBeGreaterThanOrEqual(toolbarBox.x)
-      expect(toolbarActionsBox.x + toolbarActionsBox.width).toBeLessThanOrEqual(
-        toolbarBox.x + toolbarBox.width,
-      )
-    }
+    await expect(toolbarActions).toBeVisible()
+    await expect
+      .poll(async () => {
+        const [toolbarBox, toolbarActionsBox] = await Promise.all([
+          toolbar.boundingBox(),
+          toolbarActions.boundingBox(),
+        ])
+        if (!toolbarBox || !toolbarActionsBox) return false
+        return (
+          toolbarActionsBox.x >= toolbarBox.x &&
+          toolbarActionsBox.x + toolbarActionsBox.width <= toolbarBox.x + toolbarBox.width
+        )
+      })
+      .toBe(true)
   } finally {
     await app.cleanup()
   }
