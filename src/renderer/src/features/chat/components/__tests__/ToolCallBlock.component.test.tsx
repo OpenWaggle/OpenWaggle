@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ChatDisplayPathProvider } from '../ChatDisplayPathContext'
 import { ToolCallBlock } from '../ToolCallBlock'
 
 const mockCopyToClipboard = vi.hoisted(() => vi.fn())
@@ -222,6 +223,37 @@ describe('ToolCallBlock', () => {
     expect(screen.getAllByText('+1')).toHaveLength(2)
     expect(screen.getAllByText('-1')).toHaveLength(2)
     expect(screen.getByText('+new line')).toBeInTheDocument()
+  })
+
+  it('preserves exact source lines when a unified diff contains the worktree path', () => {
+    const worktreePath = '/Users/diego/.openwaggle/worktrees/OpenWaggle/session-1'
+    const removedLine = `-const skill = '${worktreePath}/.agents/skills/review/SKILL.md'`
+    const addedLine = `+const skill = '${worktreePath}/.agents/skills/code-review/SKILL.md'`
+
+    render(
+      <ChatDisplayPathProvider projectPath="/Users/diego/OpenWaggle" worktreePath={worktreePath}>
+        <ToolCallBlock
+          name="edit"
+          args='{"path":"src/app.ts"}'
+          state="complete"
+          result={{
+            content: {
+              content: [{ type: 'text', text: 'Successfully replaced 1 block(s).' }],
+              details: {
+                diff: `--- ${worktreePath}/src/app.ts\n+++ ${worktreePath}/src/app.ts\n@@ -1 +1 @@\n${removedLine}\n${addedLine}`,
+                firstChangedLine: 1,
+              },
+            },
+            state: 'complete',
+          }}
+        />
+      </ChatDisplayPathProvider>,
+    )
+
+    expect(screen.getByText(removedLine)).toBeInTheDocument()
+    expect(screen.getByText(addedLine)).toBeInTheDocument()
+    expect(screen.getByText('--- src/app.ts')).toBeInTheDocument()
+    expect(screen.getByText('+++ src/app.ts')).toBeInTheDocument()
   })
 
   it('syntax highlights read tool file content using the existing Shiki pipeline', async () => {

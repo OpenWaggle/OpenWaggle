@@ -16,6 +16,8 @@ import {
   emitTransportEvent,
   emitWaggleTransportEvent,
   emitWaggleTurnEvent,
+  emitWorktreeLaunchFailure,
+  emitWorktreeLaunchProgress,
   startStreamBuffer,
 } from '../utils/stream-bridge'
 import { activeWaggleRuns, cancelSessionRuns } from './active-agent-runs'
@@ -160,10 +162,14 @@ function runRegisteredWaggleMessage(
         if (event.type !== 'agent_end') emitTransportEvent(sessionId, event)
       },
       onTurnEvent: (event) => emitWaggleTurnEvent(sessionId, event),
+      onWorktreeLaunch: (progress) => emitWorktreeLaunchProgress(sessionId, progress),
       onTitleAssigned: (title) =>
         broadcastToWindows('sessions:title-updated', { sessionId, title }),
     })
 
+    if (result.outcome === 'error') {
+      emitWorktreeLaunchFailure(sessionId, result.message)
+    }
     handleWaggleResult(sessionId, runId, result)
     /*
      * Reported back for the same reason the classic path does it: this Effect succeeds whether the turn ran or

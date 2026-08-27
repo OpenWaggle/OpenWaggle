@@ -10,6 +10,7 @@
 import { safeDecodeUnknown } from '@shared/schema'
 import { waggleConfigSchema } from '@shared/schemas/waggle'
 import type { AgentSendPayload, HydratedAgentSendPayload } from '@shared/types/agent'
+import type { WorktreeLaunchProgress } from '@shared/types/background-run'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import type { AgentTransportEvent } from '@shared/types/stream'
@@ -56,6 +57,7 @@ export interface WaggleRunInput {
   readonly signal: AbortSignal
   readonly onEvent: (event: AgentTransportEvent, meta: WaggleStreamMetadata) => void
   readonly onTurnEvent: (event: WaggleTurnEvent) => void
+  readonly onWorktreeLaunch?: (progress: WorktreeLaunchProgress) => void
   readonly onRunPrepared?: (runtimeModel: SupportedModelId) => void
   readonly onTitleAssigned?: (title: string) => void
 }
@@ -206,6 +208,7 @@ function runPreparedWaggle(
       skillToggles: prepared.skillToggles,
       enabledOpenWaggleExtensionPackagePaths: prepared.enabledOpenWaggleExtensionPackagePaths,
       onEvent: () => undefined,
+      ...(input.onWorktreeLaunch ? { onWorktreeLaunch: input.onWorktreeLaunch } : {}),
       waggle: {
         config: input.config,
         inheritedModel: prepared.inheritedModel,

@@ -224,7 +224,7 @@ export function UnifiedDiffView({
             key={line.lineIndex}
             className={cn('flex whitespace-pre px-3', getUnifiedDiffLineClassName(line.type))}
           >
-            {formatDisplayText(line.content)}
+            {line.type === 'meta' ? formatDisplayText(line.content) : line.content}
           </div>
         ))}
       </div>

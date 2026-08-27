@@ -7,7 +7,7 @@ import {
 } from '@shared/types/waggle'
 import { fromAny } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeWaggleRun } from '../waggle-run-service'
 import {
   clearActiveRunMock,
@@ -177,6 +177,20 @@ describe('executeWaggleRun', () => {
     expect(persistSnapshotMock).toHaveBeenCalledOnce()
     expect(persistSnapshotMock.mock.calls[0]?.[0].nodes[0]?.metadataJson).toContain('Architect')
     expect(clearActiveRunMock).toHaveBeenCalledWith({ sessionId, runId: 'run-waggle-1' })
+  })
+
+  it('forwards first-send worktree launch progress to the Pi kernel', async () => {
+    const onWorktreeLaunch = vi.fn()
+
+    await Effect.runPromise(
+      executeWaggleRun({
+        ...runInput(waggleConfig, 'run-waggle-worktree-launch'),
+        onWorktreeLaunch,
+      }).pipe(Effect.provide(TestLayer)),
+    )
+
+    const [kernelInput] = runMock.mock.calls[0] ?? []
+    expect(kernelInput).toEqual(expect.objectContaining({ onWorktreeLaunch }))
   })
 
   it('persists durable agent-loop events emitted during a Waggle run', async () => {

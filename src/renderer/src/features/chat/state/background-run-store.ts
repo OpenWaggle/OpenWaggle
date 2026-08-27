@@ -18,6 +18,11 @@ interface ActiveRunRenderSnapshot {
   readonly updatedAt: number
 }
 
+interface WorktreeLaunchSourceSnapshot {
+  readonly sessionId: SessionId
+  readonly worktreeLaunch?: WorktreeLaunchSnapshot
+}
+
 export interface FirstSendRecovery {
   readonly payload: AgentSendPayload
   readonly waggleConfig: WaggleConfig | null
@@ -40,6 +45,29 @@ interface BackgroundRunState {
   setWorktreeLaunch: (id: SessionId, launch: WorktreeLaunchSnapshot | null) => void
   setFirstSendRecovery: (id: SessionId, recovery: FirstSendRecovery | null) => void
   initialize: () => Promise<void>
+}
+
+function launchesFromSnapshots(
+  snapshots: readonly (WorktreeLaunchSourceSnapshot | null)[],
+): Map<SessionId, WorktreeLaunchSnapshot> {
+  const launches = new Map<SessionId, WorktreeLaunchSnapshot>()
+  for (const snapshot of snapshots) {
+    if (snapshot?.worktreeLaunch) launches.set(snapshot.sessionId, snapshot.worktreeLaunch)
+  }
+  return launches
+}
+
+function mergeLatestLaunches(
+  ...sources: readonly ReadonlyMap<SessionId, WorktreeLaunchSnapshot>[]
+) {
+  const launches = new Map<SessionId, WorktreeLaunchSnapshot>()
+  for (const source of sources) {
+    for (const [sessionId, launch] of source) {
+      const existing = launches.get(sessionId)
+      if (!existing || launch.updatedAt >= existing.updatedAt) launches.set(sessionId, launch)
+    }
+  }
+  return launches
 }
 
 export const useBackgroundRunStore = create<BackgroundRunState>((set, get) => ({
@@ -146,20 +174,20 @@ export const useBackgroundRunStore = create<BackgroundRunState>((set, get) => ({
   },
 
   async initialize() {
-    const persisted = loadRecoverableBackgroundRuns()
     const runs = await api.listActiveRuns()
     const ids = new Set<SessionId>(runs.map((r) => r.sessionId))
     const snapshots = await Promise.all(runs.map((run) => api.getBackgroundRun(run.sessionId)))
-    const launches = new Map(persisted.launches)
-    for (const snapshot of snapshots) {
-      if (snapshot?.worktreeLaunch) {
-        launches.set(snapshot.sessionId, snapshot.worktreeLaunch)
+    const persisted = loadRecoverableBackgroundRuns()
+    const launches = mergeLatestLaunches(launchesFromSnapshots(snapshots), persisted.launches)
+    set((state) => {
+      return {
+        activeRunIds: new Set([...ids, ...state.activeRunIds]),
+        worktreeLaunchBySessionId: mergeLatestLaunches(launches, state.worktreeLaunchBySessionId),
+        firstSendRecoveryBySessionId: new Map([
+          ...persisted.recoveries,
+          ...state.firstSendRecoveryBySessionId,
+        ]),
       }
-    }
-    set({
-      activeRunIds: ids,
-      worktreeLaunchBySessionId: launches,
-      firstSendRecoveryBySessionId: persisted.recoveries,
     })
   },
 }))

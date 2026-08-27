@@ -168,6 +168,35 @@ describe('useBackgroundRunStore', () => {
     )
   })
 
+  it('preserves first-send recovery received while active-run initialization is in flight', async () => {
+    const launch: WorktreeLaunchSnapshot = {
+      status: 'running',
+      stage: 'checking-out-files',
+      startedAt: 1,
+      updatedAt: 2,
+      details: ['Checking out files'],
+    }
+    const recovery = {
+      payload: {
+        text: 'Keep this in-flight prompt',
+        thinkingLevel: 'medium' as const,
+        attachments: [],
+      },
+      waggleConfig: null,
+      model: SupportedModelId('openai/gpt-5'),
+    }
+
+    const initialization = useBackgroundRunStore.getState().initialize()
+    useBackgroundRunStore.getState().setWorktreeLaunch(SESSION_A, launch)
+    useBackgroundRunStore.getState().setFirstSendRecovery(SESSION_A, recovery)
+    await initialization
+
+    expect(useBackgroundRunStore.getState().getWorktreeLaunch(SESSION_A)).toEqual(launch)
+    expect(useBackgroundRunStore.getState().firstSendRecoveryBySessionId.get(SESSION_A)).toEqual(
+      recovery,
+    )
+  })
+
   it('drops malformed persisted recovery state instead of failing initialization', async () => {
     window.localStorage.setItem(BACKGROUND_RUN_RECOVERY_STORAGE_KEY, '{not json')
 
