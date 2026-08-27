@@ -1,43 +1,30 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import { expect, type ElectronApplication, type Page, test } from '@playwright/test'
+import { shouldUseHiddenElectron } from '../../scripts/electron-launch-mode'
+import { launchOpenWaggleElectron } from '../../scripts/playwright-electron-launcher'
 import { MainWindowPage } from '../page-models/main-window.page'
 
-const E2E_ENV_KEYS: readonly string[] = [
-  'CI',
-  'COLORTERM',
-  'DISPLAY',
-  'HOME',
-  'LANG',
-  'LC_ALL',
-  'LOGNAME',
-  'PATH',
-  'SHELL',
-  'SYSTEMROOT',
-  'TERM',
-  'TMP',
-  'TMPDIR',
-  'USER',
-  'USERPROFILE',
-  'WAYLAND_DISPLAY',
-  'XDG_RUNTIME_DIR',
-]
+let evidenceDirectoryPromise: Promise<string> | null = null
+let evidenceSequence = 0
+const QA_DIAGNOSTIC_TEXT_LIMIT = 1_000
+const QA_SCREENSHOT_SETTLE_MS = 250
 
-function buildElectronEnv(userDataDir: string): Record<string, string> {
-  const env: Record<string, string> = {
-    OPENWAGGLE_USER_DATA_DIR: userDataDir,
-    OPENWAGGLE_DISABLE_SINGLE_INSTANCE: '1',
-  }
+function evidenceDirectory() {
+  evidenceDirectoryPromise ??= fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-e2e-evidence-')).then(
+    (directory) => {
+      console.info(`[electron-qa] screenshots: ${directory}`)
+      return directory
+    },
+  )
+  return evidenceDirectoryPromise
+}
 
-  for (const key of E2E_ENV_KEYS) {
-    const value = process.env[key]
-    if (typeof value === 'string' && value.length > 0) {
-      env[key] = value
-    }
-  }
-
-  return env
+function evidenceName(prefix: string) {
+  evidenceSequence += 1
+  const safePrefix = prefix.replaceAll(/[^a-z0-9-]+/giu, '-').replaceAll(/^-|-$/gu, '')
+  return `${String(evidenceSequence).padStart(3, '0')}-${safePrefix || 'electron-qa'}.png`
 }
 
 export class OpenWaggleApp {
@@ -45,25 +32,53 @@ export class OpenWaggleApp {
     readonly userDataDir: string,
     private app: ElectronApplication,
     private currentWindow: Page,
+    readonly hidden: boolean,
+    private readonly evidencePrefix: string,
   ) {}
 
   static async launch(prefix = 'openwaggle-e2e-'): Promise<OpenWaggleApp> {
     const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix))
-    const app = await electron.launch({
-      args: ['.'],
-      env: buildElectronEnv(userDataDir),
-    })
-    const window = await app.firstWindow()
-    const instance = new OpenWaggleApp(userDataDir, app, window)
-    await instance.mainWindow().waitUntilReady()
-    return instance
+    const hidden = shouldUseHiddenElectron(test.info().project.use.headless)
+    let app: ElectronApplication | null = null
+    let window: Page | null = null
+    try {
+      app = await launchOpenWaggleElectron({ userDataDir, hidden })
+      window = await app.firstWindow()
+      const instance = new OpenWaggleApp(userDataDir, app, window, hidden, prefix)
+      await instance.mainWindow().waitUntilReady()
+      return instance
+    } catch (error) {
+      if (window !== null) {
+        const directory = await evidenceDirectory()
+        const screenshotPath = path.join(directory, evidenceName(`${prefix}-launch-failure`))
+        try {
+          await window.screenshot({ path: screenshotPath })
+          console.error(`[electron-qa] screenshot: ${screenshotPath}`)
+        } catch (screenshotError) {
+          console.error('[electron-qa] launch screenshot capture failed', screenshotError)
+        }
+        const diagnostics = await window
+          .evaluate((textLimit) => ({
+            bodyText: document.body.innerText.slice(0, textLimit),
+            title: document.title,
+            url: location.href,
+          }), QA_DIAGNOSTIC_TEXT_LIMIT)
+          .catch(() => null)
+        console.error('[electron-qa] launch diagnostics', diagnostics)
+      } else {
+        console.error('[electron-qa] launch failed before Electron created a page')
+      }
+      await app?.close().catch(() => undefined)
+      await fs.rm(userDataDir, { recursive: true, force: true })
+      throw error
+    }
   }
 
   async restart(): Promise<void> {
     await this.app.close()
-    this.app = await electron.launch({
-      args: ['.'],
-      env: buildElectronEnv(this.userDataDir),
+    this.app = await launchOpenWaggleElectron({
+      userDataDir: this.userDataDir,
+      hidden: this.hidden,
     })
     this.currentWindow = await this.app.firstWindow()
     await this.mainWindow().waitUntilReady()
@@ -84,8 +99,80 @@ export class OpenWaggleApp {
   }
 
   async cleanup(): Promise<void> {
-    await this.close().catch(() => undefined)
-    await fs.rm(this.userDataDir, { recursive: true, force: true })
+    let evidenceError: unknown
+    try {
+      const directory = await evidenceDirectory()
+      const screenshotPath = path.join(directory, evidenceName(this.evidencePrefix))
+      await this.currentWindow.waitForTimeout(QA_SCREENSHOT_SETTLE_MS)
+      await this.currentWindow.screenshot({ path: screenshotPath })
+      console.info(`[electron-qa] screenshot: ${screenshotPath}`)
+    } catch (error) {
+      evidenceError = error
+    } finally {
+      await this.close().catch(() => undefined)
+      await fs.rm(this.userDataDir, { recursive: true, force: true })
+    }
+    if (evidenceError !== undefined) {
+      console.error('[electron-qa] final screenshot capture failed', evidenceError)
+      expect.soft(evidenceError, 'Electron QA must capture its final screenshot').toBeUndefined()
+    }
+  }
+
+  async desktopState() {
+    return this.app.evaluate(({ app, BrowserWindow }) => {
+      const windows = BrowserWindow.getAllWindows()
+      return {
+        active: process.platform === 'darwin' ? app.isActive() : false,
+        focused: windows.some((window) => window.isFocused()),
+        visible: windows.some((window) => window.isVisible()),
+      }
+    })
+  }
+
+  async desktopPolicyProbe() {
+    return this.app.evaluate(({ BaseWindow, BrowserWindow }) => {
+      const probeWindow = new BrowserWindow({ show: false })
+      // Electron's window classes are non-configurable exports. The repository
+      // guard confines production construction to hidden-by-default helpers; this
+      // real-runtime probe verifies their reveal methods still fail closed.
+      const probeBaseWindow = new BaseWindow({ show: false })
+      let focusBlocked = false
+      let showBlocked = false
+      let baseFocusBlocked = false
+      let baseShowBlocked = false
+      try {
+        probeWindow.focus()
+      } catch {
+        focusBlocked = true
+      }
+      try {
+        probeWindow.show()
+      } catch {
+        showBlocked = true
+      }
+      try {
+        probeBaseWindow.focus()
+      } catch {
+        baseFocusBlocked = true
+      }
+      try {
+        probeBaseWindow.show()
+      } catch {
+        baseShowBlocked = true
+      }
+      const constructedVisible = probeWindow.isVisible()
+      const baseConstructedVisible = probeBaseWindow.isVisible()
+      probeWindow.destroy()
+      probeBaseWindow.destroy()
+      return {
+        baseConstructedVisible,
+        baseFocusBlocked,
+        baseShowBlocked,
+        constructedVisible,
+        focusBlocked,
+        showBlocked,
+      }
+    })
   }
 
   window(): Page {

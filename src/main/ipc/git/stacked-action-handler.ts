@@ -9,8 +9,9 @@ import {
   targetsDefaultRef,
 } from '@shared/utils/git-stacked-action'
 import * as Effect from 'effect/Effect'
-import { BrowserWindow, dialog, type IpcMainInvokeEvent, type MessageBoxOptions } from 'electron'
+import type { IpcMainInvokeEvent, MessageBoxOptions } from 'electron'
 import { getSourceControlProvider } from '../../adapters/source-control'
+import { browserWindowFromWebContents, showMessageBox } from '../../desktop-ui'
 import { typedHandle } from '../typed-ipc'
 import { listGitBranches } from './branch-list'
 import { createGitBranch } from './branch-mutations'
@@ -178,7 +179,7 @@ function askDefaultBranchConfirmation(
   copy: DefaultBranchActionDialogCopy,
 ) {
   return Effect.gen(function* () {
-    const ownerWindow = BrowserWindow.fromWebContents(event.sender)
+    const ownerWindow = browserWindowFromWebContents(event.sender)
     const dialogOptions = {
       type: 'warning',
       buttons: ['Cancel', copy.continueLabel],
@@ -187,11 +188,7 @@ function askDefaultBranchConfirmation(
       message: copy.title,
       detail: copy.description,
     } satisfies MessageBoxOptions
-    const confirmation = yield* Effect.promise(() =>
-      ownerWindow
-        ? dialog.showMessageBox(ownerWindow, dialogOptions)
-        : dialog.showMessageBox(dialogOptions),
-    )
+    const confirmation = yield* Effect.promise(() => showMessageBox(ownerWindow, dialogOptions))
     return confirmation.response === 1
   })
 }

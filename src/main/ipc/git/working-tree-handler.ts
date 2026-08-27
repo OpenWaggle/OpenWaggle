@@ -1,7 +1,8 @@
 import { decodeUnknownOrThrow } from '@shared/schema'
 import type { GitWorkingTreeMutationResult } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
-import { BrowserWindow, dialog, type IpcMainInvokeEvent, type MessageBoxOptions } from 'electron'
+import type { IpcMainInvokeEvent, MessageBoxOptions } from 'electron'
+import { browserWindowFromWebContents, showMessageBox } from '../../desktop-ui'
 import { typedHandle } from '../typed-ipc'
 import { projectPathSchema } from './shared'
 import { invalidateGitStatusCache } from './status-handler'
@@ -49,7 +50,7 @@ function revertWorkingTreeHandler(event: IpcMainInvokeEvent, rawPath: unknown) {
   return Effect.gen(function* () {
     const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
     const repositoryRoot = yield* Effect.promise(() => resolveRepositoryRoot(projectPath))
-    const ownerWindow = BrowserWindow.fromWebContents(event.sender)
+    const ownerWindow = browserWindowFromWebContents(event.sender)
     const dialogOptions = {
       type: 'warning',
       buttons: ['Cancel', 'Confirm'],
@@ -58,11 +59,7 @@ function revertWorkingTreeHandler(event: IpcMainInvokeEvent, rawPath: unknown) {
       message: 'Revert all changes?',
       detail: revertAllDetail(projectPath, repositoryRoot),
     } satisfies MessageBoxOptions
-    const confirmation = yield* Effect.promise(() =>
-      ownerWindow
-        ? dialog.showMessageBox(ownerWindow, dialogOptions)
-        : dialog.showMessageBox(dialogOptions),
-    )
+    const confirmation = yield* Effect.promise(() => showMessageBox(ownerWindow, dialogOptions))
     if (confirmation.response !== 1) {
       return {
         ok: false,

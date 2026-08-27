@@ -1,7 +1,7 @@
 import { AUTH_TIMEOUT } from '@shared/constants/time'
 import type { OAuthAccountInfo, OAuthFlowStatus, OAuthProvider } from '@shared/types/auth'
 import * as Effect from 'effect/Effect'
-import { shell } from 'electron'
+import { openExternal } from '../desktop-ui'
 import { createLogger } from '../logger'
 import { ProviderOAuthService } from '../ports/provider-oauth-service'
 import { runAppEffect } from '../runtime'
@@ -112,7 +112,7 @@ async function runOAuthFlow(
         const authService = yield* ProviderOAuthService
         yield* authService.login(provider, {
           onAuthUrl: (url, usesCallbackServer) => {
-            void shell.openExternal(url).catch((error) => {
+            void openExternal(url).catch((error) => {
               logger.warn('Failed to open OAuth URL', {
                 provider,
                 error: error instanceof Error ? error.message : String(error),
@@ -123,7 +123,7 @@ async function runOAuthFlow(
             }
           },
           onDeviceCode: (deviceCode) => {
-            void shell.openExternal(deviceCode.verificationUri).catch((error) => {
+            void openExternal(deviceCode.verificationUri).catch((error) => {
               logger.warn('Failed to open OAuth device-code URL', {
                 provider,
                 error: error instanceof Error ? error.message : String(error),

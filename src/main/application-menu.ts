@@ -26,7 +26,11 @@ function buildDevViewMenu(): MenuItemConstructorOptions[] {
   ]
 }
 
-export function configureApplicationMenu(appName: string) {
+export function configureApplicationMenu(appName: string, enabled = true) {
+  if (!enabled) {
+    Menu.setApplicationMenu(null)
+    return
+  }
   const devViewMenu = buildDevViewMenu()
   if (process.platform === 'darwin') {
     Menu.setApplicationMenu(

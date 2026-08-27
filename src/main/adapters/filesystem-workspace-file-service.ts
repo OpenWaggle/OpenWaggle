@@ -9,7 +9,7 @@ import type {
 } from '@shared/types/workspace-files'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
-import { shell } from 'electron'
+import { openPath } from '../desktop-ui'
 import { WorkspaceFileError } from '../errors'
 import { WorkspaceFileService } from '../ports/workspace-file-service'
 import { isPathInsideDirectory } from '../utils/project-path-validation'
@@ -309,7 +309,7 @@ export const FilesystemWorkspaceFileLive = Layer.succeed(
       Effect.tryPromise({
         try: async () => {
           const filePath = (await resolveExistingFile(input)).realFilePath
-          const result = await shell.openPath(filePath)
+          const result = await openPath(filePath)
           if (result) throw new Error(result)
         },
         catch: (cause) => workspaceFileError('open-file', cause),
