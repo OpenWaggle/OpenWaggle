@@ -18,6 +18,7 @@ import {
   calculateContentHash,
   resolveSafePackageFilePath,
 } from '../adapters/extensions/package-files'
+import { env } from '../env'
 import {
   createTrustedMainNetworkPolicy,
   runWithTrustedMainNetworkPolicy,
@@ -26,6 +27,13 @@ import type { DiscoveredExtensionPackage, ExtensionPackageScope } from './types'
 
 export const TRUSTED_MAIN_CONTRIBUTION_ID = 'openwaggle.trusted-main'
 const TRUSTED_MAIN_CONTENT_HASH_QUERY = 'openwaggleExtensionContentHash'
+
+export class TrustedMainAutomationDisabledError extends Error {
+  constructor(extensionId: string) {
+    super(`Trusted main extension "${extensionId}" cannot run during non-disruptive automation.`)
+    this.name = 'TrustedMainAutomationDisabledError'
+  }
+}
 
 let trustedMainRuntimeCacheRootPromise: Promise<string> | null = null
 
@@ -281,6 +289,9 @@ export async function activateTrustedMainExtension(input: {
   readonly transport: ExtensionBrokerTransport
   readonly loadModule?: TrustedMainExtensionModuleLoader
 }) {
+  if (env.OPENWAGGLE_AUTOMATION === '1') {
+    throw new TrustedMainAutomationDisabledError(input.extensionPackage.id)
+  }
   const loader = input.loadModule ?? importTrustedMainExtensionModule
   const networkPolicy = createTrustedMainNetworkPolicy(input.extensionPackage)
   const loaded = await runWithTrustedMainNetworkPolicy(networkPolicy, () =>

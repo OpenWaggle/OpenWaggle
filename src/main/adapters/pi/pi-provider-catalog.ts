@@ -15,6 +15,7 @@ import {
   createOpenWagglePiSettingsManager,
 } from './openwaggle-pi-settings-storage'
 import {
+  createOpenWaggleGlobalPiResourceLoaderOptions,
   createOpenWagglePiResourceLoaderOptions,
   type PiRuntimeServicesOptions,
 } from './pi-provider-resources'
@@ -174,6 +175,7 @@ async function createPiGlobalProviderCatalogServices() {
       cwd: agentDir,
       agentDir,
       settingsManager,
+      resourceLoaderOptions: createOpenWaggleGlobalPiResourceLoaderOptions(),
     }),
   )
   return services

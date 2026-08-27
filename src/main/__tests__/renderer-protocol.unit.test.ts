@@ -14,11 +14,20 @@ interface ProtocolRequest {
 
 type ProtocolHandler = (request: ProtocolRequest) => Response | Promise<Response>
 
+interface RendererProtocolEnvMock {
+  ELECTRON_RENDERER_URL: string
+  OPENWAGGLE_AUTOMATION_LEASE_TOKEN: string | undefined
+}
+
 const protocolMocks = vi.hoisted(() => {
   const protocolHandlers = new Map<string, ProtocolHandler>()
+  const env: RendererProtocolEnvMock = {
+    ELECTRON_RENDERER_URL: '',
+    OPENWAGGLE_AUTOMATION_LEASE_TOKEN: undefined,
+  }
   return {
     is: { dev: false },
-    env: { ELECTRON_RENDERER_URL: '' },
+    env,
     app: { getPath: vi.fn(() => '/tmp/user-data') },
     existsSync: vi.fn(),
     fetch: vi.fn((url: string) => Promise.resolve(new Response(url))),
@@ -82,6 +91,7 @@ describe('renderer protocol', () => {
     tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-renderer-protocol-'))
     protocolMocks.is.dev = false
     protocolMocks.env.ELECTRON_RENDERER_URL = ''
+    protocolMocks.env.OPENWAGGLE_AUTOMATION_LEASE_TOKEN = undefined
     protocolMocks.app.getPath.mockReturnValue(path.join(tmpRoot, 'user-data'))
     protocolMocks.existsSync.mockReset()
     protocolMocks.fetch.mockClear()
@@ -143,6 +153,15 @@ describe('renderer protocol', () => {
 
     expect(devRendererUrl()).toBe('http://localhost:5173')
     expect(protocolMocks.handle).not.toHaveBeenCalled()
+  })
+
+  it('adds the managed launcher identity to the renderer URL', async () => {
+    protocolMocks.env.OPENWAGGLE_AUTOMATION_LEASE_TOKEN = 'qa-identity'
+    const { rendererUrlWithAutomationIdentity } = await loadRendererProtocol()
+
+    expect(rendererUrlWithAutomationIdentity('http://localhost:5173')).toBe(
+      'http://localhost:5173/?openwaggle-automation-id=qa-identity',
+    )
   })
 
   it('serves existing renderer assets and returns not-found for missing assets', async () => {

@@ -18,7 +18,7 @@ Use `pnpm` only.
 
 ```bash
 pnpm dev                # Electron dev app
-pnpm dev:debug          # Electron dev app with CDP on port 9222
+pnpm dev:debug          # Hidden Electron QA with CDP on port 9223
 pnpm build              # Production build
 pnpm typecheck          # Node + web typecheck
 pnpm lint               # Biome + ESLint architecture and style rules
@@ -89,6 +89,6 @@ Agent-facing release and update-track guidance lives in `docs/agents/release.md`
 1. Scope is met without unapproved side effects.
 2. Types, lint, architecture, and relevant tests are green or reported with exact blockers.
 3. Renderer changes are checked with React Doctor when practical.
-4. Renderer, preload, IPC, and interaction changes are verified in real Electron via `pnpm dev:debug` and `electron-qa` when practical.
+4. Renderer, preload, IPC, and interaction changes are verified through non-disruptive real-Electron QA via `pnpm dev:debug` and `electron-qa` when practical. Every completed agent-run Electron QA captures representative screenshots outside the repository and renders them in the final report. Never run headed Electron QA without the maintainer's explicit approval for that exact run.
 5. Significant OpenWaggle technical findings are added to `MEMORY.md` or a focused skill, not to deleted legacy memory files.
 6. The final report states what changed, what was validated, and any remaining risk.

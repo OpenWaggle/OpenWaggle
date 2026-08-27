@@ -1,7 +1,6 @@
 import { homedir } from 'node:os'
 import type { McpSecretSummary, McpSettingsView } from '@shared/types/mcp'
 import { Effect, Layer, ManagedRuntime } from 'effect'
-import { shell } from 'electron'
 import { EncryptedMcpSecretVaultServiceLive } from './adapters/mcp/encrypted-mcp-secret-vault-service'
 import { FilesystemMcpConfigServiceLive } from './adapters/mcp/filesystem-mcp-config-service'
 import { McpTurnStateServiceLive } from './adapters/mcp/mcp-turn-state-service'
@@ -14,6 +13,7 @@ import {
 } from './adapters/mcp/registry-client'
 import { runMcpRuntimeDoctor } from './adapters/mcp/runtime/runtime-doctor'
 import type { createFilesystemMcpConfigService } from './adapters/mcp/service-factory'
+import { openExternal } from './desktop-ui'
 import {
   addDefinition,
   definitionFor,
@@ -196,7 +196,7 @@ async function runCredentialCommand(input: {
         instanceId: input.server.instanceId,
         definition,
         vault,
-        openExternal: (url) => shell.openExternal(url),
+        openExternal,
       })
     }
     if (!hasFlag(input.args, 'secret-stdin')) {

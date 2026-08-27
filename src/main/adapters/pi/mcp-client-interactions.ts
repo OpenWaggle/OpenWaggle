@@ -1,6 +1,7 @@
 import { type Context, complete, type Tool, type UserMessage } from '@earendil-works/pi-ai/compat'
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
+import { openExternal } from '../../desktop-ui'
 import type {
   McpElicitationResult,
   McpRuntimeInteractions,
@@ -51,8 +52,7 @@ async function handleUrlElicitation(input: {
     signal,
   })
   if (!approved) return { action: 'decline' }
-  const { shell } = await import('electron')
-  await shell.openExternal(url.href)
+  await openExternal(url.href)
   const completed = await input.ctx.ui.confirm(
     'MCP elicitation opened',
     'Confirm only after you have completed the external flow. The server will be told that the flow may continue.',

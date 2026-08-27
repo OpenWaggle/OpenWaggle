@@ -2,8 +2,9 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { _electron as electron, expect, type ElectronApplication, type Page } from '@playwright/test'
+import { expect, type ElectronApplication, type Page } from '@playwright/test'
 import type { OpenWaggleApi } from '@shared/types/ipc'
+import { launchOpenWaggleElectron } from './playwright-electron-launcher'
 import {
   PROJECT_NAME,
   seedMarketingSession,
@@ -22,53 +23,18 @@ const SCREENSHOT_OUTPUT_DIR = path.join(ROOT_DIR, 'website', 'public', 'screensh
 const WINDOW_WIDTH_PX = 1600
 const WINDOW_HEIGHT_PX = 1000
 const UI_SETTLE_DELAY_MS = 350
-const E2E_ENV_KEYS: readonly string[] = [
-  'CI',
-  'COLORTERM',
-  'DISPLAY',
-  'HOME',
-  'LANG',
-  'LC_ALL',
-  'LOGNAME',
-  'PATH',
-  'SHELL',
-  'SYSTEMROOT',
-  'TERM',
-  'TMP',
-  'TMPDIR',
-  'USER',
-  'USERPROFILE',
-  'WAYLAND_DISPLAY',
-  'XDG_RUNTIME_DIR',
-] as const
-
 const HERO_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'hero-screenshot.png')
 const CODING_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'feature-coding-agent.png')
 const GIT_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'feature-git-workflow.png')
 const EXTENSIBLE_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'feature-extensible.png')
 const SESSION_TREE_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'session-tree-panel.png')
 
-function buildElectronEnv(userDataDir: string): Record<string, string> {
-  const env: Record<string, string> = {
-    OPENWAGGLE_USER_DATA_DIR: userDataDir,
-  }
-
-  for (const key of E2E_ENV_KEYS) {
-    const value = process.env[key]
-    if (typeof value === 'string' && value.length > 0) {
-      env[key] = value
-    }
-  }
-
-  return env
-}
-
 async function launchApp(userDataDir: string): Promise<{ app: ElectronApplication; page: Page }> {
   console.info('[website-shots] launching app')
-  const app = await electron.launch({
-    args: ['.'],
+  const app = await launchOpenWaggleElectron({
     cwd: ROOT_DIR,
-    env: buildElectronEnv(userDataDir),
+    userDataDir,
+    hidden: true,
   })
   const page = await app.firstWindow()
 

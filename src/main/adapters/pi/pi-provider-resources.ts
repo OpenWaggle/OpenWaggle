@@ -6,6 +6,7 @@ import type {
   SettingsManager,
 } from '@earendil-works/pi-coding-agent'
 import { normalizeSkillId } from '@shared/utils/skill-id'
+import { env } from '../../env'
 import { isPathInside } from '../../utils/paths'
 import type { OpenWaggleExtensionPiResourceRoot } from './openwaggle-pi-settings-resources'
 
@@ -89,16 +90,27 @@ function filterDisabledCatalogSkills(
     diagnostics: base.diagnostics,
   }
 }
+
+function disableExecutableExtensionsForAutomation() {
+  return env.OPENWAGGLE_AUTOMATION === '1'
+}
+
+export function createOpenWaggleGlobalPiResourceLoaderOptions(): PiResourceLoaderOptions {
+  return disableExecutableExtensionsForAutomation() ? { noExtensions: true } : {}
+}
+
 export function createOpenWagglePiResourceLoaderOptions(
   projectPath: string,
   options: PiRuntimeServicesOptions = {},
   settingsManager?: SettingsManager,
 ): PiResourceLoaderOptions {
   const skillToggles = options.skillToggles ?? {}
+  const disableExtensions = disableExecutableExtensionsForAutomation()
   return {
-    additionalExtensionPaths: settingsManager
-      ? []
-      : getEnabledOpenWaggleExtensionPackagePaths(options.enabledOpenWaggleExtensionPackagePaths),
+    additionalExtensionPaths:
+      disableExtensions || settingsManager
+        ? []
+        : getEnabledOpenWaggleExtensionPackagePaths(options.enabledOpenWaggleExtensionPackagePaths),
     additionalSkillPaths: settingsManager
       ? []
       : includeExistingPath(getOpenWaggleSkillsRoot(projectPath)),
@@ -109,6 +121,9 @@ export function createOpenWagglePiResourceLoaderOptions(
       ? []
       : includeExistingPath(getOpenWaggleThemesRoot(projectPath)),
     skillsOverride: (base) => filterDisabledCatalogSkills(projectPath, skillToggles, base),
-    ...(options.extensionFactories ? { extensionFactories: [...options.extensionFactories] } : {}),
+    ...(disableExtensions ? { noExtensions: true } : {}),
+    ...(!disableExtensions && options.extensionFactories
+      ? { extensionFactories: [...options.extensionFactories] }
+      : {}),
   }
 }

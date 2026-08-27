@@ -577,10 +577,10 @@ pnpm test:e2e:headless e2e/extension-host.e2e.test.ts
 
 The E2E test creates an isolated user-data directory and temporary project, installs the `openwaggle-github-issues-overview` fixture into that project's `.openwaggle/extensions/`, seeds a project-scoped session so Settings discovers the project scope, then drives Settings > Extensions through trust, enable, reload, iframe render, SDK-backed configuration save, disable, and package removal from discovery.
 
-Manual real-Electron QA uses the same path:
+Human-driven real-Electron QA uses the explicitly visible debug path. Agents must not run this command without the maintainer's approval for that exact run:
 
 1. Run `pnpm extension:qa:install openwaggle-github-issues-overview`.
-2. Start Electron with CDP using `pnpm dev:debug`.
+2. Start visible Electron with CDP using `pnpm dev:debug:headed`.
 3. Verify CDP with `curl -s http://127.0.0.1:9222/json/version`.
 4. Open Settings > Extensions and click Refresh.
 5. Trust `GitHub Issues Overview`, enable it, then click Reload.
