@@ -183,6 +183,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 ## Tooling Memory
 
 - Package manager: `pnpm`.
+- GitHub can return a generic GraphQL error from `gh pr create` after a release branch has already been pushed. Release preparation must retry the mutation and re-query the exact same-repository release branch after every failure so it can adopt an ambiguously created PR instead of stranding the release or creating conflicting state.
 - TypeScript-first tooling is preferred; do not add JavaScript configs when `.ts` is practical.
 - No TypeScript `baseUrl`; preserve aliases through explicit `paths` entries.
 - `exactOptionalPropertyTypes` and `noUncheckedIndexedAccess` are the target strictness posture, but enabling them in build or lint tsconfigs requires a dedicated source-modeling pass across the active Pi/session refactor; lint-only enablement can create TypeScript `error` types that surface as noisy Oxlint `typescript/no-unsafe-*` diagnostics.

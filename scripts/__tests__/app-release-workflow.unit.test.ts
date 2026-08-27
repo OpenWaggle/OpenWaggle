@@ -79,6 +79,20 @@ describe('desktop app release workflow', () => {
     expect(WORKFLOW).toContain('Release PR merged after validation')
   })
 
+  it('recovers from transient and ambiguous GitHub PR creation failures', () => {
+    expect(WORKFLOW).toContain('for PR_CREATE_ATTEMPT in $(seq 1 4)')
+    expect(WORKFLOW).toContain('2>"$PR_CREATE_ERROR"')
+    expect(WORKFLOW).toContain(
+      'RECOVERY_ALL_PRS=$(gh pr list --state open --head "$RELEASE_BRANCH"',
+    )
+    expect(WORKFLOW).toContain('scripts/app-release-state.ts filter-prs')
+    expect(WORKFLOW).toContain(
+      'Adopted release PR after an ambiguous creation failure',
+    )
+    expect(WORKFLOW).toContain('sleep $((PR_CREATE_ATTEMPT * 5))')
+    expect(WORKFLOW).toContain('test -n "$PR_URL"')
+  })
+
   it('accepts no candidate package changes beyond the expected version', () => {
     expect(WORKFLOW).toContain('verify_version_only_tree()')
     expect(WORKFLOW).toContain('scripts/app-release-state.ts expected-manifest')
