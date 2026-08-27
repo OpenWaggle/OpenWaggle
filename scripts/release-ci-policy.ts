@@ -10,8 +10,11 @@ import {
   COMMIT_POLICY_CHECKOUT_STEP,
   CONCURRENCY_GROUP,
   DISPATCH_GUARD_STEP,
+  E2E_RUNNERS,
   EXPECTED_STEPS,
   IMMUTABLE_ACTIONS,
+  REQUIRED_COMMANDS,
+  WINDOWS_DISPATCH_GUARD_STEP,
 } from './release-ci-policy-steps'
 
 export const REQUIRED_CI_CHECKS = [
@@ -19,6 +22,8 @@ export const REQUIRED_CI_CHECKS = [
   'Typecheck & Lint',
   'Unit & Component Tests',
   'Electron E2E (macOS)',
+  'Electron E2E (Linux)',
+  'Electron E2E (Windows)',
 ] as const
 const EXPECTED_CI_JOBS = [
   ...REQUIRED_CI_CHECKS,
@@ -84,7 +89,12 @@ function validateDispatchSupport(
   }
 
   const requiredJobs = jobs.filter((job) => isRequiredCheck(job.name))
-  const guardedJobs = requiredJobs.filter((job) => readSteps(job)[0] === DISPATCH_GUARD_STEP)
+  const guardedJobs = requiredJobs.filter((job) => {
+    const expectedGuard = job.name === 'Electron E2E (Windows)'
+      ? WINDOWS_DISPATCH_GUARD_STEP
+      : DISPATCH_GUARD_STEP
+    return readSteps(job)[0] === expectedGuard
+  })
   const checkoutJobs = requiredJobs.filter((job) =>
     readSteps(job).some(
       (step) => step === CHECKOUT_STEP || step === COMMIT_POLICY_CHECKOUT_STEP,
@@ -105,8 +115,11 @@ function validateDispatchSupport(
 
   for (const job of requiredJobs) {
     const steps = readSteps(job)
+    const expectedGuard = job.name === 'Electron E2E (Windows)'
+      ? WINDOWS_DISPATCH_GUARD_STEP
+      : DISPATCH_GUARD_STEP
     const hasContract =
-      steps[0] === DISPATCH_GUARD_STEP &&
+      steps[0] === expectedGuard &&
       steps.some((step) => step === CHECKOUT_STEP || step === COMMIT_POLICY_CHECKOUT_STEP)
     if (!hasContract) {
       violations.push(`CI job ${job.name} must independently guard and check out inputs.head_sha.`)
@@ -174,15 +187,16 @@ function validateSecurity(
 function validateRequiredJobContract(job: ReleaseCiWorkflowJob, violations: string[]) {
   if (!isRequiredCheck(job.name)) return
   const jobKeys = job.keys
-  if (job.name === 'Electron E2E (macOS)') {
+  const e2eRunner = E2E_RUNNERS.get(job.name)
+  if (e2eRunner !== undefined) {
     const e2eJobKeys = [...REQUIRED_JOB_KEYS, 'timeout-minutes']
     const hasExactE2eContract =
       jobKeys.length === e2eJobKeys.length &&
       e2eJobKeys.every((key) => jobKeys.includes(key)) &&
-      /^ {4}runs-on: macos-15$/m.test(job.block)
+      new RegExp(`^ {4}runs-on: ${e2eRunner}$`, 'm').test(job.block)
     if (!hasExactE2eContract) {
       violations.push(
-        'CI job Electron E2E (macOS) must keep the exact blocking job contract: name, macos-15 runner, timeout, and steps only.',
+        `CI job ${job.name} must keep the exact blocking job contract: name, ${e2eRunner} runner, timeout, and steps only.`,
       )
     }
     return
@@ -231,14 +245,7 @@ function validateRequiredChecks(
       continue
     }
 
-    const requiredCommand =
-      job.name === 'Typecheck & Lint'
-        ? 'pnpm check'
-        : job.name === 'Unit & Component Tests'
-          ? 'pnpm test'
-          : job.name === 'Electron E2E (macOS)'
-            ? 'pnpm test:e2e'
-            : undefined
+    const requiredCommand = REQUIRED_COMMANDS.get(job.name)
     if (requiredCommand !== undefined) {
       const exactStep = `      - run: ${requiredCommand}`
       if (!actual.includes(exactStep)) {

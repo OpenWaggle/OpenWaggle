@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 
 const THREAD_VISIBILITY_TIMEOUT_MS = 12_000
+const WINDOW_READINESS_TIMEOUT_MS = 30_000
 const NEW_THREAD_LABEL = 'New session'
 const SCROLL_BOTTOM_TOLERANCE_PX = 40
 
@@ -8,7 +9,9 @@ export class MainWindowPage {
   constructor(readonly page: Page) {}
 
   async waitUntilReady(): Promise<void> {
-    await expect(this.page.getByRole('button', { name: NEW_THREAD_LABEL }).first()).toBeVisible()
+    await expect(this.page.getByRole('button', { name: NEW_THREAD_LABEL }).first()).toBeVisible({
+      timeout: WINDOW_READINESS_TIMEOUT_MS,
+    })
   }
 
   newThreadButton(): Locator {

@@ -77,6 +77,8 @@ export function compatibleRuleset(
     { context: 'Typecheck & Lint' },
     { context: 'Unit & Component Tests' },
     { context: 'Electron E2E (macOS)' },
+    { context: 'Electron E2E (Linux)' },
+    { context: 'Electron E2E (Windows)' },
   ],
 ): CompatibleRulesetFixture {
   return {

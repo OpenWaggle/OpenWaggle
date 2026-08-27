@@ -44,6 +44,8 @@ export const REQUIRED_CHECK_CONTEXTS = [
   'Typecheck & Lint',
   'Unit & Component Tests',
   'Electron E2E (macOS)',
+  'Electron E2E (Linux)',
+  'Electron E2E (Windows)',
 ] as const
 
 export const DEPLOYED_LEGACY_CHECK_CONTEXTS = [

@@ -16,6 +16,18 @@ const PNPM_ACTION_SETUP = 'pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9
 const ACTION_UPLOAD_ARTIFACT =
   'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7'
 export const IMMUTABLE_ACTIONS = [ACTION_CHECKOUT, PNPM_ACTION_SETUP, ACTION_SETUP_NODE] as const
+export const E2E_RUNNERS = new Map<string, string>([
+  ['Electron E2E (macOS)', 'macos-15'],
+  ['Electron E2E (Linux)', 'ubuntu-latest'],
+  ['Electron E2E (Windows)', 'windows-latest'],
+])
+export const REQUIRED_COMMANDS = new Map<string, string>([
+  ['Typecheck & Lint', 'pnpm check'],
+  ['Unit & Component Tests', 'pnpm test'],
+  ['Electron E2E (macOS)', 'pnpm test:e2e'],
+  ['Electron E2E (Linux)', 'xvfb-run --auto-servernum pnpm test:e2e:functional'],
+  ['Electron E2E (Windows)', 'pnpm test:e2e:functional'],
+])
 export const CONCURRENCY_GROUP =
   'group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || inputs.head_sha || github.ref }}'
 export const DISPATCH_GUARD_STEP = `      - name: Verify dispatched commit identity
@@ -26,6 +38,14 @@ export const DISPATCH_GUARD_STEP = `      - name: Verify dispatched commit ident
         run: |
           [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
           test "$DISPATCHED_SHA" = "$EXPECTED_SHA"`
+export const WINDOWS_DISPATCH_GUARD_STEP = `      - name: Verify dispatched commit identity
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          DISPATCHED_SHA: \${{ github.sha }}
+          EXPECTED_SHA: \${{ inputs.head_sha }}
+        run: |
+          if ($env:EXPECTED_SHA -notmatch '^[0-9a-f]{40}$') { exit 1 }
+          if ($env:DISPATCHED_SHA -ne $env:EXPECTED_SHA) { exit 1 }`
 export const CHECKOUT_STEP = `      - uses: ${ACTION_CHECKOUT}
         with:
           ref: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}`
@@ -41,14 +61,17 @@ const NODE_SETUP_STEP = `      - uses: ${ACTION_SETUP_NODE}
           node-version: 24.14.0
           cache: pnpm`
 const INSTALL_STEP = '      - run: pnpm install --frozen-lockfile'
-const E2E_FAILURE_ARTIFACT_STEP = `      - name: Upload Electron E2E failure artifacts
+const e2eFailureArtifactStep = (platform: 'linux' | 'macos' | 'windows') =>
+  `      - name: Upload Electron E2E failure artifacts
         if: failure()
         uses: ${ACTION_UPLOAD_ARTIFACT}
         with:
-          name: electron-e2e-macos-failure
+          name: electron-e2e-${platform}-failure
           path: test-results
           if-no-files-found: ignore
           retention-days: 7`
+const LINUX_ELECTRON_DEPENDENCIES_STEP = `      - name: Install Linux Electron dependencies
+        run: pnpm exec playwright install-deps chromium`
 /*
  * NSIS is required by `pnpm check:installer`, which compile-checks build/installer.nsh.
  * Pinned here because a broken installer script otherwise only surfaces when the release
@@ -110,7 +133,32 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
       NODE_SETUP_STEP,
       INSTALL_STEP,
       '      - run: pnpm test:e2e',
-      E2E_FAILURE_ARTIFACT_STEP,
+      e2eFailureArtifactStep('macos'),
+    ],
+  ],
+  [
+    'Electron E2E (Linux)',
+    [
+      DISPATCH_GUARD_STEP,
+      CHECKOUT_STEP,
+      PNPM_SETUP_STEP,
+      NODE_SETUP_STEP,
+      INSTALL_STEP,
+      LINUX_ELECTRON_DEPENDENCIES_STEP,
+      '      - run: xvfb-run --auto-servernum pnpm test:e2e:functional',
+      e2eFailureArtifactStep('linux'),
+    ],
+  ],
+  [
+    'Electron E2E (Windows)',
+    [
+      WINDOWS_DISPATCH_GUARD_STEP,
+      CHECKOUT_STEP,
+      PNPM_SETUP_STEP,
+      NODE_SETUP_STEP,
+      INSTALL_STEP,
+      '      - run: pnpm test:e2e:functional',
+      e2eFailureArtifactStep('windows'),
     ],
   ],
 ])

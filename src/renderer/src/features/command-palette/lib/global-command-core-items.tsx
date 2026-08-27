@@ -215,7 +215,7 @@ export function createRecentProjectItems(
 ): CommandPaletteItem[] {
   return settings.recentProjects.map((path) => ({
     id: `project:${path}`,
-    label: settings.projectDisplayNames[path] ?? path.split('/').at(-1) ?? path,
+    label: settings.projectDisplayNames[path] ?? projectName(path),
     description: projectName(path),
     icon: <FolderOpen className="size-3.5" />,
     section: 'Recent projects',
