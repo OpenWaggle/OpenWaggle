@@ -29,4 +29,22 @@ describe('Playwright Electron launch mode', () => {
       delete process.env.OPENWAGGLE_QA_TEST_SECRET
     }
   })
+
+  it('forwards the display and X authority required by a Linux virtual display', () => {
+    const previousDisplay = process.env.DISPLAY
+    const previousXAuthority = process.env.XAUTHORITY
+    process.env.DISPLAY = ':99'
+    process.env.XAUTHORITY = '/tmp/xvfb-authority'
+    try {
+      expect(buildSafeElectronEnvironment({})).toMatchObject({
+        DISPLAY: ':99',
+        XAUTHORITY: '/tmp/xvfb-authority',
+      })
+    } finally {
+      if (previousDisplay === undefined) delete process.env.DISPLAY
+      else process.env.DISPLAY = previousDisplay
+      if (previousXAuthority === undefined) delete process.env.XAUTHORITY
+      else process.env.XAUTHORITY = previousXAuthority
+    }
+  })
 })
