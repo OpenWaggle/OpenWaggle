@@ -34,15 +34,20 @@ export function CommandDialog({
       aria-modal="true"
       aria-label={title}
       className="fixed inset-0 z-50 m-0 flex size-full max-h-none max-w-none items-start justify-center border-0 bg-bg/60 px-4 pt-(--command-dialog-top-padding) text-text-primary backdrop-blur-[2px] [--command-dialog-top-padding:14vh]"
-      onMouseDown={(event) => {
-        if (event.currentTarget === event.target) onClose()
-      }}
       onCancel={(event) => {
         event.preventDefault()
         onClose()
       }}
     >
-      <section className="flex max-h-(--command-dialog-max-height) w-full max-w-170 flex-col overflow-hidden rounded-xl border border-border-light bg-bg-secondary shadow-2xl shadow-bg/60 [--command-dialog-max-height:70vh]">
+      <Button
+        variant="unstyled"
+        type="button"
+        tabIndex={-1}
+        aria-label={`Dismiss ${title}`}
+        className="absolute inset-0 cursor-default"
+        onClick={onClose}
+      />
+      <section className="relative z-1 flex max-h-(--command-dialog-max-height) w-full max-w-170 flex-col overflow-hidden rounded-xl border border-border-light bg-bg-secondary shadow-2xl shadow-bg/60 [--command-dialog-max-height:70vh]">
         <header className="flex min-h-12 items-center gap-3 border-b border-border px-4">
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-sm font-semibold text-text-primary">{title}</h2>

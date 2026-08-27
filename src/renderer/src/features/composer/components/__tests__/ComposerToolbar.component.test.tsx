@@ -46,15 +46,27 @@ const PROVIDER_MODELS: ProviderInfo[] = [
 function renderToolbar(overrides: Partial<Parameters<typeof ComposerToolbar>[0]> = {}) {
   const fileInputRef: React.RefObject<HTMLInputElement | null> = { current: null }
   const defaults = {
-    onSend: vi.fn(),
-    onCancel: vi.fn(),
-    isLoading: false,
-    canSend: true,
+    submission: {
+      onSend: vi.fn(),
+      onCancel: vi.fn(),
+      isLoading: false,
+      canSend: true,
+    },
     onToggleVoice: vi.fn(),
     voiceMode: 'idle' as const,
     fileInputRef,
   }
   return render(<ComposerToolbar {...defaults} {...overrides} />)
+}
+
+function submission(overrides: Partial<Parameters<typeof ComposerToolbar>[0]['submission']> = {}) {
+  return {
+    onSend: vi.fn(),
+    onCancel: vi.fn(),
+    isLoading: false,
+    canSend: true,
+    ...overrides,
+  }
 }
 
 describe('ComposerToolbar', () => {
@@ -86,6 +98,23 @@ describe('ComposerToolbar', () => {
     expect(useComposerStore.getState().thinkingMenuOpen).toBe(true)
     expect(screen.getByText('Low')).toBeInTheDocument()
     expect(screen.getByText('High')).toBeInTheDocument()
+  })
+
+  it('opens the composer add menu with the existing context entry points', () => {
+    usePreferencesStore.setState({
+      settings: {
+        ...usePreferencesStore.getState().settings,
+        projectPath: '/repo',
+      },
+    })
+    renderToolbar()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add to message' }))
+
+    expect(screen.getByRole('menuitem', { name: /Attach files/ })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /Reference project file/ })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /Use a skill/ })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /Start Waggle/ })).toBeInTheDocument()
   })
 
   it('shows the selected model effective thinking level instead of unsupported xhigh', () => {
@@ -137,32 +166,32 @@ describe('ComposerToolbar', () => {
   })
 
   it('renders cancel button when loading', () => {
-    renderToolbar({ isLoading: true })
+    renderToolbar({ submission: submission({ isLoading: true }) })
     expect(screen.getByTitle('Cancel')).toBeInTheDocument()
   })
 
   it('renders both cancel and add-message buttons when loading and canSend', () => {
-    renderToolbar({ isLoading: true, canSend: true })
+    renderToolbar({ submission: submission({ isLoading: true, canSend: true }) })
     expect(screen.getByTitle('Cancel')).toBeInTheDocument()
     expect(screen.getByTitle('Add message')).toBeInTheDocument()
   })
 
   it('calls onSend when send button is clicked', () => {
     const onSend = vi.fn()
-    renderToolbar({ onSend })
+    renderToolbar({ submission: submission({ onSend }) })
     fireEvent.click(screen.getByTitle('Send message'))
     expect(onSend).toHaveBeenCalledOnce()
   })
 
   it('calls onCancel when cancel button is clicked', () => {
     const onCancel = vi.fn()
-    renderToolbar({ isLoading: true, onCancel })
+    renderToolbar({ submission: submission({ isLoading: true, onCancel }) })
     fireEvent.click(screen.getByTitle('Cancel'))
     expect(onCancel).toHaveBeenCalledOnce()
   })
 
   it('disables send button when canSend is false', () => {
-    renderToolbar({ canSend: false })
+    renderToolbar({ submission: submission({ canSend: false }) })
     const button = screen.getByTitle('Send message')
     expect(button).toBeDisabled()
   })

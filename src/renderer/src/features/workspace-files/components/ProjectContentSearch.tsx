@@ -4,6 +4,7 @@ import { Search, TextSearch } from 'lucide-react'
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { usePreferencesStore } from '@/features/settings/state'
 import { workspaceContentQueryOptions } from '@/queries/workspace-files'
+import { projectName } from '@/shared/lib/format'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
 import { CommandDialog } from '@/shared/ui/CommandDialog'
@@ -90,7 +91,7 @@ export function ProjectContentSearch() {
   return (
     <CommandDialog
       title="Search project contents"
-      description={projectPath ?? 'No active project'}
+      description={projectPath ? projectName(projectPath) : 'No active project'}
       onClose={close}
       footer={
         <>

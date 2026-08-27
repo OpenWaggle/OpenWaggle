@@ -39,6 +39,34 @@ export function insertTextAtEditorOrStore(
   })
 }
 
+/** Insert a composer-native invocation character at the caret without creating another draft path. */
+export function insertComposerInvocation(invocation: '@' | '/') {
+  const store = useComposerStore.getState()
+  const editor = store.lexicalEditor
+  if (!editor) {
+    const index = Math.max(0, Math.min(store.cursorIndex, store.input.length))
+    store.setInput(`${store.input.slice(0, index)}${invocation}${store.input.slice(index)}`)
+    store.setCursorIndex(index + 1)
+    return
+  }
+
+  editor.update(() => {
+    const selection = $getSelection()
+    if ($isRangeSelection(selection)) {
+      selection.insertText(invocation)
+      return
+    }
+    const root = $getRoot()
+    root.selectEnd()
+    const lastChild = root.getLastChild()
+    const paragraph = lastChild && $isElementNode(lastChild) ? lastChild : $createParagraphNode()
+    if (!lastChild || !$isElementNode(lastChild)) root.append(paragraph)
+    paragraph.append($createTextNode(invocation))
+    root.selectEnd()
+  })
+  editor.focus()
+}
+
 export function insertSkillReferenceAtActiveSlash(skillId: string, skillName: string) {
   const store = useComposerStore.getState()
   if (!store.lexicalEditor) {

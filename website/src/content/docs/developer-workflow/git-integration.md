@@ -47,13 +47,28 @@ Branch and worktree **lists** are repository-level (a linked worktree shares ref
 
 ### Choosing where a session runs
 
-The row below the composer starts with a **Run in** selector offering **Current checkout** and **New worktree**. It appears only while the session still has no worktree — that is, before the first message — because after the worktree exists there is nothing left to choose. It overrides the global default set in Settings → Worktrees (shipped default: **Current checkout**).
+The context row at the top of the composer has separate controls for the environment and Git ref. The environment selector offers **Current checkout** and **New worktree**. The branch control stays separate, so choosing an environment never hides or changes the meaning of the selected ref.
+
+You can edit both controls before the first message. OpenWaggle freezes them after the session starts because changing either value would change where an existing conversation runs. The environment selector overrides the global default in Settings → Worktrees. The shipped default is **Current checkout**.
 
 In **New worktree** mode the first send needs a base branch. Until one resolves, sending is refused with:
 
 > Select a base branch before sending in worktree mode.
 
 Session worktrees are created outside your project, at `~/.openwaggle/worktrees/<repository>/<sessionId>`, on a branch named `ow/session-<sessionId>` — the same id as the directory. Worktrees created before this naming change keep their older, shortened name; **Recreate worktree** reattaches to it rather than starting a new branch, so commits made in the old tree are not stranded. You can list and remove them in Settings → Worktrees.
+
+### First-send worktree feedback
+
+When the first message creates a worktree, OpenWaggle reports setup before the agent starts:
+
+1. **Preparing workspace** resolves the requested base ref and target path.
+2. **Checking out files** runs the Git worktree operation.
+3. **Worktree created** confirms that the isolated checkout exists.
+4. **Starting a task** hands the retained message to the agent.
+
+While setup runs, the transcript shows a **Creating a worktree** card with **More details**, **Work locally**, and **Cancel**. **Work locally** stops the in-flight setup, changes that session to Current checkout, and retries the same submitted turn once. **Cancel** removes the optimistic turn and restores its text, attachments, skill reference, and Waggle preset to the composer.
+
+If setup fails, the card keeps the submitted turn visible and adds **Retry**. The details disclose the Git operation and error instead of replacing it with a generic spinner. Once the agent starts, the large card becomes a small expandable **Worktree created** row. That row remains in the transcript after reload as a record of where the session began. Local sessions and cancelled worktree launches do not get that row.
 
 ### Recovering a missing worktree
 
@@ -68,7 +83,7 @@ The same row then offers two explicit choices:
 
 ## Run Target
 
-The right-hand side of the row below the composer shows the ref the next send will use — the checked-out branch in Current-checkout mode, or the worktree's branch (or chosen base ref, before the worktree exists) in New-worktree mode. Click it to open the picker.
+The right-hand side of the composer context row shows the ref the next send will use. In Current-checkout mode this is the checked-out branch. In New-worktree mode it is the chosen base ref before creation, then the worktree branch. Click it to open the picker.
 
 - **Search branches** — Filter local and remote branches by name.
 - **Click a branch** — In Current-checkout mode this checks the branch out. In New-worktree mode it instead records that branch as the **base ref** the worktree will be created from; nothing is checked out.

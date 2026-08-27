@@ -23,6 +23,7 @@ function getChatRowKey(row: ChatRow) {
     .with('message', (value) => `message:${value.message.id}`)
     .with('waggle-turn', (value) => value.id)
     .with('interrupted-run', (value) => `interrupted-run:${value.runId}`)
+    .with('worktree-launch', (value) => `worktree-launch:${value.id}`)
     .with(
       'agent-loop-custom-message',
       (value) => `custom:${value.event.timestamp}:${value.event.name}`,

@@ -26,6 +26,7 @@ import {
 } from './useAgentChat.effects'
 import { EMPTY_UI_MESSAGES } from './useAgentChat.message-cache'
 import { createAgentRunControls } from './useAgentChat.run-controls'
+import { StreamSignalVersionStore } from './useAgentChat.stream-signal'
 import type {
   AgentChatReturn,
   AgentChatStatus,
@@ -38,29 +39,6 @@ import type {
 import { useOptimisticSteeredTurn } from './useOptimisticSteeredTurn'
 
 export type { AgentChatStatus, AgentCompactionStatus } from './useAgentChat.types'
-
-class StreamSignalVersionStore extends EventTarget {
-  private value = 0
-
-  get current() {
-    return this.value
-  }
-
-  set current(value: number) {
-    if (this.value === value) {
-      return
-    }
-    this.value = value
-    this.dispatchEvent(new Event('change'))
-  }
-
-  readonly getSnapshot = () => this.value
-
-  readonly subscribe = (listener: () => void) => {
-    this.addEventListener('change', listener)
-    return () => this.removeEventListener('change', listener)
-  }
-}
 
 function valueForSession<T extends readonly unknown[]>(
   valuesBySessionId: ReadonlyMap<SessionId, T>,
@@ -100,6 +78,7 @@ export function useAgentChat(
   const hasActiveRun = useBackgroundRunStore((state) => state.hasActiveRun)
   const getRunRenderSnapshot = useBackgroundRunStore((state) => state.getRunRenderSnapshot)
   const setRunRenderMessages = useBackgroundRunStore((state) => state.setRunRenderMessages)
+  const setFirstSendRecovery = useBackgroundRunStore((state) => state.setFirstSendRecovery)
   const optimisticUserMessages = useOptimisticUserMessageStore(
     selectOptimisticUserMessages(sessionId),
   )
@@ -198,10 +177,12 @@ export function useAgentChat(
   }
   const runControls = createAgentRunControls({
     sessionId,
+    isFirstMessage: session?.messages.length === 0,
     model,
     refs,
     setMessagesBySessionId,
     setRunRenderMessages,
+    setFirstSendRecovery,
     setBackgroundStreaming,
     setError,
     setStatus,

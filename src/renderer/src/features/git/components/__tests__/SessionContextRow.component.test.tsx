@@ -6,6 +6,7 @@ import { SessionContextRow } from '../SessionContextRow'
 function stripState(overrides: Partial<SessionContextRowState> = {}): SessionContextRowState {
   return {
     visible: true,
+    editable: true,
     envMode: 'worktree',
     baseRef: 'main',
     worktreePath: null,
@@ -36,11 +37,37 @@ describe('SessionContextRow', () => {
   it('shows the environment mode and nothing that names a ref', () => {
     render(<SessionContextRow strip={stripState({ baseRef: 'develop' })} />)
 
-    expect(screen.getByLabelText('Session environment mode')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Session environment mode: New worktree' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /options/i })).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Worktree base branch')).not.toBeInTheDocument()
     expect(screen.queryByText('Start from origin')).not.toBeInTheDocument()
     expect(screen.queryByText('develop')).not.toBeInTheDocument()
+  })
+
+  it('shows resolved environment context without an editable control after first send', () => {
+    render(<SessionContextRow strip={stripState({ editable: false })} />)
+
+    expect(screen.getByTitle('Session environment: New worktree')).toHaveTextContent(
+      'Local worktree',
+    )
+    expect(
+      screen.queryByRole('button', { name: /Session environment mode/ }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('changes environment mode from an OpenWaggle menu instead of a native select', () => {
+    const setEnvMode = vi.fn()
+    render(<SessionContextRow strip={stripState({ setEnvMode })} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Session environment mode: New worktree' }))
+    expect(screen.getByRole('menu')).toHaveClass('mb-3')
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /Current checkout/ }))
+
+    expect(setEnvMode).toHaveBeenCalledWith('local')
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 
   it('surfaces the send-block reason', () => {

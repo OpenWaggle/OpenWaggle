@@ -1,4 +1,7 @@
-import type { WorkspaceTextFileReadResult } from '@shared/types/workspace-files'
+import type {
+  WorkspaceBinaryFileReadResult,
+  WorkspaceTextFileReadResult,
+} from '@shared/types/workspace-files'
 import { fireEvent, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@/shell/ui-store'
@@ -8,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   openWorkspaceFileExternal: vi.fn(),
   readWorkspaceFile: vi.fn(),
   writeWorkspaceFile: vi.fn(),
+  createObjectURL: vi.fn(() => 'blob:workspace-preview'),
+  revokeObjectURL: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -28,9 +33,24 @@ const FILE: WorkspaceTextFileReadResult = {
   language: 'typescript',
 }
 
+const IMAGE_FILE: WorkspaceBinaryFileReadResult = {
+  path: 'assets/example.png',
+  basename: 'example.png',
+  size: 3,
+  modifiedAt: 1,
+  revision: 'image-revision-1',
+  mimeType: 'image/png',
+  previewKind: 'image',
+  data: Uint8Array.from([1, 2, 3]),
+}
+
 describe('WorkspaceFilePanel external open', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    Object.defineProperties(URL, {
+      createObjectURL: { configurable: true, value: mocks.createObjectURL },
+      revokeObjectURL: { configurable: true, value: mocks.revokeObjectURL },
+    })
     useUIStore.getState().clearToast()
     mocks.readWorkspaceFile.mockResolvedValue(FILE)
   })
@@ -60,5 +80,25 @@ describe('WorkspaceFilePanel external open', () => {
         variant: 'error',
       }),
     )
+  })
+
+  it('releases a binary preview URL when the preview unmounts', async () => {
+    mocks.readWorkspaceFile.mockResolvedValue(IMAGE_FILE)
+    const view = renderWithQueryClient(
+      <WorkspaceFilePanel
+        projectPath="/project"
+        relativePath="assets/example.png"
+        line={null}
+        onClose={vi.fn()}
+        onOpenFile={vi.fn()}
+      />,
+    )
+
+    expect(await screen.findByRole('img', { name: 'example.png' })).toBeInTheDocument()
+    expect(mocks.createObjectURL).toHaveBeenCalledTimes(1)
+
+    view.unmount()
+
+    expect(mocks.revokeObjectURL).toHaveBeenCalledWith('blob:workspace-preview')
   })
 })

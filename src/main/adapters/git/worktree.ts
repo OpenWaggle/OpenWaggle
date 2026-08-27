@@ -9,6 +9,18 @@ import type {
 } from '@shared/types/git'
 import { isGitRepository, runGit } from './run-git'
 
+function runWorktreeGit(projectPath: string, args: string[], signal?: AbortSignal) {
+  return signal ? runGit(projectPath, args, { signal }) : runGit(projectPath, args)
+}
+
+function throwIfGitAborted(signal?: AbortSignal, result?: { readonly aborted?: boolean }) {
+  signal?.throwIfAborted()
+  if (!result?.aborted) return
+  const error = new Error('Git operation was aborted.')
+  error.name = 'AbortError'
+  throw error
+}
+
 function worktreeFailure(
   code: GitWorktreeMutationFailure['code'],
   message: string,
@@ -110,8 +122,13 @@ async function isSamePath(left: string, right: string): Promise<boolean> {
   }
 }
 
-async function branchWorktreeHolder(projectPath: string, branch: string): Promise<string | null> {
-  const result = await runGit(projectPath, ['worktree', 'list', '--porcelain'])
+async function branchWorktreeHolder(
+  projectPath: string,
+  branch: string,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  const result = await runWorktreeGit(projectPath, ['worktree', 'list', '--porcelain'], signal)
+  throwIfGitAborted(signal, result)
   if (result.code !== 0) return null
 
   let currentPath: string | null = null
@@ -128,10 +145,13 @@ async function branchWorktreeHolder(projectPath: string, branch: string): Promis
 export async function createGitWorktree(
   projectPath: string,
   payload: GitWorktreeCreatePayload,
+  options: { readonly signal?: AbortSignal } = {},
 ): Promise<GitWorktreeMutationResult> {
+  throwIfGitAborted(options.signal)
   if (!(await isGitRepository(projectPath))) {
     return worktreeFailure('not-git-repo', 'Selected folder is not a Git repository.')
   }
+  throwIfGitAborted(options.signal)
 
   const baseRef = payload.baseRef.trim()
   const branch = payload.branch.trim()
@@ -140,14 +160,20 @@ export async function createGitWorktree(
   if (!branch) return worktreeFailure('unknown', 'A worktree branch name is required.')
   if (!worktreePath) return worktreeFailure('unknown', 'A worktree path is required.')
 
-  const verifyBase = await runGit(projectPath, ['rev-parse', '--verify', `${baseRef}^{commit}`])
+  const verifyBase = await runWorktreeGit(
+    projectPath,
+    ['rev-parse', '--verify', `${baseRef}^{commit}`],
+    options.signal,
+  )
+  throwIfGitAborted(options.signal, verifyBase)
   if (verifyBase.code !== 0) {
     return worktreeFailure('base-ref-not-found', `Base ref "${baseRef}" could not be resolved.`)
   }
 
   // Clear stale registrations (e.g. a worktree directory deleted out-of-band)
   // so re-creating at the same path doesn't fail with "already registered".
-  await runGit(projectPath, ['worktree', 'prune'])
+  const prune = await runWorktreeGit(projectPath, ['worktree', 'prune'], options.signal)
+  throwIfGitAborted(options.signal, prune)
 
   /*
    * Pruning clears the stale registration but NOT the branch. A session whose
@@ -160,12 +186,12 @@ export async function createGitWorktree(
    * carry commits the agent already made, and discarding those to obtain a clean
    * slate would be silent data loss.
    */
-  const branchExists = await runGit(projectPath, [
-    'show-ref',
-    '--verify',
-    '--quiet',
-    `refs/heads/${branch}`,
-  ])
+  const branchExists = await runWorktreeGit(
+    projectPath,
+    ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`],
+    options.signal,
+  )
+  throwIfGitAborted(options.signal, branchExists)
 
   /*
    * Attaching is only safe when nothing else holds the branch. `git worktree add <path>
@@ -175,7 +201,7 @@ export async function createGitWorktree(
    * the other session's commits. Check explicitly and fail with a code that says what happened.
    */
   if (branchExists.code === 0) {
-    const holder = await branchWorktreeHolder(projectPath, branch)
+    const holder = await branchWorktreeHolder(projectPath, branch, options.signal)
     /*
      * Compared through realpath. `git worktree list` prints the canonical path, so a requested path
      * that traverses a symlink - a temporary directory under /var on macOS, for example - never
@@ -195,7 +221,8 @@ export async function createGitWorktree(
       ? ['worktree', 'add', worktreePath, branch]
       : ['worktree', 'add', '-b', branch, worktreePath, baseRef]
 
-  const result = await runGit(projectPath, addArgs)
+  const result = await runWorktreeGit(projectPath, addArgs, options.signal)
+  throwIfGitAborted(options.signal, result)
   if (result.code !== 0) {
     return classifyCreateError(result.stderr)
   }

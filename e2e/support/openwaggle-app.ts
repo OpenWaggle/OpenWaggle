@@ -108,6 +108,14 @@ export class OpenWaggleApp {
     }, payload)
   }
 
+  async emitWorktreeLaunch(payload: { sessionId: string; launch: unknown }): Promise<void> {
+    await this.app.evaluate(({ BrowserWindow }, launchPayload) => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        window.webContents.send('agent:worktree-launch', launchPayload)
+      }
+    }, payload)
+  }
+
   mainWindow(): MainWindowPage {
     return new MainWindowPage(this.currentWindow)
   }

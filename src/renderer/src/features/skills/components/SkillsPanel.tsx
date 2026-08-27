@@ -3,6 +3,7 @@ import { RefreshCw, Sparkles } from 'lucide-react'
 import { useProject } from '@/features/sessions/hooks'
 import { useSkills } from '@/features/skills/hooks/useSkills'
 import { cn } from '@/shared/lib/cn'
+import { formatDisplayPath } from '@/shared/lib/display-path'
 import { Button } from '@/shared/ui/Button'
 import { Spinner } from '@/shared/ui/Spinner'
 import { ToggleSwitch } from '@/shared/ui/ToggleSwitch'
@@ -45,7 +46,9 @@ function StandardsSection({
         <StatusBadge status={standardsStatus?.agents ?? 'missing'} />
       </div>
       <p className="mt-1 truncate text-xs text-text-tertiary">
-        {standardsStatus?.agentsPath || `${projectPath}/AGENTS.md`}
+        {formatDisplayPath(standardsStatus?.agentsPath || `${projectPath}/AGENTS.md`, [
+          projectPath,
+        ])}
       </p>
       {standardsStatus?.error && <p className="mt-1 text-xs text-error">{standardsStatus.error}</p>}
     </section>

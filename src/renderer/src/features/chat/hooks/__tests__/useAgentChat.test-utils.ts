@@ -15,6 +15,8 @@ const {
   hasActiveRunMock,
   runRenderSnapshots,
   setRunRenderMessagesMock,
+  setFirstSendRecoveryMock,
+  firstSendRecoveryCalls,
   useBackgroundRunStoreMock,
   upsertSessionMock,
   useChatStoreMock,
@@ -37,18 +39,24 @@ const {
     })
   })
   const hasActiveRunMock = vi.fn((_id: SessionId) => false)
+  const firstSendRecoveryCalls: Array<readonly [SessionId, unknown]> = []
+  const setFirstSendRecoveryMock = vi.fn((id: SessionId, recovery: unknown) => {
+    firstSendRecoveryCalls.push([id, recovery])
+  })
   const useBackgroundRunStoreMock = vi.fn(
     (
       selector: (state: {
         getRunRenderSnapshot: (sessionId: SessionId) => unknown
         hasActiveRun: (sessionId: SessionId) => boolean
         setRunRenderMessages: (sessionId: SessionId, messages: readonly unknown[]) => void
+        setFirstSendRecovery: typeof setFirstSendRecoveryMock
       }) => unknown,
     ) =>
       selector({
         getRunRenderSnapshot: getRunRenderSnapshotMock,
         hasActiveRun: hasActiveRunMock,
         setRunRenderMessages: setRunRenderMessagesMock,
+        setFirstSendRecovery: setFirstSendRecoveryMock,
       }),
   )
   const upsertSessionMock = vi.fn()
@@ -86,6 +94,8 @@ const {
     runRenderSnapshots,
     getRunRenderSnapshotMock,
     setRunRenderMessagesMock,
+    setFirstSendRecoveryMock,
+    firstSendRecoveryCalls,
     hasActiveRunMock,
     useBackgroundRunStoreMock,
     upsertSessionMock,
@@ -237,6 +247,8 @@ export function installUseAgentChatTestLifecycle() {
     hasActiveRunMock.mockReturnValue(false)
     runRenderSnapshots.clear()
     setRunRenderMessagesMock.mockClear()
+    setFirstSendRecoveryMock.mockClear()
+    firstSendRecoveryCalls.length = 0
     upsertSessionMock.mockReset()
     useChatStoreMock.mockClear()
     agentEventHandlers.length = 0
@@ -254,6 +266,7 @@ export {
   createSessionWithMessages,
   emitAgentEvent,
   emitRunCompleted,
+  firstSendRecoveryCalls,
   getRunRenderSnapshotMock,
   hasActiveRunMock,
   runRenderSnapshots,

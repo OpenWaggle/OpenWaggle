@@ -3,7 +3,7 @@ import type { SessionId } from '@shared/types/brand'
 import { type SessionStatus, TERMINAL_STATUSES } from '@shared/types/session-status'
 import { useEffect } from 'react'
 import { isTerminalTransportEvent } from '@/features/chat/lib'
-import { useChatStore } from '@/features/chat/state'
+import { useBackgroundRunStore, useChatStore } from '@/features/chat/state'
 import { useSessionStatusStore } from '@/features/sessions/state/session-status-store'
 import { api } from '@/shared/lib/ipc'
 
@@ -47,6 +47,17 @@ export function useSessionStatusMonitor(): void {
     const unsubCompleted = api.onRunCompleted(({ sessionId }) => {
       activeWaggleSessions.delete(sessionId)
       setStatusWithVisitCheck(sessionId, 'completed')
+      const backgroundRuns = useBackgroundRunStore.getState()
+      if (backgroundRuns.getWorktreeLaunch(sessionId)?.status !== 'failed') {
+        backgroundRuns.setWorktreeLaunch(sessionId, null)
+      }
+    })
+
+    const unsubWorktreeLaunch = api.onWorktreeLaunch(({ sessionId, launch }) => {
+      useBackgroundRunStore.getState().setWorktreeLaunch(sessionId, launch)
+      if (launch?.status === 'running') {
+        setStatusWithVisitCheck(sessionId, 'connecting')
+      }
     })
 
     const unsubWaggleTurn = api.onWaggleTurnEvent(({ sessionId, event }) => {
@@ -99,6 +110,7 @@ export function useSessionStatusMonitor(): void {
     return () => {
       unsubPhase()
       unsubCompleted()
+      unsubWorktreeLaunch()
       unsubWaggleTurn()
       unsubEvent()
     }

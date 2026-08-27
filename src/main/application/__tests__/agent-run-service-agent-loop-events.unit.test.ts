@@ -228,6 +228,44 @@ describe('executeAgentRun agent-loop event durability', () => {
     expect(persisted.nodes.at(-1)?.contentJson).toContain('agent_interaction_resolved')
   })
 
+  it('persists the app-owned worktree-created trace after a delivered first turn', async () => {
+    runMock.mockImplementationOnce((input: AgentKernelRunInput) => {
+      input.onWorktreeLaunch?.({
+        stage: 'preparing-workspace',
+        details: ['Preparing the session worktree'],
+      })
+      input.onWorktreeLaunch?.({
+        stage: 'worktree-created',
+        details: ['Created ow/session-a from main'],
+        branch: 'ow/session-a',
+        baseRef: 'main',
+        worktreePath: '/tmp/session-a',
+      })
+      input.onWorktreeLaunch?.({
+        stage: 'starting-task',
+        details: ['Starting the task in the new worktree'],
+        worktreePath: '/tmp/session-a',
+      })
+    })
+
+    await Effect.runPromise(
+      executeAgentRun({
+        sessionId,
+        runId: 'run-worktree-launch',
+        payload: { text: 'Start in a worktree', thinkingLevel: 'medium', attachments: [] },
+        model,
+        signal: new AbortController().signal,
+        onEvent: () => undefined,
+      }).pipe(Effect.provide(TestLayer)),
+    )
+
+    const trace = firstPersistedSnapshot().nodes.find((node) =>
+      node.contentJson.includes('openwaggle.worktree-created'),
+    )
+    expect(trace?.contentJson).toContain('Created ow/session-a from main')
+    expect(trace?.contentJson).toContain('/tmp/session-a')
+  })
+
   it('carries existing durable agent-loop nodes across replacement snapshots', async () => {
     projectionTree = {
       ...runServiceSessionTree,

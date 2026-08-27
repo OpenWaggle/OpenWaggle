@@ -87,6 +87,49 @@ describe('ensureSessionWorktreeProjectPath', () => {
     expect(result).toContain('/.openwaggle/worktrees/repo/')
   })
 
+  it('reports the real first-send Git stages with branch and base-ref details', async () => {
+    const onProgress = vi.fn()
+
+    const result = await ensureSessionWorktreeProjectPath(
+      session({ environmentMode: 'worktree', worktreeBaseRef: 'develop' }),
+      { onProgress },
+    )
+
+    expect(onProgress.mock.calls).toEqual([
+      [{ stage: 'preparing-workspace', details: ['Preparing the session worktree'] }],
+      [
+        {
+          stage: 'checking-out-files',
+          details: ['Creating ow/session-sess-abcdef12 from develop'],
+          branch: 'ow/session-sess-abcdef12',
+          baseRef: 'develop',
+          worktreePath: result,
+        },
+      ],
+      [
+        {
+          stage: 'worktree-created',
+          details: ['Created ow/session-sess-abcdef12 from develop'],
+          branch: 'ow/session-sess-abcdef12',
+          baseRef: 'develop',
+          worktreePath: result,
+        },
+      ],
+    ])
+  })
+
+  it('passes the run cancellation signal into worktree creation', async () => {
+    const controller = new AbortController()
+
+    await ensureSessionWorktreeProjectPath(session({ environmentMode: 'worktree' }), {
+      signal: controller.signal,
+    })
+
+    expect(createGitWorktreeMock).toHaveBeenCalledWith('/repo', expect.anything(), {
+      signal: controller.signal,
+    })
+  })
+
   it('adopts the worktree on a repeat call with a stale session record instead of recreating it', async () => {
     /*
      * Regression for a critical defect: birth persists the new path with SQL but does not
@@ -180,6 +223,38 @@ describe('ensureSessionWorktreeProjectPath', () => {
     ])
     expect(a).toBe(b)
     expect(createGitWorktreeMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries a cancelled in-flight birth for a replacement send with a live signal', async () => {
+    existsSyncMock.mockReturnValue(false)
+    const cancelledController = new AbortController()
+    const replacementController = new AbortController()
+    const cancelledBirth: { reject: (reason?: unknown) => void } = {
+      reject: () => undefined,
+    }
+    createGitWorktreeMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            cancelledBirth.reject = reject
+          }),
+      )
+      .mockResolvedValueOnce({ ok: true, message: 'ok', path: '/wt' })
+
+    const cancelled = ensureSessionWorktreeProjectPath(session({ environmentMode: 'worktree' }), {
+      signal: cancelledController.signal,
+    })
+    await vi.waitFor(() => expect(createGitWorktreeMock).toHaveBeenCalledTimes(1))
+
+    cancelledController.abort()
+    const replacement = ensureSessionWorktreeProjectPath(session({ environmentMode: 'worktree' }), {
+      signal: replacementController.signal,
+    })
+    cancelledBirth.reject(cancelledController.signal.reason)
+
+    await expect(cancelled).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(replacement).resolves.toContain('/.openwaggle/worktrees/repo/')
+    expect(createGitWorktreeMock).toHaveBeenCalledTimes(2)
   })
 
   it('does not adopt a directory that is not a worktree of this repository', async () => {

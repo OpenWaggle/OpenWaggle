@@ -73,12 +73,7 @@ export function Header() {
       .exhaustive()
   }
 
-  const activeBranchName =
-    activeSessionTree?.branches.find(
-      (branch) => branch.id === activeSessionTree.session.lastActiveBranchId,
-    )?.name ??
-    activeSessionTree?.branches[0]?.name ??
-    'main'
+  const activeBranchName = gitStatus?.branch ?? null
   const title = activeSessionTree?.session.title ?? activeSession?.title ?? 'New session'
 
   return (

@@ -203,4 +203,28 @@ describe('Popover without a menu role', () => {
     // A listbox is not a menu, so nothing here steals focus from the page.
     expect(screen.getByRole('option')).not.toHaveFocus()
   })
+
+  it('names dialog popups, advertises them from the trigger, and focuses their first control', () => {
+    render(
+      <Popover
+        ariaLabel="Choose a project"
+        role="dialog"
+        trigger={
+          <Button variant="unstyled" type="button">
+            Project
+          </Button>
+        }
+        open
+        onOpenChange={() => {}}
+      >
+        <input aria-label="Search projects" />
+      </Popover>,
+    )
+
+    const trigger = screen.getByRole('button', { name: 'Project' })
+    expect(trigger).toHaveAttribute('aria-haspopup', 'dialog')
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('dialog', { name: 'Choose a project' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Search projects' })).toHaveFocus()
+  })
 })

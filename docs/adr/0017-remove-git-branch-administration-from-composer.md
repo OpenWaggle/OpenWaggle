@@ -4,6 +4,8 @@ Status: accepted
 
 OpenWaggle's composer no longer offers Rename, Delete current, Set upstream, or per-branch delete. The composer row is a **run-target chooser**, not a repository administration console. This records why pre-existing, user-visible behaviour was deleted rather than moved, so a future reader does not go looking for it.
 
+Amended 2026-08-26: the run-target chooser is now selection-only. Search and selection of existing refs remain; create-and-switch, copy-name, start-from-origin, and change-request checkout were removed from this popover so it answers exactly one question.
+
 ## Context
 
 Before this change the composer's branch popover offered, one click from the message box:
@@ -18,7 +20,7 @@ Alongside it sat a separate `Options` popover whose trigger showed the worktree 
 
 This surface was **pre-existing**, not introduced by the diff-panel work. It first appears in `64511c98 refactor: reorganize renderer by feature` and exists unchanged at the merge-base `34d955ed`.
 
-### What the reference implementation does
+### What the reference implementation did at the first decision
 
 The established behaviour for this control is a ref chooser with **no** branch management. In the mature implementation studied for this work, the equivalent selector runs to 845 lines and grepping it for `rename|deleteBranch|delete current|setUpstream|upstream` returns **0 matches**. Its entire action set is:
 
@@ -30,6 +32,8 @@ The established behaviour for this control is a ref chooser with **no** branch m
 - `checkoutPullRequestItemValue` (checkout a change request)
 
 Every one of those answers "what does this run use?". None of them mutates repository history or remote configuration.
+
+That reference was useful for removing branch administration, but it still mixed selection with four secondary actions. The 2026-08-26 amendment adopts the narrower Codex composer boundary: this popover only selects an existing ref.
 
 ### Why the actions are a poor fit for the composer
 
@@ -55,20 +59,24 @@ Removed in `c92818b0`:
 
 Net effect: 26 files, +21/−704.
 
-**Keep three branch operations**, because each one answers the run-target question:
+**Keep two composer branch operations**, because they are the run-target choice:
 
 - `listGitBranches` — populates the ref chooser and the diff panel's base-ref choices.
 - `checkoutGitBranch` — selecting a ref in `local` mode *is* a checkout.
-- `createGitBranch` — creating a branch in order to run on it is a run-context decision, which is why create-and-switch is the one creation action that belongs in a ref chooser.
 
-**Consolidate the two controls into one ref chooser** (`a743b0b1`). The row is now `Run in [mode]` on the left and a single run-target picker on the right. Selecting a ref checks it out in `local` mode and sets the worktree base ref in `worktree` mode — the same control, resolving to whatever the mode makes it mean. The `Options` popover is gone; search, ref list, create-and-switch, copy name, start-from-origin, and checkout-change-request all live in the one popover.
+`createGitBranch` remains a shared Git capability for other workflows, but the composer no longer presents it. Creating a branch is a second task, not selecting an existing run target.
+
+**Consolidate the two branch controls into one ref chooser** (`a743b0b1`). The row keeps project, environment, and run target as separate choices. Selecting a ref checks it out in `local` mode and sets the worktree base ref in `worktree` mode — the same control, resolving to whatever the mode makes it mean. The picker contains only search and the existing ref list.
+
+**Keep environment and ref as separate first-send decisions.** Before launch, the environment control answers where the agent works and the ref chooser answers which branch or base ref it uses. Pressing Send freezes both controls and collapses the setup dock out of the composer. Worktree creation leaves a compact trace in the transcript; the composer does not retain a read-only branch toolbar or expose post-launch branch management beside later prompts.
 
 ## Consequences
 
 - **A capability is genuinely gone.** Renaming a branch, deleting one, or setting upstream now requires the terminal, the agent, or another Git client. This is accepted deliberately: OpenWaggle is a coding-agent UI, not a Git GUI.
 - **No orphaned transport.** Verified by grep that `renameGitBranch|deleteGitBranch|setGitBranchUpstream` and the three channel names appear nowhere in `src/`. `sessions:rename-branch` survives and is unrelated — it renames a *conversation* branch.
-- **Test count moved, not shrunk.** Cases covering deleted behaviour were removed; cases covering behaviour that *moved* (base-ref selection, start-from-origin, change-request checkout) moved to `RunTargetPicker.component.test.tsx`. The component suite went 516 → 519.
+- **Tests follow the visible boundary.** The picker keeps coverage for search, filtering, selected-ref state, and local/worktree selection semantics; a regression test asserts the removed secondary actions stay absent.
 - **One branch string on screen.** `SessionContextRow` now owns only the environment mode, and a regression test asserts it renders nothing that names a ref.
+- **One purpose in the open picker.** Every interactive row selects an existing ref; no footer action changes the task from selection to branch creation, copy, worktree policy, or change-request checkout.
 - **Reversible if wrong.** The removed code is one `git revert` away in history, and the argument above is falsifiable: if users ask for branch administration, the right answer is a deliberate repository surface (sidebar or command palette), not a chip beside Send.
 
 ## Alternatives considered

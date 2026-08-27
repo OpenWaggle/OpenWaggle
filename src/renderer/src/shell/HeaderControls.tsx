@@ -5,7 +5,7 @@ import { projectName } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
 
 interface HeaderLeftProps {
-  readonly activeBranchName: string
+  readonly activeBranchName: string | null
   readonly projectPath: string | null
   readonly sidebarOpen: boolean
   readonly title: string
@@ -66,7 +66,9 @@ export function HeaderLeft({
 
       <Hash className="no-drag size-3.5 text-text-tertiary" />
       <span className="no-drag text-sm font-medium text-text-primary">{title}</span>
-      <span className="no-drag text-xs text-text-tertiary">/ {activeBranchName}</span>
+      {activeBranchName ? (
+        <span className="no-drag text-xs text-text-tertiary">/ {activeBranchName}</span>
+      ) : null}
       <span className="no-drag flex items-center h-5 px-2 rounded border border-border bg-bg-tertiary text-xs text-text-secondary">
         {projectName(projectPath)}
       </span>

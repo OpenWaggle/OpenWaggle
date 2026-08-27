@@ -82,6 +82,10 @@ function createSlashSkillActions(set: ComposerSet) {
     setDismissedSlashToken(token: string | null) {
       set({ dismissedSlashToken: token })
     },
+
+    setSlashMenuFilter(filter: ComposerState['slashMenuFilter']) {
+      set({ slashMenuFilter: filter })
+    },
   }
 }
 
@@ -107,6 +111,7 @@ function resetComposerState(set: ComposerSet, get: ComposerGet) {
     dismissedSlashToken: null,
     slashHighlightIndex: 0,
     activeSlashCommand: null,
+    slashMenuFilter: 'all',
     thinkingMenuOpen: false,
     executionMenuOpen: false,
     branchMenuOpen: false,

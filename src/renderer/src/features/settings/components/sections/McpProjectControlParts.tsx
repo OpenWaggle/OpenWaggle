@@ -1,6 +1,5 @@
 import type { McpScopeState } from '@shared/types/mcp'
 import { cn } from '@/shared/lib/cn'
-import { tildifyPath } from '@/shared/lib/tildify-path'
 import { Button } from '@/shared/ui/Button'
 import { ToggleSwitch } from '@/shared/ui/ToggleSwitch'
 import { StatusPill } from './McpSectionPanelPrimitives'
@@ -87,9 +86,7 @@ export function ProjectList({
               <span className="block truncate text-xs font-medium text-text-primary">
                 {projectLabel(projectPath)}
               </span>
-              <span className="block truncate text-xs text-text-muted">
-                {tildifyPath(projectPath)}
-              </span>
+              <span className="block truncate text-xs text-text-muted">Project configuration</span>
             </Button>
             <ToggleSwitch
               size="compact"

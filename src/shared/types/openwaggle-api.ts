@@ -5,7 +5,11 @@ import type {
   AgentLoopInteractionSubmitResult,
 } from './agent-loop-interaction'
 import type { OAuthAccountInfo, OAuthProvider } from './auth'
-import type { ActiveRunInfo, BackgroundRunSnapshot } from './background-run'
+import type {
+  ActiveRunInfo,
+  BackgroundRunSnapshot,
+  WorktreeLaunchEventPayload,
+} from './background-run'
 import type {
   RepositoryPath,
   SessionBranchId,
@@ -115,6 +119,7 @@ export interface OpenWaggleApi
   ): Promise<ContextCompactionResult>
   onRunCompleted(callback: (payload: IpcEventPayload<'agent:run-completed'>) => void): () => void
   onAgentPhase(callback: (payload: IpcEventPayload<'agent:phase'>) => void): () => void
+  onWorktreeLaunch(callback: (payload: WorktreeLaunchEventPayload) => void): () => void
 
   // Settings
   getSettings(): Promise<Settings>

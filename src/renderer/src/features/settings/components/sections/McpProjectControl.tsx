@@ -89,7 +89,6 @@ export function McpProjectControl({
           {currentProject && (
             <McpProjectServerDetail
               label={projectLabel(currentProject)}
-              projectPath={currentProject}
               servers={detail?.servers ?? []}
               masterOn={projectMasterOn(view.projectStates, currentProject)}
               busy={gridBusy}

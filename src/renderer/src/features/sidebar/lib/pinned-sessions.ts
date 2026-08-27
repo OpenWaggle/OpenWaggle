@@ -10,7 +10,7 @@ import type { PinnedSession, SessionSummary } from '@shared/types/session'
  */
 
 /** The rule ordering the Pinned section. `manual` is the user's dragged order. */
-export const PINNED_SORT_MODES = ['manual', 'recent', 'oldest', 'name'] as const
+const PINNED_SORT_MODES = ['manual', 'recent', 'oldest', 'name'] as const
 export type PinnedSortMode = (typeof PINNED_SORT_MODES)[number]
 
 export const DEFAULT_PINNED_SORT_MODE: PinnedSortMode = 'manual'

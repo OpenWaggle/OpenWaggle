@@ -51,6 +51,7 @@ function createSection(rowCount: number, sessionId = 'session-1'): ChatTranscrip
     messages: rows.map((r) => (r.type === 'message' ? r.message : message('x'))),
     isLoading: false,
     projectPath: PROJECT_PATH,
+    worktreePath: null,
     recentProjects: [],
     activeSessionId: SessionId(sessionId),
     chatRows: rows,

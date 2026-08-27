@@ -263,6 +263,8 @@ export function useChatPanelSections(): ChatPanelSections {
     forkSelectorOpen: sessionCopy.forkSelectorOpen,
     forkTargets: sessionCopy.forkTargets,
     activeSessionId,
+    projectPath,
+    recentProjects,
     session: activeSession,
     isFirstMessage: messages.length === 0,
     waggleStatus,
@@ -282,6 +284,8 @@ export function useChatPanelSections(): ChatPanelSections {
     handleCloseForkSelector: sessionCopy.closeForkSelector,
     handleSelectForkTarget: sessionCopy.selectForkTarget,
     handleCloneToNewSession: () => void sessionCopy.cloneCurrentSessionToNewSession(),
+    handleOpenProject,
+    handleSelectProjectPath,
     handleSetAuthorizationMode: (authorizationMode) =>
       setComposerSessionAuthorizationMode({
         activeSessionId,

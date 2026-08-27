@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { expect, test } from '@playwright/test'
+import { expect, type Locator, test } from '@playwright/test'
 import { OpenWaggleApp } from './support/openwaggle-app'
 import { seedSessions } from './support/session-fixtures'
 
@@ -10,6 +10,16 @@ const SOURCE_THREAD_TITLE = 'Source Existing Conversation'
 const TARGET_THREAD_TITLE = 'Target Existing Conversation'
 const SOURCE_THREAD_BODY = 'source-transcript-body-before-draft'
 const TARGET_THREAD_BODY = 'target-transcript-body-before-draft'
+
+async function expectHitTestVisible(locator: Locator) {
+  await expect(locator).toBeVisible()
+  const receivesPointerAtCenter = await locator.evaluate((element) => {
+    const rect = element.getBoundingClientRect()
+    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+    return hit !== null && (hit === element || element.contains(hit))
+  })
+  expect(receivesPointerAtCenter).toBe(true)
+}
 
 test('project-level new session opens a draft in the selected repository', async () => {
   const app = await OpenWaggleApp.launch('openwaggle-project-draft-e2e-')
@@ -68,6 +78,36 @@ test('project-level new session opens a draft in the selected repository', async
     )
     await expect(mainWindow.page.getByText(SOURCE_THREAD_BODY)).toBeHidden()
     await expect(mainWindow.page.getByText(TARGET_THREAD_BODY)).toBeHidden()
+
+    const projectTrigger = mainWindow.page.getByRole('button', {
+      name: `Project: ${TARGET_PROJECT_LABEL}`,
+    })
+    await projectTrigger.click()
+    await expectHitTestVisible(
+      mainWindow.page.getByRole('searchbox', { name: 'Search projects' }),
+    )
+    await expect(mainWindow.page.getByRole('button', { name: 'Select folder…' })).toBeVisible()
+    await mainWindow.page.keyboard.press('Escape')
+
+    await mainWindow.page
+      .getByRole('button', { name: 'Session environment mode: Current checkout' })
+      .click()
+    const environmentMenu = mainWindow.page.getByRole('menu')
+    await expectHitTestVisible(environmentMenu)
+    await expect(environmentMenu.getByRole('menuitemradio')).toHaveCount(2)
+    await mainWindow.page.keyboard.press('Escape')
+
+    await mainWindow.page.getByRole('button', { name: /Run target:/ }).click()
+    await expectHitTestVisible(mainWindow.page.getByPlaceholder('Search branches'))
+    await mainWindow.page.keyboard.press('Escape')
+
+    await expect(
+      mainWindow.page.getByRole('region', { name: 'Composer file drop zone' }),
+    ).toHaveCSS('border-radius', '12px')
+    await expect(projectTrigger.locator('xpath=ancestor::*[contains(@class, "rounded-t-xl")][1]')).toHaveCSS(
+      'border-top-left-radius',
+      '12px',
+    )
   } finally {
     await app.cleanup()
   }

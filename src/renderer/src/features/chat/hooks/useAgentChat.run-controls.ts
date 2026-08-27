@@ -40,10 +40,19 @@ interface AgentRunControlRefs {
 
 interface AgentRunControlParams {
   readonly sessionId: SessionId | null
+  readonly isFirstMessage: boolean
   readonly model: SupportedModelId
   readonly refs: AgentRunControlRefs
   readonly setMessagesBySessionId: SetMessagesBySessionId
   readonly setRunRenderMessages: SetRunRenderMessages
+  readonly setFirstSendRecovery: (
+    sessionId: SessionId,
+    recovery: {
+      readonly payload: AgentSendPayload
+      readonly waggleConfig: WaggleConfig | null
+      readonly model: SupportedModelId
+    } | null,
+  ) => void
   readonly setBackgroundStreaming: SetBackgroundStreaming
   readonly setError: SetAgentChatError
   readonly setStatus: SetAgentChatStatus
@@ -219,6 +228,13 @@ export function createAgentRunControls(params: AgentRunControlParams) {
     }
 
     const optimisticUserMessage = createOptimisticUserMessage(payload)
+    if (params.isFirstMessage) {
+      params.setFirstSendRecovery(sessionId, {
+        payload,
+        waggleConfig,
+        model: params.model,
+      })
+    }
     params.addOptimisticUserMessage(sessionId, optimisticUserMessage)
     updateMessagesForSession(
       refs.messagesBySessionIdRef,
@@ -229,6 +245,9 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       { cacheRunSnapshot: true },
     )
     await dispatchAgentSend(payload, waggleConfig)
+    if (params.isFirstMessage) {
+      params.setFirstSendRecovery(sessionId, null)
+    }
   }
 
   function stop() {

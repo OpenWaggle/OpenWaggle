@@ -156,6 +156,10 @@ _Avoid_: props, renderer internals
 An OpenWaggle-owned compact composer-adjacent action surface for extension controls such as buttons, selectors, or launchers.
 _Avoid_: arbitrary composer injection
 
+**Composer add menu**:
+The composer `+` menu that exposes attachment, project-file reference, skill, and Waggle entry points. Each entry opens the existing composer-native flow and produces the same draft node and message metadata as its keyboard-driven equivalent.
+_Avoid_: second attachment flow, second mention picker, duplicate skill or Waggle state
+
 **Slash command menu**:
 The composer-native chooser for skills, one-shot Waggle presets, and slash commands. The `/` invocation character is stable prompt syntax rather than a configurable application shortcut.
 _Avoid_: command palette, search palette
@@ -208,11 +212,15 @@ _Avoid_: permission level, sandbox mode, interaction mode
 An explicitly chosen Authorization mode at project or session level that replaces the inherited default until it is cleared.
 _Avoid_: copied default, session mode snapshot, birth-time mode
 
+**Draft authorization override**:
+An explicit Authorization mode choice made before a draft has a durable session. It is persisted as that session's Authorization mode override before the first task is launched; absence means the draft still inherits.
+_Avoid_: copied default, disabled first-run control, implicit session snapshot
+
 **Effective authorization mode**:
 The Authorization mode a session actually runs under, resolved when an authorization request occurs from the nearest Authorization mode override and otherwise from the global default.
 _Avoid_: stored session mode, snapshotted mode
 
-**YOLO (Full access)**:
+**YOLO (Full Access)**:
 The default Authorization mode that automatically grants a request only when the agent asks to act itself inside the current workspace and session.
 _Avoid_: YOLO mode, no-safety mode, auto-answer mode, unrestricted mode
 
@@ -546,6 +554,22 @@ _Avoid_: project path (that is the repository), cwd, workdir
 How a session's git work is isolated: `local` runs directly in the opened checkout, `worktree` runs in a dedicated Session worktree; chosen per session with a configurable default.
 _Avoid_: sandbox, isolation level
 
+**Work-locally fallback**:
+The first-send transition that changes a session from `worktree` to `local` while continuing its already-submitted turn exactly once in the opened checkout.
+_Avoid_: retry locally, local copy, second send
+
+**Worktree launch progress**:
+The app-owned, reconnectable projection of first-send worktree orchestration before Pi starts. It reports only operations OpenWaggle is actually performing and collapses into a Worktree launch trace when the task starts streaming.
+_Avoid_: agent phase, simulated progress, fixed-duration setup animation
+
+**Worktree launch trace**:
+The durable, compact transcript activity left after successful worktree creation. It reads `Worktree created` and can disclose the actual retained worktree output without keeping the full launch panel in the conversation.
+_Avoid_: vanished setup event, permanent progress panel, assistant message
+
+**Failed worktree launch**:
+A recoverable Worktree launch progress state that retains exactly one submitted turn and exposes its actual failure details until the user retries, continues locally, or cancels and restores the draft.
+_Avoid_: generic send error, duplicate draft, automatic local fallback
+
 ### Appearance and design tokens
 
 **Design token contract**:
@@ -585,15 +609,19 @@ The diff panel's list of files in the active diff scope, used to jump to a file'
 _Avoid_: worktree sidebar (worktree means a git worktree here), file tree (it is scoped to changed files, not the repository), sidebar (that is the app-level surface)
 
 **Session context row**:
-The composer-adjacent row stating where the next send will run. Its left half owns the **Session environment mode**; its right half is the **Run target picker**. Deliberately one fixed-height row, so changing mode never shifts the composer.
+The pre-launch row stating which project, environment, and ref the first send will use. Its **Project picker**, **Session environment mode**, and **Run target picker** remain separate controls. Deliberately one fixed-height row, so changing mode never shifts the composer. After first send it collapses out of the composer; the transcript's worktree-launch trace records worktree creation when applicable.
 _Avoid_: branch toolbar, composer context strip, Composer extension surface (that is for extension controls)
+
+**Project picker**:
+The selection-only chooser for the project a draft session belongs to. It offers known recent projects and the operating-system folder chooser, and remains distinct from **Session environment mode** and **Run target**.
+_Avoid_: environment picker, run target picker, repository picker
 
 **Run target**:
 The ref the next send will run on. In `local` mode that is the checked-out branch; in `worktree` mode it is the **Worktree base ref** the new worktree branches from. One name for one question, because showing the same branch string in two controls left it ambiguous which governed the send.
 _Avoid_: current branch (only true in local mode), base branch (only true in worktree mode), run context
 
 **Run target picker**:
-The single ref chooser in the **Session context row**. Selecting a ref resolves against the **Session environment mode**: it checks the ref out in `local` mode and records it as the **Worktree base ref** in `worktree` mode. It also hosts ref search, create-and-switch, copy-name, start-from-origin, and change-request checkout. It offers no branch administration — see ADR 0017.
+The selection-only ref chooser in the **Session context row**. Selecting an existing ref resolves against the **Session environment mode**: it checks the ref out in `local` mode and records it as the **Worktree base ref** in `worktree` mode.
 _Avoid_: branch picker (it picks a run target, not a branch to manage), branch manager, Options popover (removed)
 
 **Syntax theme**:
@@ -716,17 +744,20 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - An **Authorization request** identifies its action, requester, exact target, and effect in user-facing language.
 - A session **Authorization mode** overrides its project's mode, which overrides the global default.
 - A session or project without an **Authorization mode override** inherits the next level's default, and clearing an override restores that inheritance.
+- Before a session exists, the composer may hold a **Draft authorization override**. First send creates the session, persists that explicit choice as its **Authorization mode override**, and only then launches the task.
+- A draft without a **Draft authorization override** continues to inherit the project or global default; first send does not copy that effective default into the session.
 - The **Effective authorization mode** is resolved when an **Authorization request** occurs rather than when the session is created, so changing a project or global default applies to existing sessions that hold no override.
-- **YOLO (Full access)** resolves **Authorization requests** automatically but leaves unrelated user-input requests pending for the user.
+- **YOLO (Full Access)** resolves **Authorization requests** automatically but leaves unrelated user-input requests pending for the user.
 - A **Request purpose** is declared where the request is raised, never inferred from its wording.
 - A request whose **Request purpose** is disclosure or external navigation is never answered automatically in any **Authorization mode**, because its consequence is the user's to accept.
-- **YOLO (Full access)** is the global default **Authorization mode** for new projects and sessions without an override.
+- **YOLO (Full Access)** is the global default **Authorization mode** for new projects and sessions without an override.
 - **Ask for Approval** presents only **Authorization requests** that are not already covered by a **Scoped authorization grant**.
 - A **Scoped authorization grant** applies only when its project, requester, capability, and resource or destination all match.
 - An **Authorization request** produces exactly one **Authorization decision**.
 - A surfaced **Authorization request** has exactly one **Authorization history entry**, which changes from pending to the final **Authorization decision** instead of creating separate request and resolution cards.
-- Changing a session to **YOLO (Full access)** resolves its pending **Authorization request** automatically; changing to **Ask for Approval** governs subsequent requests without revoking completed authorization decisions.
-- **YOLO (Full access)** does not create authorization prompts, authorization transcript entries, approval counters, or a separate authorization log; authorized work remains visible through its normal activity or result presentation.
+- Changing a session to **YOLO (Full Access)** resolves its pending **Authorization request** automatically; changing to **Ask for Approval** governs subsequent requests without revoking completed authorization decisions.
+- **YOLO (Full Access)** does not create authorization prompts, authorization transcript entries, approval counters, or a separate authorization log; authorized work remains visible through its normal activity or result presentation.
+- The composer trigger presents the effective **Authorization mode** compactly as `YOLO` or `Ask for approval`; its open menu exposes exactly the canonical **YOLO (Full Access)** and **Ask for Approval** choices. Inheritance stays internal, and the menu checks the effective choice without adding a user-facing default option.
 - An active **Agent notification** is presented in a **Notification stack** clear of the composer, never as an authorization prompt or transcript card.
 - A **Notification stack** fronts the most severe active notice and stacks additional notices behind it.
 - The composer area is reserved for requests that hold the run, so the surface a user acts on is always the one nearest the prompt input.
@@ -823,13 +854,29 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - **Extension package state** and **Extension contribution instance state** may enhance live rendering, but they are not **Agent-loop durable state**.
 - OpenWaggle owns each **Extension contribution container**; the extension owns only the content mounted inside it.
 - The **Composer extension surface** is constrained to compact actions and launchers instead of arbitrary composer input injection.
+- The **Composer add menu** opens the existing attachment chooser, **File mention menu**, or filtered **Slash command menu**; it does not define parallel draft nodes, payload metadata, or persistence.
+- `Reference project file` in the **Composer add menu** is equivalent to opening the `@` **File mention menu**, while `Use a skill` and `Start Waggle` are filtered views of the `/` **Slash command menu**.
+- The **Composer extension surface** remains separate from the **Composer add menu** so pending extension interactions and extension-owned launchers are not hidden inside prompt insertion actions.
 - The **Design token contract** has exactly one definition, published by the extension SDK; the app consumes it rather than maintaining a parallel token set, so extension UI cannot visually drift from host UI.
 - An **Appearance** supplies a value for every **Semantic role** in the **Design token contract** and carries one **Colour scheme**.
 - The **Design token contract** adopts Tailwind's standard scales as its vocabulary and exposes them as themeable variables: utilities are the only consumption path and variables are the only override path, so deviation is structurally impossible.
 - A **Derived token** is computed from **Semantic roles**, so it re-themes with an **Appearance** without appearing in the public contract.
 - A session's git reads and writes target its **Working path**; **Session environment mode** decides whether that is the **Session worktree** or the opened checkout. Repository-level data (branch list, worktree list, remotes) stays keyed to the project, because a linked worktree shares refs with the primary checkout.
-- The **Session context row** states where the next send runs: it owns the **Session environment mode**, and its **Run target picker** owns the **Run target**, which resolves to the checked-out branch or the **Worktree base ref** depending on the mode. It is distinct from the **Branch-diff base ref** chosen in the diff panel.
-- The **Run target picker** deliberately excludes branch administration (rename, delete, set upstream); those were removed end to end in ADR 0017, so branch cleanup is asked of the agent or done outside OpenWaggle.
+- A **Work-locally fallback** preserves the session and submitted user turn, records `local` **Session environment mode**, and starts that turn in the opened checkout without duplicating it.
+- Cancelling first-send worktree creation removes the optimistic transcript turn and restores the exact pre-send composer draft, including its attachments and skill or Waggle invocation.
+- **Worktree launch progress** advances through `Preparing workspace`, `Checking out files`, `Worktree created`, and `Starting a task`; completed, active, and pending stages use the corresponding semantic design-token roles.
+- **Worktree launch progress** includes only stages that correspond to real operations. A percentage is shown only when the underlying operation reports measurable progress, and `More details` exposes real operation output and diagnostics rather than fabricated activity.
+- When worktree creation completes, **Worktree launch progress** collapses its bordered steps to `Worktree created` while `Starting a task` remains active. When Pi agent activity begins, the active setup component becomes a durable **Worktree launch trace** rather than disappearing.
+- A **Worktree launch trace** is app-owned transcript activity, not an assistant message or **Agent phase**. It remains after reload and exposes the real retained setup output through a compact disclosure.
+- Optional setup activity produces an additional durable trace only when OpenWaggle actually performed that setup; absent operations leave no synthetic history.
+- A launch that uses **Work-locally fallback** or is cancelled leaves no `Worktree created` trace, because no successful worktree creation occurred.
+- A **Failed worktree launch** keeps the submitted user message visible and presents `Retry`, `Work locally`, `Cancel`, and `More details`. Retry and Work locally continue the retained turn exactly once; Cancel removes it and restores its exact pre-send draft.
+- A **Failed worktree launch** does not also restore the retained message into the composer, because representing the same intent as both a transcript turn and a draft invites a duplicate send.
+- The **Session context row** states which project, environment, and ref the next send uses: its **Project picker** chooses the project, its environment control owns the **Session environment mode**, and its **Run target picker** owns the **Run target**, which resolves to the checked-out branch or the **Worktree base ref** depending on the mode. It is distinct from the **Branch-diff base ref** chosen in the diff panel.
+- Before first send, **Session environment mode** and **Run target** are separate editable controls. Submitting freezes the launch plan and collapses the setup row out of the composer. A worktree launch leaves its compact trace in the transcript instead of keeping a second toolbar beside every later prompt.
+- The frozen **Worktree base ref** remains birth provenance. If Git changes the checked-out branch later, the read-only branch value follows the working tree without rewriting that provenance or turning the composer into branch administration.
+- **Work-locally fallback** is the only environment change offered during worktree birth because it atomically redirects the retained launch; it is not an unlocked **Session environment mode** control.
+- The **Run target picker** only searches and selects existing refs; branch creation, copy-name, origin policy, change-request checkout, and branch administration live outside that focused choice (ADR 0017).
 - The **Changed-file navigator** lists files within the active diff scope, so its contents change with **Working-tree diff**, **Branch diff**, or **Turn diff** selection.
 - The **Diff chrome** is a set of **Derived tokens**, so it always matches the active **Appearance**; the **Syntax theme** is independent and selectable on its own.
 - A **Review comment** anchors to a diff line and carries its **Hunk** snippet; a **Review** gathers pending Review comments plus an optional **Review summary** and submits them to the agent as one message, never touching the composer.

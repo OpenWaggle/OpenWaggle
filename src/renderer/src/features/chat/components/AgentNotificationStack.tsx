@@ -9,6 +9,7 @@ import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { notificationLifetimeMs, orderNotifications } from '../lib/notification-stack-model'
 import type { AgentInteractionEvent } from '../lib/types-chat-row'
+import { useChatDisplayText } from './ChatDisplayPathContext'
 import { PoliteAnnouncer } from './PoliteAnnouncer'
 
 const MAX_VISIBLE_NOTIFICATIONS = 3
@@ -165,6 +166,7 @@ function NotificationCard({
 }) {
   const tone = notificationTone(notification.level)
   const Icon = notificationIcon(notification.level)
+  const displayMessage = useChatDisplayText(notification.message)
 
   return (
     <div
@@ -192,7 +194,7 @@ function NotificationCard({
           <p className="text-xs font-medium tracking-widest text-text-muted uppercase">
             {notificationLabel(notification.level)}
           </p>
-          <p className="min-w-0 text-xs leading-5 text-text-secondary">{notification.message}</p>
+          <p className="min-w-0 text-xs leading-5 text-text-secondary">{displayMessage}</p>
         </div>
       </div>
     </div>
@@ -231,6 +233,7 @@ export function AgentNotificationStack({
 
   const visible = expanded ? notifications : notifications.slice(0, MAX_VISIBLE_NOTIFICATIONS)
   const hiddenCount = notifications.length - visible.length
+  const latestDisplayMessage = useChatDisplayText(notifications[0]?.message ?? '')
 
   return (
     <>
@@ -248,7 +251,7 @@ export function AgentNotificationStack({
 
       {/* Always mounted, so the newest notice is actually announced. A live region added in the same
           commit as its text is not announced. */}
-      <PoliteAnnouncer message={notifications[0]?.message ?? null} />
+      <PoliteAnnouncer message={latestDisplayMessage || null} />
 
       {notifications.length === 0 ? null : (
         <output

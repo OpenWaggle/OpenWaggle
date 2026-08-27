@@ -1,7 +1,8 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useDraftAuthorizationModeStore } from '@/features/chat/state/draft-authorization-mode-store'
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: { getProjectPreferences: vi.fn().mockResolvedValue(null) },
@@ -22,23 +23,11 @@ function session(override?: 'yolo' | 'ask-for-approval'): SessionDetail {
 }
 
 describe('SessionAuthorizationModeMenu', () => {
-  it('uses the documented mode names, never a contraction', () => {
-    // CONTEXT.md defines the terms as "YOLO (Full access)" and "Ask for Approval", and rules out
-    // "Ask mode". An earlier version showed "YOLO"/"Ask" while closed, which both broke the
-    // vocabulary and depended on Chromium repainting option text before the native popup opened.
-    render(
-      <SessionAuthorizationModeMenu
-        onSetAuthorizationMode={vi.fn().mockResolvedValue(undefined)}
-        session={session('yolo')}
-      />,
-    )
-
-    expect(screen.getByRole('option', { name: 'YOLO (Full access)' })).toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: 'YOLO' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: 'Ask' })).not.toBeInTheDocument()
+  beforeEach(() => {
+    useDraftAuthorizationModeStore.setState({ byProjectPath: {} })
   })
 
-  it('keeps the same names after the control is focused and blurred', () => {
+  it('uses a compact trigger and canonical names in the open menu', () => {
     render(
       <SessionAuthorizationModeMenu
         onSetAuthorizationMode={vi.fn().mockResolvedValue(undefined)}
@@ -46,12 +35,35 @@ describe('SessionAuthorizationModeMenu', () => {
       />,
     )
 
-    const select = screen.getByRole('combobox', { name: 'Session access mode' })
-    fireEvent.focus(select)
-    expect(screen.getByRole('option', { name: 'YOLO (Full access)' })).toBeInTheDocument()
+    const trigger = screen.getByRole('button', { name: 'Session access mode: YOLO' })
+    expect(trigger).toHaveTextContent('YOLO')
+    expect(trigger).not.toHaveTextContent('Full Access')
 
-    fireEvent.blur(select)
-    expect(screen.getByRole('option', { name: 'YOLO (Full access)' })).toBeInTheDocument()
+    fireEvent.click(trigger)
+
+    expect(screen.getByRole('menuitemradio', { name: 'YOLO (Full Access)' })).toBeChecked()
+    expect(screen.getByRole('menuitemradio', { name: 'Ask for Approval' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitemradio', { name: 'Ask' })).not.toBeInTheDocument()
+  })
+
+  it('keeps canonical menu names across close and reopen', () => {
+    render(
+      <SessionAuthorizationModeMenu
+        onSetAuthorizationMode={vi.fn().mockResolvedValue(undefined)}
+        session={session('yolo')}
+      />,
+    )
+
+    const trigger = screen.getByRole('button', { name: 'Session access mode: YOLO' })
+    trigger.focus()
+    fireEvent.click(trigger)
+    expect(screen.getByRole('menuitemradio', { name: 'YOLO (Full Access)' })).toBeInTheDocument()
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+
+    fireEvent.click(trigger)
+    expect(screen.getByRole('menuitemradio', { name: 'YOLO (Full Access)' })).toBeInTheDocument()
   })
 
   it('lists the other mode too', () => {
@@ -62,12 +74,11 @@ describe('SessionAuthorizationModeMenu', () => {
       />,
     )
 
-    expect(screen.getByRole('option', { name: 'Ask for Approval' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Session access mode: YOLO' }))
+    expect(screen.getByRole('menuitemradio', { name: 'Ask for Approval' })).toBeInTheDocument()
   })
 
-  it('names the mode in force while inheriting, rather than the word Default', () => {
-    // The control exists to say which mode the next run will use. "Default" says nothing about that,
-    // and an inheriting session is the common case.
+  it('keeps inheritance internal and shows exactly the two modes a user can choose', () => {
     render(
       <SessionAuthorizationModeMenu
         onSetAuthorizationMode={vi.fn().mockResolvedValue(undefined)}
@@ -75,11 +86,12 @@ describe('SessionAuthorizationModeMenu', () => {
       />,
     )
 
-    const select = screen.getByRole('combobox', { name: 'Session access mode' })
-    expect(select).toHaveValue('inherit')
-    // Names the mode in force AND marks it inherited, so it stays distinct from pinning the same
-    // mode as an explicit override without needing a state swap to tell them apart.
-    expect(screen.getByRole('option', { name: 'Default · YOLO (Full access)' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Session access mode: YOLO' }))
+    const options = screen.getAllByRole('menuitemradio')
+    expect(options).toHaveLength(2)
+    expect(screen.getByRole('menuitemradio', { name: 'YOLO (Full Access)' })).toBeChecked()
+    expect(screen.getByRole('menuitemradio', { name: 'Ask for Approval' })).not.toBeChecked()
+    expect(screen.queryByText(/Default/)).not.toBeInTheDocument()
   })
 
   it('sets a session override', () => {
@@ -91,45 +103,31 @@ describe('SessionAuthorizationModeMenu', () => {
       />,
     )
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Session access mode' }), {
-      target: { value: 'ask-for-approval' },
-    })
+    fireEvent.click(screen.getByRole('button', { name: 'Session access mode: YOLO' }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Ask for Approval' }))
 
     expect(onSetAuthorizationMode).toHaveBeenCalledWith('ask-for-approval')
   })
 
-  it('clears the override so the session inherits again', () => {
-    // Without this the composer could set an override but never remove one, so a session could
-    // never be returned to following its project or global default.
+  it('lets a draft choose an explicit mode before the session exists', () => {
     const onSetAuthorizationMode = vi.fn().mockResolvedValue(undefined)
     render(
       <SessionAuthorizationModeMenu
         onSetAuthorizationMode={onSetAuthorizationMode}
-        session={session('ask-for-approval')}
-      />,
-    )
-
-    fireEvent.change(screen.getByRole('combobox', { name: 'Session access mode' }), {
-      target: { value: 'inherit' },
-    })
-
-    expect(onSetAuthorizationMode).toHaveBeenCalledWith(null)
-  })
-
-  it('shows the mode the first run will use before a session exists, without letting it be set', () => {
-    // Hiding the control until after the first message would leave the composer silent about access
-    // exactly when it matters most, but a draft has nothing to hold a session override yet.
-    render(
-      <SessionAuthorizationModeMenu
-        onSetAuthorizationMode={vi.fn().mockResolvedValue(undefined)}
+        projectPath="/tmp/project"
         session={null}
       />,
     )
 
-    const select = screen.getByRole('combobox', { name: 'Session access mode' })
-    expect(select).toBeDisabled()
-    expect(select).toHaveValue('yolo')
-    expect(screen.getByRole('option', { name: 'YOLO (Full access)' })).toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: /^Default/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Session access mode: YOLO' }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Ask for Approval' }))
+
+    expect(
+      screen.getByRole('button', { name: 'Session access mode: Ask for approval' }),
+    ).toBeEnabled()
+    expect(useDraftAuthorizationModeStore.getState().byProjectPath['/tmp/project']).toBe(
+      'ask-for-approval',
+    )
+    expect(onSetAuthorizationMode).not.toHaveBeenCalled()
   })
 })

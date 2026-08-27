@@ -6,6 +6,7 @@
  * (abort controllers, active run tracking, stream buffers, IPC emission).
  */
 
+import { WORKTREE_CREATED_CUSTOM_EVENT } from '@shared/types/background-run'
 import { formatErrorMessage } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
@@ -53,6 +54,9 @@ export function executeAgentRun(input: AgentRunInput) {
   // Whether the agent got the message: a failure after that point is not a refused send.
   let reachedAgent = false
   const durableAgentLoopEvents: DurableAgentLoopEvent[] = []
+  let worktreeCreatedEvent: DurableAgentLoopEvent | null = null
+  const worktreeLaunchDetails: string[] = []
+  const worktreeLaunchDetailSet = new Set<string>()
 
   return Effect.gen(function* () {
     const preflight = yield* loadAgentRunPreflight(input)
@@ -67,6 +71,29 @@ export function executeAgentRun(input: AgentRunInput) {
     const agentResult = yield* runAgentKernel(
       {
         ...input,
+        onWorktreeLaunch: (progress) => {
+          input.onWorktreeLaunch?.(progress)
+          for (const detail of progress.details) {
+            if (worktreeLaunchDetailSet.has(detail)) continue
+            worktreeLaunchDetailSet.add(detail)
+            worktreeLaunchDetails.push(detail)
+          }
+          if (progress.stage === 'worktree-created') {
+            worktreeCreatedEvent = {
+              type: 'custom',
+              name: WORKTREE_CREATED_CUSTOM_EVENT,
+              timestamp: Date.now(),
+              value: {
+                stage: 'starting-task',
+                status: 'complete',
+                details: worktreeLaunchDetails,
+                ...(progress.worktreePath ? { worktreePath: progress.worktreePath } : {}),
+                ...(progress.branch ? { branch: progress.branch } : {}),
+                ...(progress.baseRef ? { baseRef: progress.baseRef } : {}),
+              },
+            }
+          }
+        },
         onEvent: (event) => {
           if (isDurableAgentLoopEvent(event)) {
             durableAgentLoopEvents.push(event)
@@ -86,6 +113,9 @@ export function executeAgentRun(input: AgentRunInput) {
      * run whose persistence then failed was reported as delivered, and the submitted review was discarded.
      */
     reachedAgent = agentResult.aborted !== true && agentResult.newMessages.length > 0
+    if (reachedAgent && worktreeCreatedEvent) {
+      durableAgentLoopEvents.unshift(worktreeCreatedEvent)
+    }
     const existingTree = yield* sessionRepo.getTree(input.sessionId)
     const sessionSnapshot = appendDurableAgentLoopEvents({
       snapshot: agentResult.sessionSnapshot,

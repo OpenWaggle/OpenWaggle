@@ -23,7 +23,6 @@ export function useBranchPickerController({ onToast }: UseBranchPickerController
   const openMenu = useComposerStore((s) => s.openMenu)
   const branchQuery = useComposerActionStore((s) => s.branchQuery)
   const setBranchQuery = useComposerActionStore((s) => s.setBranchQuery)
-  const openActionDialog = useComposerActionStore((s) => s.openActionDialog)
   const currentBranch = git.status?.branch ?? null
   const branches = filterBranches(git.branches?.branches ?? [], branchQuery)
 
@@ -57,7 +56,6 @@ export function useBranchPickerController({ onToast }: UseBranchPickerController
     remoteBranches: branches.remoteBranches,
     openMenu,
     setBranchQuery,
-    openActionDialog,
     checkoutBranch,
   }
 }

@@ -153,7 +153,7 @@ export function SidebarProjectHeader({
         'group flex h-7.5 w-full items-center gap-1.5 pr-2.5 pl-2 transition-colors hover:bg-bg-hover',
         isCurrentProject ? 'text-text-secondary' : 'text-text-tertiary',
       )}
-      title={group.projectPath}
+      title={projectLabel}
     >
       <ProjectTitleArea
         state={{

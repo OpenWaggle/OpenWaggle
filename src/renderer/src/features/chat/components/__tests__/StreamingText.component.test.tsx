@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { ChatDisplayPathProvider } from '../ChatDisplayPathContext'
 import { StreamingText } from '../StreamingText'
 
 describe('StreamingText', () => {
@@ -80,5 +81,20 @@ describe('StreamingText', () => {
     rerender(<StreamingText text="final" isStreaming={false} />)
 
     expect(screen.getByText('final')).toBeInTheDocument()
+  })
+
+  it('shows active worktree paths relative to the project root', () => {
+    const worktreePath = '/Users/diego/.openwaggle/worktrees/OpenWaggle/session-a'
+    render(
+      <ChatDisplayPathProvider
+        projectPath="/Users/diego/Projects/OpenWaggle"
+        worktreePath={worktreePath}
+      >
+        <StreamingText text={`Read ${worktreePath}/.agents/skills/grill-me/SKILL.md`} />
+      </ChatDisplayPathProvider>,
+    )
+
+    expect(screen.getByText('Read .agents/skills/grill-me/SKILL.md')).toBeInTheDocument()
+    expect(screen.queryByText(/\.openwaggle\/worktrees/)).toBeNull()
   })
 })

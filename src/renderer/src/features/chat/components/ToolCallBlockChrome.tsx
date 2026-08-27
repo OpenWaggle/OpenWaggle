@@ -3,6 +3,7 @@ import type { ToolCallResultPayload } from '@/features/chat/lib/tool-call-block'
 import { cn } from '@/shared/lib/cn'
 import { formatDuration } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
+import { useChatDisplayText } from './ChatDisplayPathContext'
 import type { ToolCallViewModel } from './ToolCallBlock'
 import { UnifiedDiffView } from './ToolCallBlockParts'
 
@@ -84,6 +85,7 @@ function ToolActionLabel({
   readonly view: ToolCallViewModel
   readonly result: ToolCallResultPayload | undefined
 }) {
+  const actionText = useChatDisplayText(view.actionText)
   return (
     <span
       className={cn(
@@ -93,7 +95,7 @@ function ToolActionLabel({
         result && view.isError && 'text-error/80',
       )}
     >
-      {view.actionText}
+      {actionText}
     </span>
   )
 }
@@ -157,6 +159,7 @@ export function CollapsedToolPreview({
 }
 
 function ToolPreview({ text, tone }: { readonly text: string; readonly tone: 'muted' | 'error' }) {
+  const displayText = useChatDisplayText(text)
   return (
     <pre
       className={cn(
@@ -166,7 +169,7 @@ function ToolPreview({ text, tone }: { readonly text: string; readonly tone: 'mu
           : 'max-h-30 bg-bg-secondary/60 text-text-tertiary',
       )}
     >
-      {text}
+      {displayText}
     </pre>
   )
 }

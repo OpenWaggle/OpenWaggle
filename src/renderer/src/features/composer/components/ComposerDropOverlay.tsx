@@ -9,7 +9,7 @@ export function ComposerDropOverlay({ isAtCapacity }: ComposerDropOverlayProps) 
   return (
     <div
       className={cn(
-        'pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-3xl backdrop-blur-[1px]',
+        'pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl backdrop-blur-[1px]',
         isAtCapacity ? 'bg-error/5' : 'bg-accent/8',
       )}
     >

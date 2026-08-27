@@ -11,6 +11,7 @@
     "prepare:native:electron": "tsx scripts/rebuild-native-deps.ts electron",
     "dev": "pnpm docs:generate && pnpm prepare:native:electron && env -u ELECTRON_RUN_AS_NODE ELECTRON_ENABLE_LOGGING=1 electron-vite dev",
     "dev:debug": "pnpm docs:generate && pnpm prepare:native:electron && env -u ELECTRON_RUN_AS_NODE ELECTRON_ENABLE_LOGGING=1 electron-vite dev -- --remote-debugging-port=9222",
+    "prototype:composer": "vite prototypes/composer --host 127.0.0.1",
     "build": "pnpm docs:generate && pnpm prepare:native:electron && electron-vite build",
     "build:package-dependencies": "pnpm --filter @openwaggle/waggle-core build && pnpm --filter @openwaggle/extension-sdk build",
     "build:packages": "pnpm build:package-dependencies && pnpm --filter @openwaggle/pi-waggle build && pnpm --filter @openwaggle/extension-react build",

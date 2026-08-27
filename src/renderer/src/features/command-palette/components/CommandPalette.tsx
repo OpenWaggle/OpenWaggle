@@ -31,11 +31,13 @@ export function CommandPalette({
   const highlightIndex = useComposerStore((s) => s.slashHighlightIndex)
   const setHighlightIndex = useComposerStore((s) => s.setSlashHighlightIndex)
   const setDismissedSlashToken = useComposerStore((s) => s.setDismissedSlashToken)
+  const filter = useComposerStore((s) => s.slashMenuFilter)
   const containerRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const query = activeSlashCommand?.query ?? ''
   const items = useCommandPaletteItems({
     query,
+    filter,
     slashSkills,
     onSelectSkill,
     onStartWaggle,

@@ -145,7 +145,7 @@ describe('registerGitHandlers working-tree actions', () => {
     expect(commands).toEqual(['rev-parse --show-toplevel'])
   })
 
-  it('names the repository root in the confirmation when a subdirectory was opened', async () => {
+  it('explains repository-wide scope without exposing absolute paths', async () => {
     /*
      * Revert all is re-based onto the repository root and uses whole-repository pathspecs.
      * Verified against real git that opening /repo/packages/app and confirming deletes untracked
@@ -167,8 +167,8 @@ describe('registerGitHandlers working-tree actions', () => {
     await handler?.({ sender: { id: 'renderer' } }, '/tmp/repo/packages/app')
 
     const detail = showMessageBoxMock.mock.calls.at(0)?.at(1)?.detail
-    expect(detail).toContain('whole repository at /tmp/repo')
-    expect(detail).toContain('not only the folder you opened (/tmp/repo/packages/app)')
+    expect(detail).toContain('including files outside the folder you opened')
+    expect(detail).not.toContain('/tmp/repo')
   })
 
   it('invalidates cached status after a working-tree mutation', async () => {

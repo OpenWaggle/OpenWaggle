@@ -64,7 +64,7 @@ async function archiveProjectSessions(
 
   const confirmed = await api.showConfirm(
     `Archive ${sessionCount} session${sessionCount === 1 ? '' : 's'} in ${deps.displayProjectName(path)}?`,
-    `Project: ${path}`,
+    `Project: ${deps.displayProjectName(path)}`,
   )
   if (!confirmed) return
 
@@ -84,7 +84,7 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
   const sessionCount = projectSessions.length
   const confirmed = await api.showConfirm(
     `Remove ${deps.displayProjectName(path)} and permanently delete ${sessionCount} session${sessionCount === 1 ? '' : 's'}?`,
-    `Project: ${path}\nThis cannot be undone.`,
+    `Project: ${deps.displayProjectName(path)}\nThis cannot be undone.`,
   )
   if (!confirmed) return
 

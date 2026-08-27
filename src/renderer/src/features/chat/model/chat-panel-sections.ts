@@ -19,6 +19,7 @@ export interface ChatTranscriptSectionState {
   readonly messages: UIMessage[]
   readonly isLoading: boolean
   readonly projectPath: string | null
+  readonly worktreePath: string | null
   readonly recentProjects: readonly string[]
   readonly activeSessionId: SessionId | null
   readonly chatRows: ChatRow[]
@@ -46,6 +47,8 @@ export interface ChatTranscriptSectionState {
 
 export interface ChatComposerSectionState {
   readonly activeSessionId: SessionId | null
+  readonly projectPath?: string | null
+  readonly recentProjects: readonly string[]
   readonly session: SessionDetail | null
   readonly isFirstMessage: boolean
   readonly waggleStatus: WaggleCollaborationStatus
@@ -71,6 +74,8 @@ export interface ChatComposerSectionState {
   onCloseForkSelector: () => void
   onSelectForkTarget: (target: SessionForkTarget) => void
   onCloneToNewSession: () => void
+  onOpenProject: () => Promise<void>
+  onSelectProjectPath: (path: string) => void
   onSetAuthorizationMode: (authorizationMode: AgentAuthorizationMode | null) => Promise<void>
 }
 

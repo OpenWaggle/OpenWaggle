@@ -86,24 +86,74 @@ test('the composer access control names the mode in force, in the documented voc
   try {
     const { mainWindow } = await openSeededSession(app)
     const page = mainWindow.page
-    const select = page.getByRole('combobox', { name: 'Session access mode' })
+    const trigger = page.getByRole('button', { name: 'Session access mode: YOLO' })
 
-    await expect(select).toBeVisible()
-    // One vocabulary in both states. The contraction "Ask" is ruled out by CONTEXT.md, and swapping
-    // option text on focus depended on Chromium repainting before the native popup opened.
+    await expect(trigger).toBeVisible()
+    await trigger.click()
+    // The compact trigger stays short while the menu uses the canonical documented vocabulary.
     await expect(
-      page.getByRole('option', { exact: true, name: 'YOLO (Full access)' }),
-    ).toBeAttached()
-    await expect(page.getByRole('option', { exact: true, name: 'Ask for Approval' })).toBeAttached()
-    await expect(page.getByRole('option', { name: 'YOLO', exact: true })).toHaveCount(0)
-    await expect(page.getByRole('option', { name: 'Ask', exact: true })).toHaveCount(0)
+      page.getByRole('menuitemradio', { exact: true, name: 'YOLO (Full Access)' }),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('menuitemradio', { exact: true, name: 'Ask for Approval' }),
+    ).toBeVisible()
 
-    // The seeded session holds no override, so the inherited option names the effective mode and
-    // marks it as inherited rather than showing the bare word "Default".
-    await expect(select).toHaveValue('inherit')
     await expect(
-      page.getByRole('option', { exact: true, name: 'Default · YOLO (Full access)' }),
-    ).toBeAttached()
+      page.getByRole('menuitemradio', { exact: true, name: 'YOLO (Full Access)' }),
+    ).toBeChecked()
+    await expect(page.getByRole('menuitemradio')).toHaveCount(2)
+    await expect(page.getByText(/Default/)).toHaveCount(0)
+  } finally {
+    await app.cleanup()
+  }
+})
+
+test('worktree setup becomes a compact expandable trace before agent streaming', async () => {
+  const app = await OpenWaggleApp.launch('openwaggle-e2e-worktree-launch-')
+
+  try {
+    const { mainWindow, sessionId } = await openSeededSession(app)
+    const page = mainWindow.page
+
+    await app.emitWorktreeLaunch({
+      sessionId,
+      launch: {
+        status: 'running',
+        stage: 'checking-out-files',
+        startedAt: 1,
+        updatedAt: 2,
+        details: ['Preparing the session worktree', 'Creating session-a-worktree from main'],
+      },
+    })
+
+    const preflight = page.getByRole('region', { name: 'Creating a worktree' })
+    await expect(preflight).toBeVisible()
+    await expect(preflight.getByText('Preparing workspace')).toBeVisible()
+    await expect(preflight.getByText('Checking out files')).toBeVisible()
+    await expect(preflight.getByRole('button', { name: 'Work locally' })).toBeVisible()
+    await expect(preflight.getByRole('button', { name: 'Cancel' })).toBeVisible()
+
+    await app.emitWorktreeLaunch({
+      sessionId,
+      launch: {
+        status: 'complete',
+        stage: 'starting-task',
+        startedAt: 1,
+        updatedAt: 3,
+        details: [
+          'Preparing the session worktree',
+          'Creating session-a-worktree from main',
+          'Created session-a-worktree from main',
+          'Starting the task in the new worktree',
+        ],
+      },
+    })
+
+    await expect(preflight).toHaveCount(0)
+    const trace = page.getByRole('button', { name: /Worktree created/ })
+    await expect(trace).toBeVisible()
+    await trace.click()
+    await expect(page.getByText('Created session-a-worktree from main')).toBeVisible()
   } finally {
     await app.cleanup()
   }

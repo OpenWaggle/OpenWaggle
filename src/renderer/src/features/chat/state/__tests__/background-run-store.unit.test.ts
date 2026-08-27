@@ -1,14 +1,21 @@
-import { SessionId } from '@shared/types/brand'
+// @vitest-environment jsdom
+
+import type { WorktreeLaunchSnapshot } from '@shared/types/background-run'
+import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { BACKGROUND_RUN_RECOVERY_STORAGE_KEY } from '../background-run-recovery-storage'
 import { useBackgroundRunStore } from '../background-run-store'
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+const { apiMock } = vi.hoisted(() => ({
+  apiMock: {
     listActiveRuns: vi.fn(async () => []),
+    getBackgroundRun: vi.fn(async () => null),
   },
 }))
+
+vi.mock('@/shared/lib/ipc', () => ({ api: apiMock }))
 
 const SESSION_A = SessionId('session-a')
 const SESSION_B = SessionId('session-b')
@@ -17,6 +24,8 @@ function resetStore() {
   useBackgroundRunStore.setState({
     activeRunIds: new Set(),
     renderSnapshotsBySessionId: new Map(),
+    worktreeLaunchBySessionId: new Map(),
+    firstSendRecoveryBySessionId: new Map(),
   })
 }
 
@@ -45,6 +54,10 @@ function assistantTextEvent(messageId: string, delta: string): AgentTransportEve
 
 describe('useBackgroundRunStore', () => {
   beforeEach(() => {
+    window.localStorage.clear()
+    vi.clearAllMocks()
+    apiMock.listActiveRuns.mockResolvedValue([])
+    apiMock.getBackgroundRun.mockResolvedValue(null)
     resetStore()
   })
 
@@ -103,5 +116,63 @@ describe('useBackgroundRunStore', () => {
     expect(useBackgroundRunStore.getState().getRunRenderSnapshot(SESSION_A)?.messages).toEqual([
       userMessage('user-a', 'Prompt A'),
     ])
+  })
+
+  it('stores and clears the worktree launch state by owning session', () => {
+    const launch: WorktreeLaunchSnapshot = {
+      status: 'running',
+      stage: 'checking-out-files',
+      startedAt: 1,
+      updatedAt: 2,
+      details: ['Creating ow/session-a from main'],
+    }
+
+    useBackgroundRunStore.getState().setWorktreeLaunch(SESSION_A, launch)
+
+    expect(useBackgroundRunStore.getState().getWorktreeLaunch(SESSION_A)).toEqual(launch)
+    expect(useBackgroundRunStore.getState().getWorktreeLaunch(SESSION_B)).toBeNull()
+
+    useBackgroundRunStore.getState().setWorktreeLaunch(SESSION_A, null)
+    expect(useBackgroundRunStore.getState().getWorktreeLaunch(SESSION_A)).toBeNull()
+  })
+
+  it('restores a failed first-send launch and its exact retry payload after renderer reload', async () => {
+    const launch: WorktreeLaunchSnapshot = {
+      status: 'failed',
+      stage: 'checking-out-files',
+      startedAt: 1,
+      updatedAt: 2,
+      details: ['Could not create worktree'],
+      errorMessage: 'Could not create worktree',
+    }
+    const recovery = {
+      payload: {
+        text: 'Keep this prompt',
+        thinkingLevel: 'medium' as const,
+        attachments: [],
+      },
+      waggleConfig: null,
+      model: SupportedModelId('openai/gpt-5'),
+    }
+    useBackgroundRunStore.getState().setWorktreeLaunch(SESSION_A, launch)
+    useBackgroundRunStore.getState().setFirstSendRecovery(SESSION_A, recovery)
+    expect(window.localStorage.getItem(BACKGROUND_RUN_RECOVERY_STORAGE_KEY)).not.toBeNull()
+
+    // A renderer reload recreates the in-memory maps while preserving localStorage.
+    resetStore()
+    await useBackgroundRunStore.getState().initialize()
+
+    expect(useBackgroundRunStore.getState().getWorktreeLaunch(SESSION_A)).toEqual(launch)
+    expect(useBackgroundRunStore.getState().firstSendRecoveryBySessionId.get(SESSION_A)).toEqual(
+      recovery,
+    )
+  })
+
+  it('drops malformed persisted recovery state instead of failing initialization', async () => {
+    window.localStorage.setItem(BACKGROUND_RUN_RECOVERY_STORAGE_KEY, '{not json')
+
+    await expect(useBackgroundRunStore.getState().initialize()).resolves.toBeUndefined()
+
+    expect(window.localStorage.getItem(BACKGROUND_RUN_RECOVERY_STORAGE_KEY)).toBeNull()
   })
 })

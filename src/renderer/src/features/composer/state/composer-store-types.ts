@@ -3,6 +3,7 @@ import type { WagglePreset } from '@shared/types/waggle'
 import type { LexicalEditor } from 'lexical'
 
 export type MenuKind = 'thinking' | 'execution' | 'branch' | null
+export type SlashMenuFilter = 'all' | 'skills' | 'waggle'
 
 export interface ActiveSlashCommandMatch {
   readonly query: string
@@ -54,9 +55,11 @@ export interface ComposerState {
   slashHighlightIndex: number
   activeSlashCommand: ActiveSlashCommandMatch | null
   dismissedSlashToken: string | null
+  slashMenuFilter: SlashMenuFilter
   setSlashHighlightIndex: (index: number) => void
   setActiveSlashCommand: (match: ActiveSlashCommandMatch | null) => void
   setDismissedSlashToken: (token: string | null) => void
+  setSlashMenuFilter: (filter: SlashMenuFilter) => void
   lexicalEditor: LexicalEditor | null
   setLexicalEditor: (editor: LexicalEditor | null) => void
   reset: () => void
@@ -79,6 +82,7 @@ export interface InitialComposerState {
   slashHighlightIndex: number
   activeSlashCommand: ActiveSlashCommandMatch | null
   dismissedSlashToken: string | null
+  slashMenuFilter: SlashMenuFilter
 }
 
 export type ComposerSet = (

@@ -2,6 +2,7 @@ import type { SessionId } from '@shared/types/brand'
 import { ArrowUp, Timer, Trash2 } from 'lucide-react'
 import { selectQueue, useMessageQueueStore } from '@/features/chat/state'
 import { Button } from '@/shared/ui/Button'
+import { ComposerDock } from './ComposerDock'
 
 interface QueuedMessagesProps {
   readonly sessionId: SessionId | null
@@ -29,7 +30,7 @@ export function QueuedMessages({
   if (queue.length === 0 || !sessionId) return null
 
   return (
-    <div className="mx-3.5 flex flex-col gap-1.5 rounded-t-3xl border-x border-t border-border-light bg-bg-secondary px-2.5 pt-2 pb-1.5 opacity-60">
+    <ComposerDock className="flex flex-col gap-1.5 px-2.5 pt-2 pb-1.5 opacity-60">
       {/* Header */}
       <div className="flex items-center gap-1.5 px-1">
         <Timer className="size-3 text-text-tertiary" />
@@ -73,6 +74,6 @@ export function QueuedMessages({
           </div>
         ))}
       </div>
-    </div>
+    </ComposerDock>
   )
 }

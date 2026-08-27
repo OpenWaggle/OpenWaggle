@@ -20,6 +20,7 @@ export function buildInitialComposerState() {
     slashHighlightIndex: 0,
     activeSlashCommand: null,
     dismissedSlashToken: null,
+    slashMenuFilter: 'all' as const,
   }
 }
 

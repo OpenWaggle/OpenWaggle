@@ -1,6 +1,7 @@
 import type { McpImportCandidate, McpImportPreview } from '@shared/types/mcp'
 import { Download, Search } from 'lucide-react'
 import { useState } from 'react'
+import { formatDisplayPath, formatDisplayPathsInText } from '@/shared/lib/display-path'
 import { api } from '@/shared/lib/ipc'
 import { tildifyPath } from '@/shared/lib/tildify-path'
 import { Button } from '@/shared/ui/Button'
@@ -20,10 +21,12 @@ function candidatesForTarget(
 
 function McpMigrationReview({
   preview,
+  projectPath,
   disabled,
   onImport,
 }: {
   readonly preview: McpImportPreview
+  readonly projectPath: string | null
   readonly disabled: boolean
   readonly onImport: () => void
 }) {
@@ -36,12 +39,15 @@ function McpMigrationReview({
             <p className="font-medium text-text-primary">
               {candidate.name} · {candidate.suggestedTarget}
             </p>
-            <p className="truncate text-text-muted" title={tildifyPath(candidate.sourcePath)}>
-              {tildifyPath(candidate.sourcePath)}
+            <p
+              className="truncate text-text-muted"
+              title={tildifyPath(formatDisplayPath(candidate.sourcePath, [projectPath]))}
+            >
+              {tildifyPath(formatDisplayPath(candidate.sourcePath, [projectPath]))}
             </p>
             {candidate.warnings.map((warning) => (
               <p key={warning} className="text-warning">
-                {warning}
+                {formatDisplayPathsInText(warning, [projectPath])}
               </p>
             ))}
           </li>
@@ -126,6 +132,7 @@ export function McpMigrationPanel({
   }
 
   const disabled = busy || settingsBusy
+  const displayError = formatDisplayPathsInText(error ?? '', [projectPath])
   return (
     <section aria-labelledby="mcp-migration-heading" className="space-y-3">
       <div>
@@ -154,9 +161,9 @@ export function McpMigrationPanel({
             Scan legacy MCP configs
           </Button>
         </div>
-        {error && (
+        {displayError && (
           <p role="alert" className="mt-3 text-xs text-error-text">
-            Legacy MCP scan or import failed: {error}
+            Legacy MCP scan or import failed: {displayError}
           </p>
         )}
         {message && (
@@ -167,6 +174,7 @@ export function McpMigrationPanel({
         {preview && (
           <McpMigrationReview
             preview={preview}
+            projectPath={projectPath}
             disabled={disabled}
             onImport={() => void importCandidates()}
           />
