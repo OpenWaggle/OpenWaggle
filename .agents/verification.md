@@ -86,9 +86,12 @@ Packaged regressions require packaged-app QA, not only dev-mode validation.
 ```bash
 pnpm test:e2e:headless
 pnpm test:e2e:headless:quick
+pnpm test:e2e:functional
+pnpm test:e2e:functional:quick
 ```
 
 Use quick E2E only when the built app is already current or the test intentionally avoids a full rebuild.
+CI runs the functional suite on macOS, Linux under Xvfb, and Windows. The full macOS job also owns the native Darwin visual baselines tagged `@visual`.
 
 ## Release Work
 

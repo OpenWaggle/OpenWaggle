@@ -79,7 +79,7 @@ async function waitForVisualReadiness(page: Page) {
   })
 }
 
-test('six primary surfaces match their visual baselines', async () => {
+test('six primary surfaces match their visual baselines', { tag: '@visual' }, async () => {
   const app = await OpenWaggleApp.launch('openwaggle-visual-regression-e2e-')
   const projectPath = path.join(app.userDataDir, PROJECT_LABEL)
 
