@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { expect, type Page, test } from '@playwright/test'
 import {
   GITHUB_ISSUES_EXTENSION_ID,
@@ -18,6 +19,30 @@ const SEEDED_MESSAGE_TEXT = 'extension-host-proof-project'
 const EXTENSION_FRAME_TITLE = `Extension module: ${GITHUB_ISSUES_SETTINGS_TITLE}`
 const SAVED_REPOSITORY_OWNER = 'OpenWaggle-e2e'
 const SAVED_REPOSITORY_NAME = 'OpenWaggle-e2e-fixture'
+const EXTENSION_CONFIG_KEY = 'github.issues.config'
+
+function readStoredConfiguration(userDataDir: string) {
+  const database = new DatabaseSync(path.join(userDataDir, 'openwaggle.db'), { readOnly: true })
+  try {
+    const row = database
+      .prepare(
+        `SELECT value_json
+         FROM extension_storage_items
+         WHERE extension_id = ?
+           AND storage_kind = 'config'
+           AND storage_scope_kind = 'project'
+           AND key = ?
+         ORDER BY updated_at DESC
+         LIMIT 1`,
+      )
+      .get(GITHUB_ISSUES_EXTENSION_ID, EXTENSION_CONFIG_KEY) as
+      | { readonly value_json: string }
+      | undefined
+    return row ? JSON.parse(row.value_json) : null
+  } finally {
+    database.close()
+  }
+}
 
 function seededProjectMessage() {
   return {
@@ -101,11 +126,22 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
     await settingsFrame.getByLabel('Repository owner').fill(SAVED_REPOSITORY_OWNER)
     await settingsFrame.getByLabel('Repository name').fill(SAVED_REPOSITORY_NAME)
     const saveConfiguration = settingsFrame.getByRole('button', { name: 'Save configuration' })
-    await saveConfiguration.click()
+    const saveStarted = await saveConfiguration.evaluate((element) => {
+      if (!(element instanceof HTMLButtonElement)) {
+        return false
+      }
+      element.click()
+      return element.disabled
+    })
+    expect(saveStarted).toBe(true)
     await expect(saveConfiguration).toBeEnabled({ timeout: 30_000 })
-    await expect(
-      settingsFrame.getByText('Configuration saved. The side panel will use it on the next refresh.'),
-    ).toBeVisible()
+    await expect
+      .poll(() => readStoredConfiguration(app.userDataDir), { timeout: 30_000 })
+      .toEqual({
+        owner: SAVED_REPOSITORY_OWNER,
+        repo: SAVED_REPOSITORY_NAME,
+        labels: ['enhancement', 'ready-for-agent'],
+      })
 
     await lifecycleButton(page, 'Disable').click()
     await expect(lifecycleButton(page, 'Enable')).toBeVisible()
