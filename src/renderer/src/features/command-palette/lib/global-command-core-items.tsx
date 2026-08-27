@@ -16,6 +16,7 @@ import {
   TerminalSquare,
   Waypoints,
 } from 'lucide-react'
+import { projectName } from '@/shared/lib/format'
 import { formatShortcutBinding } from '@/shared/lib/shortcut-display'
 import type { CommandPaletteItem } from '../model'
 
@@ -214,7 +215,7 @@ export function createRecentProjectItems(
 ): CommandPaletteItem[] {
   return settings.recentProjects.map((path) => ({
     id: `project:${path}`,
-    label: settings.projectDisplayNames[path] ?? path.split('/').at(-1) ?? path,
+    label: settings.projectDisplayNames[path] ?? projectName(path),
     description: path,
     icon: <FolderOpen className="size-3.5" />,
     section: 'Recent projects',

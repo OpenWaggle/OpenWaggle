@@ -19,6 +19,7 @@ import { useScopedComposerDrafts } from '@/features/composer/hooks'
 import { ExtensionAgentLoopStatusWidgets } from '@/features/extensions'
 import { SessionContextRow, type SessionContextRowState } from '@/features/git'
 import { WaggleCollaborationStatus as WaggleCollaborationStatusBanner } from '@/features/waggle/components'
+import { projectName } from '@/shared/lib/format'
 import { useComposerSendGate } from '../hooks/useComposerSendGate'
 import type { ChatComposerSectionState } from '../model'
 import { AgentCustomInteractionComposerFallback } from './AgentCustomInteractionComposerFallback'
@@ -48,8 +49,7 @@ function noOp() {}
 /** Last path segment, so a project-scoped approval names somewhere the user recognises. */
 function projectDisplayName(projectPath: string | null) {
   if (!projectPath) return null
-  const segments = projectPath.split('/').filter((segment) => segment.length > 0)
-  return segments.at(-1) ?? null
+  return projectName(projectPath)
 }
 
 function ComposerOverlays({

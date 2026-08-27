@@ -163,7 +163,8 @@ describe('GitHub Issues Overview extension settings fixture', () => {
     inputByLabel(context.root, 'Repository owner').value = 'Example'
     inputByLabel(context.root, 'Repository name').value = 'Roadmap'
     inputByLabel(context.root, 'Tracked labels').value = 'bug, needs-triage'
-    saveButton(context.root).click()
+    const initialSaveButton = saveButton(context.root)
+    initialSaveButton.click()
     await new Promise((resolve) => setTimeout(resolve, 0))
 
     expect(configStore.get(CONFIG_KEY)).toEqual({
@@ -171,6 +172,7 @@ describe('GitHub Issues Overview extension settings fixture', () => {
       repo: 'Roadmap',
       labels: ['bug', 'needs-triage'],
     })
+    expect(saveButton(context.root)).toBe(initialSaveButton)
     expect(context.root.textContent).toContain('Configuration saved.')
   })
 })

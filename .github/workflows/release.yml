@@ -293,11 +293,51 @@ jobs:
               "+refs/heads/main:refs/remotes/origin/main" \
               "+refs/heads/${RELEASE_BRANCH}:refs/remotes/origin/${RELEASE_BRANCH}"
             verify_version_only_tree "origin/main" "origin/${RELEASE_BRANCH}"
-            PR_URL=$(gh pr create \
-              --base main \
-              --head "$RELEASE_BRANCH" \
-              --title "chore(release): v${VERSION}" \
-              --body "Automated desktop app version release. CI must pass for this exact commit. A maintainer must merge this PR manually to publish the release.")
+            PR_CREATE_ERROR="$RUNNER_TEMP/release-pr-create-error.log"
+            for PR_CREATE_ATTEMPT in $(seq 1 4); do
+              if PR_URL=$(gh pr create \
+                --base main \
+                --head "$RELEASE_BRANCH" \
+                --title "chore(release): v${VERSION}" \
+                --body "Automated desktop app version release. CI must pass for this exact commit. A maintainer must merge this PR manually to publish the release." \
+                2>"$PR_CREATE_ERROR"); then
+                break
+              fi
+
+              cat "$PR_CREATE_ERROR" >&2
+              PR_URL=""
+              RECOVERY_ALL_PRS=""
+              if RECOVERY_ALL_PRS=$(gh pr list --state open --head "$RELEASE_BRANCH" --limit 100 \
+                --json baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner,isCrossRepository,mergeCommit,number,state,title,url); then
+                RECOVERY_PRS=$(pnpm exec tsx scripts/app-release-state.ts filter-prs \
+                  --branch "$RELEASE_BRANCH" \
+                  --owner "$GITHUB_REPOSITORY_OWNER" \
+                  --repository "${GITHUB_REPOSITORY#*/}" \
+                  <<<"$RECOVERY_ALL_PRS")
+                RECOVERY_PR_COUNT=$(jq -er 'length' <<<"$RECOVERY_PRS")
+                if [ "$RECOVERY_PR_COUNT" -gt 1 ]; then
+                  echo "Multiple release PRs appeared after creation failed for ${RELEASE_BRANCH}." >&2
+                  exit 1
+                fi
+                if [ "$RECOVERY_PR_COUNT" -eq 1 ]; then
+                  test "$(jq -er '.[0].baseRefName' <<<"$RECOVERY_PRS")" = "main"
+                  test "$(jq -er '.[0].headRefName' <<<"$RECOVERY_PRS")" = "$RELEASE_BRANCH"
+                  test "$(jq -er '.[0].state' <<<"$RECOVERY_PRS")" = "OPEN"
+                  test "$(jq -er '.[0].title' <<<"$RECOVERY_PRS")" = "chore(release): v${VERSION}"
+                  PR_URL=$(jq -er '.[0].url' <<<"$RECOVERY_PRS")
+                  echo "Adopted release PR after an ambiguous creation failure: ${PR_URL}" >&2
+                  break
+                fi
+              fi
+
+              if [ "$PR_CREATE_ATTEMPT" -eq 4 ]; then
+                echo "GitHub did not create the release PR after ${PR_CREATE_ATTEMPT} attempts." >&2
+                exit 1
+              fi
+              echo "GitHub PR creation failed; retrying (${PR_CREATE_ATTEMPT}/4)." >&2
+              sleep $((PR_CREATE_ATTEMPT * 5))
+            done
+            test -n "$PR_URL"
             PR_STATE="OPEN"
           fi
 

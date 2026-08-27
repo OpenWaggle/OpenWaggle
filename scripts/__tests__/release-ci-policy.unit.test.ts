@@ -140,7 +140,7 @@ describe('release CI policy', () => {
     ],
   ])('rejects %s jobs outside the stable job set', (_kind, workflow) => {
     expect(validateReleaseCiPolicy(workflow)).toContain(
-      'CI must expose exactly these stable job names: Commit Policy, Typecheck & Lint, Unit & Component Tests, Electron E2E (macOS), Package release rehearsal (Node ${{ matrix.node }}), Classify Package Release Candidate, Build and attest package artifacts (Release Please PR only), Package Release Candidate, Package Release Gate.',
+      'CI must expose exactly these stable job names: Commit Policy, Typecheck & Lint, Unit & Component Tests, Electron E2E (macOS), Electron E2E (Linux), Electron E2E (Windows), Package release rehearsal (Node ${{ matrix.node }}), Classify Package Release Candidate, Build and attest package artifacts (Release Please PR only), Package Release Candidate, Package Release Gate.',
     )
   })
 
@@ -194,6 +194,17 @@ describe('release CI policy', () => {
 
     expect(validateReleaseCiPolicy(weakenedWorkflow)).toContain(
       'CI job Typecheck & Lint must run pnpm check as an exact, fail-closed step.',
+    )
+  })
+
+  it.each([
+    ['Linux', 'xvfb-run --auto-servernum pnpm test:e2e:functional'],
+    ['Windows', 'pnpm test:e2e:functional'],
+  ])('rejects a weakened %s Electron E2E command', (platform, command) => {
+    const weakenedWorkflow = compliantWorkflow.replace(`      - run: ${command}`, '      - run: echo skipped')
+
+    expect(validateReleaseCiPolicy(weakenedWorkflow)).toContain(
+      `CI job Electron E2E (${platform}) must run ${command} as an exact, fail-closed step.`,
     )
   })
 
