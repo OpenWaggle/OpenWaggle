@@ -10,9 +10,9 @@ import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-stor
 import { useComposerStore } from '@/features/composer/state'
 import { useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
-import type { AgentInteractionEvent } from '../../lib/types-chat-row'
+import type { AgentInteractionEvent, ChatRow } from '../../lib/types-chat-row'
 import { ChatPanelContent } from '../ChatPanel'
-import { createSections } from './ChatPanel.test-utils'
+import { createSections, makeMessage } from './ChatPanel.test-utils'
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
@@ -105,5 +105,62 @@ describe('ChatPanel composer regressions', () => {
 
     expect(screen.getAllByText('Could not read src/main.ts')).toHaveLength(2)
     expect(screen.queryByText(/\/test\/project\/src\/main\.ts/)).toBeNull()
+  })
+
+  it('aligns standard and Waggle transcript rows with the composer frame', () => {
+    const userMessage = makeMessage({
+      id: 'u1',
+      role: 'user',
+      parts: [{ type: 'text', content: 'Start the review' }],
+    })
+    const waggleMessage = makeMessage({
+      id: 'a1',
+      role: 'assistant',
+      parts: [{ type: 'text', content: 'Waggle review complete' }],
+    })
+    const chatRows: ChatRow[] = [
+      {
+        type: 'message',
+        message: userMessage,
+        isStreaming: false,
+        isRunActive: false,
+        showTurnDivider: false,
+      },
+      {
+        type: 'waggle-turn',
+        id: 'waggle-turn:session-1:0',
+        agentColor: 'blue',
+        turnDividerProps: {
+          turnNumber: 0,
+          agentLabel: 'Reviewer',
+          agentColor: 'blue',
+          agentModel: SupportedModelId('openai/gpt-5'),
+        },
+        messages: [
+          {
+            type: 'message',
+            message: waggleMessage,
+            isStreaming: false,
+            isRunActive: false,
+            showTurnDivider: false,
+            waggle: { agentLabel: 'Reviewer', agentColor: 'blue' },
+          },
+        ],
+      },
+    ]
+
+    renderSections(createSections({ messages: [userMessage, waggleMessage], chatRows }))
+
+    const composerFrame = document.querySelector('[data-chat-composer-form="true"]')
+    const transcriptFrames = document.querySelectorAll('[data-chat-content-frame="transcript-row"]')
+
+    expect(composerFrame).toHaveClass('max-w-180', 'px-5')
+    expect(transcriptFrames).toHaveLength(2)
+    for (const frame of transcriptFrames) {
+      expect(frame).toHaveClass('max-w-180', 'px-5')
+      expect(frame).not.toHaveClass('px-12')
+    }
+    expect(document.querySelector('[data-waggle-turn]')).toBeInTheDocument()
+    expect(screen.getByText('Waggle review complete')).toBeInTheDocument()
   })
 })

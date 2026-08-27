@@ -17,6 +17,7 @@ import { useScopedComposerDrafts } from '@/features/composer/hooks'
 import { ExtensionAgentLoopStatusWidgets } from '@/features/extensions'
 import { WaggleCollaborationStatus as WaggleCollaborationStatusBanner } from '@/features/waggle/components'
 import { useComposerSendGate } from '../hooks/useComposerSendGate'
+import { CHAT_CONTENT_FRAME_CLASS } from '../lib/chat-content-layout'
 import type { ChatComposerSectionState } from '../model'
 import { AgentCustomInteractionComposerFallback } from './AgentCustomInteractionComposerFallback'
 import { AgentInteractionComposerPrompt } from './AgentInteractionComposerPrompt'
@@ -175,7 +176,7 @@ export function ChatComposerStack({
     <>
       <ComposerOverlays section={section} onOpenSessionTree={onOpenSessionTree} />
 
-      <div className="mx-auto w-full max-w-180 px-5 pb-5" data-chat-composer-form="true">
+      <div className={`${CHAT_CONTENT_FRAME_CLASS} pb-5`} data-chat-composer-form="true">
         {compactionStatus ? (
           <CompactionStatusStrip state={compactionStatus} onCancel={onCancel} />
         ) : null}
