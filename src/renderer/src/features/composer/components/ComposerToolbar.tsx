@@ -30,19 +30,24 @@ export function ComposerToolbar({
   return (
     <div
       data-testid="composer-toolbar"
-      className="flex min-h-11 flex-wrap items-center justify-between gap-x-2 gap-y-2 px-4 py-2"
+      className="@container/composer-toolbar flex h-11 flex-nowrap items-center gap-2 px-4 py-2 @max-xl/composer-toolbar:px-3"
     >
-      <div className="flex items-center gap-1.5">
+      <div className="flex shrink-0 items-center gap-1.5">
         <ComposerAttachButton fileInputRef={fileInputRef} />
         {accessControl}
       </div>
       <div
         data-testid="composer-toolbar-actions"
-        className="ml-auto flex max-w-full shrink-0 items-center gap-2"
+        className="ml-auto flex min-w-0 items-center gap-2 @max-xl/composer-toolbar:gap-1.5"
       >
         <ComposerModelPicker />
         <ThinkingLevelMenu />
         <ContextMeter />
+      </div>
+      <div
+        className="flex shrink-0 flex-nowrap items-center gap-2 @max-xl/composer-toolbar:gap-1.5"
+        data-testid="composer-toolbar-primary-actions"
+      >
         <ComposerVoiceButton mode={voiceMode} onToggleVoice={onToggleVoice} />
         <ComposerSendControls
           isLoading={submission.isLoading}

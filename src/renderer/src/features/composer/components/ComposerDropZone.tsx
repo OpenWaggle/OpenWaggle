@@ -71,7 +71,7 @@ export function ComposerDropZone({
       ref={surfaceRef}
       aria-label="Composer file drop zone"
       className={cn(
-        'relative rounded-xl bg-bg-secondary border transition-all [&_button]:cursor-default',
+        'relative z-10 rounded-xl border bg-bg-secondary shadow-2xl shadow-bg/60 transition-all [&_button]:cursor-default',
         disabled ? 'cursor-default' : 'cursor-text',
         'border-input-card-border',
         'focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-accent/20',

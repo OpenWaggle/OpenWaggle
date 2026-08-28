@@ -117,10 +117,13 @@ export function SessionContextRow({ strip }: SessionContextRowProps) {
               aria-label={`Session environment mode: ${ENV_MODE_LABELS[strip.envMode]}`}
               className={CONTEXT_MENU_TRIGGER_CLASS}
               onClick={toggle}
+              title={ENV_MODE_LABELS[strip.envMode]}
               variant="unstyled"
             >
               <Icon aria-hidden="true" className="size-4 shrink-0 text-text-tertiary" />
-              <span className="truncate">{ENV_MODE_LABELS[strip.envMode]}</span>
+              <span className="min-w-0 truncate @max-xl/session-dock:hidden">
+                {ENV_MODE_LABELS[strip.envMode]}
+              </span>
               <ChevronDown aria-hidden="true" className="size-3.5 shrink-0 text-text-muted" />
             </Button>
           )

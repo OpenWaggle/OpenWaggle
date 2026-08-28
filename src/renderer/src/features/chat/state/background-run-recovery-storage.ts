@@ -60,6 +60,21 @@ function storage() {
   }
 }
 
+function compactRecoveryPayload(recovery: FirstSendRecovery): FirstSendRecovery {
+  return {
+    ...recovery,
+    payload: {
+      ...recovery.payload,
+      attachments: recovery.payload.attachments.map((attachment) => ({
+        ...attachment,
+        // Main owns the durable capability and rehydrates extracted contents from disk.
+        // Keeping megabytes of extracted text here exceeds localStorage quotas.
+        extractedText: '',
+      })),
+    },
+  }
+}
+
 export function loadRecoverableBackgroundRuns(): RecoverableBackgroundRuns {
   const empty = {
     launches: new Map<SessionId, WorktreeLaunchSnapshot>(),
@@ -113,7 +128,7 @@ export function persistRecoverableBackgroundRuns(input: RecoverableBackgroundRun
         launches: [...input.launches].map(([sessionId, launch]) => ({ sessionId, launch })),
         recoveries: [...input.recoveries].map(([sessionId, recovery]) => ({
           sessionId,
-          ...recovery,
+          ...compactRecoveryPayload(recovery),
         })),
       }),
     )

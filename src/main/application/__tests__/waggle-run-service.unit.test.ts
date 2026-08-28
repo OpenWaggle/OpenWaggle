@@ -199,6 +199,25 @@ describe('executeWaggleRun', () => {
     expect(onWorktreeLaunch).toHaveBeenCalledWith(progress)
   })
 
+  it('reports cancellation during first-send worktree creation as aborted', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    runMock.mockImplementationOnce(() => controller.signal.throwIfAborted())
+
+    const result = await Effect.runPromise(
+      executeWaggleRun({
+        ...runInput(waggleConfig, 'run-waggle-cancelled-worktree'),
+        signal: controller.signal,
+      }).pipe(Effect.provide(TestLayer)),
+    )
+
+    expect(result).toEqual({ outcome: 'aborted' })
+    expect(clearActiveRunMock).toHaveBeenCalledWith({
+      sessionId,
+      runId: 'run-waggle-cancelled-worktree',
+    })
+  })
+
   it('persists a successful first-send worktree launch as a compact trace', async () => {
     runMock.mockImplementationOnce((kernelInput) => {
       kernelInput.onWorktreeLaunch?.({

@@ -72,8 +72,61 @@ describe('WorktreeLaunchRow', () => {
     )
 
     expect(screen.getByText('Worktree created')).toBeInTheDocument()
-    expect(screen.getByText('Starting task')).toBeInTheDocument()
+    expect(screen.getAllByText('Starting task')).toHaveLength(2)
     expect(screen.queryByText('Preparing workspace')).not.toBeInTheDocument()
+  })
+
+  it('marks Starting task as failed when setup fails after creating the worktree', () => {
+    render(
+      <WorktreeLaunchRow
+        sessionId="session-a"
+        launch={{
+          status: 'failed',
+          stage: 'worktree-created',
+          startedAt: 1,
+          updatedAt: 2,
+          details: ['Created ow/session-a from main', 'Could not start the task'],
+          errorMessage: 'Could not start the task',
+        }}
+      />,
+    )
+
+    expect(screen.getByText('Starting task').parentElement).toHaveAttribute('data-state', 'failed')
+  })
+
+  it('announces worktree progress and failure updates through a stable live region', () => {
+    const { rerender } = render(
+      <WorktreeLaunchRow
+        sessionId="session-a"
+        launch={{
+          status: 'running',
+          stage: 'preparing-workspace',
+          startedAt: 1,
+          updatedAt: 1,
+          details: ['Preparing the session worktree'],
+        }}
+      />,
+    )
+
+    const liveRegion = screen.getByRole('status')
+    expect(liveRegion).toHaveTextContent('Preparing workspace')
+
+    rerender(
+      <WorktreeLaunchRow
+        sessionId="session-a"
+        launch={{
+          status: 'failed',
+          stage: 'checking-out-files',
+          startedAt: 1,
+          updatedAt: 2,
+          details: ['Could not check out files'],
+          errorMessage: 'Could not check out files',
+        }}
+      />,
+    )
+
+    expect(screen.getByRole('status')).toBe(liveRegion)
+    expect(liveRegion).toHaveTextContent('Worktree setup failed: Could not check out files')
   })
 
   it('does not expose the Session worktree storage path in details', () => {

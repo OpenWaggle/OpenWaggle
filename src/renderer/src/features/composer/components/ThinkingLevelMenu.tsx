@@ -1,5 +1,5 @@
 import type { ThinkingLevel } from '@shared/types/settings'
-import { Check, ChevronDown } from 'lucide-react'
+import { Check, ChevronDown, Ellipsis } from 'lucide-react'
 import { useComposerStore } from '@/features/composer/state/composer-store'
 import { useSelectedModelThinkingLevel } from '@/features/providers/hooks'
 import { usePreferencesStore } from '@/features/settings/state'
@@ -88,18 +88,27 @@ function ThinkingLevelTrigger({
 }: ThinkingLevelTriggerProps) {
   return (
     <Button
+      aria-label={`Thinking level: ${label}`}
       variant="unstyled"
       type="button"
       onClick={() => onToggle(!open && canOpen)}
       disabled={!canOpen}
       className={cn(
-        'flex h-6.5 items-center gap-1.5 rounded-md border border-button-border px-2.5 transition-colors',
+        'flex h-6.5 items-center gap-1.5 rounded-md border border-button-border px-2.5 transition-colors @max-xl/composer-toolbar:size-6.5 @max-xl/composer-toolbar:justify-center @max-xl/composer-toolbar:gap-0 @max-xl/composer-toolbar:px-0',
         canOpen ? 'hover:bg-bg-hover' : 'cursor-not-allowed opacity-70',
       )}
       title={title}
     >
-      <span className="text-xs text-text-secondary">{label}</span>
-      <ChevronDown aria-hidden="true" className="size-3 text-text-tertiary" />
+      <span className="text-xs text-text-secondary @max-xl/composer-toolbar:hidden">{label}</span>
+      <ChevronDown
+        aria-hidden="true"
+        className="size-3 text-text-tertiary @max-xl/composer-toolbar:hidden"
+      />
+      <Ellipsis
+        aria-hidden="true"
+        className="hidden size-3.5 text-text-tertiary @max-xl/composer-toolbar:block"
+        data-testid="composer-thinking-compact-icon"
+      />
     </Button>
   )
 }

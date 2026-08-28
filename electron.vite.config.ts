@@ -13,8 +13,13 @@ const PI_EXTENSION_LOADER_PATH = '@earendil-works/pi-coding-agent/dist/core/exte
 const PI_EXTENSION_IMPORT_META_RESOLVE_LINE =
   'return fileURLToPath(import.meta.resolve(specifier));'
 const PI_EXTENSION_BUNDLED_RESOLVE_LINE = 'return specifier;'
-const PI_EXTENSION_NODE_ALIAS_BRANCH =
-  '...(isBunBinary ? { virtualModules: VIRTUAL_MODULES, tryNative: false } : { alias: getAliases() }),'
+const PI_EXTENSION_NODE_ALIAS_BRANCH = [
+  '...(isBunBinary || isNodeSeaBinary || isBundledNode',
+  '            ? { virtualModules: VIRTUAL_MODULES, tryNative: false }',
+  '            : isTypeScriptSourceRuntime',
+  '                ? { virtualModules: VIRTUAL_MODULES, tsconfigPaths: true }',
+  '                : { alias: getAliases() }),',
+].join('\n')
 const PI_EXTENSION_VIRTUAL_MODULE_BRANCH =
   '...{ virtualModules: VIRTUAL_MODULES, tryNative: false },'
 const UNPDF_DIST_PATH = 'unpdf/dist/index.mjs'

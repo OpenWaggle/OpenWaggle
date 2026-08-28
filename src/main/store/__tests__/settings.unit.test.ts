@@ -275,8 +275,8 @@ describe('settings store', () => {
 
   it('roundtrips valid thinkingLevel through updateSettings', async () => {
     const { getSettings, updateSettings } = await loadSettingsModule()
-    updateSettings({ thinkingLevel: 'high' })
-    expect(getSettings().thinkingLevel).toBe('high')
+    updateSettings({ thinkingLevel: 'max' })
+    expect(getSettings().thinkingLevel).toBe('max')
   })
 
   it('roundtrips recentProjects through updateSettings', async () => {

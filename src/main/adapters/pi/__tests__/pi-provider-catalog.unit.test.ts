@@ -5,7 +5,6 @@ import {
   createPiProviderCatalogSnapshot,
   createPiRuntimeServices,
   findPiToolCapableModel,
-  getPiModelAvailableThinkingLevels,
 } from '../pi-provider-catalog'
 import {
   createTempProject,
@@ -23,35 +22,6 @@ const LEGACY_MCP_PACKAGE_SOURCE = LEGACY_PI_MCP_ADAPTER_PACKAGE_SOURCES[0]
 
 afterEach(() => {
   vi.unstubAllEnvs()
-})
-
-describe('getPiModelAvailableThinkingLevels', () => {
-  it('returns off only for non-reasoning models', () => {
-    expect(getPiModelAvailableThinkingLevels({ id: 'gpt-4.1-mini', reasoning: false })).toEqual([
-      'off',
-    ])
-  })
-
-  it('returns standard Pi thinking levels for reasoning models without xhigh support', () => {
-    expect(getPiModelAvailableThinkingLevels({ id: 'gpt-5', reasoning: true })).toEqual([
-      'off',
-      'minimal',
-      'low',
-      'medium',
-      'high',
-    ])
-  })
-
-  it('returns xhigh for Pi-supported model families', () => {
-    expect(getPiModelAvailableThinkingLevels({ id: 'gpt-5.4', reasoning: true })).toEqual([
-      'off',
-      'minimal',
-      'low',
-      'medium',
-      'high',
-      'xhigh',
-    ])
-  })
 })
 
 describe('createPiProviderCatalogSnapshot', () => {

@@ -129,101 +129,104 @@ const TestSessionLayer = Layer.succeed(SessionRepository, {
 const TestAgentKernelLayer = Layer.succeed(AgentKernelService, {
   createSession: () => Effect.fail(new Error('createSession is not used')),
   run: (input: AgentKernelRunInput) =>
-    Effect.promise(async () => {
-      runMock(input)
-      if (!input.waggle) throw new Error('Expected Waggle run options')
-      const meta = {
-        agentIndex: 0,
-        agentLabel: 'Architect',
-        agentColor: 'blue',
-        agentModel: selectedModel,
-        turnNumber: 0,
-        collaborationMode: 'sequential',
-        sessionId: 'waggle-session-1',
-      } as const
-      input.waggle.onWaggleEvent(
-        {
-          type: 'message_update',
-          messageId: 'assistant-node-1',
-          role: 'assistant',
-          assistantMessageEvent: {
-            type: 'text_delta',
-            contentIndex: 0,
-            delta: 'I inspected',
-          },
-          timestamp: 10,
-          model: meta.agentModel,
-        },
-        meta,
-      )
-      input.waggle.onWaggleEvent(
-        {
-          type: 'custom',
-          timestamp: 11,
-          name: 'openwaggle.github.issues.summary',
-          value: { open: 2 },
-          model: meta.agentModel,
-        },
-        meta,
-      )
-      input.waggle.onTurnEvent({
-        type: 'turn-start',
-        turnNumber: 0,
-        agentIndex: 0,
-        agentLabel: 'Architect',
-      })
-      input.waggle.onTurnEvent({
-        type: 'turn-end',
-        turnNumber: 0,
-        agentIndex: 0,
-        agentLabel: 'Architect',
-        agentColor: 'blue',
-        agentModel: selectedModel,
-      })
-      input.waggle.onTurnEvent({
-        type: 'collaboration-complete',
-        reason: 'Reached maximum turns (1)',
-        totalTurns: 1,
-      })
-      return {
-        newMessages: [
+    Effect.tryPromise({
+      try: async () => {
+        runMock(input)
+        if (!input.waggle) throw new Error('Expected Waggle run options')
+        const meta = {
+          agentIndex: 0,
+          agentLabel: 'Architect',
+          agentColor: 'blue',
+          agentModel: selectedModel,
+          turnNumber: 0,
+          collaborationMode: 'sequential',
+          sessionId: 'waggle-session-1',
+        } as const
+        input.waggle.onWaggleEvent(
           {
-            id: MessageId('user-message-1'),
-            role: 'user',
-            parts: [{ type: 'text', text: 'Review the implementation' }],
-            createdAt: 9,
-          },
-          assistantMessage,
-        ],
-        piSessionId: 'pi-session-1',
-        piSessionFile: '/tmp/pi-session-1.jsonl',
-        sessionSnapshot: {
-          activeNodeId: 'assistant-node-1',
-          nodes: [
-            {
-              id: 'assistant-node-1',
-              parentId: null,
-              piEntryType: 'message',
-              kind: 'assistant_message',
-              role: 'assistant',
-              timestampMs: 10,
-              contentJson: '{}',
-              metadataJson: JSON.stringify({
-                waggle: {
-                  agentIndex: 0,
-                  agentLabel: 'Architect',
-                  agentColor: 'blue',
-                  agentModel: 'openai/gpt-5.4',
-                  turnNumber: 0,
-                  sessionId: meta.sessionId,
-                },
-              }),
-              pathDepth: 0,
-              createdOrder: 0,
+            type: 'message_update',
+            messageId: 'assistant-node-1',
+            role: 'assistant',
+            assistantMessageEvent: {
+              type: 'text_delta',
+              contentIndex: 0,
+              delta: 'I inspected',
             },
+            timestamp: 10,
+            model: meta.agentModel,
+          },
+          meta,
+        )
+        input.waggle.onWaggleEvent(
+          {
+            type: 'custom',
+            timestamp: 11,
+            name: 'openwaggle.github.issues.summary',
+            value: { open: 2 },
+            model: meta.agentModel,
+          },
+          meta,
+        )
+        input.waggle.onTurnEvent({
+          type: 'turn-start',
+          turnNumber: 0,
+          agentIndex: 0,
+          agentLabel: 'Architect',
+        })
+        input.waggle.onTurnEvent({
+          type: 'turn-end',
+          turnNumber: 0,
+          agentIndex: 0,
+          agentLabel: 'Architect',
+          agentColor: 'blue',
+          agentModel: selectedModel,
+        })
+        input.waggle.onTurnEvent({
+          type: 'collaboration-complete',
+          reason: 'Reached maximum turns (1)',
+          totalTurns: 1,
+        })
+        return {
+          newMessages: [
+            {
+              id: MessageId('user-message-1'),
+              role: 'user',
+              parts: [{ type: 'text', text: 'Review the implementation' }],
+              createdAt: 9,
+            },
+            assistantMessage,
           ],
-        },
-      }
+          piSessionId: 'pi-session-1',
+          piSessionFile: '/tmp/pi-session-1.jsonl',
+          sessionSnapshot: {
+            activeNodeId: 'assistant-node-1',
+            nodes: [
+              {
+                id: 'assistant-node-1',
+                parentId: null,
+                piEntryType: 'message',
+                kind: 'assistant_message',
+                role: 'assistant',
+                timestampMs: 10,
+                contentJson: '{}',
+                metadataJson: JSON.stringify({
+                  waggle: {
+                    agentIndex: 0,
+                    agentLabel: 'Architect',
+                    agentColor: 'blue',
+                    agentModel: 'openai/gpt-5.4',
+                    turnNumber: 0,
+                    sessionId: meta.sessionId,
+                  },
+                }),
+                pathDepth: 0,
+                createdOrder: 0,
+              },
+            ],
+          },
+        }
+      },
+      catch: (error) => (error instanceof Error ? error : new Error(String(error))),
     }),
   getContextUsage: () => Effect.fail(new Error('context usage is not used')),
   compact: () => Effect.fail(new Error('compaction is not used')),

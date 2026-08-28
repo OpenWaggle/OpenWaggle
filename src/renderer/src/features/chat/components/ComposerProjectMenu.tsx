@@ -58,7 +58,9 @@ export function ComposerProjectMenu({
           variant="unstyled"
         >
           <FolderGit2 aria-hidden="true" className="size-4 shrink-0 text-accent" />
-          <span className="max-w-36 truncate font-medium">{projectName(projectPath)}</span>
+          <span className="max-w-36 truncate font-medium @max-xl/session-dock:max-w-24">
+            {projectName(projectPath)}
+          </span>
           <ChevronDown aria-hidden="true" className="size-3.5 shrink-0 text-text-muted" />
         </Button>
       )}

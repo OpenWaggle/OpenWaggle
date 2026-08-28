@@ -24,6 +24,7 @@ Load `.agents/skills/pi-integration/SKILL.md` for details.
 
 - Pi JSONL sessions are runtime state; SQLite session projection is the product read model for renderer navigation, branching, persistence, active runs, and UI state.
 - Pi-native tool events, thinking levels, compaction behavior, session ids, provider/model ids, and auth methods should stay Pi-native through the adapter boundary.
+- Composer thinking choices must come from Pi's `getSupportedThinkingLevels(model)` result. Render that array exactly: `Off`, `Extra High`, and `Max` appear only when Pi declares them for the selected model; never infer levels from model ids.
 - Missing projected Pi entries during clean-cut projection rebuilds should be treated as stale/cancelled navigation, not thrown through IPC.
 - Preserve Pi-created session ids before first prompt by opening the pre-created id correctly instead of allowing a missing JSONL path to create a different id.
 - Build runtime services through Pi's project-scoped service path so extensions/providers are registered before model resolution.
@@ -101,6 +102,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Manual compaction mirrors Pi TUI slash-command UX: `/compact` and `/compact <custom instructions>`, not context-meter-triggered compaction.
 - Provider auth UI is method-based. Keep provider-level availability separate from API-key configured state and OAuth connected state.
 - Compact composer interactions stay in-row unless the maintainer explicitly asks for a larger workflow.
+- Responsive composer toolbars reserve a non-shrinking primary-action group for voice, stop, and send. Secondary controls compact at the composer container boundary; they must never push the send action outside the composer.
 - Worktree birth is an app-owned launch lifecycle before Pi starts. Show the full creation card only while preparing or checking out files, then persist a compact expandable `Worktree created` custom event in the transcript. Local runs and cancelled births leave no creation trace.
 - The composer owns environment and ref as separate controls before the first turn. First send freezes the launch plan and collapses that setup dock; worktree creation leaves its compact trace in the transcript. The plus menu routes to existing attachment, project-file, skill, and Waggle flows rather than duplicating their state.
 - User-facing filesystem paths are relative to the active Session working root or project root. Canonical absolute `WorkingPath` and `RepositoryPath` values stay internal for IPC, filesystem operations, and copy actions; first-party UI must never expose OpenWaggle's worktree storage prefix.

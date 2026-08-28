@@ -39,6 +39,7 @@ function WorktreeStep({
 }) {
   return (
     <div
+      data-state={state}
       className={`flex items-center gap-2 text-sm ${
         state === 'active'
           ? 'text-progress'
@@ -98,10 +99,11 @@ function WorktreeProgressSteps({
   readonly worktreeCreated: boolean
 }) {
   if (worktreeCreated) {
+    const startingTaskState = launch.status === 'failed' ? 'failed' : 'active'
     return (
       <>
         <WorktreeStep label="Worktree created" state="complete" />
-        <WorktreeStep label="Starting task" state="active" />
+        <WorktreeStep label="Starting task" state={startingTaskState} />
       </>
     )
   }
@@ -114,6 +116,19 @@ function WorktreeProgressSteps({
   )
 }
 
+function worktreeProgressAnnouncement(
+  launch: WorktreeLaunchSnapshot,
+  worktreeCreated: boolean,
+  displayErrorMessage: string,
+) {
+  if (launch.status === 'failed') {
+    return `Worktree setup failed${displayErrorMessage ? `: ${displayErrorMessage}` : ''}`
+  }
+  if (worktreeCreated) return 'Starting task'
+  if (launch.stage === 'checking-out-files') return 'Checking out files'
+  return 'Preparing workspace'
+}
+
 export function WorktreeLaunchRow({ sessionId, launch }: WorktreeLaunchRowProps) {
   const [showDetails, setShowDetails] = useState(false)
   const [actionPending, setActionPending] = useState(false)
@@ -123,6 +138,11 @@ export function WorktreeLaunchRow({ sessionId, launch }: WorktreeLaunchRowProps)
   const formatDisplayText = useChatDisplayTextFormatter()
   const displayErrorMessage = useChatDisplayText(launch.errorMessage ?? '')
   const displayActionError = useChatDisplayText(actionError ?? '')
+  const progressAnnouncement = worktreeProgressAnnouncement(
+    launch,
+    worktreeCreated,
+    displayErrorMessage,
+  )
 
   function runAction(action: () => Promise<void>) {
     setActionPending(true)
@@ -167,6 +187,9 @@ export function WorktreeLaunchRow({ sessionId, launch }: WorktreeLaunchRowProps)
       aria-label={launch.status === 'failed' ? 'Worktree setup failed' : 'Creating a worktree'}
       className="space-y-2 text-text-secondary"
     >
+      <p aria-live="polite" className="sr-only" role="status">
+        {progressAnnouncement}
+      </p>
       <div className="flex items-center gap-2 px-0.5 text-xs text-text-tertiary">
         <Split aria-hidden="true" className="size-3.5" />
         <span>{launch.status === 'failed' ? 'Worktree setup failed' : 'Creating a worktree'}</span>

@@ -38,6 +38,7 @@ describe('SessionAuthorizationModeMenu', () => {
     const trigger = screen.getByRole('button', { name: 'Session access mode: YOLO' })
     expect(trigger).toHaveTextContent('YOLO')
     expect(trigger).not.toHaveTextContent('Full Access')
+    expect(screen.getByText('YOLO')).toHaveClass('@max-xl/composer-toolbar:hidden')
 
     fireEvent.click(trigger)
 

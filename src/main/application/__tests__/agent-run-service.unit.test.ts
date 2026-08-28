@@ -1,4 +1,4 @@
-import { MessageId, SupportedModelId } from '@shared/types/brand'
+import { SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail, SessionTree } from '@shared/types/session'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { Layer } from 'effect'
@@ -13,7 +13,9 @@ import { SettingsService } from '../../services/settings-service'
 import { executeAgentRun, reconcileInterruptedAgentRuns } from '../agent-run-service'
 import {
   runServiceBranchId,
+  runServiceKernelResult,
   runServiceNewSession,
+  runServiceRecoveredSnapshot,
   runServiceSession,
   runServiceSessionId,
   runServiceSessionTree,
@@ -108,38 +110,12 @@ const TestSessionLayer = Layer.succeed(SessionRepository, {
 const TestAgentKernelLayer = Layer.succeed(AgentKernelService, {
   createSession: () => Effect.fail(new Error('createSession is not used')),
   run: (input: AgentKernelRunInput) =>
-    Effect.promise(async () => {
-      runMock(input)
-      return {
-        newMessages: [
-          {
-            id: MessageId('assistant-1'),
-            role: 'assistant',
-            parts: [{ type: 'text', text: 'Done' }],
-            model,
-            createdAt: 3,
-          },
-        ],
-        piSessionId: 'pi-session-1',
-        piSessionFile: '/tmp/pi-session-1.jsonl',
-        sessionSnapshot: {
-          activeNodeId: 'assistant-1',
-          nodes: [
-            {
-              id: 'assistant-1',
-              parentId: null,
-              piEntryType: 'message',
-              kind: 'assistant_message',
-              role: 'assistant',
-              timestampMs: 3,
-              contentJson: '{}',
-              metadataJson: '{}',
-              pathDepth: 0,
-              createdOrder: 0,
-            },
-          ],
-        },
-      }
+    Effect.tryPromise({
+      try: async () => {
+        runMock(input)
+        return runServiceKernelResult(model)
+      },
+      catch: (error) => (error instanceof Error ? error : new Error(String(error))),
     }),
   getContextUsage: () => Effect.fail(new Error('getContextUsage is not used')),
   compact: () => Effect.fail(new Error('compact is not used')),
@@ -148,27 +124,7 @@ const TestAgentKernelLayer = Layer.succeed(AgentKernelService, {
   getSessionSnapshot: (input) =>
     Effect.sync(() => {
       getSessionSnapshotMock(input)
-      return {
-        piSessionId: 'pi-session-1',
-        piSessionFile: '/tmp/pi-session-1.jsonl',
-        sessionSnapshot: {
-          activeNodeId: 'assistant-recovered',
-          nodes: [
-            {
-              id: 'assistant-recovered',
-              parentId: null,
-              piEntryType: 'message',
-              kind: 'assistant_message',
-              role: 'assistant',
-              timestampMs: 4,
-              contentJson: '{}',
-              metadataJson: '{}',
-              pathDepth: 0,
-              createdOrder: 0,
-            },
-          ],
-        },
-      }
+      return runServiceRecoveredSnapshot
     }),
 })
 
@@ -223,6 +179,29 @@ describe('executeAgentRun', () => {
     expect(clearActiveRunMock).toHaveBeenCalledWith({
       sessionId,
       runId: 'run-standard-1',
+    })
+  })
+
+  it('reports cancellation during first-send worktree creation as aborted', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    runMock.mockImplementationOnce(() => controller.signal.throwIfAborted())
+
+    const result = await Effect.runPromise(
+      executeAgentRun({
+        sessionId,
+        runId: 'run-cancelled-worktree',
+        payload: { text: 'Start in a worktree', thinkingLevel: 'medium', attachments: [] },
+        model,
+        signal: controller.signal,
+        onEvent: () => undefined,
+      }).pipe(Effect.provide(TestLayer)),
+    )
+
+    expect(result).toEqual({ outcome: 'aborted' })
+    expect(clearActiveRunMock).toHaveBeenCalledWith({
+      sessionId,
+      runId: 'run-cancelled-worktree',
     })
   })
 

@@ -1,13 +1,15 @@
 import fs from 'node:fs/promises'
 import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import type { HydratedAttachment, PreparedAttachment } from '@shared/types/agent'
+import { extractAttachmentText } from '../ipc/attachment-text-extraction'
 import { resolvePreparedAttachmentCapability } from './attachment-registry'
 
 async function hydrateAttachmentSource(
   attachment: PreparedAttachment,
 ): Promise<HydratedAttachment> {
-  const preparedAttachment = resolvePreparedAttachmentCapability(attachment)
-  if (preparedAttachment.kind !== 'image' && preparedAttachment.kind !== 'pdf') {
+  const preparedAttachment = await resolvePreparedAttachmentCapability(attachment)
+  const needsBinarySource = preparedAttachment.kind === 'image' || preparedAttachment.kind === 'pdf'
+  if (!needsBinarySource && preparedAttachment.extractedText) {
     return { ...preparedAttachment, source: null }
   }
 
@@ -20,10 +22,27 @@ async function hydrateAttachmentSource(
       `Attachment exceeds ${String(ATTACHMENT.MAX_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${preparedAttachment.name}`,
     )
   }
+  if (stats.size !== preparedAttachment.sizeBytes) {
+    throw new Error(`Attachment changed after it was prepared: ${preparedAttachment.name}`)
+  }
 
   const buffer = await fs.readFile(preparedAttachment.path)
+  const extractedText = preparedAttachment.extractedText
+    ? preparedAttachment.extractedText
+    : await extractAttachmentText({
+        kind: preparedAttachment.kind,
+        mimeType: preparedAttachment.mimeType,
+        buffer,
+        attachmentName: preparedAttachment.name,
+      })
+
+  if (!needsBinarySource) {
+    return { ...preparedAttachment, extractedText, source: null }
+  }
+
   return {
     ...preparedAttachment,
+    extractedText,
     source: {
       type: 'data',
       value: buffer.toString('base64'),

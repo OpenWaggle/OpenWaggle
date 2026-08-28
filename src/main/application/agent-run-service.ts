@@ -136,6 +136,7 @@ export function executeAgentRun(input: AgentRunInput) {
         recoverAgentRunFailure({
           reachedAgent,
           error,
+          signal: input.signal,
           assignedTitle,
           sessionId: input.sessionId,
           runId: input.runId,

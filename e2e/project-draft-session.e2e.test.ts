@@ -21,6 +21,14 @@ async function expectHitTestVisible(locator: Locator) {
   expect(receivesPointerAtCenter).toBe(true)
 }
 
+async function expectPopoverAboveDock(popover: Locator, dock: Locator) {
+  const [popoverBox, dockBox] = await Promise.all([popover.boundingBox(), dock.boundingBox()])
+  expect(popoverBox).not.toBeNull()
+  expect(dockBox).not.toBeNull()
+  if (!popoverBox || !dockBox) return
+  expect(popoverBox.y + popoverBox.height).toBeLessThan(dockBox.y)
+}
+
 test('project-level new session opens a draft in the selected repository', async () => {
   const app = await OpenWaggleApp.launch('openwaggle-project-draft-e2e-')
 
@@ -79,26 +87,42 @@ test('project-level new session opens a draft in the selected repository', async
     await expect(mainWindow.page.getByText(SOURCE_THREAD_BODY)).toBeHidden()
     await expect(mainWindow.page.getByText(TARGET_THREAD_BODY)).toBeHidden()
 
+    await app.resizeMainWindow(720, 700)
+    const dock = mainWindow.page.getByTestId('session-setup-dock-row')
+    await expectHitTestVisible(dock)
+
     const projectTrigger = mainWindow.page.getByRole('button', {
       name: `Project: ${TARGET_PROJECT_LABEL}`,
     })
+    const environmentTrigger = mainWindow.page.getByRole('button', {
+      name: 'Session environment mode: Current checkout',
+    })
+    const branchTrigger = mainWindow.page.getByRole('button', { name: /Run target:/ })
+    await expectHitTestVisible(projectTrigger)
+    await expectHitTestVisible(environmentTrigger)
+    await expectHitTestVisible(branchTrigger)
+
     await projectTrigger.click()
-    await expectHitTestVisible(
-      mainWindow.page.getByRole('searchbox', { name: 'Search projects' }),
-    )
+    const projectPopover = mainWindow.page.getByRole('dialog', { name: 'Choose a project' })
+    await expectHitTestVisible(mainWindow.page.getByRole('searchbox', { name: 'Search projects' }))
+    await expectPopoverAboveDock(projectPopover, dock)
     await expect(mainWindow.page.getByRole('button', { name: 'Select folder…' })).toBeVisible()
     await mainWindow.page.keyboard.press('Escape')
 
-    await mainWindow.page
-      .getByRole('button', { name: 'Session environment mode: Current checkout' })
-      .click()
+    await environmentTrigger.click()
     const environmentMenu = mainWindow.page.getByRole('menu')
     await expectHitTestVisible(environmentMenu)
+    await expectPopoverAboveDock(environmentMenu, dock)
     await expect(environmentMenu.getByRole('menuitemradio')).toHaveCount(2)
     await mainWindow.page.keyboard.press('Escape')
 
-    await mainWindow.page.getByRole('button', { name: /Run target:/ }).click()
-    await expectHitTestVisible(mainWindow.page.getByPlaceholder('Search branches'))
+    await branchTrigger.click()
+    const branchSearch = mainWindow.page.getByPlaceholder('Search branches')
+    await expectHitTestVisible(branchSearch)
+    await expectPopoverAboveDock(
+      mainWindow.page.getByRole('dialog', { name: 'Choose a run target' }),
+      dock,
+    )
     await mainWindow.page.keyboard.press('Escape')
 
     await expect(

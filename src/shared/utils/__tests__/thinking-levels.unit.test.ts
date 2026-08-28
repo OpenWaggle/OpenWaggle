@@ -10,6 +10,12 @@ describe('clampThinkingLevel', () => {
     expect(clampThinkingLevel('xhigh', ['off', 'minimal', 'low', 'medium', 'high'])).toBe('high')
   })
 
+  it('keeps max when Pi exposes it for the selected model', () => {
+    expect(
+      clampThinkingLevel('max', ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']),
+    ).toBe('max')
+  })
+
   it('clamps reasoning requests to off when the selected model has no reasoning levels', () => {
     expect(clampThinkingLevel('medium', ['off'])).toBe('off')
   })

@@ -156,7 +156,9 @@ export function ModelSelector({
         )}
       >
         {selectedModel && <SelectedModelIcon provider={selectedModel.provider} />}
-        <span className="max-w-45 truncate text-xs">{selectedModel?.name ?? 'Select model'}</span>
+        <span className="max-w-45 truncate text-xs @max-xl/composer-toolbar:max-w-20">
+          {selectedModel?.name ?? 'Select model'}
+        </span>
         <ChevronDown aria-hidden="true" className="size-3 text-text-tertiary" />
       </Button>
 

@@ -93,7 +93,7 @@ describe('ComposerToolbar', () => {
     expect(screen.getByTitle('Select thinking level')).toBeInTheDocument()
   })
 
-  it('can wrap controls instead of clipping them in a narrow composer', () => {
+  it('keeps controls on one row and establishes a composer-width responsive boundary', () => {
     renderToolbar({
       accessControl: (
         <Button variant="unstyled" type="button">
@@ -102,17 +102,76 @@ describe('ComposerToolbar', () => {
       ),
     })
 
-    expect(screen.getByTestId('composer-toolbar')).toHaveClass('min-h-11', 'flex-wrap')
-    expect(screen.getByTestId('composer-toolbar')).not.toHaveClass('h-11')
-    expect(screen.getByTestId('composer-toolbar-actions')).toHaveClass('ml-auto', 'shrink-0')
+    expect(screen.getByTestId('composer-toolbar')).toHaveClass(
+      '@container/composer-toolbar',
+      '@max-xl/composer-toolbar:px-3',
+      'h-11',
+      'flex-nowrap',
+    )
+    expect(screen.getByTestId('composer-toolbar')).not.toHaveClass('flex-wrap')
+    expect(screen.getByTestId('composer-toolbar-actions')).toHaveClass(
+      'ml-auto',
+      'min-w-0',
+      '@max-xl/composer-toolbar:gap-1.5',
+    )
+    expect(screen.getByTestId('composer-toolbar-actions')).not.toHaveClass('shrink-0')
+    expect(screen.getByTestId('composer-toolbar-primary-actions')).toHaveClass(
+      'shrink-0',
+      'flex-nowrap',
+    )
+    expect(
+      screen.getByRole('img', { name: 'Context usage meter' }).parentElement?.parentElement,
+    ).toHaveClass('@max-xl/composer-toolbar:hidden')
+    expect(screen.getByText('GPT 5')).toHaveClass('@max-xl/composer-toolbar:max-w-20')
+    expect(screen.getByTitle('Select thinking level')).toHaveClass(
+      '@max-xl/composer-toolbar:size-6.5',
+    )
+    expect(screen.getByRole('button', { name: 'Thinking level: Medium' })).toBeInTheDocument()
+    expect(screen.getByTestId('composer-thinking-compact-icon')).toHaveClass(
+      'hidden',
+      '@max-xl/composer-toolbar:block',
+    )
   })
 
   it('opens thinking menu on click', () => {
     renderToolbar()
     fireEvent.click(screen.getByTitle('Select thinking level'))
     expect(useComposerStore.getState().thinkingMenuOpen).toBe(true)
+    expect(screen.getByText('Off')).toBeInTheDocument()
     expect(screen.getByText('Low')).toBeInTheDocument()
     expect(screen.getByText('High')).toBeInTheDocument()
+  })
+
+  it('shows every extended thinking level supplied by Pi, including off and max', () => {
+    useProviderStore.setState({
+      providerModels: [
+        {
+          ...PROVIDER_MODELS[0],
+          models: [
+            {
+              ...PROVIDER_MODELS[0].models[0],
+              availableThinkingLevels: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
+            },
+          ],
+        },
+      ],
+    })
+    usePreferencesStore.setState({
+      settings: {
+        ...usePreferencesStore.getState().settings,
+        thinkingLevel: 'max',
+      },
+    })
+
+    renderToolbar()
+
+    expect(screen.getByRole('button', { name: 'Thinking level: Max' })).toBeInTheDocument()
+    fireEvent.click(screen.getByTitle('Select thinking level'))
+    expect(screen.getByRole('menuitemradio', { name: 'Off' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitemradio', { name: 'Max' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
   })
 
   it('opens the composer add menu with the existing context entry points', () => {

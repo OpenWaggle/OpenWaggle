@@ -90,6 +90,31 @@ describe('ChatPanel composer regressions', () => {
     expect(screen.getByRole('button', { name: 'Use current checkout' })).toBeInTheDocument()
   })
 
+  it('keeps every setup decision inside a responsive dock column', () => {
+    renderSections(createSections({}, { isFirstMessage: true, projectPath: '/test/project' }))
+
+    const projectTrigger = screen.getByRole('button', { name: 'Project: project' })
+    const environmentTrigger = screen.getByRole('button', {
+      name: 'Session environment mode: Current checkout',
+    })
+    const branchTrigger = screen.getByRole('button', { name: 'Run target: branch' })
+
+    expect(projectTrigger.closest('.rounded-t-xl')).toHaveClass('@container/session-dock')
+    expect(screen.getByTestId('session-setup-dock-row')).toHaveClass(
+      'grid',
+      'min-w-0',
+      'grid-cols-[auto_auto_auto_auto_minmax(0,1fr)]',
+    )
+    expect(screen.getByTestId('session-setup-dock-row')).not.toHaveClass('overflow-hidden')
+    expect(screen.getByTestId('session-setup-branch')).toHaveClass('min-w-0')
+    expect(projectTrigger).toHaveClass('max-w-full')
+    expect(environmentTrigger).toHaveClass('max-w-full')
+    expect(branchTrigger).toHaveClass('max-w-full')
+    expect(projectTrigger.querySelector('span')).toHaveClass('@max-xl/session-dock:max-w-24')
+    expect(environmentTrigger.querySelector('span')).toHaveClass('@max-xl/session-dock:hidden')
+    expect(environmentTrigger).toHaveAttribute('title', 'Current checkout')
+  })
+
   it('formats ordinary active-project paths in composer-adjacent notifications', () => {
     const event = fromPartial<AgentInteractionEvent>({
       type: 'agent_interaction_request',

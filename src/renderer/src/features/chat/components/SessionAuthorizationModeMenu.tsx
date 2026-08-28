@@ -119,9 +119,10 @@ export function SessionAuthorizationModeMenu({
           leftIcon={<ShieldCheck aria-hidden="true" className="size-3.5" />}
           onClick={toggle}
           rightIcon={<ChevronDown aria-hidden="true" className="size-3" />}
+          title={`Session access mode: ${compact}`}
           variant="unstyled"
         >
-          {compact}
+          <span className="@max-xl/composer-toolbar:hidden">{compact}</span>
         </Button>
       )}
     >

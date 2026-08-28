@@ -23,6 +23,9 @@ interface AttachmentHandlerMocks {
   }
   readonly statMock: TestMock
   readonly readFileMock: TestMock
+  readonly writeFileMock: TestMock
+  readonly renameMock: TestMock
+  readonly rmMock: TestMock
   readonly realpathMock: TestMock
   readonly mkdirMock: TestMock
   readonly openMock: TestMock
@@ -49,6 +52,9 @@ const mocks: AttachmentHandlerMocks = vi.hoisted(() => ({
   },
   statMock: vi.fn(),
   readFileMock: vi.fn(),
+  writeFileMock: vi.fn(),
+  renameMock: vi.fn(),
+  rmMock: vi.fn(),
   realpathMock: vi.fn(),
   mkdirMock: vi.fn(),
   openMock: vi.fn(),
@@ -70,6 +76,9 @@ export const attachmentsLoggerMock: AttachmentHandlerMocks['attachmentsLoggerMoc
   mocks.attachmentsLoggerMock
 export const statMock: TestMock = mocks.statMock
 export const readFileMock: TestMock = mocks.readFileMock
+export const writeFileMock: TestMock = mocks.writeFileMock
+export const renameMock: TestMock = mocks.renameMock
+export const rmMock: TestMock = mocks.rmMock
 export const realpathMock: TestMock = mocks.realpathMock
 export const mkdirMock: TestMock = mocks.mkdirMock
 export const openMock: TestMock = mocks.openMock
@@ -96,6 +105,9 @@ vi.mock('node:fs/promises', () => ({
   default: {
     stat: statMock,
     readFile: readFileMock,
+    writeFile: writeFileMock,
+    rename: renameMock,
+    rm: rmMock,
     realpath: realpathMock,
     mkdir: mkdirMock,
     open: openMock,
@@ -104,6 +116,9 @@ vi.mock('node:fs/promises', () => ({
   },
   stat: statMock,
   readFile: readFileMock,
+  writeFile: writeFileMock,
+  rename: renameMock,
+  rm: rmMock,
   realpath: realpathMock,
   mkdir: mkdirMock,
   open: openMock,
@@ -191,6 +206,9 @@ export function resetAttachmentHandlerMocks() {
   attachmentsLoggerMock.error.mockReset()
   statMock.mockReset()
   readFileMock.mockReset()
+  writeFileMock.mockReset()
+  renameMock.mockReset()
+  rmMock.mockReset()
   realpathMock.mockReset()
   mkdirMock.mockReset()
   openMock.mockReset()
@@ -222,9 +240,21 @@ export function resetAttachmentHandlerMocks() {
   readFileMock.mockImplementation(async (filePath: string) => {
     const file = files.get(filePath)
     if (!file) {
-      throw new Error(`ENOENT: ${filePath}`)
+      throw Object.assign(new Error(`ENOENT: ${filePath}`), { code: 'ENOENT' })
     }
     return file.content
+  })
+  writeFileMock.mockImplementation(async (filePath: string, content: string | Buffer) => {
+    registerFile(filePath, content)
+  })
+  renameMock.mockImplementation(async (sourcePath: string, destinationPath: string) => {
+    const source = files.get(sourcePath)
+    if (!source) throw new Error(`ENOENT: ${sourcePath}`)
+    files.set(destinationPath, source)
+    files.delete(sourcePath)
+  })
+  rmMock.mockImplementation(async (filePath: string) => {
+    files.delete(filePath)
   })
 
   realpathMock.mockImplementation(async (filePath: string) => {

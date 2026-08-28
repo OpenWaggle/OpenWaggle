@@ -187,6 +187,42 @@ describe('useBackgroundRunStore', () => {
     )
   })
 
+  it('persists attachment recovery as compact capability references', async () => {
+    const extractedText = `large-secret-${'x'.repeat(1024 * 1024)}`
+    useBackgroundRunStore.getState().setFirstSendRecovery(SESSION_A, {
+      payload: {
+        text: 'Review the attachment',
+        thinkingLevel: 'medium',
+        attachments: [
+          {
+            id: 'attachment-1',
+            kind: 'text',
+            origin: 'user-file',
+            name: 'large.txt',
+            path: '/tmp/large.txt',
+            mimeType: 'text/plain',
+            sizeBytes: extractedText.length,
+            extractedText,
+          },
+        ],
+      },
+      waggleConfig: null,
+      model: SupportedModelId('openai/gpt-5'),
+    })
+
+    const persisted = window.localStorage.getItem(BACKGROUND_RUN_RECOVERY_STORAGE_KEY)
+    expect(persisted).not.toContain('large-secret')
+    expect(persisted?.length).toBeLessThan(10_000)
+
+    resetStore()
+    await useBackgroundRunStore.getState().initialize()
+
+    expect(
+      useBackgroundRunStore.getState().firstSendRecoveryBySessionId.get(SESSION_A)?.payload
+        .attachments,
+    ).toEqual([expect.objectContaining({ id: 'attachment-1', extractedText: '' })])
+  })
+
   it('preserves first-send recovery received while active-run initialization is in flight', async () => {
     const launch: WorktreeLaunchSnapshot = {
       status: 'running',

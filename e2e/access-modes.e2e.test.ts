@@ -130,21 +130,26 @@ test('the composer access control names the mode in force, in the documented voc
     await expect(page.getByText(/Default/)).toHaveCount(0)
 
     await page.keyboard.press('Escape')
-    await app.resizeMainWindow(800, 700)
+    await app.resizeMainWindow(720, 700)
     const toolbar = page.getByTestId('composer-toolbar')
     const toolbarActions = page.getByTestId('composer-toolbar-actions')
+    const sendButton = page.getByRole('button', { name: 'Send message' })
     await expect(toolbar).toBeVisible()
     await expect(toolbarActions).toBeVisible()
+    await expect(sendButton).toBeVisible()
     await expect
       .poll(async () => {
-        const [toolbarBox, toolbarActionsBox] = await Promise.all([
+        const [toolbarBox, toolbarActionsBox, sendButtonBox] = await Promise.all([
           toolbar.boundingBox(),
           toolbarActions.boundingBox(),
+          sendButton.boundingBox(),
         ])
-        if (!toolbarBox || !toolbarActionsBox) return false
+        if (!toolbarBox || !toolbarActionsBox || !sendButtonBox) return false
         return (
           toolbarActionsBox.x >= toolbarBox.x &&
-          toolbarActionsBox.x + toolbarActionsBox.width <= toolbarBox.x + toolbarBox.width
+          toolbarActionsBox.x + toolbarActionsBox.width <= toolbarBox.x + toolbarBox.width &&
+          sendButtonBox.x >= toolbarBox.x &&
+          sendButtonBox.x + sendButtonBox.width <= toolbarBox.x + toolbarBox.width
         )
       })
       .toBe(true)
@@ -174,7 +179,7 @@ test('worktree setup becomes a compact expandable trace before agent streaming',
     const preflight = page.getByRole('region', { name: 'Creating a worktree' })
     await expect(preflight).toBeVisible()
     await expect(preflight.getByText('Preparing workspace')).toBeVisible()
-    await expect(preflight.getByText('Checking out files')).toBeVisible()
+    await expect(preflight.locator('span').filter({ hasText: /^Checking out files$/u })).toBeVisible()
     await expect(preflight.getByRole('button', { name: 'Work locally' })).toBeVisible()
     await expect(preflight.getByRole('button', { name: 'Cancel' })).toBeVisible()
 

@@ -27,24 +27,35 @@ export function ComposerSessionSetupDock({ section, strip }: ComposerSessionSetu
       inert={!visible}
     >
       <div className={cn('min-h-0', visible ? 'overflow-visible' : 'overflow-hidden')}>
-        <ComposerDock className="flex w-full min-w-0 items-center gap-1 px-2 py-1.5 text-sm">
-          <div className="flex min-w-0 items-center gap-1">
+        <ComposerDock className="@container/session-dock w-full min-w-0 px-2 py-1.5 text-sm">
+          <div
+            className="grid min-w-0 grid-cols-[auto_auto_auto_auto_minmax(0,1fr)] items-center gap-1"
+            data-testid="session-setup-dock-row"
+          >
             {section.projectPath ? (
-              <ComposerProjectMenu
-                onOpenProject={section.onOpenProject}
-                onSelectProjectPath={section.onSelectProjectPath}
-                projectPath={section.projectPath}
-                recentProjects={section.recentProjects}
-              />
+              <div className="min-w-0">
+                <ComposerProjectMenu
+                  onOpenProject={section.onOpenProject}
+                  onSelectProjectPath={section.onSelectProjectPath}
+                  projectPath={section.projectPath}
+                  recentProjects={section.recentProjects}
+                />
+              </div>
             ) : null}
             {section.projectPath && strip.visible ? (
               <span aria-hidden="true" className="h-4 w-px bg-border-light" />
             ) : null}
-            <SessionContextRow strip={strip} />
+            {strip.visible ? (
+              <div className="min-w-0">
+                <SessionContextRow strip={strip} />
+              </div>
+            ) : null}
             {strip.visible ? (
               <span aria-hidden="true" className="h-4 w-px bg-border-light" />
             ) : null}
-            <ComposerBranchRow strip={strip} onToast={section.onToast} />
+            <div className="min-w-0" data-testid="session-setup-branch">
+              <ComposerBranchRow strip={strip} onToast={section.onToast} />
+            </div>
           </div>
         </ComposerDock>
       </div>
