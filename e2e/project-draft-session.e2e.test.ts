@@ -13,12 +13,7 @@ const TARGET_THREAD_BODY = 'target-transcript-body-before-draft'
 
 async function expectHitTestVisible(locator: Locator) {
   await expect(locator).toBeVisible()
-  const receivesPointerAtCenter = await locator.evaluate((element) => {
-    const rect = element.getBoundingClientRect()
-    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
-    return hit !== null && (hit === element || element.contains(hit))
-  })
-  expect(receivesPointerAtCenter).toBe(true)
+  await locator.click({ trial: true })
 }
 
 async function expectPopoverAboveDock(popover: Locator, dock: Locator) {
