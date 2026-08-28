@@ -89,7 +89,7 @@ test('project-level new session opens a draft in the selected repository', async
 
     await app.resizeMainWindow(720, 700)
     const dock = mainWindow.page.getByTestId('session-setup-dock-row')
-    await expectHitTestVisible(dock)
+    await expect(dock).toBeVisible()
 
     const projectTrigger = mainWindow.page.getByRole('button', {
       name: `Project: ${TARGET_PROJECT_LABEL}`,
