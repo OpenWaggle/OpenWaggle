@@ -29,8 +29,7 @@ describe('ComposerDropZone', () => {
 
     expect(screen.getByRole('region', { name: 'Composer file drop zone' })).toHaveClass(
       'z-10',
-      'shadow-2xl',
-      'shadow-bg/60',
+      'shadow-composer-dock',
     )
   })
 
