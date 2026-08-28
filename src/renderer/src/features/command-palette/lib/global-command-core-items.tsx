@@ -216,7 +216,7 @@ export function createRecentProjectItems(
   return settings.recentProjects.map((path) => ({
     id: `project:${path}`,
     label: settings.projectDisplayNames[path] ?? projectName(path),
-    description: path,
+    description: projectName(path),
     icon: <FolderOpen className="size-3.5" />,
     section: 'Recent projects',
     action: () => {
@@ -243,7 +243,7 @@ export function createRecentSessionItems(
     .map((session) => ({
       id: `session:${String(session.id)}`,
       label: session.title || 'Untitled session',
-      description: session.projectPath ?? 'No project',
+      description: projectName(session.projectPath),
       icon: <Command className="size-3.5" />,
       section: 'Recent sessions',
       action: () => actions.finish(() => actions.routeToSession(String(session.id))),

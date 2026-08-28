@@ -1,5 +1,6 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { LexicalEditor } from 'lexical'
+import type { ReactNode } from 'react'
 import { useEffect, useRef } from 'react'
 import { useProject } from '@/features/sessions/hooks'
 import { useComposerAttachments } from '../hooks/useComposerAttachments'
@@ -12,6 +13,7 @@ import { ComposerHiddenFileInput } from './ComposerHiddenFileInput'
 import { ComposerModeControls } from './ComposerModeControls'
 
 interface ComposerProps {
+  readonly accessControl?: ReactNode
   onSend: (payload: AgentSendPayload) => Promise<void> | void
   onEnqueue: (payload: AgentSendPayload) => Promise<void> | void
   onCancel: () => void
@@ -28,7 +30,15 @@ interface ComposerProps {
   onToast?: (message: string) => void
 }
 
-export function Composer({ onSend, onEnqueue, onCancel, isLoading, mode, onToast }: ComposerProps) {
+export function Composer({
+  accessControl,
+  onSend,
+  onEnqueue,
+  onCancel,
+  isLoading,
+  mode,
+  onToast,
+}: ComposerProps) {
   const disabled = mode?.disabled
   const placeholder = mode?.placeholder
   const sendTitle = mode?.sendTitle
@@ -77,7 +87,11 @@ export function Composer({ onSend, onEnqueue, onCancel, isLoading, mode, onToast
         fileInputRef={fileInputRef}
         handleAttachFiles={attachments.fileAttachment.handleAttachFiles}
       />
-      <ComposerDropZone fileAttachment={attachments.fileAttachment}>
+      <ComposerDropZone
+        disabled={disabled}
+        editorRef={editorRef}
+        fileAttachment={attachments.fileAttachment}
+      >
         <ComposerHeader
           attachments={attachments}
           voiceError={voice.error}
@@ -92,6 +106,7 @@ export function Composer({ onSend, onEnqueue, onCancel, isLoading, mode, onToast
           checkAndConvertPaste={attachments.checkAndConvertPaste}
         />
         <ComposerModeControls
+          accessControl={accessControl}
           fileInputRef={fileInputRef}
           voice={voice}
           onSubmit={() => {

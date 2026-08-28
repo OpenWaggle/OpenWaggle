@@ -1,7 +1,6 @@
 import { SupportedModelId } from '@shared/types/brand'
 import type { ProviderInfo } from '@shared/types/llm'
 import { describe, expect, it } from 'vitest'
-import { actionDialogHasInput, getActionDialogConfig } from '../action-dialog-config'
 import {
   buildContextMeterValue,
   buildContextUsageRequestKey,
@@ -43,20 +42,6 @@ const PROVIDER_MODELS: ProviderInfo[] = [
 ]
 
 describe('composer view helpers', () => {
-  it('builds action dialog copy and input requirements from the action kind', () => {
-    // Branch management (rename/delete/upstream) was removed: creating a branch to
-    // run on is the only remaining action dialog.
-    expect(getActionDialogConfig('create-branch')).toEqual({
-      title: 'Create branch',
-      description: 'Create and checkout a new branch from the current HEAD.',
-      confirmLabel: 'Create',
-      confirmTone: 'normal',
-      inputPlaceholder: 'feature/my-branch',
-    })
-    expect(actionDialogHasInput('create-branch')).toBe(true)
-    expect(actionDialogHasInput(null)).toBe(false)
-  })
-
   it('resolves context usage request keys and model context windows', () => {
     expect(buildContextUsageRequestKey('session-1', MODEL_REF, 'v1')).toBe(
       'session-1:anthropic/claude-sonnet-4-5:v1',

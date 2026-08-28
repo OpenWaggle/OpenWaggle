@@ -4,6 +4,7 @@ import { RefreshCw, ShieldAlert } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { useAppearanceName } from '@/shared/hooks/useAppearanceName'
 import { cn } from '@/shared/lib/cn'
+import { formatDisplayPathsInText } from '@/shared/lib/display-path'
 import {
   federatedModuleMountKey,
   federatedModuleSurfacePayloadJson,
@@ -97,7 +98,13 @@ function sameMountStatus(
   return true
 }
 
-function MountStatusBanner({ status }: { readonly status: ReturnType<typeof initialMountStatus> }) {
+function MountStatusBanner({
+  status,
+  displayRoots,
+}: {
+  readonly status: ReturnType<typeof initialMountStatus>
+  readonly displayRoots: readonly string[]
+}) {
   if (status.kind === 'loading') {
     return (
       <div className="mb-3 flex items-center gap-2 text-xs text-text-tertiary">
@@ -111,7 +118,7 @@ function MountStatusBanner({ status }: { readonly status: ReturnType<typeof init
     return (
       <div role="alert" className="mb-3 flex items-start gap-2 text-xs text-error">
         <ShieldAlert className="mt-0.5 size-3 shrink-0" />
-        <span>{status.message}</span>
+        <span>{formatDisplayPathsInText(status.message, displayRoots)}</span>
       </div>
     )
   }
@@ -232,7 +239,7 @@ export function ExtensionFederatedModuleHost({
 
   return (
     <div className={cn(layout.containerLayout, layout.containerChrome, className)}>
-      <MountStatusBanner status={status} />
+      <MountStatusBanner status={status} displayRoots={entry.projectPaths} />
       <iframe
         className={layout.iframeClassName}
         data-extension-frame-id={frameId}

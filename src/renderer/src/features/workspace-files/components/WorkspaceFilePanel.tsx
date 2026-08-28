@@ -5,7 +5,7 @@ import type {
 } from '@shared/types/workspace-files'
 import { useQuery } from '@tanstack/react-query'
 import { ExternalLink, FolderTree, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { workspaceFileQueryOptions } from '@/queries/workspace-files'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
@@ -13,30 +13,55 @@ import { useUIStore } from '@/shell/ui-store'
 import { WorkspaceFileBrowser } from './WorkspaceFileBrowser'
 import { WorkspaceFileEditor } from './WorkspaceFileEditor'
 
-function BlobPreview({ file }: { readonly file: WorkspaceBinaryFileReadResult }) {
-  const [url] = useState(() => {
+function useBlobPreviewSource<Element extends HTMLImageElement | HTMLIFrameElement>(
+  file: WorkspaceBinaryFileReadResult,
+) {
+  const previewRef = useRef<Element>(null)
+
+  useEffect(() => {
     const buffer = new ArrayBuffer(file.data.byteLength)
     new Uint8Array(buffer).set(file.data)
-    return URL.createObjectURL(new Blob([buffer], { type: file.mimeType }))
-  })
+    const url = URL.createObjectURL(new Blob([buffer], { type: file.mimeType }))
+    const element = previewRef.current
+    if (element) element.src = url
 
-  useEffect(() => () => URL.revokeObjectURL(url), [url])
+    return () => {
+      element?.removeAttribute('src')
+      URL.revokeObjectURL(url)
+    }
+  }, [file])
 
-  if (file.previewKind === 'image') {
-    return (
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-[radial-gradient(circle_at_center,var(--color-bg-hover)_1px,transparent_1px)] bg-size-(--preview-grid-size) p-6 [--preview-grid-size:1rem_1rem]">
-        <img src={url} alt={file.basename} className="max-h-full max-w-full object-contain" />
-      </div>
-    )
-  }
+  return previewRef
+}
+
+function BlobImagePreview({ file }: { readonly file: WorkspaceBinaryFileReadResult }) {
+  const previewRef = useBlobPreviewSource<HTMLImageElement>(file)
+
+  return (
+    <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-[radial-gradient(circle_at_center,var(--color-bg-hover)_1px,transparent_1px)] bg-size-(--preview-grid-size) p-6 [--preview-grid-size:1rem_1rem]">
+      <img ref={previewRef} alt={file.basename} className="max-h-full max-w-full object-contain" />
+    </div>
+  )
+}
+
+function BlobPdfPreview({ file }: { readonly file: WorkspaceBinaryFileReadResult }) {
+  const previewRef = useBlobPreviewSource<HTMLIFrameElement>(file)
+
   return (
     <iframe
+      ref={previewRef}
       title={file.basename}
-      src={url}
       sandbox=""
       className="min-h-0 flex-1 border-0 bg-text-primary"
     />
   )
+}
+
+function BlobPreview({ file }: { readonly file: WorkspaceBinaryFileReadResult }) {
+  if (file.previewKind === 'image') {
+    return <BlobImagePreview file={file} />
+  }
+  return <BlobPdfPreview file={file} />
 }
 
 function UnavailablePreview({ file }: { readonly file: WorkspaceUnavailableFileReadResult }) {

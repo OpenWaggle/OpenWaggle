@@ -71,6 +71,7 @@ function createSection(
     messages: [defaultMessage],
     isLoading: false,
     projectPath: PROJECT_PATH,
+    worktreePath: null,
     recentProjects: [],
     activeSessionId: null,
     chatRows: [createMessageChatRow(defaultMessage)],

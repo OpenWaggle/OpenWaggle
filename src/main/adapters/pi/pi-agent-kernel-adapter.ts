@@ -108,14 +108,18 @@ function loadPiRuntimeExtensionIsolationInput(
  * `projectPath` stays the opened checkout: MCP config discovery, scope and trust state are
  * keyed to the project the user opened, and a linked worktree must not fork that identity.
  */
-function resolveMcpTurnPaths(session: AgentKernelRunInput['session']) {
+function resolveMcpTurnPaths(input: AgentKernelRunInput) {
   return Effect.gen(function* () {
     const projectPath = yield* Effect.try({
-      try: () => requireSessionProjectPath(session),
+      try: () => requireSessionProjectPath(input.session),
       catch: toAgentKernelError,
     })
     const executionPath = yield* Effect.tryPromise({
-      try: () => ensureSessionWorktreeProjectPath(session),
+      try: () =>
+        ensureSessionWorktreeProjectPath(input.session, {
+          ...(input.onWorktreeLaunch ? { onProgress: input.onWorktreeLaunch } : {}),
+          signal: input.signal,
+        }),
       catch: toAgentKernelError,
     })
     return { projectPath, executionPath }
@@ -162,6 +166,28 @@ export function prepareMcpTurn(input: {
   })
 }
 
+function createWorktreeLaunchReporter(input: AgentKernelRunInput) {
+  let didReport = false
+  const onWorktreeLaunch = input.onWorktreeLaunch
+    ? (progress: Parameters<NonNullable<typeof input.onWorktreeLaunch>>[0]) => {
+        didReport = true
+        input.onWorktreeLaunch?.(progress)
+      }
+    : undefined
+
+  return {
+    runInput: onWorktreeLaunch ? { ...input, onWorktreeLaunch } : input,
+    reportTaskStarting(executionPath: string) {
+      if (!didReport) return
+      onWorktreeLaunch?.({
+        stage: 'starting-task',
+        details: ['Starting the task in the new worktree'],
+        worktreePath: executionPath,
+      })
+    },
+  }
+}
+
 export const PiAgentKernelLive = Layer.effect(
   AgentKernelService,
   Effect.gen(function* () {
@@ -182,11 +208,12 @@ export const PiAgentKernelLive = Layer.effect(
 
       run: (input: AgentKernelRunInput) =>
         Effect.gen(function* () {
+          const launchReporter = createWorktreeLaunchReporter(input)
           const runtimeExtensionIsolation = yield* loadPiRuntimeExtensionIsolationInput(
             input,
             extensionSelectionServices,
           )
-          const { projectPath, executionPath } = yield* resolveMcpTurnPaths(input.session)
+          const { projectPath, executionPath } = yield* resolveMcpTurnPaths(launchReporter.runInput)
           const mcpTurn = yield* prepareMcpTurn({
             projectPath,
             executionPath,
@@ -194,6 +221,7 @@ export const PiAgentKernelLive = Layer.effect(
             config: mcpConfigService,
             runtime: mcpRuntimeService,
           })
+          launchReporter.reportTaskStarting(executionPath)
           return yield* Effect.tryPromise({
             try: () =>
               hasWaggleRunOptions(input)

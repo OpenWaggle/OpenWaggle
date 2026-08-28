@@ -1,4 +1,5 @@
 import type { OAuthFlowStatus } from './auth'
+import type { WorktreeLaunchEventPayload } from './background-run'
 import type { SessionId } from './brand'
 import type { AgentPhaseEventPayload } from './phase'
 import type { AgentTransportEvent } from './stream'
@@ -33,6 +34,9 @@ export interface IpcEventChannelMap {
   }
   'agent:run-completed': {
     payload: { sessionId: SessionId }
+  }
+  'agent:worktree-launch': {
+    payload: WorktreeLaunchEventPayload
   }
   'window:fullscreen-changed': {
     payload: boolean

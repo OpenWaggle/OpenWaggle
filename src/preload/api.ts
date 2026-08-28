@@ -69,6 +69,7 @@ export const api: OpenWaggleApi = {
   compactSession: invoke('agent:compact-session'),
   onRunCompleted: on('agent:run-completed'),
   onAgentPhase: on('agent:phase'),
+  onWorktreeLaunch: on('agent:worktree-launch'),
 
   // Settings
   getSettings: invoke('settings:get'),

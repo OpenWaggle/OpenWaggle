@@ -31,4 +31,12 @@ describe('tildifyPath', () => {
     expect(tildifyPath('C:\\Users\\Public\\file.json')).toBe('C:\\Users\\Public\\file.json')
     expect(tildifyPath('C:\\Users\\Default\\AppData\\f')).toBe('C:\\Users\\Default\\AppData\\f')
   })
+
+  it('removes the OpenWaggle Session worktree storage prefix', () => {
+    expect(
+      tildifyPath(
+        '/Users/diego/.openwaggle/worktrees/OpenWaggle/session-a/.agents/skills/review/SKILL.md',
+      ),
+    ).toBe('.agents/skills/review/SKILL.md')
+  })
 })

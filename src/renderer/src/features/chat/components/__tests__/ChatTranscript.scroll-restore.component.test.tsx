@@ -50,6 +50,7 @@ function createSection(): ChatTranscriptSectionState {
     messages: rows.map((r) => (r.type === 'message' ? r.message : message('x'))),
     isLoading: false,
     projectPath: '/repo',
+    worktreePath: null,
     recentProjects: [],
     activeSessionId: SessionId(SESSION),
     chatRows: rows,

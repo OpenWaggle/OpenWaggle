@@ -20,11 +20,6 @@ export function createBaseCommands(actions: CommandPaletteActionHandlers) {
   ]
 }
 
-export function filterBaseCommands(commands: readonly CommandPaletteItem[], lowerQuery: string) {
-  if (!lowerQuery) return commands
-  return commands.filter((command) => commandMatchesQuery(command, lowerQuery))
-}
-
 export function createSkillItems(
   slashSkills: readonly SkillDiscoveryItem[],
   lowerQuery: string,
@@ -87,13 +82,6 @@ export function createConfigureWaggleItem(lowerQuery: string, configureWaggle: (
       action: configureWaggle,
     },
   ]
-}
-
-function commandMatchesQuery(command: CommandPaletteItem, lowerQuery: string) {
-  return (
-    command.label.toLowerCase().includes(lowerQuery) ||
-    Boolean(command.description?.toLowerCase().includes(lowerQuery))
-  )
 }
 
 function skillMatchesQuery(skill: SkillDiscoveryItem, lowerQuery: string) {

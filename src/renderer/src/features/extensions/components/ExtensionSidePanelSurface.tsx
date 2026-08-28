@@ -2,6 +2,7 @@ import type { ExtensionContributionRegistryView } from '@shared/types/extensions
 import type { JsonValue } from '@shared/types/json'
 import { PanelRight, RefreshCw, ShieldAlert, X } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { formatDisplayPathsInText } from '@/shared/lib/display-path'
 import { Button } from '@/shared/ui/Button'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import type {
@@ -143,7 +144,7 @@ function extensionSidePanelBody({
           </Button>
         }
         icon={<ShieldAlert className="size-4" />}
-        message={error}
+        message={formatDisplayPathsInText(error, projectPaths)}
         title="Could not load extension side panel registry"
       />
     )
@@ -172,7 +173,7 @@ function extensionSidePanelBody({
   return (
     <ExtensionSidePanelStatusCard
       icon={<ShieldAlert className="size-4" />}
-      message={resolution.message}
+      message={formatDisplayPathsInText(resolution.message, projectPaths)}
       title={resolution.title}
     />
   )

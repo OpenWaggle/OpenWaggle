@@ -14,6 +14,7 @@ import type { ChatRowRenderContext } from './ChatRowRenderContext'
 import { CompactionSummaryCard } from './CompactionSummaryCard'
 import { InterruptedRunNotice } from './InterruptedRunNotice'
 import { MessageBubble } from './MessageBubble'
+import { WorktreeLaunchRow } from './WorktreeLaunchRow'
 
 interface ChatRowRendererProps {
   row: ChatRow
@@ -130,6 +131,9 @@ export function ChatRowRenderer(props: ChatRowRendererProps) {
       />
     ))
     .with('message', (row) => <MessageRow row={row} context={context} />)
+    .with('worktree-launch', (row) => (
+      <WorktreeLaunchRow launch={row.launch} sessionId={row.sessionId} />
+    ))
     .with('waggle-turn', (row) => <WaggleTurnRow row={row} context={context} />)
     .with('branch-summary', (row) => (
       <BranchSummaryCard

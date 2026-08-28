@@ -179,6 +179,13 @@ export class OpenWaggleApp {
     return this.currentWindow
   }
 
+  async resizeMainWindow(width: number, height: number): Promise<void> {
+    await this.app.evaluate(
+      ({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]?.setSize(size.width, size.height),
+      { width, height },
+    )
+  }
+
   /**
    * Emits a real `agent:event` from the main process.
    *
@@ -191,6 +198,14 @@ export class OpenWaggleApp {
     await this.app.evaluate(({ BrowserWindow }, eventPayload) => {
       for (const window of BrowserWindow.getAllWindows()) {
         window.webContents.send('agent:event', eventPayload)
+      }
+    }, payload)
+  }
+
+  async emitWorktreeLaunch(payload: { sessionId: string; launch: unknown }): Promise<void> {
+    await this.app.evaluate(({ BrowserWindow }, launchPayload) => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        window.webContents.send('agent:worktree-launch', launchPayload)
       }
     }, payload)
   }

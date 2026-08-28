@@ -1,4 +1,4 @@
-import type { RunMode } from '@shared/types/background-run'
+import type { RunMode, WorktreeLaunchSnapshot } from '@shared/types/background-run'
 import type { SessionBranchId, SupportedModelId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type {
@@ -66,6 +66,7 @@ export type ChatRow =
       interruptedAt: number
     }
   | MessageChatRow
+  | { type: 'worktree-launch'; id: string; sessionId: string; launch: WorktreeLaunchSnapshot }
   | WaggleTurnChatRow
   | { type: 'agent-loop-custom-message'; event: AgentTransportCustomEvent }
   | { type: 'agent-loop-interaction'; item: AgentInteractionTranscriptItem }

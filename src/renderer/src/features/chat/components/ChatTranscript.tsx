@@ -3,6 +3,7 @@ import type { ExtensionContributionRegistryView } from '@shared/types/extensions
 import { ExtensionAgentLoopSurface } from '@/features/extensions'
 import { cn } from '@/shared/lib/cn'
 import { useChatScrollBehaviour } from '../hooks/useChatScrollBehaviour'
+import { CHAT_CONTENT_FRAME_CLASS } from '../lib/chat-content-layout'
 import type { ChatTranscriptSectionState } from '../model'
 import type { ChatRowRenderContext } from './ChatRowRenderContext'
 import { ScrollToBottomButton } from './ScrollToBottomButton'
@@ -25,7 +26,10 @@ function TranscriptExtensionCards({
   readonly rowsLength: number
 }) {
   return (
-    <div className="mx-auto w-full max-w-180 px-12 pb-6">
+    <div
+      className={`${CHAT_CONTENT_FRAME_CLASS} pb-6`}
+      data-chat-content-frame="transcript-extensions"
+    >
       <ExtensionAgentLoopSurface
         fallback={null}
         input={{

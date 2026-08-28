@@ -107,8 +107,10 @@ test('sidebar filtering: chips, pips, search and Escape', async () => {
       await expect(searchInput).toBeFocused()
     })
 
-    await test.step('typing narrows by title', async () => {
-      await page.keyboard.type('Calm')
+    await test.step('text narrows by title', async () => {
+      // `fill` models the final input event without asking an overloaded Electron renderer to
+      // commit a controlled value between synthetic keystrokes sent much faster than a person.
+      await searchInput.fill('Calm')
 
       await expect(searchInput).toHaveValue('Calm')
       await expect(rows.filter({ hasText: CALM_TITLE })).toHaveCount(1)

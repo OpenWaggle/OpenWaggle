@@ -1,6 +1,7 @@
 import { match } from '@diegogbrisa/ts-match'
 import type { ExtensionDiagnosticView } from '@shared/types/extensions'
 import { cn } from '@/shared/lib/cn'
+import { formatDisplayPathsInText } from '@/shared/lib/display-path'
 
 const MAX_VISIBLE_DIAGNOSTICS = 3
 
@@ -13,8 +14,10 @@ function diagnosticTone(diagnostic: ExtensionDiagnosticView) {
 
 export function ExtensionDiagnostics({
   diagnostics,
+  displayRoots = [],
 }: {
   readonly diagnostics: readonly ExtensionDiagnosticView[]
+  readonly displayRoots?: readonly string[]
 }) {
   if (diagnostics.length === 0) {
     return null
@@ -25,7 +28,9 @@ export function ExtensionDiagnostics({
       {diagnostics.slice(0, MAX_VISIBLE_DIAGNOSTICS).map((diagnostic) => (
         <div key={`${diagnostic.code}:${diagnostic.message}`} className="text-xs">
           <span className={cn('font-medium', diagnosticTone(diagnostic))}>{diagnostic.code}</span>
-          <span className="text-text-tertiary">: {diagnostic.message}</span>
+          <span className="text-text-tertiary">
+            : {formatDisplayPathsInText(diagnostic.message, displayRoots)}
+          </span>
         </div>
       ))}
       {diagnostics.length > MAX_VISIBLE_DIAGNOSTICS ? (

@@ -1,9 +1,11 @@
 import type { ThinkingLevel } from '@shared/types/settings'
+import { Check, ChevronDown, Ellipsis } from 'lucide-react'
 import { useComposerStore } from '@/features/composer/state/composer-store'
 import { useSelectedModelThinkingLevel } from '@/features/providers/hooks'
 import { usePreferencesStore } from '@/features/settings/state'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
+import { DENSE_MENU_ITEM_CLASS } from '@/shared/ui/menu-styles'
 import { Popover } from '@/shared/ui/Popover'
 import { THINKING_LEVEL_LABELS } from '../constants/thinking-level-labels'
 import {
@@ -35,7 +37,8 @@ export function ThinkingLevelMenu() {
       open={thinkingMenuOpen && canOpenThinkingMenu}
       onOpenChange={(open) => openMenu(open && canOpenThinkingMenu ? 'thinking' : null)}
       placement="top-start"
-      className="min-w-35 py-1"
+      className="min-w-40 p-1.5"
+      role="menu"
       trigger={
         <ThinkingLevelTrigger
           open={thinkingMenuOpen}
@@ -85,18 +88,27 @@ function ThinkingLevelTrigger({
 }: ThinkingLevelTriggerProps) {
   return (
     <Button
+      aria-label={`Thinking level: ${label}`}
       variant="unstyled"
       type="button"
       onClick={() => onToggle(!open && canOpen)}
       disabled={!canOpen}
       className={cn(
-        'flex h-6.5 items-center gap-1.5 rounded-md border border-button-border px-2.5 transition-colors',
+        'flex h-6.5 items-center gap-1.5 rounded-md border border-button-border px-2.5 transition-colors @max-xl/composer-toolbar:size-6.5 @max-xl/composer-toolbar:justify-center @max-xl/composer-toolbar:gap-0 @max-xl/composer-toolbar:px-0',
         canOpen ? 'hover:bg-bg-hover' : 'cursor-not-allowed opacity-70',
       )}
       title={title}
     >
-      <span className="text-xs text-text-secondary">{label}</span>
-      <span className="text-xs text-text-tertiary">&#x2228;</span>
+      <span className="text-xs text-text-secondary @max-xl/composer-toolbar:hidden">{label}</span>
+      <ChevronDown
+        aria-hidden="true"
+        className="size-3 text-text-tertiary @max-xl/composer-toolbar:hidden"
+      />
+      <Ellipsis
+        aria-hidden="true"
+        className="hidden size-3.5 text-text-tertiary @max-xl/composer-toolbar:block"
+        data-testid="composer-thinking-compact-icon"
+      />
     </Button>
   )
 }
@@ -118,13 +130,18 @@ function ThinkingLevelOptions({
       key={level}
       type="button"
       onClick={() => onSelect(level)}
+      role="menuitemradio"
+      aria-checked={effectiveThinkingLevel === level}
       className={cn(
-        'flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition-colors hover:bg-bg-hover',
-        effectiveThinkingLevel === level ? 'text-accent' : 'text-text-secondary',
+        DENSE_MENU_ITEM_CLASS,
+        'min-h-8 justify-between py-1 text-xs',
+        effectiveThinkingLevel === level ? 'bg-bg-active text-text-primary' : 'text-text-secondary',
       )}
     >
       <span>{THINKING_LEVEL_LABELS[level]}</span>
-      {effectiveThinkingLevel === level ? <span>•</span> : null}
+      {effectiveThinkingLevel === level ? (
+        <Check aria-hidden="true" className="size-3.5 text-accent" />
+      ) : null}
     </Button>
   ))
 }

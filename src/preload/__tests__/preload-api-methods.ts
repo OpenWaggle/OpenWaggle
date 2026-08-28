@@ -21,6 +21,7 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'compactSession',
   'onRunCompleted',
   'onAgentPhase',
+  'onWorktreeLaunch',
   // Settings
   'getSettings',
   'updateSettings',

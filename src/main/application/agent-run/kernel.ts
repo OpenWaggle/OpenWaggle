@@ -32,6 +32,7 @@ export function runAgentKernel(
       model: input.model,
       signal: input.signal,
       onEvent: input.onEvent,
+      ...(input.onWorktreeLaunch ? { onWorktreeLaunch: input.onWorktreeLaunch } : {}),
       ...(preflight.skillToggles ? { skillToggles: preflight.skillToggles } : {}),
       ...(preflight.enabledOpenWaggleExtensionPackagePaths
         ? {

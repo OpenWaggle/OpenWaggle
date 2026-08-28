@@ -19,6 +19,8 @@ export interface ComposerSectionParams {
   readonly status: AgentChatStatus
   readonly compactionStatus: AgentCompactionStatus | null
   readonly activeSessionId: SessionId | null
+  readonly projectPath?: string | null
+  readonly recentProjects: readonly string[]
   readonly session: SessionDetail | null
   readonly isFirstMessage: boolean
   readonly waggleStatus: WaggleCollaborationStatus
@@ -40,6 +42,8 @@ export interface ComposerSectionParams {
   readonly handleCloseForkSelector: () => void
   readonly handleSelectForkTarget: (target: SessionForkTarget) => void
   readonly handleCloneToNewSession: () => void
+  readonly handleOpenProject: () => Promise<void>
+  readonly handleSelectProjectPath: (path: string) => void
   readonly handleSetAuthorizationMode: (
     authorizationMode: AgentAuthorizationMode | null,
   ) => Promise<void>
@@ -57,6 +61,7 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
     status,
     compactionStatus,
     activeSessionId,
+    recentProjects,
     waggleStatus,
     slashCommandMenuOpen,
     slashSkills,
@@ -76,6 +81,8 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
     handleCloseForkSelector,
     handleSelectForkTarget,
     handleCloneToNewSession,
+    handleOpenProject,
+    handleSelectProjectPath,
     handleSetAuthorizationMode,
   } = params
 
@@ -83,6 +90,8 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
 
   return {
     activeSessionId,
+    projectPath: params.projectPath ?? params.session?.projectPath ?? null,
+    recentProjects,
     session: params.session,
     isFirstMessage,
     waggleStatus,
@@ -108,6 +117,8 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
     onCloseForkSelector: handleCloseForkSelector,
     onSelectForkTarget: handleSelectForkTarget,
     onCloneToNewSession: handleCloneToNewSession,
+    onOpenProject: handleOpenProject,
+    onSelectProjectPath: handleSelectProjectPath,
     onSetAuthorizationMode: handleSetAuthorizationMode,
   }
 }

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { TextInput } from '@/shared/ui/TextInput'
 import type { AgentInteractionSubmit } from './agent-interaction-control-types'
+import { useChatDisplayText } from './ChatDisplayPathContext'
 
 export function AgentInteractionInputControls({
   interaction,
@@ -13,19 +14,21 @@ export function AgentInteractionInputControls({
   readonly busy: boolean
   readonly submit: AgentInteractionSubmit
 }) {
+  const displayTitle = useChatDisplayText(interaction.title)
+  const displayPlaceholder = useChatDisplayText(interaction.placeholder ?? '')
   const [value, setValue] = useState('')
   return (
     <div className="grid gap-2">
       <TextInput
-        aria-label={interaction.title}
+        aria-label={displayTitle}
         disabled={busy}
-        placeholder={interaction.placeholder ?? ''}
+        placeholder={displayPlaceholder}
         value={value}
         onChange={(event) => setValue(event.currentTarget.value)}
       />
       <div className="flex flex-wrap gap-2">
         <Button
-          aria-label={`Submit ${interaction.title}`}
+          aria-label={`Submit ${displayTitle}`}
           disabled={busy}
           onClick={() => submit({ kind: 'input', value })}
           variant="accent"
@@ -33,7 +36,7 @@ export function AgentInteractionInputControls({
           Submit
         </Button>
         <Button
-          aria-label={`Cancel ${interaction.title}`}
+          aria-label={`Cancel ${displayTitle}`}
           disabled={busy}
           onClick={() => submit({ kind: 'input', value: null })}
         >

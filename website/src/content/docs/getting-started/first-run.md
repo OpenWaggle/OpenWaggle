@@ -19,9 +19,11 @@ When you launch OpenWaggle for the first time, you'll see the main workspace wit
 
 4. **Pick a model** — Use the model selector in the composer toolbar. Models are provider-qualified, so the same underlying model can appear through different providers.
 
-5. **Send a message** — Type in the composer and press Enter. The agent will respond through Pi and can use Pi's native coding-agent tools in your project.
+5. **Choose the run context** — The row at the top of the composer keeps the environment and branch separate. Leave the environment on **Current checkout** to edit the opened folder, or choose **New worktree** for an isolated Git worktree. Pick its base branch with the branch control beside it. You can change these values until the first send.
 
-   The row below the composer has a **Run in** selector. Leave it on **Current checkout** (the default) to edit your opened folder directly, or choose **New worktree** to run the session in an isolated Git worktree — in which case pick a base branch before your first send. See [Git Integration](/docs/developer-workflow/git-integration).
+6. **Choose agent access** — The compact access control reads **Ask for approval** or **YOLO**. Its menu spells the unrestricted choice **YOLO (Full Access)**. A project or global default can supply the initial value, and the session can override it.
+
+7. **Send a message** — Type in the composer and press Enter. When New worktree is selected, the transcript reports workspace preparation and checkout before Pi starts the agent. You can inspect details, retry a failure, switch that exact turn to the opened checkout, or cancel and restore the draft. See [Git Integration](/docs/developer-workflow/git-integration).
 
 ## Next Steps
 

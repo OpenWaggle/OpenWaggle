@@ -20,6 +20,7 @@ import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
 import { useUIStore } from '@/shell/ui-store'
+import { useChatDisplayTextFormatter } from './ChatDisplayPathContext'
 
 const logger = createRendererLogger('chat')
 
@@ -147,12 +148,16 @@ export function ChatErrorDisplay({
   const openFeedbackModal = useUIStore((s) => s.openFeedbackModal)
   const [copied, setCopied] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
+  const formatDisplayText = useChatDisplayTextFormatter()
 
   if (dismissedError === error.message) return null
 
   const info = resolveErrorInfo(error, sessionId)
   const isAuthError = info.code === 'api-key-invalid' || info.code === 'session-expired'
   const details = formatErrorDetails(error, info)
+  const displayUserMessage = formatDisplayText(info.userMessage)
+  const displaySuggestion = formatDisplayText(info.suggestion ?? '')
+  const displayDetails = formatDisplayText(details)
 
   function handleCopy() {
     const text = `${info.userMessage}${info.suggestion ? `\n${info.suggestion}` : ''}\n\nRaw: ${info.message}`
@@ -171,8 +176,10 @@ export function ChatErrorDisplay({
       <div className="flex items-start gap-3">
         <AlertCircle className="size-4 shrink-0 text-error mt-0.5" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-error-text">{info.userMessage}</p>
-          {info.suggestion && <p className="text-sm text-text-tertiary mt-1">{info.suggestion}</p>}
+          <p className="text-sm text-error-text">{displayUserMessage}</p>
+          {displaySuggestion && (
+            <p className="text-sm text-text-tertiary mt-1">{displaySuggestion}</p>
+          )}
           {details && (
             <div className="mt-1.5">
               <Button variant="ghost" size="xs" onClick={() => setShowDetails(!showDetails)}>
@@ -185,7 +192,7 @@ export function ChatErrorDisplay({
               </Button>
               {showDetails && (
                 <pre className="mt-1.5 max-h-40 overflow-auto rounded-md bg-bg/50 p-2 text-xs text-text-tertiary font-mono whitespace-pre-wrap break-all">
-                  {details}
+                  {displayDetails}
                 </pre>
               )}
             </div>

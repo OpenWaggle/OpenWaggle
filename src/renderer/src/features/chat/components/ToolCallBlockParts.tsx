@@ -16,6 +16,7 @@ import {
 import { useCopyToClipboard } from '@/shared/hooks/useCopyToClipboard'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
+import { useChatDisplayText, useChatDisplayTextFormatter } from './ChatDisplayPathContext'
 import { StreamingText } from './StreamingText'
 
 export function CopyButton({ label, value }: { readonly label: string; readonly value: string }) {
@@ -51,11 +52,13 @@ export function ToolArgs({
   rawArgs: string
   path: string | null
 }) {
+  const displayRawArgs = useChatDisplayText(rawArgs)
+  const displayCommand = useChatDisplayText(typeof args.command === 'string' ? args.command : '')
   if (name === 'bash' && typeof args.command === 'string') {
     return (
       <div className="rounded-md bg-bg px-3 py-2 font-mono text-sm text-text-secondary">
         <span className="text-text-muted select-none">$ </span>
-        {args.command}
+        {displayCommand}
       </div>
     )
   }
@@ -64,7 +67,7 @@ export function ToolArgs({
   if (entries.length === 0) {
     return (
       <pre className="text-sm font-mono text-text-secondary bg-bg rounded-md p-2 overflow-x-auto">
-        {rawArgs || '{}'}
+        {displayRawArgs || '{}'}
       </pre>
     )
   }
@@ -87,8 +90,10 @@ function ToolArgValue({
   value: unknown
   path: string | null
 }) {
-  const display =
+  const serialized =
     typeof value === 'string' ? value : JSON.stringify(value, null, JSON_STRINGIFY_SPACES)
+  const displayText = useChatDisplayText(typeof serialized === 'string' ? serialized : '')
+  const display = FILE_CONTENT_ARG_KEYS.has(name) && typeof value === 'string' ? value : displayText
   const isLong = typeof display === 'string' && display.length > LONG_ARGUMENT_PREVIEW_CHARS
 
   return (
@@ -161,6 +166,7 @@ export function ToolResult({
   path: string | null
 }) {
   const displayContent = getToolResultText(content)
+  const shortenedContent = useChatDisplayText(displayContent)
 
   if (isError) {
     return (
@@ -168,7 +174,7 @@ export function ToolResult({
         <div className="flex items-start gap-2">
           <AlertCircle className="size-3.5 text-error shrink-0 mt-0.5" />
           <pre className="text-sm font-mono text-error whitespace-pre-wrap break-words flex-1">
-            {displayContent}
+            {shortenedContent}
           </pre>
         </div>
       </div>
@@ -190,7 +196,7 @@ export function ToolResult({
       className="text-sm font-mono text-text-secondary bg-bg rounded-md p-2 overflow-x-auto overflow-y-auto whitespace-pre-wrap break-words"
       style={{ maxHeight: RESULT_MAX_HEIGHT_PX }}
     >
-      {displayContent}
+      {shortenedContent}
     </pre>
   )
 }
@@ -202,6 +208,7 @@ export function UnifiedDiffView({
   readonly diff: UnifiedDiffData
   readonly compact?: boolean
 }) {
+  const formatDisplayText = useChatDisplayTextFormatter()
   return (
     <div className="rounded-md border border-border overflow-hidden text-xs font-mono">
       <div className="flex items-center justify-between bg-bg-secondary px-3 py-1.5 border-b border-border">
@@ -217,7 +224,7 @@ export function UnifiedDiffView({
             key={line.lineIndex}
             className={cn('flex whitespace-pre px-3', getUnifiedDiffLineClassName(line.type))}
           >
-            {line.content}
+            {line.type === 'meta' ? formatDisplayText(line.content) : line.content}
           </div>
         ))}
       </div>

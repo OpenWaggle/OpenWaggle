@@ -2,105 +2,145 @@ import {
   AGENT_AUTHORIZATION_MODE_LABELS,
   AGENT_AUTHORIZATION_MODES,
   type AgentAuthorizationMode,
-  isAgentAuthorizationMode,
 } from '@shared/types/agent-authorization'
 import type { SessionDetail } from '@shared/types/session'
+import { Check, ChevronDown, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
+import { useDraftAuthorizationModeStore } from '@/features/chat/state/draft-authorization-mode-store'
 import { usePreferencesStore, useProjectAuthorizationDefault } from '@/features/settings/state'
-import { Select } from '@/shared/ui/Select'
+import { Button } from '@/shared/ui/Button'
+import { DENSE_MENU_ITEM_CLASS, MENU_SECTION_LABEL_CLASS } from '@/shared/ui/menu-styles'
+import { Popover } from '@/shared/ui/Popover'
 
-/** Sentinel for the option that clears the session override. */
-const INHERIT_VALUE = 'inherit'
-
-/**
- * Names the mode in force, marking it as inherited when the session holds no override.
- *
- * One label vocabulary in both states, deliberately. An earlier version showed compact forms
- * (`YOLO`, `Ask`) while closed and the full ones while open, which had two problems: `Ask` is the
- * contraction CONTEXT.md rules out for Ask for Approval, and the swap depended on Chromium
- * repainting `<option>` text before the native popup opened. If that race were lost while a session
- * inherited full access, the popup showed the same word twice with no way to tell inherit from
- * override.
- */
-function inheritLabel(effective: AgentAuthorizationMode) {
-  return `Default · ${AGENT_AUTHORIZATION_MODE_LABELS[effective]}`
+function compactLabel(mode: AgentAuthorizationMode) {
+  return mode === 'yolo' ? 'YOLO' : 'Ask for approval'
 }
 
-/**
- * The session access-mode control in the composer row.
- *
- * `Use default` clears the override. Without it the composer could set a session override but never
- * remove one, so a session could never be returned to following its project or global default.
- */
+function ModeMenuItem({
+  checked,
+  disabled,
+  description,
+  label,
+  onSelect,
+}: {
+  readonly checked: boolean
+  readonly disabled: boolean
+  readonly description: string
+  readonly label: string
+  readonly onSelect: () => void
+}) {
+  return (
+    <Button
+      aria-label={label}
+      aria-checked={checked}
+      className={DENSE_MENU_ITEM_CLASS}
+      disabled={disabled}
+      fullWidth
+      onClick={onSelect}
+      role="menuitemradio"
+      variant="row"
+    >
+      <span className="flex min-w-0 flex-1 items-center justify-between gap-3">
+        <span className="flex min-w-0 flex-col items-start">
+          <span className="truncate font-medium text-text-primary">{label}</span>
+          <span className="text-xs font-normal text-text-tertiary">{description}</span>
+        </span>
+        {checked ? <Check aria-hidden="true" className="size-3.5 shrink-0 text-accent" /> : null}
+      </span>
+    </Button>
+  )
+}
+
+/** Session access control with a compact trigger and canonical, inheritance-aware menu labels. */
 export function SessionAuthorizationModeMenu({
+  projectPath: draftProjectPath = null,
   session,
   onSetAuthorizationMode,
 }: {
+  readonly projectPath?: string | null
   readonly session: SessionDetail | null
   readonly onSetAuthorizationMode: (
     authorizationMode: AgentAuthorizationMode | null,
   ) => Promise<void>
 }) {
+  const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
-  const globalDefault = usePreferencesStore((s) => s.settings.defaultAuthorizationMode)
-  const projectDefault = useProjectAuthorizationDefault(session?.projectPath ?? null)
+  const projectPath = session?.projectPath ?? draftProjectPath
+  const draftOverride = useDraftAuthorizationModeStore((state) =>
+    projectPath ? state.byProjectPath[projectPath] : undefined,
+  )
+  const setDraftOverride = useDraftAuthorizationModeStore((state) => state.setOverride)
+  const globalDefault = usePreferencesStore((state) => state.settings.defaultAuthorizationMode)
+  const projectDefault = useProjectAuthorizationDefault(projectPath)
+  const persistedOverride = session?.authorizationMode ?? null
+  const override = session ? persistedOverride : (draftOverride ?? null)
+  const inheritedEffective = projectDefault ?? globalDefault
+  const effective = override ?? inheritedEffective
+  const compact = compactLabel(effective)
+  const disabled = saving || (!session && !projectPath)
 
-  // Absent means the session holds no override and follows its project, then the global default.
-  const override = session?.authorizationMode ?? null
+  async function select(next: AgentAuthorizationMode) {
+    if (disabled || next === effective) {
+      setOpen(false)
+      return
+    }
 
-  // The same precedence the main process resolves at request time, so the control cannot claim one
-  // mode while the run uses another.
-  const effective = override ?? projectDefault ?? globalDefault
-
-  // Before a session exists there is nothing to hold an override, so the control shows the mode the
-  // first run will actually use and is not editable yet. Hiding it instead would leave the composer
-  // silent about access until after the first message, which is exactly when it matters least.
-  const draft = session === null
-  const value = draft ? effective : (override ?? INHERIT_VALUE)
-
-  function handleChange(next: AgentAuthorizationMode | null) {
-    if (next === override || saving) return
+    if (!session) {
+      if (projectPath) setDraftOverride(projectPath, next)
+      setOpen(false)
+      return
+    }
 
     setSaving(true)
-    onSetAuthorizationMode(next).finally(() => {
+    try {
+      await onSetAuthorizationMode(next)
+      setOpen(false)
+    } finally {
       setSaving(false)
-    })
+    }
   }
 
   return (
-    <div
-      className="flex min-w-0 items-center text-xs text-text-muted"
-      title={draft ? 'The first run uses this mode. Change it once the session exists.' : undefined}
+    <Popover
+      className="w-72 p-1.5"
+      onOpenChange={setOpen}
+      open={open}
+      placement="top-start"
+      role="menu"
+      trigger={({ toggle }) => (
+        <Button
+          aria-label={`Session access mode: ${compact}`}
+          className={
+            effective === 'yolo'
+              ? 'flex h-8 items-center gap-2 rounded-lg px-2 text-accent transition-colors hover:bg-accent/10'
+              : 'flex h-8 items-center gap-2 rounded-lg px-2 text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary'
+          }
+          disabled={disabled}
+          leftIcon={<ShieldCheck aria-hidden="true" className="size-3.5" />}
+          onClick={toggle}
+          rightIcon={<ChevronDown aria-hidden="true" className="size-3" />}
+          title={`Session access mode: ${compact}`}
+          variant="unstyled"
+        >
+          <span className="@max-xl/composer-toolbar:hidden">{compact}</span>
+        </Button>
+      )}
     >
-      <Select
-        aria-label="Session access mode"
-        className="max-w-60 truncate"
-        disabled={saving || draft}
-        onChange={(event) => {
-          const raw = event.currentTarget.value
-          if (raw === INHERIT_VALUE) {
-            handleChange(null)
-            return
+      <div className={MENU_SECTION_LABEL_CLASS}>Agent access</div>
+      {AGENT_AUTHORIZATION_MODES.map((mode) => (
+        <ModeMenuItem
+          checked={effective === mode}
+          description={
+            mode === 'yolo'
+              ? 'Approve authorization requests automatically'
+              : 'Ask before protected actions'
           }
-          if (isAgentAuthorizationMode(raw)) {
-            handleChange(raw)
-          }
-        }}
-        selectSize="xs"
-        value={value}
-      >
-        {draft ? null : (
-          // Names the mode in force rather than the bare word "Default", which would say nothing
-          // about what will happen, while still marking it as inherited so it stays distinct from
-          // pinning the same mode as an explicit override.
-          <option value={INHERIT_VALUE}>{inheritLabel(effective)}</option>
-        )}
-        {AGENT_AUTHORIZATION_MODES.map((mode) => (
-          <option key={mode} value={mode}>
-            {AGENT_AUTHORIZATION_MODE_LABELS[mode]}
-          </option>
-        ))}
-      </Select>
-    </div>
+          disabled={saving}
+          key={mode}
+          label={AGENT_AUTHORIZATION_MODE_LABELS[mode]}
+          onSelect={() => void select(mode)}
+        />
+      ))}
+    </Popover>
   )
 }

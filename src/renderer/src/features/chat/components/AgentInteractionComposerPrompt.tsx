@@ -12,6 +12,7 @@ import { agentLoopInteractionMessage } from '../lib/agent-loop-interaction-view'
 import { restoreFocusBeforeRequest } from '../lib/pending-request-focus'
 import { AgentAuthorizationRibbon } from './AgentAuthorizationRibbon'
 import { AgentInteractionControls } from './AgentInteractionControls'
+import { useChatDisplayText } from './ChatDisplayPathContext'
 import { PoliteAnnouncer } from './PoliteAnnouncer'
 
 type SubmitInteractionResponse = (
@@ -64,6 +65,11 @@ function AgentQuestionRibbon({
 }) {
   const { busy, error, submit } = useResponseSubmission(interaction, onRespond)
   const message = agentLoopInteractionMessage(interaction)
+  const displayMessage = useChatDisplayText(message ?? '')
+  const displayTitle = useChatDisplayText(
+    'title' in interaction ? interaction.title : 'Waiting for your answer',
+  )
+  const displayError = useChatDisplayText(error ?? '')
   const titleId = `question-${interaction.interactionId}`
 
   return (
@@ -89,9 +95,11 @@ function AgentQuestionRibbon({
             ) : null}
           </div>
           <p className="mt-0.5 truncate text-xs font-medium text-text-primary" id={titleId}>
-            {'title' in interaction ? interaction.title : 'Waiting for your answer'}
+            {displayTitle}
           </p>
-          {message ? <p className="mt-0.5 truncate text-xs text-text-muted">{message}</p> : null}
+          {displayMessage ? (
+            <p className="mt-0.5 truncate text-xs text-text-muted">{displayMessage}</p>
+          ) : null}
         </div>
       </div>
 
@@ -99,9 +107,9 @@ function AgentQuestionRibbon({
         <AgentInteractionControls busy={busy} interaction={interaction} submit={submit} />
       </div>
 
-      {error ? (
+      {displayError ? (
         <p className="mt-2 text-xs leading-5 text-error" role="alert">
-          {error}
+          {displayError}
         </p>
       ) : null}
     </section>
@@ -152,15 +160,16 @@ export function AgentInteractionComposerPrompt({
 }) {
   const interaction = interactions.find(isPromptInteraction) ?? null
   const queuedCount = interaction === null ? 0 : queuedRequestCount(interactions)
+  const announcement = useChatDisplayText(
+    interaction === null ? '' : `Waiting for you. ${interaction.title}`,
+  )
 
   // The announcer is rendered unconditionally, even with nothing to say. A live region only
   // announces content that changes *after* it is in the accessibility tree, so it cannot be mounted
   // alongside the ribbon it describes.
   return (
     <>
-      <PoliteAnnouncer
-        message={interaction === null ? null : `Waiting for you. ${interaction.title}`}
-      />
+      <PoliteAnnouncer message={announcement || null} />
       {interaction === null ? null : isAuthorizationRequest(interaction) ? (
         <AgentAuthorizationRibbonContainer
           interaction={interaction}

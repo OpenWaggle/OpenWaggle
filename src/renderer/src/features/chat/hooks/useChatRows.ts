@@ -1,3 +1,4 @@
+import type { WorktreeLaunchSnapshot } from '@shared/types/background-run'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SupportedModelId } from '@shared/types/llm'
@@ -20,6 +21,7 @@ export function useChatRows(inputs: {
   waggleMetadataLookup: Readonly<Record<string, WaggleMessageMetadata>>
   phase: ReturnType<typeof useStreamingPhase>
   interruptedRun?: SessionInterruptedRun
+  worktreeLaunch?: WorktreeLaunchSnapshot | null
 }): ChatRow[] {
   return buildChatRows({
     messages: inputs.messages,
@@ -33,5 +35,6 @@ export function useChatRows(inputs: {
     waggleMetadataLookup: inputs.waggleMetadataLookup,
     phase: inputs.phase,
     interruptedRun: inputs.interruptedRun,
+    worktreeLaunch: inputs.worktreeLaunch,
   })
 }

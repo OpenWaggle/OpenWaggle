@@ -6,6 +6,7 @@ import type {
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import { useState } from 'react'
 import { AgentInteractionCard } from './AgentInteractionCard'
+import { useChatDisplayText } from './ChatDisplayPathContext'
 
 type SubmitInteractionResponse = (
   interaction: AgentLoopInteraction,
@@ -34,6 +35,7 @@ export function AgentCustomInteractionComposerFallback({
   const custom = customInteractions(interactions)
   const [busyInteractionId, setBusyInteractionId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const displayError = useChatDisplayText(error ?? '')
 
   if (custom.length === 0) {
     return null
@@ -63,7 +65,7 @@ export function AgentCustomInteractionComposerFallback({
           submit={submit}
         />
       ))}
-      {error ? <p className="text-xs leading-5 text-error">{error}</p> : null}
+      {displayError ? <p className="text-xs leading-5 text-error">{displayError}</p> : null}
     </div>
   )
 }

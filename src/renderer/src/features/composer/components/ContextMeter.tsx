@@ -32,7 +32,7 @@ export function ContextMeter() {
   })
 
   return (
-    <div className="flex items-center gap-1.5" title={meter.title}>
+    <div className="flex items-center gap-1.5 @max-xl/composer-toolbar:hidden" title={meter.title}>
       <ContextMeterRing
         displayValue={meter.displayValue}
         strokeColor={meter.strokeColor}

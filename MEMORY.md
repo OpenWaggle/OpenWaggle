@@ -24,6 +24,7 @@ Load `.agents/skills/pi-integration/SKILL.md` for details.
 
 - Pi JSONL sessions are runtime state; SQLite session projection is the product read model for renderer navigation, branching, persistence, active runs, and UI state.
 - Pi-native tool events, thinking levels, compaction behavior, session ids, provider/model ids, and auth methods should stay Pi-native through the adapter boundary.
+- Composer thinking choices must come from Pi's `getSupportedThinkingLevels(model)` result. Render that array exactly: `Off`, `Extra High`, and `Max` appear only when Pi declares them for the selected model; never infer levels from model ids.
 - Missing projected Pi entries during clean-cut projection rebuilds should be treated as stale/cancelled navigation, not thrown through IPC.
 - Preserve Pi-created session ids before first prompt by opening the pre-created id correctly instead of allowing a missing JSONL path to create a different id.
 - Build runtime services through Pi's project-scoped service path so extensions/providers are registered before model resolution.
@@ -80,6 +81,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Switching away from a foreground run should demote it to background state, not reject the send promise as an error.
 - Active-run UI continuity needs a renderer-owned render snapshot keyed by session id; persisted run metadata alone does not prove visible reasoning/tool rows remain continuous.
 - First-message sends must bind to the concrete newly created session before async send begins; do not enqueue by current active session after users can switch projects.
+- First-send worktree recovery must retain the exact submitted payload, Waggle config, and model until main reports delivery. Retry and Work locally replay that retained turn once; reading current composer preferences during recovery changes the user's request.
 - Session tree/header refreshes for background sessions must not overwrite the active session tree/header.
 - Session-native transcript rendering reads from the active `SessionWorkspace.transcriptPath`; preserve live tails only at active branch head.
 - TanStack Router uses hash history in Electron QA; navigate to `http://localhost:5173/#/<route>`.
@@ -100,6 +102,10 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Manual compaction mirrors Pi TUI slash-command UX: `/compact` and `/compact <custom instructions>`, not context-meter-triggered compaction.
 - Provider auth UI is method-based. Keep provider-level availability separate from API-key configured state and OAuth connected state.
 - Compact composer interactions stay in-row unless the maintainer explicitly asks for a larger workflow.
+- Responsive composer toolbars reserve a non-shrinking primary-action group for voice, stop, and send. Secondary controls compact at the composer container boundary; they must never push the send action outside the composer.
+- Worktree birth is an app-owned launch lifecycle before Pi starts. Show the full creation card only while preparing or checking out files, then persist a compact expandable `Worktree created` custom event in the transcript. Local runs and cancelled births leave no creation trace.
+- The composer owns environment and ref as separate controls before the first turn. First send freezes the launch plan and collapses that setup dock; worktree creation leaves its compact trace in the transcript. The plus menu routes to existing attachment, project-file, skill, and Waggle flows rather than duplicating their state.
+- User-facing filesystem paths are relative to the active Session working root or project root. Canonical absolute `WorkingPath` and `RepositoryPath` values stay internal for IPC, filesystem operations, and copy actions; first-party UI must never expose OpenWaggle's worktree storage prefix.
 - Sidebar session rows are two lines at 316px width: the title owns line one, line two carries a shrinkable lead (state, phase, provenance) and a fixed tail (shortcut, timestamp). The timestamp never hides on hover; row actions overlay line one instead, because hiding it re-flowed the row under the cursor and removed information at the moment of acting on it.
 - Status colour is a semantic role, never a palette class or a status-prefixed token (ADR 0021). Adding a state means naming a role, not reaching for `text-red-500`.
 - The sidebar's `@theme` block must stay `@theme static`. Tailwind tree-shakes theme variables no utility references, and roles read at runtime through `var()` in inline styles (`--color-neutral`, `--color-review`, `--color-plan`) silently vanish otherwise.

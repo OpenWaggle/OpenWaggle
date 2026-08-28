@@ -1,9 +1,10 @@
-import type { RefObject } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import type { VoiceCaptureController } from '../hooks/useVoiceCapture'
 import { ComposerToolbar } from './ComposerToolbar'
 import { VoiceRecorder } from './VoiceRecorder'
 
 interface ComposerModeControlsProps {
+  readonly accessControl?: ReactNode
   readonly fileInputRef: RefObject<HTMLInputElement | null>
   readonly voice: VoiceCaptureController
   readonly onSubmit: () => void
@@ -14,6 +15,7 @@ interface ComposerModeControlsProps {
 }
 
 export function ComposerModeControls({
+  accessControl,
   fileInputRef,
   voice,
   onSubmit,
@@ -28,14 +30,11 @@ export function ComposerModeControls({
 
   return (
     <ComposerToolbar
-      onSend={onSubmit}
-      onCancel={onCancel}
-      isLoading={isLoading}
-      canSend={canSend}
+      accessControl={accessControl}
+      submission={{ onSend: onSubmit, onCancel, isLoading, canSend, sendTitle }}
       onToggleVoice={voice.toggleVoice}
       voiceMode={voice.mode}
       fileInputRef={fileInputRef}
-      sendTitle={sendTitle}
     />
   )
 }

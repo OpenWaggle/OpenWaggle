@@ -1,4 +1,4 @@
-import { cloneElement, isValidElement, useCallback, useRef } from 'react'
+import { cloneElement, isValidElement, useCallback, useEffect, useRef } from 'react'
 import { useEscapeHotkey } from '@/shared/hooks/useEscapeHotkey'
 import { useMenuKeyboard } from '@/shared/hooks/useMenuKeyboard'
 import { usePopover } from '@/shared/hooks/usePopover'
@@ -39,6 +39,8 @@ interface PopoverProps {
    * keys that do nothing, so the two are deliberately not separable.
    */
   role?: 'menu' | 'listbox' | 'dialog'
+  /** Accessible name for non-menu popup panels such as searchable picker dialogs. */
+  ariaLabel?: string
 }
 
 export function Popover({
@@ -49,6 +51,7 @@ export function Popover({
   placement = 'bottom-start',
   className,
   role,
+  ariaLabel,
 }: PopoverProps) {
   const isControlled = controlledOpen !== undefined
   const {
@@ -63,7 +66,10 @@ export function Popover({
 
   const isOpen = isControlled ? controlledOpen : popoverIsOpen
   const isMenu = role === 'menu'
-  const panelRef = useRef<HTMLDivElement>(null)
+  const isDialog = role === 'dialog'
+  const menuPanelRef = useRef<HTMLDivElement>(null)
+  const dialogPanelRef = useRef<HTMLDialogElement>(null)
+  const plainPanelRef = useRef<HTMLDivElement>(null)
 
   function toggle() {
     if (isControlled) {
@@ -84,14 +90,27 @@ export function Popover({
   const handlePanelKeyDown = useMenuKeyboard({
     enabled: isMenu,
     isOpen,
-    panelRef,
+    panelRef: menuPanelRef,
     onClose: close,
   })
 
   useEscapeHotkey(close, { enabled: isOpen })
 
+  useEffect(() => {
+    if (!isOpen || !isDialog) return
+    const restoreFocus =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const firstFocusable = dialogPanelRef.current?.querySelector<HTMLElement>(
+      'input:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    )
+    firstFocusable?.focus()
+    return () => {
+      if (restoreFocus?.isConnected) restoreFocus.focus()
+    }
+  }, [isDialog, isOpen])
+
   const panelClass = cn(
-    'absolute z-50 rounded-lg border border-border-light bg-bg-secondary shadow-lg',
+    'absolute z-50 cursor-default rounded-lg border border-border-light bg-bg-secondary shadow-lg',
     placementClasses[placement],
     className,
   )
@@ -104,9 +123,9 @@ export function Popover({
    * has not already set them itself.
    */
   const triggerContent =
-    isMenu && isValidElement<React.AriaAttributes>(triggerNode)
+    (isMenu || isDialog) && isValidElement<React.AriaAttributes>(triggerNode)
       ? cloneElement(triggerNode, {
-          'aria-haspopup': triggerNode.props['aria-haspopup'] ?? 'menu',
+          'aria-haspopup': triggerNode.props['aria-haspopup'] ?? role,
           'aria-expanded': triggerNode.props['aria-expanded'] ?? isOpen,
         })
       : triggerNode
@@ -119,11 +138,20 @@ export function Popover({
         // Split so the menu panel carries a literal role alongside its key handler: a handler on a
         // panel whose role is only known at runtime reads as an interaction on a static element.
         (isMenu ? (
-          <div ref={panelRef} role="menu" onKeyDown={handlePanelKeyDown} className={panelClass}>
+          <div ref={menuPanelRef} role="menu" onKeyDown={handlePanelKeyDown} className={panelClass}>
             {children}
           </div>
+        ) : isDialog ? (
+          <dialog
+            ref={dialogPanelRef}
+            open
+            aria-label={ariaLabel}
+            className={cn('m-0', panelClass)}
+          >
+            {children}
+          </dialog>
         ) : (
-          <div ref={panelRef} role={role} className={panelClass}>
+          <div ref={plainPanelRef} role={role} className={panelClass}>
             {children}
           </div>
         ))}

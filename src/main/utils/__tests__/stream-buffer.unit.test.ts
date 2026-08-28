@@ -5,6 +5,7 @@ import {
   clearStreamBuffer,
   getStreamBuffer,
   listStreamBuffers,
+  setWorktreeLaunchSnapshot,
   startStreamBuffer,
 } from '../stream-buffer'
 
@@ -47,6 +48,26 @@ describe('stream-buffer', () => {
 
     clearStreamBuffer(SESSION_ID)
     expect(getStreamBuffer(SESSION_ID)).toBeNull()
+  })
+
+  it('keeps worktree launch progress in the reconnectable run snapshot', () => {
+    startStreamBuffer(SESSION_ID, MODEL, 'classic')
+
+    setWorktreeLaunchSnapshot(SESSION_ID, {
+      status: 'running',
+      stage: 'checking-out-files',
+      startedAt: STARTED_AT.getTime(),
+      updatedAt: STARTED_AT.getTime(),
+      details: ['Creating ow/session-session-stream-buffer from main'],
+    })
+
+    expect(getStreamBuffer(SESSION_ID)?.worktreeLaunch).toEqual({
+      status: 'running',
+      stage: 'checking-out-files',
+      startedAt: STARTED_AT.getTime(),
+      updatedAt: STARTED_AT.getTime(),
+      details: ['Creating ow/session-session-stream-buffer from main'],
+    })
   })
 
   it('accumulates assistant text, reasoning, tool calls, and tool results from transport events', () => {

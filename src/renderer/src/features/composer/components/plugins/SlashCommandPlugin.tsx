@@ -17,6 +17,7 @@ export function SlashCommandPlugin(): null {
       if (!match) {
         if (composer.activeSlashCommand) composer.setActiveSlashCommand(null)
         if (composer.dismissedSlashToken) composer.setDismissedSlashToken(null)
+        if (composer.slashMenuFilter !== 'all') composer.setSlashMenuFilter('all')
         menu.closeSlashCommandMenu()
         return
       }

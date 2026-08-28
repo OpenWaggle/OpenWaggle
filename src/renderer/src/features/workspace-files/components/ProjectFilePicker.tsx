@@ -4,6 +4,7 @@ import { File, Search } from 'lucide-react'
 import { type KeyboardEvent, useDeferredValue, useEffect, useRef, useState } from 'react'
 import { usePreferencesStore } from '@/features/settings/state'
 import { workspaceFilesQueryOptions } from '@/queries/workspace-files'
+import { projectName } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
 import { CommandDialog } from '@/shared/ui/CommandDialog'
 import { TextInput } from '@/shared/ui/TextInput'
@@ -62,7 +63,7 @@ export function ProjectFilePicker() {
   return (
     <CommandDialog
       title="Go to file"
-      description={projectPath ?? 'No active project'}
+      description={projectPath ? projectName(projectPath) : 'No active project'}
       onClose={close}
       footer={
         <>

@@ -7,7 +7,7 @@ import type { SessionEnvironmentMode } from './git'
 import { DEFAULT_SHORTCUT_BINDINGS, type ShortcutBindings } from './shortcuts'
 
 export type Provider = string
-export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const
+export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
 export type ThinkingLevel = (typeof THINKING_LEVELS)[number]
 
 /**

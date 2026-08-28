@@ -1,5 +1,6 @@
 import type { McpConfigSourceId, McpConfigSourceSummary } from '@shared/types/mcp'
 import { FileJson2 } from 'lucide-react'
+import { formatDisplayPath, formatDisplayPathsInText } from '@/shared/lib/display-path'
 import { tildifyPath } from '@/shared/lib/tildify-path'
 import { Button } from '@/shared/ui/Button'
 import { Textarea } from '@/shared/ui/Textarea'
@@ -8,6 +9,7 @@ const RAW_EDITOR_ROWS = 16
 
 interface McpSourceEditorProps {
   readonly selectedSource: McpConfigSourceSummary | null
+  readonly projectPath: string | null
   readonly rawJson: string
   readonly busy: boolean
   readonly onSave: () => void
@@ -16,6 +18,7 @@ interface McpSourceEditorProps {
 
 export function McpSourceEditor({
   selectedSource,
+  projectPath,
   rawJson,
   busy,
   onSave,
@@ -30,14 +33,16 @@ export function McpSourceEditor({
             <h3 className="text-base font-semibold text-text-primary">Edit selected source</h3>
           </div>
           <p className="mt-1 truncate text-xs text-text-tertiary">
-            {selectedSource ? tildifyPath(selectedSource.path) : 'Select a source'}
+            {selectedSource
+              ? tildifyPath(formatDisplayPath(selectedSource.path, [projectPath]))
+              : 'Select a source'}
           </p>
           {selectedSource?.parseError && (
             <p
               role="alert"
               className="mt-2 rounded-md border border-error/25 bg-error/6 px-3 py-2 text-xs text-error-text"
             >
-              {selectedSource.parseError}
+              {formatDisplayPathsInText(selectedSource.parseError, [projectPath])}
             </p>
           )}
         </div>

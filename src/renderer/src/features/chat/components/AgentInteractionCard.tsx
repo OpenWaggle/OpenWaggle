@@ -18,6 +18,7 @@ import {
   toExtensionInteractionView,
 } from '../lib/agent-loop-interaction-view'
 import { AgentInteractionControls } from './AgentInteractionControls'
+import { useChatDisplayText } from './ChatDisplayPathContext'
 
 type InteractionSurfaceInput = Extract<
   ExtensionAgentLoopSurfaceInput,
@@ -29,15 +30,14 @@ type SubmitInteractionResponse = (
 ) => void
 
 function InteractionHeader({ interaction }: { readonly interaction: AgentLoopInteraction }) {
+  const title = useChatDisplayText(agentLoopInteractionTitle(interaction))
   return (
     <div className="flex items-start gap-3">
       <MessageSquareWarning className="mt-0.5 size-4 shrink-0 text-accent" />
       <div className="min-w-0">
         {/* The raw discriminant said nothing to a reader and is an internal token, so the card
             uses the same user-facing title the rest of the UI uses. */}
-        <h3 className="text-sm font-semibold text-text-primary">
-          {agentLoopInteractionTitle(interaction)}
-        </h3>
+        <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
       </div>
     </div>
   )
@@ -112,13 +112,15 @@ function InteractionExtensionSurfaces({
 
 function InteractionSummary({ interaction }: { readonly interaction: AgentLoopInteraction }) {
   const message = agentLoopInteractionMessage(interaction)
+  const displayTitle = useChatDisplayText(agentLoopInteractionTitle(interaction))
+  const displayMessage = useChatDisplayText(message ?? '')
 
   return (
     <div>
-      <div className="text-sm font-medium text-text-primary">
-        {agentLoopInteractionTitle(interaction)}
-      </div>
-      {message ? <p className="mt-1 text-xs leading-5 text-text-tertiary">{message}</p> : null}
+      <div className="text-sm font-medium text-text-primary">{displayTitle}</div>
+      {displayMessage ? (
+        <p className="mt-1 text-xs leading-5 text-text-tertiary">{displayMessage}</p>
+      ) : null}
     </div>
   )
 }

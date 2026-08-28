@@ -21,6 +21,7 @@ import {
 } from '../lib/agent-loop-interaction-view'
 import type { AgentInteractionTranscriptItem } from '../lib/types-chat-row'
 import { InteractionMessage } from './AgentInteractionMessage'
+import { useChatDisplayText } from './ChatDisplayPathContext'
 import type { ChatRowRenderContext } from './ChatRowRenderContext'
 
 function eventTimeLabel(timestamp: number) {
@@ -176,6 +177,7 @@ function InteractionStatusBadge({
   readonly resolution?: AgentTransportInteractionResolvedEvent
 }) {
   const status = statusLabel({ interaction, resolution })
+  const displayLabel = useChatDisplayText(status.label)
   const Icon = status.icon
   return (
     <span
@@ -185,13 +187,16 @@ function InteractionStatusBadge({
       )}
     >
       <Icon className="size-3" />
-      {status.label}
+      {displayLabel}
     </span>
   )
 }
 
 function NotificationRow({ item }: { readonly item: AgentInteractionTranscriptItem }) {
   const interaction = item.request.interaction
+  const displayMessage = useChatDisplayText(
+    interaction.kind === 'notify' ? interaction.message : '',
+  )
   if (interaction.kind !== 'notify') {
     return null
   }
@@ -223,7 +228,7 @@ function NotificationRow({ item }: { readonly item: AgentInteractionTranscriptIt
               {eventTimeLabel(item.request.timestamp)}
             </span>
           </div>
-          <p className="mt-1 text-xs leading-5 text-text-secondary">{interaction.message}</p>
+          <p className="mt-1 text-xs leading-5 text-text-secondary">{displayMessage}</p>
         </div>
       </div>
     </section>
@@ -239,6 +244,8 @@ function StandardInteractionRow({
 }) {
   const { interaction } = item.request
   const message = agentLoopInteractionMessage(interaction)
+  const displayTitle = useChatDisplayText(agentLoopInteractionTitle(interaction))
+  const displayResolutionError = useChatDisplayText(item.resolution?.error?.message ?? '')
   const requiresDesktopRenderer = agentLoopInteractionRequiresDesktopRenderer(interaction)
   const fallback = requiresDesktopRenderer ? undefined : null
   const Icon =
@@ -255,7 +262,7 @@ function StandardInteractionRow({
                 {interactionEyebrow(interaction)}
               </p>
               <h3 className="mt-1 truncate text-sm font-semibold text-text-primary">
-                {agentLoopInteractionTitle(interaction)}
+                {displayTitle}
               </h3>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -266,8 +273,8 @@ function StandardInteractionRow({
             </div>
           </div>
           {message ? <InteractionMessage message={message} /> : null}
-          {item.resolution?.error ? (
-            <p className="mt-2 text-xs leading-5 text-error">{item.resolution.error.message}</p>
+          {displayResolutionError ? (
+            <p className="mt-2 text-xs leading-5 text-error">{displayResolutionError}</p>
           ) : null}
         </div>
       </div>

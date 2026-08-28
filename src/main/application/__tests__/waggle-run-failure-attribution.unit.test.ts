@@ -2,7 +2,11 @@ import * as Effect from 'effect/Effect'
 import { describe, expect, it } from 'vitest'
 import { recoverWaggleRunFailure } from '../waggle-run/outcome'
 
-const INPUT = { sessionId: 'session-1', runId: 'run-1' } as const
+const INPUT = {
+  sessionId: 'session-1',
+  runId: 'run-1',
+  signal: new AbortController().signal,
+} as const
 
 /**
  * A Waggle run used to fail its Effect on any kernel error, so the invoke rejected and the caller learned nothing
@@ -21,6 +25,7 @@ describe('attributing a failed Waggle run', () => {
     )
 
     expect(outcome.outcome).toBe('error')
+    if (outcome.outcome !== 'error') throw new Error('Expected an error outcome')
     // No delivery marker: the caller keeps work it submitted, because the message never arrived.
     expect(outcome).not.toHaveProperty('transportEmitted')
     expect(outcome.message.length).toBeGreaterThan(0)

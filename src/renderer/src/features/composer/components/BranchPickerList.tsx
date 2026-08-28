@@ -1,4 +1,5 @@
 import type { GitBranchInfo } from '@shared/types/git'
+import { Check } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 
@@ -18,7 +19,7 @@ export function BranchPickerList({
   onSelectRef,
 }: BranchPickerListProps) {
   return (
-    <div className="max-h-55 overflow-y-auto rounded-md border border-border bg-bg">
+    <div className="max-h-55 overflow-y-auto">
       {filteredBranches.length === 0 ? <BranchPickerEmptyState /> : null}
       {localBranches.length > 0 ? (
         <BranchPickerSection
@@ -59,9 +60,7 @@ function BranchPickerSection({
 }: BranchPickerSectionProps) {
   return (
     <div>
-      <div className="border-b border-border px-2.5 py-1 text-xs uppercase tracking-wide text-text-muted">
-        {label}
-      </div>
+      <div className="px-2.5 pb-1 pt-2 text-xs font-medium text-text-tertiary">{label}</div>
       {branches.map((branch) => (
         <RefRow
           key={branch.fullName}
@@ -95,12 +94,12 @@ function RefRow({ branch, isSelected, onSelectRef }: RefRowProps) {
       // absent, but some screen readers announce "not current" on every row.
       aria-current={isSelected || undefined}
       className={cn(
-        'flex w-full items-center justify-between border-b border-border px-2.5 py-1.5 text-left text-xs transition-colors last:border-b-0 hover:bg-bg-hover',
-        isSelected ? 'text-accent' : 'text-text-secondary',
+        'flex min-h-8 w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors hover:bg-bg-hover',
+        isSelected ? 'bg-bg-active text-text-primary' : 'text-text-secondary',
       )}
     >
       <span className="truncate">{branch.name}</span>
-      {isSelected ? <span aria-hidden="true">●</span> : null}
+      {isSelected ? <Check aria-hidden="true" className="size-3.5 shrink-0 text-accent" /> : null}
     </Button>
   )
 }

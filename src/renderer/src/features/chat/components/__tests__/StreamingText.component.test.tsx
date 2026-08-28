@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { ChatDisplayPathProvider } from '../ChatDisplayPathContext'
 import { StreamingText } from '../StreamingText'
 
 describe('StreamingText', () => {
@@ -80,5 +81,73 @@ describe('StreamingText', () => {
     rerender(<StreamingText text="final" isStreaming={false} />)
 
     expect(screen.getByText('final')).toBeInTheDocument()
+  })
+
+  it('shows active worktree paths relative to the project root', () => {
+    const worktreePath = '/Users/diego/.openwaggle/worktrees/OpenWaggle/session-a'
+    render(
+      <ChatDisplayPathProvider
+        projectPath="/Users/diego/Projects/OpenWaggle"
+        worktreePath={worktreePath}
+      >
+        <StreamingText text={`Read ${worktreePath}/.agents/skills/grill-me/SKILL.md`} />
+      </ChatDisplayPathProvider>,
+    )
+
+    expect(screen.getByText('Read .agents/skills/grill-me/SKILL.md')).toBeInTheDocument()
+    expect(screen.queryByText(/\.openwaggle\/worktrees/)).toBeNull()
+  })
+
+  it('shortens prose paths without rewriting inline or fenced code', () => {
+    const worktreePath = '/Users/diego/.openwaggle/worktrees/OpenWaggle/session-a'
+    const sourcePath = `${worktreePath}/src/main.ts`
+    const sourceLine = `const source = '${sourcePath}'`
+    const { container } = render(
+      <ChatDisplayPathProvider
+        projectPath="/Users/diego/Projects/OpenWaggle"
+        worktreePath={worktreePath}
+      >
+        <StreamingText
+          text={[
+            `Read ${sourcePath}`,
+            '',
+            `Inline: \`${sourcePath}\``,
+            '',
+            '```ts',
+            sourceLine,
+            '```',
+          ].join('\n')}
+        />
+      </ChatDisplayPathProvider>,
+    )
+
+    expect(screen.getByText('Read src/main.ts')).toBeInTheDocument()
+    const code = [...container.querySelectorAll('code')]
+    expect(code.some((node) => node.textContent === sourcePath)).toBe(true)
+    expect(code.some((node) => node.textContent?.includes(sourceLine))).toBe(true)
+  })
+
+  it.each([
+    ['four-space', '    '],
+    ['tab', '\t'],
+  ])('shortens prose without rewriting %s-indented code', (_label, indentation) => {
+    const worktreePath = '/Users/diego/.openwaggle/worktrees/OpenWaggle/session-a'
+    const sourcePath = `${worktreePath}/src/main.ts`
+    const sourceLine = `const source = '${sourcePath}'`
+    const { container } = render(
+      <ChatDisplayPathProvider
+        projectPath="/Users/diego/Projects/OpenWaggle"
+        worktreePath={worktreePath}
+      >
+        <StreamingText text={`Read ${sourcePath}\n\n${indentation}${sourceLine}`} />
+      </ChatDisplayPathProvider>,
+    )
+
+    expect(screen.getByText('Read src/main.ts')).toBeInTheDocument()
+    expect(
+      [...container.querySelectorAll('code')].some((node) =>
+        node.textContent?.includes(sourceLine),
+      ),
+    ).toBe(true)
   })
 })

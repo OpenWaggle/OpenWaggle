@@ -28,7 +28,7 @@ function revertAllDetail(projectPath: string, repositoryRoot: string | null) {
   if (repositoryRoot === null || repositoryRoot === projectPath) {
     return REVERT_ALL_CONFIRMATION_DETAIL
   }
-  return `This affects the whole repository at ${repositoryRoot}, not only the folder you opened (${projectPath}). ${REVERT_ALL_CONFIRMATION_DETAIL}`
+  return `This affects the whole repository, including files outside the folder you opened. ${REVERT_ALL_CONFIRMATION_DETAIL}`
 }
 
 function workingTreeActionHandler(

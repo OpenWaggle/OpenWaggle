@@ -14,7 +14,7 @@ interface CommitDialogProps {
 
 const headerMocks = vi.hoisted(() => {
   const gitStatus: GitStatusSummary = {
-    branch: 'main',
+    branch: 'feat/actual-checkout',
     additions: 3,
     deletions: 1,
     filesChanged: 2,
@@ -103,7 +103,7 @@ vi.mock('@/features/sessions/hooks', () => ({
           sessionId: SessionId('session-1'),
           sourceNodeId: null,
           headNodeId: null,
-          name: 'feature/test-branch',
+          name: 'main',
           isMain: true,
           createdAt: 1,
           updatedAt: 2,
@@ -137,7 +137,7 @@ describe('Header', () => {
     render(<Header />)
 
     expect(screen.getByText('Session title')).toBeInTheDocument()
-    expect(screen.getByText('/ feature/test-branch')).toBeInTheDocument()
+    expect(screen.getByText('/ feat/actual-checkout')).toBeInTheDocument()
     expect(screen.getByText('openwaggle')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Open terminal' }))

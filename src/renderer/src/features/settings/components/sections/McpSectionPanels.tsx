@@ -6,6 +6,7 @@ import type {
 } from '@shared/types/mcp'
 import { AlertTriangle, Network, RotateCw } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
+import { formatDisplayPath, formatDisplayPathsInText } from '@/shared/lib/display-path'
 import { tildifyPath } from '@/shared/lib/tildify-path'
 import { Button } from '@/shared/ui/Button'
 import { StatusPill, titleCase } from './McpSectionPanelPrimitives'
@@ -66,7 +67,13 @@ function noticeTone(notice: McpRuntimeNotice) {
   return 'border-border bg-bg'
 }
 
-export function McpNoticesPanel({ notices }: { readonly notices: readonly McpRuntimeNotice[] }) {
+export function McpNoticesPanel({
+  notices,
+  projectPath,
+}: {
+  readonly notices: readonly McpRuntimeNotice[]
+  readonly projectPath: string | null
+}) {
   if (notices.length === 0) return null
   return (
     <section aria-labelledby="mcp-notices-heading" className="space-y-2">
@@ -83,10 +90,16 @@ export function McpNoticesPanel({ notices }: { readonly notices: readonly McpRun
               )}
             />
             <div>
-              <p className="text-xs font-medium text-text-primary">{notice.title}</p>
-              <p className="mt-0.5 text-xs leading-4 text-text-tertiary">{notice.detail}</p>
+              <p className="text-xs font-medium text-text-primary">
+                {formatDisplayPathsInText(notice.title, [projectPath])}
+              </p>
+              <p className="mt-0.5 text-xs leading-4 text-text-tertiary">
+                {formatDisplayPathsInText(notice.detail, [projectPath])}
+              </p>
               {notice.action && (
-                <p className="mt-1 text-xs text-text-secondary">Next: {notice.action}</p>
+                <p className="mt-1 text-xs text-text-secondary">
+                  Next: {formatDisplayPathsInText(notice.action, [projectPath])}
+                </p>
               )}
             </div>
           </div>
@@ -99,10 +112,12 @@ export function McpNoticesPanel({ notices }: { readonly notices: readonly McpRun
 export function McpSourcesPanel({
   sources,
   selectedSource,
+  projectPath,
   onSelectSource,
 }: {
   readonly sources: readonly McpConfigSourceSummary[]
   readonly selectedSource: McpConfigSourceSummary | null
+  readonly projectPath: string | null
   readonly onSelectSource: (sourceId: McpConfigSourceId) => void
 }) {
   return (
@@ -133,7 +148,7 @@ export function McpSourcesPanel({
               <div className="min-w-0">
                 <div className="text-xs font-medium">{source.label}</div>
                 <div className="mt-1 truncate text-xs text-text-muted">
-                  {tildifyPath(source.path)}
+                  {tildifyPath(formatDisplayPath(source.path, [projectPath]))}
                 </div>
               </div>
               <StatusPill

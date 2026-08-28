@@ -31,6 +31,38 @@ describe('worktree service', () => {
   })
 
   describe('createGitWorktree', () => {
+    it('rejects an already-cancelled creation before running Git', async () => {
+      const controller = new AbortController()
+      controller.abort()
+
+      await expect(
+        createGitWorktree(
+          '/repo',
+          { path: '/wt/x', branch: 'feat', baseRef: 'main' },
+          { signal: controller.signal },
+        ),
+      ).rejects.toMatchObject({ name: 'AbortError' })
+
+      expect(isGitRepositoryMock).not.toHaveBeenCalled()
+      expect(runGitMock).not.toHaveBeenCalled()
+    })
+
+    it('propagates cancellation instead of classifying an aborted Git probe as a bad ref', async () => {
+      const controller = new AbortController()
+      runGitMock.mockImplementationOnce(async () => {
+        controller.abort()
+        return { ...gitResult(1), aborted: true }
+      })
+
+      await expect(
+        createGitWorktree(
+          '/repo',
+          { path: '/wt/x', branch: 'feat', baseRef: 'main' },
+          { signal: controller.signal },
+        ),
+      ).rejects.toMatchObject({ name: 'AbortError' })
+    })
+
     /**
      * A session whose worktree directory was deleted out-of-band still owns its
      * branch, because `worktree prune` clears the registration but not the ref.

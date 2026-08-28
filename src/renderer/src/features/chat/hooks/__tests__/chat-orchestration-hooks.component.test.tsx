@@ -27,6 +27,7 @@ const apiMock = vi.hoisted(() => {
     getAgentEventHandler: () => agentEventHandler,
     getRunCompletedHandler: () => runCompletedHandler,
     listActiveRuns: vi.fn(),
+    getBackgroundRun: vi.fn(),
     compactSession: vi.fn(),
     cancelWaggle: vi.fn(),
     cloneSessionToNew: vi.fn(),
@@ -49,6 +50,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     compactSession: apiMock.compactSession,
     forkSessionToNew: apiMock.forkSessionToNew,
     listActiveRuns: apiMock.listActiveRuns,
+    getBackgroundRun: apiMock.getBackgroundRun,
     onAgentEvent: apiMock.onAgentEvent,
     onRunCompleted: apiMock.onRunCompleted,
   },
@@ -163,6 +165,7 @@ function sendWorkflowParams(overrides: Partial<Parameters<typeof useChatSendWork
 describe('chat orchestration hooks', () => {
   beforeEach(() => {
     apiMock.listActiveRuns.mockReset()
+    apiMock.getBackgroundRun.mockReset().mockResolvedValue(null)
     apiMock.compactSession.mockReset()
     apiMock.cancelWaggle.mockReset()
     apiMock.cloneSessionToNew.mockReset()
@@ -174,6 +177,8 @@ describe('chat orchestration hooks', () => {
     useBackgroundRunStore.setState({
       activeRunIds: new Set(),
       renderSnapshotsBySessionId: new Map(),
+      worktreeLaunchBySessionId: new Map(),
+      firstSendRecoveryBySessionId: new Map(),
     })
     useBranchSummaryStore.getState().clearPrompt()
     useChatStore.setState({

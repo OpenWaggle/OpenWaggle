@@ -9,6 +9,8 @@ import { recoverAgentRunFailure } from '../agent-run/outcome'
  * agent has it and offering it again would send it twice.
  */
 describe('attributing an agent run failure', () => {
+  const signal = new AbortController().signal
+
   it('marks a failure after the agent answered as one the message reached', async () => {
     /*
      * Persisting the turn happens after the kernel returns, so a database write failure there is a typed failure
@@ -19,6 +21,7 @@ describe('attributing an agent run failure', () => {
     const outcome = await Effect.runPromise(
       recoverAgentRunFailure({
         error: new Error('database is locked'),
+        signal,
         sessionId: SessionId('session-1'),
         runId: 'run-1',
         model: SupportedModelId('claude-sonnet-4-5'),
@@ -33,6 +36,7 @@ describe('attributing an agent run failure', () => {
     const outcome = await Effect.runPromise(
       recoverAgentRunFailure({
         error: new Error('this session has no worktree'),
+        signal,
         sessionId: SessionId('session-1'),
         runId: 'run-1',
         model: SupportedModelId('claude-sonnet-4-5'),
@@ -52,6 +56,7 @@ describe('attributing an agent run failure', () => {
     const outcome = await Effect.runPromise(
       recoverAgentRunFailure({
         error: new Error('database is locked'),
+        signal,
         sessionId: SessionId('session-1'),
         runId: 'run-1',
         model: SupportedModelId('claude-sonnet-4-5'),

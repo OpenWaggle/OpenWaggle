@@ -7,6 +7,7 @@ import type {
 } from '@shared/types/extensions'
 import { AlertTriangle, CheckCircle2, TerminalSquare } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
+import { formatDisplayPathsInText } from '@/shared/lib/display-path'
 
 function valueList(values: readonly string[]) {
   return values.length > 0 ? values.join(', ') : 'Not specified'
@@ -14,8 +15,10 @@ function valueList(values: readonly string[]) {
 
 function RuntimeRequirement({
   requirement,
+  displayRoots,
 }: {
   readonly requirement: ExtensionRuntimeRequirementView
+  readonly displayRoots: readonly string[]
 }) {
   const detail = match(requirement)
     .with(
@@ -34,7 +37,9 @@ function RuntimeRequirement({
         <TerminalSquare className="mt-0.5 size-3.5 shrink-0 text-text-tertiary" />
         <div className="min-w-0">
           <div className="text-xs font-medium text-text-secondary">{requirement.label}</div>
-          <div className="mt-0.5 text-xs text-text-muted">{detail}</div>
+          <div className="mt-0.5 text-xs text-text-muted">
+            {formatDisplayPathsInText(detail, displayRoots)}
+          </div>
           <div className="mt-1 text-xs uppercase tracking-widest text-text-tertiary">
             Diagnostic only · OpenWaggle does not install this automatically
           </div>
@@ -73,8 +78,10 @@ function privilegeDetail(requirement: ExtensionPrivilegeRequirementView) {
 
 function PrivilegeRequirement({
   requirement,
+  displayRoots,
 }: {
   readonly requirement: ExtensionPrivilegeRequirementView
+  readonly displayRoots: readonly string[]
 }) {
   const granted = requirement.granted
   return (
@@ -97,7 +104,9 @@ function PrivilegeRequirement({
               {granted ? 'Granted' : 'Needs consent'}
             </span>
           </div>
-          <div className="mt-0.5 text-xs text-text-muted">{privilegeDetail(requirement)}</div>
+          <div className="mt-0.5 text-xs text-text-muted">
+            {formatDisplayPathsInText(privilegeDetail(requirement), displayRoots)}
+          </div>
         </div>
       </div>
     </li>
@@ -106,8 +115,10 @@ function PrivilegeRequirement({
 
 export function ExtensionPackageRequirements({
   requirements,
+  displayRoots = [],
 }: {
   readonly requirements: ExtensionPackageRequirementsView | undefined
+  readonly displayRoots?: readonly string[]
 }) {
   if (
     !requirements ||
@@ -139,6 +150,7 @@ export function ExtensionPackageRequirements({
             <PrivilegeRequirement
               key={`${requirement.kind}:${requirement.id}`}
               requirement={requirement}
+              displayRoots={displayRoots}
             />
           ))}
         </ul>
@@ -150,6 +162,7 @@ export function ExtensionPackageRequirements({
             <RuntimeRequirement
               key={`${requirement.kind}:${requirement.id}`}
               requirement={requirement}
+              displayRoots={displayRoots}
             />
           ))}
         </ul>

@@ -7,6 +7,8 @@ import type { ReactNode } from 'react'
 import { usePreferences } from '@/features/settings/hooks'
 import { extensionContributionsQueryOptions } from '@/queries/extensions'
 import { cn } from '@/shared/lib/cn'
+import { formatDisplayPath, formatDisplayPathsInText } from '@/shared/lib/display-path'
+import { projectName } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { useFullscreen } from '@/shell/useFullscreen'
@@ -23,7 +25,7 @@ function projectScopeLabel(projectPaths: readonly string[]) {
     return 'App scope'
   }
 
-  return projectPaths[0] ?? 'App scope'
+  return projectName(projectPaths[0] ?? null)
 }
 
 function ExtensionRouteShell({
@@ -130,8 +132,10 @@ function ExtensionRouteLoadingCard() {
 
 function ExtensionRouteContributionCard({
   resolution,
+  projectPaths,
 }: {
   readonly resolution: Extract<ExtensionRouteResolution, { readonly status: 'available' }>
+  readonly projectPaths: readonly string[]
 }) {
   const contribution = resolution.contribution
   const entry = contribution.entry
@@ -166,11 +170,15 @@ function ExtensionRouteContributionCard({
           </div>
           <div className="min-w-0">
             <dt className="text-text-muted">Entry</dt>
-            <dd className="truncate text-text-secondary">{contribution.entryPath}</dd>
+            <dd className="truncate text-text-secondary">
+              {formatDisplayPath(contribution.entryPath, projectPaths)}
+            </dd>
           </div>
           <div className="min-w-0">
             <dt className="text-text-muted">Package</dt>
-            <dd className="truncate text-text-secondary">{entry.packagePath}</dd>
+            <dd className="truncate text-text-secondary">
+              {formatDisplayPath(entry.packagePath, projectPaths)}
+            </dd>
           </div>
           <div className="min-w-0">
             <dt className="text-text-muted">Family</dt>
@@ -215,7 +223,7 @@ function extensionRouteBody({
           </Button>
         }
         icon={<ShieldAlert className="size-4" />}
-        message={error}
+        message={formatDisplayPathsInText(error, projectPaths)}
         title="Could not load extension route registry"
       />
     )
@@ -233,13 +241,13 @@ function extensionRouteBody({
   })
 
   if (resolution.status === 'available') {
-    return <ExtensionRouteContributionCard resolution={resolution} />
+    return <ExtensionRouteContributionCard projectPaths={projectPaths} resolution={resolution} />
   }
 
   return (
     <ExtensionRouteStatusCard
       icon={<ShieldAlert className="size-4" />}
-      message={resolution.message}
+      message={formatDisplayPathsInText(resolution.message, projectPaths)}
       title={resolution.title}
     />
   )

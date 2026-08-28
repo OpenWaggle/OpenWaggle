@@ -1,7 +1,7 @@
 import { SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMessageQueueStore } from '@/features/chat/state'
 import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-store'
@@ -24,7 +24,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     updateSettings: vi.fn().mockResolvedValue({ ok: true }),
     getProviderModels: vi.fn().mockResolvedValue([]),
     getGitStatus: vi.fn().mockResolvedValue(null),
-    listGitBranches: vi.fn().mockResolvedValue(null),
+    listGitBranches: vi.fn().mockResolvedValue({ currentBranch: 'main', branches: [] }),
     checkoutGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
     createGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
     prepareAttachments: vi.fn().mockResolvedValue([]),
@@ -185,6 +185,92 @@ describe('ChatPanel', () => {
   it('renders the composer input area', () => {
     renderPanel()
     expect(screen.getByRole('textbox')).toBeInTheDocument()
+  })
+
+  it('focuses the message input from non-interactive composer chrome', async () => {
+    renderPanel()
+    const composer = screen.getByRole('region', { name: 'Composer file drop zone' })
+    const messageInput = screen.getByRole('textbox', { name: 'Message input' })
+    const addButton = screen.getByRole('button', { name: 'Add to message' })
+
+    addButton.focus()
+    expect(addButton).toHaveFocus()
+
+    fireEvent.mouseDown(composer)
+
+    await waitFor(() => expect(messageInput).toHaveFocus())
+    expect(composer).toHaveClass('cursor-text', '[&_button]:cursor-default')
+
+    addButton.focus()
+    fireEvent.mouseDown(addButton)
+    expect(addButton).toHaveFocus()
+  })
+
+  it('shows the session setup dock before the first message', () => {
+    renderPanel({}, { isFirstMessage: true })
+
+    expect(screen.getByRole('group', { name: 'Session setup' })).toBeInTheDocument()
+  })
+
+  it('opens project selection from the session setup dock', () => {
+    renderPanel(
+      { recentProjects: ['/test/other-project'] },
+      { isFirstMessage: true, projectPath: '/test/project' },
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Project: project' }))
+
+    expect(screen.getByRole('dialog')).toHaveClass('mb-3')
+    expect(screen.getByRole('searchbox', { name: 'Search projects' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Select folder…' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'other-project' })).toBeInTheDocument()
+  })
+
+  it('starts a draft in a recent project selected from the dock', () => {
+    const onSelectProjectPath = vi.fn()
+    renderPanel(
+      { recentProjects: ['/test/other-project'], onSelectProjectPath },
+      { isFirstMessage: true, projectPath: '/test/project' },
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Project: project' }))
+    fireEvent.click(screen.getByRole('button', { name: 'other-project' }))
+
+    expect(onSelectProjectPath).toHaveBeenCalledWith('/test/other-project')
+  })
+
+  it('opens the operating-system folder chooser from the dock project menu', () => {
+    const onOpenProject = vi.fn().mockResolvedValue(undefined)
+    renderPanel({ onOpenProject }, { isFirstMessage: true, projectPath: '/test/project' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Project: project' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select folder…' }))
+
+    expect(onOpenProject).toHaveBeenCalledOnce()
+  })
+
+  it('uses the dialog radius for both the composer and its dock', () => {
+    renderPanel({}, { isFirstMessage: true, projectPath: '/test/project' })
+
+    const composer = screen.getByRole('region', { name: 'Composer file drop zone' })
+    const projectTrigger = screen.getByRole('button', { name: 'Project: project' })
+
+    expect(composer).toHaveClass('rounded-xl')
+    expect(composer).not.toHaveClass('rounded-3xl')
+    expect(projectTrigger.closest('.rounded-t-xl')).toBeInTheDocument()
+  })
+
+  it('hides the session setup dock after the first message', () => {
+    renderPanel({}, { isFirstMessage: false })
+
+    expect(screen.queryByRole('group', { name: 'Session setup' })).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox')).toBeInTheDocument()
+  })
+
+  it('hides the session setup dock while the first message is being submitted', () => {
+    renderPanel({}, { isFirstMessage: true, isLoading: true, status: 'submitted' })
+
+    expect(screen.queryByRole('group', { name: 'Session setup' })).not.toBeInTheDocument()
   })
 
   it('shows Writing phase when loading and assistant has streaming content', () => {
