@@ -173,9 +173,9 @@ function runRegisteredWaggleMessage(
         sessionId,
         runId,
         payload,
-        messages: result.newMessages,
-        nodeIdByMessageId: {},
-        branchIdByMessageId: {},
+        messages: result.resourceMessages,
+        nodeIdByMessageId: result.resourceNodeIds,
+        branchIdByMessageId: result.resourceBranchIds,
       }).pipe(Effect.catchAll(() => Effect.void))
     }
 

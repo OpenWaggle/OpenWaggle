@@ -25,6 +25,7 @@ import { loadAgentRunPreflight } from './agent-run/preflight'
 import type { ActiveRunIdentity, AgentRunInput, AgentRunResult } from './agent-run/types'
 import { createWorktreeLaunchEventCollector } from './agent-run/worktree-launch-event'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
+import { mapPersistedRunResourceNodes } from './session-resource-node-mapping'
 
 export type { AgentRunInput, AgentRunResult } from './agent-run/types'
 
@@ -111,21 +112,10 @@ export function executeAgentRun(input: AgentRunInput) {
       piSessionFile: agentResult.piSessionFile,
     })
 
-    const existingNodeIds = new Set((existingTree?.nodes ?? []).map((node) => String(node.id)))
     const persistedTree = yield* sessionRepo.getTree(input.sessionId)
-    const resourceNodes = (persistedTree?.nodes ?? [])
-      .filter((node) => !existingNodeIds.has(String(node.id)) && node.message !== undefined)
-      .sort((left, right) => left.createdOrder - right.createdOrder)
-    const resourceMessages = resourceNodes.flatMap((node) => (node.message ? [node.message] : []))
-    const resourceNodeIds = Object.fromEntries(
-      resourceNodes.flatMap((node) =>
-        node.message ? [[String(node.message.id), String(node.id)]] : [],
-      ),
-    )
-    const resourceBranchIds = Object.fromEntries(
-      resourceNodes.flatMap((node) =>
-        node.message ? [[String(node.message.id), node.branchId ?? null]] : [],
-      ),
+    const { resourceMessages, resourceNodeIds, resourceBranchIds } = mapPersistedRunResourceNodes(
+      existingTree,
+      persistedTree,
     )
 
     // WS6b: anchor this turn's checkpoint to the run's final assistant node so

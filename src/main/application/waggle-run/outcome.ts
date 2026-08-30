@@ -3,6 +3,7 @@ import { classifyAgentError } from '../../agent/error-classifier'
 import { createLogger } from '../../logger'
 import type { AgentKernelRunResult } from '../../ports/agent-kernel-service'
 import { isRunCancellation } from '../run-cancellation'
+import type { PersistedRunResourceNodes } from '../session-resource-node-mapping'
 
 const logger = createLogger('waggle-run-outcome')
 
@@ -62,6 +63,7 @@ export function createWaggleSuccessOutcome(input: {
   readonly sessionId: unknown
   readonly assignedTitle?: string
   readonly result: AgentKernelRunResult
+  readonly resources: PersistedRunResourceNodes
 }) {
   logger.info('Pi-native Waggle collaboration finished', {
     sessionId: input.sessionId,
@@ -73,6 +75,7 @@ export function createWaggleSuccessOutcome(input: {
   return {
     outcome: 'success' as const,
     newMessages: input.result.newMessages,
+    ...input.resources,
     ...(input.result.terminalError ? { lastError: input.result.terminalError } : {}),
     ...(input.assignedTitle ? { assignedTitle: input.assignedTitle } : {}),
   }

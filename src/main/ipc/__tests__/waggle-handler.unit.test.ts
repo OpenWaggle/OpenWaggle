@@ -209,7 +209,27 @@ describe('registerWaggleHandlers', () => {
         createdAt: 1,
       },
     ]
-    executeWaggleRunMock.mockReturnValue(Effect.succeed({ outcome: 'success', newMessages }))
+    const resourceMessages = [
+      {
+        id: 'persisted-assistant-message',
+        role: 'assistant' as const,
+        parts: [{ type: 'text' as const, text: 'Done' }],
+        createdAt: 1,
+      },
+    ]
+    executeWaggleRunMock.mockReturnValue(
+      Effect.succeed({
+        outcome: 'success',
+        newMessages,
+        resourceMessages,
+        resourceNodeIds: {
+          'persisted-assistant-message': 'persisted-assistant-node',
+        },
+        resourceBranchIds: {
+          'persisted-assistant-message': 'session-1:main',
+        },
+      }),
+    )
 
     registerWaggleHandlers()
     const send = getSendHandler()
@@ -221,9 +241,13 @@ describe('registerWaggleHandlers', () => {
       sessionId: SESSION_ID,
       runId: `waggle-${SESSION_ID}`,
       payload,
-      messages: newMessages,
-      nodeIdByMessageId: {},
-      branchIdByMessageId: {},
+      messages: resourceMessages,
+      nodeIdByMessageId: {
+        'persisted-assistant-message': 'persisted-assistant-node',
+      },
+      branchIdByMessageId: {
+        'persisted-assistant-message': 'session-1:main',
+      },
     })
   })
 
