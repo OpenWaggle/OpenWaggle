@@ -75,15 +75,15 @@ T3 Code's loopback web surface required its desktop pairing credential, and the 
 
 | Shipped artifact or policy | OpenWaggle | T3 Code 0.0.35 | Codex GUI 26.825.41651 |
 | --- | ---: | ---: | ---: |
-| Initial renderer entry, raw / gzip | 773,068 / 160,412 bytes | Not isolated from the 5.4 MB application entry | Not isolated from the application entry |
+| Initial renderer entry, raw / gzip | 773,068 / 160,401 bytes | Not isolated from the 5.4 MB application entry | Not isolated from the application entry |
 | Focused file editor, raw / gzip | 347,792 / 78,566 bytes | 387,425 / 114,781 bytes | 512,408 / 174,919 bytes |
-| Syntax/editor worker, raw / gzip | 397,369 / 95,531 bytes | 833,722 / 300,745 bytes | 211,224 / 68,237 bytes |
+| Syntax/editor worker, raw / gzip | 397,501 / 95,604 bytes | 833,722 / 300,745 bytes | 211,224 / 68,237 bytes |
 | Review syntax workers | Up to 2, created on demand | Up to 6 on this 14-core machine | 4 |
 | Ordinary single-file open | Virtualized read-only source; editor chunk and worker remain unloaded | Lazy panel, then Pierre editable file for an ordinary file | Separate review-source and editable-source surfaces |
 | Large mounted source | Viewport plus 30 lines; compact blocks switch to virtualization above 64 KiB or 1,000 lines | Pierre virtualizer with 600 px overscan | Review virtualizer metrics are shipped separately |
 | Language strategy | Lazy bundled languages plus user/project grammar imports | Lazy language/theme resolution | Five languages in the inspected provider |
 
-OpenWaggle's focused editor is 10.2% smaller raw than T3 Code's file-preview chunk and 32.1% smaller raw than Codex's text-file-editor chunk. Its syntax worker is 52.3% smaller raw than T3 Code's worker. Codex's narrower five-language worker remains smaller than OpenWaggle's extensible worker; OpenWaggle keeps that cost off startup and caps the review pool at two rather than scaling it with the host's core count. The complete OpenWaggle startup module graph is 3,988,402 bytes and separately capped at 4.5 MiB; comparing that graph to another app's differently partitioned entry would not be an equivalent measurement.
+OpenWaggle's focused editor is 10.2% smaller raw than T3 Code's file-preview chunk and 32.1% smaller raw than Codex's text-file-editor chunk. Its syntax worker is 52.3% smaller raw than T3 Code's worker. Codex's narrower five-language worker remains smaller than OpenWaggle's extensible worker; OpenWaggle keeps that cost off startup and caps the review pool at two rather than scaling it with the host's core count. The complete OpenWaggle startup module graph is 3,990,176 bytes and separately capped at 4.5 MiB; comparing that graph to another app's differently partitioned entry would not be an equivalent measurement.
 
 The single-file path has additional interaction guards that shipped bundle sizes cannot prove:
 
@@ -93,4 +93,4 @@ The single-file path has additional interaction guards that shipped bundle sizes
 - Syntax tokenization remains off the main thread. The focused editor and its worker are still absent until the user explicitly chooses Edit.
 - Chat, Markdown, tool, and structured-data code blocks automatically move from the compact renderer to the bounded viewport renderer above 64 KiB or 1,000 lines.
 
-The repeated checked microbenchmark on the same machine recorded 25.847 ms p95 for warm 16 KiB TypeScript, 174.206 ms p95 for warm 128 KiB, 1,281.850 ms p95 for 1 MiB worker tokenization, 0.335 ms p95 for selecting an 80-line window from a 1 MiB source, and 3.091 ms p95 for the one-time 1 MiB source fingerprint. The warm viewport path reuses that fingerprint and the worker's token cache.
+The repeated checked microbenchmark on the same machine recorded 29.853 ms p95 for warm 16 KiB TypeScript, 207.488 ms p95 for warm 128 KiB, and 1,626.486 ms p95 for 1 MiB worker tokenization under the checked budgets. The single-file renderer now builds line offsets, checks admission, and creates the worker cache identity in one pass, then slices only the requested 80-line window; that combined 1 MiB path measured 5.306 ms p95. An interleaved 20-sample comparison against the former split-plus-two-scan path measured 3.062 ms versus 4.061 ms p95, a 24.6% reduction, while avoiding an eager string allocation for every line. The warm viewport path reuses the resulting fingerprint and the worker's token cache.

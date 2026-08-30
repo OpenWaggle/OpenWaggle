@@ -11,8 +11,9 @@ import {
   type HighlighterCore,
 } from 'shiki'
 import {
+  analyzeSourceForView,
   MAX_SYNTAX_SOURCE_CODE_UNITS,
-  sourceViewLines,
+  sourceViewLineAt,
   syntaxHighlightAdmission,
   syntaxSourceFingerprint,
 } from '../../src/shared/syntax-highlighting-performance'
@@ -147,7 +148,10 @@ async function main() {
       }
     }),
     sourceWindow1MiB: await measure(WARM_SAMPLE_COUNT, () => {
-      const visible = sourceViewLines(large).slice(0, SOURCE_VIEW_SAMPLE_LINES)
+      const analysis = analyzeSourceForView(large)
+      const visible = analysis.lineStarts
+        .slice(0, SOURCE_VIEW_SAMPLE_LINES)
+        .map((_, index) => sourceViewLineAt(large, analysis.lineStarts, index))
       if (visible.length !== SOURCE_VIEW_SAMPLE_LINES)
         throw new Error('Source-view benchmark returned too few lines.')
     }),

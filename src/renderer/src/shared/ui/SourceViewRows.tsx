@@ -1,3 +1,4 @@
+import { sourceViewLineAt } from '@shared/syntax-highlighting-performance'
 import { cn } from '@/shared/lib/cn'
 import type { SyntaxHighlightResult, SyntaxToken } from '@/shared/lib/syntax/protocol'
 import { syntaxTokenStyle } from '@/shared/lib/syntax/token-style'
@@ -11,7 +12,8 @@ function tokensForLine(
 }
 
 export function SourceViewRows({
-  lines,
+  source,
+  lineStarts,
   range,
   highlighted,
   targetLine,
@@ -19,7 +21,8 @@ export function SourceViewRows({
   showLineNumbers,
   backgroundColor,
 }: {
-  readonly lines: readonly string[]
+  readonly source: string
+  readonly lineStarts: readonly number[]
   readonly range: { readonly start: number; readonly end: number }
   readonly highlighted: SyntaxHighlightResult | null
   readonly targetLine?: number | null
@@ -27,15 +30,16 @@ export function SourceViewRows({
   readonly showLineNumbers: boolean
   readonly backgroundColor?: string
 }) {
-  return lines.slice(range.start, range.end).map((line, visibleIndex) => {
+  return Array.from({ length: range.end - range.start }, (_, visibleIndex) => {
     const lineIndex = range.start + visibleIndex
+    const line = sourceViewLineAt(source, lineStarts, lineIndex)
     const tokens = tokensForLine(highlighted, lineIndex)
     return (
       <li
         key={String(lineIndex)}
         data-line-number={lineIndex + 1}
         aria-posinset={lineIndex + 1}
-        aria-setsize={lines.length}
+        aria-setsize={lineStarts.length}
         className={cn(
           'absolute left-0 flex min-w-full whitespace-pre',
           targetLine === lineIndex + 1 && 'bg-accent/10',

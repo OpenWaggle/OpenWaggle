@@ -142,7 +142,10 @@ async function installLongTaskObserver(page: Page) {
     const observer = new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) durations.push(entry.duration)
     })
-    observer.observe({ type: 'longtask', buffered: true })
+    // Measure only the file-open and viewport work below. Buffered entries can
+    // include Electron startup and command-palette work that happened before
+    // this observer existed, which does not describe single-file performance.
+    observer.observe({ type: 'longtask' })
     Reflect.set(window, '__openwaggleE2eLongTasks', durations)
   })
 }

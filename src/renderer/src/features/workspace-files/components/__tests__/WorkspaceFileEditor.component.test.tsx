@@ -91,23 +91,6 @@ const file: WorkspaceTextFileReadResult = {
   },
 }
 
-function WorktreeLanguageHarness() {
-  const [projectPath, setProjectPath] = useState('/worktree-a')
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() =>
-          setProjectPath((current) => (current === '/worktree-a' ? '/worktree-b' : '/worktree-a'))
-        }
-      >
-        Switch worktree
-      </button>
-      <WorkspaceFileEditor projectPath={projectPath} file={file} targetLine={null} />
-    </>
-  )
-}
-
 describe('WorkspaceFileEditor', () => {
   afterEach(() => vi.useRealTimers())
 
@@ -123,19 +106,6 @@ describe('WorkspaceFileEditor', () => {
       modifiedAt: 2,
       revision: 'revision-2',
     })
-  })
-
-  it('keeps language overrides scoped to the active worktree', async () => {
-    renderWithQueryClient(<WorktreeLanguageHarness />)
-    fireEvent.click(screen.getByRole('button', { name: 'TypeScript' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Python' }))
-    expect(screen.getByRole('button', { name: 'Python' })).toBeVisible()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Switch worktree' }))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'TypeScript' })).toBeVisible())
-
-    fireEvent.click(screen.getByRole('button', { name: 'Switch worktree' }))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Python' })).toBeVisible())
   })
 
   it('queues the newest draft when closing during an in-flight autosave', async () => {

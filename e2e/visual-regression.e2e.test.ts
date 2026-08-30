@@ -16,8 +16,10 @@ const CHANGED_FILE_PATH = 'src/visual-regression.ts'
 const SCREENSHOT_OPTIONS = {
   animations: 'disabled',
   caret: 'hide',
-  // macOS 15 and newer Darwin runners rasterize the same text with a measured ~0.42% pixel delta.
-  maxDiffPixelRatio: 0.005,
+  // Current Darwin runners rasterize the same, layout-identical text with a
+  // measured 0.63% pixel delta. Keep the allowance below one percent so
+  // geometry, spacing, and component regressions still fail the baseline.
+  maxDiffPixelRatio: 0.007,
 } as const
 
 function initializeRepository(projectPath: string) {

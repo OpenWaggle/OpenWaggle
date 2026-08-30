@@ -1,8 +1,4 @@
-import {
-  sourceViewLines,
-  syntaxHighlightAdmission,
-  syntaxSourceFingerprint,
-} from '@shared/syntax-highlighting-performance'
+import { analyzeSourceForView } from '@shared/syntax-highlighting-performance'
 import { type CSSProperties, useMemo } from 'react'
 import { useSyntaxTheme } from '@/shared/hooks/useSyntaxTheme'
 import { useAppearancePreferencesRuntimeStore } from '@/shared/lib/appearance-preferences-runtime'
@@ -44,14 +40,9 @@ export function SourceView({
     : path
       ? languageFromPath(path)
       : 'text'
-  const lines = useMemo(() => sourceViewLines(source), [source])
-  const syntaxAdmitted = useMemo(() => syntaxHighlightAdmission(source).admitted, [source])
-  const sourceFingerprint = useMemo(
-    () => (syntaxAdmitted ? syntaxSourceFingerprint(source) : ''),
-    [source, syntaxAdmitted],
-  )
+  const sourceAnalysis = useMemo(() => analyzeSourceForView(source), [source])
   const { containerRef, range, updateScroll } = useSourceViewViewport({
-    lineCount: lines.length,
+    lineCount: sourceAnalysis.lineStarts.length,
     lineHeight: codeLineHeight,
     targetLine,
   })
@@ -61,10 +52,10 @@ export function SourceView({
   )
   const highlighted = useSourceViewHighlighting({
     source,
-    sourceFingerprint,
+    sourceFingerprint: sourceAnalysis.sourceFingerprint,
     language: resolvedLanguage,
     theme: shikiTheme,
-    admitted: syntaxAdmitted,
+    admitted: sourceAnalysis.admission.admitted,
     lineRange,
   })
 
@@ -104,10 +95,11 @@ export function SourceView({
         <ol
           aria-label="Source lines"
           className="relative m-0 min-w-max list-none p-0"
-          style={{ height: lines.length * codeLineHeight, minWidth: '100%' }}
+          style={{ height: sourceAnalysis.lineStarts.length * codeLineHeight, minWidth: '100%' }}
         >
           <SourceViewRows
-            lines={lines}
+            source={source}
+            lineStarts={sourceAnalysis.lineStarts}
             range={range}
             highlighted={highlighted}
             targetLine={targetLine}

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "capturedAt": "2026-08-30T06:37:07.422Z",
+  "capturedAt": "2026-08-30T10:00:01.062Z",
   "runtime": {
     "node": "v24.12.0",
     "platform": "darwin",
@@ -18,43 +18,43 @@
   },
   "metrics": {
     "javascriptCold16KiB": {
-      "medianMs": 33.836,
-      "p95Ms": 104.86,
+      "medianMs": 48.109,
+      "p95Ms": 130.449,
       "samples": 3
     },
     "javascriptWarm16KiB": {
-      "medianMs": 15.185,
-      "p95Ms": 15.636,
+      "medianMs": 23.792,
+      "p95Ms": 29.853,
       "samples": 15
     },
     "javascriptWarm128KiB": {
-      "medianMs": 121.646,
-      "p95Ms": 125.852,
+      "medianMs": 151.262,
+      "p95Ms": 207.488,
       "samples": 15
     },
     "javascriptWarm1MiB": {
-      "medianMs": 982.889,
-      "p95Ms": 1021.298,
+      "medianMs": 1375.861,
+      "p95Ms": 1626.486,
       "samples": 5
     },
     "onigurumaCold16KiB": {
-      "medianMs": 47.839,
-      "p95Ms": 79.272,
+      "medianMs": 54.914,
+      "p95Ms": 88.833,
       "samples": 3
     },
     "admissionScan1MiB": {
-      "medianMs": 1.977,
-      "p95Ms": 2.61,
+      "medianMs": 2.156,
+      "p95Ms": 3.161,
       "samples": 15
     },
     "sourceWindow1MiB": {
-      "medianMs": 0.243,
-      "p95Ms": 0.329,
+      "medianMs": 3.163,
+      "p95Ms": 5.306,
       "samples": 15
     },
     "sourceFingerprint1MiB": {
-      "medianMs": 1.596,
-      "p95Ms": 2.49,
+      "medianMs": 1.652,
+      "p95Ms": 2.755,
       "samples": 15
     }
   }
