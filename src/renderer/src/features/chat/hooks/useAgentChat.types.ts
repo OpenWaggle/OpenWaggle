@@ -76,16 +76,6 @@ export type SetAgentChatStatus = (status: AgentChatStatus) => void
 export type SetAgentChatError = (error: Error | undefined) => void
 export type SetBackgroundStreaming = (backgroundStreaming: boolean) => void
 export type SetCompactionStatus = (status: AgentCompactionStatus | null) => void
-export type SetAgentInteractionsBySessionId = (
-  interactionsBySessionId: Map<SessionId, readonly AgentLoopInteraction[]>,
-) => void
-export type SetAgentCustomMessagesBySessionId = (
-  messagesBySessionId: Map<SessionId, readonly AgentTransportCustomEvent[]>,
-) => void
-export type SetAgentInteractionEventsBySessionId = (
-  eventsBySessionId: Map<SessionId, readonly AgentInteractionEvent[]>,
-) => void
-
 export interface AgentStreamEventContext {
   readonly subscribedSessionId: SessionId
   readonly currentSessionIdRef: MutableValueRef<SessionId | null>
@@ -94,22 +84,10 @@ export interface AgentStreamEventContext {
   readonly backgroundReconnectSessionIdRef: MutableValueRef<SessionId | null>
   readonly streamSignalVersionRef: MutableValueRef<number>
   readonly terminalRunErrorRef: MutableValueRef<Error | undefined>
-  readonly agentInteractionsBySessionIdRef: MutableValueRef<
-    Map<SessionId, readonly AgentLoopInteraction[]>
-  >
-  readonly agentCustomMessagesBySessionIdRef: MutableValueRef<
-    Map<SessionId, readonly AgentTransportCustomEvent[]>
-  >
-  readonly agentInteractionEventsBySessionIdRef: MutableValueRef<
-    Map<SessionId, readonly AgentInteractionEvent[]>
-  >
   readonly messagesBySessionIdRef: MutableValueRef<Map<SessionId, UIMessage[]>>
   readonly setMessagesBySessionId: SetMessagesBySessionId
   readonly setRunRenderMessages: SetRunRenderMessages
   readonly setError: SetAgentChatError
-  readonly setAgentInteractionsBySessionId: SetAgentInteractionsBySessionId
-  readonly setAgentCustomMessagesBySessionId: SetAgentCustomMessagesBySessionId
-  readonly setAgentInteractionEventsBySessionId: SetAgentInteractionEventsBySessionId
   readonly setStatus: SetAgentChatStatus
   readonly setCompactionStatus: SetCompactionStatus
   readonly setBackgroundStreaming: SetBackgroundStreaming
