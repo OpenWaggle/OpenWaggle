@@ -9,6 +9,7 @@ const VIEWPORT = { width: 1200, height: 800 }
 const FIXED_NOW = Date.UTC(2026, 6, 14, 12)
 const PRIMARY_UPDATED_AT = FIXED_NOW - 2 * 60_000
 const SECONDARY_UPDATED_AT = FIXED_NOW - 4 * 60 * 60_000
+const SETTINGS_PREVIEW_SETTLE_MS = 300
 const PROJECT_LABEL = 'visual-regression-repo'
 const PRIMARY_TITLE = 'Polish the review workflow'
 const SECONDARY_TITLE = 'Document keyboard navigation'
@@ -224,6 +225,15 @@ test('six primary surfaces match their visual baselines', { tag: '@visual' }, as
     await expect(settingsContent).toBeVisible()
     await expect(settingsRoot.getByRole('heading', { name: 'Color and syntax' })).toBeVisible()
     await expect(settingsRoot.getByRole('heading', { name: 'Typography' })).toBeVisible()
+    const syntaxPreview = settingsRoot.getByRole('region', {
+      name: 'TypeScript syntax theme preview',
+    })
+    await expect(syntaxPreview).toHaveAttribute('data-syntax-status', 'highlighted')
+    await expect(syntaxPreview.locator('[data-line-number]')).toHaveCount(9)
+    // The highlighted result and the SourceView ResizeObserver settle in
+    // separate browser tasks. Capture the durable layout, not the transient
+    // first frame that can appear between those commits on a loaded runner.
+    await page.waitForTimeout(SETTINGS_PREVIEW_SETTLE_MS)
     await page.mouse.move(VIEWPORT.width - 10, 10)
     await waitForVisualReadiness(page)
     await expect(settingsRoot).toHaveScreenshot('settings.png', SCREENSHOT_OPTIONS)
