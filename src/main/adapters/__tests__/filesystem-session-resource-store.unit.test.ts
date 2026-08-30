@@ -39,6 +39,26 @@ describe('FilesystemSessionResourceStore', () => {
     expect([...result.read]).toEqual([...bytes])
   })
 
+  it('truncates long managed names without losing the file extension', async () => {
+    const bytes = new TextEncoder().encode('long-name bytes')
+    const stored = await Effect.runPromise(
+      Effect.gen(function* () {
+        const store = yield* SessionResourceStore
+        return yield* store.storeBytes({
+          sessionId: SessionId('session-1'),
+          resourceId: '123e4567-e89b-12d3-a456-426614174000',
+          fileName: `${'a'.repeat(220)}.png`,
+          bytes,
+        })
+      }).pipe(Effect.provide(makeFilesystemSessionResourceStoreLayer(tmpRoot))),
+    )
+
+    const managedName = path.basename(stored.path)
+    expect(Buffer.byteLength(managedName)).toBeLessThanOrEqual(251)
+    expect(managedName).toMatch(/\.png$/u)
+    await expect(fs.readFile(stored.path)).resolves.toEqual(Buffer.from(bytes))
+  })
+
   it('rejects reads that resolve outside the managed resource root', async () => {
     const outside = path.join(path.dirname(tmpRoot), 'outside-session-resource.txt')
     await fs.writeFile(outside, 'secret')

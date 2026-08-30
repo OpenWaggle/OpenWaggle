@@ -12,6 +12,10 @@ import {
 } from '../ports/session-resource-store'
 
 const RESOURCE_DIRECTORY = 'session-resources'
+const MAX_DIRECTORY_ENTRY_BYTES = 255
+const MAX_RESOURCE_ID_BYTES = 64
+const MAX_EXTENSION_BYTES = 32
+const TEMPORARY_SUFFIX = '.tmp'
 
 function storeError(operation: string, cause: unknown) {
   return new SessionResourceStoreError({ operation, cause })
@@ -20,6 +24,36 @@ function storeError(operation: string, cause: unknown) {
 function safeFileName(fileName: string) {
   const normalized = path.basename(fileName).replaceAll(/[^a-zA-Z0-9._-]/g, '-')
   return normalized.length > 0 ? normalized : 'resource'
+}
+
+function truncateUtf8(value: string, maxBytes: number) {
+  if (Buffer.byteLength(value) <= maxBytes) return value
+  let byteLength = 0
+  let result = ''
+  for (const character of value) {
+    const characterBytes = Buffer.byteLength(character)
+    if (byteLength + characterBytes > maxBytes) break
+    byteLength += characterBytes
+    result += character
+  }
+  return result
+}
+
+function truncateFileName(fileName: string, maxBytes: number) {
+  if (Buffer.byteLength(fileName) <= maxBytes) return fileName
+  const candidateExtension = path.extname(fileName)
+  const extension =
+    Buffer.byteLength(candidateExtension) <= MAX_EXTENSION_BYTES ? candidateExtension : ''
+  const stem = extension ? fileName.slice(0, -extension.length) : fileName
+  return `${truncateUtf8(stem, maxBytes - Buffer.byteLength(extension))}${extension}`
+}
+
+function managedFileName(resourceId: string, fileName: string) {
+  const safeResourceId = truncateUtf8(safeFileName(resourceId), MAX_RESOURCE_ID_BYTES)
+  const prefix = `${safeResourceId}-`
+  const availableNameBytes =
+    MAX_DIRECTORY_ENTRY_BYTES - Buffer.byteLength(prefix) - Buffer.byteLength(TEMPORARY_SUFFIX)
+  return `${prefix}${truncateFileName(safeFileName(fileName), availableNameBytes)}`
 }
 
 function isWithinRoot(root: string, candidate: string) {
@@ -39,9 +73,9 @@ function makeStore(root: string): SessionResourceStoreShape {
         await fs.mkdir(sessionDirectory, { recursive: true })
         const target = path.join(
           sessionDirectory,
-          `${input.resourceId}-${safeFileName(input.fileName)}`,
+          managedFileName(input.resourceId, input.fileName),
         )
-        const temporary = `${target}.tmp`
+        const temporary = `${target}${TEMPORARY_SUFFIX}`
         await fs.writeFile(temporary, input.bytes, { flag: 'wx' })
         await fs.rename(temporary, target)
         return {

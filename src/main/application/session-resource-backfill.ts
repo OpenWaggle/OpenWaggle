@@ -6,12 +6,14 @@ import * as Effect from 'effect/Effect'
 import { validatedImageBytes } from '../domain/session-resource-image'
 import { SessionResourceRepository } from '../ports/session-resource-repository'
 import {
+  ASSISTANT_LINK_CAPTURE_LIMIT,
   advanceGeneratedImageCaptureBudget,
   captureAttachment,
   captureGeneratedImage,
   captureLink,
 } from './session-resource-capture'
 import { generatedImageOccurrencePrefix } from './session-resource-capture-image'
+import { linkOccurrenceId } from './session-resource-capture-link'
 import { collectExplicitResources } from './session-resource-extraction'
 import { withSessionResourceLock } from './session-resource-lock'
 
@@ -24,6 +26,11 @@ interface ProjectedResourceMessage {
 interface BackfillImageState {
   budget: { readonly bytes: number; readonly count: number }
   readonly capturedSlots: Set<string>
+}
+
+interface BackfillLinkState {
+  count: number
+  readonly capturedOccurrences: Set<string>
 }
 
 function projectResourceMessages(input: {
@@ -59,6 +66,10 @@ function capturedGeneratedImageSlots(resources: readonly SessionResource[]) {
     }
   }
   return slots
+}
+
+function capturedOccurrenceIds(resources: readonly SessionResource[]) {
+  return new Set(resources.flatMap((resource) => resource.occurrences.map(({ id }) => id)))
 }
 
 function captureBackfilledUserResources(sessionId: SessionId, projected: ProjectedResourceMessage) {
@@ -98,6 +109,7 @@ function captureBackfilledAssistantResources(
   sessionId: SessionId,
   projected: ProjectedResourceMessage,
   imageState: BackfillImageState,
+  linkState: BackfillLinkState,
 ) {
   return Effect.gen(function* () {
     const { message, nodeId, branchId } = projected
@@ -129,7 +141,7 @@ function captureBackfilledAssistantResources(
       )
     }
     for (const [index, link] of captured.links.entries()) {
-      yield* captureLink({
+      const linkInput = {
         sessionId,
         runId,
         link,
@@ -139,7 +151,13 @@ function captureBackfilledAssistantResources(
         activity: 'read',
         createdAt: message.createdAt,
         branchId,
-      }).pipe(Effect.catchAll(() => Effect.void))
+      } as const
+      const id = linkOccurrenceId(linkInput)
+      if (linkState.capturedOccurrences.has(id)) continue
+      if (linkState.count >= ASSISTANT_LINK_CAPTURE_LIMIT) break
+      linkState.count += 1
+      linkState.capturedOccurrences.add(id)
+      yield* captureLink(linkInput).pipe(Effect.catchAll(() => Effect.void))
     }
   })
 }
@@ -159,6 +177,10 @@ export function captureProjectedSessionResources(input: {
         budget: { bytes: 0, count: 0 },
         capturedSlots: capturedGeneratedImageSlots(resources),
       }
+      const linkState: BackfillLinkState = {
+        count: 0,
+        capturedOccurrences: capturedOccurrenceIds(resources),
+      }
       for (const projected of projectResourceMessages(input)) {
         const { message } = projected
         if (message.role === 'user') {
@@ -166,7 +188,12 @@ export function captureProjectedSessionResources(input: {
           continue
         }
         if (message.role !== 'assistant') continue
-        yield* captureBackfilledAssistantResources(input.sessionId, projected, imageState)
+        yield* captureBackfilledAssistantResources(
+          input.sessionId,
+          projected,
+          imageState,
+          linkState,
+        )
       }
     }),
   )

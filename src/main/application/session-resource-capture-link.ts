@@ -6,7 +6,7 @@ import { SessionResourceRepository } from '../ports/session-resource-repository'
 import { occurrence, occurrenceId, sha256 } from './session-resource-capture-shared'
 import type { CapturedLink } from './session-resource-extraction'
 
-interface LinkCaptureInput {
+export interface LinkCaptureInput {
   readonly sessionId: SessionId
   readonly runId: string
   readonly link: CapturedLink
@@ -16,6 +16,13 @@ interface LinkCaptureInput {
   readonly activity: SessionResourceActivity
   readonly createdAt: number
   readonly branchId?: string | null
+}
+
+export function linkOccurrenceId(input: LinkCaptureInput) {
+  return occurrenceId({
+    ...input,
+    suffix: `${input.activity}:link:${String(input.index)}:${sha256(Buffer.from(input.link.url))}`,
+  })
 }
 
 function linkOccurrence(input: LinkCaptureInput, id: string) {
@@ -32,10 +39,7 @@ function linkOccurrence(input: LinkCaptureInput, id: string) {
 export function captureLink(input: LinkCaptureInput) {
   return Effect.gen(function* () {
     const repository = yield* SessionResourceRepository
-    const id = occurrenceId({
-      ...input,
-      suffix: `${input.activity}:link:${String(input.index)}:${sha256(Buffer.from(input.link.url))}`,
-    })
+    const id = linkOccurrenceId(input)
     if (yield* repository.hasOccurrence(input.sessionId, id)) return
     const resourceId = randomUUID()
     const canonicalKey = `url:${input.link.url}`
