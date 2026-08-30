@@ -215,4 +215,81 @@ describe('SqliteSessionResourceRepositoryLive', () => {
     expect(result.deleted).toEqual([])
     expect(result.preserved).toHaveLength(1)
   })
+
+  it('re-keys recovered resources by digest and merges duplicate occurrences', async () => {
+    const layer = makeTestLayer(path.join(tmpRoot, 'rekey.sqlite'))
+    const sessionId = SessionId('session-1')
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* SessionResourceRepository
+        yield* repository.upsert({
+          id: 'digest-resource',
+          sessionId,
+          canonicalKey: 'sha256:attachment-digest',
+          kind: 'image',
+          title: 'existing.png',
+          mimeType: 'image/png',
+          locator: 'session-resource://digest-resource',
+          managedPath: '/managed/existing.png',
+          available: true,
+          occurrence: {
+            id: 'occurrence-existing',
+            nodeId: 'node-existing',
+            branchId: null,
+            actor: 'user',
+            activity: 'provided',
+            label: null,
+            createdAt: 500,
+          },
+          createdAt: 500,
+          updatedAt: 500,
+        })
+        yield* repository.upsert({
+          id: 'missing-resource',
+          sessionId,
+          canonicalKey: 'file:/input/missing.png',
+          kind: 'image',
+          title: 'missing.png',
+          mimeType: 'image/png',
+          locator: '/input/missing.png',
+          managedPath: null,
+          available: false,
+          occurrence: {
+            id: 'occurrence-recovered',
+            nodeId: 'node-recovered',
+            branchId: null,
+            actor: 'user',
+            activity: 'provided',
+            label: null,
+            createdAt: 1000,
+          },
+          createdAt: 1000,
+          updatedAt: 1000,
+        })
+
+        const rekeyed = yield* repository.rekey({
+          sessionId,
+          resourceId: 'missing-resource',
+          canonicalKey: 'sha256:attachment-digest',
+          updatedAt: 2000,
+        })
+        const resources = yield* repository.list(sessionId)
+        const oldKey = yield* repository.findByCanonicalKey(sessionId, 'file:/input/missing.png')
+        return { rekeyed, resources, oldKey }
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result.rekeyed).toMatchObject({
+      id: 'digest-resource',
+      canonicalKey: 'sha256:attachment-digest',
+      updatedAt: 2000,
+    })
+    expect(result.rekeyed.occurrences.map((occurrence) => occurrence.id)).toEqual([
+      'occurrence-existing',
+      'occurrence-recovered',
+    ])
+    expect(result.resources).toHaveLength(1)
+    expect(result.oldKey).toBeNull()
+  })
 })

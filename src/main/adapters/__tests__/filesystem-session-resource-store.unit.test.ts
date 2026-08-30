@@ -59,6 +59,30 @@ describe('FilesystemSessionResourceStore', () => {
     await expect(fs.readFile(stored.path)).resolves.toEqual(Buffer.from(bytes))
   })
 
+  it('removes its temporary byte file when finalization fails', async () => {
+    const sessionDirectory = path.join(tmpRoot, 'session-1')
+    const targetName = 'resource-1-image.png'
+    await fs.mkdir(path.join(sessionDirectory, targetName), { recursive: true })
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const store = yield* SessionResourceStore
+        return yield* store.storeBytes({
+          sessionId: SessionId('session-1'),
+          resourceId: 'resource-1',
+          fileName: 'image.png',
+          bytes: new Uint8Array([1, 2, 3]),
+        })
+      }).pipe(Effect.either, Effect.provide(makeFilesystemSessionResourceStoreLayer(tmpRoot))),
+    )
+
+    expect(result).toMatchObject({
+      _tag: 'Left',
+      left: { _tag: 'SessionResourceStoreError', operation: 'storeBytes' },
+    })
+    await expect(fs.readdir(sessionDirectory)).resolves.toEqual([targetName])
+  })
+
   it('streams a source file into managed storage when its size is unchanged', async () => {
     const bytes = Buffer.from('unchanged attachment')
     const sourcePath = path.join(tmpRoot, 'source-attachment.txt')

@@ -127,6 +127,7 @@ describe('captureSuccessfulRunResources', () => {
       updatedAt: 1000,
     }
     const upserts: UpsertSessionResourceInput[] = []
+    const rekeyedCanonicalKeys: string[] = []
 
     await Effect.runPromise(
       captureAttachment({
@@ -149,6 +150,7 @@ describe('captureSuccessfulRunResources', () => {
           sessionResourceTestLayer(upserts, {
             existingResource: unavailable,
             hasOccurrence: true,
+            rekeyedCanonicalKeys,
           }),
         ),
       ),
@@ -157,12 +159,13 @@ describe('captureSuccessfulRunResources', () => {
     expect(upserts).toContainEqual(
       expect.objectContaining({
         id: 'missing-resource',
-        canonicalKey: 'file:/input/missing.png',
+        canonicalKey: 'sha256:attachment-digest',
         locator: 'session-resource://missing-resource',
         managedPath: '/managed/missing-resource-missing.png',
         available: true,
       }),
     )
+    expect(rekeyedCanonicalKeys).toEqual(['sha256:attachment-digest'])
   })
 
   it('records user links as sources on the user message and agent citations as read sources', async () => {

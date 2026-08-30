@@ -27,6 +27,7 @@ describe('recordSessionChangeRequest', () => {
           },
           list: () => Effect.succeed([]),
           findByCanonicalKey: () => Effect.succeed(null),
+          rekey: () => Effect.dieMessage('rekey is not used'),
           hasOccurrence: () => Effect.succeed(false),
           getContentLocation: () => Effect.succeed(null),
         }),

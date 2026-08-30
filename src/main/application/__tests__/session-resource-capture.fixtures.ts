@@ -25,6 +25,7 @@ export function sessionResourceTestLayer(
     readonly storeFileFails?: boolean
     readonly listedResources?: readonly SessionResource[]
     readonly hasOccurrence?: boolean
+    readonly rekeyedCanonicalKeys?: string[]
   } = {},
 ) {
   return Layer.mergeAll(
@@ -61,9 +62,16 @@ export function sessionResourceTestLayer(
         },
         list: () => Effect.succeed(options.listedResources ?? []),
         findByCanonicalKey: () => Effect.succeed(options.existingResource ?? null),
+        rekey: (input) =>
+          Effect.sync(() => {
+            options.rekeyedCanonicalKeys?.push(input.canonicalKey)
+            const existing = options.existingResource
+            if (!existing) throw new Error('Expected an existing resource to re-key.')
+            return { ...existing, canonicalKey: input.canonicalKey, updatedAt: input.updatedAt }
+          }),
         hasOccurrence: () => Effect.succeed(options.hasOccurrence ?? false),
         getContentLocation: (_sessionId, resourceId) =>
-          options.existingResource?.id === resourceId
+          options.existingResource?.id === resourceId && options.existingResource.available
             ? Effect.succeed({
                 resourceId,
                 sessionId: options.existingResource.sessionId,

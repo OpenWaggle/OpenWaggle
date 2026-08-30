@@ -96,33 +96,50 @@ function restoreUnavailableAttachment(
   input: CaptureAttachmentInput,
   id: string,
   unavailableResource: SessionResource,
-  storedPath: string,
-  fallbackCanonicalKey: string,
+  stored: StoredSessionResourceFile,
   repository: SessionResourceRepositoryShape,
   store: SessionResourceStoreShape,
 ) {
-  const locator = `session-resource://${unavailableResource.id}`
-  return repository
-    .upsert({
-      id: unavailableResource.id,
+  return Effect.gen(function* () {
+    const canonicalKey = `sha256:${stored.sha256}`
+    const rekeyed = yield* repository.rekey({
       sessionId: input.sessionId,
-      canonicalKey: fallbackCanonicalKey,
+      resourceId: unavailableResource.id,
+      canonicalKey,
+      updatedAt: input.createdAt,
+    })
+    const existingCopy = yield* inspectManagedCopy(repository, store, input.sessionId, rekeyed.id)
+    if (rekeyed.id !== unavailableResource.id && existingCopy?.readable) {
+      yield* reuseExistingAttachment(
+        input,
+        id,
+        canonicalKey,
+        rekeyed,
+        stored.path,
+        repository,
+        store,
+      )
+      return
+    }
+
+    const locator = `session-resource://${rekeyed.id}`
+    const resource = yield* repository.upsert({
+      id: rekeyed.id,
+      sessionId: input.sessionId,
+      canonicalKey,
       kind: attachmentKind(input),
       title: input.attachment.name,
       mimeType: input.attachment.mimeType,
       locator,
-      managedPath: storedPath,
+      managedPath: stored.path,
       available: true,
       occurrence: attachmentOccurrence(input, id),
-      createdAt: unavailableResource.createdAt,
+      createdAt: rekeyed.createdAt,
       updatedAt: input.createdAt,
     })
-    .pipe(
-      Effect.tapError(() => store.remove(storedPath).pipe(Effect.catchAll(() => Effect.void))),
-      Effect.flatMap((resource) =>
-        resource.locator !== locator ? store.remove(storedPath) : Effect.void,
-      ),
-    )
+    if (resource.locator !== locator) yield* store.remove(stored.path)
+    else yield* removeReplacedCopy(store, existingCopy?.managedPath, stored.path)
+  }).pipe(Effect.tapError(() => store.remove(stored.path).pipe(Effect.catchAll(() => Effect.void))))
 }
 
 function reuseExistingAttachment(
@@ -230,15 +247,7 @@ export function captureAttachment(input: CaptureAttachmentInput) {
     if (storedResult._tag === 'Unavailable') return
     const { stored } = storedResult
     if (unavailableResource?.available === false) {
-      yield* restoreUnavailableAttachment(
-        input,
-        id,
-        unavailableResource,
-        stored.path,
-        fallbackCanonicalKey,
-        repository,
-        store,
-      )
+      yield* restoreUnavailableAttachment(input, id, unavailableResource, stored, repository, store)
       return
     }
     yield* captureStoredAttachment(input, id, resourceId, stored, repository, store)

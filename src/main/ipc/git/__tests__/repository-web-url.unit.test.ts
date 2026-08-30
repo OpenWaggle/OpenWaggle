@@ -15,6 +15,9 @@ describe('repositoryWebUrl', () => {
     expect(repositoryWebUrl('ssh://git@gitlab.com/group/project.git')).toBe(
       'https://gitlab.com/group/project',
     )
+    expect(repositoryWebUrl('ssh://git@gitlab.example:2222/group/project.git')).toBe(
+      'https://gitlab.example/group/project',
+    )
     expect(repositoryWebUrl('git@gitlab.com:group/project.git')).toBe(
       'https://gitlab.com/group/project',
     )

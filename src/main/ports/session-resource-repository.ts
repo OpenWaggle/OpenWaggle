@@ -30,6 +30,13 @@ export interface SessionResourceContentLocation {
   readonly managedPath: string
 }
 
+export interface RekeySessionResourceInput {
+  readonly sessionId: SessionId
+  readonly resourceId: string
+  readonly canonicalKey: string
+  readonly updatedAt: number
+}
+
 export interface SessionResourceRepositoryShape {
   readonly upsert: (
     input: UpsertSessionResourceInput,
@@ -41,6 +48,10 @@ export interface SessionResourceRepositoryShape {
     sessionId: SessionId,
     canonicalKey: string,
   ) => Effect.Effect<SessionResource | null, SessionResourceRepositoryError>
+  /** Re-key an unavailable placeholder; matching digest rows absorb its occurrences. */
+  readonly rekey: (
+    input: RekeySessionResourceInput,
+  ) => Effect.Effect<SessionResource, SessionResourceRepositoryError>
   readonly hasOccurrence: (
     sessionId: SessionId,
     occurrenceId: string,

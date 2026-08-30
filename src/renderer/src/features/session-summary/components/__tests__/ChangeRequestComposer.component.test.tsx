@@ -166,6 +166,28 @@ describe('ChangeRequestComposer', () => {
     )
   })
 
+  it('uses the push-and-create workflow for a clean branch without an upstream', async () => {
+    renderComposer({
+      gitStatus: { ...GIT_STATUS, filesChanged: 0, changedFiles: [], clean: true, ahead: 2 },
+      vcs: {
+        ...vcsStatus('github', false),
+        hasWorkingTreeChanges: false,
+        hasUpstream: false,
+        aheadCount: 2,
+      },
+    })
+
+    expect(screen.queryByText('Commit and push local changes')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Create PR' }))
+
+    await waitFor(() =>
+      expect(runStackedGitAction).toHaveBeenCalledWith(
+        WorkingPath('/project'),
+        expect.objectContaining({ action: 'create_pr', createFeatureBranch: false }),
+      ),
+    )
+  })
+
   it('keeps provider failures in the composer for correction', async () => {
     runStackedGitAction.mockResolvedValue({
       ok: false,

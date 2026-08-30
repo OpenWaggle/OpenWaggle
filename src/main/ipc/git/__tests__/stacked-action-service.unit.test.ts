@@ -144,6 +144,36 @@ describe('runStackedGitAction', () => {
     )
   })
 
+  it('pushes a clean unpublished branch before opening its change request', async () => {
+    const order: string[] = []
+    const deps = makeDeps({
+      hasWorkingTreeChanges: vi.fn(async () => ({ ok: true, hasChanges: false }) as const),
+      push: vi.fn(async () => {
+        order.push('push')
+        return { ok: true, code: 'ok', message: 'pushed' } as const
+      }),
+      openChangeRequest: vi.fn(async () => {
+        order.push('pr')
+        return {
+          ok: true,
+          changeRequest: {
+            title: 'T',
+            url: 'https://x/pull/1',
+            baseRef: 'main',
+            headRef: 'feature/current',
+            state: 'open' as const,
+          },
+        } as const
+      }),
+    })
+
+    const result = await runStackedGitAction(deps, '/repo', { action: 'create_pr' })
+
+    expect(result.ok).toBe(true)
+    expect(order).toEqual(['push', 'pr'])
+    expect(deps.commit).not.toHaveBeenCalled()
+  })
+
   it('fails the pr phase when no head ref is resolvable (instead of empty --head)', async () => {
     const deps = makeDeps({ resolveCurrentRef: vi.fn(async () => null) })
     const result = await runStackedGitAction(deps, '/repo', { action: 'create_pr' })

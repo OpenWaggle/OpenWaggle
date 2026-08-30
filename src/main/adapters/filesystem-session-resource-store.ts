@@ -89,6 +89,23 @@ async function writeChunk(handle: fs.FileHandle, chunk: Buffer) {
   }
 }
 
+async function writeBytesAtomically(temporaryPath: string, targetPath: string, bytes: Uint8Array) {
+  let handle: fs.FileHandle | null = null
+  let ownsTemporary = false
+  try {
+    handle = await fs.open(temporaryPath, 'wx')
+    ownsTemporary = true
+    await handle.writeFile(bytes)
+    await handle.close()
+    handle = null
+    await fs.rename(temporaryPath, targetPath)
+  } catch (cause) {
+    await handle?.close().catch(() => {})
+    if (ownsTemporary) await fs.rm(temporaryPath, { force: true }).catch(() => {})
+    throw cause
+  }
+}
+
 async function copyBoundedFile(input: {
   readonly sourcePath: string
   readonly temporaryPath: string
@@ -148,8 +165,7 @@ function makeStore(root: string): SessionResourceStoreShape {
           managedFileName(input.resourceId, input.fileName),
         )
         const temporary = `${target}${TEMPORARY_SUFFIX}`
-        await fs.writeFile(temporary, input.bytes, { flag: 'wx' })
-        await fs.rename(temporary, target)
+        await writeBytesAtomically(temporary, target, input.bytes)
         return {
           path: target,
           sha256: digest(input.bytes),

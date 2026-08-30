@@ -24,6 +24,8 @@ export function changeRequestActionInput(input: {
 }): GitRunStackedActionOptions {
   const title = input.title.trim() || input.session.title
   return {
+    // `create_pr` is OpenWaggle's push-and-create workflow. It pushes even when the tree is
+    // clean, so a local branch without an upstream is published before provider creation.
     action: input.commitAndPush ? 'commit_push_pr' : 'create_pr',
     commitMessage: input.commitAndPush ? title : undefined,
     paths: input.commitAndPush
