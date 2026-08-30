@@ -38,12 +38,14 @@ export function sessionResourceContentQueryOptions(
 }
 
 export function useSessionResources(sessionId: string | null) {
-  const queryClient = useQueryClient()
-  const query = useQuery({
+  return useQuery({
     ...sessionResourcesQueryOptions(sessionId),
     enabled: sessionId !== null,
   })
+}
 
+export function useSessionResourceRunCompletion(sessionId: string | null) {
+  const queryClient = useQueryClient()
   useEffect(() => {
     if (!sessionId || typeof api.onRunCompleted !== 'function') return
     return api.onRunCompleted((payload) => {
@@ -51,6 +53,4 @@ export function useSessionResources(sessionId: string | null) {
       void queryClient.invalidateQueries({ queryKey: sessionResourcesQueryKey(sessionId) })
     })
   }, [queryClient, sessionId])
-
-  return query
 }

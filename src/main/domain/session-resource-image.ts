@@ -1,4 +1,4 @@
-const MAX_CAPTURED_IMAGE_BYTES = 25 * 1024 * 1024
+export const MAX_CAPTURED_IMAGE_BYTES = 25 * 1024 * 1024
 const PNG_SIGNATURE = Buffer.from('89504e470d0a1a0a', 'hex')
 const JPEG_SIGNATURE = Buffer.from('ffd8ff', 'hex')
 const GIF_SIGNATURE_LENGTH = 6

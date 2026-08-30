@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useSessionResources } from '../useSessionResources'
+import { useSessionResourceRunCompletion, useSessionResources } from '../useSessionResources'
 
 const resourceMocks = vi.hoisted(() => ({
   list: vi.fn(),
@@ -52,8 +52,15 @@ describe('useSessionResources', () => {
     const wrapper = ({ children }: { readonly children: ReactNode }) => (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     )
-    const { result } = renderHook(() => useSessionResources('session-one'), { wrapper })
+    const { result } = renderHook(
+      () => {
+        useSessionResourceRunCompletion('session-one')
+        return useSessionResources('session-one')
+      },
+      { wrapper },
+    )
     await waitFor(() => expect(result.current.data).toEqual([]))
+    expect(resourceMocks.onRunCompleted).toHaveBeenCalledOnce()
 
     resourceMocks.list.mockResolvedValue([RESOURCE])
     act(() => listener?.({ sessionId: SessionId('session-one') }))
@@ -72,10 +79,34 @@ describe('useSessionResources', () => {
     const wrapper = ({ children }: { readonly children: ReactNode }) => (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     )
-    renderHook(() => useSessionResources('session-one'), { wrapper })
+    renderHook(
+      () => {
+        useSessionResourceRunCompletion('session-one')
+        return useSessionResources('session-one')
+      },
+      { wrapper },
+    )
     await waitFor(() => expect(resourceMocks.list).toHaveBeenCalledOnce())
 
     act(() => listener?.({ sessionId: SessionId('session-two') }))
     expect(resourceMocks.list).toHaveBeenCalledOnce()
+  })
+
+  it('does not add a run-completion listener for every catalog consumer', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const wrapper = ({ children }: { readonly children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    )
+
+    renderHook(
+      () => {
+        useSessionResources('session-one')
+        useSessionResources('session-one')
+      },
+      { wrapper },
+    )
+
+    await waitFor(() => expect(resourceMocks.list).toHaveBeenCalledOnce())
+    expect(resourceMocks.onRunCompleted).not.toHaveBeenCalled()
   })
 })

@@ -1,6 +1,7 @@
 import type { AgentSendPayload, Message } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
+import { MAX_CAPTURED_IMAGE_BYTES } from '../domain/session-resource-image'
 import { captureAttachment } from './session-resource-capture-attachment'
 import { captureGeneratedImage } from './session-resource-capture-image'
 import { captureLink } from './session-resource-capture-link'
@@ -8,6 +9,31 @@ import { collectExplicitResources } from './session-resource-extraction'
 import { withSessionResourceLock } from './session-resource-lock'
 
 const MAX_AGENT_REMOTE_IMAGES_PER_RUN = 32
+export const GENERATED_IMAGE_CAPTURE_LIMITS = {
+  maxBytes: 100 * 1024 * 1024,
+  maxCount: 32,
+} as const
+
+interface GeneratedImageCaptureBudget {
+  readonly bytes: number
+  readonly count: number
+}
+
+export function advanceGeneratedImageCaptureBudget(
+  current: GeneratedImageCaptureBudget,
+  byteLength: number,
+): GeneratedImageCaptureBudget | null {
+  if (
+    !Number.isSafeInteger(byteLength) ||
+    byteLength <= 0 ||
+    byteLength > MAX_CAPTURED_IMAGE_BYTES ||
+    current.count >= GENERATED_IMAGE_CAPTURE_LIMITS.maxCount ||
+    current.bytes > GENERATED_IMAGE_CAPTURE_LIMITS.maxBytes - byteLength
+  ) {
+    return null
+  }
+  return { bytes: current.bytes + byteLength, count: current.count + 1 }
+}
 
 export { captureAttachment } from './session-resource-capture-attachment'
 export { captureGeneratedImage } from './session-resource-capture-image'
@@ -58,6 +84,7 @@ function captureUserResources(input: SuccessfulRunResourceInput, createdAt: numb
 function captureAssistantResources(input: SuccessfulRunResourceInput, createdAt: number) {
   return Effect.gen(function* () {
     let remoteImageCount = 0
+    let generatedImageBudget: GeneratedImageCaptureBudget = { bytes: 0, count: 0 }
     for (const message of input.messages) {
       if (message.role !== 'assistant') continue
       const messageId = String(message.id)
@@ -65,6 +92,12 @@ function captureAssistantResources(input: SuccessfulRunResourceInput, createdAt:
       const branchId = input.branchIdByMessageId?.[messageId] ?? null
       const captured = collectExplicitResources(message.parts)
       for (const [index, image] of captured.images.entries()) {
+        const nextBudget = advanceGeneratedImageCaptureBudget(
+          generatedImageBudget,
+          Buffer.byteLength(image.data, 'base64'),
+        )
+        if (!nextBudget) continue
+        generatedImageBudget = nextBudget
         yield* captureGeneratedImage({
           ...input,
           image,

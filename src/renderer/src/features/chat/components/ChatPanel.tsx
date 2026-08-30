@@ -3,6 +3,7 @@ import {
   SessionResourceViewer,
   type SessionSummaryExtensionSidePanelTarget,
   SessionSummaryHub,
+  useSessionResourceRunCompletion,
 } from '@/features/session-summary'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { useChatPanelSections } from '../hooks/use-chat-panel-controller'
@@ -37,6 +38,7 @@ export function ChatPanelContent({
   const activeSessionId = sections.transcript.activeSessionId
     ? String(sections.transcript.activeSessionId)
     : null
+  useSessionResourceRunCompletion(activeSessionId)
   const messageCount = Math.max(
     sections.transcript.messages.length,
     sections.transcript.chatRows.length,
