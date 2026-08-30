@@ -1,10 +1,11 @@
 import { SessionId, WorkingPath } from '@shared/types/brand'
 import type { GitStatusSummary, SourceControlProviderId, VcsStatus } from '@shared/types/git'
 import type { SessionDetail } from '@shared/types/session'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@/shell/ui-store'
+import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 import { ChangeRequestComposer } from '../ChangeRequestComposer'
 
 const runStackedGitAction = vi.hoisted(() => vi.fn())
@@ -74,7 +75,7 @@ function renderComposer(
 ) {
   const onClose = vi.fn()
   const onCompleted = vi.fn()
-  render(
+  const renderResult = renderWithQueryClient(
     <ChangeRequestComposer
       session={SESSION}
       workingPath={WorkingPath('/project')}
@@ -84,7 +85,7 @@ function renderComposer(
       onCompleted={onCompleted}
     />,
   )
-  return { onClose, onCompleted }
+  return { onClose, onCompleted, queryClient: renderResult.client }
 }
 
 describe('ChangeRequestComposer', () => {
@@ -108,6 +109,7 @@ describe('ChangeRequestComposer', () => {
 
   it('creates a GitHub PR from a new Codex branch and can commit local changes', async () => {
     const callbacks = renderComposer()
+    const invalidateQueries = vi.spyOn(callbacks.queryClient, 'invalidateQueries')
 
     expect(screen.getByText('New branch → main')).toBeInTheDocument()
     expect(screen.getByLabelText('New branch name')).toHaveValue('codex/explore-image-hub-parity')
@@ -133,6 +135,9 @@ describe('ChangeRequestComposer', () => {
     expect(recordSessionChangeRequest).toHaveBeenCalledWith(SessionId('session-1'), {
       title: SESSION.title,
       url: 'https://github.com/openwaggle/openwaggle/pull/1',
+    })
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['session-resources', 'session-1'],
     })
   })
 

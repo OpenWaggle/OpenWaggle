@@ -66,6 +66,32 @@ describe('git branch mutations', () => {
     expect(runGitMock).toHaveBeenNthCalledWith(5, '/repo', ['checkout', 'feature'])
   })
 
+  it('allows a branch whose name is only a suffix of a nested remote branch', async () => {
+    runGitMock
+      .mockResolvedValueOnce(gitResult(0))
+      .mockResolvedValueOnce(gitResult(1))
+      .mockResolvedValueOnce(gitResult(0, 'refs/remotes/origin/team/feature\n'))
+      .mockResolvedValueOnce(gitResult(0))
+
+    await expect(createGitBranch('/repo', { name: 'feature', checkout: false })).resolves.toEqual({
+      ok: true,
+      message: 'Created feature.',
+    })
+  })
+
+  it('rejects an exact remote branch name collision', async () => {
+    runGitMock
+      .mockResolvedValueOnce(gitResult(0))
+      .mockResolvedValueOnce(gitResult(1))
+      .mockResolvedValueOnce(gitResult(0, 'refs/remotes/origin/feature\n'))
+
+    await expect(createGitBranch('/repo', { name: 'feature', checkout: false })).resolves.toEqual({
+      ok: false,
+      code: 'branch-exists',
+      message: 'A remote branch with this name already exists.',
+    })
+  })
+
   it('checks out remote tracking branches and prevents mismatched local tracking reuse', async () => {
     runGitMock
       .mockResolvedValueOnce(gitResult(0))

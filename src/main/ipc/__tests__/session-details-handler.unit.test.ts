@@ -235,16 +235,29 @@ describe('registerSessionDetailsHandlers', () => {
     expect(emitRunCompletedMock).toHaveBeenCalledWith(SessionId('session-delete'))
     expect(deleteSessionMock).toHaveBeenCalledWith(SessionId('session-delete'))
     expect(removeSessionResourcesMock).toHaveBeenCalledWith(SessionId('session-delete'))
+    expect(deleteSessionMock.mock.invocationCallOrder[0]).toBeLessThan(
+      removeSessionResourcesMock.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+    )
   })
 
-  it('does not delete session metadata when managed resource cleanup fails', async () => {
-    removeSessionResourcesMock.mockRejectedValue(new Error('disk is read-only'))
+  it('preserves managed resource bytes when session metadata deletion fails', async () => {
+    deleteSessionMock.mockRejectedValue(new Error('database is read-only'))
 
     registerSessionDetailsHandlers()
     const handler = getInvokeHandler('sessions:delete')
 
     await expect(handler?.({}, SessionId('session-delete-failure'))).rejects.toBeDefined()
-    expect(deleteSessionMock).not.toHaveBeenCalled()
+    expect(removeSessionResourcesMock).not.toHaveBeenCalled()
+  })
+
+  it('reports managed resource cleanup failures after session metadata is deleted', async () => {
+    removeSessionResourcesMock.mockRejectedValue(new Error('disk is read-only'))
+
+    registerSessionDetailsHandlers()
+    const handler = getInvokeHandler('sessions:delete')
+
+    await expect(handler?.({}, SessionId('session-cleanup-failure'))).rejects.toBeDefined()
+    expect(deleteSessionMock).toHaveBeenCalledWith(SessionId('session-cleanup-failure'))
   })
 
   it('cleans up the active run before archiving a session', async () => {

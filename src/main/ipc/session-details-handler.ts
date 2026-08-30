@@ -152,7 +152,7 @@ function registerSessionMutationHandlers() {
           const resourceStore = yield* SessionResourceStore
           yield* withSessionResourceLock(
             id,
-            resourceStore.removeSession(id).pipe(Effect.zipRight(repo.delete(id))),
+            repo.delete(id).pipe(Effect.zipRight(resourceStore.removeSession(id))),
           )
         }),
       ),

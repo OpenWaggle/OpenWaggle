@@ -3,6 +3,7 @@ import type { GitStatusSummary, VcsStatus } from '@shared/types/git'
 import type { SessionDetail } from '@shared/types/session'
 import { sanitizeFeatureBranchName } from '@shared/utils/git-stacked-action'
 import { getChangeRequestTerminology } from '@shared/utils/source-control-presentation'
+import { useQueryClient } from '@tanstack/react-query'
 import { ExternalLink, GitPullRequest, X } from 'lucide-react'
 import { useId, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
@@ -11,6 +12,7 @@ import { Checkbox } from '@/shared/ui/Checkbox'
 import { ModalDialog } from '@/shared/ui/ModalDialog'
 import { Textarea } from '@/shared/ui/Textarea'
 import { useUIStore } from '@/shell/ui-store'
+import { sessionResourcesQueryKey } from '../hooks/useSessionResources'
 import { changeRequestActionInput } from './change-request-composer-model'
 
 const DESCRIPTION_ROWS = 6
@@ -160,6 +162,7 @@ function useChangeRequestComposer(
   const [error, setError] = useState<string | null>(null)
   const [fallbackUrl, setFallbackUrl] = useState<string | null>(null)
   const showToast = useUIStore((state) => state.showToast)
+  const queryClient = useQueryClient()
 
   async function create(draft: boolean) {
     if (running || (createFeatureBranch && branchName.trim().length === 0)) return
@@ -192,6 +195,11 @@ function useChangeRequestComposer(
             title: result.changeRequest.title,
             url: result.changeRequest.url,
           })
+          .then(() =>
+            queryClient.invalidateQueries({
+              queryKey: sessionResourcesQueryKey(String(props.session.id)),
+            }),
+          )
           .catch(() => undefined)
         void api.openExternal(result.changeRequest.url)
       }
