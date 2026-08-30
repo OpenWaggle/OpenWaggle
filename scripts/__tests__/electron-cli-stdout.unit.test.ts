@@ -32,6 +32,25 @@ describe('Electron CLI stdout normalization', () => {
     expect(applicationCliStdout(stdout, 'linux')).toBe(stdout)
   })
 
+  it('preserves a long empty-token prefix when no application response follows', () => {
+    const stdout = `${'[] \u001B[90m{}\u001B[39m\n'.repeat(1_000)}diagnostic`
+
+    expect(applicationCliStdout(stdout, 'linux')).toBe(stdout)
+  })
+
+  it('normalizes a long empty-token prefix in linear time when a valid response follows', () => {
+    const response = '{"result":{"response":{}}}\n'
+    const stdout = `${'[] \u001B[90m{}\u001B[39m\n'.repeat(1_000)}${response}`
+
+    expect(applicationCliStdout(stdout, 'linux')).toBe(response)
+  })
+
+  it('preserves an empty-token prefix before an invalid object-shaped diagnostic', () => {
+    const stdout = '[]\n{}\n{diagnostic}'
+
+    expect(applicationCliStdout(stdout, 'linux')).toBe(stdout)
+  })
+
   it('does not normalize stdout on other platforms', () => {
     const stdout = '[]\n{"result":{}}\n'
 
