@@ -8,6 +8,13 @@ describe('Electron CLI stdout normalization', () => {
     expect(applicationCliStdout(`[]\n{}\n[]\n${response}`, 'linux')).toBe(response)
   })
 
+  it('removes SGR-colored empty Electron payloads before the application response', () => {
+    const response = '{"result":{"response":{}}}\n'
+    const stdout = `\u001B[90m[]\u001B[39m\n\u001B[90m{}\u001B[39m\n${response}`
+
+    expect(applicationCliStdout(stdout, 'linux')).toBe(response)
+  })
+
   it('preserves non-empty Linux stdout contamination so the JSON contract fails closed', () => {
     const stdout = '["unexpected"]\n{"result":{}}\n'
 
