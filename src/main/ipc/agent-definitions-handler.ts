@@ -4,8 +4,8 @@ import { loadAgentDefinitionSemanticCatalog } from '../agent-definition-semantic
 import { resolveAgentDefinition } from '../agents/agent-definition-catalog'
 import { executeAgentDefinitionManagement } from '../agents/agent-definition-management'
 import { browserWindowFromWebContents, showOpenDialog } from '../desktop-ui'
-import { listSessionSummaries } from '../store/session-details'
-import { getSettings } from '../store/settings'
+import { SessionProjectionRepository } from '../ports/session-projection-repository'
+import { SettingsService } from '../services/settings-service'
 import {
   authorizeAgentDefinitionIpcCommand,
   forgetAgentDefinitionImportSources,
@@ -37,8 +37,8 @@ export function registerAgentDefinitionsHandlers() {
   )
   typedHandle('agent-definitions:manage', (event, command) =>
     Effect.gen(function* () {
-      const sessions = yield* Effect.promise(() => listSessionSummaries())
-      const settings = getSettings()
+      const sessions = yield* (yield* SessionProjectionRepository).list()
+      const settings = yield* (yield* SettingsService).get()
       const authorized = yield* Effect.promise(() =>
         authorizeAgentDefinitionIpcCommand({
           senderId: event.sender.id,

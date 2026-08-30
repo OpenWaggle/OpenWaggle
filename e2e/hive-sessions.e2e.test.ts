@@ -81,19 +81,14 @@ test('Hive Sessions stay ordinary sidebar sessions with reciprocal composer navi
     await hive.getByRole('button', { name: `Open Worker Session: ${ACTIVE_WORKER_TITLE}` }).click()
     await expect(page.locator('header').getByText('Worker', { exact: true })).toBeVisible()
     await expect(page.locator('header').getByText('release-verifier', { exact: false })).toBeVisible()
-    await expect(
-      page.getByRole('button', { name: `Open parent Session: ${QUEEN_TITLE}` }),
-    ).toBeVisible()
-    const parentShortcut = page.getByRole('button', {
+    const parentShortcut = hive.getByRole('button', {
       name: `Open parent Session: ${QUEEN_TITLE}`,
     })
+    await expect(parentShortcut).toBeVisible()
     await expect(parentShortcut.getByText('Parent', { exact: true })).toBeVisible()
     await expect(parentShortcut.getByText(QUEEN_TITLE, { exact: true })).toBeVisible()
-    await expect(
-      hive.getByRole('button', { name: `Open Queen Session: ${QUEEN_TITLE}` }),
-    ).toBeVisible()
 
-    await page.getByRole('button', { name: `Open parent Session: ${QUEEN_TITLE}` }).click()
+    await parentShortcut.click()
     await expect(page.locator('header').getByText('Queen', { exact: true })).toBeVisible()
     await hive.getByRole('button', { name: 'Collapse Hive Sessions' }).click()
     await expect(hive.getByText(ACTIVE_WORKER_TITLE)).toHaveCount(0)

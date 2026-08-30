@@ -255,8 +255,6 @@ export async function verifyExternalMcp(input: {
         operation: 'message',
         sessionId: input.workerSessionId,
         message: 'Reply with exactly EXTERNAL-MCP-OK and do not use tools.',
-        runAuthorizationOverride: 'yolo',
-        interactionTimeoutMs: input.timeoutMs,
       },
       input.timeoutMs,
     )

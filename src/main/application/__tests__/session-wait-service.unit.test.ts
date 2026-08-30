@@ -1,154 +1,26 @@
-import * as Effect from 'effect/Effect'
-import * as Layer from 'effect/Layer'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SessionQueryRepository } from '../../ports/session-query-repository'
-import { SessionWaitService } from '../../ports/session-wait-service'
-import { installSessionHostEventRuntime } from '../../session-host/session-host-events'
-import { SessionHostEventHub } from '../session-host-event-hub'
-import { SessionHostLiveness } from '../session-host-liveness'
-import { SessionWaitServiceLive } from '../session-wait-service'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import {
+  createSessionWaitTestHarness,
+  type SessionWaitTestHarness,
+} from './session-wait-service.test-support'
 
 describe('Session wait service', () => {
-  let eventHub: SessionHostEventHub
-  let liveness: SessionHostLiveness
-  let releaseRuntime: () => void
-  const states = new Map<
-    string,
-    { stateRevision: number; activeRunId: string | null; pendingFollowUpCount: number }
-  >()
-  const exportStatuses = new Map<string, 'queued' | 'running' | 'completed'>()
+  let harness: SessionWaitTestHarness
+  let eventHub: SessionWaitTestHarness['eventHub']
+  let liveness: SessionWaitTestHarness['liveness']
+  let states: SessionWaitTestHarness['states']
+  let exportStatuses: SessionWaitTestHarness['exportStatuses']
+  let waitForIdle: SessionWaitTestHarness['waitForIdle']
+  let waitForExport: SessionWaitTestHarness['waitForExport']
 
   beforeEach(() => {
-    states.clear()
-    exportStatuses.clear()
-    eventHub = new SessionHostEventHub({ hostInstanceId: 'host-wait' })
-    liveness = new SessionHostLiveness({
-      idleGracePeriodMs: 60_000,
-      requestShutdown: vi.fn(),
-    })
-    releaseRuntime = installSessionHostEventRuntime({ eventHub, liveness })
+    harness = createSessionWaitTestHarness()
+    ;({ eventHub, liveness, states, exportStatuses, waitForIdle, waitForExport } = harness)
   })
 
   afterEach(() => {
-    releaseRuntime()
-    eventHub.close()
-    liveness.close()
+    harness.close()
   })
-
-  function layer() {
-    const repository = Layer.succeed(SessionQueryRepository, {
-      execute: ({ request }) => {
-        if (request.query.operation === 'exports-read') {
-          const status = exportStatuses.get(request.query.exportOperationId)
-          return Effect.succeed({
-            contractVersion: 2 as const,
-            requestId: request.requestId,
-            outcome: status
-              ? {
-                  operation: 'exports-read' as const,
-                  export: {
-                    exportOperationId: request.query.exportOperationId,
-                    sessionId: request.query.sessionId,
-                    format: 'jsonl' as const,
-                    destinationPath: '/tmp/export.jsonl',
-                    status,
-                    branchScope: 'tree' as const,
-                    includeQueueBodies: false,
-                    resources: [],
-                    progress: {
-                      recordsWritten: status === 'completed' ? 2 : 1,
-                      resourcesWritten: 0,
-                      bytesWritten: status === 'completed' ? 200 : 100,
-                    },
-                    createdAt: 1,
-                    updatedAt: status === 'completed' ? 3 : 2,
-                  },
-                }
-              : {
-                  operation: 'exports-read' as const,
-                  error: { code: 'export_not_found' as const, message: 'missing' },
-                },
-          })
-        }
-        if (request.query.operation !== 'status') throw new Error('Expected status query.')
-        const state = states.get(request.query.sessionId)
-        return Effect.succeed({
-          contractVersion: 2 as const,
-          requestId: request.requestId,
-          outcome: state
-            ? {
-                operation: 'status' as const,
-                sessionId: request.query.sessionId,
-                stateRevision: state.stateRevision,
-                queueState: 'running' as const,
-                queueRevision: 0,
-                activeRunId: state.activeRunId,
-                ...(state.activeRunId ? { activeRunStatus: 'active' } : {}),
-                pendingFollowUpCount: state.pendingFollowUpCount,
-              }
-            : {
-                operation: 'status' as const,
-                error: { code: 'session_not_found' as const, message: 'missing' },
-              },
-        })
-      },
-    })
-    return SessionWaitServiceLive.pipe(Layer.provide(repository))
-  }
-
-  function waitForIdle(
-    sessionId: string,
-    timeoutMs: number,
-    resolveObservationAuthority?: () => Promise<undefined>,
-    signal?: AbortSignal,
-  ) {
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const service = yield* SessionWaitService
-        return yield* service.wait({
-          ...(resolveObservationAuthority ? { resolveObservationAuthority } : {}),
-          ...(signal ? { signal } : {}),
-          request: {
-            contractVersion: 2,
-            requestId: 'wait-request',
-            query: {
-              operation: 'wait',
-              targets: [{ sessionId, condition: 'idle' }],
-              timeoutMs,
-            },
-          },
-        })
-      }).pipe(Effect.provide(layer())),
-    )
-  }
-
-  function waitForExport(
-    sessionId: string,
-    exportOperationId: string,
-    timeoutMs: number,
-    resolveObservationAuthority?: () => Promise<undefined>,
-    signal?: AbortSignal,
-  ) {
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const service = yield* SessionWaitService
-        return yield* service.waitForExport({
-          ...(resolveObservationAuthority ? { resolveObservationAuthority } : {}),
-          ...(signal ? { signal } : {}),
-          request: {
-            contractVersion: 2,
-            requestId: 'export-wait-request',
-            query: {
-              operation: 'exports-wait',
-              sessionId,
-              exportOperationId,
-              timeoutMs,
-            },
-          },
-        })
-      }).pipe(Effect.provide(layer())),
-    )
-  }
 
   it('returns immediately when a requested condition already matches', async () => {
     states.set('worker', { stateRevision: 3, activeRunId: null, pendingFollowUpCount: 0 })

@@ -8,6 +8,10 @@ import {
   type SessionLifecycleRepositoryShape,
 } from '../ports/session-lifecycle-repository'
 import {
+  decodeSessionAuthoritySnapshot,
+  retargetSynthesizedSessionAuthorityScope,
+} from '../session-host/session-authority-snapshot'
+import {
   findLifecycleReplay,
   type LifecycleTarget,
   resolveLifecycleTarget,
@@ -63,9 +67,7 @@ function resolveAuthorityOrigin(
     `
     const origin = rows[0]
     if (!origin) return { callerId, scope: callerAuthorityScope }
-    const snapshot = origin.authority_scope_snapshot_json
-      ? JSON.parse(origin.authority_scope_snapshot_json)
-      : undefined
+    const snapshot = decodeSessionAuthoritySnapshot(origin.authority_scope_snapshot_json)
     return {
       callerId: origin.authority_origin_caller_id || callerId,
       scope: snapshot?.scope ?? callerAuthorityScope,
@@ -121,13 +123,23 @@ function execute(
           )
         }
 
+        const admittedAuthorityScope =
+          authorityOrigin.scope && input.initiatingWorkingDirectory
+            ? retargetSynthesizedSessionAuthorityScope(
+                authorityOrigin.scope,
+                input.initiatingWorkingDirectory,
+                workspace.working_path,
+                authorityOrigin.callerId,
+              )
+            : authorityOrigin.scope
+
         const runId = yield* persistLifecycleSession(
           sql,
           input,
           target.projectPath,
           workspace,
           authorityOrigin.callerId,
-          authorityOrigin.scope,
+          admittedAuthorityScope,
         )
         const outcome = yield* lifecycleOutcome(sql, input, {
           workspaceId: workspace.id,

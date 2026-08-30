@@ -1,5 +1,4 @@
 import path from 'node:path'
-import { MCP_CONFIG } from '@shared/constants/mcp'
 import type {
   McpCompatibilityProfile,
   McpConfigCredentialValue,
@@ -8,13 +7,12 @@ import type {
   McpServerTransport,
   McpSettingsView,
 } from '@shared/types/mcp'
-import { ALL_IMPORT_SOURCES } from './adapters/mcp/import-adapters'
 import { parseMcpConfigFile } from './adapters/mcp/json-files'
 import { validateMcpCliPositionals } from './mcp-cli-positional-contract'
 
+export { formatMcpCliOutput, parseImportSources, readSecretFromStdin } from './mcp-cli-io'
 export { requireServeScope } from './mcp-cli-serve-scope'
 
-const MAX_STDIN_SECRET_BYTES = 1_000_000
 const SECRET_ARGUMENT_PATTERN =
   /(api[-_]?key|token|secret|password|credential|authorization|cookie)/i
 const [NEXT_ARGUMENT_OFFSET, OPTION_AND_VALUE_COUNT] = [1, 2] as const
@@ -286,38 +284,4 @@ export function definitionFor(view: McpSettingsView, server: McpServerSummary) {
   const definition = (config.mcpServers ?? config.servers)?.[server.name]
   if (!definition) throw new Error(`MCP definition for ${server.name} was not found.`)
   return definition
-}
-
-export async function readSecretFromStdin() {
-  if (process.stdin.isTTY)
-    throw new Error('Secret input must be piped on stdin; values are never accepted as arguments.')
-  const chunks: Buffer[] = []
-  let total = 0
-  for await (const chunk of process.stdin) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk))
-    total += buffer.byteLength
-    if (total > MAX_STDIN_SECRET_BYTES) throw new Error('Secret input exceeded the safety limit.')
-    chunks.push(buffer)
-  }
-  return Buffer.concat(chunks)
-    .toString('utf8')
-    .replace(/[\r\n]+$/, '')
-}
-
-export function parseImportSources(value: string | undefined) {
-  if (!value || value === 'all') return ALL_IMPORT_SOURCES
-  const requested = value.split(',').map((entry) => entry.trim())
-  const invalid = requested.filter(
-    (entry) => !ALL_IMPORT_SOURCES.some((source) => source === entry),
-  )
-  if (invalid.length > 0) throw new Error(`Unsupported import sources: ${invalid.join(', ')}.`)
-  return ALL_IMPORT_SOURCES.filter((source) => requested.includes(source))
-}
-
-export function formatMcpCliOutput(value: unknown, json: boolean) {
-  return json
-    ? JSON.stringify({ schemaVersion: 1, data: value }, null, MCP_CONFIG.JSON_INDENT_SPACES)
-    : typeof value === 'string'
-      ? value
-      : JSON.stringify(value, null, MCP_CONFIG.JSON_INDENT_SPACES)
 }

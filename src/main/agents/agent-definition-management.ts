@@ -178,6 +178,26 @@ async function applyRefresh(input: {
   return { operation: 'refresh-apply', ...written } satisfies AgentDefinitionManagementOutcome
 }
 
+async function writeAgentDefinition(
+  command: Extract<AgentDefinitionManagementCommand, { operation: 'write' }>,
+  context: ResolvedAgentDefinitionManagementContext,
+) {
+  assertSemanticValidity(command.document, await semanticCatalog(command.projectPath, context))
+  return writeOutcome(
+    command.operation,
+    await writeAgentDefinitionFile({
+      projectPath: command.projectPath,
+      userHome: context.userHome,
+      scope: command.scope,
+      document: command.document,
+      replaceExisting: command.replaceExisting === true,
+      ...(command.expectedContentDigest
+        ? { expectedContentDigest: command.expectedContentDigest }
+        : {}),
+    }),
+  )
+}
+
 export async function executeAgentDefinitionManagement(
   command: AgentDefinitionManagementCommand,
   context: AgentDefinitionManagementContext = {},
@@ -197,20 +217,7 @@ export async function executeAgentDefinitionManagement(
     }
   }
   if (command.operation === 'write') {
-    assertSemanticValidity(command.document, await semanticCatalog(command.projectPath, resolved))
-    return writeOutcome(
-      command.operation,
-      await writeAgentDefinitionFile({
-        projectPath: command.projectPath,
-        userHome: resolved.userHome,
-        scope: command.scope,
-        document: command.document,
-        replaceExisting: command.replaceExisting === true,
-        ...(command.expectedContentDigest
-          ? { expectedContentDigest: command.expectedContentDigest }
-          : {}),
-      }),
-    )
+    return writeAgentDefinition(command, resolved)
   }
   if (command.operation === 'duplicate') {
     const source = await resolveAgentDefinition({

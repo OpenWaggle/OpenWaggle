@@ -6,6 +6,7 @@ import type { SessionControlMutationOutcome } from '@shared/types/session-contro
 import * as Effect from 'effect/Effect'
 import { SessionControlRepositoryError } from '../errors'
 import type { SessionOrganizationRepositoryShape } from '../ports/session-organization-repository'
+import { assertBoundSessionAuthoritySnapshot } from './sqlite-session-authority-snapshot-refresh'
 
 type AdmissionInput = Parameters<SessionOrganizationRepositoryShape['admitExistingHandoff']>[0]
 
@@ -194,7 +195,10 @@ export function admitExistingHandoff(sql: SqlClient.SqlClient, input: AdmissionI
         const session = (yield* loadSession(sql, input.request.command.sessionId))[0]
         const target = (yield* loadWorkspace(sql, input.preparedHandoff.workspaceId))[0]
         const resumed = resumedAdmission(input, operation, session, target)
-        if (resumed) return resumed
+        if (resumed) {
+          yield* assertBoundSessionAuthoritySnapshot(sql, input.request.command.sessionId)
+          return resumed
+        }
         if (operation?.status === 'pending') {
           return yield* Effect.fail(
             repositoryError('resume-existing-workspace-handoff', input.request.command),
@@ -208,6 +212,7 @@ export function admitExistingHandoff(sql: SqlClient.SqlClient, input: AdmissionI
         }
 
         const now = Date.now()
+        yield* assertBoundSessionAuthoritySnapshot(sql, input.request.command.sessionId)
         yield* sql`
           UPDATE workspace_resources
           SET lifecycle_state = ${'materializing'},

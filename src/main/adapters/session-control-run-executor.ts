@@ -26,7 +26,6 @@ import type { SessionProjectionRepository } from '../ports/session-projection-re
 import { SessionReportRepository } from '../ports/session-report-repository'
 import type { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
-import { assertSessionAuthoritySnapshot } from '../session-host/session-authority-snapshot'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { startStreamBuffer } from '../utils/stream-bridge'
 import {
@@ -34,12 +33,11 @@ import {
   markReportsDelivered,
   markSpecificationUpdatesDelivered,
 } from './session-control-run-context-delivery'
+import { loadRunExecutionProfile } from './session-control-run-executor-profile'
 import { publishRunFailure, terminalRunResult } from './session-control-run-result'
 import {
   narrowRunAuthorization,
   type ResolvedSessionRunExecution,
-  resolveSessionRunExecution,
-  type SessionRunExecutionProfileRow,
 } from './session-run-execution-profile'
 import {
   liveSessionAuthorityBlockReason,
@@ -61,6 +59,8 @@ type RunExecutorDependencies =
   | SqlClient.SqlClient
   | SettingsService
 
+const AUTHORITY_DRIFT_POLL_INTERVAL_MS = 100
+
 export function withRunAttachmentCleanup<A, E, R>(input: {
   readonly effect: Effect.Effect<A, E, R>
   readonly attachments: Pick<SessionControlAttachmentServiceShape, 'release'>
@@ -77,60 +77,6 @@ export function withRunAttachmentCleanup<A, E, R>(input: {
     }),
     operation: 'run',
     sessionId: input.sessionId,
-  })
-}
-
-function loadExecutionProfile(
-  sql: SqlClient.SqlClient,
-  input: Pick<SessionControlRunExecutionInput, 'sessionId' | 'runId'>,
-) {
-  return Effect.gen(function* () {
-    const rows = yield* sql<SessionRunExecutionProfileRow>`
-      SELECT
-        sessions.id AS session_id,
-        sessions.title,
-        sessions.project_path,
-        session_execution_profiles.profile_json,
-        session_execution_profiles.resolved_agent_snapshot_json,
-        session_execution_profiles.authorization_ceiling,
-        session_spawn_lineage.parent_session_id,
-        parent_sessions.title AS parent_title,
-        session_spawn_lineage.hive_root_session_id,
-        session_spawn_lineage.depth,
-        (SELECT COUNT(*) FROM session_spawn_lineage AS child_lineage
-          WHERE child_lineage.parent_session_id = sessions.id) AS direct_worker_count,
-        workspace_resources.id AS workspace_id,
-        workspace_resources.kind AS workspace_kind,
-        workspace_resources.working_path,
-        derived_child_management_grants.capabilities_json,
-        delegation_contracts.id AS delegation_id,
-        delegation_contracts.state AS delegation_state
-      FROM sessions
-      JOIN session_execution_profiles ON session_execution_profiles.session_id = sessions.id
-      JOIN session_workspace_bindings ON session_workspace_bindings.session_id = sessions.id
-      JOIN workspace_resources ON workspace_resources.id = session_workspace_bindings.workspace_id
-      LEFT JOIN session_spawn_lineage ON session_spawn_lineage.child_session_id = sessions.id
-      LEFT JOIN sessions AS parent_sessions ON parent_sessions.id = session_spawn_lineage.parent_session_id
-      LEFT JOIN derived_child_management_grants
-        ON derived_child_management_grants.child_session_id = sessions.id
-        AND derived_child_management_grants.revoked_at IS NULL
-      LEFT JOIN delegation_contracts ON delegation_contracts.child_session_id = sessions.id
-      WHERE sessions.id = ${input.sessionId}
-      LIMIT 1
-    `
-    const row = rows[0]
-    if (!row) {
-      return yield* Effect.fail(
-        new Error(`Session ${input.sessionId} has no durable execution profile or Workspace.`),
-      )
-    }
-    return yield* Effect.try({
-      try: () => resolveSessionRunExecution(row, input.runId),
-      catch: (cause) =>
-        new Error(`Session ${input.sessionId} has an invalid durable execution profile.`, {
-          cause,
-        }),
-    })
   })
 }
 
@@ -276,7 +222,7 @@ function executeRun(input: SessionControlRunExecutionInput) {
     if (authorityBlock) {
       return yield* Effect.fail(new Error(`Run authority is no longer valid: ${authorityBlock}.`))
     }
-    const execution = yield* loadExecutionProfile(sql, input)
+    const execution = yield* loadRunExecutionProfile(sql, input)
     const authoritySnapshot = yield* loadSessionAuthoritySnapshot(sql, input.sessionId)
     const attachments = yield* SessionControlAttachmentService
     const allowModelMultiAgent = yield* modelMultiAgentEnabled(
@@ -289,16 +235,26 @@ function executeRun(input: SessionControlRunExecutionInput) {
       ? setInterval(() => {
           if (checkingAuthority || input.controller.signal.aborted) return
           checkingAuthority = true
-          void assertSessionAuthoritySnapshot(authoritySnapshot)
-            .catch(() => {
+          void Effect.runPromise(
+            liveSessionAuthorityBlockReason(sql, input.intent.callerId, input.sessionId),
+          )
+            .then((blockReason) => {
+              if (!blockReason) return
               input.controller.abort(
                 new Error('Run interrupted because its filesystem authority changed.'),
+              )
+            })
+            .catch(() => {
+              input.controller.abort(
+                new Error(
+                  'Run interrupted because its filesystem authority could not be verified.',
+                ),
               )
             })
             .finally(() => {
               checkingAuthority = false
             })
-        }, 100)
+        }, AUTHORITY_DRIFT_POLL_INTERVAL_MS)
       : undefined
     const releaseInteractionDeadline = registerInteractionDeadline({
       execution,

@@ -111,7 +111,9 @@ async function prepareAttachment(
     handle = await fs.open(filePath, OPEN_READ_NO_FOLLOW)
   } catch (error) {
     if (allowedRoots && error instanceof Error && 'code' in error && error.code === 'ELOOP') {
-      throw new Error('Attachment symbolic links are not accepted for scoped callers.')
+      throw new Error('Attachment symbolic links are not accepted for scoped callers.', {
+        cause: error,
+      })
     }
     throw error
   }

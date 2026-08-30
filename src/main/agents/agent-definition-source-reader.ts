@@ -35,7 +35,9 @@ export async function readBoundedAgentDefinitionSource(input: {
       'code' in error &&
       error.code === 'ELOOP'
     ) {
-      throw new Error('Referenced Agent definition file escapes its selected directory.')
+      throw new Error('Referenced Agent definition file escapes its selected directory.', {
+        cause: error,
+      })
     }
     throw error
   }

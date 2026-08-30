@@ -24,6 +24,8 @@ export interface StartLocalSessionHostInput {
   readonly eventReplayCapacity?: number
   readonly subscriberCapacity?: number
   readonly recover?: () => Promise<void>
+  readonly startOwnedServices?: () => Promise<void>
+  readonly stopOwnedServices?: () => Promise<void>
   readonly authenticate: LocalSessionServerDependencies['authenticate']
   readonly authorizeEvent?: LocalSessionServerDependencies['authorizeEvent']
   readonly snapshotActiveRuns?: LocalSessionServerDependencies['snapshotActiveRuns']
@@ -44,6 +46,7 @@ export class LocalSessionHostRuntime {
     private readonly ownership: SessionHostOwnership,
     private readonly releaseEventPublisher: () => void,
     private readonly releaseSettingsObserver: () => void = () => undefined,
+    private readonly stopOwnedServices: () => Promise<void> = () => Promise.resolve(),
   ) {
     this.stoppedPromise = new Promise((resolve) => {
       this.resolveStopped = resolve
@@ -54,6 +57,10 @@ export class LocalSessionHostRuntime {
     return this.stoppedPromise
   }
 
+  isStopping(): boolean {
+    return this.stopPromise !== null
+  }
+
   stop(): Promise<void> {
     if (this.stopPromise) return this.stopPromise
     this.stopPromise = this.stopOnce()
@@ -61,23 +68,27 @@ export class LocalSessionHostRuntime {
   }
 
   private async stopOnce() {
+    let closeError: unknown
     try {
       await this.server.close(false)
+    } catch (error) {
+      closeError = error
+    }
+    await this.stopOwnedServices()
+    this.releaseSettingsObserver()
+    this.releaseEventPublisher()
+    this.eventHub.close()
+    this.liveness.close()
+    try {
+      await this.server.removeEndpoint()
     } finally {
-      this.releaseSettingsObserver()
-      this.releaseEventPublisher()
-      this.eventHub.close()
-      this.liveness.close()
       try {
-        await this.server.removeEndpoint()
+        await this.ownership.release()
       } finally {
-        try {
-          await this.ownership.release()
-        } finally {
-          this.resolveStopped()
-        }
+        this.resolveStopped()
       }
     }
+    if (closeError) throw closeError
   }
 }
 
@@ -163,13 +174,19 @@ export async function startLocalSessionHost(
       ownership,
       releaseEventPublisher,
       releaseSettingsObserver,
+      input.stopOwnedServices,
     )
+    await input.startOwnedServices?.()
     liveness.armIdleShutdown(
       input.startupGracePeriodMs ??
         Math.max(input.idleGracePeriodMs, SESSION_HOST_STARTUP_GRACE_PERIOD_MS),
     )
     return runtime
   } catch (error) {
+    if (runtime) {
+      await runtime.stop()
+      throw error
+    }
     releaseSettingsObserver()
     releaseEventPublisher()
     eventHub.close()

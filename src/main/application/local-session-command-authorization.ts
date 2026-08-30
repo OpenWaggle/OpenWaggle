@@ -127,38 +127,40 @@ function authorizationCeilingExceeded() {
   )
 }
 
+function requestsForbiddenCeilingMutation(
+  caller: LocalSessionCallerIdentity,
+  payload: AuthorizedLocalSessionCommandPayload,
+) {
+  if (caller.profileAuthority?.authorizationCeiling !== 'ask-for-approval') return false
+  if (payload.contract !== 'session-control-v2') return false
+  const command = payload.request.command
+  if (command.operation === 'authorization-set') {
+    return command.authorizationMode !== 'ask-for-approval'
+  }
+  return command.operation === 'steer' || command.operation === 'promote'
+}
+
+function requestedCeilings(
+  caller: LocalSessionCallerIdentity,
+  target: unknown,
+): readonly (string | undefined)[] {
+  const targetCeiling = targetAuthorizationCeiling(target)
+  const derivedCeiling = isAuthorizationTarget(target)
+    ? derivedAuthorityForTarget(caller, target)?.authorizationCeiling
+    : undefined
+  return [caller.profileAuthority?.authorizationCeiling, targetCeiling, derivedCeiling]
+}
+
 function authorizeCeiling(
   caller: LocalSessionCallerIdentity,
   payload: AuthorizedLocalSessionCommandPayload,
   target: unknown,
 ) {
-  if (
-    caller.profileAuthority?.authorizationCeiling === 'ask-for-approval' &&
-    payload.contract === 'session-control-v2' &&
-    payload.request.command.operation === 'authorization-set' &&
-    payload.request.command.authorizationMode !== 'ask-for-approval'
-  ) {
-    return authorizationCeilingExceeded()
-  }
-  if (
-    caller.profileAuthority?.authorizationCeiling === 'ask-for-approval' &&
-    payload.contract === 'session-control-v2' &&
-    (payload.request.command.operation === 'steer' ||
-      payload.request.command.operation === 'promote')
-  ) {
-    return authorizationCeilingExceeded()
-  }
+  if (requestsForbiddenCeilingMutation(caller, payload)) return authorizationCeilingExceeded()
   const requested = requestedRunAuthorizationOverride(payload)
   if (requested !== 'yolo') return Effect.void
   const targetCeiling = targetAuthorizationCeiling(target)
-  const derivedCeiling = isAuthorizationTarget(target)
-    ? derivedAuthorityForTarget(caller, target)?.authorizationCeiling
-    : undefined
-  const exceedsCeiling = [
-    caller.profileAuthority?.authorizationCeiling,
-    targetCeiling,
-    derivedCeiling,
-  ].includes('ask-for-approval')
+  const exceedsCeiling = requestedCeilings(caller, target).includes('ask-for-approval')
   if (exceedsCeiling) return authorizationCeilingExceeded()
   if (caller.profileAuthority || targetCeiling === 'yolo') return Effect.void
   return Effect.gen(function* () {

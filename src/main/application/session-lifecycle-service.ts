@@ -33,6 +33,9 @@ function repositoryInput(
   return {
     callerId: input.callerId,
     ...(input.callerAuthorityScope ? { callerAuthorityScope: input.callerAuthorityScope } : {}),
+    ...(input.initiatingWorkingDirectory
+      ? { initiatingWorkingDirectory: input.initiatingWorkingDirectory }
+      : {}),
     request: input.request,
     session: attempt.session,
     ...(allocated.runId ? { runId: allocated.runId } : {}),

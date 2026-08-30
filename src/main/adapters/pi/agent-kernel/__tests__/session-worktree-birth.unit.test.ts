@@ -43,6 +43,7 @@ vi.mock('../../../git/workspace-handoff-snapshot', () => ({
 vi.mock('../../../../store/session-details', () => ({
   getBoundWorkspaceResource: getBoundWorkspaceResourceMock,
   setSessionWorktree: setSessionWorktreeMock,
+  validateSessionWorktreeBirthAuthority: vi.fn(async () => {}),
 }))
 
 const { ensureSessionWorktreeProjectPath } = await import('../session-worktree-birth')

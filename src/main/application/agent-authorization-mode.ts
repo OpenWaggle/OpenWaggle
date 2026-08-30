@@ -67,6 +67,30 @@ async function readGlobalDefault() {
   }
 }
 
+function authorizationBoundaryRequiresApproval(input: {
+  readonly boundary: {
+    readonly execution_ceiling: AgentAuthorizationMode
+    readonly grant_ceiling: AgentAuthorizationMode | null
+    readonly profile_ceiling: AgentAuthorizationMode | null
+    readonly profile_revoked_at: number | null
+    readonly grant_revoked_at: number | null
+  }
+  readonly callerBoundary: {
+    readonly revoked: boolean
+    readonly authorizationCeiling: AgentAuthorizationMode
+  } | null
+}) {
+  return (
+    input.boundary.profile_revoked_at !== null ||
+    input.boundary.grant_revoked_at !== null ||
+    input.callerBoundary?.revoked === true ||
+    input.boundary.execution_ceiling === 'ask-for-approval' ||
+    input.boundary.grant_ceiling === 'ask-for-approval' ||
+    input.boundary.profile_ceiling === 'ask-for-approval' ||
+    input.callerBoundary?.authorizationCeiling === 'ask-for-approval'
+  )
+}
+
 /**
  * Resolves the mode a session runs under, reading every level at the moment of the call.
  *
@@ -110,17 +134,7 @@ export async function resolveEffectiveAuthorizationMode(
         globalDefault,
       })
     if (!boundary) return FAIL_CLOSED_AUTHORIZATION_MODE
-    if (
-      boundary.profile_revoked_at !== null ||
-      boundary.grant_revoked_at !== null ||
-      callerBoundary?.revoked
-    ) {
-      return FAIL_CLOSED_AUTHORIZATION_MODE
-    }
-    return boundary.execution_ceiling === 'ask-for-approval' ||
-      boundary.grant_ceiling === 'ask-for-approval' ||
-      boundary.profile_ceiling === 'ask-for-approval' ||
-      callerBoundary?.authorizationCeiling === 'ask-for-approval'
+    return authorizationBoundaryRequiresApproval({ boundary, callerBoundary })
       ? FAIL_CLOSED_AUTHORIZATION_MODE
       : preferredMode
   } catch (cause) {

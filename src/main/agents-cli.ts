@@ -1,10 +1,6 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import type {
-  AgentDefinitionImportSource,
-  AgentDefinitionScope,
-} from '@shared/types/agent-definition'
 import type { AgentDefinitionManagementOutcome } from '@shared/types/agent-definition-management'
 import { loadAgentDefinitionSemanticCatalog } from './agent-definition-semantic-catalog-loader'
 import {
@@ -19,6 +15,13 @@ import {
 import { parseAgentDefinition } from './agents/agent-definition-parser'
 import { validateAgentDefinitionSemantics } from './agents/agent-definition-semantic-validation'
 import { validateAgentsCliOptions } from './agents-cli-option-contract'
+import {
+  agentDefinitionsProjectPath,
+  managementContext,
+  parseAgentDefinitionImportSource,
+  parseAgentDefinitionScope,
+  required,
+} from './agents-cli-options'
 import {
   compactAgentCatalog,
   writeAgentsCliCatalog,
@@ -38,43 +41,6 @@ export interface AgentsCliIo {
   readonly loadSemanticCatalog?: AgentDefinitionSemanticCatalogLoader
 }
 
-function managementContext(input: {
-  readonly home: string
-  readonly loadSemanticCatalog: AgentDefinitionSemanticCatalogLoader
-}) {
-  return { userHome: input.home, loadSemanticCatalog: input.loadSemanticCatalog }
-}
-
-function required(value: string | undefined, label: string) {
-  if (!value) throw new Error(`${label} is required.`)
-  return value
-}
-
-function projectPath(arguments_: ReturnType<typeof parseMcpCliArguments>, cwd: string) {
-  return path.resolve(option(arguments_, 'project') ?? cwd)
-}
-
-function parseScope(value: string | undefined): AgentDefinitionScope {
-  if (value === 'project' || value === 'portable-project' || value === 'user') return value
-  throw new Error('--scope must be project, portable-project, or user.')
-}
-
-function parseImportSource(value: string | undefined): AgentDefinitionImportSource | 'auto' {
-  if (!value || value === 'auto') return 'auto'
-  const sources: readonly AgentDefinitionImportSource[] = [
-    'openwaggle',
-    'codex',
-    'claude-code',
-    'cursor',
-    'gemini-cli',
-    'github-copilot',
-    'opencode',
-  ]
-  const selected = sources.find((source) => source === value)
-  if (!selected) throw new Error(`Unsupported Agent import source: ${value}.`)
-  return selected
-}
-
 async function writeDocumentCommand(input: {
   readonly command: 'create' | 'update'
   readonly arguments_: ReturnType<typeof parseMcpCliArguments>
@@ -92,7 +58,7 @@ async function writeDocumentCommand(input: {
     {
       operation: 'write',
       projectPath: input.projectPath,
-      scope: parseScope(option(input.arguments_, 'scope')),
+      scope: parseAgentDefinitionScope(option(input.arguments_, 'scope')),
       document,
       replaceExisting: input.command === 'update',
       ...(option(input.arguments_, 'expected-digest')
@@ -117,11 +83,11 @@ async function importCommand(input: {
   const base = {
     projectPath: input.projectPath,
     sourcePath,
-    sourceTool: parseImportSource(option(input.arguments_, 'from')),
+    sourceTool: parseAgentDefinitionImportSource(option(input.arguments_, 'from')),
     ...(option(input.arguments_, 'source-name')
       ? { sourceName: option(input.arguments_, 'source-name') }
       : {}),
-    targetScope: parseScope(option(input.arguments_, 'scope')),
+    targetScope: parseAgentDefinitionScope(option(input.arguments_, 'scope')),
   } as const
   const planned = await executeAgentDefinitionManagement(
     { operation: 'import-plan', ...base },
@@ -195,7 +161,7 @@ async function mutationCommand(input: {
         projectPath: input.projectPath,
         sourceName: required(input.arguments_.positionals[0], 'Source Agent name'),
         targetName: required(input.arguments_.positionals[1], 'Target Agent name'),
-        targetScope: parseScope(option(input.arguments_, 'scope')),
+        targetScope: parseAgentDefinitionScope(option(input.arguments_, 'scope')),
       },
       managementContext(input),
     )
@@ -206,7 +172,7 @@ async function mutationCommand(input: {
         operation: 'delete',
         projectPath: input.projectPath,
         name: required(input.arguments_.positionals[0], 'Agent definition name'),
-        scope: parseScope(option(input.arguments_, 'scope')),
+        scope: parseAgentDefinitionScope(option(input.arguments_, 'scope')),
         ...(option(input.arguments_, 'expected-digest')
           ? { expectedContentDigest: option(input.arguments_, 'expected-digest') }
           : {}),
@@ -229,7 +195,7 @@ async function executeAgentDefinitionCommand(input: {
 }) {
   const { command, arguments_, cwd, home, stdout } = input
   const json = hasFlag(arguments_, 'json')
-  const project = projectPath(arguments_, cwd)
+  const project = agentDefinitionsProjectPath(arguments_, cwd)
   const mutation = await mutationCommand({
     command,
     arguments_,

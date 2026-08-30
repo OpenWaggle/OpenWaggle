@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { usePreferencesStore } from '@/features/settings/state'
 import { createRendererLogger } from '@/shared/lib/logger'
+import { Button } from '@/shared/ui/Button'
 import { TextInput } from '@/shared/ui/TextInput'
 import { ToggleSwitch } from '@/shared/ui/ToggleSwitch'
 
@@ -64,6 +65,76 @@ function IntegerField({
         })
       }}
     />
+  )
+}
+
+interface ProjectOverrideRowsProps {
+  readonly saving: boolean
+  readonly globalMultiAgentEnabled: boolean
+  readonly globalParentLimit: number
+  readonly projectMultiAgentEnabled: boolean | undefined
+  readonly projectParentLimit: number | undefined
+  readonly onSetMultiAgentEnabled: (enabled: boolean | null) => Promise<void>
+  readonly onSetParentLimit: (limit: number | null) => Promise<void>
+}
+
+function ProjectOverrideRows(props: ProjectOverrideRowsProps) {
+  return (
+    <>
+      <SettingRow
+        label="Current project agents"
+        description="Override agent-created Workers for the selected project."
+      >
+        <div className="flex items-center gap-2">
+          {props.projectMultiAgentEnabled !== undefined ? (
+            <Button
+              className="text-xs text-text-tertiary hover:text-text-primary"
+              disabled={props.saving}
+              variant="unstyled"
+              onClick={() => {
+                void props.onSetMultiAgentEnabled(null).catch(() => undefined)
+              }}
+            >
+              Use global
+            </Button>
+          ) : null}
+          <ToggleSwitch
+            checked={props.projectMultiAgentEnabled ?? props.globalMultiAgentEnabled}
+            disabled={props.saving}
+            label="Allow agents in the current project to create Workers"
+            onCheckedChange={(enabled) => {
+              void props.onSetMultiAgentEnabled(enabled).catch(() => undefined)
+            }}
+          />
+        </div>
+      </SettingRow>
+      <SettingRow
+        label="Current project Workers"
+        description="Override direct concurrent Worker runs for the selected project."
+        last
+      >
+        <div className="flex items-center gap-2">
+          {props.projectParentLimit !== undefined ? (
+            <Button
+              className="text-xs text-text-tertiary hover:text-text-primary"
+              disabled={props.saving}
+              variant="unstyled"
+              onClick={() => {
+                void props.onSetParentLimit(null).catch(() => undefined)
+              }}
+            >
+              Use global
+            </Button>
+          ) : null}
+          <IntegerField
+            disabled={props.saving}
+            label="Current project Workers per parent"
+            value={props.projectParentLimit ?? props.globalParentLimit}
+            onCommit={props.onSetParentLimit}
+          />
+        </div>
+      </SettingRow>
+    </>
   )
 }
 
@@ -152,76 +223,21 @@ export function MultiAgentAccessCard() {
           />
         </SettingRow>
         {settings.projectPath ? (
-          <>
-            <SettingRow
-              label="Current project agents"
-              description="Override agent-created Workers for the selected project."
-            >
-              <div className="flex items-center gap-2">
-                {settings.multiAgentEnabledByProject[settings.projectPath] !== undefined ? (
-                  <button
-                    className="text-xs text-text-tertiary hover:text-text-primary"
-                    disabled={saving}
-                    type="button"
-                    onClick={() => {
-                      void persist(() =>
-                        setProjectMultiAgent(settings.projectPath ?? '', null),
-                      ).catch(() => undefined)
-                    }}
-                  >
-                    Use global
-                  </button>
-                ) : null}
-                <ToggleSwitch
-                  checked={
-                    settings.multiAgentEnabledByProject[settings.projectPath] ??
-                    settings.multiAgentEnabled
-                  }
-                  disabled={saving}
-                  label="Allow agents in the current project to create Workers"
-                  onCheckedChange={(enabled) => {
-                    void persist(() =>
-                      setProjectMultiAgent(settings.projectPath ?? '', enabled),
-                    ).catch(() => undefined)
-                  }}
-                />
-              </div>
-            </SettingRow>
-            <SettingRow
-              label="Current project Workers"
-              description="Override direct concurrent Worker runs for the selected project."
-              last
-            >
-              <div className="flex items-center gap-2">
-                {settings.sessionHostParentConcurrencyLimitsByProject[settings.projectPath] !==
-                undefined ? (
-                  <button
-                    className="text-xs text-text-tertiary hover:text-text-primary"
-                    disabled={saving}
-                    type="button"
-                    onClick={() => {
-                      void persist(() =>
-                        setProjectParentLimit(settings.projectPath ?? '', null),
-                      ).catch(() => undefined)
-                    }}
-                  >
-                    Use global
-                  </button>
-                ) : null}
-                <IntegerField
-                  disabled={saving}
-                  label="Current project Workers per parent"
-                  value={
-                    settings.sessionHostParentConcurrencyLimitsByProject[settings.projectPath] ??
-                    settings.sessionHostParentConcurrencyLimit
-                  }
-                  onCommit={(limit) =>
-                    persist(() => setProjectParentLimit(settings.projectPath ?? '', limit))
-                  }
-                />
-              </div>
-            </SettingRow>
-          </>
+          <ProjectOverrideRows
+            globalMultiAgentEnabled={settings.multiAgentEnabled}
+            globalParentLimit={settings.sessionHostParentConcurrencyLimit}
+            projectMultiAgentEnabled={settings.multiAgentEnabledByProject[settings.projectPath]}
+            projectParentLimit={
+              settings.sessionHostParentConcurrencyLimitsByProject[settings.projectPath]
+            }
+            saving={saving}
+            onSetMultiAgentEnabled={(enabled) =>
+              persist(() => setProjectMultiAgent(settings.projectPath ?? '', enabled))
+            }
+            onSetParentLimit={(limit) =>
+              persist(() => setProjectParentLimit(settings.projectPath ?? '', limit))
+            }
+          />
         ) : null}
       </div>
       {error ? (

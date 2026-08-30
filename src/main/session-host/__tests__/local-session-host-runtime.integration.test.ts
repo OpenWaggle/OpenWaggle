@@ -7,6 +7,7 @@ import { SessionHostEventHub } from '../../application/session-host-event-hub'
 import { SessionHostLiveness } from '../../application/session-host-liveness'
 import { encodeLocalSessionFrame, LocalSessionFrameDecoder } from '../local-session-framing'
 import { LocalSessionHostRuntime, startLocalSessionHost } from '../local-session-host-runtime'
+import { acquireSessionHostOwnership } from '../session-host-ownership'
 
 function connect(endpoint: string) {
   return new Promise<Socket>((resolve, reject) => {
@@ -169,10 +170,59 @@ describe('Local Session Host runtime', () => {
         },
       },
       () => order.push('release-events'),
+      () => undefined,
+      async () => {
+        order.push('stop-owned-services')
+      },
     )
 
     await orderedRuntime.stop()
 
-    expect(order).toEqual(['close', 'release-events', 'remove-endpoint', 'release-ownership'])
+    expect(order).toEqual([
+      'close',
+      'stop-owned-services',
+      'release-events',
+      'remove-endpoint',
+      'release-ownership',
+    ])
+  })
+
+  it('keeps ownership fenced until Host-owned services have stopped', async () => {
+    const databasePath = path.join(temporaryRoot, 'ordered-session-host.sqlite')
+    let finishServices: (() => void) | undefined
+    let markServicesStopping: (() => void) | undefined
+    const servicesStopping = new Promise<void>((resolve) => {
+      markServicesStopping = resolve
+    })
+    const servicesStopped = new Promise<void>((resolve) => {
+      finishServices = resolve
+    })
+    runtime = await startLocalSessionHost({
+      endpoint: path.join(temporaryRoot, 'ordered-host.sock'),
+      databasePath,
+      idleGracePeriodMs: 60_000,
+      stopOwnedServices: async () => {
+        markServicesStopping?.()
+        await servicesStopped
+      },
+      authenticate: async () => ({ callerId: 'local-user' }),
+      dispatch: async () => ({ accepted: true }),
+    })
+
+    const stopping = runtime.stop()
+    await servicesStopping
+    let successorAcquired = false
+    const successor = acquireSessionHostOwnership(databasePath).then((ownership) => {
+      successorAcquired = true
+      return ownership
+    })
+    await new Promise((resolve) => setTimeout(resolve, 25))
+    expect(successorAcquired).toBe(false)
+
+    finishServices?.()
+    await stopping
+    const successorOwnership = await successor
+    expect(successorAcquired).toBe(true)
+    await successorOwnership.release()
   })
 })

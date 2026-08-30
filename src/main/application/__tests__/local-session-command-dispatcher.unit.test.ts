@@ -1,108 +1,18 @@
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
-import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
-import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { describe, expect, it } from 'vitest'
 import { SessionAuthorizationTargetRepository } from '../../ports/session-authorization-target-repository'
-import { SettingsService } from '../../services/settings-service'
 import { authorizeLocalSessionCommand } from '../local-session-command-dispatcher'
-
-const targetLayer = Layer.succeed(SessionAuthorizationTargetRepository, {
-  resolve: (sessionId) =>
-    Effect.succeed({
-      sessionId,
-      projectPath: '/allowed-project',
-      hiveRootSessionId: 'session-queen',
-      authorizationCeiling: 'yolo',
-    }),
-  resolveDelegation: (delegationId) =>
-    Effect.succeed({
-      sessionId: `worker-for-${delegationId}`,
-      projectPath: '/allowed-project',
-      hiveRootSessionId: 'session-queen',
-      authorizationCeiling: 'yolo',
-    }),
-  listLiveDerivedAuthorities: () => Effect.succeed([]),
-})
-
-const settingsLayer = Layer.succeed(SettingsService, {
-  get: () => Effect.succeed(DEFAULT_SETTINGS),
-  update: () => Effect.void,
-  initialize: () => Effect.void,
-  flushForTests: () => Effect.void,
-})
-
-const authorizationLayer = Layer.mergeAll(targetLayer, settingsLayer)
-
-const localUser: LocalSessionCallerIdentity = { callerId: 'local-user:machine' }
-
-function restrictedCaller(
-  overrides: Partial<NonNullable<LocalSessionCallerIdentity['profileAuthority']>> = {},
-): LocalSessionCallerIdentity {
-  return {
-    callerId: 'profile:worker-client',
-    profileAuthority: {
-      profileId: 'worker-client',
-      profileName: 'worker-client',
-      capabilities: ['sessions:start'],
-      scope: { projectPaths: ['/allowed-project'] },
-      authorizationCeiling: 'ask-for-approval',
-      ...overrides,
-    },
-  }
-}
-
-function startPayload(runAuthorizationOverride: 'yolo' | 'ask-for-approval') {
-  return {
-    contract: 'session-control-v2',
-    request: {
-      contractVersion: 2,
-      requestId: 'request-start',
-      idempotencyKey: 'idempotency-start',
-      command: {
-        operation: 'start',
-        sessionId: 'session-worker',
-        runAuthorizationOverride,
-        input: { text: 'Continue.', attachmentIds: [] },
-      },
-    },
-  } satisfies LocalSessionCommandPayload
-}
-
-function controlPayload(
-  command: Extract<
-    LocalSessionCommandPayload,
-    { readonly contract: 'session-control-v2' }
-  >['request']['command'],
-): LocalSessionCommandPayload {
-  return {
-    contract: 'session-control-v2',
-    request: {
-      contractVersion: 2,
-      requestId: `request-${command.operation}`,
-      idempotencyKey: `idempotency-${command.operation}`,
-      command,
-    },
-  }
-}
-
-function queryPayload(
-  query:
-    | { readonly operation: 'list'; readonly limit: number; readonly projectPath?: string }
-    | {
-        readonly operation: 'search'
-        readonly query: string
-        readonly limit: number
-        readonly searchScope?: 'discovery' | 'full-transcript'
-      }
-    | { readonly operation: 'read'; readonly sessionId: string },
-): LocalSessionCommandPayload {
-  return {
-    contract: 'session-query-v2',
-    request: { contractVersion: 2, requestId: 'request-query', query },
-  }
-}
+import {
+  authorizationLayer,
+  controlPayload,
+  localUser,
+  queryPayload,
+  restrictedCaller,
+  settingsLayer,
+  startPayload,
+} from './local-session-command-dispatcher.test-support'
 
 describe('Local Session command authorization', () => {
   it('allows the trusted local user to request YOLO mode', async () => {

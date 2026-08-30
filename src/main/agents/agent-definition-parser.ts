@@ -143,9 +143,9 @@ export function extractAgentDefinitionDeclaredName(markdown: string): string | u
     const document = parseDocument(frontmatter, { schema: 'core', uniqueKeys: true })
     if (document.errors.length > 0) return undefined
     assertJsonCompatibleYaml(document.contents)
-    const parsed = document.toJS({ maxAliasCount: 0 })
+    const parsed: unknown = document.toJS({ maxAliasCount: 0 })
     if (typeof parsed !== 'object' || parsed === null || !('name' in parsed)) return undefined
-    const name = (parsed as { readonly name?: unknown }).name
+    const name = parsed.name
     return typeof name === 'string' && NAME_PATTERN.test(name) ? name : undefined
   } catch {
     return undefined

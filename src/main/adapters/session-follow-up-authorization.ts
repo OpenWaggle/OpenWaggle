@@ -16,6 +16,7 @@ import type {
   SessionControlSessionState,
 } from '../domain/session-control/message-aggregate'
 import { authorizeSessionTarget } from '../domain/session-control/session-capability-authorization'
+import { applyFollowUpAuthorizationState } from './session-follow-up-authorization-state'
 import { decodeSessionExecutionProfile } from './session-run-execution-profile'
 import { liveSessionAuthorityBlockReason } from './sqlite-session-live-authority'
 
@@ -46,8 +47,6 @@ interface SourceRow {
   readonly grant_authorization_ceiling: 'yolo' | 'ask-for-approval' | null
   readonly grant_revoked_at: number | null
 }
-
-const REVISION_INCREMENT = 1
 
 function profileId(callerId: string) {
   return callerId.startsWith('profile:') ? callerId.slice('profile:'.length) : undefined
@@ -302,39 +301,6 @@ export function applyCurrentFollowUpAuthorization(
   if (!followUp) return Effect.succeed(state)
   return Effect.gen(function* () {
     const reason = yield* blockReason(sql, state.sessionId, followUp)
-    if (!reason) {
-      if (followUp.deliveryState === 'pending') return state
-      const { attentionReason: _attentionReason, ...restored } = followUp
-      return {
-        ...state,
-        revision: state.revision + REVISION_INCREMENT,
-        followUpQueue: {
-          ...state.followUpQueue,
-          revision: state.followUpQueue.revision + REVISION_INCREMENT,
-          items: [
-            { ...restored, deliveryState: 'pending' as const },
-            ...state.followUpQueue.items.slice(1),
-          ],
-        },
-      }
-    }
-    const alreadyBlocked =
-      followUp.deliveryState === 'needs_attention' && followUp.attentionReason === reason
-    if (alreadyBlocked && state.followUpQueue.state === 'paused') return state
-    return {
-      ...state,
-      revision: state.revision + REVISION_INCREMENT,
-      followUpQueue: {
-        ...state.followUpQueue,
-        state: 'paused' as const,
-        revision: state.followUpQueue.revision + REVISION_INCREMENT,
-        items: [
-          alreadyBlocked
-            ? followUp
-            : { ...followUp, deliveryState: 'needs_attention' as const, attentionReason: reason },
-          ...state.followUpQueue.items.slice(1),
-        ],
-      },
-    }
+    return applyFollowUpAuthorizationState(state, reason)
   })
 }

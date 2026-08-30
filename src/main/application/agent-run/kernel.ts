@@ -46,6 +46,19 @@ function runContextOptions(input: AgentRunInput) {
     ...(input.sessionIdentityContext
       ? { sessionIdentityContext: input.sessionIdentityContext }
       : {}),
+    ...runDeliveryContextOptions(input),
+    ...(input.toolAllowlist ? { toolAllowlist: input.toolAllowlist } : {}),
+    ...(input.skillAllowlist ? { skillAllowlist: input.skillAllowlist } : {}),
+    ...(input.mcpServerAllowlist ? { mcpServerAllowlist: input.mcpServerAllowlist } : {}),
+    ...(input.sessionCapabilities ? { sessionCapabilities: input.sessionCapabilities } : {}),
+    ...(input.modelMultiAgentEnabled !== undefined
+      ? { modelMultiAgentEnabled: input.modelMultiAgentEnabled }
+      : {}),
+  }
+}
+
+function runDeliveryContextOptions(input: AgentRunInput) {
+  return {
     ...(input.peerAgentReports ? { peerAgentReports: input.peerAgentReports } : {}),
     ...(input.onPeerAgentReportsDelivered
       ? { onPeerAgentReportsDelivered: input.onPeerAgentReportsDelivered }
@@ -62,13 +75,6 @@ function runContextOptions(input: AgentRunInput) {
           onDelegationSpecificationUpdatesDelivered:
             input.onDelegationSpecificationUpdatesDelivered,
         }
-      : {}),
-    ...(input.toolAllowlist ? { toolAllowlist: input.toolAllowlist } : {}),
-    ...(input.skillAllowlist ? { skillAllowlist: input.skillAllowlist } : {}),
-    ...(input.mcpServerAllowlist ? { mcpServerAllowlist: input.mcpServerAllowlist } : {}),
-    ...(input.sessionCapabilities ? { sessionCapabilities: input.sessionCapabilities } : {}),
-    ...(input.modelMultiAgentEnabled !== undefined
-      ? { modelMultiAgentEnabled: input.modelMultiAgentEnabled }
       : {}),
   }
 }

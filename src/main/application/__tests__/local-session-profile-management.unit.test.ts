@@ -11,7 +11,6 @@ import { LocalSessionProfileRepository } from '../../ports/local-session-profile
 import { manageLocalSessionProfiles } from '../local-session-profile-management'
 
 const PROJECT_PATH = fs.realpathSync(os.tmpdir())
-
 function request(
   command:
     | { readonly operation: 'list' }

@@ -3,52 +3,19 @@ import { constants } from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import type { SessionExportManifest, SessionExportNodeRecord } from '@shared/types/session-export'
 import * as Effect from 'effect/Effect'
 import JSZip from 'jszip'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SessionExportArtifactWriter } from '../../ports/session-export-artifact-writer'
-import type { SessionExportOperationRecord } from '../../ports/session-export-operation-repository'
 import { FilesystemSessionExportArtifactWriterLive } from '../filesystem-session-export-artifact-writer'
 import { openFilesystemSessionExportResource } from '../filesystem-session-export-resource-resolver'
+import {
+  exportOperation,
+  exportManifest as manifest,
+  exportRecords as records,
+} from './filesystem-session-export-artifact-writer.test-support'
 
 const OPEN_READ_NO_FOLLOW = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0)
-
-const manifest: SessionExportManifest = {
-  schemaVersion: 1,
-  sessionId: 'session-1',
-  title: 'Durable export',
-  branchScope: 'tree',
-  activeBranchId: 'branch-1',
-  selectedBranchId: null,
-  snapshot: { nodeHighWaterMark: 1, stateRevision: 2, queueRevision: 3, capturedAt: 4 },
-  activeRunId: null,
-  activeTurnIncomplete: false,
-  queue: {
-    state: 'running',
-    pendingCount: 0,
-    bodyScope: 'omitted-by-choice',
-    omittedBodyCount: 0,
-    items: [],
-  },
-}
-
-const records: readonly SessionExportNodeRecord[] = [
-  {
-    record: 'node',
-    schemaVersion: 1,
-    sessionId: 'session-1',
-    nodeId: 'node-1',
-    parentNodeId: null,
-    branchHintId: 'branch-1',
-    role: 'assistant',
-    kind: 'message',
-    timestampMs: 5,
-    createdOrder: 1,
-    content: { text: 'Ready.' },
-    metadata: {},
-  },
-]
 
 describe('filesystem Session export artifact writer', () => {
   let temporaryRoot = ''
@@ -61,31 +28,8 @@ describe('filesystem Session export artifact writer', () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   })
 
-  function operation(
-    format: SessionExportOperationRecord['format'],
-    filename: string,
-  ): SessionExportOperationRecord {
-    const destinationPath = path.join(temporaryRoot, filename)
-    return {
-      exportOperationId: `export-${format}`,
-      callerId: 'caller-1',
-      sessionId: 'session-1',
-      idempotencyKey: `key-${format}`,
-      format,
-      destinationPath,
-      temporaryPath: `${destinationPath}.temporary`,
-      overwriteExisting: false,
-      status: 'running',
-      cleanupPending: false,
-      branchScope: 'tree',
-      includeQueueBodies: false,
-      resources: [],
-      progress: { recordsWritten: 0, resourcesWritten: 0, bytesWritten: 0 },
-      cancelRequested: false,
-      createdAt: 1,
-      updatedAt: 1,
-    }
-  }
+  const operation = (format: 'jsonl' | 'markdown' | 'bundle', filename: string) =>
+    exportOperation(temporaryRoot, format, filename)
 
   it('keeps direct output hidden until atomic installation', async () => {
     const exportOperation = operation('jsonl', 'session.jsonl')

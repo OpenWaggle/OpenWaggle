@@ -3,13 +3,10 @@ import { RunId, SessionId } from '@shared/types/brand'
 import type { SessionControlMutationCommand } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import { applyQueueMutation } from '../domain/session-control/queue-aggregate'
 import {
   activateStartingRun,
   recoverSessionAfterHostLoss,
   replaceWithExternalSessionRun,
-  settleAndScheduleNextFollowUp,
-  settleSessionRun,
   startExternalSessionRun,
 } from '../domain/session-control/run-lifecycle'
 import { SessionControlRepositoryError } from '../errors'
@@ -18,12 +15,14 @@ import {
   type SessionControlRunLifecycleRepositoryShape,
 } from '../ports/session-control-run-lifecycle-repository'
 import { applyCurrentFollowUpAuthorization } from './session-follow-up-authorization'
+import {
+  planRunSettlement,
+  replacementIsPending,
+  type SettleInput,
+} from './sqlite-session-control-run-settlement'
 import { loadSessionControlState, persistSessionControlState } from './sqlite-session-control-state'
 import { settleWorkerDelegation } from './sqlite-session-control-worker-settlement'
-import {
-  hasPendingReplacementForRun,
-  reservedFollowUpIds,
-} from './sqlite-session-follow-up-reservation'
+import { reservedFollowUpIds } from './sqlite-session-follow-up-reservation'
 import { directWorkerRunAdmission } from './sqlite-session-parent-run-admission'
 
 interface ActiveStateRow {
@@ -41,6 +40,27 @@ const PROMOTION_SETTLEMENT_RETRY_DELAY_MS = 100
 
 function repositoryError(operation: string, cause: unknown) {
   return new SessionControlRepositoryError({ operation, cause })
+}
+
+function settledRunResponse(
+  result: Extract<ReturnType<typeof planRunSettlement>, { readonly accepted: true }>,
+  workerUpdate: Effect.Effect.Success<ReturnType<typeof settleWorkerDelegation>>,
+) {
+  const { scheduled } = result
+  return {
+    status: 'settled',
+    result: {
+      accepted: true,
+      stateRevision: result.state.revision,
+      ...(scheduled ? { scheduled } : {}),
+      ...(workerUpdate?.delegationUpdate
+        ? { delegationUpdate: workerUpdate.delegationUpdate }
+        : {}),
+      ...(workerUpdate?.orchestrationUpdate
+        ? { orchestrationUpdate: workerUpdate.orchestrationUpdate }
+        : {}),
+    },
+  } as const
 }
 
 function activate(
@@ -147,7 +167,7 @@ function replaceWithExternal(
 
 function settle(
   sql: SqlClient.SqlClient,
-  input: Parameters<SessionControlRunLifecycleRepositoryShape['settle']>[0],
+  input: SettleInput,
 ): ReturnType<SessionControlRunLifecycleRepositoryShape['settle']> {
   return sql
     .withTransaction(
@@ -160,10 +180,7 @@ function settle(
         if (reservedIds.size > 0) return { status: 'promotion-pending' } as const
         const loadedState = yield* loadSessionControlState(sql, input.sessionId)
         const state = yield* applyCurrentFollowUpAuthorization(sql, loadedState)
-        const replacementPending =
-          state.run.state === 'stopping' &&
-          state.run.runId === input.runId &&
-          (yield* hasPendingReplacementForRun(sql, input.sessionId, input.runId))
+        const replacementPending = yield* replacementIsPending(sql, state, input)
         if (replacementPending) {
           return {
             status: 'settled',
@@ -174,23 +191,7 @@ function settle(
           ? { admitted: true }
           : yield* directWorkerRunAdmission(sql, input.sessionId)
         const deferForParentLimit = !parentAdmission.admitted
-        const settled =
-          input.suppressFollowUpScheduling || deferForParentLimit
-            ? settleSessionRun(state, input.runId)
-            : undefined
-        const paused =
-          deferForParentLimit &&
-          settled?.accepted &&
-          settled.state.followUpQueue.state === 'running'
-            ? applyQueueMutation({
-                state: settled.state,
-                mutation: { type: 'pause', expectedRevision: settled.state.followUpQueue.revision },
-                nextRunId: input.nextRunId,
-              })
-            : undefined
-        const result = settled
-          ? { ...(paused?.accepted ? paused : settled), scheduled: undefined }
-          : settleAndScheduleNextFollowUp(state, input.runId, input.nextRunId)
+        const result = planRunSettlement(state, input, deferForParentLimit)
         if (!result.accepted) return { status: 'settled', result } as const
         const { scheduled } = result
         const now = Date.now()
@@ -203,20 +204,7 @@ function settle(
           ? undefined
           : yield* settleWorkerDelegation(sql, input, scheduled !== undefined, now)
         yield* persistSessionControlState(sql, result.state, now)
-        return {
-          status: 'settled',
-          result: {
-            accepted: true,
-            stateRevision: result.state.revision,
-            ...(scheduled ? { scheduled } : {}),
-            ...(workerUpdate?.delegationUpdate
-              ? { delegationUpdate: workerUpdate.delegationUpdate }
-              : {}),
-            ...(workerUpdate?.orchestrationUpdate
-              ? { orchestrationUpdate: workerUpdate.orchestrationUpdate }
-              : {}),
-          },
-        } as const
+        return settledRunResponse(result, workerUpdate)
       }),
     )
     .pipe(

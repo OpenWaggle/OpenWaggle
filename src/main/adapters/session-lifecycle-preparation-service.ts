@@ -35,6 +35,31 @@ function deletePreparationAttempt(sql: SqlClient.SqlClient, attemptId: string) {
   )
 }
 
+function recordPreparationAttempt(
+  sql: SqlClient.SqlClient,
+  input: { readonly attemptId: string; readonly sessionId: string; readonly createdAt: number },
+) {
+  return sql`
+    INSERT INTO session_lifecycle_preparation_attempts (
+      attempt_id, session_id, pi_session_file, created_at, updated_at
+    ) VALUES (
+      ${input.attemptId}, ${input.sessionId}, ${null}, ${input.createdAt}, ${input.createdAt}
+    )
+  `
+}
+
+function recordPreparedSessionFile(
+  sql: SqlClient.SqlClient,
+  attemptId: string,
+  piSessionFile: string | undefined,
+) {
+  return sql`
+    UPDATE session_lifecycle_preparation_attempts
+    SET pi_session_file = ${piSessionFile ?? null}, updated_at = ${Date.now()}
+    WHERE attempt_id = ${attemptId}
+  `
+}
+
 function cleanupFailedPreparation(
   sql: SqlClient.SqlClient,
   attemptId: string,
@@ -119,14 +144,11 @@ export const SessionLifecyclePreparationServiceLive = Layer.effect(
           let piSessionFile: string | undefined
           return Effect.gen(function* () {
             const attemptCreatedAt = Date.now()
-            yield* sql`
-            INSERT INTO session_lifecycle_preparation_attempts (
-              attempt_id, session_id, pi_session_file, created_at, updated_at
-            ) VALUES (
-              ${attemptId}, ${input.identities.sessionId}, ${null},
-              ${attemptCreatedAt}, ${attemptCreatedAt}
-            )
-          `
+            yield* recordPreparationAttempt(sql, {
+              attemptId,
+              sessionId: input.identities.sessionId,
+              createdAt: attemptCreatedAt,
+            })
             const projectPath = yield* projectPathForLifecycleCommand(sql, input.request.command)
             const settings = yield* settingsService.get()
             const projectConfig = yield* Effect.tryPromise({
@@ -161,11 +183,7 @@ export const SessionLifecyclePreparationServiceLive = Layer.effect(
                 : undefined
             const piSession = forked?.result ?? (yield* kernel.createSession({ projectPath }))
             piSessionFile = piSession.piSessionFile
-            yield* sql`
-            UPDATE session_lifecycle_preparation_attempts
-            SET pi_session_file = ${piSession.piSessionFile ?? null}, updated_at = ${Date.now()}
-            WHERE attempt_id = ${attemptId}
-          `
+            yield* recordPreparedSessionFile(sql, attemptId, piSession.piSessionFile)
             const profile = buildLifecycleExecutionProfile({
               command,
               settings,

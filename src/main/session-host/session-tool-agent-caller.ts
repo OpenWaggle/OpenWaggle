@@ -173,38 +173,42 @@ function effectiveAuthorizationCeiling(row: AuthorityRow) {
     : ('yolo' as const)
 }
 
+function loadAuthorityRow(sql: SqlClient.SqlClient, sessionId: string) {
+  return sql<AuthorityRow>`
+    SELECT
+      sessions.project_path,
+      session_execution_profiles.authorization_ceiling,
+      session_execution_profiles.profile_json,
+      session_execution_profiles.authority_origin_caller_id,
+      session_execution_profiles.authority_scope_snapshot_json,
+      session_client_profiles.id AS origin_profile_id,
+      session_client_profiles.capabilities_json AS origin_profile_capabilities_json,
+      session_client_profiles.scope_json AS origin_profile_scope_json,
+      session_client_profiles.authorization_ceiling AS origin_profile_authorization_ceiling,
+      session_client_profiles.revoked_at AS origin_profile_revoked_at,
+      session_spawn_lineage.parent_session_id,
+      derived_child_management_grants.id AS derived_grant_id,
+      derived_child_management_grants.capabilities_json,
+      derived_child_management_grants.revoked_at AS derived_grant_revoked_at
+    FROM sessions
+    JOIN session_execution_profiles ON session_execution_profiles.session_id = sessions.id
+    LEFT JOIN session_spawn_lineage ON session_spawn_lineage.child_session_id = sessions.id
+    LEFT JOIN derived_child_management_grants
+      ON derived_child_management_grants.child_session_id = sessions.id
+    LEFT JOIN session_client_profiles
+      ON session_execution_profiles.authority_origin_caller_id =
+        ${'profile:'} || session_client_profiles.id
+    WHERE sessions.id = ${sessionId}
+    LIMIT 1
+  `
+}
+
 export function resolveSessionToolAgentCaller(
   sql: SqlClient.SqlClient,
   input: { readonly sessionId: string; readonly runId: string; readonly workingDirectory: string },
 ) {
   return Effect.gen(function* () {
-    const rows = yield* sql<AuthorityRow>`
-      SELECT
-        sessions.project_path,
-        session_execution_profiles.authorization_ceiling,
-        session_execution_profiles.profile_json,
-        session_execution_profiles.authority_origin_caller_id,
-        session_execution_profiles.authority_scope_snapshot_json,
-        session_client_profiles.id AS origin_profile_id,
-        session_client_profiles.capabilities_json AS origin_profile_capabilities_json,
-        session_client_profiles.scope_json AS origin_profile_scope_json,
-        session_client_profiles.authorization_ceiling AS origin_profile_authorization_ceiling,
-        session_client_profiles.revoked_at AS origin_profile_revoked_at,
-        session_spawn_lineage.parent_session_id,
-        derived_child_management_grants.id AS derived_grant_id,
-        derived_child_management_grants.capabilities_json,
-        derived_child_management_grants.revoked_at AS derived_grant_revoked_at
-      FROM sessions
-      JOIN session_execution_profiles ON session_execution_profiles.session_id = sessions.id
-      LEFT JOIN session_spawn_lineage ON session_spawn_lineage.child_session_id = sessions.id
-      LEFT JOIN derived_child_management_grants
-        ON derived_child_management_grants.child_session_id = sessions.id
-      LEFT JOIN session_client_profiles
-        ON session_execution_profiles.authority_origin_caller_id =
-          ${'profile:'} || session_client_profiles.id
-      WHERE sessions.id = ${input.sessionId}
-      LIMIT 1
-    `
+    const rows = yield* loadAuthorityRow(sql, input.sessionId)
     const row = assertLiveAuthority(rows[0], input.sessionId)
     const authoritySnapshot = decodeSessionAuthoritySnapshot(row.authority_scope_snapshot_json)
     if (authoritySnapshot) {

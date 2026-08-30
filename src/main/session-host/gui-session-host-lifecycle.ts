@@ -5,6 +5,7 @@ import {
 } from '../application/local-session-command-dispatcher'
 import type { AppServices } from '../runtime'
 import { setGuiAttachedToRemoteSessionHost } from './gui-session-host-state'
+import { withLegacySessionWriterFence } from './legacy-session-writer-fence'
 import { LocalSessionHostUpgradePendingError, probeLocalSessionHost } from './local-session-client'
 import {
   isLocalSessionHostUnavailable,
@@ -13,7 +14,7 @@ import {
 import type { LocalSessionHostRuntime } from './local-session-host-runtime'
 import { prepareLocalSessionHostPaths, resolveLocalSessionHostPaths } from './local-session-paths'
 import { startAppSessionHost } from './session-host-bootstrap'
-import { runSessionHostCutover } from './session-host-cutover'
+import { runSessionHostCutover, sessionHostTargetExists } from './session-host-cutover'
 import {
   startRemoteSessionHostRendererBridge,
   startSessionHostRendererBridge,
@@ -21,6 +22,16 @@ import {
 
 type AppEffectRunner = <A, E>(effect: Effect.Effect<A, E, AppServices>) => Promise<A>
 const OWNED_HOST_RESTART_DELAY_MS = 250
+
+class SessionHostDrainedDuringStartupError extends Error {}
+
+function markSessionHostListening(
+  startupMark: (label: string) => void,
+  mode: 'attached' | 'owned',
+) {
+  startupMark('session-host-listening')
+  return mode
+}
 
 interface StartGuiSessionHostInput {
   readonly runEffect: AppEffectRunner
@@ -33,38 +44,84 @@ export interface GuiSessionHostLifecycle {
   readonly stop: () => Promise<void>
 }
 
+function createOwnedServicesController() {
+  let active = false
+  let startService: (() => Promise<void>) | null = null
+  let stopService: (() => Promise<void>) | null = null
+  return {
+    configure(start: () => Promise<void>, stop: () => Promise<void>) {
+      startService = start
+      stopService = stop
+    },
+    async start() {
+      if (active) return
+      active = true
+      try {
+        await startService?.()
+      } catch (error) {
+        active = false
+        await stopService?.()
+        throw error
+      }
+    },
+    async stop() {
+      if (!active) return
+      active = false
+      await stopService?.()
+    },
+    clear() {
+      startService = null
+      stopService = null
+    },
+  }
+}
+
+async function prepareSessionHostPaths(userDataRoot: string, startupMark: (label: string) => void) {
+  const paths = resolveLocalSessionHostPaths({ userDataRoot })
+  await prepareLocalSessionHostPaths(paths)
+  const cutoverPaths = {
+    sourceDatabasePath: paths.legacyDatabasePath,
+    targetDatabasePath: paths.databasePath,
+    recoveryDatabasePath: paths.recoveryDatabasePath,
+  }
+  const cutover = () => runSessionHostCutover(cutoverPaths)
+  if (await sessionHostTargetExists(cutoverPaths)) await cutover()
+  else await withLegacySessionWriterFence(cutover)
+  startupMark('session-host-cutover-ready')
+  return paths
+}
+
 export async function prepareGuiSessionHostLifecycle(input: {
   readonly userDataRoot: string
   readonly clientVersion: string
   readonly startupMark: (label: string) => void
 }): Promise<GuiSessionHostLifecycle> {
-  const paths = resolveLocalSessionHostPaths({ userDataRoot: input.userDataRoot })
-  await prepareLocalSessionHostPaths(paths)
-  await runSessionHostCutover({
-    sourceDatabasePath: paths.legacyDatabasePath,
-    targetDatabasePath: paths.databasePath,
-    recoveryDatabasePath: paths.recoveryDatabasePath,
-  })
-  input.startupMark('session-host-cutover-ready')
-
+  const paths = await prepareSessionHostPaths(input.userDataRoot, input.startupMark)
   const remoteClient = { paths, clientVersion: input.clientVersion }
   let runtime: LocalSessionHostRuntime | null = null
   let stopRendererBridge: (() => void) | null = null
   let stopping = false
-  let ownedServicesActive = false
-  let stopOwnedServices: (() => Promise<void>) | null = null
+  const ownedServices = createOwnedServicesController()
 
-  const stopOwnedServicesIfActive = async () => {
-    if (!ownedServicesActive) return
-    ownedServicesActive = false
-    await stopOwnedServices?.()
+  const startOwnedRuntime = async (runEffect: AppEffectRunner) => {
+    const ownedRuntime = await startAppSessionHost({
+      paths,
+      runEffect,
+      startOwnedServices: ownedServices.start,
+      stopOwnedServices: ownedServices.stop,
+    })
+    if (ownedRuntime.isStopping()) {
+      await ownedRuntime.waitUntilStopped()
+      throw new SessionHostDrainedDuringStartupError()
+    }
+    return ownedRuntime
   }
 
   const attachToExistingHost = async () => {
     try {
       await probeLocalSessionHost({ ...remoteClient, clientKind: 'gui' })
       if (stopping) return false
-      await stopOwnedServicesIfActive()
+      await ownedServices.stop()
       configureGuiSessionCommandClient(remoteClient)
       stopRendererBridge = startRemoteSessionHostRendererBridge(remoteClient)
       setGuiAttachedToRemoteSessionHost(true)
@@ -96,12 +153,12 @@ export async function prepareGuiSessionHostLifecycle(input: {
       if (retiredForUpgrade) {
         retireGuiSessionCommandClientForUpgrade()
         setGuiAttachedToRemoteSessionHost(false)
-        await stopOwnedServicesIfActive()
+        await ownedServices.stop()
         return
       }
       while (!stopping) {
         try {
-          const recoveredRuntime = await startAppSessionHost({ paths, runEffect })
+          const recoveredRuntime = await startOwnedRuntime(runEffect)
           if (stopping) {
             await recoveredRuntime.stop()
             return
@@ -117,29 +174,33 @@ export async function prepareGuiSessionHostLifecycle(input: {
   }
 
   return {
-    start: async ({ runEffect, startOwnedServices, stopOwnedServices: stopServices }) => {
+    start: async ({
+      runEffect,
+      startOwnedServices: startServices,
+      stopOwnedServices: stopServices,
+    }) => {
       stopping = false
-      stopOwnedServices = stopServices
+      ownedServices.configure(startServices, stopServices)
       if (await attachToExistingHost()) {
-        input.startupMark('session-host-listening')
-        return 'attached'
+        return markSessionHostListening(input.startupMark, 'attached')
       }
-      try {
-        const ownedRuntime = await startAppSessionHost({ paths, runEffect })
-        runtime = ownedRuntime
-        await startOwnedServices()
-        ownedServicesActive = true
-        installOwnedRuntime(ownedRuntime, runEffect)
-      } catch (error) {
-        const failedRuntime = runtime
-        runtime = null
-        await failedRuntime?.stop()
-        if (!(await attachToExistingHost())) throw error
-        input.startupMark('session-host-listening')
-        return 'attached'
+      while (!stopping) {
+        try {
+          const ownedRuntime = await startOwnedRuntime(runEffect)
+          runtime = ownedRuntime
+          installOwnedRuntime(ownedRuntime, runEffect)
+          return markSessionHostListening(input.startupMark, 'owned')
+        } catch (error) {
+          const failedRuntime = runtime
+          runtime = null
+          await failedRuntime?.stop()
+          if (await attachToExistingHost()) {
+            return markSessionHostListening(input.startupMark, 'attached')
+          }
+          if (!(error instanceof SessionHostDrainedDuringStartupError)) throw error
+        }
       }
-      input.startupMark('session-host-listening')
-      return 'owned'
+      throw new Error('GUI Session Host startup was stopped.')
     },
     stop: async () => {
       stopping = true
@@ -149,8 +210,8 @@ export async function prepareGuiSessionHostLifecycle(input: {
       setGuiAttachedToRemoteSessionHost(false)
       await runtime?.stop()
       runtime = null
-      await stopOwnedServicesIfActive()
-      stopOwnedServices = null
+      await ownedServices.stop()
+      ownedServices.clear()
     },
   }
 }

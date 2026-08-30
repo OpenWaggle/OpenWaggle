@@ -59,47 +59,81 @@ function reservedQueueMutationRejection(
   )
 }
 
+function replayExistingOperation(input: {
+  readonly existing: SessionOperationRow
+  readonly requestJson: string
+  readonly operation: string
+  readonly targetScope: string
+  readonly idempotencyKey: string
+}) {
+  if (input.existing.request_json !== input.requestJson) {
+    return Effect.fail(
+      repositoryError('idempotency-key-reused', {
+        operation: input.operation,
+        targetScope: input.targetScope,
+        idempotencyKey: input.idempotencyKey,
+      }),
+    )
+  }
+  return Effect.try({
+    try: () => {
+      if (input.existing.status !== 'completed' || input.existing.outcome_json === null) {
+        throw new Error('A synchronous mutation cannot replay a pending operation.')
+      }
+      return {
+        replayed: true,
+        outcome: decodeSessionControlMutationOutcome(parseJsonUnknown(input.existing.outcome_json)),
+      } as const
+    },
+    catch: (cause) => repositoryError('decode-idempotent-outcome', cause),
+  })
+}
+
+function loadExistingOperation(
+  sql: SqlClient.SqlClient,
+  input: {
+    readonly callerId: string
+    readonly operation: string
+    readonly targetScope: string
+    readonly idempotencyKey: string
+  },
+) {
+  return sql<SessionOperationRow>`
+    SELECT request_json, status, outcome_json
+    FROM session_operations
+    WHERE caller_id = ${input.callerId}
+      AND operation = ${input.operation}
+      AND target_scope = ${input.targetScope}
+      AND idempotency_key = ${input.idempotencyKey}
+    LIMIT 1
+  `
+}
+
 function executeMutation(
   sql: SqlClient.SqlClient,
   input: Parameters<SessionControlRepositoryShape['executeMutation']>[0],
 ) {
-  const operation = input.request.command.operation
-  const targetScope = input.request.command.sessionId
+  const { operation, sessionId: targetScope } = input.request.command
   const requestJson = canonicalJson(input.request.command)
 
   return sql
     .withTransaction(
       Effect.gen(function* () {
-        const existingRows = yield* sql<SessionOperationRow>`
-        SELECT request_json, status, outcome_json
-        FROM session_operations
-        WHERE caller_id = ${input.callerId}
-          AND operation = ${operation}
-          AND target_scope = ${targetScope}
-          AND idempotency_key = ${input.request.idempotencyKey}
-        LIMIT 1
-      `
+        const existingRows = yield* loadExistingOperation(sql, {
+          callerId: input.callerId,
+          operation,
+          targetScope,
+          idempotencyKey: input.request.idempotencyKey,
+        })
         const existing = existingRows[0]
         if (existing) {
-          if (existing.request_json !== requestJson) {
-            return yield* Effect.fail(
-              repositoryError('idempotency-key-reused', {
-                operation,
-                targetScope,
-                idempotencyKey: input.request.idempotencyKey,
-              }),
-            )
-          }
-          const outcome = yield* Effect.try({
-            try: () => {
-              if (existing.status !== 'completed' || existing.outcome_json === null) {
-                throw new Error('A synchronous mutation cannot replay a pending operation.')
-              }
-              return decodeSessionControlMutationOutcome(parseJsonUnknown(existing.outcome_json))
-            },
-            catch: (cause) => repositoryError('decode-idempotent-outcome', cause),
+          return yield* replayExistingOperation({
+            existing,
+            requestJson,
+            operation,
+            targetScope,
+            idempotencyKey: input.request.idempotencyKey,
           })
-          return { replayed: true, outcome }
         }
 
         const loadedState = yield* loadSessionControlState(sql, targetScope)

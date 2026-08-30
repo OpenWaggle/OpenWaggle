@@ -160,37 +160,47 @@ async function consumeSubscription(
 ): Promise<LocalSessionWatchResult> {
   while (!input.signal?.aborted) {
     const frame = await reader.next()
-    if (!isRecord(frame) || typeof frame.kind !== 'string') {
-      throw new Error('Local Session Host returned an invalid event frame.')
-    }
-    if (frame.kind === 'event' && frame.subscriptionId === subscriptionId) {
-      if (!isSessionHostEventEnvelope(frame.event)) {
-        throw new Error('Local Session Host returned an invalid event.')
-      }
-      await input.onEvent(frame.event)
-      continue
-    }
-    if (frame.kind === 'cursor-advanced' && frame.subscriptionId === subscriptionId) {
-      if (
-        !isRecord(frame.cursor) ||
-        typeof frame.cursor.hostInstanceId !== 'string' ||
-        typeof frame.cursor.sequence !== 'number'
-      ) {
-        throw new Error('Local Session Host returned an invalid cursor advancement.')
-      }
-      await input.onCursor?.({
-        hostInstanceId: frame.cursor.hostInstanceId,
-        sequence: frame.cursor.sequence,
-      })
-      continue
-    }
-    if (frame.kind === 'resync-required') return decodeResyncRequired(frame)
-    if (frame.kind === 'subscription-closed') return { status: 'closed' }
-    if (frame.kind === 'error') {
-      throw new Error(typeof frame.message === 'string' ? frame.message : 'Subscription failed.')
-    }
+    const result = await consumeSubscriptionFrame(frame, subscriptionId, input)
+    if (result) return result
   }
   return { status: 'closed' }
+}
+
+async function consumeSubscriptionFrame(
+  frame: unknown,
+  subscriptionId: string,
+  input: LocalSessionWatchInput,
+): Promise<LocalSessionWatchResult | undefined> {
+  if (!isRecord(frame) || typeof frame.kind !== 'string') {
+    throw new Error('Local Session Host returned an invalid event frame.')
+  }
+  if (frame.kind === 'event' && frame.subscriptionId === subscriptionId) {
+    if (!isSessionHostEventEnvelope(frame.event)) {
+      throw new Error('Local Session Host returned an invalid event.')
+    }
+    await input.onEvent(frame.event)
+    return
+  }
+  if (frame.kind === 'cursor-advanced' && frame.subscriptionId === subscriptionId) {
+    await consumeCursorAdvancement(frame.cursor, input)
+    return
+  }
+  if (frame.kind === 'resync-required') return decodeResyncRequired(frame)
+  if (frame.kind === 'subscription-closed') return { status: 'closed' }
+  if (frame.kind === 'error') {
+    throw new Error(typeof frame.message === 'string' ? frame.message : 'Subscription failed.')
+  }
+}
+
+async function consumeCursorAdvancement(cursor: unknown, input: LocalSessionWatchInput) {
+  if (
+    !isRecord(cursor) ||
+    typeof cursor.hostInstanceId !== 'string' ||
+    typeof cursor.sequence !== 'number'
+  ) {
+    throw new Error('Local Session Host returned an invalid cursor advancement.')
+  }
+  await input.onCursor?.({ hostInstanceId: cursor.hostInstanceId, sequence: cursor.sequence })
 }
 
 export async function watchLocalSessionEvents(

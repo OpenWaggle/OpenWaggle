@@ -48,6 +48,10 @@ async function exists(targetPath: string) {
   }
 }
 
+export function sessionHostTargetExists(paths: SessionHostCutoverPaths) {
+  return exists(paths.targetDatabasePath)
+}
+
 function applyTargetSchema(database: DatabaseSync) {
   for (const statement of SESSION_HOST_TARGET_SCHEMA_STATEMENTS) database.exec(statement)
 }

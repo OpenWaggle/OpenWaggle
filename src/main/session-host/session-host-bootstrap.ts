@@ -28,6 +28,8 @@ const logger = createLogger('session-host/bootstrap')
 export async function startAppSessionHost(input: {
   readonly paths: LocalSessionHostPaths
   readonly runEffect: AppEffectRunner
+  readonly startOwnedServices: () => Promise<void>
+  readonly stopOwnedServices: () => Promise<void>
 }) {
   const localUserCredential = await ensureLocalUserCredential(input.paths.credentialPath)
   const settings = await input.runEffect(
@@ -86,6 +88,8 @@ export async function startAppSessionHost(input: {
         }),
       ),
     describeUpgradeBlockers: async () => readSessionHostUpgradeBlockers(input.paths.databasePath),
+    startOwnedServices: input.startOwnedServices,
+    stopOwnedServices: input.stopOwnedServices,
     dispatch: async ({ caller, negotiatedRevision, eventCursor, payload, signal }) => {
       void negotiatedRevision
       const result = await input.runEffect(

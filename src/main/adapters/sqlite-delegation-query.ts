@@ -3,6 +3,7 @@ import type { LocalSessionProfileAuthority } from '@shared/types/local-session-p
 import type { DelegationState } from '@shared/types/session-collaboration'
 import type { SessionQueryRequest } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
+import { delegationListResponse } from './sqlite-delegation-list-response'
 import { delegationReadResponse } from './sqlite-delegation-query-response'
 import type {
   AmendmentProposalRow,
@@ -20,11 +21,9 @@ import type {
   VerificationEvidenceRow,
   VerificationRow,
 } from './sqlite-delegation-query-rows'
-import { delegationSummary } from './sqlite-delegation-query-summary'
 import {
   authorizedSessionScope,
   decodeSessionQueryCursor,
-  encodeSessionQueryCursor,
   invalidSessionQueryCursor,
   sessionQueryResponse,
 } from './sqlite-session-query-support'
@@ -108,84 +107,12 @@ export function listDelegations(
   })
 }
 
-function delegationListResponse(
-  request: DelegationsListRequest,
-  rows: readonly DelegationSummaryRow[],
-) {
-  const page = rows.slice(0, request.query.limit)
-  const last = page.at(-1)
-  return sessionQueryResponse(request, {
-    operation: 'delegations-list',
-    delegations: page.map(delegationSummary),
-    ...(rows.length > request.query.limit && last
-      ? {
-          nextCursor: encodeSessionQueryCursor({
-            updatedAt: last.updated_at,
-            delegationId: last.delegation_id,
-          }),
-        }
-      : {}),
-  })
-}
-
-function readDelegationRows(
+function readDelegationCoordinationRows(
   sql: SqlClient.SqlClient,
-  authority: LocalSessionProfileAuthority | undefined,
+  allowed: ReturnType<typeof authorizedSessionScope>,
   delegationId: string,
 ) {
-  const allowed = authorizedSessionScope(authority)
   return Effect.gen(function* () {
-    const delegations = yield* sql<DelegationSummaryRow>`
-      SELECT contracts.id AS delegation_id,
-        contracts.parent_session_id,
-        contracts.child_session_id AS worker_session_id,
-        contracts.state,
-        current_specification.specification_json,
-        contracts.current_specification_revision,
-        COALESCE(MAX(submissions.revision), 0) AS latest_submission_revision,
-        contracts.created_at,
-        contracts.updated_at
-      FROM delegation_contracts AS contracts
-      JOIN delegation_specifications AS current_specification
-        ON current_specification.delegation_id = contracts.id
-        AND current_specification.revision = contracts.current_specification_revision
-      LEFT JOIN delegation_submissions AS submissions ON submissions.delegation_id = contracts.id
-      WHERE contracts.id = ${delegationId}
-      GROUP BY contracts.id
-      LIMIT 1
-    `
-    if (!delegations[0]) return undefined
-    const specifications = yield* sql<SpecificationRow>`
-      SELECT revision, specification_json, authored_by, reason, created_at
-      FROM delegation_specifications WHERE delegation_id = ${delegationId}
-      ORDER BY revision
-    `
-    const submissions = yield* sql<SubmissionRow>`
-      SELECT revision, specification_revision, summary, submitted_by,
-        source_run_id, provenance, created_at
-      FROM delegation_submissions WHERE delegation_id = ${delegationId}
-      ORDER BY revision
-    `
-    const evidence = yield* sql<EvidenceRow>`
-      SELECT submission_revision, kind, summary, reference, provenance_json
-      FROM delegation_evidence WHERE delegation_id = ${delegationId}
-      ORDER BY submission_revision, ordinal
-    `
-    const reviews = yield* sql<ReviewRow>`
-      SELECT submission_revision, decision, feedback, reviewer_session_id,
-        reviewed_by, specification_revision, created_at
-      FROM delegation_reviews WHERE delegation_id = ${delegationId}
-      ORDER BY created_at, id
-    `
-    const dependencies = yield* sql<DependencyRow>`
-      SELECT dependencies.dependency_delegation_id AS delegation_id,
-        dependencies.required_state,
-        required.state AS current_state
-      FROM delegation_dependencies AS dependencies
-      JOIN delegation_contracts AS required ON required.id = dependencies.dependency_delegation_id
-      WHERE dependencies.delegation_id = ${delegationId}
-      ORDER BY dependencies.dependency_delegation_id
-    `
     const transitions = yield* sql<TransitionRow>`
       SELECT from_state, to_state, reason, actor_session_id, authored_by, created_at
       FROM delegation_state_transitions WHERE delegation_id = ${delegationId}
@@ -259,12 +186,6 @@ function readDelegationRows(
       ORDER BY evidence.verification_id, evidence.ordinal
     `
     return {
-      delegation: delegations[0],
-      specifications,
-      submissions,
-      evidence,
-      reviews,
-      dependencies,
       transitions,
       claimRevisions,
       claims,
@@ -273,6 +194,77 @@ function readDelegationRows(
       amendmentProposals,
       verifications,
       verificationEvidence,
+    }
+  })
+}
+
+function readDelegationRows(
+  sql: SqlClient.SqlClient,
+  authority: LocalSessionProfileAuthority | undefined,
+  delegationId: string,
+) {
+  const allowed = authorizedSessionScope(authority)
+  return Effect.gen(function* () {
+    const delegations = yield* sql<DelegationSummaryRow>`
+      SELECT contracts.id AS delegation_id,
+        contracts.parent_session_id,
+        contracts.child_session_id AS worker_session_id,
+        contracts.state,
+        current_specification.specification_json,
+        contracts.current_specification_revision,
+        COALESCE(MAX(submissions.revision), 0) AS latest_submission_revision,
+        contracts.created_at,
+        contracts.updated_at
+      FROM delegation_contracts AS contracts
+      JOIN delegation_specifications AS current_specification
+        ON current_specification.delegation_id = contracts.id
+        AND current_specification.revision = contracts.current_specification_revision
+      LEFT JOIN delegation_submissions AS submissions ON submissions.delegation_id = contracts.id
+      WHERE contracts.id = ${delegationId}
+      GROUP BY contracts.id
+      LIMIT 1
+    `
+    if (!delegations[0]) return undefined
+    const specifications = yield* sql<SpecificationRow>`
+      SELECT revision, specification_json, authored_by, reason, created_at
+      FROM delegation_specifications WHERE delegation_id = ${delegationId}
+      ORDER BY revision
+    `
+    const submissions = yield* sql<SubmissionRow>`
+      SELECT revision, specification_revision, summary, submitted_by,
+        source_run_id, provenance, created_at
+      FROM delegation_submissions WHERE delegation_id = ${delegationId}
+      ORDER BY revision
+    `
+    const evidence = yield* sql<EvidenceRow>`
+      SELECT submission_revision, kind, summary, reference, provenance_json
+      FROM delegation_evidence WHERE delegation_id = ${delegationId}
+      ORDER BY submission_revision, ordinal
+    `
+    const reviews = yield* sql<ReviewRow>`
+      SELECT submission_revision, decision, feedback, reviewer_session_id,
+        reviewed_by, specification_revision, created_at
+      FROM delegation_reviews WHERE delegation_id = ${delegationId}
+      ORDER BY created_at, id
+    `
+    const dependencies = yield* sql<DependencyRow>`
+      SELECT dependencies.dependency_delegation_id AS delegation_id,
+        dependencies.required_state,
+        required.state AS current_state
+      FROM delegation_dependencies AS dependencies
+      JOIN delegation_contracts AS required ON required.id = dependencies.dependency_delegation_id
+      WHERE dependencies.delegation_id = ${delegationId}
+      ORDER BY dependencies.dependency_delegation_id
+    `
+    const coordination = yield* readDelegationCoordinationRows(sql, allowed, delegationId)
+    return {
+      delegation: delegations[0],
+      specifications,
+      submissions,
+      evidence,
+      reviews,
+      dependencies,
+      ...coordination,
     }
   })
 }

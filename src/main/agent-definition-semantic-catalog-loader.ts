@@ -1,21 +1,9 @@
 import { randomUUID } from 'node:crypto'
-import type { AgentSessionServices } from '@earendil-works/pi-coding-agent'
 import * as Effect from 'effect/Effect'
 import { createFilesystemMcpConfigService } from './adapters/mcp/service-factory'
-import {
-  getRuntimeEnabledPackagesPiResourceRoots,
-  listRuntimeEnabledPackages,
-  type OpenWagglePiExtensionSelectionServices,
-} from './adapters/pi/openwaggle-pi-extension-selection'
-import { recordRuntimeLoadFailure } from './adapters/pi/openwaggle-pi-runtime-failure-recording'
-import { createPiRuntimeServices } from './adapters/pi/pi-provider-catalog'
-import {
-  getPiRuntimeExtensionLoadErrors,
-  rejectMatchingOpenWaggleExtensionLoadErrors,
-} from './adapters/pi/pi-runtime-extension-load-errors'
+import { loadAgentDefinitionPiProjectServices } from './adapters/pi/agent-definition-semantic-catalog-services'
+import type { OpenWagglePiExtensionSelectionServices } from './adapters/pi/openwaggle-pi-extension-selection'
 import type { AgentDefinitionSemanticCatalog } from './agents/agent-definition-semantic-validation'
-import { loadWithRuntimeFailureIsolation } from './extensions/runtime-load-isolation'
-import { createLogger } from './logger'
 import { ExtensionLifecycleRepository } from './ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from './ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from './ports/extension-project-overrides-repository'
@@ -40,8 +28,6 @@ export interface LoadAgentDefinitionSemanticCatalogInput {
   readonly extensionSelectionServices?: OpenWagglePiExtensionSelectionServices
 }
 
-const logger = createLogger('agent-definition-semantic-catalog')
-
 function message(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }
@@ -59,51 +45,6 @@ async function loadDefaultExtensionSelectionServices() {
   )
 }
 
-async function loadPiProjectServices(
-  projectPath: string,
-  extensionSelectionServices: OpenWagglePiExtensionSelectionServices,
-): Promise<AgentSessionServices> {
-  const enabledPackages = await Effect.runPromise(
-    listRuntimeEnabledPackages(projectPath, extensionSelectionServices).pipe(
-      Effect.catchAll((error) =>
-        Effect.sync(() => {
-          logger.warn('Failed to resolve OpenWaggle extension runtime allowlist', {
-            projectPath,
-            error: message(error),
-          })
-          return []
-        }),
-      ),
-    ),
-  )
-
-  return loadWithRuntimeFailureIsolation({
-    selections: enabledPackages,
-    load: async (enabledOpenWaggleExtensionPackagePaths) => {
-      const services = await createPiRuntimeServices(projectPath, {
-        enabledOpenWaggleExtensionPackagePaths,
-        enabledOpenWaggleExtensionResourceRoots: getRuntimeEnabledPackagesPiResourceRoots(
-          enabledPackages,
-          enabledOpenWaggleExtensionPackagePaths,
-        ),
-      })
-      return rejectMatchingOpenWaggleExtensionLoadErrors({
-        result: services,
-        errors: getPiRuntimeExtensionLoadErrors(services),
-        enabledOpenWaggleExtensionPackagePaths,
-      })
-    },
-    recordFailure: (selection, error) =>
-      recordRuntimeLoadFailure({
-        selection,
-        error,
-        extensionSelectionServices,
-        logger,
-        operation: 'Agent definition semantic catalog',
-      }),
-  })
-}
-
 export async function loadAgentDefinitionSemanticCatalog(
   input: LoadAgentDefinitionSemanticCatalogInput,
 ): Promise<AgentDefinitionSemanticCatalog> {
@@ -116,7 +57,10 @@ export async function loadAgentDefinitionSemanticCatalog(
   try {
     const extensionSelectionServices =
       input.extensionSelectionServices ?? (await loadDefaultExtensionSelectionServices())
-    const services = await loadPiProjectServices(input.projectPath, extensionSelectionServices)
+    const services = await loadAgentDefinitionPiProjectServices(
+      input.projectPath,
+      extensionSelectionServices,
+    )
     models = services.modelRuntime.getModels().map((model) => `${model.provider}/${model.id}`)
     skills = services.resourceLoader.getSkills().skills.map((skill) => skill.name)
     const extensionTools = services.resourceLoader

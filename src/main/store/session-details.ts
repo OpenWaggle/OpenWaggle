@@ -21,7 +21,6 @@ export {
   getBoundWorkspaceResource,
   listSessionWorktreeRefs,
   setSessionAuthorizationMode,
-  setSessionWorktree,
   setSessionWorktreePlan,
   unarchiveSession,
   updateSessionRuntime,
@@ -35,6 +34,10 @@ export {
   listSessionDetails,
   listSessionSummaries,
 } from './session-details/session-queries'
+export {
+  setSessionWorktree,
+  validateSessionWorktreeBirthAuthority,
+} from './session-details/session-worktree-authority'
 export type {
   CreateSessionInput,
   SessionNodeRow,

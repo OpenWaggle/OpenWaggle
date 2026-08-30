@@ -38,6 +38,10 @@ function publishReadiness(projection: SqliteSessionSemanticProjection) {
   )
 }
 
+function hostIsDraining() {
+  return getSessionHostEventRuntime().liveness.isDraining()
+}
+
 function projectionLoop(projection: SqliteSessionSemanticProjection): Effect.Effect<void> {
   return Effect.gen(function* () {
     const sourceRevision = currentSemanticDiscoverySourceRevision()
@@ -56,14 +60,18 @@ function projectionLoop(projection: SqliteSessionSemanticProjection): Effect.Eff
     }
   }).pipe(
     Effect.catchAll((error) =>
-      Effect.gen(function* () {
-        logger.warn('Semantic Session discovery preparation failed', { error: String(error) })
-        const recorded = yield* projection
-          .recordFailure(error instanceof Error ? error.message : String(error))
-          .pipe(Effect.match({ onFailure: () => false, onSuccess: () => true }))
-        if (recorded) yield* publishReadiness(projection).pipe(Effect.catchAll(() => Effect.void))
-        yield* Effect.sleep(FAILURE_RETRY_INTERVAL)
-      }),
+      hostIsDraining()
+        ? Effect.never
+        : Effect.gen(function* () {
+            logger.warn('Semantic Session discovery preparation failed', { error: String(error) })
+            const recorded = yield* projection
+              .recordFailure(error instanceof Error ? error.message : String(error))
+              .pipe(Effect.match({ onFailure: () => false, onSuccess: () => true }))
+            if (recorded) {
+              yield* publishReadiness(projection).pipe(Effect.catchAll(() => Effect.void))
+            }
+            yield* Effect.sleep(FAILURE_RETRY_INTERVAL)
+          }),
     ),
     Effect.flatMap(() => projectionLoop(projection)),
   )
@@ -88,13 +96,15 @@ function transcriptProjectionLoop(
     }
   }).pipe(
     Effect.catchAll((error) =>
-      Effect.gen(function* () {
-        logger.warn('Semantic transcript preparation failed', { error: String(error) })
-        yield* projection
-          .recordFailure(error instanceof Error ? error.message : String(error))
-          .pipe(Effect.catchAll(() => Effect.void))
-        yield* Effect.sleep(FAILURE_RETRY_INTERVAL)
-      }),
+      hostIsDraining()
+        ? Effect.never
+        : Effect.gen(function* () {
+            logger.warn('Semantic transcript preparation failed', { error: String(error) })
+            yield* projection
+              .recordFailure(error instanceof Error ? error.message : String(error))
+              .pipe(Effect.catchAll(() => Effect.void))
+            yield* Effect.sleep(FAILURE_RETRY_INTERVAL)
+          }),
     ),
     Effect.flatMap(() => transcriptProjectionLoop(projection)),
   )

@@ -3,6 +3,7 @@ import { decodeLocalSessionProfileUiCommand } from '@shared/schemas/local-sessio
 import {
   LOCAL_SESSION_PROFILE_MANAGEMENT_CONTRACT_VERSION,
   type LocalSessionProfileManagementCommand,
+  type LocalSessionProfileManagementResponse,
   type LocalSessionProfileUiCommand,
 } from '@shared/types/local-session-profile-management'
 import * as Effect from 'effect/Effect'
@@ -32,35 +33,89 @@ function managementCommand(
   return command
 }
 
+type StagedProfileCredential = Awaited<ReturnType<typeof stageProfileCredential>>
+
+function generateCommandCredential(command: LocalSessionProfileUiCommand) {
+  return command.operation === 'create' || command.operation === 'rotate'
+    ? generateProfileCredential()
+    : undefined
+}
+
+function commandProfileName(command: LocalSessionProfileUiCommand) {
+  if (command.operation === 'create') return command.name
+  return 'profileName' in command ? command.profileName : undefined
+}
+
+function stageCommandCredential(input: {
+  readonly command: LocalSessionProfileUiCommand
+  readonly credential: string | undefined
+  readonly profileName: string | undefined
+  readonly stateRoot: string
+  readonly idempotencyKey: string
+}) {
+  if (!input.credential || !input.profileName) {
+    return Effect.succeed<StagedProfileCredential | undefined>(undefined)
+  }
+  const { credential, profileName } = input
+  return Effect.tryPromise({
+    try: () =>
+      stageProfileCredential({
+        destination: { kind: 'credential-store', stateRoot: input.stateRoot },
+        profileName,
+        credential,
+        replace: input.command.operation === 'rotate',
+        stagingKey: input.idempotencyKey,
+        recoverAnyPending: true,
+      }),
+    catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
+  })
+}
+
+function settleProfileCredential(input: {
+  readonly response: LocalSessionProfileManagementResponse
+  readonly staged: StagedProfileCredential | undefined
+  readonly stateRoot: string
+}) {
+  return Effect.gen(function* () {
+    const staged = input.staged
+    if (input.response.outcome.effect === 'rejected') {
+      if (staged) yield* Effect.promise(() => staged.discard())
+      return
+    }
+    if (staged) yield* Effect.promise(() => staged.commit())
+    if (input.response.outcome.effect === 'profile-revoked') {
+      const revokedProfileName = input.response.outcome.profile.name
+      yield* Effect.promise(() =>
+        removeStoredProfileCredential({
+          stateRoot: input.stateRoot,
+          profileName: revokedProfileName,
+        }),
+      )
+    }
+    if (
+      input.response.outcome.effect === 'profile-revoked' ||
+      input.response.outcome.effect === 'profile-rotated'
+    ) {
+      disconnectLocalSessionProfile(input.response.outcome.profile.id)
+    }
+  })
+}
+
 export function registerProfileAccessHandlers() {
   typedHandle('access-profiles:manage', (_event, rawCommand) =>
     Effect.gen(function* () {
       const command = decodeLocalSessionProfileUiCommand(rawCommand)
-      const createsCredential = command.operation === 'create' || command.operation === 'rotate'
-      const credential = createsCredential ? generateProfileCredential() : undefined
+      const credential = generateCommandCredential(command)
       const idempotencyKey = randomUUID()
-      const profileName =
-        command.operation === 'create'
-          ? command.name
-          : 'profileName' in command
-            ? command.profileName
-            : undefined
+      const profileName = commandProfileName(command)
       const paths = resolveLocalSessionHostPaths({ userDataRoot: app.getPath('userData') })
-      const staged =
-        credential && profileName
-          ? yield* Effect.tryPromise({
-              try: () =>
-                stageProfileCredential({
-                  destination: { kind: 'credential-store', stateRoot: paths.stateRoot },
-                  profileName,
-                  credential,
-                  replace: command.operation === 'rotate',
-                  stagingKey: idempotencyKey,
-                  recoverAnyPending: true,
-                }),
-              catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
-            })
-          : undefined
+      const staged = yield* stageCommandCredential({
+        command,
+        credential,
+        profileName,
+        stateRoot: paths.stateRoot,
+        idempotencyKey,
+      })
       const response = yield* manageLocalSessionProfiles({
         caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
         request: {
@@ -75,27 +130,7 @@ export function registerProfileAccessHandlers() {
           staged ? Effect.promise(() => staged.discard()).pipe(Effect.asVoid) : Effect.void,
         ),
       )
-      if (response.outcome.effect === 'rejected') {
-        if (staged) yield* Effect.promise(() => staged.discard())
-        return response
-      }
-      if (staged) yield* Effect.promise(() => staged.commit())
-      const revokedProfileName =
-        response.outcome.effect === 'profile-revoked' ? response.outcome.profile.name : undefined
-      if (revokedProfileName) {
-        yield* Effect.promise(() =>
-          removeStoredProfileCredential({
-            stateRoot: paths.stateRoot,
-            profileName: revokedProfileName,
-          }),
-        )
-      }
-      if (
-        response.outcome.effect === 'profile-revoked' ||
-        response.outcome.effect === 'profile-rotated'
-      ) {
-        disconnectLocalSessionProfile(response.outcome.profile.id)
-      }
+      yield* settleProfileCredential({ response, staged, stateRoot: paths.stateRoot })
       return response
     }),
   )

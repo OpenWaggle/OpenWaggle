@@ -18,6 +18,7 @@ import {
 } from '../../git/workspace-handoff-snapshot'
 import { createGitWorktree } from '../../git/worktree'
 import { requireSessionProjectPath } from './session-manager'
+import { validateWorkspaceBirthAuthority } from './session-worktree-birth-authority'
 
 const logger = createLogger('session-worktree-birth')
 
@@ -262,6 +263,7 @@ async function ensureSessionWorktreeProjectPathUnlocked(
   const recordedPath = session.worktreePath?.trim()
   const existing =
     recordedPath || (workspace.lifecycleState === 'ready' ? workspace.workingPath.trim() : '')
+  if (existing) await validateWorkspaceBirthAuthority(session, workspace, existing)
   const recovered = await recoverRecordedWorktree({
     session,
     workspace,
@@ -276,6 +278,8 @@ async function ensureSessionWorktreeProjectPathUnlocked(
   const worktreePath = workspace.workingPath.startsWith('pending://')
     ? resolveWorkspaceWorktreePath(primaryPath, workspace.id)
     : workspace.workingPath
+
+  await validateWorkspaceBirthAuthority(session, workspace, worktreePath)
 
   const adopted = await adoptDeterministicWorktree({
     sessionId,

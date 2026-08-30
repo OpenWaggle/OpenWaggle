@@ -9,6 +9,40 @@ function canonicalSet(values: readonly string[] | undefined) {
   return values ? [...new Set(values)].sort() : undefined
 }
 
+function stableTransientScope(
+  scope: NonNullable<LocalSessionClientHello['transientAuthority']>['scope'],
+) {
+  const workspaceRoots = canonicalSet(scope.workspaceRoots)
+  const exportRoots = canonicalSet(scope.exportRoots)
+  const attachmentRoots = canonicalSet(scope.attachmentRoots)
+  const sessionIds = canonicalSet(scope.sessionIds)
+  const hiveRootSessionIds = canonicalSet(scope.hiveRootSessionIds)
+  return {
+    ...(workspaceRoots ? { workspaceRoots } : {}),
+    ...(exportRoots ? { exportRoots } : {}),
+    ...(attachmentRoots ? { attachmentRoots } : {}),
+    ...(sessionIds ? { sessionIds } : {}),
+    ...(hiveRootSessionIds ? { hiveRootSessionIds } : {}),
+  }
+}
+
+function transientAuthorityDigest(
+  authority: NonNullable<LocalSessionClientHello['transientAuthority']>,
+) {
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        profileId: authority.profileId,
+        profileName: authority.profileName,
+        capabilities: canonicalSet(authority.capabilities),
+        scope: stableTransientScope(authority.scope),
+        authorizationCeiling: authority.authorizationCeiling,
+      }),
+    )
+    .digest('hex')
+    .slice(0, MACHINE_IDENTITY_CHARACTERS)
+}
+
 export interface LocalSessionNamedProfileAuthenticator {
   readonly authenticate: (input: {
     readonly profile: string
@@ -33,32 +67,8 @@ function authenticateTransientMcpAuthority(
   ) {
     throw new Error('Transient MCP authority requires an explicit workspace or Session scope.')
   }
-  const workspaceRoots = canonicalSet(scope.workspaceRoots)
-  const exportRoots = canonicalSet(scope.exportRoots)
-  const attachmentRoots = canonicalSet(scope.attachmentRoots)
-  const sessionIds = canonicalSet(scope.sessionIds)
-  const hiveRootSessionIds = canonicalSet(scope.hiveRootSessionIds)
-  const stableScope = {
-    ...(workspaceRoots ? { workspaceRoots } : {}),
-    ...(exportRoots ? { exportRoots } : {}),
-    ...(attachmentRoots ? { attachmentRoots } : {}),
-    ...(sessionIds ? { sessionIds } : {}),
-    ...(hiveRootSessionIds ? { hiveRootSessionIds } : {}),
-  }
-  const authorityDigest = createHash('sha256')
-    .update(
-      JSON.stringify({
-        profileId: authority.profileId,
-        profileName: authority.profileName,
-        capabilities: canonicalSet(authority.capabilities),
-        scope: stableScope,
-        authorizationCeiling: authority.authorizationCeiling,
-      }),
-    )
-    .digest('hex')
-    .slice(0, MACHINE_IDENTITY_CHARACTERS)
   return {
-    callerId: `transient-mcp:${authorityDigest}`,
+    callerId: `transient-mcp:${transientAuthorityDigest(authority)}`,
     ...(hello.workingDirectory ? { workingDirectory: hello.workingDirectory } : {}),
     profileAuthority: authority,
     baseProfileScope: scope,

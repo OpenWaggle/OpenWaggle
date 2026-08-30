@@ -1,28 +1,14 @@
-import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
-import { parseJsonUnknown } from '@shared/schema'
-import {
-  decodeLocalSessionProfileCapabilities,
-  decodeLocalSessionProfileScope,
-} from '@shared/schemas/local-session-profile'
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import type {
   SessionControlMutationResponse,
   SessionExportCreateMutationRequest,
 } from '@shared/types/session-control'
-import type { SessionExportManifest } from '@shared/types/session-export'
 import type {
   SessionExportOperationStatus,
   SessionExportProgress,
 } from '@shared/types/session-export-operation'
-import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
-import { liveSessionAuthorityBlockReason } from '../adapters/sqlite-session-live-authority'
-import {
-  authorizeSessionCapabilities,
-  authorizeSessionTarget,
-  requiredSessionControlCapabilities,
-} from '../domain/session-control/session-capability-authorization'
 import { createLogger } from '../logger'
 import { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
 import type {
@@ -36,18 +22,16 @@ import {
   type SessionExportOperationRepositoryShape,
 } from '../ports/session-export-operation-repository'
 import { SessionExportResourceResolver } from '../ports/session-export-resource-resolver'
-import {
-  SessionQueryRepository,
-  type SessionQueryRepositoryShape,
-} from '../ports/session-query-repository'
+import { SessionQueryRepository } from '../ports/session-query-repository'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { assertCanonicalDirectoryRoots } from '../utils/canonical-directory-roots'
 import { assertFilesystemReadDirectoryScope } from '../utils/filesystem-read-directory-scope'
 import { prepareDurableExportInstallation } from './session-export-artifact-installation'
+import { ensureLiveExportAuthority } from './session-export-live-authority'
+import { checkExportCancellation, readExportPage } from './session-export-query'
 import { forkSupervisedSessionExport } from './session-export-supervision'
 import { acquireSessionHostRunLease, type SessionHostRunLease } from './session-host-run-admission'
 
-const EXPORT_PAGE_LIMIT = 500
 const logger = createLogger('session-export/operation')
 
 function publishExportChange(
@@ -69,185 +53,6 @@ function describeExportError(error: unknown) {
     code: 'export_failed',
     message: error instanceof Error ? error.message : String(error),
   }
-}
-
-function exportQuery(
-  operation: SessionExportOperationRecord,
-  manifest: SessionExportManifest | undefined,
-  afterCreatedOrder: number | undefined,
-) {
-  return {
-    contractVersion: SESSION_QUERY_CONTRACT_VERSION,
-    requestId: `${operation.exportOperationId}:${afterCreatedOrder ?? 'first'}`,
-    query: {
-      operation: 'export' as const,
-      sessionId: operation.sessionId,
-      limit: EXPORT_PAGE_LIMIT,
-      branchScope: operation.branchScope,
-      ...(operation.branchId
-        ? { branchId: operation.branchId }
-        : manifest?.selectedBranchId
-          ? { branchId: manifest.selectedBranchId }
-          : {}),
-      ...(operation.includeQueueBodies ? { includeQueueBodies: true } : {}),
-      ...(afterCreatedOrder === undefined ? {} : { afterCreatedOrder }),
-      ...(manifest
-        ? {
-            throughCreatedOrder: manifest.snapshot.nodeHighWaterMark,
-            snapshotStateRevision: manifest.snapshot.stateRevision,
-            capturedAt: manifest.snapshot.capturedAt,
-          }
-        : {}),
-    },
-  }
-}
-
-function readExportPage(
-  repository: SessionQueryRepositoryShape,
-  operation: SessionExportOperationRecord,
-  manifest: SessionExportManifest | undefined,
-  afterCreatedOrder: number | undefined,
-) {
-  return repository.execute({ request: exportQuery(operation, manifest, afterCreatedOrder) }).pipe(
-    Effect.flatMap((response) => {
-      const outcome = response.outcome
-      if (outcome.operation !== 'export' || 'error' in outcome) {
-        const message = 'error' in outcome ? outcome.error.message : 'Invalid export response.'
-        return Effect.fail(new Error(message))
-      }
-      return Effect.succeed(outcome)
-    }),
-  )
-}
-
-function checkCancellation(repository: SessionExportOperationRepositoryShape, operationId: string) {
-  return repository
-    .cancellationRequested(operationId)
-    .pipe(
-      Effect.flatMap((requested) =>
-        requested ? Effect.fail(new Error('EXPORT_CANCELLED')) : Effect.void,
-      ),
-    )
-}
-
-function ensureLiveExportAuthority(
-  sql: SqlClient.SqlClient,
-  operation: SessionExportOperationRecord,
-) {
-  return Effect.gen(function* () {
-    const expectedWorkspacePath =
-      operation.resources.length > 0 ? operation.resourceSourceRoot : undefined
-    if (operation.resources.length > 0 && !expectedWorkspacePath) {
-      return yield* Effect.fail(new Error('Export resource source authority is unavailable.'))
-    }
-    if (
-      !operation.callerId.startsWith('profile:') &&
-      !operation.callerId.startsWith('session-agent:') &&
-      !operation.callerId.startsWith('transient-mcp:')
-    ) {
-      return expectedWorkspacePath
-    }
-    const reason = yield* liveSessionAuthorityBlockReason(
-      sql,
-      operation.callerId,
-      operation.sessionId,
-    )
-    if (reason)
-      return yield* Effect.fail(new Error(`Export authority is no longer valid: ${reason}.`))
-    if (!operation.callerId.startsWith('profile:')) return expectedWorkspacePath
-    const profileId = operation.callerId.slice('profile:'.length)
-    const rows = yield* sql<{
-      readonly id: string
-      readonly capabilities_json: string
-      readonly scope_json: string
-      readonly authorization_ceiling: 'yolo' | 'ask-for-approval'
-      readonly session_id: string
-      readonly project_path: string | null
-      readonly hive_root_session_id: string | null
-      readonly working_path: string | null
-    }>`
-      SELECT profiles.id, profiles.capabilities_json, profiles.scope_json,
-        profiles.authorization_ceiling, sessions.id AS session_id, sessions.project_path,
-        lineage.hive_root_session_id, workspace_resources.working_path
-      FROM session_client_profiles AS profiles
-      JOIN sessions ON sessions.id = ${operation.sessionId}
-      LEFT JOIN session_spawn_lineage AS lineage ON lineage.child_session_id = sessions.id
-      LEFT JOIN session_workspace_bindings AS bindings ON bindings.session_id = sessions.id
-      LEFT JOIN workspace_resources ON workspace_resources.id = bindings.workspace_id
-      WHERE profiles.id = ${profileId} AND profiles.revoked_at IS NULL
-      LIMIT 1
-    `
-    const row = rows[0]
-    if (!row) return yield* Effect.fail(new Error('Export profile was revoked.'))
-    const authority = {
-      profileId: row.id,
-      profileName: row.id,
-      capabilities: decodeLocalSessionProfileCapabilities(parseJsonUnknown(row.capabilities_json)),
-      scope: decodeLocalSessionProfileScope(parseJsonUnknown(row.scope_json)),
-      authorizationCeiling: row.authorization_ceiling,
-    }
-    const exportRoots = authority.scope.exportRoots ?? []
-    if (!operation.destinationRoot || exportRoots.length === 0) {
-      return yield* Effect.fail(new Error('Export filesystem authority was removed.'))
-    }
-    const currentWorkspacePath = yield* Effect.tryPromise({
-      try: async () => {
-        const canonicalRoots = await assertCanonicalDirectoryRoots(
-          exportRoots,
-          'Profile export root',
-        )
-        const [destinationRoot] = await assertCanonicalDirectoryRoots(
-          [operation.destinationRoot ?? ''],
-          'Export destination root',
-        )
-        const isAuthorizedRoot = (candidate: string) =>
-          canonicalRoots.some((root) => {
-            const relative = path.relative(root, candidate)
-            return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
-          })
-        if (!isAuthorizedRoot(destinationRoot ?? '')) {
-          throw new Error('Export destination root is no longer authorized.')
-        }
-        if (operation.resources.length === 0) return undefined
-        const sourceRoot = row.working_path ?? row.project_path
-        if (!sourceRoot) throw new Error('Export resource source root is unavailable.')
-        const [canonicalSourceRoot] = await assertCanonicalDirectoryRoots(
-          [sourceRoot],
-          'Export resource source root',
-        )
-        if (!canonicalSourceRoot || !isAuthorizedRoot(canonicalSourceRoot)) {
-          throw new Error('Export resource source root is no longer authorized.')
-        }
-        return canonicalSourceRoot
-      },
-      catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
-    })
-    const requiredCapabilities = requiredSessionControlCapabilities({
-      operation: 'export-create',
-      sessionId: operation.sessionId,
-      format: operation.format,
-      destinationPath: operation.destinationPath,
-      branchScope: operation.branchScope,
-      ...(operation.branchId ? { branchId: operation.branchId } : {}),
-      ...(operation.overwriteExisting ? { overwriteExisting: true } : {}),
-      ...(operation.includeQueueBodies ? { includeQueueBodies: true } : {}),
-      ...(operation.resources.length > 0 ? { resources: operation.resources } : {}),
-    })
-    if (
-      !authorizeSessionCapabilities(authority, requiredCapabilities).authorized ||
-      !authorizeSessionTarget(authority, {
-        sessionId: row.session_id,
-        ...(row.project_path ? { projectPath: row.project_path } : {}),
-        hiveRootSessionId: row.hive_root_session_id ?? row.session_id,
-      }).authorized
-    ) {
-      return yield* Effect.fail(new Error('Export profile authority changed.'))
-    }
-    if (currentWorkspacePath !== expectedWorkspacePath) {
-      return yield* Effect.fail(new Error('Export resource source workspace changed.'))
-    }
-    return expectedWorkspacePath
-  })
 }
 
 function discardFailedExport(
@@ -317,7 +122,7 @@ function runClaimedExport(operation: SessionExportOperationRecord) {
         bytesWritten: progress.bytesWritten + (yield* openedSink.writeManifest(manifest)),
       }
       while (true) {
-        yield* checkCancellation(operations, operation.exportOperationId)
+        yield* checkExportCancellation(operations, operation.exportOperationId)
         yield* ensureLiveExportAuthority(sql, operation)
         const bytes = yield* openedSink.writeRecords(page.records)
         progress = {
@@ -331,7 +136,7 @@ function runClaimedExport(operation: SessionExportOperationRecord) {
         page = yield* readExportPage(queries, operation, manifest, page.nextCreatedOrder)
       }
       for (const resource of operation.resources) {
-        yield* checkCancellation(operations, operation.exportOperationId)
+        yield* checkExportCancellation(operations, operation.exportOperationId)
         const expectedWorkspacePath = yield* ensureLiveExportAuthority(sql, operation)
         const bytes = yield* Effect.acquireUseRelease(
           resources.resolve({
@@ -354,7 +159,7 @@ function runClaimedExport(operation: SessionExportOperationRecord) {
         yield* operations.updateProgress(operation.exportOperationId, progress, Date.now())
         publishExportChange(operation, 'running', progress)
       }
-      yield* checkCancellation(operations, operation.exportOperationId)
+      yield* checkExportCancellation(operations, operation.exportOperationId)
       yield* ensureLiveExportAuthority(sql, operation)
       const installation = yield* prepareDurableExportInstallation({
         operationId: operation.exportOperationId,

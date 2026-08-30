@@ -1,8 +1,9 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import {
-  assertSessionAuthoritySnapshot,
+  assertSessionAuthoritySnapshotForWorkspace,
   decodeSessionAuthoritySnapshot,
+  provisionalSessionAuthoritySnapshot,
 } from '../session-host/session-authority-snapshot'
 
 function profileId(callerId: string) {
@@ -41,9 +42,45 @@ function sessionAuthorityChanged(sql: SqlClient.SqlClient, sessionId: string) {
   return Effect.gen(function* () {
     const snapshot = yield* loadSessionAuthoritySnapshot(sql, sessionId)
     if (!snapshot) return false
+    const workspaces = yield* sql<{
+      readonly authority_origin_caller_id: string
+      readonly project_path: string
+      readonly working_path: string
+      readonly lifecycle_state: string
+    }>`
+      SELECT session_execution_profiles.authority_origin_caller_id,
+        workspace_resources.project_path, workspace_resources.working_path,
+        workspace_resources.lifecycle_state
+      FROM session_workspace_bindings
+      JOIN session_execution_profiles
+        ON session_execution_profiles.session_id = session_workspace_bindings.session_id
+      JOIN workspace_resources
+        ON workspace_resources.id = session_workspace_bindings.workspace_id
+      WHERE session_workspace_bindings.session_id = ${sessionId}
+      LIMIT 1
+    `
+    const workspace = workspaces[0]
+    if (
+      !workspace ||
+      workspace.project_path !== snapshot.projectPath ||
+      (workspace.lifecycle_state !== 'pending' && workspace.lifecycle_state !== 'ready') ||
+      (workspace.lifecycle_state === 'ready' && workspace.working_path !== snapshot.workingPath)
+    ) {
+      return true
+    }
+    const workspaceState: 'pending' | 'ready' = workspace.lifecycle_state
     return yield* Effect.tryPromise({
       try: async () => {
-        await assertSessionAuthoritySnapshot(snapshot)
+        await assertSessionAuthoritySnapshotForWorkspace(
+          workspaceState === 'pending'
+            ? provisionalSessionAuthoritySnapshot(
+                snapshot,
+                workspace.working_path,
+                workspace.authority_origin_caller_id,
+              )
+            : snapshot,
+          workspaceState,
+        )
         return false
       },
       catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),

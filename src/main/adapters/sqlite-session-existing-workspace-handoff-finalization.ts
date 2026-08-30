@@ -4,6 +4,10 @@ import type { SessionControlMutationOutcome } from '@shared/types/session-contro
 import * as Effect from 'effect/Effect'
 import { SessionControlRepositoryError } from '../errors'
 import type { SessionOrganizationRepositoryShape } from '../ports/session-organization-repository'
+import {
+  assertBoundSessionAuthoritySnapshot,
+  refreshSessionAuthoritySnapshotWorkingPath,
+} from './sqlite-session-authority-snapshot-refresh'
 
 type CompleteInput = Parameters<SessionOrganizationRepositoryShape['completeExistingHandoff']>[0]
 type AbortInput = Parameters<SessionOrganizationRepositoryShape['abortExistingHandoff']>[0]
@@ -20,6 +24,7 @@ interface SessionRow {
 
 interface WorkspaceRow {
   readonly id: string
+  readonly project_path: string
   readonly kind: 'local' | 'managed-worktree'
   readonly working_path: string
   readonly lifecycle_state: string
@@ -66,7 +71,7 @@ function loadSession(sql: SqlClient.SqlClient, sessionId: string) {
 
 function loadWorkspace(sql: SqlClient.SqlClient, workspaceId: string) {
   return sql<WorkspaceRow>`
-    SELECT id, kind, working_path, lifecycle_state, worktree_base_ref,
+    SELECT id, project_path, kind, working_path, lifecycle_state, worktree_base_ref,
       worktree_start_from_origin, handoff_seed_ref, handoff_seed_base_ref
     FROM workspace_resources WHERE id = ${workspaceId} LIMIT 1
   `
@@ -122,6 +127,14 @@ export function completeExistingHandoff(sql: SqlClient.SqlClient, input: Complet
           )
         }
         const now = Date.now()
+        yield* assertBoundSessionAuthoritySnapshot(sql, input.request.command.sessionId)
+        yield* refreshSessionAuthoritySnapshotWorkingPath(sql, {
+          sessionId: input.request.command.sessionId,
+          projectPath: target.project_path,
+          workingPath: target.working_path,
+          workspaceState: 'ready',
+          now,
+        })
         yield* sql`
           UPDATE session_workspace_bindings SET workspace_id = ${target.id}, bound_at = ${now}
           WHERE session_id = ${input.request.command.sessionId}

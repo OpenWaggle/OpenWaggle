@@ -40,6 +40,7 @@ export interface SessionLifecycleExecutionSnapshot {
 export interface ExecuteSessionLifecycleInput {
   readonly callerId: string
   readonly callerAuthorityScope?: LocalSessionProfileScope
+  readonly initiatingWorkingDirectory?: string
   readonly request: SessionLifecycleRequest
   readonly session: ProvisionedSessionIdentity
   readonly runId?: string

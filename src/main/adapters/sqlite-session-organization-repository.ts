@@ -15,6 +15,10 @@ import {
   newWorkspacePlan,
   type ResolveHandoffWorkspaceInput,
 } from './session-organization-workspace-plan'
+import {
+  assertBoundSessionAuthoritySnapshot,
+  refreshHandoffAuthority,
+} from './sqlite-session-authority-snapshot-refresh'
 import { admitExistingHandoff } from './sqlite-session-existing-workspace-handoff-admission'
 import {
   abortExistingHandoff,
@@ -153,6 +157,7 @@ function applyHandoff(
       return null
     }
     if (session.active_run_id) return null
+    yield* assertBoundSessionAuthoritySnapshot(sql, command.sessionId)
     const workspace = yield* resolveHandoffWorkspace(sql, {
       sessionId: command.sessionId,
       projectPath: session.project_path,
@@ -167,6 +172,7 @@ function applyHandoff(
     ) {
       return null
     }
+    yield* refreshHandoffAuthority(sql, command.sessionId, workspace, now)
     yield* sql`
       UPDATE session_workspace_bindings
       SET workspace_id = ${workspace.id}, bound_at = ${now}

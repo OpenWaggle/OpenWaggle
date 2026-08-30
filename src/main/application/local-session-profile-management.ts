@@ -35,6 +35,7 @@ function arraySubset(
 }
 
 function scopeSubset(available: LocalSessionProfileScope, requested: LocalSessionProfileScope) {
+  if (!arraySubset(available.workspaceRoots, requested.workspaceRoots)) return false
   if (!arraySubset(available.attachmentRoots, requested.attachmentRoots)) return false
   if (!arraySubset(available.exportRoots, requested.exportRoots)) return false
   if (available.all) return true
@@ -129,6 +130,14 @@ function canonicalizeProfileScope(scope: LocalSessionProfileScope) {
             projectPaths: await canonicalizeExistingDirectoryRoots(
               scope.projectPaths,
               'Profile project root',
+            ),
+          }
+        : {}),
+      ...(scope.workspaceRoots
+        ? {
+            workspaceRoots: await canonicalizeExistingDirectoryRoots(
+              scope.workspaceRoots,
+              'Profile workspace root',
             ),
           }
         : {}),

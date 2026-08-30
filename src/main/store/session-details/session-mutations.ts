@@ -89,51 +89,6 @@ export async function getBoundWorkspaceResource(
   )
 }
 
-/** Persist a session's environment mode and Session worktree path (birth). */
-export async function setSessionWorktree(
-  id: SessionId,
-  environmentMode: SessionEnvironmentMode,
-  worktreePath: string | null,
-  worktreeBranch?: string,
-): Promise<void> {
-  await runStoreEffect(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      yield* sql`
-        UPDATE sessions
-        SET environment_mode = ${environmentMode},
-            worktree_path = ${worktreePath},
-            updated_at = ${Date.now()}
-        WHERE id = ${id}
-          OR id IN (
-            SELECT peer.session_id
-            FROM session_workspace_bindings AS source
-            JOIN session_workspace_bindings AS peer ON peer.workspace_id = source.workspace_id
-            WHERE source.session_id = ${id}
-          )
-      `
-      if (environmentMode === 'worktree' && worktreePath) {
-        yield* sql`
-          UPDATE workspace_resources
-          SET working_path = ${worktreePath},
-              lifecycle_state = ${'ready'},
-              worktree_branch = COALESCE(${worktreeBranch ?? null}, worktree_branch),
-              handoff_seed_state = CASE
-                WHEN handoff_seed_state = 'pending' THEN 'applied'
-                ELSE handoff_seed_state
-              END,
-              updated_at = ${Date.now()}
-          WHERE id = (
-            SELECT workspace_id
-            FROM session_workspace_bindings
-            WHERE session_id = ${id}
-          )
-        `
-      }
-    }),
-  )
-}
-
 /** Persist the per-session env mode + Worktree base ref plan (before birth). */
 export async function setSessionWorktreePlan(
   id: SessionId,

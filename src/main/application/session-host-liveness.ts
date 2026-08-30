@@ -60,8 +60,11 @@ export class SessionHostLiveness {
     this.cancelIdleTimer()
     this.idleTimer = setTimeout(() => {
       this.idleTimer = null
-      if (this.draining) this.requestShutdownWhenDrained()
-      else if (!this.closed && !this.shutdownRequested && this.totalOwners() === 0) {
+      if (this.draining) {
+        this.requestShutdownWhenDrained()
+        return
+      }
+      if (!this.closed && !this.shutdownRequested && this.totalOwners() === 0) {
         this.requestShutdownSafely()
       }
     }, SHUTDOWN_RETRY_DELAY_MS)

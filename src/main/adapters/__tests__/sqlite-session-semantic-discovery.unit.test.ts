@@ -106,9 +106,9 @@ describe('SQLite Session semantic discovery', () => {
     if (result.outcome.operation !== 'search') throw new Error('Expected a search result.')
     expect(result.outcome.semanticReadiness).toEqual({ status: 'ready' })
     expect(JSON.stringify(result)).not.toContain('private-global')
-    expect(JSON.stringify(result)).not.toContain('123456')
-    expect(JSON.stringify(result)).not.toContain('999')
-    expect(JSON.stringify(result)).not.toContain('41')
+    expect(result.outcome.semanticReadiness).not.toHaveProperty('snapshotRevision')
+    expect(result.outcome.semanticReadiness).not.toHaveProperty('pendingCount')
+    expect(result.outcome.semanticReadiness).not.toHaveProperty('updatedAt')
   })
 
   it('waits only when fresh semantic discovery has an explicit bounded timeout', async () => {

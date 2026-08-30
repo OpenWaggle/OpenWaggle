@@ -10,6 +10,17 @@ import { buildSessionsToolPayload } from './sessions-tool-payload'
 
 const DEFAULT_AGENT_DEFINITION_RESULTS = 50
 
+interface SessionsToolExtensionInput {
+  readonly sessionId: string
+  readonly runId: string
+  readonly workingDirectory: string
+  readonly projectPath?: string
+  readonly sessionCapabilities?: readonly SessionCapability[]
+  readonly modelMultiAgentEnabled?: boolean
+}
+
+type SessionsToolPayload = ReturnType<typeof buildSessionsToolPayload>
+
 export { buildSessionsToolPayload } from './sessions-tool-payload'
 
 export async function queryAgentDefinitionsForTool(
@@ -136,14 +147,95 @@ async function authorizeExportResourceRead(input: {
   if (!approved) throw new Error('Session export resource read was not authorized.')
 }
 
-export function createSessionsToolExtension(input: {
-  readonly sessionId: string
-  readonly runId: string
-  readonly workingDirectory: string
-  readonly projectPath?: string
-  readonly sessionCapabilities?: readonly SessionCapability[]
-  readonly modelMultiAgentEnabled?: boolean
-}): ExtensionFactory {
+async function authorizeAttachments(
+  payload: SessionsToolPayload,
+  ctx: ExtensionContext,
+  signal?: AbortSignal,
+) {
+  const attachmentPaths =
+    payload.contract === 'session-control-v2' || payload.contract === 'session-lifecycle-v2'
+      ? payload.transport?.attachmentPaths
+      : undefined
+  if (!attachmentPaths?.length) return
+  await authorizeAttachmentRead({ ctx, paths: attachmentPaths, ...(signal ? { signal } : {}) })
+}
+
+async function authorizeExport(
+  payload: SessionsToolPayload,
+  input: SessionsToolExtensionInput,
+  ctx: ExtensionContext,
+  signal?: AbortSignal,
+): Promise<SessionsToolPayload> {
+  if (
+    payload.contract !== 'session-control-v2' ||
+    payload.request.command.operation !== 'export-create'
+  ) {
+    return payload
+  }
+  const resources = payload.request.command.resources?.map((resource) => resource.path)
+  if (resources?.length) {
+    await authorizeExportResourceRead({ ctx, paths: resources, ...(signal ? { signal } : {}) })
+  }
+  await authorizeExportWrite({
+    ctx,
+    destinationPath: payload.request.command.destinationPath,
+    overwriteExisting: payload.request.command.overwriteExisting === true,
+    ...(signal ? { signal } : {}),
+  })
+  const scope = await assertFilesystemWriteScope({
+    roots: [input.workingDirectory],
+    destinationPath: payload.request.command.destinationPath,
+  })
+  return {
+    ...payload,
+    request: {
+      ...payload.request,
+      command: {
+        ...payload.request.command,
+        destinationPath: scope.destinationPath,
+        destinationRoot: scope.rootPath,
+      },
+    },
+  }
+}
+
+async function executeSessionsTool(
+  params: SessionsToolParameters,
+  input: SessionsToolExtensionInput,
+  ctx: ExtensionContext,
+  signal?: AbortSignal,
+) {
+  if (signal?.aborted) throw new Error('aborted')
+  if (isAgentDefinitionAction(params)) {
+    return queryAgentDefinitionsForTool(params, input.workingDirectory)
+  }
+  const initialPayload = buildSessionsToolPayload(params, input)
+  await authorizeAttachments(initialPayload, ctx, signal)
+  const payload = await authorizeExport(initialPayload, input, ctx, signal)
+  return executeSessionToolCommand({
+    sourceSessionId: input.sessionId,
+    sourceRunId: input.runId,
+    workingDirectory: input.workingDirectory,
+    projectPath: input.projectPath,
+    payload,
+    ...(signal ? { signal } : {}),
+  })
+}
+
+function successfulToolResult(result: unknown) {
+  return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], details: result }
+}
+
+function failedToolResult(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+  return {
+    content: [{ type: 'text' as const, text: message }],
+    details: undefined,
+    isError: true,
+  }
+}
+
+export function createSessionsToolExtension(input: SessionsToolExtensionInput): ExtensionFactory {
   return (pi) => {
     pi.registerTool<typeof sessionsToolParameters, unknown>({
       name: 'sessions',
@@ -173,82 +265,10 @@ export function createSessionsToolExtension(input: {
         : sessionsToolParameters,
       executionMode: 'sequential',
       async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-        if (signal?.aborted) throw new Error('aborted')
         try {
-          let payload = isAgentDefinitionAction(params)
-            ? undefined
-            : buildSessionsToolPayload(params, {
-                sessionId: input.sessionId,
-                runId: input.runId,
-                workingDirectory: input.workingDirectory,
-              })
-          const attachmentPaths =
-            payload?.contract === 'session-control-v2' ||
-            payload?.contract === 'session-lifecycle-v2'
-              ? payload.transport?.attachmentPaths
-              : undefined
-          if (attachmentPaths?.length) {
-            await authorizeAttachmentRead({
-              ctx,
-              paths: attachmentPaths,
-              ...(signal ? { signal } : {}),
-            })
-          }
-          if (
-            payload?.contract === 'session-control-v2' &&
-            payload.request.command.operation === 'export-create'
-          ) {
-            const resources = payload.request.command.resources?.map((resource) => resource.path)
-            if (resources?.length) {
-              await authorizeExportResourceRead({
-                ctx,
-                paths: resources,
-                ...(signal ? { signal } : {}),
-              })
-            }
-            await authorizeExportWrite({
-              ctx,
-              destinationPath: payload.request.command.destinationPath,
-              overwriteExisting: payload.request.command.overwriteExisting === true,
-              ...(signal ? { signal } : {}),
-            })
-            const scope = await assertFilesystemWriteScope({
-              roots: [input.workingDirectory],
-              destinationPath: payload.request.command.destinationPath,
-            })
-            payload = {
-              ...payload,
-              request: {
-                ...payload.request,
-                command: {
-                  ...payload.request.command,
-                  destinationPath: scope.destinationPath,
-                  destinationRoot: scope.rootPath,
-                },
-              },
-            }
-          }
-          const result = isAgentDefinitionAction(params)
-            ? await queryAgentDefinitionsForTool(params, input.workingDirectory)
-            : await executeSessionToolCommand({
-                sourceSessionId: input.sessionId,
-                sourceRunId: input.runId,
-                workingDirectory: input.workingDirectory,
-                projectPath: input.projectPath,
-                payload: payload ?? buildSessionsToolPayload(params, input),
-                ...(signal ? { signal } : {}),
-              })
-          return {
-            content: [{ type: 'text', text: JSON.stringify(result) }],
-            details: result,
-          }
+          return successfulToolResult(await executeSessionsTool(params, input, ctx, signal))
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error)
-          return {
-            content: [{ type: 'text', text: message }],
-            details: undefined,
-            isError: true,
-          }
+          return failedToolResult(error)
         }
       },
     })

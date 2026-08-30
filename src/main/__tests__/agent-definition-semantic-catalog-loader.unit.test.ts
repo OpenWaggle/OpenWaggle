@@ -1,8 +1,8 @@
-import type { AgentSessionServices } from '@earendil-works/pi-coding-agent'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AgentDefinitionPiProjectServices } from '../adapters/pi/agent-definition-semantic-catalog-services'
 import type { OpenWagglePiExtensionSelectionServices } from '../adapters/pi/openwaggle-pi-extension-selection'
 import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../extensions/types'
 
@@ -92,7 +92,7 @@ describe('loadAgentDefinitionSemanticCatalog', () => {
     const extensionPackage = managedExtension(projectPath)
 
     catalogMocks.createPiRuntimeServices.mockResolvedValue(
-      fromPartial<AgentSessionServices>({
+      fromPartial<AgentDefinitionPiProjectServices>({
         modelRuntime: {
           getModels: () => [{ provider: 'test-provider', id: 'test-model' }],
         },

@@ -2,6 +2,7 @@ import { app } from 'electron'
 import { isCommandCliUsageError } from './command-cli-option-contract'
 import { hasFlag, parseMcpCliArguments } from './mcp-cli-arguments'
 import { validateRecoveryCliOptions } from './recovery-cli-option-contract'
+import { withLegacySessionWriterFence } from './session-host/legacy-session-writer-fence'
 import { resolveLocalSessionHostPaths } from './session-host/local-session-paths'
 import {
   deletePreCutoverDatabase,
@@ -53,7 +54,7 @@ export async function runRecoveryCli(args: readonly string[]) {
     }
     const result =
       command === 'restore-pre-cutover'
-        ? await restorePreCutoverDatabase(paths)
+        ? await withLegacySessionWriterFence(() => restorePreCutoverDatabase(paths))
         : await deletePreCutoverDatabase(paths)
     writeResult(result, hasFlag(arguments_, 'json'))
     return EXIT.SUCCESS
