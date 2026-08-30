@@ -109,4 +109,19 @@ describe('useSessionResources', () => {
     await waitFor(() => expect(resourceMocks.list).toHaveBeenCalledOnce())
     expect(resourceMocks.onRunCompleted).not.toHaveBeenCalled()
   })
+
+  it('continues bounded historical backfill until the session catalog is complete', async () => {
+    resourceMocks.list
+      .mockResolvedValueOnce({ resources: [], backfillComplete: false })
+      .mockResolvedValueOnce({ resources: [RESOURCE], backfillComplete: true })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const wrapper = ({ children }: { readonly children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    )
+
+    const { result } = renderHook(() => useSessionResources('session-one'), { wrapper })
+
+    await waitFor(() => expect(result.current.data).toEqual([RESOURCE]))
+    expect(resourceMocks.list).toHaveBeenCalledTimes(2)
+  })
 })

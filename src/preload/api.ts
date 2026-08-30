@@ -140,6 +140,7 @@ export const api: OpenWaggleApi = {
   listSessionResources: invoke('sessions:resources:list'),
   readSessionResource: invoke('sessions:resources:read'),
   readSessionResourceThumbnail: invoke('sessions:resources:thumbnail'),
+  retrySessionResource: invoke('sessions:resources:retry'),
   recordSessionChangeRequest: invoke('sessions:resources:record-change-request'),
   listTurnCheckpoints: invoke('sessions:turn-checkpoints:list'),
   getTurnDiff: invoke('sessions:turn-diff:get'),

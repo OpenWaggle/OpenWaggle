@@ -58,7 +58,7 @@ export function inspectManagedCopy(
   return Effect.gen(function* () {
     const location = yield* repository.getContentLocation(sessionId, resourceId)
     if (!location) return null
-    const readable = yield* store.read(location.managedPath).pipe(
+    const readable = yield* store.inspect(location.managedPath).pipe(
       Effect.as(true),
       Effect.catchAll(() => Effect.succeed(false)),
     )

@@ -12,6 +12,7 @@ const apiMocks = vi.hoisted(() => ({
   openPath: vi.fn(),
   read: vi.fn(),
   readThumbnail: vi.fn(),
+  retry: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -21,6 +22,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     openPath: apiMocks.openPath,
     readSessionResource: apiMocks.read,
     readSessionResourceThumbnail: apiMocks.readThumbnail,
+    retrySessionResource: apiMocks.retry,
   },
 }))
 
@@ -71,6 +73,7 @@ describe('SessionResourcesPanel', () => {
     apiMocks.openExternal.mockReset().mockResolvedValue(undefined)
     apiMocks.openPath.mockReset().mockResolvedValue(undefined)
     apiMocks.read.mockReset().mockResolvedValue(null)
+    apiMocks.retry.mockReset().mockResolvedValue(undefined)
     apiMocks.readThumbnail.mockReset().mockResolvedValue({
       resourceId: 'image',
       fileName: 'image-thumbnail.webp',
@@ -131,6 +134,9 @@ describe('SessionResourcesPanel', () => {
     expect(screen.getByText('Unavailable · Open original')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry missing.png' }))
+    await waitFor(() =>
+      expect(apiMocks.retry).toHaveBeenCalledWith(SessionId('session-one'), 'missing-image'),
+    )
     await waitFor(() => expect(apiMocks.list).toHaveBeenCalledTimes(2))
   })
 })

@@ -40,6 +40,35 @@ describe('FilesystemSessionResourceStore', () => {
     expect([...result.read]).toEqual([...bytes])
   })
 
+  it('inspects managed files without returning their payload', async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const store = yield* SessionResourceStore
+        const stored = yield* store.storeBytes({
+          sessionId: SessionId('session-1'),
+          resourceId: 'resource-1',
+          fileName: 'image.png',
+          bytes: new Uint8Array([1, 2, 3]),
+        })
+        const inspected = yield* store.inspect(stored.path)
+        return { inspected, path: stored.path }
+      }).pipe(Effect.provide(makeFilesystemSessionResourceStoreLayer(tmpRoot))),
+    )
+
+    expect(result.inspected).toBeUndefined()
+    await fs.rm(result.path)
+    const missing = await Effect.runPromise(
+      Effect.gen(function* () {
+        const store = yield* SessionResourceStore
+        yield* store.inspect(result.path)
+      }).pipe(Effect.either, Effect.provide(makeFilesystemSessionResourceStoreLayer(tmpRoot))),
+    )
+    expect(missing).toMatchObject({
+      _tag: 'Left',
+      left: { operation: 'inspect' },
+    })
+  })
+
   it('truncates long managed names without losing the file extension', async () => {
     const bytes = new TextEncoder().encode('long-name bytes')
     const stored = await Effect.runPromise(

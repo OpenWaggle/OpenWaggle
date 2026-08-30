@@ -31,6 +31,10 @@ function createSessionReadMethods(deps: SessionRepositoryStores) {
       ),
     getTree: (sessionId) =>
       repositoryOperation('getSessionTree', () => deps.store.getSessionTree(sessionId)),
+    listResourceProjectionPage: (sessionId, afterCreatedOrder, limit) =>
+      repositoryOperation('listSessionResourceProjectionPage', () =>
+        deps.store.listSessionResourceProjectionPage(sessionId, afterCreatedOrder, limit),
+      ),
     getWorkspace: (sessionId, selection) =>
       repositoryOperation('getSessionWorkspace', () =>
         deps.store.getSessionWorkspace(sessionId, selection),
@@ -41,7 +45,12 @@ function createSessionReadMethods(deps: SessionRepositoryStores) {
       ),
   } satisfies Pick<
     SessionRepositoryShape,
-    'list' | 'listArchivedBranches' | 'getTree' | 'getWorkspace' | 'listActiveRunsForRecovery'
+    | 'list'
+    | 'listArchivedBranches'
+    | 'getTree'
+    | 'listResourceProjectionPage'
+    | 'getWorkspace'
+    | 'listActiveRunsForRecovery'
   >
 }
 

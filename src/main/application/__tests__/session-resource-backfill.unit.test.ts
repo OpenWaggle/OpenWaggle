@@ -271,7 +271,7 @@ describe('captureProjectedSessionResources', () => {
     expect(resumedStored).toHaveLength(remainingCount)
   })
 
-  it('retries a known unavailable attachment occurrence on a later catalog pass', async () => {
+  it('retries only the targeted unavailable attachment occurrence', async () => {
     const message = attachmentMessage(0)
     const unavailableUpserts: UpsertSessionResourceInput[] = []
 
@@ -299,6 +299,7 @@ describe('captureProjectedSessionResources', () => {
       captureProjectedSessionResources({
         sessionId: SessionId('session-1'),
         messages: [message],
+        retryUnavailableResourceId: unavailableResource.id,
       }).pipe(
         Effect.provide(
           sessionResourceTestLayer([], {

@@ -43,6 +43,8 @@ const TestSessionRepositoryLayer = Layer.succeed(SessionRepository, {
   list: (limit) => Effect.sync(() => listMock(limit)),
   listArchivedBranches: (limit) => Effect.sync(() => listArchivedBranchesMock(limit)),
   getTree: (sessionId) => Effect.sync(() => getTreeMock(sessionId)),
+  listResourceProjectionPage: () =>
+    Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
   getWorkspace: (sessionId, selection) => Effect.sync(() => getWorkspaceMock(sessionId, selection)),
   persistSnapshot: (input) => Effect.sync(() => persistSnapshotMock(input)),
   updateRuntime: (input) => Effect.sync(() => updateRuntimeMock(input)),

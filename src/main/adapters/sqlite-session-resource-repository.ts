@@ -11,6 +11,10 @@ import {
   type UpsertSessionResourceInput,
 } from '../ports/session-resource-repository'
 import {
+  advanceSessionResourceBackfillCursor,
+  getSessionResourceBackfillCursor,
+} from './sqlite-session-resource-backfill-state'
+import {
   rowToResource,
   type SessionResourceOccurrenceRow,
   type SessionResourceRow,
@@ -280,6 +284,9 @@ export const SqliteSessionResourceRepositoryLive = Layer.effect(
       rekey: (input) => rekeyResource(sql, input),
       hasOccurrence: (sessionId, occurrenceId) => hasOccurrence(sql, sessionId, occurrenceId),
       getContentLocation: (sessionId, resourceId) => getContentLocation(sql, sessionId, resourceId),
+      getBackfillCursor: (sessionId) => getSessionResourceBackfillCursor(sql, sessionId),
+      advanceBackfillCursor: (sessionId, throughCreatedOrder) =>
+        advanceSessionResourceBackfillCursor(sql, sessionId, throughCreatedOrder),
     } satisfies SessionResourceRepositoryShape)
   }),
 )

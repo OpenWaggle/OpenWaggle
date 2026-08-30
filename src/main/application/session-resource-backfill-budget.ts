@@ -10,14 +10,18 @@ export interface BackfillAttachmentBudget {
   readonly count: number
 }
 
+export function isBackfillableAttachmentSize(byteLength: number) {
+  return (
+    Number.isSafeInteger(byteLength) && byteLength >= 0 && byteLength <= ATTACHMENT.MAX_SIZE_BYTES
+  )
+}
+
 export function advanceAttachmentBackfillBudget(
   current: BackfillAttachmentBudget,
   byteLength: number,
 ): BackfillAttachmentBudget | null {
   if (
-    !Number.isSafeInteger(byteLength) ||
-    byteLength < 0 ||
-    byteLength > ATTACHMENT.MAX_SIZE_BYTES ||
+    !isBackfillableAttachmentSize(byteLength) ||
     current.count >= ATTACHMENT_BACKFILL_LIMITS.maxCount ||
     current.bytes > ATTACHMENT_BACKFILL_LIMITS.maxBytes - byteLength
   ) {

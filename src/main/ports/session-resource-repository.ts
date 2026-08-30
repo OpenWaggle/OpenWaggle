@@ -60,6 +60,13 @@ export interface SessionResourceRepositoryShape {
     sessionId: SessionId,
     resourceId: string,
   ) => Effect.Effect<SessionResourceContentLocation | null, SessionResourceRepositoryError>
+  readonly getBackfillCursor: (
+    sessionId: SessionId,
+  ) => Effect.Effect<number, SessionResourceRepositoryError>
+  readonly advanceBackfillCursor: (
+    sessionId: SessionId,
+    throughCreatedOrder: number,
+  ) => Effect.Effect<void, SessionResourceRepositoryError>
 }
 
 export class SessionResourceRepository extends Context.Tag('@openwaggle/SessionResourceRepository')<

@@ -11,6 +11,7 @@ import {
 import {
   SessionResourceRepository,
   type SessionResourceRepositoryShape,
+  type UpsertSessionResourceInput,
 } from '../../ports/session-resource-repository'
 import {
   SessionResourceStore,
@@ -20,7 +21,10 @@ import {
   SessionResourceThumbnailer,
   type SessionResourceThumbnailerShape,
 } from '../../ports/session-resource-thumbnailer'
-import { registerSessionResourceHandlers } from '../session-resource-handler'
+import {
+  registerSessionResourceHandlers,
+  SESSION_RESOURCE_BACKFILL_PAGE_SIZE,
+} from '../session-resource-handler'
 
 const handlerMocks = vi.hoisted(() => ({
   typedHandle: vi.fn(),
@@ -28,6 +32,10 @@ const handlerMocks = vi.hoisted(() => ({
   getContentLocation: vi.fn(),
   read: vi.fn(),
   thumbnail: vi.fn(),
+  listResourceProjectionPage: vi.fn(),
+  getTree: vi.fn(),
+  getBackfillCursor: vi.fn(),
+  advanceBackfillCursor: vi.fn(),
 }))
 
 vi.mock('../typed-ipc', () => ({ typedHandle: handlerMocks.typedHandle }))
@@ -36,7 +44,11 @@ const TestLayer = Layer.mergeAll(
   Layer.succeed(
     SessionRepository,
     SessionRepository.of(
-      fromPartial<SessionRepositoryShape>({ getTree: () => Effect.succeed(null) }),
+      fromPartial<SessionRepositoryShape>({
+        listResourceProjectionPage: (sessionId: SessionId, cursor: number, limit: number) =>
+          Effect.sync(() => handlerMocks.listResourceProjectionPage(sessionId, cursor, limit)),
+        getTree: (sessionId: SessionId) => Effect.sync(() => handlerMocks.getTree(sessionId)),
+      }),
     ),
   ),
   Layer.succeed(
@@ -46,6 +58,21 @@ const TestLayer = Layer.mergeAll(
         list: (sessionId: SessionId) => Effect.sync(() => handlerMocks.list(sessionId)),
         getContentLocation: (sessionId: SessionId, resourceId: string) =>
           Effect.sync(() => handlerMocks.getContentLocation(sessionId, resourceId)),
+        getBackfillCursor: (sessionId: SessionId) =>
+          Effect.sync(() => handlerMocks.getBackfillCursor(sessionId)),
+        advanceBackfillCursor: (sessionId: SessionId, throughCreatedOrder: number) =>
+          Effect.sync(() => handlerMocks.advanceBackfillCursor(sessionId, throughCreatedOrder)),
+        upsert: (input: UpsertSessionResourceInput) =>
+          Effect.succeed({
+            ...input,
+            occurrences: [input.occurrence],
+            isSource:
+              input.occurrence.activity === 'provided' || input.occurrence.activity === 'read',
+            isOutput:
+              input.occurrence.activity === 'created' || input.occurrence.activity === 'updated',
+          }),
+        hasOccurrence: () => Effect.succeed(false),
+        findByCanonicalKey: () => Effect.succeed(null),
       }),
     ),
   ),
@@ -87,6 +114,12 @@ describe('session resource IPC handlers', () => {
     handlerMocks.thumbnail
       .mockReset()
       .mockReturnValue({ bytes: Buffer.from('thumbnail'), mimeType: 'image/webp' })
+    handlerMocks.listResourceProjectionPage
+      .mockReset()
+      .mockReturnValue({ nodes: [], throughCreatedOrder: null, hasMore: false })
+    handlerMocks.getTree.mockReset().mockReturnValue(null)
+    handlerMocks.getBackfillCursor.mockReset().mockReturnValue(-1)
+    handlerMocks.advanceBackfillCursor.mockReset()
     registerSessionResourceHandlers()
   })
 
@@ -97,6 +130,9 @@ describe('session resource IPC handlers', () => {
     ).rejects.toBeDefined()
     await expect(
       invoke('sessions:resources:thumbnail', SessionId('session-one'), '../../secret'),
+    ).rejects.toBeDefined()
+    await expect(
+      invoke('sessions:resources:retry', SessionId('session-one'), '../../secret'),
     ).rejects.toBeDefined()
     expect(handlerMocks.list).not.toHaveBeenCalled()
     expect(handlerMocks.getContentLocation).not.toHaveBeenCalled()
@@ -120,6 +156,109 @@ describe('session resource IPC handlers', () => {
       'resource-one',
     )
     expect(handlerMocks.list).toHaveBeenCalledWith(SessionId('session-one'))
+  })
+
+  it('backfills one persisted page instead of hydrating the complete session tree', async () => {
+    handlerMocks.getBackfillCursor.mockReturnValue(23)
+    handlerMocks.listResourceProjectionPage.mockReturnValue({
+      nodes: [],
+      throughCreatedOrder: 41,
+      hasMore: false,
+    })
+
+    await expect(invoke('sessions:resources:list', SessionId('session-one'))).resolves.toEqual({
+      resources: [],
+      backfillComplete: true,
+    })
+
+    expect(handlerMocks.listResourceProjectionPage).toHaveBeenCalledWith(
+      SessionId('session-one'),
+      23,
+      SESSION_RESOURCE_BACKFILL_PAGE_SIZE,
+    )
+    expect(handlerMocks.advanceBackfillCursor).toHaveBeenCalledWith(SessionId('session-one'), 41)
+  })
+
+  it('keeps polling after a fully projected page when persisted history remains', async () => {
+    handlerMocks.listResourceProjectionPage.mockReturnValue({
+      nodes: [],
+      throughCreatedOrder: 41,
+      hasMore: true,
+    })
+
+    await expect(invoke('sessions:resources:list', SessionId('session-one'))).resolves.toEqual({
+      resources: [],
+      backfillComplete: false,
+    })
+
+    expect(handlerMocks.advanceBackfillCursor).toHaveBeenCalledWith(SessionId('session-one'), 41)
+  })
+
+  it('looks up retry provenance only inside the requested session', async () => {
+    handlerMocks.list.mockReturnValue([
+      {
+        id: 'resource-one',
+        sessionId: SessionId('session-one'),
+        canonicalKey: 'file:/input/missing.png',
+        kind: 'image',
+        title: 'missing.png',
+        mimeType: 'image/png',
+        locator: '/input/missing.png',
+        available: false,
+        isSource: true,
+        isOutput: false,
+        occurrences: [
+          {
+            id: 'occurrence-one',
+            nodeId: 'node-one',
+            branchId: null,
+            actor: 'user',
+            activity: 'provided',
+            label: null,
+            createdAt: 1,
+          },
+        ],
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ])
+
+    await expect(
+      invoke('sessions:resources:retry', SessionId('session-one'), 'resource-one'),
+    ).resolves.toBeUndefined()
+
+    expect(handlerMocks.list).toHaveBeenCalledWith(SessionId('session-one'))
+    expect(handlerMocks.getTree).toHaveBeenCalledWith(SessionId('session-one'))
+  })
+
+  it('does not advance the page cursor when a capture budget leaves work pending', async () => {
+    const markdown = Array.from(
+      { length: 33 },
+      (_, index) => `[Link](https://example.test/${String(index)})`,
+    ).join('\n')
+    handlerMocks.listResourceProjectionPage.mockReturnValue({
+      nodes: [
+        {
+          id: 'assistant-node',
+          branchId: null,
+          message: {
+            id: 'assistant-node',
+            role: 'assistant',
+            parts: [{ type: 'text', text: markdown }],
+            createdAt: 1000,
+          },
+        },
+      ],
+      throughCreatedOrder: 41,
+      hasMore: false,
+    })
+
+    await expect(invoke('sessions:resources:list', SessionId('session-one'))).resolves.toEqual({
+      resources: [],
+      backfillComplete: false,
+    })
+
+    expect(handlerMocks.advanceBackfillCursor).not.toHaveBeenCalled()
   })
 
   it('returns a bounded thumbnail for managed content in the requested session', async () => {

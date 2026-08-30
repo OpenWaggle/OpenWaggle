@@ -45,4 +45,18 @@ describe('session resource extraction limits', () => {
 
     expect(accessedPastLimit).toBe(false)
   })
+
+  it('keeps balanced parentheses in Markdown link destinations', () => {
+    const extracted = collectExplicitResources(
+      '[Function docs](https://example.test/Function_(math))',
+    )
+
+    expect(extracted.links).toEqual([
+      {
+        url: 'https://example.test/Function_(math)',
+        title: 'https://example.test/Function_(math)',
+        image: false,
+      },
+    ])
+  })
 })

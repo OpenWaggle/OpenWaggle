@@ -87,6 +87,8 @@ describe('session resource backfill progress', () => {
     if (!available) throw new Error('Expected an available attachment resource.')
     const availableResource = capturedResource(available)
     const storedAttachmentFiles: string[] = []
+    const inspectedManagedPaths: string[] = []
+    const readManagedPaths: string[] = []
     const repairedUpserts: UpsertSessionResourceInput[] = []
 
     await Effect.runPromise(
@@ -97,18 +99,25 @@ describe('session resource backfill progress', () => {
             existingResource: availableResource,
             managedReadFails: true,
             storedAttachmentFiles,
+            inspectedManagedPaths,
+            readManagedPaths,
           }),
         ),
       ),
     )
 
     expect(storedAttachmentFiles).toEqual(['attachment-0.txt'])
+    expect(inspectedManagedPaths).toEqual([
+      '/managed/existing-resource.png',
+      '/managed/existing-resource.png',
+    ])
+    expect(readManagedPaths).toEqual([])
     expect(repairedUpserts).toEqual([
       expect.objectContaining({ id: availableResource.id, available: true }),
     ])
   })
 
-  it('captures later attachments before retrying known unavailable placeholders', async () => {
+  it('captures later attachments without retrying known unavailable placeholders', async () => {
     const messages = Array.from({ length: ATTACHMENT_BACKFILL_LIMITS.maxCount + 1 }, (_, index) =>
       attachmentMessage(index),
     )
@@ -121,7 +130,7 @@ describe('session resource backfill progress', () => {
     const knownUnavailable = unavailableUpserts.map(capturedResource)
     const storedAttachmentFiles: string[] = []
 
-    await Effect.runPromise(
+    const secondPass = await Effect.runPromise(
       captureProjectedSessionResources({ sessionId: SESSION_ID, messages }).pipe(
         Effect.provide(
           sessionResourceTestLayer([], {
@@ -135,7 +144,8 @@ describe('session resource backfill progress', () => {
     expect(storedAttachmentFiles).toContain(
       `attachment-${String(ATTACHMENT_BACKFILL_LIMITS.maxCount)}.txt`,
     )
-    expect(storedAttachmentFiles).toHaveLength(ATTACHMENT_BACKFILL_LIMITS.maxCount)
+    expect(storedAttachmentFiles).toHaveLength(1)
+    expect(secondPass.fullyProjected).toBe(true)
   })
 
   it('advances across rejected image candidates on later bounded passes', async () => {
@@ -156,7 +166,7 @@ describe('session resource backfill progress', () => {
     const rejectedResources = rejectedUpserts.map(capturedResource)
     const storedByteFiles: string[] = []
 
-    await Effect.runPromise(
+    const secondPass = await Effect.runPromise(
       captureProjectedSessionResources({ sessionId: SESSION_ID, messages }).pipe(
         Effect.provide(
           sessionResourceTestLayer([], {
@@ -169,5 +179,6 @@ describe('session resource backfill progress', () => {
 
     expect(rejectedResources).toHaveLength(GENERATED_IMAGE_CAPTURE_LIMITS.maxAttempts)
     expect(storedByteFiles).toHaveLength(1)
+    expect(secondPass.fullyProjected).toBe(true)
   })
 })

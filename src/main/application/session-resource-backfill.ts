@@ -8,15 +8,19 @@ import { SessionResourceStore } from '../ports/session-resource-store'
 import {
   advanceAttachmentBackfillBudget,
   type BackfillAttachmentBudget,
+  isBackfillableAttachmentSize,
 } from './session-resource-backfill-budget'
+import { type BackfillLinkState, captureBackfilledLinks } from './session-resource-backfill-link'
+import {
+  type ProjectedResourceMessage,
+  projectResourceMessages,
+} from './session-resource-backfill-messages'
 import { loadSessionResourceBackfillProgress } from './session-resource-backfill-progress'
 import {
   captureAttachment,
   captureGeneratedImage,
-  captureLink,
   type GeneratedImageCaptureBudget,
   prepareGeneratedImageForCapture,
-  SESSION_LINK_CAPTURE_LIMIT,
 } from './session-resource-capture'
 import {
   attachmentOccurrenceId,
@@ -26,21 +30,16 @@ import {
   captureUnavailableGeneratedImage,
   generatedImageOccurrencePrefix,
 } from './session-resource-capture-image'
-import { linkOccurrenceId } from './session-resource-capture-link'
 import { type CapturedImage, collectExplicitResources } from './session-resource-extraction'
 import { withSessionResourceLock } from './session-resource-lock'
-
-interface ProjectedResourceMessage {
-  readonly message: Message
-  readonly nodeId: string
-  readonly branchId: string | null
-}
 
 interface BackfillImageState {
   budget: GeneratedImageCaptureBudget
   readonly completedSlots: Set<string>
   readonly knownSlots: Set<string>
+  readonly knownResources: ReadonlyMap<string, SessionResource>
   readonly deferred: BackfillImageInput[]
+  projectionBlocked: boolean
 }
 
 interface BackfillImageInput {
@@ -57,38 +56,12 @@ interface BackfillAttachmentState {
   budget: BackfillAttachmentBudget
   readonly completedOccurrences: Set<string>
   readonly knownResources: ReadonlyMap<string, SessionResource>
+  readonly retryUnavailableResourceId: string | null
   readonly deferred: Array<{
     readonly input: CaptureAttachmentInput
     readonly resource: SessionResource
   }>
-}
-
-interface BackfillLinkState {
-  count: number
-  readonly capturedOccurrences: Set<string>
-}
-
-function projectResourceMessages(input: {
-  readonly messages?: readonly Message[]
-  readonly nodes?: readonly SessionNode[]
-}): readonly ProjectedResourceMessage[] {
-  return input.nodes
-    ? input.nodes.flatMap((node) =>
-        node.message
-          ? [
-              {
-                message: node.message,
-                nodeId: String(node.id),
-                branchId: node.branchId ?? null,
-              },
-            ]
-          : [],
-      )
-    : (input.messages ?? []).map((message) => ({
-        message,
-        nodeId: String(message.id),
-        branchId: null,
-      }))
+  projectionBlocked: boolean
 }
 
 function capturedOccurrenceIds(resources: readonly SessionResource[]) {
@@ -103,12 +76,24 @@ function attemptBackfilledAttachment(
   return Effect.gen(function* () {
     const id = attachmentOccurrenceId(input)
     const nextBudget = advanceAttachmentBackfillBudget(state.budget, input.attachment.sizeBytes)
-    if (!nextBudget) return
+    if (!nextBudget) {
+      if (repairResource) {
+        state.projectionBlocked = true
+        return
+      }
+      if (!isBackfillableAttachmentSize(input.attachment.sizeBytes)) {
+        yield* captureAttachment(input)
+        state.completedOccurrences.add(id)
+        return
+      }
+      state.projectionBlocked = true
+      return
+    }
     state.budget = nextBudget
     yield* captureAttachment({
       ...input,
       ...(repairResource ? { repairResource } : {}),
-    }).pipe(Effect.catchAll(() => Effect.void))
+    })
     state.completedOccurrences.add(id)
   })
 }
@@ -116,18 +101,20 @@ function attemptBackfilledAttachment(
 function attemptBackfilledImage(input: BackfillImageInput, state: BackfillImageState) {
   return Effect.gen(function* () {
     const prepared = prepareGeneratedImageForCapture(state.budget, input.image)
-    if (!prepared) return
+    if (!prepared) {
+      state.projectionBlocked = true
+      return
+    }
     state.budget = prepared.budget
     const slot = generatedImageOccurrencePrefix(input)
     if (!prepared.image) {
+      yield* captureUnavailableGeneratedImage(input)
       state.knownSlots.add(slot)
-      yield* captureUnavailableGeneratedImage(input).pipe(Effect.catchAll(() => Effect.void))
       return
     }
+    yield* captureGeneratedImage({ ...input, validatedImage: prepared.image })
     state.completedSlots.add(slot)
-    yield* captureGeneratedImage({ ...input, validatedImage: prepared.image }).pipe(
-      Effect.catchAll(() => Effect.void),
-    )
+    state.knownSlots.add(slot)
   })
 }
 
@@ -155,31 +142,28 @@ function captureBackfilledUserResources(
       if (attachmentState.completedOccurrences.has(id)) continue
       const knownResource = attachmentState.knownResources.get(id)
       if (knownResource) {
+        if (!knownResource.available) {
+          if (knownResource.id === attachmentState.retryUnavailableResourceId) {
+            attachmentState.deferred.push({ input: attachmentInput, resource: knownResource })
+          }
+          continue
+        }
         attachmentState.deferred.push({ input: attachmentInput, resource: knownResource })
         continue
       }
       yield* attemptBackfilledAttachment(attachmentInput, attachmentState)
     }
-    const links = collectExplicitResources(message.parts).links
-    for (const [index, link] of links.entries()) {
-      const linkInput = {
-        sessionId,
-        runId,
-        link,
-        index,
-        nodeId,
-        actor: 'user',
-        activity: 'provided',
-        createdAt: message.createdAt,
-        branchId,
-      } as const
-      const id = linkOccurrenceId(linkInput)
-      if (linkState.capturedOccurrences.has(id)) continue
-      if (linkState.count >= SESSION_LINK_CAPTURE_LIMIT) break
-      linkState.count += 1
-      linkState.capturedOccurrences.add(id)
-      yield* captureLink(linkInput).pipe(Effect.catchAll(() => Effect.void))
-    }
+    yield* captureBackfilledLinks({
+      sessionId,
+      runId,
+      links: collectExplicitResources(message.parts).links,
+      nodeId,
+      actor: 'user',
+      activity: 'provided',
+      createdAt: message.createdAt,
+      branchId,
+      state: linkState,
+    })
   })
 }
 
@@ -206,30 +190,23 @@ function captureBackfilledAssistantResources(
       const slot = generatedImageOccurrencePrefix(imageInput)
       if (imageState.completedSlots.has(slot)) continue
       if (imageState.knownSlots.has(slot)) {
+        if (imageState.knownResources.get(slot)?.available === false) continue
         imageState.deferred.push(imageInput)
         continue
       }
       yield* attemptBackfilledImage(imageInput, imageState)
     }
-    for (const [index, link] of captured.links.entries()) {
-      const linkInput = {
-        sessionId,
-        runId,
-        link,
-        index,
-        nodeId,
-        actor: 'agent',
-        activity: 'read',
-        createdAt: message.createdAt,
-        branchId,
-      } as const
-      const id = linkOccurrenceId(linkInput)
-      if (linkState.capturedOccurrences.has(id)) continue
-      if (linkState.count >= SESSION_LINK_CAPTURE_LIMIT) break
-      linkState.count += 1
-      linkState.capturedOccurrences.add(id)
-      yield* captureLink(linkInput).pipe(Effect.catchAll(() => Effect.void))
-    }
+    yield* captureBackfilledLinks({
+      sessionId,
+      runId,
+      links: captured.links,
+      nodeId,
+      actor: 'agent',
+      activity: 'read',
+      createdAt: message.createdAt,
+      branchId,
+      state: linkState,
+    })
   })
 }
 
@@ -238,6 +215,7 @@ export function captureProjectedSessionResources(input: {
   readonly sessionId: SessionId
   readonly messages?: readonly Message[]
   readonly nodes?: readonly SessionNode[]
+  readonly retryUnavailableResourceId?: string
 }) {
   return withSessionResourceLock(
     input.sessionId,
@@ -255,17 +233,22 @@ export function captureProjectedSessionResources(input: {
         budget: { bytes: 0, count: 0 },
         completedOccurrences: progress.completedAttachmentOccurrences,
         knownResources: progress.knownAttachmentResources,
+        retryUnavailableResourceId: input.retryUnavailableResourceId ?? null,
         deferred: [],
+        projectionBlocked: false,
       }
       const imageState: BackfillImageState = {
         budget: { bytes: 0, count: 0, attempts: 0 },
         completedSlots: progress.completedImageSlots,
         knownSlots: progress.knownImageSlots,
+        knownResources: progress.knownImageResources,
         deferred: [],
+        projectionBlocked: false,
       }
       const linkState: BackfillLinkState = {
         count: 0,
         capturedOccurrences: capturedOccurrenceIds(resources),
+        projectionBlocked: false,
       }
       for (const projected of projectResourceMessages(input)) {
         const { message } = projected
@@ -291,6 +274,12 @@ export function captureProjectedSessionResources(input: {
       }
       for (const deferred of imageState.deferred) {
         yield* attemptBackfilledImage(deferred, imageState)
+      }
+      return {
+        fullyProjected:
+          !attachmentState.projectionBlocked &&
+          !imageState.projectionBlocked &&
+          !linkState.projectionBlocked,
       }
     }),
   )

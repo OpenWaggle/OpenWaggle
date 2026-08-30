@@ -219,11 +219,9 @@ function makeBrokerLayer(input: {
       list: () => Effect.succeed([]),
       listArchivedBranches: () => Effect.succeed([]),
       getTree: (sessionId) =>
-        Effect.succeed(
-          input.sessionTree && input.sessionTree.session.id === sessionId
-            ? input.sessionTree
-            : null,
-        ),
+        Effect.succeed(input.sessionTree?.session.id === sessionId ? input.sessionTree : null),
+      listResourceProjectionPage: () =>
+        Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
       getWorkspace: () => Effect.succeed(null),
       persistSnapshot: () => Effect.void,
       updateRuntime: () => Effect.void,

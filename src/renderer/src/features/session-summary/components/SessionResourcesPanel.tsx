@@ -145,6 +145,12 @@ export function SessionResourcesPanel({
   const resources = filteredResources(query.data ?? [], filter)
   const visibleResources = resources.slice(0, visibleCount)
 
+  async function retryResource(resourceId: string) {
+    if (!sessionId) return
+    await api.retrySessionResource(SessionId(sessionId), resourceId)
+    await query.refetch()
+  }
+
   return (
     <section className="flex size-full min-h-0 flex-col bg-diff-bg" aria-label="Session resources">
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
@@ -186,7 +192,7 @@ export function SessionResourcesPanel({
             key={resource.id}
             resource={resource}
             sessionId={sessionId ?? ''}
-            onRetry={() => void query.refetch()}
+            onRetry={() => void retryResource(resource.id)}
           />
         ))}
         {visibleResources.length < resources.length ? (

@@ -90,6 +90,7 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'listSessionResources',
   'readSessionResource',
   'readSessionResourceThumbnail',
+  'retrySessionResource',
   'recordSessionChangeRequest',
   'navigateSessionTree',
   'renameSessionBranch',

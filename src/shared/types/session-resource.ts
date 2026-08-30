@@ -40,6 +40,11 @@ export interface SessionResource {
   readonly updatedAt: number
 }
 
+export interface SessionResourceList {
+  readonly resources: SessionResource[]
+  readonly backfillComplete: boolean
+}
+
 export interface SessionResourceContent {
   readonly resourceId: string
   readonly fileName: string

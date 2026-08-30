@@ -30,6 +30,8 @@ describe('recordSessionChangeRequest', () => {
           rekey: () => Effect.dieMessage('rekey is not used'),
           hasOccurrence: () => Effect.succeed(false),
           getContentLocation: () => Effect.succeed(null),
+          getBackfillCursor: () => Effect.succeed(-1),
+          advanceBackfillCursor: () => Effect.void,
         }),
       ),
       Layer.succeed(
@@ -38,6 +40,8 @@ describe('recordSessionChangeRequest', () => {
           list: () => Effect.succeed([]),
           listArchivedBranches: () => Effect.succeed([]),
           getTree: () => Effect.succeed(null),
+          listResourceProjectionPage: () =>
+            Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
           getWorkspace: () =>
             Effect.succeed(
               fromPartial<SessionWorkspace>({

@@ -1,6 +1,6 @@
 import { isRecord } from '@shared/utils/validation'
 
-const MARKDOWN_LINK_PATTERN = /!?\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/giu
+const MARKDOWN_LINK_OPENER_PATTERN = /!?\[[^\]]*\]\((https?:\/\/)/giu
 
 export const SESSION_RESOURCE_EXTRACTION_LIMITS = {
   maxImages: 128,
@@ -21,11 +21,36 @@ export interface CapturedLink {
   readonly image: boolean
 }
 
+function markdownDestination(text: string, start: number) {
+  let depth = 0
+  for (let index = start; index < text.length; index += 1) {
+    const character = text[index]
+    if (character === '\\') {
+      index += 1
+      continue
+    }
+    if (character === '(') {
+      depth += 1
+      continue
+    }
+    if (character !== ')') {
+      if (character && /\s/u.test(character)) return null
+      continue
+    }
+    if (depth === 0) return text.slice(start, index)
+    depth -= 1
+  }
+  return null
+}
+
 function collectMarkdownLinks(text: string, links: CapturedLink[]) {
   if (links.length >= SESSION_RESOURCE_EXTRACTION_LIMITS.maxLinks) return
   const boundedText = text.slice(0, SESSION_RESOURCE_EXTRACTION_LIMITS.maxTextCharacters)
-  for (const match of boundedText.matchAll(MARKDOWN_LINK_PATTERN)) {
-    const url = match[1]
+  for (const match of boundedText.matchAll(MARKDOWN_LINK_OPENER_PATTERN)) {
+    const prefix = match[1]
+    const url = prefix
+      ? markdownDestination(boundedText, (match.index ?? 0) + match[0].length - prefix.length)
+      : null
     if (url) links.push({ url, title: url, image: match[0].startsWith('!') })
     if (links.length >= SESSION_RESOURCE_EXTRACTION_LIMITS.maxLinks) break
   }

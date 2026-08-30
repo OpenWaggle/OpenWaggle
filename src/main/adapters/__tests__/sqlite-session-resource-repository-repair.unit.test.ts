@@ -130,4 +130,23 @@ describe('SqliteSessionResourceRepositoryLive repair state', () => {
       managedPath: '/managed/repaired.png',
     })
   })
+
+  it('persists a monotonic session-scoped backfill cursor', async () => {
+    const sessionId = SessionId('session-1')
+    const layer = makeTestLayer(path.join(tmpRoot, 'cursor.sqlite'))
+
+    const cursors = await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* SessionResourceRepository
+        const initial = yield* repository.getBackfillCursor(sessionId)
+        yield* repository.advanceBackfillCursor(sessionId, 41)
+        yield* repository.advanceBackfillCursor(sessionId, 12)
+        const advanced = yield* repository.getBackfillCursor(sessionId)
+        const otherSession = yield* repository.getBackfillCursor(SessionId('session-2'))
+        return { advanced, initial, otherSession }
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(cursors).toEqual({ advanced: 41, initial: -1, otherSession: -1 })
+  })
 })

@@ -16,6 +16,8 @@ import { SessionRepository } from '../ports/session-repository'
 import { SessionResourceRepository } from '../ports/session-resource-repository'
 import { typedHandle } from './typed-ipc'
 
+export const SESSION_RESOURCE_BACKFILL_PAGE_SIZE = 64
+
 export function registerSessionResourceHandlers(): void {
   typedHandle('sessions:resources:list', (_event, rawSessionId: unknown) =>
     Effect.gen(function* () {
@@ -24,14 +26,28 @@ export function registerSessionResourceHandlers(): void {
       )
       const repository = yield* SessionResourceRepository
       const sessions = yield* SessionRepository
-      const tree = yield* sessions.getTree(sessionId)
-      if (tree) {
-        yield* captureProjectedSessionResources({
+      const cursor = yield* repository.getBackfillCursor(sessionId)
+      const page = yield* sessions.listResourceProjectionPage(
+        sessionId,
+        cursor,
+        SESSION_RESOURCE_BACKFILL_PAGE_SIZE,
+      )
+      let backfillComplete = true
+      if (page.throughCreatedOrder !== null) {
+        const result = yield* captureProjectedSessionResources({
           sessionId,
-          nodes: tree.nodes,
-        }).pipe(Effect.catchAll(() => Effect.void))
+          nodes: page.nodes,
+        }).pipe(Effect.option)
+        if (result._tag === 'Some') {
+          if (result.value.fullyProjected) {
+            yield* repository.advanceBackfillCursor(sessionId, page.throughCreatedOrder)
+            backfillComplete = !page.hasMore
+          } else {
+            backfillComplete = false
+          }
+        }
       }
-      return [...(yield* repository.list(sessionId))]
+      return { resources: [...(yield* repository.list(sessionId))], backfillComplete }
     }),
   )
 
@@ -55,6 +71,32 @@ export function registerSessionResourceHandlers(): void {
         const resourceId = decodeUnknownOrThrow(sessionResourceIdSchema, rawResourceId)
         return yield* readSessionResourceThumbnail(sessionId, resourceId)
       }),
+  )
+
+  typedHandle('sessions:resources:retry', (_event, rawSessionId: unknown, rawResourceId: unknown) =>
+    Effect.gen(function* () {
+      const sessionId = SessionId(
+        decodeUnknownOrThrow(sessionResourceSessionIdSchema, rawSessionId),
+      )
+      const resourceId = decodeUnknownOrThrow(sessionResourceIdSchema, rawResourceId)
+      const repository = yield* SessionResourceRepository
+      const resource = (yield* repository.list(sessionId)).find(({ id }) => id === resourceId)
+      if (!resource || resource.available) return undefined
+      const nodeIds = new Set(
+        resource.occurrences.flatMap(({ nodeId }) => (nodeId ? [nodeId] : [])),
+      )
+      if (nodeIds.size === 0) return undefined
+      const sessions = yield* SessionRepository
+      const tree = yield* sessions.getTree(sessionId)
+      if (!tree) return undefined
+      const nodes = tree.nodes.filter(({ id }) => nodeIds.has(String(id)))
+      yield* captureProjectedSessionResources({
+        sessionId,
+        nodes,
+        retryUnavailableResourceId: resourceId,
+      })
+      return undefined
+    }),
   )
 
   typedHandle(

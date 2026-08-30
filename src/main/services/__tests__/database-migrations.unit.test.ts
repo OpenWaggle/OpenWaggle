@@ -250,4 +250,26 @@ describe('session authorization-mode migration', () => {
     )
     expect(result).toEqual({ resources: [], occurrences: [] })
   })
+
+  it('adds session-owned resource backfill progress at migration 28', async () => {
+    const state = await withDatabase((sql) =>
+      Effect.gen(function* () {
+        yield* applyMigrations(sql, 28)
+        yield* insertSession(sql, 'backfill-session')
+        yield* sql`
+          INSERT INTO session_resource_backfill_state (session_id, through_created_order)
+          VALUES ('backfill-session', 42)
+        `
+        yield* sql`DELETE FROM sessions WHERE id = 'backfill-session'`
+        return yield* sql<{ readonly session_id: string }>`
+          SELECT session_id FROM session_resource_backfill_state
+        `
+      }),
+    )
+
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 28)?.name).toBe(
+      'session-resource-backfill-state',
+    )
+    expect(state).toEqual([])
+  })
 })

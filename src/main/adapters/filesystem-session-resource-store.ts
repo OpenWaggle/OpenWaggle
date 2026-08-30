@@ -62,6 +62,22 @@ function isWithinRoot(root: string, candidate: string) {
   return relative.length > 0 && !relative.startsWith(`..${path.sep}`) && relative !== '..'
 }
 
+async function inspectManagedPath(root: string, managedPath: string) {
+  const [realRoot, realPath] = await Promise.all([fs.realpath(root), fs.realpath(managedPath)])
+  if (!isWithinRoot(realRoot, realPath)) {
+    throw new Error('Session resource path escapes the managed resource directory.')
+  }
+  const handle = await fs.open(realPath, 'r')
+  try {
+    if (!(await handle.stat()).isFile()) {
+      throw new Error('Session resource path is not a regular file.')
+    }
+  } finally {
+    await handle.close()
+  }
+  return realPath
+}
+
 function digest(bytes: Uint8Array) {
   return createHash('sha256').update(bytes).digest('hex')
 }
@@ -213,18 +229,14 @@ function makeStore(root: string): SessionResourceStoreShape {
         },
         catch: (cause) => storeError('storeFile', cause),
       }),
+    inspect: (managedPath) =>
+      Effect.tryPromise({
+        try: async () => void (await inspectManagedPath(root, managedPath)),
+        catch: (cause) => storeError('inspect', cause),
+      }),
     read: (managedPath) =>
       Effect.tryPromise({
-        try: async () => {
-          const [realRoot, realPath] = await Promise.all([
-            fs.realpath(root),
-            fs.realpath(managedPath),
-          ])
-          if (!isWithinRoot(realRoot, realPath)) {
-            throw new Error('Session resource path escapes the managed resource directory.')
-          }
-          return await fs.readFile(realPath)
-        },
+        try: async () => await fs.readFile(await inspectManagedPath(root, managedPath)),
         catch: (cause) => storeError('read', cause),
       }),
     remove: (managedPath) =>

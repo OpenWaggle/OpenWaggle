@@ -98,6 +98,13 @@ export const CURRENT_SESSION_SCHEMA_STATEMENTS = [
   `,
 ] as const
 
+export const SESSION_RESOURCE_BACKFILL_SCHEMA_STATEMENT = `
+  CREATE TABLE IF NOT EXISTS session_resource_backfill_state (
+    session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+    through_created_order INTEGER NOT NULL
+  )
+  `
+
 export const CURRENT_SESSION_RESOURCE_SCHEMA_STATEMENTS = [
   `
   CREATE TABLE IF NOT EXISTS session_resources (
@@ -135,6 +142,7 @@ export const CURRENT_SESSION_RESOURCE_SCHEMA_STATEMENTS = [
   CREATE INDEX IF NOT EXISTS idx_session_resource_occurrences_resource_created
   ON session_resource_occurrences (resource_id, created_at ASC)
   `,
+  SESSION_RESOURCE_BACKFILL_SCHEMA_STATEMENT,
 ] as const
 
 export const EXTENSION_LIFECYCLE_SCHEMA_V1_STATEMENTS = [

@@ -215,6 +215,8 @@ const TestSessionRepoLayer = Layer.succeed(SessionRepository, {
   list: () => Effect.succeed([]),
   listArchivedBranches: () => Effect.succeed([]),
   getTree: () => Effect.succeed(null),
+  listResourceProjectionPage: () =>
+    Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
   getWorkspace: () => Effect.succeed(null),
   persistSnapshot: (input) =>
     Effect.sync(() => {
@@ -249,6 +251,7 @@ const TestSettingsLayer = Layer.succeed(SettingsService, {
 const TestSessionResourceStoreLayer = Layer.succeed(SessionResourceStore, {
   storeBytes: () => Effect.dieMessage('storeBytes is not used'),
   storeFile: () => Effect.dieMessage('storeFile is not used'),
+  inspect: () => Effect.dieMessage('inspect is not used'),
   read: () => Effect.dieMessage('read is not used'),
   remove: () => Effect.dieMessage('remove is not used'),
   removeSession: (sessionId) =>

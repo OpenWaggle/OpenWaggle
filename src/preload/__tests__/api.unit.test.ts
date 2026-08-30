@@ -54,6 +54,16 @@ describe('preload api surface contract', () => {
     )
   })
 
+  it('retries only the requested resource through typed IPC', async () => {
+    await api.retrySessionResource(SessionId('session-1'), 'resource-1')
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      'sessions:resources:retry',
+      SessionId('session-1'),
+      'resource-1',
+    )
+  })
+
   it('prepares attachments from user-selected File objects via preload path extraction', async () => {
     const file = new File(['screenshot'], 'screenshot.png')
     vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce([])

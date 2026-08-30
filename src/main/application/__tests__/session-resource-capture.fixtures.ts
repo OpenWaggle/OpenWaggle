@@ -24,6 +24,8 @@ export function sessionResourceTestLayer(
     readonly fetchedUrls?: string[]
     readonly existingManagedPath?: string
     readonly managedReadFails?: boolean
+    readonly inspectedManagedPaths?: string[]
+    readonly readManagedPaths?: string[]
     readonly storeFileFails?: boolean
     readonly listedResources?: readonly SessionResource[]
     readonly hasOccurrence?: boolean
@@ -92,6 +94,8 @@ export function sessionResourceTestLayer(
                 managedPath: options.existingManagedPath ?? '/managed/existing-resource.png',
               })
             : Effect.succeed(null),
+        getBackfillCursor: () => Effect.succeed(-1),
+        advanceBackfillCursor: () => Effect.void,
       }),
     ),
     Layer.succeed(
@@ -122,15 +126,32 @@ export function sessionResourceTestLayer(
             sizeBytes: input.bytes.byteLength,
           })
         },
-        read: () =>
-          options.managedReadFails
-            ? Effect.fail(
-                new SessionResourceStoreError({
-                  operation: 'read',
-                  cause: new Error('Managed resource is missing'),
-                }),
-              )
-            : Effect.succeed(new Uint8Array()),
+        inspect: (managedPath) =>
+          Effect.sync(() => options.inspectedManagedPaths?.push(managedPath)).pipe(
+            Effect.flatMap(() =>
+              options.managedReadFails
+                ? Effect.fail(
+                    new SessionResourceStoreError({
+                      operation: 'inspect',
+                      cause: new Error('Managed resource is missing'),
+                    }),
+                  )
+                : Effect.void,
+            ),
+          ),
+        read: (managedPath) =>
+          Effect.sync(() => options.readManagedPaths?.push(managedPath)).pipe(
+            Effect.flatMap(() =>
+              options.managedReadFails
+                ? Effect.fail(
+                    new SessionResourceStoreError({
+                      operation: 'read',
+                      cause: new Error('Managed resource is missing'),
+                    }),
+                  )
+                : Effect.succeed(new Uint8Array()),
+            ),
+          ),
         remove: (managedPath) =>
           Effect.sync(() => {
             options.removedPaths?.push(managedPath)

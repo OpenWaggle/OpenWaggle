@@ -35,12 +35,16 @@ export function loadSessionResourceBackfillProgress(
     const knownAttachmentResources = new Map<string, SessionResource>()
     const completedImageSlots = new Set<string>()
     const knownImageSlots = new Set<string>()
+    const knownImageResources = new Map<string, SessionResource>()
 
     for (const resource of resources) {
       const attachmentIds = attachmentOccurrenceIds(resource)
       const imageSlots = generatedImageSlots(resource)
       for (const id of attachmentIds) knownAttachmentResources.set(id, resource)
-      for (const slot of imageSlots) knownImageSlots.add(slot)
+      for (const slot of imageSlots) {
+        knownImageSlots.add(slot)
+        knownImageResources.set(slot, resource)
+      }
       if (!resource.available || (attachmentIds.length === 0 && imageSlots.length === 0)) continue
 
       const copy = yield* inspectManagedCopy(repository, store, sessionId, resource.id)
@@ -54,6 +58,7 @@ export function loadSessionResourceBackfillProgress(
       knownAttachmentResources,
       completedImageSlots,
       knownImageSlots,
+      knownImageResources,
     }
   })
 }

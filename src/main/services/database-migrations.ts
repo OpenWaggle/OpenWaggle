@@ -1,7 +1,6 @@
 import {
   CURRENT_EXTENSION_PROJECT_OVERRIDE_SCHEMA_STATEMENTS,
   CURRENT_EXTENSION_STORAGE_SCHEMA_STATEMENTS,
-  CURRENT_SESSION_RESOURCE_SCHEMA_STATEMENTS,
   CURRENT_SESSION_SCHEMA_STATEMENTS,
   EXTENSION_LIFECYCLE_BUILD_APPROVAL_MIGRATION_STATEMENTS,
   EXTENSION_LIFECYCLE_BUILD_RUN_MIGRATION_STATEMENTS,
@@ -11,6 +10,7 @@ import {
   SESSION_AUTHORIZATION_MODE_OVERRIDE_MIGRATION_STATEMENTS,
 } from './database-schema'
 import { CURRENT_SESSION_LINEAGE_SCHEMA_STATEMENTS } from './database-session-lineage-schema'
+import { SESSION_RESOURCE_MIGRATIONS } from './database-session-resource-migrations'
 
 export interface AppMigration {
   readonly id: number
@@ -294,9 +294,5 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
     name: 'session-hive-lineage',
     statements: CURRENT_SESSION_LINEAGE_SCHEMA_STATEMENTS,
   },
-  {
-    id: 27,
-    name: 'session-resource-catalog',
-    statements: CURRENT_SESSION_RESOURCE_SCHEMA_STATEMENTS,
-  },
+  ...SESSION_RESOURCE_MIGRATIONS,
 ]

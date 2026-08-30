@@ -1,5 +1,9 @@
 import { SessionId } from '@shared/types/brand'
-import type { SessionResource, SessionResourceContent } from '@shared/types/session-resource'
+import type {
+  SessionResource,
+  SessionResourceContent,
+  SessionResourceList,
+} from '@shared/types/session-resource'
 import { queryOptions, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import type { OpenWaggleQueryOptions } from '@/queries/query-options'
@@ -9,16 +13,26 @@ type SessionResourcesQueryKey = readonly ['session-resources', string]
 type SessionResourceContentQueryKey = readonly ['session-resource-content', string, string]
 type SessionResourceThumbnailQueryKey = readonly ['session-resource-thumbnail', string, string]
 
+const SESSION_RESOURCE_BACKFILL_POLL_INTERVAL_MS = 100
+
 export const sessionResourcesQueryKey = (sessionId: string): SessionResourcesQueryKey =>
   ['session-resources', sessionId] as const
 
 export function sessionResourcesQueryOptions(
   sessionId: string | null,
-): OpenWaggleQueryOptions<SessionResource[], Error, SessionResource[], SessionResourcesQueryKey> {
+): OpenWaggleQueryOptions<SessionResourceList, Error, SessionResource[], SessionResourcesQueryKey> {
   return queryOptions({
     queryKey: sessionResourcesQueryKey(sessionId ?? 'none'),
-    queryFn: () =>
-      sessionId ? api.listSessionResources(SessionId(sessionId)) : Promise.resolve([]),
+    queryFn: async () => {
+      if (!sessionId) return { resources: [], backfillComplete: true }
+      const result = await api.listSessionResources(SessionId(sessionId))
+      return Array.isArray(result) ? { resources: result, backfillComplete: true } : result
+    },
+    select: (result) => result.resources,
+    refetchInterval: (query) =>
+      query.state.data?.backfillComplete === false
+        ? SESSION_RESOURCE_BACKFILL_POLL_INTERVAL_MS
+        : false,
   })
 }
 

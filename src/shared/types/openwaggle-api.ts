@@ -77,6 +77,7 @@ import type {
   RecordSessionChangeRequestInput,
   SessionResource,
   SessionResourceContent,
+  SessionResourceList,
 } from './session-resource'
 import type { Settings } from './settings'
 import type {
@@ -148,7 +149,7 @@ export interface OpenWaggleApi
   listSessions(limit?: number): Promise<SessionSummary[]>
   listSessionDetails(limit?: number): Promise<SessionDetail[]>
   getSessionDetail(id: SessionId): Promise<SessionDetail | null>
-  listSessionResources(sessionId: SessionId): Promise<SessionResource[]>
+  listSessionResources(sessionId: SessionId): Promise<SessionResourceList>
   readSessionResource(
     sessionId: SessionId,
     resourceId: string,
@@ -157,6 +158,7 @@ export interface OpenWaggleApi
     sessionId: SessionId,
     resourceId: string,
   ): Promise<SessionResourceContent | null>
+  retrySessionResource(sessionId: SessionId, resourceId: string): Promise<void>
   recordSessionChangeRequest(
     sessionId: SessionId,
     input: RecordSessionChangeRequestInput,
