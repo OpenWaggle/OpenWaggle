@@ -6,6 +6,7 @@ import { seedSingleSession } from './support/session-fixtures'
 
 const SESSION_TITLE = 'Workspace review and focused edit fixture'
 const RENDERER_HEARTBEAT_BUDGET_MS = 250
+const RENDERER_HEARTBEAT_SAMPLE_COUNT = 5
 const STRESS_EDIT_COUNT = 200
 const CI_READABLE_BUDGET_MS = 2_500
 
@@ -150,6 +151,36 @@ async function installLongTaskObserver(page: Page) {
   })
 }
 
+async function rendererHeartbeatSamples(page: Page) {
+  return page.evaluate(
+    (sampleCount) =>
+      new Promise<number[]>((resolve) => {
+        const samples: number[] = []
+        let previous = performance.now()
+        const recordFrame = (timestamp: number) => {
+          samples.push(timestamp - previous)
+          previous = timestamp
+          if (samples.length >= sampleCount) {
+            resolve(samples)
+            return
+          }
+          requestAnimationFrame(recordFrame)
+        }
+        requestAnimationFrame(recordFrame)
+      }),
+    RENDERER_HEARTBEAT_SAMPLE_COUNT,
+  )
+}
+
+async function observedLongTasks(page: Page) {
+  return page.evaluate(() => {
+    const value = Reflect.get(window, '__openwaggleE2eLongTasks')
+    return Array.isArray(value)
+      ? value.filter((duration): duration is number => typeof duration === 'number')
+      : []
+  })
+}
+
 test('workspace files stay review-first, edit reliably on demand, and remain responsive', async () => {
   const app = await OpenWaggleApp.launch('openwaggle-workspace-editor-e2e-')
   const projectPath = path.join(app.userDataDir, 'workspace-editor-project')
@@ -217,6 +248,7 @@ test('workspace files stay review-first, edit reliably on demand, and remain res
 
     await editor.focus()
     await moveCursorToDocumentEnd(page)
+    await installLongTaskObserver(page)
     const stressEdit = Array.from(
       { length: STRESS_EDIT_COUNT },
       (_, index) => `// edit ${String(index)}\n`,
@@ -226,14 +258,15 @@ test('workspace files stay review-first, edit reliably on demand, and remain res
     await expect(page.getByText('Saved', { exact: true })).toBeVisible()
     await expect.poll(() => fs.readFile(mainPath, 'utf8')).toContain('// edit 199')
 
-    const heartbeatMs = await page.evaluate(
-      () =>
-        new Promise<number>((resolve) => {
-          const startedAt = performance.now()
-          requestAnimationFrame(() => resolve(performance.now() - startedAt))
-        }),
-    )
-    expect(heartbeatMs).toBeLessThan(RENDERER_HEARTBEAT_BUDGET_MS)
+    // One animation frame can include time the hosted runner descheduled Electron. The median of
+    // five frames measures sustained renderer responsiveness, while the long-task observer below
+    // still fails any actual main-thread block caused by editing or saving.
+    const heartbeatSamples = await rendererHeartbeatSamples(page)
+    const medianHeartbeatMs = [...heartbeatSamples].sort((left, right) => left - right)[
+      Math.floor(heartbeatSamples.length / 2)
+    ]
+    expect(medianHeartbeatMs).toBeLessThan(RENDERER_HEARTBEAT_BUDGET_MS)
+    expect(Math.max(0, ...(await observedLongTasks(page)))).toBeLessThanOrEqual(50)
 
     await page.getByRole('button', { name: 'Done', exact: true }).click()
     await expect(source).toBeVisible()
@@ -323,12 +356,7 @@ test('a 1 MiB source file paints before tokenization and keeps bounded work', as
     expect(sourceTransfers.filter((size) => size === source.length)).toHaveLength(1)
     expect(sourceTransfers.filter((size) => size === 0).length).toBeGreaterThanOrEqual(4)
 
-    const longTasks = await page.evaluate(() => {
-      const value = Reflect.get(window, '__openwaggleE2eLongTasks')
-      return Array.isArray(value)
-        ? value.filter((duration): duration is number => typeof duration === 'number')
-        : []
-    })
+    const longTasks = await observedLongTasks(page)
     expect(Math.max(0, ...longTasks)).toBeLessThanOrEqual(50)
     await expect(page.locator(`[aria-label="Edit ${relativePath}"]`)).toHaveCount(0)
   } finally {

@@ -77,6 +77,10 @@ async function openSeededSession(app: OpenWaggleApp) {
   await app.restart()
   const mainWindow = app.mainWindow()
   await mainWindow.openThread(SESSION_TITLE)
+  // The composer exists before the persisted transcript has necessarily hydrated on slower
+  // runners. Transient main-process events must be injected only after this concrete session is
+  // active, otherwise the test is exercising route setup rather than the notification surface.
+  await expect(mainWindow.page.getByText('Check the open GitHub issues.')).toBeVisible()
   return { mainWindow, sessionId }
 }
 
