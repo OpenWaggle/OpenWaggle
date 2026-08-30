@@ -46,7 +46,7 @@ test.describe('diff route sidebar', () => {
       await expect(page).toHaveURL(/\?panel=diff/)
       // The same route renders as a docked panel or a responsive sheet depending on available
       // viewport width. The shell marker is stable even when another complementary surface is open.
-      const diffAside = page.locator('aside[data-right-sidebar-shell="true"]')
+      const diffAside = page.locator('[data-right-sidebar-shell="true"]')
       await expect(diffAside).toBeVisible()
 
       await page.getByRole('button', { name: 'Close diff sidebar' }).click()
