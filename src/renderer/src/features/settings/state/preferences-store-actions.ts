@@ -1,4 +1,8 @@
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
+import type {
+  AppearanceMotionPreference,
+  AppearanceTypographyPreferences,
+} from '@shared/types/appearance-preferences'
 import { SupportedModelId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
 import {
@@ -12,13 +16,16 @@ import {
 import type { ShortcutBinding, ShortcutBindings, ShortcutCommand } from '@shared/types/shortcuts'
 import { includes } from '@shared/utils/validation'
 import { useProviderStore } from '@/features/providers/state'
+import { setRuntimeAppearancePreferences } from '@/shared/lib/appearance-preferences-runtime'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
+import { setRuntimeSyntaxThemeSelections } from '@/shared/lib/syntax/syntax-theme-runtime'
 import type { PreferencesActions, PreferencesState } from './preferences-store-types'
 
 const logger = createRendererLogger('preferences')
 const SLICE_ARG_2 = 100
 const SLICE_ARG_2_VALUE_10 = 10
+let appearancePreferenceWriteQueue = Promise.resolve()
 
 type PreferencesSet = (
   partial: Partial<PreferencesState> | ((state: PreferencesState) => Partial<PreferencesState>),
@@ -50,6 +57,8 @@ async function refreshProviderModels(set: PreferencesSet, get: PreferencesGet) {
 async function loadSettings(set: PreferencesSet, get: PreferencesGet) {
   try {
     const settings = await api.getSettings()
+    setRuntimeSyntaxThemeSelections(settings.syntaxThemeSelections)
+    setRuntimeAppearancePreferences(settings.appearancePreferences)
     set({ settings, isLoaded: false, loadError: null })
     if (settings.projectPath) await get().loadProjectPreferences(settings.projectPath)
     set({ isLoaded: true, loadError: null })
@@ -130,6 +139,43 @@ async function persistSetting<K extends keyof Settings>(
   set({ settings: { ...settings, [key]: value } })
 }
 
+function queueAppearancePreferencesWrite(appearancePreferences: Settings['appearancePreferences']) {
+  const write = appearancePreferenceWriteQueue
+    .catch(() => undefined)
+    .then(async () => {
+      await api.updateSettings({ appearancePreferences })
+    })
+  appearancePreferenceWriteQueue = write
+  return write
+}
+
+function persistAppearanceTypography(
+  typographyPatch: Partial<AppearanceTypographyPreferences>,
+  set: PreferencesSet,
+  get: PreferencesGet,
+) {
+  const { settings } = get()
+  const appearancePreferences = {
+    ...settings.appearancePreferences,
+    typography: { ...settings.appearancePreferences.typography, ...typographyPatch },
+  }
+  setRuntimeAppearancePreferences(appearancePreferences)
+  set({ settings: { ...settings, appearancePreferences } })
+  return queueAppearancePreferencesWrite(appearancePreferences)
+}
+
+function persistAppearanceMotion(
+  motion: AppearanceMotionPreference,
+  set: PreferencesSet,
+  get: PreferencesGet,
+) {
+  const { settings } = get()
+  const appearancePreferences = { ...settings.appearancePreferences, motion }
+  setRuntimeAppearancePreferences(appearancePreferences)
+  set({ settings: { ...settings, appearancePreferences } })
+  return queueAppearancePreferencesWrite(appearancePreferences)
+}
+
 export function createPreferencesActions(
   set: PreferencesSet,
   get: PreferencesGet,
@@ -189,8 +235,20 @@ export function createPreferencesActions(
       persistSetting('defaultSessionEnvironmentMode', mode, set, get),
     setDiffSyntaxTheme: (theme: DiffSyntaxTheme) =>
       persistSetting('diffSyntaxTheme', theme, set, get),
+    setSyntaxTheme: async (variant, themeId) => {
+      const { settings } = get()
+      const syntaxThemeSelections = {
+        ...settings.syntaxThemeSelections,
+        [variant]: themeId,
+      }
+      await api.updateSettings({ syntaxThemeSelections })
+      setRuntimeSyntaxThemeSelections(syntaxThemeSelections)
+      set({ settings: { ...settings, syntaxThemeSelections } })
+    },
     setDiffView: (view: DiffView) => persistSetting('diffView', view, set, get),
     setDiffWrapLines: (wrap: boolean) => persistSetting('diffWrapLines', wrap, set, get),
+    setAppearanceTypography: (typography) => persistAppearanceTypography(typography, set, get),
+    setAppearanceMotion: (motion) => persistAppearanceMotion(motion, set, get),
     setEnabledModels: (models) => setEnabledModels(models, set, get),
     setProjectDisplayName: async (path, name) => {
       const { settings } = get()

@@ -15,6 +15,7 @@ import {
 import type { ExtensionInvokeInput, ExtensionInvokeResult } from '@shared/types/extension-broker'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import type { JsonValue } from '@shared/types/json'
+import { createRendererExtensionSyntaxSdk } from './extension-syntax-sdk'
 import { createRendererExtensionTheme } from './extension-theme-context'
 
 export type ExtensionMountInvokeInput = ExtensionSdkInvokeRequest
@@ -79,9 +80,13 @@ export function createExtensionMountContext(input: {
     input.sdkOptions === undefined
       ? createExtensionBrokerSdk(input.invoke, identity)
       : createExtensionBrokerSdk(input.invoke, identity, input.sdkOptions)
+  const surface = input.surface ?? createNoopExtensionSurfaceSdk()
   const sdk = {
     ...brokerSdk,
-    surface: input.surface ?? createNoopExtensionSurfaceSdk(),
+    surface: {
+      ...surface,
+      syntax: createRendererExtensionSyntaxSdk(),
+    },
   }
   const theme = createRendererExtensionTheme()
 

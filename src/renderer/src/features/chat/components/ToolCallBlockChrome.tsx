@@ -3,6 +3,7 @@ import type { ToolCallResultPayload } from '@/features/chat/lib/tool-call-block'
 import { cn } from '@/shared/lib/cn'
 import { formatDuration } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
+import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
 import { useChatDisplayText } from './ChatDisplayPathContext'
 import type { ToolCallViewModel } from './ToolCallBlock'
 import { UnifiedDiffView } from './ToolCallBlockParts'
@@ -161,7 +162,8 @@ export function CollapsedToolPreview({
 function ToolPreview({ text, tone }: { readonly text: string; readonly tone: 'muted' | 'error' }) {
   const displayText = useChatDisplayText(text)
   return (
-    <pre
+    <PlainTextBlock
+      reason={tone === 'error' ? 'error' : 'log'}
       className={cn(
         'ml-5 mt-1 overflow-hidden rounded-md px-3 py-2 text-xs font-mono whitespace-pre-wrap break-words',
         tone === 'error'
@@ -170,6 +172,6 @@ function ToolPreview({ text, tone }: { readonly text: string; readonly tone: 'mu
       )}
     >
       {displayText}
-    </pre>
+    </PlainTextBlock>
   )
 }

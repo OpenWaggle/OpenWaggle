@@ -29,6 +29,8 @@ For the file navigator, `@pierre/trees` was rejected: it renders internally with
 
 **Appearance/Diff view settings.** A new Settings → Appearance section holds the persisted defaults (Syntax theme, Diff view, line wrap), write-through: the in-panel header toggles mutate the persisted setting directly, with no ephemeral per-panel copy.
 
+**Amendment: workspace documents use the Pierre renderer.** The unified syntax-highlighting work replaces the workspace file editor's plain `<textarea>` with the virtualized source view and focused editor recorded in ADR 0028. Pierre owns diffs, read-only source, and focused single-file editing. These surfaces also share language identity, TextMate grammars, and Syntax themes with the other syntax adapters.
+
 **Per-hunk Stage/Discard is out of scope**, deferred to a follow-up issue. It is not established behaviour for this surface, the library only provides a pure in-memory helper (`diffAcceptRejectHunk`) that nothing calls, and Discard is a destructive working-tree mutation we would have to write and guard ourselves — the wrong thing to add in a parity PR that is already large.
 
 ## Consequences
@@ -40,6 +42,8 @@ The container-query fix that made review comments reachable under horizontal scr
 We take on `@pierre/diffs` (+ transitive `diff`, `lru_map`, `hast-util-to-html`, `@pierre/theme`, `@pierre/theming`) and `@headless-tree/react` + `@headless-tree/core`. All Apache-2.0/MIT. `@pierre/diffs` is pinned and subject to the `minimumReleaseAge` and `trustPolicy` gates already in `pnpm-workspace.yaml`. Bundle grows; the diff renderer is lazy-loaded with the panel.
 
 The Syntax theme sits outside the Design token contract by design (ADR 0015 amendment). A future reader must not "fix" that by folding syntax scopes into Semantic roles.
+
+Workspace editing consequently becomes part of Pierre's dependency boundary and the shared syntax contract. See ADR 0028 for the editing, performance, and persistence decision.
 
 ## Alternatives Considered
 

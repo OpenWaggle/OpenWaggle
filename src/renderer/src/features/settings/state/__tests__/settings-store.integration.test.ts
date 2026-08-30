@@ -56,6 +56,27 @@ describe('preferences-store integration', () => {
     expect(usePreferencesStore.getState().settings.thinkingLevel).toBe('high')
   })
 
+  it('persists typography as one appearance preference document', async () => {
+    await usePreferencesStore.getState().setAppearanceTypography({
+      codeFontFamily: 'JetBrains Mono, monospace',
+      codeFontSize: 14,
+    })
+
+    expect(apiMock.updateSettings).toHaveBeenCalledWith({
+      appearancePreferences: {
+        ...DEFAULT_SETTINGS.appearancePreferences,
+        typography: {
+          ...DEFAULT_SETTINGS.appearancePreferences.typography,
+          codeFontFamily: 'JetBrains Mono, monospace',
+          codeFontSize: 14,
+        },
+      },
+    })
+    expect(
+      usePreferencesStore.getState().settings.appearancePreferences.typography.codeFontSize,
+    ).toBe(14)
+  })
+
   it('tracks recent projects in first-added order with dedupe and max size', async () => {
     const entries = [
       '/tmp/repo-1',

@@ -1,16 +1,8 @@
 // @vitest-environment jsdom
 import { renderHook } from '@testing-library/react'
-import { fromPartial } from '@total-typescript/shoehorn'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
-vi.mock('@/shared/lib/shiki/rehype-shiki-plugin', () => ({
-  applyShikiToHast: vi.fn(),
-}))
-
-import { ShikiCache } from '@/shared/lib/shiki/shiki-cache'
 import { findSplitIndex, useIncrementalMarkdown } from '../useIncrementalMarkdown'
-
-const SHIKI_OPTIONS = { highlighter: undefined, cache: new ShikiCache() }
 
 describe('findSplitIndex', () => {
   it('returns -1 when no paragraph breaks exist', () => {
@@ -49,12 +41,25 @@ describe('findSplitIndex', () => {
     const idx = findSplitIndex(text)
     expect(text.slice(idx)).toBe('end')
   })
+
+  it('honors CommonMark tilde, indentation, and delimiter-length rules', () => {
+    expect(findSplitIndex('~~~ts\none\n\ninside\n~~~\n\nafter')).toBe(
+      '~~~ts\none\n\ninside\n~~~\n\n'.length,
+    )
+    expect(findSplitIndex('   ```ts\none\n\ninside\n   ```\n\nafter')).toBe(
+      '   ```ts\none\n\ninside\n   ```\n\n'.length,
+    )
+    expect(findSplitIndex('    ```ts\nordinary indented code\n\nafter')).toBe(
+      '    ```ts\nordinary indented code\n\n'.length,
+    )
+    expect(findSplitIndex('````ts\none\n```\n\nstill fenced')).toBe(-1)
+  })
 })
 
 describe('useIncrementalMarkdown', () => {
   it('returns full text as tail when not streaming', () => {
     const text = 'paragraph one\n\nparagraph two'
-    const { result } = renderHook(() => useIncrementalMarkdown(text, false, SHIKI_OPTIONS))
+    const { result } = renderHook(() => useIncrementalMarkdown(text, false))
     expect(result.current.prefixHast).toBeNull()
     expect(result.current.tail).toBe(text)
     expect(result.current.prefixKey).toBe('')
@@ -62,7 +67,7 @@ describe('useIncrementalMarkdown', () => {
 
   it('splits text and returns HAST prefix when streaming', () => {
     const text = 'paragraph one\n\nparagraph two'
-    const { result } = renderHook(() => useIncrementalMarkdown(text, true, SHIKI_OPTIONS))
+    const { result } = renderHook(() => useIncrementalMarkdown(text, true))
     expect(result.current.prefixHast).not.toBeNull()
     expect(result.current.prefixHast?.type).toBe('root')
     expect(result.current.tail).toBe('paragraph two')
@@ -71,7 +76,7 @@ describe('useIncrementalMarkdown', () => {
 
   it('returns cached HAST on repeated renders with same prefix', () => {
     const text = 'paragraph one\n\nparagraph two'
-    const { result, rerender } = renderHook(() => useIncrementalMarkdown(text, true, SHIKI_OPTIONS))
+    const { result, rerender } = renderHook(() => useIncrementalMarkdown(text, true))
 
     const firstHast = result.current.prefixHast
 
@@ -82,7 +87,7 @@ describe('useIncrementalMarkdown', () => {
 
   it('returns full text when streaming but no paragraph breaks', () => {
     const text = 'single paragraph still streaming'
-    const { result } = renderHook(() => useIncrementalMarkdown(text, true, SHIKI_OPTIONS))
+    const { result } = renderHook(() => useIncrementalMarkdown(text, true))
     expect(result.current.prefixHast).toBeNull()
     expect(result.current.tail).toBe(text)
     expect(result.current.prefixKey).toBe('')
@@ -90,10 +95,9 @@ describe('useIncrementalMarkdown', () => {
 
   it('incrementally extends prefix HAST when new paragraphs arrive', () => {
     let text = 'paragraph one\n\nparagraph two'
-    const { result, rerender } = renderHook(
-      ({ t }) => useIncrementalMarkdown(t, true, SHIKI_OPTIONS),
-      { initialProps: { t: text } },
-    )
+    const { result, rerender } = renderHook(({ t }) => useIncrementalMarkdown(t, true), {
+      initialProps: { t: text },
+    })
 
     const firstHast = result.current.prefixHast
     expect(firstHast).not.toBeNull()
@@ -110,26 +114,28 @@ describe('useIncrementalMarkdown', () => {
     expect(result.current.tail).toBe('paragraph three')
   })
 
-  it('invalidates prefix cache when highlighter changes', () => {
-    const text = 'paragraph one\n\nparagraph two'
-    const options1: { highlighter: import('shiki').Highlighter | undefined; cache: ShikiCache } = {
-      highlighter: undefined,
-      cache: new ShikiCache(),
-    }
+  it('keeps a delimiter split across chunks inside its fenced tail', () => {
+    const { result, rerender } = renderHook(({ text }) => useIncrementalMarkdown(text, true), {
+      initialProps: { text: '``' },
+    })
+    expect(result.current.prefixHast).toBeNull()
 
-    const { result, rerender } = renderHook(
-      ({ opts }) => useIncrementalMarkdown(text, true, opts),
-      { initialProps: { opts: options1 } },
-    )
+    rerender({ text: '```ts\nline one\n\nline two' })
+    expect(result.current.prefixHast).toBeNull()
+    expect(result.current.tail).toBe('```ts\nline one\n\nline two')
 
+    rerender({ text: '```ts\nline one\n\nline two\n```\n\nafter' })
+    expect(result.current.prefixKey).toBe('```ts\nline one\n\nline two\n```\n\n')
+    expect(result.current.tail).toBe('after')
+  })
+
+  it('rebuilds the prefix after a non-monotonic text replacement', () => {
+    const { result, rerender } = renderHook(({ text }) => useIncrementalMarkdown(text, true), {
+      initialProps: { text: 'paragraph one\n\nparagraph two' },
+    })
     const firstHast = result.current.prefixHast
-
-    // Simulate highlighter becoming available
-    const fakeHighlighter = fromPartial<import('shiki').Highlighter>({})
-    const options2 = { highlighter: fakeHighlighter, cache: options1.cache }
-    rerender({ opts: options2 })
-
-    // Should produce a new HAST (cache was invalidated)
+    rerender({ text: 'replacement paragraph\n\nnew tail' })
     expect(result.current.prefixHast).not.toBe(firstHast)
+    expect(result.current.prefixKey).toBe('replacement paragraph\n\n')
   })
 })

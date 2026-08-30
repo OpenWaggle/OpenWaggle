@@ -147,3 +147,126 @@ test('appearance: every contract role re-renders under the debug appearance', as
     await app.cleanup()
   }
 })
+
+test('appearance: syntax theme selection survives a renderer reload', async () => {
+  const app = await OpenWaggleApp.launch('openwaggle-syntax-theme-persistence-e2e-')
+
+  try {
+    const { page } = app.mainWindow()
+    const tokenizationWarnings: string[] = []
+    page.on('console', (message) => {
+      if (message.text().includes('Time limit reached when tokenizing line')) {
+        tokenizationWarnings.push(message.text())
+      }
+    })
+
+    await page.getByRole('button', { name: 'Settings' }).click()
+    await page.getByRole('button', { name: 'Appearance' }).click()
+
+    await expect(page.getByRole('combobox', { name: 'Preview language' })).toHaveValue('typescript')
+    const typescriptPreview = page.getByRole('region', {
+      name: 'TypeScript syntax theme preview',
+    })
+    await expect(typescriptPreview).toHaveAttribute('data-syntax-status', 'highlighted')
+    await expect
+      .poll(async () => {
+        return typescriptPreview
+          .locator('span[style*="color"]')
+          .evaluateAll((tokens) => new Set(tokens.map((token) => getComputedStyle(token).color)).size)
+      })
+      .toBeGreaterThan(1)
+
+    await page.getByRole('combobox', { name: 'Preview language' }).selectOption('python')
+    await expect(page.getByRole('combobox', { name: 'Preview language' })).toHaveValue('python')
+    const pythonPreview = page.getByRole('region', { name: 'Python syntax theme preview' })
+    await expect(pythonPreview).toHaveAttribute('data-syntax-status', 'highlighted')
+    await expect(pythonPreview).toContainText('@dataclass')
+    await page.getByRole('button', { name: 'GitHub Dark, Dark' }).click()
+
+    await expect
+      .poll(async () => {
+        const settings = await page.evaluate(() => window.api.getSettings())
+        return settings.syntaxThemeSelections.dark
+      })
+      .toBe('bundled:github-dark')
+
+    await page.reload()
+
+    await expect(page.getByRole('button', { name: 'GitHub Dark, Dark' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(tokenizationWarnings).toEqual([])
+  } finally {
+    await app.cleanup()
+  }
+})
+
+test('appearance: typography and motion preferences survive a renderer reload', async () => {
+  const app = await OpenWaggleApp.launch('openwaggle-typography-persistence-e2e-')
+
+  try {
+    const { page } = app.mainWindow()
+
+    await page.getByRole('button', { name: 'Settings' }).click()
+    await page.getByRole('button', { name: 'Appearance' }).click()
+
+    const codePreview = page
+      .getByRole('region', { name: 'TypeScript syntax theme preview' })
+      .locator('.syntax-typography')
+    await expect(codePreview).toBeVisible()
+    const initialCodeFont = await codePreview.evaluate((element) => getComputedStyle(element).fontFamily)
+    await page.getByRole('button', { name: 'Interface font: System UI' }).click()
+    await page.getByRole('menuitemradio', { name: 'Georgia' }).click()
+    await page.getByRole('button', { name: 'Code font: System monospace' }).click()
+    await page.getByRole('menuitemradio', { name: 'Menlo' }).click()
+    await page.getByRole('button', { name: 'Increase Interface scale' }).click()
+    await page.getByRole('switch', { name: 'Reduce motion' }).click()
+
+    await expect
+      .poll(() => codePreview.evaluate((element) => getComputedStyle(element).fontFamily))
+      .not.toBe(initialCodeFont)
+    expect(await codePreview.evaluate((element) => getComputedStyle(element).fontFamily)).toMatch(
+      /^Menlo/u,
+    )
+
+    await expect
+      .poll(async () => {
+        const settings = await page.evaluate(() => window.api.getSettings())
+        return settings.appearancePreferences
+      })
+      .toEqual(
+        expect.objectContaining({
+          motion: 'reduced',
+          typography: expect.objectContaining({
+            interfaceFontFamily: 'Georgia, serif',
+            interfaceScale: 105,
+            codeFontFamily:
+              'Menlo, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+          }),
+        }),
+      )
+
+    await page.reload()
+
+    await expect(page.getByRole('button', { name: 'Interface font: Georgia' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Code font: Menlo' })).toBeVisible()
+    await expect(page.getByRole('spinbutton', { name: 'Interface scale' })).toHaveValue('105')
+    await expect(page.getByRole('switch', { name: 'Reduce motion' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    expect(
+      await page.evaluate(() => ({
+        fontFamily: document.documentElement.style.getPropertyValue('--font-sans'),
+        fontSize: document.documentElement.style.fontSize,
+        motion: document.documentElement.dataset.motion,
+      })),
+    ).toEqual({ fontFamily: 'Georgia, serif', fontSize: '105%', motion: 'reduced' })
+    await expect
+      .poll(() => codePreview.evaluate((element) => getComputedStyle(element).fontFamily))
+      .toMatch(/^Menlo/u)
+  } finally {
+    await app.cleanup()
+  }
+})

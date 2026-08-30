@@ -1,23 +1,25 @@
 import type { JsonObject } from '@shared/types/json'
 import { AlertCircle, Clipboard } from 'lucide-react'
 import {
-  buildFencedCodeMarkdown,
   FILE_CONTENT_ARG_KEYS,
   getToolResultText,
-  getUnifiedDiffLineClassName,
   inferLanguageFromPath,
-  JSON_STRINGIFY_SPACES,
   LONG_ARGUMENT_MAX_HEIGHT_PX,
   LONG_ARGUMENT_PREVIEW_CHARS,
   RESULT_MAX_HEIGHT_PX,
   shouldHighlightCode,
   type UnifiedDiffData,
 } from '@/features/chat/lib/tool-call-block'
+import { usePreferencesStore } from '@/features/settings'
 import { useCopyToClipboard } from '@/shared/hooks/useCopyToClipboard'
-import { cn } from '@/shared/lib/cn'
+import { useSyntaxTheme } from '@/shared/hooks/useSyntaxTheme'
 import { Button } from '@/shared/ui/Button'
+import { DiffBlock } from '@/shared/ui/DiffBlock'
+import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
+import { SourceView } from '@/shared/ui/SourceView'
+import { StructuredPayload, serializeStructuredPayload } from '@/shared/ui/StructuredPayload'
+import { SyntaxBlock } from '@/shared/ui/SyntaxBlock'
 import { useChatDisplayText, useChatDisplayTextFormatter } from './ChatDisplayPathContext'
-import { StreamingText } from './StreamingText'
 
 export function CopyButton({ label, value }: { readonly label: string; readonly value: string }) {
   const { copied, copy } = useCopyToClipboard()
@@ -56,19 +58,19 @@ export function ToolArgs({
   const displayCommand = useChatDisplayText(typeof args.command === 'string' ? args.command : '')
   if (name === 'bash' && typeof args.command === 'string') {
     return (
-      <div className="rounded-md bg-bg px-3 py-2 font-mono text-sm text-text-secondary">
-        <span className="text-text-muted select-none">$ </span>
-        {displayCommand}
-      </div>
+      <SyntaxBlock
+        source={`$ ${displayCommand}`}
+        language="bash"
+        ariaLabel="Shell command"
+        className="rounded-md text-sm"
+      />
     )
   }
 
   const entries = Object.entries(args)
   if (entries.length === 0) {
     return (
-      <pre className="text-sm font-mono text-text-secondary bg-bg rounded-md p-2 overflow-x-auto">
-        {displayRawArgs || '{}'}
-      </pre>
+      <SyntaxBlock source={displayRawArgs || '{}'} language="json" className="rounded-md bg-bg" />
     )
   }
 
@@ -90,9 +92,21 @@ function ToolArgValue({
   value: unknown
   path: string | null
 }) {
-  const serialized =
-    typeof value === 'string' ? value : JSON.stringify(value, null, JSON_STRINGIFY_SPACES)
+  const serialized = typeof value === 'string' ? value : serializeStructuredPayload(value)
   const displayText = useChatDisplayText(typeof serialized === 'string' ? serialized : '')
+
+  if (typeof value !== 'string') {
+    return (
+      <div>
+        <span className="text-sm text-text-tertiary">{name}: </span>
+        <StructuredPayload
+          value={value}
+          serialized={serialized}
+          className="mt-0.5 max-h-50 bg-bg"
+        />
+      </div>
+    )
+  }
   const display = FILE_CONTENT_ARG_KEYS.has(name) && typeof value === 'string' ? value : displayText
   const isLong = typeof display === 'string' && display.length > LONG_ARGUMENT_PREVIEW_CHARS
 
@@ -106,12 +120,9 @@ function ToolArgValue({
           maxHeight={LONG_ARGUMENT_MAX_HEIGHT_PX}
         />
       ) : isLong ? (
-        <pre
-          className="mt-0.5 text-sm font-mono text-text-secondary bg-bg rounded-md p-2 overflow-x-auto overflow-y-auto"
-          style={{ maxHeight: LONG_ARGUMENT_MAX_HEIGHT_PX }}
-        >
-          {display}
-        </pre>
+        <PlainTextBlock reason="prose" className="mt-0.5 max-h-50 text-sm">
+          {display ?? ''}
+        </PlainTextBlock>
       ) : (
         <span className="text-sm font-mono text-text-secondary">{display}</span>
       )}
@@ -130,25 +141,27 @@ function HighlightedFileContent({
 }) {
   if (!shouldHighlightCode(content)) {
     return (
-      <div>
-        <div className="mb-1 text-xs text-text-muted">
-          Large file preview shown without syntax highlighting to keep the UI responsive.
+      <div className="space-y-1">
+        <p className="text-xs text-text-muted">
+          Large file preview uses viewport-only highlighting to keep the UI responsive.
+        </p>
+        <div style={{ height: maxHeight, maxHeight }}>
+          <SourceView
+            source={content}
+            language={language}
+            ariaLabel="Large file source preview"
+            className="h-full rounded-md bg-bg text-sm leading-relaxed"
+          />
         </div>
-        <pre
-          className="text-sm font-mono text-text-secondary bg-bg rounded-md p-2 overflow-x-auto overflow-y-auto whitespace-pre-wrap break-words"
-          style={{ maxHeight }}
-        >
-          {content}
-        </pre>
       </div>
     )
   }
-
   return (
     <div className="tool-result-code overflow-y-auto" style={{ maxHeight }}>
-      <StreamingText
-        text={buildFencedCodeMarkdown(content, language)}
-        className="[&_pre]:max-h-none [&_pre]:text-sm [&_pre]:leading-relaxed"
+      <SyntaxBlock
+        source={content}
+        language={language}
+        className="rounded-md bg-bg text-sm leading-relaxed"
       />
     </div>
   )
@@ -165,7 +178,9 @@ export function ToolResult({
   name: string
   path: string | null
 }) {
-  const displayContent = getToolResultText(content)
+  const serializedContent =
+    typeof content === 'string' ? content : serializeStructuredPayload(content)
+  const displayContent = getToolResultText(content, serializedContent)
   const shortenedContent = useChatDisplayText(displayContent)
 
   if (isError) {
@@ -173,9 +188,9 @@ export function ToolResult({
       <div className="rounded-md border border-error/20 bg-error/5 px-3 py-2">
         <div className="flex items-start gap-2">
           <AlertCircle className="size-3.5 text-error shrink-0 mt-0.5" />
-          <pre className="text-sm font-mono text-error whitespace-pre-wrap break-words flex-1">
+          <PlainTextBlock reason="error" className="flex-1 bg-transparent p-0 text-sm text-error">
             {shortenedContent}
-          </pre>
+          </PlainTextBlock>
         </div>
       </div>
     )
@@ -191,13 +206,20 @@ export function ToolResult({
     )
   }
 
+  if (typeof content !== 'string' && displayContent === serializedContent) {
+    return (
+      <StructuredPayload
+        value={content}
+        serialized={serializedContent}
+        className="max-h-75 bg-bg"
+      />
+    )
+  }
+
   return (
-    <pre
-      className="text-sm font-mono text-text-secondary bg-bg rounded-md p-2 overflow-x-auto overflow-y-auto whitespace-pre-wrap break-words"
-      style={{ maxHeight: RESULT_MAX_HEIGHT_PX }}
-    >
+    <PlainTextBlock reason="prose" className="max-h-75 text-sm">
       {shortenedContent}
-    </pre>
+    </PlainTextBlock>
   )
 }
 
@@ -209,6 +231,12 @@ export function UnifiedDiffView({
   readonly compact?: boolean
 }) {
   const formatDisplayText = useChatDisplayTextFormatter()
+  const view = usePreferencesStore((state) => state.settings.diffView)
+  const wrap = usePreferencesStore((state) => state.settings.diffWrapLines)
+  const { shikiTheme } = useSyntaxTheme()
+  const displayPatch = diff.lines
+    .map((line) => (line.type === 'meta' ? formatDisplayText(line.content) : line.content))
+    .join('\n')
   return (
     <div className="rounded-md border border-border overflow-hidden text-xs font-mono">
       <div className="flex items-center justify-between bg-bg-secondary px-3 py-1.5 border-b border-border">
@@ -218,16 +246,13 @@ export function UnifiedDiffView({
           {diff.deletions > 0 && <span className="text-error">-{diff.deletions}</span>}
         </div>
       </div>
-      <div className={cn('overflow-x-auto bg-bg', compact && 'max-h-55 overflow-y-hidden')}>
-        {diff.lines.map((line) => (
-          <div
-            key={line.lineIndex}
-            className={cn('flex whitespace-pre px-3', getUnifiedDiffLineClassName(line.type))}
-          >
-            {line.type === 'meta' ? formatDisplayText(line.content) : line.content}
-          </div>
-        ))}
-      </div>
+      <DiffBlock
+        patch={displayPatch}
+        className={compact ? 'max-h-55 overflow-y-hidden' : undefined}
+        view={view}
+        wrap={wrap}
+        theme={shikiTheme}
+      />
     </div>
   )
 }

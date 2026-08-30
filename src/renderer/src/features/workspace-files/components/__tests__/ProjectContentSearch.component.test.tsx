@@ -43,6 +43,7 @@ describe('ProjectContentSearch query scheduling', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.unstubAllGlobals()
   })
 
   it('queries only the settled burst and cannot open stale results before the next query settles', async () => {
@@ -65,6 +66,12 @@ describe('ProjectContentSearch query scheduling', () => {
     fireEvent.change(input, { target: { value: 'old' } })
     await act(() => vi.advanceTimersByTimeAsync(200))
     await vi.waitFor(() => expect(screen.getByText('old.ts')).toBeInTheDocument())
+    expect(screen.getByLabelText('Matching source from old.ts')).toHaveTextContent('old')
+    expect(
+      screen
+        .getByLabelText('Matching source from old.ts')
+        .querySelector('[data-syntax-language="typescript"]'),
+    ).toBeTruthy()
     expect(mocks.searchWorkspaceContent).toHaveBeenCalledTimes(1)
     expect(mocks.searchWorkspaceContent).toHaveBeenLastCalledWith('/project', 'old', 200)
 
@@ -94,5 +101,35 @@ describe('ProjectContentSearch query scheduling', () => {
     view.unmount()
 
     expect(mocks.cancelWorkspaceContentSearch).toHaveBeenCalledWith('/project')
+  })
+
+  it('keeps offscreen result snippets plain until they approach the viewport', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        disconnect() {}
+        observe() {}
+      },
+    )
+    mocks.searchWorkspaceContent.mockResolvedValue(
+      Array.from({ length: 200 }, (_, index) => ({
+        path: `src/result-${String(index)}.ts`,
+        basename: `result-${String(index)}.ts`,
+        lineNumber: index + 1,
+        lineText: `const result${String(index)} = true`,
+        matchStart: 6,
+        matchLength: 6,
+      })),
+    )
+    const { container } = renderWithQueryClient(<ProjectContentSearch />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search project contents' }), {
+      target: { value: 'result' },
+    })
+    await act(() => vi.advanceTimersByTimeAsync(200))
+    await vi.waitFor(() => expect(screen.getByText('src/result-199.ts')).toBeInTheDocument())
+
+    expect(container.querySelectorAll('[data-syntax-language]')).toHaveLength(0)
+    expect(screen.getAllByText(/const result\d+ = true/u)).toHaveLength(200)
   })
 })

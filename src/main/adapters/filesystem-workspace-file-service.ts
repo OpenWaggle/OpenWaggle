@@ -1,34 +1,32 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
-import type {
-  WorkspaceContentMatch,
-  WorkspaceFileEntry,
-  WorkspaceFileReadResult,
-  WorkspaceFileWriteInput,
-  WorkspaceFileWriteResult,
-} from '@shared/types/workspace-files'
+import type { WorkspaceContentMatch, WorkspaceFileEntry } from '@shared/types/workspace-files'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
-import { openPath } from '../desktop-ui'
-import { WorkspaceFileError } from '../errors'
+import { openPath, showItemInFolder } from '../desktop-ui'
 import { WorkspaceFileService } from '../ports/workspace-file-service'
-import { isPathInsideDirectory } from '../utils/project-path-validation'
+import { applyWorkspaceDocumentEdits, writeWorkspaceFile } from './workspace-document-writer'
 import {
-  hasBinaryBytes,
-  LANGUAGE_BY_EXTENSION,
-  MIME_BY_EXTENSION,
-  workspaceFilePreviewKind,
-  workspaceFileRevision,
-} from './workspace-file-content'
+  createWorkspaceEntry,
+  duplicateWorkspaceEntry,
+  moveWorkspaceEntry,
+  trashWorkspaceEntry,
+} from './workspace-entry-mutations'
+import { hasBinaryBytes } from './workspace-file-content'
 import {
   filterGitignoredWorkspacePaths,
   WORKSPACE_FILE_GLOB_IGNORES,
 } from './workspace-file-ignore'
-import { rememberWorkspaceFile, searchIndexedFiles } from './workspace-file-search'
+import { readWorkspaceFilePage } from './workspace-file-pages'
+import {
+  resolveExistingWorkspaceEntry,
+  resolveExistingWorkspaceFile,
+  resolveWorkspaceProjectRoot,
+  workspaceFileError,
+} from './workspace-file-paths'
+import { readWorkspaceFile } from './workspace-file-reader'
+import { searchIndexedFiles } from './workspace-file-search'
 
 const INDEX_TTL_MS = 30_000
-const MAX_READ_BYTES = 25 * 1024 * 1024
-const MAX_EDITABLE_TEXT_BYTES = 2 * 1024 * 1024
 const MAX_CONTENT_SEARCH_BYTES = 1024 * 1024
 const CONTENT_SEARCH_CONCURRENCY = 12
 
@@ -41,49 +39,10 @@ const indexByProject = new Map<string, ProjectFileIndex>()
 const indexPromiseByProject = new Map<string, Promise<ProjectFileIndex>>()
 const contentSearchGenerationByProject = new Map<string, number>()
 
-function workspaceFileError(operation: string, cause: unknown) {
-  return new WorkspaceFileError({
-    operation,
-    message: cause instanceof Error ? cause.message : String(cause),
-    cause,
-  })
-}
-
-async function resolveProjectRoot(projectPath: string) {
-  const trimmed = projectPath.trim()
-  if (!path.isAbsolute(trimmed)) throw new Error('Project path must be absolute.')
-  const projectRoot = await fs.realpath(trimmed)
-  const stats = await fs.stat(projectRoot)
-  if (!stats.isDirectory()) throw new Error('Project path must be a directory.')
-  return projectRoot
-}
-
-function normalizeRelativeFilePath(relativePath: string) {
-  const slashPath = relativePath.replaceAll('\\', '/').trim()
-  if (!slashPath || path.posix.isAbsolute(slashPath)) {
-    throw new Error('Workspace file path must be relative.')
-  }
-  const normalized = path.posix.normalize(slashPath)
-  if (normalized === '..' || normalized.startsWith('../')) {
-    throw new Error('Workspace file path cannot leave the project root.')
-  }
-  return normalized.replace(/^\.\//, '')
-}
-
-async function resolveExistingFile(input: { readonly projectPath: string; readonly path: string }) {
-  const projectRoot = await resolveProjectRoot(input.projectPath)
-  const relativePath = normalizeRelativeFilePath(input.path)
-  const candidatePath = path.resolve(projectRoot, relativePath)
-  if (!isPathInsideDirectory(projectRoot, candidatePath)) {
-    throw new Error('Workspace file path cannot leave the project root.')
-  }
-  const realFilePath = await fs.realpath(candidatePath)
-  if (!isPathInsideDirectory(projectRoot, realFilePath)) {
-    throw new Error('Workspace file symlink resolves outside the project root.')
-  }
-  const stats = await fs.stat(realFilePath)
-  if (!stats.isFile()) throw new Error('Workspace path must resolve to a file.')
-  return { projectRoot, relativePath, realFilePath, stats }
+export function invalidateWorkspaceFileIndex(projectRoot: string) {
+  indexByProject.delete(projectRoot)
+  indexPromiseByProject.delete(projectRoot)
+  cancelWorkspaceContentSearch(projectRoot)
 }
 
 async function buildProjectIndex(projectRoot: string): Promise<ProjectFileIndex> {
@@ -100,18 +59,16 @@ async function buildProjectIndex(projectRoot: string): Promise<ProjectFileIndex>
   const entries = filteredPaths
     .map((entry) => entry.replaceAll('\\', '/'))
     .sort((left, right) => left.localeCompare(right))
-    .map((entry) => ({ path: entry, basename: path.posix.basename(entry) }))
+    .map((entry) => ({ path: entry, basename: entry.slice(entry.lastIndexOf('/') + 1) }))
   return { entries, expiresAt: Date.now() + INDEX_TTL_MS }
 }
 
 async function projectIndex(projectPath: string) {
-  const projectRoot = await resolveProjectRoot(projectPath)
+  const projectRoot = await resolveWorkspaceProjectRoot(projectPath)
   const existing = indexByProject.get(projectRoot)
   if (existing && existing.expiresAt > Date.now()) return { projectRoot, index: existing }
-
   const pending = indexPromiseByProject.get(projectRoot)
   if (pending) return { projectRoot, index: await pending }
-
   const promise = buildProjectIndex(projectRoot)
   indexPromiseByProject.set(projectRoot, promise)
   try {
@@ -120,102 +77,6 @@ async function projectIndex(projectPath: string) {
     return { projectRoot, index }
   } finally {
     indexPromiseByProject.delete(projectRoot)
-  }
-}
-
-async function readWorkspaceFile(input: {
-  readonly projectPath: string
-  readonly path: string
-}): Promise<WorkspaceFileReadResult> {
-  const resolved = await resolveExistingFile(input)
-  rememberWorkspaceFile(resolved.projectRoot, resolved.relativePath)
-  const extension = path.extname(resolved.relativePath).toLowerCase()
-  const mimeType = MIME_BY_EXTENSION[extension] ?? 'application/octet-stream'
-  const base = {
-    path: resolved.relativePath,
-    basename: path.posix.basename(resolved.relativePath),
-    size: resolved.stats.size,
-    modifiedAt: resolved.stats.mtimeMs,
-    revision: workspaceFileRevision(resolved.stats.mtimeMs, resolved.stats.size),
-    mimeType,
-  }
-  if (resolved.stats.size > MAX_READ_BYTES) {
-    return {
-      ...base,
-      previewKind: 'oversized',
-      reason: 'This file is too large to load safely in the workspace editor.',
-    }
-  }
-
-  if (
-    resolved.stats.size > MAX_EDITABLE_TEXT_BYTES &&
-    !mimeType.startsWith('image/') &&
-    extension !== '.pdf'
-  ) {
-    return {
-      ...base,
-      previewKind: 'oversized',
-      reason: 'This text file is too large to edit safely in the workspace editor.',
-    }
-  }
-
-  const data = await fs.readFile(resolved.realFilePath)
-  const observedBase = {
-    ...base,
-    revision: workspaceFileRevision(resolved.stats.mtimeMs, resolved.stats.size, data),
-  }
-  const kind = workspaceFilePreviewKind(extension, data)
-  if (kind === 'image' || kind === 'pdf') {
-    return { ...observedBase, previewKind: kind, data: new Uint8Array(data) }
-  }
-  if (kind === 'binary') {
-    return {
-      ...observedBase,
-      previewKind: kind,
-      reason: 'Binary files cannot be edited as text.',
-    }
-  }
-  return {
-    ...observedBase,
-    previewKind: kind,
-    content: data.toString('utf8'),
-    ...(LANGUAGE_BY_EXTENSION[extension] ? { language: LANGUAGE_BY_EXTENSION[extension] } : {}),
-  }
-}
-
-async function writeWorkspaceFile(
-  input: WorkspaceFileWriteInput,
-): Promise<WorkspaceFileWriteResult> {
-  const resolved = await resolveExistingFile(input)
-  const currentContent =
-    resolved.stats.size <= MAX_EDITABLE_TEXT_BYTES
-      ? await fs.readFile(resolved.realFilePath)
-      : undefined
-  const currentRevision = workspaceFileRevision(
-    resolved.stats.mtimeMs,
-    resolved.stats.size,
-    currentContent,
-  )
-  if (currentRevision !== input.expectedRevision) {
-    return {
-      status: 'conflict',
-      message: 'The file changed on disk. Reload it before saving your edits.',
-    }
-  }
-  if (Buffer.byteLength(input.content, 'utf8') > MAX_EDITABLE_TEXT_BYTES) {
-    return {
-      status: 'too-large',
-      message: 'This text file is too large to save in the workspace editor.',
-    }
-  }
-  await fs.writeFile(resolved.realFilePath, input.content, 'utf8')
-  const stats = await fs.stat(resolved.realFilePath)
-  rememberWorkspaceFile(resolved.projectRoot, resolved.relativePath)
-  return {
-    status: 'saved',
-    size: stats.size,
-    modifiedAt: stats.mtimeMs,
-    revision: workspaceFileRevision(stats.mtimeMs, stats.size, Buffer.from(input.content, 'utf8')),
   }
 }
 
@@ -243,11 +104,14 @@ async function searchWorkspaceContent(input: {
       cursor += 1
       if (!entry) continue
       try {
-        const resolved = await resolveExistingFile({ projectPath: projectRoot, path: entry.path })
+        const resolved = await resolveExistingWorkspaceFile({
+          projectPath: projectRoot,
+          path: entry.path,
+        })
         if (resolved.stats.size > MAX_CONTENT_SEARCH_BYTES) continue
         const data = await fs.readFile(resolved.realFilePath)
         if (hasBinaryBytes(data)) continue
-        const lines = data.toString('utf8').split(/\r?\n/)
+        const lines = data.toString('utf8').split(/\r?\n/u)
         for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
           if (matches.length >= input.limit) break
           const lineText = lines[lineIndex] ?? ''
@@ -277,6 +141,33 @@ function cancelWorkspaceContentSearch(projectPath: string) {
   contentSearchGenerationByProject.set(projectPath, generation)
 }
 
+async function mutateWorkspaceEntry(
+  operation: typeof createWorkspaceEntry,
+  input: Parameters<typeof createWorkspaceEntry>[0],
+) {
+  const result = await operation(input)
+  invalidateWorkspaceFileIndex(result.projectRoot)
+  return {
+    path: result.path,
+    ...(result.previousPath ? { previousPath: result.previousPath } : {}),
+  }
+}
+
+async function mutateExistingWorkspaceEntry(
+  operation:
+    | typeof moveWorkspaceEntry
+    | typeof duplicateWorkspaceEntry
+    | typeof trashWorkspaceEntry,
+  input: Parameters<typeof moveWorkspaceEntry>[0],
+) {
+  const result = await operation(input)
+  invalidateWorkspaceFileIndex(result.projectRoot)
+  return {
+    path: result.path,
+    ...(result.previousPath ? { previousPath: result.previousPath } : {}),
+  }
+}
+
 export const FilesystemWorkspaceFileLive = Layer.succeed(
   WorkspaceFileService,
   WorkspaceFileService.of({
@@ -300,19 +191,59 @@ export const FilesystemWorkspaceFileLive = Layer.succeed(
         try: () => readWorkspaceFile(input),
         catch: (cause) => workspaceFileError('read-file', cause),
       }),
+    readFileWithEncoding: (input) =>
+      Effect.tryPromise({
+        try: () => readWorkspaceFile(input, input.encoding),
+        catch: (cause) => workspaceFileError('read-file-with-encoding', cause),
+      }),
     writeFile: (input) =>
       Effect.tryPromise({
         try: () => writeWorkspaceFile(input),
         catch: (cause) => workspaceFileError('write-file', cause),
       }),
+    applyDocumentEdits: (input) =>
+      Effect.tryPromise({
+        try: () => applyWorkspaceDocumentEdits(input),
+        catch: (cause) => workspaceFileError('apply-document-edits', cause),
+      }),
     openFile: (input) =>
       Effect.tryPromise({
         try: async () => {
-          const filePath = (await resolveExistingFile(input)).realFilePath
+          const filePath = (await resolveExistingWorkspaceFile(input)).realFilePath
           const result = await openPath(filePath)
           if (result) throw new Error(result)
         },
         catch: (cause) => workspaceFileError('open-file', cause),
+      }),
+    createEntry: (input) =>
+      Effect.tryPromise({
+        try: () => mutateWorkspaceEntry(createWorkspaceEntry, input),
+        catch: (cause) => workspaceFileError('create-entry', cause),
+      }),
+    moveEntry: (input) =>
+      Effect.tryPromise({
+        try: () => mutateExistingWorkspaceEntry(moveWorkspaceEntry, input),
+        catch: (cause) => workspaceFileError('move-entry', cause),
+      }),
+    duplicateEntry: (input) =>
+      Effect.tryPromise({
+        try: () => mutateExistingWorkspaceEntry(duplicateWorkspaceEntry, input),
+        catch: (cause) => workspaceFileError('duplicate-entry', cause),
+      }),
+    trashEntry: (input) =>
+      Effect.tryPromise({
+        try: () => mutateExistingWorkspaceEntry(trashWorkspaceEntry, input),
+        catch: (cause) => workspaceFileError('trash-entry', cause),
+      }),
+    revealEntry: (input) =>
+      Effect.tryPromise({
+        try: async () => showItemInFolder((await resolveExistingWorkspaceEntry(input)).realPath),
+        catch: (cause) => workspaceFileError('reveal-entry', cause),
+      }),
+    readPage: (input) =>
+      Effect.tryPromise({
+        try: () => readWorkspaceFilePage(input),
+        catch: (cause) => workspaceFileError('read-page', cause),
       }),
   }),
 )

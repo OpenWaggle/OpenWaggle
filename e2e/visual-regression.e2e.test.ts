@@ -218,9 +218,10 @@ test('six primary surfaces match their visual baselines', { tag: '@visual' }, as
     await page.getByRole('button', { name: 'Appearance' }).click()
 
     const settingsRoot = page.locator('#root')
-    const settingsContent = settingsRoot.getByRole('heading', { name: 'Diff view' })
+    const settingsContent = settingsRoot.getByRole('heading', { name: 'Review presentation' })
     await expect(settingsContent).toBeVisible()
-    await expect(settingsRoot.getByRole('heading', { name: 'Syntax theme' })).toBeVisible()
+    await expect(settingsRoot.getByRole('heading', { name: 'Color and syntax' })).toBeVisible()
+    await expect(settingsRoot.getByRole('heading', { name: 'Typography' })).toBeVisible()
     await page.mouse.move(VIEWPORT.width - 10, 10)
     await waitForVisualReadiness(page)
     await expect(settingsRoot).toHaveScreenshot('settings.png', SCREENSHOT_OPTIONS)

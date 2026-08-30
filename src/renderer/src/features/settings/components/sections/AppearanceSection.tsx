@@ -1,156 +1,124 @@
-import type { DiffSyntaxTheme, DiffView } from '@shared/types/settings'
-import { DIFF_SYNTAX_THEMES, DIFF_VIEWS } from '@shared/types/settings'
+import type { DiffView } from '@shared/types/settings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { Button } from '@/shared/ui/Button'
-import { SyntaxThemePreview } from './SyntaxThemePreview'
-
-const SYNTAX_THEME_LABELS: Record<DiffSyntaxTheme, string> = {
-  'pierre-dark': 'Default',
-  'pierre-dark-soft': 'Soft',
-  'pierre-dark-vibrant': 'Vibrant',
-  'pierre-dark-protanopia-deuteranopia': 'Protanopia / deuteranopia safe',
-  'pierre-dark-tritanopia': 'Tritanopia safe',
-}
-
-const SYNTAX_THEME_DESCRIPTIONS: Record<DiffSyntaxTheme, string> = {
-  'pierre-dark': 'Balanced contrast for everyday review.',
-  'pierre-dark-soft': 'Lower contrast, easier on long reading sessions.',
-  'pierre-dark-vibrant': 'Higher saturation for stronger token separation.',
-  'pierre-dark-protanopia-deuteranopia': 'Avoids red/green pairs that are hard to distinguish.',
-  'pierre-dark-tritanopia': 'Avoids blue/yellow pairs that are hard to distinguish.',
-}
+import { ToggleSwitch } from '@/shared/ui/ToggleSwitch'
+import { SyntaxThemePicker } from './SyntaxThemePicker'
+import { TypographySettings } from './TypographySettings'
 
 const DIFF_VIEW_LABELS: Record<DiffView, string> = {
   unified: 'Unified',
-  split: 'Split',
+  split: 'Side by side',
 }
 
-const DIFF_VIEW_DESCRIPTIONS: Record<DiffView, string> = {
-  unified: 'One column, additions and deletions interleaved.',
-  split: 'Side-by-side, old on the left and new on the right.',
-}
+function ReviewAppearanceSettings() {
+  const diffView = usePreferencesStore((state) => state.settings.diffView)
+  const diffWrapLines = usePreferencesStore((state) => state.settings.diffWrapLines)
+  const setDiffView = usePreferencesStore((state) => state.setDiffView)
+  const setDiffWrapLines = usePreferencesStore((state) => state.setDiffWrapLines)
 
-const ROW_CLASS =
-  'flex w-full items-center justify-between border-b border-border px-5 py-3 text-left last:border-b-0 hover:bg-bg-hover'
-
-function RadioDot({ active }: { readonly active: boolean }) {
   return (
-    <div
-      className={`size-3 shrink-0 rounded-full border ${active ? 'border-accent bg-accent' : 'border-border-light'}`}
-    />
+    <section className="space-y-3" aria-labelledby="review-appearance-heading">
+      <div>
+        <h3 id="review-appearance-heading" className="text-base font-semibold text-text-primary">
+          Review presentation
+        </h3>
+        <p className="mt-1 text-xs leading-5 text-text-tertiary">
+          Keep code review readable without changing the underlying patch.
+        </p>
+      </div>
+      <div className="overflow-hidden rounded-lg border border-border bg-bg">
+        <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-3">
+          <span>
+            <span className="block text-xs font-medium text-text-primary">Diff layout</span>
+            <span className="mt-0.5 block text-xs text-text-muted">
+              Choose a compact stream or compare both versions.
+            </span>
+          </span>
+          <div className="flex rounded-md border border-border bg-bg-secondary p-0.5">
+            {(['unified', 'split'] as const).map((view) => (
+              <Button
+                key={view}
+                type="button"
+                size="xs"
+                variant={diffView === view ? 'subtle' : 'ghost'}
+                aria-pressed={diffView === view}
+                onClick={() => void setDiffView(view)}
+              >
+                {DIFF_VIEW_LABELS[view]}
+              </Button>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-4 px-4 py-3">
+          <span>
+            <span className="block text-xs font-medium text-text-primary">Wrap long lines</span>
+            <span className="mt-0.5 block text-xs text-text-muted">
+              Keep review controls visible instead of scrolling horizontally.
+            </span>
+          </span>
+          <ToggleSwitch
+            checked={diffWrapLines}
+            onCheckedChange={(checked) => void setDiffWrapLines(checked)}
+            label="Wrap long lines"
+            size="compact"
+          />
+        </div>
+      </div>
+    </section>
   )
 }
 
-/**
- * Appearance settings.
- *
- * The Syntax theme sits deliberately outside the Design token contract (ADR 0015
- * amendment): it colours language grammar scopes, not semantic roles, which is
- * why it is user-selectable on its own while the diff chrome follows the app's
- * Appearance. The colour-blind-safe variants are the main reason this is a real
- * setting rather than a constant.
- */
-export function AppearanceSection() {
-  const diffSyntaxTheme = usePreferencesStore((s) => s.settings.diffSyntaxTheme)
-  const diffView = usePreferencesStore((s) => s.settings.diffView)
-  const diffWrapLines = usePreferencesStore((s) => s.settings.diffWrapLines)
-  const setDiffSyntaxTheme = usePreferencesStore((s) => s.setDiffSyntaxTheme)
-  const setDiffView = usePreferencesStore((s) => s.setDiffView)
-  const setDiffWrapLines = usePreferencesStore((s) => s.setDiffWrapLines)
+function AccessibilityAppearanceSettings() {
+  const motion = usePreferencesStore((state) => state.settings.appearancePreferences.motion)
+  const setMotion = usePreferencesStore((state) => state.setAppearanceMotion)
+  const reduced = motion === 'reduced'
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-3">
-        <h3 className="text-base font-semibold text-text-primary">Diff view</h3>
-        <p className="text-xs text-text-tertiary">
-          Applies to the diff panel. The panel's own toggles change this same setting.
+    <section className="space-y-3" aria-labelledby="accessibility-appearance-heading">
+      <div>
+        <h3
+          id="accessibility-appearance-heading"
+          className="text-base font-semibold text-text-primary"
+        >
+          Accessibility
+        </h3>
+        <p className="mt-1 text-xs leading-5 text-text-tertiary">
+          High-contrast syntax profiles stay independent, so accessibility choices do not replace a
+          preferred everyday theme.
         </p>
-        <div className="overflow-hidden rounded-lg border border-border bg-bg">
-          {DIFF_VIEWS.map((view) => (
-            <Button
-              variant="unstyled"
-              type="button"
-              key={view}
-              aria-pressed={diffView === view}
-              onClick={() => void setDiffView(view)}
-              className={ROW_CLASS}
-            >
-              <div className="flex flex-col gap-0.5">
-                <span className="text-xs font-medium text-text-primary">
-                  {DIFF_VIEW_LABELS[view]}
-                </span>
-                <span className="text-xs text-text-tertiary">{DIFF_VIEW_DESCRIPTIONS[view]}</span>
-              </div>
-              <RadioDot active={diffView === view} />
-            </Button>
-          ))}
-        </div>
       </div>
-
-      <div className="space-y-3">
-        <h3 className="text-base font-semibold text-text-primary">Long lines</h3>
-        <div className="overflow-hidden rounded-lg border border-border bg-bg">
-          <Button
-            variant="unstyled"
-            type="button"
-            role="switch"
-            // Without an explicit name the switch is announced as its whole inner
-            // text, description sentence included.
-            aria-label="Wrap long lines"
-            aria-checked={diffWrapLines}
-            onClick={() => void setDiffWrapLines(!diffWrapLines)}
-            className={ROW_CLASS}
-          >
-            <div className="flex flex-col gap-0.5">
-              <span className="text-xs font-medium text-text-primary">Wrap long lines</span>
-              <span className="text-xs text-text-tertiary">
-                Wrap instead of scrolling horizontally, so review controls stay in view.
-              </span>
-            </div>
-            <div
-              className={`flex h-4 w-7 shrink-0 items-center rounded-full border px-0.5 transition-colors ${
-                diffWrapLines
-                  ? 'justify-end border-accent bg-accent/30'
-                  : 'justify-start border-border-light'
-              }`}
-            >
-              <div
-                className={`size-3 rounded-full ${diffWrapLines ? 'bg-accent' : 'bg-text-muted'}`}
-              />
-            </div>
-          </Button>
-        </div>
+      <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-bg px-4 py-3">
+        <span>
+          <span className="block text-xs font-medium text-text-primary">Reduce motion</span>
+          <span className="mt-0.5 block text-xs text-text-muted">
+            Follow the operating system by default, or always minimize app animation.
+          </span>
+        </span>
+        <ToggleSwitch
+          checked={reduced}
+          onCheckedChange={(checked) => void setMotion(checked ? 'reduced' : 'system')}
+          label="Reduce motion"
+          size="compact"
+        />
       </div>
+    </section>
+  )
+}
 
-      <div className="space-y-3">
-        <h3 className="text-base font-semibold text-text-primary">Syntax theme</h3>
-        <p className="text-xs text-text-tertiary">
-          Colours code text inside diffs. The panel's own colours follow the app appearance.
+export function AppearanceSection() {
+  return (
+    <div className="mx-auto max-w-6xl space-y-9 pb-10">
+      <header className="max-w-2xl">
+        <h2 className="text-xl font-semibold tracking-tight text-text-primary">Appearance</h2>
+        <p className="mt-1.5 text-sm leading-6 text-text-tertiary">
+          Tune the workspace for reading, editing, reviewing, and terminal work. Theme packages
+          provide the base; these preferences stay yours across projects and worktrees.
         </p>
-        <SyntaxThemePreview theme={diffSyntaxTheme} />
-        <div className="overflow-hidden rounded-lg border border-border bg-bg">
-          {DIFF_SYNTAX_THEMES.map((theme) => (
-            <Button
-              variant="unstyled"
-              type="button"
-              key={theme}
-              aria-pressed={diffSyntaxTheme === theme}
-              onClick={() => void setDiffSyntaxTheme(theme)}
-              className={ROW_CLASS}
-            >
-              <div className="flex flex-col gap-0.5">
-                <span className="text-xs font-medium text-text-primary">
-                  {SYNTAX_THEME_LABELS[theme]}
-                </span>
-                <span className="text-xs text-text-tertiary">
-                  {SYNTAX_THEME_DESCRIPTIONS[theme]}
-                </span>
-              </div>
-              <RadioDot active={diffSyntaxTheme === theme} />
-            </Button>
-          ))}
-        </div>
-      </div>
+      </header>
+      <SyntaxThemePicker />
+      <TypographySettings />
+      <ReviewAppearanceSettings />
+      <AccessibilityAppearanceSettings />
     </div>
   )
 }

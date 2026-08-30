@@ -41,6 +41,7 @@ const electronMocks = vi.hoisted(() => {
       openExternal: vi.fn(),
       openPath: vi.fn(),
       showItemInFolder: vi.fn(),
+      trashItem: vi.fn(),
     },
   }
 })
@@ -54,7 +55,10 @@ import {
   createBrowserWindow,
   installAutomationDesktopUiBlockers,
   openExternal,
+  openPath,
+  showItemInFolder,
   showMessageBox,
+  trashItem,
 } from '../desktop-ui'
 
 describe('automation desktop UI policy', () => {
@@ -69,6 +73,9 @@ describe('automation desktop UI policy', () => {
     await expect(openExternal('https://example.com')).rejects.toBeInstanceOf(
       AutomationDesktopUiError,
     )
+    await expect(openPath('/tmp/openwaggle')).rejects.toBeInstanceOf(AutomationDesktopUiError)
+    expect(() => showItemInFolder('/tmp/openwaggle')).toThrow(AutomationDesktopUiError)
+    await expect(trashItem('/tmp/openwaggle')).rejects.toBeInstanceOf(AutomationDesktopUiError)
     await expect(showMessageBox(null, { message: 'Continue?' })).rejects.toBeInstanceOf(
       AutomationDesktopUiError,
     )

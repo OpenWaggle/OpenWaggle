@@ -3,6 +3,7 @@ import type { JsonValue } from '@shared/types/json'
 import { RefreshCw, ShieldAlert } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { useAppearanceName } from '@/shared/hooks/useAppearanceName'
+import { useSyntaxTheme } from '@/shared/hooks/useSyntaxTheme'
 import { cn } from '@/shared/lib/cn'
 import { formatDisplayPathsInText } from '@/shared/lib/display-path'
 import {
@@ -80,7 +81,9 @@ function statusFor(input: {
 }
 
 function useAppearanceMountKey(mountKey: string) {
-  return JSON.stringify([mountKey, useAppearanceName()])
+  const appearance = useAppearanceName()
+  const syntaxTheme = useSyntaxTheme()
+  return JSON.stringify([mountKey, appearance, syntaxTheme.themeId])
 }
 
 function sameMountStatus(

@@ -1,11 +1,16 @@
 import type { McpConfigSourceId, McpConfigSourceSummary } from '@shared/types/mcp'
 import { FileJson2 } from 'lucide-react'
+import { lazy, Suspense } from 'react'
 import { formatDisplayPath, formatDisplayPathsInText } from '@/shared/lib/display-path'
 import { tildifyPath } from '@/shared/lib/tildify-path'
 import { Button } from '@/shared/ui/Button'
-import { Textarea } from '@/shared/ui/Textarea'
+import { SourceView } from '@/shared/ui/SourceView'
 
-const RAW_EDITOR_ROWS = 16
+const FocusedSourceEditor = lazy(() =>
+  import('@/shared/ui/FocusedSourceEditor').then((module) => ({
+    default: module.FocusedSourceEditor,
+  })),
+)
 
 interface McpSourceEditorProps {
   readonly selectedSource: McpConfigSourceSummary | null
@@ -24,6 +29,20 @@ export function McpSourceEditor({
   onSave,
   onRawJsonChange,
 }: McpSourceEditorProps) {
+  const editorProps = selectedSource
+    ? {
+        source: rawJson,
+        path: selectedSource.path,
+        language: 'json',
+        cacheKey: `mcp-source:${selectedSource.id}`,
+        wordWrap: false,
+        className: 'min-h-0 flex-1',
+        ariaLabel: 'MCP source JSON',
+        onChange: (_changes: unknown, readSource: () => string) =>
+          onRawJsonChange(selectedSource.id, readSource()),
+        onSave,
+      }
+    : null
   return (
     <div className="rounded-lg border border-border bg-bg p-5">
       <div className="mb-3 flex items-start justify-between gap-4">
@@ -50,20 +69,29 @@ export function McpSourceEditor({
           Save JSON
         </Button>
       </div>
-      <Textarea
-        aria-label="MCP source JSON"
-        value={rawJson}
-        rows={RAW_EDITOR_ROWS}
-        spellCheck={false}
-        variant="mono"
-        resize="vertical"
-        wrap="off"
-        highlightLanguage="json"
-        onChange={(event) => {
-          if (!selectedSource) return
-          onRawJsonChange(selectedSource.id, event.target.value)
-        }}
-      />
+      <div className="flex h-80 overflow-hidden rounded-lg border border-input-card-border bg-bg">
+        {editorProps ? (
+          <Suspense
+            fallback={
+              <SourceView
+                source={rawJson}
+                language="json"
+                className="min-h-0 flex-1"
+                ariaLabel="Loading MCP source JSON editor"
+              />
+            }
+          >
+            <FocusedSourceEditor {...editorProps} />
+          </Suspense>
+        ) : (
+          <SourceView
+            source={rawJson}
+            language="json"
+            className="min-h-0 flex-1 opacity-60"
+            ariaLabel="MCP source JSON"
+          />
+        )}
+      </div>
       <p className="mt-2 text-xs text-text-muted">
         OpenWaggle preserves unknown fields for forward compatibility and reports any fields the
         current runtime cannot apply. Protocol pins and legacy compatibility profiles remain

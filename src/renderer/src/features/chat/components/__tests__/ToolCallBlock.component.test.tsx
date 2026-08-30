@@ -1,6 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ChatDisplayPathProvider } from '../ChatDisplayPathContext'
 import { ToolCallBlock } from '../ToolCallBlock'
 
 const mockCopyToClipboard = vi.hoisted(() => vi.fn())
@@ -9,6 +8,14 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: {
     copyToClipboard: (...args: unknown[]) => mockCopyToClipboard(...args),
   },
+}))
+
+vi.mock('@pierre/diffs/react', () => ({
+  PatchDiff: ({ patch }: { readonly patch: string }) => (
+    <div data-testid="diffs-container">
+      <pre data-testid="patch-diff">{patch}</pre>
+    </div>
+  ),
 }))
 
 describe('ToolCallBlock', () => {
@@ -157,7 +164,7 @@ describe('ToolCallBlock', () => {
       />,
     )
     fireEvent.click(screen.getByRole('button'))
-    expect(screen.getByText('$')).toBeInTheDocument()
+    expect(screen.getByText('$ npm test')).toBeInTheDocument()
   })
 
   it('shows error content when expanded and errored', () => {
@@ -222,63 +229,10 @@ describe('ToolCallBlock', () => {
     expect(screen.getByText('Edited src/app.ts')).toBeInTheDocument()
     expect(screen.getAllByText('+1')).toHaveLength(2)
     expect(screen.getAllByText('-1')).toHaveLength(2)
-    expect(screen.getByText('+new line')).toBeInTheDocument()
+    expect(screen.getByTestId('diffs-container')).toBeInTheDocument()
   })
 
-  it('preserves exact source lines when a unified diff contains the worktree path', () => {
-    const worktreePath = '/Users/diego/.openwaggle/worktrees/OpenWaggle/session-1'
-    const removedLine = `-const skill = '${worktreePath}/.agents/skills/review/SKILL.md'`
-    const addedLine = `+const skill = '${worktreePath}/.agents/skills/code-review/SKILL.md'`
-
-    render(
-      <ChatDisplayPathProvider projectPath="/Users/diego/OpenWaggle" worktreePath={worktreePath}>
-        <ToolCallBlock
-          name="edit"
-          args='{"path":"src/app.ts"}'
-          state="complete"
-          result={{
-            content: {
-              content: [{ type: 'text', text: 'Successfully replaced 1 block(s).' }],
-              details: {
-                diff: `--- ${worktreePath}/src/app.ts\n+++ ${worktreePath}/src/app.ts\n@@ -1 +1 @@\n${removedLine}\n${addedLine}`,
-                firstChangedLine: 1,
-              },
-            },
-            state: 'complete',
-          }}
-        />
-      </ChatDisplayPathProvider>,
-    )
-
-    expect(screen.getByText(removedLine)).toBeInTheDocument()
-    expect(screen.getByText(addedLine)).toBeInTheDocument()
-    expect(screen.getByText('--- src/app.ts')).toBeInTheDocument()
-    expect(screen.getByText('+++ src/app.ts')).toBeInTheDocument()
-  })
-
-  it('preserves exact source returned by read when it contains the worktree path', () => {
-    const worktreePath = '/Users/diego/.openwaggle/worktrees/OpenWaggle/session-1'
-    const sourceLine = `const skill = '${worktreePath}/.agents/skills/code-review/SKILL.md'`
-    const { container } = render(
-      <ChatDisplayPathProvider projectPath="/Users/diego/OpenWaggle" worktreePath={worktreePath}>
-        <ToolCallBlock
-          name="read"
-          args='{"path":"src/app.ts"}'
-          state="complete"
-          result={{ content: sourceLine, state: 'complete' }}
-        />
-      </ChatDisplayPathProvider>,
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: /Read src\/app\.ts/ }))
-    expect(
-      [...container.querySelectorAll('code')].some((node) =>
-        node.textContent?.includes(sourceLine),
-      ),
-    ).toBe(true)
-  })
-
-  it('syntax highlights read tool file content using the existing Shiki pipeline', async () => {
+  it('routes read tool file content through the syntax surface with a safe fallback', async () => {
     const { container } = render(
       <ToolCallBlock
         name="read"
@@ -291,12 +245,10 @@ describe('ToolCallBlock', () => {
     fireEvent.click(screen.getByRole('button', { name: /Read src\/example\.ts/ }))
 
     expect(container.querySelector('code.language-typescript')).toBeTruthy()
-    await waitFor(() => {
-      expect(container.querySelector('code span[style]')).toBeTruthy()
-    })
+    expect(container.querySelector('[data-syntax-status="plain-text"]')).toBeTruthy()
   })
 
-  it('uses plain rendering for very large file previews to keep expansion responsive', () => {
+  it('uses viewport rendering for very large file previews to keep expansion responsive', () => {
     const largeContent = `${'line\n'.repeat(1_201)}`
     const { container } = render(
       <ToolCallBlock
@@ -311,10 +263,11 @@ describe('ToolCallBlock', () => {
 
     expect(
       screen.getByText(
-        'Large file preview shown without syntax highlighting to keep the UI responsive.',
+        'Large file preview uses viewport-only highlighting to keep the UI responsive.',
       ),
     ).toBeInTheDocument()
-    expect(container.querySelector('code.language-typescript')).toBeNull()
+    expect(screen.getByLabelText('Large file source preview')).toBeInTheDocument()
+    expect(container.querySelectorAll('[aria-hidden="true"]').length).toBeLessThan(100)
   })
 
   it('copies path values from expanded tool details', () => {

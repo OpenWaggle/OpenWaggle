@@ -178,20 +178,20 @@ describe('route surfaces', () => {
     routeSurfaceMocks.sidePanelRefetch.mockClear()
   })
 
-  it('derives the settings tab from the current route when the route contains a tab segment', () => {
+  it('derives the settings tab from the current route when the route contains a tab segment', async () => {
     routeSurfaceMocks.setPathname('/settings/extensions')
 
     render(<SettingsRouteSurface tab="general" />)
 
-    expect(screen.getByText('Settings tab: extensions')).toBeInTheDocument()
+    expect(await screen.findByText('Settings tab: extensions')).toBeInTheDocument()
   })
 
-  it('falls back to the route-provided settings tab for non-tab paths', () => {
+  it('falls back to the route-provided settings tab for non-tab paths', async () => {
     routeSurfaceMocks.setPathname('/settings/unknown')
 
     render(<SettingsRouteSurface tab="waggle" />)
 
-    expect(screen.getByText('Settings tab: waggle')).toBeInTheDocument()
+    expect(await screen.findByText('Settings tab: waggle')).toBeInTheDocument()
   })
 
   it('wraps the skills panel in its route surface', () => {

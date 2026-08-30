@@ -7,6 +7,7 @@ import babel from '@rolldown/plugin-babel'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import tailwindcss from '@tailwindcss/vite'
 import svgr from 'vite-plugin-svgr'
+import { isolatedTailwindSourcePlugin } from './scripts/vite/isolated-tailwind-source'
 
 const ALWAYS_EXTERNAL = ['electron', 'bufferutil', 'utf-8-validate', 'node-pty']
 const PI_EXTENSION_LOADER_PATH = '@earendil-works/pi-coding-agent/dist/core/extensions/loader.js'
@@ -224,6 +225,11 @@ export default defineConfig({
     }
   },
   renderer: {
+    worker: {
+      // Module workers preserve Shiki's per-language dynamic imports. The IIFE
+      // default inlines every bundled grammar into one 10+ MiB first-use asset.
+      format: 'es',
+    },
     server: {
       cors: {
         origin: '*',
@@ -236,9 +242,6 @@ export default defineConfig({
       },
     },
     optimizeDeps: {
-      // Force re-optimization in dev so Vite does not serve stale prebundled
-      // dependency copies after local dependency changes or upgrades.
-      force: true,
       include: ['react/compiler-runtime'],
     },
     resolve: {
@@ -252,9 +255,11 @@ export default defineConfig({
       },
     },
     plugins: [
+      isolatedTailwindSourcePlugin(),
       tanstackRouter({
         routesDirectory: resolve('src/renderer/src/routes'),
         generatedRouteTree: resolve('src/renderer/src/routeTree.gen.ts'),
+        autoCodeSplitting: true,
       }),
       svgr(),
       react(),

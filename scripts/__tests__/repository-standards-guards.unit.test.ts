@@ -6,6 +6,7 @@ import {
   containsSessionBranchPrefix,
 } from '../check-repository-standards'
 import { withoutCommentLines } from '../standards/comment-stripping'
+import { collectSyntaxRenderingViolations } from '../standards/syntax-rendering'
 
 describe('session branch prefix detection', () => {
   it('matches the prefix wherever it appears, not only after a quote', () => {
@@ -47,6 +48,7 @@ describe('non-disruptive Electron automation boundary', () => {
     const source = [
       'dialog.showMessageBox({ message: "Continue?" })',
       'shell.openExternal("https://example.com")',
+      'shell.trashItem("/tmp/openwaggle")',
       'mainWindow.show()',
       'mainWindow.focus()',
     ].join('\n')
@@ -199,5 +201,37 @@ describe('SessionSummaryRow column detection', () => {
     const source = ['const help = `', '  See https://example.com/docs for details', '`'].join('\n')
 
     expect(withoutCommentLines(source)).toContain('https://example.com/docs for details')
+  })
+})
+
+describe('syntax rendering architecture', () => {
+  it('rejects Monaco dependencies and renderer imports', () => {
+    expect(
+      collectSyntaxRenderingViolations(
+        'package.json',
+        JSON.stringify({ dependencies: { 'monaco-editor': '0.55.1' } }),
+      ),
+    ).toHaveLength(1)
+    expect(
+      collectSyntaxRenderingViolations(
+        'src/renderer/src/features/workspace-files/WorkspaceEditor.tsx',
+        "import { editor } from 'monaco-editor'",
+      ),
+    ).toHaveLength(1)
+  })
+
+  it('keeps renderer workers module-split instead of inlining every grammar', () => {
+    expect(
+      collectSyntaxRenderingViolations(
+        'electron.vite.config.ts',
+        "export default { renderer: { worker: { format: 'es' } } }",
+      ),
+    ).toEqual([])
+    expect(
+      collectSyntaxRenderingViolations(
+        'electron.vite.config.ts',
+        "export default { renderer: { worker: { format: 'iife' } } }",
+      ),
+    ).toHaveLength(1)
   })
 })

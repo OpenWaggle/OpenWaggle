@@ -57,6 +57,7 @@ export function installAutomationDesktopUiBlockers() {
     [Electron.dialog, 'showSaveDialog'],
     [Electron.shell, 'openExternal'],
     [Electron.shell, 'openPath'],
+    [Electron.shell, 'trashItem'],
   ] as const
   const blockedSyncApis = [
     [Electron.dialog, 'showErrorBox'],
@@ -127,6 +128,14 @@ export function openExternal(url: string) {
 
 export function openPath(targetPath: string) {
   return Electron.shell.openPath(targetPath)
+}
+
+export function showItemInFolder(targetPath: string) {
+  return Electron.shell.showItemInFolder(targetPath)
+}
+
+export function trashItem(targetPath: string) {
+  return Electron.shell.trashItem(targetPath)
 }
 
 export function showMessageBox(ownerWindow: BaseWindow | null, options: MessageBoxOptions) {

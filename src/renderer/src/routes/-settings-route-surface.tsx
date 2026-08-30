@@ -1,8 +1,13 @@
 import { useRouterState } from '@tanstack/react-router'
-import { AppSettingsView } from '@/features/settings/components'
+import { lazy, Suspense } from 'react'
 import { SETTINGS_TABS, type SettingsTab } from '@/shell/ui-store'
 
 const SETTINGS_PATH_PREFIX = '/settings/'
+const LazyAppSettingsView = lazy(() =>
+  import('@/features/settings/components').then((module) => ({
+    default: module.AppSettingsView,
+  })),
+)
 
 interface SettingsRouteSurfaceProps {
   readonly tab: SettingsTab
@@ -25,5 +30,18 @@ export function SettingsRouteSurface({ tab }: SettingsRouteSurfaceProps) {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const effectiveTab = settingsTabFromPathname(pathname) ?? tab
 
-  return <AppSettingsView activeTab={effectiveTab} />
+  return (
+    <Suspense
+      fallback={
+        <output
+          aria-live="polite"
+          className="flex size-full items-center justify-center bg-bg text-sm text-text-tertiary"
+        >
+          Loading settings…
+        </output>
+      }
+    >
+      <LazyAppSettingsView activeTab={effectiveTab} />
+    </Suspense>
+  )
 }

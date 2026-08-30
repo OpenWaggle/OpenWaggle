@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "id": "macos-arm64-m4-max-36gb",
+  "description": "Controlled OpenWaggle syntax baseline for Apple silicon on macOS.",
+  "documentEnvelope": {
+    "focusedEditMaxBytes": 1048576,
+    "sourcePageRequestBytes": 262144,
+    "sourcePageMaxBytes": 524288
+  },
+  "interactionBudgetsMs": {
+    "inputP95": 16.7,
+    "scrollFrameP95": 16.7,
+    "visibleWarmTokensP95": 100,
+    "visibleColdTokensP95": 250,
+    "warmThemeSwitchP95": 100,
+    "open256KiBP95": 100,
+    "open1MiBP95": 200,
+    "saveQueueOverheadP95": 100
+  },
+  "metricBudgetsMs": {
+    "javascriptCold16KiB": 200,
+    "javascriptWarm16KiB": 30,
+    "javascriptWarm128KiB": 225,
+    "javascriptWarm1MiB": 1800,
+    "onigurumaCold16KiB": 150,
+    "admissionScan1MiB": 6,
+    "sourceWindow1MiB": 8,
+    "sourceFingerprint1MiB": 8
+  }
+}

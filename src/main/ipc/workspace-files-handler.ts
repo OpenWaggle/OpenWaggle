@@ -1,12 +1,15 @@
 import { WORKSPACE_FILES } from '@shared/constants/resource-limits'
+import { WORKSPACE_EDITOR_PERFORMANCE } from '@shared/constants/workspace-editor-performance'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import * as Effect from 'effect/Effect'
+import { unwatchWorkspaceFiles, watchWorkspaceFiles } from '../adapters/workspace-file-watcher'
 import { WorkspaceFileService } from '../ports/workspace-file-service'
 import { validateRequiredProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
 
 const nonEmptyStringSchema = Schema.String.pipe(Schema.minLength(1))
 const MAX_RESULT_LIMIT = WORKSPACE_FILES.EXPLORER_RESULT_LIMIT + 1
+const MAX_DOCUMENT_CHANGES_PER_BATCH = 256
 const resultLimitSchema = Schema.Number.pipe(Schema.int(), Schema.between(1, MAX_RESULT_LIMIT))
 const writeInputSchema = Schema.Struct({
   projectPath: nonEmptyStringSchema,
@@ -14,12 +17,69 @@ const writeInputSchema = Schema.Struct({
   content: Schema.String,
   expectedRevision: nonEmptyStringSchema,
 })
+const nonNegativeIntegerSchema = Schema.Number.pipe(Schema.int(), Schema.greaterThanOrEqualTo(0))
+const pageLimitSchema = Schema.Number.pipe(
+  Schema.int(),
+  Schema.between(1, WORKSPACE_EDITOR_PERFORMANCE.SOURCE_PAGE_MAX_BYTES),
+)
+const documentChangeSchema = Schema.Struct({
+  rangeOffset: nonNegativeIntegerSchema,
+  rangeLength: nonNegativeIntegerSchema,
+  text: Schema.String.pipe(Schema.maxLength(WORKSPACE_EDITOR_PERFORMANCE.FOCUSED_EDIT_MAX_BYTES)),
+})
+const documentEditBatchSchema = Schema.Struct({
+  version: nonNegativeIntegerSchema,
+  changes: Schema.Array(documentChangeSchema).pipe(Schema.maxItems(MAX_DOCUMENT_CHANGES_PER_BATCH)),
+})
+
+function assertBoundedDocumentEditWorkload(input: {
+  readonly batches: readonly {
+    readonly changes: readonly { readonly text: string }[]
+  }[]
+}) {
+  let changeCount = 0
+  let insertedCodeUnits = 0
+  for (const batch of input.batches) {
+    changeCount += batch.changes.length
+    if (changeCount > WORKSPACE_FILES.DOCUMENT_EDIT_CHANGE_LIMIT) {
+      throw new Error('Document edit request contains too many changes.')
+    }
+    for (const change of batch.changes) {
+      insertedCodeUnits += change.text.length
+      if (insertedCodeUnits > WORKSPACE_FILES.DOCUMENT_EDIT_INSERT_CODE_UNIT_LIMIT) {
+        throw new Error('Document edit request inserts too much text.')
+      }
+    }
+  }
+}
+const documentApplyInputSchema = Schema.Struct({
+  projectPath: nonEmptyStringSchema,
+  path: nonEmptyStringSchema,
+  expectedRevision: nonEmptyStringSchema,
+  baseVersion: nonNegativeIntegerSchema,
+  batches: Schema.Array(documentEditBatchSchema).pipe(
+    Schema.maxItems(WORKSPACE_FILES.DOCUMENT_EDIT_BATCH_LIMIT),
+  ),
+  normalizeLineEnding: Schema.optional(Schema.Literal('lf', 'crlf')),
+  targetEncoding: Schema.optional(Schema.Literal('utf-8', 'utf-8-bom', 'utf-16le', 'utf-16be')),
+})
+const entryCreateInputSchema = Schema.Struct({
+  projectPath: nonEmptyStringSchema,
+  path: nonEmptyStringSchema,
+  kind: Schema.Literal('file', 'directory'),
+})
+const entryMutationInputSchema = Schema.Struct({
+  projectPath: nonEmptyStringSchema,
+  path: nonEmptyStringSchema,
+  targetPath: Schema.optional(nonEmptyStringSchema),
+  overwrite: Schema.optional(Schema.Boolean),
+})
 
 function validatedProjectPath(rawProjectPath: string) {
   return validateRequiredProjectPath(decodeUnknownOrThrow(nonEmptyStringSchema, rawProjectPath))
 }
 
-export function registerWorkspaceFileHandlers(): void {
+function registerWorkspaceFileReadHandlers() {
   typedHandle('workspace-files:search', (_event, rawProjectPath, query, rawLimit) =>
     Effect.gen(function* () {
       const projectPath = yield* validatedProjectPath(rawProjectPath)
@@ -57,6 +117,25 @@ export function registerWorkspaceFileHandlers(): void {
     }),
   )
 
+  typedHandle(
+    'workspace-files:read-with-encoding',
+    (_event, rawProjectPath, rawPath, rawEncoding) =>
+      Effect.gen(function* () {
+        const projectPath = yield* validatedProjectPath(rawProjectPath)
+        const relativePath = decodeUnknownOrThrow(nonEmptyStringSchema, rawPath)
+        const encoding = decodeUnknownOrThrow(
+          Schema.Literal('utf-8', 'utf-8-bom', 'utf-16le', 'utf-16be'),
+          rawEncoding,
+        )
+        const workspaceFiles = yield* WorkspaceFileService
+        return yield* workspaceFiles.readFileWithEncoding({
+          projectPath,
+          path: relativePath,
+          encoding,
+        })
+      }),
+  )
+
   typedHandle('workspace-files:write', (_event, rawInput) =>
     Effect.gen(function* () {
       const input = decodeUnknownOrThrow(writeInputSchema, rawInput)
@@ -66,6 +145,18 @@ export function registerWorkspaceFileHandlers(): void {
     }),
   )
 
+  typedHandle('workspace-files:apply-document-edits', (_event, rawInput) =>
+    Effect.gen(function* () {
+      const input = decodeUnknownOrThrow(documentApplyInputSchema, rawInput)
+      assertBoundedDocumentEditWorkload(input)
+      const projectPath = yield* validatedProjectPath(input.projectPath)
+      const workspaceFiles = yield* WorkspaceFileService
+      return yield* workspaceFiles.applyDocumentEdits({ ...input, projectPath })
+    }),
+  )
+}
+
+function registerWorkspaceFileMutationHandlers() {
   typedHandle('workspace-files:open-external', (_event, rawProjectPath, rawPath) =>
     Effect.gen(function* () {
       const projectPath = yield* validatedProjectPath(rawProjectPath)
@@ -74,4 +165,85 @@ export function registerWorkspaceFileHandlers(): void {
       yield* workspaceFiles.openFile({ projectPath, path: relativePath })
     }),
   )
+
+  typedHandle('workspace-files:create-entry', (_event, rawInput) =>
+    Effect.gen(function* () {
+      const input = decodeUnknownOrThrow(entryCreateInputSchema, rawInput)
+      const projectPath = yield* validatedProjectPath(input.projectPath)
+      const workspaceFiles = yield* WorkspaceFileService
+      return yield* workspaceFiles.createEntry({ ...input, projectPath })
+    }),
+  )
+
+  typedHandle('workspace-files:move-entry', (_event, rawInput) =>
+    Effect.gen(function* () {
+      const input = decodeUnknownOrThrow(entryMutationInputSchema, rawInput)
+      const projectPath = yield* validatedProjectPath(input.projectPath)
+      const workspaceFiles = yield* WorkspaceFileService
+      return yield* workspaceFiles.moveEntry({ ...input, projectPath })
+    }),
+  )
+
+  typedHandle('workspace-files:duplicate-entry', (_event, rawInput) =>
+    Effect.gen(function* () {
+      const input = decodeUnknownOrThrow(entryMutationInputSchema, rawInput)
+      const projectPath = yield* validatedProjectPath(input.projectPath)
+      const workspaceFiles = yield* WorkspaceFileService
+      return yield* workspaceFiles.duplicateEntry({ ...input, projectPath })
+    }),
+  )
+
+  typedHandle('workspace-files:trash-entry', (_event, rawInput) =>
+    Effect.gen(function* () {
+      const input = decodeUnknownOrThrow(entryMutationInputSchema, rawInput)
+      const projectPath = yield* validatedProjectPath(input.projectPath)
+      const workspaceFiles = yield* WorkspaceFileService
+      return yield* workspaceFiles.trashEntry({ ...input, projectPath })
+    }),
+  )
+
+  typedHandle('workspace-files:reveal-entry', (_event, rawProjectPath, rawPath) =>
+    Effect.gen(function* () {
+      const projectPath = yield* validatedProjectPath(rawProjectPath)
+      const relativePath = decodeUnknownOrThrow(nonEmptyStringSchema, rawPath)
+      const workspaceFiles = yield* WorkspaceFileService
+      yield* workspaceFiles.revealEntry({ projectPath, path: relativePath })
+    }),
+  )
+
+  typedHandle('workspace-files:watch', (event, rawProjectPath) =>
+    Effect.gen(function* () {
+      const projectPath = yield* validatedProjectPath(rawProjectPath)
+      yield* Effect.tryPromise(() => watchWorkspaceFiles(projectPath, event.sender))
+      return projectPath
+    }),
+  )
+
+  typedHandle('workspace-files:unwatch', (event, rawProjectPath) =>
+    Effect.gen(function* () {
+      const projectPath = yield* validatedProjectPath(rawProjectPath)
+      yield* Effect.tryPromise(() => unwatchWorkspaceFiles(projectPath, event.sender.id))
+    }),
+  )
+
+  typedHandle('workspace-files:read-page', (_event, rawProjectPath, rawPath, rawOffset, rawLimit) =>
+    Effect.gen(function* () {
+      const projectPath = yield* validatedProjectPath(rawProjectPath)
+      const relativePath = decodeUnknownOrThrow(nonEmptyStringSchema, rawPath)
+      const offset = decodeUnknownOrThrow(nonNegativeIntegerSchema, rawOffset)
+      const limit = decodeUnknownOrThrow(pageLimitSchema, rawLimit)
+      const workspaceFiles = yield* WorkspaceFileService
+      return yield* workspaceFiles.readPage({
+        projectPath,
+        path: relativePath,
+        offset,
+        limit,
+      })
+    }),
+  )
+}
+
+export function registerWorkspaceFileHandlers(): void {
+  registerWorkspaceFileReadHandlers()
+  registerWorkspaceFileMutationHandlers()
 }

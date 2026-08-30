@@ -14,7 +14,7 @@ const UNGUARDED_DESKTOP_UI_PATTERNS: readonly {
   { api: 'Electron dialog', pattern: /\bdialog\s*\.\s*show[A-Z][\w]*\s*\(/gu },
   {
     api: 'Electron shell UI',
-    pattern: /\bshell\s*\.\s*(?:beep|openExternal|openPath|showItemInFolder)\s*\(/gu,
+    pattern: /\bshell\s*\.\s*(?:beep|openExternal|openPath|showItemInFolder|trashItem)\s*\(/gu,
   },
   {
     api: 'Electron window construction',

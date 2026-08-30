@@ -8,8 +8,11 @@ import { useUIStore } from '@/shell/ui-store'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 
 const mocks = vi.hoisted(() => ({
+  onWorkspaceFilesChanged: vi.fn(() => vi.fn()),
   openWorkspaceFileExternal: vi.fn(),
   readWorkspaceFile: vi.fn(),
+  unwatchWorkspaceFiles: vi.fn().mockResolvedValue(undefined),
+  watchWorkspaceFiles: vi.fn().mockResolvedValue(undefined),
   writeWorkspaceFile: vi.fn(),
   createObjectURL: vi.fn(() => 'blob:workspace-preview'),
   revokeObjectURL: vi.fn(),
@@ -31,6 +34,15 @@ const FILE: WorkspaceTextFileReadResult = {
   previewKind: 'text',
   content: 'export const x = 1',
   language: 'typescript',
+  documentVersion: 0,
+  fidelity: {
+    encoding: 'utf-8',
+    lineEnding: 'none',
+    finalNewline: false,
+    indentStyle: 'space',
+    indentSize: 2,
+    editorConfigApplied: false,
+  },
 }
 
 const IMAGE_FILE: WorkspaceBinaryFileReadResult = {
@@ -70,7 +82,7 @@ describe('WorkspaceFilePanel external open', () => {
         onOpenFile={vi.fn()}
       />,
     )
-    const openButton = await screen.findByRole('button', { name: 'Open file in default editor' })
+    const openButton = await screen.findByRole('button', { name: 'Open file in external editor' })
 
     fireEvent.click(openButton)
 
