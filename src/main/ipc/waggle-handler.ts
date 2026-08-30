@@ -7,6 +7,7 @@ import type { WaggleConfig } from '@shared/types/waggle'
 import * as Effect from 'effect/Effect'
 import { classifyAgentError } from '../agent/error-classifier'
 import { cancelAgentLoopInteractionsForRun } from '../application/agent-loop-interaction-broker'
+import { captureSuccessfulRunResources } from '../application/session-resource-capture'
 import { executeWaggleRun } from '../application/waggle-run-service'
 import { broadcastToWindows } from '../utils/broadcast'
 import {
@@ -166,6 +167,17 @@ function runRegisteredWaggleMessage(
       onTitleAssigned: (title) =>
         broadcastToWindows('sessions:title-updated', { sessionId, title }),
     })
+
+    if (result.outcome === 'success') {
+      yield* captureSuccessfulRunResources({
+        sessionId,
+        runId,
+        payload,
+        messages: result.newMessages,
+        nodeIdByMessageId: {},
+        branchIdByMessageId: {},
+      }).pipe(Effect.catchAll(() => Effect.void))
+    }
 
     if (result.outcome === 'error') {
       emitWorktreeLaunchFailure(sessionId, result.message)

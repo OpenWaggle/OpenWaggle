@@ -21,14 +21,15 @@ import { listGitBranches } from './branch-list'
 import { createGitBranch } from './branch-mutations'
 import { commitGit } from './commit-handler'
 import { resolveDefaultRef } from './default-ref'
+import { resolvePrimaryRemote, resolvePrimaryRemoteUrl } from './primary-remote'
 import { pullCurrentBranch, pushCurrentBranch } from './push-service'
+import { repositoryWebUrl } from './repository-web-url'
 import { projectPathSchema, runGit } from './shared'
 import { runStackedGitAction, type StackedActionDeps } from './stacked-action-service'
 import { invalidateGitStatusCache } from './status-cache'
 import { GIT_RAW_PATHS } from './status-constants'
 import { invalidateVcsStatus, readLocalVcsStatus } from './vcs-status-cache'
 import { detectSourceControlProvider } from './vcs-status-parse'
-import { resolvePrimaryRemote, resolvePrimaryRemoteUrl } from './vcs-status-service'
 import { resolveRepositoryRoot } from './working-tree-service'
 
 const stackedActionOptionsSchema = Schema.Struct({
@@ -42,20 +43,6 @@ const stackedActionOptionsSchema = Schema.Struct({
   draft: Schema.optional(Schema.Boolean),
   paths: Schema.optional(Schema.Array(Schema.String)),
 })
-
-function repositoryWebUrl(remoteUrl: string) {
-  const scp = /^(?:[^@]+@)?(?<host>[^:]+):(?<path>.+)$/u.exec(remoteUrl)
-  if (scp?.groups?.host && scp.groups.path) {
-    return `https://${scp.groups.host}/${scp.groups.path.replace(/\.git$/u, '')}`
-  }
-  try {
-    const url = new URL(remoteUrl)
-    const repositoryPath = url.pathname.replace(/^\/+|\.git$/gu, '')
-    return repositoryPath ? `https://${url.hostname}/${repositoryPath}` : null
-  } catch {
-    return null
-  }
-}
 
 async function buildChangeRequestFallbackUrl(
   projectPath: string,
@@ -146,7 +133,10 @@ function createStackedActionDeps(): StackedActionDeps {
        */
       return commitGit(repositoryRoot, { message, amend: false, paths: [...selected] })
     },
-    push: (projectPath) => pushCurrentBranch(projectPath),
+    push: async (projectPath) => {
+      const primaryRemote = await resolvePrimaryRemote(projectPath)
+      return pushCurrentBranch(projectPath, primaryRemote?.name ?? 'origin')
+    },
     pull: (projectPath) => pullCurrentBranch(projectPath),
     openChangeRequest: async (projectPath, payload) => {
       const provider = getSourceControlProvider(

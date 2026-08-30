@@ -247,6 +247,7 @@ describe('session-details transcript projection', () => {
     })
 
     const reloaded = await getSessionDetail(session.id)
+    const tree = await getSessionTree(SessionId(String(session.id)))
 
     expect(reloaded?.messages.map((message) => String(message.id))).toEqual([
       'user-1',
@@ -256,6 +257,9 @@ describe('session-details transcript projection', () => {
       'compaction-summary-1',
     ])
     expect(reloaded?.messages[2]?.parts).toMatchObject([{ type: 'tool-result' }])
+    expect(
+      tree?.nodes.find((node) => String(node.id) === 'tool-result-1')?.message?.parts,
+    ).toMatchObject([{ type: 'tool-result' }])
     expect(reloaded?.messages[3]?.parts).toEqual([
       { type: 'text', text: 'Branch summary\n\nInvestigated package metadata.' },
     ])

@@ -71,6 +71,25 @@ async function repositoryTrackingMain() {
   return { remote, work }
 }
 
+async function repositoryWithUpstreamOnly() {
+  const root = await mkdtemp(path.join(tmpdir(), 'openwaggle-first-push-'))
+  workspace = root
+  const remote = path.join(root, 'remote')
+  const work = path.join(root, 'work')
+  await git(root, ['init', '--quiet', '--bare', '-b', 'main', remote])
+  await git(root, ['clone', '--quiet', remote, work])
+  await writeFile(path.join(work, 'a.txt'), 'base\n')
+  await git(work, ['add', '--all'])
+  await git(work, ['commit', '-m', 'base'])
+  await git(work, ['push', '--quiet', '-u', 'origin', 'main'])
+  await git(work, ['remote', 'rename', 'origin', 'upstream'])
+  await git(work, ['checkout', '--quiet', '-b', 'feature'])
+  await writeFile(path.join(work, 'b.txt'), 'feature\n')
+  await git(work, ['add', '--all'])
+  await git(work, ['commit', '-m', 'feature work'])
+  return { remote, work }
+}
+
 describe('where a push lands', () => {
   it('reports the destination, not just the ref the user is on', async () => {
     /*
@@ -104,5 +123,17 @@ describe('where a push lands', () => {
     expect(await git(remote, ['log', '--format=%s', '-1', 'refs/heads/main'])).toBe('feature work')
     // A bare push would have created this instead of updating the upstream.
     await expect(git(remote, ['rev-parse', '--verify', 'refs/heads/feature'])).rejects.toThrow()
+  })
+
+  it('uses the selected non-origin remote for a branch first push', async () => {
+    const { remote, work } = await repositoryWithUpstreamOnly()
+
+    const result = await pushCurrentBranch(work)
+
+    expect(result.ok).toBe(true)
+    expect(result.message).toContain('upstream/feature')
+    expect(await git(remote, ['log', '--format=%s', '-1', 'refs/heads/feature'])).toBe(
+      'feature work',
+    )
   })
 })
