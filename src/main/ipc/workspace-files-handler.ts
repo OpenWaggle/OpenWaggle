@@ -4,6 +4,7 @@ import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import * as Effect from 'effect/Effect'
 import { unwatchWorkspaceFiles, watchWorkspaceFiles } from '../adapters/workspace-file-watcher'
 import { WorkspaceFileService } from '../ports/workspace-file-service'
+import { invalidateGitStatusCache } from './git/status-cache'
 import { validateRequiredProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
 
@@ -141,7 +142,9 @@ function registerWorkspaceFileReadHandlers() {
       const input = decodeUnknownOrThrow(writeInputSchema, rawInput)
       const projectPath = yield* validatedProjectPath(input.projectPath)
       const workspaceFiles = yield* WorkspaceFileService
-      return yield* workspaceFiles.writeFile({ ...input, projectPath })
+      const result = yield* workspaceFiles.writeFile({ ...input, projectPath })
+      if (result.status === 'saved') invalidateGitStatusCache(projectPath)
+      return result
     }),
   )
 
@@ -151,7 +154,9 @@ function registerWorkspaceFileReadHandlers() {
       assertBoundedDocumentEditWorkload(input)
       const projectPath = yield* validatedProjectPath(input.projectPath)
       const workspaceFiles = yield* WorkspaceFileService
-      return yield* workspaceFiles.applyDocumentEdits({ ...input, projectPath })
+      const result = yield* workspaceFiles.applyDocumentEdits({ ...input, projectPath })
+      if (result.status === 'saved') invalidateGitStatusCache(projectPath)
+      return result
     }),
   )
 }
@@ -171,7 +176,9 @@ function registerWorkspaceFileMutationHandlers() {
       const input = decodeUnknownOrThrow(entryCreateInputSchema, rawInput)
       const projectPath = yield* validatedProjectPath(input.projectPath)
       const workspaceFiles = yield* WorkspaceFileService
-      return yield* workspaceFiles.createEntry({ ...input, projectPath })
+      const result = yield* workspaceFiles.createEntry({ ...input, projectPath })
+      invalidateGitStatusCache(projectPath)
+      return result
     }),
   )
 
@@ -180,7 +187,9 @@ function registerWorkspaceFileMutationHandlers() {
       const input = decodeUnknownOrThrow(entryMutationInputSchema, rawInput)
       const projectPath = yield* validatedProjectPath(input.projectPath)
       const workspaceFiles = yield* WorkspaceFileService
-      return yield* workspaceFiles.moveEntry({ ...input, projectPath })
+      const result = yield* workspaceFiles.moveEntry({ ...input, projectPath })
+      invalidateGitStatusCache(projectPath)
+      return result
     }),
   )
 
@@ -189,7 +198,9 @@ function registerWorkspaceFileMutationHandlers() {
       const input = decodeUnknownOrThrow(entryMutationInputSchema, rawInput)
       const projectPath = yield* validatedProjectPath(input.projectPath)
       const workspaceFiles = yield* WorkspaceFileService
-      return yield* workspaceFiles.duplicateEntry({ ...input, projectPath })
+      const result = yield* workspaceFiles.duplicateEntry({ ...input, projectPath })
+      invalidateGitStatusCache(projectPath)
+      return result
     }),
   )
 
@@ -198,7 +209,9 @@ function registerWorkspaceFileMutationHandlers() {
       const input = decodeUnknownOrThrow(entryMutationInputSchema, rawInput)
       const projectPath = yield* validatedProjectPath(input.projectPath)
       const workspaceFiles = yield* WorkspaceFileService
-      return yield* workspaceFiles.trashEntry({ ...input, projectPath })
+      const result = yield* workspaceFiles.trashEntry({ ...input, projectPath })
+      invalidateGitStatusCache(projectPath)
+      return result
     }),
   )
 

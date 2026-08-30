@@ -9,6 +9,7 @@ import type {
 } from '@shared/types/syntax-resources'
 import { emptySyntaxCatalog } from './syntax-resource-import-utils'
 import {
+  INSTALLED_RESOURCE_FILE_LIMIT,
   isSyntaxAppearanceResource,
   isSyntaxLanguageResource,
   isSyntaxThemeResource,
@@ -28,6 +29,15 @@ type SyntaxSourceParser = (
 
 function resourceFileName(resourceId: string) {
   return `${createHash('sha256').update(resourceId).digest('hex')}.json`
+}
+
+async function assertInstalledResourceCapacity(directory: string, resourceIds: readonly string[]) {
+  const installedNames = (await fs.readdir(directory)).filter((entry) => entry.endsWith('.json'))
+  const resultingNames = new Set(installedNames)
+  for (const resourceId of resourceIds) resultingNames.add(resourceFileName(resourceId))
+  if (resultingNames.size > INSTALLED_RESOURCE_FILE_LIMIT) {
+    throw new Error('Installing this import would exceed the syntax resource library limit.')
+  }
 }
 
 export async function applySyntaxThemePreview(
@@ -74,6 +84,10 @@ export async function applySyntaxThemePreview(
       ).map(async ([kind, resources]) => {
         const directory = path.join(stagingDirectory, kind)
         await fs.mkdir(directory, { recursive: true })
+        await assertInstalledResourceCapacity(
+          directory,
+          resources.map((resource) => resource.id),
+        )
         await Promise.all(
           resources.map((resource) =>
             fs.writeFile(

@@ -1,7 +1,6 @@
 import { shouldVirtualizeSyntaxSource } from '@shared/syntax-highlighting-performance'
 import type { WorkspaceTextFileReadResult } from '@shared/types/workspace-files'
 import { type SetStateAction, useEffect, useState } from 'react'
-import { useRepositoryPath } from '@/features/git/hooks'
 import { useSyntaxThemeCatalogStore } from '@/features/settings'
 import { languageFromPath, resolveSyntaxLanguage } from '@/shared/lib/syntax/language-registry'
 import {
@@ -25,8 +24,6 @@ export function useWorkspaceFileEditing({
   readonly file: WorkspaceTextFileReadResult
   readonly targetLine: number | null
 }) {
-  const repositoryPath = useRepositoryPath()
-  const associationProjectIdentity = repositoryPath ?? projectPath
   const registeredLanguages = useSyntaxThemeCatalogStore((state) => state.languages)
   const queue = useWorkspaceFileSaveQueue(projectPath, file)
   const [preview, setPreview] = useState(
@@ -39,7 +36,7 @@ export function useWorkspaceFileEditing({
   )
   const [language, setLanguage] = useState(() =>
     resolveSyntaxLanguage(
-      workspaceLanguageAssociation(window.localStorage, associationProjectIdentity, file.path) ??
+      workspaceLanguageAssociation(window.localStorage, projectPath, file.path) ??
         file.language ??
         languageFromPath(file.path),
     ),
@@ -48,37 +45,26 @@ export function useWorkspaceFileEditing({
   function selectLanguage(nextLanguage: string) {
     const resolved = resolveSyntaxLanguage(nextLanguage)
     setLanguage(resolved)
-    setWorkspaceLanguageAssociation(
-      window.localStorage,
-      associationProjectIdentity,
-      file.path,
-      resolved,
-    )
+    setWorkspaceLanguageAssociation(window.localStorage, projectPath, file.path, resolved)
   }
 
   function associateLanguagePattern() {
-    setWorkspaceLanguagePatternAssociation(
-      window.localStorage,
-      associationProjectIdentity,
-      file.path,
-      language,
-    )
+    setWorkspaceLanguagePatternAssociation(window.localStorage, projectPath, file.path, language)
   }
 
   useEffect(() => {
-    const associated = workspaceLanguageAssociation(
-      window.localStorage,
-      associationProjectIdentity,
-      file.path,
-    )
-    if (associated) return
+    const associated = workspaceLanguageAssociation(window.localStorage, projectPath, file.path)
+    if (associated) {
+      setLanguage(resolveSyntaxLanguage(associated, registeredLanguages))
+      return
+    }
     setLanguage(
       resolveSyntaxLanguage(
         file.language ?? languageFromPath(file.path, registeredLanguages),
         registeredLanguages,
       ),
     )
-  }, [associationProjectIdentity, file.language, file.path, registeredLanguages])
+  }, [file.language, file.path, projectPath, registeredLanguages])
 
   function toggleWordWrap() {
     const next = !wordWrap

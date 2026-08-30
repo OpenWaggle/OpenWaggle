@@ -4,6 +4,8 @@ const MEBIBYTE = 1024 * KIBIBYTE
 /** Runtime policy mirrored by the measured platform profiles under performance/syntax-budgets. */
 export const WORKSPACE_EDITOR_PERFORMANCE = {
   FOCUSED_EDIT_MAX_BYTES: MEBIBYTE,
+  /** Keeps rich previews independent from the much smaller focused text-editor budget. */
+  BINARY_PREVIEW_MAX_BYTES: 25 * MEBIBYTE,
   SOURCE_PAGE_REQUEST_BYTES: 256 * KIBIBYTE,
   SOURCE_PAGE_MAX_BYTES: 512 * KIBIBYTE,
   DRAFT_JOURNAL_MAX_CHARACTERS: 4 * MEBIBYTE,

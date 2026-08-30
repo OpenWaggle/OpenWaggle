@@ -168,7 +168,13 @@ export async function readWorkspaceFile(
     revision: workspaceFileRevision(resolved.stats.mtimeMs, resolved.stats.size),
     mimeType: MIME_BY_EXTENSION[extension] ?? 'application/octet-stream',
   }
-  if (resolved.stats.size > WORKSPACE_EDITOR_PERFORMANCE.FOCUSED_EDIT_MAX_BYTES) {
+  const supportsRichBinaryPreview =
+    base.mimeType.startsWith('image/') || base.mimeType === 'application/pdf'
+  if (
+    resolved.stats.size > WORKSPACE_EDITOR_PERFORMANCE.BINARY_PREVIEW_MAX_BYTES ||
+    (resolved.stats.size > WORKSPACE_EDITOR_PERFORMANCE.FOCUSED_EDIT_MAX_BYTES &&
+      !supportsRichBinaryPreview)
+  ) {
     return oversizedReadResult({
       base,
       extension,

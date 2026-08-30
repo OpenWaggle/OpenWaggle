@@ -111,6 +111,23 @@ describe('FilesystemWorkspaceFileLive', () => {
     })
   })
 
+  it('keeps image previews available beyond the focused text-edit limit', async () => {
+    const image = Buffer.alloc(1024 * 1024 + 1, 1)
+    await fs.writeFile(path.join(projectPath, 'src', 'large.png'), image)
+
+    const result = await runWithWorkspaceFiles((service) =>
+      service.readFile({ projectPath, path: 'src/large.png' }),
+    )
+
+    expect(result).toMatchObject({
+      previewKind: 'image',
+      mimeType: 'image/png',
+      size: image.byteLength,
+    })
+    if (result.previewKind !== 'image') throw new Error('Expected an image preview.')
+    expect(result.data).toHaveLength(image.byteLength)
+  })
+
   it('honours worktree-local VS Code file associations', async () => {
     await fs.mkdir(path.join(projectPath, '.vscode'), { recursive: true })
     await fs.writeFile(

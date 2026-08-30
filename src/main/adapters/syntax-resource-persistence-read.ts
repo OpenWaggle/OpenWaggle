@@ -8,7 +8,7 @@ import type {
 } from '@shared/types/syntax-resources'
 import { isRecord } from './syntax-resource-import-utils'
 
-const PROJECT_RESOURCE_FILE_LIMIT = 20
+export const INSTALLED_RESOURCE_FILE_LIMIT = 20
 
 export function isSyntaxThemeResource(value: unknown): value is SyntaxThemeResource {
   return (
@@ -92,17 +92,18 @@ export async function readPersistedResources<T>(
   } catch {
     return []
   }
+  const resourceNames = names.filter((entry) => entry.endsWith('.json'))
+  if (resourceNames.length > INSTALLED_RESOURCE_FILE_LIMIT) {
+    throw new Error('The installed syntax resource library exceeds its supported limit.')
+  }
   const sources = await Promise.all(
-    names
-      .filter((entry) => entry.endsWith('.json'))
-      .slice(0, PROJECT_RESOURCE_FILE_LIMIT)
-      .map(async (name): Promise<string | null> => {
-        try {
-          return await fs.readFile(path.join(directory, name), 'utf8')
-        } catch {
-          return null
-        }
-      }),
+    resourceNames.map(async (name): Promise<string | null> => {
+      try {
+        return await fs.readFile(path.join(directory, name), 'utf8')
+      } catch {
+        return null
+      }
+    }),
   )
   const resources: T[] = []
   for (const source of sources) {

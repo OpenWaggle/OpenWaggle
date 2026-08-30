@@ -20,19 +20,22 @@ describe('workspace language associations', () => {
     ).toBeNull()
   })
 
-  it('shares an explicitly chosen extension association across repository worktrees', () => {
+  it('shares a pattern within one worktree without leaking it to another', () => {
     setWorkspaceLanguagePatternAssociation(
       window.localStorage,
-      '/repository',
+      '/worktree-a',
       'src/one.waggle',
       'typescript',
     )
 
     expect(
-      workspaceLanguageAssociation(window.localStorage, '/repository', 'other/two.waggle'),
+      workspaceLanguageAssociation(window.localStorage, '/worktree-a', 'other/two.waggle'),
     ).toBe('typescript')
     expect(
-      workspaceLanguageAssociation(window.localStorage, '/repository', 'other/two.ts'),
+      workspaceLanguageAssociation(window.localStorage, '/worktree-a', 'other/two.ts'),
+    ).toBeNull()
+    expect(
+      workspaceLanguageAssociation(window.localStorage, '/worktree-b', 'other/two.waggle'),
     ).toBeNull()
   })
 })

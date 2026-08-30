@@ -250,6 +250,43 @@ describe('syntax resource imports', () => {
     })
   })
 
+  it('enforces the installed-library cap across separate imports without hiding resources', async () => {
+    const themePath = path.join(temporaryRoot, 'bounded.json')
+    await fs.writeFile(themePath, JSON.stringify(theme('Bounded', '#abcdef')))
+    const catalog = await parseSyntaxThemeSource(themePath, 'user')
+    const baseTheme = catalog.themes[0]
+    if (!baseTheme) throw new Error('Expected a parsed theme.')
+    const installedThemes = Array.from({ length: 20 }, (_, index) => ({
+      ...baseTheme,
+      id: `${baseTheme.id}:${String(index)}`,
+      label: `Bounded ${String(index)}`,
+    }))
+    await applySyntaxThemePreview(resourcesDirectory, {
+      token: 'bounded',
+      sourcePath: themePath,
+      themes: installedThemes,
+      languages: [],
+      appearances: [],
+      replacements: [],
+      warnings: [],
+    })
+
+    await expect(
+      applySyntaxThemePreview(resourcesDirectory, {
+        token: 'overflow',
+        sourcePath: themePath,
+        themes: [{ ...baseTheme, id: `${baseTheme.id}:overflow` }],
+        languages: [],
+        appearances: [],
+        replacements: [],
+        warnings: [],
+      }),
+    ).rejects.toThrow('library limit')
+
+    const installed = await listInstalledSyntaxThemes(resourcesDirectory)
+    expect(installed.themes).toHaveLength(20)
+  })
+
   it('persists atomically, lets project resources override identities, and removes user resources', async () => {
     const userPath = path.join(temporaryRoot, 'user.json')
     await fs.writeFile(userPath, JSON.stringify(theme('Shared', '#111111')))
