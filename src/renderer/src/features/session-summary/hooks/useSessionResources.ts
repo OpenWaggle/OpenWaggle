@@ -34,6 +34,7 @@ export function sessionResourceContentQueryOptions(
   return queryOptions({
     queryKey: ['session-resource-content', sessionId, resourceId] as const,
     queryFn: () => api.readSessionResource(SessionId(sessionId), resourceId),
+    gcTime: 0,
     staleTime: Number.POSITIVE_INFINITY,
   })
 }

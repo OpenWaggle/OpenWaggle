@@ -13,6 +13,7 @@ const EXCESS_REMOTE_IMAGE_COUNT = REMOTE_IMAGE_REFERENCE_LIMIT + 8
 describe('captureSuccessfulRunResources', () => {
   it('links user attachments and agent images to the message that displayed them', async () => {
     const upserts: UpsertSessionResourceInput[] = []
+    const storedAttachmentSha256: Array<string | undefined> = []
     const payload: AgentSendPayload = {
       text: 'Review [reference](https://user.example/reference)',
       thinkingLevel: 'medium',
@@ -24,6 +25,7 @@ describe('captureSuccessfulRunResources', () => {
           path: '/input/reference.png',
           mimeType: 'image/png',
           sizeBytes: 42,
+          contentSha256: 'a'.repeat(64),
           extractedText: '',
         },
       ],
@@ -43,7 +45,7 @@ describe('captureSuccessfulRunResources', () => {
           'user-message': 'branch-user',
           'assistant-message': 'branch-assistant',
         },
-      }).pipe(Effect.provide(sessionResourceTestLayer(upserts))),
+      }).pipe(Effect.provide(sessionResourceTestLayer(upserts, { storedAttachmentSha256 }))),
     )
 
     expect(upserts).toEqual(
@@ -69,6 +71,7 @@ describe('captureSuccessfulRunResources', () => {
         }),
       ]),
     )
+    expect(storedAttachmentSha256).toEqual(['a'.repeat(64)])
   })
 
   it('retains unavailable attachment metadata when the managed copy cannot be created', async () => {

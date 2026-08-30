@@ -102,7 +102,13 @@ function captureUserResources(input: SuccessfulRunResourceInput, createdAt: numb
       ? (input.nodeIdByMessageId?.[userMessageId] ?? userMessageId)
       : null
     const branchId = userMessageId ? (input.branchIdByMessageId?.[userMessageId] ?? null) : null
-    for (const [index, attachment] of input.payload.attachments.entries()) {
+    const persistedAttachments = userMessage?.parts.flatMap((part) =>
+      part.type === 'attachment' ? [part.attachment] : [],
+    )
+    const attachments = persistedAttachments?.length
+      ? persistedAttachments
+      : input.payload.attachments
+    for (const [index, attachment] of attachments.entries()) {
       yield* captureAttachment({
         ...input,
         attachment,

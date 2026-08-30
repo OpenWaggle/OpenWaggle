@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { match } from '@diegogbrisa/ts-match'
@@ -30,6 +30,10 @@ import { validateRequiredProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
 
 const logger = createLogger('ipc/attachments')
+
+function contentSha256(bytes: Uint8Array) {
+  return createHash('sha256').update(bytes).digest('hex')
+}
 
 const prepareArgsSchema = Schema.Struct({
   projectPath: Schema.String.pipe(Schema.minLength(1)),
@@ -128,6 +132,7 @@ async function prepareAttachment(filePath: string): Promise<PreparedAttachment> 
     path: filePath,
     mimeType,
     sizeBytes: stats.size,
+    contentSha256: contentSha256(buffer),
     extractedText,
   }
 }
@@ -220,6 +225,7 @@ function registerPrepareFromTextAttachmentHandler() {
           path: filePath,
           mimeType: TEMP_PROMPT_MIME_TYPE,
           sizeBytes: stats.size,
+          contentSha256: contentSha256(Buffer.from(text, 'utf8')),
           extractedText: text,
         }
         yield* Effect.promise(() => rememberPreparedAttachment(attachment, filePath))

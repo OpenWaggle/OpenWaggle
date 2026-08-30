@@ -16,6 +16,7 @@ const MAX_DIRECTORY_ENTRY_BYTES = 255
 const MAX_RESOURCE_ID_BYTES = 64
 const MAX_EXTENSION_BYTES = 32
 const TEMPORARY_SUFFIX = '.tmp'
+const SHA256_PATTERN = /^[a-f0-9]{64}$/u
 
 function storeError(operation: string, cause: unknown) {
   return new SessionResourceStoreError({ operation, cause })
@@ -67,6 +68,7 @@ function digest(bytes: Uint8Array) {
 
 function validateFileCopyLimits(input: {
   readonly expectedSizeBytes: number
+  readonly expectedSha256?: string
   readonly maxSizeBytes: number
 }) {
   if (
@@ -74,7 +76,8 @@ function validateFileCopyLimits(input: {
     input.expectedSizeBytes < 0 ||
     !Number.isSafeInteger(input.maxSizeBytes) ||
     input.maxSizeBytes <= 0 ||
-    input.expectedSizeBytes > input.maxSizeBytes
+    input.expectedSizeBytes > input.maxSizeBytes ||
+    (input.expectedSha256 !== undefined && !SHA256_PATTERN.test(input.expectedSha256))
   ) {
     throw new Error('Session resource file copy limits are invalid.')
   }
@@ -110,6 +113,7 @@ async function copyBoundedFile(input: {
   readonly sourcePath: string
   readonly temporaryPath: string
   readonly expectedSizeBytes: number
+  readonly expectedSha256?: string
   readonly maxSizeBytes: number
 }) {
   validateFileCopyLimits(input)
@@ -142,7 +146,12 @@ async function copyBoundedFile(input: {
       if (sizeBytes !== input.expectedSizeBytes) {
         throw new Error('Session resource source size changed before it could be copied.')
       }
+      const sha256 = hash.digest('hex')
+      if (input.expectedSha256 && sha256 !== input.expectedSha256) {
+        throw new Error('Session resource source contents changed before they could be copied.')
+      }
       await targetHandle.close()
+      return { sha256, sizeBytes }
     } catch (cause) {
       await targetHandle.close().catch(() => {})
       await fs.rm(input.temporaryPath, { force: true }).catch(() => {})
@@ -151,7 +160,6 @@ async function copyBoundedFile(input: {
   } finally {
     await sourceHandle.close().catch(() => {})
   }
-  return { sha256: hash.digest('hex'), sizeBytes }
 }
 
 function makeStore(root: string): SessionResourceStoreShape {
@@ -192,6 +200,7 @@ function makeStore(root: string): SessionResourceStoreShape {
             sourcePath: input.sourcePath,
             temporaryPath: temporary,
             expectedSizeBytes: input.expectedSizeBytes,
+            expectedSha256: input.expectedSha256,
             maxSizeBytes: input.maxSizeBytes,
           })
           try {

@@ -26,9 +26,10 @@ The app also spreads persistent session context across the composer, header, dif
 
 - Persist image bytes under an OpenWaggle-owned user-data directory partitioned by Session id and content hash. Transcript JSON and renderer state contain typed resource references, never base64 payloads.
 - Validate MIME type and decoded bytes before accepting an image. Local and embedded images use bounded reads and atomic temp-file replacement.
+- Bind each prepared local attachment to a SHA-256 content identity carried through hydration and managed-file capture. Size and path checks alone do not authorize a mutable source file.
 - Remote Markdown images are cataloged without network access during run settlement, with a per-run cap on agent-authored image references. OpenWaggle materializes and caches one only after the user explicitly opens its preview, using HTTPS only, no ambient credentials, bounded redirects and response size, SSRF-safe address checks, and MIME/byte validation. Unsafe unsanitized formats remain ordinary file resources unless OpenWaggle sanitizes or rasterizes them.
 - Failed capture leaves an unavailable catalog entry with Retry and Open original actions. A failed capture must not break transcript projection.
-- Existing Sessions are backfilled lazily and idempotently from recoverable Pi image blocks, explicit links/tool resources, and resolvable local outputs.
+- Existing Sessions are backfilled lazily and idempotently from recoverable Pi image blocks, user attachments, explicit links/tool resources, and resolvable local outputs. Each pass has bounded attachment and image work and resumes by skipping deterministic occurrences already in the catalog.
 
 ### Projection emits references and candidates
 

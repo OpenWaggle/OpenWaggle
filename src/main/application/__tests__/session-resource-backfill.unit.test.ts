@@ -4,7 +4,10 @@ import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it } from 'vitest'
 import type { UpsertSessionResourceInput } from '../../ports/session-resource-repository'
-import { captureProjectedSessionResources } from '../session-resource-backfill'
+import {
+  ATTACHMENT_BACKFILL_LIMITS,
+  captureProjectedSessionResources,
+} from '../session-resource-backfill'
 import { GENERATED_IMAGE_CAPTURE_LIMITS } from '../session-resource-capture'
 import {
   PNG_BASE64,
@@ -26,6 +29,28 @@ function imageMessage(index: number): Message {
           result: { content: [{ type: 'image', data: PNG_BASE64, mimeType: 'image/png' }] },
           isError: false,
           duration: 1,
+        },
+      },
+    ],
+    createdAt: index,
+  }
+}
+
+function attachmentMessage(index: number): Message {
+  return {
+    id: MessageId(`user-attachment-${String(index)}`),
+    role: 'user',
+    parts: [
+      {
+        type: 'attachment',
+        attachment: {
+          id: `attachment-${String(index)}`,
+          kind: 'text',
+          name: `attachment-${String(index)}.txt`,
+          path: `/input/attachment-${String(index)}.txt`,
+          mimeType: 'text/plain',
+          sizeBytes: 1,
+          extractedText: 'x',
         },
       },
     ],
@@ -205,5 +230,40 @@ describe('captureProjectedSessionResources', () => {
     )
 
     expect(resumedStored).toHaveLength(8)
+  })
+
+  it('bounds attachment work per lazy pass and resumes after known occurrences', async () => {
+    const remainingCount = 3
+    const messages = Array.from(
+      { length: ATTACHMENT_BACKFILL_LIMITS.maxCount + remainingCount },
+      (_, index) => attachmentMessage(index),
+    )
+    const firstUpserts: UpsertSessionResourceInput[] = []
+    const firstStored: string[] = []
+
+    await Effect.runPromise(
+      captureProjectedSessionResources({ sessionId: SessionId('session-1'), messages }).pipe(
+        Effect.provide(
+          sessionResourceTestLayer(firstUpserts, { storedAttachmentFiles: firstStored }),
+        ),
+      ),
+    )
+
+    expect(firstStored).toHaveLength(ATTACHMENT_BACKFILL_LIMITS.maxCount)
+    const cataloged = firstUpserts.map(capturedResource)
+    const resumedStored: string[] = []
+
+    await Effect.runPromise(
+      captureProjectedSessionResources({ sessionId: SessionId('session-1'), messages }).pipe(
+        Effect.provide(
+          sessionResourceTestLayer([], {
+            listedResources: cataloged,
+            storedAttachmentFiles: resumedStored,
+          }),
+        ),
+      ),
+    )
+
+    expect(resumedStored).toHaveLength(remainingCount)
   })
 })

@@ -24,7 +24,7 @@ import {
   removeReplacedCopy,
 } from './session-resource-capture-shared'
 
-interface CaptureAttachmentInput {
+export interface CaptureAttachmentInput {
   readonly sessionId: SessionId
   readonly runId: string
   readonly attachment: AgentSendPayload['attachments'][number]
@@ -32,6 +32,13 @@ interface CaptureAttachmentInput {
   readonly nodeId: string | null
   readonly createdAt: number
   readonly branchId?: string | null
+}
+
+export function attachmentOccurrenceId(input: CaptureAttachmentInput) {
+  return occurrenceId({
+    ...input,
+    suffix: `provided:attachment:${input.attachment.id}:${String(input.index)}`,
+  })
 }
 
 function attachmentKind(input: CaptureAttachmentInput): SessionResourceKind {
@@ -67,6 +74,7 @@ function storeAttachment(
       fileName: input.attachment.name,
       sourcePath: input.attachment.path,
       expectedSizeBytes: input.attachment.sizeBytes,
+      expectedSha256: input.attachment.contentSha256,
       maxSizeBytes: ATTACHMENT.MAX_SIZE_BYTES,
     })
     .pipe(
@@ -227,10 +235,7 @@ export function captureAttachment(input: CaptureAttachmentInput) {
       input.sessionId,
       fallbackCanonicalKey,
     )
-    const id = occurrenceId({
-      ...input,
-      suffix: `provided:attachment:${input.attachment.id}:${String(input.index)}`,
-    })
+    const id = attachmentOccurrenceId(input)
     const occurrenceExists = yield* repository.hasOccurrence(input.sessionId, id)
     if (occurrenceExists && unavailableResource?.available !== false) return
     const store = yield* SessionResourceStore

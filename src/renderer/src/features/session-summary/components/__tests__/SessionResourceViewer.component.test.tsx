@@ -78,6 +78,7 @@ function renderViewer(
   )
   return {
     ...view,
+    queryClient,
     rerenderSession: (sessionId: string | null) =>
       view.rerender(
         <QueryClientProvider client={queryClient}>
@@ -103,7 +104,7 @@ describe('SessionResourceViewer', () => {
 
   it('enlarges a session image and navigates the session gallery', async () => {
     useUIStore.getState().openResourceViewer('session-1', 'image-1')
-    renderViewer('session-1')
+    const view = renderViewer('session-1')
 
     expect(
       await screen.findByRole('dialog', { name: 'Image viewer: first.png' }),
@@ -113,6 +114,11 @@ describe('SessionResourceViewer', () => {
     expect(
       await screen.findByRole('dialog', { name: 'Image viewer: second.png' }),
     ).toBeInTheDocument()
+    await waitFor(() => {
+      expect(
+        view.queryClient.getQueryData(['session-resource-content', 'session-1', 'image-1']),
+      ).toBeUndefined()
+    })
 
     fireEvent.keyDown(window, { key: 'ArrowLeft' })
     expect(
@@ -135,7 +141,9 @@ describe('SessionResourceViewer', () => {
   })
 
   it('requests remote image content only after the user opens the viewer', async () => {
-    listSessionResources.mockResolvedValue([remoteImage('remote-image', 'Remote image')])
+    listSessionResources
+      .mockResolvedValueOnce([remoteImage('remote-image', 'Remote image')])
+      .mockResolvedValue([image('remote-image', 'Remote image')])
     useUIStore.getState().openResourceViewer('session-1', 'remote-image')
     renderViewer('session-1')
 
@@ -145,6 +153,7 @@ describe('SessionResourceViewer', () => {
     await waitFor(() =>
       expect(readSessionResource).toHaveBeenCalledWith(SessionId('session-1'), 'remote-image'),
     )
+    await waitFor(() => expect(listSessionResources).toHaveBeenCalledTimes(2))
   })
 
   it('supports Codex-style zoom choices and downloading managed images', async () => {
@@ -211,7 +220,7 @@ describe('SessionResourceViewer', () => {
 
     view.rerenderSession('session-2')
 
-    await waitFor(() => expect(useUIStore.getState().resourceViewer).toBeNull())
     expect(screen.queryByRole('dialog')).toBeNull()
+    await waitFor(() => expect(useUIStore.getState().resourceViewer).toBeNull())
   })
 })

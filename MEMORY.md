@@ -356,9 +356,13 @@ IPC read includes the opened `SessionId` to prevent resources leaking across ses
 Managed bytes live below Electron user data in `session-resources/<session-id>/`, not in the project.
 Archiving retains them; permanent session deletion removes them after the database cascade. Successful
 runs capture new explicit resources, while opening the resource catalog backfills reconstructable
-resources from older projected transcripts with deterministic occurrence ids. A transcript occurrence's
-`nodeId` is what connects an inline thumbnail to the exact user or assistant message and lets the viewer
-prioritise images on the visible branch before images from other branches in the same session.
+resources from older projected transcripts with deterministic occurrence ids. Attachment backfill is
+bounded per lazy pass and resumes by skipping cataloged occurrence ids; do not turn catalog opening into
+an unbounded sweep over historical files. Prepared local attachments carry a SHA-256 content identity
+through hydration and managed-file capture, so a same-size replacement at the original path is rejected.
+A transcript occurrence's `nodeId` is what connects an inline thumbnail to the exact user or assistant
+message and lets the viewer prioritise images on the visible branch before images from other branches in
+the same session.
 
 Remote Markdown images are metadata-only during run settlement and thumbnail rendering. The main
 process performs the bounded, SSRF-safe HTTPS fetch only after the user opens that image in the viewer,

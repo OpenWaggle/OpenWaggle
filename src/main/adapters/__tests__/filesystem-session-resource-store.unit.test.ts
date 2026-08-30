@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -121,6 +122,35 @@ describe('FilesystemSessionResourceStore', () => {
           sourcePath,
           expectedSizeBytes: 4,
           maxSizeBytes: 8,
+        })
+      }).pipe(Effect.either, Effect.provide(makeFilesystemSessionResourceStoreLayer(tmpRoot))),
+    )
+
+    expect(result).toMatchObject({
+      _tag: 'Left',
+      left: { _tag: 'SessionResourceStoreError', operation: 'storeFile' },
+    })
+    await expect(fs.readdir(path.join(tmpRoot, 'session-1'))).resolves.toEqual([])
+  })
+
+  it('rejects same-size source contents that differ from the prepared digest', async () => {
+    const preparedBytes = Buffer.from('sent version')
+    const replacementBytes = Buffer.from('new! version')
+    expect(replacementBytes.byteLength).toBe(preparedBytes.byteLength)
+    const sourcePath = path.join(tmpRoot, 'replaced-attachment.txt')
+    await fs.writeFile(sourcePath, replacementBytes)
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const store = yield* SessionResourceStore
+        return yield* store.storeFile({
+          sessionId: SessionId('session-1'),
+          resourceId: 'resource-1',
+          fileName: 'attachment.txt',
+          sourcePath,
+          expectedSizeBytes: preparedBytes.byteLength,
+          expectedSha256: createHash('sha256').update(preparedBytes).digest('hex'),
+          maxSizeBytes: preparedBytes.byteLength,
         })
       }).pipe(Effect.either, Effect.provide(makeFilesystemSessionResourceStoreLayer(tmpRoot))),
     )

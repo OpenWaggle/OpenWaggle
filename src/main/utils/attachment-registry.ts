@@ -152,6 +152,7 @@ export async function resolvePreparedAttachmentCapability(
     prepared.name !== attachment.name ||
     prepared.mimeType !== attachment.mimeType ||
     prepared.sizeBytes !== attachment.sizeBytes ||
+    !sameOptionalValue(prepared.contentSha256, attachment.contentSha256) ||
     !sameOptionalValue(prepared.origin, attachment.origin)
   ) {
     throw new Error(`Attachment metadata does not match prepared file: ${attachment.name}`)

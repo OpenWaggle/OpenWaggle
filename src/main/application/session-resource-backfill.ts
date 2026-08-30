@@ -1,3 +1,4 @@
+import { ATTACHMENT } from '@shared/constants/resource-limits'
 import type { Message } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionNode } from '@shared/types/session'
@@ -11,6 +12,7 @@ import {
   captureLink,
   prepareGeneratedImageForCapture,
 } from './session-resource-capture'
+import { attachmentOccurrenceId } from './session-resource-capture-attachment'
 import { generatedImageOccurrencePrefix } from './session-resource-capture-image'
 import { linkOccurrenceId } from './session-resource-capture-link'
 import { collectExplicitResources } from './session-resource-extraction'
@@ -25,6 +27,37 @@ interface ProjectedResourceMessage {
 interface BackfillImageState {
   budget: { readonly bytes: number; readonly count: number }
   readonly capturedSlots: Set<string>
+}
+
+export const ATTACHMENT_BACKFILL_LIMITS = {
+  maxBytes: ATTACHMENT.MAX_TOTAL_SIZE_BYTES,
+  maxCount: 16,
+} as const
+
+interface BackfillAttachmentBudget {
+  readonly bytes: number
+  readonly count: number
+}
+
+interface BackfillAttachmentState {
+  budget: BackfillAttachmentBudget
+  readonly capturedOccurrences: Set<string>
+}
+
+export function advanceAttachmentBackfillBudget(
+  current: BackfillAttachmentBudget,
+  byteLength: number,
+): BackfillAttachmentBudget | null {
+  if (
+    !Number.isSafeInteger(byteLength) ||
+    byteLength < 0 ||
+    byteLength > ATTACHMENT.MAX_SIZE_BYTES ||
+    current.count >= ATTACHMENT_BACKFILL_LIMITS.maxCount ||
+    current.bytes > ATTACHMENT_BACKFILL_LIMITS.maxBytes - byteLength
+  ) {
+    return null
+  }
+  return { bytes: current.bytes + byteLength, count: current.count + 1 }
 }
 
 interface BackfillLinkState {
@@ -71,13 +104,17 @@ function capturedOccurrenceIds(resources: readonly SessionResource[]) {
   return new Set(resources.flatMap((resource) => resource.occurrences.map(({ id }) => id)))
 }
 
-function captureBackfilledUserResources(sessionId: SessionId, projected: ProjectedResourceMessage) {
+function captureBackfilledUserResources(
+  sessionId: SessionId,
+  projected: ProjectedResourceMessage,
+  attachmentState: BackfillAttachmentState,
+) {
   return Effect.gen(function* () {
     const { message, nodeId, branchId } = projected
     const runId = `backfill:${nodeId}`
     const attachments = message.parts.filter((part) => part.type === 'attachment')
     for (const [index, part] of attachments.entries()) {
-      yield* captureAttachment({
+      const attachmentInput = {
         sessionId,
         runId,
         attachment: part.attachment,
@@ -85,7 +122,20 @@ function captureBackfilledUserResources(sessionId: SessionId, projected: Project
         nodeId,
         createdAt: message.createdAt,
         branchId,
-      }).pipe(Effect.catchAll(() => Effect.void))
+      }
+      const id = attachmentOccurrenceId(attachmentInput)
+      if (attachmentState.capturedOccurrences.has(id)) continue
+      const nextBudget = advanceAttachmentBackfillBudget(
+        attachmentState.budget,
+        part.attachment.sizeBytes,
+      )
+      if (!nextBudget) continue
+      attachmentState.budget = nextBudget
+      const captured = yield* captureAttachment(attachmentInput).pipe(
+        Effect.as(true),
+        Effect.catchAll(() => Effect.succeed(false)),
+      )
+      if (captured) attachmentState.capturedOccurrences.add(id)
     }
     const links = collectExplicitResources(message.parts).links
     for (const [index, link] of links.entries()) {
@@ -167,6 +217,10 @@ export function captureProjectedSessionResources(input: {
     Effect.gen(function* () {
       const repository = yield* SessionResourceRepository
       const resources = yield* repository.list(input.sessionId)
+      const attachmentState: BackfillAttachmentState = {
+        budget: { bytes: 0, count: 0 },
+        capturedOccurrences: capturedOccurrenceIds(resources),
+      }
       const imageState: BackfillImageState = {
         budget: { bytes: 0, count: 0 },
         capturedSlots: capturedGeneratedImageSlots(resources),
@@ -178,7 +232,7 @@ export function captureProjectedSessionResources(input: {
       for (const projected of projectResourceMessages(input)) {
         const { message } = projected
         if (message.role === 'user') {
-          yield* captureBackfilledUserResources(input.sessionId, projected)
+          yield* captureBackfilledUserResources(input.sessionId, projected, attachmentState)
           continue
         }
         if (message.role !== 'assistant') continue

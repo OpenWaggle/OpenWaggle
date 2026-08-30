@@ -19,6 +19,8 @@ export function sessionResourceTestLayer(
     readonly existingResource?: SessionResource
     readonly removedPaths?: string[]
     readonly storedByteFiles?: string[]
+    readonly storedAttachmentFiles?: string[]
+    readonly storedAttachmentSha256?: Array<string | undefined>
     readonly fetchedUrls?: string[]
     readonly existingManagedPath?: string
     readonly managedReadFails?: boolean
@@ -93,10 +95,14 @@ export function sessionResourceTestLayer(
                   cause: new Error('Attachment source disappeared'),
                 }),
               )
-            : Effect.succeed({
-                path: `/managed/${input.resourceId}-${input.fileName}`,
-                sha256: 'attachment-digest',
-                sizeBytes: 42,
+            : Effect.sync(() => {
+                options.storedAttachmentFiles?.push(input.fileName)
+                options.storedAttachmentSha256?.push(input.expectedSha256)
+                return {
+                  path: `/managed/${input.resourceId}-${input.fileName}`,
+                  sha256: 'attachment-digest',
+                  sizeBytes: 42,
+                }
               }),
         storeBytes: (input) => {
           options.storedByteFiles?.push(input.fileName)

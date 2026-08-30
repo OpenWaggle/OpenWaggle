@@ -21,6 +21,7 @@ export interface StoreSessionResourceFileInput {
   readonly fileName: string
   readonly sourcePath: string
   readonly expectedSizeBytes: number
+  readonly expectedSha256?: string
   readonly maxSizeBytes: number
 }
 

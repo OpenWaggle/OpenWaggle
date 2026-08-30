@@ -1,6 +1,6 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import type { SessionResource } from '@shared/types/session-resource'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, ExternalLink, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
@@ -10,6 +10,7 @@ import { Select } from '@/shared/ui/Select'
 import { useUIStore } from '@/shell/ui-store'
 import {
   sessionResourceContentQueryOptions,
+  sessionResourcesQueryKey,
   useSessionResources,
 } from '../hooks/useSessionResources'
 import {
@@ -169,11 +170,21 @@ function selectedImage(resourceId: string | null, images: readonly SessionResour
   return { index, resource: index >= 0 ? (images[index] ?? null) : null }
 }
 
-function useViewerSource(sessionId: string | null, resource: SessionResource | null) {
+function useViewerSource(
+  sessionId: string | null,
+  resource: SessionResource | null,
+  sessionIsActive: boolean,
+) {
+  const queryClient = useQueryClient()
   const content = useQuery({
     ...sessionResourceContentQueryOptions(sessionId ?? 'none', resource?.id ?? 'none'),
-    enabled: resource?.kind === 'image',
+    enabled: sessionIsActive && resource?.kind === 'image',
   })
+  const remoteLocator = resource?.locator?.startsWith('https://') === true
+  useEffect(() => {
+    if (!content.data || !sessionId || !remoteLocator) return
+    void queryClient.invalidateQueries({ queryKey: sessionResourcesQueryKey(sessionId) })
+  }, [content.data, queryClient, remoteLocator, sessionId])
   return content.data ? contentUrl(content.data) : null
 }
 
@@ -199,13 +210,17 @@ export function SessionResourceViewer({
   const resourcesQuery = useSessionResources(viewerSessionId)
   const images = orderedImages(resourcesQuery.data, activeMessageIds)
   const { index, resource } = selectedImage(viewer?.resourceId ?? null, images)
-  const source = useViewerSource(viewerSessionId, resource)
+  const source = useViewerSource(
+    viewerSessionId,
+    resource,
+    viewerSessionId !== null && viewerSessionId === activeSessionId,
+  )
   const zoom = selectedZoom(resource, zoomState)
 
   useCloseViewerOnSessionChange(viewerSessionId, activeSessionId, close)
   useViewerKeyboardNavigation(viewerSessionId, images, index, open)
 
-  if (!viewer || !resource) return null
+  if (!viewer || !resource || viewerSessionId !== activeSessionId) return null
 
   const navigate = (nextIndex: number) => {
     const next = images[nextIndex]
