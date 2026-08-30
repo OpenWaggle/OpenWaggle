@@ -144,6 +144,18 @@ describe('runStackedGitAction', () => {
     )
   })
 
+  it('omits an unresolved base ref so the provider can use its repository default', async () => {
+    const deps = makeDeps({ resolveDefaultBaseRef: vi.fn(async () => null) })
+
+    const result = await runStackedGitAction(deps, '/repo', { action: 'create_pr' })
+
+    expect(result.ok).toBe(true)
+    expect(deps.openChangeRequest).toHaveBeenCalledWith(
+      '/repo',
+      expect.not.objectContaining({ baseRef: expect.anything() }),
+    )
+  })
+
   it('pushes a clean unpublished branch before opening its change request', async () => {
     const order: string[] = []
     const deps = makeDeps({

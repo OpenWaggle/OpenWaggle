@@ -207,7 +207,8 @@ async function maybeOpenChangeRequest(
   if (!phases.includes('pr')) return { ok: true, changeRequest: null }
   report('pr', 'Creating change request...')
   const headRef = (branch.name ?? (await deps.resolveCurrentRef(projectPath)))?.trim() || ''
-  const baseRef = (options.baseRef ?? (await deps.resolveDefaultBaseRef(projectPath)))?.trim() || ''
+  const baseRef =
+    (options.baseRef ?? (await deps.resolveDefaultBaseRef(projectPath)))?.trim() || undefined
   if (!headRef) {
     return {
       ok: false,
@@ -220,7 +221,7 @@ async function maybeOpenChangeRequest(
   }
   const payload: OpenChangeRequestPayload = {
     headRef,
-    baseRef,
+    ...(baseRef ? { baseRef } : {}),
     title: options.changeRequestTitle?.trim() || 'Update',
     body: options.changeRequestBody,
     draft: options.draft,

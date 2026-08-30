@@ -67,13 +67,12 @@ export const githubProvider: SourceControlProvider = {
       'create',
       '--head',
       payload.headRef,
-      '--base',
-      payload.baseRef,
       '--title',
       payload.title,
       '--body',
       payload.body ?? '',
     ]
+    if (payload.baseRef) args.push('--base', payload.baseRef)
     if (payload.draft) args.push('--draft')
     const result = await runCli('gh', args, projectPath)
     if (result.code !== 0) return classifyFailure(result)

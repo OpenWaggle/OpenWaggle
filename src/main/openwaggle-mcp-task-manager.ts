@@ -11,7 +11,6 @@ import {
   isActiveTaskStatus,
   type OpenWaggleServerTaskLeaseOptions,
   OpenWaggleTaskLeaseCoordinator,
-  recoverStaleTask,
   terminalTaskRecord,
 } from './openwaggle-mcp-task-leases'
 import {
@@ -19,6 +18,7 @@ import {
   projectTaskDelegationState,
   terminalDelegationState,
 } from './openwaggle-mcp-task-lineage'
+import { reconcileOpenWaggleProfileTasks } from './openwaggle-mcp-task-reconciliation'
 import { type ActiveServerTask, taskResult } from './openwaggle-mcp-task-result'
 import {
   defaultTaskServices,
@@ -79,12 +79,11 @@ export class OpenWaggleServerTaskManager {
   }
 
   private reconcileProfileTasks() {
-    const now = this.leases.now()
-    return this.store.update((tasks) => {
-      const reconciled = tasks.map((task) =>
-        task.callerProfile === this.options.profile ? recoverStaleTask(task, now) : task,
-      )
-      return { tasks: reconciled, result: reconciled }
+    return reconcileOpenWaggleProfileTasks({
+      now: this.leases.now(),
+      profile: this.options.profile,
+      services: this.services,
+      store: this.store,
     })
   }
 

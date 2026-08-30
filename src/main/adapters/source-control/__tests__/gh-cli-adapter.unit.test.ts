@@ -116,4 +116,64 @@ describe('github adapter typed failures (never throws)', () => {
       ok: false,
     })
   })
+
+  it('omits --base when the repository default could not be resolved locally', async () => {
+    runCliMock
+      .mockResolvedValueOnce(cli({ stdout: 'https://github.com/o/r/pull/1\n' }))
+      .mockResolvedValueOnce(
+        cli({
+          stdout: JSON.stringify({
+            title: 'T',
+            url: 'https://github.com/o/r/pull/1',
+            baseRefName: 'main',
+            headRefName: 'feature/current',
+            state: 'OPEN',
+            isDraft: false,
+          }),
+        }),
+      )
+
+    await getSourceControlProvider('github')?.openChangeRequest('/repo', {
+      headRef: 'feature/current',
+      title: 'T',
+    })
+
+    expect(runCliMock).toHaveBeenNthCalledWith(
+      1,
+      'gh',
+      expect.not.arrayContaining(['--base']),
+      '/repo',
+    )
+  })
+})
+
+describe('gitlab adapter defaults', () => {
+  beforeEach(() => runCliMock.mockReset())
+
+  it('omits --target-branch when the repository default could not be resolved locally', async () => {
+    runCliMock.mockResolvedValueOnce(cli({ stdout: '' })).mockResolvedValueOnce(
+      cli({
+        stdout: JSON.stringify({
+          title: 'T',
+          web_url: 'https://gitlab.com/o/r/-/merge_requests/1',
+          target_branch: 'main',
+          source_branch: 'feature/current',
+          state: 'opened',
+          draft: false,
+        }),
+      }),
+    )
+
+    await getSourceControlProvider('gitlab')?.openChangeRequest('/repo', {
+      headRef: 'feature/current',
+      title: 'T',
+    })
+
+    expect(runCliMock).toHaveBeenNthCalledWith(
+      1,
+      'glab',
+      expect.not.arrayContaining(['--target-branch']),
+      '/repo',
+    )
+  })
 })

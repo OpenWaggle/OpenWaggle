@@ -266,4 +266,49 @@ describe('captureProjectedSessionResources', () => {
 
     expect(resumedStored).toHaveLength(remainingCount)
   })
+
+  it('retries a known unavailable attachment occurrence on a later catalog pass', async () => {
+    const message = attachmentMessage(0)
+    const unavailableUpserts: UpsertSessionResourceInput[] = []
+
+    await Effect.runPromise(
+      captureProjectedSessionResources({
+        sessionId: SessionId('session-1'),
+        messages: [message],
+      }).pipe(
+        Effect.provide(
+          sessionResourceTestLayer(unavailableUpserts, {
+            storeFileFails: true,
+          }),
+        ),
+      ),
+    )
+
+    const unavailable = unavailableUpserts.at(0)
+    if (!unavailable) throw new Error('Expected an unavailable attachment resource.')
+    const unavailableResource = capturedResource(unavailable)
+    expect(unavailableResource.available).toBe(false)
+    const storedAttachmentFiles: string[] = []
+    const rekeyedCanonicalKeys: string[] = []
+
+    await Effect.runPromise(
+      captureProjectedSessionResources({
+        sessionId: SessionId('session-1'),
+        messages: [message],
+      }).pipe(
+        Effect.provide(
+          sessionResourceTestLayer([], {
+            listedResources: [unavailableResource],
+            existingResource: unavailableResource,
+            hasOccurrence: true,
+            storedAttachmentFiles,
+            rekeyedCanonicalKeys,
+          }),
+        ),
+      ),
+    )
+
+    expect(storedAttachmentFiles).toEqual(['attachment-0.txt'])
+    expect(rekeyedCanonicalKeys).toEqual(['sha256:attachment-digest'])
+  })
 })

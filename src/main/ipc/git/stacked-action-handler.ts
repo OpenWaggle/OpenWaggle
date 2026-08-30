@@ -54,9 +54,10 @@ async function buildChangeRequestFallbackUrl(
   const webUrl = repositoryWebUrl(remoteUrl)
   if (!provider || !webUrl) return null
   if (provider.id === 'github') {
-    const url = new URL(
-      `${webUrl}/compare/${encodeURIComponent(payload.baseRef)}...${encodeURIComponent(payload.headRef)}`,
-    )
+    const comparison = payload.baseRef
+      ? `${encodeURIComponent(payload.baseRef)}...${encodeURIComponent(payload.headRef)}`
+      : encodeURIComponent(payload.headRef)
+    const url = new URL(`${webUrl}/compare/${comparison}`)
     url.searchParams.set('expand', '1')
     url.searchParams.set('title', payload.title)
     if (payload.body) url.searchParams.set('body', payload.body)
@@ -64,7 +65,7 @@ async function buildChangeRequestFallbackUrl(
   }
   const url = new URL(`${webUrl}/-/merge_requests/new`)
   url.searchParams.set('merge_request[source_branch]', payload.headRef)
-  url.searchParams.set('merge_request[target_branch]', payload.baseRef)
+  if (payload.baseRef) url.searchParams.set('merge_request[target_branch]', payload.baseRef)
   url.searchParams.set('merge_request[title]', payload.title)
   if (payload.body) url.searchParams.set('merge_request[description]', payload.body)
   if (payload.draft) url.searchParams.set('merge_request[draft]', 'true')

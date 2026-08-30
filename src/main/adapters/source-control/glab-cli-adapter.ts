@@ -58,13 +58,12 @@ export const gitlabProvider: SourceControlProvider = {
       'create',
       '--source-branch',
       payload.headRef,
-      '--target-branch',
-      payload.baseRef,
       '--title',
       payload.title,
       '--description',
       payload.body ?? '',
     ]
+    if (payload.baseRef) args.push('--target-branch', payload.baseRef)
     if (payload.draft) args.push('--draft')
     const result = await runCli('glab', args, projectPath)
     if (result.code !== 0) return classifyFailure(result)

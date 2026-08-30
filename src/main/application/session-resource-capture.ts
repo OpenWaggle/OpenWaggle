@@ -17,11 +17,13 @@ export const SESSION_LINK_CAPTURE_LIMIT = 32
 export const GENERATED_IMAGE_CAPTURE_LIMITS = {
   maxBytes: 100 * 1024 * 1024,
   maxCount: 32,
+  maxAttempts: 32,
 } as const
 
 export interface GeneratedImageCaptureBudget {
   readonly bytes: number
   readonly count: number
+  readonly attempts: number
 }
 
 interface GeneratedImageInput {
@@ -47,12 +49,16 @@ export function advanceGeneratedImageCaptureBudget(
   ) {
     return null
   }
-  return { bytes: current.bytes + byteLength, count: current.count + 1 }
+  return {
+    bytes: current.bytes + byteLength,
+    count: current.count + 1,
+    attempts: current.attempts,
+  }
 }
 
 /**
- * Avoids allocating a decoded buffer when the run budget cannot accept the image.
- * The returned budget is charged only after its signature has been validated.
+ * Avoids allocating a decoded buffer when the byte budget cannot accept the image.
+ * Every candidate charges the attempt budget; only validated images charge count and bytes.
  */
 export function prepareGeneratedImageForCapture(
   current: GeneratedImageCaptureBudget,
@@ -60,24 +66,29 @@ export function prepareGeneratedImageForCapture(
   validate: GeneratedImageValidator = validatedImageBytes,
 ): {
   readonly budget: GeneratedImageCaptureBudget
-  readonly image: ValidatedSessionResourceImage
+  readonly image: ValidatedSessionResourceImage | null
 } | null {
   if (
     current.count >= GENERATED_IMAGE_CAPTURE_LIMITS.maxCount ||
-    current.bytes >= GENERATED_IMAGE_CAPTURE_LIMITS.maxBytes
+    current.bytes >= GENERATED_IMAGE_CAPTURE_LIMITS.maxBytes ||
+    current.attempts >= GENERATED_IMAGE_CAPTURE_LIMITS.maxAttempts
   ) {
     return null
   }
+  const attemptedBudget = { ...current, attempts: current.attempts + 1 }
   const decodedByteLength = imageBase64DecodedByteLength(image.data, image.mimeType)
   if (
     decodedByteLength === null ||
-    advanceGeneratedImageCaptureBudget(current, decodedByteLength) === null
+    advanceGeneratedImageCaptureBudget(attemptedBudget, decodedByteLength) === null
   ) {
-    return null
+    return { budget: attemptedBudget, image: null }
   }
   const validatedImage = validate(image.data, image.mimeType)
-  if (!validatedImage) return null
-  const budget = advanceGeneratedImageCaptureBudget(current, validatedImage.bytes.byteLength)
+  if (!validatedImage) return { budget: attemptedBudget, image: null }
+  const budget = advanceGeneratedImageCaptureBudget(
+    attemptedBudget,
+    validatedImage.bytes.byteLength,
+  )
   return budget ? { budget, image: validatedImage } : null
 }
 
@@ -149,7 +160,7 @@ function captureAssistantResources(
   linkState: LinkCaptureState,
 ) {
   return Effect.gen(function* () {
-    let generatedImageBudget: GeneratedImageCaptureBudget = { bytes: 0, count: 0 }
+    let generatedImageBudget: GeneratedImageCaptureBudget = { bytes: 0, count: 0, attempts: 0 }
     for (const message of input.messages) {
       if (message.role !== 'assistant') continue
       const messageId = String(message.id)
@@ -158,8 +169,9 @@ function captureAssistantResources(
       const captured = collectExplicitResources(message.parts)
       for (const [index, image] of captured.images.entries()) {
         const prepared = prepareGeneratedImageForCapture(generatedImageBudget, image)
-        if (!prepared) continue
+        if (!prepared) break
         generatedImageBudget = prepared.budget
+        if (!prepared.image) continue
         yield* captureGeneratedImage({
           ...input,
           image,

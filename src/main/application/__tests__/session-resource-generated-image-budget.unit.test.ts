@@ -47,7 +47,7 @@ describe('generated-image capture budget', () => {
   it('rejects the next generated image when it would exceed the aggregate byte budget', () => {
     expect(
       advanceGeneratedImageCaptureBudget(
-        { count: 1, bytes: GENERATED_IMAGE_CAPTURE_LIMITS.maxBytes - 1 },
+        { count: 1, bytes: GENERATED_IMAGE_CAPTURE_LIMITS.maxBytes - 1, attempts: 1 },
         Buffer.from(PNG_BASE64, 'base64').byteLength,
       ),
     ).toBeNull()
@@ -60,26 +60,26 @@ describe('generated-image capture budget', () => {
 
     expect(
       prepareGeneratedImageForCapture(
-        { count: GENERATED_IMAGE_CAPTURE_LIMITS.maxCount, bytes: 1 },
+        { count: GENERATED_IMAGE_CAPTURE_LIMITS.maxCount, bytes: 1, attempts: 1 },
         { data: PNG_BASE64, mimeType: 'image/png' },
         validate,
       ),
     ).toBeNull()
     expect(
       prepareGeneratedImageForCapture(
-        { count: 1, bytes: GENERATED_IMAGE_CAPTURE_LIMITS.maxBytes - 1 },
+        { count: 1, bytes: GENERATED_IMAGE_CAPTURE_LIMITS.maxBytes - 1, attempts: 1 },
         { data: PNG_BASE64, mimeType: 'image/png' },
         validate,
       ),
-    ).toBeNull()
+    ).toMatchObject({ image: null, budget: { attempts: 2 } })
     expect(validate).not.toHaveBeenCalled()
   })
 
-  it('does not charge invalid images against the run budget', async () => {
+  it('reserves validation attempts separately from accepted image count and bytes', async () => {
     const upserts: UpsertSessionResourceInput[] = []
     const storedByteFiles: string[] = []
     const invalidMessages: Message[] = Array.from(
-      { length: GENERATED_IMAGE_CAPTURE_LIMITS.maxCount },
+      { length: GENERATED_IMAGE_CAPTURE_LIMITS.maxAttempts - 1 },
       (_, index) => ({
         id: MessageId(`assistant-invalid-${String(index)}`),
         role: 'assistant',
@@ -117,5 +117,49 @@ describe('generated-image capture budget', () => {
 
     expect(storedByteFiles).toHaveLength(1)
     expect(upserts.filter((resource) => resource.kind === 'image')).toHaveLength(1)
+  })
+
+  it('stops validating after the per-run attempt limit even when every image is invalid', async () => {
+    const upserts: UpsertSessionResourceInput[] = []
+    const storedByteFiles: string[] = []
+    const invalidMessages: Message[] = Array.from(
+      { length: GENERATED_IMAGE_CAPTURE_LIMITS.maxAttempts + 8 },
+      (_, index) => ({
+        id: MessageId(`assistant-invalid-capped-${String(index)}`),
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-result',
+            toolResult: {
+              id: ToolCallId(`invalid-capped-image-${String(index)}`),
+              name: 'imagegen',
+              args: {},
+              result: {
+                content: [
+                  { type: 'image', data: PNG_BASE64, mimeType: 'application/octet-stream' },
+                ],
+              },
+              isError: false,
+              duration: 1,
+            },
+          },
+        ],
+        createdAt: index,
+      }),
+    )
+    const validMessage = resourceMessages().find((message) => message.role === 'assistant')
+    if (!validMessage) throw new Error('Expected the assistant fixture message.')
+
+    await Effect.runPromise(
+      captureSuccessfulRunResources({
+        sessionId: SessionId('session-1'),
+        runId: 'run-invalid-attempt-limit',
+        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        messages: [...invalidMessages, validMessage],
+      }).pipe(Effect.provide(sessionResourceTestLayer(upserts, { storedByteFiles }))),
+    )
+
+    expect(storedByteFiles).toHaveLength(0)
+    expect(upserts.filter((resource) => resource.kind === 'image')).toHaveLength(0)
   })
 })

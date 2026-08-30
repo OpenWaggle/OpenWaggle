@@ -123,7 +123,8 @@ export type SourceControlAuthResult = SourceControlAuthSuccess | SourceControlFa
 
 export interface OpenChangeRequestPayload {
   readonly headRef: string
-  readonly baseRef: string
+  /** Omitted when the provider should use the repository's configured default branch. */
+  readonly baseRef?: string
   readonly title: string
   readonly body?: string
   readonly draft?: boolean

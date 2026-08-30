@@ -9,6 +9,7 @@ import {
   captureAttachment,
   captureGeneratedImage,
   captureLink,
+  type GeneratedImageCaptureBudget,
   prepareGeneratedImageForCapture,
   SESSION_LINK_CAPTURE_LIMIT,
 } from './session-resource-capture'
@@ -25,7 +26,7 @@ interface ProjectedResourceMessage {
 }
 
 interface BackfillImageState {
-  budget: { readonly bytes: number; readonly count: number }
+  budget: GeneratedImageCaptureBudget
   readonly capturedSlots: Set<string>
 }
 
@@ -102,6 +103,14 @@ function capturedGeneratedImageSlots(resources: readonly SessionResource[]) {
 
 function capturedOccurrenceIds(resources: readonly SessionResource[]) {
   return new Set(resources.flatMap((resource) => resource.occurrences.map(({ id }) => id)))
+}
+
+function capturedAvailableOccurrenceIds(resources: readonly SessionResource[]) {
+  return new Set(
+    resources.flatMap((resource) =>
+      resource.available ? resource.occurrences.map(({ id }) => id) : [],
+    ),
+  )
 }
 
 function captureBackfilledUserResources(
@@ -184,8 +193,9 @@ function captureBackfilledAssistantResources(
       const slot = generatedImageOccurrencePrefix(imageInput)
       if (imageState.capturedSlots.has(slot)) continue
       const prepared = prepareGeneratedImageForCapture(imageState.budget, image)
-      if (!prepared) continue
+      if (!prepared) break
       imageState.budget = prepared.budget
+      if (!prepared.image) continue
       imageState.capturedSlots.add(slot)
       yield* captureGeneratedImage({ ...imageInput, validatedImage: prepared.image }).pipe(
         Effect.catchAll(() => Effect.void),
@@ -226,10 +236,10 @@ export function captureProjectedSessionResources(input: {
       const resources = yield* repository.list(input.sessionId)
       const attachmentState: BackfillAttachmentState = {
         budget: { bytes: 0, count: 0 },
-        capturedOccurrences: capturedOccurrenceIds(resources),
+        capturedOccurrences: capturedAvailableOccurrenceIds(resources),
       }
       const imageState: BackfillImageState = {
-        budget: { bytes: 0, count: 0 },
+        budget: { bytes: 0, count: 0, attempts: 0 },
         capturedSlots: capturedGeneratedImageSlots(resources),
       }
       const linkState: BackfillLinkState = {
