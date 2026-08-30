@@ -251,7 +251,10 @@ export function AgentNotificationStack({
 
       {/* Always mounted, so the newest notice is actually announced. A live region added in the same
           commit as its text is not announced. */}
-      <PoliteAnnouncer message={latestDisplayMessage || null} />
+      <PoliteAnnouncer
+        message={latestDisplayMessage || null}
+        label="Agent notification announcements"
+      />
 
       {notifications.length === 0 ? null : (
         <output

@@ -270,7 +270,7 @@ test('notifications float clear of the composer, most severe first', async () =>
 
     // The announcement comes from a region that already existed, which is what makes it audible. A
     // live region added with its content is not announced.
-    const announcer = page.locator('[role="status"][aria-live="polite"]').first()
+    const announcer = page.getByRole('status', { name: 'Agent notification announcements' })
     await expect(announcer).toHaveText('Could not reach api.github.com')
 
     // The error outranks the later informational notice, so it is the frontmost card.
