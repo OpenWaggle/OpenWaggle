@@ -14,6 +14,9 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createCliShimService } from '../cli-shim-service'
 
+const POSIX_TEST_PLATFORM: NodeJS.Platform = process.platform === 'darwin' ? 'darwin' : 'linux'
+const itPosix = process.platform === 'win32' ? it.skip : it
+
 describe('CLI shim service', () => {
   let homeDirectory: string
 
@@ -30,7 +33,7 @@ describe('CLI shim service', () => {
     beforeManagedReplacement?: () => Promise<void>,
   ) {
     return createCliShimService({
-      platform: 'darwin',
+      platform: POSIX_TEST_PLATFORM,
       homeDirectory,
       executablePath,
       environmentPath: path.join(homeDirectory, '.local', 'bin'),
@@ -38,7 +41,7 @@ describe('CLI shim service', () => {
     })
   }
 
-  it('installs an executable user shim and removes only its managed file', async () => {
+  itPosix('installs an executable user shim and removes only its managed file', async () => {
     const cli = service()
 
     await expect(cli.status()).resolves.toMatchObject({
@@ -61,7 +64,7 @@ describe('CLI shim service', () => {
     })
   })
 
-  it('refuses to replace or remove an unrelated command', async () => {
+  itPosix('refuses to replace or remove an unrelated command', async () => {
     const commandPath = path.join(homeDirectory, '.local', 'bin', 'openwaggle')
     await mkdir(path.dirname(commandPath), { recursive: true })
     await writeFile(commandPath, '#!/bin/sh\necho unrelated\n')
@@ -72,7 +75,7 @@ describe('CLI shim service', () => {
     await expect(readFile(commandPath, 'utf8')).resolves.toContain('unrelated')
   })
 
-  it('updates a previously managed shim after the application path changes', async () => {
+  itPosix('updates a previously managed shim after the application path changes', async () => {
     await service('/Applications/OpenWaggle-old.app/Contents/MacOS/OpenWaggle').install()
     const current = service('/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle')
 
@@ -86,48 +89,60 @@ describe('CLI shim service', () => {
     ).resolves.not.toContain('OpenWaggle-old.app')
   })
 
-  it('does not overwrite a user file that replaces an outdated shim during update', async () => {
-    await service('/Applications/OpenWaggle-old.app/Contents/MacOS/OpenWaggle').install()
-    const commandPath = path.join(homeDirectory, '.local', 'bin', 'openwaggle')
-    const current = service('/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle', async () => {
-      await unlink(commandPath)
-      await writeFile(commandPath, '#!/bin/sh\necho user-owned\n', 'utf8')
-    })
+  itPosix(
+    'does not overwrite a user file that replaces an outdated shim during update',
+    async () => {
+      await service('/Applications/OpenWaggle-old.app/Contents/MacOS/OpenWaggle').install()
+      const commandPath = path.join(homeDirectory, '.local', 'bin', 'openwaggle')
+      const current = service(
+        '/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle',
+        async () => {
+          await unlink(commandPath)
+          await writeFile(commandPath, '#!/bin/sh\necho user-owned\n', 'utf8')
+        },
+      )
 
-    await expect(current.install()).resolves.toMatchObject({
-      ok: false,
-      status: { state: 'conflict' },
-    })
-    await expect(readFile(commandPath, 'utf8')).resolves.toContain('user-owned')
-  })
+      await expect(current.install()).resolves.toMatchObject({
+        ok: false,
+        status: { state: 'conflict' },
+      })
+      await expect(readFile(commandPath, 'utf8')).resolves.toContain('user-owned')
+    },
+  )
 
-  it('keeps replacement pinned when the command directory is moved after validation', async () => {
-    await service('/Applications/OpenWaggle-old.app/Contents/MacOS/OpenWaggle').install()
-    const commandDirectory = path.join(homeDirectory, '.local', 'bin')
-    const movedDirectory = path.join(homeDirectory, '.local', 'bin-authorized')
-    const outsideDirectory = path.join(homeDirectory, 'outside-bin')
-    await mkdir(outsideDirectory)
-    await writeFile(path.join(outsideDirectory, 'openwaggle'), 'outside user data')
-    const current = service('/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle', async () => {
-      await rename(commandDirectory, movedDirectory)
-      await symlink(outsideDirectory, commandDirectory)
-    })
+  itPosix(
+    'keeps replacement pinned when the command directory is moved after validation',
+    async () => {
+      await service('/Applications/OpenWaggle-old.app/Contents/MacOS/OpenWaggle').install()
+      const commandDirectory = path.join(homeDirectory, '.local', 'bin')
+      const movedDirectory = path.join(homeDirectory, '.local', 'bin-authorized')
+      const outsideDirectory = path.join(homeDirectory, 'outside-bin')
+      await mkdir(outsideDirectory)
+      await writeFile(path.join(outsideDirectory, 'openwaggle'), 'outside user data')
+      const current = service(
+        '/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle',
+        async () => {
+          await rename(commandDirectory, movedDirectory)
+          await symlink(outsideDirectory, commandDirectory)
+        },
+      )
 
-    await expect(current.install()).resolves.toMatchObject({ ok: true })
-    await expect(readFile(path.join(outsideDirectory, 'openwaggle'), 'utf8')).resolves.toBe(
-      'outside user data',
-    )
-    await expect(readFile(path.join(movedDirectory, 'openwaggle'), 'utf8')).resolves.not.toContain(
-      'OpenWaggle-old.app',
-    )
-  })
+      await expect(current.install()).resolves.toMatchObject({ ok: true })
+      await expect(readFile(path.join(outsideDirectory, 'openwaggle'), 'utf8')).resolves.toBe(
+        'outside user data',
+      )
+      await expect(
+        readFile(path.join(movedDirectory, 'openwaggle'), 'utf8'),
+      ).resolves.not.toContain('OpenWaggle-old.app')
+    },
+  )
 
-  it('rejects a command directory replaced before the helper pins it', async () => {
+  itPosix('rejects a command directory replaced before the helper pins it', async () => {
     await service('/Applications/OpenWaggle-old.app/Contents/MacOS/OpenWaggle').install()
     const commandDirectory = path.join(homeDirectory, '.local', 'bin')
     const movedDirectory = `${homeDirectory}-outside-pre-spawn`
     const current = createCliShimService({
-      platform: 'darwin',
+      platform: POSIX_TEST_PLATFORM,
       homeDirectory,
       executablePath: '/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle',
       environmentPath: commandDirectory,

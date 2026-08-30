@@ -18,8 +18,10 @@ const OWNED_FILE_MISSING_EXIT_CODE = 44
 
 const OWNED_FILE_HELPER = `
 const fs = require('node:fs');
+const crypto = require('node:crypto');
 const [operation, name, expectedDirectory, prefix, suffix, expectedIdentity, displaced] = process.argv.slice(1);
 const identity = (stats) => String(stats.dev) + ':' + String(stats.ino);
+const fileIdentity = (descriptor, stats) => identity(stats) + ':' + crypto.createHash('sha256').update(fs.readFileSync(descriptor)).digest('hex');
 const stats = fs.statSync('.');
 if (identity(stats) !== expectedDirectory) process.exit(73);
 process.stdout.write('ready');
@@ -33,12 +35,17 @@ process.stdin.once('data', () => {
       try {
         const entry = fs.fstatSync(descriptor);
         if (!entry.isFile()) process.exit(74);
-        result = Buffer.from(JSON.stringify({ content: fs.readFileSync(descriptor).toString('base64'), identity: identity(entry) })).toString('base64');
+        const content = fs.readFileSync(descriptor);
+        result = Buffer.from(JSON.stringify({ content: content.toString('base64'), identity: identity(entry) + ':' + crypto.createHash('sha256').update(content).digest('hex') })).toString('base64');
       } finally { fs.closeSync(descriptor); }
     } else if (operation === 'unlink') {
       fs.renameSync(name, displaced);
       const entry = fs.lstatSync(displaced);
-      if (!entry.isFile() || entry.isSymbolicLink() || identity(entry) !== expectedIdentity) {
+      const descriptor = fs.openSync(displaced, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
+      let actualIdentity;
+      try { actualIdentity = fileIdentity(descriptor, fs.fstatSync(descriptor)); }
+      finally { fs.closeSync(descriptor); }
+      if (!entry.isFile() || entry.isSymbolicLink() || actualIdentity !== expectedIdentity) {
         if (fs.existsSync(name)) process.exitCode = 77;
         else { fs.linkSync(displaced, name); fs.unlinkSync(displaced); process.exitCode = 74; }
         return;
