@@ -364,4 +364,6 @@ Remote Markdown images are metadata-only during run settlement and thumbnail ren
 process performs the bounded, SSRF-safe HTTPS fetch only after the user opens that image in the viewer,
 then stores the validated bytes as the resource's managed copy. Do not reintroduce automatic remote
 thumbnail prefetching: it leaks network timing and can turn one agent response into unbounded download
-work before run completion.
+work before run completion. Managed previews use the thumbnail IPC path, which rasterizes at most a
+256-pixel WebP in the main process; never cache full resource payloads merely to render catalog or
+transcript thumbnails. Full bytes are reserved for an explicit viewer or download action.

@@ -1,7 +1,12 @@
 import type { AgentSendPayload, Message } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
-import { MAX_CAPTURED_IMAGE_BYTES, validatedImageBytes } from '../domain/session-resource-image'
+import {
+  imageBase64DecodedByteLength,
+  MAX_CAPTURED_IMAGE_BYTES,
+  type ValidatedSessionResourceImage,
+  validatedImageBytes,
+} from '../domain/session-resource-image'
 import { captureAttachment } from './session-resource-capture-attachment'
 import { captureGeneratedImage } from './session-resource-capture-image'
 import { captureLink } from './session-resource-capture-link'
@@ -14,10 +19,20 @@ export const GENERATED_IMAGE_CAPTURE_LIMITS = {
   maxCount: 32,
 } as const
 
-interface GeneratedImageCaptureBudget {
+export interface GeneratedImageCaptureBudget {
   readonly bytes: number
   readonly count: number
 }
+
+interface GeneratedImageInput {
+  readonly data: string
+  readonly mimeType: string
+}
+
+type GeneratedImageValidator = (
+  data: string,
+  mimeType: string,
+) => ValidatedSessionResourceImage | null
 
 export function advanceGeneratedImageCaptureBudget(
   current: GeneratedImageCaptureBudget,
@@ -33,6 +48,37 @@ export function advanceGeneratedImageCaptureBudget(
     return null
   }
   return { bytes: current.bytes + byteLength, count: current.count + 1 }
+}
+
+/**
+ * Avoids allocating a decoded buffer when the run budget cannot accept the image.
+ * The returned budget is charged only after its signature has been validated.
+ */
+export function prepareGeneratedImageForCapture(
+  current: GeneratedImageCaptureBudget,
+  image: GeneratedImageInput,
+  validate: GeneratedImageValidator = validatedImageBytes,
+): {
+  readonly budget: GeneratedImageCaptureBudget
+  readonly image: ValidatedSessionResourceImage
+} | null {
+  if (
+    current.count >= GENERATED_IMAGE_CAPTURE_LIMITS.maxCount ||
+    current.bytes >= GENERATED_IMAGE_CAPTURE_LIMITS.maxBytes
+  ) {
+    return null
+  }
+  const decodedByteLength = imageBase64DecodedByteLength(image.data, image.mimeType)
+  if (
+    decodedByteLength === null ||
+    advanceGeneratedImageCaptureBudget(current, decodedByteLength) === null
+  ) {
+    return null
+  }
+  const validatedImage = validate(image.data, image.mimeType)
+  if (!validatedImage) return null
+  const budget = advanceGeneratedImageCaptureBudget(current, validatedImage.bytes.byteLength)
+  return budget ? { budget, image: validatedImage } : null
 }
 
 export { captureAttachment } from './session-resource-capture-attachment'
@@ -92,14 +138,9 @@ function captureAssistantResources(input: SuccessfulRunResourceInput, createdAt:
       const branchId = input.branchIdByMessageId?.[messageId] ?? null
       const captured = collectExplicitResources(message.parts)
       for (const [index, image] of captured.images.entries()) {
-        const validatedImage = validatedImageBytes(image.data, image.mimeType)
-        if (!validatedImage) continue
-        const nextBudget = advanceGeneratedImageCaptureBudget(
-          generatedImageBudget,
-          validatedImage.bytes.byteLength,
-        )
-        if (!nextBudget) continue
-        generatedImageBudget = nextBudget
+        const prepared = prepareGeneratedImageForCapture(generatedImageBudget, image)
+        if (!prepared) continue
+        generatedImageBudget = prepared.budget
         yield* captureGeneratedImage({
           ...input,
           image,
@@ -107,7 +148,7 @@ function captureAssistantResources(input: SuccessfulRunResourceInput, createdAt:
           nodeId,
           branchId,
           createdAt,
-          validatedImage,
+          validatedImage: prepared.image,
         }).pipe(Effect.catchAll(() => Effect.void))
       }
       for (const [index, link] of captured.links.entries()) {

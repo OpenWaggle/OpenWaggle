@@ -7,6 +7,7 @@ import {
   SessionResourceRepository,
 } from '../ports/session-resource-repository'
 import { SessionResourceStore } from '../ports/session-resource-store'
+import { SessionResourceThumbnailer } from '../ports/session-resource-thumbnailer'
 import { removeReplacedCopy } from './session-resource-capture-shared'
 import { withSessionResourceLock } from './session-resource-lock'
 
@@ -40,6 +41,24 @@ function readManagedContent(location: SessionResourceContentLocation) {
     ),
     Effect.catchAll(() => Effect.succeed(null)),
   )
+}
+
+function readManagedThumbnail(location: SessionResourceContentLocation) {
+  if (!location.mimeType.toLowerCase().startsWith('image/')) return Effect.succeed(null)
+  return Effect.gen(function* () {
+    const bytes = yield* SessionResourceStore.pipe(
+      Effect.flatMap((store) => store.read(location.managedPath)),
+    )
+    const thumbnail = yield* SessionResourceThumbnailer.pipe(
+      Effect.flatMap((thumbnailer) => thumbnailer.create(bytes, location.mimeType)),
+    )
+    return contentFromBytes(
+      location.resourceId,
+      `${location.resourceId}-thumbnail.webp`,
+      thumbnail.mimeType,
+      thumbnail.bytes,
+    )
+  }).pipe(Effect.catchAll(() => Effect.succeed(null)))
 }
 
 function materializeRemoteImage(
@@ -101,6 +120,19 @@ export function readSessionResourceContent(sessionId: SessionId, resourceId: str
       const url = remoteImageUrl(resource)
       if (!url) return null
       return yield* materializeRemoteImage(sessionId, resource, location, url)
+    }),
+  )
+}
+
+/** Reads only managed content and returns a bounded preview; remote images stay lazy. */
+export function readSessionResourceThumbnail(sessionId: SessionId, resourceId: string) {
+  return withSessionResourceLock(
+    sessionId,
+    Effect.gen(function* () {
+      const location = yield* SessionResourceRepository.pipe(
+        Effect.flatMap((repository) => repository.getContentLocation(sessionId, resourceId)),
+      )
+      return location ? yield* readManagedThumbnail(location) : null
     }),
   )
 }

@@ -16,12 +16,18 @@ import {
   SessionResourceStore,
   type SessionResourceStoreShape,
 } from '../../ports/session-resource-store'
+import {
+  SessionResourceThumbnailer,
+  type SessionResourceThumbnailerShape,
+} from '../../ports/session-resource-thumbnailer'
 import { registerSessionResourceHandlers } from '../session-resource-handler'
 
 const handlerMocks = vi.hoisted(() => ({
   typedHandle: vi.fn(),
   list: vi.fn(),
   getContentLocation: vi.fn(),
+  read: vi.fn(),
+  thumbnail: vi.fn(),
 }))
 
 vi.mock('../typed-ipc', () => ({ typedHandle: handlerMocks.typedHandle }))
@@ -45,11 +51,24 @@ const TestLayer = Layer.mergeAll(
   ),
   Layer.succeed(
     SessionResourceStore,
-    SessionResourceStore.of(fromPartial<SessionResourceStoreShape>({})),
+    SessionResourceStore.of(
+      fromPartial<SessionResourceStoreShape>({
+        read: (managedPath: string) => Effect.sync(() => handlerMocks.read(managedPath)),
+      }),
+    ),
   ),
   Layer.succeed(
     SessionResourceImageFetcher,
     SessionResourceImageFetcher.of(fromPartial<SessionResourceImageFetcherShape>({})),
+  ),
+  Layer.succeed(
+    SessionResourceThumbnailer,
+    SessionResourceThumbnailer.of(
+      fromPartial<SessionResourceThumbnailerShape>({
+        create: (bytes: Uint8Array, mimeType: string) =>
+          Effect.sync(() => handlerMocks.thumbnail(bytes, mimeType)),
+      }),
+    ),
   ),
 )
 
@@ -64,6 +83,10 @@ describe('session resource IPC handlers', () => {
     handlerMocks.typedHandle.mockClear()
     handlerMocks.list.mockReset().mockReturnValue([])
     handlerMocks.getContentLocation.mockReset().mockReturnValue(null)
+    handlerMocks.read.mockReset().mockReturnValue(Buffer.from('full-image'))
+    handlerMocks.thumbnail
+      .mockReset()
+      .mockReturnValue({ bytes: Buffer.from('thumbnail'), mimeType: 'image/webp' })
     registerSessionResourceHandlers()
   })
 
@@ -71,6 +94,9 @@ describe('session resource IPC handlers', () => {
     await expect(invoke('sessions:resources:list', '../another-session')).rejects.toBeDefined()
     await expect(
       invoke('sessions:resources:read', SessionId('session-one'), '../../secret'),
+    ).rejects.toBeDefined()
+    await expect(
+      invoke('sessions:resources:thumbnail', SessionId('session-one'), '../../secret'),
     ).rejects.toBeDefined()
     expect(handlerMocks.list).not.toHaveBeenCalled()
     expect(handlerMocks.getContentLocation).not.toHaveBeenCalled()
@@ -94,5 +120,30 @@ describe('session resource IPC handlers', () => {
       'resource-one',
     )
     expect(handlerMocks.list).toHaveBeenCalledWith(SessionId('session-one'))
+  })
+
+  it('returns a bounded thumbnail for managed content in the requested session', async () => {
+    handlerMocks.getContentLocation.mockReturnValue({
+      resourceId: 'resource-one',
+      sessionId: SessionId('session-one'),
+      fileName: 'image.png',
+      mimeType: 'image/png',
+      managedPath: '/managed/image.png',
+    })
+
+    await expect(
+      invoke('sessions:resources:thumbnail', SessionId('session-one'), 'resource-one'),
+    ).resolves.toEqual({
+      resourceId: 'resource-one',
+      fileName: 'resource-one-thumbnail.webp',
+      mimeType: 'image/webp',
+      dataBase64: Buffer.from('thumbnail').toString('base64'),
+    })
+    expect(handlerMocks.getContentLocation).toHaveBeenCalledWith(
+      SessionId('session-one'),
+      'resource-one',
+    )
+    expect(handlerMocks.read).toHaveBeenCalledWith('/managed/image.png')
+    expect(handlerMocks.thumbnail).toHaveBeenCalledWith(Buffer.from('full-image'), 'image/png')
   })
 })

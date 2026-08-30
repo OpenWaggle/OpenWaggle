@@ -24,6 +24,16 @@ function normalizeImageMimeType(mimeType: string) {
   return mimeType.split(';')[0]?.trim().toLowerCase() ?? ''
 }
 
+/** Returns the decoded size without allocating the decoded image buffer. */
+export function imageBase64DecodedByteLength(data: string, mimeType: string) {
+  const normalizedMimeType = normalizeImageMimeType(mimeType)
+  if (!ALLOWED_IMAGE_MIME_TYPES.has(normalizedMimeType)) return null
+  const decodedByteLength = Buffer.byteLength(data, 'base64')
+  return decodedByteLength > 0 && decodedByteLength <= MAX_CAPTURED_IMAGE_BYTES
+    ? decodedByteLength
+    : null
+}
+
 function startsWithSignature(bytes: Uint8Array, signature: Uint8Array) {
   return Buffer.from(bytes.subarray(0, signature.byteLength)).equals(signature)
 }
@@ -66,11 +76,8 @@ export function validatedImageBuffer(
 }
 
 export function validatedImageBytes(data: string, mimeType: string) {
-  const normalizedMimeType = normalizeImageMimeType(mimeType)
-  if (!ALLOWED_IMAGE_MIME_TYPES.has(normalizedMimeType)) return null
-  const decodedByteLength = Buffer.byteLength(data, 'base64')
-  if (decodedByteLength <= 0 || decodedByteLength > MAX_CAPTURED_IMAGE_BYTES) return null
-  return validatedImageBuffer(Buffer.from(data, 'base64'), normalizedMimeType)
+  if (imageBase64DecodedByteLength(data, mimeType) === null) return null
+  return validatedImageBuffer(Buffer.from(data, 'base64'), mimeType)
 }
 
 export const MAX_REMOTE_IMAGE_BYTES = MAX_CAPTURED_IMAGE_BYTES

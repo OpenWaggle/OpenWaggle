@@ -7,7 +7,10 @@ import {
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { captureProjectedSessionResources } from '../application/session-resource-backfill'
-import { readSessionResourceContent } from '../application/session-resource-content'
+import {
+  readSessionResourceContent,
+  readSessionResourceThumbnail,
+} from '../application/session-resource-content'
 import { recordSessionChangeRequest } from '../application/session-resource-recording'
 import { SessionRepository } from '../ports/session-repository'
 import { SessionResourceRepository } from '../ports/session-resource-repository'
@@ -40,6 +43,18 @@ export function registerSessionResourceHandlers(): void {
       const resourceId = decodeUnknownOrThrow(sessionResourceIdSchema, rawResourceId)
       return yield* readSessionResourceContent(sessionId, resourceId)
     }),
+  )
+
+  typedHandle(
+    'sessions:resources:thumbnail',
+    (_event, rawSessionId: unknown, rawResourceId: unknown) =>
+      Effect.gen(function* () {
+        const sessionId = SessionId(
+          decodeUnknownOrThrow(sessionResourceSessionIdSchema, rawSessionId),
+        )
+        const resourceId = decodeUnknownOrThrow(sessionResourceIdSchema, rawResourceId)
+        return yield* readSessionResourceThumbnail(sessionId, resourceId)
+      }),
   )
 
   typedHandle(

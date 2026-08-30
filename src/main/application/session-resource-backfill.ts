@@ -3,14 +3,13 @@ import type { SessionId } from '@shared/types/brand'
 import type { SessionNode } from '@shared/types/session'
 import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
-import { validatedImageBytes } from '../domain/session-resource-image'
 import { SessionResourceRepository } from '../ports/session-resource-repository'
 import {
   ASSISTANT_LINK_CAPTURE_LIMIT,
-  advanceGeneratedImageCaptureBudget,
   captureAttachment,
   captureGeneratedImage,
   captureLink,
+  prepareGeneratedImageForCapture,
 } from './session-resource-capture'
 import { generatedImageOccurrencePrefix } from './session-resource-capture-image'
 import { linkOccurrenceId } from './session-resource-capture-link'
@@ -127,16 +126,11 @@ function captureBackfilledAssistantResources(
       }
       const slot = generatedImageOccurrencePrefix(imageInput)
       if (imageState.capturedSlots.has(slot)) continue
-      const validatedImage = validatedImageBytes(image.data, image.mimeType)
-      if (!validatedImage) continue
-      const nextBudget = advanceGeneratedImageCaptureBudget(
-        imageState.budget,
-        validatedImage.bytes.byteLength,
-      )
-      if (!nextBudget) continue
-      imageState.budget = nextBudget
+      const prepared = prepareGeneratedImageForCapture(imageState.budget, image)
+      if (!prepared) continue
+      imageState.budget = prepared.budget
       imageState.capturedSlots.add(slot)
-      yield* captureGeneratedImage({ ...imageInput, validatedImage }).pipe(
+      yield* captureGeneratedImage({ ...imageInput, validatedImage: prepared.image }).pipe(
         Effect.catchAll(() => Effect.void),
       )
     }

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { FileImage } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/shared/lib/cn'
-import { sessionResourceContentQueryOptions } from '../hooks/useSessionResources'
+import { sessionResourceThumbnailQueryOptions } from '../hooks/useSessionResources'
 
 function resourceDataUrl(mimeType: string, dataBase64: string) {
   return `data:${mimeType};base64,${dataBase64}`
@@ -36,7 +36,7 @@ export function SessionResourcePreview({
     return () => observer.disconnect()
   }, [nearViewport])
   const content = useQuery({
-    ...sessionResourceContentQueryOptions(sessionId, resource.id),
+    ...sessionResourceThumbnailQueryOptions(sessionId, resource.id),
     enabled:
       nearViewport &&
       resource.available &&

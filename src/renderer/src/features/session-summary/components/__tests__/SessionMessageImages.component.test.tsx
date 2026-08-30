@@ -8,9 +8,10 @@ import { SessionMessageImages } from '../SessionMessageImages'
 
 const listSessionResources = vi.hoisted(() => vi.fn())
 const readSessionResource = vi.hoisted(() => vi.fn())
+const readSessionResourceThumbnail = vi.hoisted(() => vi.fn())
 
 vi.mock('@/shared/lib/ipc', () => ({
-  api: { listSessionResources, readSessionResource },
+  api: { listSessionResources, readSessionResource, readSessionResourceThumbnail },
 }))
 
 function image(id: string, nodeId: string): SessionResource {
@@ -62,6 +63,12 @@ describe('SessionMessageImages', () => {
       mimeType: 'image/png',
       dataBase64: 'aW1hZ2U=',
     })
+    readSessionResourceThumbnail.mockReset().mockResolvedValue({
+      resourceId: 'matching',
+      fileName: 'matching-thumbnail.webp',
+      mimeType: 'image/webp',
+      dataBase64: 'dGh1bWJuYWls',
+    })
   })
 
   it('renders only images attached to this message and opens the session viewer', async () => {
@@ -71,6 +78,8 @@ describe('SessionMessageImages', () => {
 
     const imageButton = await screen.findByRole('button', { name: 'Open image matching.png' })
     expect(screen.queryByRole('button', { name: 'Open image other-message.png' })).toBeNull()
+    expect(readSessionResourceThumbnail).toHaveBeenCalledWith(SessionId('session-1'), 'matching')
+    expect(readSessionResource).not.toHaveBeenCalled()
 
     fireEvent.click(imageButton)
     expect(useUIStore.getState().resourceViewer).toEqual({
@@ -87,6 +96,7 @@ describe('SessionMessageImages', () => {
 
     const imageButton = await screen.findByRole('button', { name: 'Open image remote.png' })
     expect(readSessionResource).not.toHaveBeenCalled()
+    expect(readSessionResourceThumbnail).not.toHaveBeenCalled()
 
     fireEvent.click(imageButton)
     expect(useUIStore.getState().resourceViewer).toEqual({

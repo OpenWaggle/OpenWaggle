@@ -37,6 +37,23 @@ describe('preload api surface contract', () => {
     )
   })
 
+  it('requests a bounded session resource thumbnail through its own IPC channel', async () => {
+    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce({
+      resourceId: 'resource-1',
+      fileName: 'resource-1-thumbnail.webp',
+      mimeType: 'image/webp',
+      dataBase64: 'dGh1bWJuYWls',
+    })
+
+    await api.readSessionResourceThumbnail(SessionId('session-1'), 'resource-1')
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      'sessions:resources:thumbnail',
+      SessionId('session-1'),
+      'resource-1',
+    )
+  })
+
   it('prepares attachments from user-selected File objects via preload path extraction', async () => {
     const file = new File(['screenshot'], 'screenshot.png')
     vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce([])

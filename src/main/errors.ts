@@ -46,6 +46,13 @@ export class SessionResourceImageFetchError extends Data.TaggedError(
   readonly cause?: unknown
 }> {}
 
+export class SessionResourceThumbnailError extends Data.TaggedError(
+  'SessionResourceThumbnailError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
 export class StandardsLoadError extends Data.TaggedError('StandardsLoadError')<{
   readonly message: string
   readonly cause?: unknown

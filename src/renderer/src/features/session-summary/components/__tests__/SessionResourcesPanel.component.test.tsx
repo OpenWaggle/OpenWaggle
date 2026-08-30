@@ -11,6 +11,7 @@ const apiMocks = vi.hoisted(() => ({
   openExternal: vi.fn(),
   openPath: vi.fn(),
   read: vi.fn(),
+  readThumbnail: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -19,6 +20,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     openExternal: apiMocks.openExternal,
     openPath: apiMocks.openPath,
     readSessionResource: apiMocks.read,
+    readSessionResourceThumbnail: apiMocks.readThumbnail,
   },
 }))
 
@@ -69,6 +71,12 @@ describe('SessionResourcesPanel', () => {
     apiMocks.openExternal.mockReset().mockResolvedValue(undefined)
     apiMocks.openPath.mockReset().mockResolvedValue(undefined)
     apiMocks.read.mockReset().mockResolvedValue(null)
+    apiMocks.readThumbnail.mockReset().mockResolvedValue({
+      resourceId: 'image',
+      fileName: 'image-thumbnail.webp',
+      mimeType: 'image/webp',
+      dataBase64: 'dGh1bWJuYWls',
+    })
   })
 
   it('filters session sources, outputs, and images', async () => {
@@ -83,6 +91,10 @@ describe('SessionResourcesPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Images' }))
     expect(screen.getByText('reference.png')).toBeInTheDocument()
     expect(screen.queryByText('Documentation')).toBeNull()
+    await waitFor(() => {
+      expect(apiMocks.readThumbnail).toHaveBeenCalledWith(SessionId('session-one'), 'image')
+    })
+    expect(apiMocks.read).not.toHaveBeenCalled()
   })
 
   it('opens managed images in the current session viewer and links externally', async () => {

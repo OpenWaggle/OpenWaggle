@@ -14,6 +14,10 @@ export interface SessionResourceIpcInvokeChannels {
     args: [sessionId: SessionId, resourceId: string]
     return: SessionResourceContent | null
   }
+  'sessions:resources:thumbnail': {
+    args: [sessionId: SessionId, resourceId: string]
+    return: SessionResourceContent | null
+  }
   'sessions:resources:record-change-request': {
     args: [sessionId: SessionId, input: RecordSessionChangeRequestInput]
     return: SessionResource

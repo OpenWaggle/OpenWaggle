@@ -17,7 +17,14 @@ import {
   SessionResourceStore,
   type SessionResourceStoreShape,
 } from '../../ports/session-resource-store'
-import { readSessionResourceContent } from '../session-resource-content'
+import {
+  SessionResourceThumbnailer,
+  type SessionResourceThumbnailerShape,
+} from '../../ports/session-resource-thumbnailer'
+import {
+  readSessionResourceContent,
+  readSessionResourceThumbnail,
+} from '../session-resource-content'
 import { PNG_BASE64 } from './session-resource-capture.fixtures'
 
 const SESSION_ID = SessionId('session-one')
@@ -59,6 +66,7 @@ function contentLayer(input: {
   readonly read?: ReturnType<typeof vi.fn>
   readonly storeBytes?: ReturnType<typeof vi.fn>
   readonly upsert?: ReturnType<typeof vi.fn>
+  readonly thumbnail?: ReturnType<typeof vi.fn>
 }) {
   const fetch =
     input.fetch ??
@@ -88,6 +96,11 @@ function contentLayer(input: {
         occurrences: [resource.occurrence],
       }),
     )
+  const thumbnail =
+    input.thumbnail ??
+    vi.fn(() =>
+      Effect.succeed({ bytes: Buffer.from('bounded-thumbnail'), mimeType: 'image/webp' as const }),
+    )
   const layer = Layer.mergeAll(
     Layer.succeed(
       SessionResourceImageFetcher,
@@ -113,8 +126,14 @@ function contentLayer(input: {
         }),
       ),
     ),
+    Layer.succeed(
+      SessionResourceThumbnailer,
+      SessionResourceThumbnailer.of(
+        fromPartial<SessionResourceThumbnailerShape>({ create: thumbnail }),
+      ),
+    ),
   )
-  return { fetch, layer, read, storeBytes, upsert }
+  return { fetch, layer, read, storeBytes, thumbnail, upsert }
 }
 
 describe('readSessionResourceContent', () => {
@@ -161,5 +180,44 @@ describe('readSessionResourceContent', () => {
     expect(test.fetch).not.toHaveBeenCalled()
     expect(test.storeBytes).not.toHaveBeenCalled()
     expect(test.upsert).not.toHaveBeenCalled()
+  })
+
+  it('returns only the thumbnailer output for a managed preview', async () => {
+    const location = {
+      resourceId: REMOTE_RESOURCE.id,
+      sessionId: SESSION_ID,
+      fileName: 'architecture.png',
+      mimeType: 'image/png',
+      managedPath: '/managed/remote-image-architecture.png',
+    } as const
+    const test = contentLayer({ location })
+
+    const content = await Effect.runPromise(
+      readSessionResourceThumbnail(SESSION_ID, REMOTE_RESOURCE.id).pipe(Effect.provide(test.layer)),
+    )
+
+    expect(content).toEqual({
+      resourceId: REMOTE_RESOURCE.id,
+      fileName: `${REMOTE_RESOURCE.id}-thumbnail.webp`,
+      mimeType: 'image/webp',
+      dataBase64: Buffer.from('bounded-thumbnail').toString('base64'),
+    })
+    expect(test.read).toHaveBeenCalledWith(location.managedPath)
+    expect(test.thumbnail).toHaveBeenCalledWith(Buffer.from(PNG_BASE64, 'base64'), 'image/png')
+    expect(test.fetch).not.toHaveBeenCalled()
+  })
+
+  it('does not materialize a remote image merely to create a preview', async () => {
+    const test = contentLayer({})
+
+    await expect(
+      Effect.runPromise(
+        readSessionResourceThumbnail(SESSION_ID, REMOTE_RESOURCE.id).pipe(
+          Effect.provide(test.layer),
+        ),
+      ),
+    ).resolves.toBeNull()
+    expect(test.fetch).not.toHaveBeenCalled()
+    expect(test.thumbnail).not.toHaveBeenCalled()
   })
 })

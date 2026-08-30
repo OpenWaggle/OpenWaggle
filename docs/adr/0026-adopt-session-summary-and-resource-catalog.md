@@ -35,7 +35,7 @@ The app also spreads persistent session context across the composer, header, dif
 - Pi projection emits renderer-safe image resource references plus main-process-only capture candidates. The application persists the Pi snapshot and projects its candidates through the resource repository.
 - User attachment metadata supplements Pi image blocks so names and original provenance survive. Content identity deduplicates the two observations.
 - Explicit signals only become resources: user attachments, Pi image blocks, image-producing tool results, Markdown image syntax, explicit links/tool reads, and declared Outputs. URL-like prose and arbitrary modified workspace files are not inferred.
-- Transcript, Summary, and browser thumbnails never prefetch uncached remote images. Opening the image viewer is the user action that authorizes one bounded materialization; the resulting managed copy serves later previews without another network request.
+- Transcript, Summary, and browser thumbnails never prefetch uncached remote images. Opening the image viewer is the user action that authorizes one bounded materialization; the resulting managed copy serves later previews without another network request. Preview IPC returns only a main-process-rasterized WebP bounded to 256 pixels; full payloads are read only for the explicit viewer or download path.
 - Commits and created change requests are explicit Outputs. The Environment section owns the complete working-tree change list.
 
 ### The Session Summary is host-owned

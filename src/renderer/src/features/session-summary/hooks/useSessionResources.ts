@@ -7,6 +7,7 @@ import { api } from '@/shared/lib/ipc'
 
 type SessionResourcesQueryKey = readonly ['session-resources', string]
 type SessionResourceContentQueryKey = readonly ['session-resource-content', string, string]
+type SessionResourceThumbnailQueryKey = readonly ['session-resource-thumbnail', string, string]
 
 export const sessionResourcesQueryKey = (sessionId: string): SessionResourcesQueryKey =>
   ['session-resources', sessionId] as const
@@ -33,6 +34,22 @@ export function sessionResourceContentQueryOptions(
   return queryOptions({
     queryKey: ['session-resource-content', sessionId, resourceId] as const,
     queryFn: () => api.readSessionResource(SessionId(sessionId), resourceId),
+    staleTime: Number.POSITIVE_INFINITY,
+  })
+}
+
+export function sessionResourceThumbnailQueryOptions(
+  sessionId: string,
+  resourceId: string,
+): OpenWaggleQueryOptions<
+  SessionResourceContent | null,
+  Error,
+  SessionResourceContent | null,
+  SessionResourceThumbnailQueryKey
+> {
+  return queryOptions({
+    queryKey: ['session-resource-thumbnail', sessionId, resourceId] as const,
+    queryFn: () => api.readSessionResourceThumbnail(SessionId(sessionId), resourceId),
     staleTime: Number.POSITIVE_INFINITY,
   })
 }

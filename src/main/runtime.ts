@@ -23,6 +23,7 @@ import { ProviderServiceLive } from './adapters/pi/pi-provider-service'
 import { PiSessionTreePreferencesLive } from './adapters/pi/pi-session-tree-preferences-service'
 import { SecureSessionResourceImageFetcherLive } from './adapters/secure-session-resource-image-fetcher'
 import { SettingsWagglePresetsRepositoryLive } from './adapters/settings-waggle-presets-repository'
+import { SharpSessionResourceThumbnailerLive } from './adapters/sharp-session-resource-thumbnailer'
 import { SqliteExtensionLifecycleRepositoryLive } from './adapters/sqlite-extension-lifecycle-repository'
 import { SqliteExtensionProjectOverridesRepositoryLive } from './adapters/sqlite-extension-project-overrides-repository'
 import { SqliteExtensionStorageRepositoryLive } from './adapters/sqlite-extension-storage-repository'
@@ -99,6 +100,7 @@ const AppLayer = Layer.mergeAll(
   SessionResourceRepositoryLive,
   FilesystemSessionResourceStoreLive,
   SecureSessionResourceImageFetcherLive,
+  SharpSessionResourceThumbnailerLive,
   SqliteSessionProjectionRepositoryLive,
   SqliteSessionRepositoryLive,
   FilesystemStandardsLive,

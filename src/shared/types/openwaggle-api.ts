@@ -153,6 +153,10 @@ export interface OpenWaggleApi
     sessionId: SessionId,
     resourceId: string,
   ): Promise<SessionResourceContent | null>
+  readSessionResourceThumbnail(
+    sessionId: SessionId,
+    resourceId: string,
+  ): Promise<SessionResourceContent | null>
   recordSessionChangeRequest(
     sessionId: SessionId,
     input: RecordSessionChangeRequestInput,

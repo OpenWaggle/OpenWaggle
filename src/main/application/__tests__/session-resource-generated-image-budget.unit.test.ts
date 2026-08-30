@@ -1,12 +1,13 @@
 import type { Message } from '@shared/types/agent'
 import { MessageId, SessionId, ToolCallId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { UpsertSessionResourceInput } from '../../ports/session-resource-repository'
 import {
   advanceGeneratedImageCaptureBudget,
   captureSuccessfulRunResources,
   GENERATED_IMAGE_CAPTURE_LIMITS,
+  prepareGeneratedImageForCapture,
 } from '../session-resource-capture'
 import {
   PNG_BASE64,
@@ -50,6 +51,28 @@ describe('generated-image capture budget', () => {
         Buffer.from(PNG_BASE64, 'base64').byteLength,
       ),
     ).toBeNull()
+  })
+
+  it('does not decode images that cannot fit the remaining run budget', () => {
+    const validate = vi.fn(() => {
+      throw new Error('The image should not be decoded.')
+    })
+
+    expect(
+      prepareGeneratedImageForCapture(
+        { count: GENERATED_IMAGE_CAPTURE_LIMITS.maxCount, bytes: 1 },
+        { data: PNG_BASE64, mimeType: 'image/png' },
+        validate,
+      ),
+    ).toBeNull()
+    expect(
+      prepareGeneratedImageForCapture(
+        { count: 1, bytes: GENERATED_IMAGE_CAPTURE_LIMITS.maxBytes - 1 },
+        { data: PNG_BASE64, mimeType: 'image/png' },
+        validate,
+      ),
+    ).toBeNull()
+    expect(validate).not.toHaveBeenCalled()
   })
 
   it('does not charge invalid images against the run budget', async () => {
