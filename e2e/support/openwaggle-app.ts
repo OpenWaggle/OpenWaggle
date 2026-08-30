@@ -95,7 +95,7 @@ export class OpenWaggleApp {
 
   async runCli(args: readonly string[]): Promise<{ readonly stdout: string; readonly stderr: string }> {
     const electronArguments = [
-      ...(process.platform === 'linux' ? ['--no-sandbox'] : []),
+      ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-logging'] : []),
       '.',
       ...args,
     ]
