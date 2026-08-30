@@ -67,7 +67,9 @@ export function sessionResourceTestLayer(
         rekey: (input) =>
           Effect.sync(() => {
             options.rekeyedCanonicalKeys?.push(input.canonicalKey)
-            const existing = options.existingResource
+            const existing = [options.existingResource, ...(options.listedResources ?? [])]
+              .filter((resource) => resource !== undefined)
+              .find((resource) => resource.id === input.resourceId)
             if (!existing) throw new Error('Expected an existing resource to re-key.')
             return { ...existing, canonicalKey: input.canonicalKey, updatedAt: input.updatedAt }
           }),

@@ -17,6 +17,7 @@ import {
   type SessionResourceStoreShape,
   type StoredSessionResourceFile,
 } from '../ports/session-resource-store'
+import { repairManagedAttachment } from './session-resource-capture-attachment-repair'
 import {
   inspectManagedCopy,
   occurrence,
@@ -32,6 +33,8 @@ export interface CaptureAttachmentInput {
   readonly nodeId: string | null
   readonly createdAt: number
   readonly branchId?: string | null
+  /** Existing occurrence whose missing managed copy should be repaired from the original path. */
+  readonly repairResource?: SessionResource
 }
 
 export function attachmentOccurrenceId(input: CaptureAttachmentInput) {
@@ -231,11 +234,15 @@ export function captureAttachment(input: CaptureAttachmentInput) {
   return Effect.gen(function* () {
     const repository = yield* SessionResourceRepository
     const fallbackCanonicalKey = `file:${input.attachment.path}`
-    const unavailableResource = yield* repository.findByCanonicalKey(
-      input.sessionId,
-      fallbackCanonicalKey,
-    )
+    const unavailableResource =
+      input.repairResource ??
+      (yield* repository.findByCanonicalKey(input.sessionId, fallbackCanonicalKey))
     const id = attachmentOccurrenceId(input)
+    if (input.repairResource?.available) {
+      const store = yield* SessionResourceStore
+      yield* repairManagedAttachment(input, id, input.repairResource, repository, store)
+      return
+    }
     const occurrenceExists = yield* repository.hasOccurrence(input.sessionId, id)
     if (occurrenceExists && unavailableResource?.available !== false) return
     const store = yield* SessionResourceStore

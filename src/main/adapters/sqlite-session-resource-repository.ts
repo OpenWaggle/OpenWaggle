@@ -67,11 +67,19 @@ function upsertResource(sql: SqlClient.SqlClient, input: UpsertSessionResourceIn
               ELSE COALESCE(session_resources.mime_type, excluded.mime_type)
             END,
             locator = CASE
+              WHEN excluded.id = session_resources.id AND excluded.available = 0
+                THEN excluded.locator
               WHEN excluded.managed_path IS NOT NULL THEN excluded.locator
               ELSE COALESCE(session_resources.locator, excluded.locator)
             END,
-            managed_path = COALESCE(excluded.managed_path, session_resources.managed_path),
-            available = MAX(excluded.available, session_resources.available),
+            managed_path = CASE
+              WHEN excluded.id = session_resources.id AND excluded.available = 0 THEN NULL
+              ELSE COALESCE(excluded.managed_path, session_resources.managed_path)
+            END,
+            available = CASE
+              WHEN excluded.id = session_resources.id AND excluded.available = 0 THEN 0
+              ELSE MAX(excluded.available, session_resources.available)
+            END,
             updated_at = MAX(session_resources.updated_at, excluded.updated_at)
         `
         const rows = yield* sql<{ readonly id: string }>`

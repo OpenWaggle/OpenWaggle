@@ -1,4 +1,3 @@
-import { ATTACHMENT } from '@shared/constants/resource-limits'
 import type { Message } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionNode } from '@shared/types/session'
@@ -7,6 +6,11 @@ import * as Effect from 'effect/Effect'
 import { SessionResourceRepository } from '../ports/session-resource-repository'
 import { SessionResourceStore } from '../ports/session-resource-store'
 import {
+  advanceAttachmentBackfillBudget,
+  type BackfillAttachmentBudget,
+} from './session-resource-backfill-budget'
+import { loadSessionResourceBackfillProgress } from './session-resource-backfill-progress'
+import {
   captureAttachment,
   captureGeneratedImage,
   captureLink,
@@ -14,11 +18,16 @@ import {
   prepareGeneratedImageForCapture,
   SESSION_LINK_CAPTURE_LIMIT,
 } from './session-resource-capture'
-import { attachmentOccurrenceId } from './session-resource-capture-attachment'
-import { generatedImageOccurrencePrefix } from './session-resource-capture-image'
+import {
+  attachmentOccurrenceId,
+  type CaptureAttachmentInput,
+} from './session-resource-capture-attachment'
+import {
+  captureUnavailableGeneratedImage,
+  generatedImageOccurrencePrefix,
+} from './session-resource-capture-image'
 import { linkOccurrenceId } from './session-resource-capture-link'
-import { inspectManagedCopy } from './session-resource-capture-shared'
-import { collectExplicitResources } from './session-resource-extraction'
+import { type CapturedImage, collectExplicitResources } from './session-resource-extraction'
 import { withSessionResourceLock } from './session-resource-lock'
 
 interface ProjectedResourceMessage {
@@ -29,38 +38,29 @@ interface ProjectedResourceMessage {
 
 interface BackfillImageState {
   budget: GeneratedImageCaptureBudget
-  readonly capturedSlots: Set<string>
+  readonly completedSlots: Set<string>
+  readonly knownSlots: Set<string>
+  readonly deferred: BackfillImageInput[]
 }
 
-export const ATTACHMENT_BACKFILL_LIMITS = {
-  maxBytes: ATTACHMENT.MAX_TOTAL_SIZE_BYTES,
-  maxCount: 16,
-} as const
-
-interface BackfillAttachmentBudget {
-  readonly bytes: number
-  readonly count: number
+interface BackfillImageInput {
+  readonly sessionId: SessionId
+  readonly runId: string
+  readonly image: CapturedImage
+  readonly index: number
+  readonly nodeId: string
+  readonly createdAt: number
+  readonly branchId: string | null
 }
 
 interface BackfillAttachmentState {
   budget: BackfillAttachmentBudget
-  readonly capturedOccurrences: Set<string>
-}
-
-export function advanceAttachmentBackfillBudget(
-  current: BackfillAttachmentBudget,
-  byteLength: number,
-): BackfillAttachmentBudget | null {
-  if (
-    !Number.isSafeInteger(byteLength) ||
-    byteLength < 0 ||
-    byteLength > ATTACHMENT.MAX_SIZE_BYTES ||
-    current.count >= ATTACHMENT_BACKFILL_LIMITS.maxCount ||
-    current.bytes > ATTACHMENT_BACKFILL_LIMITS.maxBytes - byteLength
-  ) {
-    return null
-  }
-  return { bytes: current.bytes + byteLength, count: current.count + 1 }
+  readonly completedOccurrences: Set<string>
+  readonly knownResources: ReadonlyMap<string, SessionResource>
+  readonly deferred: Array<{
+    readonly input: CaptureAttachmentInput
+    readonly resource: SessionResource
+  }>
 }
 
 interface BackfillLinkState {
@@ -91,39 +91,44 @@ function projectResourceMessages(input: {
       }))
 }
 
-function capturedGeneratedImageSlots(
-  resources: readonly SessionResource[],
-  repository: Parameters<typeof inspectManagedCopy>[0],
-  store: Parameters<typeof inspectManagedCopy>[1],
-  sessionId: SessionId,
-) {
-  return Effect.gen(function* () {
-    const slots = new Set<string>()
-    for (const resource of resources) {
-      const occurrenceSlots = resource.occurrences.flatMap((occurrence) => {
-        if (!occurrence.id.includes(':created:image:')) return []
-        const separator = occurrence.id.lastIndexOf(':')
-        return separator === -1 ? [] : [occurrence.id.slice(0, separator + 1)]
-      })
-      if (occurrenceSlots.length === 0 || !resource.available) continue
-      const copy = yield* inspectManagedCopy(repository, store, sessionId, resource.id)
-      if (!copy?.readable) continue
-      for (const slot of occurrenceSlots) slots.add(slot)
-    }
-    return slots
-  })
-}
-
 function capturedOccurrenceIds(resources: readonly SessionResource[]) {
   return new Set(resources.flatMap((resource) => resource.occurrences.map(({ id }) => id)))
 }
 
-function capturedAvailableOccurrenceIds(resources: readonly SessionResource[]) {
-  return new Set(
-    resources.flatMap((resource) =>
-      resource.available ? resource.occurrences.map(({ id }) => id) : [],
-    ),
-  )
+function attemptBackfilledAttachment(
+  input: CaptureAttachmentInput,
+  state: BackfillAttachmentState,
+  repairResource?: SessionResource,
+) {
+  return Effect.gen(function* () {
+    const id = attachmentOccurrenceId(input)
+    const nextBudget = advanceAttachmentBackfillBudget(state.budget, input.attachment.sizeBytes)
+    if (!nextBudget) return
+    state.budget = nextBudget
+    yield* captureAttachment({
+      ...input,
+      ...(repairResource ? { repairResource } : {}),
+    }).pipe(Effect.catchAll(() => Effect.void))
+    state.completedOccurrences.add(id)
+  })
+}
+
+function attemptBackfilledImage(input: BackfillImageInput, state: BackfillImageState) {
+  return Effect.gen(function* () {
+    const prepared = prepareGeneratedImageForCapture(state.budget, input.image)
+    if (!prepared) return
+    state.budget = prepared.budget
+    const slot = generatedImageOccurrencePrefix(input)
+    if (!prepared.image) {
+      state.knownSlots.add(slot)
+      yield* captureUnavailableGeneratedImage(input).pipe(Effect.catchAll(() => Effect.void))
+      return
+    }
+    state.completedSlots.add(slot)
+    yield* captureGeneratedImage({ ...input, validatedImage: prepared.image }).pipe(
+      Effect.catchAll(() => Effect.void),
+    )
+  })
 }
 
 function captureBackfilledUserResources(
@@ -147,18 +152,13 @@ function captureBackfilledUserResources(
         branchId,
       }
       const id = attachmentOccurrenceId(attachmentInput)
-      if (attachmentState.capturedOccurrences.has(id)) continue
-      const nextBudget = advanceAttachmentBackfillBudget(
-        attachmentState.budget,
-        part.attachment.sizeBytes,
-      )
-      if (!nextBudget) continue
-      attachmentState.budget = nextBudget
-      const captured = yield* captureAttachment(attachmentInput).pipe(
-        Effect.as(true),
-        Effect.catchAll(() => Effect.succeed(false)),
-      )
-      if (captured) attachmentState.capturedOccurrences.add(id)
+      if (attachmentState.completedOccurrences.has(id)) continue
+      const knownResource = attachmentState.knownResources.get(id)
+      if (knownResource) {
+        attachmentState.deferred.push({ input: attachmentInput, resource: knownResource })
+        continue
+      }
+      yield* attemptBackfilledAttachment(attachmentInput, attachmentState)
     }
     const links = collectExplicitResources(message.parts).links
     for (const [index, link] of links.entries()) {
@@ -204,15 +204,12 @@ function captureBackfilledAssistantResources(
         branchId,
       }
       const slot = generatedImageOccurrencePrefix(imageInput)
-      if (imageState.capturedSlots.has(slot)) continue
-      const prepared = prepareGeneratedImageForCapture(imageState.budget, image)
-      if (!prepared) break
-      imageState.budget = prepared.budget
-      if (!prepared.image) continue
-      imageState.capturedSlots.add(slot)
-      yield* captureGeneratedImage({ ...imageInput, validatedImage: prepared.image }).pipe(
-        Effect.catchAll(() => Effect.void),
-      )
+      if (imageState.completedSlots.has(slot)) continue
+      if (imageState.knownSlots.has(slot)) {
+        imageState.deferred.push(imageInput)
+        continue
+      }
+      yield* attemptBackfilledImage(imageInput, imageState)
     }
     for (const [index, link] of captured.links.entries()) {
       const linkInput = {
@@ -248,18 +245,23 @@ export function captureProjectedSessionResources(input: {
       const repository = yield* SessionResourceRepository
       const store = yield* SessionResourceStore
       const resources = yield* repository.list(input.sessionId)
+      const progress = yield* loadSessionResourceBackfillProgress(
+        resources,
+        repository,
+        store,
+        input.sessionId,
+      )
       const attachmentState: BackfillAttachmentState = {
         budget: { bytes: 0, count: 0 },
-        capturedOccurrences: capturedAvailableOccurrenceIds(resources),
+        completedOccurrences: progress.completedAttachmentOccurrences,
+        knownResources: progress.knownAttachmentResources,
+        deferred: [],
       }
       const imageState: BackfillImageState = {
         budget: { bytes: 0, count: 0, attempts: 0 },
-        capturedSlots: yield* capturedGeneratedImageSlots(
-          resources,
-          repository,
-          store,
-          input.sessionId,
-        ),
+        completedSlots: progress.completedImageSlots,
+        knownSlots: progress.knownImageSlots,
+        deferred: [],
       }
       const linkState: BackfillLinkState = {
         count: 0,
@@ -284,6 +286,17 @@ export function captureProjectedSessionResources(input: {
           linkState,
         )
       }
+      for (const deferred of attachmentState.deferred) {
+        yield* attemptBackfilledAttachment(deferred.input, attachmentState, deferred.resource)
+      }
+      for (const deferred of imageState.deferred) {
+        yield* attemptBackfilledImage(deferred, imageState)
+      }
     }),
   )
 }
+
+export {
+  ATTACHMENT_BACKFILL_LIMITS,
+  advanceAttachmentBackfillBudget,
+} from './session-resource-backfill-budget'

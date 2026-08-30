@@ -113,3 +113,40 @@ export function generatedImageOccurrencePrefix(input: {
     suffix: `created:image:${String(input.index)}:`,
   })
 }
+
+export function captureUnavailableGeneratedImage(input: {
+  readonly sessionId: SessionId
+  readonly image: CapturedImage
+  readonly index: number
+  readonly nodeId: string
+  readonly createdAt: number
+  readonly branchId?: string | null
+}) {
+  return Effect.gen(function* () {
+    const repository = yield* SessionResourceRepository
+    const canonicalKey = `unavailable-image:${input.sessionId}:${input.nodeId}:${String(input.index)}`
+    const existing = yield* repository.findByCanonicalKey(input.sessionId, canonicalKey)
+    const id = existing?.id ?? randomUUID()
+    yield* repository.upsert({
+      id,
+      sessionId: input.sessionId,
+      canonicalKey,
+      kind: 'image',
+      title: input.image.title,
+      mimeType: input.image.mimeType,
+      locator: null,
+      managedPath: null,
+      available: false,
+      occurrence: occurrence({
+        id: `${generatedImageOccurrencePrefix(input)}unavailable`,
+        nodeId: input.nodeId,
+        branchId: input.branchId,
+        actor: 'agent',
+        activity: 'created',
+        createdAt: input.createdAt,
+      }),
+      createdAt: existing?.createdAt ?? input.createdAt,
+      updatedAt: input.createdAt,
+    })
+  })
+}

@@ -60,7 +60,8 @@ function hiveSummaryModel(
       !liveIds.has(String(session.id)) && lineageOf(session)?.parentSessionId === sessionId,
   )
   const parent = lineage.parentSessionId
-    ? sessions.find((session) => String(session.id) === lineage.parentSessionId)
+    ? (sessions.find((session) => String(session.id) === lineage.parentSessionId) ??
+      archivedSessions.find((session) => String(session.id) === lineage.parentSessionId))
     : undefined
   const attention = workers.some((worker) => needsAttention(lineageOf(worker)))
   return {
