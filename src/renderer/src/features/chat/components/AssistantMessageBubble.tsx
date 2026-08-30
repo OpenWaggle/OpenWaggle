@@ -6,6 +6,7 @@ import type { SupportedModelId } from '@shared/types/llm'
 import type { WaggleAgentColor } from '@shared/types/waggle'
 import { GitBranch, GitCompare } from 'lucide-react'
 import React from 'react'
+import { SessionMessageImages } from '@/features/session-summary'
 import { Button } from '@/shared/ui/Button'
 import { useMessageCollapse } from '../hooks/useMessageCollapse'
 import { AgentLabel } from './AgentLabel'
@@ -210,6 +211,8 @@ export function AssistantMessageBubble({
             />
           </div>
         ) : null}
+
+        <SessionMessageImages sessionId={runtime.sessionId} messageId={message.id} />
 
         {message.parts.map((part, i) => {
           const divider =

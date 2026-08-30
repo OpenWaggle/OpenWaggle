@@ -37,6 +37,17 @@ const validManifest = {
         methods: ['get', 'set'],
       },
     ],
+    sessionSummarySections: [
+      {
+        id: 'schema-smoke.session-summary',
+        title: 'Schema smoke session summary',
+        runtime: 'federated-module',
+        execution: 'host-renderer',
+        entry: 'dist/settings.js',
+        capability: 'openwaggle.storage',
+        methods: ['get'],
+      },
+    ],
   },
 } as const
 
@@ -76,8 +87,8 @@ describe('extension SDK public schemas', () => {
     expect(() => Schema.decodeUnknownSync(extensionDocsDiscoverPayloadSchema)({})).not.toThrow()
     expect(() =>
       Schema.decodeUnknownSync(extensionContributionRegistrationSchema)({
-        family: 'settingsSections',
-        contribution: validManifest.contributions.settingsSections[0],
+        family: 'sessionSummarySections',
+        contribution: validManifest.contributions.sessionSummarySections[0],
       }),
     ).not.toThrow()
     expect(() =>

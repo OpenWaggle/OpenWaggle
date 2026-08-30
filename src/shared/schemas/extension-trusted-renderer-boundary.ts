@@ -18,6 +18,7 @@ interface ManifestTrustedRendererBoundaryInput {
     readonly customMessageRenderers?: readonly ManifestTrustedRendererBoundaryContribution[]
     readonly interactionRenderers?: readonly ManifestTrustedRendererBoundaryContribution[]
     readonly statusWidgets?: readonly ManifestTrustedRendererBoundaryContribution[]
+    readonly sessionSummarySections?: readonly ManifestTrustedRendererBoundaryContribution[]
   }
 }
 
@@ -48,7 +49,8 @@ function manifestUsesTrustedRendererRuntime(manifest: ManifestTrustedRendererBou
     contributionsUseTrustedRendererRuntime(contributions.toolRenderers) ||
     contributionsUseTrustedRendererRuntime(contributions.customMessageRenderers) ||
     contributionsUseTrustedRendererRuntime(contributions.interactionRenderers) ||
-    contributionsUseTrustedRendererRuntime(contributions.statusWidgets)
+    contributionsUseTrustedRendererRuntime(contributions.statusWidgets) ||
+    contributionsUseTrustedRendererRuntime(contributions.sessionSummarySections)
   )
 }
 

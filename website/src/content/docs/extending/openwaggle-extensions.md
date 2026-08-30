@@ -47,7 +47,7 @@ Create the manifest first:
     "openwaggle": ">=0.1.0 <0.2.0"
   },
   "sourceFiles": ["package.json", "src/settings.js", "src/side-panel.js"],
-  "builtArtifacts": ["package.json", "modules/settings.js", "modules/side-panel.js"],
+  "builtArtifacts": ["package.json", "modules/settings.js", "modules/side-panel.js", "modules/session-summary.js"],
   "install": {
     "source": "prebuilt"
   },
@@ -77,6 +77,17 @@ Create the manifest first:
         "runtime": "federated-module",
         "execution": "host-renderer",
         "entry": "modules/side-panel.js",
+        "capability": "openwaggle.storage",
+        "methods": ["get", "list"]
+      }
+    ],
+    "sessionSummarySections": [
+      {
+        "id": "example.session-summary",
+        "title": "Example Session Status",
+        "runtime": "federated-module",
+        "execution": "host-renderer",
+        "entry": "modules/session-summary.js",
         "capability": "openwaggle.storage",
         "methods": ["get", "list"]
       }
@@ -138,6 +149,7 @@ An extension package can declare multiple contribution families:
 - `customMessageRenderers` for Pi custom message records.
 - `interactionRenderers` for Pi interaction requests such as `confirm`, `select`, `input`, `editor`, `notify`, and typed custom interactions.
 - `statusWidgets` for compact status surfaces.
+- `sessionSummarySections` for session-scoped information and actions in the floating Session Summary.
 - `commands` and `slashCommands` for slash command menu and composer-adjacent launchers.
 
 OpenWaggle owns the container: placement, chrome, sizing, docking, fallback behavior, and persistence rules. The extension owns the content mounted inside that container.
@@ -162,6 +174,7 @@ Choose the surface by the job the extension is doing, not by the framework used 
 - `customMessageRenderers` render Pi custom message records while preserving the Pi-native custom message type as the binding identity.
 - `interactionRenderers` collect feedback for pending Pi interactions such as `confirm`, `select`, `input`, `editor`, `notify`, or typed custom interactions, then return the typed response through the SDK.
 - `statusWidgets` are compact status surfaces for live progress, connection state, or extension-owned indicators.
+- `sessionSummarySections` augment the opened session's floating Summary. They mount only after that session has transcript content, receive that session id in `context.surface`, and disappear with the Summary while the right sidebar is open. They must not display authorization controls, infer another session, or replace host-owned Environment, Hive, Outputs, or Sources sections.
 
 The same extension can contribute to multiple surfaces. Shared package state can coordinate those live surfaces, while the transcript remains the durable audit trail for agent-loop activity.
 

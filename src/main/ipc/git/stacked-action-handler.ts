@@ -159,7 +159,10 @@ function confirmDefaultBranchAction(
      * `feature -> main`. Judging only the current ref waved that straight through, which is precisely the push
      * this gate exists to catch.
      */
-    if (!requiresDefaultBranchConfirmation(options.action, targetsDefaultRef(local.status))) {
+    if (
+      options.createFeatureBranch === true ||
+      !requiresDefaultBranchConfirmation(options.action, targetsDefaultRef(local.status))
+    ) {
       return true
     }
     const copy = resolveDefaultBranchActionDialogCopy({

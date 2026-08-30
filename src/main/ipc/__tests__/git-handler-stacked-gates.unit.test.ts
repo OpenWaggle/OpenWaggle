@@ -55,6 +55,37 @@ describe('stacked action safety gates', () => {
     expect(result).toMatchObject({ ok: false, code: 'cancelled' })
   })
 
+  it('does not ask for default-branch confirmation when the action first creates a feature branch', async () => {
+    respondWith(
+      new Map([
+        ['rev-parse --is-inside-work-tree', 'true\n'],
+        ['symbolic-ref --quiet --short HEAD', 'main\n'],
+        ['remote get-url origin', 'https://github.com/example/repo.git\n'],
+        ['rev-parse --abbrev-ref origin/HEAD', 'origin/main\n'],
+        ['-c core.quotePath=false status --porcelain=v1', ''],
+        ['-c core.quotePath=false diff --numstat', ''],
+        ['-c core.quotePath=false diff --cached --numstat', ''],
+        ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+      ]),
+    )
+    registerGitHandlers()
+    const handler = registeredHandler('git:stacked-action:run')
+
+    await expect(
+      handler?.({ sender: {} }, '/tmp/repo', {
+        action: 'create_pr',
+        createFeatureBranch: true,
+        featureBranchName: 'codex/session-summary',
+        changeRequestTitle: 'Session Summary',
+        changeRequestBody: 'Summary body',
+        baseRef: 'main',
+        draft: false,
+      }),
+    ).rejects.toThrow('Git command failed')
+
+    expect(showMessageBoxMock).not.toHaveBeenCalled()
+  })
+
   it('refuses to commit when no paths were selected, rather than staging the repository', async () => {
     /*
      * The commit phase used to fall back to `git add --all`, which has no pathspec and so

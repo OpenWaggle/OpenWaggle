@@ -119,8 +119,8 @@ export default {
   name: 'Example Extension',
   version: '0.1.0',
   sdk: { openwaggle: '>=0.2.0 <0.3.0' },
-  sourceFiles: ['package.json', 'src/settings.ts'],
-  builtArtifacts: ['dist/settings.js'],
+  sourceFiles: ['package.json', 'src/settings.ts', 'src/session-summary.ts'],
+  builtArtifacts: ['dist/settings.js', 'dist/session-summary.js'],
   install: { source: 'prebuilt' },
   capabilities: [
     {
@@ -139,6 +139,17 @@ export default {
         entry: 'dist/settings.js',
         capability: 'openwaggle.storage',
         methods: ['get', 'set'],
+      },
+    ],
+    sessionSummarySections: [
+      {
+        id: 'example.session-summary',
+        title: 'Example Session Status',
+        runtime: 'federated-module',
+        execution: 'host-renderer',
+        entry: 'dist/session-summary.js',
+        capability: 'openwaggle.storage',
+        methods: ['get'],
       },
     ],
   },

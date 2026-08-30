@@ -13,6 +13,7 @@ import {
 } from '../application/agent-session-service'
 import { AgentKernelService } from '../ports/agent-kernel-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
+import { SessionResourceStore } from '../ports/session-resource-store'
 import { SettingsService } from '../services/settings-service'
 import { clearAgentPhase, clearStreamBuffer, emitRunCompleted } from '../utils/stream-bridge'
 import { cancelSessionRuns } from './active-agent-runs'
@@ -148,6 +149,8 @@ function registerSessionMutationHandlers() {
         Effect.gen(function* () {
           const repo = yield* SessionProjectionRepository
           yield* repo.delete(id)
+          const resourceStore = yield* SessionResourceStore
+          yield* resourceStore.removeSession(id).pipe(Effect.catchAll(() => Effect.void))
         }),
       ),
     ),

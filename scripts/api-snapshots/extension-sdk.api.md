@@ -645,8 +645,9 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly CUSTOM_MESSAGE_RENDERERS: 'customMessageRenderers';
         readonly INTERACTION_RENDERERS: 'interactionRenderers';
         readonly STATUS_WIDGETS: 'statusWidgets';
+        readonly SESSION_SUMMARY_SECTIONS: 'sessionSummarySections';
     };
-    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
     readonly COMMAND_CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands"];
     readonly CONTRIBUTION_RUNTIME: {
         readonly FEDERATED_MODULE: 'federated-module';
@@ -672,8 +673,8 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly SCOPE_KINDS: readonly ("global" | "project")[];
         readonly KEY_MAX_LENGTH: 160;
     };
-    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
-    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
+    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
     readonly INSTALL_SOURCE: {
         readonly PREBUILT: 'prebuilt';
         readonly LOCAL_BUILD: 'local-build';
@@ -952,6 +953,25 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             }>>;
         }>>>>;
         statusWidgets: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+            capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+            entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            target: Schema.optional<Schema.Struct<{
+                projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+            matches: Schema.optional<Schema.Struct<{
+                toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+        }>>>>;
+        sessionSummarySections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
             capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
             method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
             methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1275,6 +1295,25 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>>>;
+    sessionSummarySections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>>>;
 }>;
 export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
@@ -1314,7 +1353,7 @@ export declare const extensionRouteContributionRegistrationSchema: Schema.Struct
     }>>;
 }>;
 export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -1371,7 +1410,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         }>>;
     }>>;
 }>, Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -1393,7 +1432,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
     }>>;
 }>]>;
 export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
 }>;
 export type ExtensionCapabilityDeclaration = SchemaType<typeof extensionCapabilityDeclarationSchema>;
@@ -1424,9 +1463,9 @@ export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.
 export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
 export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
 export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
-export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
 export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
-export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
 ```
 
 ### Declarations from `dist/core-types.d.ts`
@@ -2458,7 +2497,7 @@ export declare const extensionRuntimeRegisterContributionResultSchema: Schema.St
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
     capability: Schema.Literal<["openwaggle.runtime"]>;
     method: Schema.Literal<["register-contribution"]>;
-    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
 }>;
 export declare const extensionRuntimeUnregisterContributionResultSchema: Schema.Struct<{
@@ -2466,7 +2505,7 @@ export declare const extensionRuntimeUnregisterContributionResultSchema: Schema.
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
     capability: Schema.Literal<["openwaggle.runtime"]>;
     method: Schema.Literal<["unregister-contribution"]>;
-    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
     unregistered: typeof Schema.Boolean;
 }>;
@@ -3120,8 +3159,9 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly CUSTOM_MESSAGE_RENDERERS: 'customMessageRenderers';
         readonly INTERACTION_RENDERERS: 'interactionRenderers';
         readonly STATUS_WIDGETS: 'statusWidgets';
+        readonly SESSION_SUMMARY_SECTIONS: 'sessionSummarySections';
     };
-    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
     readonly COMMAND_CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands"];
     readonly CONTRIBUTION_RUNTIME: {
         readonly FEDERATED_MODULE: 'federated-module';
@@ -3147,8 +3187,8 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly SCOPE_KINDS: readonly ("global" | "project")[];
         readonly KEY_MAX_LENGTH: 160;
     };
-    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
-    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
+    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
     readonly INSTALL_SOURCE: {
         readonly PREBUILT: 'prebuilt';
         readonly LOCAL_BUILD: 'local-build';
@@ -3427,6 +3467,25 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             }>>;
         }>>>>;
         statusWidgets: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+            capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+            entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            target: Schema.optional<Schema.Struct<{
+                projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+            matches: Schema.optional<Schema.Struct<{
+                toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+        }>>>>;
+        sessionSummarySections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
             capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
             method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
             methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3750,6 +3809,25 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>>>;
+    sessionSummarySections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>>>;
 }>;
 export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
@@ -3789,7 +3867,7 @@ export declare const extensionRouteContributionRegistrationSchema: Schema.Struct
     }>>;
 }>;
 export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -3846,7 +3924,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         }>>;
     }>>;
 }>, Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -3868,7 +3946,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
     }>>;
 }>]>;
 export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
 }>;
 export type ExtensionCapabilityDeclaration = SchemaType<typeof extensionCapabilityDeclarationSchema>;
@@ -3899,9 +3977,9 @@ export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.
 export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
 export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
 export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
-export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
 export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
-export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
 ```
 
 ### Declarations from `dist/core-types.d.ts`
@@ -4571,8 +4649,9 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly CUSTOM_MESSAGE_RENDERERS: 'customMessageRenderers';
         readonly INTERACTION_RENDERERS: 'interactionRenderers';
         readonly STATUS_WIDGETS: 'statusWidgets';
+        readonly SESSION_SUMMARY_SECTIONS: 'sessionSummarySections';
     };
-    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
     readonly COMMAND_CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands"];
     readonly CONTRIBUTION_RUNTIME: {
         readonly FEDERATED_MODULE: 'federated-module';
@@ -4598,8 +4677,8 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly SCOPE_KINDS: readonly ("global" | "project")[];
         readonly KEY_MAX_LENGTH: 160;
     };
-    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
-    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
+    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
     readonly INSTALL_SOURCE: {
         readonly PREBUILT: 'prebuilt';
         readonly LOCAL_BUILD: 'local-build';
@@ -5180,8 +5259,9 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly CUSTOM_MESSAGE_RENDERERS: 'customMessageRenderers';
         readonly INTERACTION_RENDERERS: 'interactionRenderers';
         readonly STATUS_WIDGETS: 'statusWidgets';
+        readonly SESSION_SUMMARY_SECTIONS: 'sessionSummarySections';
     };
-    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
     readonly COMMAND_CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands"];
     readonly CONTRIBUTION_RUNTIME: {
         readonly FEDERATED_MODULE: 'federated-module';
@@ -5207,8 +5287,8 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly SCOPE_KINDS: readonly ("global" | "project")[];
         readonly KEY_MAX_LENGTH: 160;
     };
-    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
-    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
+    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
     readonly INSTALL_SOURCE: {
         readonly PREBUILT: 'prebuilt';
         readonly LOCAL_BUILD: 'local-build';
@@ -5487,6 +5567,25 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             }>>;
         }>>>>;
         statusWidgets: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+            capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+            entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            target: Schema.optional<Schema.Struct<{
+                projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+            matches: Schema.optional<Schema.Struct<{
+                toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+        }>>>>;
+        sessionSummarySections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
             capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
             method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
             methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5810,6 +5909,25 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>>>;
+    sessionSummarySections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>>>;
 }>;
 export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
@@ -5849,7 +5967,7 @@ export declare const extensionRouteContributionRegistrationSchema: Schema.Struct
     }>>;
 }>;
 export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -5906,7 +6024,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         }>>;
     }>>;
 }>, Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -5928,7 +6046,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
     }>>;
 }>]>;
 export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
 }>;
 export type ExtensionCapabilityDeclaration = SchemaType<typeof extensionCapabilityDeclarationSchema>;
@@ -5959,9 +6077,9 @@ export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.
 export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
 export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
 export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
-export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
 export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
-export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
 ```
 
 ### Declarations from `dist/core-types.d.ts`
@@ -7466,6 +7584,25 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
         }>>>>;
+        sessionSummarySections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+            capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+            entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            target: Schema.optional<Schema.Struct<{
+                projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+            matches: Schema.optional<Schema.Struct<{
+                toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+        }>>>>;
     }>>;
     pi: Schema.optional<Schema.Struct<{
         resourceRoots: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7637,8 +7774,9 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly CUSTOM_MESSAGE_RENDERERS: 'customMessageRenderers';
         readonly INTERACTION_RENDERERS: 'interactionRenderers';
         readonly STATUS_WIDGETS: 'statusWidgets';
+        readonly SESSION_SUMMARY_SECTIONS: 'sessionSummarySections';
     };
-    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
     readonly COMMAND_CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands"];
     readonly CONTRIBUTION_RUNTIME: {
         readonly FEDERATED_MODULE: 'federated-module';
@@ -7664,8 +7802,8 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly SCOPE_KINDS: readonly ("global" | "project")[];
         readonly KEY_MAX_LENGTH: 160;
     };
-    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
-    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
+    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
     readonly INSTALL_SOURCE: {
         readonly PREBUILT: 'prebuilt';
         readonly LOCAL_BUILD: 'local-build';
@@ -7959,6 +8097,25 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>>>;
+    sessionSummarySections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>>>;
 }>;
 export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
@@ -7998,7 +8155,7 @@ export declare const extensionRouteContributionRegistrationSchema: Schema.Struct
     }>>;
 }>;
 export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -8055,7 +8212,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         }>>;
     }>>;
 }>, Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -8077,7 +8234,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
     }>>;
 }>]>;
 export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
 }>;
 export type ExtensionCapabilityDeclaration = SchemaType<typeof extensionCapabilityDeclarationSchema>;
@@ -8108,9 +8265,9 @@ export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.
 export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
 export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
 export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
-export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
 export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
-export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
 ```
 
 ## Export `./runtime`
@@ -8130,7 +8287,7 @@ export declare const extensionRuntimeRegisterContributionResultSchema: Schema.St
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
     capability: Schema.Literal<["openwaggle.runtime"]>;
     method: Schema.Literal<["register-contribution"]>;
-    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
 }>;
 export declare const extensionRuntimeUnregisterContributionResultSchema: Schema.Struct<{
@@ -8138,7 +8295,7 @@ export declare const extensionRuntimeUnregisterContributionResultSchema: Schema.
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
     capability: Schema.Literal<["openwaggle.runtime"]>;
     method: Schema.Literal<["unregister-contribution"]>;
-    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
     unregistered: typeof Schema.Boolean;
 }>;
@@ -8421,6 +8578,25 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
         }>>>>;
+        sessionSummarySections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+            capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+            entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            target: Schema.optional<Schema.Struct<{
+                projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+            matches: Schema.optional<Schema.Struct<{
+                toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+        }>>>>;
     }>>;
     pi: Schema.optional<Schema.Struct<{
         resourceRoots: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8592,8 +8768,9 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly CUSTOM_MESSAGE_RENDERERS: 'customMessageRenderers';
         readonly INTERACTION_RENDERERS: 'interactionRenderers';
         readonly STATUS_WIDGETS: 'statusWidgets';
+        readonly SESSION_SUMMARY_SECTIONS: 'sessionSummarySections';
     };
-    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
     readonly COMMAND_CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands"];
     readonly CONTRIBUTION_RUNTIME: {
         readonly FEDERATED_MODULE: 'federated-module';
@@ -8619,8 +8796,8 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly SCOPE_KINDS: readonly ("global" | "project")[];
         readonly KEY_MAX_LENGTH: 160;
     };
-    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
-    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
+    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
     readonly INSTALL_SOURCE: {
         readonly PREBUILT: 'prebuilt';
         readonly LOCAL_BUILD: 'local-build';
@@ -8914,6 +9091,25 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>>>;
+    sessionSummarySections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>>>;
 }>;
 export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
@@ -8953,7 +9149,7 @@ export declare const extensionRouteContributionRegistrationSchema: Schema.Struct
     }>>;
 }>;
 export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -9010,7 +9206,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         }>>;
     }>>;
 }>, Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -9032,7 +9228,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
     }>>;
 }>]>;
 export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
 }>;
 export type ExtensionCapabilityDeclaration = SchemaType<typeof extensionCapabilityDeclarationSchema>;
@@ -9063,9 +9259,9 @@ export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.
 export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
 export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
 export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
-export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
 export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
-export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
 ```
 
 ### Declarations from `dist/runtime-sdk.d.ts`
@@ -10300,8 +10496,9 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly CUSTOM_MESSAGE_RENDERERS: 'customMessageRenderers';
         readonly INTERACTION_RENDERERS: 'interactionRenderers';
         readonly STATUS_WIDGETS: 'statusWidgets';
+        readonly SESSION_SUMMARY_SECTIONS: 'sessionSummarySections';
     };
-    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
     readonly COMMAND_CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands"];
     readonly CONTRIBUTION_RUNTIME: {
         readonly FEDERATED_MODULE: 'federated-module';
@@ -10327,8 +10524,8 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly SCOPE_KINDS: readonly ("global" | "project")[];
         readonly KEY_MAX_LENGTH: 160;
     };
-    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
-    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
+    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
     readonly INSTALL_SOURCE: {
         readonly PREBUILT: 'prebuilt';
         readonly LOCAL_BUILD: 'local-build';
@@ -10607,6 +10804,25 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
             }>>;
         }>>>>;
         statusWidgets: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+            capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+            entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            target: Schema.optional<Schema.Struct<{
+                projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+            matches: Schema.optional<Schema.Struct<{
+                toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+        }>>>>;
+        sessionSummarySections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
             capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
             method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
             methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10930,6 +11146,25 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>>>;
+    sessionSummarySections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>>>;
 }>;
 export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
@@ -10969,7 +11204,7 @@ export declare const extensionRouteContributionRegistrationSchema: Schema.Struct
     }>>;
 }>;
 export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -11026,7 +11261,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         }>>;
     }>>;
 }>, Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -11048,7 +11283,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
     }>>;
 }>]>;
 export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
 }>;
 export type ExtensionCapabilityDeclaration = SchemaType<typeof extensionCapabilityDeclarationSchema>;
@@ -11079,9 +11314,9 @@ export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.
 export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
 export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
 export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
-export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
 export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
-export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
 ```
 
 ### Declarations from `dist/core-types.d.ts`

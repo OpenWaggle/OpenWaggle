@@ -37,6 +37,8 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 - `docs/adr/0021-status-colours-are-semantic-roles.md`
 - `docs/adr/0022-transcript-opens-from-its-newest-end.md`
 - `docs/adr/0023-agent-access-modes-and-declared-authorization.md`
+- `docs/adr/0024-design-token-contract-adopts-tailwind-standards.md`
+- `docs/adr/0026-adopt-session-summary-and-resource-catalog.md`
 
 ## Testing
 

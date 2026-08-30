@@ -1,7 +1,7 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import { EXTENSION_SIDE_PANEL_ROUTE_PANEL, SETTINGS_TABS, type SettingsTab } from '@/shell/ui-store'
 
-export type ChatBuiltInRightPanel = 'diff' | 'file' | 'session-tree'
+export type ChatBuiltInRightPanel = 'diff' | 'file' | 'resources' | 'session-tree'
 export type ChatRightPanel = ChatBuiltInRightPanel | typeof EXTENSION_SIDE_PANEL_ROUTE_PANEL
 export interface ChatExtensionSidePanelTarget {
   readonly extensionId: string
@@ -54,7 +54,7 @@ function parseSearchToken(value: unknown) {
 
 function parseRightPanel(value: unknown) {
   return isMatching(
-    P.union('diff', 'file', 'session-tree', EXTENSION_SIDE_PANEL_ROUTE_PANEL),
+    P.union('diff', 'file', 'resources', 'session-tree', EXTENSION_SIDE_PANEL_ROUTE_PANEL),
     value,
   )
     ? value

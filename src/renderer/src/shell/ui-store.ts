@@ -17,7 +17,12 @@ export interface ExtensionRightSidebarPanel {
   readonly contentHash?: string
 }
 
-export type RightSidebarPanel = 'diff' | 'file' | 'session-tree' | ExtensionRightSidebarPanel
+export type RightSidebarPanel =
+  | 'diff'
+  | 'file'
+  | 'resources'
+  | 'session-tree'
+  | ExtensionRightSidebarPanel
 export type CommandSurface = 'commands' | 'files' | 'content' | null
 export type ChatCommand = 'clone-session' | 'fork-session'
 
@@ -65,6 +70,7 @@ interface UIState {
   feedbackErrorContext: AgentErrorInfo | null
   feedbackCooldownActive: boolean
   lastRightSidebarPanel: RightSidebarPanel
+  resourceViewer: { readonly sessionId: string; readonly resourceId: string } | null
 
   toggleSidebar: () => void
   toggleTerminal: () => void
@@ -85,6 +91,8 @@ interface UIState {
   closeFeedbackModal: () => void
   startFeedbackCooldown: () => void
   setLastRightSidebarPanel: (panel: RightSidebarPanel) => void
+  openResourceViewer: (sessionId: string, resourceId: string) => void
+  closeResourceViewer: () => void
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null
@@ -106,6 +114,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   feedbackErrorContext: null,
   feedbackCooldownActive: false,
   lastRightSidebarPanel: 'diff',
+  resourceViewer: null,
 
   toggleSidebar() {
     set({ sidebarOpen: !get().sidebarOpen })
@@ -200,6 +209,14 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   setLastRightSidebarPanel(panel) {
     set({ lastRightSidebarPanel: panel })
+  },
+
+  openResourceViewer(sessionId, resourceId) {
+    set({ resourceViewer: { sessionId, resourceId } })
+  },
+
+  closeResourceViewer() {
+    set({ resourceViewer: null })
   },
 }))
 

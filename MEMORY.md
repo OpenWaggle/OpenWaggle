@@ -344,3 +344,18 @@ The consequence that outlives the ring: anything hidden behind `group-focus-with
 ### The menu role and its keyboard model are one decision
 
 `role="menu"` with `role="menuitemradio"` children tells a screen reader to use arrow keys. Declaring it on a panel of plain buttons produces a menu that is operable by Tab and Enter but announces a model that does not exist, which is worse than announcing nothing. `useMenuKeyboard` in `src/renderer/src/shared/hooks/` holds the model and `Popover` switches it on with the role, so the two cannot be declared separately. Items are found in the DOM rather than registered by each call site, because a menu's items are arbitrary children.
+
+### Session resources are durable, session-scoped projections
+
+Images, links, files, and change-request outputs are indexed in `session_resources`; their uses are
+separate `session_resource_occurrences` keyed to transcript node and branch ids. The resource row is
+deduplicated by `(session_id, canonical_key)`, so the same image may be both a source and an output
+without losing either provenance. Never query or read one by resource id alone: every repository and
+IPC read includes the opened `SessionId` to prevent resources leaking across sessions.
+
+Managed bytes live below Electron user data in `session-resources/<session-id>/`, not in the project.
+Archiving retains them; permanent session deletion removes them after the database cascade. Successful
+runs capture new explicit resources, while opening the resource catalog backfills reconstructable
+resources from older projected transcripts with deterministic occurrence ids. A transcript occurrence's
+`nodeId` is what connects an inline thumbnail to the exact user or assistant message and lets the viewer
+prioritise images on the visible branch before images from other branches in the same session.

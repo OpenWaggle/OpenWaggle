@@ -31,6 +31,7 @@ export function sanitizeBranchFragment(raw: string): string {
 
 export function sanitizeFeatureBranchName(raw: string): string {
   const sanitized = sanitizeBranchFragment(raw)
+  if (sanitized.startsWith('codex/')) return sanitized
   if (sanitized.includes('/')) {
     return sanitized.startsWith('feature/') ? sanitized : `feature/${sanitized}`
   }

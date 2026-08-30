@@ -87,6 +87,7 @@ export const extensionContributionsSchema = Schema.Struct({
   customMessageRenderers: Schema.optional(Schema.Array(extensionSlotContributionSchema)),
   interactionRenderers: Schema.optional(Schema.Array(extensionSlotContributionSchema)),
   statusWidgets: Schema.optional(Schema.Array(extensionSlotContributionSchema)),
+  sessionSummarySections: Schema.optional(Schema.Array(extensionSlotContributionSchema)),
 })
 
 export const extensionCommandContributionRegistrationSchema = Schema.Struct({

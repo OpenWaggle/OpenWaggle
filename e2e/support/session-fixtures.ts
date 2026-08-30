@@ -46,6 +46,19 @@ export interface SeedSessionInput {
   readonly interruptedRun?: boolean
 }
 
+export interface SeedSessionResourceInput {
+  readonly id: string
+  readonly kind: 'image' | 'file' | 'link' | 'change-request'
+  readonly title: string
+  readonly mimeType?: string | null
+  readonly url?: string
+  readonly dataBase64?: string
+  readonly nodeId: string | null
+  readonly actor: 'user' | 'agent' | 'tool' | 'extension'
+  readonly activity: 'provided' | 'read' | 'created' | 'updated'
+  readonly updatedAt: number
+}
+
 function getDatabasePath(userDataDir: string): string {
   return path.join(userDataDir, DATABASE_FILE_NAME)
 }
@@ -381,6 +394,70 @@ export async function seedSessions(
       const row = insertSessionRow(database)
       seedSessionRow(database, row, sessionInput, userDataDir)
       if (sessionInput.interruptedRun === true) seedInterruptedRun(database, row, sessionInput)
+    }
+  } finally {
+    database.close()
+  }
+}
+
+export async function seedSessionResources(
+  userDataDir: string,
+  sessionId: string,
+  resources: readonly SeedSessionResourceInput[],
+): Promise<void> {
+  await waitForDatabase(userDataDir)
+  const database = openDatabase(userDataDir)
+  try {
+    for (const resource of resources) {
+      const managedRoot = path.join(userDataDir, 'session-resources', sessionId)
+      const managedPath = resource.dataBase64
+        ? path.join(managedRoot, `${resource.id}-${resource.title}`)
+        : null
+      if (managedPath) {
+        fs.mkdirSync(managedRoot, { recursive: true })
+        fs.writeFileSync(managedPath, Buffer.from(resource.dataBase64 ?? '', 'base64'))
+      }
+      const locator = managedPath ? `session-resource://${resource.id}` : (resource.url ?? null)
+      database
+        .prepare(
+          `
+            INSERT INTO session_resources (
+              id, session_id, canonical_key, kind, title, mime_type, locator,
+              managed_path, available, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `,
+        )
+        .run(
+          resource.id,
+          sessionId,
+          resource.url ? `url:${resource.url}` : `fixture:${resource.id}`,
+          resource.kind,
+          resource.title,
+          resource.mimeType ?? null,
+          locator,
+          managedPath,
+          SQLITE_TRUE,
+          resource.updatedAt,
+          resource.updatedAt,
+        )
+      database
+        .prepare(
+          `
+            INSERT INTO session_resource_occurrences (
+              id, resource_id, node_id, branch_id, actor, activity, label, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `,
+        )
+        .run(
+          `occurrence:${resource.id}`,
+          resource.id,
+          resource.nodeId,
+          mainBranchId(sessionId),
+          resource.actor,
+          resource.activity,
+          null,
+          resource.updatedAt,
+        )
     }
   } finally {
     database.close()

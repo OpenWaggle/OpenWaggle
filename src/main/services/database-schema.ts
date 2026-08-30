@@ -98,6 +98,45 @@ export const CURRENT_SESSION_SCHEMA_STATEMENTS = [
   `,
 ] as const
 
+export const CURRENT_SESSION_RESOURCE_SCHEMA_STATEMENTS = [
+  `
+  CREATE TABLE IF NOT EXISTS session_resources (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    canonical_key TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL,
+    mime_type TEXT,
+    locator TEXT,
+    managed_path TEXT,
+    available INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE (session_id, canonical_key)
+  )
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_session_resources_session_updated
+  ON session_resources (session_id, updated_at DESC)
+  `,
+  `
+  CREATE TABLE IF NOT EXISTS session_resource_occurrences (
+    id TEXT PRIMARY KEY,
+    resource_id TEXT NOT NULL REFERENCES session_resources(id) ON DELETE CASCADE,
+    node_id TEXT,
+    branch_id TEXT,
+    actor TEXT NOT NULL,
+    activity TEXT NOT NULL,
+    label TEXT,
+    created_at INTEGER NOT NULL
+  )
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_session_resource_occurrences_resource_created
+  ON session_resource_occurrences (resource_id, created_at ASC)
+  `,
+] as const
+
 export const EXTENSION_LIFECYCLE_SCHEMA_V1_STATEMENTS = [
   `
   CREATE TABLE IF NOT EXISTS extension_lifecycle_state (

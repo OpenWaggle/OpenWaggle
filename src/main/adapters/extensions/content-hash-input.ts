@@ -17,6 +17,7 @@ export interface ManifestContentHashSource {
     readonly customMessageRenderers?: readonly ManifestEntryContribution[]
     readonly interactionRenderers?: readonly ManifestEntryContribution[]
     readonly statusWidgets?: readonly ManifestEntryContribution[]
+    readonly sessionSummarySections?: readonly ManifestEntryContribution[]
   }
   readonly trusted?: {
     readonly main?: string
@@ -52,6 +53,7 @@ function getContributionEntryPaths(manifest: ManifestContentHashSource): readonl
   pushContributionEntryPaths(entryPaths, contributions.customMessageRenderers)
   pushContributionEntryPaths(entryPaths, contributions.interactionRenderers)
   pushContributionEntryPaths(entryPaths, contributions.statusWidgets)
+  pushContributionEntryPaths(entryPaths, contributions.sessionSummarySections)
   return entryPaths
 }
 

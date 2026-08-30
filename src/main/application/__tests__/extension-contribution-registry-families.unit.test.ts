@@ -119,6 +119,15 @@ describe('listExtensionContributionRegistryView contribution families', () => {
             entry: 'dist/status.js',
           },
         ],
+        sessionSummarySections: [
+          {
+            id: 'family.session-summary',
+            title: 'Session Summary Contribution',
+            runtime: 'federated-module',
+            execution: 'host-renderer',
+            entry: 'dist/session-summary.js',
+          },
+        ],
       },
     })
 

@@ -8,6 +8,7 @@ import { ExtensionBuildRunnerLive } from './adapters/extension-build-runner'
 import { FilesystemDocsBundleLive } from './adapters/filesystem-docs-bundle-service'
 import { FilesystemExtensionManagerLive } from './adapters/filesystem-extension-manager-service'
 import { FilesystemExtensionPackageRepositoryLive } from './adapters/filesystem-extension-package-repository'
+import { FilesystemSessionResourceStoreLive } from './adapters/filesystem-session-resource-store'
 import { FilesystemWorkspaceFileLive } from './adapters/filesystem-workspace-file-service'
 import { EncryptedMcpSecretVaultServiceLive } from './adapters/mcp/encrypted-mcp-secret-vault-service'
 import { FilesystemMcpConfigServiceLive } from './adapters/mcp/filesystem-mcp-config-service'
@@ -26,6 +27,7 @@ import { SqliteExtensionProjectOverridesRepositoryLive } from './adapters/sqlite
 import { SqliteExtensionStorageRepositoryLive } from './adapters/sqlite-extension-storage-repository'
 import { SqliteSessionProjectionRepositoryLive } from './adapters/sqlite-session-projection-repository'
 import { SqliteSessionRepositoryLive } from './adapters/sqlite-session-repository'
+import { SqliteSessionResourceRepositoryLive } from './adapters/sqlite-session-resource-repository'
 import { FilesystemStandardsLive } from './adapters/standards-adapter'
 import { ActiveProjectChangeServiceLive } from './application/active-project-change-service'
 import { AppDatabaseLive } from './services/database-service'
@@ -40,6 +42,9 @@ const ExtensionProjectOverridesRepositoryLive = SqliteExtensionProjectOverridesR
   Layer.provide(AppDatabaseLive),
 )
 const ExtensionStorageRepositoryLive = SqliteExtensionStorageRepositoryLive.pipe(
+  Layer.provide(AppDatabaseLive),
+)
+const SessionResourceRepositoryLive = SqliteSessionResourceRepositoryLive.pipe(
   Layer.provide(AppDatabaseLive),
 )
 const ExtensionRuntimeSelectionLive = Layer.mergeAll(
@@ -69,6 +74,8 @@ const ActiveProjectChangeDependenciesLive = Layer.mergeAll(
   FilesystemDocsBundleLive,
   ExtensionRuntimeSelectionLive,
   ExtensionStorageRepositoryLive,
+  SessionResourceRepositoryLive,
+  FilesystemSessionResourceStoreLive,
   SqliteSessionProjectionRepositoryLive,
   SqliteSessionRepositoryLive,
 )
@@ -87,6 +94,8 @@ const AppLayer = Layer.mergeAll(
   FilesystemDocsBundleLive,
   ExtensionRuntimeSelectionLive,
   ExtensionStorageRepositoryLive,
+  SessionResourceRepositoryLive,
+  FilesystemSessionResourceStoreLive,
   SqliteSessionProjectionRepositoryLive,
   SqliteSessionRepositoryLive,
   FilesystemStandardsLive,

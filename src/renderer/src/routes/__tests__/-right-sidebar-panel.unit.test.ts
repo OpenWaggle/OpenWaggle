@@ -24,6 +24,18 @@ describe('resolveRightSidebarPanel', () => {
     ).toBe('diff')
   })
 
+  it('keeps session resources rendered while their route panel is open', () => {
+    expect(
+      resolveRightSidebarPanel({
+        diffOpen: false,
+        extensionSidePanel: null,
+        lastPanel: 'diff',
+        resourcesOpen: true,
+        sessionTreeOpen: false,
+      }),
+    ).toBe('resources')
+  })
+
   it('keeps the active extension side panel rendered while it is open', () => {
     expect(
       resolveRightSidebarPanel({

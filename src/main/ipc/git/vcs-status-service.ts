@@ -80,6 +80,7 @@ export async function getLocalVcsStatus(projectPath: string): Promise<LocalVcsSt
     isRepo: true,
     sourceControlProvider: detectSourceControlProvider(remoteUrl),
     hasPrimaryRemote: remoteUrl !== null,
+    defaultRef,
     /*
      * Unknown counts as "yes", so the confirmation that guards a push to the default branch fails closed.
      * `refs/remotes/origin/HEAD` is what records the default branch locally, and `git clone` writes it while

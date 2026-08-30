@@ -92,6 +92,10 @@ export const ENTRY_FAMILY_DESCRIPTORS = [
     family: CONTRIBUTION_FAMILY.STATUS_WIDGETS,
     contributions: (contributions) => contributions.statusWidgets,
   },
+  {
+    family: CONTRIBUTION_FAMILY.SESSION_SUMMARY_SECTIONS,
+    contributions: (contributions) => contributions.sessionSummarySections,
+  },
 ] satisfies readonly EntryFamilyDescriptor[]
 
 export const CONTRIBUTION_FAMILY_DESCRIPTORS = [
@@ -115,6 +119,7 @@ export function getManifestFamilyContributions(
     .with(CONTRIBUTION_FAMILY.CUSTOM_MESSAGE_RENDERERS, () => contributions.customMessageRenderers)
     .with(CONTRIBUTION_FAMILY.INTERACTION_RENDERERS, () => contributions.interactionRenderers)
     .with(CONTRIBUTION_FAMILY.STATUS_WIDGETS, () => contributions.statusWidgets)
+    .with(CONTRIBUTION_FAMILY.SESSION_SUMMARY_SECTIONS, () => contributions.sessionSummarySections)
     .exhaustive()
 }
 

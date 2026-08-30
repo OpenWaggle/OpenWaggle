@@ -38,6 +38,8 @@ export interface LocalVcsStatus {
   readonly isRepo: boolean
   readonly sourceControlProvider: SourceControlProviderInfo | null
   readonly hasPrimaryRemote: boolean
+  /** Locally resolved default branch name, when origin/HEAD or repository config provides one. */
+  readonly defaultRef?: string | null
   readonly isDefaultRef: boolean
   readonly refName: string | null
   /**
