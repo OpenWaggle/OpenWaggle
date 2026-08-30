@@ -2,7 +2,7 @@ import type {
   AgentDefinitionCatalogItem,
   AgentDefinitionDocument,
 } from '@shared/types/agent-definition'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { manageAgentDefinitionsMock, selectSourceMock, showConfirmMock } = vi.hoisted(() => ({
@@ -52,11 +52,11 @@ const LOCKED_DOWN_REVIEWER: AgentDefinitionCatalogItem = {
   },
 }
 
-function setProject() {
+function setProject(projectPath = PROJECT) {
   const initial = usePreferencesStore.getInitialState()
   usePreferencesStore.setState({
     ...initial,
-    settings: { ...initial.settings, projectPath: PROJECT },
+    settings: { ...initial.settings, projectPath },
   })
 }
 
@@ -88,6 +88,52 @@ describe('AgentDefinitionsCard', () => {
       operation: 'list',
       projectPath: PROJECT,
     })
+  })
+
+  it('ignores a stale catalog response after the selected project changes', async () => {
+    const deferred = Promise.withResolvers<{
+      operation: 'list'
+      items: readonly AgentDefinitionCatalogItem[]
+    }>()
+    const otherProject = '/other-project'
+    const otherDefinition: AgentDefinitionCatalogItem = {
+      ...REVIEWER,
+      name: 'implementer',
+      sourcePath: `${otherProject}/.openwaggle/agents/implementer.md`,
+      definition: { ...REVIEWER_DEFINITION, name: 'implementer' },
+    }
+    manageAgentDefinitionsMock.mockImplementation(async (command) => {
+      if (command.operation !== 'list') throw new Error('Unexpected mutation.')
+      if (command.projectPath === PROJECT) return deferred.promise
+      return { operation: 'list', items: [otherDefinition] }
+    })
+    render(<AgentDefinitionsCard />)
+
+    await waitFor(() =>
+      expect(manageAgentDefinitionsMock).toHaveBeenCalledWith({
+        operation: 'list',
+        projectPath: PROJECT,
+      }),
+    )
+    act(() => setProject(otherProject))
+
+    expect(await screen.findByText('implementer')).toBeInTheDocument()
+    act(() => deferred.resolve({ operation: 'list', items: [REVIEWER] }))
+    await waitFor(() => expect(screen.queryByText('reviewer')).not.toBeInTheDocument())
+    expect(screen.getByText('implementer')).toBeInTheDocument()
+  })
+
+  it('closes project-bound dialogs when the selected project changes', async () => {
+    render(<AgentDefinitionsCard />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit reviewer' }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    act(() => setProject('/other-project'))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    act(() => setProject(PROJECT))
+    await screen.findByRole('button', { name: 'Edit reviewer' })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('creates a schema-valid definition without requiring a named role preset', async () => {

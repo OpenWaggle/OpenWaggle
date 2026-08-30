@@ -24,8 +24,19 @@ describe('descriptor-bound Agent definition catalog reads', () => {
     )
   })
 
+  it('reads a confined catalog through the Windows-compatible path', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-agent-catalog-win32-'))
+    roots.push(root)
+    const directory = path.join(root, '.openwaggle', 'agents')
+    await fs.mkdir(directory, { recursive: true })
+    await fs.writeFile(path.join(directory, 'reviewer.md'), 'Review the change.')
+
+    await expect(
+      readBoundAgentDefinitionSources({ root, directory, platform: 'win32' }),
+    ).resolves.toEqual([{ name: 'reviewer.md', markdown: 'Review the change.' }])
+  })
+
   it('fails closed when the authorized directory is replaced before the bound read', async () => {
-    if (process.platform === 'win32') return
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-agent-catalog-bound-'))
     roots.push(root)
     const project = path.join(root, 'project')
@@ -42,7 +53,7 @@ describe('descriptor-bound Agent definition catalog reads', () => {
         directory,
         beforeRead: async () => {
           await fs.rename(directory, authorized)
-          await fs.symlink(outside, directory)
+          await fs.symlink(outside, directory, process.platform === 'win32' ? 'junction' : 'dir')
         },
       }),
     ).rejects.toThrow('catalog read failed')

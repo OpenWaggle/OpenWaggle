@@ -19,7 +19,6 @@ describe('Agent definition file mutations', () => {
   })
 
   it('does not write through a project directory replaced by an outside symlink', async () => {
-    if (process.platform === 'win32') return
     const projectPath = path.join(root, 'project')
     const definitions = path.join(projectPath, '.openwaggle', 'agents')
     const movedDefinitions = path.join(projectPath, '.openwaggle', 'agents-authorized')
@@ -28,31 +27,39 @@ describe('Agent definition file mutations', () => {
     const outsideDefinition = path.join(outside, 'reviewer.md')
     await fs.writeFile(outsideDefinition, 'outside user data')
 
-    await expect(
-      writeAgentDefinitionFile({
-        projectPath,
-        scope: 'project',
-        replaceExisting: false,
-        document: {
-          schemaVersion: 1,
-          name: 'reviewer',
-          description: 'Reviews changes',
-          instructions: 'Review the change.',
-        },
-        beforeMutation: async () => {
-          await fs.rename(definitions, movedDefinitions)
-          await fs.symlink(outside, definitions)
-        },
-      }),
-    ).resolves.toMatchObject({ name: 'reviewer' })
+    const operation = writeAgentDefinitionFile({
+      projectPath,
+      scope: 'project',
+      replaceExisting: false,
+      document: {
+        schemaVersion: 1,
+        name: 'reviewer',
+        description: 'Reviews changes',
+        instructions: 'Review the change.',
+      },
+      beforeMutation: async () => {
+        await fs.rename(definitions, movedDefinitions)
+        await fs.symlink(outside, definitions, process.platform === 'win32' ? 'junction' : 'dir')
+      },
+    })
+    let completed = true
+    if (process.platform === 'win32') {
+      completed = await operation.then(
+        () => true,
+        () => false,
+      )
+    } else {
+      await expect(operation).resolves.toMatchObject({ name: 'reviewer' })
+    }
     await expect(fs.readFile(outsideDefinition, 'utf8')).resolves.toBe('outside user data')
-    await expect(
-      fs.readFile(path.join(movedDefinitions, 'reviewer.md'), 'utf8'),
-    ).resolves.toContain('Review the change.')
+    if (completed) {
+      await expect(
+        fs.readFile(path.join(movedDefinitions, 'reviewer.md'), 'utf8'),
+      ).resolves.toContain('Review the change.')
+    }
   })
 
   it('rejects a project directory replaced before the mutation helper pins it', async () => {
-    if (process.platform === 'win32') return
     const projectPath = path.join(root, 'pre-spawn-project')
     const definitions = path.join(projectPath, '.openwaggle', 'agents')
     const movedDefinitions = path.join(root, 'pre-spawn-outside')
@@ -71,7 +78,11 @@ describe('Agent definition file mutations', () => {
         },
         beforeMutationSpawn: async () => {
           await fs.rename(definitions, movedDefinitions)
-          await fs.symlink(movedDefinitions, definitions)
+          await fs.symlink(
+            movedDefinitions,
+            definitions,
+            process.platform === 'win32' ? 'junction' : 'dir',
+          )
         },
       }),
     ).rejects.toThrow()
@@ -79,7 +90,6 @@ describe('Agent definition file mutations', () => {
   })
 
   it('creates the first definition directory from a bound parent during a root swap', async () => {
-    if (process.platform === 'win32') return
     const projectPath = path.join(root, 'new-project')
     const movedProject = path.join(root, 'new-project-authorized')
     const outside = path.join(root, 'outside-first-create')
@@ -109,11 +119,12 @@ describe('Agent definition file mutations', () => {
     await expect(fs.stat(path.join(outside, '.openwaggle'))).rejects.toMatchObject({
       code: 'ENOENT',
     })
-    await expect(fs.stat(path.join(movedProject, '.openwaggle'))).resolves.toMatchObject({})
+    if (process.platform !== 'win32') {
+      await expect(fs.stat(path.join(movedProject, '.openwaggle'))).resolves.toMatchObject({})
+    }
   })
 
   it('creates a missing definition hierarchy one bound component at a time', async () => {
-    if (process.platform === 'win32') return
     const projectPath = path.join(root, 'empty-project')
     await fs.mkdir(projectPath)
 
@@ -134,6 +145,49 @@ describe('Agent definition file mutations', () => {
     )
   })
 
+  it('creates, replaces, and deletes definitions through the Windows-compatible path', async () => {
+    const projectPath = path.join(root, 'windows-project')
+    await fs.mkdir(projectPath)
+    const created = await writeAgentDefinitionFile({
+      projectPath,
+      scope: 'project',
+      replaceExisting: false,
+      platform: 'win32',
+      document: {
+        schemaVersion: 1,
+        name: 'implementer',
+        description: 'Implements changes',
+        instructions: 'Implement the first change.',
+      },
+    })
+
+    const replaced = await writeAgentDefinitionFile({
+      projectPath,
+      scope: 'project',
+      replaceExisting: true,
+      platform: 'win32',
+      expectedContentDigest: created.contentDigest,
+      document: {
+        schemaVersion: 1,
+        name: 'implementer',
+        description: 'Implements changes',
+        instructions: 'Implement the replacement change.',
+      },
+    })
+    await expect(fs.readFile(replaced.destinationPath, 'utf8')).resolves.toContain(
+      'Implement the replacement change.',
+    )
+
+    await deleteAgentDefinitionFile({
+      projectPath,
+      scope: 'project',
+      name: 'implementer',
+      platform: 'win32',
+      expectedContentDigest: replaced.contentDigest,
+    })
+    await expect(fs.stat(replaced.destinationPath)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
   it('rejects oversized existing definitions before replacement or deletion', async () => {
     const projectPath = path.join(root, 'oversized-project')
     const definitions = path.join(projectPath, '.openwaggle', 'agents')
@@ -151,10 +205,31 @@ describe('Agent definition file mutations', () => {
     await expect(fs.stat(destination)).resolves.toMatchObject({ size: expect.any(Number) })
   })
 
+  it.each(['con', 'nul.config', 'com1', 'lpt9'])(
+    'rejects the Windows-reserved portable name %s',
+    async (name) => {
+      const projectPath = path.join(root, 'portable-name-project')
+      await fs.mkdir(projectPath)
+
+      await expect(
+        writeAgentDefinitionFile({
+          projectPath,
+          scope: 'project',
+          replaceExisting: false,
+          document: {
+            schemaVersion: 1,
+            name,
+            description: 'Reserved on Windows',
+            instructions: 'Do not create this file.',
+          },
+        }),
+      ).rejects.toThrow('Invalid or non-portable Agent definition name')
+    },
+  )
+
   it(
     'does not replace an in-place edit made after mutation validation',
     async () => {
-      if (process.platform === 'win32') return
       const projectPath = path.join(root, 'replace-project')
       await fs.mkdir(projectPath)
       const created = await writeAgentDefinitionFile({
@@ -191,7 +266,6 @@ describe('Agent definition file mutations', () => {
   it(
     'does not delete an in-place edit made after mutation validation',
     async () => {
-      if (process.platform === 'win32') return
       const projectPath = path.join(root, 'delete-project')
       await fs.mkdir(projectPath)
       const created = await writeAgentDefinitionFile({

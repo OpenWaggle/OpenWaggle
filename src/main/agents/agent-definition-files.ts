@@ -23,15 +23,49 @@ const OPEN_DIRECTORY_NO_FOLLOW =
   (filesystemConstants.O_DIRECTORY ?? 0) |
   (filesystemConstants.O_NOFOLLOW ?? 0)
 
+async function bindWindowsDefinitionDirectory(directory: string, rootPath: string) {
+  const [bound, current, canonicalDirectory] = await Promise.all([
+    fs.lstat(directory),
+    fs.stat(directory),
+    fs.realpath(directory),
+  ])
+  const relative = path.relative(rootPath, canonicalDirectory)
+  if (
+    bound.isSymbolicLink() ||
+    !bound.isDirectory() ||
+    bound.dev !== current.dev ||
+    bound.ino !== current.ino ||
+    relative.startsWith('..') ||
+    path.isAbsolute(relative)
+  ) {
+    throw new Error('Agent definition directory changed while it was being bound.')
+  }
+  return `${bound.dev}:${bound.ino}`
+}
+
+async function bindDescriptorDefinitionDirectory(directory: string) {
+  const directoryHandle = await fs.open(directory, OPEN_DIRECTORY_NO_FOLLOW)
+  try {
+    const [bound, current] = await Promise.all([directoryHandle.stat(), fs.stat(directory)])
+    if (bound.dev !== current.dev || bound.ino !== current.ino) {
+      throw new Error('Agent definition directory changed while it was being bound.')
+    }
+    return `${bound.dev}:${bound.ino}`
+  } finally {
+    await directoryHandle.close()
+  }
+}
+
 async function confinedDefinitionDestination(input: {
   readonly projectPath: string
   readonly userHome?: string
   readonly scope: AgentDefinitionScope
   readonly name: string
   readonly beforeDirectoryMutation?: (component: string, index: number) => Promise<void>
+  readonly platform: NodeJS.Platform
 }) {
   const root = input.scope === 'user' ? (input.userHome ?? os.homedir()) : input.projectPath
-  if (input.scope === 'user') await ensureTrustedAgentDefinitionRoot(root)
+  if (input.scope === 'user') await ensureTrustedAgentDefinitionRoot(root, input.platform)
   const lexicalDestination = agentDefinitionPath(input)
   const initial = await assertFilesystemWriteScope({
     roots: [root],
@@ -40,6 +74,7 @@ async function confinedDefinitionDestination(input: {
   await ensureDirectoryPathPinned({
     targetDirectory: path.dirname(initial.destinationPath),
     mode: OWNER_DIRECTORY_MODE,
+    platform: input.platform,
     ...(input.beforeDirectoryMutation
       ? { beforeComponentMutation: input.beforeDirectoryMutation }
       : {}),
@@ -55,32 +90,40 @@ async function confinedDefinitionDestination(input: {
     throw new Error('Agent definition destination changed outside its selected scope.')
   }
   const directory = path.dirname(verified.destinationPath)
-  const directoryHandle = await fs.open(directory, OPEN_DIRECTORY_NO_FOLLOW)
-  try {
-    const [bound, current] = await Promise.all([directoryHandle.stat(), fs.stat(directory)])
-    if (bound.dev !== current.dev || bound.ino !== current.ino) {
-      throw new Error('Agent definition directory changed while it was being bound.')
-    }
-    return {
-      rootPath: initial.rootPath,
-      destinationPath: verified.destinationPath,
-      directoryIdentity: `${bound.dev}:${bound.ino}`,
-    }
-  } finally {
-    await directoryHandle.close()
+  const directoryIdentity =
+    input.platform === 'win32'
+      ? await bindWindowsDefinitionDirectory(directory, verified.rootPath)
+      : await bindDescriptorDefinitionDirectory(directory)
+  return {
+    rootPath: initial.rootPath,
+    destinationPath: verified.destinationPath,
+    directoryIdentity,
   }
 }
 
 async function currentFile(destinationPath: string) {
   let handle: FileHandle | undefined
   try {
+    const entry = await fs.lstat(destinationPath)
+    if (entry.isSymbolicLink() || !entry.isFile()) {
+      throw new Error('Agent definition destination is not a regular file.')
+    }
     handle = await fs.open(
       destinationPath,
       filesystemConstants.O_RDONLY | (filesystemConstants.O_NOFOLLOW ?? 0),
     )
     const stats = await handle.stat()
+    const current = await fs.stat(destinationPath)
     if (!stats.isFile()) {
       throw new Error('Agent definition destination is not a regular file.')
+    }
+    if (
+      stats.dev !== entry.dev ||
+      stats.ino !== entry.ino ||
+      stats.dev !== current.dev ||
+      stats.ino !== current.ino
+    ) {
+      throw new Error('Agent definition destination changed while it was being bound.')
     }
     if (stats.size > MAX_AGENT_DEFINITION_SOURCE_BYTES) {
       throw new Error('Agent definition destination exceeds the 1 MiB size limit.')
@@ -109,12 +152,15 @@ export async function writeAgentDefinitionFile(input: {
   readonly beforeMutation?: () => Promise<void>
   readonly beforeMutationSpawn?: () => Promise<void>
   readonly beforeDirectoryMutation?: (component: string, index: number) => Promise<void>
+  readonly platform?: NodeJS.Platform
 }) {
+  const platform = input.platform ?? process.platform
   const markdown = serializeAgentDefinition(input.document)
   const parsed = parseAgentDefinition(markdown)
   const { rootPath, destinationPath, directoryIdentity } = await confinedDefinitionDestination({
     ...input,
     name: parsed.name,
+    platform,
   })
   const directory = path.dirname(destinationPath)
   return (async () => {
@@ -150,6 +196,7 @@ export async function writeAgentDefinitionFile(input: {
         expectedDirectoryIdentity: directoryIdentity,
         sourceHandle,
         sourceDigest: agentDefinitionDocumentDigest(markdown),
+        platform,
         ...(input.beforeMutation ? { beforeMutation: input.beforeMutation } : {}),
         ...(input.beforeMutationSpawn ? { beforeSpawn: input.beforeMutationSpawn } : {}),
       })
@@ -174,9 +221,13 @@ export async function deleteAgentDefinitionFile(input: {
   readonly expectedContentDigest?: string
   readonly beforeMutation?: () => Promise<void>
   readonly beforeMutationSpawn?: () => Promise<void>
+  readonly platform?: NodeJS.Platform
 }) {
-  const { rootPath, destinationPath, directoryIdentity } =
-    await confinedDefinitionDestination(input)
+  const platform = input.platform ?? process.platform
+  const { rootPath, destinationPath, directoryIdentity } = await confinedDefinitionDestination({
+    ...input,
+    platform,
+  })
   return (async () => {
     const current = await currentFile(destinationPath)
     if (!current) throw new Error(`Agent definition ${JSON.stringify(input.name)} was not found.`)
@@ -192,6 +243,7 @@ export async function deleteAgentDefinitionFile(input: {
       expectedIdentity: current.identity,
       expectedContentDigest: current.digest,
       expectedDirectoryIdentity: directoryIdentity,
+      platform,
       ...(input.beforeMutation ? { beforeMutation: input.beforeMutation } : {}),
       ...(input.beforeMutationSpawn ? { beforeSpawn: input.beforeMutationSpawn } : {}),
     })

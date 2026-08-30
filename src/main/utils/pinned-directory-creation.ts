@@ -61,12 +61,96 @@ async function nearestExistingDirectory(targetDirectory: string) {
   }
 }
 
-export async function ensureDirectoryPathPinned(input: {
+async function nearestExistingWindowsDirectory(targetDirectory: string) {
+  let candidate = path.resolve(targetDirectory)
+  const components: string[] = []
+  while (true) {
+    try {
+      const stats = await fs.lstat(candidate)
+      if (stats.isSymbolicLink() || !stats.isDirectory()) {
+        throw new Error('Directory creation encountered an untrusted path component.')
+      }
+      return { directory: candidate, stats, components: components.reverse() }
+    } catch (error) {
+      if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') throw error
+      const parent = path.dirname(candidate)
+      if (parent === candidate) throw error
+      components.push(path.basename(candidate))
+      candidate = parent
+    }
+  }
+}
+
+async function ensureWindowsDirectoryPathPinned(input: {
   readonly targetDirectory: string
   readonly mode: number
   readonly beforeMutation?: () => Promise<void>
   readonly beforeComponentMutation?: (component: string, index: number) => Promise<void>
 }) {
+  const existing = await nearestExistingWindowsDirectory(input.targetDirectory)
+  const beforeComponentMutation = input.beforeComponentMutation
+  let currentDirectory = existing.directory
+  let currentStats = existing.stats
+  for (const [index, component] of existing.components.entries()) {
+    const child = spawn(
+      process.execPath,
+      [
+        '-e',
+        PINNED_DIRECTORY_CREATOR,
+        `${currentStats.dev}:${currentStats.ino}`,
+        String(input.mode),
+        component,
+      ],
+      {
+        cwd: currentDirectory,
+        env: { ...getSafeChildEnv(), ELECTRON_RUN_AS_NODE: '1' },
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    )
+    let output = ''
+    child.stdout?.setEncoding('utf8')
+    child.stdout?.on('data', (chunk: string) => {
+      output += chunk
+    })
+    const exitCodePromise = waitForChildExit(child)
+    await releaseValidatedChild({
+      child,
+      label: 'directory creation helper',
+      ...(beforeComponentMutation
+        ? { afterValidation: () => beforeComponentMutation(component, index) }
+        : index === 0 && input.beforeMutation
+          ? { afterValidation: input.beforeMutation }
+          : {}),
+    })
+    const exitCode = await exitCodePromise
+    if (exitCode !== 0) throw new Error('Directory creation escaped its pinned parent.')
+    const expectedIdentity = output.match(/result=(\d+:\d+)$/)?.[1]
+    if (!expectedIdentity) throw new Error('Directory creation helper returned no identity.')
+    const nextDirectory = path.join(currentDirectory, component)
+    const nextStats = await fs.lstat(nextDirectory)
+    if (
+      nextStats.isSymbolicLink() ||
+      !nextStats.isDirectory() ||
+      `${nextStats.dev}:${nextStats.ino}` !== expectedIdentity
+    ) {
+      throw new Error('Directory component changed after its pinned creation.')
+    }
+    currentDirectory = nextDirectory
+    currentStats = nextStats
+  }
+}
+
+export async function ensureDirectoryPathPinned(input: {
+  readonly targetDirectory: string
+  readonly mode: number
+  readonly beforeMutation?: () => Promise<void>
+  readonly beforeComponentMutation?: (component: string, index: number) => Promise<void>
+  readonly platform?: NodeJS.Platform
+}) {
+  if ((input.platform ?? process.platform) === 'win32') {
+    await ensureWindowsDirectoryPathPinned(input)
+    return
+  }
   const existing = await nearestExistingDirectory(input.targetDirectory)
   let currentDirectory = existing.directory
   let currentHandle = existing.handle

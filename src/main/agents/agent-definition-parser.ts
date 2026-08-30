@@ -9,19 +9,19 @@ import { SESSION_CAPABILITIES } from '@shared/types/session-capability'
 import { THINKING_LEVELS } from '@shared/types/settings'
 import { isAlias, isMap, isScalar, isSeq, parseDocument } from 'yaml'
 import { z } from 'zod'
+import { isAgentDefinitionName } from './agent-definition-name'
 
 const MAX_DOCUMENT_BYTES = 128 * 1024
 const MAX_INSTRUCTION_BYTES = 64 * 1024
 const MAX_LIST_ITEMS = 128
 const MAX_DESCRIPTION_CHARACTERS = 500
 const MAX_MODEL_ID_CHARACTERS = 200
-const NAME_PATTERN = /^[a-z0-9](?:[a-z0-9._-]{0,78}[a-z0-9])?$/
 
 const frontmatterSchema = z
   .object({
     schemaVersion: z.literal(1),
     $schema: z.url().optional(),
-    name: z.string().regex(NAME_PATTERN),
+    name: z.string().refine(isAgentDefinitionName, 'Invalid or non-portable Agent definition name'),
     description: z.string().trim().min(1).max(MAX_DESCRIPTION_CHARACTERS),
     model: z.string().trim().min(1).max(MAX_MODEL_ID_CHARACTERS).optional(),
     reasoning: z.enum(THINKING_LEVELS).optional(),
@@ -146,7 +146,7 @@ export function extractAgentDefinitionDeclaredName(markdown: string): string | u
     const parsed: unknown = document.toJS({ maxAliasCount: 0 })
     if (typeof parsed !== 'object' || parsed === null || !('name' in parsed)) return undefined
     const name = parsed.name
-    return typeof name === 'string' && NAME_PATTERN.test(name) ? name : undefined
+    return typeof name === 'string' && isAgentDefinitionName(name) ? name : undefined
   } catch {
     return undefined
   }

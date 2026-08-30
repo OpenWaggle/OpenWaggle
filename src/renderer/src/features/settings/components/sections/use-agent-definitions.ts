@@ -1,47 +1,61 @@
 import type { AgentDefinitionCatalogItem } from '@shared/types/agent-definition'
 import type { AgentDefinitionManagementCommand } from '@shared/types/agent-definition-management'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 
 const logger = createRendererLogger('agent-definitions')
 
 export function useAgentDefinitions(projectPath: string | null) {
-  const [items, setItems] = useState<readonly AgentDefinitionCatalogItem[]>([])
+  const [catalog, setCatalog] = useState<{
+    readonly projectPath: string | null
+    readonly items: readonly AgentDefinitionCatalogItem[]
+  }>({ projectPath: null, items: [] })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const requestGeneration = useRef(0)
+  const projectGeneration = useRef(0)
+
+  const items = catalog.projectPath === projectPath ? catalog.items : []
 
   const reload = useCallback(async () => {
-    if (!projectPath) {
-      setItems([])
-      return
-    }
+    const generation = ++requestGeneration.current
+    if (!projectPath) return
     setLoading(true)
     setError(null)
     try {
       const outcome = await api.manageAgentDefinitions({ operation: 'list', projectPath })
       if (outcome.operation !== 'list') throw new Error('Unexpected Agent definition response.')
-      setItems(outcome.items)
+      if (requestGeneration.current !== generation) return
+      setCatalog({ projectPath, items: outcome.items })
     } catch (cause) {
+      if (requestGeneration.current !== generation) return
       logger.warn('Failed to list Agent definitions', { error: String(cause) })
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
-      setLoading(false)
+      if (requestGeneration.current === generation) setLoading(false)
     }
   }, [projectPath])
 
   useEffect(() => {
+    projectGeneration.current += 1
     void reload()
+    return () => {
+      projectGeneration.current += 1
+      requestGeneration.current += 1
+    }
   }, [reload])
 
   const mutate = useCallback(
     async (command: AgentDefinitionManagementCommand) => {
+      const generation = projectGeneration.current
       setError(null)
       try {
         const outcome = await api.manageAgentDefinitions(command)
-        await reload()
+        if (projectGeneration.current === generation) await reload()
         return outcome
       } catch (cause) {
+        if (projectGeneration.current !== generation) throw cause
         logger.warn('Failed to manage Agent definition', { error: String(cause) })
         setError(cause instanceof Error ? cause.message : String(cause))
         throw cause

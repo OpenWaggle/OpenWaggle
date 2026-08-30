@@ -1,8 +1,7 @@
 import os from 'node:os'
 import path from 'node:path'
 import type { AgentDefinitionScope } from '@shared/types/agent-definition'
-
-const NAME_PATTERN = /^[a-z0-9](?:[a-z0-9._-]{0,78}[a-z0-9])?$/
+import { isAgentDefinitionName } from './agent-definition-name'
 
 export function agentDefinitionDirectory(input: {
   readonly scope: AgentDefinitionScope
@@ -20,7 +19,7 @@ export function agentDefinitionPath(input: {
   readonly name: string
   readonly userHome?: string
 }) {
-  if (!NAME_PATTERN.test(input.name)) {
+  if (!isAgentDefinitionName(input.name)) {
     throw new Error(`Invalid Agent definition name: ${JSON.stringify(input.name)}.`)
   }
   return path.join(agentDefinitionDirectory(input), `${input.name}.md`)

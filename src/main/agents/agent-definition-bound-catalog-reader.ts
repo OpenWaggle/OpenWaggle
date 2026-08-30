@@ -14,18 +14,36 @@ const MAX_CATALOG_OUTPUT_BYTES = 96 * 1024 * 1024
 
 const BOUND_CATALOG_READER = `
 const fs = require('node:fs')
+const path = require('node:path')
 const expectedIdentity = process.argv[1]
 const directory = fs.statSync('.')
 if (directory.dev + ':' + directory.ino !== expectedIdentity) process.exit(73)
+const canonicalDirectory = fs.realpathSync('.')
 const entries = fs.readdirSync('.', { withFileTypes: true })
   .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.md'))
   .sort((left, right) => left.name.localeCompare(right.name))
 if (entries.length > ${String(MAX_DEFINITION_FILES)}) process.exit(74)
 const files = entries.map((entry) => {
+  const lexical = path.resolve(entry.name)
+  const visible = fs.lstatSync(lexical)
+  if (visible.isSymbolicLink() || !visible.isFile()) process.exit(75)
   const handle = fs.openSync(entry.name, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0))
   try {
     const stats = fs.fstatSync(handle)
-    if (!stats.isFile() || stats.size > ${String(MAX_DEFINITION_BYTES)}) process.exit(75)
+    const current = fs.statSync(lexical)
+    const canonical = fs.realpathSync(lexical)
+    const relative = path.relative(canonicalDirectory, canonical)
+    if (
+      !stats.isFile() ||
+      stats.size > ${String(MAX_DEFINITION_BYTES)} ||
+      stats.dev !== visible.dev ||
+      stats.ino !== visible.ino ||
+      stats.dev !== current.dev ||
+      stats.ino !== current.ino ||
+      relative.startsWith('..') ||
+      path.isAbsolute(relative) ||
+      path.dirname(canonical) !== canonicalDirectory
+    ) process.exit(75)
     return { name: entry.name, markdown: fs.readFileSync(handle, 'utf8') }
   } finally {
     fs.closeSync(handle)
@@ -47,7 +65,54 @@ function filesystemCode(error: unknown) {
   return error instanceof Error && 'code' in error ? error.code : undefined
 }
 
-async function confinedDirectory(input: { readonly root: string; readonly directory: string }) {
+async function bindWindowsCatalogDirectory(current: string, canonicalRoot: string) {
+  const [bound, visible, canonicalDirectory] = await Promise.all([
+    fs.lstat(current),
+    fs.stat(current),
+    fs.realpath(current),
+  ])
+  const confined = path.relative(canonicalRoot, canonicalDirectory)
+  if (
+    bound.isSymbolicLink() ||
+    !bound.isDirectory() ||
+    bound.dev !== visible.dev ||
+    bound.ino !== visible.ino ||
+    confined.startsWith('..') ||
+    path.isAbsolute(confined)
+  ) {
+    throw new Error('Agent definition catalog directory changed outside its selected scope.')
+  }
+  return { path: current, identity: `${bound.dev}:${bound.ino}` }
+}
+
+async function bindDescriptorCatalogDirectory(current: string, canonicalRoot: string) {
+  const handle = await fs.open(current, OPEN_DIRECTORY_NO_FOLLOW)
+  try {
+    const [bound, visible, canonicalDirectory] = await Promise.all([
+      handle.stat(),
+      fs.stat(current),
+      fs.realpath(current),
+    ])
+    const confined = path.relative(canonicalRoot, canonicalDirectory)
+    if (
+      bound.dev !== visible.dev ||
+      bound.ino !== visible.ino ||
+      confined.startsWith('..') ||
+      path.isAbsolute(confined)
+    ) {
+      throw new Error('Agent definition catalog directory changed outside its selected scope.')
+    }
+    return { path: current, identity: `${bound.dev}:${bound.ino}` }
+  } finally {
+    await handle.close()
+  }
+}
+
+async function confinedDirectory(input: {
+  readonly root: string
+  readonly directory: string
+  readonly platform: NodeJS.Platform
+}) {
   let canonicalRoot: string
   try {
     canonicalRoot = await fs.realpath(input.root)
@@ -73,26 +138,9 @@ async function confinedDirectory(input: { readonly root: string; readonly direct
       throw new Error('Agent definition catalog directories must not be symbolic links.')
     }
   }
-  const handle = await fs.open(current, OPEN_DIRECTORY_NO_FOLLOW)
-  try {
-    const [bound, visible, canonicalDirectory] = await Promise.all([
-      handle.stat(),
-      fs.stat(current),
-      fs.realpath(current),
-    ])
-    const confined = path.relative(canonicalRoot, canonicalDirectory)
-    if (
-      bound.dev !== visible.dev ||
-      bound.ino !== visible.ino ||
-      confined.startsWith('..') ||
-      path.isAbsolute(confined)
-    ) {
-      throw new Error('Agent definition catalog directory changed outside its selected scope.')
-    }
-    return { path: current, identity: `${bound.dev}:${bound.ino}` }
-  } finally {
-    await handle.close()
-  }
+  return input.platform === 'win32'
+    ? bindWindowsCatalogDirectory(current, canonicalRoot)
+    : bindDescriptorCatalogDirectory(current, canonicalRoot)
 }
 
 async function readChildOutput(child: ReturnType<typeof spawn>) {
@@ -139,12 +187,11 @@ export async function readBoundAgentDefinitionSources(input: {
   readonly root: string
   readonly directory: string
   readonly beforeRead?: () => Promise<void>
+  readonly platform?: NodeJS.Platform
 }) {
-  const bound = await confinedDirectory(input)
+  const platform = input.platform ?? process.platform
+  const bound = await confinedDirectory({ ...input, platform })
   if (!bound) return []
-  if (process.platform === 'win32') {
-    throw new Error('Secure scoped Agent definition catalog reads are unavailable on win32.')
-  }
   await input.beforeRead?.()
   return readChildOutput(
     spawn(process.execPath, ['-e', BOUND_CATALOG_READER, bound.identity], {

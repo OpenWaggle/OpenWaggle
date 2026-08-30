@@ -8,6 +8,7 @@ import { AgentDefinitionImportDialog } from './AgentDefinitionImportDialog'
 import { useAgentDefinitions } from './use-agent-definitions'
 
 interface EditorState {
+  readonly projectPath: string
   readonly source?: AgentDefinitionCatalogItem
   readonly duplicate?: boolean
 }
@@ -88,11 +89,11 @@ function DefinitionRow(props: {
   )
 }
 
-export function AgentDefinitionsCard() {
-  const projectPath = usePreferencesStore((state) => state.settings.projectPath)
+function ProjectAgentDefinitionsCard(props: { readonly projectPath: string | null }) {
+  const { projectPath } = props
   const definitions = useAgentDefinitions(projectPath)
   const [editor, setEditor] = useState<EditorState | null>(null)
-  const [importing, setImporting] = useState(false)
+  const [importingProjectPath, setImportingProjectPath] = useState<string | null>(null)
 
   return (
     <div className="space-y-3">
@@ -113,12 +114,16 @@ export function AgentDefinitionsCard() {
             disabled={!projectPath}
             size="xs"
             variant="secondary"
-            onClick={() => setImporting(true)}
+            onClick={() => setImportingProjectPath(projectPath)}
           >
             <FileDown className="size-3.5" />
             Import
           </Button>
-          <Button disabled={!projectPath} size="xs" onClick={() => setEditor({})}>
+          <Button
+            disabled={!projectPath}
+            size="xs"
+            onClick={() => projectPath && setEditor({ projectPath })}
+          >
             <Plus className="size-3.5" />
             New
           </Button>
@@ -141,8 +146,10 @@ export function AgentDefinitionsCard() {
               item={item}
               key={`${item.scope}:${item.sourcePath}`}
               onDelete={() => void definitions.remove(item)}
-              onDuplicate={() => setEditor({ source: item, duplicate: true })}
-              onEdit={() => setEditor({ source: item })}
+              onDuplicate={() =>
+                projectPath && setEditor({ projectPath, source: item, duplicate: true })
+              }
+              onEdit={() => projectPath && setEditor({ projectPath, source: item })}
               onRefresh={() => void definitions.refresh(item)}
             />
           ))
@@ -153,26 +160,31 @@ export function AgentDefinitionsCard() {
           {definitions.error}
         </p>
       ) : null}
-      {editor && projectPath ? (
+      {editor && editor.projectPath === projectPath ? (
         <AgentDefinitionEditorDialog
           {...editor}
           onClose={() => setEditor(null)}
           onSave={async (input) => {
             await definitions.mutate({
               operation: 'write',
-              projectPath,
+              projectPath: editor.projectPath,
               ...input,
             })
           }}
         />
       ) : null}
-      {importing && projectPath ? (
+      {importingProjectPath && importingProjectPath === projectPath ? (
         <AgentDefinitionImportDialog
-          projectPath={projectPath}
-          onClose={() => setImporting(false)}
+          projectPath={importingProjectPath}
+          onClose={() => setImportingProjectPath(null)}
           onImported={definitions.reload}
         />
       ) : null}
     </div>
   )
+}
+
+export function AgentDefinitionsCard() {
+  const projectPath = usePreferencesStore((state) => state.settings.projectPath)
+  return <ProjectAgentDefinitionsCard key={projectPath ?? 'no-project'} projectPath={projectPath} />
 }

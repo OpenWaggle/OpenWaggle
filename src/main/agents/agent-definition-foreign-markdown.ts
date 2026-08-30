@@ -5,10 +5,10 @@ import type {
 } from '@shared/types/agent-definition'
 import type { AgentDefinitionImportFieldPlan } from '@shared/types/agent-definition-management'
 import { parseDocument } from 'yaml'
+import { isAgentDefinitionName } from './agent-definition-name'
 
 const FRONTMATTER_BODY_CAPTURE = 2
 
-const NAME_PATTERN = /^[a-z0-9](?:[a-z0-9._-]{0,78}[a-z0-9])?$/
 const REASONING: readonly NonNullable<AgentDefinitionDocument['reasoning']>[] = [
   'off',
   'minimal',
@@ -53,7 +53,7 @@ function normalizedName(value: unknown, sourcePath: string) {
     .toLocaleLowerCase()
     .replace(/[^a-z0-9._-]+/g, '-')
     .replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, '')
-  return NAME_PATTERN.test(normalized) ? normalized : undefined
+  return isAgentDefinitionName(normalized) ? normalized : undefined
 }
 
 function stringValue(record: Readonly<Record<string, unknown>>, keys: readonly string[]) {
