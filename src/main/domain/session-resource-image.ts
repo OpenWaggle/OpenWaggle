@@ -15,6 +15,15 @@ export const ALLOWED_IMAGE_MIME_TYPES = new Set([
   'image/webp',
 ])
 
+export interface ValidatedSessionResourceImage {
+  readonly bytes: Buffer
+  readonly mimeType: string
+}
+
+function normalizeImageMimeType(mimeType: string) {
+  return mimeType.split(';')[0]?.trim().toLowerCase() ?? ''
+}
+
 function startsWithSignature(bytes: Uint8Array, signature: Uint8Array) {
   return Buffer.from(bytes.subarray(0, signature.byteLength)).equals(signature)
 }
@@ -43,8 +52,11 @@ function hasImageSignature(bytes: Uint8Array, mimeType: string) {
   return false
 }
 
-export function validatedImageBuffer(bytes: Uint8Array, mimeType: string) {
-  const normalizedMimeType = mimeType.split(';')[0]?.trim().toLowerCase() ?? ''
+export function validatedImageBuffer(
+  bytes: Uint8Array,
+  mimeType: string,
+): ValidatedSessionResourceImage | null {
+  const normalizedMimeType = normalizeImageMimeType(mimeType)
   if (!ALLOWED_IMAGE_MIME_TYPES.has(normalizedMimeType)) return null
   return bytes.byteLength > 0 &&
     bytes.byteLength <= MAX_CAPTURED_IMAGE_BYTES &&
@@ -54,7 +66,11 @@ export function validatedImageBuffer(bytes: Uint8Array, mimeType: string) {
 }
 
 export function validatedImageBytes(data: string, mimeType: string) {
-  return validatedImageBuffer(Buffer.from(data, 'base64'), mimeType)
+  const normalizedMimeType = normalizeImageMimeType(mimeType)
+  if (!ALLOWED_IMAGE_MIME_TYPES.has(normalizedMimeType)) return null
+  const decodedByteLength = Buffer.byteLength(data, 'base64')
+  if (decodedByteLength <= 0 || decodedByteLength > MAX_CAPTURED_IMAGE_BYTES) return null
+  return validatedImageBuffer(Buffer.from(data, 'base64'), normalizedMimeType)
 }
 
 export const MAX_REMOTE_IMAGE_BYTES = MAX_CAPTURED_IMAGE_BYTES

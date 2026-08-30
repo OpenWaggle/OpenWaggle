@@ -74,6 +74,24 @@ describe('vcs-status-service', () => {
     )
   })
 
+  it('uses that non-origin remote to resolve local default-branch status', async () => {
+    routeGit({
+      'symbolic-ref --quiet --short HEAD': gitResult(0, 'feature\n'),
+      'remote get-url origin': gitResult(2, '', 'No such remote'),
+      'remote get-url upstream': gitResult(0, 'git@gitlab.example.com:team/project.git\n'),
+      remote: gitResult(0, 'upstream\n'),
+      'symbolic-ref --quiet --short refs/remotes/upstream/HEAD': gitResult(0, 'upstream/develop\n'),
+      '-c core.quotePath=false status --porcelain=v1': gitResult(0, ''),
+      '-c core.quotePath=false diff --numstat': gitResult(0, ''),
+      '-c core.quotePath=false diff --cached --numstat': gitResult(0, ''),
+    })
+
+    const result = await getLocalVcsStatus('/repo')
+
+    expect(result).toMatchObject({ ok: true, status: { defaultRef: 'develop' } })
+    expectNoNetworkCommands()
+  })
+
   describe('getLocalVcsStatus', () => {
     it('fails with not-a-repo outside a repository and never calls git', async () => {
       isGitRepositoryMock.mockResolvedValue(false)

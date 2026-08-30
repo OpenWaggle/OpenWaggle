@@ -1,9 +1,21 @@
 import { randomUUID } from 'node:crypto'
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
+import type {
+  SessionResource,
+  SessionResourceKind,
+  SessionResourceOccurrence,
+} from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
-import { SessionResourceRepository } from '../ports/session-resource-repository'
-import { SessionResourceStore } from '../ports/session-resource-store'
+import {
+  SessionResourceRepository,
+  type SessionResourceRepositoryShape,
+} from '../ports/session-resource-repository'
+import {
+  SessionResourceStore,
+  type SessionResourceStoreShape,
+  type StoredSessionResourceFile,
+} from '../ports/session-resource-store'
 import {
   inspectManagedCopy,
   occurrence,
@@ -11,7 +23,7 @@ import {
   removeReplacedCopy,
 } from './session-resource-capture-shared'
 
-export function captureAttachment(input: {
+interface CaptureAttachmentInput {
   readonly sessionId: SessionId
   readonly runId: string
   readonly attachment: AgentSendPayload['attachments'][number]
@@ -19,81 +31,148 @@ export function captureAttachment(input: {
   readonly nodeId: string | null
   readonly createdAt: number
   readonly branchId?: string | null
-}) {
-  return Effect.gen(function* () {
-    const repository = yield* SessionResourceRepository
-    const id = occurrenceId({
-      ...input,
-      suffix: `provided:attachment:${input.attachment.id}:${String(input.index)}`,
+}
+
+function attachmentKind(input: CaptureAttachmentInput): SessionResourceKind {
+  return input.attachment.kind === 'image' ? 'image' : 'file'
+}
+
+function attachmentOccurrence(
+  input: CaptureAttachmentInput,
+  id: string,
+): SessionResourceOccurrence {
+  return occurrence({
+    id,
+    nodeId: input.nodeId,
+    branchId: input.branchId,
+    actor: 'user',
+    activity: 'provided',
+    createdAt: input.createdAt,
+  })
+}
+
+function storeAttachment(
+  input: CaptureAttachmentInput,
+  id: string,
+  resourceId: string,
+  fallbackCanonicalKey: string,
+  repository: SessionResourceRepositoryShape,
+  store: SessionResourceStoreShape,
+) {
+  return store
+    .storeFile({
+      sessionId: input.sessionId,
+      resourceId,
+      fileName: input.attachment.name,
+      sourcePath: input.attachment.path,
     })
-    if (yield* repository.hasOccurrence(input.sessionId, id)) return
-    const store = yield* SessionResourceStore
-    const resourceId = randomUUID()
-    const storedResult = yield* store
-      .storeFile({
-        sessionId: input.sessionId,
-        resourceId,
-        fileName: input.attachment.name,
-        sourcePath: input.attachment.path,
-      })
-      .pipe(
-        Effect.map((stored) => ({ _tag: 'Stored' as const, stored })),
-        Effect.catchAll(() =>
-          repository
-            .upsert({
-              id: resourceId,
-              sessionId: input.sessionId,
-              canonicalKey: `file:${input.attachment.path}`,
-              kind: input.attachment.kind === 'image' ? 'image' : 'file',
-              title: input.attachment.name,
-              mimeType: input.attachment.mimeType,
-              locator: input.attachment.path,
-              managedPath: null,
-              available: false,
-              occurrence: occurrence({
-                id,
-                nodeId: input.nodeId,
-                branchId: input.branchId,
-                actor: 'user',
-                activity: 'provided',
-                createdAt: input.createdAt,
-              }),
-              createdAt: input.createdAt,
-              updatedAt: input.createdAt,
-            })
-            .pipe(Effect.as({ _tag: 'Unavailable' as const })),
-        ),
-      )
-    if (storedResult._tag === 'Unavailable') return
-    const { stored } = storedResult
+    .pipe(
+      Effect.map((stored) => ({ _tag: 'Stored' as const, stored })),
+      Effect.catchAll(() =>
+        repository
+          .upsert({
+            id: resourceId,
+            sessionId: input.sessionId,
+            canonicalKey: fallbackCanonicalKey,
+            kind: attachmentKind(input),
+            title: input.attachment.name,
+            mimeType: input.attachment.mimeType,
+            locator: input.attachment.path,
+            managedPath: null,
+            available: false,
+            occurrence: attachmentOccurrence(input, id),
+            createdAt: input.createdAt,
+            updatedAt: input.createdAt,
+          })
+          .pipe(Effect.as({ _tag: 'Unavailable' as const })),
+      ),
+    )
+}
+
+function restoreUnavailableAttachment(
+  input: CaptureAttachmentInput,
+  id: string,
+  unavailableResource: SessionResource,
+  storedPath: string,
+  fallbackCanonicalKey: string,
+  repository: SessionResourceRepositoryShape,
+  store: SessionResourceStoreShape,
+) {
+  const locator = `session-resource://${unavailableResource.id}`
+  return repository
+    .upsert({
+      id: unavailableResource.id,
+      sessionId: input.sessionId,
+      canonicalKey: fallbackCanonicalKey,
+      kind: attachmentKind(input),
+      title: input.attachment.name,
+      mimeType: input.attachment.mimeType,
+      locator,
+      managedPath: storedPath,
+      available: true,
+      occurrence: attachmentOccurrence(input, id),
+      createdAt: unavailableResource.createdAt,
+      updatedAt: input.createdAt,
+    })
+    .pipe(
+      Effect.tapError(() => store.remove(storedPath).pipe(Effect.catchAll(() => Effect.void))),
+      Effect.flatMap((resource) =>
+        resource.locator !== locator ? store.remove(storedPath) : Effect.void,
+      ),
+    )
+}
+
+function reuseExistingAttachment(
+  input: CaptureAttachmentInput,
+  id: string,
+  canonicalKey: string,
+  existing: SessionResource,
+  storedPath: string,
+  repository: SessionResourceRepositoryShape,
+  store: SessionResourceStoreShape,
+) {
+  return repository
+    .upsert({
+      id: existing.id,
+      sessionId: input.sessionId,
+      canonicalKey,
+      kind: attachmentKind(input),
+      title: existing.title,
+      mimeType: existing.mimeType ?? input.attachment.mimeType,
+      locator: existing.locator,
+      managedPath: null,
+      available: existing.available,
+      occurrence: attachmentOccurrence(input, id),
+      createdAt: existing.createdAt,
+      updatedAt: input.createdAt,
+    })
+    .pipe(Effect.flatMap(() => store.remove(storedPath)))
+}
+
+function captureStoredAttachment(
+  input: CaptureAttachmentInput,
+  id: string,
+  resourceId: string,
+  stored: StoredSessionResourceFile,
+  repository: SessionResourceRepositoryShape,
+  store: SessionResourceStoreShape,
+) {
+  return Effect.gen(function* () {
     const canonicalKey = `sha256:${stored.sha256}`
     const existing = yield* repository.findByCanonicalKey(input.sessionId, canonicalKey)
     const existingCopy = existing
       ? yield* inspectManagedCopy(repository, store, input.sessionId, existing.id)
       : null
     if (existing && existingCopy?.readable) {
-      yield* repository.upsert({
-        id: existing.id,
-        sessionId: input.sessionId,
+      yield* reuseExistingAttachment(
+        input,
+        id,
         canonicalKey,
-        kind: input.attachment.kind === 'image' ? 'image' : 'file',
-        title: existing.title,
-        mimeType: existing.mimeType ?? input.attachment.mimeType,
-        locator: existing.locator,
-        managedPath: null,
-        available: existing.available,
-        occurrence: occurrence({
-          id,
-          nodeId: input.nodeId,
-          branchId: input.branchId,
-          actor: 'user',
-          activity: 'provided',
-          createdAt: input.createdAt,
-        }),
-        createdAt: existing.createdAt,
-        updatedAt: input.createdAt,
-      })
-      yield* store.remove(stored.path)
+        existing,
+        stored.path,
+        repository,
+        store,
+      )
       return
     }
     const locator = `session-resource://${resourceId}`
@@ -102,20 +181,13 @@ export function captureAttachment(input: {
         id: resourceId,
         sessionId: input.sessionId,
         canonicalKey,
-        kind: input.attachment.kind === 'image' ? 'image' : 'file',
+        kind: attachmentKind(input),
         title: input.attachment.name,
         mimeType: input.attachment.mimeType,
         locator,
         managedPath: stored.path,
         available: true,
-        occurrence: occurrence({
-          id,
-          nodeId: input.nodeId,
-          branchId: input.branchId,
-          actor: 'user',
-          activity: 'provided',
-          createdAt: input.createdAt,
-        }),
+        occurrence: attachmentOccurrence(input, id),
         createdAt: input.createdAt,
         updatedAt: input.createdAt,
       })
@@ -124,5 +196,48 @@ export function captureAttachment(input: {
       )
     if (resource.locator !== locator) yield* store.remove(stored.path)
     else yield* removeReplacedCopy(store, existingCopy?.managedPath, stored.path)
+  })
+}
+
+export function captureAttachment(input: CaptureAttachmentInput) {
+  return Effect.gen(function* () {
+    const repository = yield* SessionResourceRepository
+    const fallbackCanonicalKey = `file:${input.attachment.path}`
+    const unavailableResource = yield* repository.findByCanonicalKey(
+      input.sessionId,
+      fallbackCanonicalKey,
+    )
+    const id = occurrenceId({
+      ...input,
+      suffix: `provided:attachment:${input.attachment.id}:${String(input.index)}`,
+    })
+    const occurrenceExists = yield* repository.hasOccurrence(input.sessionId, id)
+    if (occurrenceExists && unavailableResource?.available !== false) return
+    const store = yield* SessionResourceStore
+    const resourceId =
+      unavailableResource?.available === false ? unavailableResource.id : randomUUID()
+    const storedResult = yield* storeAttachment(
+      input,
+      id,
+      resourceId,
+      fallbackCanonicalKey,
+      repository,
+      store,
+    )
+    if (storedResult._tag === 'Unavailable') return
+    const { stored } = storedResult
+    if (unavailableResource?.available === false) {
+      yield* restoreUnavailableAttachment(
+        input,
+        id,
+        unavailableResource,
+        stored.path,
+        fallbackCanonicalKey,
+        repository,
+        store,
+      )
+      return
+    }
+    yield* captureStoredAttachment(input, id, resourceId, stored, repository, store)
   })
 }

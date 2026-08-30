@@ -39,6 +39,7 @@ export function SessionResourcePreview({
     ...sessionResourceContentQueryOptions(sessionId, resource.id),
     enabled:
       nearViewport &&
+      resource.available &&
       resource.kind === 'image' &&
       resource.locator?.startsWith('https://') !== true,
   })

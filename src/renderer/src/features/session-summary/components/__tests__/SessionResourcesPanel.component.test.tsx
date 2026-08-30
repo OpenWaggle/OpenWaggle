@@ -9,6 +9,7 @@ import { SessionResourcesPanel } from '../SessionResourcesPanel'
 const apiMocks = vi.hoisted(() => ({
   list: vi.fn(),
   openExternal: vi.fn(),
+  openPath: vi.fn(),
   read: vi.fn(),
 }))
 
@@ -16,20 +17,22 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: {
     listSessionResources: apiMocks.list,
     openExternal: apiMocks.openExternal,
+    openPath: apiMocks.openPath,
     readSessionResource: apiMocks.read,
   },
 }))
 
 function resource(
   id: string,
-  input: Pick<SessionResource, 'kind' | 'title' | 'isSource' | 'isOutput' | 'locator'>,
+  input: Pick<SessionResource, 'kind' | 'title' | 'isSource' | 'isOutput' | 'locator'> &
+    Partial<Pick<SessionResource, 'available'>>,
 ): SessionResource {
   return {
     id,
     sessionId: SessionId('session-one'),
     canonicalKey: `resource:${id}`,
     mimeType: input.kind === 'image' ? 'image/png' : null,
-    available: true,
+    available: input.available ?? true,
     occurrences: [],
     createdAt: 1,
     updatedAt: 1,
@@ -64,6 +67,7 @@ describe('SessionResourcesPanel', () => {
     useUIStore.setState({ resourceViewer: null })
     apiMocks.list.mockReset().mockResolvedValue([IMAGE, LINK, OUTPUT])
     apiMocks.openExternal.mockReset().mockResolvedValue(undefined)
+    apiMocks.openPath.mockReset().mockResolvedValue(undefined)
     apiMocks.read.mockReset().mockResolvedValue(null)
   })
 
@@ -93,5 +97,28 @@ describe('SessionResourcesPanel', () => {
     await waitFor(() => {
       expect(apiMocks.openExternal).toHaveBeenCalledWith('https://example.com/docs')
     })
+  })
+
+  it('opens the original path for an unavailable attachment', async () => {
+    apiMocks.list.mockResolvedValue([
+      resource('missing-image', {
+        kind: 'image',
+        title: 'missing.png',
+        isSource: true,
+        isOutput: false,
+        locator: '/input/missing.png',
+        available: false,
+      }),
+    ])
+    renderWithQueryClient(<SessionResourcesPanel sessionId="session-one" onClose={vi.fn()} />)
+
+    fireEvent.click(await screen.findByText('missing.png'))
+
+    await waitFor(() => expect(apiMocks.openPath).toHaveBeenCalledWith('/input/missing.png'))
+    expect(useUIStore.getState().resourceViewer).toBeNull()
+    expect(screen.getByText('Unavailable · Open original')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry missing.png' }))
+    await waitFor(() => expect(apiMocks.list).toHaveBeenCalledTimes(2))
   })
 })

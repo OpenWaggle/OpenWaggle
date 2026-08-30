@@ -12,6 +12,13 @@ import { SessionResourcePreview } from './SessionResourcePreview'
 
 type ResourceFilter = 'all' | 'sources' | 'outputs' | 'images'
 const RESOURCE_PAGE_SIZE = 40
+const LOCAL_RESOURCE_PATH = /^(?:\/|[A-Za-z]:[\\/]|\\\\)/u
+
+function originalResourcePath(resource: SessionResource) {
+  return !resource.available && resource.locator && LOCAL_RESOURCE_PATH.test(resource.locator)
+    ? resource.locator
+    : null
+}
 
 function filteredResources(resources: readonly SessionResource[], filter: ResourceFilter) {
   return match(filter)
@@ -28,16 +35,31 @@ function ResourceIcon({ resource }: { readonly resource: SessionResource }) {
   return <File className="size-4" />
 }
 
+function resourceStatusLabel(resource: SessionResource, originalPath: string | null) {
+  if (originalPath) return 'Unavailable · Open original'
+  if (!resource.available) return 'Unavailable'
+  if (resource.isSource && resource.isOutput) return 'Source and output'
+  return resource.isOutput ? 'Output' : 'Source'
+}
+
 function ResourceRow({
   resource,
   sessionId,
+  onRetry,
 }: {
   readonly resource: SessionResource
   readonly sessionId: string
+  readonly onRetry: () => void
 }) {
   const openViewer = useUIStore((state) => state.openResourceViewer)
+  const originalPath = originalResourcePath(resource)
+  const statusLabel = resourceStatusLabel(resource, originalPath)
 
   async function openResource() {
+    if (originalPath) {
+      await api.openPath(originalPath)
+      return
+    }
     if (resource.kind === 'image') {
       openViewer(sessionId, resource.id)
       return
@@ -56,42 +78,50 @@ function ResourceRow({
   }
 
   const actionable =
-    resource.kind === 'image' ||
+    originalPath !== null ||
+    (resource.kind === 'image' && resource.available) ||
     resource.locator?.startsWith('http') === true ||
     resource.locator?.startsWith('session-resource://') === true
 
   return (
-    <Button
-      variant="unstyled"
-      className="group flex w-full items-center gap-3 rounded-lg border border-border bg-bg px-2.5 py-2 text-left transition-colors hover:bg-bg-hover"
-      disabled={!actionable}
-      onClick={() => void openResource()}
-    >
-      <span className="size-11 shrink-0 overflow-hidden rounded-md border border-border text-text-tertiary">
-        {resource.kind === 'image' ? (
-          <SessionResourcePreview resource={resource} sessionId={sessionId} />
-        ) : (
-          <span className="flex size-full items-center justify-center">
-            <ResourceIcon resource={resource} />
+    <div className="group flex w-full items-center rounded-lg border border-border bg-bg transition-colors hover:bg-bg-hover">
+      <Button
+        variant="unstyled"
+        className="flex min-w-0 flex-1 items-center gap-3 px-2.5 py-2 text-left"
+        disabled={!actionable}
+        onClick={() => void openResource()}
+      >
+        <span className="size-11 shrink-0 overflow-hidden rounded-md border border-border text-text-tertiary">
+          {resource.kind === 'image' ? (
+            <SessionResourcePreview resource={resource} sessionId={sessionId} />
+          ) : (
+            <span className="flex size-full items-center justify-center">
+              <ResourceIcon resource={resource} />
+            </span>
+          )}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium text-text-primary">
+            {resource.title}
           </span>
-        )}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium text-text-primary">
-          {resource.title}
+          <span className="block text-xs text-text-tertiary">{statusLabel}</span>
         </span>
-        <span className="block text-xs text-text-tertiary">
-          {resource.isSource && resource.isOutput
-            ? 'Source and output'
-            : resource.isOutput
-              ? 'Output'
-              : 'Source'}
-        </span>
-      </span>
-      {resource.locator?.startsWith('http') ? (
-        <ExternalLink className="size-3.5 shrink-0 text-text-tertiary" />
+        {resource.locator?.startsWith('http') ? (
+          <ExternalLink className="size-3.5 shrink-0 text-text-tertiary" />
+        ) : null}
+      </Button>
+      {originalPath ? (
+        <Button
+          variant="ghost"
+          size="xs"
+          className="mr-2"
+          aria-label={`Retry ${resource.title}`}
+          onClick={onRetry}
+        >
+          Retry
+        </Button>
       ) : null}
-    </Button>
+    </div>
   )
 }
 
@@ -152,7 +182,12 @@ export function SessionResourcesPanel({
         )}
       >
         {visibleResources.map((resource) => (
-          <ResourceRow key={resource.id} resource={resource} sessionId={sessionId ?? ''} />
+          <ResourceRow
+            key={resource.id}
+            resource={resource}
+            sessionId={sessionId ?? ''}
+            onRetry={() => void query.refetch()}
+          />
         ))}
         {visibleResources.length < resources.length ? (
           <Button

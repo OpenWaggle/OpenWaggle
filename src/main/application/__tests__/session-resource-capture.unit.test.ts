@@ -1,9 +1,10 @@
 import type { AgentSendPayload, Message } from '@shared/types/agent'
 import { MessageId, SessionId } from '@shared/types/brand'
+import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it } from 'vitest'
 import type { UpsertSessionResourceInput } from '../../ports/session-resource-repository'
-import { captureSuccessfulRunResources } from '../session-resource-capture'
+import { captureAttachment, captureSuccessfulRunResources } from '../session-resource-capture'
 import { resourceMessages, sessionResourceTestLayer } from './session-resource-capture.fixtures'
 
 const REMOTE_IMAGE_REFERENCE_LIMIT = 32
@@ -105,6 +106,61 @@ describe('captureSuccessfulRunResources', () => {
         managedPath: null,
         available: false,
         occurrence: expect.objectContaining({ actor: 'user', activity: 'provided' }),
+      }),
+    )
+  })
+
+  it('retries an unavailable attachment occurrence into the same resource', async () => {
+    const unavailable: SessionResource = {
+      id: 'missing-resource',
+      sessionId: SessionId('session-1'),
+      canonicalKey: 'file:/input/missing.png',
+      kind: 'image',
+      title: 'missing.png',
+      mimeType: 'image/png',
+      locator: '/input/missing.png',
+      available: false,
+      isSource: true,
+      isOutput: false,
+      occurrences: [],
+      createdAt: 1000,
+      updatedAt: 1000,
+    }
+    const upserts: UpsertSessionResourceInput[] = []
+
+    await Effect.runPromise(
+      captureAttachment({
+        sessionId: SessionId('session-1'),
+        runId: 'backfill:user-message',
+        attachment: {
+          id: 'attachment-missing',
+          kind: 'image',
+          name: 'missing.png',
+          path: '/input/missing.png',
+          mimeType: 'image/png',
+          sizeBytes: 42,
+          extractedText: '',
+        },
+        index: 0,
+        nodeId: 'user-message',
+        createdAt: 1000,
+      }).pipe(
+        Effect.provide(
+          sessionResourceTestLayer(upserts, {
+            existingResource: unavailable,
+            hasOccurrence: true,
+          }),
+        ),
+      ),
+    )
+
+    expect(upserts).toContainEqual(
+      expect.objectContaining({
+        id: 'missing-resource',
+        canonicalKey: 'file:/input/missing.png',
+        locator: 'session-resource://missing-resource',
+        managedPath: '/managed/missing-resource-missing.png',
+        available: true,
       }),
     )
   })

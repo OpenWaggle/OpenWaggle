@@ -23,6 +23,8 @@ export function sessionResourceTestLayer(
     readonly existingManagedPath?: string
     readonly managedReadFails?: boolean
     readonly storeFileFails?: boolean
+    readonly listedResources?: readonly SessionResource[]
+    readonly hasOccurrence?: boolean
   } = {},
 ) {
   return Layer.mergeAll(
@@ -57,9 +59,9 @@ export function sessionResourceTestLayer(
               input.occurrence.activity === 'created' || input.occurrence.activity === 'updated',
           })
         },
-        list: () => Effect.succeed([]),
+        list: () => Effect.succeed(options.listedResources ?? []),
         findByCanonicalKey: () => Effect.succeed(options.existingResource ?? null),
-        hasOccurrence: () => Effect.succeed(false),
+        hasOccurrence: () => Effect.succeed(options.hasOccurrence ?? false),
         getContentLocation: (_sessionId, resourceId) =>
           options.existingResource?.id === resourceId
             ? Effect.succeed({

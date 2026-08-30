@@ -1,7 +1,7 @@
 import type { AgentSendPayload, Message } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
-import { MAX_CAPTURED_IMAGE_BYTES } from '../domain/session-resource-image'
+import { MAX_CAPTURED_IMAGE_BYTES, validatedImageBytes } from '../domain/session-resource-image'
 import { captureAttachment } from './session-resource-capture-attachment'
 import { captureGeneratedImage } from './session-resource-capture-image'
 import { captureLink } from './session-resource-capture-link'
@@ -92,9 +92,11 @@ function captureAssistantResources(input: SuccessfulRunResourceInput, createdAt:
       const branchId = input.branchIdByMessageId?.[messageId] ?? null
       const captured = collectExplicitResources(message.parts)
       for (const [index, image] of captured.images.entries()) {
+        const validatedImage = validatedImageBytes(image.data, image.mimeType)
+        if (!validatedImage) continue
         const nextBudget = advanceGeneratedImageCaptureBudget(
           generatedImageBudget,
-          Buffer.byteLength(image.data, 'base64'),
+          validatedImage.bytes.byteLength,
         )
         if (!nextBudget) continue
         generatedImageBudget = nextBudget
@@ -105,6 +107,7 @@ function captureAssistantResources(input: SuccessfulRunResourceInput, createdAt:
           nodeId,
           branchId,
           createdAt,
+          validatedImage,
         }).pipe(Effect.catchAll(() => Effect.void))
       }
       for (const [index, link] of captured.links.entries()) {

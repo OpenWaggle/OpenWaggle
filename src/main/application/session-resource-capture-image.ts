@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import type { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
-import { validatedImageBytes } from '../domain/session-resource-image'
+import {
+  type ValidatedSessionResourceImage,
+  validatedImageBytes,
+} from '../domain/session-resource-image'
 import { SessionResourceRepository } from '../ports/session-resource-repository'
 import { SessionResourceStore } from '../ports/session-resource-store'
 import {
@@ -22,16 +25,15 @@ export function captureGeneratedImage(input: {
   readonly nodeId: string
   readonly createdAt: number
   readonly branchId?: string | null
+  readonly validatedImage?: ValidatedSessionResourceImage
 }) {
   return Effect.gen(function* () {
-    const validated = validatedImageBytes(input.image.data, input.image.mimeType)
+    const validated =
+      input.validatedImage ?? validatedImageBytes(input.image.data, input.image.mimeType)
     if (!validated) return
     const repository = yield* SessionResourceRepository
     const digestHex = sha256(validated.bytes)
-    const id = occurrenceId({
-      ...input,
-      suffix: `created:image:${String(input.index)}:${digestHex}`,
-    })
+    const id = `${generatedImageOccurrencePrefix(input)}${digestHex}`
     if (yield* repository.hasOccurrence(input.sessionId, id)) return
     const store = yield* SessionResourceStore
     const canonicalKey = `sha256:${digestHex}`
@@ -99,5 +101,17 @@ export function captureGeneratedImage(input: {
       )
     if (resource.locator !== locator) yield* store.remove(stored.path)
     else yield* removeReplacedCopy(store, existingCopy?.managedPath, stored.path)
+  })
+}
+
+export function generatedImageOccurrencePrefix(input: {
+  readonly sessionId: SessionId
+  readonly runId: string
+  readonly nodeId: string | null
+  readonly index: number
+}) {
+  return occurrenceId({
+    ...input,
+    suffix: `created:image:${String(input.index)}:`,
   })
 }

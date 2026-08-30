@@ -1,5 +1,5 @@
 import type { Message } from '@shared/types/agent'
-import { MessageId, SessionId } from '@shared/types/brand'
+import { MessageId, SessionId, ToolCallId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it } from 'vitest'
 import type { UpsertSessionResourceInput } from '../../ports/session-resource-repository'
@@ -50,5 +50,49 @@ describe('generated-image capture budget', () => {
         Buffer.from(PNG_BASE64, 'base64').byteLength,
       ),
     ).toBeNull()
+  })
+
+  it('does not charge invalid images against the run budget', async () => {
+    const upserts: UpsertSessionResourceInput[] = []
+    const storedByteFiles: string[] = []
+    const invalidMessages: Message[] = Array.from(
+      { length: GENERATED_IMAGE_CAPTURE_LIMITS.maxCount },
+      (_, index) => ({
+        id: MessageId(`assistant-invalid-${String(index)}`),
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-result',
+            toolResult: {
+              id: ToolCallId(`invalid-image-${String(index)}`),
+              name: 'imagegen',
+              args: {},
+              result: {
+                content: [
+                  { type: 'image', data: PNG_BASE64, mimeType: 'application/octet-stream' },
+                ],
+              },
+              isError: false,
+              duration: 1,
+            },
+          },
+        ],
+        createdAt: index,
+      }),
+    )
+    const validMessage = resourceMessages().find((message) => message.role === 'assistant')
+    if (!validMessage) throw new Error('Expected the assistant fixture message.')
+
+    await Effect.runPromise(
+      captureSuccessfulRunResources({
+        sessionId: SessionId('session-1'),
+        runId: 'run-invalid-before-valid',
+        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        messages: [...invalidMessages, validMessage],
+      }).pipe(Effect.provide(sessionResourceTestLayer(upserts, { storedByteFiles }))),
+    )
+
+    expect(storedByteFiles).toHaveLength(1)
+    expect(upserts.filter((resource) => resource.kind === 'image')).toHaveLength(1)
   })
 })

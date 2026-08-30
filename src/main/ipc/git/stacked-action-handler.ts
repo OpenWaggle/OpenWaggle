@@ -28,7 +28,7 @@ import { invalidateGitStatusCache } from './status-cache'
 import { GIT_RAW_PATHS } from './status-constants'
 import { invalidateVcsStatus, readLocalVcsStatus } from './vcs-status-cache'
 import { detectSourceControlProvider } from './vcs-status-parse'
-import { resolvePrimaryRemoteUrl } from './vcs-status-service'
+import { resolvePrimaryRemote, resolvePrimaryRemoteUrl } from './vcs-status-service'
 import { resolveRepositoryRoot } from './working-tree-service'
 
 const stackedActionOptionsSchema = Schema.Struct({
@@ -162,7 +162,8 @@ function createStackedActionDeps(): StackedActionDeps {
       return result.code === 0 ? result.stdout.trim() || null : null
     },
     resolveDefaultBaseRef: async (projectPath) => {
-      return resolveDefaultRef(projectPath)
+      const primaryRemote = await resolvePrimaryRemote(projectPath)
+      return resolveDefaultRef(projectPath, primaryRemote?.name ?? 'origin')
     },
     buildChangeRequestFallbackUrl,
   }
