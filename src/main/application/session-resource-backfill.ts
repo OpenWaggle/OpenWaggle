@@ -5,6 +5,7 @@ import type { SessionNode } from '@shared/types/session'
 import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import { SessionResourceRepository } from '../ports/session-resource-repository'
+import { SessionResourceStore } from '../ports/session-resource-store'
 import {
   captureAttachment,
   captureGeneratedImage,
@@ -16,6 +17,7 @@ import {
 import { attachmentOccurrenceId } from './session-resource-capture-attachment'
 import { generatedImageOccurrencePrefix } from './session-resource-capture-image'
 import { linkOccurrenceId } from './session-resource-capture-link'
+import { inspectManagedCopy } from './session-resource-capture-shared'
 import { collectExplicitResources } from './session-resource-extraction'
 import { withSessionResourceLock } from './session-resource-lock'
 
@@ -89,16 +91,27 @@ function projectResourceMessages(input: {
       }))
 }
 
-function capturedGeneratedImageSlots(resources: readonly SessionResource[]) {
-  const slots = new Set<string>()
-  for (const resource of resources) {
-    for (const occurrence of resource.occurrences) {
-      if (!occurrence.id.includes(':created:image:')) continue
-      const digestSeparator = occurrence.id.lastIndexOf(':')
-      if (digestSeparator !== -1) slots.add(occurrence.id.slice(0, digestSeparator + 1))
+function capturedGeneratedImageSlots(
+  resources: readonly SessionResource[],
+  repository: Parameters<typeof inspectManagedCopy>[0],
+  store: Parameters<typeof inspectManagedCopy>[1],
+  sessionId: SessionId,
+) {
+  return Effect.gen(function* () {
+    const slots = new Set<string>()
+    for (const resource of resources) {
+      const occurrenceSlots = resource.occurrences.flatMap((occurrence) => {
+        if (!occurrence.id.includes(':created:image:')) return []
+        const separator = occurrence.id.lastIndexOf(':')
+        return separator === -1 ? [] : [occurrence.id.slice(0, separator + 1)]
+      })
+      if (occurrenceSlots.length === 0 || !resource.available) continue
+      const copy = yield* inspectManagedCopy(repository, store, sessionId, resource.id)
+      if (!copy?.readable) continue
+      for (const slot of occurrenceSlots) slots.add(slot)
     }
-  }
-  return slots
+    return slots
+  })
 }
 
 function capturedOccurrenceIds(resources: readonly SessionResource[]) {
@@ -233,6 +246,7 @@ export function captureProjectedSessionResources(input: {
     input.sessionId,
     Effect.gen(function* () {
       const repository = yield* SessionResourceRepository
+      const store = yield* SessionResourceStore
       const resources = yield* repository.list(input.sessionId)
       const attachmentState: BackfillAttachmentState = {
         budget: { bytes: 0, count: 0 },
@@ -240,7 +254,12 @@ export function captureProjectedSessionResources(input: {
       }
       const imageState: BackfillImageState = {
         budget: { bytes: 0, count: 0, attempts: 0 },
-        capturedSlots: capturedGeneratedImageSlots(resources),
+        capturedSlots: yield* capturedGeneratedImageSlots(
+          resources,
+          repository,
+          store,
+          input.sessionId,
+        ),
       }
       const linkState: BackfillLinkState = {
         count: 0,

@@ -1,5 +1,5 @@
 import type { Message } from '@shared/types/agent'
-import { MessageId, ToolCallId } from '@shared/types/brand'
+import { MessageId, SessionId, ToolCallId } from '@shared/types/brand'
 import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -71,14 +71,22 @@ export function sessionResourceTestLayer(
             if (!existing) throw new Error('Expected an existing resource to re-key.')
             return { ...existing, canonicalKey: input.canonicalKey, updatedAt: input.updatedAt }
           }),
-        hasOccurrence: () => Effect.succeed(options.hasOccurrence ?? false),
+        hasOccurrence: (_sessionId, occurrenceId) =>
+          Effect.succeed(
+            options.hasOccurrence ??
+              (options.listedResources ?? []).some((resource) =>
+                resource.occurrences.some((occurrence) => occurrence.id === occurrenceId),
+              ),
+          ),
         getContentLocation: (_sessionId, resourceId) =>
-          options.existingResource?.id === resourceId && options.existingResource.available
+          [options.existingResource, ...(options.listedResources ?? [])]
+            .filter((resource) => resource !== undefined)
+            .find((resource) => resource.id === resourceId && resource.available)
             ? Effect.succeed({
                 resourceId,
-                sessionId: options.existingResource.sessionId,
-                fileName: options.existingResource.title,
-                mimeType: options.existingResource.mimeType ?? 'image/png',
+                sessionId: SessionId('session-1'),
+                fileName: 'resource.png',
+                mimeType: 'image/png',
                 managedPath: options.existingManagedPath ?? '/managed/existing-resource.png',
               })
             : Effect.succeed(null),

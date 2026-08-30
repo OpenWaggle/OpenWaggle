@@ -1,9 +1,10 @@
-import type { SessionId } from '@shared/types/brand'
+import { SessionId } from '@shared/types/brand'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { Effect } from 'effect'
 import type { OpenWaggleMcpServeOptions } from './openwaggle-mcp-server-policy'
 import type { OpenWaggleMcpSessionMetadataStore } from './openwaggle-mcp-session-metadata-store'
 import { admitOpenWaggleTask, type OpenWaggleTaskStartInput } from './openwaggle-mcp-task-admission'
+import { cancelOpenWaggleSessionTasks } from './openwaggle-mcp-task-cancellation'
 import {
   cancellationRequestedTaskRecord,
   cancelledTaskRecord,
@@ -251,36 +252,26 @@ export class OpenWaggleServerTaskManager {
         }),
       )
       this.active.get(taskId)?.controller.abort()
+      const cancelledSessionId =
+        next.status === 'cancelled' && next.sessionId ? SessionId(next.sessionId) : null
+      if (cancelledSessionId) {
+        yield* Effect.promise(() =>
+          projectTaskDelegationState(this.services, cancelledSessionId, 'cancelled'),
+        )
+      }
       return taskResult(next)
     })
   }
 
   cancelSession(sessionId: string) {
-    const now = this.leases.now()
     return Effect.promise(() =>
-      this.store.update((tasks) => {
-        const matching = tasks.filter(
-          (task) =>
-            task.callerProfile === this.options.profile &&
-            task.sessionId === sessionId &&
-            isActiveTaskStatus(task.status),
-        )
-        const matchingIds = new Set(matching.map((task) => task.id))
-        return {
-          tasks: tasks.map((task) =>
-            matchingIds.has(task.id)
-              ? hasLiveLease(task, now)
-                ? cancellationRequestedTaskRecord(task, now)
-                : cancelledTaskRecord(task, now)
-              : task,
-          ),
-          result: [...matchingIds],
-        }
-      }),
-    ).pipe(
-      Effect.map((taskIds) => {
-        for (const taskId of taskIds) this.active.get(taskId)?.controller.abort()
-        return taskIds.length
+      cancelOpenWaggleSessionTasks({
+        abortTask: (taskId) => this.active.get(taskId)?.controller.abort(),
+        now: this.leases.now(),
+        profile: this.options.profile,
+        services: this.services,
+        sessionId,
+        store: this.store,
       }),
     )
   }

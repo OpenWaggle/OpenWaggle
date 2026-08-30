@@ -43,11 +43,10 @@ export function occurrence(input: {
 
 export function occurrenceId(input: {
   readonly sessionId: SessionId
-  readonly runId: string
   readonly nodeId: string | null
   readonly suffix: string
 }) {
-  return `${String(input.sessionId)}:${input.runId}:${input.nodeId ?? 'unlinked'}:${input.suffix}`
+  return `${String(input.sessionId)}:${input.nodeId ?? 'unlinked'}:${input.suffix}`
 }
 
 export function inspectManagedCopy(

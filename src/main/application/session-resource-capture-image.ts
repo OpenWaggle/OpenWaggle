@@ -34,7 +34,6 @@ export function captureGeneratedImage(input: {
     const repository = yield* SessionResourceRepository
     const digestHex = sha256(validated.bytes)
     const id = `${generatedImageOccurrencePrefix(input)}${digestHex}`
-    if (yield* repository.hasOccurrence(input.sessionId, id)) return
     const store = yield* SessionResourceStore
     const canonicalKey = `sha256:${digestHex}`
     const fileName = imageFileName(input.image.title, validated.mimeType)
@@ -106,7 +105,6 @@ export function captureGeneratedImage(input: {
 
 export function generatedImageOccurrencePrefix(input: {
   readonly sessionId: SessionId
-  readonly runId: string
   readonly nodeId: string | null
   readonly index: number
 }) {

@@ -92,14 +92,14 @@ describe('captureProjectedSessionResources', () => {
         expect.objectContaining({
           canonicalKey: 'url:https://user.example/reference',
           occurrence: expect.objectContaining({
-            id: expect.stringContaining('backfill:user-message'),
+            id: expect.not.stringContaining('backfill:'),
             nodeId: 'user-message',
           }),
         }),
         expect.objectContaining({
           kind: 'image',
           occurrence: expect.objectContaining({
-            id: expect.stringContaining('backfill:assistant-message'),
+            id: expect.not.stringContaining('backfill:'),
             nodeId: 'assistant-message',
           }),
         }),
@@ -149,24 +149,8 @@ describe('captureProjectedSessionResources', () => {
   })
 
   it('replaces a cataloged managed image when its file is no longer readable', async () => {
-    const upserts: UpsertSessionResourceInput[] = []
-    const storedByteFiles: string[] = []
-    const removedPaths: string[] = []
-    const existingResource: SessionResource = {
-      id: 'missing-image',
-      sessionId: SessionId('session-1'),
-      canonicalKey: 'sha256:missing',
-      kind: 'image',
-      title: 'Generated image.png',
-      mimeType: 'image/png',
-      locator: 'session-resource://missing-image',
-      available: true,
-      isSource: false,
-      isOutput: true,
-      occurrences: [],
-      createdAt: 1000,
-      updatedAt: 1000,
-    }
+    const initialUpserts: UpsertSessionResourceInput[] = []
+    const initialStored: string[] = []
     const assistantMessage = resourceMessages()[1]
     if (!assistantMessage) throw new Error('Expected the assistant fixture message.')
 
@@ -176,10 +160,30 @@ describe('captureProjectedSessionResources', () => {
         messages: [assistantMessage],
       }).pipe(
         Effect.provide(
-          sessionResourceTestLayer(upserts, {
+          sessionResourceTestLayer(initialUpserts, { storedByteFiles: initialStored }),
+        ),
+      ),
+    )
+
+    const catalogedInput = initialUpserts.find((input) => input.kind === 'image')
+    if (!catalogedInput) throw new Error('Expected a cataloged generated image.')
+    const existingResource = capturedResource(catalogedInput)
+    const replacementUpserts: UpsertSessionResourceInput[] = []
+    const storedByteFiles: string[] = []
+    const removedPaths: string[] = []
+
+    await Effect.runPromise(
+      captureProjectedSessionResources({
+        sessionId: SessionId('session-1'),
+        messages: [assistantMessage],
+      }).pipe(
+        Effect.provide(
+          sessionResourceTestLayer(replacementUpserts, {
+            listedResources: [existingResource],
             existingResource,
             existingManagedPath: '/managed/deleted-image.png',
             managedReadFails: true,
+            hasOccurrence: true,
             storedByteFiles,
             removedPaths,
           }),
@@ -188,7 +192,7 @@ describe('captureProjectedSessionResources', () => {
     )
 
     expect(storedByteFiles).toContain('Generated image.png')
-    expect(upserts).toEqual(
+    expect(replacementUpserts).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           managedPath: expect.stringMatching(/^\/managed\//u),
