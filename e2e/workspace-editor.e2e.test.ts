@@ -155,18 +155,22 @@ async function rendererHeartbeatSamples(page: Page) {
   return page.evaluate(
     (sampleCount) =>
       new Promise<number[]>((resolve) => {
+        const channel = new MessageChannel()
         const samples: number[] = []
         let previous = performance.now()
-        const recordFrame = (timestamp: number) => {
+        channel.port1.onmessage = () => {
+          const timestamp = performance.now()
           samples.push(timestamp - previous)
           previous = timestamp
           if (samples.length >= sampleCount) {
+            channel.port1.close()
+            channel.port2.close()
             resolve(samples)
             return
           }
-          requestAnimationFrame(recordFrame)
+          channel.port2.postMessage(null)
         }
-        requestAnimationFrame(recordFrame)
+        channel.port2.postMessage(null)
       }),
     RENDERER_HEARTBEAT_SAMPLE_COUNT,
   )
@@ -258,9 +262,9 @@ test('workspace files stay review-first, edit reliably on demand, and remain res
     await expect(page.getByText('Saved', { exact: true })).toBeVisible()
     await expect.poll(() => fs.readFile(mainPath, 'utf8')).toContain('// edit 199')
 
-    // One animation frame can include time the hosted runner descheduled Electron. The median of
-    // five frames measures sustained renderer responsiveness, while the long-task observer below
-    // still fails any actual main-thread block caused by editing or saving.
+    // Hidden Electron throttles animation frames on Linux and Windows, so use MessageChannel turns
+    // to measure the event loop itself. The median tolerates one runner descheduling spike, while
+    // the long-task observer below still fails actual main-thread blocks caused by editing/saving.
     const heartbeatSamples = await rendererHeartbeatSamples(page)
     const medianHeartbeatMs = [...heartbeatSamples].sort((left, right) => left - right)[
       Math.floor(heartbeatSamples.length / 2)
