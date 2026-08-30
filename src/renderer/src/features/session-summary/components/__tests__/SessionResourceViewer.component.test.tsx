@@ -17,7 +17,12 @@ vi.mock('@/shared/lib/ipc', () => ({
   },
 }))
 
-function image(id: string, title: string, nodeId: string | null = null): SessionResource {
+function image(
+  id: string,
+  title: string,
+  nodeId: string | null = null,
+  updatedAt = 1000,
+): SessionResource {
   return {
     id,
     sessionId: SessionId('session-1'),
@@ -43,7 +48,7 @@ function image(id: string, title: string, nodeId: string | null = null): Session
         ]
       : [],
     createdAt: 1000,
-    updatedAt: 1000,
+    updatedAt,
   }
 }
 
@@ -113,6 +118,20 @@ describe('SessionResourceViewer', () => {
     expect(
       await screen.findByRole('dialog', { name: 'Image viewer: first.png' }),
     ).toBeInTheDocument()
+  })
+
+  it('navigates chronologically within the same transcript-path group', async () => {
+    listSessionResources.mockResolvedValue([
+      image('image-new', 'new.png', null, 2000),
+      image('image-old', 'old.png', null, 1000),
+    ])
+    useUIStore.getState().openResourceViewer('session-1', 'image-old')
+    renderViewer('session-1')
+
+    expect(await screen.findByRole('dialog', { name: 'Image viewer: old.png' })).toBeInTheDocument()
+    expect(screen.getByText('1 of 2')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Next image' }))
+    expect(await screen.findByRole('dialog', { name: 'Image viewer: new.png' })).toBeInTheDocument()
   })
 
   it('requests remote image content only after the user opens the viewer', async () => {

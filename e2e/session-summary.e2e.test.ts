@@ -113,7 +113,7 @@ test('session resources stay scoped while inline images and the gallery navigate
         nodeId: ALPHA_USER_MESSAGE_ID,
         actor: 'user',
         activity: 'provided',
-        updatedAt: now,
+        updatedAt: now - 2,
       },
       {
         id: 'alpha-agent-image',

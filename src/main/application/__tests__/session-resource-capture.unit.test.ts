@@ -72,6 +72,45 @@ describe('captureSuccessfulRunResources', () => {
     )
   })
 
+  it('retains unavailable attachment metadata when the managed copy cannot be created', async () => {
+    const upserts: UpsertSessionResourceInput[] = []
+    await Effect.runPromise(
+      captureSuccessfulRunResources({
+        sessionId: SessionId('session-1'),
+        runId: 'run-missing-attachment',
+        payload: {
+          text: 'Review the attachment.',
+          thinkingLevel: 'medium',
+          attachments: [
+            {
+              id: 'attachment-missing',
+              kind: 'image',
+              name: 'missing.png',
+              path: '/input/missing.png',
+              mimeType: 'image/png',
+              sizeBytes: 42,
+              extractedText: '',
+            },
+          ],
+        },
+        messages: resourceMessages(),
+      }).pipe(Effect.provide(sessionResourceTestLayer(upserts, { storeFileFails: true }))),
+    )
+
+    expect(upserts).toContainEqual(
+      expect.objectContaining({
+        canonicalKey: 'file:/input/missing.png',
+        kind: 'image',
+        title: 'missing.png',
+        mimeType: 'image/png',
+        locator: '/input/missing.png',
+        managedPath: null,
+        available: false,
+        occurrence: expect.objectContaining({ actor: 'user', activity: 'provided' }),
+      }),
+    )
+  })
+
   it('records user links as sources on the user message and agent citations as read sources', async () => {
     const upserts: UpsertSessionResourceInput[] = []
     await Effect.runPromise(

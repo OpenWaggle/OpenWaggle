@@ -29,12 +29,43 @@ export function captureAttachment(input: {
     if (yield* repository.hasOccurrence(input.sessionId, id)) return
     const store = yield* SessionResourceStore
     const resourceId = randomUUID()
-    const stored = yield* store.storeFile({
-      sessionId: input.sessionId,
-      resourceId,
-      fileName: input.attachment.name,
-      sourcePath: input.attachment.path,
-    })
+    const storedResult = yield* store
+      .storeFile({
+        sessionId: input.sessionId,
+        resourceId,
+        fileName: input.attachment.name,
+        sourcePath: input.attachment.path,
+      })
+      .pipe(
+        Effect.map((stored) => ({ _tag: 'Stored' as const, stored })),
+        Effect.catchAll(() =>
+          repository
+            .upsert({
+              id: resourceId,
+              sessionId: input.sessionId,
+              canonicalKey: `file:${input.attachment.path}`,
+              kind: input.attachment.kind === 'image' ? 'image' : 'file',
+              title: input.attachment.name,
+              mimeType: input.attachment.mimeType,
+              locator: input.attachment.path,
+              managedPath: null,
+              available: false,
+              occurrence: occurrence({
+                id,
+                nodeId: input.nodeId,
+                branchId: input.branchId,
+                actor: 'user',
+                activity: 'provided',
+                createdAt: input.createdAt,
+              }),
+              createdAt: input.createdAt,
+              updatedAt: input.createdAt,
+            })
+            .pipe(Effect.as({ _tag: 'Unavailable' as const })),
+        ),
+      )
+    if (storedResult._tag === 'Unavailable') return
+    const { stored } = storedResult
     const canonicalKey = `sha256:${stored.sha256}`
     const existing = yield* repository.findByCanonicalKey(input.sessionId, canonicalKey)
     const existingCopy = existing

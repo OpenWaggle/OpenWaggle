@@ -250,14 +250,15 @@ describe('registerSessionDetailsHandlers', () => {
     expect(removeSessionResourcesMock).not.toHaveBeenCalled()
   })
 
-  it('reports managed resource cleanup failures after session metadata is deleted', async () => {
+  it('reports session deletion success when post-commit resource cleanup fails', async () => {
     removeSessionResourcesMock.mockRejectedValue(new Error('disk is read-only'))
 
     registerSessionDetailsHandlers()
     const handler = getInvokeHandler('sessions:delete')
 
-    await expect(handler?.({}, SessionId('session-cleanup-failure'))).rejects.toBeDefined()
+    await expect(handler?.({}, SessionId('session-cleanup-failure'))).resolves.toBeUndefined()
     expect(deleteSessionMock).toHaveBeenCalledWith(SessionId('session-cleanup-failure'))
+    expect(removeSessionResourcesMock).toHaveBeenCalledWith(SessionId('session-cleanup-failure'))
   })
 
   it('cleans up the active run before archiving a session', async () => {

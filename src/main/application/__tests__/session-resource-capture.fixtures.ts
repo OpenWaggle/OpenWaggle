@@ -22,6 +22,7 @@ export function sessionResourceTestLayer(
     readonly fetchedUrls?: string[]
     readonly existingManagedPath?: string
     readonly managedReadFails?: boolean
+    readonly storeFileFails?: boolean
   } = {},
 ) {
   return Layer.mergeAll(
@@ -75,11 +76,18 @@ export function sessionResourceTestLayer(
       SessionResourceStore,
       SessionResourceStore.of({
         storeFile: (input) =>
-          Effect.succeed({
-            path: `/managed/${input.resourceId}-${input.fileName}`,
-            sha256: 'attachment-digest',
-            sizeBytes: 42,
-          }),
+          options.storeFileFails
+            ? Effect.fail(
+                new SessionResourceStoreError({
+                  operation: 'storeFile',
+                  cause: new Error('Attachment source disappeared'),
+                }),
+              )
+            : Effect.succeed({
+                path: `/managed/${input.resourceId}-${input.fileName}`,
+                sha256: 'attachment-digest',
+                sizeBytes: 42,
+              }),
         storeBytes: (input) => {
           options.storedByteFiles?.push(input.fileName)
           return Effect.succeed({
