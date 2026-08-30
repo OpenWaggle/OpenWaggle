@@ -21,6 +21,7 @@ export interface ServerTaskLease {
 export interface ServerTaskRecord {
   readonly id: string
   readonly callerProfile: string
+  readonly parentSessionId?: string
   readonly sessionId?: string
   readonly projectPath: string
   readonly model: string
@@ -73,6 +74,9 @@ function optionalLease(value: unknown) {
 function optionalTaskFields(value: Record<string, unknown>) {
   return {
     ...optionalDelegationDepth(value.delegationDepth),
+    ...(typeof value.parentSessionId === 'string'
+      ? { parentSessionId: value.parentSessionId }
+      : {}),
     ...(typeof value.sessionId === 'string' ? { sessionId: value.sessionId } : {}),
     ...(value.result === undefined ? {} : { result: value.result }),
     ...(typeof value.error === 'string' ? { error: value.error } : {}),

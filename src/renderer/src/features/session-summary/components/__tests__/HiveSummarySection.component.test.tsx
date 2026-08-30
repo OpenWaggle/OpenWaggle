@@ -26,9 +26,11 @@ function queen(activeDirectWorkerCount: number) {
     updatedAt: 1000,
     lineage: {
       role: 'queen' as const,
+      parentSessionId: null,
       directWorkerCount: 1,
       activeDirectWorkerCount,
       agentDefinitionName: 'Coordinator',
+      delegationState: null,
     },
   }
 }
@@ -45,6 +47,7 @@ function worker(state: 'working' | 'accepted' | 'needs_attention') {
       parentSessionId: SessionId('queen'),
       directWorkerCount: 0,
       activeDirectWorkerCount: 0,
+      agentDefinitionName: null,
       delegationState: state,
     },
   }

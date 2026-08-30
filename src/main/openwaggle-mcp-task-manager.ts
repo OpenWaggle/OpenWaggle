@@ -1,3 +1,4 @@
+import type { SessionId } from '@shared/types/brand'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { Effect } from 'effect'
 import type { OpenWaggleMcpServeOptions } from './openwaggle-mcp-server-policy'
@@ -14,6 +15,12 @@ import {
   terminalTaskRecord,
 } from './openwaggle-mcp-task-leases'
 import {
+  establishTaskLineage,
+  projectTaskDelegationState,
+  terminalDelegationState,
+} from './openwaggle-mcp-task-lineage'
+import { type ActiveServerTask, taskResult } from './openwaggle-mcp-task-result'
+import {
   defaultTaskServices,
   type OpenWaggleServerTaskServices,
 } from './openwaggle-mcp-task-runtime'
@@ -23,31 +30,6 @@ export type { OpenWaggleServerTaskLeaseOptions } from './openwaggle-mcp-task-lea
 export type { OpenWaggleServerTaskServices } from './openwaggle-mcp-task-runtime'
 
 const TASK_WAIT_POLL_INTERVAL_MS = 100
-
-interface ActiveServerTask {
-  readonly controller: AbortController
-  sessionId?: string
-  completion?: Promise<void>
-}
-
-function taskResult(record: ServerTaskRecord) {
-  return {
-    id: record.id,
-    status: record.status,
-    projectPath: record.projectPath,
-    model: record.model,
-    delegationDepth: record.delegationDepth ?? 0,
-    createdAt: record.createdAt,
-    updatedAt: record.updatedAt,
-    ...(record.sessionId ? { sessionId: record.sessionId } : {}),
-    ...(record.result === undefined ? {} : { result: record.result }),
-    ...(record.error ? { error: record.error } : {}),
-    ...(record.action ? { action: record.action } : {}),
-    ...(record.cancellationRequestedAt === undefined
-      ? {}
-      : { cancellationRequestedAt: record.cancellationRequestedAt }),
-  }
-}
 
 export class OpenWaggleServerTaskManager {
   private readonly active = new Map<string, ActiveServerTask>()
@@ -176,8 +158,10 @@ export class OpenWaggleServerTaskManager {
   }
 
   private async run(task: ServerTaskRecord, thinkingLevel: ThinkingLevel, abort: AbortController) {
+    let linkedSessionId: SessionId | null = null
     try {
       const { sessionId, created } = await this.services.createOrReuseSession(task)
+      linkedSessionId = sessionId
       const activeTask = this.active.get(task.id)
       if (activeTask) activeTask.sessionId = sessionId
       if (created) {
@@ -191,6 +175,7 @@ export class OpenWaggleServerTaskManager {
           },
           updatedAt: this.leases.now(),
         }))
+        await establishTaskLineage(this.services, task, sessionId)
       }
       if (abort.signal.aborted) throw new Error('The hosted task was cancelled before execution.')
       const working = await this.mutateOwned(task.id, (current) =>
@@ -205,7 +190,11 @@ export class OpenWaggleServerTaskManager {
       )
       if (working?.status !== 'working') {
         abort.abort()
+        await projectTaskDelegationState(this.services, sessionId, 'cancelled')
         return
+      }
+      if (!created) {
+        await projectTaskDelegationState(this.services, sessionId, 'working')
       }
       const result = await this.services.execute({
         sessionId,
@@ -215,13 +204,20 @@ export class OpenWaggleServerTaskManager {
         model: task.model,
         signal: abort.signal,
       })
-      await this.mutateOwned(task.id, (current) =>
+      const terminal = await this.mutateOwned(task.id, (current) =>
         abort.signal.aborted
           ? cancelledTaskRecord(current, this.leases.now())
           : terminalTaskRecord(current, result, this.leases.now()),
       )
+      if (terminal) {
+        await projectTaskDelegationState(
+          this.services,
+          sessionId,
+          terminalDelegationState(terminal.status),
+        )
+      }
     } catch (error) {
-      await this.mutateOwned(task.id, (current) =>
+      const failed = await this.mutateOwned(task.id, (current) =>
         abort.signal.aborted
           ? cancelledTaskRecord(current, this.leases.now())
           : {
@@ -234,6 +230,13 @@ export class OpenWaggleServerTaskManager {
               updatedAt: this.leases.now(),
             },
       ).catch(() => undefined)
+      if (linkedSessionId && failed) {
+        await projectTaskDelegationState(
+          this.services,
+          linkedSessionId,
+          terminalDelegationState(failed.status),
+        )
+      }
     }
   }
 

@@ -1,5 +1,4 @@
-import { isMatching, P } from '@diegogbrisa/ts-match'
-import { isRecord } from '@shared/utils/validation'
+import type { SessionDelegationState, SessionLineage, SessionSummary } from '@shared/types/session'
 import { useQuery } from '@tanstack/react-query'
 import { ChessQueen, ChevronDown, ChevronRight, Pickaxe } from 'lucide-react'
 import { useState } from 'react'
@@ -7,26 +6,7 @@ import { useSessionStore } from '@/features/sessions/state'
 import { archivedSessionsQueryOptions } from '@/queries/archived-sessions'
 import { Button } from '@/shared/ui/Button'
 
-type HiveRole = 'queen' | 'worker' | 'independent'
-type DelegationState =
-  | 'working'
-  | 'waiting'
-  | 'needs_attention'
-  | 'ready_for_review'
-  | 'revision_requested'
-  | 'accepted'
-  | 'cancelled'
-
-interface HiveLineage {
-  readonly role: HiveRole
-  readonly parentSessionId: string | null
-  readonly directWorkerCount: number
-  readonly activeDirectWorkerCount: number
-  readonly agentDefinitionName: string | null
-  readonly delegationState: DelegationState | null
-}
-
-const DELEGATION_LABELS: Readonly<Record<DelegationState, string>> = {
+const DELEGATION_LABELS: Readonly<Record<SessionDelegationState, string>> = {
   working: 'Working',
   waiting: 'Waiting',
   needs_attention: 'Needs attention',
@@ -36,37 +16,8 @@ const DELEGATION_LABELS: Readonly<Record<DelegationState, string>> = {
   cancelled: 'Cancelled',
 }
 
-function lineageOf(value: unknown): HiveLineage | null {
-  if (!isRecord(value) || !isRecord(value.lineage)) return null
-  const lineage = value.lineage
-  if (lineage.role !== 'queen' && lineage.role !== 'worker' && lineage.role !== 'independent') {
-    return null
-  }
-  const delegationState = isMatching(
-    P.union(
-      'working',
-      'waiting',
-      'needs_attention',
-      'ready_for_review',
-      'revision_requested',
-      'accepted',
-      'cancelled',
-    ),
-    lineage.delegationState,
-  )
-    ? lineage.delegationState
-    : null
-  return {
-    role: lineage.role,
-    parentSessionId: typeof lineage.parentSessionId === 'string' ? lineage.parentSessionId : null,
-    directWorkerCount:
-      typeof lineage.directWorkerCount === 'number' ? lineage.directWorkerCount : 0,
-    activeDirectWorkerCount:
-      typeof lineage.activeDirectWorkerCount === 'number' ? lineage.activeDirectWorkerCount : 0,
-    agentDefinitionName:
-      typeof lineage.agentDefinitionName === 'string' ? lineage.agentDefinitionName : null,
-    delegationState,
-  }
+function lineageOf(value: SessionSummary | undefined): SessionLineage | null {
+  return value?.lineage ?? null
 }
 
 function expansionKey(sessionId: string) {
@@ -82,15 +33,15 @@ function storedExpansion(sessionId: string) {
   }
 }
 
-function isDone(lineage: HiveLineage | null) {
+function isDone(lineage: SessionLineage | null) {
   return lineage?.delegationState === 'accepted' || lineage?.delegationState === 'cancelled'
 }
 
-function needsAttention(lineage: HiveLineage | null) {
+function needsAttention(lineage: SessionLineage | null) {
   return stateNeedsAttention(lineage?.delegationState ?? null)
 }
 
-function stateNeedsAttention(state: DelegationState | null) {
+function stateNeedsAttention(state: SessionDelegationState | null) {
   return state === 'needs_attention' || state === 'revision_requested'
 }
 
@@ -254,7 +205,7 @@ function HiveSessionRow({
 }: {
   readonly label: string
   readonly title: string
-  readonly state: DelegationState | null
+  readonly state: SessionDelegationState | null
   readonly onClick: () => void
 }) {
   return (

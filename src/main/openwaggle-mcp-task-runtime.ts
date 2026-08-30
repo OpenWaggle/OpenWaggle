@@ -1,4 +1,5 @@
 import { SessionId, SupportedModelId } from '@shared/types/brand'
+import type { EstablishSessionLineageInput, SessionDelegationState } from '@shared/types/session'
 import type { ThinkingLevel } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import { type AgentRunResult, executeAgentRun } from './application/agent-run-service'
@@ -21,6 +22,11 @@ interface CreatedOrReusedSession {
 export interface OpenWaggleServerTaskServices {
   readonly resolveExecutionProfile: (sessionId?: string) => Promise<TaskExecutionProfile>
   readonly createOrReuseSession: (task: ServerTaskRecord) => Promise<CreatedOrReusedSession>
+  readonly establishLineage: (input: EstablishSessionLineageInput) => Promise<void>
+  readonly setDelegationState: (
+    sessionId: SessionId,
+    state: SessionDelegationState,
+  ) => Promise<void>
   readonly execute: (input: {
     readonly sessionId: SessionId
     readonly runId: string
@@ -34,6 +40,20 @@ export interface OpenWaggleServerTaskServices {
 export const defaultTaskServices: OpenWaggleServerTaskServices = {
   resolveExecutionProfile: resolveTargetExecutionProfile,
   createOrReuseSession,
+  establishLineage: (input) =>
+    runAppEffect(
+      Effect.gen(function* () {
+        const sessions = yield* SessionProjectionRepository
+        yield* sessions.establishLineage(input)
+      }),
+    ),
+  setDelegationState: (sessionId, state) =>
+    runAppEffect(
+      Effect.gen(function* () {
+        const sessions = yield* SessionProjectionRepository
+        yield* sessions.setDelegationState(sessionId, state)
+      }),
+    ),
   execute: (input) =>
     runAppEffect(
       executeAgentRun({

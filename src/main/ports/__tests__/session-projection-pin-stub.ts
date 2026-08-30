@@ -1,5 +1,5 @@
 /**
- * Pin-related defaults for `SessionProjectionRepository` test stubs.
+ * Feature defaults for `SessionProjectionRepository` test stubs.
  *
  * Ten test layers implement the full port shape by hand. Pins are irrelevant to all of
  * them, so they spread these defaults instead of restating four no-op members each —
@@ -10,8 +10,15 @@ import type { SessionProjectionRepositoryShape } from '../session-projection-rep
 
 export const PINNED_SESSION_REPOSITORY_STUB: Pick<
   SessionProjectionRepositoryShape,
-  'listPinnedSessions' | 'pinSession' | 'unpinSession' | 'movePinnedSession'
+  | 'establishLineage'
+  | 'listPinnedSessions'
+  | 'movePinnedSession'
+  | 'pinSession'
+  | 'setDelegationState'
+  | 'unpinSession'
 > = {
+  establishLineage: () => Effect.void,
+  setDelegationState: () => Effect.void,
   listPinnedSessions: () => Effect.succeed([]),
   pinSession: () => Effect.void,
   unpinSession: () => Effect.void,

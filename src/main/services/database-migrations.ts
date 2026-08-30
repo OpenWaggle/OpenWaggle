@@ -10,6 +10,7 @@ import {
   EXTENSION_LIFECYCLE_SCHEMA_V1_STATEMENTS,
   SESSION_AUTHORIZATION_MODE_OVERRIDE_MIGRATION_STATEMENTS,
 } from './database-schema'
+import { CURRENT_SESSION_LINEAGE_SCHEMA_STATEMENTS } from './database-session-lineage-schema'
 
 export interface AppMigration {
   readonly id: number
@@ -287,6 +288,11 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
     name: 'session-authorization-mode-override',
     skipIfColumn: { table: 'sessions', column: 'authorization_mode_override' },
     statements: [...SESSION_AUTHORIZATION_MODE_OVERRIDE_MIGRATION_STATEMENTS],
+  },
+  {
+    id: 26,
+    name: 'session-hive-lineage',
+    statements: CURRENT_SESSION_LINEAGE_SCHEMA_STATEMENTS,
   },
   {
     id: 27,

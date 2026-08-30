@@ -60,6 +60,8 @@ function hangingServices(): OpenWaggleServerTaskServices {
       sessionId: SessionId(task.sessionId ?? `created-${task.id}`),
       created: !task.sessionId,
     })),
+    establishLineage: vi.fn(async () => undefined),
+    setDelegationState: vi.fn(async () => undefined),
     execute: vi.fn(async ({ signal }) => {
       if (signal.aborted) return { outcome: 'aborted' as const }
       return new Promise<{ readonly outcome: 'aborted' }>((resolve) => {

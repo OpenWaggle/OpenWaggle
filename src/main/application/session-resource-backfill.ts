@@ -6,11 +6,11 @@ import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import { SessionResourceRepository } from '../ports/session-resource-repository'
 import {
-  ASSISTANT_LINK_CAPTURE_LIMIT,
   captureAttachment,
   captureGeneratedImage,
   captureLink,
   prepareGeneratedImageForCapture,
+  SESSION_LINK_CAPTURE_LIMIT,
 } from './session-resource-capture'
 import { attachmentOccurrenceId } from './session-resource-capture-attachment'
 import { generatedImageOccurrencePrefix } from './session-resource-capture-image'
@@ -108,6 +108,7 @@ function captureBackfilledUserResources(
   sessionId: SessionId,
   projected: ProjectedResourceMessage,
   attachmentState: BackfillAttachmentState,
+  linkState: BackfillLinkState,
 ) {
   return Effect.gen(function* () {
     const { message, nodeId, branchId } = projected
@@ -139,7 +140,7 @@ function captureBackfilledUserResources(
     }
     const links = collectExplicitResources(message.parts).links
     for (const [index, link] of links.entries()) {
-      yield* captureLink({
+      const linkInput = {
         sessionId,
         runId,
         link,
@@ -149,7 +150,13 @@ function captureBackfilledUserResources(
         activity: 'provided',
         createdAt: message.createdAt,
         branchId,
-      }).pipe(Effect.catchAll(() => Effect.void))
+      } as const
+      const id = linkOccurrenceId(linkInput)
+      if (linkState.capturedOccurrences.has(id)) continue
+      if (linkState.count >= SESSION_LINK_CAPTURE_LIMIT) break
+      linkState.count += 1
+      linkState.capturedOccurrences.add(id)
+      yield* captureLink(linkInput).pipe(Effect.catchAll(() => Effect.void))
     }
   })
 }
@@ -198,7 +205,7 @@ function captureBackfilledAssistantResources(
       } as const
       const id = linkOccurrenceId(linkInput)
       if (linkState.capturedOccurrences.has(id)) continue
-      if (linkState.count >= ASSISTANT_LINK_CAPTURE_LIMIT) break
+      if (linkState.count >= SESSION_LINK_CAPTURE_LIMIT) break
       linkState.count += 1
       linkState.capturedOccurrences.add(id)
       yield* captureLink(linkInput).pipe(Effect.catchAll(() => Effect.void))
@@ -232,7 +239,12 @@ export function captureProjectedSessionResources(input: {
       for (const projected of projectResourceMessages(input)) {
         const { message } = projected
         if (message.role === 'user') {
-          yield* captureBackfilledUserResources(input.sessionId, projected, attachmentState)
+          yield* captureBackfilledUserResources(
+            input.sessionId,
+            projected,
+            attachmentState,
+            linkState,
+          )
           continue
         }
         if (message.role !== 'assistant') continue

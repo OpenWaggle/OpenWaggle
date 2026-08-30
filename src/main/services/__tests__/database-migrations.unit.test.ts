@@ -245,6 +245,9 @@ describe('session authorization-mode migration', () => {
     expect(APP_MIGRATIONS.find((migration) => migration.id === 27)?.name).toBe(
       'session-resource-catalog',
     )
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 26)?.name).toBe(
+      'session-hive-lineage',
+    )
     expect(result).toEqual({ resources: [], occurrences: [] })
   })
 })

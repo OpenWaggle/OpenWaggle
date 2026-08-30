@@ -358,7 +358,8 @@ Archiving retains them; permanent session deletion removes them after the databa
 runs capture new explicit resources, while opening the resource catalog backfills reconstructable
 resources from older projected transcripts with deterministic occurrence ids. Attachment backfill is
 bounded per lazy pass and resumes by skipping cataloged occurrence ids; do not turn catalog opening into
-an unbounded sweep over historical files. Prepared local attachments carry a SHA-256 content identity
+an unbounded sweep over historical files. Explicit links from both actors share one per-run or per-pass
+budget, and backfill resumes by skipping cataloged link occurrence ids. Prepared local attachments carry a SHA-256 content identity
 through hydration and managed-file capture, so a same-size replacement at the original path is rejected.
 A transcript occurrence's `nodeId` is what connects an inline thumbnail to the exact user or assistant
 message and lets the viewer prioritise images on the visible branch before images from other branches in
@@ -371,3 +372,12 @@ thumbnail prefetching: it leaks network timing and can turn one agent response i
 work before run completion. Managed previews use the thumbnail IPC path, which rasterizes at most a
 256-pixel WebP in the main process; never cache full resource payloads merely to render catalog or
 transcript thumbnails. Full bytes are reserved for an explicit viewer or download action.
+
+### Hive state comes from the session projection
+
+`session_lineage` records immutable parentage for Sessions created by a hosted task plus the caller
+profile and current delegation state. The detail-side session summary query derives Queen/Worker roles
+and direct/active Worker counts from that table for both live and archived lists. The hosted task manager
+is the production writer: a new task-created Session establishes lineage once, while success, failure,
+and cancellation update only an existing lineage row. Do not reconstruct Hive state from task JSON in
+the renderer or reparent an existing Session when a task merely targets it.
