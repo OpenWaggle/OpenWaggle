@@ -29,6 +29,7 @@ export interface StartLocalSessionHostInput {
   readonly stopOwnedServices?: () => Promise<void>
   readonly authenticate: LocalSessionServerDependencies['authenticate']
   readonly authorizeEvent?: LocalSessionServerDependencies['authorizeEvent']
+  readonly refreshCaller?: LocalSessionServerDependencies['refreshCaller']
   readonly snapshotActiveRuns?: LocalSessionServerDependencies['snapshotActiveRuns']
   readonly authorizeActiveRun?: LocalSessionServerDependencies['authorizeActiveRun']
   readonly dispatch: LocalSessionServerDependencies['dispatch']
@@ -176,6 +177,7 @@ export async function startLocalSessionHost(
       liveness,
       authenticate: input.authenticate,
       ...(input.authorizeEvent ? { authorizeEvent: input.authorizeEvent } : {}),
+      ...(input.refreshCaller ? { refreshCaller: input.refreshCaller } : {}),
       ...(input.snapshotActiveRuns ? { snapshotActiveRuns: input.snapshotActiveRuns } : {}),
       ...(input.authorizeActiveRun ? { authorizeActiveRun: input.authorizeActiveRun } : {}),
       ...(input.describeUpgradeBlockers

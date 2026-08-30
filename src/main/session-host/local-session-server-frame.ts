@@ -37,3 +37,9 @@ export function invalidatedProfileId(value: unknown): string | undefined {
     ? outcome.profile.id
     : undefined
 }
+
+export function refreshedProfileId(value: unknown): string | undefined {
+  if (!isLocalAccessPayload(value)) return
+  const outcome = value.response.outcome
+  return outcome.effect === 'profile-updated' ? outcome.profile.id : undefined
+}

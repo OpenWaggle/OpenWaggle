@@ -1,6 +1,8 @@
+import { execFile, spawn } from 'node:child_process'
 import {
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   rename,
   rm,
@@ -11,11 +13,15 @@ import {
 } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { promisify } from 'node:util'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { getSafeChildEnv } from '../../env'
+import { managedCliShimContent } from '../cli-shim-content'
 import { createCliShimService } from '../cli-shim-service'
 
 const POSIX_TEST_PLATFORM: NodeJS.Platform = process.platform === 'darwin' ? 'darwin' : 'linux'
 const itPosix = process.platform === 'win32' ? it.skip : it
+const execFileAsync = promisify(execFile)
 
 describe('CLI shim service', () => {
   let homeDirectory: string
@@ -55,7 +61,10 @@ describe('CLI shim service', () => {
     })
 
     const commandPath = path.join(homeDirectory, '.local', 'bin', 'openwaggle')
-    expect(await readFile(commandPath, 'utf8')).toContain("exec '/Applications/OpenWaggle.app")
+    const content = await readFile(commandPath, 'utf8')
+    expect(content).toContain("'/Applications/OpenWaggle.app")
+    if (POSIX_TEST_PLATFORM === 'linux') expect(content).toContain('mkfifo')
+    else expect(content).toContain('exec')
     expect((await stat(commandPath)).mode & 0o111).toBe(0o111)
 
     await expect(cli.remove()).resolves.toMatchObject({
@@ -63,6 +72,64 @@ describe('CLI shim service', () => {
       status: { state: 'not-installed' },
     })
   })
+
+  itPosix(
+    'normalizes only a leading Linux Electron payload and preserves exit status',
+    async () => {
+      const executablePath = path.join(homeDirectory, 'fake-electron')
+      await writeFile(
+        executablePath,
+        `#!/bin/sh
+if [ "$1" = "empty" ]; then
+  printf '[]\\n'
+  exit 0
+fi
+if [ "$1" = "signal" ]; then
+  trap 'printf terminated > "$3"; exit 0' HUP INT TERM
+  printf ready > "$2"
+  while :; do sleep 0.05; done
+fi
+printf '[]\\n{}\\n{"schemaVersion":1,"type":"record"}\\n'
+if [ "$1" = "fail" ]; then exit 7; fi
+`,
+        { mode: 0o700 },
+      )
+      const shimInput = {
+        platform: 'linux',
+        homeDirectory,
+        executablePath,
+        environmentPath: path.join(homeDirectory, '.local', 'bin'),
+      } satisfies Parameters<typeof managedCliShimContent>[0]
+      const commandPath = path.join(homeDirectory, '.local', 'bin', 'openwaggle')
+      await mkdir(path.dirname(commandPath), { recursive: true })
+      await writeFile(commandPath, managedCliShimContent(shimInput), { mode: 0o700 })
+
+      await expect(execFileAsync(commandPath, ['stream'])).resolves.toMatchObject({
+        stdout: '{"schemaVersion":1,"type":"record"}\n',
+      })
+      await expect(execFileAsync(commandPath, ['empty'])).resolves.toMatchObject({ stdout: '[]\n' })
+      await expect(execFileAsync(commandPath, ['fail'])).rejects.toMatchObject({ code: 7 })
+
+      const shimTemp = path.join(homeDirectory, 'shim-temp')
+      const readyPath = path.join(homeDirectory, 'child-ready')
+      const terminatedPath = path.join(homeDirectory, 'child-terminated')
+      await mkdir(shimTemp)
+      const running = spawn(commandPath, ['signal', readyPath, terminatedPath], {
+        env: { ...getSafeChildEnv(), TMPDIR: shimTemp },
+        stdio: 'ignore',
+      })
+      await vi.waitFor(async () => {
+        await expect(readFile(readyPath, 'utf8')).resolves.toBe('ready')
+      })
+      const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
+        (resolve) => running.once('exit', (code, signal) => resolve({ code, signal })),
+      )
+      expect(running.kill('SIGTERM')).toBe(true)
+      await expect(exited).resolves.toMatchObject({ signal: null })
+      await expect(readFile(terminatedPath, 'utf8')).resolves.toBe('terminated')
+      await expect(readdir(shimTemp)).resolves.toEqual([])
+    },
+  )
 
   itPosix('refuses to replace or remove an unrelated command', async () => {
     const commandPath = path.join(homeDirectory, '.local', 'bin', 'openwaggle')

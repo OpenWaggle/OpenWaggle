@@ -14,7 +14,10 @@ import {
   removeLocalSessionEndpoint,
   secureLocalSessionEndpoint,
 } from './local-session-endpoint'
-import { installLocalSessionProfileInvalidator } from './local-session-profile-invalidation'
+import {
+  installLocalSessionProfileAdmissionRefresher,
+  installLocalSessionProfileInvalidator,
+} from './local-session-profile-invalidation'
 import {
   DEFAULT_MAX_CONNECTIONS,
   LocalSessionAuthenticationBudget,
@@ -42,6 +45,9 @@ export interface LocalSessionServerDependencies {
     caller: AuthenticatedLocalSessionCaller,
     event: SessionHostEventEnvelope,
   ) => Promise<boolean>
+  readonly refreshCaller?: (
+    caller: AuthenticatedLocalSessionCaller,
+  ) => Promise<AuthenticatedLocalSessionCaller>
   readonly snapshotActiveRuns?: () => readonly BackgroundRunSnapshot[]
   readonly authorizeActiveRun?: (
     caller: AuthenticatedLocalSessionCaller,
@@ -123,6 +129,13 @@ export async function listenLocalSessionServer(
     for (const connection of connections) connection.disconnectRevokedProfile(profileId)
   }
   const releaseProfileInvalidator = installLocalSessionProfileInvalidator(invalidateProfile)
+  const releaseProfileAdmissionRefresher = installLocalSessionProfileAdmissionRefresher(
+    async (profileId) => {
+      await Promise.all(
+        [...connections].map((connection) => connection.refreshProfileAdmission(profileId)),
+      )
+    },
+  )
   const serverDependencies: LocalSessionServerDependencies = {
     ...dependencies,
     disconnectProfile: invalidateProfile,
@@ -149,6 +162,7 @@ export async function listenLocalSessionServer(
     server,
     close: async (removeEndpointAfterClose = true) => {
       releaseProfileInvalidator()
+      releaseProfileAdmissionRefresher()
       const closing = close(server)
       for (const connection of connections) connection.shutdown()
       await closing

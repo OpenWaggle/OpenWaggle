@@ -33,6 +33,7 @@ type SessionLifecycleCommandDependencies =
 export function dispatchAcceptedLifecycleRun(
   response: SessionLifecycleResponse,
   lease?: SessionHostRunLease,
+  beforeDispatch: Effect.Effect<void, unknown> = Effect.void,
 ) {
   const startingRun = matchBy(response.outcome, 'effect')
     .with('launched-root', 'spawned-worker', (outcome) => ({
@@ -45,20 +46,26 @@ export function dispatchAcceptedLifecycleRun(
 
   const sessionId = SessionId(startingRun.sessionId)
   const runId = RunId(startingRun.runId)
-  return Effect.sync(() => reserveActiveSessionRun(sessionId, runId)).pipe(
-    Effect.flatMap((initialReservation) =>
-      forkSupervisedSessionRuns({
-        sessionId,
-        runId,
-        effect: coordinateSessionRuns({
-          sessionId,
-          startingRunId: runId,
-          initialReservation,
-          ...(lease ? { lease } : {}),
-        }),
-      }).pipe(
-        Effect.catchAllCause((cause) =>
-          Effect.sync(initialReservation.release).pipe(Effect.zipRight(Effect.failCause(cause))),
+  return beforeDispatch.pipe(
+    Effect.zipRight(
+      Effect.sync(() => reserveActiveSessionRun(sessionId, runId)).pipe(
+        Effect.flatMap((initialReservation) =>
+          forkSupervisedSessionRuns({
+            sessionId,
+            runId,
+            effect: coordinateSessionRuns({
+              sessionId,
+              startingRunId: runId,
+              initialReservation,
+              ...(lease ? { lease } : {}),
+            }),
+          }).pipe(
+            Effect.catchAllCause((cause) =>
+              Effect.sync(initialReservation.release).pipe(
+                Effect.zipRight(Effect.failCause(cause)),
+              ),
+            ),
+          ),
         ),
       ),
     ),
@@ -66,8 +73,14 @@ export function dispatchAcceptedLifecycleRun(
   )
 }
 
+type ExecuteSessionLifecycleCommandOptions = ExecuteSessionLifecycleCommandInput & {
+  readonly beforeDispatchAcceptedRun?: (
+    response: SessionLifecycleResponse,
+  ) => Effect.Effect<void, unknown>
+}
+
 export function executeSessionLifecycleCommand(
-  input: ExecuteSessionLifecycleCommandInput,
+  input: ExecuteSessionLifecycleCommandOptions,
 ): Effect.Effect<SessionLifecycleResponse, unknown, SessionLifecycleCommandDependencies> {
   return Effect.gen(function* () {
     const mayStartRun =
@@ -76,7 +89,11 @@ export function executeSessionLifecycleCommand(
     let transferred = false
     return yield* executeSessionLifecycle(input).pipe(
       Effect.tap((response) =>
-        dispatchAcceptedLifecycleRun(response, lease).pipe(
+        dispatchAcceptedLifecycleRun(
+          response,
+          lease,
+          input.beforeDispatchAcceptedRun?.(response),
+        ).pipe(
           Effect.tap((didTransfer) =>
             Effect.sync(() => {
               transferred = didTransfer

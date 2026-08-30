@@ -10,7 +10,10 @@ import * as Effect from 'effect/Effect'
 import { app } from 'electron'
 import { dispatchLocalSessionCommand } from '../application/local-session-command-dispatcher'
 import { resolveLocalSessionHostPaths } from '../session-host/local-session-paths'
-import { disconnectLocalSessionProfile } from '../session-host/local-session-profile-invalidation'
+import {
+  disconnectLocalSessionProfile,
+  refreshLocalSessionProfileAdmissions,
+} from '../session-host/local-session-profile-invalidation'
 import { generateProfileCredential } from '../session-host/profile-credential'
 import {
   removeStoredProfileCredential,
@@ -83,6 +86,10 @@ function settleProfileCredential(input: {
       return
     }
     if (staged) yield* Effect.promise(() => staged.commit())
+    if (input.response.outcome.effect === 'profile-updated') {
+      const profileId = input.response.outcome.profile.id
+      yield* Effect.promise(() => refreshLocalSessionProfileAdmissions(profileId))
+    }
     if (input.response.outcome.effect === 'profile-revoked') {
       const revokedProfileName = input.response.outcome.profile.name
       yield* Effect.promise(() =>

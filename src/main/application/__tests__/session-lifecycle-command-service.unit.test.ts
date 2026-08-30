@@ -81,9 +81,23 @@ describe('Session lifecycle command dispatch', () => {
       }),
     )
 
-    await Effect.runPromise(
-      dispatchAcceptedLifecycleRun(launchedResponse()).pipe(Effect.provide(layer)),
+    let allowDispatch: (() => void) | undefined
+    const beforeDispatch = Effect.promise(
+      () =>
+        new Promise<void>((resolve) => {
+          allowDispatch = resolve
+        }),
     )
+    const dispatch = Effect.runPromise(
+      dispatchAcceptedLifecycleRun(launchedResponse(), undefined, beforeDispatch).pipe(
+        Effect.provide(layer),
+      ),
+    )
+    await vi.waitFor(() => expect(allowDispatch).toBeTypeOf('function'))
+    expect(events).toEqual([])
+    expect(activeRuns.has(SessionId('session-launch'))).toBe(false)
+    allowDispatch?.()
+    await dispatch
     for (let attempt = 0; attempt < 20 && events.length < 3; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 1))
     }

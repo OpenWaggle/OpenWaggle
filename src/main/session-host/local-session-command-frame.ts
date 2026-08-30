@@ -5,12 +5,19 @@ import type {
 import * as Cause from 'effect/Cause'
 import * as Option from 'effect/Option'
 import * as Runtime from 'effect/Runtime'
-import { disconnectLocalSessionProfile } from './local-session-profile-invalidation'
+import {
+  disconnectLocalSessionProfile,
+  refreshLocalSessionProfileAdmissions,
+} from './local-session-profile-invalidation'
 import type {
   AuthenticatedLocalSessionCaller,
   LocalSessionServerDependencies,
 } from './local-session-server'
-import { describeLocalSessionServerError, invalidatedProfileId } from './local-session-server-frame'
+import {
+  describeLocalSessionServerError,
+  invalidatedProfileId,
+  refreshedProfileId,
+} from './local-session-server-frame'
 
 function commandFailure(error: unknown) {
   const failure = Runtime.isFiberFailure(error)
@@ -42,6 +49,8 @@ export async function executeLocalSessionCommandFrame(input: {
       payload: input.frame.payload,
       signal: input.signal,
     })
+    const refreshed = refreshedProfileId(payload)
+    if (refreshed) await refreshLocalSessionProfileAdmissions(refreshed)
     await input.send({ kind: 'response', requestId: input.frame.requestId, payload })
     const invalidated = invalidatedProfileId(payload)
     if (invalidated) disconnectLocalSessionProfile(invalidated)

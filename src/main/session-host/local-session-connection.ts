@@ -5,11 +5,9 @@ import type {
   LocalSessionClientFrame,
   LocalSessionServerFrame,
 } from '@shared/types/local-session-protocol'
-import type {
-  SessionHostEventCursor,
-  SessionHostEventEnvelope,
-} from '@shared/types/session-host-event'
+import type { SessionHostEventCursor } from '@shared/types/session-host-event'
 import { executeLocalSessionCommandFrame } from './local-session-command-frame'
+import { createLocalSessionEventAdmissionFilter } from './local-session-event-admission'
 import { establishLocalSessionHandshake } from './local-session-handshake'
 import {
   LocalSessionInboundCapacityError,
@@ -37,41 +35,13 @@ import {
 
 const DEFAULT_HANDSHAKE_TIMEOUT_MS = 5000
 
-function requiresAsynchronousAdmission(scope: {
-  readonly all?: boolean
-  readonly workspaceRoots?: readonly string[]
-  readonly projectPaths?: readonly string[]
-  readonly hiveRootSessionIds?: readonly string[]
-}) {
-  return (
-    scope.all ||
-    [scope.workspaceRoots, scope.projectPaths, scope.hiveRootSessionIds].some(
-      (values) => (values?.length ?? 0) > 0,
-    )
-  )
-}
-
-function exactSessionAdmissionFilter(caller: AuthenticatedLocalSessionCaller) {
-  const authority = caller.profileAuthority
-  if (!authority) return () => true
-  const scope = caller.baseProfileScope ?? authority.scope
-  const requiresAsyncAdmission = requiresAsynchronousAdmission(scope)
-  const allowedSessionIds = new Set(scope.sessionIds ?? [])
-  for (const derived of caller.derivedSessionAuthorities ?? []) {
-    allowedSessionIds.add(derived.sessionId)
-  }
-  return (event: SessionHostEventEnvelope) => {
-    if (event.payload.kind === 'semantic-discovery-readiness-changed') return false
-    return requiresAsyncAdmission || allowedSessionIds.has(event.payload.sessionId)
-  }
-}
-
 export class LocalSessionConnection {
   private readonly inbound: LocalSessionInboundRetention
   private readonly subscriptions = new Map<string, ActiveLocalSessionSubscription>()
   private readonly commandControllers = new Map<string, AbortController>()
   private readTail = Promise.resolve()
   private writeTail = Promise.resolve()
+  private profileRefreshTail = Promise.resolve()
   private caller: AuthenticatedLocalSessionCaller | null = null
   private negotiatedRevision: number | null = null
   private releaseClientLiveness: (() => void) | null = null
@@ -121,6 +91,23 @@ export class LocalSessionConnection {
 
   disconnectRevokedProfile(profileId: string): void {
     if (this.caller?.profileAuthority?.profileId === profileId) this.socket.end()
+  }
+
+  refreshProfileAdmission(profileId?: string): Promise<void> {
+    const refresh = async () => {
+      const caller = this.caller
+      const authority = caller?.profileAuthority
+      if (!caller || !authority || !caller.callerId.startsWith('profile:')) return
+      if (profileId && authority.profileId !== profileId) return
+      if (!this.dependencies.refreshCaller) return
+      try {
+        this.caller = await this.dependencies.refreshCaller(caller)
+      } catch {
+        this.socket.end()
+      }
+    }
+    this.profileRefreshTail = this.profileRefreshTail.then(refresh, refresh)
+    return this.profileRefreshTail
   }
 
   shutdown(): void {
@@ -204,7 +191,7 @@ export class LocalSessionConnection {
     const snapshotCursor = cursor ?? this.dependencies.eventHub.cursor()
     const result = this.dependencies.eventHub.subscribeAfter(
       snapshotCursor,
-      exactSessionAdmissionFilter(caller),
+      createLocalSessionEventAdmissionFilter(() => this.caller),
       { advanceFilteredCursor: true },
     )
     if (result.status === 'resync-required') {

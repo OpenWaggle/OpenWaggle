@@ -6,6 +6,7 @@ import {
   authorizeLocalSessionEvent,
   dispatchLocalSessionCommand,
 } from '../application/local-session-command-dispatcher'
+import { refreshNamedProfileCaller } from '../application/local-session-derived-authority'
 import { authenticateLocalSessionProfile } from '../application/local-session-profile-authentication'
 import { recoverSessionExportsAfterHostLoss } from '../application/session-export-recovery'
 import { recoverPendingSessionHandoffs } from '../application/session-organization-service'
@@ -68,6 +69,7 @@ export async function startAppSessionHost(input: {
       ),
     authenticate,
     authorizeEvent: (caller, event) => input.runEffect(authorizeLocalSessionEvent(caller, event)),
+    refreshCaller: (caller) => input.runEffect(refreshNamedProfileCaller(caller)),
     snapshotActiveRuns: () => listStreamBufferSnapshots(),
     authorizeActiveRun: (caller, snapshot) =>
       input.runEffect(authorizeLocalSessionActiveRun(caller, snapshot.sessionId)),

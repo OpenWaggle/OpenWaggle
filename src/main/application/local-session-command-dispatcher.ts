@@ -9,6 +9,7 @@ import {
 import { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
 import { SessionControlAttachmentService } from '../ports/session-control-attachment-service'
 import { SettingsService } from '../services/settings-service'
+import { refreshLocalSessionProfileAdmissions } from '../session-host/local-session-profile-invalidation'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { dispatchConfiguredGuiSessionCommand } from './gui-session-command-router'
 import { dispatchHostUiRequest } from './host-ui-request-dispatcher'
@@ -71,6 +72,11 @@ function publishLifecycleResponse(response: SessionLifecycleResponse) {
         : 1,
     operation: response.outcome.operation,
   })
+}
+
+function refreshDerivedAdmissionBeforeLifecycleProjection(response: SessionLifecycleResponse) {
+  if (response.replayed || response.outcome.effect !== 'spawned-worker') return Effect.void
+  return Effect.promise(() => refreshLocalSessionProfileAdmissions())
 }
 
 export function lifecycleCallerCapabilities(
@@ -222,6 +228,7 @@ export function dispatchNonHostUiLocalSessionCommand(input: {
         : {}),
       ...(caller.workingDirectory ? { initiatingWorkingDirectory: caller.workingDirectory } : {}),
       request: payload.request,
+      beforeDispatchAcceptedRun: refreshDerivedAdmissionBeforeLifecycleProjection,
     })
     publishLifecycleResponse(response)
     return { contract: 'session-lifecycle-v2', response } as const
