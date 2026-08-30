@@ -67,11 +67,12 @@ export function useAgentDefinitions(projectPath: string | null) {
   const remove = useCallback(
     async (item: AgentDefinitionCatalogItem) => {
       if (!projectPath) return
+      const generation = projectGeneration.current
       const confirmed = await api.showConfirm(
         `Delete Agent definition “${item.name}”?`,
         `This removes only the ${item.scope} file. Existing Sessions keep their snapshots.`,
       )
-      if (!confirmed) return
+      if (!confirmed || projectGeneration.current !== generation) return
       await mutate({
         operation: 'delete',
         projectPath,
@@ -86,11 +87,13 @@ export function useAgentDefinitions(projectPath: string | null) {
   const refresh = useCallback(
     async (item: AgentDefinitionCatalogItem) => {
       if (!projectPath) return
+      const generation = projectGeneration.current
       const result = await api.manageAgentDefinitions({
         operation: 'refresh-plan',
         projectPath,
         name: item.name,
       })
+      if (projectGeneration.current !== generation) return
       if (result.operation !== 'refresh-plan') {
         throw new Error('Unexpected Agent definition refresh response.')
       }
@@ -104,7 +107,7 @@ export function useAgentDefinitions(projectPath: string | null) {
           `Replace local changes in “${item.name}”?`,
           'The source changed, but this imported definition was also edited locally.',
         )
-        if (!replaceModified) return
+        if (!replaceModified || projectGeneration.current !== generation) return
       }
       await mutate({
         operation: 'refresh-apply',
