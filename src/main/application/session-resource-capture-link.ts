@@ -2,22 +2,8 @@ import { randomUUID } from 'node:crypto'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionResourceActivity, SessionResourceActor } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
-import { SessionResourceImageFetcher } from '../ports/session-resource-image-fetcher'
-import {
-  SessionResourceRepository,
-  type SessionResourceRepositoryShape,
-} from '../ports/session-resource-repository'
-import {
-  SessionResourceStore,
-  type SessionResourceStoreShape,
-} from '../ports/session-resource-store'
-import {
-  inspectManagedCopy,
-  occurrence,
-  occurrenceId,
-  removeReplacedCopy,
-  sha256,
-} from './session-resource-capture-shared'
+import { SessionResourceRepository } from '../ports/session-resource-repository'
+import { occurrence, occurrenceId, sha256 } from './session-resource-capture-shared'
 import type { CapturedLink } from './session-resource-extraction'
 
 interface LinkCaptureInput {
@@ -43,56 +29,6 @@ function linkOccurrence(input: LinkCaptureInput, id: string) {
   })
 }
 
-function captureRemoteImage(input: {
-  readonly capture: LinkCaptureInput
-  readonly id: string
-  readonly resourceId: string
-  readonly existingManagedPath: string | undefined
-  readonly repository: SessionResourceRepositoryShape
-  readonly store: SessionResourceStoreShape
-}) {
-  return Effect.gen(function* () {
-    const fetched = yield* SessionResourceImageFetcher.pipe(
-      Effect.flatMap((fetcher) => fetcher.fetch(input.capture.link.url)),
-      Effect.option,
-    )
-    if (fetched._tag === 'None') return false
-    const stored = yield* input.store.storeBytes({
-      sessionId: input.capture.sessionId,
-      resourceId: input.resourceId,
-      fileName: fetched.value.fileName,
-      bytes: fetched.value.bytes,
-    })
-    const locator = `session-resource://${input.resourceId}`
-    const resource = yield* input.repository
-      .upsert({
-        id: input.resourceId,
-        sessionId: input.capture.sessionId,
-        canonicalKey: `url:${input.capture.link.url}`,
-        kind: 'image',
-        title:
-          input.capture.link.title === input.capture.link.url
-            ? fetched.value.fileName
-            : input.capture.link.title,
-        mimeType: fetched.value.mimeType,
-        locator,
-        managedPath: stored.path,
-        available: true,
-        occurrence: linkOccurrence(input.capture, input.id),
-        createdAt: input.capture.createdAt,
-        updatedAt: input.capture.createdAt,
-      })
-      .pipe(
-        Effect.tapError(() =>
-          input.store.remove(stored.path).pipe(Effect.catchAll(() => Effect.void)),
-        ),
-      )
-    if (resource.locator !== locator) yield* input.store.remove(stored.path)
-    else yield* removeReplacedCopy(input.store, input.existingManagedPath, stored.path)
-    return true
-  })
-}
-
 export function captureLink(input: LinkCaptureInput) {
   return Effect.gen(function* () {
     const repository = yield* SessionResourceRepository
@@ -102,19 +38,14 @@ export function captureLink(input: LinkCaptureInput) {
     })
     if (yield* repository.hasOccurrence(input.sessionId, id)) return
     const resourceId = randomUUID()
-    const existing = input.link.image
-      ? yield* repository.findByCanonicalKey(input.sessionId, `url:${input.link.url}`)
-      : null
-    const store = yield* SessionResourceStore
-    const existingCopy = existing
-      ? yield* inspectManagedCopy(repository, store, input.sessionId, existing.id)
-      : null
-    if (existing?.locator?.startsWith('session-resource://') && existingCopy?.readable) {
+    const canonicalKey = `url:${input.link.url}`
+    const existing = yield* repository.findByCanonicalKey(input.sessionId, canonicalKey)
+    if (existing) {
       yield* repository.upsert({
         id: existing.id,
         sessionId: input.sessionId,
-        canonicalKey: existing.canonicalKey,
-        kind: 'image',
+        canonicalKey,
+        kind: input.link.image ? 'image' : existing.kind,
         title: existing.title,
         mimeType: existing.mimeType,
         locator: existing.locator,
@@ -126,21 +57,10 @@ export function captureLink(input: LinkCaptureInput) {
       })
       return
     }
-    if (input.link.image) {
-      const captured = yield* captureRemoteImage({
-        capture: input,
-        id,
-        resourceId,
-        existingManagedPath: existingCopy?.managedPath,
-        repository,
-        store,
-      })
-      if (captured) return
-    }
     yield* repository.upsert({
       id: resourceId,
       sessionId: input.sessionId,
-      canonicalKey: `url:${input.link.url}`,
+      canonicalKey,
       kind: input.link.image ? 'image' : 'link',
       title: input.link.title,
       mimeType: null,

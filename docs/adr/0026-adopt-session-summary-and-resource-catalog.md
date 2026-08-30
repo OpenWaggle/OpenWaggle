@@ -26,7 +26,7 @@ The app also spreads persistent session context across the composer, header, dif
 
 - Persist image bytes under an OpenWaggle-owned user-data directory partitioned by Session id and content hash. Transcript JSON and renderer state contain typed resource references, never base64 payloads.
 - Validate MIME type and decoded bytes before accepting an image. Local and embedded images use bounded reads and atomic temp-file replacement.
-- Remote Markdown images use HTTPS only, no ambient credentials, bounded redirects and response size, SSRF-safe address checks, and MIME/byte validation. Unsafe unsanitized formats remain ordinary file resources unless OpenWaggle sanitizes or rasterizes them.
+- Remote Markdown images are cataloged without network access during run settlement, with a per-run cap on agent-authored image references. OpenWaggle materializes and caches one only after the user explicitly opens its preview, using HTTPS only, no ambient credentials, bounded redirects and response size, SSRF-safe address checks, and MIME/byte validation. Unsafe unsanitized formats remain ordinary file resources unless OpenWaggle sanitizes or rasterizes them.
 - Failed capture leaves an unavailable catalog entry with Retry and Open original actions. A failed capture must not break transcript projection.
 - Existing Sessions are backfilled lazily and idempotently from recoverable Pi image blocks, explicit links/tool resources, and resolvable local outputs.
 
@@ -35,6 +35,7 @@ The app also spreads persistent session context across the composer, header, dif
 - Pi projection emits renderer-safe image resource references plus main-process-only capture candidates. The application persists the Pi snapshot and projects its candidates through the resource repository.
 - User attachment metadata supplements Pi image blocks so names and original provenance survive. Content identity deduplicates the two observations.
 - Explicit signals only become resources: user attachments, Pi image blocks, image-producing tool results, Markdown image syntax, explicit links/tool reads, and declared Outputs. URL-like prose and arbitrary modified workspace files are not inferred.
+- Transcript, Summary, and browser thumbnails never prefetch uncached remote images. Opening the image viewer is the user action that authorizes one bounded materialization; the resulting managed copy serves later previews without another network request.
 - Commits and created change requests are explicit Outputs. The Environment section owns the complete working-tree change list.
 
 ### The Session Summary is host-owned

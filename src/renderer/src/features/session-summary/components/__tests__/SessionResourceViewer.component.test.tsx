@@ -47,6 +47,15 @@ function image(id: string, title: string, nodeId: string | null = null): Session
   }
 }
 
+function remoteImage(id: string, title: string): SessionResource {
+  return {
+    ...image(id, title),
+    canonicalKey: `url:https://images.example/${id}.png`,
+    mimeType: null,
+    locator: `https://images.example/${id}.png`,
+  }
+}
+
 function renderViewer(
   activeSessionId: string | null,
   activeMessageIds: ReadonlySet<string> = new Set(),
@@ -104,6 +113,19 @@ describe('SessionResourceViewer', () => {
     expect(
       await screen.findByRole('dialog', { name: 'Image viewer: first.png' }),
     ).toBeInTheDocument()
+  })
+
+  it('requests remote image content only after the user opens the viewer', async () => {
+    listSessionResources.mockResolvedValue([remoteImage('remote-image', 'Remote image')])
+    useUIStore.getState().openResourceViewer('session-1', 'remote-image')
+    renderViewer('session-1')
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Image viewer: Remote image' }),
+    ).toBeInTheDocument()
+    await waitFor(() =>
+      expect(readSessionResource).toHaveBeenCalledWith(SessionId('session-1'), 'remote-image'),
+    )
   })
 
   it('supports Codex-style zoom choices and downloading managed images', async () => {

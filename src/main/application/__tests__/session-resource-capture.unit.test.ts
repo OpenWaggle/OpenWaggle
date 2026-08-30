@@ -8,6 +8,9 @@ import { captureProjectedSessionResources } from '../session-resource-backfill'
 import { captureSuccessfulRunResources } from '../session-resource-capture'
 import { resourceMessages, sessionResourceTestLayer } from './session-resource-capture.fixtures'
 
+const REMOTE_IMAGE_REFERENCE_LIMIT = 32
+const EXCESS_REMOTE_IMAGE_COUNT = REMOTE_IMAGE_REFERENCE_LIMIT + 8
+
 describe('captureSuccessfulRunResources', () => {
   it('links user attachments and agent images to the message that displayed them', async () => {
     const upserts: UpsertSessionResourceInput[] = []
@@ -98,36 +101,73 @@ describe('captureSuccessfulRunResources', () => {
     )
   })
 
-  it('securely caches remote Markdown images for in-app preview', async () => {
+  it('catalogs agent Markdown images without fetching them during run settlement', async () => {
     const upserts: UpsertSessionResourceInput[] = []
+    const fetchedUrls: string[] = []
     await Effect.runPromise(
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-remote-image',
         payload: {
-          text: '![Architecture](https://images.example/architecture.png)',
+          text: 'Show the image.',
           thinkingLevel: 'medium',
           attachments: [],
         },
         messages: [
           {
-            id: MessageId('persisted-user-node'),
-            role: 'user',
-            parts: [{ type: 'text', text: 'Image' }],
+            id: MessageId('persisted-assistant-node'),
+            role: 'assistant',
+            parts: [
+              {
+                type: 'text',
+                text: '![Architecture](https://images.example/architecture.png)',
+              },
+            ],
             createdAt: 1000,
           },
         ],
-      }).pipe(Effect.provide(sessionResourceTestLayer(upserts))),
+      }).pipe(Effect.provide(sessionResourceTestLayer(upserts, { fetchedUrls }))),
     )
 
+    expect(fetchedUrls).toEqual([])
     expect(upserts).toContainEqual(
       expect.objectContaining({
         canonicalKey: 'url:https://images.example/architecture.png',
         kind: 'image',
-        mimeType: 'image/png',
-        locator: expect.stringMatching(/^session-resource:\/\//u),
-        managedPath: expect.stringContaining('/managed/'),
+        mimeType: null,
+        locator: 'https://images.example/architecture.png',
+        managedPath: null,
       }),
+    )
+  })
+
+  it('bounds agent remote-image references per run without downloading any of them', async () => {
+    const upserts: UpsertSessionResourceInput[] = []
+    const fetchedUrls: string[] = []
+    const markdown = Array.from(
+      { length: EXCESS_REMOTE_IMAGE_COUNT },
+      (_, index) => `![Image ${String(index)}](https://images.example/${String(index)}.png)`,
+    ).join('\n')
+
+    await Effect.runPromise(
+      captureSuccessfulRunResources({
+        sessionId: SessionId('session-1'),
+        runId: 'run-many-remote-images',
+        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        messages: [
+          {
+            id: MessageId('assistant-many-images'),
+            role: 'assistant',
+            parts: [{ type: 'text', text: markdown }],
+            createdAt: 1000,
+          },
+        ],
+      }).pipe(Effect.provide(sessionResourceTestLayer(upserts, { fetchedUrls }))),
+    )
+
+    expect(fetchedUrls).toEqual([])
+    expect(upserts.filter((resource) => resource.kind === 'image')).toHaveLength(
+      REMOTE_IMAGE_REFERENCE_LIMIT,
     )
   })
 

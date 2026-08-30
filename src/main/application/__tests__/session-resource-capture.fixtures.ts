@@ -19,6 +19,7 @@ export function sessionResourceTestLayer(
     readonly existingResource?: SessionResource
     readonly removedPaths?: string[]
     readonly storedByteFiles?: string[]
+    readonly fetchedUrls?: string[]
     readonly existingManagedPath?: string
     readonly managedReadFails?: boolean
   } = {},
@@ -27,11 +28,14 @@ export function sessionResourceTestLayer(
     Layer.succeed(
       SessionResourceImageFetcher,
       SessionResourceImageFetcher.of({
-        fetch: () =>
-          Effect.succeed({
-            bytes: Buffer.from(PNG_BASE64, 'base64'),
-            mimeType: 'image/png',
-            fileName: 'remote.png',
+        fetch: (url) =>
+          Effect.sync(() => {
+            options.fetchedUrls?.push(url)
+            return {
+              bytes: Buffer.from(PNG_BASE64, 'base64'),
+              mimeType: 'image/png',
+              fileName: 'remote.png',
+            }
           }),
       }),
     ),

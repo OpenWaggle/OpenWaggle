@@ -359,3 +359,9 @@ runs capture new explicit resources, while opening the resource catalog backfill
 resources from older projected transcripts with deterministic occurrence ids. A transcript occurrence's
 `nodeId` is what connects an inline thumbnail to the exact user or assistant message and lets the viewer
 prioritise images on the visible branch before images from other branches in the same session.
+
+Remote Markdown images are metadata-only during run settlement and thumbnail rendering. The main
+process performs the bounded, SSRF-safe HTTPS fetch only after the user opens that image in the viewer,
+then stores the validated bytes as the resource's managed copy. Do not reintroduce automatic remote
+thumbnail prefetching: it leaks network timing and can turn one agent response into unbounded download
+work before run completion.

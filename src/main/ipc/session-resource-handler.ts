@@ -5,14 +5,12 @@ import {
   sessionResourceSessionIdSchema,
 } from '@shared/schemas/session-resource'
 import { SessionId } from '@shared/types/brand'
-import type { SessionResourceContent } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import { captureProjectedSessionResources } from '../application/session-resource-backfill'
+import { readSessionResourceContent } from '../application/session-resource-content'
 import { recordSessionChangeRequest } from '../application/session-resource-recording'
 import { SessionRepository } from '../ports/session-repository'
-import { SessionResourceImageFetcher } from '../ports/session-resource-image-fetcher'
 import { SessionResourceRepository } from '../ports/session-resource-repository'
-import { SessionResourceStore } from '../ports/session-resource-store'
 import { typedHandle } from './typed-ipc'
 
 export function registerSessionResourceHandlers(): void {
@@ -40,39 +38,7 @@ export function registerSessionResourceHandlers(): void {
         decodeUnknownOrThrow(sessionResourceSessionIdSchema, rawSessionId),
       )
       const resourceId = decodeUnknownOrThrow(sessionResourceIdSchema, rawResourceId)
-      const repository = yield* SessionResourceRepository
-      const location = yield* repository.getContentLocation(sessionId, resourceId)
-      if (location) {
-        const store = yield* SessionResourceStore
-        const content = yield* store.read(location.managedPath).pipe(
-          Effect.map(
-            (bytes) =>
-              ({
-                resourceId: location.resourceId,
-                fileName: location.fileName,
-                mimeType: location.mimeType,
-                dataBase64: Buffer.from(bytes).toString('base64'),
-              }) satisfies SessionResourceContent,
-          ),
-          Effect.catchAll(() => Effect.succeed(null)),
-        )
-        if (content) return content
-      }
-      const resource = (yield* repository.list(sessionId)).find((item) => item.id === resourceId)
-      if (resource?.kind !== 'image') return null
-      const remoteUrl = resource.locator?.startsWith('https://')
-        ? resource.locator
-        : resource.canonicalKey.startsWith('url:https://')
-          ? resource.canonicalKey.slice('url:'.length)
-          : null
-      if (!remoteUrl) return null
-      const fetched = yield* (yield* SessionResourceImageFetcher).fetch(remoteUrl)
-      return {
-        resourceId,
-        fileName: fetched.fileName,
-        mimeType: fetched.mimeType,
-        dataBase64: Buffer.from(fetched.bytes).toString('base64'),
-      } satisfies SessionResourceContent
+      return yield* readSessionResourceContent(sessionId, resourceId)
     }),
   )
 

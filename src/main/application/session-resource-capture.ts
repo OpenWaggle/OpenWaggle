@@ -7,6 +7,8 @@ import { captureLink } from './session-resource-capture-link'
 import { collectExplicitResources } from './session-resource-extraction'
 import { withSessionResourceLock } from './session-resource-lock'
 
+const MAX_AGENT_REMOTE_IMAGES_PER_RUN = 32
+
 export { captureAttachment } from './session-resource-capture-attachment'
 export { captureGeneratedImage } from './session-resource-capture-image'
 export { captureLink } from './session-resource-capture-link'
@@ -55,6 +57,7 @@ function captureUserResources(input: SuccessfulRunResourceInput, createdAt: numb
 
 function captureAssistantResources(input: SuccessfulRunResourceInput, createdAt: number) {
   return Effect.gen(function* () {
+    let remoteImageCount = 0
     for (const message of input.messages) {
       if (message.role !== 'assistant') continue
       const messageId = String(message.id)
@@ -72,6 +75,10 @@ function captureAssistantResources(input: SuccessfulRunResourceInput, createdAt:
         }).pipe(Effect.catchAll(() => Effect.void))
       }
       for (const [index, link] of captured.links.entries()) {
+        if (link.image) {
+          if (remoteImageCount >= MAX_AGENT_REMOTE_IMAGES_PER_RUN) continue
+          remoteImageCount += 1
+        }
         yield* captureLink({
           ...input,
           link,

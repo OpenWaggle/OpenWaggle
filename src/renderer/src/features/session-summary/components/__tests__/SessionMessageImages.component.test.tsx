@@ -41,6 +41,15 @@ function image(id: string, nodeId: string): SessionResource {
   }
 }
 
+function remoteImage(id: string, nodeId: string): SessionResource {
+  return {
+    ...image(id, nodeId),
+    canonicalKey: `url:https://images.example/${id}.png`,
+    mimeType: null,
+    locator: `https://images.example/${id}.png`,
+  }
+}
+
 describe('SessionMessageImages', () => {
   beforeEach(() => {
     useUIStore.setState({ resourceViewer: null })
@@ -68,5 +77,22 @@ describe('SessionMessageImages', () => {
       sessionId: 'session-1',
       resourceId: 'matching',
     })
+  })
+
+  it('does not fetch a remote image merely because its preview is visible', async () => {
+    listSessionResources.mockResolvedValue([remoteImage('remote', 'message-1')])
+    renderWithQueryClient(
+      <SessionMessageImages sessionId={SessionId('session-1')} messageId="message-1" />,
+    )
+
+    const imageButton = await screen.findByRole('button', { name: 'Open image remote.png' })
+    expect(readSessionResource).not.toHaveBeenCalled()
+
+    fireEvent.click(imageButton)
+    expect(useUIStore.getState().resourceViewer).toEqual({
+      sessionId: 'session-1',
+      resourceId: 'remote',
+    })
+    expect(readSessionResource).not.toHaveBeenCalled()
   })
 })

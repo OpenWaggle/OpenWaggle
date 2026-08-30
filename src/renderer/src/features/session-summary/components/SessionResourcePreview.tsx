@@ -37,7 +37,10 @@ export function SessionResourcePreview({
   }, [nearViewport])
   const content = useQuery({
     ...sessionResourceContentQueryOptions(sessionId, resource.id),
-    enabled: nearViewport && resource.kind === 'image',
+    enabled:
+      nearViewport &&
+      resource.kind === 'image' &&
+      resource.locator?.startsWith('https://') !== true,
   })
   const source = content.data
     ? resourceDataUrl(content.data.mimeType, content.data.dataBase64)
