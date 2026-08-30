@@ -7,6 +7,8 @@ import {
   type LocalSessionClientConnectionInput,
   LocalSessionHostUpgradePendingError,
 } from './local-session-client-connection'
+import type { SessionHostOwnership } from './session-host-ownership'
+import { acquireSessionHostOwnership } from './session-host-ownership'
 
 const HOST_START_TIMEOUT_MS = 30_000
 const HOST_TAKEOVER_TIMEOUT_MS = 15 * 60_000
@@ -27,12 +29,12 @@ export function sessionHostLaunchArguments(input: {
  */
 export function sessionHostChildEnvironment(input: {
   readonly safeEnvironment?: Readonly<Record<string, string | undefined>>
-  readonly userDataRoot?: string
+  readonly userDataRoot: string
   readonly logLevel?: 'debug' | 'info' | 'warn' | 'error'
 }) {
   return {
     ...(input.safeEnvironment ?? getSafeChildEnv()),
-    ...(input.userDataRoot ? { OPENWAGGLE_USER_DATA_DIR: input.userDataRoot } : {}),
+    OPENWAGGLE_USER_DATA_DIR: input.userDataRoot,
     ...(input.logLevel ? { OPENWAGGLE_LOG_LEVEL: input.logLevel } : {}),
   }
 }
@@ -40,6 +42,7 @@ export function sessionHostChildEnvironment(input: {
 export interface LocalSessionHostLauncherDependencies {
   readonly canConnect: (endpoint: string) => Promise<boolean>
   readonly probe: typeof probeLocalSessionHost
+  readonly tryAcquireOwnership: (databasePath: string) => Promise<SessionHostOwnership | null>
   readonly launch: () => void
   readonly now: () => number
   readonly wait: (milliseconds: number) => Promise<void>
@@ -72,6 +75,21 @@ function canConnect(endpoint: string) {
 const defaultDependencies: LocalSessionHostLauncherDependencies = {
   canConnect,
   probe: probeLocalSessionHost,
+  tryAcquireOwnership: async (databasePath) => {
+    try {
+      return await acquireSessionHostOwnership(databasePath, { timeoutMs: 0 })
+    } catch (error) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 'ELOCKED'
+      ) {
+        return null
+      }
+      throw error
+    }
+  },
   launch: () => {
     const child = spawn(
       process.execPath,
@@ -80,7 +98,7 @@ const defaultDependencies: LocalSessionHostLauncherDependencies = {
         detached: true,
         stdio: 'ignore',
         env: sessionHostChildEnvironment({
-          ...(env.OPENWAGGLE_USER_DATA_DIR ? { userDataRoot: env.OPENWAGGLE_USER_DATA_DIR } : {}),
+          userDataRoot: app.getPath('userData'),
           ...(env.OPENWAGGLE_LOG_LEVEL ? { logLevel: env.OPENWAGGLE_LOG_LEVEL } : {}),
         }),
       },
@@ -141,23 +159,40 @@ async function waitForCompatibleHost(
   throw new Error('Timed out starting the Local Session Host.')
 }
 
+async function waitForLocalSessionHostAuthority(
+  input: LocalSessionClientConnectionInput,
+  timeoutMs: number,
+  dependencies: LocalSessionHostLauncherDependencies,
+) {
+  let upgradePendingError: LocalSessionHostUpgradePendingError | null = null
+  const deadline = dependencies.now() + timeoutMs
+  while (dependencies.now() < deadline) {
+    if (await dependencies.canConnect(input.paths.endpoint)) {
+      try {
+        return { status: 'connected' as const, negotiation: await dependencies.probe(input) }
+      } catch (error) {
+        if (!(error instanceof LocalSessionHostUpgradePendingError)) throw error
+        upgradePendingError = error
+      }
+    }
+    const ownership = await dependencies.tryAcquireOwnership(input.paths.databasePath)
+    if (ownership) {
+      await ownership.release()
+      return { status: 'launch' as const }
+    }
+    await dependencies.wait(HOST_POLL_INTERVAL_MS)
+  }
+  if (upgradePendingError) throw upgradePendingError
+  throw new Error('Timed out waiting for Local Session Host authority.')
+}
+
 export async function ensureLocalSessionHost(
   input: LocalSessionClientConnectionInput & { readonly takeoverTimeoutMs?: number },
   dependencies: LocalSessionHostLauncherDependencies = defaultDependencies,
 ) {
-  if (await dependencies.canConnect(input.paths.endpoint)) {
-    try {
-      return await dependencies.probe(input)
-    } catch (error) {
-      if (!(error instanceof LocalSessionHostUpgradePendingError)) throw error
-      const released = await waitForLocalSessionHostRelease(
-        input.paths.endpoint,
-        input.takeoverTimeoutMs ?? HOST_TAKEOVER_TIMEOUT_MS,
-        dependencies,
-      )
-      if (!released) throw error
-    }
-  }
+  const takeoverTimeoutMs = input.takeoverTimeoutMs ?? HOST_TAKEOVER_TIMEOUT_MS
+  const authority = await waitForLocalSessionHostAuthority(input, takeoverTimeoutMs, dependencies)
+  if (authority.status === 'connected') return authority.negotiation
 
   dependencies.launch()
   await waitForCompatibleHost(input, HOST_START_TIMEOUT_MS, dependencies)

@@ -8,6 +8,7 @@ import {
 } from './session-host/local-session-paths'
 import { startAppSessionHost } from './session-host/session-host-bootstrap'
 import { runSessionHostCutover, sessionHostTargetExists } from './session-host/session-host-cutover'
+import { acquireSessionHostOwnership } from './session-host/session-host-ownership'
 
 const FAILURE_EXIT_CODE = 1
 const ORPHAN_HOST_GRACE_MS = 10_000
@@ -20,35 +21,41 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
     .then(async () => {
       const paths = resolveLocalSessionHostPaths({ userDataRoot: app.getPath('userData') })
       await prepareLocalSessionHostPaths(paths)
-      const cutoverPaths = {
-        sourceDatabasePath: paths.legacyDatabasePath,
-        targetDatabasePath: paths.databasePath,
-        recoveryDatabasePath: paths.recoveryDatabasePath,
-      }
-      const cutover = () => runSessionHostCutover(cutoverPaths)
-      if (await sessionHostTargetExists(cutoverPaths)) await cutover()
-      else await withLegacySessionWriterFence(cutover)
-      const runtime = await import('./runtime')
-      const settings = await import('./store/settings')
-      await runtime.initializeAppRuntime()
+      const ownership = await acquireSessionHostOwnership(paths.databasePath)
       try {
-        await settings.initializeSettingsStore()
-        const host = await startAppSessionHost({
-          paths,
-          runEffect: runtime.runAppEffect,
-          startOwnedServices: runtime.startSessionHostOwnedServices,
-          stopOwnedServices: runtime.stopSessionHostOwnedServices,
-        })
-        const orphanTimer = setTimeout(() => {
-          if (host.liveness.ownerCount() === 0) void host.stop()
-        }, ORPHAN_HOST_GRACE_MS)
+        const cutoverPaths = {
+          sourceDatabasePath: paths.legacyDatabasePath,
+          targetDatabasePath: paths.databasePath,
+          recoveryDatabasePath: paths.recoveryDatabasePath,
+        }
+        const cutover = () => runSessionHostCutover(cutoverPaths)
+        if (await sessionHostTargetExists(cutoverPaths)) await cutover()
+        else await withLegacySessionWriterFence(cutover)
+        const runtime = await import('./runtime')
+        const settings = await import('./store/settings')
         try {
-          await host.waitUntilStopped()
+          await runtime.initializeAppRuntime()
+          await settings.initializeSettingsStore()
+          const host = await startAppSessionHost({
+            paths,
+            externalOwnership: ownership,
+            runEffect: runtime.runAppEffect,
+            startOwnedServices: runtime.startSessionHostOwnedServices,
+            stopOwnedServices: runtime.stopSessionHostOwnedServices,
+          })
+          const orphanTimer = setTimeout(() => {
+            if (host.liveness.ownerCount() === 0) void host.stop()
+          }, ORPHAN_HOST_GRACE_MS)
+          try {
+            await host.waitUntilStopped()
+          } finally {
+            clearTimeout(orphanTimer)
+          }
         } finally {
-          clearTimeout(orphanTimer)
+          await runtime.disposeAppRuntime()
         }
       } finally {
-        await runtime.disposeAppRuntime()
+        await ownership.release()
       }
       app.exit(0)
     })

@@ -21,6 +21,18 @@ function getDatabasePath() {
   return join(app.getPath('userData'), 'session-host', 'session-host.sqlite')
 }
 
+export type AppDatabaseAccess = 'owner' | 'client-read-only'
+
+let configuredAccess: AppDatabaseAccess = 'owner'
+let databaseLayerCreated = false
+
+export function configureAppDatabaseAccess(access: AppDatabaseAccess) {
+  if (databaseLayerCreated) {
+    throw new Error('App database access must be configured before runtime initialization.')
+  }
+  configuredAccess = access
+}
+
 const createMigrationsTable = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient
   yield* sql.unsafe(`
@@ -79,7 +91,9 @@ const runMigrations = Effect.gen(function* () {
 })
 
 const makeDatabaseLayer = Effect.gen(function* () {
+  databaseLayerCreated = true
   const databasePath = getDatabasePath()
+  const readOnly = configuredAccess === 'client-read-only'
 
   yield* Effect.tryPromise({
     try: () => mkdir(dirname(databasePath), { recursive: true }),
@@ -93,6 +107,7 @@ const makeDatabaseLayer = Effect.gen(function* () {
 
   const sqliteLayer = SqliteClient.layer({
     filename: databasePath,
+    readonly: readOnly,
     prepareCacheSize: SQLITE_PREPARE_CACHE_SIZE,
   }).pipe(
     Layer.mapError(
@@ -109,9 +124,13 @@ const makeDatabaseLayer = Effect.gen(function* () {
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
 
-      yield* sql.unsafe('PRAGMA journal_mode = WAL;')
       yield* sql.unsafe('PRAGMA foreign_keys = ON;')
       yield* sql.unsafe('PRAGMA busy_timeout = 5000;')
+      if (readOnly) {
+        yield* sql.unsafe('PRAGMA query_only = ON;')
+        return
+      }
+      yield* sql.unsafe('PRAGMA journal_mode = WAL;')
       yield* runMigrations
     }).pipe(
       Effect.mapError(

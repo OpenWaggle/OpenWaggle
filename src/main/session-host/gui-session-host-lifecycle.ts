@@ -1,20 +1,24 @@
+import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
 import type * as Effect from 'effect/Effect'
 import {
   configureGuiSessionCommandClient,
   retireGuiSessionCommandClientForUpgrade,
 } from '../application/local-session-command-dispatcher'
 import type { AppServices } from '../runtime'
+import type { AppDatabaseAccess } from '../services/database-service'
+import {
+  type GuiSessionHostOwnershipController,
+  prepareGuiSessionHostStartup,
+} from './gui-session-host-startup'
 import { setGuiAttachedToRemoteSessionHost } from './gui-session-host-state'
-import { withLegacySessionWriterFence } from './legacy-session-writer-fence'
 import { LocalSessionHostUpgradePendingError, probeLocalSessionHost } from './local-session-client'
 import {
   isLocalSessionHostUnavailable,
   waitForLocalSessionHostRelease,
 } from './local-session-host-launcher'
 import type { LocalSessionHostRuntime } from './local-session-host-runtime'
-import { prepareLocalSessionHostPaths, resolveLocalSessionHostPaths } from './local-session-paths'
+import type { LocalSessionHostPaths } from './local-session-paths'
 import { startAppSessionHost } from './session-host-bootstrap'
-import { runSessionHostCutover, sessionHostTargetExists } from './session-host-cutover'
 import {
   startRemoteSessionHostRendererBridge,
   startSessionHostRendererBridge,
@@ -39,9 +43,15 @@ interface StartGuiSessionHostInput {
   readonly stopOwnedServices: () => Promise<void>
 }
 
+function guiRemoteClient(paths: LocalSessionHostPaths, clientVersion: string) {
+  return { paths, clientVersion, supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION] }
+}
+
 export interface GuiSessionHostLifecycle {
+  readonly databaseAccess: AppDatabaseAccess
   readonly start: (input: StartGuiSessionHostInput) => Promise<'attached' | 'owned'>
   readonly stop: () => Promise<void>
+  readonly releaseOwnership: () => Promise<void>
 }
 
 function createOwnedServicesController() {
@@ -76,36 +86,62 @@ function createOwnedServicesController() {
   }
 }
 
-async function prepareSessionHostPaths(userDataRoot: string, startupMark: (label: string) => void) {
-  const paths = resolveLocalSessionHostPaths({ userDataRoot })
-  await prepareLocalSessionHostPaths(paths)
-  const cutoverPaths = {
-    sourceDatabasePath: paths.legacyDatabasePath,
-    targetDatabasePath: paths.databasePath,
-    recoveryDatabasePath: paths.recoveryDatabasePath,
+async function attachToRemoteSessionHost(input: {
+  readonly client: { readonly paths: LocalSessionHostPaths; readonly clientVersion: string }
+  readonly isStopping: () => boolean
+  readonly stopOwnedServices: () => Promise<void>
+}) {
+  try {
+    await probeLocalSessionHost({ ...input.client, clientKind: 'gui' })
+    if (input.isStopping()) return null
+    await input.stopOwnedServices()
+    configureGuiSessionCommandClient(input.client)
+    setGuiAttachedToRemoteSessionHost(true)
+    return startRemoteSessionHostRendererBridge(input.client)
+  } catch (error) {
+    if (error instanceof LocalSessionHostUpgradePendingError) {
+      const released = await waitForLocalSessionHostRelease(input.client.paths.endpoint)
+      if (released) return null
+    }
+    if (isLocalSessionHostUnavailable(error)) return null
+    throw error
   }
-  const cutover = () => runSessionHostCutover(cutoverPaths)
-  if (await sessionHostTargetExists(cutoverPaths)) await cutover()
-  else await withLegacySessionWriterFence(cutover)
-  startupMark('session-host-cutover-ready')
-  return paths
+}
+
+async function startOwnedSessionHostRuntime(input: {
+  readonly paths: LocalSessionHostPaths
+  readonly ownership: GuiSessionHostOwnershipController
+  readonly runEffect: AppEffectRunner
+  readonly startOwnedServices: () => Promise<void>
+  readonly stopOwnedServices: () => Promise<void>
+}) {
+  const externalOwnership = await input.ownership.ensure()
+  return startAppSessionHost({
+    paths: input.paths,
+    externalOwnership,
+    runEffect: input.runEffect,
+    startOwnedServices: input.startOwnedServices,
+    stopOwnedServices: input.stopOwnedServices,
+  })
 }
 
 export async function prepareGuiSessionHostLifecycle(input: {
   readonly userDataRoot: string
   readonly clientVersion: string
   readonly startupMark: (label: string) => void
+  readonly requestShutdownForHandoff?: () => void
 }): Promise<GuiSessionHostLifecycle> {
-  const paths = await prepareSessionHostPaths(input.userDataRoot, input.startupMark)
-  const remoteClient = { paths, clientVersion: input.clientVersion }
+  const { paths, ownership, databaseAccess } = await prepareGuiSessionHostStartup(input)
+  const remoteClient = guiRemoteClient(paths, input.clientVersion)
   let runtime: LocalSessionHostRuntime | null = null
   let stopRendererBridge: (() => void) | null = null
   let stopping = false
   const ownedServices = createOwnedServicesController()
 
   const startOwnedRuntime = async (runEffect: AppEffectRunner) => {
-    const ownedRuntime = await startAppSessionHost({
+    const ownedRuntime = await startOwnedSessionHostRuntime({
       paths,
+      ownership,
       runEffect,
       startOwnedServices: ownedServices.start,
       stopOwnedServices: ownedServices.stop,
@@ -118,22 +154,14 @@ export async function prepareGuiSessionHostLifecycle(input: {
   }
 
   const attachToExistingHost = async () => {
-    try {
-      await probeLocalSessionHost({ ...remoteClient, clientKind: 'gui' })
-      if (stopping) return false
-      await ownedServices.stop()
-      configureGuiSessionCommandClient(remoteClient)
-      stopRendererBridge = startRemoteSessionHostRendererBridge(remoteClient)
-      setGuiAttachedToRemoteSessionHost(true)
-      return true
-    } catch (error) {
-      if (error instanceof LocalSessionHostUpgradePendingError) {
-        const released = await waitForLocalSessionHostRelease(paths.endpoint)
-        if (released) return false
-      }
-      if (isLocalSessionHostUnavailable(error)) return false
-      throw error
-    }
+    const stopBridge = await attachToRemoteSessionHost({
+      client: remoteClient,
+      isStopping: () => stopping,
+      stopOwnedServices: ownedServices.stop,
+    })
+    if (!stopBridge) return false
+    stopRendererBridge = stopBridge
+    return true
   }
 
   const installOwnedRuntime: (
@@ -154,6 +182,7 @@ export async function prepareGuiSessionHostLifecycle(input: {
         retireGuiSessionCommandClientForUpgrade()
         setGuiAttachedToRemoteSessionHost(false)
         await ownedServices.stop()
+        input.requestShutdownForHandoff?.()
         return
       }
       while (!stopping) {
@@ -166,7 +195,6 @@ export async function prepareGuiSessionHostLifecycle(input: {
           installOwnedRuntime(recoveredRuntime, runEffect)
           return
         } catch {
-          if (await attachToExistingHost().catch(() => false)) return
           await new Promise((resolve) => setTimeout(resolve, OWNED_HOST_RESTART_DELAY_MS))
         }
       }
@@ -174,6 +202,7 @@ export async function prepareGuiSessionHostLifecycle(input: {
   }
 
   return {
+    databaseAccess,
     start: async ({
       runEffect,
       startOwnedServices: startServices,
@@ -194,10 +223,11 @@ export async function prepareGuiSessionHostLifecycle(input: {
           const failedRuntime = runtime
           runtime = null
           await failedRuntime?.stop()
-          if (await attachToExistingHost()) {
-            return markSessionHostListening(input.startupMark, 'attached')
-          }
           if (!(error instanceof SessionHostDrainedDuringStartupError)) throw error
+          input.requestShutdownForHandoff?.()
+          throw new Error('GUI Session Host retired during startup for a version handoff.', {
+            cause: error,
+          })
         }
       }
       throw new Error('GUI Session Host startup was stopped.')
@@ -213,5 +243,6 @@ export async function prepareGuiSessionHostLifecycle(input: {
       await ownedServices.stop()
       ownedServices.clear()
     },
+    releaseOwnership: ownership.release,
   }
 }

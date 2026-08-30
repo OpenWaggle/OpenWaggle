@@ -131,7 +131,11 @@ async function bootstrapServicesAndWindow() {
     userDataRoot: app.getPath('userData'),
     clientVersion: app.getVersion(),
     startupMark,
+    requestShutdownForHandoff: () => app.quit(),
   })
+
+  const { configureAppDatabaseAccess } = await import('./services/database-service')
+  configureAppDatabaseAccess(sessionHostLifecycleOnce.databaseAccess)
 
   const [runtimeModule, settingsStoreModule, agentRunServiceModule] = await Promise.all([
     getRuntimeModule(),
@@ -224,9 +228,17 @@ function registerAppLifecycle() {
       completeAppRuntimeShutdown({
         persistActiveRuns: persistActiveRunsBeforeQuit,
         disposeRuntime: async () => {
-          await sessionHostLifecycleOnce?.stop()
-          sessionHostLifecycleOnce = null
-          await (await getRuntimeModule()).disposeAppRuntime()
+          const sessionHostLifecycle = sessionHostLifecycleOnce
+          try {
+            await sessionHostLifecycle?.stop()
+          } finally {
+            try {
+              await (await getRuntimeModule()).disposeAppRuntime()
+            } finally {
+              await sessionHostLifecycle?.releaseOwnership()
+              sessionHostLifecycleOnce = null
+            }
+          }
         },
       })
         .then(() => {

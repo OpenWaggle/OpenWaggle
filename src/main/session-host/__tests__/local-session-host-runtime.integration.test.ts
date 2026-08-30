@@ -142,6 +142,27 @@ describe('Local Session Host runtime', () => {
     ).resolves.toBeUndefined()
   })
 
+  it('adopts ownership acquired before persistence initialization', async () => {
+    const databasePath = path.join(temporaryRoot, 'preowned-session-host.sqlite')
+    const ownership = await acquireSessionHostOwnership(databasePath)
+    runtime = await startLocalSessionHost({
+      endpoint: path.join(temporaryRoot, 'preowned-host.sock'),
+      databasePath,
+      externalOwnership: ownership,
+      idleGracePeriodMs: 60_000,
+      authenticate: async () => ({ callerId: 'local-user' }),
+      dispatch: async () => ({ accepted: true }),
+    })
+
+    await runtime.stop()
+    await expect(acquireSessionHostOwnership(databasePath)).rejects.toMatchObject({
+      code: 'ELOCKED',
+    })
+    await ownership.release()
+    const successor = await acquireSessionHostOwnership(databasePath)
+    await successor.release()
+  })
+
   it('removes the old endpoint before releasing singleton ownership', async () => {
     const order: string[] = []
     const eventHub = new SessionHostEventHub({ hostInstanceId: 'host-order' })
@@ -169,6 +190,7 @@ describe('Local Session Host runtime', () => {
           order.push('release-ownership')
         },
       },
+      true,
       () => order.push('release-events'),
       () => undefined,
       async () => {

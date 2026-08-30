@@ -17,6 +17,7 @@ const logger = createLogger('session-host/runtime')
 export interface StartLocalSessionHostInput {
   readonly endpoint: string
   readonly databasePath: string
+  readonly externalOwnership?: SessionHostOwnership
   readonly idleGracePeriodMs: number
   readonly readIdleGracePeriod?: () => Promise<number>
   readonly settingsRefreshIntervalMs?: number
@@ -44,6 +45,7 @@ export class LocalSessionHostRuntime {
     readonly liveness: SessionHostLiveness,
     private readonly server: LocalSessionServerHandle,
     private readonly ownership: SessionHostOwnership,
+    private readonly releaseOwnershipOnStop: boolean,
     private readonly releaseEventPublisher: () => void,
     private readonly releaseSettingsObserver: () => void = () => undefined,
     private readonly stopOwnedServices: () => Promise<void> = () => Promise.resolve(),
@@ -83,7 +85,7 @@ export class LocalSessionHostRuntime {
       await this.server.removeEndpoint()
     } finally {
       try {
-        await this.ownership.release()
+        if (this.releaseOwnershipOnStop) await this.ownership.release()
       } finally {
         this.resolveStopped()
       }
@@ -122,10 +124,32 @@ function observeIdleGracePeriod(input: {
   }
 }
 
+async function cleanupFailedStartup(input: {
+  readonly runtime: LocalSessionHostRuntime | null
+  readonly releaseSettingsObserver: () => void
+  readonly releaseEventPublisher: () => void
+  readonly eventHub: SessionHostEventHub
+  readonly liveness: SessionHostLiveness
+  readonly ownership: SessionHostOwnership
+  readonly releaseOwnership: boolean
+}) {
+  if (input.runtime) {
+    await input.runtime.stop()
+    return
+  }
+  input.releaseSettingsObserver()
+  input.releaseEventPublisher()
+  input.eventHub.close()
+  input.liveness.close()
+  if (input.releaseOwnership) await input.ownership.release()
+}
+
 export async function startLocalSessionHost(
   input: StartLocalSessionHostInput,
 ): Promise<LocalSessionHostRuntime> {
-  const ownership = await acquireSessionHostOwnership(input.databasePath)
+  const ownership =
+    input.externalOwnership ?? (await acquireSessionHostOwnership(input.databasePath))
+  const releaseOwnershipOnStop = input.externalOwnership === undefined
   const eventHub = new SessionHostEventHub({
     ...(input.eventReplayCapacity !== undefined
       ? { replayCapacity: input.eventReplayCapacity }
@@ -172,6 +196,7 @@ export async function startLocalSessionHost(
       liveness,
       server,
       ownership,
+      releaseOwnershipOnStop,
       releaseEventPublisher,
       releaseSettingsObserver,
       input.stopOwnedServices,
@@ -183,15 +208,15 @@ export async function startLocalSessionHost(
     )
     return runtime
   } catch (error) {
-    if (runtime) {
-      await runtime.stop()
-      throw error
-    }
-    releaseSettingsObserver()
-    releaseEventPublisher()
-    eventHub.close()
-    liveness.close()
-    await ownership.release()
+    await cleanupFailedStartup({
+      runtime,
+      releaseSettingsObserver,
+      releaseEventPublisher,
+      eventHub,
+      liveness,
+      ownership,
+      releaseOwnership: releaseOwnershipOnStop,
+    })
     throw error
   }
 }

@@ -7,6 +7,10 @@ const OWNERSHIP_LOCK_UPDATE_MS = 30_000
 const OWNERSHIP_HANDOFF_RETRY_MS = 5
 const OWNERSHIP_HANDOFF_RETRIES = 200
 
+export interface AcquireSessionHostOwnershipOptions {
+  readonly timeoutMs?: number
+}
+
 export interface SessionHostOwnership {
   readonly targetPath: string
   readonly release: () => Promise<void>
@@ -15,14 +19,19 @@ export interface SessionHostOwnership {
 /** Holds exclusive ownership of the canonical Session Host store for the process lifetime. */
 export async function acquireSessionHostOwnership(
   targetPath: string,
+  options: AcquireSessionHostOwnershipOptions = {},
 ): Promise<SessionHostOwnership> {
   await mkdir(path.dirname(targetPath), { recursive: true })
+  const retries =
+    options.timeoutMs === undefined
+      ? OWNERSHIP_HANDOFF_RETRIES
+      : Math.ceil(options.timeoutMs / OWNERSHIP_HANDOFF_RETRY_MS)
   const releaseLock = await lockfile.lock(targetPath, {
     realpath: false,
     stale: OWNERSHIP_LOCK_STALE_MS,
     update: OWNERSHIP_LOCK_UPDATE_MS,
     retries: {
-      retries: OWNERSHIP_HANDOFF_RETRIES,
+      retries,
       factor: 1,
       minTimeout: OWNERSHIP_HANDOFF_RETRY_MS,
       maxTimeout: OWNERSHIP_HANDOFF_RETRY_MS,

@@ -19,6 +19,7 @@ import { createLocalSessionAuthenticator } from './local-session-authenticator'
 import { startLocalSessionHost } from './local-session-host-runtime'
 import type { LocalSessionHostPaths } from './local-session-paths'
 import { ensureLocalUserCredential } from './local-user-credential'
+import type { SessionHostOwnership } from './session-host-ownership'
 import { readSessionHostUpgradeBlockers } from './session-host-upgrade-blockers'
 
 type AppEffectRunner = <A, E>(effect: Effect.Effect<A, E, AppServices>) => Promise<A>
@@ -27,6 +28,7 @@ const logger = createLogger('session-host/bootstrap')
 
 export async function startAppSessionHost(input: {
   readonly paths: LocalSessionHostPaths
+  readonly externalOwnership?: SessionHostOwnership
   readonly runEffect: AppEffectRunner
   readonly startOwnedServices: () => Promise<void>
   readonly stopOwnedServices: () => Promise<void>
@@ -54,6 +56,7 @@ export async function startAppSessionHost(input: {
   return startLocalSessionHost({
     endpoint: input.paths.endpoint,
     databasePath: input.paths.databasePath,
+    ...(input.externalOwnership ? { externalOwnership: input.externalOwnership } : {}),
     idleGracePeriodMs: settings.sessionHostIdleGracePeriodMs,
     readIdleGracePeriod: () =>
       input.runEffect(
