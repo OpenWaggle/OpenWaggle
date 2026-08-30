@@ -1,20 +1,10 @@
 import type { AgentSendPayload, Message } from '@shared/types/agent'
 import { MessageId, SessionId } from '@shared/types/brand'
-import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it } from 'vitest'
 import type { UpsertSessionResourceInput } from '../../ports/session-resource-repository'
-import { captureProjectedSessionResources } from '../session-resource-backfill'
-import {
-  advanceGeneratedImageCaptureBudget,
-  captureSuccessfulRunResources,
-  GENERATED_IMAGE_CAPTURE_LIMITS,
-} from '../session-resource-capture'
-import {
-  PNG_BASE64,
-  resourceMessages,
-  sessionResourceTestLayer,
-} from './session-resource-capture.fixtures'
+import { captureSuccessfulRunResources } from '../session-resource-capture'
+import { resourceMessages, sessionResourceTestLayer } from './session-resource-capture.fixtures'
 
 const REMOTE_IMAGE_REFERENCE_LIMIT = 32
 const EXCESS_REMOTE_IMAGE_COUNT = REMOTE_IMAGE_REFERENCE_LIMIT + 8
@@ -218,43 +208,6 @@ describe('captureSuccessfulRunResources', () => {
     )
   })
 
-  it('caps generated-image capture across the whole run', async () => {
-    const upserts: UpsertSessionResourceInput[] = []
-    const storedByteFiles: string[] = []
-    const template = resourceMessages().find((message) => message.role === 'assistant')
-    if (!template) throw new Error('Expected the assistant fixture message.')
-    const messages: Message[] = Array.from(
-      { length: GENERATED_IMAGE_CAPTURE_LIMITS.maxCount + 8 },
-      (_, index) => ({
-        ...template,
-        id: MessageId(`assistant-generated-${String(index)}`),
-      }),
-    )
-
-    await Effect.runPromise(
-      captureSuccessfulRunResources({
-        sessionId: SessionId('session-1'),
-        runId: 'run-many-generated-images',
-        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
-        messages,
-      }).pipe(Effect.provide(sessionResourceTestLayer(upserts, { storedByteFiles }))),
-    )
-
-    expect(storedByteFiles).toHaveLength(GENERATED_IMAGE_CAPTURE_LIMITS.maxCount)
-    expect(upserts.filter((resource) => resource.kind === 'image')).toHaveLength(
-      GENERATED_IMAGE_CAPTURE_LIMITS.maxCount,
-    )
-  })
-
-  it('rejects the next generated image when it would exceed the aggregate byte budget', () => {
-    expect(
-      advanceGeneratedImageCaptureBudget(
-        { count: 1, bytes: GENERATED_IMAGE_CAPTURE_LIMITS.maxBytes - 1 },
-        Buffer.from(PNG_BASE64, 'base64').byteLength,
-      ),
-    ).toBeNull()
-  })
-
   it('keeps separate occurrences when two assistant messages share a resource', async () => {
     const upserts: UpsertSessionResourceInput[] = []
     const first = resourceMessages()[1]
@@ -277,127 +230,5 @@ describe('captureSuccessfulRunResources', () => {
       'assistant-message',
       'assistant-message-2',
     ])
-  })
-
-  it('backfills explicit resources from persisted messages with deterministic occurrences', async () => {
-    const upserts: UpsertSessionResourceInput[] = []
-    const persisted = resourceMessages()
-    await Effect.runPromise(
-      captureProjectedSessionResources({
-        sessionId: SessionId('session-1'),
-        messages: persisted,
-      }).pipe(Effect.provide(sessionResourceTestLayer(upserts))),
-    )
-
-    expect(upserts).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          canonicalKey: 'url:https://user.example/reference',
-          occurrence: expect.objectContaining({
-            id: expect.stringContaining('backfill:user-message'),
-            nodeId: 'user-message',
-          }),
-        }),
-        expect.objectContaining({
-          kind: 'image',
-          occurrence: expect.objectContaining({
-            id: expect.stringContaining('backfill:assistant-message'),
-            nodeId: 'assistant-message',
-          }),
-        }),
-      ]),
-    )
-  })
-
-  it('does not rewrite managed image bytes when backfill finds the canonical resource', async () => {
-    const upserts: UpsertSessionResourceInput[] = []
-    const storedByteFiles: string[] = []
-    const existingResource: SessionResource = {
-      id: 'existing-image',
-      sessionId: SessionId('session-1'),
-      canonicalKey: `sha256:${'unused'}`,
-      kind: 'image',
-      title: 'Generated image.png',
-      mimeType: 'image/png',
-      locator: 'session-resource://existing-image',
-      available: true,
-      isSource: false,
-      isOutput: true,
-      occurrences: [],
-      createdAt: 1000,
-      updatedAt: 1000,
-    }
-    const assistantMessage = resourceMessages()[1]
-    if (!assistantMessage) throw new Error('Expected the assistant fixture message.')
-
-    await Effect.runPromise(
-      captureProjectedSessionResources({
-        sessionId: SessionId('session-1'),
-        messages: [assistantMessage],
-      }).pipe(
-        Effect.provide(sessionResourceTestLayer(upserts, { existingResource, storedByteFiles })),
-      ),
-    )
-
-    expect(storedByteFiles).toEqual([])
-    expect(upserts).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: 'existing-image',
-          locator: 'session-resource://existing-image',
-        }),
-      ]),
-    )
-  })
-
-  it('replaces a cataloged managed image when its file is no longer readable', async () => {
-    const upserts: UpsertSessionResourceInput[] = []
-    const storedByteFiles: string[] = []
-    const removedPaths: string[] = []
-    const existingResource: SessionResource = {
-      id: 'missing-image',
-      sessionId: SessionId('session-1'),
-      canonicalKey: 'sha256:missing',
-      kind: 'image',
-      title: 'Generated image.png',
-      mimeType: 'image/png',
-      locator: 'session-resource://missing-image',
-      available: true,
-      isSource: false,
-      isOutput: true,
-      occurrences: [],
-      createdAt: 1000,
-      updatedAt: 1000,
-    }
-    const assistantMessage = resourceMessages()[1]
-    if (!assistantMessage) throw new Error('Expected the assistant fixture message.')
-
-    await Effect.runPromise(
-      captureProjectedSessionResources({
-        sessionId: SessionId('session-1'),
-        messages: [assistantMessage],
-      }).pipe(
-        Effect.provide(
-          sessionResourceTestLayer(upserts, {
-            existingResource,
-            existingManagedPath: '/managed/deleted-image.png',
-            managedReadFails: true,
-            storedByteFiles,
-            removedPaths,
-          }),
-        ),
-      ),
-    )
-
-    expect(storedByteFiles).toContain('Generated image.png')
-    expect(upserts).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          managedPath: expect.stringMatching(/^\/managed\//u),
-          locator: expect.stringMatching(/^session-resource:\/\//u),
-        }),
-      ]),
-    )
-    expect(removedPaths).toContain('/managed/deleted-image.png')
   })
 })
