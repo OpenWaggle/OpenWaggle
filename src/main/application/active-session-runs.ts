@@ -240,6 +240,10 @@ export function cancelSessionRuns(sessionId: SessionId): boolean {
   )
 }
 
+export function cancelCompactionSessionRun(sessionId: SessionId): boolean {
+  return activeCompactions.cancel(sessionId)
+}
+
 export async function interruptExactSessionRun(sessionId: SessionId, runId: string) {
   const interruptedAgent = await activeRuns.interruptAndWait(
     sessionId,

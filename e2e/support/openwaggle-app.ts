@@ -15,6 +15,16 @@ let evidenceDirectoryPromise: Promise<string> | null = null
 let evidenceSequence = 0
 const QA_DIAGNOSTIC_TEXT_LIMIT = 1_000
 const QA_SCREENSHOT_SETTLE_MS = 250
+const EMPTY_ELECTRON_STDOUT_PREAMBLE = /^(?:\s*\[\]\s*)+(?=\{)/u
+
+function applicationCliStdout(stdout: string) {
+  if (process.platform !== 'linux') return stdout
+
+  // Headless Electron on Linux can prepend an empty native startup payload even with Chromium
+  // logging disabled. Remove only that exact payload; any other stdout contamination must still
+  // fail the CLI contract assertions below.
+  return stdout.replace(EMPTY_ELECTRON_STDOUT_PREAMBLE, '')
+}
 
 function evidenceDirectory() {
   evidenceDirectoryPromise ??= fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-e2e-evidence-')).then(
@@ -110,7 +120,7 @@ export class OpenWaggleApp {
       maxBuffer: 10 * 1024 * 1024,
       timeout: 30_000,
     })
-    return { stdout: result.stdout, stderr: result.stderr }
+    return { stdout: applicationCliStdout(result.stdout), stderr: result.stderr }
   }
 
   async confirmNativeDialogs(response = 1): Promise<void> {

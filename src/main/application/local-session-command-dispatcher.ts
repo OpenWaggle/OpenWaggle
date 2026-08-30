@@ -18,8 +18,6 @@ import {
   isLocalSessionHostUnavailable,
 } from '../session-host/local-session-host-launcher'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
-import { executeExplicitWaggleCancellation } from './explicit-waggle-command-cancellation'
-import { executeExplicitWaggleCommand } from './explicit-waggle-command-service'
 import {
   authorizeLocalSessionCommand,
   profileAuthorityForCapabilities,
@@ -30,6 +28,10 @@ import {
   scopeNamedProfileExport,
 } from './local-session-command-scoping'
 import { authorizeTargetForCaller } from './local-session-derived-authority'
+import {
+  dispatchOwnerLocalSessionCommand,
+  isLocallyHandledCommand,
+} from './local-session-owned-command'
 import { manageLocalSessionProfiles } from './local-session-profile-management'
 import { dispatchSessionQuery } from './local-session-query-dispatcher'
 import {
@@ -73,6 +75,10 @@ export interface GuiSessionCommandDependencies {
   readonly ensure: (input: Parameters<typeof ensureLocalSessionHost>[0]) => Promise<unknown>
 }
 
+function cannotRetryAfterAmbiguousTransportFailure(payload: LocalSessionCommandPayload) {
+  return payload.contract === 'session-waggle-v1' || payload.contract === 'local-compaction-v1'
+}
+
 export function configureGuiSessionCommandClient(input: GuiSessionClientInput | null) {
   guiSessionCommandRoute = input ? { mode: 'remote', client: input } : { mode: 'local' }
 }
@@ -109,7 +115,10 @@ export function dispatchConfiguredGuiSessionCommand(
     try {
       return await dependencies.execute(commandInput)
     } catch (error) {
-      if (!isLocalSessionHostUnavailable(error) || input.payload.contract === 'session-waggle-v1') {
+      if (
+        !isLocalSessionHostUnavailable(error) ||
+        cannotRetryAfterAmbiguousTransportFailure(input.payload)
+      ) {
         throw error
       }
       await dependencies.ensure({
@@ -208,12 +217,8 @@ export function dispatchLocalSessionCommand(input: {
   const remote = dispatchConfiguredGuiSessionCommand(input)
   if (remote) return remote
   const commandPayload = input.payload
-  if (commandPayload.contract === 'session-waggle-v1') {
-    return executeExplicitWaggleCommand({ caller: input.caller, payload: commandPayload })
-  }
-  if (commandPayload.contract === 'session-waggle-cancel-v1') {
-    return executeExplicitWaggleCancellation({ caller: input.caller, payload: commandPayload })
-  }
+  const ownerLocal = dispatchOwnerLocalSessionCommand(input)
+  if (ownerLocal) return ownerLocal
   return Effect.gen(function* () {
     const caller = yield* refreshNamedProfileCaller(input.caller)
     if (commandPayload.contract === 'local-attachments-v1') {
@@ -230,12 +235,7 @@ export function dispatchLocalSessionCommand(input: {
       caller,
       ...(caller.workingDirectory ? { workingDirectory: caller.workingDirectory } : {}),
     })
-    if (
-      payload.contract === 'local-ui-v1' ||
-      payload.contract === 'local-attachments-v1' ||
-      payload.contract === 'session-waggle-v1' ||
-      payload.contract === 'session-waggle-cancel-v1'
-    ) {
+    if (isLocallyHandledCommand(payload)) {
       return yield* Effect.fail(new Error('Local Session command preparation returned invalid.'))
     }
 

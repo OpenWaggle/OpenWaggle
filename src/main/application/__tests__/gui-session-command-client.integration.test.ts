@@ -97,6 +97,59 @@ describe('GUI Session Host command client', () => {
     })
   })
 
+  it('routes manual compaction to the detached owning Session Host', async () => {
+    const paths = resolveLocalSessionHostPaths({ userDataRoot: temporaryRoot })
+    endpointDirectory = paths.endpointDirectory === paths.stateRoot ? null : paths.endpointDirectory
+    await prepareLocalSessionHostPaths(paths)
+    const credential = await ensureLocalUserCredential(paths.credentialPath)
+    const ownerDispatch = vi.fn(async ({ payload }) => ({
+      contract: 'local-compaction-v1' as const,
+      response: {
+        requestId: requestIdFromPayload(payload),
+        sessionId: 'session-remote',
+        result: { summary: 'owner summary', firstKeptEntryId: 'kept-entry', tokensBefore: 420 },
+      },
+    }))
+    runtime = await startLocalSessionHost({
+      endpoint: paths.endpoint,
+      databasePath: paths.databasePath,
+      idleGracePeriodMs: 60_000,
+      authenticate: createLocalSessionAuthenticator({ localUserCredential: credential }),
+      dispatch: ownerDispatch,
+    })
+    configureGuiSessionCommandClient({ paths, clientVersion: 'test' })
+
+    const remote = dispatchConfiguredGuiSessionCommand({
+      caller: { callerId: 'gui:local-user' },
+      payload: {
+        contract: 'local-compaction-v1',
+        request: {
+          requestId: 'gui-compact',
+          sessionId: 'session-remote',
+          model: 'openai/gpt-5.5',
+          customInstructions: 'Keep the migration decision.',
+        },
+      },
+    })
+    if (!remote) throw new Error('Expected the configured GUI Session client.')
+
+    await expect(Effect.runPromise(remote)).resolves.toMatchObject({
+      contract: 'local-compaction-v1',
+      response: {
+        requestId: 'gui-compact',
+        sessionId: 'session-remote',
+        result: { summary: 'owner summary' },
+      },
+    })
+    expect(ownerDispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        caller: { callerId: 'gui:local-user' },
+        negotiatedRevision: 4,
+        payload: expect.objectContaining({ contract: 'local-compaction-v1' }),
+      }),
+    )
+  })
+
   it('reacquires a crashed detached Host and safely retries the idempotent command', async () => {
     const paths = resolveLocalSessionHostPaths({ userDataRoot: temporaryRoot })
     configureGuiSessionCommandClient({ paths, clientVersion: 'test' })
@@ -168,6 +221,35 @@ describe('GUI Session Host command client', () => {
               ],
               stop: { primary: 'consensus', maxTurnsSafety: 4 },
             },
+          },
+        },
+      },
+      { execute, ensure },
+    )
+    if (!remote) throw new Error('Expected the configured GUI Session client.')
+
+    await expect(Effect.runPromise(remote)).rejects.toThrow()
+    expect(execute).toHaveBeenCalledOnce()
+    expect(ensure).not.toHaveBeenCalled()
+  })
+
+  it('does not retry manual compaction after an ambiguous transport reset', async () => {
+    configureGuiSessionCommandClient({
+      paths: resolveLocalSessionHostPaths({ userDataRoot: temporaryRoot }),
+      clientVersion: 'test',
+    })
+    const reset = Object.assign(new Error('connection reset'), { code: 'ECONNRESET' })
+    const execute = vi.fn().mockRejectedValue(reset)
+    const ensure = vi.fn(async () => undefined)
+    const remote = dispatchConfiguredGuiSessionCommand(
+      {
+        caller: { callerId: 'gui:local-user' },
+        payload: {
+          contract: 'local-compaction-v1',
+          request: {
+            requestId: 'gui-compaction-reset',
+            sessionId: 'session-1',
+            model: 'openai/gpt-5.5',
           },
         },
       },

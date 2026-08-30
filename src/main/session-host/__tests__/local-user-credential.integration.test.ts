@@ -35,9 +35,13 @@ describe('Local Session credentials', () => {
       Array.from({ length: 12 }, () => ensureLocalUserCredential(credentialPath)),
     )
     const installed = (await fs.readFile(credentialPath, 'utf8')).trim()
+    const entries = await fs.readdir(temporaryRoot)
+    const stats = await fs.stat(credentialPath)
 
     expect(new Set(credentials)).toEqual(new Set([installed]))
     expect(Buffer.from(installed, 'base64url')).toHaveLength(32)
+    expect(entries).toEqual(['concurrent.credential'])
+    expect(stats.nlink).toBe(1)
   })
 
   it('refuses an invalid existing credential instead of silently replacing trust material', async () => {

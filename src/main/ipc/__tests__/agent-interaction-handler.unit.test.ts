@@ -4,19 +4,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   cleanupSessionRunMock,
-  compactAgentSessionMock,
   dispatchLocalSessionCommandMock,
   executeAgentRunMock,
   getAgentContextUsageMock,
-  isGuiAttachedToRemoteSessionHostMock,
   typedHandleMock,
 } = vi.hoisted(() => ({
   cleanupSessionRunMock: vi.fn(),
-  compactAgentSessionMock: vi.fn(),
   dispatchLocalSessionCommandMock: vi.fn(),
   executeAgentRunMock: vi.fn(),
   getAgentContextUsageMock: vi.fn(),
-  isGuiAttachedToRemoteSessionHostMock: vi.fn(() => false),
   typedHandleMock: vi.fn(),
 }))
 
@@ -37,12 +33,7 @@ vi.mock('../../application/local-session-command-dispatcher', () => ({
 }))
 
 vi.mock('../../application/agent-session-service', () => ({
-  compactAgentSession: compactAgentSessionMock,
   getAgentContextUsage: getAgentContextUsageMock,
-}))
-
-vi.mock('../../session-host/gui-session-host-state', () => ({
-  isGuiAttachedToRemoteSessionHost: isGuiAttachedToRemoteSessionHostMock,
 }))
 
 vi.mock('../../utils/broadcast', () => ({
@@ -86,11 +77,22 @@ function getCompactionHandler() {
   return handler
 }
 
+function getCancelHandler() {
+  registerAgentHandlers()
+  const call = typedHandleMock.mock.calls.find(
+    (candidate: readonly unknown[]) => candidate[0] === 'agent:cancel',
+  )
+  const handler = call?.[1]
+  if (typeof handler !== 'function') {
+    throw new Error('Expected agent:cancel handler to be registered')
+  }
+  return handler
+}
+
 describe('agent interaction IPC handler', () => {
   beforeEach(() => {
     clearAgentLoopInteractionBrokerForTests()
     cleanupSessionRunMock.mockReset()
-    compactAgentSessionMock.mockReset()
     dispatchLocalSessionCommandMock.mockReset().mockReturnValue(
       Effect.succeed({
         contract: 'session-query-v2',
@@ -103,7 +105,6 @@ describe('agent interaction IPC handler', () => {
     )
     executeAgentRunMock.mockReset()
     getAgentContextUsageMock.mockReset()
-    isGuiAttachedToRemoteSessionHostMock.mockReset().mockReturnValue(false)
     typedHandleMock.mockReset()
   })
 
@@ -148,8 +149,17 @@ describe('agent interaction IPC handler', () => {
     ).rejects.toThrow()
   })
 
-  it('refuses local compaction while the GUI is attached to another Session Host', async () => {
-    isGuiAttachedToRemoteSessionHostMock.mockReturnValue(true)
+  it('routes manual compaction through the owning Session Host', async () => {
+    dispatchLocalSessionCommandMock.mockImplementationOnce((input) =>
+      Effect.succeed({
+        contract: 'local-compaction-v1',
+        response: {
+          requestId: input.payload.request.requestId,
+          sessionId: 'remote-session',
+          result: { summary: 'summary', firstKeptEntryId: 'kept-entry', tokensBefore: 42 },
+        },
+      }),
+    )
     const handler = getCompactionHandler()
 
     await expect(
@@ -161,7 +171,60 @@ describe('agent interaction IPC handler', () => {
           'Compact remotely.',
         ),
       ),
-    ).rejects.toThrow('attached to another Session Host')
-    expect(compactAgentSessionMock).not.toHaveBeenCalled()
+    ).resolves.toEqual({ summary: 'summary', firstKeptEntryId: 'kept-entry', tokensBefore: 42 })
+    expect(dispatchLocalSessionCommandMock).toHaveBeenCalledWith({
+      caller: { callerId: 'gui:local-user' },
+      payload: {
+        contract: 'local-compaction-v1',
+        request: expect.objectContaining({
+          sessionId: 'remote-session',
+          model: 'openai/gpt-5.5',
+          customInstructions: 'Compact remotely.',
+        }),
+      },
+    })
+  })
+
+  it('routes cancellation to the owning compaction when no ordinary run is active', async () => {
+    dispatchLocalSessionCommandMock
+      .mockReturnValueOnce(
+        Effect.succeed({
+          contract: 'session-query-v2',
+          response: {
+            contractVersion: 2,
+            requestId: 'status-request',
+            outcome: {
+              operation: 'status',
+              sessionId: 'remote-session',
+              stateRevision: 1,
+              queueState: 'idle',
+              queueRevision: 0,
+              activeRunId: null,
+              pendingFollowUpCount: 0,
+            },
+          },
+        }),
+      )
+      .mockImplementationOnce((input) =>
+        Effect.succeed({
+          contract: 'local-compaction-cancel-v1',
+          response: {
+            requestId: input.payload.request.requestId,
+            sessionId: 'remote-session',
+            cancelled: true,
+          },
+        }),
+      )
+
+    await expect(
+      Effect.runPromise(getCancelHandler()({}, SessionId('remote-session'))),
+    ).resolves.toBeUndefined()
+    expect(dispatchLocalSessionCommandMock).toHaveBeenLastCalledWith({
+      caller: { callerId: 'gui:local-user' },
+      payload: {
+        contract: 'local-compaction-cancel-v1',
+        request: expect.objectContaining({ sessionId: 'remote-session' }),
+      },
+    })
   })
 })

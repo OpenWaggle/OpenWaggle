@@ -1,7 +1,8 @@
 export const LOCAL_SESSION_PROTOCOL_NAME = 'openwaggle-local-session' as const
 export { SESSION_WAGGLE_CONTRACT_VERSION } from './local-session-waggle'
-export const LOCAL_SESSION_CURRENT_REVISION = 3 as const
-export const LOCAL_SESSION_SUPPORTED_REVISIONS = [3, 2] as const
+export const LOCAL_SESSION_CURRENT_REVISION = 4 as const
+export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
+export const LOCAL_SESSION_SUPPORTED_REVISIONS = [4, 3, 2] as const
 
 export const LOCAL_SESSION_REVISION_2_CAPABILITIES = [
   'events:subscribe',
@@ -13,10 +14,15 @@ export const LOCAL_SESSION_REVISION_2_CAPABILITIES = [
   'ui:mutate-v1',
 ] as const
 
-export const LOCAL_SESSION_CAPABILITIES = [
+export const LOCAL_SESSION_REVISION_3_CAPABILITIES = [
   ...LOCAL_SESSION_REVISION_2_CAPABILITIES,
   'waggle:run-v1',
   'waggle:cancel-v1',
+] as const
+
+export const LOCAL_SESSION_CAPABILITIES = [
+  ...LOCAL_SESSION_REVISION_3_CAPABILITIES,
+  'ui:compact-v1',
 ] as const
 
 export interface LocalSessionClientHello {
@@ -111,6 +117,7 @@ export type LocalSessionCommandPayload =
       readonly contract: 'session-query-v2'
       readonly request: SessionQueryRequest
     }
+  | LocalSessionCompactionCommandPayload
   | LocalSessionWaggleCommandPayload
 
 export type LocalSessionCommandResult =
@@ -156,6 +163,7 @@ export type LocalSessionCommandResult =
       readonly contract: 'session-query-v2'
       readonly response: SessionQueryResponse
     }
+  | LocalSessionCompactionCommandResult
   | LocalSessionWaggleCommandResult
 
 export type LocalSessionClientFrame =
@@ -233,6 +241,13 @@ export type LocalSessionNegotiationResult =
   | {
       readonly accepted: true
       readonly protocol: typeof LOCAL_SESSION_PROTOCOL_NAME
+      readonly revision: 3
+      readonly hostInstanceId: string
+      readonly capabilities: typeof LOCAL_SESSION_REVISION_3_CAPABILITIES
+    }
+  | {
+      readonly accepted: true
+      readonly protocol: typeof LOCAL_SESSION_PROTOCOL_NAME
       readonly revision: 2
       readonly hostInstanceId: string
       readonly capabilities: typeof LOCAL_SESSION_REVISION_2_CAPABILITIES
@@ -241,14 +256,14 @@ export type LocalSessionNegotiationResult =
       readonly accepted: false
       readonly protocol: typeof LOCAL_SESSION_PROTOCOL_NAME
       readonly code: 'incompatible_protocol'
-      readonly supportedRevisions: typeof LOCAL_SESSION_SUPPORTED_REVISIONS
+      readonly supportedRevisions: readonly number[]
     }
   | {
       readonly accepted: false
       readonly protocol: typeof LOCAL_SESSION_PROTOCOL_NAME
       readonly code: 'host_upgrade_pending'
       readonly hostInstanceId: string
-      readonly supportedRevisions: typeof LOCAL_SESSION_SUPPORTED_REVISIONS
+      readonly supportedRevisions: readonly number[]
       readonly blockingRuns: readonly {
         readonly sessionId: string
         readonly runId: string
@@ -262,6 +277,10 @@ export type LocalSessionNegotiationResult =
 
 import type { AttachmentOrigin, PreparedAttachment } from './agent'
 import type { BackgroundRunSnapshot } from './background-run'
+import type {
+  LocalSessionCompactionCommandPayload,
+  LocalSessionCompactionCommandResult,
+} from './local-session-compaction'
 import type { LocalSessionProfileAuthority } from './local-session-profile'
 import type {
   LocalSessionProfileManagementRequest,

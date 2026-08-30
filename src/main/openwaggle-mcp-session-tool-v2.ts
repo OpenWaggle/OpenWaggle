@@ -62,7 +62,12 @@ export function assertSuccessfulMcpSessionResult(
 }
 
 function requiredCapabilities(payload: LocalSessionCommandPayload) {
-  if (payload.contract === 'local-ui-v1' || payload.contract === 'local-attachments-v1') {
+  if (
+    payload.contract === 'local-ui-v1' ||
+    payload.contract === 'local-attachments-v1' ||
+    payload.contract === 'local-compaction-v1' ||
+    payload.contract === 'local-compaction-cancel-v1'
+  ) {
     throw new Error('Local GUI contracts are not available through the Sessions MCP adapter.')
   }
   if (payload.contract === 'local-access-v1') {

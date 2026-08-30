@@ -113,6 +113,40 @@ function isSessionWaggleCancellationResponse(
   )
 }
 
+function isContextCompactionResult(value: unknown) {
+  return (
+    isRecord(value) &&
+    typeof value.summary === 'string' &&
+    typeof value.firstKeptEntryId === 'string' &&
+    typeof value.tokensBefore === 'number'
+  )
+}
+
+function isLocalCompactionResponse(
+  value: unknown,
+): value is Extract<LocalSessionCommandResult, { contract: 'local-compaction-v1' }>['response'] {
+  return (
+    isRecord(value) &&
+    typeof value.requestId === 'string' &&
+    typeof value.sessionId === 'string' &&
+    isContextCompactionResult(value.result)
+  )
+}
+
+function isLocalCompactionCancellationResponse(
+  value: unknown,
+): value is Extract<
+  LocalSessionCommandResult,
+  { contract: 'local-compaction-cancel-v1' }
+>['response'] {
+  return (
+    isRecord(value) &&
+    typeof value.requestId === 'string' &&
+    typeof value.sessionId === 'string' &&
+    typeof value.cancelled === 'boolean'
+  )
+}
+
 function decodeCommandPayload(payload: Record<string, unknown>): LocalSessionCommandResult {
   return match(payload.contract)
     .with('local-attachments-v1', () => {
@@ -148,6 +182,18 @@ function decodeCommandPayload(payload: Record<string, unknown>): LocalSessionCom
         throw new Error('Invalid Waggle cancellation response.')
       }
       return { contract: 'session-waggle-cancel-v1' as const, response: payload.response }
+    })
+    .with('local-compaction-v1', () => {
+      if (!isLocalCompactionResponse(payload.response)) {
+        throw new Error('Invalid Local compaction response.')
+      }
+      return { contract: 'local-compaction-v1' as const, response: payload.response }
+    })
+    .with('local-compaction-cancel-v1', () => {
+      if (!isLocalCompactionCancellationResponse(payload.response)) {
+        throw new Error('Invalid Local compaction cancellation response.')
+      }
+      return { contract: 'local-compaction-cancel-v1' as const, response: payload.response }
     })
     .otherwise(() => {
       throw new Error('Local Session Host returned an invalid command contract.')

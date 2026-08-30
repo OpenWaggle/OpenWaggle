@@ -6,6 +6,29 @@ const CREDENTIAL_BYTES = 32
 const BASE64URL_CREDENTIAL_PATTERN = /^[A-Za-z0-9_-]{43}$/
 const OWNER_FILE_MODE = 0o600
 
+function hasErrorCode(error: unknown, code: string) {
+  return error instanceof Error && 'code' in error && error.code === code
+}
+
+async function removeTemporaryCredential(
+  temporaryPath: string,
+  operationError: unknown | undefined,
+) {
+  try {
+    await unlink(temporaryPath)
+  } catch (cleanupError) {
+    if (hasErrorCode(cleanupError, 'ENOENT')) return
+    if (operationError !== undefined) {
+      throw new AggregateError(
+        [operationError, cleanupError],
+        'Local Session credential installation and temporary-file cleanup both failed.',
+        { cause: cleanupError },
+      )
+    }
+    throw cleanupError
+  }
+}
+
 function decodeCredential(value: string): Buffer {
   const trimmed = value.trim()
   if (!BASE64URL_CREDENTIAL_PATTERN.test(trimmed)) {
@@ -33,7 +56,7 @@ export async function ensureLocalUserCredential(credentialPath: string): Promise
     await chmod(credentialPath, OWNER_FILE_MODE)
     return existing.trim()
   } catch (error) {
-    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
+    if (!hasErrorCode(error, 'ENOENT')) throw error
   }
 
   const credential = randomBytes(CREDENTIAL_BYTES).toString('base64url')
@@ -41,25 +64,30 @@ export async function ensureLocalUserCredential(credentialPath: string): Promise
     path.dirname(credentialPath),
     `.${path.basename(credentialPath)}.${randomUUID()}.tmp`,
   )
+  let ownsTemporaryPath = false
+  let operationError: unknown | undefined
   try {
     await writeFile(temporaryPath, `${credential}\n`, {
       encoding: 'utf8',
       mode: OWNER_FILE_MODE,
       flag: 'wx',
     })
+    ownsTemporaryPath = true
     try {
       await link(temporaryPath, credentialPath)
       await chmod(credentialPath, OWNER_FILE_MODE)
       return credential
     } catch (error) {
-      if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
+      if (!hasErrorCode(error, 'EEXIST')) throw error
       const installed = await readFile(credentialPath, 'utf8')
       decodeCredential(installed)
       await chmod(credentialPath, OWNER_FILE_MODE)
       return installed.trim()
     }
   } catch (error) {
-    await unlink(temporaryPath).catch(() => undefined)
+    operationError = error
     throw error
+  } finally {
+    if (ownsTemporaryPath) await removeTemporaryCredential(temporaryPath, operationError)
   }
 }

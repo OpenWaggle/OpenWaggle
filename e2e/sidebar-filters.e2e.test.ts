@@ -59,6 +59,11 @@ test('sidebar filtering: chips, pips, search and Escape', async () => {
     const interruptedChip = chipGroup.getByRole('button', {
       name: /Run interrupted, resumable, 2/,
     })
+    const fillSearch = (value: string) =>
+      expect(async () => {
+        await searchInput.fill(value)
+        await expect(searchInput).toHaveValue(value)
+      }).toPass({ timeout: 5000 })
 
     await test.step('a chip appears for the state that is present, with its count', async () => {
       await expect(chipGroup).toBeVisible()
@@ -110,15 +115,13 @@ test('sidebar filtering: chips, pips, search and Escape', async () => {
     await test.step('text narrows by title', async () => {
       // `fill` models the final input event without asking an overloaded Electron renderer to
       // commit a controlled value between synthetic keystrokes sent much faster than a person.
-      await searchInput.fill('Calm')
-
-      await expect(searchInput).toHaveValue('Calm')
+      await fillSearch('Calm')
       await expect(rows.filter({ hasText: CALM_TITLE })).toHaveCount(1)
       await expect(rows.filter({ hasText: STUCK_TITLE })).toHaveCount(0)
     })
 
     await test.step('typing a project name keeps that project sessions', async () => {
-      await searchInput.fill(BETA)
+      await fillSearch(BETA)
 
       await expect(rows.filter({ hasText: OTHER_STUCK_TITLE })).toHaveCount(1)
       await expect(rows.filter({ hasText: CALM_TITLE })).toHaveCount(0)
@@ -133,7 +136,7 @@ test('sidebar filtering: chips, pips, search and Escape', async () => {
 
     await test.step('Escape clears both text and state filters together', async () => {
       await interruptedChip.click()
-      await searchInput.fill('Calm')
+      await fillSearch('Calm')
       await expect(rows).toHaveCount(0)
 
       await searchInput.press('Escape')

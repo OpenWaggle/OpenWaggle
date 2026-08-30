@@ -55,9 +55,15 @@ function queryTarget(
 
 function directTarget(payload: LocalSessionCommandPayload) {
   return matchBy(payload, 'contract')
-    .with('local-ui-v1', 'local-attachments-v1', () => {
-      throw new Error('Local GUI contracts are not available through the Sessions MCP adapter.')
-    })
+    .with(
+      'local-ui-v1',
+      'local-attachments-v1',
+      'local-compaction-v1',
+      'local-compaction-cancel-v1',
+      () => {
+        throw new Error('Local GUI contracts are not available through the Sessions MCP adapter.')
+      },
+    )
     .with('session-waggle-v1', 'session-waggle-cancel-v1', () => {
       throw new Error(
         'Explicit GUI Waggle contracts are not available through the Sessions MCP adapter.',

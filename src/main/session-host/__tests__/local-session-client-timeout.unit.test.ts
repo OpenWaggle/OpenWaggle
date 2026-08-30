@@ -47,4 +47,17 @@ describe('Local Session client command timeout', () => {
       }),
     ).toBeUndefined()
   })
+
+  it('does not impose an arbitrary response timeout on owner-routed manual compaction', () => {
+    expect(
+      resolveLocalSessionCommandTimeoutMs({
+        contract: 'local-compaction-v1',
+        request: {
+          requestId: 'request-compaction',
+          sessionId: 'session-target',
+          model: 'openai/gpt-5.5',
+        },
+      }),
+    ).toBeUndefined()
+  })
 })

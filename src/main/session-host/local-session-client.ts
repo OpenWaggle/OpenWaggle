@@ -4,7 +4,11 @@ import type {
   LocalSessionCommandPayload,
   LocalSessionCommandResult,
 } from '@shared/types/local-session-protocol'
-import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
+import {
+  LOCAL_SESSION_CURRENT_REVISION,
+  LOCAL_SESSION_SUPPORTED_REVISIONS,
+  LOCAL_SESSION_WAGGLE_REVISION,
+} from '@shared/types/local-session-protocol'
 import {
   LOCAL_SESSION_DEFAULT_CLIENT_TIMEOUT_MS,
   type LocalSessionClientConnectionInput,
@@ -24,8 +28,30 @@ export {
 
 const LONG_RUNNING_COMMAND_GRACE_MS = 5_000
 
-function requiresCurrentProtocolRevision(payload: LocalSessionCommandPayload) {
-  return payload.contract === 'session-waggle-v1' || payload.contract === 'session-waggle-cancel-v1'
+function minimumProtocolRevision(payload: LocalSessionCommandPayload) {
+  if (
+    payload.contract === 'local-compaction-v1' ||
+    payload.contract === 'local-compaction-cancel-v1'
+  ) {
+    return LOCAL_SESSION_CURRENT_REVISION
+  }
+  if (payload.contract === 'session-waggle-v1' || payload.contract === 'session-waggle-cancel-v1') {
+    return LOCAL_SESSION_WAGGLE_REVISION
+  }
+  return undefined
+}
+
+function unsupportedRevisionMessage(payload: LocalSessionCommandPayload) {
+  return payload.contract === 'local-compaction-v1' ||
+    payload.contract === 'local-compaction-cancel-v1'
+    ? 'The connected Session Host does not support manual compaction.'
+    : 'The connected Session Host does not support explicit Waggle commands.'
+}
+
+function supportedRevisionsForCommand(payload: LocalSessionCommandPayload) {
+  const minimum = minimumProtocolRevision(payload)
+  if (minimum === undefined) return undefined
+  return LOCAL_SESSION_SUPPORTED_REVISIONS.filter((revision) => revision >= minimum)
 }
 
 function requestedWaitTimeoutMs(payload: LocalSessionCommandPayload) {
@@ -39,7 +65,9 @@ export function resolveLocalSessionCommandTimeoutMs(
   payload: LocalSessionCommandPayload,
   explicitTimeoutMs?: number,
 ) {
-  if (payload.contract === 'session-waggle-v1') return explicitTimeoutMs
+  if (payload.contract === 'session-waggle-v1' || payload.contract === 'local-compaction-v1') {
+    return explicitTimeoutMs
+  }
   const requestedWait = requestedWaitTimeoutMs(payload)
   const commandMinimum =
     requestedWait === undefined
@@ -60,19 +88,15 @@ export async function executeLocalSessionCommand(input: {
   readonly supportedRevisions?: readonly number[]
 }): Promise<LocalSessionCommandResult> {
   const responseTimeoutMs = resolveLocalSessionCommandTimeoutMs(input.payload, input.timeoutMs)
-  const supportedRevisions =
-    input.supportedRevisions ??
-    (requiresCurrentProtocolRevision(input.payload) ? [LOCAL_SESSION_CURRENT_REVISION] : undefined)
+  const supportedRevisions = input.supportedRevisions ?? supportedRevisionsForCommand(input.payload)
   const { socket, reader, negotiation } = await openLocalSessionConnection({
     ...input,
     ...(supportedRevisions ? { supportedRevisions } : {}),
   })
   try {
-    if (
-      requiresCurrentProtocolRevision(input.payload) &&
-      negotiation.revision < LOCAL_SESSION_CURRENT_REVISION
-    ) {
-      throw new Error('The connected Session Host does not support explicit Waggle commands.')
+    const minimumRevision = minimumProtocolRevision(input.payload)
+    if (minimumRevision !== undefined && negotiation.revision < minimumRevision) {
+      throw new Error(unsupportedRevisionMessage(input.payload))
     }
     const requestId = randomUUID()
     await writeLocalSessionFrame(socket, {

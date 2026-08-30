@@ -214,7 +214,7 @@ describe('Local Session server', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [4],
+        supportedRevisions: [5],
         clientKind: 'gui',
         clientVersion: 'future',
       }),

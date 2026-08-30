@@ -1,14 +1,13 @@
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
 import {
-  LOCAL_SESSION_CAPABILITIES,
   LOCAL_SESSION_PROTOCOL_NAME,
   LOCAL_SESSION_SUPPORTED_REVISIONS,
   type LocalSessionClientFrame,
   type LocalSessionClientHello,
   type LocalSessionCommandPayload,
-  type LocalSessionNegotiationResult,
   SESSION_WAGGLE_CONTRACT_VERSION,
 } from '@shared/types/local-session-protocol'
+import { localSessionNegotiationResultSchema } from './local-session-negotiation'
 import { localSessionProfileAuthoritySchema } from './local-session-profile'
 import { localSessionProfileManagementRequestSchema } from './local-session-profile-management'
 import { sessionControlMutationRequestSchema } from './session-control'
@@ -17,17 +16,6 @@ import { sessionQueryRequestSchema } from './session-query'
 import { agentSendPayloadSchema } from './validation'
 import { waggleConfigSchema } from './waggle'
 
-const [
-  subscribeCapability,
-  replayCapability,
-  mutateCapability,
-  queryCapability,
-  snapshotCapability,
-  accessProfilesCapability,
-  localUiMutationCapability,
-  waggleRunCapability,
-  waggleCancelCapability,
-] = LOCAL_SESSION_CAPABILITIES
 const [currentRevision, previousRevision] = LOCAL_SESSION_SUPPORTED_REVISIONS
 
 export const localSessionClientHelloSchema: Schema.Schema<LocalSessionClientHello> = Schema.Struct({
@@ -155,6 +143,22 @@ export const localSessionCommandPayloadSchema: Schema.Schema<LocalSessionCommand
       request: sessionQueryRequestSchema,
     }),
     Schema.Struct({
+      contract: Schema.Literal('local-compaction-v1'),
+      request: Schema.Struct({
+        requestId: Schema.String,
+        sessionId: Schema.String,
+        model: Schema.String,
+        customInstructions: Schema.optional(Schema.String),
+      }),
+    }),
+    Schema.Struct({
+      contract: Schema.Literal('local-compaction-cancel-v1'),
+      request: Schema.Struct({
+        requestId: Schema.String,
+        sessionId: Schema.String,
+      }),
+    }),
+    Schema.Struct({
       contract: Schema.Literal('session-waggle-v1'),
       request: Schema.Struct({
         contractVersion: Schema.Literal(SESSION_WAGGLE_CONTRACT_VERSION),
@@ -176,69 +180,6 @@ export const localSessionCommandPayloadSchema: Schema.Schema<LocalSessionCommand
     }),
   )
 
-export const localSessionNegotiationResultSchema: Schema.Schema<LocalSessionNegotiationResult> =
-  Schema.Union(
-    Schema.Struct({
-      accepted: Schema.Literal(true),
-      protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),
-      revision: Schema.Literal(currentRevision),
-      hostInstanceId: Schema.String,
-      capabilities: Schema.Tuple(
-        Schema.Literal(subscribeCapability),
-        Schema.Literal(replayCapability),
-        Schema.Literal(mutateCapability),
-        Schema.Literal(queryCapability),
-        Schema.Literal(snapshotCapability),
-        Schema.Literal(accessProfilesCapability),
-        Schema.Literal(localUiMutationCapability),
-        Schema.Literal(waggleRunCapability),
-        Schema.Literal(waggleCancelCapability),
-      ),
-    }),
-    Schema.Struct({
-      accepted: Schema.Literal(true),
-      protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),
-      revision: Schema.Literal(previousRevision),
-      hostInstanceId: Schema.String,
-      capabilities: Schema.Tuple(
-        Schema.Literal(subscribeCapability),
-        Schema.Literal(replayCapability),
-        Schema.Literal(mutateCapability),
-        Schema.Literal(queryCapability),
-        Schema.Literal(snapshotCapability),
-        Schema.Literal(accessProfilesCapability),
-        Schema.Literal(localUiMutationCapability),
-      ),
-    }),
-    Schema.Struct({
-      accepted: Schema.Literal(false),
-      protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),
-      code: Schema.Literal('incompatible_protocol'),
-      supportedRevisions: Schema.Tuple(
-        Schema.Literal(currentRevision),
-        Schema.Literal(previousRevision),
-      ),
-    }),
-    Schema.Struct({
-      accepted: Schema.Literal(false),
-      protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),
-      code: Schema.Literal('host_upgrade_pending'),
-      hostInstanceId: Schema.String,
-      supportedRevisions: Schema.Tuple(
-        Schema.Literal(currentRevision),
-        Schema.Literal(previousRevision),
-      ),
-      blockingRuns: Schema.Array(Schema.Struct({ sessionId: Schema.String, runId: Schema.String })),
-      blockingOperations: Schema.Array(
-        Schema.Struct({
-          operationId: Schema.String,
-          operation: Schema.String,
-          targetScope: Schema.String,
-        }),
-      ),
-    }),
-  )
-
 export function decodeLocalSessionClientHello(value: unknown) {
   return decodeUnknownExactOrThrow(localSessionClientHelloSchema, value)
 }
@@ -254,10 +195,17 @@ export function decodeLocalSessionCommandPayload(value: unknown) {
 export function decodeLocalSessionCommandPayloadForRevision(value: unknown, revision: number) {
   const payload = decodeLocalSessionCommandPayload(value)
   if (
-    (payload.contract === 'session-waggle-v1' || payload.contract === 'session-waggle-cancel-v1') &&
-    revision < currentRevision
+    (payload.contract === 'session-waggle-v1' ||
+      payload.contract === 'session-waggle-cancel-v1' ||
+      payload.contract === 'local-compaction-v1' ||
+      payload.contract === 'local-compaction-cancel-v1') &&
+    revision <
+      (payload.contract.startsWith('local-compaction') ? currentRevision : previousRevision)
   ) {
-    throw new Error(`Explicit Waggle requires Local Session protocol revision ${currentRevision}.`)
+    const requiredRevision = payload.contract.startsWith('local-compaction')
+      ? currentRevision
+      : previousRevision
+    throw new Error(`This command requires Local Session protocol revision ${requiredRevision}.`)
   }
   return payload
 }

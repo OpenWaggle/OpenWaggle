@@ -9,19 +9,19 @@ import {
 import { negotiateLocalSessionProtocol } from '../local-session-negotiation'
 
 describe('Local Session protocol negotiation', () => {
-  it('selects the highest mutually supported current-or-previous revision', () => {
+  it('selects the highest mutually supported revision and its exact capabilities', () => {
     const hello = decodeLocalSessionClientHello({
       protocol: 'openwaggle-local-session',
-      supportedRevisions: [3, 2, 1],
+      supportedRevisions: [4, 3, 2, 1],
       clientKind: 'cli',
       clientVersion: '0.4.0-alpha.1',
     })
 
     expect(negotiateLocalSessionProtocol(hello, 'host-current')).toMatchObject({
       accepted: true,
-      revision: 3,
+      revision: 4,
       hostInstanceId: 'host-current',
-      capabilities: expect.arrayContaining(['waggle:run-v1']),
+      capabilities: expect.arrayContaining(['waggle:run-v1', 'ui:compact-v1']),
     })
   })
 
@@ -30,7 +30,7 @@ describe('Local Session protocol negotiation', () => {
       negotiateLocalSessionProtocol(
         {
           protocol: 'openwaggle-local-session',
-          supportedRevisions: [5, 4],
+          supportedRevisions: [6, 5],
           clientKind: 'gui',
           clientVersion: 'future',
         },
@@ -66,7 +66,7 @@ describe('Local Session protocol negotiation', () => {
     expect(() =>
       decodeLocalSessionClientHello({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [3],
+        supportedRevisions: [4],
         clientKind: 'cli',
         clientVersion: 'current',
         undeclared: true,
@@ -74,13 +74,32 @@ describe('Local Session protocol negotiation', () => {
     ).toThrow()
   })
 
-  it('accepts the previous revision capability tuple without explicit Waggle', () => {
+  it('preserves exact revision-three and revision-two capability tuples', () => {
+    expect(() =>
+      decodeLocalSessionNegotiationResult({
+        accepted: true,
+        protocol: 'openwaggle-local-session',
+        revision: 3,
+        hostInstanceId: 'host-previous',
+        capabilities: [
+          'events:subscribe',
+          'events:replay',
+          'sessions:mutate-v2',
+          'sessions:query-v2',
+          'sessions:snapshot',
+          'access:profiles-v1',
+          'ui:mutate-v1',
+          'waggle:run-v1',
+          'waggle:cancel-v1',
+        ],
+      }),
+    ).not.toThrow()
     expect(() =>
       decodeLocalSessionNegotiationResult({
         accepted: true,
         protocol: 'openwaggle-local-session',
         revision: 2,
-        hostInstanceId: 'host-previous',
+        hostInstanceId: 'host-legacy',
         capabilities: [
           'events:subscribe',
           'events:replay',
@@ -92,6 +111,20 @@ describe('Local Session protocol negotiation', () => {
         ],
       }),
     ).not.toThrow()
+  })
+
+  it('decodes an older Host upgrade response before the Host drains', () => {
+    expect(
+      decodeLocalSessionNegotiationResult({
+        accepted: false,
+        protocol: 'openwaggle-local-session',
+        code: 'host_upgrade_pending',
+        hostInstanceId: 'host-revision-three',
+        supportedRevisions: [3, 2],
+        blockingRuns: [],
+        blockingOperations: [],
+      }),
+    ).toMatchObject({ code: 'host_upgrade_pending', supportedRevisions: [3, 2] })
   })
 
   it('decodes command and subscription frames exactly after negotiation', () => {
@@ -158,6 +191,21 @@ describe('Local Session protocol negotiation', () => {
     expect(decodeLocalSessionCommandPayloadForRevision(waggleCommand, 3)).toMatchObject({
       contract: 'session-waggle-v1',
     })
+    const compactionCommand = {
+      contract: 'local-compaction-v1',
+      request: {
+        requestId: 'request-compaction',
+        sessionId: 'session-target',
+        model: 'openai/gpt-5.4',
+        customInstructions: 'Keep the current task.',
+      },
+    }
+    expect(() => decodeLocalSessionCommandPayloadForRevision(compactionCommand, 3)).toThrow(
+      /revision 4/,
+    )
+    expect(decodeLocalSessionCommandPayloadForRevision(compactionCommand, 4)).toEqual(
+      compactionCommand,
+    )
     expect(() =>
       decodeLocalSessionCommandPayload({
         contract: 'session-control-v2',

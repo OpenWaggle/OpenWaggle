@@ -69,7 +69,7 @@ describe('Local Session client', () => {
 
     await expect(
       probeLocalSessionHost({ paths, clientKind: 'gui', clientVersion: 'test' }),
-    ).resolves.toMatchObject({ accepted: true, revision: 3 })
+    ).resolves.toMatchObject({ accepted: true, revision: 4 })
     await expect(
       executeLocalSessionCommand({
         paths,
@@ -96,7 +96,7 @@ describe('Local Session client', () => {
     })
     expect(calls).toEqual([
       expect.objectContaining({
-        negotiatedRevision: 3,
+        negotiatedRevision: 4,
         caller: {
           callerId: 'gui:local-user',
           workingDirectory: '/project/worktree',
@@ -271,7 +271,7 @@ describe('Local Session client', () => {
       probeLocalSessionHost({
         paths,
         clientVersion: 'future',
-        supportedRevisions: [4],
+        supportedRevisions: [5],
       }),
     ).rejects.toMatchObject({
       name: LocalSessionHostUpgradePendingError.name,
