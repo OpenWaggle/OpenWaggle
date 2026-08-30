@@ -61,7 +61,11 @@ function upsertResource(sql: SqlClient.SqlClient, input: UpsertSessionResourceIn
               WHEN excluded.updated_at >= session_resources.updated_at THEN excluded.title
               ELSE session_resources.title
             END,
-            mime_type = COALESCE(session_resources.mime_type, excluded.mime_type),
+            mime_type = CASE
+              WHEN excluded.kind = 'image' AND excluded.mime_type LIKE 'image/%'
+                THEN excluded.mime_type
+              ELSE COALESCE(session_resources.mime_type, excluded.mime_type)
+            END,
             locator = CASE
               WHEN excluded.managed_path IS NOT NULL THEN excluded.locator
               ELSE COALESCE(session_resources.locator, excluded.locator)

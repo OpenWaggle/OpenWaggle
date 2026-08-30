@@ -45,7 +45,7 @@ function makeTestLayer(databasePath: string) {
   return Layer.mergeAll(schemaLayer, repositoryLayer, sqliteLayer)
 }
 
-describe('SqliteSessionResourceRepositoryLive re-keying', () => {
+describe('SqliteSessionResourceRepositoryLive recovery edges', () => {
   beforeEach(async () => {
     tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-session-resource-rekey-'))
   })
@@ -103,5 +103,66 @@ describe('SqliteSessionResourceRepositoryLive re-keying', () => {
     })
     expect(result.oldKey).toBeNull()
     expect(result.digest?.id).toBe('missing-resource')
+  })
+
+  it('replaces a stale non-image MIME type when digest capture promotes an image', async () => {
+    const layer = makeTestLayer(path.join(tmpRoot, 'promote-image.sqlite'))
+    const sessionId = SessionId('session-1')
+
+    const promoted = await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* SessionResourceRepository
+        yield* repository.upsert({
+          id: 'binary-resource',
+          sessionId,
+          canonicalKey: 'sha256:image-digest',
+          kind: 'file',
+          title: 'image.bin',
+          mimeType: 'application/octet-stream',
+          locator: 'session-resource://binary-resource',
+          managedPath: '/managed/image.bin',
+          available: true,
+          occurrence: {
+            id: 'occurrence-file',
+            nodeId: 'node-file',
+            branchId: null,
+            actor: 'user',
+            activity: 'provided',
+            label: null,
+            createdAt: 1000,
+          },
+          createdAt: 1000,
+          updatedAt: 1000,
+        })
+        return yield* repository.upsert({
+          id: 'generated-resource',
+          sessionId,
+          canonicalKey: 'sha256:image-digest',
+          kind: 'image',
+          title: 'generated.png',
+          mimeType: 'image/png',
+          locator: 'session-resource://generated-resource',
+          managedPath: '/managed/generated.png',
+          available: true,
+          occurrence: {
+            id: 'occurrence-image',
+            nodeId: 'node-image',
+            branchId: null,
+            actor: 'agent',
+            activity: 'created',
+            label: null,
+            createdAt: 2000,
+          },
+          createdAt: 2000,
+          updatedAt: 2000,
+        })
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(promoted).toMatchObject({
+      id: 'binary-resource',
+      kind: 'image',
+      mimeType: 'image/png',
+    })
   })
 })

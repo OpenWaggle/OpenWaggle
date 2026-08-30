@@ -154,7 +154,9 @@ function useChangeRequestComposer(
   const [title, setTitle] = useState(props.session.title)
   const [description, setDescription] = useState('')
   const [commitAndPush, setCommitAndPush] = useState((props.gitStatus?.filesChanged ?? 0) > 0)
-  const [createFeatureBranch] = useState(props.vcsStatus?.isDefaultRef === true)
+  const [createFeatureBranch] = useState(
+    props.vcsStatus?.defaultRef != null && props.vcsStatus.refName === props.vcsStatus.defaultRef,
+  )
   const [branchName, setBranchName] = useState(() =>
     sanitizeFeatureBranchName(`codex/${props.session.title}`),
   )

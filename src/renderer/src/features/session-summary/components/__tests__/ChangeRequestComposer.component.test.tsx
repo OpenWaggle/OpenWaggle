@@ -188,6 +188,28 @@ describe('ChangeRequestComposer', () => {
     )
   })
 
+  it('does not create a second branch when the default ref is unknown', async () => {
+    renderComposer({
+      gitStatus: null,
+      vcs: {
+        ...vcsStatus('github', false),
+        defaultRef: null,
+        isDefaultRef: true,
+        refName: 'feature/local-only',
+      },
+    })
+
+    expect(screen.queryByLabelText('New branch name')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Create PR' }))
+
+    await waitFor(() =>
+      expect(runStackedGitAction).toHaveBeenCalledWith(
+        WorkingPath('/project'),
+        expect.objectContaining({ action: 'create_pr', createFeatureBranch: false }),
+      ),
+    )
+  })
+
   it('keeps provider failures in the composer for correction', async () => {
     runStackedGitAction.mockResolvedValue({
       ok: false,
