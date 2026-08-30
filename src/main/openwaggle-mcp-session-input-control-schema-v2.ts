@@ -1,0 +1,241 @@
+import { z } from 'zod'
+import { mcpDelegationSpecificationSchemaV2 } from './openwaggle-mcp-delegation-specification-v2'
+import { sessionClaimSchemaV2 } from './openwaggle-mcp-session-claim-schema-v2'
+import {
+  booleanFlag,
+  boundedCursor,
+  catalogScope,
+  delegationStates,
+  discoveryLimit,
+  evidence,
+  followUpIds,
+  idempotency,
+  interactionTimeout,
+  operationSchema,
+  positiveRevision,
+  revisedSpecificationSchema,
+  revision,
+  runAuthorization,
+  targetSessionIds,
+} from './openwaggle-mcp-session-input-schema-shared-v2'
+import {
+  MCP_SESSION_INPUT_LIMITS_V2,
+  mcpSessionIdSchemaV2,
+  mcpSessionPathSchemaV2,
+  mcpSessionTextSchemaV2,
+} from './openwaggle-mcp-session-resource-envelope-v2'
+
+export const mcpSessionControlOperationSchemasV2 = [
+  operationSchema('message', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    message: mcpSessionTextSchemaV2.optional(),
+    thinking: mcpSessionIdSchemaV2.optional(),
+    ...idempotency,
+  }),
+  operationSchema('start', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    message: mcpSessionTextSchemaV2.optional(),
+    thinking: mcpSessionIdSchemaV2.optional(),
+    ...runAuthorization,
+    interactionTimeoutMs: interactionTimeout.optional(),
+    ...idempotency,
+  }),
+  operationSchema('follow-up', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    message: mcpSessionTextSchemaV2.optional(),
+    thinking: mcpSessionIdSchemaV2.optional(),
+    ...runAuthorization,
+    ...idempotency,
+  }),
+  operationSchema('steer', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    expectedRunId: mcpSessionIdSchemaV2.optional(),
+    message: mcpSessionTextSchemaV2.optional(),
+    ...idempotency,
+  }),
+  operationSchema('promote', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    expectedRunId: mcpSessionIdSchemaV2.optional(),
+    followUpId: mcpSessionIdSchemaV2.optional(),
+    ...idempotency,
+  }),
+  operationSchema('replace', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    expectedRunId: mcpSessionIdSchemaV2.optional(),
+    message: mcpSessionTextSchemaV2.optional(),
+    thinking: mcpSessionIdSchemaV2.optional(),
+    ...runAuthorization,
+    ...idempotency,
+  }),
+  operationSchema('interrupt', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    expectedRunId: mcpSessionIdSchemaV2.optional(),
+    ...idempotency,
+  }),
+  operationSchema('interrupt-descendants', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    ...idempotency,
+  }),
+  operationSchema('report', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    sourceRunId: mcpSessionIdSchemaV2.optional(),
+    reportTarget: z
+      .enum(['upstream', 'queen', 'session', 'sessions', 'worker-reference'])
+      .optional(),
+    targetSessionIds: targetSessionIds.optional(),
+    workerReference: mcpSessionIdSchemaV2.optional(),
+    message: mcpSessionTextSchemaV2.optional(),
+    requestReply: booleanFlag.optional(),
+    replyToReportId: mcpSessionIdSchemaV2.optional(),
+    ...idempotency,
+  }),
+  operationSchema('delegation-submit', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    delegationId: mcpSessionIdSchemaV2.optional(),
+    submissionRevision: positiveRevision.optional(),
+    message: mcpSessionTextSchemaV2.optional(),
+    evidence: evidence.optional(),
+    ...idempotency,
+  }),
+  operationSchema('delegation-state', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    delegationId: mcpSessionIdSchemaV2.optional(),
+    delegationState: z.enum(['working', 'waiting', 'needs_attention']).optional(),
+    reason: mcpSessionTextSchemaV2.optional(),
+    ...idempotency,
+  }),
+  operationSchema('delegation-claim', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    delegationId: mcpSessionIdSchemaV2.optional(),
+    reason: mcpSessionTextSchemaV2.optional(),
+    claims: z.array(sessionClaimSchemaV2).max(MCP_SESSION_INPUT_LIMITS_V2.arrayItems).optional(),
+    ...idempotency,
+  }),
+  operationSchema('delegation-conflict-acknowledge', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    delegationId: mcpSessionIdSchemaV2.optional(),
+    conflictId: mcpSessionIdSchemaV2.optional(),
+    reason: mcpSessionTextSchemaV2.optional(),
+    ...idempotency,
+  }),
+  operationSchema('delegation-dependency', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    delegationId: mcpSessionIdSchemaV2.optional(),
+    dependencyAction: z.enum(['add', 'remove']).optional(),
+    dependencyDelegationId: mcpSessionIdSchemaV2.optional(),
+    dependencyRequiredState: z.enum(['ready_for_review', 'accepted']).optional(),
+    reason: mcpSessionTextSchemaV2.optional(),
+    ...idempotency,
+  }),
+  operationSchema('delegation-propose-amendment', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    delegationId: mcpSessionIdSchemaV2.optional(),
+    specificationRevision: positiveRevision.optional(),
+    delegationSpecification: mcpDelegationSpecificationSchemaV2.optional(),
+    reason: mcpSessionTextSchemaV2.optional(),
+    ...idempotency,
+  }),
+  operationSchema('delegation-amend', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    delegationId: mcpSessionIdSchemaV2.optional(),
+    specificationRevision: positiveRevision.optional(),
+    delegationSpecification: mcpDelegationSpecificationSchemaV2.optional(),
+    proposalId: mcpSessionIdSchemaV2.optional(),
+    reason: mcpSessionTextSchemaV2.optional(),
+    ...idempotency,
+  }),
+  operationSchema('delegation-request-revision', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    delegationId: mcpSessionIdSchemaV2.optional(),
+    submissionRevision: positiveRevision.optional(),
+    feedback: mcpSessionTextSchemaV2.optional(),
+    revisedSpecification: revisedSpecificationSchema.optional(),
+    ...idempotency,
+  }),
+  operationSchema('delegation-accept', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    delegationId: mcpSessionIdSchemaV2.optional(),
+    submissionRevision: positiveRevision.optional(),
+    message: mcpSessionTextSchemaV2.optional(),
+    ...idempotency,
+  }),
+  operationSchema('delegation-reopen', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    delegationId: mcpSessionIdSchemaV2.optional(),
+    reason: mcpSessionTextSchemaV2.optional(),
+    ...idempotency,
+  }),
+  operationSchema('delegation-cancel', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    delegationId: mcpSessionIdSchemaV2.optional(),
+    reason: mcpSessionTextSchemaV2.optional(),
+    ...idempotency,
+  }),
+  operationSchema('delegation-verify', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    delegationId: mcpSessionIdSchemaV2.optional(),
+    submissionRevision: positiveRevision.optional(),
+    verificationOutcome: z.enum(['passed', 'failed', 'inconclusive']).optional(),
+    message: mcpSessionTextSchemaV2.optional(),
+    evidence: evidence.optional(),
+    ...idempotency,
+  }),
+  operationSchema('delegations-list', {
+    projectPath: mcpSessionPathSchemaV2.optional(),
+    catalogScope: catalogScope.optional(),
+    parentSessionId: mcpSessionIdSchemaV2.optional(),
+    workerSessionId: mcpSessionIdSchemaV2.optional(),
+    states: delegationStates.optional(),
+    limit: discoveryLimit.optional(),
+    cursor: boundedCursor.optional(),
+  }),
+  operationSchema('delegations-read', { delegationId: mcpSessionIdSchemaV2.optional() }),
+  operationSchema('delegations-conflicts', {
+    projectPath: mcpSessionPathSchemaV2.optional(),
+    catalogScope: catalogScope.optional(),
+    parentSessionId: mcpSessionIdSchemaV2.optional(),
+    workerSessionId: mcpSessionIdSchemaV2.optional(),
+    delegationId: mcpSessionIdSchemaV2.optional(),
+    conflictKinds: z
+      .array(z.enum(['live-overlap', 'merge-overlap']))
+      .max(MCP_SESSION_INPUT_LIMITS_V2.arrayItems)
+      .optional(),
+    conflictStatuses: z
+      .array(z.enum(['unacknowledged', 'acknowledged', 'resolved']))
+      .max(MCP_SESSION_INPUT_LIMITS_V2.arrayItems)
+      .optional(),
+    limit: discoveryLimit.optional(),
+    cursor: boundedCursor.optional(),
+  }),
+  operationSchema('queue-list', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    includeBodies: booleanFlag.optional(),
+  }),
+  operationSchema('queue-withdraw', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    followUpIds: followUpIds.optional(),
+    ...idempotency,
+  }),
+  operationSchema('queue-reorder', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    followUpIds: followUpIds.optional(),
+    queueRevision: revision.optional(),
+    ...idempotency,
+  }),
+  operationSchema('queue-pause', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    queueRevision: revision.optional(),
+    ...idempotency,
+  }),
+  operationSchema('queue-resume', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    queueRevision: revision.optional(),
+    ...idempotency,
+  }),
+  operationSchema('queue-update-authorization', {
+    sessionId: mcpSessionIdSchemaV2.optional(),
+    followUpId: mcpSessionIdSchemaV2.optional(),
+    runAuthorizationOverride: z.enum(['inherit', 'ask-for-approval', 'yolo']).optional(),
+    ...idempotency,
+  }),
+] as const

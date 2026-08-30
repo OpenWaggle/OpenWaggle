@@ -263,14 +263,6 @@ export function createAgentRunControls(params: AgentRunControlParams) {
     resetRunUiState(params)
   }
 
-  async function steer() {
-    if (sessionId) {
-      await api.steerAgent(sessionId)
-    }
-    settlePendingRun(refs)
-    resetRunUiState(params)
-  }
-
   return {
     runActions: {
       flushDeferredSessionSnapshot,
@@ -279,6 +271,5 @@ export function createAgentRunControls(params: AgentRunControlParams) {
     withDeferredSnapshotRefresh,
     sendUserPayload,
     stop,
-    steer,
   }
 }

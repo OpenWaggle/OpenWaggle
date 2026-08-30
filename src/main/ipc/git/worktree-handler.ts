@@ -1,7 +1,9 @@
 import { existsSync } from 'node:fs'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { SessionId } from '@shared/types/brand'
 import type { GitWorktreeMutationResult, SessionWorktreeCheck } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
+import { SessionWorkspaceResourceRepository } from '../../ports/session-workspace-resource-repository'
 import { resolveSessionWorktreeBranch } from '../../services/git/session-branch-resolution'
 import { typedHandle } from '../typed-ipc'
 import { projectPathSchema } from './shared'
@@ -55,17 +57,36 @@ export function registerGitWorktreeHandlers(): void {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
       const payload = decodeUnknownOrThrow(worktreeCreatePayloadSchema, rawPayload)
       const sessionId = payload.sessionId
+      const workspaces = yield* SessionWorkspaceResourceRepository
+      const workspace =
+        sessionId === undefined ? null : yield* workspaces.getBound(SessionId(sessionId))
+      if (workspace !== null && workspace.kind !== 'managed-worktree') {
+        return {
+          ok: false,
+          code: 'unknown',
+          message: 'This Session is not bound to a managed worktree Workspace.',
+        } satisfies GitWorktreeMutationResult
+      }
+      if (workspace !== null && workspace.projectPath !== projectPath) {
+        return {
+          ok: false,
+          code: 'unknown',
+          message: 'This Session is bound to a Workspace in a different repository.',
+        } satisfies GitWorktreeMutationResult
+      }
+      const path = workspace?.workingPath ?? payload.path
       const branch =
-        sessionId === undefined
+        workspace?.worktreeBranch ??
+        (sessionId === undefined
           ? payload.branch
-          : yield* Effect.promise(() => resolveSessionWorktreeBranch(projectPath, sessionId))
+          : yield* Effect.promise(() => resolveSessionWorktreeBranch(projectPath, sessionId)))
       const result = (yield* Effect.promise(() =>
-        createGitWorktree(projectPath, { ...payload, branch }),
+        createGitWorktree(projectPath, { ...payload, path, branch }),
       )) satisfies GitWorktreeMutationResult
       // The new tree has no cached status yet, and the repository's worktree list
       // changed, so invalidate both the new path and the repository.
       if (result.ok) {
-        invalidateGitStatusCache(payload.path)
+        invalidateGitStatusCache(path)
         invalidateGitStatusCache(projectPath)
       }
       return result

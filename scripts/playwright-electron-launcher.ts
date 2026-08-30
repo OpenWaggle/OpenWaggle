@@ -5,6 +5,7 @@ interface PlaywrightElectronLaunchInput {
   readonly userDataDir: string
   readonly hidden: boolean
   readonly cwd?: string
+  readonly appPath?: string
 }
 
 export function buildPlaywrightElectronEnvironment(input: {
@@ -22,7 +23,7 @@ export function launchOpenWaggleElectron(
   input: PlaywrightElectronLaunchInput,
 ): Promise<ElectronApplication> {
   return electron.launch({
-    args: ['.'],
+    args: [input.appPath ?? '.'],
     ...(input.cwd === undefined ? {} : { cwd: input.cwd }),
     env: buildPlaywrightElectronEnvironment(input),
   })

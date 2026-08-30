@@ -78,6 +78,52 @@ describe('registerSettingsHandlers', () => {
       )
     })
 
+    it('validates and applies every Session Host policy setting', async () => {
+      registerSettingsHandlers()
+
+      const handler = getTypedEffectInvokeHandler('settings:update')
+      const patch = {
+        sessionHostParentConcurrencyLimit: 8,
+        sessionHostParentConcurrencyLimitsByProject: { '/project': 12 },
+        sessionHostRunCeiling: 24,
+        sessionHostIdleGracePeriodMs: 0,
+        multiAgentEnabled: false,
+        multiAgentEnabledByProject: { '/project': true },
+      }
+
+      await expect(handler?.({}, patch)).resolves.toEqual({ ok: true })
+      expect(updateSettingsMock).toHaveBeenCalledWith(expect.objectContaining(patch))
+    })
+
+    it('rejects invalid Session Host policy settings', async () => {
+      registerSettingsHandlers()
+
+      const handler = getTypedEffectInvokeHandler('settings:update')
+      await expect(handler?.({}, { sessionHostParentConcurrencyLimit: 0 })).resolves.toEqual({
+        ok: false,
+        error: expect.any(String),
+      })
+      await expect(
+        handler?.({}, { sessionHostParentConcurrencyLimitsByProject: { '/project': -1 } }),
+      ).resolves.toEqual({ ok: false, error: expect.any(String) })
+      await expect(handler?.({}, { sessionHostRunCeiling: 1.5 })).resolves.toEqual({
+        ok: false,
+        error: expect.any(String),
+      })
+      await expect(handler?.({}, { sessionHostIdleGracePeriodMs: -1 })).resolves.toEqual({
+        ok: false,
+        error: expect.any(String),
+      })
+      await expect(handler?.({}, { multiAgentEnabled: 'yes' })).resolves.toEqual({
+        ok: false,
+        error: expect.any(String),
+      })
+      await expect(
+        handler?.({}, { multiAgentEnabledByProject: { '/project': 'yes' } }),
+      ).resolves.toEqual({ ok: false, error: expect.any(String) })
+      expect(updateSettingsMock).not.toHaveBeenCalled()
+    })
+
     it('rejects an invalid settings payload and returns error', async () => {
       registerSettingsHandlers()
 

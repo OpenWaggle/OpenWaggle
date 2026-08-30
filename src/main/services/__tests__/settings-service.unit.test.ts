@@ -3,18 +3,25 @@ import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getSettingsMock, updateSettingsMock, initializeSettingsStoreMock, flushSettingsStoreMock } =
-  vi.hoisted(() => ({
-    getSettingsMock: vi.fn(),
-    updateSettingsMock: vi.fn(),
-    initializeSettingsStoreMock: vi.fn(),
-    flushSettingsStoreMock: vi.fn(),
-  }))
+const {
+  getSettingsMock,
+  updateSettingsDurablyMock,
+  initializeSettingsStoreMock,
+  refreshSettingsStoreMock,
+  flushSettingsStoreMock,
+} = vi.hoisted(() => ({
+  getSettingsMock: vi.fn(),
+  updateSettingsDurablyMock: vi.fn(),
+  initializeSettingsStoreMock: vi.fn(),
+  refreshSettingsStoreMock: vi.fn(),
+  flushSettingsStoreMock: vi.fn(),
+}))
 
 vi.mock('../../store/settings', () => ({
   getSettings: getSettingsMock,
-  updateSettings: updateSettingsMock,
+  updateSettingsDurably: updateSettingsDurablyMock,
   initializeSettingsStore: initializeSettingsStoreMock,
+  refreshSettingsStore: refreshSettingsStoreMock,
   flushSettingsStoreForTests: flushSettingsStoreMock,
 }))
 
@@ -23,17 +30,21 @@ import { SettingsService } from '../settings-service'
 describe('SettingsService.Live', () => {
   beforeEach(() => {
     getSettingsMock.mockReset()
-    updateSettingsMock.mockReset()
+    updateSettingsDurablyMock.mockReset()
     initializeSettingsStoreMock.mockReset()
+    refreshSettingsStoreMock.mockReset()
     flushSettingsStoreMock.mockReset()
+    updateSettingsDurablyMock.mockResolvedValue(undefined)
+    refreshSettingsStoreMock.mockResolvedValue(undefined)
   })
 
-  it('delegates get to getSettings()', async () => {
+  it('refreshes durable state before delegating get to getSettings()', async () => {
     const settings = {
       ...DEFAULT_SETTINGS,
       selectedModel: SupportedModelId('anthropic/claude-sonnet-4-5'),
     }
     getSettingsMock.mockReturnValue(settings)
+    refreshSettingsStoreMock.mockResolvedValue(undefined)
 
     const result = await Effect.runPromise(
       Effect.gen(function* () {
@@ -43,10 +54,11 @@ describe('SettingsService.Live', () => {
     )
 
     expect(result).toBe(settings)
+    expect(refreshSettingsStoreMock).toHaveBeenCalledOnce()
     expect(getSettingsMock).toHaveBeenCalledOnce()
   })
 
-  it('delegates update to updateSettings()', async () => {
+  it('delegates update to updateSettingsDurably()', async () => {
     const partial = { selectedModel: SupportedModelId('openai/gpt-4o') }
 
     await Effect.runPromise(
@@ -56,7 +68,7 @@ describe('SettingsService.Live', () => {
       }).pipe(Effect.provide(SettingsService.Live)),
     )
 
-    expect(updateSettingsMock).toHaveBeenCalledWith(partial)
+    expect(updateSettingsDurablyMock).toHaveBeenCalledWith(partial)
   })
 
   it('delegates initialize to initializeSettingsStore()', async () => {

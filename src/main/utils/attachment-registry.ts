@@ -132,6 +132,13 @@ export async function rememberPreparedAttachment(
   await persistRegistry()
 }
 
+export async function findPreparedAttachmentCapability(id: string): Promise<PreparedAttachment> {
+  await ensureRegistryLoaded()
+  const capability = preparedAttachments.get(id)
+  if (!capability) throw new Error(`Attachment was not prepared by this app: ${id}`)
+  return capability.attachment
+}
+
 export async function resolvePreparedAttachmentCapability(
   attachment: PreparedAttachment,
 ): Promise<PreparedAttachment> {

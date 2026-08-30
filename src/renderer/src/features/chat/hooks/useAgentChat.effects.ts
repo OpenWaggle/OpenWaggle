@@ -2,6 +2,7 @@ import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { IpcEventPayload } from '@shared/types/ipc'
 import type { SessionDetail } from '@shared/types/session'
+import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import { useEffect } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { sessionToUIMessages } from '../lib/useAgentChat.utils'
@@ -162,6 +163,33 @@ export function useAgentEventEffects(params: UseAgentEventEffectsParams) {
       unsubscribeCompleted()
     }
   }, [sessionId, streamEventContext, runCompletionContext])
+
+  useEffect(() => {
+    if (!sessionId) return
+    let cancelled = false
+    const hydratePendingInteractions = async () => {
+      while (!cancelled) {
+        const beforeQuery = streamEventContext.agentInteractionsBySessionIdRef.current
+        const response = await api.querySessionControl({
+          contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+          requestId: crypto.randomUUID(),
+          query: { operation: 'requests-list', sessionId },
+        })
+        if (cancelled) return
+        if (response.outcome.operation !== 'requests-list' || 'error' in response.outcome) return
+        if (streamEventContext.agentInteractionsBySessionIdRef.current !== beforeQuery) continue
+        const next = new Map(beforeQuery)
+        next.set(sessionId, response.outcome.requests)
+        streamEventContext.agentInteractionsBySessionIdRef.current = next
+        streamEventContext.setAgentInteractionsBySessionId(next)
+        return
+      }
+    }
+    void hydratePendingInteractions().catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [sessionId, streamEventContext])
 
   useEffect(() => {
     if (!sessionId) {

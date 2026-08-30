@@ -1,4 +1,5 @@
 import type { SessionSummary } from '@shared/types/session'
+import { ChessQueen, Pickaxe } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
 import { formatCompactRelativeTime } from '@/shared/lib/format'
 import { PINNED_SHORTCUT_LIMIT } from '../lib/pinned-sessions'
@@ -52,6 +53,12 @@ export function SessionRowSecondLine({
             {stateLabel}
           </span>
         )}
+        {session.lineage?.role === 'queen' || session.lineage?.role === 'worker' ? (
+          <>
+            {stateLabel === '' ? null : <Separator />}
+            <SessionLineageIndicator session={session} />
+          </>
+        ) : null}
         {phaseLabel === null ? null : (
           <>
             <Separator />
@@ -88,6 +95,51 @@ export function SessionRowSecondLine({
           {formatCompactRelativeTime(session.updatedAt)}
         </span>
       </span>
+    </span>
+  )
+}
+
+function sessionLineagePresentation(session: SessionSummary): {
+  readonly Icon: React.ComponentType<{ className?: string }> | null
+  readonly title: string | undefined
+  readonly workerCount: number
+} {
+  const lineage = session.lineage
+  if (lineage?.role === 'queen') {
+    const suffix = lineage.directWorkerCount === 1 ? '' : 's'
+    const agent = lineage.agentDefinitionName ? ` · Agent: ${lineage.agentDefinitionName}` : ''
+    return {
+      Icon: ChessQueen,
+      title: `Queen Session${agent} · ${lineage.directWorkerCount} direct Worker${suffix}`,
+      workerCount: lineage.directWorkerCount,
+    }
+  }
+  if (lineage?.role === 'worker') {
+    const parent = lineage.parentTitle ? ` · Parent: ${lineage.parentTitle}` : ''
+    const agent = lineage.agentDefinitionName ? ` · Agent: ${lineage.agentDefinitionName}` : ''
+    return { Icon: Pickaxe, title: `Worker Session${parent}${agent}`, workerCount: 0 }
+  }
+  return { Icon: null, title: undefined, workerCount: 0 }
+}
+
+/** Hive lineage is row metadata, so it sits below the title with the other indicators. */
+export function SessionLineageIndicator({ session }: { readonly session: SessionSummary }) {
+  const lineage = sessionLineagePresentation(session)
+  const LineageIcon = lineage.Icon
+  if (LineageIcon === null) return null
+
+  return (
+    <span
+      data-qa="sidebar-session-lineage"
+      role="img"
+      aria-label={lineage.title}
+      title={lineage.title}
+      className="relative z-10 inline-flex shrink-0 items-center gap-0.5 text-text-tertiary"
+    >
+      <LineageIcon className="size-3.5" />
+      {lineage.workerCount > 0 ? (
+        <span className="text-xs tabular-nums">{lineage.workerCount}</span>
+      ) : null}
     </span>
   )
 }

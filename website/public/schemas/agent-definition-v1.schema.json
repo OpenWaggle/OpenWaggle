@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openwaggle.ai/schemas/agent-definition-v1.schema.json",
+  "title": "OpenWaggle Agent definition frontmatter v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "name", "description"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "format": "uri"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9](?:[a-z0-9._-]{0,78}[a-z0-9])?$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "reasoning": {
+      "enum": ["off", "minimal", "low", "medium", "high", "xhigh"]
+    },
+    "tools": {
+      "$ref": "#/$defs/nameList"
+    },
+    "skills": {
+      "$ref": "#/$defs/nameList"
+    },
+    "mcpServers": {
+      "$ref": "#/$defs/nameList"
+    },
+    "sessionCapabilities": {
+      "type": "array",
+      "maxItems": 19,
+      "items": {
+        "enum": [
+          "sessions:discover",
+          "sessions:read",
+          "sessions:create",
+          "sessions:start",
+          "sessions:spawn",
+          "sessions:message",
+          "sessions:steer",
+          "sessions:interrupt",
+          "sessions:queue",
+          "sessions:report",
+          "sessions:respond",
+          "sessions:approve",
+          "sessions:authorization",
+          "sessions:organize",
+          "sessions:export",
+          "delegations:read",
+          "delegations:contribute",
+          "delegations:review",
+          "access:profiles"
+        ]
+      }
+    },
+    "authorizationMode": {
+      "enum": ["yolo", "ask-for-approval"]
+    },
+    "workspace": {
+      "enum": ["share-parent", "local", "new-worktree"]
+    },
+    "import": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceTool",
+        "sourcePath",
+        "sourceDigest",
+        "importerVersion",
+        "baselineDigest",
+        "importedAt"
+      ],
+      "properties": {
+        "sourceTool": {
+          "enum": [
+            "openwaggle",
+            "codex",
+            "claude-code",
+            "cursor",
+            "gemini-cli",
+            "github-copilot",
+            "opencode"
+          ]
+        },
+        "sourcePath": { "type": "string", "minLength": 1 },
+        "sourceDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "importerVersion": { "const": 1 },
+        "baselineDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "importedAt": { "type": "integer", "minimum": 0 }
+      }
+    }
+  },
+  "$defs": {
+    "nameList": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

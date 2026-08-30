@@ -4,6 +4,7 @@ import { useSessionStore } from '@/features/sessions/state/session-store'
 
 export interface SessionsReturn {
   sessions: ReturnType<typeof useSessionStore.getState>['sessions']
+  archivedSessions: ReturnType<typeof useSessionStore.getState>['archivedSessions']
   activeSessionTree: ReturnType<typeof useSessionStore.getState>['activeSessionTree']
   activeWorkspace: ReturnType<typeof useSessionStore.getState>['activeWorkspace']
   draftBranch: ReturnType<typeof useSessionStore.getState>['draftBranch']
@@ -23,6 +24,7 @@ export interface SessionsReturn {
 
 export function useSessions(): SessionsReturn {
   const sessions = useSessionStore((s) => s.sessions)
+  const archivedSessions = useSessionStore((s) => s.archivedSessions)
   const activeSessionTree = useSessionStore((s) => s.activeSessionTree)
   const activeWorkspace = useSessionStore((s) => s.activeWorkspace)
   const draftBranch = useSessionStore((s) => s.draftBranch)
@@ -35,6 +37,7 @@ export function useSessions(): SessionsReturn {
 
   return {
     sessions,
+    archivedSessions,
     activeSessionTree,
     activeWorkspace,
     draftBranch,

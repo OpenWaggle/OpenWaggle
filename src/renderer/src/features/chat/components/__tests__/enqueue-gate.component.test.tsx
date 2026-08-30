@@ -6,7 +6,7 @@ import { enqueueIfAllowed } from '../ChatComposerStack'
 const PAYLOAD: AgentSendPayload = { text: 'do the thing', thinkingLevel: 'off', attachments: [] }
 
 describe('enqueueIfAllowed', () => {
-  it('refuses to queue a message the send gate would block, and says why', () => {
+  it('refuses to queue a message the send gate would block, and says why', async () => {
     /*
      * A queued message is dispatched later with the raw send, so queueing walked straight past the
      * worktree gate: main rejected it with a bare thrown error and the message was silently
@@ -15,7 +15,7 @@ describe('enqueueIfAllowed', () => {
     const enqueue = vi.fn()
     const onToast = vi.fn()
 
-    enqueueIfAllowed({
+    await enqueueIfAllowed({
       payload: PAYLOAD,
       activeSessionId: SessionId('session-a'),
       sendBlockedReason: "This session's worktree no longer exists.",
@@ -27,10 +27,10 @@ describe('enqueueIfAllowed', () => {
     expect(onToast).toHaveBeenCalledWith("This session's worktree no longer exists.")
   })
 
-  it('queues against the active session when nothing blocks the send', () => {
-    const enqueue = vi.fn()
+  it('queues against the active session when nothing blocks the send', async () => {
+    const enqueue = vi.fn(async () => undefined)
 
-    enqueueIfAllowed({
+    await enqueueIfAllowed({
       payload: PAYLOAD,
       activeSessionId: SessionId('session-a'),
       sendBlockedReason: null,
@@ -38,13 +38,13 @@ describe('enqueueIfAllowed', () => {
       onToast: vi.fn(),
     })
 
-    expect(enqueue).toHaveBeenCalledWith(SessionId('session-a'), PAYLOAD)
+    expect(enqueue).toHaveBeenCalledWith(PAYLOAD)
   })
 
-  it('does nothing without an active session', () => {
+  it('does nothing without an active session', async () => {
     const enqueue = vi.fn()
 
-    enqueueIfAllowed({
+    await enqueueIfAllowed({
       payload: PAYLOAD,
       activeSessionId: null,
       sendBlockedReason: null,

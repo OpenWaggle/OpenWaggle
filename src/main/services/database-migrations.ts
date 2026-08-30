@@ -9,20 +9,13 @@ import {
   EXTENSION_LIFECYCLE_SCHEMA_V1_STATEMENTS,
   SESSION_AUTHORIZATION_MODE_OVERRIDE_MIGRATION_STATEMENTS,
 } from './database-schema'
+import { SESSION_HOST_DATABASE_MIGRATION } from './session-host-migration'
 
 export interface AppMigration {
   readonly id: number
   readonly name: string
   readonly statements: readonly string[]
-  /**
-   * Skip when this column already exists.
-   *
-   * SQLite has no `ADD COLUMN IF NOT EXISTS`, and the ledger only prevents re-running a migration
-   * under the same id. A database that already carries the column under a *different* ledger id
-   * would fail to boot on `duplicate column name`. That is reachable here: this migration was
-   * renumbered from 24 to 25 so `pinned-sessions` could keep 24, so any database created by the
-   * earlier build has the column recorded under the old id.
-   */
+  /** Skip a renumbered column migration when an earlier alpha already installed the column. */
   readonly skipIfColumn?: { readonly table: string; readonly column: string }
 }
 
@@ -175,6 +168,9 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
   {
     id: 11,
     name: 'normalize-pi-native-session-schema',
+    // A later schema proves this destructive normalization already ran. Replaying it after the
+    // Session Host migration would temporarily remove session_nodes beneath newer foreign keys.
+    skipIfColumn: { table: 'session_tree_ui_state', column: 'expanded_node_ids_touched' },
     statements: [
       `DROP TABLE IF EXISTS session_active_runs`,
       `DROP TABLE IF EXISTS session_tree_ui_state`,
@@ -295,4 +291,5 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
     skipIfColumn: { table: 'sessions', column: 'authorization_mode_override' },
     statements: [...SESSION_AUTHORIZATION_MODE_OVERRIDE_MIGRATION_STATEMENTS],
   },
+  SESSION_HOST_DATABASE_MIGRATION,
 ]

@@ -1,18 +1,22 @@
-import { SessionId } from '@shared/types/brand'
+import { SessionId, SupportedModelId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   cleanupSessionRunMock,
   compactAgentSessionMock,
+  dispatchLocalSessionCommandMock,
   executeAgentRunMock,
   getAgentContextUsageMock,
+  isGuiAttachedToRemoteSessionHostMock,
   typedHandleMock,
 } = vi.hoisted(() => ({
   cleanupSessionRunMock: vi.fn(),
   compactAgentSessionMock: vi.fn(),
+  dispatchLocalSessionCommandMock: vi.fn(),
   executeAgentRunMock: vi.fn(),
   getAgentContextUsageMock: vi.fn(),
+  isGuiAttachedToRemoteSessionHostMock: vi.fn(() => false),
   typedHandleMock: vi.fn(),
 }))
 
@@ -28,9 +32,17 @@ vi.mock('../../application/agent-run-service', () => ({
   executeAgentRun: executeAgentRunMock,
 }))
 
+vi.mock('../../application/local-session-command-dispatcher', () => ({
+  dispatchLocalSessionCommand: dispatchLocalSessionCommandMock,
+}))
+
 vi.mock('../../application/agent-session-service', () => ({
   compactAgentSession: compactAgentSessionMock,
   getAgentContextUsage: getAgentContextUsageMock,
+}))
+
+vi.mock('../../session-host/gui-session-host-state', () => ({
+  isGuiAttachedToRemoteSessionHost: isGuiAttachedToRemoteSessionHostMock,
 }))
 
 vi.mock('../../utils/broadcast', () => ({
@@ -62,13 +74,36 @@ function getResponseHandler() {
   return handler
 }
 
+function getCompactionHandler() {
+  registerAgentHandlers()
+  const call = typedHandleMock.mock.calls.find(
+    (candidate: readonly unknown[]) => candidate[0] === 'agent:compact-session',
+  )
+  const handler = call?.[1]
+  if (typeof handler !== 'function') {
+    throw new Error('Expected agent:compact-session handler to be registered')
+  }
+  return handler
+}
+
 describe('agent interaction IPC handler', () => {
   beforeEach(() => {
     clearAgentLoopInteractionBrokerForTests()
     cleanupSessionRunMock.mockReset()
     compactAgentSessionMock.mockReset()
+    dispatchLocalSessionCommandMock.mockReset().mockReturnValue(
+      Effect.succeed({
+        contract: 'session-query-v2',
+        response: {
+          contractVersion: 2,
+          requestId: 'requests-list',
+          outcome: { operation: 'requests-list', sessionId: 'missing-session', requests: [] },
+        },
+      }),
+    )
     executeAgentRunMock.mockReset()
     getAgentContextUsageMock.mockReset()
+    isGuiAttachedToRemoteSessionHostMock.mockReset().mockReturnValue(false)
     typedHandleMock.mockReset()
   })
 
@@ -111,5 +146,22 @@ describe('agent interaction IPC handler', () => {
         ),
       ),
     ).rejects.toThrow()
+  })
+
+  it('refuses local compaction while the GUI is attached to another Session Host', async () => {
+    isGuiAttachedToRemoteSessionHostMock.mockReturnValue(true)
+    const handler = getCompactionHandler()
+
+    await expect(
+      Effect.runPromise(
+        handler(
+          {},
+          SessionId('remote-session'),
+          SupportedModelId('openai/gpt-5.5'),
+          'Compact remotely.',
+        ),
+      ),
+    ).rejects.toThrow('attached to another Session Host')
+    expect(compactAgentSessionMock).not.toHaveBeenCalled()
   })
 })

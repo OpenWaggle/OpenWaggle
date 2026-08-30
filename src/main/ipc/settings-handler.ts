@@ -14,17 +14,20 @@ import {
 } from '@shared/types/shortcuts'
 import * as Effect from 'effect/Effect'
 import { resolveEffectiveAuthorizationMode } from '../application/agent-authorization-mode'
-import { grantPendingAuthorizationsWhereFullAccess } from '../application/agent-loop-interaction-broker'
+import { grantPendingAuthorizationsWhereFullAccess } from '../application/agent-loop-authorization-grants'
 import { testCredentials } from '../application/provider-test-service'
 import { createLogger } from '../logger'
 import { ActiveProjectChangeService } from '../ports/active-project-change-service'
 import { SessionTreePreferencesService } from '../ports/session-tree-preferences-service'
+import { createAppCliShimService } from '../services/cli-shim-service'
 import { SettingsService } from '../services/settings-service'
 import { validateProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
 
 const logger = createLogger('ipc-settings')
 const MAX_SHORTCUT_KEY_LENGTH = 20
+const positiveIntegerSchema = Schema.Number.pipe(Schema.int(), Schema.positive())
+const nonNegativeIntegerSchema = Schema.Number.pipe(Schema.int(), Schema.nonNegative())
 
 function isString(value: string | undefined) {
   return value !== undefined
@@ -138,6 +141,26 @@ const settingsUpdateSchema = Schema.Struct({
     ),
   ),
   defaultAuthorizationMode: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
+  sessionHostParentConcurrencyLimit: Schema.optional(positiveIntegerSchema),
+  sessionHostParentConcurrencyLimitsByProject: Schema.optional(
+    Schema.mutable(
+      Schema.Record({
+        key: Schema.String,
+        value: positiveIntegerSchema,
+      }),
+    ),
+  ),
+  sessionHostRunCeiling: Schema.optional(positiveIntegerSchema),
+  sessionHostIdleGracePeriodMs: Schema.optional(nonNegativeIntegerSchema),
+  multiAgentEnabled: Schema.optional(Schema.Boolean),
+  multiAgentEnabledByProject: Schema.optional(
+    Schema.mutable(
+      Schema.Record({
+        key: Schema.String,
+        value: Schema.Boolean,
+      }),
+    ),
+  ),
   shortcutBindings: Schema.optional(
     Schema.mutable(
       Schema.Record({
@@ -271,6 +294,13 @@ function registerTreePreferenceHandlers() {
 }
 
 function registerSettingsUtilityHandlers() {
+  typedHandle('cli-shim:get-status', () =>
+    Effect.tryPromise(() => createAppCliShimService().status()),
+  )
+  typedHandle('cli-shim:install', () =>
+    Effect.tryPromise(() => createAppCliShimService().install()),
+  )
+  typedHandle('cli-shim:remove', () => Effect.tryPromise(() => createAppCliShimService().remove()))
   typedHandle(
     'settings:test-api-key',
     (_event, provider: string, apiKey: string, projectPath?: string | null) =>

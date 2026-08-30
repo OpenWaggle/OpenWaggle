@@ -1,4 +1,4 @@
-import { SessionBranchId, SessionId } from '@shared/types/brand'
+import { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import type { GitStatusSummary } from '@shared/types/git'
 import type { SessionBranch, SessionSummary } from '@shared/types/session'
 import { fireEvent, render, screen } from '@testing-library/react'
@@ -109,6 +109,36 @@ describe('two-line session row', () => {
     expect(qaOne('sidebar-row-title-line')?.children).toHaveLength(1)
   })
 
+  it('places Hive lineage below the title without taking title width', () => {
+    useSessionStatusStore.setState({
+      statuses: new Map([[SESSION_ID, 'working']]),
+      completedAt: new Map(),
+      lastVisitedAt: new Map(),
+      phases: new Map(),
+    })
+    renderRow(
+      session({
+        lineage: {
+          role: 'queen',
+          directWorkerCount: 3,
+          activeDirectWorkerCount: 2,
+          agentDefinitionName: 'coordinator',
+        },
+      }),
+    )
+
+    const lineage = screen.getByRole('img', {
+      name: 'Queen Session · Agent: coordinator · 3 direct Workers',
+    })
+    const lead = qaOne('sidebar-row-lead')
+    const state = qaOne('sidebar-row-state')
+    if (!lead || !state) throw new Error('Expected the second-line status metadata')
+    expect(qaOne('sidebar-row-title-line')?.contains(lineage)).toBe(false)
+    expect(qaOne('sidebar-row-title-line')?.children).toHaveLength(1)
+    expect(qaOne('sidebar-row-line2')?.contains(lineage)).toBe(true)
+    expect([...lead.children].indexOf(state)).toBeLessThan([...lead.children].indexOf(lineage))
+  })
+
   /**
    * The timestamp used to hide on hover, which re-flowed the row under the cursor and removed
    * information at the moment the user was about to act on it.
@@ -185,11 +215,21 @@ describe('two-line session row', () => {
       expect(screen.queryByRole('img', { name: /conversation branches/ })).not.toBeInTheDocument()
     })
 
-    /** Cloning is real but the lineage is never persisted, so the row must not claim it. */
-    it('never claims a session was cloned', () => {
-      renderRow(session({ environmentMode: 'worktree' }))
+    it('shows the persisted fork source', () => {
+      renderRow(
+        session({
+          derivation: {
+            sourceSessionId: SessionId('session-source'),
+            sourceTitle: 'Original investigation',
+            sourceNodeId: SessionNodeId('node-source'),
+            position: 'at',
+          },
+        }),
+      )
 
-      expect(screen.queryByRole('img', { name: /Cloned from/ })).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('img', { name: 'Cloned from Original investigation' }),
+      ).toBeInTheDocument()
     })
 
     /** No Globe: a remote environment mode does not exist. See ADR 0020. */

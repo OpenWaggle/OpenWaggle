@@ -1,4 +1,4 @@
-import { SessionBranchId, SessionId } from '@shared/types/brand'
+import { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionBranch, SessionSummary } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
 import { buildSessionProvenance } from '../session-provenance'
@@ -128,18 +128,24 @@ describe('buildSessionProvenance', () => {
     ).toEqual({ kind: 'terminal', description: '3 terminal processes running' })
   })
 
-  /**
-   * Cloning is real, but the lineage is never persisted on a session, so the row must not
-   * guess. The render path exists and stays silent until the data does. See ADR 0020.
-   */
-  it('never claims a session was cloned, because the origin is not recorded', () => {
-    const kinds = buildSessionProvenance({
-      session: session({ environmentMode: 'worktree', branches: [branch('main'), branch('alt')] }),
+  it('identifies the persisted source of a fork without confusing it with Hive lineage', () => {
+    const indicators = buildSessionProvenance({
+      session: session({
+        derivation: {
+          sourceSessionId: SessionId('session-source'),
+          sourceTitle: 'Original investigation',
+          sourceNodeId: SessionNodeId('node-source'),
+          position: 'at',
+        },
+      }),
       gitBranch: 'main',
-      terminalCount: 2,
-    }).map((indicator) => indicator.kind)
+      terminalCount: 0,
+    })
 
-    expect(kinds).not.toContain('cloned-from')
+    expect(indicators).toContainEqual({
+      kind: 'cloned-from',
+      description: 'Cloned from Original investigation',
+    })
   })
 
   /** Fixed order, so a row's second line does not reshuffle as facts arrive. */

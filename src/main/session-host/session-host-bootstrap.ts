@@ -1,0 +1,103 @@
+import { decodeLocalSessionCommandPayload } from '@shared/schemas/local-session-protocol'
+import * as Effect from 'effect/Effect'
+import {
+  authorizeLocalSessionActiveRun,
+  authorizeLocalSessionEvent,
+  dispatchLocalSessionCommand,
+} from '../application/local-session-command-dispatcher'
+import { authenticateLocalSessionProfile } from '../application/local-session-profile-authentication'
+import { recoverSessionExportsAfterHostLoss } from '../application/session-export-recovery'
+import { recoverPendingSessionHandoffs } from '../application/session-organization-service'
+import { createLogger } from '../logger'
+import { SessionHostRecoveryRepository } from '../ports/session-host-recovery-repository'
+import { SessionLifecyclePreparationService } from '../ports/session-lifecycle-preparation-service'
+import { SessionProjectionRepository } from '../ports/session-projection-repository'
+import type { AppServices } from '../runtime'
+import { SettingsService } from '../services/settings-service'
+import { listStreamBufferSnapshots } from '../utils/stream-buffer'
+import { createLocalSessionAuthenticator } from './local-session-authenticator'
+import { startLocalSessionHost } from './local-session-host-runtime'
+import type { LocalSessionHostPaths } from './local-session-paths'
+import { ensureLocalUserCredential } from './local-user-credential'
+import { readSessionHostUpgradeBlockers } from './session-host-upgrade-blockers'
+
+type AppEffectRunner = <A, E>(effect: Effect.Effect<A, E, AppServices>) => Promise<A>
+
+const logger = createLogger('session-host/bootstrap')
+
+export async function startAppSessionHost(input: {
+  readonly paths: LocalSessionHostPaths
+  readonly runEffect: AppEffectRunner
+}) {
+  const localUserCredential = await ensureLocalUserCredential(input.paths.credentialPath)
+  const settings = await input.runEffect(
+    Effect.gen(function* () {
+      const service = yield* SettingsService
+      return yield* service.get()
+    }),
+  )
+  const authenticate = createLocalSessionAuthenticator({
+    localUserCredential,
+    namedProfiles: {
+      authenticate: (profileInput) =>
+        input.runEffect(
+          authenticateLocalSessionProfile({
+            ...profileInput,
+            now: Date.now(),
+          }),
+        ),
+    },
+  })
+
+  return startLocalSessionHost({
+    endpoint: input.paths.endpoint,
+    databasePath: input.paths.databasePath,
+    idleGracePeriodMs: settings.sessionHostIdleGracePeriodMs,
+    readIdleGracePeriod: () =>
+      input.runEffect(
+        Effect.gen(function* () {
+          const service = yield* SettingsService
+          return (yield* service.get()).sessionHostIdleGracePeriodMs
+        }),
+      ),
+    authenticate,
+    authorizeEvent: (caller, event) => input.runEffect(authorizeLocalSessionEvent(caller, event)),
+    snapshotActiveRuns: () => listStreamBufferSnapshots(),
+    authorizeActiveRun: (caller, snapshot) =>
+      input.runEffect(authorizeLocalSessionActiveRun(caller, snapshot.sessionId)),
+    recover: () =>
+      input.runEffect(
+        Effect.gen(function* () {
+          const repository = yield* SessionHostRecoveryRepository
+          const projection = yield* SessionProjectionRepository
+          const lifecyclePreparation = yield* SessionLifecyclePreparationService
+          const recovery = yield* repository.recoverAfterHostLoss(Date.now())
+          yield* projection.recoverPendingDeletions?.() ?? Effect.void
+          yield* lifecyclePreparation.recoverPending
+          const handoffRecovery = yield* recoverPendingSessionHandoffs(recovery.pendingHandoffs)
+          for (const result of handoffRecovery) {
+            if (result._tag === 'Left') {
+              logger.error('Pending Workspace handoff recovery exhausted retries.', {
+                error: result.left instanceof Error ? result.left.message : String(result.left),
+              })
+            }
+          }
+          yield* recoverSessionExportsAfterHostLoss()
+        }),
+      ),
+    describeUpgradeBlockers: async () => readSessionHostUpgradeBlockers(input.paths.databasePath),
+    dispatch: async ({ caller, negotiatedRevision, eventCursor, payload, signal }) => {
+      void negotiatedRevision
+      const result = await input.runEffect(
+        dispatchLocalSessionCommand({
+          caller,
+          payload: decodeLocalSessionCommandPayload(payload),
+          signal,
+        }),
+      )
+      return result.contract === 'session-query-v2'
+        ? { ...result, response: { ...result.response, eventCursor } }
+        : result
+    },
+  })
+}

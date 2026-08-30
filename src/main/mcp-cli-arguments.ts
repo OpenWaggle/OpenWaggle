@@ -10,12 +10,14 @@ import type {
 } from '@shared/types/mcp'
 import { ALL_IMPORT_SOURCES } from './adapters/mcp/import-adapters'
 import { parseMcpConfigFile } from './adapters/mcp/json-files'
+import { validateMcpCliPositionals } from './mcp-cli-positional-contract'
+
+export { requireServeScope } from './mcp-cli-serve-scope'
 
 const MAX_STDIN_SECRET_BYTES = 1_000_000
 const SECRET_ARGUMENT_PATTERN =
   /(api[-_]?key|token|secret|password|credential|authorization|cookie)/i
-const NEXT_ARGUMENT_OFFSET = 1
-const OPTION_AND_VALUE_COUNT = 2
+const [NEXT_ARGUMENT_OFFSET, OPTION_AND_VALUE_COUNT] = [1, 2] as const
 
 export interface ParsedArguments {
   readonly positionals: readonly string[]
@@ -24,14 +26,34 @@ export interface ParsedArguments {
 }
 
 const BOOLEAN_OPTIONS = new Set([
+  'all',
   'allow-unsandboxed',
   'apply',
+  'approve',
+  'credential-stdin',
+  'credential-store',
+  'dry-run',
+  'archived',
+  'full',
+  'full-transcript',
+  'include-archived',
+  'include-bodies',
+  'include-queue-bodies',
   'json',
+  'jsonl',
   'oauth',
   'replace',
+  'request-reply',
+  'require-fresh',
   'secret-stdin',
   'stdio',
+  'stdin',
   'token-stdin',
+  'start-from-origin',
+  'upstream',
+  'queen',
+  'yes',
+  'yolo',
 ])
 
 const MANAGEMENT_COMMON_OPTIONS = ['json', 'project'] as const
@@ -66,6 +88,8 @@ const MANAGEMENT_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = 
 }
 const SERVE_OPTIONS = [
   'grant',
+  'export-root',
+  'attachment-root',
   'http',
   'origin-session',
   'profile',
@@ -120,22 +144,10 @@ export function hasFlag(arguments_: ParsedArguments, name: string) {
   return option(arguments_, name) === 'true'
 }
 
-export function requireServeScope(arguments_: ParsedArguments) {
-  const workspaces = arguments_.options.get('workspace') ?? []
-  const sessions = arguments_.options.get('session') ?? []
-  if (workspaces.length === 0 && sessions.length === 0) {
-    throw new Error(
-      'Server mode requires at least one explicit --workspace <path> or --session <id> scope. Use --workspace / only when intentionally granting every project.',
-    )
-  }
-  return { workspaces, sessions }
-}
-
 export function validateMcpCliOptions(command: string, arguments_: ParsedArguments) {
-  const allowed =
-    command === 'serve'
-      ? SERVE_OPTIONS
-      : (MANAGEMENT_COMMAND_OPTIONS[command] ?? MANAGEMENT_COMMON_OPTIONS)
+  validateMcpCliPositionals(command, arguments_)
+  const allowed = command === 'serve' ? SERVE_OPTIONS : MANAGEMENT_COMMAND_OPTIONS[command]
+  if (!allowed) throw new Error(`Unsupported MCP command: ${command}.`)
   const allowedSet = new Set<string>(allowed)
   const unknown = [...arguments_.options.keys()].filter((name) => !allowedSet.has(name)).sort()
   if (unknown.length > 0) {
@@ -150,6 +162,14 @@ export function validateMcpCliOptions(command: string, arguments_: ParsedArgumen
     .sort()
   if (missingValues.length > 0) {
     throw new Error(`Missing value for ${missingValues.map((name) => `--${name}`).join(', ')}.`)
+  }
+  const valuedBooleans = [...arguments_.options.entries()]
+    .flatMap(([name, values]) =>
+      BOOLEAN_OPTIONS.has(name) && values.some((value) => value !== 'true') ? [name] : [],
+    )
+    .sort()
+  if (valuedBooleans.length > 0) {
+    throw new Error(`${valuedBooleans.map((name) => `--${name}`).join(', ')} do not accept values.`)
   }
   if (arguments_.options.has('scope')) target(arguments_)
   if (arguments_.options.has('transport')) transport(option(arguments_, 'transport'))

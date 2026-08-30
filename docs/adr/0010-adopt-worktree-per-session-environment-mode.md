@@ -1,6 +1,8 @@
 # Adopt Worktree-Per-Session Environment Mode
 
-Status: accepted
+Status: accepted; one-session/one-worktree ownership cardinality superseded by ADR 0025
+
+ADR 0025 replaces the ownership unit with a shareable Workspace resource. The local-versus-worktree environment distinction, managed storage, git-native dirty-removal protection, and no-worktree behavior for non-Git projects remain in force; session-exclusive worktree identity and cleanup do not.
 
 Supersedes the implicit "no git worktrees" stance currently encoded in the renderer surfaces. OpenWaggle historically ran all git work in the single opened checkout, and component tests assert the worktree surface is absent:
 

@@ -16,6 +16,6 @@ export {
 } from './lib/worktree-send-plan'
 export { selectWorkingTreeStatus, useGitStore } from './state'
 export {
-  flushDraftWorktreePlanToSession,
+  consumeDraftWorktreePlan,
   stashDraftWorktreePlan,
 } from './state/worktree-plan-draft'

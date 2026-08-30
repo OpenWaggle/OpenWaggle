@@ -41,6 +41,10 @@ export interface ProjectPreferencesUpdate {
 
 export interface ProjectConfig {
   readonly preferences?: ProjectPreferences
+  readonly sessionHost?: {
+    readonly multiAgentEnabled?: boolean
+    readonly parentConcurrencyLimit?: number
+  }
   readonly authorizationGrants?: readonly ScopedAuthorizationGrant[]
   readonly pi?: JsonObject
 }
@@ -307,12 +311,13 @@ function parseProjectConfig(settings: ParsedProjectSettingsFile | null) {
   const preferences = parseProjectPreferences(settings)
   const grants = settings?.authorizationGrants ?? []
 
-  if (!preferences && grants.length === 0 && !settings?.pi) {
+  if (!preferences && !settings?.sessionHost && grants.length === 0 && !settings?.pi) {
     return EMPTY_CONFIG
   }
 
   return {
     ...(preferences ? { preferences } : {}),
+    ...(settings?.sessionHost ? { sessionHost: settings.sessionHost } : {}),
     ...(grants.length > 0 ? { authorizationGrants: grants } : {}),
     ...(settings?.pi ? { pi: settings.pi } : {}),
   }

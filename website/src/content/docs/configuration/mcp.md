@@ -176,7 +176,28 @@ printf '%s' "$OPENWAGGLE_MCP_TOKEN" | openwaggle mcp serve --http 0 --token-stdi
 
 Loopback HTTP requires a bearer token of at least 32 bytes, validates Host and Origin, and prints its loopback URL without printing the token. Every caller profile must name at least one `--workspace` or `--session` scope; an empty scope never means every desktop session. Use `--workspace /` only when you intentionally want to grant every project on the machine. Caller profiles separately grant session discovery, reading, creation, messaging, interruption, or organization. A caller cannot inherit desktop approvals or unrestricted access to every session.
 
-The `openwaggle_sessions` tool supports discovery, status, paginated reading, creation, worktree planning/materialization, fork/clone, message/steer, wait/interrupt, handoff, rename, pin/unpin, and archive/unarchive. Worktree creation requires both `sessions:create` and `sessions:organize`. It leaves the source session unchanged and returns a new derived session rooted at a deterministic Git worktree; the response includes both session IDs, the path, branch, base ref, and delegation depth. Later messages and tasks sent to the derived session execute in that worktree. OpenWaggle revalidates its source-session grant and Git provenance on every access, and refuses changed plans, replaced paths, branches, or repositories instead of silently falling back to the source checkout.
+The `openwaggle_sessions` tool exposes the Session Control v2 vocabulary used by the CLI and GUI:
+
+- discovery and reading: `list`, `search`, `read`, `turns`, `items`, and `status`;
+- lifecycle and organization: `create`, `launch`, `spawn`, `fork`, `handoff`, `rename`, `archive`, and `unarchive`;
+- Run and queue control: `message`, `start`, `follow-up`, `steer`, `promote`, `replace`, `interrupt`, `interrupt-descendants`, `wait`, `queue-list`, `queue-withdraw`, `queue-reorder`, `queue-pause`, `queue-resume`, and `queue-update-authorization`;
+- interactions and authorization: `requests-list`, `request-respond`, `approval-respond`, and `authorization-set`;
+- reports and Delegations: `report`, `delegation-submit`, `delegation-state`, `delegation-claim`, `delegation-conflict-acknowledge`, `delegation-dependency`, `delegation-propose-amendment`, `delegation-amend`, `delegation-request-revision`, `delegation-accept`, `delegation-reopen`, `delegation-cancel`, `delegation-verify`, `delegations-list`, `delegations-read`, and `delegations-conflicts`;
+- exports: `export`, `export-create`, `export-cancel`, `exports-list`, `exports-read`, and `exports-wait`.
+
+Use the lifecycle operation's `workspace` field to choose `current`, `local`, `existing`, `new-worktree`, `share-parent`, or `share-source` where that operation permits it. Worktree-backed lifecycle operations require the corresponding creation and organization grants. MCP does not expose the GUI-only pin order, a separate worktree planning/materialization protocol, or a `clone` operation.
+
+For `create`, `launch`, `fork`, `spawn`, and `handoff`, set `workspace: "new-worktree"` and `startFromOrigin: true` to resolve the new Worktree from the configured origin remote. `baseRef` and `startFromOrigin` are rejected for other Workspace modes. A `spawn` Delegation accepts `resourceReferences` for files or context the Worker should use; `exportResources` is a separate `export-create` field and never becomes Worker context. Supplying either resource field to another operation is rejected rather than ignored.
+
+`launch` and `spawn` accept `yolo: true` for a per-Run override. `start`, `follow-up`, and `replace` accept either `yolo: true` or `runAuthorizationOverride`; the caller must hold the matching authorization grant. `promote` requires `sessionId`, `followUpId`, and `expectedRunId`, and fails rather than steering a different Run when that Run id is stale.
+
+`search` accepts `message`, optional `searchMode`, and `fullTranscript`. Discovery search defaults to hybrid mode; `fullTranscript: true` defaults to lexical mode and requires transcript-read authority. Explicit semantic or hybrid full-transcript searches use the bounded, authorized lazy transcript projection described in the Sessions CLI guide. Transcript matches include node, Run when known, and durable-order attribution.
+
+The public tool input is strict: unknown fields, including unknown fields inside interaction responses, Delegation specifications, evidence, and claims, are rejected. This makes misspelled controls fail visibly instead of being silently ignored.
+
+The public envelope is bounded before any operation runs. Session and Delegation ids accept up to 512 characters, titles up to 1,024, top-level messages and objectives up to 131,072, and individual list items up to 16,384. Repeated task fields, resource references, and evidence accept at most 256 entries; custom JSON responses accept at most 131,072 serialized characters. Discovery operations accept a maximum `limit` of 200, while transcript item reads accept up to 500.
+
+Successful calls return the canonical local result in both MCP forms: JSON text in `content` and the same object in `structuredContent`. The object contains `contract` (`session-query-v2`, `session-control-v2`, or `session-lifecycle-v2`) and `response`; inspect `response.outcome` for the operation-specific result, cursor, or idempotency metadata. Canonical query errors and rejected mutations are returned as MCP tool errors rather than successful payloads. OpenWaggle revalidates every grant and Session or Workspace scope on each call.
 
 ## When something fails
 

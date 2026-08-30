@@ -1,8 +1,25 @@
-import { seedSingleSession } from '../e2e/support/session-fixtures'
+import { seedHive, seedSingleSession } from '../e2e/support/session-fixtures'
 
 export const PROJECT_NAME = 'OpenWaggle'
 export const THREAD_TITLE = 'review this waggle fix before merge'
 export const THREAD_LIST_MATCHER = /review this waggle/i
+export const HIVE_QUEEN_TITLE = 'Prepare the Sessions release'
+
+const HIVE_WORKERS = [
+  {
+    title: 'Verify queue and steering behavior',
+    delegationState: 'ready_for_review' as const,
+    agentDefinitionName: 'release-verifier',
+  },
+  {
+    title: 'Check CLI and GUI synchronization',
+    delegationState: 'working' as const,
+  },
+  {
+    title: 'Review the Hive user guide',
+    delegationState: 'accepted' as const,
+  },
+] as const
 
 const THREAD_PROMPT =
   'I just fixed the waggle streaming regression. Please review the changes, challenge the risky parts, and tell me whether this branch is ready to merge.'
@@ -13,6 +30,8 @@ const FIRST_CRITIC_OFFSET_MS = 5_000
 const SECOND_ADVOCATE_OFFSET_MS = 4_000
 const SECOND_CRITIC_OFFSET_MS = 3_000
 const FINAL_ADVOCATE_OFFSET_MS = 2_000
+const HIVE_USER_MESSAGE_OFFSET_MS = 2_000
+const HIVE_ASSISTANT_MESSAGE_OFFSET_MS = 1_000
 const SECOND_ADVOCATE_TURN_NUMBER = 2
 const SECOND_CRITIC_TURN_NUMBER = 3
 const FINAL_ADVOCATE_TURN_NUMBER = 4
@@ -156,6 +175,42 @@ function buildMarketingMessages(now: number) {
   ]
 }
 
+function buildHiveQueenMessages(now: number) {
+  return [
+    {
+      id: 'website-hive-user-1',
+      role: 'user',
+      createdAt: now - HIVE_USER_MESSAGE_OFFSET_MS,
+      parts: [
+        {
+          type: 'text',
+          text: 'Create a Hive to prepare the Sessions release. Delegate queue semantics, CLI synchronization, and documentation review to separate Workers.',
+        },
+      ],
+    },
+    {
+      id: 'website-hive-assistant-1',
+      role: 'assistant',
+      model: 'gpt-5.4',
+      createdAt: now - HIVE_ASSISTANT_MESSAGE_OFFSET_MS,
+      parts: [
+        {
+          type: 'text',
+          text: [
+            'The Hive is running with three Worker Sessions:',
+            '',
+            '- Queue and steering verification is ready for review.',
+            '- CLI and GUI synchronization is still in progress.',
+            '- The Hive user guide review is complete.',
+            '',
+            'I will review the Worker reports here and ask for revisions if any evidence is missing.',
+          ].join('\n'),
+        },
+      ],
+    },
+  ]
+}
+
 export async function seedMarketingSession(userDataDir: string, projectPath: string) {
   console.info('[website-shots] seeding marketing session')
   const now = Date.now()
@@ -187,4 +242,25 @@ export async function seedMarketingSession(userDataDir: string, projectPath: str
     },
     messages: buildMarketingMessages(now),
   })
+}
+
+export async function seedHiveExample(userDataDir: string, projectPath: string) {
+  console.info('[website-shots] seeding Hive example')
+  const now = Date.now()
+
+  await seedHive(
+    userDataDir,
+    {
+      title: HIVE_QUEEN_TITLE,
+      projectPath,
+      updatedAt: now,
+      messages: buildHiveQueenMessages(now),
+    },
+    HIVE_WORKERS.map((worker, index) => ({
+      ...worker,
+      projectPath,
+      updatedAt: now - index - 1,
+      messages: [],
+    })),
+  )
 }

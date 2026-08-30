@@ -232,4 +232,44 @@ describe('Pi entry projection', () => {
       ['grandchild', 2, 2],
     ])
   })
+
+  it('attributes every branch node to its nearest durable Run boundary', () => {
+    const entries = [
+      { ...base('old-root'), type: 'session_info', name: 'Before Session Control' },
+      {
+        ...base('run-1-boundary', 'old-root'),
+        type: 'custom',
+        customType: 'openwaggle-run-boundary',
+        data: { version: 1, runId: 'run-1' },
+      },
+      userMessage('run-1-user', 'run-1-boundary', 'First turn'),
+      {
+        ...base('run-2-boundary', 'run-1-user'),
+        type: 'custom',
+        customType: 'openwaggle-run-boundary',
+        data: { version: 1, runId: 'run-2' },
+      },
+      assistantMessage('run-2-assistant', 'run-2-boundary', 'Second turn'),
+      assistantMessage('run-1-branch', 'run-1-user', 'First-turn branch'),
+    ] satisfies SessionEntry[]
+
+    const snapshot = projectPiSessionSnapshot({
+      sessionManager: { getEntries: () => entries, getLeafId: () => 'run-2-assistant' },
+    })
+    const runIds = Object.fromEntries(
+      snapshot.nodes.map((node) => [
+        node.id,
+        JSON.parse(node.metadataJson).openWaggle?.runId ?? null,
+      ]),
+    )
+
+    expect(runIds).toEqual({
+      'old-root': null,
+      'run-1-boundary': 'run-1',
+      'run-1-user': 'run-1',
+      'run-2-boundary': 'run-2',
+      'run-2-assistant': 'run-2',
+      'run-1-branch': 'run-1',
+    })
+  })
 })

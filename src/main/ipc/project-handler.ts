@@ -14,7 +14,7 @@ import {
   revokeForProject,
 } from '../application/agent-authorization-grants'
 import { resolveEffectiveAuthorizationMode } from '../application/agent-authorization-mode'
-import { grantPendingAuthorizationsWhereFullAccess } from '../application/agent-loop-interaction-broker'
+import { grantPendingAuthorizationsWhereFullAccess } from '../application/agent-loop-authorization-grants'
 import {
   getProjectPreferences,
   type ProjectPreferencesUpdate,

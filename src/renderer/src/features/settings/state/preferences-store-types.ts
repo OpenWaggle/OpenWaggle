@@ -19,6 +19,12 @@ export interface PreferencesState {
   setThinkingLevel: (preset: ThinkingLevel) => Promise<void>
   setDefaultAuthorizationMode: (mode: AgentAuthorizationMode) => Promise<void>
   setDefaultSessionEnvironmentMode: (mode: SessionEnvironmentMode) => Promise<void>
+  setMultiAgentEnabled: (enabled: boolean) => Promise<void>
+  setSessionHostParentConcurrencyLimit: (limit: number) => Promise<void>
+  setSessionHostRunCeiling: (limit: number) => Promise<void>
+  setSessionHostIdleGracePeriodMs: (milliseconds: number) => Promise<void>
+  setProjectMultiAgentEnabled: (projectPath: string, enabled: boolean | null) => Promise<void>
+  setProjectParentConcurrencyLimit: (projectPath: string, limit: number | null) => Promise<void>
   setDiffSyntaxTheme: (theme: DiffSyntaxTheme) => Promise<void>
   setDiffView: (view: DiffView) => Promise<void>
   setDiffWrapLines: (wrap: boolean) => Promise<void>

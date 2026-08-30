@@ -1,9 +1,11 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
-import { SessionId } from '@shared/types/brand'
+import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
 import type { SessionDetail, SessionSummary } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
+import { sessionIdsForQuery } from '../sessions/hydration'
+import { attachSessionLineage, loadSessionLineageRows } from '../sessions/session-list'
 import { runStoreEffect } from '../store-runtime'
 import { EMPTY_INDEX, MESSAGE_ENTRY_TYPE } from './constants'
 import { hydrateWaggleConfig, parseJsonValue } from './json'
@@ -57,6 +59,9 @@ function hydrateSessionDetail(sessionRow: SessionRow, nodeRows: readonly Session
       ...(isAgentAuthorizationMode(sessionRow.authorization_mode_override)
         ? { authorizationMode: sessionRow.authorization_mode_override }
         : {}),
+      ...(sessionRow.execution_model_id
+        ? { executionModel: SupportedModelId(sessionRow.execution_model_id) }
+        : {}),
     }
   } catch (error) {
     logSessionHydrationFailure(sessionRow, error)
@@ -71,24 +76,27 @@ function isSessionDetail(session: SessionDetail | null) {
 function selectSessionRow(sql: SqlClient.SqlClient, id: SessionId) {
   return sql<SessionRow>`
     SELECT
-      id,
-      pi_session_id,
-      pi_session_file,
-      project_path,
-      title,
-      archived,
-      waggle_config_json,
-      created_at,
-      updated_at,
-      last_active_node_id,
-      last_active_branch_id,
-      environment_mode,
-      worktree_path,
-      worktree_base_ref,
-      worktree_start_from_origin,
-      authorization_mode_override
+      sessions.id,
+      sessions.pi_session_id,
+      sessions.pi_session_file,
+      sessions.project_path,
+      sessions.title,
+      sessions.archived,
+      sessions.waggle_config_json,
+      sessions.created_at,
+      sessions.updated_at,
+      sessions.last_active_node_id,
+      sessions.last_active_branch_id,
+      sessions.environment_mode,
+      sessions.worktree_path,
+      sessions.worktree_base_ref,
+      sessions.worktree_start_from_origin,
+      sessions.authorization_mode_override,
+      json_extract(session_execution_profiles.profile_json, '$.modelId') AS execution_model_id
     FROM sessions
-    WHERE id = ${id}
+    LEFT JOIN session_execution_profiles
+      ON session_execution_profiles.session_id = sessions.id
+    WHERE sessions.id = ${id}
     LIMIT 1
   `
 }
@@ -157,7 +165,12 @@ export async function listArchivedSessions(): Promise<SessionSummary[]> {
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       const rows = yield* summaryCountSql(sql, 1, null)
-      return rows.map(hydrateSessionDetailSummary)
+      const sessions = rows.map(hydrateSessionDetailSummary)
+      if (sessions.length === 0) return sessions
+      return attachSessionLineage(
+        sessions,
+        yield* loadSessionLineageRows(sql, sessionIdsForQuery(sessions)),
+      )
     }),
   )
 }
@@ -180,6 +193,104 @@ export async function getSessionDetail(id: SessionId): Promise<SessionDetail | n
 
       const nodeRows = yield* selectSessionNodeRows(sql, id)
       return hydrateSessionDetail(sessionRow, nodeRows)
+    }),
+  )
+}
+
+export async function getSessionAuthorizationBoundary(id: SessionId) {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<{
+        readonly execution_ceiling: 'yolo' | 'ask-for-approval'
+        readonly grant_ceiling: 'yolo' | 'ask-for-approval' | null
+        readonly grant_revoked_at: number | null
+        readonly profile_ceiling: 'yolo' | 'ask-for-approval' | null
+        readonly profile_revoked_at: number | null
+      }>`
+        SELECT
+          execution.authorization_ceiling AS execution_ceiling,
+          grants.authorization_ceiling AS grant_ceiling,
+          grants.revoked_at AS grant_revoked_at,
+          profiles.authorization_ceiling AS profile_ceiling,
+          profiles.revoked_at AS profile_revoked_at
+        FROM session_execution_profiles AS execution
+        LEFT JOIN derived_child_management_grants AS grants
+          ON grants.child_session_id = execution.session_id
+        LEFT JOIN session_client_profiles AS profiles
+          ON execution.authority_origin_caller_id = ${'profile:'} || profiles.id
+        WHERE execution.session_id = ${id}
+        LIMIT 1
+      `
+      return rows[0] ?? null
+    }),
+  )
+}
+
+function callerSourceSessionId(callerId: string) {
+  const prefix = 'session-agent:'
+  if (!callerId.startsWith(prefix)) return undefined
+  const lastSeparator = callerId.lastIndexOf(':')
+  return lastSeparator > prefix.length ? callerId.slice(prefix.length, lastSeparator) : undefined
+}
+
+export async function getSessionCallerAuthorizationBoundary(callerId: string) {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      if (callerId.startsWith('profile:')) {
+        const profileId = callerId.slice('profile:'.length)
+        const rows = yield* sql<{
+          readonly authorization_ceiling: 'yolo' | 'ask-for-approval'
+          readonly revoked_at: number | null
+        }>`
+          SELECT authorization_ceiling, revoked_at
+          FROM session_client_profiles WHERE id = ${profileId} LIMIT 1
+        `
+        const row = rows[0]
+        return row
+          ? { authorizationCeiling: row.authorization_ceiling, revoked: row.revoked_at !== null }
+          : { authorizationCeiling: 'ask-for-approval' as const, revoked: true }
+      }
+
+      const sourceSessionId = callerSourceSessionId(callerId)
+      if (!sourceSessionId) return null
+      const rows = yield* sql<{
+        readonly execution_ceiling: 'yolo' | 'ask-for-approval'
+        readonly grant_ceiling: 'yolo' | 'ask-for-approval' | null
+        readonly grant_revoked_at: number | null
+        readonly parent_session_id: string | null
+        readonly profile_ceiling: 'yolo' | 'ask-for-approval' | null
+        readonly profile_revoked_at: number | null
+      }>`
+        SELECT execution.authorization_ceiling AS execution_ceiling,
+          lineage.parent_session_id,
+          grants.authorization_ceiling AS grant_ceiling,
+          grants.revoked_at AS grant_revoked_at,
+          profiles.authorization_ceiling AS profile_ceiling,
+          profiles.revoked_at AS profile_revoked_at
+        FROM session_execution_profiles AS execution
+        LEFT JOIN session_spawn_lineage AS lineage
+          ON lineage.child_session_id = execution.session_id
+        LEFT JOIN derived_child_management_grants AS grants
+          ON grants.child_session_id = execution.session_id
+        LEFT JOIN session_client_profiles AS profiles
+          ON execution.authority_origin_caller_id = ${'profile:'} || profiles.id
+        WHERE execution.session_id = ${sourceSessionId}
+        LIMIT 1
+      `
+      const row = rows[0]
+      if (!row) return { authorizationCeiling: 'ask-for-approval' as const, revoked: true }
+      const missingWorkerGrant = row.parent_session_id !== null && row.grant_ceiling === null
+      const revoked =
+        missingWorkerGrant || row.grant_revoked_at !== null || row.profile_revoked_at !== null
+      const authorizationCeiling =
+        row.execution_ceiling === 'ask-for-approval' ||
+        row.grant_ceiling === 'ask-for-approval' ||
+        row.profile_ceiling === 'ask-for-approval'
+          ? ('ask-for-approval' as const)
+          : ('yolo' as const)
+      return { authorizationCeiling, revoked }
     }),
   )
 }

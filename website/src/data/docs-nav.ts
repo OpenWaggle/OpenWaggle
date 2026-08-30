@@ -21,6 +21,7 @@ export const docsNav: NavSection[] = [
     title: 'Using OpenWaggle',
     items: [
       { title: 'Chat & Tools', slug: 'using-openwaggle/chat-and-tools' },
+      { title: 'Hives & Sessions', slug: 'using-openwaggle/hives-and-sessions' },
       { title: 'Waggle Mode', slug: 'using-openwaggle/waggle-mode' },
       { title: 'Attachments & Voice', slug: 'using-openwaggle/attachments-voice' },
       { title: 'Context Management', slug: 'using-openwaggle/context-management' },
@@ -40,6 +41,7 @@ export const docsNav: NavSection[] = [
     items: [
       { title: 'Git Integration', slug: 'developer-workflow/git-integration' },
       { title: 'Built-in Terminal', slug: 'developer-workflow/built-in-terminal' },
+      { title: 'Sessions CLI', slug: 'developer-workflow/sessions-cli' },
       { title: 'Pi Runtime', slug: 'developer-workflow/pi-runtime' },
     ],
   },
@@ -47,6 +49,7 @@ export const docsNav: NavSection[] = [
     title: 'Extending',
     items: [
       { title: 'Skills System', slug: 'extending/skills-system' },
+      { title: 'Agent Definitions', slug: 'extending/agent-definitions' },
       { title: 'AGENTS.md', slug: 'extending/agents-md' },
       { title: 'Pi Extensions', slug: 'extending/pi-extensions' },
       { title: 'OpenWaggle Extensions', slug: 'extending/openwaggle-extensions' },
@@ -70,6 +73,7 @@ export const docsNav: NavSection[] = [
       { title: 'Per-Project Config', slug: 'configuration/per-project-config' },
       { title: 'Thinking Levels', slug: 'configuration/thinking-levels' },
       { title: 'Security & Privacy', slug: 'configuration/security-privacy' },
+      { title: 'Session Recovery', slug: 'configuration/session-recovery' },
     ],
   },
   {

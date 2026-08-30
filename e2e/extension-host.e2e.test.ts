@@ -12,7 +12,7 @@ import {
   setActiveProjectForExtensionQa,
 } from './support/extension-fixtures'
 import { OpenWaggleApp } from './support/openwaggle-app'
-import { seedSingleSession } from './support/session-fixtures'
+import { getDatabasePath, seedSingleSession } from './support/session-fixtures'
 
 const SEEDED_SESSION_TITLE = 'Extension host proof session'
 const SEEDED_MESSAGE_TEXT = 'extension-host-proof-project'
@@ -22,7 +22,7 @@ const SAVED_REPOSITORY_NAME = 'OpenWaggle-e2e-fixture'
 const EXTENSION_CONFIG_KEY = 'github.issues.config'
 
 function readStoredConfiguration(userDataDir: string) {
-  const database = new DatabaseSync(path.join(userDataDir, 'openwaggle.db'), { readOnly: true })
+  const database = new DatabaseSync(getDatabasePath(userDataDir), { readOnly: true })
   try {
     const row = database
       .prepare(

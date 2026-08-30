@@ -74,6 +74,7 @@ export interface ChatComposerSectionState {
   onCloseForkSelector: () => void
   onSelectForkTarget: (target: SessionForkTarget) => void
   onCloneToNewSession: () => void
+  onNavigateSession: (sessionId: SessionId) => void
   onOpenProject: () => Promise<void>
   onSelectProjectPath: (path: string) => void
   onSetAuthorizationMode: (authorizationMode: AgentAuthorizationMode | null) => Promise<void>

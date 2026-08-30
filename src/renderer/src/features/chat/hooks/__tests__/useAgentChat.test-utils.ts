@@ -5,6 +5,7 @@ import type { SessionDetail } from '@shared/types/session'
 import { act, cleanup } from '@testing-library/react'
 import { afterEach, beforeEach, vi } from 'vitest'
 import { useOptimisticUserMessageStore } from '../../state/optimistic-user-message-store'
+import { recordPendingInteractionEvent } from './pending-interaction-test-state'
 
 /** The ordinary case: main ran the turn. */
 const DELIVERED_REPORT = { outcome: 'delivered' } as const
@@ -21,9 +22,11 @@ const {
   upsertSessionMock,
   useChatStoreMock,
   agentEventHandlers,
+  pendingInteractionsBySessionId,
   runCompletedHandlers,
 } = vi.hoisted(() => {
   const agentEventHandlers: Array<(payload: unknown) => void> = []
+  const pendingInteractionsBySessionId = new Map<string, readonly unknown[]>()
   const runCompletedHandlers: Array<(payload: unknown) => void> = []
   const runRenderSnapshots = new Map<
     string,
@@ -84,7 +87,20 @@ const {
       sendMessage: vi.fn(async (): Promise<AgentSendReport> => DELIVERED_REPORT),
       sendWaggleMessage: vi.fn(async (): Promise<AgentSendReport> => DELIVERED_REPORT),
       cancelAgent: vi.fn(async (): Promise<void> => undefined),
-      steerAgent: vi.fn(async () => ({ preserved: true })),
+      querySessionControl: vi.fn(
+        async (request: {
+          readonly requestId: string
+          readonly query: { readonly sessionId: string }
+        }) => ({
+          contractVersion: 2,
+          requestId: request.requestId,
+          outcome: {
+            operation: 'requests-list',
+            sessionId: request.query.sessionId,
+            requests: pendingInteractionsBySessionId.get(request.query.sessionId) ?? [],
+          },
+        }),
+      ),
       respondAgentInteraction: vi.fn(async () => ({
         ok: true,
         interactionId: 'interaction-1',
@@ -101,6 +117,7 @@ const {
     upsertSessionMock,
     useChatStoreMock,
     agentEventHandlers,
+    pendingInteractionsBySessionId,
     runCompletedHandlers,
   }
 })
@@ -120,6 +137,7 @@ vi.mock('@/features/chat/state/chat-store', () => ({
 const { useAgentChat } = await import('../useAgentChat')
 
 function emitAgentEvent(payload: unknown) {
+  recordPendingInteractionEvent(pendingInteractionsBySessionId, payload)
   for (const handler of agentEventHandlers) {
     handler(payload)
   }
@@ -235,7 +253,21 @@ export function installUseAgentChatTestLifecycle() {
     apiMock.sendWaggleMessage.mockResolvedValue(DELIVERED_REPORT)
     apiMock.cancelAgent.mockReset()
     apiMock.cancelAgent.mockResolvedValue(undefined)
-    apiMock.steerAgent.mockReset()
+    apiMock.querySessionControl.mockReset()
+    apiMock.querySessionControl.mockImplementation(
+      async (request: {
+        readonly requestId: string
+        readonly query: { readonly sessionId: string }
+      }) => ({
+        contractVersion: 2 as const,
+        requestId: request.requestId,
+        outcome: {
+          operation: 'requests-list' as const,
+          sessionId: request.query.sessionId,
+          requests: pendingInteractionsBySessionId.get(request.query.sessionId) ?? [],
+        },
+      }),
+    )
     apiMock.respondAgentInteraction.mockReset()
     apiMock.respondAgentInteraction.mockResolvedValue({
       ok: true,
@@ -252,6 +284,7 @@ export function installUseAgentChatTestLifecycle() {
     upsertSessionMock.mockReset()
     useChatStoreMock.mockClear()
     agentEventHandlers.length = 0
+    pendingInteractionsBySessionId.clear()
     runCompletedHandlers.length = 0
     useOptimisticUserMessageStore.setState({ messagesBySessionId: new Map() })
   })

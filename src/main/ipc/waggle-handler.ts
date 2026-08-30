@@ -1,78 +1,43 @@
-import { matchBy } from '@diegogbrisa/ts-match'
+import { randomUUID } from 'node:crypto'
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { agentSendPayloadSchema, toAgentSendPayload } from '@shared/schemas/validation'
-import type { AgentSendPayload, AgentSendReport, Message } from '@shared/types/agent'
-import type { SessionId, SupportedModelId } from '@shared/types/brand'
+import type { AgentSendPayload } from '@shared/types/agent'
+import { RunId, type SessionId, type SupportedModelId } from '@shared/types/brand'
+import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
+import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import type { WaggleConfig } from '@shared/types/waggle'
 import * as Effect from 'effect/Effect'
-import { classifyAgentError } from '../agent/error-classifier'
 import { cancelAgentLoopInteractionsForRun } from '../application/agent-loop-interaction-broker'
-import { executeWaggleRun } from '../application/waggle-run-service'
-import { broadcastToWindows } from '../utils/broadcast'
+import { dispatchLocalSessionCommand } from '../application/local-session-command-dispatcher'
+import { coordinateSessionRuns } from '../application/session-control-run-coordinator'
 import {
-  clearAgentPhase,
-  clearStreamBuffer,
-  emitRunCompleted,
-  emitTransportEvent,
-  emitWaggleTransportEvent,
-  emitWaggleTurnEvent,
-  emitWorktreeLaunchFailure,
-  emitWorktreeLaunchProgress,
-  startStreamBuffer,
-} from '../utils/stream-bridge'
-import { activeWaggleRuns, cancelSessionRuns } from './active-agent-runs'
-import { emitErrorAndFinish } from './run-handler-utils'
+  activatePreparedExternalSessionRun,
+  prepareExternalSessionRunReplacement,
+  settleExternalSessionRun,
+} from '../application/session-external-run-coordinator'
+import { acquireSessionHostRunLease } from '../application/session-host-run-admission'
+import { forkSupervisedSessionRuns } from '../application/session-run-coordinator-supervision'
+import { executeWaggleRun } from '../application/waggle-run-service'
+import { isGuiAttachedToRemoteSessionHost } from '../session-host/gui-session-host-state'
+import {
+  publishSessionHostEvent,
+  tryGetSessionHostEventRuntime,
+} from '../session-host/session-host-events'
+import { emitWorktreeLaunchFailure, emitWorktreeLaunchProgress } from '../utils/stream-bridge'
+import {
+  activeWaggleRuns,
+  claimSessionWriterSuccessorAndWait,
+  currentSessionWriterRunId,
+  releaseClaimedSessionWriterSuccessor,
+  reserveActiveSessionRun,
+  reserveWaggleSessionWriter,
+} from './active-agent-runs'
 import { typedHandle, typedOn } from './typed-ipc'
-
-interface WaggleValidationErrorResult {
-  readonly outcome: 'validation-error'
-  readonly message: string
-  readonly code: string
-}
-
-interface WaggleNotFoundResult {
-  readonly outcome: 'not-found'
-  readonly message: string
-  readonly code: string
-}
-
-interface WaggleNoProjectResult {
-  readonly outcome: 'no-project'
-  readonly message: string
-  readonly code: string
-}
-
-interface WaggleAbortedResult {
-  readonly outcome: 'aborted'
-}
-
-/**
- * A run that failed rather than being refused up front or cancelled.
- *
- * `transportEmitted` marks a failure raised *after* the agent took the turn - a provider error, a rate limit -
- * as opposed to a refusal raised before it. A caller holding work submitted with the message needs the two apart:
- * one means "keep it, it never arrived", the other means "the agent has it, do not offer it again".
- */
-interface WaggleErrorResult {
-  readonly outcome: 'error'
-  readonly message: string
-  readonly code: string
-  readonly transportEmitted?: boolean
-}
-
-interface WaggleSuccessResult {
-  readonly outcome: 'success'
-  readonly newMessages: readonly Message[]
-  readonly lastError?: string
-}
-
-type WaggleHandlerResult =
-  | WaggleValidationErrorResult
-  | WaggleNotFoundResult
-  | WaggleNoProjectResult
-  | WaggleAbortedResult
-  | WaggleErrorResult
-  | WaggleSuccessResult
+import {
+  describeWaggleSendOutcome,
+  publishWaggleResult,
+  waggleTerminalResult,
+} from './waggle-handler-result'
 
 export function registerWaggleHandlers() {
   registerSendWaggleMessageHandler()
@@ -93,18 +58,73 @@ function registerSendWaggleMessageHandler() {
 }
 
 function registerCancelWaggleHandler() {
-  typedOn('agent:cancel-waggle', (_event, sessionId: SessionId) =>
-    Effect.sync(() => {
+  typedOn('agent:cancel-waggle', (_event, sessionId: SessionId) => {
+    if (isGuiAttachedToRemoteSessionHost()) return interruptRemoteSessionRun(sessionId)
+    return Effect.sync(() => {
+      const active = activeWaggleRuns.get(sessionId)
       if (activeWaggleRuns.cancel(sessionId)) {
-        cancelAgentLoopInteractionsForRun({ sessionId, runId: waggleRunId(sessionId) })
-        finishWaggleRun(sessionId)
+        cancelAgentLoopInteractionsForRun({
+          sessionId,
+          runId: active?.metadata.runId ?? `waggle-${sessionId}`,
+        })
       }
-    }),
-  )
+    })
+  })
 }
 
-function waggleRunId(sessionId: SessionId) {
-  return `waggle-${sessionId}`
+function interruptRemoteSessionRun(sessionId: SessionId) {
+  return Effect.gen(function* () {
+    const statusResult = yield* dispatchLocalSessionCommand({
+      caller: { callerId: 'gui:local-user' },
+      payload: {
+        contract: 'session-query-v2',
+        request: {
+          contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+          requestId: randomUUID(),
+          query: { operation: 'status', sessionId },
+        },
+      },
+    })
+    if (
+      statusResult.contract !== 'session-query-v2' ||
+      statusResult.response.outcome.operation !== 'status' ||
+      'error' in statusResult.response.outcome ||
+      !statusResult.response.outcome.activeRunId
+    ) {
+      return
+    }
+    yield* dispatchLocalSessionCommand({
+      caller: { callerId: 'gui:local-user' },
+      payload: {
+        contract: 'session-control-v2',
+        request: {
+          contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+          requestId: randomUUID(),
+          idempotencyKey: randomUUID(),
+          command: {
+            operation: 'interrupt',
+            sessionId,
+            expectedRunId: statusResult.response.outcome.activeRunId,
+          },
+        },
+      },
+    })
+  })
+}
+
+function waggleRunId() {
+  return `waggle-${randomUUID()}`
+}
+
+function explicitWaggleIntent(payload: AgentSendPayload) {
+  return {
+    text: payload.text,
+    attachmentIds: payload.attachments.map((attachment) => attachment.id),
+    thinkingLevel: payload.thinkingLevel,
+    callerId: 'gui:local-user',
+    acceptedAt: Date.now(),
+    idempotencyKey: randomUUID(),
+  } as const
 }
 
 function handleSendWaggleMessage(
@@ -114,30 +134,117 @@ function handleSendWaggleMessage(
   config: WaggleConfig,
 ) {
   return Effect.gen(function* () {
+    if (isGuiAttachedToRemoteSessionHost()) {
+      return yield* Effect.fail(
+        new Error(
+          'Explicit Waggle runs are unavailable while this GUI is attached to another Session Host.',
+        ),
+      )
+    }
     const validatedPayload = toAgentSendPayload(
       decodeUnknownOrThrow(agentSendPayloadSchema, payload),
     )
-    cancelExistingWaggleWork(sessionId)
-
     const abortController = new AbortController()
-    const runId = waggleRunId(sessionId)
-    activeWaggleRuns.register(sessionId, abortController, {})
+    const runId = RunId(waggleRunId())
+    const intent = explicitWaggleIntent(validatedPayload)
+    const lease = yield* acquireSessionHostRunLease('run').pipe(
+      Effect.tapError(() => Effect.sync(requestHostDrain)),
+    )
+    const previousRunId = currentSessionWriterRunId(sessionId)
+    const preparation = yield* prepareExternalSessionRunReplacement({
+      sessionId,
+      ...(previousRunId ? { previousRunId: RunId(previousRunId) } : {}),
+      runId,
+      intent,
+    }).pipe(Effect.tapError(() => Effect.sync(lease.release)))
+    if (!preparation.accepted) {
+      lease.release()
+      return yield* Effect.fail(
+        new Error(`Could not prepare explicit Waggle replacement: ${preparation.code}.`),
+      )
+    }
+    const successorToken = yield* awaitExistingSessionWriter(sessionId).pipe(
+      Effect.tapError(() =>
+        Effect.sync(() => {
+          lease.release()
+          requestHostDrain()
+        }),
+      ),
+    )
+    const writer = yield* Effect.try(() =>
+      reserveWaggleSessionWriter(sessionId, abortController, runId, successorToken ?? undefined),
+    ).pipe(
+      Effect.tapError(() =>
+        Effect.sync(() => {
+          lease.release()
+          if (successorToken) releaseClaimedSessionWriterSuccessor(sessionId, successorToken)
+          requestHostDrain()
+        }),
+      ),
+    )
+    let writerReleased = false
+    let leaseTransferred = false
 
-    return yield* Effect.ensuring(
-      runRegisteredWaggleMessage(
+    return yield* Effect.gen(function* () {
+      const activation = yield* activatePreparedExternalSessionRun({ sessionId, runId })
+      if (!activation.accepted) {
+        return yield* Effect.fail(
+          new Error(`Could not activate explicit Waggle: ${activation.code}.`),
+        )
+      }
+      const result = yield* runRegisteredWaggleMessage(
         sessionId,
         runId,
         validatedPayload,
         model,
         config,
         abortController,
+      )
+      const terminal = waggleTerminalResult(result)
+      const settlement = yield* settleExternalSessionRun({ sessionId, runId, ...terminal })
+      if (settlement.accepted && settlement.scheduled) {
+        const nextRunId = RunId(settlement.scheduled.runId)
+        const reservation = yield* Effect.sync(() => {
+          writer.release()
+          writerReleased = true
+          return reserveActiveSessionRun(sessionId, nextRunId)
+        })
+        yield* forkSupervisedSessionRuns({
+          sessionId,
+          runId: nextRunId,
+          effect: coordinateSessionRuns({
+            sessionId,
+            startingRunId: nextRunId,
+            initialReservation: reservation,
+            lease,
+          }),
+        }).pipe(
+          Effect.catchAllCause((cause) =>
+            Effect.sync(reservation.release).pipe(Effect.zipRight(Effect.failCause(cause))),
+          ),
+        )
+        leaseTransferred = true
+      }
+      return describeWaggleSendOutcome(result)
+    }).pipe(
+      Effect.tapError(() =>
+        Effect.sync(() => {
+          requestHostDrain()
+        }),
       ),
-      Effect.sync(() => {
-        cancelAgentLoopInteractionsForRun({ sessionId, runId })
-        if (activeWaggleRuns.deleteIfCurrent(sessionId, abortController)) finishWaggleRun(sessionId)
-      }),
+      Effect.ensuring(
+        Effect.sync(() => {
+          cancelAgentLoopInteractionsForRun({ sessionId, runId })
+          if (!writerReleased) writer.release()
+          if (!leaseTransferred) lease.release()
+        }),
+      ),
     )
   })
+}
+
+function requestHostDrain() {
+  tryGetSessionHostEventRuntime()?.liveness.requestDrain()
 }
 
 function runRegisteredWaggleMessage(
@@ -158,99 +265,41 @@ function runRegisteredWaggleMessage(
       signal: abortController.signal,
       onRunPrepared: (runtimeModel) => startWaggleStream(sessionId, runId, runtimeModel),
       onEvent: (event, meta) => {
-        emitWaggleTransportEvent(sessionId, event, meta)
-        if (event.type !== 'agent_end') emitTransportEvent(sessionId, event)
+        publishSessionHostEvent({ kind: 'session-waggle-transport', sessionId, event, meta })
+        if (event.type !== 'agent_end') {
+          publishSessionHostEvent({ kind: 'session-transport', sessionId, event })
+        }
       },
-      onTurnEvent: (event) => emitWaggleTurnEvent(sessionId, event),
+      onTurnEvent: (event) =>
+        publishSessionHostEvent({ kind: 'session-waggle-turn', sessionId, event }),
       onWorktreeLaunch: (progress) => emitWorktreeLaunchProgress(sessionId, progress),
-      onTitleAssigned: (title) =>
-        broadcastToWindows('sessions:title-updated', { sessionId, title }),
+      onTitleAssigned: () =>
+        publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'updated' }),
     })
 
     if (result.outcome === 'error') {
       emitWorktreeLaunchFailure(sessionId, result.message)
     }
-    handleWaggleResult(sessionId, runId, result)
+    publishWaggleResult(sessionId, runId, result)
     /*
      * Reported back for the same reason the classic path does it: this Effect succeeds whether the turn ran or
      * was refused, so a caller with work to protect could not tell the difference.
      */
-    return describeWaggleSendOutcome(result)
+    return result
   })
 }
 
-function cancelExistingWaggleWork(sessionId: SessionId) {
-  if (!cancelSessionRuns(sessionId)) return
-  clearAgentPhase(sessionId)
-  clearStreamBuffer(sessionId)
+function awaitExistingSessionWriter(sessionId: SessionId) {
+  return Effect.promise(async () => {
+    const successorToken = await claimSessionWriterSuccessorAndWait(sessionId, 'waggle')
+    return successorToken
+  })
 }
 
 function startWaggleStream(sessionId: SessionId, runId: string, runtimeModel: SupportedModelId) {
-  startStreamBuffer(sessionId, runtimeModel, 'waggle')
-  emitTransportEvent(sessionId, { type: 'agent_start', timestamp: Date.now(), runId })
-}
-
-/**
- * A send that produced no turn was not delivered, whatever the transport did afterwards.
- *
- * `aborted` is its own outcome for the same reason it is on the classic path: a cancellation before the prompt
- * was sent reports the same thing as one mid-turn, and raising it as an error broke the Stop flow.
- */
-function describeWaggleSendOutcome(result: WaggleHandlerResult): AgentSendReport {
-  return (
-    matchBy(result, 'outcome')
-      .with('success', () => ({ outcome: 'delivered' as const }))
-      .with('aborted', () => ({ outcome: 'cancelled' as const }))
-      /*
-       * A run that reached the agent had the message, so its later failure is not a refusal - the same distinction
-       * the classic path draws, and for the same reason: a caller holding a submitted review must not be handed it
-       * back after the agent already received it.
-       */
-      .with('error', (value) =>
-        value.transportEmitted === true
-          ? { outcome: 'delivered' as const }
-          : { outcome: 'refused' as const, message: value.message, code: value.code },
-      )
-      .otherwise((value) => ({
-        outcome: 'refused' as const,
-        message: value.message,
-        code: value.code,
-      }))
-  )
-}
-
-function handleWaggleResult(sessionId: SessionId, runId: string, result: WaggleHandlerResult) {
-  matchBy(result, 'outcome')
-    .with('validation-error', (value) =>
-      emitErrorAndFinish(sessionId, value.message, value.code, runId),
-    )
-    .with('not-found', (value) => emitErrorAndFinish(sessionId, value.message, value.code, runId))
-    .with('no-project', (value) => emitErrorAndFinish(sessionId, value.message, value.code, runId))
-    .with('error', (value) => emitErrorAndFinish(sessionId, value.message, value.code, runId))
-    .with('aborted', () => emitWaggleEnd(sessionId, runId, 'aborted'))
-    .with('success', (value) => handleWaggleSuccess(sessionId, runId, value))
-    .exhaustive()
-}
-
-function handleWaggleSuccess(sessionId: SessionId, runId: string, result: WaggleSuccessResult) {
-  if (countAssistantMessages(result.newMessages) === 0 && result.lastError) {
-    const classified = classifyAgentError(new Error(result.lastError))
-    emitErrorAndFinish(sessionId, classified.userMessage, classified.code, runId)
-    return
-  }
-  emitWaggleEnd(sessionId, runId, 'stop')
-}
-
-function countAssistantMessages(messages: readonly Message[]) {
-  return messages.filter((message) => message.role === 'assistant').length
-}
-
-function emitWaggleEnd(sessionId: SessionId, runId: string, reason: 'aborted' | 'stop') {
-  emitTransportEvent(sessionId, { type: 'agent_end', timestamp: Date.now(), runId, reason })
-}
-
-function finishWaggleRun(sessionId: SessionId) {
-  clearAgentPhase(sessionId)
-  clearStreamBuffer(sessionId)
-  emitRunCompleted(sessionId)
+  publishSessionHostEvent({
+    kind: 'session-transport',
+    sessionId,
+    event: { type: 'agent_start', timestamp: Date.now(), runId, model: runtimeModel },
+  })
 }

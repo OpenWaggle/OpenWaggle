@@ -88,6 +88,17 @@ export const projectPreferencesUpdateSchema = Schema.Struct({
   authorizationMode: Schema.optional(Schema.NullOr(Schema.Literal(...AGENT_AUTHORIZATION_MODES))),
 })
 
+const positiveSafeIntegerSchema = Schema.Number.pipe(
+  Schema.filter((value) =>
+    Number.isSafeInteger(value) && value > 0 ? true : 'Must be a positive safe integer.',
+  ),
+)
+
+export const projectSessionHostPolicySchema = Schema.Struct({
+  multiAgentEnabled: Schema.optional(Schema.Boolean),
+  parentConcurrencyLimit: Schema.optional(positiveSafeIntegerSchema),
+})
+
 export const authorizationScopeKeySchema = Schema.Struct({
   requester: Schema.String,
   requesterId: Schema.String,
@@ -106,6 +117,7 @@ export const scopedAuthorizationGrantSchema = Schema.Struct({
 export const projectSettingsFileSchema = Schema.Struct(
   {
     preferences: Schema.optional(projectPreferencesSchema),
+    sessionHost: Schema.optional(projectSessionHostPolicySchema),
     authorizationGrants: Schema.optional(
       Schema.mutable(Schema.Array(scopedAuthorizationGrantSchema)),
     ),

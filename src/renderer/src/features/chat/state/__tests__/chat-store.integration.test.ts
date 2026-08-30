@@ -120,6 +120,45 @@ describe('useChatStore integration', () => {
     expect(mockApi.getSessionDetail).not.toHaveBeenCalled()
   })
 
+  it('does not let an older transcript request overwrite a newer refresh', async () => {
+    const id = SessionId('session-race')
+    const older = makeSessionDetail(id, 'Older')
+    const newer = makeSessionDetail(id, 'Newer')
+    let resolveOlder: (session: SessionDetail | null) => void = () => undefined
+    const olderRequest = new Promise<SessionDetail | null>((resolve) => {
+      resolveOlder = resolve
+    })
+    mockApi.getSessionDetail.mockImplementationOnce(() => olderRequest)
+    mockApi.getSessionDetail.mockResolvedValueOnce(newer)
+
+    const first = useChatStore.getState().refreshSession(id)
+    const second = useChatStore.getState().refreshSession(id)
+    await second
+    resolveOlder(older)
+    await first
+
+    expect(useChatStore.getState().sessionById.get(id)?.title).toBe('Newer')
+  })
+
+  it('does not let an older bulk load overwrite a newer Host-event refresh', async () => {
+    const id = SessionId('session-bulk-race')
+    const older = makeSessionDetail(id, 'Older bulk snapshot')
+    const newer = makeSessionDetail(id, 'Newer Host refresh')
+    let resolveBulk: (sessions: readonly SessionDetail[]) => void = () => undefined
+    const bulkRequest = new Promise<readonly SessionDetail[]>((resolve) => {
+      resolveBulk = resolve
+    })
+    mockApi.listSessionDetails.mockImplementationOnce(() => bulkRequest)
+    mockApi.getSessionDetail.mockResolvedValueOnce(newer)
+
+    const load = useChatStore.getState().loadSessions()
+    await useChatStore.getState().refreshSession(id)
+    resolveBulk([older])
+    await load
+
+    expect(useChatStore.getState().sessionById.get(id)?.title).toBe('Newer Host refresh')
+  })
+
   it('throws and preserves state on createSession failure', async () => {
     mockApi.createSession.mockRejectedValue(new Error('quota exceeded'))
 

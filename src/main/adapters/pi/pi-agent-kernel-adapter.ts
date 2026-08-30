@@ -5,7 +5,6 @@ import {
   type AgentKernelRunInput,
   AgentKernelService,
   type AgentKernelSessionInput,
-  type AgentKernelWaggleRunOptions,
   type CompactAgentKernelSessionInput,
   type ForkAgentKernelSessionInput,
   type NavigateAgentKernelSessionInput,
@@ -16,6 +15,7 @@ import { ExtensionProjectOverridesRepository } from '../../ports/extension-proje
 import { McpConfigService, type McpConfigServiceShape } from '../../ports/mcp-config-service'
 import { McpRuntimeService, type McpRuntimeServiceShape } from '../../ports/mcp-runtime-service'
 import { runPiSession } from './agent-kernel/classic-run'
+import { restrictMcpSnapshot } from './agent-kernel/restricted-mcp-snapshot'
 import type { PiRuntimeExtensionIsolationInput } from './agent-kernel/runtime-extension-isolation'
 import { requireSessionProjectPath } from './agent-kernel/session-manager'
 import {
@@ -34,17 +34,12 @@ import {
   type OpenWagglePiExtensionSelectionServices,
 } from './openwaggle-pi-extension-selection'
 import { recordRuntimeLoadFailure } from './openwaggle-pi-runtime-failure-recording'
+import { createSessionsToolExtension } from './sessions-tool-extension'
 
 const logger = createLogger('pi-agent-kernel')
 
 function toAgentKernelError(error: unknown) {
   return error instanceof Error ? error : new Error(String(error))
-}
-
-function hasWaggleRunOptions(
-  input: AgentKernelRunInput,
-): input is AgentKernelRunInput & { readonly waggle: AgentKernelWaggleRunOptions } {
-  return Boolean(input.waggle)
 }
 
 function loadEnabledOpenWaggleExtensionPackages(
@@ -70,13 +65,8 @@ function loadPiRuntimeExtensionIsolationInput(
   input: AgentKernelSessionInput,
   extensionSelectionServices: OpenWagglePiExtensionSelectionServices,
 ): Effect.Effect<PiRuntimeExtensionIsolationInput> {
-  return Effect.gen(function* () {
-    const enabledOpenWaggleExtensionPackages = yield* loadEnabledOpenWaggleExtensionPackages(
-      input,
-      extensionSelectionServices,
-    )
-
-    return {
+  return loadEnabledOpenWaggleExtensionPackages(input, extensionSelectionServices).pipe(
+    Effect.map((enabledOpenWaggleExtensionPackages) => ({
       enabledOpenWaggleExtensionPackages,
       recordOpenWaggleExtensionRuntimeFailure: (selection, error, operation) =>
         recordRuntimeLoadFailure({
@@ -86,28 +76,10 @@ function loadPiRuntimeExtensionIsolationInput(
           logger,
           operation,
         }),
-    }
-  })
+    })),
+  )
 }
 
-/**
- * The two paths an MCP turn needs, which are not the same path for a worktree-mode session.
- *
- * `executionPath` is the tree the agent actually edits - the Session worktree in worktree
- * mode. It becomes the MCP sandbox cwd and its read/write roots, so passing the opened
- * checkout would let an MCP filesystem or git server act on the user's own checkout while
- * the agent worked in the worktree: the "surface targets the wrong tree" defect ADR 0018
- * exists to prevent. On main these were always identical because main had no worktree-mode
- * agent cwd, so the divergence only appears once both sides are combined.
- *
- * Worktree birth is *ensured* here rather than merely resolved, so the paths also agree on
- * the first send, before the tree exists. This is the same call the run functions make
- * immediately afterwards; it is in-flight deduplicated per session and returns early once
- * the tree exists, so hoisting it costs nothing.
- *
- * `projectPath` stays the opened checkout: MCP config discovery, scope and trust state are
- * keyed to the project the user opened, and a linked worktree must not fork that identity.
- */
 function resolveMcpTurnPaths(input: AgentKernelRunInput) {
   return Effect.gen(function* () {
     const projectPath = yield* Effect.try({
@@ -126,15 +98,36 @@ function resolveMcpTurnPaths(input: AgentKernelRunInput) {
   })
 }
 
+function createRunSessionsExtension(
+  input: AgentKernelRunInput,
+  workingDirectory: string,
+  projectPath: string,
+) {
+  return createSessionsToolExtension({
+    sessionId: input.session.id,
+    runId: input.runId,
+    workingDirectory,
+    projectPath,
+    ...(input.sessionCapabilities ? { sessionCapabilities: input.sessionCapabilities } : {}),
+    ...(input.modelMultiAgentEnabled !== undefined
+      ? { modelMultiAgentEnabled: input.modelMultiAgentEnabled }
+      : {}),
+  })
+}
+
 export function prepareMcpTurn(input: {
   readonly projectPath: string
   readonly executionPath: string
   readonly sessionId: string
   readonly config: McpConfigServiceShape
   readonly runtime: McpRuntimeServiceShape
+  readonly serverAllowlist?: readonly string[]
 }) {
   return Effect.gen(function* () {
-    const snapshot = yield* input.config.createTurnSnapshot(input)
+    const snapshot = restrictMcpSnapshot(
+      yield* input.config.createTurnSnapshot(input),
+      input.serverAllowlist,
+    )
     yield* input.runtime.prepareTurn({ sessionId: input.sessionId, snapshot })
     return yield* Effect.gen(function* () {
       const directTools = snapshot ? yield* input.runtime.listDirectTools(snapshot) : []
@@ -154,7 +147,10 @@ export function prepareMcpTurn(input: {
           })
         : undefined
       const finish = Effect.gen(function* () {
-        const nextSnapshot = yield* input.config.createTurnSnapshot(input)
+        const nextSnapshot = restrictMcpSnapshot(
+          yield* input.config.createTurnSnapshot(input),
+          input.serverAllowlist,
+        )
         yield* input.runtime.completeTurn({ sessionId: input.sessionId, nextSnapshot })
       }).pipe(Effect.catchAllCause(() => input.runtime.disposeSession(input.sessionId)))
       return { extensionFactory, finish }
@@ -174,7 +170,6 @@ function createWorktreeLaunchReporter(input: AgentKernelRunInput) {
         input.onWorktreeLaunch?.(progress)
       }
     : undefined
-
   return {
     runInput: onWorktreeLaunch ? { ...input, onWorktreeLaunch } : input,
     reportTaskStarting(executionPath: string) {
@@ -220,15 +215,25 @@ export const PiAgentKernelLive = Layer.effect(
             sessionId: input.session.id,
             config: mcpConfigService,
             runtime: mcpRuntimeService,
+            ...(input.mcpServerAllowlist !== undefined
+              ? { serverAllowlist: input.mcpServerAllowlist }
+              : {}),
           })
+          const sessionsExtensionFactory = createRunSessionsExtension(
+            input,
+            executionPath,
+            projectPath,
+          )
           launchReporter.reportTaskStarting(executionPath)
           return yield* Effect.tryPromise({
             try: () =>
-              hasWaggleRunOptions(input)
+              input.waggle
                 ? runPiWaggle({
                     ...input,
+                    waggle: input.waggle,
                     ...runtimeExtensionIsolation,
                     workingPath: executionPath,
+                    sessionsExtensionFactory,
                     ...(mcpTurn.extensionFactory
                       ? { mcpExtensionFactory: mcpTurn.extensionFactory }
                       : {}),
@@ -237,6 +242,7 @@ export const PiAgentKernelLive = Layer.effect(
                     ...input,
                     ...runtimeExtensionIsolation,
                     workingPath: executionPath,
+                    sessionsExtensionFactory,
                     ...(mcpTurn.extensionFactory
                       ? { mcpExtensionFactory: mcpTurn.extensionFactory }
                       : {}),

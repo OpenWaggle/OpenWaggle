@@ -67,7 +67,6 @@ describe('Pi run orchestration', () => {
     runMocks.createOpenWaggleAgentSessionFromServices.mockResolvedValue({ session })
     const result = await runPiSession({
       session: sessionDetail(),
-      // The kernel resolves (and births) this before calling the run functions.
       workingPath: '/repo',
       runId: 'run-1',
       payload: payload('Run tests'),
@@ -75,10 +74,13 @@ describe('Pi run orchestration', () => {
       signal: new AbortController().signal,
       onEvent: vi.fn(),
     })
-    expect(runMocks.createPiProjectModelRuntime).toHaveBeenCalledWith({
-      projectPath: '/repo',
-      modelReference: PRIMARY_MODEL,
-    })
+    expect(runMocks.createPiProjectModelRuntime).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectPath: '/repo',
+        modelReference: PRIMARY_MODEL,
+        extensionFactories: expect.any(Array),
+      }),
+    )
     expect(session.subscribe).toHaveBeenCalledOnce()
     expect(session.prompt).toHaveBeenCalledWith('Run tests', undefined)
     expect(session.agent.waitForIdle).toHaveBeenCalled()
@@ -288,13 +290,8 @@ describe('Pi run orchestration', () => {
         totalTurns: 4,
       },
     ])
-    expect(result.newMessages.map((message) => message.role)).toEqual([
-      'user',
-      'assistant',
-      'assistant',
-      'assistant',
-      'assistant',
-    ])
+    const roles = result.newMessages.map((message) => message.role)
+    expect(roles).toEqual(['user', 'assistant', 'assistant', 'assistant', 'assistant'])
     expect(session.setModel).toHaveBeenCalledWith(modelFromReference(PRIMARY_MODEL))
     expect(runMocks.disposeOpenWagglePiSession).toHaveBeenCalledWith(session)
   })

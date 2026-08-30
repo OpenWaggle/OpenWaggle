@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useMessageQueueStore } from '@/features/chat/state'
 import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-store'
 import { useComposerStore } from '@/features/composer/state'
 import { useProviderStore } from '@/features/providers/state'
@@ -24,10 +23,22 @@ vi.mock('@/shared/lib/ipc', () => ({
     listChangeRequests: vi.fn().mockResolvedValue({ ok: true, changeRequests: [] }),
     checkSessionWorktree: vi.fn().mockResolvedValue({ exists: false }),
     onGitWorkingTreeChanged: vi.fn(() => () => undefined),
-    setSessionWorktreePlan: vi.fn().mockResolvedValue(undefined),
     createGitWorktree: vi.fn().mockResolvedValue({ ok: true, message: 'Created' }),
     checkoutGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'Checked out' }),
     prepareAttachments: vi.fn().mockResolvedValue([]),
+    querySessionControl: vi.fn().mockResolvedValue({
+      contractVersion: 2,
+      requestId: 'queue-query',
+      outcome: {
+        operation: 'queue-list',
+        sessionId: SessionId('session-1'),
+        queueState: 'running',
+        queueRevision: 0,
+        activeRunId: null,
+        items: [],
+        omittedBodyCount: 0,
+      },
+    }),
     onWaggleEvent: vi.fn(() => () => undefined),
     onWaggleTurnEvent: vi.fn(() => () => undefined),
   },
@@ -48,7 +59,6 @@ describe('ChatPanel composer regressions', () => {
   beforeEach(() => {
     useBranchSummaryStore.setState(useBranchSummaryStore.getInitialState())
     useComposerStore.setState(useComposerStore.getInitialState())
-    useMessageQueueStore.setState({ queues: new Map() })
     usePreferencesStore.setState({
       ...usePreferencesStore.getInitialState(),
       settings: {

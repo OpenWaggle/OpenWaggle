@@ -17,6 +17,10 @@ Top-level keys belong to OpenWaggle. Pi runtime settings live under `pi` and use
     "model": "openai-codex/gpt-5.5",
     "thinkingLevel": "medium"
   },
+  "sessionHost": {
+    "multiAgentEnabled": true,
+    "parentConcurrencyLimit": 8
+  },
   "pi": {
     "treeFilterMode": "default",
     "branchSummary": {
@@ -32,6 +36,8 @@ Top-level keys belong to OpenWaggle. Pi runtime settings live under `pi` and use
 ```
 
 The Pi adapter passes only the nested `pi` object to Pi's `SettingsManager`. Pi's project-local `.pi/settings.json` can also be read by the Pi settings loader, but both real settings files are local runtime configuration and should stay untracked. `.openwaggle/settings.json` is the primary OpenWaggle-facing configuration file.
+
+`sessionHost.multiAgentEnabled` controls whether hosted agents may launch or spawn Sessions in this project. `sessionHost.parentConcurrencyLimit` is a positive integer that limits active direct Worker Runs beneath one parent; it does not limit saved Sessions. Project-file values take precedence over per-project user overrides in Settings, which take precedence over app-global defaults. The app-wide active Run ceiling and Host idle grace remain global safety/runtime settings.
 
 ## Resource Precedence
 
@@ -90,7 +96,7 @@ Later files override earlier files by server name and adapter setting key. Setti
 
 ## Thinking Level
 
-The composer thinking level uses Pi-native values: `off`, `minimal`, `low`, `medium`, `high`, and `xhigh`. OpenWaggle stores the selected level and passes it to Pi for each run.
+The composer thinking level uses Pi-native values: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`. OpenWaggle stores the selected level and passes it to Pi for each run.
 
 ## Runtime Settings
 
@@ -101,4 +107,6 @@ Current Pi-backed UI preferences include:
 - `treeFilterMode` — selected Session Tree filter mode.
 - `branchSummary.skipPrompt` — whether to skip the branch-summary choice when navigating from an earlier session-tree node.
 
-Not every OpenWaggle preference is project-scoped. The Appearance settings (diff view, wrap long lines, syntax theme) and the default session environment mode are **app-global**, stored in `openwaggle.db` rather than in a project file, so they cannot be set per project.
+Not every OpenWaggle preference is project-scoped. The Appearance settings (diff view, wrap long
+lines, syntax theme) and the default session environment mode are **app-global**, stored in the
+Session Host database rather than in a project file, so they cannot be set per project.

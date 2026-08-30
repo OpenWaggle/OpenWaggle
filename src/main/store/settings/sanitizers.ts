@@ -76,6 +76,51 @@ export function resolveDiffWrapLines(raw: unknown) {
   return DEFAULT_SETTINGS.diffWrapLines
 }
 
+function resolvePositiveSafeInteger(raw: unknown, fallback: number) {
+  return typeof raw === 'number' && Number.isSafeInteger(raw) && raw > 0 ? raw : fallback
+}
+
+export function resolveSessionHostParentConcurrencyLimit(raw: unknown) {
+  return resolvePositiveSafeInteger(raw, DEFAULT_SETTINGS.sessionHostParentConcurrencyLimit)
+}
+
+export function resolveSessionHostRunCeiling(raw: unknown) {
+  return resolvePositiveSafeInteger(raw, DEFAULT_SETTINGS.sessionHostRunCeiling)
+}
+
+export function resolveSessionHostIdleGracePeriodMs(raw: unknown) {
+  return typeof raw === 'number' && Number.isSafeInteger(raw) && raw >= 0
+    ? raw
+    : DEFAULT_SETTINGS.sessionHostIdleGracePeriodMs
+}
+
+export function resolveMultiAgentEnabled(raw: unknown) {
+  return typeof raw === 'boolean' ? raw : DEFAULT_SETTINGS.multiAgentEnabled
+}
+
+export function sanitizePositiveIntegerByProject(raw: unknown) {
+  if (!isObjectRecord(raw)) return {}
+  const result: Record<string, number> = {}
+  for (const [rawProjectPath, value] of Object.entries(raw)) {
+    const projectPath = rawProjectPath.trim()
+    if (!projectPath || typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
+      continue
+    }
+    result[projectPath] = value
+  }
+  return result
+}
+
+export function sanitizeBooleanByProject(raw: unknown) {
+  if (!isObjectRecord(raw)) return {}
+  const result: Record<string, boolean> = {}
+  for (const [rawProjectPath, value] of Object.entries(raw)) {
+    const projectPath = rawProjectPath.trim()
+    if (projectPath && typeof value === 'boolean') result[projectPath] = value
+  }
+  return result
+}
+
 export function normalizeStoredModelRef(raw: string) {
   const trimmed = raw.trim()
   if (!trimmed) {

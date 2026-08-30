@@ -30,6 +30,10 @@ tmp/
 .tmp/
 
 build/openwaggle-docs/
+build/session-embedding-model/
+
+# Tesseract.js otherwise caches downloaded OCR language data in the current directory.
+/eng.traineddata
 
 .playwright-mcp/
 

@@ -29,6 +29,7 @@ export interface PiProjectRuntimeIsolationOptions {
   readonly projectPath: string
   readonly modelReference: string
   readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly skillAllowlist?: readonly string[]
   readonly extensionFactories?: readonly ExtensionFactory[]
 }
 
@@ -120,6 +121,7 @@ export async function createPiProjectModelRuntimeWithoutOpenWaggleExtensions(
     projectPath: options.projectPath,
     modelReference: options.modelReference,
     ...(options.skillToggles ? { skillToggles: options.skillToggles } : {}),
+    ...(options.skillAllowlist ? { skillAllowlist: options.skillAllowlist } : {}),
     ...(options.extensionFactories ? { extensionFactories: options.extensionFactories } : {}),
   })
 }
@@ -142,6 +144,7 @@ export async function createIsolatedPiProjectRuntime(input: {
         projectPath: input.options.projectPath,
         modelReference: input.options.modelReference,
         ...(input.options.skillToggles ? { skillToggles: input.options.skillToggles } : {}),
+        ...(input.options.skillAllowlist ? { skillAllowlist: input.options.skillAllowlist } : {}),
         ...(enabledOpenWaggleExtensionPackagePaths.length > 0
           ? { enabledOpenWaggleExtensionPackagePaths }
           : {}),

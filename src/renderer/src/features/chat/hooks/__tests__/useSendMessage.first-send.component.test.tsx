@@ -1,10 +1,13 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import { SessionId } from '@shared/types/brand'
+import type { SessionWorktreePlan } from '@shared/types/session'
 import { describe, expect, it, vi } from 'vitest'
 
-const { flushDraftAuthorizationModeMock, flushDraftWorktreePlanMock } = vi.hoisted(() => ({
+const { consumeDraftWorktreePlanMock, flushDraftAuthorizationModeMock } = vi.hoisted(() => ({
+  consumeDraftWorktreePlanMock: vi.fn<(projectPath: string) => SessionWorktreePlan | undefined>(
+    () => undefined,
+  ),
   flushDraftAuthorizationModeMock: vi.fn(async () => {}),
-  flushDraftWorktreePlanMock: vi.fn(async () => {}),
 }))
 
 vi.mock('@/features/chat/state/draft-authorization-mode-store', () => ({
@@ -12,7 +15,7 @@ vi.mock('@/features/chat/state/draft-authorization-mode-store', () => ({
 }))
 
 vi.mock('@/features/git', () => ({
-  flushDraftWorktreePlanToSession: flushDraftWorktreePlanMock,
+  consumeDraftWorktreePlan: consumeDraftWorktreePlanMock,
 }))
 
 const { createSendHandlers } = await import('../useSendMessage')
@@ -21,12 +24,19 @@ const PAYLOAD: AgentSendPayload = { text: 'review body', thinkingLevel: 'off', a
 
 describe("a session's first send", () => {
   it('persists an explicit draft authorization override before dispatching the turn', async () => {
+    const worktreePlan = {
+      environmentMode: 'worktree' as const,
+      baseRef: 'main',
+      startFromOrigin: true,
+    }
+    consumeDraftWorktreePlanMock.mockReturnValueOnce(worktreePlan)
+    const createSession = vi.fn(async () => SessionId('session-a'))
     const sendMessageToSession = vi.fn(async () => {})
     const handlers = createSendHandlers({
       activeSessionId: null,
       projectPath: '/repo',
       thinkingLevel: 'off',
-      createSession: vi.fn(async () => SessionId('session-a')),
+      createSession,
       sendMessage: vi.fn(async () => {}),
       sendMessageToSession,
       startWaggleCollaboration: vi.fn(),
@@ -35,6 +45,7 @@ describe("a session's first send", () => {
 
     await handlers.handleSend(PAYLOAD)
 
+    expect(createSession).toHaveBeenCalledWith('/repo', worktreePlan)
     expect(flushDraftAuthorizationModeMock).toHaveBeenCalledWith('/repo', SessionId('session-a'))
     expect(flushDraftAuthorizationModeMock.mock.invocationCallOrder[0]).toBeLessThan(
       sendMessageToSession.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,

@@ -2,10 +2,10 @@ import type { AgentSendPayload, PreparedAttachment } from '@shared/types/agent'
 import type { LexicalEditor } from 'lexical'
 import type { RefObject } from 'react'
 import { useSelectedModelThinkingLevel } from '@/features/providers/hooks'
-import { usePreferencesStore } from '@/features/settings/state'
 import { clearEditor } from '../lib/lexical-utils'
 import { consumeSendResult } from '../lib/send-result'
 import { useComposerStore } from '../state/composer-store'
+import { useComposerModel } from './useComposerModel'
 
 const SILENT_SUBMIT_BLOCK = { type: 'silent' } as const
 
@@ -52,8 +52,8 @@ export function useComposerSubmission({
   const selectedWagglePreset = useComposerStore((s) => s.selectedWagglePreset)
   const reset = useComposerStore((s) => s.reset)
   const pushHistory = useComposerStore((s) => s.pushHistory)
-  const selectedModel = usePreferencesStore((s) => s.settings.selectedModel)
-  const { effectiveThinkingLevel } = useSelectedModelThinkingLevel()
+  const selectedModel = useComposerModel().model
+  const { effectiveThinkingLevel } = useSelectedModelThinkingLevel(selectedModel)
 
   function clearComposerInput() {
     reset()

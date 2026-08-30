@@ -41,6 +41,13 @@ OpenWaggle is currently unsigned. On first launch, right-click the app and selec
 
 See [Building from Source](/docs/developer-guide/building-from-source) for instructions.
 
+## Command-line access
+
+After installing the app, open Settings > Agent Access > OpenWaggle CLI to install the
+`openwaggle` command on macOS or Linux. Windows installers register it automatically. The CLI lets
+terminals and external coding agents discover and control the same live Sessions shown in the app;
+see [Sessions CLI](/docs/developer-workflow/sessions-cli).
+
 ## System Requirements
 
 - A modern operating system (macOS, Windows 10+, or a recent Linux distribution)

@@ -5,7 +5,7 @@ import { SqliteClient } from '@effect/sql-sqlite-node'
 import { Context, Effect, Layer } from 'effect'
 import { app } from 'electron'
 import { DatabaseBootstrapError } from '../errors'
-import { DATABASE_FILE_NAME, SQLITE_PREPARE_CACHE_SIZE } from './database-constants'
+import { SQLITE_PREPARE_CACHE_SIZE } from './database-constants'
 import { APP_MIGRATIONS } from './database-migrations'
 
 export interface AppDatabaseService {
@@ -18,7 +18,7 @@ export class AppDatabase extends Context.Tag('@openwaggle/AppDatabase')<
 >() {}
 
 function getDatabasePath() {
-  return join(app.getPath('userData'), DATABASE_FILE_NAME)
+  return join(app.getPath('userData'), 'session-host', 'session-host.sqlite')
 }
 
 const createMigrationsTable = Effect.gen(function* () {

@@ -1,10 +1,14 @@
 import type { AgentSendPayload, AgentSendReport } from './agent'
-import type { AgentAuthorizationMode } from './agent-authorization'
+import type {
+  AgentDefinitionManagementCommand,
+  AgentDefinitionManagementOutcome,
+} from './agent-definition-management'
 import type {
   AgentLoopInteractionResponseInput,
   AgentLoopInteractionSubmitResult,
 } from './agent-loop-interaction'
-import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
+import type { SessionId } from './brand'
+import type { CliShimMutationResult, CliShimStatus } from './cli-shim'
 import type { ContextCompactionResult, ContextUsageSnapshot } from './context-usage'
 import type {
   DocsDiscoveryView,
@@ -36,30 +40,49 @@ import type {
   ExtensionSetProjectDisabledInput,
   ExtensionSetTrustedInput,
 } from './extensions'
+import type { IpcSessionInvokeChannelMap } from './ipc-invoke-sessions'
 import type { ProviderInfo, SupportedModelId } from './llm'
+import type {
+  LocalSessionProfileManagementResponse,
+  LocalSessionProfileUiCommand,
+} from './local-session-profile-management'
 import type {
   ProjectPreferencesPayload,
   ProjectPreferencesUpdatePayload,
 } from './openwaggle-api-project'
+import type { SessionTreeFilterMode } from './session'
 import type {
-  SessionCopyToNewResult,
-  SessionDetail,
-  SessionNavigateTreeOptions,
-  SessionSummary,
-  SessionTree,
-  SessionTreeFilterMode,
-  SessionTreeUiStatePatch,
-  SessionWorkspace,
-  SessionWorkspaceSelection,
-  SessionWorktreePlan,
-} from './session'
+  SessionControlMutationRequest,
+  SessionControlMutationResponse,
+} from './session-control'
+import type { SessionQueryRequest, SessionQueryResponse } from './session-query'
 import type { Settings } from './settings'
 
 // ─── IPC Channel Map ─────────────────────────────────────────
 // Single source of truth for every IPC channel.
 // Each entry defines: [channel name, args tuple, return type]
 
-export interface IpcCoreInvokeChannelMap {
+export interface IpcCoreInvokeChannelMap extends IpcSessionInvokeChannelMap {
+  'agent-definitions:select-source': {
+    args: []
+    return: string | null
+  }
+  'agent-definitions:manage': {
+    args: [command: AgentDefinitionManagementCommand]
+    return: AgentDefinitionManagementOutcome
+  }
+  'access-profiles:manage': {
+    args: [command: LocalSessionProfileUiCommand]
+    return: LocalSessionProfileManagementResponse
+  }
+  'session-control:mutate': {
+    args: [request: SessionControlMutationRequest]
+    return: SessionControlMutationResponse
+  }
+  'session-control:query': {
+    args: [request: SessionQueryRequest]
+    return: SessionQueryResponse
+  }
   'agent:send-message': {
     args: [sessionId: SessionId, payload: AgentSendPayload, model: SupportedModelId]
     return: AgentSendReport
@@ -67,10 +90,6 @@ export interface IpcCoreInvokeChannelMap {
   'agent:cancel': {
     args: [sessionId?: SessionId]
     return: undefined
-  }
-  'agent:steer': {
-    args: [sessionId: SessionId]
-    return: { preserved: boolean }
   }
   'agent:respond-interaction': {
     args: [input: AgentLoopInteractionResponseInput]
@@ -95,6 +114,18 @@ export interface IpcCoreInvokeChannelMap {
   'settings:set-enabled-models': {
     args: [models: string[]]
     return: undefined
+  }
+  'cli-shim:get-status': {
+    args: []
+    return: CliShimStatus
+  }
+  'cli-shim:install': {
+    args: []
+    return: CliShimMutationResult
+  }
+  'cli-shim:remove': {
+    args: []
+    return: CliShimMutationResult
   }
   'pi-settings:get-tree-filter-mode': {
     args: [projectPath?: string | null]
@@ -190,100 +221,6 @@ export interface IpcCoreInvokeChannelMap {
   }
   'project-config:set-preferences': {
     args: [projectPath: string, preferences: ProjectPreferencesUpdatePayload]
-    return: undefined
-  }
-  'sessions:list-details': {
-    args: [limit?: number]
-    return: SessionDetail[]
-  }
-  'sessions:get-detail': {
-    args: [id: SessionId]
-    return: SessionDetail | null
-  }
-  'sessions:create': {
-    args: [projectPath: string]
-    return: SessionDetail
-  }
-  'sessions:fork-to-new': {
-    args: [sessionId: SessionId, model: SupportedModelId, targetNodeId: SessionNodeId]
-    return: SessionCopyToNewResult
-  }
-  'sessions:clone-to-new': {
-    args: [sessionId: SessionId, model: SupportedModelId, targetNodeId: SessionNodeId]
-    return: SessionCopyToNewResult
-  }
-  'sessions:dismiss-interrupted-run': {
-    args: [sessionId: SessionId, runId: string]
-    return: undefined
-  }
-  'sessions:delete': {
-    args: [id: SessionId]
-    return: undefined
-  }
-  'sessions:archive': {
-    args: [id: SessionId]
-    return: undefined
-  }
-  'sessions:unarchive': {
-    args: [id: SessionId]
-    return: undefined
-  }
-  'sessions:list-archived': {
-    args: []
-    return: SessionSummary[]
-  }
-  'sessions:update-title': {
-    args: [id: SessionId, title: string]
-    return: undefined
-  }
-  'sessions:set-worktree-plan': {
-    args: [id: SessionId, plan: SessionWorktreePlan]
-    return: undefined
-  }
-  /** `null` clears the session override so the session inherits again. */
-  'sessions:set-authorization-mode': {
-    args: [id: SessionId, mode: AgentAuthorizationMode | null]
-    return: undefined
-  }
-  'sessions:list': {
-    args: [limit?: number]
-    return: SessionSummary[]
-  }
-  'sessions:list-archived-branches': {
-    args: [limit?: number]
-    return: SessionSummary[]
-  }
-  'sessions:get-tree': {
-    args: [sessionId: SessionId]
-    return: SessionTree | null
-  }
-  'sessions:get-workspace': {
-    args: [sessionId: SessionId, selection?: SessionWorkspaceSelection]
-    return: SessionWorkspace | null
-  }
-  'sessions:navigate-tree': {
-    args: [
-      sessionId: SessionId,
-      model: SupportedModelId,
-      targetNodeId: SessionNodeId,
-      options?: SessionNavigateTreeOptions,
-    ]
-    return: { editorText?: string; cancelled: boolean }
-  }
-  'sessions:rename-branch': {
-    args: [sessionId: SessionId, branchId: SessionBranchId, name: string]
-    return: undefined
-  }
-  'sessions:archive-branch': {
-    args: [sessionId: SessionId, branchId: SessionBranchId]
-    return: undefined
-  }
-  'sessions:restore-branch': {
-    args: [sessionId: SessionId, branchId: SessionBranchId]
-    return: undefined
-  }
-  'sessions:update-tree-ui-state': {
-    args: [sessionId: SessionId, patch: SessionTreeUiStatePatch]
     return: undefined
   }
   'providers:get-models': {

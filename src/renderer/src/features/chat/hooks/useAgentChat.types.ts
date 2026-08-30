@@ -36,7 +36,6 @@ export interface AgentChatReturn {
   isLoading: boolean
   status: AgentChatStatus
   stop: () => void
-  steer: () => Promise<void>
   error: Error | undefined
   withDeferredSnapshotRefresh: <T>(operation: () => Promise<T>) => Promise<T>
   previewSteeredUserTurn: (payload: AgentSendPayload) => () => void

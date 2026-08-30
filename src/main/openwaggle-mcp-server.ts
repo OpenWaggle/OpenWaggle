@@ -1,28 +1,11 @@
 import { McpServer } from '@modelcontextprotocol/server'
-import {
-  MCP_CONFIG,
-  MCP_LEGACY_PROTOCOL_VERSIONS,
-  MCP_MODERN_PROTOCOL_VERSIONS,
-} from '@shared/constants/mcp'
-import { SessionId } from '@shared/types/brand'
-import * as Effect from 'effect/Effect'
+import { MCP_LEGACY_PROTOCOL_VERSIONS, MCP_MODERN_PROTOCOL_VERSIONS } from '@shared/constants/mcp'
+import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import { z } from 'zod'
 import { serveDualEraMcpLoopbackHttp } from './mcp-server-http'
 import { serveDualEraMcpStdio } from './mcp-server-stdio'
 import type { OpenWaggleMcpServeOptions } from './openwaggle-mcp-server-policy'
-import {
-  OpenWaggleMcpSessionMetadataStore,
-  sessionMetadataStorePath,
-} from './openwaggle-mcp-session-metadata-store'
-import { registerOpenWaggleSessionTool } from './openwaggle-mcp-session-tool'
-import {
-  materializeHostedSessionWorktree,
-  removeHostedSessionWorktree,
-} from './openwaggle-mcp-session-worktree'
-import { OpenWaggleServerTaskManager } from './openwaggle-mcp-task-manager'
-import { registerOpenWaggleTaskTool } from './openwaggle-mcp-task-tool'
-import { SessionProjectionRepository } from './ports/session-projection-repository'
-import { disposeAppRuntime, initializeAppRuntime, runAppEffect } from './runtime'
+import { registerOpenWaggleSessionToolV2 } from './openwaggle-mcp-session-tool-v2'
 
 export {
   OPENWAGGLE_MCP_SERVE_GRANTS,
@@ -34,12 +17,7 @@ const CATALOG_CACHE_TTL_MS = 60_000
 const RESOURCE_LIST_CACHE_TTL_MS = 10_000
 const MAX_SERVER_SUBSCRIPTIONS = 128
 
-function registerServerResources(
-  server: McpServer,
-  options: OpenWaggleMcpServeOptions,
-  tasks: OpenWaggleServerTaskManager,
-  sessionMetadata: OpenWaggleMcpSessionMetadataStore,
-) {
+function registerServerResources(server: McpServer, options: OpenWaggleMcpServeOptions) {
   server.registerResource(
     'OpenWaggle caller capabilities',
     'openwaggle://caller/capabilities',
@@ -48,47 +26,26 @@ function registerServerResources(
       description: 'The exact grants and constraints applied to this MCP server process.',
       mimeType: 'application/json',
     },
-    async (uri) => {
-      const originDepth = await sessionMetadata.depth(options.originSessionId)
-      return {
-        contents: [
-          {
-            uri: uri.href,
-            mimeType: 'application/json',
-            text: JSON.stringify({
-              profile: options.profile,
-              grants: [...options.grants].sort(),
-              workspaceRoots: options.workspaceRoots,
-              sessionIds: [...options.sessionIds].sort(),
-              originDepth,
-              maxDepth: MCP_CONFIG.MAX_ORCHESTRATION_DEPTH,
-              maxFanOut: MCP_CONFIG.MAX_SESSION_FAN_OUT,
-              ...(options.originSessionId ? { originSessionId: options.originSessionId } : {}),
-              transports: [options.transport],
-              protocolCompatibility: {
-                modern: MCP_MODERN_PROTOCOL_VERSIONS,
-                legacy: MCP_LEGACY_PROTOCOL_VERSIONS,
-              },
-            }),
-          },
-        ],
-      }
-    },
-  )
-  server.registerResource(
-    'OpenWaggle task index',
-    'openwaggle://tasks',
-    {
-      title: 'Durable OpenWaggle tasks',
-      description: 'Task status and result metadata for this caller profile.',
-      mimeType: 'application/json',
-    },
     async (uri) => ({
       contents: [
         {
           uri: uri.href,
           mimeType: 'application/json',
-          text: JSON.stringify(await runAppEffect(tasks.list())),
+          text: JSON.stringify({
+            profile: options.profile,
+            grants: [...options.grants].sort(),
+            workspaceRoots: options.workspaceRoots,
+            exportRoots: options.exportRoots ?? [],
+            attachmentRoots: options.attachmentRoots ?? [],
+            sessionIds: [...options.sessionIds].sort(),
+            ...(options.originSessionId ? { originSessionId: options.originSessionId } : {}),
+            transports: [options.transport],
+            sessionContractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+            protocolCompatibility: {
+              modern: MCP_MODERN_PROTOCOL_VERSIONS,
+              legacy: MCP_LEGACY_PROTOCOL_VERSIONS,
+            },
+          }),
         },
       ],
     }),
@@ -100,7 +57,7 @@ function registerServerPrompt(server: McpServer) {
     'delegate-openwaggle-task',
     {
       title: 'Delegate a task to OpenWaggle',
-      description: 'Prepare a bounded request for the durable OpenWaggle task tool.',
+      description: 'Prepare a durable Session or Hive Worker request for Session Control v2.',
       argsSchema: z.object({ objective: z.string(), projectPath: z.string() }),
     },
     ({ objective, projectPath }) => ({
@@ -109,7 +66,7 @@ function registerServerPrompt(server: McpServer) {
           role: 'user',
           content: {
             type: 'text',
-            text: `Start a durable OpenWaggle task with projectPath=${JSON.stringify(projectPath)} and this objective. OpenWaggle will use the target session's model profile (or the desktop default for a new session):\n\n${objective}`,
+            text: `Use openwaggle_sessions with operation="launch", projectPath=${JSON.stringify(projectPath)}, and this objective. If delegating from an active Session, use operation="spawn" with its exact Session and Run IDs instead:\n\n${objective}`,
           },
         },
       ],
@@ -117,16 +74,12 @@ function registerServerPrompt(server: McpServer) {
   )
 }
 
-function createOpenWaggleMcpServer(
-  options: OpenWaggleMcpServeOptions,
-  tasks: OpenWaggleServerTaskManager,
-  sessionMetadata: OpenWaggleMcpSessionMetadataStore,
-) {
+function createOpenWaggleMcpServer(options: OpenWaggleMcpServeOptions) {
   const server = new McpServer(
     { name: 'OpenWaggle', version: options.version },
     {
       instructions:
-        'Use openwaggle_task for durable agent work and openwaggle_sessions only for explicitly granted session operations. Raw shell and transparent upstream MCP passthrough are intentionally unavailable.',
+        'Use openwaggle_sessions for durable Session and Hive orchestration through Session Control v2. Follow-ups remain queued for the next Run; Steering targets one exact active Run. Raw shell and transparent upstream MCP passthrough are intentionally unavailable.',
       cacheHints: {
         'tools/list': { ttlMs: CATALOG_CACHE_TTL_MS, cacheScope: 'private' },
         'prompts/list': { ttlMs: CATALOG_CACHE_TTL_MS, cacheScope: 'private' },
@@ -136,37 +89,17 @@ function createOpenWaggleMcpServer(
       },
     },
   )
-  registerServerResources(server, options, tasks, sessionMetadata)
+  registerServerResources(server, options)
   registerServerPrompt(server)
-  registerOpenWaggleTaskTool(server, options, tasks, sessionMetadata)
-  registerOpenWaggleSessionTool(server, options, tasks, sessionMetadata, {
-    materializeWorktree: materializeHostedSessionWorktree,
-    removeWorktree: removeHostedSessionWorktree,
+  registerOpenWaggleSessionToolV2(server, options, {
+    userDataRoot: options.userDataRoot,
+    version: options.version,
   })
   return server
 }
 
 export async function serveOpenWaggleMcpServer(options: OpenWaggleMcpServeOptions) {
-  await initializeAppRuntime()
-  if (options.originSessionId) {
-    const originExists = await runAppEffect(
-      Effect.gen(function* () {
-        const sessions = yield* SessionProjectionRepository
-        return Boolean(yield* sessions.getOptional(SessionId(options.originSessionId ?? '')))
-      }),
-    )
-    if (!originExists) {
-      throw new Error(
-        `Configured origin session ${JSON.stringify(options.originSessionId)} was not found. Update the owner-controlled server profile before retrying.`,
-      )
-    }
-  }
-  const sessionMetadata = new OpenWaggleMcpSessionMetadataStore(
-    sessionMetadataStorePath(options.taskStorePath),
-  )
-  const tasks = new OpenWaggleServerTaskManager(options, sessionMetadata)
-  await runAppEffect(tasks.recoverInterruptedTasks())
-  const factory = () => createOpenWaggleMcpServer(options, tasks, sessionMetadata)
+  const factory = () => createOpenWaggleMcpServer(options)
   const reportError = (error: Error) =>
     options.stderr?.write(`OpenWaggle MCP server error: ${error.message}\n`)
   if (options.transport === 'streamable-http') {
@@ -182,9 +115,7 @@ export async function serveOpenWaggleMcpServer(options: OpenWaggleMcpServeOption
     })
     options.stderr?.write(`OpenWaggle MCP listening at ${handle.url}\n`)
     const close = async () => {
-      await runAppEffect(tasks.cancelAll())
       await handle.close().catch(() => undefined)
-      await disposeAppRuntime().catch(() => undefined)
     }
     await new Promise<void>((resolve) => {
       process.once('SIGINT', resolve)
@@ -197,9 +128,7 @@ export async function serveOpenWaggleMcpServer(options: OpenWaggleMcpServeOption
     onerror: reportError,
   })
   const close = async () => {
-    await runAppEffect(tasks.cancelAll())
     await handle.close().catch(() => undefined)
-    await disposeAppRuntime().catch(() => undefined)
   }
   await new Promise<void>((resolve, reject) => {
     process.stdin.once('end', resolve)

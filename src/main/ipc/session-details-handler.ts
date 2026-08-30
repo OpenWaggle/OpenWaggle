@@ -1,32 +1,26 @@
+import { randomUUID } from 'node:crypto'
 import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
-import type { SessionId, SessionNodeId } from '@shared/types/brand'
+import { SessionId, type SessionNodeId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { PinnedSessionMove, SessionWorktreePlan } from '@shared/types/session'
+import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
+import { SESSION_LIFECYCLE_CONTRACT_VERSION } from '@shared/types/session-lifecycle'
+import type { SessionOrganizationCommand } from '@shared/types/session-organization'
 import * as Effect from 'effect/Effect'
 import { cleanupSessionRun } from '../agent/session-cleanup'
-import { resolveEffectiveAuthorizationMode } from '../application/agent-authorization-mode'
-import { grantPendingAuthorizationsForSession } from '../application/agent-loop-interaction-broker'
-import { dismissInterruptedAgentRun } from '../application/agent-run-service'
-import {
-  cloneAgentSessionToNewSession,
-  forkAgentSessionToNewSession,
-} from '../application/agent-session-service'
-import { AgentKernelService } from '../ports/agent-kernel-service'
+import { dispatchLocalSessionCommand } from '../application/local-session-command-dispatcher'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SettingsService } from '../services/settings-service'
 import { clearAgentPhase, clearStreamBuffer, emitRunCompleted } from '../utils/stream-bridge'
-import { cancelSessionRuns } from './active-agent-runs'
 import { validateRequiredProjectPath } from './project-path-validation'
+import { mutateLocalUiSession } from './session-host-ui-mutation'
 import { typedHandle } from './typed-ipc'
 
-function cleanupBeforeSessionRemoval(sessionId: SessionId) {
-  const cancelledActiveRun = cancelSessionRuns(sessionId)
+function cleanupAfterSessionRemoval(sessionId: SessionId) {
   clearAgentPhase(sessionId)
   clearStreamBuffer(sessionId)
   cleanupSessionRun(sessionId)
-  if (cancelledActiveRun) {
-    emitRunCompleted(sessionId)
-  }
+  emitRunCompleted(sessionId)
 }
 
 /** `null` is valid and means "clear the override so this session inherits again". */
@@ -84,91 +78,144 @@ function registerSessionPinHandlers() {
   )
 
   typedHandle('sessions:pins:pin', (_event, id: SessionId) =>
-    Effect.gen(function* () {
-      const repo = yield* SessionProjectionRepository
-      yield* repo.pinSession(id)
-    }),
+    mutateLocalUiSession({ operation: 'pin', sessionId: id }),
   )
 
   typedHandle('sessions:pins:unpin', (_event, id: SessionId) =>
-    Effect.gen(function* () {
-      const repo = yield* SessionProjectionRepository
-      yield* repo.unpinSession(id)
-    }),
+    mutateLocalUiSession({ operation: 'unpin', sessionId: id }),
   )
 
   typedHandle('sessions:pins:move', (_event, move: PinnedSessionMove) =>
-    Effect.gen(function* () {
-      const repo = yield* SessionProjectionRepository
-      yield* repo.movePinnedSession(move)
+    mutateLocalUiSession({
+      operation: 'move-pin',
+      sessionId: move.sessionId,
+      afterSessionId: move.afterSessionId,
+      beforeSessionId: move.beforeSessionId,
     }),
   )
 }
 
 function registerSessionCreationHandlers() {
-  typedHandle('sessions:create', (_event, projectPath: string) =>
-    Effect.gen(function* () {
-      const normalizedProjectPath = yield* validateRequiredProjectPath(projectPath)
-      const agentKernel = yield* AgentKernelService
-      const runtimeSession = yield* agentKernel.createSession({
-        projectPath: normalizedProjectPath,
-      })
-      const settings = yield* (yield* SettingsService).get()
-      const repo = yield* SessionProjectionRepository
-      return yield* repo.create({
-        projectPath: normalizedProjectPath,
-        piSessionId: runtimeSession.piSessionId,
-        piSessionFile: runtimeSession.piSessionFile,
-        environmentMode: settings.defaultSessionEnvironmentMode,
-      })
-    }),
+  typedHandle(
+    'sessions:create',
+    (_event, projectPath: string, worktreePlan?: SessionWorktreePlan) =>
+      Effect.gen(function* () {
+        const normalizedProjectPath = yield* validateRequiredProjectPath(projectPath)
+        const settings = yield* (yield* SettingsService).get()
+        const environmentMode =
+          worktreePlan?.environmentMode ?? settings.defaultSessionEnvironmentMode
+        const result = yield* dispatchLocalSessionCommand({
+          caller: { callerId: 'gui:local-user', workingDirectory: normalizedProjectPath },
+          payload: {
+            contract: 'session-lifecycle-v2',
+            request: {
+              contractVersion: SESSION_LIFECYCLE_CONTRACT_VERSION,
+              requestId: randomUUID(),
+              idempotencyKey: randomUUID(),
+              command: {
+                operation: 'create',
+                projectPath: normalizedProjectPath,
+                workspace:
+                  environmentMode === 'worktree'
+                    ? {
+                        mode: 'new-worktree',
+                        ...(worktreePlan?.baseRef ? { baseRef: worktreePlan.baseRef } : {}),
+                        ...(worktreePlan?.startFromOrigin !== undefined
+                          ? { startFromOrigin: worktreePlan.startFromOrigin }
+                          : {}),
+                      }
+                    : { mode: 'local' },
+              },
+            },
+          },
+        })
+        if (
+          result.contract !== 'session-lifecycle-v2' ||
+          result.response.outcome.effect !== 'created-root'
+        ) {
+          return yield* Effect.fail(new Error('Session Host rejected GUI Session creation.'))
+        }
+        const repo = yield* SessionProjectionRepository
+        const session = yield* repo.getOptional(SessionId(result.response.outcome.sessionId))
+        return session ?? (yield* Effect.fail(new Error('Created Session projection is missing.')))
+      }),
   )
 
   typedHandle(
     'sessions:fork-to-new',
-    (_event, sessionId: SessionId, model: SupportedModelId, targetNodeId: SessionNodeId) =>
-      forkAgentSessionToNewSession({ sessionId, model, targetNodeId }),
+    (_event, sessionId: SessionId, _model: SupportedModelId, targetNodeId: SessionNodeId) =>
+      forkSessionThroughHost(sessionId, targetNodeId, 'before'),
   )
 
   typedHandle(
     'sessions:clone-to-new',
-    (_event, sessionId: SessionId, model: SupportedModelId, targetNodeId: SessionNodeId) =>
-      cloneAgentSessionToNewSession({ sessionId, model, targetNodeId }),
+    (_event, sessionId: SessionId, _model: SupportedModelId, targetNodeId: SessionNodeId) =>
+      forkSessionThroughHost(sessionId, targetNodeId, 'at'),
   )
 
   typedHandle('sessions:dismiss-interrupted-run', (_event, sessionId: SessionId, runId: string) =>
-    dismissInterruptedAgentRun({ sessionId, runId }),
+    mutateLocalUiSession({ operation: 'dismiss-interrupted-run', sessionId, runId }).pipe(
+      Effect.asVoid,
+    ),
   )
+}
+
+function forkSessionThroughHost(
+  sourceSessionId: SessionId,
+  targetNodeId: SessionNodeId,
+  position: 'before' | 'at',
+) {
+  return Effect.gen(function* () {
+    const result = yield* dispatchLocalSessionCommand({
+      caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
+      payload: {
+        contract: 'session-lifecycle-v2',
+        request: {
+          contractVersion: SESSION_LIFECYCLE_CONTRACT_VERSION,
+          requestId: randomUUID(),
+          idempotencyKey: randomUUID(),
+          command: {
+            operation: 'fork',
+            sourceSessionId: String(sourceSessionId),
+            targetNodeId: String(targetNodeId),
+            position,
+          },
+        },
+      },
+    })
+    if (
+      result.contract !== 'session-lifecycle-v2' ||
+      result.response.outcome.effect !== 'forked-session'
+    ) {
+      return yield* Effect.fail(new Error('Session Host rejected GUI Session fork.'))
+    }
+    const repo = yield* SessionProjectionRepository
+    const session = yield* repo.getOptional(SessionId(result.response.outcome.sessionId))
+    if (!session) return yield* Effect.fail(new Error('Forked Session projection is missing.'))
+    return {
+      session,
+      cancelled: false,
+      ...(result.response.outcome.editorText
+        ? { editorText: result.response.outcome.editorText }
+        : {}),
+    }
+  })
 }
 
 function registerSessionMutationHandlers() {
   typedHandle('sessions:delete', (_event, id: SessionId) =>
-    Effect.sync(() => cleanupBeforeSessionRemoval(id)).pipe(
-      Effect.zipRight(
-        Effect.gen(function* () {
-          const repo = yield* SessionProjectionRepository
-          yield* repo.delete(id)
-        }),
-      ),
+    mutateLocalUiSession({ operation: 'delete', sessionId: id }).pipe(
+      Effect.tap(() => Effect.sync(() => cleanupAfterSessionRemoval(id))),
+      Effect.asVoid,
     ),
   )
 
   typedHandle('sessions:archive', (_event, id: SessionId) =>
-    Effect.sync(() => cleanupBeforeSessionRemoval(id)).pipe(
-      Effect.zipRight(
-        Effect.gen(function* () {
-          const repo = yield* SessionProjectionRepository
-          yield* repo.archive(id)
-        }),
-      ),
-    ),
+    organizeSessionThroughHost({ operation: 'archive', sessionId: id }, 'session-archived'),
   )
 
   typedHandle('sessions:unarchive', (_event, id: SessionId) =>
-    Effect.gen(function* () {
-      const repo = yield* SessionProjectionRepository
-      yield* repo.unarchive(id)
-    }),
+    organizeSessionThroughHost({ operation: 'unarchive', sessionId: id }, 'session-unarchived'),
   )
 
   typedHandle('sessions:list-archived', () =>
@@ -180,34 +227,62 @@ function registerSessionMutationHandlers() {
   )
 
   typedHandle('sessions:update-title', (_event, id: SessionId, title: string) =>
-    Effect.gen(function* () {
-      const repo = yield* SessionProjectionRepository
-      yield* repo.updateTitle(id, title)
-    }),
-  )
-
-  typedHandle('sessions:set-worktree-plan', (_event, id: SessionId, plan: SessionWorktreePlan) =>
-    Effect.gen(function* () {
-      const repo = yield* SessionProjectionRepository
-      yield* repo.setWorktreePlan(id, plan)
-    }),
+    organizeSessionThroughHost({ operation: 'rename', sessionId: id, title }, 'session-renamed'),
   )
 
   typedHandle('sessions:set-authorization-mode', (_event, id: SessionId, mode: unknown) =>
     Effect.gen(function* () {
       const validatedMode = yield* validateAuthorizationMode(mode)
-      const repo = yield* SessionProjectionRepository
-      yield* repo.setAuthorizationMode(id, validatedMode)
-
-      // Switching to full access must also clear the question already on screen, otherwise the
-      // run stays parked on a prompt in a mode that promises never to prompt. Resolved rather
-      // than read from the argument, so clearing an override that reveals a YOLO default counts.
-      const effective = yield* Effect.promise(() => resolveEffectiveAuthorizationMode(id))
-      if (effective === 'yolo') {
-        yield* Effect.sync(() => grantPendingAuthorizationsForSession({ sessionId: id }))
+      const result = yield* dispatchLocalSessionCommand({
+        caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
+        payload: {
+          contract: 'session-control-v2',
+          request: {
+            contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+            requestId: randomUUID(),
+            idempotencyKey: randomUUID(),
+            command: {
+              operation: 'authorization-set',
+              sessionId: id,
+              authorizationMode: validatedMode,
+            },
+          },
+        },
+      })
+      if (
+        result.contract !== 'session-control-v2' ||
+        result.response.outcome.effect !== 'authorization-updated'
+      ) {
+        return yield* Effect.fail(new Error('Session Host rejected Authorization mode update.'))
       }
     }),
   )
+}
+
+function organizeSessionThroughHost(
+  command: SessionOrganizationCommand,
+  expectedEffect: 'session-renamed' | 'session-archived' | 'session-unarchived',
+) {
+  return Effect.gen(function* () {
+    const result = yield* dispatchLocalSessionCommand({
+      caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
+      payload: {
+        contract: 'session-control-v2',
+        request: {
+          contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+          requestId: randomUUID(),
+          idempotencyKey: randomUUID(),
+          command,
+        },
+      },
+    })
+    if (
+      result.contract !== 'session-control-v2' ||
+      result.response.outcome.effect !== expectedEffect
+    ) {
+      return yield* Effect.fail(new Error('Session Host rejected Session organization.'))
+    }
+  })
 }
 
 export function registerSessionDetailsHandlers(): void {

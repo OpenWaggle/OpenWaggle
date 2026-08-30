@@ -68,11 +68,11 @@ async function writeStoredSettingToDb(key: string, value: unknown) {
 }
 
 function queueStoredSettingWrite(key: string, value: unknown) {
-  writeQueue = writeQueue
-    .then(() => writeStoredSettingToDb(key, value))
-    .catch((error) => {
-      logger.warn('Failed to write setting to SQLite', { key, error: describeError(error) })
-    })
+  const operation = writeQueue.then(() => writeStoredSettingToDb(key, value))
+  writeQueue = operation.catch((error) => {
+    logger.warn('Failed to write setting to SQLite', { key, error: describeError(error) })
+  })
+  return operation
 }
 
 export async function initializeSettingsStore(): Promise<void> {
@@ -100,6 +100,16 @@ export async function initializeSettingsStore(): Promise<void> {
   await initializationPromise
 }
 
+/**
+ * Reload the durable snapshot so long-lived GUI and detached Session Host
+ * processes observe settings written by one another.
+ */
+export async function refreshSettingsStore(): Promise<void> {
+  await writeQueue
+  const storedSettings = await listStoredSettings()
+  settingsCache = buildSettingsSnapshot(storedSettings).settings
+}
+
 export async function flushSettingsStoreForTests(): Promise<void> {
   await writeQueue
 }
@@ -123,16 +133,25 @@ export function getSettings(): Settings {
   return settingsCache
 }
 
-export function updateSettings(partial: Partial<Settings>): void {
+function applySettingsUpdate(partial: Partial<Settings>) {
   const nextSettings = buildNextSettingsSnapshot(settingsCache, partial)
   settingsCache = nextSettings
 
-  for (const write of collectSettingsPatchWrites(partial, nextSettings)) {
-    queueStoredSettingWrite(write.key, write.value)
-  }
+  const writes = collectSettingsPatchWrites(partial, nextSettings).map((write) =>
+    queueStoredSettingWrite(write.key, write.value),
+  )
 
   const invalidThinkingLevel = getInvalidThinkingLevel(partial)
   if (invalidThinkingLevel !== undefined) {
     logger.warn('Skipping invalid thinkingLevel', { value: invalidThinkingLevel })
   }
+  return writes
+}
+
+export function updateSettings(partial: Partial<Settings>): void {
+  applySettingsUpdate(partial)
+}
+
+export async function updateSettingsDurably(partial: Partial<Settings>): Promise<void> {
+  await Promise.all(applySettingsUpdate(partial))
 }

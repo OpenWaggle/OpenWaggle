@@ -7,6 +7,7 @@ import {
   listStreamBuffers,
   setWorktreeLaunchSnapshot,
   startStreamBuffer,
+  startStreamBufferFromAgentStart,
 } from '../stream-buffer'
 
 const SESSION_ID = SessionId('session-stream-buffer')
@@ -48,6 +49,33 @@ describe('stream-buffer', () => {
 
     clearStreamBuffer(SESSION_ID)
     expect(getStreamBuffer(SESSION_ID)).toBeNull()
+  })
+
+  it('creates remote Waggle buffers before model attribution and enriches them later', () => {
+    startStreamBufferFromAgentStart(SESSION_ID, {
+      type: 'agent_start',
+      runId: `waggle-${SESSION_ID}`,
+      timestamp: 100,
+    })
+
+    expect(getStreamBuffer(SESSION_ID)).toMatchObject({
+      model: '',
+      mode: 'waggle',
+      startedAt: 100,
+    })
+
+    startStreamBufferFromAgentStart(SESSION_ID, {
+      type: 'agent_start',
+      runId: `waggle-${SESSION_ID}`,
+      timestamp: 101,
+      model: MODEL,
+    })
+
+    expect(getStreamBuffer(SESSION_ID)).toMatchObject({
+      model: MODEL,
+      mode: 'waggle',
+      startedAt: 100,
+    })
   })
 
   it('keeps worktree launch progress in the reconnectable run snapshot', () => {

@@ -1,44 +1,34 @@
 import { join } from 'node:path'
 import { electronApp, is } from '@electron-toolkit/utils'
 import { app } from 'electron'
-import { completeAppRuntimeShutdown } from './application/app-runtime-shutdown'
-import { installDevToolsShortcut } from './application-menu'
-import { createBrowserWindow, getAllBrowserWindows, isAutomationMode } from './desktop-ui'
+import { startAccessCliIfRequested } from './access-cli-entry'
 import {
-  configureDesktopUiAfterReady,
-  focusWindow,
-  prepareDesktopUi,
-  revealWindow,
-} from './desktop-window-policy'
+  configureDefaultSessionEmbeddingModelForPackagedRuntime,
+  SESSION_EMBEDDING_MODEL_RESOURCE_DIRECTORY,
+} from './adapters/multilingual-e5-session-embedding-model'
+import { startAgentsCliIfRequested } from './agents-cli-entry'
+import { completeAppRuntimeShutdown } from './application/app-runtime-shutdown'
+import { applicationCliArguments } from './application-cli-arguments'
+import { startDelegationsCliIfRequested } from './delegations-cli-entry'
+import { getAllBrowserWindows, isAutomationMode } from './desktop-ui'
+import { configureDesktopUiAfterReady, prepareDesktopUi } from './desktop-window-policy'
 import { env } from './env'
 import { describeError } from './error-description'
 import { registerExtensionFrameProtocolOnce } from './extension-frame-protocol'
 import { registerExtensionRuntimeProtocolOnce } from './extension-runtime-protocol'
-import { openExternalFromRenderer } from './external-navigation'
 import { createLogger, initFileLogger } from './logger'
+import { createMainWindow, focusExistingWindow } from './main-window'
 import { startMcpCliIfRequested } from './mcp-cli-entry'
-import {
-  devRendererUrl,
-  INDEX_HTML,
-  isTrustedRendererRequest,
-  RENDERER_PROTOCOL_ORIGIN,
-  registerRendererProtocolOnce,
-  registerRendererScheme,
-  rendererUrlWithAutomationIdentity,
-} from './renderer-protocol'
-import {
-  assertSecureWebPreferences,
-  installCspHeaders,
-  SECURE_WEB_PREFERENCES,
-} from './security/electron-security'
+import { startRecoveryCliIfRequested } from './recovery-cli-entry'
+import { registerRendererProtocolOnce, registerRendererScheme } from './renderer-protocol'
 import { configureAppStoragePaths } from './session-data'
+import {
+  type GuiSessionHostLifecycle,
+  prepareGuiSessionHostLifecycle,
+} from './session-host/gui-session-host-lifecycle'
+import { startSessionHostCliIfRequested } from './session-host-cli-entry'
+import { startSessionsCliIfRequested } from './sessions-cli-entry'
 
-const WIDTH = 1200
-const HEIGHT = 800
-const MIN_WIDTH = 800
-const MIN_HEIGHT = 600
-const X = 16
-const Y = 16
 const FAILURE_EXIT_CODE = 1
 const STARTUP_TIMINGS_SWITCH = 'openwaggle-startup-timings'
 const STARTUP_TIMING_PRECISION = 1
@@ -56,6 +46,12 @@ type RuntimeModule = Awaited<ReturnType<typeof importRuntimeModule>>
 
 registerRendererScheme()
 
+if (app.isPackaged) {
+  configureDefaultSessionEmbeddingModelForPackagedRuntime(
+    join(process.resourcesPath, SESSION_EMBEDDING_MODEL_RESOURCE_DIRECTORY),
+  )
+}
+
 const appIconPath = is.dev
   ? join(__dirname, '../../build/icon.png')
   : join(process.resourcesPath, 'icon.png')
@@ -67,6 +63,7 @@ let cleanupTerminalsOnce: IpcHandlersModule['cleanupTerminals'] | null = null
 let disposeAutoUpdaterOnce: (() => void) | null = null
 let persistAllActiveRunsOnce: AgentHandlerModule['persistAllActiveRuns'] | null = null
 let runtimeModulePromise: Promise<RuntimeModule> | null = null
+let sessionHostLifecycleOnce: GuiSessionHostLifecycle | null = null
 
 function startupMark(label: string) {
   if (!app.commandLine.hasSwitch(STARTUP_TIMINGS_SWITCH)) {
@@ -130,6 +127,12 @@ async function persistActiveRunsBeforeQuit() {
 async function bootstrapServicesAndWindow() {
   startupMark('bootstrap-start')
 
+  sessionHostLifecycleOnce = await prepareGuiSessionHostLifecycle({
+    userDataRoot: app.getPath('userData'),
+    clientVersion: app.getVersion(),
+    startupMark,
+  })
+
   const [runtimeModule, settingsStoreModule, agentRunServiceModule] = await Promise.all([
     getRuntimeModule(),
     importSettingsStoreModule(),
@@ -150,7 +153,15 @@ async function bootstrapServicesAndWindow() {
     })
   }
 
-  await runtimeModule.runAppEffect(agentRunServiceModule.reconcileInterruptedAgentRuns())
+  const sessionHostMode = await sessionHostLifecycleOnce.start({
+    runEffect: runtimeModule.runAppEffect,
+    startOwnedServices: runtimeModule.startSessionHostOwnedServices,
+    stopOwnedServices: runtimeModule.stopSessionHostOwnedServices,
+  })
+
+  if (sessionHostMode === 'owned') {
+    await runtimeModule.runAppEffect(agentRunServiceModule.reconcileInterruptedAgentRuns())
+  }
   startupMark('interrupted-runs-reconciled')
 
   const trustedMainActivationModule = await import(
@@ -168,106 +179,10 @@ async function bootstrapServicesAndWindow() {
   registerExtensionRuntimeProtocolOnce()
   startupMark('protocol-handlers-registered')
 
-  createWindow()
+  createMainWindow({ appIconPath, startupMark })
   startupMark('main-window-created')
 
   if (!isAutomationMode()) void initializeAutoUpdaterAfterWindow()
-}
-
-function createWindow() {
-  const webPreferences = {
-    preload: join(__dirname, '../preload/index.js'),
-    ...SECURE_WEB_PREFERENCES,
-  }
-  assertSecureWebPreferences(webPreferences)
-
-  const mainWindow = createBrowserWindow({
-    width: WIDTH,
-    height: HEIGHT,
-    minWidth: MIN_WIDTH,
-    minHeight: MIN_HEIGHT,
-    show: false,
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: X, y: Y },
-    backgroundColor: '#141719',
-    icon: appIconPath,
-    webPreferences,
-  })
-  installCspHeaders(mainWindow.webContents.session)
-  if (!isAutomationMode()) installDevToolsShortcut(mainWindow)
-
-  mainWindow.on('ready-to-show', () => {
-    startupMark('window-ready-to-show')
-    if (isAutomationMode()) return
-    revealWindow(mainWindow)
-    startupMark('window-shown')
-  })
-
-  mainWindow.webContents.once('dom-ready', () => startupMark('renderer-dom-ready'))
-  mainWindow.webContents.once('did-finish-load', () => startupMark('renderer-did-finish-load'))
-
-  mainWindow.on('enter-full-screen', () => {
-    mainWindow.webContents.send('window:fullscreen-changed', true)
-  })
-  mainWindow.on('leave-full-screen', () => {
-    mainWindow.webContents.send('window:fullscreen-changed', false)
-  })
-
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    openExternalFromRenderer(details.url)
-    return { action: 'deny' }
-  })
-
-  // Prevent in-app navigation — all external URLs open in the user's default browser
-  const rendererOrigin =
-    is.dev && env.ELECTRON_RENDERER_URL ? env.ELECTRON_RENDERER_URL : RENDERER_PROTOCOL_ORIGIN
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (!url.startsWith(rendererOrigin)) {
-      event.preventDefault()
-      openExternalFromRenderer(url)
-    }
-  })
-
-  const mediaPermissions = new Set(['media', 'microphone'])
-  mainWindow.webContents.session.setPermissionCheckHandler(
-    (_webContents, permission, requestingOrigin) => {
-      if (isAutomationMode()) return false
-      if (!mediaPermissions.has(permission)) return false
-      return isTrustedRendererRequest(requestingOrigin)
-    },
-  )
-  mainWindow.webContents.session.setPermissionRequestHandler(
-    (_webContents, permission, callback, details) => {
-      if (isAutomationMode()) {
-        callback(false)
-        return
-      }
-      if (!mediaPermissions.has(permission)) {
-        callback(false)
-        return
-      }
-      callback(isTrustedRendererRequest(details.requestingUrl))
-    },
-  )
-
-  const rendererDevUrl = devRendererUrl()
-  startupMark('renderer-load-start')
-  if (rendererDevUrl !== null) {
-    void mainWindow.loadURL(rendererUrlWithAutomationIdentity(rendererDevUrl))
-  } else {
-    void mainWindow.loadURL(
-      rendererUrlWithAutomationIdentity(`${RENDERER_PROTOCOL_ORIGIN}/${INDEX_HTML}`),
-    )
-  }
-}
-
-function focusExistingWindow() {
-  const existingWindow = getAllBrowserWindows()[0]
-  if (!existingWindow) {
-    return
-  }
-
-  focusWindow(existingWindow)
 }
 
 function registerAppLifecycle() {
@@ -286,7 +201,9 @@ function registerAppLifecycle() {
       })
 
       app.on('activate', () => {
-        if (getAllBrowserWindows().length === 0) createWindow()
+        if (getAllBrowserWindows().length === 0) {
+          createMainWindow({ appIconPath, startupMark })
+        }
       })
     })
     .catch((error: unknown) => {
@@ -306,7 +223,11 @@ function registerAppLifecycle() {
       e.preventDefault()
       completeAppRuntimeShutdown({
         persistActiveRuns: persistActiveRunsBeforeQuit,
-        disposeRuntime: async () => (await getRuntimeModule()).disposeAppRuntime(),
+        disposeRuntime: async () => {
+          await sessionHostLifecycleOnce?.stop()
+          sessionHostLifecycleOnce = null
+          await (await getRuntimeModule()).disposeAppRuntime()
+        },
       })
         .then(() => {
           beforeQuitCleanupDone = true
@@ -336,4 +257,16 @@ function startApp() {
   registerAppLifecycle()
 }
 
-if (!startMcpCliIfRequested(process.argv)) startApp()
+const cliArguments = applicationCliArguments(process.argv, { isPackaged: app.isPackaged })
+
+if (
+  !startSessionHostCliIfRequested(cliArguments) &&
+  !startAccessCliIfRequested(cliArguments) &&
+  !startSessionsCliIfRequested(cliArguments) &&
+  !startDelegationsCliIfRequested(cliArguments) &&
+  !startAgentsCliIfRequested(cliArguments) &&
+  !startRecoveryCliIfRequested(cliArguments) &&
+  !startMcpCliIfRequested(cliArguments)
+) {
+  startApp()
+}

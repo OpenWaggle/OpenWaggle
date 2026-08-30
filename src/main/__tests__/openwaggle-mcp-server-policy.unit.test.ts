@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, realpath, rm, symlink } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rename, rm, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -28,8 +28,9 @@ describe('hosted MCP workspace policy', () => {
     await Promise.all([mkdir(workspace), mkdir(outside)])
     const link = path.join(workspace, 'escape')
     await symlink(outside, link)
+    const grantedRoot = await realpath(workspace)
 
-    expect(() => assertProjectAllowed(options([workspace]), link)).toThrow(
+    expect(() => assertProjectAllowed(options([grantedRoot]), link)).toThrow(
       'outside this server profile',
     )
   })
@@ -40,12 +41,13 @@ describe('hosted MCP workspace policy', () => {
     await Promise.all([mkdir(workspace), mkdir(outside)])
     const link = path.join(workspace, 'escape')
     await symlink(outside, link)
+    const grantedRoot = await realpath(workspace)
 
     expect(() =>
-      assertProjectAllowed(options([workspace]), path.join(link, 'new-project')),
+      assertProjectAllowed(options([grantedRoot]), path.join(link, 'new-project')),
     ).toThrow('outside this server profile')
     expect(() =>
-      assertProjectAllowed(options([workspace]), path.join(workspace, 'new-project')),
+      assertProjectAllowed(options([grantedRoot]), path.join(workspace, 'new-project')),
     ).toThrow(
       `Project ${JSON.stringify(path.join(await realpath(workspace), 'new-project'))} does not exist`,
     )
@@ -56,9 +58,25 @@ describe('hosted MCP workspace policy', () => {
     await mkdir(workspace)
     const link = path.join(workspace, 'dangling')
     await symlink(path.join(temporaryRoot, 'missing-outside'), link)
+    const grantedRoot = await realpath(workspace)
 
-    expect(() => assertProjectAllowed(options([workspace]), link)).toThrow(
+    expect(() => assertProjectAllowed(options([grantedRoot]), link)).toThrow(
       'unresolved symbolic link',
+    )
+  })
+
+  it('rejects a workspace grant that is replaced by a symlink after startup', async () => {
+    if (process.platform === 'win32') return
+    const workspace = path.join(temporaryRoot, 'workspace')
+    const displaced = path.join(temporaryRoot, 'workspace-original')
+    const outside = path.join(temporaryRoot, 'outside')
+    await Promise.all([mkdir(workspace), mkdir(outside)])
+    const grantedRoot = await realpath(workspace)
+    await rename(workspace, displaced)
+    await symlink(outside, workspace)
+
+    expect(() => assertProjectAllowed(options([grantedRoot]), outside)).toThrow(
+      'Workspace grant changed after this server started',
     )
   })
 })

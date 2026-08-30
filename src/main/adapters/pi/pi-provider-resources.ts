@@ -12,6 +12,7 @@ import type { OpenWaggleExtensionPiResourceRoot } from './openwaggle-pi-settings
 
 export interface PiRuntimeServicesOptions {
   readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly skillAllowlist?: readonly string[]
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly enabledOpenWaggleExtensionResourceRoots?: readonly OpenWaggleExtensionPiResourceRoot[]
   readonly extensionFactories?: readonly ExtensionFactory[]
@@ -81,11 +82,19 @@ function filterDisabledCatalogSkills(
   projectPath: string,
   skillToggles: Readonly<Record<string, boolean>>,
   base: PiSkillsOverrideInput,
+  skillAllowlist?: readonly string[],
 ) {
+  const allowedSkills = skillAllowlist
+    ? new Set(skillAllowlist.map((skillId) => normalizeSkillId(skillId)))
+    : null
   return {
     skills: base.skills.filter((skill) => {
       const skillId = getCatalogSkillIdForPiSkill(projectPath, skill.filePath)
-      return skillId === null || skillToggles[skillId] !== false
+      const normalizedName = normalizeSkillId(skill.name)
+      return (
+        (skillId === null || skillToggles[skillId] !== false) &&
+        (allowedSkills === null || allowedSkills.has(skillId ?? normalizedName))
+      )
     }),
     diagnostics: base.diagnostics,
   }
@@ -120,7 +129,8 @@ export function createOpenWagglePiResourceLoaderOptions(
     additionalThemePaths: settingsManager
       ? []
       : includeExistingPath(getOpenWaggleThemesRoot(projectPath)),
-    skillsOverride: (base) => filterDisabledCatalogSkills(projectPath, skillToggles, base),
+    skillsOverride: (base) =>
+      filterDisabledCatalogSkills(projectPath, skillToggles, base, options.skillAllowlist),
     ...(disableExtensions ? { noExtensions: true } : {}),
     ...(!disableExtensions && options.extensionFactories
       ? { extensionFactories: [...options.extensionFactories] }

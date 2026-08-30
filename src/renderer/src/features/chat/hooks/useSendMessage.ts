@@ -1,6 +1,7 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
+import type { SessionWorktreePlan } from '@shared/types/session'
 import type { ThinkingLevel } from '@shared/types/settings'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { FirstSendFailed, MessageNotDelivered } from '@/features/chat/lib'
@@ -8,7 +9,7 @@ import { createOptimisticUserMessage } from '@/features/chat/lib/useAgentChat.ut
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { flushDraftAuthorizationModeToSession } from '@/features/chat/state/draft-authorization-mode-store'
 import { useOptimisticUserMessageStore } from '@/features/chat/state/optimistic-user-message-store'
-import { flushDraftWorktreePlanToSession } from '@/features/git'
+import { consumeDraftWorktreePlan } from '@/features/git'
 import { useWaggleStore } from '@/features/waggle/state'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
@@ -19,7 +20,10 @@ interface SendMessageDeps {
   readonly activeSessionId: SessionId | null
   readonly projectPath: string | null
   readonly thinkingLevel: ThinkingLevel
-  readonly createSession: (projectPath: string) => Promise<SessionId>
+  readonly createSession: (
+    projectPath: string,
+    worktreePlan?: SessionWorktreePlan,
+  ) => Promise<SessionId>
   readonly sendMessage: (payload: AgentSendPayload) => Promise<void>
   readonly sendMessageToSession: (
     sessionId: SessionId,
@@ -54,8 +58,7 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       if (!projectPath) {
         throw new Error('Select a project before sending.')
       }
-      const sessionId = await createSession(projectPath)
-      await flushDraftWorktreePlanToSession(projectPath, sessionId)
+      const sessionId = await createSession(projectPath, consumeDraftWorktreePlan(projectPath))
       await flushDraftAuthorizationModeToSession(projectPath, sessionId)
       /*
        * Awaited, and its failure propagates. Dispatching this fire-and-forget meant the caller was told
@@ -77,8 +80,7 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       if (!projectPath) {
         throw new Error('Select a project before sending.')
       }
-      const sessionId = await createSession(projectPath)
-      await flushDraftWorktreePlanToSession(projectPath, sessionId)
+      const sessionId = await createSession(projectPath, consumeDraftWorktreePlan(projectPath))
       await flushDraftAuthorizationModeToSession(projectPath, sessionId)
       startWaggleCollaboration(sessionId, config)
       /*
@@ -101,7 +103,10 @@ interface UseSendMessageOptions {
   readonly model: SupportedModelId
   readonly projectPath: string | null
   readonly thinkingLevel: ThinkingLevel
-  readonly createSession: (projectPath: string) => Promise<SessionId>
+  readonly createSession: (
+    projectPath: string,
+    worktreePlan?: SessionWorktreePlan,
+  ) => Promise<SessionId>
   readonly sendMessage: (payload: AgentSendPayload) => Promise<void>
   readonly sendWaggleMessage: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
 }
@@ -136,7 +141,11 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
         ? await api.sendWaggleMessage(sessionId, payload, model, config)
         : await api.sendMessage(sessionId, payload, model)
       if (report.outcome === 'delivered') {
-        useBackgroundRunStore.getState().setFirstSendRecovery(sessionId, null)
+        /*
+         * Session Host reports command acceptance before its supervised Run performs worktree birth or
+         * reaches Pi. Keep the exact payload until terminal reconciliation sees durable transcript history;
+         * otherwise an asynchronous launch failure leaves the recovery controls with nothing to replay.
+         */
         return
       }
       /*

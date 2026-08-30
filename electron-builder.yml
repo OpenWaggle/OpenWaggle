@@ -41,6 +41,8 @@ files:
   - '!node_modules/**/.eslintrc*'
   - '!node_modules/**/.prettierrc*'
   - '!node_modules/**/tsconfig.json'
+  # The pinned semantic model is copied once as an external resource below.
+  - '!node_modules/@huggingface/transformers/.cache/**/*'
   # Workspace packages are followed through node_modules; ship their built/runtime surface only.
   - '!node_modules/@openwaggle/*/src/**/*'
   - '!node_modules/@openwaggle/*/tsconfig*.json'
@@ -51,6 +53,8 @@ extraResources:
     to: icon.png
   - from: build/openwaggle-docs
     to: openwaggle-docs
+  - from: build/session-embedding-model
+    to: session-embedding-model
 mac:
   # Local builds: skip codesigning (no Apple Developer ID).
   # Distribution: remove this, configure CSC_LINK/CSC_KEY_PASSWORD.

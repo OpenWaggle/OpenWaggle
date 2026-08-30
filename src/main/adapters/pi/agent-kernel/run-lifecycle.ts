@@ -4,6 +4,12 @@ import type {
   ExtensionFactory,
   SessionManager,
 } from '@earendil-works/pi-coding-agent'
+import {
+  createBashToolDefinition,
+  createPowerShellToolDefinition,
+  defineTool,
+  type ToolDefinition,
+} from '@earendil-works/pi-coding-agent'
 import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { clampThinkingLevel } from '@shared/utils/thinking-levels'
@@ -49,9 +55,12 @@ interface CreatePiRunSessionRuntimeInput extends PiRuntimeExtensionIsolationInpu
   readonly runId: AgentKernelRunInput['runId']
   readonly payload: HydratedAgentSendPayload
   readonly modelReference: AgentKernelRunInput['model']
+  readonly runAuthorizationOverride?: AgentKernelRunInput['runAuthorizationOverride']
+  readonly authorityCallerId?: AgentKernelRunInput['authorityCallerId']
   readonly signal: AgentKernelRunInput['signal']
   readonly onEvent: AgentKernelRunInput['onEvent']
   readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly skillAllowlist?: readonly string[]
   readonly extensionFactories?: readonly ExtensionFactory[]
 }
 
@@ -66,6 +75,14 @@ async function createPiSessionForRun(input: {
   readonly thinkingLevel: ThinkingLevel
   readonly openWaggleUi: OpenWaggleAgentSessionOptions['openWaggleUi']
 }) {
+  const markAgentRun = (context: { command: string; cwd: string; env: NodeJS.ProcessEnv }) => ({
+    ...context,
+    env: { ...context.env, OPENWAGGLE_AGENT_RUN: '1' },
+  })
+  const customTools: ToolDefinition[] = [
+    defineTool(createBashToolDefinition(input.services.cwd, { spawnHook: markAgentRun })),
+    defineTool(createPowerShellToolDefinition(input.services.cwd, { spawnHook: markAgentRun })),
+  ]
   const hasExistingMessages = input.sessionManager.buildSessionContext().messages.length > 0
   const result = hasExistingMessages
     ? await createOpenWaggleAgentSessionFromServices({
@@ -73,6 +90,7 @@ async function createPiSessionForRun(input: {
         model: input.model,
         sessionManager: input.sessionManager,
         openWaggleUi: input.openWaggleUi,
+        customTools,
       })
     : await createOpenWaggleAgentSessionFromServices({
         services: input.services,
@@ -80,6 +98,7 @@ async function createPiSessionForRun(input: {
         thinkingLevel: input.thinkingLevel,
         sessionManager: input.sessionManager,
         openWaggleUi: input.openWaggleUi,
+        customTools,
       })
 
   if (hasExistingMessages) {
@@ -96,6 +115,7 @@ export async function createPiRunSessionRuntime(
     projectPath: input.projectPath,
     modelReference: input.modelReference,
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
+    ...(input.skillAllowlist ? { skillAllowlist: input.skillAllowlist } : {}),
     ...(input.extensionFactories ? { extensionFactories: [...input.extensionFactories] } : {}),
   } satisfies PiProjectRuntimeIsolationOptions
   const selectedRuntime = await createIsolatedPiProjectRuntime({
@@ -110,7 +130,12 @@ export async function createPiRunSessionRuntime(
     // Deliberately the session's project, not `input.projectPath`: the latter is the run cwd, which
     // for a worktree session is the worktree. Authorization state belongs to the repository.
     authorizationProjectPath: input.session.projectPath,
-    resolveAuthorizationMode: () => resolveEffectiveAuthorizationMode(input.session.id),
+    resolveAuthorizationMode: () =>
+      resolveEffectiveAuthorizationMode(
+        input.session.id,
+        input.runAuthorizationOverride,
+        input.authorityCallerId,
+      ),
     signal: input.signal,
     onEvent: input.onEvent,
   }

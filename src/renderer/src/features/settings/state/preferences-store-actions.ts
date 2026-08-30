@@ -123,11 +123,10 @@ async function persistSetting<K extends keyof Settings>(
   key: K,
   value: Settings[K],
   set: PreferencesSet,
-  get: PreferencesGet,
 ) {
-  const { settings } = get()
-  await api.updateSettings({ [key]: value })
-  set({ settings: { ...settings, [key]: value } })
+  const result = await api.updateSettings({ [key]: value })
+  if (!result.ok) throw new Error(result.error)
+  set((state) => ({ settings: { ...state.settings, [key]: value } }))
 }
 
 export function createPreferencesActions(
@@ -184,13 +183,37 @@ export function createPreferencesActions(
       persistProjectPreference(settings.projectPath, { thinkingLevel: preset })
     },
     setDefaultAuthorizationMode: (mode: AgentAuthorizationMode) =>
-      persistSetting('defaultAuthorizationMode', mode, set, get),
+      persistSetting('defaultAuthorizationMode', mode, set),
     setDefaultSessionEnvironmentMode: (mode: SessionEnvironmentMode) =>
-      persistSetting('defaultSessionEnvironmentMode', mode, set, get),
-    setDiffSyntaxTheme: (theme: DiffSyntaxTheme) =>
-      persistSetting('diffSyntaxTheme', theme, set, get),
-    setDiffView: (view: DiffView) => persistSetting('diffView', view, set, get),
-    setDiffWrapLines: (wrap: boolean) => persistSetting('diffWrapLines', wrap, set, get),
+      persistSetting('defaultSessionEnvironmentMode', mode, set),
+    setMultiAgentEnabled: (enabled: boolean) => persistSetting('multiAgentEnabled', enabled, set),
+    setSessionHostParentConcurrencyLimit: (limit: number) =>
+      persistSetting('sessionHostParentConcurrencyLimit', limit, set),
+    setSessionHostRunCeiling: (limit: number) =>
+      persistSetting('sessionHostRunCeiling', limit, set),
+    setSessionHostIdleGracePeriodMs: (milliseconds: number) =>
+      persistSetting('sessionHostIdleGracePeriodMs', milliseconds, set),
+    setProjectMultiAgentEnabled: async (projectPath: string, enabled: boolean | null) => {
+      const { settings } = get()
+      const multiAgentEnabledByProject = { ...settings.multiAgentEnabledByProject }
+      if (enabled === null) delete multiAgentEnabledByProject[projectPath]
+      else multiAgentEnabledByProject[projectPath] = enabled
+      await api.updateSettings({ multiAgentEnabledByProject })
+      set({ settings: { ...settings, multiAgentEnabledByProject } })
+    },
+    setProjectParentConcurrencyLimit: async (projectPath: string, limit: number | null) => {
+      const { settings } = get()
+      const sessionHostParentConcurrencyLimitsByProject = {
+        ...settings.sessionHostParentConcurrencyLimitsByProject,
+      }
+      if (limit === null) delete sessionHostParentConcurrencyLimitsByProject[projectPath]
+      else sessionHostParentConcurrencyLimitsByProject[projectPath] = limit
+      await api.updateSettings({ sessionHostParentConcurrencyLimitsByProject })
+      set({ settings: { ...settings, sessionHostParentConcurrencyLimitsByProject } })
+    },
+    setDiffSyntaxTheme: (theme: DiffSyntaxTheme) => persistSetting('diffSyntaxTheme', theme, set),
+    setDiffView: (view: DiffView) => persistSetting('diffView', view, set),
+    setDiffWrapLines: (wrap: boolean) => persistSetting('diffWrapLines', wrap, set),
     setEnabledModels: (models) => setEnabledModels(models, set, get),
     setProjectDisplayName: async (path, name) => {
       const { settings } = get()

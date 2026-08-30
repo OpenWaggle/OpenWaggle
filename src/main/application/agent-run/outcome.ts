@@ -84,6 +84,7 @@ export function recoverAgentRunFailure({
     model,
     code: classified.code,
     error: formatErrorMessage(error),
+    ...(error instanceof Error && error.stack ? { stack: error.stack } : {}),
   })
   return Effect.succeed({
     outcome: 'error' as const,

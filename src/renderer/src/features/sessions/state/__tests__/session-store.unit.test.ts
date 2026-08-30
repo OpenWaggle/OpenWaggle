@@ -5,6 +5,7 @@ import { useSessionStore } from '../session-store'
 
 const mockApi = {
   listSessions: vi.fn(),
+  listArchivedSessions: vi.fn(),
   getSessionTree: vi.fn(),
   getSessionWorkspace: vi.fn(),
 }
@@ -12,6 +13,7 @@ const mockApi = {
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     listSessions: (...args: unknown[]) => mockApi.listSessions(...args),
+    listArchivedSessions: (...args: unknown[]) => mockApi.listArchivedSessions(...args),
     getSessionTree: (...args: unknown[]) => mockApi.getSessionTree(...args),
     getSessionWorkspace: (...args: unknown[]) => mockApi.getSessionWorkspace(...args),
   },
@@ -20,6 +22,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 function resetStore() {
   useSessionStore.setState({
     sessions: [],
+    archivedSessions: [],
     activeSessionTree: null,
     activeWorkspace: null,
     draftBranch: null,
@@ -87,6 +90,7 @@ function makeWorkspace(id: string): SessionWorkspace {
 describe('useSessionStore unit', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockApi.listArchivedSessions.mockResolvedValue([])
     resetStore()
   })
 
@@ -96,10 +100,29 @@ describe('useSessionStore unit', () => {
 
   it('loads sessions from IPC', async () => {
     mockApi.listSessions.mockResolvedValue([makeSession('s1'), makeSession('s2')])
+    mockApi.listArchivedSessions.mockResolvedValue([{ ...makeSession('s3'), archived: true }])
 
     await useSessionStore.getState().loadSessions()
 
     expect(useSessionStore.getState().sessions).toHaveLength(2)
+    expect(useSessionStore.getState().archivedSessions).toHaveLength(1)
+  })
+
+  it('does not let an older catalog request overwrite a newer refresh', async () => {
+    let resolveOlder: (sessions: readonly SessionSummary[]) => void = () => undefined
+    const olderRequest = new Promise<readonly SessionSummary[]>((resolve) => {
+      resolveOlder = resolve
+    })
+    mockApi.listSessions.mockImplementationOnce(() => olderRequest)
+    mockApi.listSessions.mockResolvedValueOnce([makeSession('newer')])
+
+    const first = useSessionStore.getState().loadSessions()
+    const second = useSessionStore.getState().loadSessions()
+    await second
+    resolveOlder([makeSession('older')])
+    await first
+
+    expect(useSessionStore.getState().sessions.map((session) => session.id)).toEqual(['newer'])
   })
 
   it('refreshes the active tree for the selected session', async () => {

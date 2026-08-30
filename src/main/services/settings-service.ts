@@ -15,11 +15,20 @@ export class SettingsService extends Context.Tag('@openwaggle/SettingsService')<
   // Dynamic import defers settings.ts module-level side effects (electron.safeStorage)
   // until runtime initialization, preventing test breakage in unrelated suites.
   static readonly Live = Effect.promise(async () => {
-    const { getSettings, updateSettings, initializeSettingsStore, flushSettingsStoreForTests } =
-      await import('../store/settings')
+    const {
+      getSettings,
+      updateSettingsDurably,
+      initializeSettingsStore,
+      refreshSettingsStore,
+      flushSettingsStoreForTests,
+    } = await import('../store/settings')
     return Layer.succeed(SettingsService, {
-      get: () => Effect.sync(() => getSettings()),
-      update: (partial) => Effect.sync(() => updateSettings(partial)),
+      get: () =>
+        Effect.promise(async () => {
+          await refreshSettingsStore()
+          return getSettings()
+        }),
+      update: (partial) => Effect.promise(() => updateSettingsDurably(partial)),
       initialize: () => Effect.promise(() => initializeSettingsStore()),
       flushForTests: () => Effect.promise(() => flushSettingsStoreForTests()),
     } satisfies SettingsServiceShape)

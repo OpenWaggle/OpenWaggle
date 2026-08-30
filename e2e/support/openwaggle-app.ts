@@ -1,11 +1,16 @@
+import { execFile } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { promisify } from 'node:util'
 import { expect, type ElectronApplication, type Page, test } from '@playwright/test'
+import electronExecutablePath from 'electron'
 import { shouldUseHiddenElectron } from '../../scripts/electron-launch-mode'
 import { launchOpenWaggleElectron } from '../../scripts/playwright-electron-launcher'
+import { buildSafeElectronEnvironment } from '../../scripts/safe-electron-environment'
 import { MainWindowPage } from '../page-models/main-window.page'
 
+const execFileAsync = promisify(execFile)
 let evidenceDirectoryPromise: Promise<string> | null = null
 let evidenceSequence = 0
 const QA_DIAGNOSTIC_TEXT_LIMIT = 1_000
@@ -86,6 +91,19 @@ export class OpenWaggleApp {
 
   async close(): Promise<void> {
     await this.app.close()
+  }
+
+  async runCli(args: readonly string[]): Promise<{ readonly stdout: string; readonly stderr: string }> {
+    const result = await execFileAsync(electronExecutablePath, ['.', ...args], {
+      cwd: process.cwd(),
+      env: buildSafeElectronEnvironment({
+        OPENWAGGLE_DISABLE_SINGLE_INSTANCE: '1',
+        OPENWAGGLE_USER_DATA_DIR: this.userDataDir,
+      }),
+      maxBuffer: 10 * 1024 * 1024,
+      timeout: 30_000,
+    })
+    return { stdout: result.stdout, stderr: result.stderr }
   }
 
   async confirmNativeDialogs(response = 1): Promise<void> {

@@ -10,6 +10,7 @@ import { SessionProjectionRepository } from '../../ports/session-projection-repo
 import { SessionRepository } from '../../ports/session-repository'
 import { SettingsService } from '../../services/settings-service'
 import type * as SessionDetailsHandler from '../session-details-handler'
+import { sessionDetailsCommandResponse } from './session-details-handler-command-response'
 
 type TestMock = Mock
 
@@ -39,6 +40,7 @@ const mocks = vi.hoisted(() => ({
   clearAgentPhaseMock: vi.fn(),
   clearStreamBufferMock: vi.fn(),
   emitRunCompletedMock: vi.fn(),
+  dispatchLocalSessionCommandMock: vi.fn(),
 }))
 
 export const typedHandleMock: TestMock = mocks.typedHandleMock
@@ -63,6 +65,7 @@ export const cancelSessionRunsMock: TestMock = mocks.cancelSessionRunsMock
 export const clearAgentPhaseMock: TestMock = mocks.clearAgentPhaseMock
 export const clearStreamBufferMock: TestMock = mocks.clearStreamBufferMock
 export const emitRunCompletedMock: TestMock = mocks.emitRunCompletedMock
+export const dispatchLocalSessionCommandMock: TestMock = mocks.dispatchLocalSessionCommandMock
 
 vi.mock('../typed-ipc', () => ({
   typedHandle: typedHandleMock,
@@ -80,6 +83,10 @@ vi.mock('../../utils/stream-bridge', () => ({
   clearAgentPhase: clearAgentPhaseMock,
   clearStreamBuffer: clearStreamBufferMock,
   emitRunCompleted: emitRunCompletedMock,
+}))
+
+vi.mock('../../application/local-session-command-dispatcher', () => ({
+  dispatchLocalSessionCommand: dispatchLocalSessionCommandMock,
 }))
 
 const TestSessionProjectionRepoLayer = Layer.succeed(
@@ -274,6 +281,7 @@ export function resetSessionDetailsHandlerMocks() {
   unpinSessionMock.mockResolvedValue(undefined)
   movePinnedSessionMock.mockResolvedValue(undefined)
   cancelSessionRunsMock.mockReturnValue(false)
+  dispatchLocalSessionCommandMock.mockImplementation(sessionDetailsCommandResponse)
 }
 
 export function loadSessionDetailsHandlers(): Promise<typeof SessionDetailsHandler> {

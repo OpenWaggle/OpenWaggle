@@ -5,12 +5,13 @@ import type {
 } from '@shared/types/agent-loop-interaction'
 import type { SessionId } from '@shared/types/brand'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
-import { useMessageQueueStore } from '@/features/chat/state'
+import { useSessionFollowUpQueue } from '@/features/chat/hooks/useSessionFollowUpQueue'
 import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-store'
 import {
   BranchSummaryPrompt,
   CompactionStatusStrip,
   Composer,
+  HiveSessionNavigator,
   QueuedMessages,
 } from '@/features/composer/components'
 import { useScopedComposerDrafts } from '@/features/composer/hooks'
@@ -55,6 +56,19 @@ function runStatusTone(status: ChatComposerSectionState['status']) {
 function projectDisplayName(projectPath: string | null) {
   if (!projectPath) return null
   return projectName(projectPath)
+}
+
+function branchSummaryComposerMode(branchSummaryMode: 'choice' | 'summarizing' | 'custom' | null) {
+  return {
+    disabled: branchSummaryMode === 'choice' || branchSummaryMode === 'summarizing',
+    placeholder:
+      branchSummaryMode === 'custom' ? 'Custom instructions for the branch summary' : undefined,
+    requiresText: branchSummaryMode === 'custom',
+    clearOnSubmit: branchSummaryMode !== 'custom',
+    recordHistory: branchSummaryMode !== 'custom',
+    allowEnqueue: branchSummaryMode !== 'custom',
+    sendTitle: branchSummaryMode === 'custom' ? 'Summarize branch' : undefined,
+  }
 }
 
 function ComposerOverlays({
@@ -122,18 +136,24 @@ function ComposerOverlays({
  * something bypassed the gate - and the message was silently re-enqueued instead of the user
  * seeing the recover-or-switch notice.
  */
-export function enqueueIfAllowed(input: {
+export async function enqueueIfAllowed(input: {
   readonly payload: AgentSendPayload
   readonly activeSessionId: SessionId | null
   readonly sendBlockedReason: string | null
-  readonly enqueue: (sessionId: SessionId, payload: AgentSendPayload) => void
+  readonly enqueue: (payload: AgentSendPayload) => Promise<void>
   readonly onToast: (message: string) => void
 }) {
   if (input.sendBlockedReason !== null) {
     input.onToast(input.sendBlockedReason)
     return
   }
-  if (input.activeSessionId) input.enqueue(input.activeSessionId, input.payload)
+  if (!input.activeSessionId) return
+  try {
+    await input.enqueue(input.payload)
+  } catch (error) {
+    input.onToast(error instanceof Error ? error.message : String(error))
+    throw error
+  }
 }
 
 export function ChatComposerStack({
@@ -166,12 +186,8 @@ export function ChatComposerStack({
     onSend: onSendWithWaggle,
     onToast,
   })
-  const enqueue = useMessageQueueStore((s) => s.enqueue)
+  const followUpQueue = useSessionFollowUpQueue(activeSessionId)
   const branchSummaryMode = useBranchSummaryStore((s) => s.prompt?.mode ?? null)
-  const composerDisabledForBranchSummary =
-    branchSummaryMode === 'choice' || branchSummaryMode === 'summarizing'
-  const composerPlaceholder =
-    branchSummaryMode === 'custom' ? 'Custom instructions for the branch summary' : undefined
   return (
     <>
       <ComposerOverlays section={section} onOpenSessionTree={onOpenSessionTree} />
@@ -180,11 +196,17 @@ export function ChatComposerStack({
         {compactionStatus ? (
           <CompactionStatusStrip state={compactionStatus} onCancel={onCancel} />
         ) : null}
+        <HiveSessionNavigator
+          key={activeSessionId ?? 'no-session'}
+          sessionId={activeSessionId}
+          onNavigateSession={section.onNavigateSession}
+        />
         <QueuedMessages
           sessionId={activeSessionId}
           onSteer={onSteer}
           isStreaming={status === 'streaming' || status === 'submitted'}
           isCompacting={status === 'compacting' || status === 'retrying'}
+          onToast={onToast}
         />
         <BranchSummaryPrompt
           onNoSummary={onSkipBranchSummary}
@@ -234,19 +256,17 @@ export function ChatComposerStack({
             }
             onSend={guardedSend}
             onEnqueue={(payload) =>
-              enqueueIfAllowed({ payload, activeSessionId, sendBlockedReason, enqueue, onToast })
+              enqueueIfAllowed({
+                payload,
+                activeSessionId,
+                sendBlockedReason,
+                enqueue: followUpQueue.enqueue,
+                onToast,
+              })
             }
             onCancel={onCancel}
             isLoading={isLoading}
-            mode={{
-              disabled: composerDisabledForBranchSummary,
-              placeholder: composerPlaceholder,
-              requiresText: branchSummaryMode === 'custom',
-              clearOnSubmit: branchSummaryMode !== 'custom',
-              recordHistory: branchSummaryMode !== 'custom',
-              allowEnqueue: branchSummaryMode !== 'custom',
-              sendTitle: branchSummaryMode === 'custom' ? 'Summarize branch' : undefined,
-            }}
+            mode={branchSummaryComposerMode(branchSummaryMode)}
             onToast={onToast}
           />
         </div>

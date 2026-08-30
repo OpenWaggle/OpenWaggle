@@ -76,10 +76,20 @@ async function readGlobalDefault() {
  */
 export async function resolveEffectiveAuthorizationMode(
   sessionId: SessionId,
+  runOverride?: AgentAuthorizationMode,
+  authorityCallerId?: string,
 ): Promise<AgentAuthorizationMode> {
   try {
-    const { getSessionDetail } = await import('../store/session-details')
-    const session = await getSessionDetail(sessionId)
+    const {
+      getSessionAuthorizationBoundary,
+      getSessionCallerAuthorizationBoundary,
+      getSessionDetail,
+    } = await import('../store/session-details')
+    const [session, boundary, callerBoundary] = await Promise.all([
+      getSessionDetail(sessionId),
+      getSessionAuthorizationBoundary(sessionId),
+      authorityCallerId ? getSessionCallerAuthorizationBoundary(authorityCallerId) : null,
+    ])
     if (!session) {
       logger.warn('No session row while resolving the authorization mode; failing closed', {
         sessionId,
@@ -92,11 +102,27 @@ export async function resolveEffectiveAuthorizationMode(
       readGlobalDefault(),
     ])
 
-    return pickAuthorizationMode({
-      sessionOverride: session.authorizationMode,
-      projectDefault,
-      globalDefault,
-    })
+    const preferredMode =
+      runOverride ??
+      pickAuthorizationMode({
+        sessionOverride: session.authorizationMode,
+        projectDefault,
+        globalDefault,
+      })
+    if (!boundary) return FAIL_CLOSED_AUTHORIZATION_MODE
+    if (
+      boundary.profile_revoked_at !== null ||
+      boundary.grant_revoked_at !== null ||
+      callerBoundary?.revoked
+    ) {
+      return FAIL_CLOSED_AUTHORIZATION_MODE
+    }
+    return boundary.execution_ceiling === 'ask-for-approval' ||
+      boundary.grant_ceiling === 'ask-for-approval' ||
+      boundary.profile_ceiling === 'ask-for-approval' ||
+      callerBoundary?.authorizationCeiling === 'ask-for-approval'
+      ? FAIL_CLOSED_AUTHORIZATION_MODE
+      : preferredMode
   } catch (cause) {
     logger.warn('Failed to resolve the authorization mode; failing closed', {
       sessionId,

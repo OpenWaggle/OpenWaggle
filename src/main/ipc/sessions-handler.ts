@@ -7,8 +7,8 @@ import type {
 } from '@shared/types/session'
 import { isRecord } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
-import { navigateAgentSessionTree } from '../application/agent-session-service'
 import { SessionRepository } from '../ports/session-repository'
+import { mutateLocalUiSession } from './session-host-ui-mutation'
 import { typedHandle } from './typed-ipc'
 
 const MAX_SESSION_LIST_LIMIT = 500
@@ -215,17 +215,14 @@ function registerSessionNavigationHandlers() {
         const validatedSessionId = yield* validateSessionId(sessionId)
         const validatedTargetNodeId = yield* validateSessionNodeId(targetNodeId)
         const validatedOptions = yield* validateNavigateTreeOptions(options)
-        return yield* navigateAgentSessionTree({
-          sessionId: SessionId(String(validatedSessionId)),
+        const response = yield* mutateLocalUiSession({
+          operation: 'navigate-tree',
+          sessionId: validatedSessionId,
           model,
-          targetNodeId: validatedTargetNodeId,
-          ...(validatedOptions?.summarize !== undefined
-            ? { summarize: validatedOptions.summarize }
-            : {}),
-          ...(validatedOptions?.customInstructions
-            ? { customInstructions: validatedOptions.customInstructions }
-            : {}),
+          targetNodeId: String(validatedTargetNodeId),
+          ...(validatedOptions ? { options: validatedOptions } : {}),
         })
+        return response.navigation ?? { cancelled: true }
       }),
   )
 }
@@ -245,8 +242,12 @@ function registerSessionBranchHandlers() {
         const validatedBranchId = yield* validateOptionalSessionBranchId(branchId)
         const validatedName = yield* validateBranchName(name)
         const requiredBranchId = yield* requireBranchId(validatedBranchId)
-        const repo = yield* SessionRepository
-        return yield* repo.renameBranch(validatedSessionId, requiredBranchId, validatedName)
+        yield* mutateLocalUiSession({
+          operation: 'rename-branch',
+          sessionId: validatedSessionId,
+          branchId: requiredBranchId,
+          name: validatedName,
+        })
       }),
   )
 
@@ -257,8 +258,11 @@ function registerSessionBranchHandlers() {
         const validatedSessionId = yield* validateSessionId(sessionId)
         const validatedBranchId = yield* validateOptionalSessionBranchId(branchId)
         const requiredBranchId = yield* requireBranchId(validatedBranchId)
-        const repo = yield* SessionRepository
-        return yield* repo.archiveBranch(validatedSessionId, requiredBranchId)
+        yield* mutateLocalUiSession({
+          operation: 'archive-branch',
+          sessionId: validatedSessionId,
+          branchId: requiredBranchId,
+        })
       }),
   )
 
@@ -269,8 +273,11 @@ function registerSessionBranchHandlers() {
         const validatedSessionId = yield* validateSessionId(sessionId)
         const validatedBranchId = yield* validateOptionalSessionBranchId(branchId)
         const requiredBranchId = yield* requireBranchId(validatedBranchId)
-        const repo = yield* SessionRepository
-        return yield* repo.restoreBranch(validatedSessionId, requiredBranchId)
+        yield* mutateLocalUiSession({
+          operation: 'restore-branch',
+          sessionId: validatedSessionId,
+          branchId: requiredBranchId,
+        })
       }),
   )
 
@@ -280,8 +287,11 @@ function registerSessionBranchHandlers() {
       Effect.gen(function* () {
         const validatedSessionId = yield* validateSessionId(sessionId)
         const validatedPatch = yield* validateTreeUiStatePatch(patch)
-        const repo = yield* SessionRepository
-        return yield* repo.updateTreeUiState(validatedSessionId, validatedPatch)
+        yield* mutateLocalUiSession({
+          operation: 'update-tree-ui-state',
+          sessionId: validatedSessionId,
+          patch: validatedPatch,
+        })
       }),
   )
 }

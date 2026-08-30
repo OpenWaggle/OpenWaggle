@@ -1,0 +1,122 @@
+import { describe, expect, it } from 'vitest'
+import {
+  decodeLocalSessionClientFrame,
+  decodeLocalSessionClientHello,
+  decodeLocalSessionCommandPayload,
+} from '../../../shared/schemas/local-session-protocol'
+import { negotiateLocalSessionProtocol } from '../local-session-negotiation'
+
+describe('Local Session protocol negotiation', () => {
+  it('selects the highest mutually supported current-or-previous revision', () => {
+    const hello = decodeLocalSessionClientHello({
+      protocol: 'openwaggle-local-session',
+      supportedRevisions: [3, 2, 1],
+      clientKind: 'cli',
+      clientVersion: '0.4.0-alpha.1',
+    })
+
+    expect(negotiateLocalSessionProtocol(hello, 'host-current')).toMatchObject({
+      accepted: true,
+      revision: 2,
+      hostInstanceId: 'host-current',
+    })
+  })
+
+  it('requests an authenticated safe handoff from an incompatible newer client', () => {
+    expect(
+      negotiateLocalSessionProtocol(
+        {
+          protocol: 'openwaggle-local-session',
+          supportedRevisions: [4, 3],
+          clientKind: 'gui',
+          clientVersion: 'future',
+        },
+        'host-current',
+        {
+          blockingRuns: [{ sessionId: 'session-live', runId: 'run-live' }],
+          blockingOperations: [
+            { operationId: 'operation-live', operation: 'export', targetScope: 'session-live' },
+          ],
+        },
+      ),
+    ).toMatchObject({
+      accepted: false,
+      code: 'host_upgrade_pending',
+      hostInstanceId: 'host-current',
+      blockingRuns: [{ sessionId: 'session-live', runId: 'run-live' }],
+      blockingOperations: [{ operationId: 'operation-live' }],
+    })
+  })
+
+  it('rejects an incompatible older client and undeclared negotiation fields explicitly', () => {
+    expect(
+      negotiateLocalSessionProtocol(
+        {
+          protocol: 'openwaggle-local-session',
+          supportedRevisions: [0],
+          clientKind: 'gui',
+          clientVersion: 'legacy',
+        },
+        'host-current',
+      ),
+    ).toMatchObject({ accepted: false, code: 'incompatible_protocol' })
+    expect(() =>
+      decodeLocalSessionClientHello({
+        protocol: 'openwaggle-local-session',
+        supportedRevisions: [2],
+        clientKind: 'cli',
+        clientVersion: 'current',
+        undeclared: true,
+      }),
+    ).toThrow()
+  })
+
+  it('decodes command and subscription frames exactly after negotiation', () => {
+    expect(
+      decodeLocalSessionClientFrame({
+        kind: 'subscribe',
+        requestId: 'request-subscribe',
+        after: { hostInstanceId: 'host-current', sequence: 12 },
+      }),
+    ).toMatchObject({ kind: 'subscribe', requestId: 'request-subscribe' })
+    expect(() =>
+      decodeLocalSessionClientFrame({
+        kind: 'command',
+        requestId: 'request-command',
+        payload: { operation: 'status' },
+        undeclared: true,
+      }),
+    ).toThrow()
+    expect(
+      decodeLocalSessionCommandPayload({
+        contract: 'session-control-v2',
+        request: {
+          contractVersion: 2,
+          requestId: 'request-message',
+          idempotencyKey: 'idempotency-message',
+          command: {
+            operation: 'message',
+            sessionId: 'session-target',
+            input: { text: 'Continue.', attachmentIds: [] },
+          },
+        },
+      }),
+    ).toMatchObject({ contract: 'session-control-v2' })
+    expect(() =>
+      decodeLocalSessionCommandPayload({
+        contract: 'session-control-v2',
+        request: {
+          contractVersion: 2,
+          requestId: 'request-message',
+          idempotencyKey: 'idempotency-message',
+          command: {
+            operation: 'message',
+            sessionId: 'session-target',
+            input: { text: 'Continue.', attachmentIds: [] },
+          },
+        },
+        bypassAuthorization: true,
+      }),
+    ).toThrow()
+  })
+})

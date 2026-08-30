@@ -12,3 +12,11 @@ export const SETTINGS_KEY_DEFAULT_AUTHORIZATION_MODE = 'defaultAuthorizationMode
 export const SETTINGS_KEY_DIFF_SYNTAX_THEME = 'diffSyntaxTheme'
 export const SETTINGS_KEY_DIFF_VIEW = 'diffView'
 export const SETTINGS_KEY_DIFF_WRAP_LINES = 'diffWrapLines'
+export const SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMIT =
+  'sessionHostParentConcurrencyLimit'
+export const SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMITS_BY_PROJECT =
+  'sessionHostParentConcurrencyLimitsByProject'
+export const SETTINGS_KEY_SESSION_HOST_RUN_CEILING = 'sessionHostRunCeiling'
+export const SETTINGS_KEY_SESSION_HOST_IDLE_GRACE_PERIOD_MS = 'sessionHostIdleGracePeriodMs'
+export const SETTINGS_KEY_MULTI_AGENT_ENABLED = 'multiAgentEnabled'
+export const SETTINGS_KEY_MULTI_AGENT_ENABLED_BY_PROJECT = 'multiAgentEnabledByProject'

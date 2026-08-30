@@ -3,7 +3,6 @@ import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useMessageQueueStore } from '@/features/chat/state'
 import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-store'
 import { useComposerStore } from '@/features/composer/state'
 import { useProviderStore } from '@/features/providers/state'
@@ -55,7 +54,6 @@ describe('ChatPanel', () => {
   beforeEach(() => {
     useBranchSummaryStore.setState(useBranchSummaryStore.getInitialState())
     useComposerStore.setState(useComposerStore.getInitialState())
-    useMessageQueueStore.setState({ queues: new Map() })
     usePreferencesStore.setState({
       ...usePreferencesStore.getInitialState(),
       settings: {
@@ -179,7 +177,6 @@ describe('ChatPanel', () => {
     expect(onSendWithWaggle).toHaveBeenCalledWith(
       expect.objectContaining({ text: 'focus on decisions' }),
     )
-    expect(useMessageQueueStore.getState().queues.get(SessionId('session-1'))).toBeUndefined()
   })
 
   it('renders the composer input area', () => {
