@@ -1,8 +1,10 @@
 export const LOCAL_SESSION_PROTOCOL_NAME = 'openwaggle-local-session' as const
 export { SESSION_WAGGLE_CONTRACT_VERSION } from './local-session-waggle'
-export const LOCAL_SESSION_CURRENT_REVISION = 4 as const
+export const LOCAL_SESSION_CURRENT_REVISION = 5 as const
+export const LOCAL_SESSION_HOST_UI_REVISION = 5 as const
+export const LOCAL_SESSION_COMPACTION_REVISION = 4 as const
 export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
-export const LOCAL_SESSION_SUPPORTED_REVISIONS = [4, 3, 2] as const
+export const LOCAL_SESSION_SUPPORTED_REVISIONS = [5, 4, 3, 2] as const
 
 export const LOCAL_SESSION_REVISION_2_CAPABILITIES = [
   'events:subscribe',
@@ -20,9 +22,14 @@ export const LOCAL_SESSION_REVISION_3_CAPABILITIES = [
   'waggle:cancel-v1',
 ] as const
 
-export const LOCAL_SESSION_CAPABILITIES = [
+export const LOCAL_SESSION_REVISION_4_CAPABILITIES = [
   ...LOCAL_SESSION_REVISION_3_CAPABILITIES,
   'ui:compact-v1',
+] as const
+
+export const LOCAL_SESSION_CAPABILITIES = [
+  ...LOCAL_SESSION_REVISION_4_CAPABILITIES,
+  'host-ui:invoke-v1',
 ] as const
 
 export interface LocalSessionClientHello {
@@ -117,6 +124,10 @@ export type LocalSessionCommandPayload =
       readonly contract: 'session-query-v2'
       readonly request: SessionQueryRequest
     }
+  | {
+      readonly contract: 'host-ui-v1'
+      readonly request: HostUiV1Request
+    }
   | LocalSessionCompactionCommandPayload
   | LocalSessionWaggleCommandPayload
 
@@ -162,6 +173,10 @@ export type LocalSessionCommandResult =
   | {
       readonly contract: 'session-query-v2'
       readonly response: SessionQueryResponse
+    }
+  | {
+      readonly contract: 'host-ui-v1'
+      readonly response: HostUiV1Result
     }
   | LocalSessionCompactionCommandResult
   | LocalSessionWaggleCommandResult
@@ -230,28 +245,22 @@ export type LocalSessionServerFrame =
       readonly subscriptionId: string
     }
 
+export interface AcceptedLocalSessionNegotiation<Revision extends number, Capabilities> {
+  readonly accepted: true
+  readonly protocol: typeof LOCAL_SESSION_PROTOCOL_NAME
+  readonly revision: Revision
+  readonly hostInstanceId: string
+  readonly capabilities: Capabilities
+}
+
 export type LocalSessionNegotiationResult =
-  | {
-      readonly accepted: true
-      readonly protocol: typeof LOCAL_SESSION_PROTOCOL_NAME
-      readonly revision: typeof LOCAL_SESSION_CURRENT_REVISION
-      readonly hostInstanceId: string
-      readonly capabilities: typeof LOCAL_SESSION_CAPABILITIES
-    }
-  | {
-      readonly accepted: true
-      readonly protocol: typeof LOCAL_SESSION_PROTOCOL_NAME
-      readonly revision: 3
-      readonly hostInstanceId: string
-      readonly capabilities: typeof LOCAL_SESSION_REVISION_3_CAPABILITIES
-    }
-  | {
-      readonly accepted: true
-      readonly protocol: typeof LOCAL_SESSION_PROTOCOL_NAME
-      readonly revision: 2
-      readonly hostInstanceId: string
-      readonly capabilities: typeof LOCAL_SESSION_REVISION_2_CAPABILITIES
-    }
+  | AcceptedLocalSessionNegotiation<
+      typeof LOCAL_SESSION_CURRENT_REVISION,
+      typeof LOCAL_SESSION_CAPABILITIES
+    >
+  | AcceptedLocalSessionNegotiation<4, typeof LOCAL_SESSION_REVISION_4_CAPABILITIES>
+  | AcceptedLocalSessionNegotiation<3, typeof LOCAL_SESSION_REVISION_3_CAPABILITIES>
+  | AcceptedLocalSessionNegotiation<2, typeof LOCAL_SESSION_REVISION_2_CAPABILITIES>
   | {
       readonly accepted: false
       readonly protocol: typeof LOCAL_SESSION_PROTOCOL_NAME
@@ -277,6 +286,7 @@ export type LocalSessionNegotiationResult =
 
 import type { AttachmentOrigin, PreparedAttachment } from './agent'
 import type { BackgroundRunSnapshot } from './background-run'
+import type { HostUiV1Request, HostUiV1Result } from './host-ui-protocol'
 import type {
   LocalSessionCompactionCommandPayload,
   LocalSessionCompactionCommandResult,

@@ -66,7 +66,8 @@ function requiredCapabilities(payload: LocalSessionCommandPayload) {
     payload.contract === 'local-ui-v1' ||
     payload.contract === 'local-attachments-v1' ||
     payload.contract === 'local-compaction-v1' ||
-    payload.contract === 'local-compaction-cancel-v1'
+    payload.contract === 'local-compaction-cancel-v1' ||
+    payload.contract === 'host-ui-v1'
   ) {
     throw new Error('Local GUI contracts are not available through the Sessions MCP adapter.')
   }

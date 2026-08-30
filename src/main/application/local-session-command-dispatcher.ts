@@ -227,6 +227,9 @@ export function dispatchLocalSessionCommand(input: {
     if (commandPayload.contract === 'local-ui-v1') {
       return yield* executeLocalUiSessionCommand({ caller, payload: commandPayload })
     }
+    if (commandPayload.contract === 'host-ui-v1') {
+      return yield* Effect.fail(new Error('The Host UI request dispatcher is not installed.'))
+    }
     const canonicalPayload = yield* canonicalizeNamedProfileProjectPayload(caller, commandPayload)
     yield* authorizeLocalSessionCommand({ caller, payload: canonicalPayload })
     const scopedPayload = yield* scopeNamedProfileExport(caller, canonicalPayload)
@@ -278,6 +281,9 @@ export function dispatchLocalSessionCommand(input: {
         operation: 'command',
         sessionId: payload.request.command.sessionId,
       })
+    }
+    if (payload.contract === 'host-ui-v1') {
+      return yield* Effect.fail(new Error('The Host UI request dispatcher is not installed.'))
     }
     const callerCapabilities = yield* lifecycleCallerCapabilities(caller, payload)
     const response = yield* executeSessionLifecycleCommand({

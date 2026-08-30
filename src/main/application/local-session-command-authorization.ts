@@ -32,6 +32,7 @@ type AuthorizedLocalSessionCommandPayload = Exclude<
       | 'local-compaction-cancel-v1'
       | 'session-waggle-v1'
       | 'session-waggle-cancel-v1'
+      | 'host-ui-v1'
   }
 >
 
@@ -268,6 +269,7 @@ export function authorizeLocalSessionCommand(input: {
     const payload = input.payload
     if (
       payload.contract === 'local-ui-v1' ||
+      payload.contract === 'host-ui-v1' ||
       payload.contract === 'local-attachments-v1' ||
       payload.contract === 'local-compaction-v1' ||
       payload.contract === 'local-compaction-cancel-v1' ||

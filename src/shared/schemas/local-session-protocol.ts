@@ -2,11 +2,13 @@ import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
 import {
   LOCAL_SESSION_PROTOCOL_NAME,
   LOCAL_SESSION_SUPPORTED_REVISIONS,
+  LOCAL_SESSION_WAGGLE_REVISION,
   type LocalSessionClientFrame,
   type LocalSessionClientHello,
   type LocalSessionCommandPayload,
   SESSION_WAGGLE_CONTRACT_VERSION,
 } from '@shared/types/local-session-protocol'
+import { hostUiV1RequestSchema } from './host-ui-protocol'
 import { localSessionNegotiationResultSchema } from './local-session-negotiation'
 import { localSessionProfileAuthoritySchema } from './local-session-profile'
 import { localSessionProfileManagementRequestSchema } from './local-session-profile-management'
@@ -143,6 +145,10 @@ export const localSessionCommandPayloadSchema: Schema.Schema<LocalSessionCommand
       request: sessionQueryRequestSchema,
     }),
     Schema.Struct({
+      contract: Schema.Literal('host-ui-v1'),
+      request: hostUiV1RequestSchema,
+    }),
+    Schema.Struct({
       contract: Schema.Literal('local-compaction-v1'),
       request: Schema.Struct({
         requestId: Schema.String,
@@ -194,17 +200,17 @@ export function decodeLocalSessionCommandPayload(value: unknown) {
 
 export function decodeLocalSessionCommandPayloadForRevision(value: unknown, revision: number) {
   const payload = decodeLocalSessionCommandPayload(value)
-  if (
-    (payload.contract === 'session-waggle-v1' ||
-      payload.contract === 'session-waggle-cancel-v1' ||
-      payload.contract === 'local-compaction-v1' ||
-      payload.contract === 'local-compaction-cancel-v1') &&
-    revision <
-      (payload.contract.startsWith('local-compaction') ? currentRevision : previousRevision)
-  ) {
-    const requiredRevision = payload.contract.startsWith('local-compaction')
+  const requiredRevision =
+    payload.contract === 'host-ui-v1'
       ? currentRevision
-      : previousRevision
+      : payload.contract === 'local-compaction-v1' ||
+          payload.contract === 'local-compaction-cancel-v1'
+        ? previousRevision
+        : payload.contract === 'session-waggle-v1' ||
+            payload.contract === 'session-waggle-cancel-v1'
+          ? LOCAL_SESSION_WAGGLE_REVISION
+          : undefined
+  if (requiredRevision !== undefined && revision < requiredRevision) {
     throw new Error(`This command requires Local Session protocol revision ${requiredRevision}.`)
   }
   return payload

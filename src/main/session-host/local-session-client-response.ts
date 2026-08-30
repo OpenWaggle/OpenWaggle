@@ -1,4 +1,5 @@
 import { match } from '@diegogbrisa/ts-match'
+import { decodeHostUiV1Result } from '@shared/schemas/host-ui-protocol'
 import { decodeLocalSessionProfileManagementResponse } from '@shared/schemas/local-session-profile-management'
 import { decodeSessionControlMutationResponse } from '@shared/schemas/session-control'
 import { decodeSessionLifecycleResponse } from '@shared/schemas/session-lifecycle'
@@ -173,6 +174,10 @@ function decodeCommandPayload(payload: Record<string, unknown>): LocalSessionCom
       if (!isSessionQueryResponse(payload.response)) throw new Error('Invalid query response.')
       return { contract: 'session-query-v2' as const, response: payload.response }
     })
+    .with('host-ui-v1', () => ({
+      contract: 'host-ui-v1' as const,
+      response: decodeHostUiV1Result(payload.response),
+    }))
     .with('session-waggle-v1', () => {
       if (!isSessionWaggleResponse(payload.response)) throw new Error('Invalid Waggle response.')
       return { contract: 'session-waggle-v1' as const, response: payload.response }

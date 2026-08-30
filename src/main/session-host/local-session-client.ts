@@ -5,7 +5,8 @@ import type {
   LocalSessionCommandResult,
 } from '@shared/types/local-session-protocol'
 import {
-  LOCAL_SESSION_CURRENT_REVISION,
+  LOCAL_SESSION_COMPACTION_REVISION,
+  LOCAL_SESSION_HOST_UI_REVISION,
   LOCAL_SESSION_SUPPORTED_REVISIONS,
   LOCAL_SESSION_WAGGLE_REVISION,
 } from '@shared/types/local-session-protocol'
@@ -33,8 +34,9 @@ function minimumProtocolRevision(payload: LocalSessionCommandPayload) {
     payload.contract === 'local-compaction-v1' ||
     payload.contract === 'local-compaction-cancel-v1'
   ) {
-    return LOCAL_SESSION_CURRENT_REVISION
+    return LOCAL_SESSION_COMPACTION_REVISION
   }
+  if (payload.contract === 'host-ui-v1') return LOCAL_SESSION_HOST_UI_REVISION
   if (payload.contract === 'session-waggle-v1' || payload.contract === 'session-waggle-cancel-v1') {
     return LOCAL_SESSION_WAGGLE_REVISION
   }
@@ -42,6 +44,9 @@ function minimumProtocolRevision(payload: LocalSessionCommandPayload) {
 }
 
 function unsupportedRevisionMessage(payload: LocalSessionCommandPayload) {
+  if (payload.contract === 'host-ui-v1') {
+    return 'The connected Session Host does not support Host UI requests.'
+  }
   return payload.contract === 'local-compaction-v1' ||
     payload.contract === 'local-compaction-cancel-v1'
     ? 'The connected Session Host does not support manual compaction.'

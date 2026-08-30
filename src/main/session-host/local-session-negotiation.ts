@@ -1,9 +1,11 @@
 import {
   LOCAL_SESSION_CAPABILITIES,
+  LOCAL_SESSION_COMPACTION_REVISION,
   LOCAL_SESSION_CURRENT_REVISION,
   LOCAL_SESSION_PROTOCOL_NAME,
   LOCAL_SESSION_REVISION_2_CAPABILITIES,
   LOCAL_SESSION_REVISION_3_CAPABILITIES,
+  LOCAL_SESSION_REVISION_4_CAPABILITIES,
   LOCAL_SESSION_SUPPORTED_REVISIONS,
   LOCAL_SESSION_WAGGLE_REVISION,
   type LocalSessionClientHello,
@@ -51,6 +53,15 @@ export function negotiateLocalSessionProtocol(
       revision,
       hostInstanceId,
       capabilities: LOCAL_SESSION_CAPABILITIES,
+    }
+  }
+  if (revision === LOCAL_SESSION_COMPACTION_REVISION) {
+    return {
+      accepted: true,
+      protocol: LOCAL_SESSION_PROTOCOL_NAME,
+      revision,
+      hostInstanceId,
+      capabilities: LOCAL_SESSION_REVISION_4_CAPABILITIES,
     }
   }
   if (revision === LOCAL_SESSION_WAGGLE_REVISION) {

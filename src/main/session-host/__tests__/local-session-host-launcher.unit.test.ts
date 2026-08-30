@@ -24,7 +24,7 @@ const paths = {
 const accepted = {
   accepted: true as const,
   protocol: LOCAL_SESSION_PROTOCOL_NAME,
-  revision: 4 as const,
+  revision: 5 as const,
   hostInstanceId: 'host-current',
   capabilities: LOCAL_SESSION_CAPABILITIES,
 }
