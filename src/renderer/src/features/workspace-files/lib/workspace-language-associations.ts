@@ -25,20 +25,21 @@ function stringRecord(value: unknown) {
   )
 }
 
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 function readAssociations(
   storage: Storage,
   projectIdentity: string,
 ): WorkspaceLanguageAssociations {
   try {
     const parsed: unknown = JSON.parse(storage.getItem(storageKey(projectIdentity)) ?? '{}')
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-      return EMPTY_ASSOCIATIONS
-    }
-    const record = parsed as Readonly<Record<string, unknown>>
+    if (!isRecord(parsed)) return EMPTY_ASSOCIATIONS
     return {
-      exact: stringRecord(record.exact),
-      extensions: stringRecord(record.extensions),
-      fileNames: stringRecord(record.fileNames),
+      exact: stringRecord(parsed.exact),
+      extensions: stringRecord(parsed.extensions),
+      fileNames: stringRecord(parsed.fileNames),
     }
   } catch {
     return EMPTY_ASSOCIATIONS

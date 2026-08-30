@@ -1,12 +1,23 @@
+import { fromPartial } from '@total-typescript/shoehorn'
+import type { WebContents } from 'electron'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const watcherMocks = vi.hoisted(() => ({
-  instances: [] as Array<{
-    close: ReturnType<typeof vi.fn>
-    emitReady: () => void
-  }>,
-  watch: vi.fn(),
-}))
+interface WatcherMockInstance {
+  close: ReturnType<typeof vi.fn>
+  emitReady: () => void
+}
+
+interface WatcherMocks {
+  instances: WatcherMockInstance[]
+  watch: ReturnType<typeof vi.fn>
+}
+
+const watcherMocks = vi.hoisted(
+  (): WatcherMocks => ({
+    instances: [],
+    watch: vi.fn(),
+  }),
+)
 
 watcherMocks.watch.mockImplementation(() => {
   const listeners = new Map<string, Array<(...args: unknown[]) => void>>()
@@ -44,13 +55,13 @@ vi.mock('../filesystem-workspace-file-service', () => ({
 
 import { unwatchWorkspaceFiles, watchWorkspaceFiles } from '../workspace-file-watcher'
 
-function webContents(id: number) {
-  return {
+function webContents(id: number): WebContents {
+  return fromPartial<WebContents>({
     id,
     isDestroyed: () => false,
     once: vi.fn(),
     send: vi.fn(),
-  }
+  })
 }
 
 describe('workspace watcher lifecycle', () => {
@@ -63,8 +74,8 @@ describe('workspace watcher lifecycle', () => {
     const root = '/project/pending'
     const firstSubscriber = webContents(1)
     const secondSubscriber = webContents(2)
-    const first = watchWorkspaceFiles(root, firstSubscriber as never)
-    const second = watchWorkspaceFiles(root, secondSubscriber as never)
+    const first = watchWorkspaceFiles(root, firstSubscriber)
+    const second = watchWorkspaceFiles(root, secondSubscriber)
 
     expect(watcherMocks.watch).toHaveBeenCalledTimes(1)
     const watcher = watcherMocks.instances[0]
@@ -82,8 +93,8 @@ describe('workspace watcher lifecycle', () => {
     const root = '/project/ready'
     const firstSubscriber = webContents(3)
     const secondSubscriber = webContents(4)
-    const first = watchWorkspaceFiles(root, firstSubscriber as never)
-    const second = watchWorkspaceFiles(root, secondSubscriber as never)
+    const first = watchWorkspaceFiles(root, firstSubscriber)
+    const second = watchWorkspaceFiles(root, secondSubscriber)
     const watcher = watcherMocks.instances[0]
     if (!watcher) throw new Error('Expected a watcher.')
     watcher.emitReady()

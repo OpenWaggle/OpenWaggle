@@ -1,6 +1,5 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import type { Readable } from 'node:stream'
 import type { SyntaxImportFormat, SyntaxResourceScope } from '@shared/types/syntax-resources'
 import JSZip from 'jszip'
 import { normalizedLanguage } from './syntax-language-normalization'
@@ -39,14 +38,25 @@ interface ArchiveExpansionBudget {
   expandedBytes: number
 }
 
+function canDestroyStream(
+  stream: NodeJS.ReadableStream,
+): stream is NodeJS.ReadableStream & { destroy: (error?: Error) => void } {
+  return 'destroy' in stream && typeof stream.destroy === 'function'
+}
+
 function readBoundedArchiveText(entry: JSZip.JSZipObject, budget: ArchiveExpansionBudget) {
   return new Promise<string>((resolve, reject) => {
     const chunks: Buffer[] = []
-    const stream = entry.nodeStream('nodebuffer') as Readable
+    const stream = entry.nodeStream('nodebuffer')
     stream.on('data', (chunk: Buffer) => {
       budget.expandedBytes += chunk.byteLength
       if (budget.expandedBytes > ARCHIVE_EXPANDED_LIMIT_BYTES) {
-        stream.destroy(new Error('Expanded syntax archive exceeds the size limit.'))
+        const error = new Error('Expanded syntax archive exceeds the size limit.')
+        if (canDestroyStream(stream)) stream.destroy(error)
+        else {
+          stream.pause()
+          reject(error)
+        }
         return
       }
       chunks.push(chunk)

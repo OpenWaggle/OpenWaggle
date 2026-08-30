@@ -43,6 +43,12 @@ interface SplitScanState {
   lastSplitIdx: number
 }
 
+interface FenceRun {
+  readonly character: '`' | '~'
+  readonly length: number
+  readonly trailing: string
+}
+
 const INITIAL_SPLIT_STATE: SplitScanState = {
   scannedText: '',
   processedLength: 0,
@@ -54,12 +60,14 @@ function preservedSplit(state: SplitScanState, text: string) {
   return state.lastSplitIdx > 0 && state.lastSplitIdx <= text.length ? state.lastSplitIdx : -1
 }
 
-function fenceRun(line: string) {
+function fenceRun(line: string): FenceRun | null {
   const match = /^ {0,3}(`{3,}|~{3,})(.*)$/u.exec(line)
   if (!match?.[1]) return null
   const delimiter = match[1]
+  const character = delimiter[0]
+  if (character !== '`' && character !== '~') return null
   return {
-    character: delimiter[0] as '`' | '~',
+    character,
     length: delimiter.length,
     trailing: match[FENCE_TRAILING_GROUP] ?? '',
   }
