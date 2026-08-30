@@ -215,4 +215,36 @@ describe('session authorization-mode migration', () => {
     expect(tables.map((table) => table.name)).toContain('pinned_sessions')
     expect(APP_MIGRATIONS.find((migration) => migration.id === 24)?.name).toBe('pinned-sessions')
   })
+
+  it('adds the session resource catalog at migration 27 and keeps it session-owned', async () => {
+    const result = await withDatabase((sql) =>
+      Effect.gen(function* () {
+        yield* applyMigrations(sql, 27)
+        yield* insertSession(sql, 'resource-session')
+        yield* sql`
+          INSERT INTO session_resources (
+            id, session_id, canonical_key, kind, title, available, created_at, updated_at
+          ) VALUES (
+            'resource-1', 'resource-session', 'sha256:image', 'image', 'image.png', 1, 1, 1
+          )
+        `
+        yield* sql`
+          INSERT INTO session_resource_occurrences (
+            id, resource_id, actor, activity, created_at
+          ) VALUES ('occurrence-1', 'resource-1', 'user', 'provided', 1)
+        `
+        yield* sql`DELETE FROM sessions WHERE id = 'resource-session'`
+        const resources = yield* sql<{ readonly id: string }>`SELECT id FROM session_resources`
+        const occurrences = yield* sql<{ readonly id: string }>`
+          SELECT id FROM session_resource_occurrences
+        `
+        return { resources, occurrences }
+      }),
+    )
+
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 27)?.name).toBe(
+      'session-resource-catalog',
+    )
+    expect(result).toEqual({ resources: [], occurrences: [] })
+  })
 })

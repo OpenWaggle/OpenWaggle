@@ -1,5 +1,9 @@
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
-import type { GitRunStackedActionOptions, GitRunStackedActionResult } from '@shared/types/git'
+import type {
+  GitRunStackedActionOptions,
+  GitRunStackedActionResult,
+  OpenChangeRequestPayload,
+} from '@shared/types/git'
 import { GIT_STACKED_ACTIONS } from '@shared/types/git'
 import {
   type DefaultBranchActionDialogCopy,
@@ -16,6 +20,7 @@ import { typedHandle } from '../typed-ipc'
 import { listGitBranches } from './branch-list'
 import { createGitBranch } from './branch-mutations'
 import { commitGit } from './commit-handler'
+import { resolveDefaultRef } from './default-ref'
 import { pullCurrentBranch, pushCurrentBranch } from './push-service'
 import { projectPathSchema, runGit } from './shared'
 import { runStackedGitAction, type StackedActionDeps } from './stacked-action-service'
@@ -23,6 +28,7 @@ import { invalidateGitStatusCache } from './status-cache'
 import { GIT_RAW_PATHS } from './status-constants'
 import { invalidateVcsStatus, readLocalVcsStatus } from './vcs-status-cache'
 import { detectSourceControlProvider } from './vcs-status-parse'
+import { resolvePrimaryRemoteUrl } from './vcs-status-service'
 import { resolveRepositoryRoot } from './working-tree-service'
 
 const stackedActionOptionsSchema = Schema.Struct({
@@ -37,9 +43,45 @@ const stackedActionOptionsSchema = Schema.Struct({
   paths: Schema.optional(Schema.Array(Schema.String)),
 })
 
-async function resolveProviderRemoteUrl(projectPath: string): Promise<string | null> {
-  const result = await runGit(projectPath, ['remote', 'get-url', 'origin'])
-  return result.code === 0 ? result.stdout.trim() || null : null
+function repositoryWebUrl(remoteUrl: string) {
+  const scp = /^(?:[^@]+@)?(?<host>[^:]+):(?<path>.+)$/u.exec(remoteUrl)
+  if (scp?.groups?.host && scp.groups.path) {
+    return `https://${scp.groups.host}/${scp.groups.path.replace(/\.git$/u, '')}`
+  }
+  try {
+    const url = new URL(remoteUrl)
+    const repositoryPath = url.pathname.replace(/^\/+|\.git$/gu, '')
+    return repositoryPath ? `https://${url.hostname}/${repositoryPath}` : null
+  } catch {
+    return null
+  }
+}
+
+async function buildChangeRequestFallbackUrl(
+  projectPath: string,
+  payload: OpenChangeRequestPayload,
+) {
+  const remoteUrl = await resolvePrimaryRemoteUrl(projectPath)
+  if (!remoteUrl) return null
+  const provider = detectSourceControlProvider(remoteUrl)
+  const webUrl = repositoryWebUrl(remoteUrl)
+  if (!provider || !webUrl) return null
+  if (provider.id === 'github') {
+    const url = new URL(
+      `${webUrl}/compare/${encodeURIComponent(payload.baseRef)}...${encodeURIComponent(payload.headRef)}`,
+    )
+    url.searchParams.set('expand', '1')
+    url.searchParams.set('title', payload.title)
+    if (payload.body) url.searchParams.set('body', payload.body)
+    return url.toString()
+  }
+  const url = new URL(`${webUrl}/-/merge_requests/new`)
+  url.searchParams.set('merge_request[source_branch]', payload.headRef)
+  url.searchParams.set('merge_request[target_branch]', payload.baseRef)
+  url.searchParams.set('merge_request[title]', payload.title)
+  if (payload.body) url.searchParams.set('merge_request[description]', payload.body)
+  if (payload.draft) url.searchParams.set('merge_request[draft]', 'true')
+  return url.toString()
 }
 
 function createStackedActionDeps(): StackedActionDeps {
@@ -57,7 +99,7 @@ function createStackedActionDeps(): StackedActionDeps {
       const list = await listGitBranches(projectPath)
       const names: string[] = []
       for (const branch of list.branches) {
-        if (!branch.isRemote) names.push(branch.name)
+        names.push(branch.isRemote ? branch.name.split('/').slice(1).join('/') : branch.name)
       }
       return names
     },
@@ -108,7 +150,7 @@ function createStackedActionDeps(): StackedActionDeps {
     pull: (projectPath) => pullCurrentBranch(projectPath),
     openChangeRequest: async (projectPath, payload) => {
       const provider = getSourceControlProvider(
-        detectSourceControlProvider(await resolveProviderRemoteUrl(projectPath))?.id,
+        detectSourceControlProvider(await resolvePrimaryRemoteUrl(projectPath))?.id,
       )
       if (!provider) {
         return { ok: false, code: 'unknown', message: 'No supported source control provider.' }
@@ -120,11 +162,9 @@ function createStackedActionDeps(): StackedActionDeps {
       return result.code === 0 ? result.stdout.trim() || null : null
     },
     resolveDefaultBaseRef: async (projectPath) => {
-      const result = await runGit(projectPath, ['rev-parse', '--abbrev-ref', 'origin/HEAD'])
-      if (result.code !== 0) return null
-      const ref = result.stdout.trim()
-      return ref ? ref.replace(/^origin\//, '') : null
+      return resolveDefaultRef(projectPath)
     },
+    buildChangeRequestFallbackUrl,
   }
 }
 
@@ -159,7 +199,10 @@ function confirmDefaultBranchAction(
      * `feature -> main`. Judging only the current ref waved that straight through, which is precisely the push
      * this gate exists to catch.
      */
-    if (!requiresDefaultBranchConfirmation(options.action, targetsDefaultRef(local.status))) {
+    if (
+      options.createFeatureBranch === true ||
+      !requiresDefaultBranchConfirmation(options.action, targetsDefaultRef(local.status))
+    ) {
       return true
     }
     const copy = resolveDefaultBranchActionDialogCopy({

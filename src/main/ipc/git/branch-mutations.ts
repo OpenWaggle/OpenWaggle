@@ -110,6 +110,17 @@ async function validateNewBranchName(projectPath: string, name: string) {
   ])
   if (existingResult.code === 0)
     return branchFailure('branch-exists', 'A branch with this name already exists.')
+  const remoteResult = await runGit(projectPath, [
+    'for-each-ref',
+    '--format=%(refname)',
+    'refs/remotes',
+  ])
+  if (
+    remoteResult.code === 0 &&
+    remoteResult.stdout.split('\n').some((ref) => ref.trim().endsWith(`/${name}`))
+  ) {
+    return branchFailure('branch-exists', 'A remote branch with this name already exists.')
+  }
   return null
 }
 

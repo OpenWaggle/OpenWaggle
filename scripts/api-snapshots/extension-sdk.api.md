@@ -645,8 +645,9 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly CUSTOM_MESSAGE_RENDERERS: 'customMessageRenderers';
         readonly INTERACTION_RENDERERS: 'interactionRenderers';
         readonly STATUS_WIDGETS: 'statusWidgets';
+        readonly SESSION_SUMMARY_SECTIONS: 'sessionSummarySections';
     };
-    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
     readonly COMMAND_CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands"];
     readonly CONTRIBUTION_RUNTIME: {
         readonly FEDERATED_MODULE: 'federated-module';
@@ -970,6 +971,27 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
         }>>>>;
+        sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+            target: Schema.optional<Schema.Struct<{
+                projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+            rows: Schema.Array$<Schema.Struct<{
+                id: Schema.filter<Schema.filter<typeof Schema.String>>;
+                label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+                resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                action: Schema.optional<Schema.Struct<{
+                    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                }>>;
+            }>>;
+        }>>>;
     }>>;
     pi: Schema.optional<Schema.Struct<{
         resourceRoots: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1079,6 +1101,43 @@ export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struc
         interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
     }>>;
 }>>;
+export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
+    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+    resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    action: Schema.optional<Schema.Struct<{
+        family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    }>>;
+}>;
+export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+    target: Schema.optional<Schema.Struct<{
+        projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    rows: Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+        resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        action: Schema.optional<Schema.Struct<{
+            family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+            contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        }>>;
+    }>>;
+}>;
 export declare const extensionContributionsSchema: Schema.Struct<{
     commands: Schema.optional<Schema.Array$<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -1275,6 +1334,27 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>>>;
+    sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>>>;
 }>;
 export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
@@ -1335,6 +1415,30 @@ export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<
         }>>;
     }>>;
 }>;
+export declare const extensionSessionSummaryContributionRegistrationSchema: Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
+}>;
 export declare const extensionContributionRegistrationSchema: Schema.Union<[Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
     contribution: Schema.Struct<{
@@ -1391,9 +1495,32 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
 }>]>;
 export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
 }>;
 export type ExtensionCapabilityDeclaration = SchemaType<typeof extensionCapabilityDeclarationSchema>;
@@ -1402,6 +1529,7 @@ export type ExtensionContributions = SchemaType<typeof extensionContributionsSch
 export type ExtensionContributionRegistration = SchemaType<typeof extensionContributionRegistrationSchema>;
 export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
 export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema>;
+export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
 ```
 
 ### Declarations from `dist/manifest-primitives.d.ts`
@@ -1424,7 +1552,7 @@ export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.
 export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
 export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
 export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
-export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
 export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
 export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
 ```
@@ -1880,6 +2008,21 @@ export interface ExtensionContributionRegistryEntry {
     readonly runtime?: ExtensionContributionRuntime;
     readonly execution?: ExtensionExecutionPlacement;
     readonly entryPath?: string;
+    readonly sessionSummary?: {
+        readonly placement: 'context' | 'coordination' | 'details';
+        readonly rows: readonly {
+            readonly id: string;
+            readonly label: string;
+            readonly value?: string;
+            readonly badge?: string;
+            readonly count?: number;
+            readonly resourceId?: string;
+            readonly action?: {
+                readonly family: 'commands' | 'sidePanels' | 'dialogs';
+                readonly contributionId: string;
+            };
+        }[];
+    };
 }
 ```
 
@@ -2458,7 +2601,7 @@ export declare const extensionRuntimeRegisterContributionResultSchema: Schema.St
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
     capability: Schema.Literal<["openwaggle.runtime"]>;
     method: Schema.Literal<["register-contribution"]>;
-    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
 }>;
 export declare const extensionRuntimeUnregisterContributionResultSchema: Schema.Struct<{
@@ -2466,7 +2609,7 @@ export declare const extensionRuntimeUnregisterContributionResultSchema: Schema.
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
     capability: Schema.Literal<["openwaggle.runtime"]>;
     method: Schema.Literal<["unregister-contribution"]>;
-    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
     unregistered: typeof Schema.Boolean;
 }>;
@@ -3120,8 +3263,9 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly CUSTOM_MESSAGE_RENDERERS: 'customMessageRenderers';
         readonly INTERACTION_RENDERERS: 'interactionRenderers';
         readonly STATUS_WIDGETS: 'statusWidgets';
+        readonly SESSION_SUMMARY_SECTIONS: 'sessionSummarySections';
     };
-    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
     readonly COMMAND_CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands"];
     readonly CONTRIBUTION_RUNTIME: {
         readonly FEDERATED_MODULE: 'federated-module';
@@ -3445,6 +3589,27 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
         }>>>>;
+        sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+            target: Schema.optional<Schema.Struct<{
+                projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+            rows: Schema.Array$<Schema.Struct<{
+                id: Schema.filter<Schema.filter<typeof Schema.String>>;
+                label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+                resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                action: Schema.optional<Schema.Struct<{
+                    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                }>>;
+            }>>;
+        }>>>;
     }>>;
     pi: Schema.optional<Schema.Struct<{
         resourceRoots: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3554,6 +3719,43 @@ export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struc
         interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
     }>>;
 }>>;
+export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
+    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+    resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    action: Schema.optional<Schema.Struct<{
+        family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    }>>;
+}>;
+export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+    target: Schema.optional<Schema.Struct<{
+        projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    rows: Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+        resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        action: Schema.optional<Schema.Struct<{
+            family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+            contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        }>>;
+    }>>;
+}>;
 export declare const extensionContributionsSchema: Schema.Struct<{
     commands: Schema.optional<Schema.Array$<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -3750,6 +3952,27 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>>>;
+    sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>>>;
 }>;
 export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
@@ -3810,6 +4033,30 @@ export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<
         }>>;
     }>>;
 }>;
+export declare const extensionSessionSummaryContributionRegistrationSchema: Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
+}>;
 export declare const extensionContributionRegistrationSchema: Schema.Union<[Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
     contribution: Schema.Struct<{
@@ -3866,9 +4113,32 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
 }>]>;
 export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
 }>;
 export type ExtensionCapabilityDeclaration = SchemaType<typeof extensionCapabilityDeclarationSchema>;
@@ -3877,6 +4147,7 @@ export type ExtensionContributions = SchemaType<typeof extensionContributionsSch
 export type ExtensionContributionRegistration = SchemaType<typeof extensionContributionRegistrationSchema>;
 export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
 export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema>;
+export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
 ```
 
 ### Declarations from `dist/manifest-primitives.d.ts`
@@ -3899,7 +4170,7 @@ export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.
 export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
 export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
 export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
-export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
 export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
 export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
 ```
@@ -4355,6 +4626,21 @@ export interface ExtensionContributionRegistryEntry {
     readonly runtime?: ExtensionContributionRuntime;
     readonly execution?: ExtensionExecutionPlacement;
     readonly entryPath?: string;
+    readonly sessionSummary?: {
+        readonly placement: 'context' | 'coordination' | 'details';
+        readonly rows: readonly {
+            readonly id: string;
+            readonly label: string;
+            readonly value?: string;
+            readonly badge?: string;
+            readonly count?: number;
+            readonly resourceId?: string;
+            readonly action?: {
+                readonly family: 'commands' | 'sidePanels' | 'dialogs';
+                readonly contributionId: string;
+            };
+        }[];
+    };
 }
 ```
 
@@ -4571,8 +4857,9 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly CUSTOM_MESSAGE_RENDERERS: 'customMessageRenderers';
         readonly INTERACTION_RENDERERS: 'interactionRenderers';
         readonly STATUS_WIDGETS: 'statusWidgets';
+        readonly SESSION_SUMMARY_SECTIONS: 'sessionSummarySections';
     };
-    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
     readonly COMMAND_CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands"];
     readonly CONTRIBUTION_RUNTIME: {
         readonly FEDERATED_MODULE: 'federated-module';
@@ -5180,8 +5467,9 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly CUSTOM_MESSAGE_RENDERERS: 'customMessageRenderers';
         readonly INTERACTION_RENDERERS: 'interactionRenderers';
         readonly STATUS_WIDGETS: 'statusWidgets';
+        readonly SESSION_SUMMARY_SECTIONS: 'sessionSummarySections';
     };
-    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
     readonly COMMAND_CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands"];
     readonly CONTRIBUTION_RUNTIME: {
         readonly FEDERATED_MODULE: 'federated-module';
@@ -5505,6 +5793,27 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
         }>>>>;
+        sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+            target: Schema.optional<Schema.Struct<{
+                projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+            rows: Schema.Array$<Schema.Struct<{
+                id: Schema.filter<Schema.filter<typeof Schema.String>>;
+                label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+                resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                action: Schema.optional<Schema.Struct<{
+                    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                }>>;
+            }>>;
+        }>>>;
     }>>;
     pi: Schema.optional<Schema.Struct<{
         resourceRoots: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5614,6 +5923,43 @@ export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struc
         interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
     }>>;
 }>>;
+export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
+    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+    resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    action: Schema.optional<Schema.Struct<{
+        family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    }>>;
+}>;
+export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+    target: Schema.optional<Schema.Struct<{
+        projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    rows: Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+        resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        action: Schema.optional<Schema.Struct<{
+            family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+            contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        }>>;
+    }>>;
+}>;
 export declare const extensionContributionsSchema: Schema.Struct<{
     commands: Schema.optional<Schema.Array$<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -5810,6 +6156,27 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>>>;
+    sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>>>;
 }>;
 export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
@@ -5870,6 +6237,30 @@ export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<
         }>>;
     }>>;
 }>;
+export declare const extensionSessionSummaryContributionRegistrationSchema: Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
+}>;
 export declare const extensionContributionRegistrationSchema: Schema.Union<[Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
     contribution: Schema.Struct<{
@@ -5926,9 +6317,32 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
 }>]>;
 export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
 }>;
 export type ExtensionCapabilityDeclaration = SchemaType<typeof extensionCapabilityDeclarationSchema>;
@@ -5937,6 +6351,7 @@ export type ExtensionContributions = SchemaType<typeof extensionContributionsSch
 export type ExtensionContributionRegistration = SchemaType<typeof extensionContributionRegistrationSchema>;
 export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
 export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema>;
+export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
 ```
 
 ### Declarations from `dist/manifest-primitives.d.ts`
@@ -5959,7 +6374,7 @@ export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.
 export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
 export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
 export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
-export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
 export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
 export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
 ```
@@ -6415,6 +6830,21 @@ export interface ExtensionContributionRegistryEntry {
     readonly runtime?: ExtensionContributionRuntime;
     readonly execution?: ExtensionExecutionPlacement;
     readonly entryPath?: string;
+    readonly sessionSummary?: {
+        readonly placement: 'context' | 'coordination' | 'details';
+        readonly rows: readonly {
+            readonly id: string;
+            readonly label: string;
+            readonly value?: string;
+            readonly badge?: string;
+            readonly count?: number;
+            readonly resourceId?: string;
+            readonly action?: {
+                readonly family: 'commands' | 'sidePanels' | 'dialogs';
+                readonly contributionId: string;
+            };
+        }[];
+    };
 }
 ```
 
@@ -7466,6 +7896,27 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
         }>>>>;
+        sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+            target: Schema.optional<Schema.Struct<{
+                projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+            rows: Schema.Array$<Schema.Struct<{
+                id: Schema.filter<Schema.filter<typeof Schema.String>>;
+                label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+                resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                action: Schema.optional<Schema.Struct<{
+                    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                }>>;
+            }>>;
+        }>>>;
     }>>;
     pi: Schema.optional<Schema.Struct<{
         resourceRoots: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7637,8 +8088,9 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly CUSTOM_MESSAGE_RENDERERS: 'customMessageRenderers';
         readonly INTERACTION_RENDERERS: 'interactionRenderers';
         readonly STATUS_WIDGETS: 'statusWidgets';
+        readonly SESSION_SUMMARY_SECTIONS: 'sessionSummarySections';
     };
-    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
     readonly COMMAND_CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands"];
     readonly CONTRIBUTION_RUNTIME: {
         readonly FEDERATED_MODULE: 'federated-module';
@@ -7763,6 +8215,43 @@ export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struc
         interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
     }>>;
 }>>;
+export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
+    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+    resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    action: Schema.optional<Schema.Struct<{
+        family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    }>>;
+}>;
+export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+    target: Schema.optional<Schema.Struct<{
+        projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    rows: Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+        resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        action: Schema.optional<Schema.Struct<{
+            family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+            contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        }>>;
+    }>>;
+}>;
 export declare const extensionContributionsSchema: Schema.Struct<{
     commands: Schema.optional<Schema.Array$<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -7959,6 +8448,27 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>>>;
+    sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>>>;
 }>;
 export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
@@ -8019,6 +8529,30 @@ export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<
         }>>;
     }>>;
 }>;
+export declare const extensionSessionSummaryContributionRegistrationSchema: Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
+}>;
 export declare const extensionContributionRegistrationSchema: Schema.Union<[Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
     contribution: Schema.Struct<{
@@ -8075,9 +8609,32 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
 }>]>;
 export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
 }>;
 export type ExtensionCapabilityDeclaration = SchemaType<typeof extensionCapabilityDeclarationSchema>;
@@ -8086,6 +8643,7 @@ export type ExtensionContributions = SchemaType<typeof extensionContributionsSch
 export type ExtensionContributionRegistration = SchemaType<typeof extensionContributionRegistrationSchema>;
 export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
 export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema>;
+export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
 ```
 
 ### Declarations from `dist/manifest-primitives.d.ts`
@@ -8108,7 +8666,7 @@ export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.
 export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
 export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
 export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
-export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
 export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
 export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
 ```
@@ -8130,7 +8688,7 @@ export declare const extensionRuntimeRegisterContributionResultSchema: Schema.St
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
     capability: Schema.Literal<["openwaggle.runtime"]>;
     method: Schema.Literal<["register-contribution"]>;
-    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     registeredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
 }>;
 export declare const extensionRuntimeUnregisterContributionResultSchema: Schema.Struct<{
@@ -8138,7 +8696,7 @@ export declare const extensionRuntimeUnregisterContributionResultSchema: Schema.
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
     capability: Schema.Literal<["openwaggle.runtime"]>;
     method: Schema.Literal<["unregister-contribution"]>;
-    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     unregisteredContributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
     unregistered: typeof Schema.Boolean;
 }>;
@@ -8421,6 +8979,27 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
         }>>>>;
+        sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+            target: Schema.optional<Schema.Struct<{
+                projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+            rows: Schema.Array$<Schema.Struct<{
+                id: Schema.filter<Schema.filter<typeof Schema.String>>;
+                label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+                resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                action: Schema.optional<Schema.Struct<{
+                    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                }>>;
+            }>>;
+        }>>>;
     }>>;
     pi: Schema.optional<Schema.Struct<{
         resourceRoots: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8592,8 +9171,9 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly CUSTOM_MESSAGE_RENDERERS: 'customMessageRenderers';
         readonly INTERACTION_RENDERERS: 'interactionRenderers';
         readonly STATUS_WIDGETS: 'statusWidgets';
+        readonly SESSION_SUMMARY_SECTIONS: 'sessionSummarySections';
     };
-    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
     readonly COMMAND_CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands"];
     readonly CONTRIBUTION_RUNTIME: {
         readonly FEDERATED_MODULE: 'federated-module';
@@ -8718,6 +9298,43 @@ export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struc
         interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
     }>>;
 }>>;
+export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
+    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+    resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    action: Schema.optional<Schema.Struct<{
+        family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    }>>;
+}>;
+export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+    target: Schema.optional<Schema.Struct<{
+        projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    rows: Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+        resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        action: Schema.optional<Schema.Struct<{
+            family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+            contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        }>>;
+    }>>;
+}>;
 export declare const extensionContributionsSchema: Schema.Struct<{
     commands: Schema.optional<Schema.Array$<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -8914,6 +9531,27 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>>>;
+    sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>>>;
 }>;
 export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
@@ -8974,6 +9612,30 @@ export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<
         }>>;
     }>>;
 }>;
+export declare const extensionSessionSummaryContributionRegistrationSchema: Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
+}>;
 export declare const extensionContributionRegistrationSchema: Schema.Union<[Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
     contribution: Schema.Struct<{
@@ -9030,9 +9692,32 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
 }>]>;
 export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
 }>;
 export type ExtensionCapabilityDeclaration = SchemaType<typeof extensionCapabilityDeclarationSchema>;
@@ -9041,6 +9726,7 @@ export type ExtensionContributions = SchemaType<typeof extensionContributionsSch
 export type ExtensionContributionRegistration = SchemaType<typeof extensionContributionRegistrationSchema>;
 export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
 export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema>;
+export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
 ```
 
 ### Declarations from `dist/manifest-primitives.d.ts`
@@ -9063,7 +9749,7 @@ export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.
 export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
 export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
 export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
-export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
 export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
 export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
 ```
@@ -9674,6 +10360,21 @@ export interface ExtensionContributionRegistryEntry {
     readonly runtime?: ExtensionContributionRuntime;
     readonly execution?: ExtensionExecutionPlacement;
     readonly entryPath?: string;
+    readonly sessionSummary?: {
+        readonly placement: 'context' | 'coordination' | 'details';
+        readonly rows: readonly {
+            readonly id: string;
+            readonly label: string;
+            readonly value?: string;
+            readonly badge?: string;
+            readonly count?: number;
+            readonly resourceId?: string;
+            readonly action?: {
+                readonly family: 'commands' | 'sidePanels' | 'dialogs';
+                readonly contributionId: string;
+            };
+        }[];
+    };
 }
 ```
 
@@ -10300,8 +11001,9 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly CUSTOM_MESSAGE_RENDERERS: 'customMessageRenderers';
         readonly INTERACTION_RENDERERS: 'interactionRenderers';
         readonly STATUS_WIDGETS: 'statusWidgets';
+        readonly SESSION_SUMMARY_SECTIONS: 'sessionSummarySections';
     };
-    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
     readonly COMMAND_CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands"];
     readonly CONTRIBUTION_RUNTIME: {
         readonly FEDERATED_MODULE: 'federated-module';
@@ -10625,6 +11327,27 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
         }>>>>;
+        sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+            target: Schema.optional<Schema.Struct<{
+                projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+            rows: Schema.Array$<Schema.Struct<{
+                id: Schema.filter<Schema.filter<typeof Schema.String>>;
+                label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+                resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                action: Schema.optional<Schema.Struct<{
+                    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                }>>;
+            }>>;
+        }>>>;
     }>>;
     pi: Schema.optional<Schema.Struct<{
         resourceRoots: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10734,6 +11457,43 @@ export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struc
         interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
     }>>;
 }>>;
+export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
+    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+    resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    action: Schema.optional<Schema.Struct<{
+        family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    }>>;
+}>;
+export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+    target: Schema.optional<Schema.Struct<{
+        projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    rows: Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+        resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        action: Schema.optional<Schema.Struct<{
+            family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+            contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        }>>;
+    }>>;
+}>;
 export declare const extensionContributionsSchema: Schema.Struct<{
     commands: Schema.optional<Schema.Array$<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -10930,6 +11690,27 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>>>;
+    sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>>>;
 }>;
 export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
@@ -10990,6 +11771,30 @@ export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<
         }>>;
     }>>;
 }>;
+export declare const extensionSessionSummaryContributionRegistrationSchema: Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
+}>;
 export declare const extensionContributionRegistrationSchema: Schema.Union<[Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
     contribution: Schema.Struct<{
@@ -11046,9 +11851,32 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
 }>]>;
 export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
 }>;
 export type ExtensionCapabilityDeclaration = SchemaType<typeof extensionCapabilityDeclarationSchema>;
@@ -11057,6 +11885,7 @@ export type ExtensionContributions = SchemaType<typeof extensionContributionsSch
 export type ExtensionContributionRegistration = SchemaType<typeof extensionContributionRegistrationSchema>;
 export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
 export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema>;
+export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
 ```
 
 ### Declarations from `dist/manifest-primitives.d.ts`
@@ -11079,7 +11908,7 @@ export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.
 export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
 export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
 export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
-export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
 export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
 export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
 ```
@@ -11535,6 +12364,21 @@ export interface ExtensionContributionRegistryEntry {
     readonly runtime?: ExtensionContributionRuntime;
     readonly execution?: ExtensionExecutionPlacement;
     readonly entryPath?: string;
+    readonly sessionSummary?: {
+        readonly placement: 'context' | 'coordination' | 'details';
+        readonly rows: readonly {
+            readonly id: string;
+            readonly label: string;
+            readonly value?: string;
+            readonly badge?: string;
+            readonly count?: number;
+            readonly resourceId?: string;
+            readonly action?: {
+                readonly family: 'commands' | 'sidePanels' | 'dialogs';
+                readonly contributionId: string;
+            };
+        }[];
+    };
 }
 ```
 

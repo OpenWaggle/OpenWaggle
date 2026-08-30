@@ -111,6 +111,23 @@ export function executeAgentRun(input: AgentRunInput) {
       piSessionFile: agentResult.piSessionFile,
     })
 
+    const existingNodeIds = new Set((existingTree?.nodes ?? []).map((node) => String(node.id)))
+    const persistedTree = yield* sessionRepo.getTree(input.sessionId)
+    const resourceNodes = (persistedTree?.nodes ?? [])
+      .filter((node) => !existingNodeIds.has(String(node.id)) && node.message !== undefined)
+      .sort((left, right) => left.createdOrder - right.createdOrder)
+    const resourceMessages = resourceNodes.flatMap((node) => (node.message ? [node.message] : []))
+    const resourceNodeIds = Object.fromEntries(
+      resourceNodes.flatMap((node) =>
+        node.message ? [[String(node.message.id), String(node.id)]] : [],
+      ),
+    )
+    const resourceBranchIds = Object.fromEntries(
+      resourceNodes.flatMap((node) =>
+        node.message ? [[String(node.message.id), node.branchId ?? null]] : [],
+      ),
+    )
+
     // WS6b: anchor this turn's checkpoint to the run's final assistant node so
     // the transcript can reveal its Turn diff (no-op when no checkpoint/anchor).
     const anchorNodeId = resolveLatestAssistantNodeId(sessionSnapshot.nodes)
@@ -129,6 +146,9 @@ export function executeAgentRun(input: AgentRunInput) {
       sessionId: input.sessionId,
       runId: input.runId,
       model: input.model,
+      resourceMessages,
+      resourceNodeIds,
+      resourceBranchIds,
     })
   }).pipe(
     Effect.catchAll(

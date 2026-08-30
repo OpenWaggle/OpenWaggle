@@ -80,6 +80,21 @@ Create the manifest first:
         "capability": "openwaggle.storage",
         "methods": ["get", "list"]
       }
+    ],
+    "sessionSummarySections": [
+      {
+        "id": "example.session-summary",
+        "title": "Example Session Status",
+        "placement": "details",
+        "rows": [
+          { "id": "status", "label": "Status", "value": "Ready" },
+          {
+            "id": "open-details",
+            "label": "Open details",
+            "action": { "family": "sidePanels", "contributionId": "example.panel" }
+          }
+        ]
+      }
     ]
   }
 }
@@ -138,6 +153,7 @@ An extension package can declare multiple contribution families:
 - `customMessageRenderers` for Pi custom message records.
 - `interactionRenderers` for Pi interaction requests such as `confirm`, `select`, `input`, `editor`, `notify`, and typed custom interactions.
 - `statusWidgets` for compact status surfaces.
+- `sessionSummarySections` for session-scoped information and actions in the floating Session Summary.
 - `commands` and `slashCommands` for slash command menu and composer-adjacent launchers.
 
 OpenWaggle owns the container: placement, chrome, sizing, docking, fallback behavior, and persistence rules. The extension owns the content mounted inside that container.
@@ -162,6 +178,7 @@ Choose the surface by the job the extension is doing, not by the framework used 
 - `customMessageRenderers` render Pi custom message records while preserving the Pi-native custom message type as the binding identity.
 - `interactionRenderers` collect feedback for pending Pi interactions such as `confirm`, `select`, `input`, `editor`, `notify`, or typed custom interactions, then return the typed response through the SDK.
 - `statusWidgets` are compact status surfaces for live progress, connection state, or extension-owned indicators.
+- `sessionSummarySections` augment the opened session's floating Summary with host-rendered declarative rows. They appear only after that session has transcript content and disappear with the Summary while the right sidebar is open. Rows can display a value, badge, count, or session resource, and can reference a separately declared command, dialog, or side panel from the same extension package. They must not display authorization controls, infer another session, or replace host-owned Environment, Hive, Outputs, or Sources sections.
 
 The same extension can contribute to multiple surfaces. Shared package state can coordinate those live surfaces, while the transcript remains the durable audit trail for agent-loop activity.
 

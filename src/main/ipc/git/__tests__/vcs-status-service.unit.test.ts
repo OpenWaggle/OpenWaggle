@@ -29,7 +29,9 @@ vi.mock('../shared', async (importOriginal) => ({
   runGit: runGitMock,
 }))
 
-const { getLocalVcsStatus, getRemoteVcsStatus } = await import('../vcs-status-service')
+const { getLocalVcsStatus, getRemoteVcsStatus, resolvePrimaryRemoteUrl } = await import(
+  '../vcs-status-service'
+)
 
 function gitResult(code: number, stdout = '', stderr = '') {
   return { code, stdout, stderr }
@@ -58,6 +60,18 @@ describe('vcs-status-service', () => {
     isGitRepositoryMock.mockReset()
     isGitRepositoryMock.mockResolvedValue(true)
     runGitMock.mockReset()
+  })
+
+  it('uses the first configured remote when origin does not exist', async () => {
+    routeGit({
+      'remote get-url origin': gitResult(2, '', 'No such remote'),
+      'remote get-url upstream': gitResult(0, 'git@gitlab.example.com:team/project.git\n'),
+      remote: gitResult(0, 'upstream\n'),
+    })
+
+    await expect(resolvePrimaryRemoteUrl('/repo')).resolves.toBe(
+      'git@gitlab.example.com:team/project.git',
+    )
   })
 
   describe('getLocalVcsStatus', () => {

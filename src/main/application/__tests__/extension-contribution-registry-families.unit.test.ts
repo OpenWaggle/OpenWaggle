@@ -119,6 +119,14 @@ describe('listExtensionContributionRegistryView contribution families', () => {
             entry: 'dist/status.js',
           },
         ],
+        sessionSummarySections: [
+          {
+            id: 'family.session-summary',
+            title: 'Session Summary Contribution',
+            placement: 'coordination',
+            rows: [{ id: 'workers', label: 'Workers', count: 3 }],
+          },
+        ],
       },
     })
 
@@ -135,7 +143,8 @@ describe('listExtensionContributionRegistryView contribution families', () => {
     const commandEntry = registry.entries.find((entry) => entry.family === 'commands')
     const routeEntry = registry.entries.find((entry) => entry.family === 'routes')
     const toolEntry = registry.entries.find((entry) => entry.family === 'toolRenderers')
-    if (!commandEntry || !routeEntry || !toolEntry) {
+    const summaryEntry = registry.entries.find((entry) => entry.family === 'sessionSummarySections')
+    if (!commandEntry || !routeEntry || !toolEntry || !summaryEntry) {
       throw new Error('Expected command, route, and tool contributions in the registry.')
     }
 
@@ -161,6 +170,13 @@ describe('listExtensionContributionRegistryView contribution families', () => {
       contributionId: 'family.tool',
       matches: {
         toolNames: ['sample.tool'],
+      },
+    })
+    expect(summaryEntry).toMatchObject({
+      contributionId: 'family.session-summary',
+      sessionSummary: {
+        placement: 'coordination',
+        rows: [{ id: 'workers', label: 'Workers', count: 3 }],
       },
     })
   })

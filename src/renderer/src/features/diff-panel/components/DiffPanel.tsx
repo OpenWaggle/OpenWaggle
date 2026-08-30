@@ -10,7 +10,7 @@ import {
   selectThreadDiffScopeSelection,
   useDiffScopeStore,
 } from '@/features/diff-panel/state/diff-scope-store'
-import { useCombinedVcsStatus, useStackedGitActions } from '@/features/git'
+import { CommitMessageDialog, useCombinedVcsStatus, useStackedGitActions } from '@/features/git'
 import { useUIStore } from '@/shell/ui-store'
 import { useBaseRefChoices } from '../hooks/useBaseRefChoices'
 import { type CommitPaths, useCommitPaths } from '../hooks/useCommitPaths'
@@ -18,7 +18,6 @@ import { useDisplayedDiff } from '../hooks/useDisplayedDiff'
 import { useReconcileTurnSelection } from '../hooks/useReconcileTurnSelection'
 import { useReviewKey } from '../hooks/useReviewKey'
 import { useSessionTurns } from '../hooks/useSessionTurns'
-import { CommitMessageDialog } from './CommitMessageDialog'
 import { DiffBottomBar } from './DiffBottomBar'
 import { DiffPanelHeader } from './DiffPanelHeader'
 import { DiffReviewBody } from './DiffReviewBody'

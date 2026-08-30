@@ -32,6 +32,10 @@ vi.mock('../../hooks/useMessageCollapse', () => ({
   useMessageCollapse: () => mockCollapse.current,
 }))
 
+vi.mock('@/features/session-summary', () => ({
+  SessionMessageImages: () => null,
+}))
+
 vi.mock('../StreamingText', () => ({
   StreamingText: ({ text }: { text: string }) => <div data-testid="streaming-text">{text}</div>,
 }))

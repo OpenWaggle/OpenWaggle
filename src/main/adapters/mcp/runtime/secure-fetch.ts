@@ -126,6 +126,7 @@ export async function validateMcpNetworkTarget(input: {
   readonly url: URL
   readonly allowedHosts: ReadonlySet<string>
   readonly allowInsecurePrivateNetwork: boolean
+  readonly allowLoopback?: boolean
   readonly websocket?: boolean
   readonly resolveHostname?: HostnameResolver
 }) {
@@ -143,7 +144,9 @@ export async function validateMcpNetworkTarget(input: {
   })
   if (addresses.length === 0)
     throw new Error(`MCP hostname did not resolve: ${input.url.hostname}.`)
-  const permitsPrivate = input.allowInsecurePrivateNetwork || isLoopbackHostname(input.url.hostname)
+  const permitsPrivate =
+    input.allowInsecurePrivateNetwork ||
+    (input.allowLoopback !== false && isLoopbackHostname(input.url.hostname))
   if (!permitsPrivate && addresses.some(({ address }) => isPrivateAddress(address))) {
     throw new Error(
       `MCP hostname resolves to a private or reserved address: ${input.url.hostname}.`,
@@ -231,6 +234,7 @@ export function createSecureMcpFetch(input: {
   readonly baseUrl: URL
   readonly allowedDomains?: readonly string[]
   readonly allowInsecurePrivateNetwork?: boolean
+  readonly allowLoopback?: boolean
   readonly fetchFn?: PinnedFetch
   readonly resolveHostname?: HostnameResolver
 }): SecureMcpFetch {
@@ -257,6 +261,7 @@ export function createSecureMcpFetch(input: {
           url,
           allowedHosts,
           allowInsecurePrivateNetwork: input.allowInsecurePrivateNetwork === true,
+          ...(input.allowLoopback !== undefined ? { allowLoopback: input.allowLoopback } : {}),
           ...(input.resolveHostname ? { resolveHostname: input.resolveHostname } : {}),
         })
         const response = await (input.fetchFn ?? pinnedFetch)(url, init, target)

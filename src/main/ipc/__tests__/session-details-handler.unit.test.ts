@@ -19,6 +19,7 @@ import {
   getSessionDetailMock,
   listSessionDetailsMock,
   loadSessionDetailsHandlers,
+  removeSessionResourcesMock,
   resetSessionDetailsHandlerMocks,
   setAuthorizationModeMock,
   typedHandleMock,
@@ -233,6 +234,17 @@ describe('registerSessionDetailsHandlers', () => {
     expect(cleanupSessionRunMock).toHaveBeenCalledWith(SessionId('session-delete'))
     expect(emitRunCompletedMock).toHaveBeenCalledWith(SessionId('session-delete'))
     expect(deleteSessionMock).toHaveBeenCalledWith(SessionId('session-delete'))
+    expect(removeSessionResourcesMock).toHaveBeenCalledWith(SessionId('session-delete'))
+  })
+
+  it('does not delete session metadata when managed resource cleanup fails', async () => {
+    removeSessionResourcesMock.mockRejectedValue(new Error('disk is read-only'))
+
+    registerSessionDetailsHandlers()
+    const handler = getInvokeHandler('sessions:delete')
+
+    await expect(handler?.({}, SessionId('session-delete-failure'))).rejects.toBeDefined()
+    expect(deleteSessionMock).not.toHaveBeenCalled()
   })
 
   it('cleans up the active run before archiving a session', async () => {

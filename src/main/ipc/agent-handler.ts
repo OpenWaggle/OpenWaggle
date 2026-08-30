@@ -28,6 +28,7 @@ import {
 } from '../application/agent-loop-interaction-broker'
 import { executeAgentRun } from '../application/agent-run-service'
 import { compactAgentSession, getAgentContextUsage } from '../application/agent-session-service'
+import { captureSuccessfulRunResources } from '../application/session-resource-capture'
 import { findWaggleHandoffRequest } from '../application/waggle-handoff'
 import { broadcastToWindows } from '../utils/broadcast'
 import {
@@ -114,6 +115,17 @@ function registerAgentRunHandlers() {
               broadcastToWindows('sessions:title-updated', { sessionId, title })
             },
           })
+
+          if (result.outcome === 'success') {
+            yield* captureSuccessfulRunResources({
+              sessionId,
+              runId,
+              payload: validatedPayload,
+              messages: result.resourceMessages ?? result.newMessages,
+              nodeIdByMessageId: result.resourceNodeIds ?? {},
+              branchIdByMessageId: result.resourceBranchIds ?? {},
+            }).pipe(Effect.catchAll(() => Effect.void))
+          }
 
           const handoff =
             result.outcome === 'success' ? findWaggleHandoffRequest(result.newMessages) : null

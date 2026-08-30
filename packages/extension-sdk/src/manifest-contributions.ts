@@ -75,6 +75,41 @@ export const extensionRouteContributionSchema = Schema.Struct({
 
 export const extensionSlotContributionSchema = extensionRouteContributionSchema
 
+export const extensionSessionSummaryActionSchema = Schema.Struct({
+  family: Schema.Literal('commands', 'sidePanels', 'dialogs'),
+  contributionId: extensionContributionIdSchema,
+})
+
+export const extensionSessionSummaryRowSchema = Schema.Struct({
+  id: extensionContributionIdSchema,
+  label: extensionNonEmptyStringSchema.pipe(
+    Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH),
+  ),
+  value: Schema.optional(
+    extensionNonEmptyStringSchema.pipe(
+      Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.DESCRIPTION_MAX_LENGTH),
+    ),
+  ),
+  badge: Schema.optional(
+    extensionNonEmptyStringSchema.pipe(
+      Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH),
+    ),
+  ),
+  count: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
+  resourceId: Schema.optional(extensionContributionIdSchema),
+  action: Schema.optional(extensionSessionSummaryActionSchema),
+})
+
+export const extensionSessionSummaryContributionSchema = Schema.Struct({
+  id: extensionContributionIdSchema,
+  title: extensionNonEmptyStringSchema.pipe(
+    Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH),
+  ),
+  placement: Schema.optional(Schema.Literal('context', 'coordination', 'details')),
+  target: Schema.optional(targetSchema),
+  rows: Schema.Array(extensionSessionSummaryRowSchema),
+})
+
 export const extensionContributionsSchema = Schema.Struct({
   commands: Schema.optional(Schema.Array(extensionCommandContributionSchema)),
   slashCommands: Schema.optional(Schema.Array(extensionCommandContributionSchema)),
@@ -87,6 +122,7 @@ export const extensionContributionsSchema = Schema.Struct({
   customMessageRenderers: Schema.optional(Schema.Array(extensionSlotContributionSchema)),
   interactionRenderers: Schema.optional(Schema.Array(extensionSlotContributionSchema)),
   statusWidgets: Schema.optional(Schema.Array(extensionSlotContributionSchema)),
+  sessionSummarySections: Schema.optional(Schema.Array(extensionSessionSummaryContributionSchema)),
 })
 
 export const extensionCommandContributionRegistrationSchema = Schema.Struct({
@@ -101,10 +137,15 @@ export const extensionSlotContributionRegistrationSchema = Schema.Struct({
   family: extensionSlotContributionFamilySchema,
   contribution: extensionSlotContributionSchema,
 })
+export const extensionSessionSummaryContributionRegistrationSchema = Schema.Struct({
+  family: Schema.Literal(OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SESSION_SUMMARY_SECTIONS),
+  contribution: extensionSessionSummaryContributionSchema,
+})
 export const extensionContributionRegistrationSchema = Schema.Union(
   extensionCommandContributionRegistrationSchema,
   extensionRouteContributionRegistrationSchema,
   extensionSlotContributionRegistrationSchema,
+  extensionSessionSummaryContributionRegistrationSchema,
 )
 export const extensionContributionUnregistrationSchema = Schema.Struct({
   family: extensionContributionFamilySchema,
@@ -123,3 +164,6 @@ export type ExtensionContributionUnregistration = SchemaType<
 export type ExtensionEntryContribution =
   | SchemaType<typeof extensionRouteContributionSchema>
   | SchemaType<typeof extensionSlotContributionSchema>
+export type ExtensionSessionSummaryContribution = SchemaType<
+  typeof extensionSessionSummaryContributionSchema
+>

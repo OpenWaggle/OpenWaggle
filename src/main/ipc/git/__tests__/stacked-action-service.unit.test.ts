@@ -25,6 +25,7 @@ function makeDeps(overrides: Partial<StackedActionDeps> = {}): StackedActionDeps
     ),
     resolveCurrentRef: vi.fn(async () => 'feature/current'),
     resolveDefaultBaseRef: vi.fn(async () => 'main'),
+    buildChangeRequestFallbackUrl: vi.fn(async () => 'https://example.test/new-change-request'),
     ...overrides,
   }
 }
@@ -69,6 +70,67 @@ describe('runStackedGitAction', () => {
     expect(result).toEqual({ ok: false, phase: 'push', code: 'push-failed', message: 'boom' })
     expect(deps.commit).toHaveBeenCalled()
     expect(deps.openChangeRequest).not.toHaveBeenCalled()
+  })
+
+  it('returns and resumes the prepared branch after a partial failure', async () => {
+    const push = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, code: 'push-failed', message: 'offline' })
+      .mockResolvedValueOnce({ ok: true, code: 'ok', message: 'pushed' })
+    let currentRef = 'main'
+    const deps = makeDeps({
+      push,
+      createBranch: vi.fn(async (_projectPath, name) => {
+        currentRef = name
+        return { ok: true, message: 'created' }
+      }),
+      resolveCurrentRef: vi.fn(async () => currentRef),
+      hasWorkingTreeChanges: vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, hasChanges: true })
+        .mockResolvedValueOnce({ ok: true, hasChanges: false }),
+    })
+    const options = {
+      action: 'commit_push_pr' as const,
+      commitMessage: 'Ship it',
+      createFeatureBranch: true,
+      featureBranchName: 'codex/retry-safe',
+      paths: ['src/a.ts'],
+    }
+
+    const first = await runStackedGitAction(deps, '/repo', options)
+    expect(first).toMatchObject({
+      ok: false,
+      branch: { name: 'codex/retry-safe' },
+    })
+    const second = await runStackedGitAction(deps, '/repo', options)
+
+    expect(second.ok).toBe(true)
+    expect(deps.createBranch).toHaveBeenCalledOnce()
+    expect(deps.commit).toHaveBeenCalledOnce()
+    expect(deps.openChangeRequest).toHaveBeenCalledWith(
+      '/repo',
+      expect.objectContaining({ headRef: 'codex/retry-safe' }),
+    )
+  })
+
+  it('returns a browser fallback when native change-request creation fails', async () => {
+    const deps = makeDeps({
+      openChangeRequest: vi.fn(
+        async () =>
+          ({
+            ok: false,
+            code: 'cli-missing',
+            message: 'CLI missing',
+          }) as const,
+      ),
+    })
+    const result = await runStackedGitAction(deps, '/repo', { action: 'create_pr' })
+    expect(result).toMatchObject({
+      ok: false,
+      phase: 'pr',
+      fallbackUrl: 'https://example.test/new-change-request',
+    })
   })
 
   it('resolves head/base refs for create_pr when no feature branch was created (no empty --head)', async () => {

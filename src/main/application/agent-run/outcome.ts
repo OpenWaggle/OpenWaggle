@@ -23,6 +23,9 @@ interface BuildAgentRunOutcomeInput {
   readonly sessionId: SessionId
   readonly runId: string
   readonly model: SupportedModelId
+  readonly resourceMessages?: readonly Message[]
+  readonly resourceNodeIds?: Readonly<Record<string, string>>
+  readonly resourceBranchIds?: Readonly<Record<string, string | null>>
 }
 
 interface BuildAgentRunFailureInput {
@@ -43,6 +46,11 @@ export function buildAgentRunOutcome({
   sessionId,
   runId,
   model,
+  resourceMessages = agentResult.newMessages,
+  resourceNodeIds = Object.fromEntries(
+    agentResult.newMessages.map((message) => [String(message.id), String(message.id)]),
+  ),
+  resourceBranchIds = {},
 }: BuildAgentRunOutcomeInput): AgentRunResult {
   if (agentResult.terminalError) {
     return terminalErrorOutcome(agentResult.terminalError, {
@@ -58,6 +66,9 @@ export function buildAgentRunOutcome({
   return {
     outcome: 'success',
     newMessages: agentResult.newMessages,
+    resourceMessages,
+    resourceNodeIds,
+    resourceBranchIds,
     ...(assignedTitle ? { assignedTitle } : {}),
   }
 }

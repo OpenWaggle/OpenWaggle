@@ -25,6 +25,7 @@ export type {
   ExtensionContributions,
   ExtensionContributionUnregistration,
   ExtensionEntryContribution,
+  ExtensionSessionSummaryContribution,
 } from './extension-contributions'
 export {
   extensionCapabilityDeclarationSchema,
@@ -42,6 +43,10 @@ export {
   extensionRelativePathSchema,
   extensionRouteContributionRegistrationSchema,
   extensionRouteContributionSchema,
+  extensionSessionSummaryActionSchema,
+  extensionSessionSummaryContributionRegistrationSchema,
+  extensionSessionSummaryContributionSchema,
+  extensionSessionSummaryRowSchema,
   extensionSlotContributionFamilySchema,
   extensionSlotContributionRegistrationSchema,
   extensionSlotContributionSchema,

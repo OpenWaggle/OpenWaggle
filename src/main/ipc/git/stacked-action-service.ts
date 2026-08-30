@@ -3,6 +3,7 @@ import type {
   GitActionPhase,
   GitActionProgressEvent,
   GitCommitResult,
+  GitRunStackedActionFailure,
   GitRunStackedActionOptions,
   GitRunStackedActionResult,
   GitStackedActionBranchOutcome,
@@ -54,6 +55,10 @@ export interface StackedActionDeps {
   readonly resolveCurrentRef: (projectPath: string) => Promise<string | null>
   /** Default branch (base ref for a change request when the caller did not specify one). */
   readonly resolveDefaultBaseRef: (projectPath: string) => Promise<string | null>
+  readonly buildChangeRequestFallbackUrl: (
+    projectPath: string,
+    payload: OpenChangeRequestPayload,
+  ) => Promise<string | null>
 }
 
 export type ProgressReporter = (event: GitActionProgressEvent) => void
@@ -62,12 +67,23 @@ function failure(
   phase: GitActionPhase,
   code: GitStackedActionErrorCode,
   message: string,
-): GitRunStackedActionResult {
-  return { ok: false, phase, code, message }
+  details: {
+    readonly branch?: GitStackedActionBranchOutcome
+    readonly fallbackUrl?: string
+  } = {},
+): GitRunStackedActionFailure {
+  return { ok: false, phase, code, message, ...details }
 }
 
 function unchangedBranch(): GitStackedActionBranchOutcome {
   return { status: 'unchanged', name: null }
+}
+
+function withPreparedBranch(
+  result: GitRunStackedActionFailure,
+  branch: GitStackedActionBranchOutcome,
+) {
+  return branch.name ? { ...result, branch } : result
 }
 
 /**
@@ -109,13 +125,13 @@ export async function runStackedGitAction(
   const phases = planStackedActionPhases(options.action)
 
   const commitFailure = await maybeCommit(deps, projectPath, options, phases, hasChanges, report)
-  if (commitFailure) return commitFailure
+  if (commitFailure) return withPreparedBranch(commitFailure, branch)
 
   const pushFailure = await maybePush(deps, projectPath, phases, report)
-  if (pushFailure) return pushFailure
+  if (pushFailure) return withPreparedBranch(pushFailure, branch)
 
   const prOutcome = await maybeOpenChangeRequest(deps, projectPath, options, phases, branch, report)
-  if (!prOutcome.ok) return prOutcome.failure
+  if (!prOutcome.ok) return withPreparedBranch(prOutcome.failure, branch)
 
   return { ok: true, action: options.action, branch, changeRequest: prOutcome.changeRequest }
 }
@@ -186,7 +202,7 @@ async function maybeOpenChangeRequest(
   report: (phase: GitActionPhase, label: string) => void,
 ): Promise<
   | { ok: true; changeRequest: VcsChangeRequest | null }
-  | { ok: false; failure: GitRunStackedActionResult }
+  | { ok: false; failure: GitRunStackedActionFailure }
 > {
   if (!phases.includes('pr')) return { ok: true, changeRequest: null }
   report('pr', 'Creating change request...')
@@ -210,9 +226,17 @@ async function maybeOpenChangeRequest(
     draft: options.draft,
   }
   const result = await deps.openChangeRequest(projectPath, payload)
+  const fallbackUrl = result.ok
+    ? null
+    : await deps.buildChangeRequestFallbackUrl(projectPath, payload)
   return result.ok
     ? { ok: true, changeRequest: result.changeRequest }
-    : { ok: false, failure: failure('pr', 'change-request-failed', result.message) }
+    : {
+        ok: false,
+        failure: failure('pr', 'change-request-failed', result.message, {
+          ...(fallbackUrl ? { fallbackUrl } : {}),
+        }),
+      }
 }
 
 async function createFeatureBranch(
@@ -222,9 +246,16 @@ async function createFeatureBranch(
   report: (phase: GitActionPhase, label: string) => void,
 ) {
   report('branch', 'Preparing feature ref...')
+  const preferred = resolveAutoFeatureBranchName([], options.featureBranchName)
+  const currentRef = await deps.resolveCurrentRef(projectPath)
+  if (currentRef === preferred) {
+    return { status: 'unchanged', name: currentRef } satisfies GitStackedActionBranchOutcome
+  }
+  const baseRef = options.baseRef ?? (await deps.resolveDefaultBaseRef(projectPath))
+  if (!baseRef) return null
   const existing = await deps.listBranchNames(projectPath)
   const name = resolveAutoFeatureBranchName(existing, options.featureBranchName)
-  const created = await deps.createBranch(projectPath, name, options.baseRef)
+  const created = await deps.createBranch(projectPath, name, baseRef)
   if (!created.ok) return null
   return { status: 'created', name } satisfies GitStackedActionBranchOutcome
 }

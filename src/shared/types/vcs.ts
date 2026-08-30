@@ -38,6 +38,8 @@ export interface LocalVcsStatus {
   readonly isRepo: boolean
   readonly sourceControlProvider: SourceControlProviderInfo | null
   readonly hasPrimaryRemote: boolean
+  /** Locally resolved default branch name, when origin/HEAD or repository config provides one. */
+  readonly defaultRef?: string | null
   readonly isDefaultRef: boolean
   readonly refName: string | null
   /**
@@ -226,6 +228,10 @@ export interface GitRunStackedActionFailure {
   readonly phase: GitActionPhase
   readonly code: GitStackedActionErrorCode
   readonly message: string
+  /** Prepared branch retained after a later phase failed, so retry can resume it safely. */
+  readonly branch?: GitStackedActionBranchOutcome
+  /** Provider web composer used when the native CLI is unavailable or unauthenticated. */
+  readonly fallbackUrl?: string
 }
 
 export type GitRunStackedActionResult = GitRunStackedActionSuccess | GitRunStackedActionFailure

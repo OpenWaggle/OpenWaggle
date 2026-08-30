@@ -3,11 +3,12 @@ import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { type Mock, vi } from 'vitest'
 import { EmptyExtensionRuntimeLayer } from '../../application/__tests__/extension-runtime-test-layer'
-import { SessionProjectionRepositoryError } from '../../errors'
+import { SessionProjectionRepositoryError, SessionResourceStoreError } from '../../errors'
 import { AgentKernelService } from '../../ports/agent-kernel-service'
 import { ProviderService } from '../../ports/provider-service'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { SessionRepository } from '../../ports/session-repository'
+import { SessionResourceStore } from '../../ports/session-resource-store'
 import { SettingsService } from '../../services/settings-service'
 import type * as SessionDetailsHandler from '../session-details-handler'
 
@@ -39,6 +40,7 @@ const mocks = vi.hoisted(() => ({
   clearAgentPhaseMock: vi.fn(),
   clearStreamBufferMock: vi.fn(),
   emitRunCompletedMock: vi.fn(),
+  removeSessionResourcesMock: vi.fn(),
 }))
 
 export const typedHandleMock: TestMock = mocks.typedHandleMock
@@ -63,6 +65,7 @@ export const cancelSessionRunsMock: TestMock = mocks.cancelSessionRunsMock
 export const clearAgentPhaseMock: TestMock = mocks.clearAgentPhaseMock
 export const clearStreamBufferMock: TestMock = mocks.clearStreamBufferMock
 export const emitRunCompletedMock: TestMock = mocks.emitRunCompletedMock
+export const removeSessionResourcesMock: TestMock = mocks.removeSessionResourcesMock
 
 vi.mock('../typed-ipc', () => ({
   typedHandle: typedHandleMock,
@@ -241,12 +244,27 @@ const TestSettingsLayer = Layer.succeed(SettingsService, {
   flushForTests: () => Effect.void,
 })
 
+const TestSessionResourceStoreLayer = Layer.succeed(SessionResourceStore, {
+  storeBytes: () => Effect.dieMessage('storeBytes is not used'),
+  storeFile: () => Effect.dieMessage('storeFile is not used'),
+  read: () => Effect.dieMessage('read is not used'),
+  remove: () => Effect.dieMessage('remove is not used'),
+  removeSession: (sessionId) =>
+    Effect.tryPromise({
+      try: async () => {
+        await removeSessionResourcesMock(sessionId)
+      },
+      catch: (cause) => new SessionResourceStoreError({ operation: 'removeSession', cause }),
+    }),
+})
+
 const TestRuntimeLayer = Layer.mergeAll(
   TestSessionProjectionRepoLayer,
   TestAgentKernelLayer,
   TestSessionRepoLayer,
   TestProviderLayer,
   TestSettingsLayer,
+  TestSessionResourceStoreLayer,
   EmptyExtensionRuntimeLayer,
 )
 
@@ -274,6 +292,7 @@ export function resetSessionDetailsHandlerMocks() {
   unpinSessionMock.mockResolvedValue(undefined)
   movePinnedSessionMock.mockResolvedValue(undefined)
   cancelSessionRunsMock.mockReturnValue(false)
+  removeSessionResourcesMock.mockReturnValue(undefined)
 }
 
 export function loadSessionDetailsHandlers(): Promise<typeof SessionDetailsHandler> {

@@ -57,8 +57,13 @@ describe('git branch mutations', () => {
       '--quiet',
       'refs/heads/feature',
     ])
-    expect(runGitMock).toHaveBeenNthCalledWith(3, '/repo', ['branch', 'feature', 'main'])
-    expect(runGitMock).toHaveBeenNthCalledWith(4, '/repo', ['checkout', 'feature'])
+    expect(runGitMock).toHaveBeenNthCalledWith(3, '/repo', [
+      'for-each-ref',
+      '--format=%(refname)',
+      'refs/remotes',
+    ])
+    expect(runGitMock).toHaveBeenNthCalledWith(4, '/repo', ['branch', 'feature', 'main'])
+    expect(runGitMock).toHaveBeenNthCalledWith(5, '/repo', ['checkout', 'feature'])
   })
 
   it('checks out remote tracking branches and prevents mismatched local tracking reuse', async () => {

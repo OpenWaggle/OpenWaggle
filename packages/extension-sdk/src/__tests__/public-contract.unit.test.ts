@@ -37,6 +37,21 @@ const validManifest = {
         methods: ['get', 'set'],
       },
     ],
+    sessionSummarySections: [
+      {
+        id: 'schema-smoke.session-summary',
+        title: 'Schema smoke session summary',
+        placement: 'details',
+        rows: [
+          {
+            id: 'status',
+            label: 'Status',
+            value: 'Ready',
+            action: { family: 'commands', contributionId: 'schema-smoke.command' },
+          },
+        ],
+      },
+    ],
   },
 } as const
 
@@ -76,8 +91,8 @@ describe('extension SDK public schemas', () => {
     expect(() => Schema.decodeUnknownSync(extensionDocsDiscoverPayloadSchema)({})).not.toThrow()
     expect(() =>
       Schema.decodeUnknownSync(extensionContributionRegistrationSchema)({
-        family: 'settingsSections',
-        contribution: validManifest.contributions.settingsSections[0],
+        family: 'sessionSummarySections',
+        contribution: validManifest.contributions.sessionSummarySections[0],
       }),
     ).not.toThrow()
     expect(() =>

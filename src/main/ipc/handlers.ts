@@ -12,6 +12,7 @@ import { registerMcpHandlers } from './mcp-handler'
 import { registerProjectHandlers } from './project-handler'
 import { registerProvidersHandlers } from './providers-handler'
 import { registerSessionDetailsHandlers } from './session-details-handler'
+import { registerSessionResourceHandlers } from './session-resource-handler'
 import { registerSessionsHandlers } from './sessions-handler'
 import { registerSettingsHandlers } from './settings-handler'
 import { registerShellHandlers } from './shell-handler'
@@ -31,6 +32,7 @@ export function registerAllIpcHandlers(): void {
   registerSettingsHandlers()
   registerSessionsHandlers()
   registerSessionDetailsHandlers()
+  registerSessionResourceHandlers()
   registerAttachmentHandlers()
   registerGitHandlers()
   registerExtensionsHandlers()

@@ -45,8 +45,8 @@ test.describe('diff route sidebar', () => {
 
       await expect(page).toHaveURL(/\?panel=diff/)
       // The same route renders as a docked panel or a responsive sheet depending on available
-      // viewport width. Its complementary landmark is the stable contract across both modes.
-      const diffAside = page.getByRole('complementary')
+      // viewport width. The shell marker is stable even when another complementary surface is open.
+      const diffAside = page.locator('aside[data-right-sidebar-shell="true"]')
       await expect(diffAside).toBeVisible()
 
       await page.getByRole('button', { name: 'Close diff sidebar' }).click()

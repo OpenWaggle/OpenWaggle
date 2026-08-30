@@ -22,7 +22,7 @@ async function resolveRefName(projectPath: string): Promise<string | null> {
   return name || null
 }
 
-async function resolvePrimaryRemoteUrl(projectPath: string): Promise<string | null> {
+export async function resolvePrimaryRemoteUrl(projectPath: string): Promise<string | null> {
   const originResult = await runGit(projectPath, ['remote', 'get-url', 'origin'])
   if (originResult.code === 0 && originResult.stdout.trim()) return originResult.stdout.trim()
 
@@ -80,6 +80,7 @@ export async function getLocalVcsStatus(projectPath: string): Promise<LocalVcsSt
     isRepo: true,
     sourceControlProvider: detectSourceControlProvider(remoteUrl),
     hasPrimaryRemote: remoteUrl !== null,
+    defaultRef,
     /*
      * Unknown counts as "yes", so the confirmation that guards a push to the default branch fails closed.
      * `refs/remotes/origin/HEAD` is what records the default branch locally, and `git clone` writes it while

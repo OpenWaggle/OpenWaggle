@@ -23,6 +23,12 @@ export type AgentRunResult =
   | (AgentRunResultBase & {
       readonly outcome: 'success'
       readonly newMessages: readonly Message[]
+      /** Messages reloaded from the persisted session tree after snapshot persistence. */
+      readonly resourceMessages: readonly Message[]
+      /** Persisted session-node id keyed by the runtime message id. */
+      readonly resourceNodeIds: Readonly<Record<string, string>>
+      /** Persisted branch id keyed by the runtime message id. */
+      readonly resourceBranchIds: Readonly<Record<string, string | null>>
     })
   | (AgentRunResultBase & { readonly outcome: 'aborted' })
   | (AgentRunResultBase & {

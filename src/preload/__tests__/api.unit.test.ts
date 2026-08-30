@@ -1,4 +1,5 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
+import { SessionId } from '@shared/types/brand'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
@@ -17,6 +18,23 @@ describe('preload api surface contract', () => {
   it('matches the preload method contract exactly', () => {
     for (const method of PRELOAD_API_METHODS) expect(typeof api[method]).toBe('function')
     expect(Object.keys(api).sort()).toEqual([...PRELOAD_API_METHODS].sort())
+  })
+
+  it('reads only the requested session resource through typed IPC', async () => {
+    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce({
+      resourceId: 'resource-1',
+      fileName: 'image.png',
+      mimeType: 'image/png',
+      dataBase64: 'aW1hZ2U=',
+    })
+
+    await api.readSessionResource(SessionId('session-1'), 'resource-1')
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      'sessions:resources:read',
+      SessionId('session-1'),
+      'resource-1',
+    )
   })
 
   it('prepares attachments from user-selected File objects via preload path extraction', async () => {

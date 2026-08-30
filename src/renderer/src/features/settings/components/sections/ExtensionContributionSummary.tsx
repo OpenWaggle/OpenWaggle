@@ -21,6 +21,7 @@ const FAMILY_LABELS = {
   customMessageRenderers: 'Custom messages',
   interactionRenderers: 'Interactions',
   statusWidgets: 'Status',
+  sessionSummarySections: 'Session Summary',
 } satisfies Record<ExtensionContributionFamily, string>
 
 function positiveCounts(counts: readonly ExtensionContributionFamilyCount[]) {

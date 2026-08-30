@@ -1,0 +1,97 @@
+import { SessionId } from '@shared/types/brand'
+import type { SessionResource } from '@shared/types/session-resource'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useUIStore } from '@/shell/ui-store'
+import { renderWithQueryClient } from '@/test-utils/query-test-utils'
+import { SessionResourcesPanel } from '../SessionResourcesPanel'
+
+const apiMocks = vi.hoisted(() => ({
+  list: vi.fn(),
+  openExternal: vi.fn(),
+  read: vi.fn(),
+}))
+
+vi.mock('@/shared/lib/ipc', () => ({
+  api: {
+    listSessionResources: apiMocks.list,
+    openExternal: apiMocks.openExternal,
+    readSessionResource: apiMocks.read,
+  },
+}))
+
+function resource(
+  id: string,
+  input: Pick<SessionResource, 'kind' | 'title' | 'isSource' | 'isOutput' | 'locator'>,
+): SessionResource {
+  return {
+    id,
+    sessionId: SessionId('session-one'),
+    canonicalKey: `resource:${id}`,
+    mimeType: input.kind === 'image' ? 'image/png' : null,
+    available: true,
+    occurrences: [],
+    createdAt: 1,
+    updatedAt: 1,
+    ...input,
+  }
+}
+
+const IMAGE = resource('image', {
+  kind: 'image',
+  title: 'reference.png',
+  isSource: true,
+  isOutput: false,
+  locator: 'session-resource://image',
+})
+const LINK = resource('link', {
+  kind: 'link',
+  title: 'Documentation',
+  isSource: true,
+  isOutput: false,
+  locator: 'https://example.com/docs',
+})
+const OUTPUT = resource('output', {
+  kind: 'change-request',
+  title: 'Created PR',
+  isSource: false,
+  isOutput: true,
+  locator: 'https://github.com/openwaggle/openwaggle/pull/1',
+})
+
+describe('SessionResourcesPanel', () => {
+  beforeEach(() => {
+    useUIStore.setState({ resourceViewer: null })
+    apiMocks.list.mockReset().mockResolvedValue([IMAGE, LINK, OUTPUT])
+    apiMocks.openExternal.mockReset().mockResolvedValue(undefined)
+    apiMocks.read.mockReset().mockResolvedValue(null)
+  })
+
+  it('filters session sources, outputs, and images', async () => {
+    renderWithQueryClient(<SessionResourcesPanel sessionId="session-one" onClose={vi.fn()} />)
+    expect(await screen.findByText('reference.png')).toBeInTheDocument()
+    expect(screen.getByText('Created PR')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Outputs' }))
+    expect(screen.getByText('Created PR')).toBeInTheDocument()
+    expect(screen.queryByText('reference.png')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Images' }))
+    expect(screen.getByText('reference.png')).toBeInTheDocument()
+    expect(screen.queryByText('Documentation')).toBeNull()
+  })
+
+  it('opens managed images in the current session viewer and links externally', async () => {
+    renderWithQueryClient(<SessionResourcesPanel sessionId="session-one" onClose={vi.fn()} />)
+    fireEvent.click(await screen.findByText('reference.png'))
+    expect(useUIStore.getState().resourceViewer).toEqual({
+      sessionId: 'session-one',
+      resourceId: 'image',
+    })
+
+    fireEvent.click(screen.getByText('Documentation'))
+    await waitFor(() => {
+      expect(apiMocks.openExternal).toHaveBeenCalledWith('https://example.com/docs')
+    })
+  })
+})

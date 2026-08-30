@@ -1,3 +1,4 @@
+import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { Check, Copy, FileDown, FileText, GitBranch, GitFork, Image, Waypoints } from 'lucide-react'
 import { Children, cloneElement, isValidElement, type ReactNode } from 'react'
@@ -5,6 +6,7 @@ import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ATTACHMENT_TEXT_PREFIX } from '@/features/chat/lib/useAgentChat.utils'
+import { SessionMessageImages } from '@/features/session-summary'
 import { useCopyToClipboard } from '@/shared/hooks/useCopyToClipboard'
 import { cn } from '@/shared/lib/cn'
 import { safeMarkdownComponents } from '@/shared/lib/markdown-link-components'
@@ -154,12 +156,14 @@ function UserMessageContent({
 
 interface UserMessageBubbleProps {
   message: UIMessage
+  sessionId?: SessionId | null
   onBranchFromMessage?: (messageId: string) => void
   onForkFromMessage?: (messageId: string) => void
 }
 
 export function UserMessageBubble({
   message,
+  sessionId = null,
   onBranchFromMessage,
   onForkFromMessage,
 }: UserMessageBubbleProps) {
@@ -183,8 +187,9 @@ export function UserMessageBubble({
           'border border-border-light bg-bg-hover px-3.5 py-2.5',
         )}
       >
+        <SessionMessageImages sessionId={sessionId} messageId={message.id} />
         {attachmentParts.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-2">
+          <div className="mt-2 flex flex-wrap gap-1.5 first:mt-0">
             {attachmentParts.map((p, i) => (
               <AttachmentChip
                 key={`${message.id}-attachment-${String(i)}`}

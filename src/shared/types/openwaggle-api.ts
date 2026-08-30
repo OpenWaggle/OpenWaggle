@@ -73,6 +73,11 @@ import type {
   SessionWorkspaceSelection,
   SessionWorktreePlan,
 } from './session'
+import type {
+  RecordSessionChangeRequestInput,
+  SessionResource,
+  SessionResourceContent,
+} from './session-resource'
 import type { Settings } from './settings'
 import type {
   AgentsInstructionStatus,
@@ -143,6 +148,15 @@ export interface OpenWaggleApi
   listSessions(limit?: number): Promise<SessionSummary[]>
   listSessionDetails(limit?: number): Promise<SessionDetail[]>
   getSessionDetail(id: SessionId): Promise<SessionDetail | null>
+  listSessionResources(sessionId: SessionId): Promise<SessionResource[]>
+  readSessionResource(
+    sessionId: SessionId,
+    resourceId: string,
+  ): Promise<SessionResourceContent | null>
+  recordSessionChangeRequest(
+    sessionId: SessionId,
+    input: RecordSessionChangeRequestInput,
+  ): Promise<SessionResource>
   listTurnCheckpoints(id: SessionId): Promise<TurnCheckpointSummary[]>
   getTurnDiff(id: SessionId, turnId: string): Promise<TurnDiff | null>
   /** Every Pinned session in Manual order, archived ones included (issue #97). */

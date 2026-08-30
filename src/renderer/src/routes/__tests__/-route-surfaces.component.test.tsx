@@ -22,7 +22,7 @@ interface ExtensionRightSidebarPanel {
   readonly extensionId: string
   readonly sidePanelId: string
 }
-type RightSidebarPanel = 'diff' | 'session-tree' | ExtensionRightSidebarPanel
+type RightSidebarPanel = 'diff' | 'resources' | 'session-tree' | ExtensionRightSidebarPanel
 interface RouterState {
   readonly location: {
     readonly pathname: string
@@ -60,7 +60,10 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 vi.mock('@/features/chat/hooks', () => ({
-  useChatPanelSections: () => ({ diff: { projectPath: '/repo', onSendMessage: vi.fn() } }),
+  useChatPanelSections: () => ({
+    diff: { projectPath: '/repo', onSendMessage: vi.fn() },
+    transcript: { messages: [] },
+  }),
 }))
 
 vi.mock('@/features/chat/components', () => ({
@@ -97,6 +100,17 @@ vi.mock('@/features/session-tree/components', () => ({
         </aside>
       ),
     }),
+}))
+
+vi.mock('@/features/session-summary', () => ({
+  SessionResourcesPanel: ({ onClose }: { readonly onClose: () => void }) => (
+    <aside>
+      Session resources panel
+      <Button variant="unstyled" type="button" onClick={onClose}>
+        Close resources
+      </Button>
+    </aside>
+  ),
 }))
 
 vi.mock('@/features/extensions', () => ({
@@ -210,12 +224,14 @@ describe('route surfaces', () => {
         rightSidebar={{
           diffOpen: true,
           extensionSidePanel: null,
+          resourcesOpen: false,
           sessionTreeOpen: false,
           workspaceFile: null,
         }}
         rightSidebarActions={{
           onDiffOpenChange,
           onExtensionSidePanelOpenChange: vi.fn(),
+          onResourcesOpenChange: vi.fn(),
           onSessionTreeOpenChange,
           onWorkspaceFileOpenChange: vi.fn(),
         }}
@@ -247,12 +263,14 @@ describe('route surfaces', () => {
         rightSidebar={{
           diffOpen: false,
           extensionSidePanel: null,
+          resourcesOpen: false,
           sessionTreeOpen: true,
           workspaceFile: null,
         }}
         rightSidebarActions={{
           onDiffOpenChange,
           onExtensionSidePanelOpenChange: vi.fn(),
+          onResourcesOpenChange: vi.fn(),
           onSessionTreeOpenChange,
           onWorkspaceFileOpenChange: vi.fn(),
         }}
@@ -281,12 +299,14 @@ describe('route surfaces', () => {
             extensionId: 'sample-extension',
             sidePanelId: 'sample.side-panel',
           },
+          resourcesOpen: false,
           sessionTreeOpen: false,
           workspaceFile: null,
         }}
         rightSidebarActions={{
           onDiffOpenChange,
           onExtensionSidePanelOpenChange,
+          onResourcesOpenChange: vi.fn(),
           onSessionTreeOpenChange,
           onWorkspaceFileOpenChange: vi.fn(),
         }}
