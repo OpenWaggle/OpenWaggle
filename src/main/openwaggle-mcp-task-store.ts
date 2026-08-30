@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { MCP_CONFIG } from '@shared/constants/mcp'
+import type { SessionDelegationState } from '@shared/types/session'
 import { withProcessFileLock } from './adapters/mcp/process-file-lock'
 import { isRecord } from './openwaggle-mcp-server-policy'
 
@@ -35,6 +36,7 @@ export interface ServerTaskRecord {
   readonly action?: string
   readonly lease?: ServerTaskLease | null
   readonly cancellationRequestedAt?: number
+  readonly projectedDelegationState?: SessionDelegationState
 }
 
 interface ServerTaskFile {
@@ -86,7 +88,22 @@ function optionalTaskFields(value: Record<string, unknown>) {
     Number.isFinite(value.cancellationRequestedAt)
       ? { cancellationRequestedAt: value.cancellationRequestedAt }
       : {}),
+    ...(isDelegationState(value.projectedDelegationState)
+      ? { projectedDelegationState: value.projectedDelegationState }
+      : {}),
   }
+}
+
+function isDelegationState(value: unknown): value is SessionDelegationState {
+  return (
+    value === 'working' ||
+    value === 'waiting' ||
+    value === 'needs_attention' ||
+    value === 'ready_for_review' ||
+    value === 'revision_requested' ||
+    value === 'accepted' ||
+    value === 'cancelled'
+  )
 }
 
 function parseTask(value: unknown): ServerTaskRecord | null {
@@ -155,7 +172,7 @@ async function writeTaskFile(filePath: string, tasks: readonly ServerTaskRecord[
   await rename(temporaryPath, filePath)
 }
 
-function isTerminalTaskStatus(status: ServerTaskStatus) {
+export function isTerminalTaskStatus(status: ServerTaskStatus) {
   return (
     status === 'completed' ||
     status === 'failed' ||

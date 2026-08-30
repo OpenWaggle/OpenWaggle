@@ -272,4 +272,26 @@ describe('session authorization-mode migration', () => {
     )
     expect(state).toEqual([])
   })
+
+  it('adds durable managed-resource cleanup work at migration 29', async () => {
+    const queued = await withDatabase((sql) =>
+      Effect.gen(function* () {
+        yield* applyMigrations(sql, 28)
+        yield* sql`DROP TABLE session_resource_cleanup_queue`
+        yield* applyMigrations(sql, 29)
+        yield* sql`
+          INSERT INTO session_resource_cleanup_queue (session_id, queued_at)
+          VALUES ('deleted-session', 1)
+        `
+        return yield* sql<{ readonly session_id: string }>`
+          SELECT session_id FROM session_resource_cleanup_queue
+        `
+      }),
+    )
+
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 29)?.name).toBe(
+      'session-resource-cleanup-queue',
+    )
+    expect(queued).toEqual([{ session_id: 'deleted-session' }])
+  })
 })

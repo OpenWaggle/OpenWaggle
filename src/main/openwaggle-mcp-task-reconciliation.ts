@@ -2,7 +2,7 @@ import { SessionId } from '@shared/types/brand'
 import { recoverStaleTask } from './openwaggle-mcp-task-leases'
 import { projectTaskDelegationState, terminalDelegationState } from './openwaggle-mcp-task-lineage'
 import type { OpenWaggleServerTaskServices } from './openwaggle-mcp-task-runtime'
-import type { OpenWaggleMcpTaskStore, ServerTaskRecord } from './openwaggle-mcp-task-store'
+import { isTerminalTaskStatus, type OpenWaggleMcpTaskStore } from './openwaggle-mcp-task-store'
 
 interface ReconcileProfileTasksInput {
   readonly now: number
@@ -13,28 +13,46 @@ interface ReconcileProfileTasksInput {
 
 export async function reconcileOpenWaggleProfileTasks(input: ReconcileProfileTasksInput) {
   const reconciliation = await input.store.update((tasks) => {
-    const recovered: Array<{
-      readonly sessionId: SessionId
-      readonly status: ServerTaskRecord['status']
-    }> = []
     const reconciled = tasks.map((task) => {
       if (task.callerProfile !== input.profile) return task
-      const next = recoverStaleTask(task, input.now)
-      if (next.status !== task.status && next.sessionId) {
-        recovered.push({ sessionId: SessionId(next.sessionId), status: next.status })
-      }
-      return next
+      return recoverStaleTask(task, input.now)
     })
-    return { tasks: reconciled, result: { recovered, tasks: reconciled } }
+    const pending = reconciled.flatMap((task) => {
+      if (
+        task.callerProfile !== input.profile ||
+        !task.sessionId ||
+        !isTerminalTaskStatus(task.status)
+      ) {
+        return []
+      }
+      const state = terminalDelegationState(task.status)
+      return task.projectedDelegationState === state
+        ? []
+        : [{ taskId: task.id, sessionId: SessionId(task.sessionId), state }]
+    })
+    return { tasks: reconciled, result: { pending, tasks: reconciled } }
   })
-  await Promise.all(
-    reconciliation.recovered.map((task) =>
-      projectTaskDelegationState(
-        input.services,
-        task.sessionId,
-        terminalDelegationState(task.status),
-      ),
-    ),
-  )
+  const projected = (
+    await Promise.all(
+      reconciliation.pending.map(async (task) => ({
+        ...task,
+        succeeded: await projectTaskDelegationState(input.services, task.sessionId, task.state),
+      })),
+    )
+  ).filter(({ succeeded }) => succeeded)
+  if (projected.length > 0) {
+    const stateByTaskId = new Map(projected.map(({ taskId, state }) => [taskId, state]))
+    await input.store.update((tasks) => ({
+      tasks: tasks.map((task) => {
+        const state = stateByTaskId.get(task.id)
+        return state &&
+          isTerminalTaskStatus(task.status) &&
+          terminalDelegationState(task.status) === state
+          ? { ...task, projectedDelegationState: state }
+          : task
+      }),
+      result: true,
+    }))
+  }
   return reconciliation.tasks
 }

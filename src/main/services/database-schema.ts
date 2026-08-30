@@ -105,6 +105,13 @@ export const SESSION_RESOURCE_BACKFILL_SCHEMA_STATEMENT = `
   )
   `
 
+export const SESSION_RESOURCE_CLEANUP_QUEUE_SCHEMA_STATEMENT = `
+  CREATE TABLE IF NOT EXISTS session_resource_cleanup_queue (
+    session_id TEXT PRIMARY KEY,
+    queued_at INTEGER NOT NULL
+  )
+  `
+
 export const CURRENT_SESSION_RESOURCE_SCHEMA_STATEMENTS = [
   `
   CREATE TABLE IF NOT EXISTS session_resources (
@@ -143,6 +150,7 @@ export const CURRENT_SESSION_RESOURCE_SCHEMA_STATEMENTS = [
   ON session_resource_occurrences (resource_id, created_at ASC)
   `,
   SESSION_RESOURCE_BACKFILL_SCHEMA_STATEMENT,
+  SESSION_RESOURCE_CLEANUP_QUEUE_SCHEMA_STATEMENT,
 ] as const
 
 export const EXTENSION_LIFECYCLE_SCHEMA_V1_STATEMENTS = [

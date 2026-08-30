@@ -3,6 +3,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { SessionResourceRepositoryError } from '../../errors'
 import { SessionRepository, type SessionRepositoryShape } from '../../ports/session-repository'
 import {
   SessionResourceImageFetcher,
@@ -55,7 +56,11 @@ const TestLayer = Layer.mergeAll(
     SessionResourceRepository,
     SessionResourceRepository.of(
       fromPartial<SessionResourceRepositoryShape>({
-        list: (sessionId: SessionId) => Effect.sync(() => handlerMocks.list(sessionId)),
+        list: (sessionId: SessionId) =>
+          Effect.try({
+            try: () => handlerMocks.list(sessionId),
+            catch: (cause) => new SessionResourceRepositoryError({ operation: 'list', cause }),
+          }),
         getContentLocation: (sessionId: SessionId, resourceId: string) =>
           Effect.sync(() => handlerMocks.getContentLocation(sessionId, resourceId)),
         getBackfillCursor: (sessionId: SessionId) =>
@@ -252,6 +257,37 @@ describe('session resource IPC handlers', () => {
       throughCreatedOrder: 41,
       hasMore: false,
     })
+
+    await expect(invoke('sessions:resources:list', SessionId('session-one'))).resolves.toEqual({
+      resources: [],
+      backfillComplete: false,
+    })
+
+    expect(handlerMocks.advanceBackfillCursor).not.toHaveBeenCalled()
+  })
+
+  it('keeps polling the same page after a transient capture failure', async () => {
+    handlerMocks.listResourceProjectionPage.mockReturnValue({
+      nodes: [
+        {
+          id: 'assistant-node',
+          branchId: null,
+          message: {
+            id: 'assistant-node',
+            role: 'assistant',
+            parts: [{ type: 'text', text: '[Docs](https://example.test/docs)' }],
+            createdAt: 1000,
+          },
+        },
+      ],
+      throughCreatedOrder: 41,
+      hasMore: false,
+    })
+    handlerMocks.list
+      .mockImplementationOnce(() => {
+        throw new Error('database temporarily unavailable')
+      })
+      .mockReturnValue([])
 
     await expect(invoke('sessions:resources:list', SessionId('session-one'))).resolves.toEqual({
       resources: [],

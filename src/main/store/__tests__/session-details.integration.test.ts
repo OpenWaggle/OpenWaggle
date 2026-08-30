@@ -4,7 +4,9 @@ import lifecycleOs from 'node:os'
 import lifecyclePath from 'node:path'
 import path from 'node:path'
 import { SessionId } from '@shared/types/brand'
+import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SessionResourceCleanupRepository } from '../../ports/session-resource-cleanup-repository'
 import {
   createSession,
   deleteSession,
@@ -242,5 +244,13 @@ describe('session-details integration basics', () => {
 
     await expect(fs.stat(sessionFile)).rejects.toThrow()
     await expect(getSessionDetail(session.id)).resolves.toBeNull()
+    const { runAppEffect } = await import('../../runtime')
+    const pending = await runAppEffect(
+      Effect.gen(function* () {
+        const cleanup = yield* SessionResourceCleanupRepository
+        return yield* cleanup.listPending(10)
+      }),
+    )
+    expect(pending).toEqual([session.id])
   })
 })

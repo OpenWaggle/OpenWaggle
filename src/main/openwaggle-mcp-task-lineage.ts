@@ -22,7 +22,10 @@ export async function projectTaskDelegationState(
   sessionId: SessionId,
   state: SessionDelegationState,
 ) {
-  await services.setDelegationState(sessionId, state).catch(() => undefined)
+  return services
+    .setDelegationState(sessionId, state)
+    .then(() => true)
+    .catch(() => false)
 }
 
 export function terminalDelegationState(status: ServerTaskStatus): SessionDelegationState {

@@ -29,6 +29,7 @@ import { SqliteExtensionProjectOverridesRepositoryLive } from './adapters/sqlite
 import { SqliteExtensionStorageRepositoryLive } from './adapters/sqlite-extension-storage-repository'
 import { SqliteSessionProjectionRepositoryLive } from './adapters/sqlite-session-projection-repository'
 import { SqliteSessionRepositoryLive } from './adapters/sqlite-session-repository'
+import { SqliteSessionResourceCleanupRepositoryLive } from './adapters/sqlite-session-resource-cleanup-repository'
 import { SqliteSessionResourceRepositoryLive } from './adapters/sqlite-session-resource-repository'
 import { FilesystemStandardsLive } from './adapters/standards-adapter'
 import { ActiveProjectChangeServiceLive } from './application/active-project-change-service'
@@ -47,6 +48,9 @@ const ExtensionStorageRepositoryLive = SqliteExtensionStorageRepositoryLive.pipe
   Layer.provide(AppDatabaseLive),
 )
 const SessionResourceRepositoryLive = SqliteSessionResourceRepositoryLive.pipe(
+  Layer.provide(AppDatabaseLive),
+)
+const SessionResourceCleanupRepositoryLive = SqliteSessionResourceCleanupRepositoryLive.pipe(
   Layer.provide(AppDatabaseLive),
 )
 const ExtensionRuntimeSelectionLive = Layer.mergeAll(
@@ -98,6 +102,7 @@ const AppLayer = Layer.mergeAll(
   ExtensionRuntimeSelectionLive,
   ExtensionStorageRepositoryLive,
   SessionResourceRepositoryLive,
+  SessionResourceCleanupRepositoryLive,
   FilesystemSessionResourceStoreLive,
   SecureSessionResourceImageFetcherLive,
   SharpSessionResourceThumbnailerLive,

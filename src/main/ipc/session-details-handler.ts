@@ -11,10 +11,9 @@ import {
   cloneAgentSessionToNewSession,
   forkAgentSessionToNewSession,
 } from '../application/agent-session-service'
-import { withSessionResourceLock } from '../application/session-resource-lock'
+import { cleanupQueuedSessionResources } from '../application/session-resource-cleanup'
 import { AgentKernelService } from '../ports/agent-kernel-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
-import { SessionResourceStore } from '../ports/session-resource-store'
 import { SettingsService } from '../services/settings-service'
 import { clearAgentPhase, clearStreamBuffer, emitRunCompleted } from '../utils/stream-bridge'
 import { cancelSessionRuns } from './active-agent-runs'
@@ -149,17 +148,8 @@ function registerSessionMutationHandlers() {
       Effect.zipRight(
         Effect.gen(function* () {
           const repo = yield* SessionProjectionRepository
-          const resourceStore = yield* SessionResourceStore
-          yield* withSessionResourceLock(
-            id,
-            repo
-              .delete(id)
-              .pipe(
-                Effect.zipRight(
-                  resourceStore.removeSession(id).pipe(Effect.catchAll(() => Effect.void)),
-                ),
-              ),
-          )
+          yield* repo.delete(id)
+          yield* cleanupQueuedSessionResources(id).pipe(Effect.catchAll(() => Effect.void))
         }),
       ),
     ),

@@ -45,6 +45,8 @@ export function registerSessionResourceHandlers(): void {
           } else {
             backfillComplete = false
           }
+        } else {
+          backfillComplete = false
         }
       }
       return { resources: [...(yield* repository.list(sessionId))], backfillComplete }

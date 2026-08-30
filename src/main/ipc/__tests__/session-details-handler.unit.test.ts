@@ -10,6 +10,7 @@ import {
   cleanupSessionRunMock,
   clearAgentPhaseMock,
   clearStreamBufferMock,
+  completeSessionResourceCleanupMock,
   createRuntimeSessionMock,
   createSessionMock,
   deleteSessionMock,
@@ -235,6 +236,7 @@ describe('registerSessionDetailsHandlers', () => {
     expect(emitRunCompletedMock).toHaveBeenCalledWith(SessionId('session-delete'))
     expect(deleteSessionMock).toHaveBeenCalledWith(SessionId('session-delete'))
     expect(removeSessionResourcesMock).toHaveBeenCalledWith(SessionId('session-delete'))
+    expect(completeSessionResourceCleanupMock).toHaveBeenCalledWith(SessionId('session-delete'))
     expect(deleteSessionMock.mock.invocationCallOrder[0]).toBeLessThan(
       removeSessionResourcesMock.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
     )
@@ -259,6 +261,7 @@ describe('registerSessionDetailsHandlers', () => {
     await expect(handler?.({}, SessionId('session-cleanup-failure'))).resolves.toBeUndefined()
     expect(deleteSessionMock).toHaveBeenCalledWith(SessionId('session-cleanup-failure'))
     expect(removeSessionResourcesMock).toHaveBeenCalledWith(SessionId('session-cleanup-failure'))
+    expect(completeSessionResourceCleanupMock).not.toHaveBeenCalled()
   })
 
   it('cleans up the active run before archiving a session', async () => {

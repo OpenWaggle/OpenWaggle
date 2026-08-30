@@ -8,6 +8,7 @@ import { AgentKernelService } from '../../ports/agent-kernel-service'
 import { ProviderService } from '../../ports/provider-service'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { SessionRepository } from '../../ports/session-repository'
+import { SessionResourceCleanupRepository } from '../../ports/session-resource-cleanup-repository'
 import { SessionResourceStore } from '../../ports/session-resource-store'
 import { SettingsService } from '../../services/settings-service'
 import type * as SessionDetailsHandler from '../session-details-handler'
@@ -41,6 +42,8 @@ const mocks = vi.hoisted(() => ({
   clearStreamBufferMock: vi.fn(),
   emitRunCompletedMock: vi.fn(),
   removeSessionResourcesMock: vi.fn(),
+  completeSessionResourceCleanupMock: vi.fn(),
+  listPendingSessionResourceCleanupMock: vi.fn(),
 }))
 
 export const typedHandleMock: TestMock = mocks.typedHandleMock
@@ -66,6 +69,7 @@ export const clearAgentPhaseMock: TestMock = mocks.clearAgentPhaseMock
 export const clearStreamBufferMock: TestMock = mocks.clearStreamBufferMock
 export const emitRunCompletedMock: TestMock = mocks.emitRunCompletedMock
 export const removeSessionResourcesMock: TestMock = mocks.removeSessionResourcesMock
+export const completeSessionResourceCleanupMock: TestMock = mocks.completeSessionResourceCleanupMock
 
 vi.mock('../typed-ipc', () => ({
   typedHandle: typedHandleMock,
@@ -263,6 +267,14 @@ const TestSessionResourceStoreLayer = Layer.succeed(SessionResourceStore, {
     }),
 })
 
+const TestSessionResourceCleanupLayer = Layer.succeed(SessionResourceCleanupRepository, {
+  listPending: (limit) => Effect.sync(() => mocks.listPendingSessionResourceCleanupMock(limit)),
+  complete: (sessionId) =>
+    Effect.sync(() => {
+      completeSessionResourceCleanupMock(sessionId)
+    }),
+})
+
 const TestRuntimeLayer = Layer.mergeAll(
   TestSessionProjectionRepoLayer,
   TestAgentKernelLayer,
@@ -270,6 +282,7 @@ const TestRuntimeLayer = Layer.mergeAll(
   TestProviderLayer,
   TestSettingsLayer,
   TestSessionResourceStoreLayer,
+  TestSessionResourceCleanupLayer,
   EmptyExtensionRuntimeLayer,
 )
 
@@ -298,6 +311,7 @@ export function resetSessionDetailsHandlerMocks() {
   movePinnedSessionMock.mockResolvedValue(undefined)
   cancelSessionRunsMock.mockReturnValue(false)
   removeSessionResourcesMock.mockReturnValue(undefined)
+  mocks.listPendingSessionResourceCleanupMock.mockReturnValue([])
 }
 
 export function loadSessionDetailsHandlers(): Promise<typeof SessionDetailsHandler> {

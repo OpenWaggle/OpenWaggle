@@ -96,6 +96,61 @@ describe('hosted MCP task lineage recovery', () => {
       SessionId('worker-cancelled'),
       'cancelled',
     )
+    await expect(store.readTasks()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'expired-worker',
+          projectedDelegationState: 'needs_attention',
+        }),
+        expect.objectContaining({
+          id: 'cancelled-worker',
+          projectedDelegationState: 'cancelled',
+        }),
+      ]),
+    )
+  })
+
+  it('retries an unacknowledged terminal lineage projection until it succeeds', async () => {
+    const options = serveOptions(temporaryRoot)
+    const store = new OpenWaggleMcpTaskStore(options.taskStorePath)
+    await store.update(() => ({
+      tasks: [
+        {
+          id: 'completed-worker',
+          callerProfile: options.profile,
+          projectPath: temporaryRoot,
+          model: 'provider/model',
+          objective: 'already complete',
+          sessionId: 'worker-completed',
+          status: 'completed',
+          createdAt: 1,
+          updatedAt: 2,
+        },
+      ],
+      result: true,
+    }))
+    const services = recoveryServices()
+    vi.mocked(services.setDelegationState)
+      .mockRejectedValueOnce(new Error('session database temporarily unavailable'))
+      .mockResolvedValue(undefined)
+    const metadata = new OpenWaggleMcpSessionMetadataStore(
+      sessionMetadataStorePath(options.taskStorePath),
+    )
+    const manager = new OpenWaggleServerTaskManager(options, metadata, services)
+
+    await Effect.runPromise(manager.recoverInterruptedTasks())
+    await Effect.runPromise(manager.recoverInterruptedTasks())
+    await Effect.runPromise(manager.recoverInterruptedTasks())
+
+    expect(services.setDelegationState).toHaveBeenCalledTimes(2)
+    expect(services.setDelegationState).toHaveBeenNthCalledWith(
+      2,
+      SessionId('worker-completed'),
+      'accepted',
+    )
+    await expect(store.readTasks()).resolves.toEqual([
+      expect.objectContaining({ projectedDelegationState: 'accepted' }),
+    ])
   })
 
   it('projects direct cancellation after an expired lease', async () => {
