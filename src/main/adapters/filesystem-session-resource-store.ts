@@ -65,6 +65,78 @@ function digest(bytes: Uint8Array) {
   return createHash('sha256').update(bytes).digest('hex')
 }
 
+function validateFileCopyLimits(input: {
+  readonly expectedSizeBytes: number
+  readonly maxSizeBytes: number
+}) {
+  if (
+    !Number.isSafeInteger(input.expectedSizeBytes) ||
+    input.expectedSizeBytes < 0 ||
+    !Number.isSafeInteger(input.maxSizeBytes) ||
+    input.maxSizeBytes <= 0 ||
+    input.expectedSizeBytes > input.maxSizeBytes
+  ) {
+    throw new Error('Session resource file copy limits are invalid.')
+  }
+}
+
+async function writeChunk(handle: fs.FileHandle, chunk: Buffer) {
+  let offset = 0
+  while (offset < chunk.byteLength) {
+    const { bytesWritten } = await handle.write(chunk, offset, chunk.byteLength - offset, null)
+    if (bytesWritten <= 0) throw new Error('Session resource file copy made no progress.')
+    offset += bytesWritten
+  }
+}
+
+async function copyBoundedFile(input: {
+  readonly sourcePath: string
+  readonly temporaryPath: string
+  readonly expectedSizeBytes: number
+  readonly maxSizeBytes: number
+}) {
+  validateFileCopyLimits(input)
+  const hash = createHash('sha256')
+  const sourceHandle = await fs.open(input.sourcePath, 'r')
+  let sizeBytes = 0
+  try {
+    const stats = await sourceHandle.stat()
+    if (
+      !stats.isFile() ||
+      stats.size !== input.expectedSizeBytes ||
+      stats.size > input.maxSizeBytes
+    ) {
+      throw new Error('Session resource source size changed before it could be copied.')
+    }
+    const targetHandle = await fs.open(input.temporaryPath, 'wx')
+    try {
+      for await (const chunk of sourceHandle.createReadStream({ autoClose: false })) {
+        if (!Buffer.isBuffer(chunk)) throw new Error('Session resource source emitted text data.')
+        if (
+          chunk.byteLength > input.expectedSizeBytes - sizeBytes ||
+          chunk.byteLength > input.maxSizeBytes - sizeBytes
+        ) {
+          throw new Error('Session resource source exceeds its allowed size.')
+        }
+        await writeChunk(targetHandle, chunk)
+        hash.update(chunk)
+        sizeBytes += chunk.byteLength
+      }
+      if (sizeBytes !== input.expectedSizeBytes) {
+        throw new Error('Session resource source size changed before it could be copied.')
+      }
+      await targetHandle.close()
+    } catch (cause) {
+      await targetHandle.close().catch(() => {})
+      await fs.rm(input.temporaryPath, { force: true }).catch(() => {})
+      throw cause
+    }
+  } finally {
+    await sourceHandle.close().catch(() => {})
+  }
+  return { sha256: hash.digest('hex'), sizeBytes }
+}
+
 function makeStore(root: string): SessionResourceStoreShape {
   function storeBytes(input: StoreSessionResourceBytesInput) {
     return Effect.tryPromise({
@@ -92,9 +164,30 @@ function makeStore(root: string): SessionResourceStoreShape {
     storeBytes,
     storeFile: (input) =>
       Effect.tryPromise({
-        try: () => fs.readFile(input.sourcePath),
-        catch: (cause) => storeError('readSourceFile', cause),
-      }).pipe(Effect.flatMap((bytes) => storeBytes({ ...input, bytes }))),
+        try: async () => {
+          const sessionDirectory = path.join(root, String(input.sessionId))
+          await fs.mkdir(sessionDirectory, { recursive: true })
+          const target = path.join(
+            sessionDirectory,
+            managedFileName(input.resourceId, input.fileName),
+          )
+          const temporary = `${target}${TEMPORARY_SUFFIX}`
+          const copied = await copyBoundedFile({
+            sourcePath: input.sourcePath,
+            temporaryPath: temporary,
+            expectedSizeBytes: input.expectedSizeBytes,
+            maxSizeBytes: input.maxSizeBytes,
+          })
+          try {
+            await fs.rename(temporary, target)
+          } catch (cause) {
+            await fs.rm(temporary, { force: true }).catch(() => {})
+            throw cause
+          }
+          return { path: target, ...copied }
+        },
+        catch: (cause) => storeError('storeFile', cause),
+      }),
     read: (managedPath) =>
       Effect.tryPromise({
         try: async () => {

@@ -24,6 +24,7 @@ export interface SessionSummaryExpandedPanelInput {
   readonly sourcesExpanded: boolean
   readonly outputs: readonly SessionResource[]
   readonly sources: readonly SessionResource[]
+  readonly resources: readonly SessionResource[]
   readonly extensionRegistry: ExtensionContributionRegistryView | null
   readonly extensionProjectPaths: readonly string[]
   readonly onCollapse: () => void
@@ -52,6 +53,8 @@ function ExtensionSections({
       sessionId={input.sessionId}
       messageCount={input.messageCount}
       placement={placement}
+      resources={input.resources}
+      onOpenResources={input.onOpenResources}
       onOpenSidePanel={input.onOpenExtensionSidePanel}
     />
   )

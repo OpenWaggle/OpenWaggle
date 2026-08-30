@@ -10,7 +10,7 @@ export function repositoryWebUrl(remoteUrl: string) {
   const url = repositoryUrl(remoteUrl)
   if (url) {
     const repositoryPath = url.pathname.replace(/^\/+|\.git$/gu, '')
-    return repositoryPath ? `https://${url.hostname}/${repositoryPath}` : null
+    return repositoryPath ? `https://${url.host}/${repositoryPath}` : null
   }
 
   const scp = /^(?:[^@/\s]+@)?(?<host>[^:/\s]+):(?<path>[^/].+)$/u.exec(remoteUrl)

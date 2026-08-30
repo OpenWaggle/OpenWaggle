@@ -59,6 +59,80 @@ describe('FilesystemSessionResourceStore', () => {
     await expect(fs.readFile(stored.path)).resolves.toEqual(Buffer.from(bytes))
   })
 
+  it('streams a source file into managed storage when its size is unchanged', async () => {
+    const bytes = Buffer.from('unchanged attachment')
+    const sourcePath = path.join(tmpRoot, 'source-attachment.txt')
+    await fs.writeFile(sourcePath, bytes)
+
+    const stored = await Effect.runPromise(
+      Effect.gen(function* () {
+        const store = yield* SessionResourceStore
+        return yield* store.storeFile({
+          sessionId: SessionId('session-1'),
+          resourceId: 'resource-1',
+          fileName: 'attachment.txt',
+          sourcePath,
+          expectedSizeBytes: bytes.byteLength,
+          maxSizeBytes: bytes.byteLength,
+        })
+      }).pipe(Effect.provide(makeFilesystemSessionResourceStoreLayer(tmpRoot))),
+    )
+
+    expect(stored.sizeBytes).toBe(bytes.byteLength)
+    expect(stored.sha256).toHaveLength(64)
+    await expect(fs.readFile(stored.path)).resolves.toEqual(bytes)
+  })
+
+  it('rejects a source file that grew beyond its expected size', async () => {
+    const sourcePath = path.join(tmpRoot, 'grown-attachment.txt')
+    await fs.writeFile(sourcePath, '12345')
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const store = yield* SessionResourceStore
+        return yield* store.storeFile({
+          sessionId: SessionId('session-1'),
+          resourceId: 'resource-1',
+          fileName: 'attachment.txt',
+          sourcePath,
+          expectedSizeBytes: 4,
+          maxSizeBytes: 8,
+        })
+      }).pipe(Effect.either, Effect.provide(makeFilesystemSessionResourceStoreLayer(tmpRoot))),
+    )
+
+    expect(result).toMatchObject({
+      _tag: 'Left',
+      left: { _tag: 'SessionResourceStoreError', operation: 'storeFile' },
+    })
+    await expect(fs.readdir(path.join(tmpRoot, 'session-1'))).resolves.toEqual([])
+  })
+
+  it('rejects a source file whose expected size exceeds the copy limit', async () => {
+    const sourcePath = path.join(tmpRoot, 'oversized-attachment.txt')
+    await fs.writeFile(sourcePath, '123456789')
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const store = yield* SessionResourceStore
+        return yield* store.storeFile({
+          sessionId: SessionId('session-1'),
+          resourceId: 'resource-1',
+          fileName: 'attachment.txt',
+          sourcePath,
+          expectedSizeBytes: 9,
+          maxSizeBytes: 8,
+        })
+      }).pipe(Effect.either, Effect.provide(makeFilesystemSessionResourceStoreLayer(tmpRoot))),
+    )
+
+    expect(result).toMatchObject({
+      _tag: 'Left',
+      left: { _tag: 'SessionResourceStoreError', operation: 'storeFile' },
+    })
+    await expect(fs.readdir(path.join(tmpRoot, 'session-1'))).resolves.toEqual([])
+  })
+
   it('rejects reads that resolve outside the managed resource root', async () => {
     const outside = path.join(path.dirname(tmpRoot), 'outside-session-resource.txt')
     await fs.writeFile(outside, 'secret')

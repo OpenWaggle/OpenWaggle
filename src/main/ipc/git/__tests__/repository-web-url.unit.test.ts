@@ -6,6 +6,9 @@ describe('repositoryWebUrl', () => {
     expect(repositoryWebUrl('https://github.com/OpenWaggle/OpenWaggle.git')).toBe(
       'https://github.com/OpenWaggle/OpenWaggle',
     )
+    expect(repositoryWebUrl('https://gitlab.example:8443/group/project.git')).toBe(
+      'https://gitlab.example:8443/group/project',
+    )
   })
 
   it('normalizes SSH URL and SCP-style remotes', () => {

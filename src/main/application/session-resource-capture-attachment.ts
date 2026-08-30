@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { ATTACHMENT } from '@shared/constants/resource-limits'
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type {
@@ -65,6 +66,8 @@ function storeAttachment(
       resourceId,
       fileName: input.attachment.name,
       sourcePath: input.attachment.path,
+      expectedSizeBytes: input.attachment.sizeBytes,
+      maxSizeBytes: ATTACHMENT.MAX_SIZE_BYTES,
     })
     .pipe(
       Effect.map((stored) => ({ _tag: 'Stored' as const, stored })),

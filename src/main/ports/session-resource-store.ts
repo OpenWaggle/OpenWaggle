@@ -20,6 +20,8 @@ export interface StoreSessionResourceFileInput {
   readonly resourceId: string
   readonly fileName: string
   readonly sourcePath: string
+  readonly expectedSizeBytes: number
+  readonly maxSizeBytes: number
 }
 
 export interface SessionResourceStoreShape {

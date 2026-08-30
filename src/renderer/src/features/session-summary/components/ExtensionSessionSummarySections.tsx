@@ -3,6 +3,7 @@ import type {
   ExtensionContributionRegistryView,
   ExtensionSessionSummaryRowView,
 } from '@shared/types/extensions'
+import type { SessionResource } from '@shared/types/session-resource'
 import { Puzzle } from 'lucide-react'
 import { ExtensionDialogSurface } from '@/features/extensions'
 import { Button } from '@/shared/ui/Button'
@@ -64,6 +65,8 @@ export function ExtensionSessionSummarySections({
   sessionId,
   messageCount,
   placement,
+  resources,
+  onOpenResources,
   onOpenSidePanel,
 }: {
   readonly registry: ExtensionContributionRegistryView | null
@@ -71,6 +74,8 @@ export function ExtensionSessionSummarySections({
   readonly sessionId: string
   readonly messageCount: number
   readonly placement: SessionSummaryPlacement
+  readonly resources: readonly SessionResource[]
+  readonly onOpenResources: () => void
   readonly onOpenSidePanel?: (target: SessionSummaryExtensionSidePanelTarget) => void
 }) {
   const activeRegistry = registry ?? EMPTY_REGISTRY
@@ -79,6 +84,8 @@ export function ExtensionSessionSummarySections({
     projectPaths,
     sessionId,
     messageCount,
+    resources,
+    onOpenResources,
     onOpenSidePanel,
   })
   if (!registry) return null

@@ -160,6 +160,7 @@ export function SessionSummaryHub({ input }: { readonly input: SessionSummaryHub
           sourcesExpanded,
           outputs,
           sources,
+          resources: allResources,
           extensionRegistry,
           extensionProjectPaths,
           onCollapse: () => {

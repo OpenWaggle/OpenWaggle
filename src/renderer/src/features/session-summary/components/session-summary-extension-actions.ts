@@ -5,6 +5,7 @@ import type {
   ExtensionSessionSummaryRowView,
 } from '@shared/types/extensions'
 import type { JsonObject } from '@shared/types/json'
+import type { SessionResource } from '@shared/types/session-resource'
 import { useState } from 'react'
 import { resolveExtensionCommandInvocationScope } from '@/features/command-palette'
 import { refreshPreferencesAfterExtensionInvoke } from '@/features/extensions'
@@ -57,6 +58,8 @@ export function useSessionSummaryExtensionActions(input: {
   readonly projectPaths: readonly string[]
   readonly sessionId: string
   readonly messageCount: number
+  readonly resources: readonly SessionResource[]
+  readonly onOpenResources: () => void
   readonly onOpenSidePanel?: (target: SessionSummaryExtensionSidePanelTarget) => void
 }) {
   const openResourceViewer = useUIStore((state) => state.openResourceViewer)
@@ -74,7 +77,9 @@ export function useSessionSummaryExtensionActions(input: {
     row: ExtensionSessionSummaryRowView,
   ) {
     if (row.resourceId) {
-      openResourceViewer(input.sessionId, row.resourceId)
+      const resource = input.resources.find(({ id }) => id === row.resourceId)
+      if (resource?.kind === 'image') openResourceViewer(input.sessionId, row.resourceId)
+      else input.onOpenResources()
       return
     }
     const entry = matchingSessionSummaryAction({ registry: input.registry, section, row })

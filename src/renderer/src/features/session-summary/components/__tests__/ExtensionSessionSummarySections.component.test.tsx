@@ -1,8 +1,10 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import { SessionId } from '@shared/types/brand'
 import type {
   ExtensionContributionRegistryEntry,
   ExtensionContributionRegistryView,
 } from '@shared/types/extensions'
+import type { SessionResource } from '@shared/types/session-resource'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@/shell/ui-store'
@@ -68,6 +70,24 @@ function registry(entries: readonly ExtensionContributionRegistryEntry[]) {
   return { projectPaths: [PROJECT_PATH], entries } satisfies ExtensionContributionRegistryView
 }
 
+function sessionResource(kind: SessionResource['kind']): SessionResource {
+  return {
+    id: 'resource-one',
+    sessionId: SessionId('session-one'),
+    canonicalKey: 'file:resource-one',
+    kind,
+    title: 'Resource one',
+    mimeType: null,
+    locator: 'session-resource://resource-one',
+    available: true,
+    isSource: false,
+    isOutput: true,
+    occurrences: [],
+    createdAt: 1,
+    updatedAt: 1,
+  }
+}
+
 describe('ExtensionSessionSummarySections', () => {
   beforeEach(() => {
     useUIStore.setState({ resourceViewer: null })
@@ -82,6 +102,8 @@ describe('ExtensionSessionSummarySections', () => {
         sessionId="session-one"
         messageCount={3}
         placement="context"
+        resources={[]}
+        onOpenResources={vi.fn()}
       />,
     )
     expect(screen.queryByText('Build status')).toBeNull()
@@ -93,6 +115,8 @@ describe('ExtensionSessionSummarySections', () => {
         sessionId="session-one"
         messageCount={3}
         placement="details"
+        resources={[]}
+        onOpenResources={vi.fn()}
       />,
     )
     expect(screen.getByText('Build status')).toBeInTheDocument()
@@ -115,6 +139,8 @@ describe('ExtensionSessionSummarySections', () => {
         sessionId="session-one"
         messageCount={1}
         placement="details"
+        resources={[sessionResource('image')]}
+        onOpenResources={vi.fn()}
         onOpenSidePanel={openSidePanel}
       />,
     )
@@ -133,6 +159,25 @@ describe('ExtensionSessionSummarySections', () => {
     })
   })
 
+  it('opens non-image extension resources in the session resource browser', () => {
+    const onOpenResources = vi.fn()
+    render(
+      <ExtensionSessionSummarySections
+        registry={registry([summaryEntry()])}
+        projectPaths={[PROJECT_PATH]}
+        sessionId="session-one"
+        messageCount={1}
+        placement="details"
+        resources={[sessionResource('file')]}
+        onOpenResources={onOpenResources}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    expect(onOpenResources).toHaveBeenCalledOnce()
+    expect(useUIStore.getState().resourceViewer).toBeNull()
+  })
+
   it('does not activate an action that is not declared by the same extension package', () => {
     const openSidePanel = vi.fn()
     const foreignPanel = {
@@ -149,6 +194,8 @@ describe('ExtensionSessionSummarySections', () => {
         sessionId="session-one"
         messageCount={1}
         placement="details"
+        resources={[sessionResource('image')]}
+        onOpenResources={vi.fn()}
         onOpenSidePanel={openSidePanel}
       />,
     )
