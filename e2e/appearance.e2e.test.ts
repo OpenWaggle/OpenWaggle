@@ -217,17 +217,25 @@ test('appearance: typography and motion preferences survive a renderer reload', 
     await expect(codePreview).toBeVisible()
     const initialCodeFont = await codePreview.evaluate((element) => getComputedStyle(element).fontFamily)
     await page.getByRole('button', { name: 'Interface font: System UI' }).click()
-    await page.getByRole('menuitemradio', { name: 'Georgia' }).click()
+    await page.getByRole('menuitemradio', { name: 'Custom CSS stack…' }).click()
+    const interfaceFontInput = page.getByRole('textbox', {
+      name: 'Custom Interface font family',
+    })
+    await interfaceFontInput.fill('serif')
+    await interfaceFontInput.press('Enter')
     await page.getByRole('button', { name: 'Code font: System monospace' }).click()
-    await page.getByRole('menuitemradio', { name: 'Menlo' }).click()
+    await page.getByRole('menuitemradio', { name: 'Custom CSS stack…' }).click()
+    const codeFontInput = page.getByRole('textbox', { name: 'Custom Code font family' })
+    await codeFontInput.fill('monospace')
+    await codeFontInput.press('Enter')
     await page.getByRole('button', { name: 'Increase Interface scale' }).click()
     await page.getByRole('switch', { name: 'Reduce motion' }).click()
 
     await expect
       .poll(() => codePreview.evaluate((element) => getComputedStyle(element).fontFamily))
       .not.toBe(initialCodeFont)
-    expect(await codePreview.evaluate((element) => getComputedStyle(element).fontFamily)).toMatch(
-      /^Menlo/u,
+    expect(await codePreview.evaluate((element) => getComputedStyle(element).fontFamily)).toBe(
+      'monospace',
     )
 
     await expect
@@ -239,18 +247,23 @@ test('appearance: typography and motion preferences survive a renderer reload', 
         expect.objectContaining({
           motion: 'reduced',
           typography: expect.objectContaining({
-            interfaceFontFamily: 'Georgia, serif',
+            interfaceFontFamily: 'serif',
             interfaceScale: 105,
-            codeFontFamily:
-              'Menlo, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+            codeFontFamily: 'monospace',
           }),
         }),
       )
 
     await page.reload()
 
-    await expect(page.getByRole('button', { name: 'Interface font: Georgia' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Code font: Menlo' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Interface font: Custom' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Code font: Custom' })).toBeVisible()
+    await expect(page.getByRole('textbox', { name: 'Custom Interface font family' })).toHaveValue(
+      'serif',
+    )
+    await expect(page.getByRole('textbox', { name: 'Custom Code font family' })).toHaveValue(
+      'monospace',
+    )
     await expect(page.getByRole('spinbutton', { name: 'Interface scale' })).toHaveValue('105')
     await expect(page.getByRole('switch', { name: 'Reduce motion' })).toHaveAttribute(
       'aria-checked',
@@ -262,10 +275,10 @@ test('appearance: typography and motion preferences survive a renderer reload', 
         fontSize: document.documentElement.style.fontSize,
         motion: document.documentElement.dataset.motion,
       })),
-    ).toEqual({ fontFamily: 'Georgia, serif', fontSize: '105%', motion: 'reduced' })
+    ).toEqual({ fontFamily: 'serif', fontSize: '105%', motion: 'reduced' })
     await expect
       .poll(() => codePreview.evaluate((element) => getComputedStyle(element).fontFamily))
-      .toMatch(/^Menlo/u)
+      .toBe('monospace')
   } finally {
     await app.cleanup()
   }
