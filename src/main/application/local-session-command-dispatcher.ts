@@ -9,15 +9,9 @@ import {
 import { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
 import { SessionControlAttachmentService } from '../ports/session-control-attachment-service'
 import { SettingsService } from '../services/settings-service'
-import {
-  executeLocalSessionCommand,
-  type LocalSessionClientConnectionInput,
-} from '../session-host/local-session-client'
-import {
-  ensureLocalSessionHost,
-  isLocalSessionHostUnavailable,
-} from '../session-host/local-session-host-launcher'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
+import { dispatchConfiguredGuiSessionCommand } from './gui-session-command-router'
+import { dispatchHostUiRequest } from './host-ui-request-dispatcher'
 import {
   authorizeLocalSessionCommand,
   profileAuthorityForCapabilities,
@@ -45,90 +39,21 @@ import { publishControlResponse } from './session-control-event-projection'
 import { executeSessionLifecycleCommand } from './session-lifecycle-command-service'
 
 export {
+  type ConfiguredHostUiInvocation,
+  configureGuiSessionCommandClient,
+  dispatchConfiguredGuiSessionCommand,
+  type GuiSessionCommandDependencies,
+  GuiSessionHostRetiredForUpgradeError,
+  invokeConfiguredHostUi,
+  invokeConfiguredHostUiRaw,
+  retireGuiSessionCommandClientForUpgrade,
+} from './gui-session-command-router'
+export {
   authorizeLocalSessionActiveRun,
   authorizeLocalSessionCommand,
   authorizeLocalSessionEvent,
   profileAuthorityForCapabilities,
 } from './local-session-command-authorization'
-
-type GuiSessionClientInput = Omit<
-  LocalSessionClientConnectionInput,
-  'workingDirectory' | 'clientKind'
->
-
-type GuiSessionCommandRoute =
-  | { readonly mode: 'local' }
-  | { readonly mode: 'remote'; readonly client: GuiSessionClientInput }
-  | { readonly mode: 'retired-for-upgrade' }
-
-let guiSessionCommandRoute: GuiSessionCommandRoute = { mode: 'local' }
-
-export class GuiSessionHostRetiredForUpgradeError extends Error {
-  constructor() {
-    super('This OpenWaggle window retired its Session Host for an upgrade. Restart it to continue.')
-    this.name = 'GuiSessionHostRetiredForUpgradeError'
-  }
-}
-
-export interface GuiSessionCommandDependencies {
-  readonly execute: typeof executeLocalSessionCommand
-  readonly ensure: (input: Parameters<typeof ensureLocalSessionHost>[0]) => Promise<unknown>
-}
-
-function cannotRetryAfterAmbiguousTransportFailure(payload: LocalSessionCommandPayload) {
-  return payload.contract === 'session-waggle-v1' || payload.contract === 'local-compaction-v1'
-}
-
-export function configureGuiSessionCommandClient(input: GuiSessionClientInput | null) {
-  guiSessionCommandRoute = input ? { mode: 'remote', client: input } : { mode: 'local' }
-}
-
-export function retireGuiSessionCommandClientForUpgrade() {
-  guiSessionCommandRoute = { mode: 'retired-for-upgrade' }
-}
-
-export function dispatchConfiguredGuiSessionCommand(
-  input: {
-    readonly caller: LocalSessionCallerIdentity
-    readonly payload: LocalSessionCommandPayload
-  },
-  dependencyOverrides: Partial<GuiSessionCommandDependencies> = {},
-) {
-  const dependencies: GuiSessionCommandDependencies = {
-    execute: executeLocalSessionCommand,
-    ensure: ensureLocalSessionHost,
-    ...dependencyOverrides,
-  }
-  const route = guiSessionCommandRoute
-  if (input.caller.callerId !== 'gui:local-user' || route.mode === 'local') return undefined
-  if (route.mode === 'retired-for-upgrade') {
-    return Effect.fail(new GuiSessionHostRetiredForUpgradeError())
-  }
-  const configuredGuiClient = route.client
-  const commandInput = {
-    ...configuredGuiClient,
-    clientKind: 'gui' as const,
-    ...(input.caller.workingDirectory ? { workingDirectory: input.caller.workingDirectory } : {}),
-    payload: input.payload,
-  }
-  return Effect.tryPromise(async () => {
-    try {
-      return await dependencies.execute(commandInput)
-    } catch (error) {
-      if (
-        !isLocalSessionHostUnavailable(error) ||
-        cannotRetryAfterAmbiguousTransportFailure(input.payload)
-      ) {
-        throw error
-      }
-      await dependencies.ensure({
-        ...configuredGuiClient,
-        clientKind: 'gui',
-      })
-      return dependencies.execute(commandInput)
-    }
-  })
-}
 
 function publishLifecycleResponse(response: SessionLifecycleResponse) {
   if (response.replayed || response.outcome.effect === 'rejected') return
@@ -209,13 +134,16 @@ function bindSessionControlAttachments(
       )
 }
 
-export function dispatchLocalSessionCommand(input: {
+type NonHostUiLocalSessionCommandPayload = Exclude<
+  LocalSessionCommandPayload,
+  { readonly contract: 'host-ui-v1' }
+>
+
+export function dispatchNonHostUiLocalSessionCommand(input: {
   readonly caller: LocalSessionCallerIdentity
-  readonly payload: LocalSessionCommandPayload
+  readonly payload: NonHostUiLocalSessionCommandPayload
   readonly signal?: AbortSignal
 }) {
-  const remote = dispatchConfiguredGuiSessionCommand(input)
-  if (remote) return remote
   const commandPayload = input.payload
   const ownerLocal = dispatchOwnerLocalSessionCommand(input)
   if (ownerLocal) return ownerLocal
@@ -227,9 +155,6 @@ export function dispatchLocalSessionCommand(input: {
     if (commandPayload.contract === 'local-ui-v1') {
       return yield* executeLocalUiSessionCommand({ caller, payload: commandPayload })
     }
-    if (commandPayload.contract === 'host-ui-v1') {
-      return yield* Effect.fail(new Error('The Host UI request dispatcher is not installed.'))
-    }
     const canonicalPayload = yield* canonicalizeNamedProfileProjectPayload(caller, commandPayload)
     yield* authorizeLocalSessionCommand({ caller, payload: canonicalPayload })
     const scopedPayload = yield* scopeNamedProfileExport(caller, canonicalPayload)
@@ -240,6 +165,9 @@ export function dispatchLocalSessionCommand(input: {
     })
     if (isLocallyHandledCommand(payload)) {
       return yield* Effect.fail(new Error('Local Session command preparation returned invalid.'))
+    }
+    if (payload.contract === 'host-ui-v1') {
+      return yield* Effect.fail(new Error('Host UI command preparation returned invalid.'))
     }
 
     if (payload.contract === 'local-access-v1') {
@@ -282,9 +210,6 @@ export function dispatchLocalSessionCommand(input: {
         sessionId: payload.request.command.sessionId,
       })
     }
-    if (payload.contract === 'host-ui-v1') {
-      return yield* Effect.fail(new Error('The Host UI request dispatcher is not installed.'))
-    }
     const callerCapabilities = yield* lifecycleCallerCapabilities(caller, payload)
     const response = yield* executeSessionLifecycleCommand({
       callerId: caller.callerId,
@@ -300,6 +225,26 @@ export function dispatchLocalSessionCommand(input: {
     })
     publishLifecycleResponse(response)
     return { contract: 'session-lifecycle-v2', response } as const
+  })
+}
+
+export function dispatchLocalSessionCommand(input: {
+  readonly caller: LocalSessionCallerIdentity
+  readonly payload: LocalSessionCommandPayload
+  readonly signal?: AbortSignal
+}) {
+  const remote = dispatchConfiguredGuiSessionCommand(input)
+  if (remote) return remote
+  if (input.payload.contract === 'host-ui-v1') {
+    return dispatchHostUiRequest({
+      caller: input.caller,
+      request: input.payload.request,
+      ...(input.signal ? { signal: input.signal } : {}),
+    })
+  }
+  return dispatchNonHostUiLocalSessionCommand({
+    ...input,
+    payload: input.payload,
   })
 }
 

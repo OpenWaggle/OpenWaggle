@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createLocalSessionAuthenticator } from '../../session-host/local-session-authenticator'
@@ -144,7 +145,7 @@ describe('GUI Session Host command client', () => {
     expect(ownerDispatch).toHaveBeenCalledWith(
       expect.objectContaining({
         caller: { callerId: 'gui:local-user' },
-        negotiatedRevision: 4,
+        negotiatedRevision: LOCAL_SESSION_CURRENT_REVISION,
         payload: expect.objectContaining({ contract: 'local-compaction-v1' }),
       }),
     )

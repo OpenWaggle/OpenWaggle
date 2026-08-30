@@ -11,7 +11,7 @@ import type { SessionHostOwnership } from './session-host-ownership'
 import { acquireSessionHostOwnership } from './session-host-ownership'
 
 const HOST_START_TIMEOUT_MS = 30_000
-const HOST_TAKEOVER_TIMEOUT_MS = 15 * 60_000
+export const HOST_TAKEOVER_TIMEOUT_MS = 15 * 60_000
 const HOST_POLL_INTERVAL_MS = 50
 const CONNECT_PROBE_TIMEOUT_MS = 250
 

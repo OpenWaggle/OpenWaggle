@@ -232,7 +232,7 @@ describe('Local Session protocol negotiation', () => {
         contractVersion: 1,
         requestId: 'request-host-ui',
         channel: 'sessions:list-details',
-        args: [20],
+        args: [{ kind: 'value', value: 20 }],
       },
     }
     expect(() => decodeLocalSessionCommandPayloadForRevision(hostUiCommand, 4)).toThrow(

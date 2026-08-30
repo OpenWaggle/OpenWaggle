@@ -24,6 +24,7 @@ export const showMessageBoxMock: TestMock = mocks.showMessageBoxMock
 export const typedHandleMock: TestMock = mocks.typedHandleMock
 
 vi.mock('../typed-ipc', () => ({
+  hostHandle: typedHandleMock,
   typedHandle: typedHandleMock,
 }))
 

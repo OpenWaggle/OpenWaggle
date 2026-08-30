@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
+import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createLocalSessionAuthenticator } from '../local-session-authenticator'
 import {
@@ -69,7 +70,7 @@ describe('Local Session client', () => {
 
     await expect(
       probeLocalSessionHost({ paths, clientKind: 'gui', clientVersion: 'test' }),
-    ).resolves.toMatchObject({ accepted: true, revision: 4 })
+    ).resolves.toMatchObject({ accepted: true, revision: LOCAL_SESSION_CURRENT_REVISION })
     await expect(
       executeLocalSessionCommand({
         paths,
@@ -96,7 +97,7 @@ describe('Local Session client', () => {
     })
     expect(calls).toEqual([
       expect.objectContaining({
-        negotiatedRevision: 4,
+        negotiatedRevision: LOCAL_SESSION_CURRENT_REVISION,
         caller: {
           callerId: 'gui:local-user',
           workingDirectory: '/project/worktree',
@@ -271,7 +272,7 @@ describe('Local Session client', () => {
       probeLocalSessionHost({
         paths,
         clientVersion: 'future',
-        supportedRevisions: [5],
+        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION + 1],
       }),
     ).rejects.toMatchObject({
       name: LocalSessionHostUpgradePendingError.name,

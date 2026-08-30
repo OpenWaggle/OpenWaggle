@@ -1,7 +1,10 @@
 import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
 import { withLegacySessionWriterFence } from './legacy-session-writer-fence'
 import { LocalSessionHostUpgradePendingError, probeLocalSessionHost } from './local-session-client'
-import { isLocalSessionHostUnavailable } from './local-session-host-launcher'
+import {
+  HOST_TAKEOVER_TIMEOUT_MS,
+  isLocalSessionHostUnavailable,
+} from './local-session-host-launcher'
 import {
   type LocalSessionHostPaths,
   prepareLocalSessionHostPaths,
@@ -10,7 +13,6 @@ import {
 import { runSessionHostCutover, sessionHostTargetExists } from './session-host-cutover'
 import { acquireSessionHostOwnership, type SessionHostOwnership } from './session-host-ownership'
 
-const OWNERSHIP_STARTUP_TIMEOUT_MS = 30_000
 const OWNERSHIP_POLL_INTERVAL_MS = 50
 
 async function prepareOwnedSessionStore(
@@ -58,7 +60,7 @@ async function prepareGuiStartupOwnership(input: {
   readonly startupMark: (label: string) => void
 }) {
   let upgradePendingError: LocalSessionHostUpgradePendingError | null = null
-  const deadline = Date.now() + OWNERSHIP_STARTUP_TIMEOUT_MS
+  const deadline = Date.now() + HOST_TAKEOVER_TIMEOUT_MS
   while (Date.now() < deadline) {
     try {
       await probeLocalSessionHost({
@@ -129,7 +131,7 @@ export async function prepareGuiSessionHostStartup(input: {
   })
   return {
     paths,
-    databaseAccess: initialOwnership ? ('owner' as const) : ('client-read-only' as const),
+    databaseAccess: initialOwnership ? ('owner' as const) : ('client-isolated' as const),
     ownership: createSessionHostOwnershipController({
       paths,
       startupMark: input.startupMark,

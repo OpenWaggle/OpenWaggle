@@ -70,7 +70,11 @@ export function resolveLocalSessionCommandTimeoutMs(
   payload: LocalSessionCommandPayload,
   explicitTimeoutMs?: number,
 ) {
-  if (payload.contract === 'session-waggle-v1' || payload.contract === 'local-compaction-v1') {
+  if (
+    payload.contract === 'session-waggle-v1' ||
+    payload.contract === 'local-compaction-v1' ||
+    payload.contract === 'host-ui-v1'
+  ) {
     return explicitTimeoutMs
   }
   const requestedWait = requestedWaitTimeoutMs(payload)

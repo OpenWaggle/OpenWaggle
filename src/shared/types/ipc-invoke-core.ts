@@ -36,6 +36,7 @@ import type {
   ExtensionProposePackageRemoveInput,
   ExtensionProposePackageWriteInput,
   ExtensionReloadInput,
+  ExtensionRuntimeModuleAccessInput,
   ExtensionSetEnabledInput,
   ExtensionSetProjectDisabledInput,
   ExtensionSetTrustedInput,
@@ -202,6 +203,10 @@ export interface IpcCoreInvokeChannelMap extends IpcSessionInvokeChannelMap {
   'extensions:reload': {
     args: [input: ExtensionReloadInput]
     return: ExtensionManagerView
+  }
+  'extensions:authorize-runtime-module': {
+    args: [input: ExtensionRuntimeModuleAccessInput]
+    return: boolean
   }
   'docs:discover': {
     args: [input?: DocsListInput]

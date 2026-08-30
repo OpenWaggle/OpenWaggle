@@ -1,14 +1,10 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
+import type {
+  ExtensionContributionRegistryEntry,
+  ExtensionRuntimeModuleAccessInput,
+} from '@shared/types/extensions'
 import * as Effect from 'effect/Effect'
 import { listExtensionContributionRegistryView } from './extension-contribution-registry-service'
-
-export interface ExtensionRuntimeModuleAccessInput {
-  readonly packagePath: string
-  readonly contentHash: string
-  readonly projectPaths: readonly string[]
-  readonly sessionId?: string
-}
 
 function requestedProjectsAreCovered(
   entry: ExtensionContributionRegistryEntry,

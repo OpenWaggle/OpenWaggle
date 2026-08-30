@@ -8,18 +8,23 @@ import {
 
 export const hostBackedGuiChannelSchema = Schema.Literal(...HOST_BACKED_GUI_CHANNELS)
 
+const hostUiWireValueSchema = Schema.Union(
+  Schema.Struct({ kind: Schema.Literal('undefined') }),
+  Schema.Struct({ kind: Schema.Literal('value'), value: Schema.Unknown }),
+)
+
 export const hostUiV1RequestSchema: Schema.Schema<HostUiV1Request> = Schema.Struct({
   contractVersion: Schema.Literal(HOST_UI_CONTRACT_VERSION),
   requestId: Schema.String,
   channel: hostBackedGuiChannelSchema,
-  args: Schema.Array(Schema.Unknown),
+  args: Schema.Array(hostUiWireValueSchema),
 })
 
 export const hostUiV1ResultSchema: Schema.Schema<HostUiV1Result> = Schema.Struct({
   contractVersion: Schema.Literal(HOST_UI_CONTRACT_VERSION),
   requestId: Schema.String,
   channel: hostBackedGuiChannelSchema,
-  result: Schema.Unknown,
+  result: hostUiWireValueSchema,
 })
 
 export function decodeHostUiV1Request(value: unknown) {

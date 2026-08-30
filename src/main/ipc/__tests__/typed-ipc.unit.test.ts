@@ -4,9 +4,14 @@ import type { IpcMainInvokeEvent } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ValidationIssuesError } from '../../errors'
 
-const { ipcMainHandleMock, ipcMainOnMock } = vi.hoisted(() => ({
+const { invokeConfiguredHostUiRawMock, ipcMainHandleMock, ipcMainOnMock } = vi.hoisted(() => ({
+  invokeConfiguredHostUiRawMock: vi.fn(),
   ipcMainHandleMock: vi.fn(),
   ipcMainOnMock: vi.fn(),
+}))
+
+vi.mock('../../application/local-session-command-dispatcher', () => ({
+  invokeConfiguredHostUiRaw: invokeConfiguredHostUiRawMock,
 }))
 
 vi.mock('electron', () => ({
@@ -31,7 +36,7 @@ vi.mock('../../runtime', () => ({
     Effect.runPromiseExit(effect),
 }))
 
-import { typedHandle, typedOn } from '../typed-ipc'
+import { hostHandle, typedHandle, typedOn } from '../typed-ipc'
 
 function okResult(): { readonly ok: true } {
   return { ok: true }
@@ -39,6 +44,7 @@ function okResult(): { readonly ok: true } {
 
 describe('typedOn', () => {
   beforeEach(() => {
+    invokeConfiguredHostUiRawMock.mockReset().mockResolvedValue({ handled: false })
     ipcMainHandleMock.mockReset()
     ipcMainOnMock.mockReset()
   })
@@ -64,6 +70,7 @@ describe('typedOn', () => {
 
 describe('typedHandle', () => {
   beforeEach(() => {
+    invokeConfiguredHostUiRawMock.mockReset().mockResolvedValue({ handled: false })
     ipcMainHandleMock.mockReset()
     ipcMainOnMock.mockReset()
   })
@@ -111,5 +118,61 @@ describe('typedHandle', () => {
     await expect(registeredHandler(fakeEvent, {})).rejects.toThrow(
       'Invalid arguments for "settings:update": selectedModel: Expected string',
     )
+  })
+})
+
+describe('hostHandle', () => {
+  beforeEach(() => {
+    invokeConfiguredHostUiRawMock.mockReset()
+    ipcMainHandleMock.mockReset()
+    ipcMainOnMock.mockReset()
+  })
+
+  it('forwards prepared transport arguments and skips the isolated local runtime', async () => {
+    invokeConfiguredHostUiRawMock.mockResolvedValue({ handled: true, result: { ok: true } })
+    const localHandler = vi.fn(() => Effect.succeed({ ok: false as const, error: 'local' }))
+    hostHandle('settings:update', localHandler, {
+      prepareRemoteArgs: (_event, update) => [{ approved: update }],
+    })
+    const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
+
+    await expect(registeredHandler({ sender: {} }, { thinkingLevel: 'high' })).resolves.toEqual({
+      ok: true,
+    })
+    expect(invokeConfiguredHostUiRawMock).toHaveBeenCalledWith('settings:update', [
+      { approved: { thinkingLevel: 'high' } },
+    ])
+    expect(localHandler).not.toHaveBeenCalled()
+  })
+
+  it('uses the application effect when this GUI owns the Host', async () => {
+    invokeConfiguredHostUiRawMock.mockResolvedValue({ handled: false })
+    const localHandler = vi.fn(() => Effect.succeed(DEFAULT_SETTINGS))
+    hostHandle('settings:get', localHandler)
+    const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
+
+    await expect(registeredHandler({ sender: {} })).resolves.toEqual(DEFAULT_SETTINGS)
+    expect(localHandler).toHaveBeenCalledOnce()
+  })
+
+  it('routes worktree removal to the authoritative Host for an attached GUI', async () => {
+    invokeConfiguredHostUiRawMock.mockResolvedValue({
+      handled: true,
+      result: { ok: false, code: 'workspace-bound', message: 'Still bound.' },
+    })
+    const localHandler = vi.fn(() =>
+      Effect.succeed({ ok: true as const, path: '/worktree', message: 'Removed.' }),
+    )
+    hostHandle('git:worktrees:remove', localHandler)
+    const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
+
+    await expect(
+      registeredHandler({ sender: {} }, '/project', { path: '/worktree' }),
+    ).resolves.toEqual({ ok: false, code: 'workspace-bound', message: 'Still bound.' })
+    expect(invokeConfiguredHostUiRawMock).toHaveBeenCalledWith('git:worktrees:remove', [
+      '/project',
+      { path: '/worktree' },
+    ])
+    expect(localHandler).not.toHaveBeenCalled()
   })
 })

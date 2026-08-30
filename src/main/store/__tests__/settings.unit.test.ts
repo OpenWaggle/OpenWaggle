@@ -150,6 +150,21 @@ describe('settings store', () => {
     })
   })
 
+  it('hydrates an attached GUI cache from a normalized Host snapshot', async () => {
+    const { getSettings, hydrateSettingsStoreFromHost } = await loadSettingsModule()
+
+    hydrateSettingsStoreFromHost({
+      ...getSettings(),
+      sessionHostRunCeiling: 91,
+      recentProjects: [' /tmp/host-project ', '/tmp/host-project'],
+    })
+
+    expect(getSettings()).toMatchObject({
+      sessionHostRunCeiling: 91,
+      recentProjects: ['/tmp/host-project'],
+    })
+  })
+
   it('roundtrips recentProjects through updateSettings', async () => {
     const { getSettings, updateSettings } = await loadSettingsModule()
     updateSettings({ recentProjects: ['/tmp/a', '/tmp/b'] })
@@ -193,6 +208,20 @@ describe('settings store', () => {
     })
     expect(getSettings().skillTogglesByProject).toEqual({
       '/tmp/repo': { 'code-review': true, 'frontend-design': false },
+    })
+  })
+
+  it('preserves concurrent skill toggles for the same project', async () => {
+    const { getSettings, updateSkillToggleDurably } = await loadSettingsModule()
+
+    await Promise.all([
+      updateSkillToggleDurably('/tmp/concurrent', 'code-review', true),
+      updateSkillToggleDurably('/tmp/concurrent', 'frontend-design', false),
+    ])
+
+    expect(getSettings().skillTogglesByProject['/tmp/concurrent']).toEqual({
+      'code-review': true,
+      'frontend-design': false,
     })
   })
 })

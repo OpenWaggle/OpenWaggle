@@ -8,7 +8,7 @@ import {
 } from '@shared/types/local-session-profile-management'
 import * as Effect from 'effect/Effect'
 import { app } from 'electron'
-import { manageLocalSessionProfiles } from '../application/local-session-profile-management'
+import { dispatchLocalSessionCommand } from '../application/local-session-command-dispatcher'
 import { resolveLocalSessionHostPaths } from '../session-host/local-session-paths'
 import { disconnectLocalSessionProfile } from '../session-host/local-session-profile-invalidation'
 import { generateProfileCredential } from '../session-host/profile-credential'
@@ -116,20 +116,31 @@ export function registerProfileAccessHandlers() {
         stateRoot: paths.stateRoot,
         idempotencyKey,
       })
-      const response = yield* manageLocalSessionProfiles({
-        caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
-        request: {
-          contractVersion: LOCAL_SESSION_PROFILE_MANAGEMENT_CONTRACT_VERSION,
-          requestId: randomUUID(),
-          idempotencyKey,
-          command: managementCommand(command, staged?.credential ?? credential),
-        },
-        now: Date.now(),
-      }).pipe(
+      const dispatch = Effect.gen(function* () {
+        return yield* dispatchLocalSessionCommand({
+          caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
+          payload: {
+            contract: 'local-access-v1',
+            request: {
+              contractVersion: LOCAL_SESSION_PROFILE_MANAGEMENT_CONTRACT_VERSION,
+              requestId: randomUUID(),
+              idempotencyKey,
+              command: managementCommand(command, staged?.credential ?? credential),
+            },
+          },
+        })
+      })
+      const result = yield* dispatch.pipe(
         Effect.tapError(() =>
-          staged ? Effect.promise(() => staged.discard()).pipe(Effect.asVoid) : Effect.void,
+          staged
+            ? Effect.promise(() => staged.discard()).pipe(Effect.orDie, Effect.asVoid)
+            : Effect.void,
         ),
       )
+      if (result.contract !== 'local-access-v1') {
+        return yield* Effect.fail(new Error('Session Host returned an invalid profile response.'))
+      }
+      const response = result.response
       yield* settleProfileCredential({ response, staged, stateRoot: paths.stateRoot })
       return response
     }),

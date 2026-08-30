@@ -2,7 +2,10 @@ import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import lockfile from 'proper-lockfile'
 
-const OWNERSHIP_LOCK_STALE_MS = 120_000
+// Keep stale takeover beyond the supported 15-minute Host drain window. The heartbeat normally
+// refreshes every 30 seconds, but a synchronous native cutover must not let another process steal
+// the canonical database merely because the JavaScript event loop was temporarily blocked.
+const OWNERSHIP_LOCK_STALE_MS = 16 * 60_000
 const OWNERSHIP_LOCK_UPDATE_MS = 30_000
 const OWNERSHIP_HANDOFF_RETRY_MS = 5
 const OWNERSHIP_HANDOFF_RETRIES = 200

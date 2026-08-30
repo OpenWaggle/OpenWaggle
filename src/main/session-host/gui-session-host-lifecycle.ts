@@ -1,11 +1,15 @@
 import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
-import type * as Effect from 'effect/Effect'
 import {
   configureGuiSessionCommandClient,
   retireGuiSessionCommandClientForUpgrade,
 } from '../application/local-session-command-dispatcher'
-import type { AppServices } from '../runtime'
 import type { AppDatabaseAccess } from '../services/database-service'
+import {
+  type AppEffectRunner,
+  createGuiSessionHostStarter,
+  SessionHostDrainedDuringStartupError,
+  type StartGuiSessionHostInput,
+} from './gui-session-host-starter'
 import {
   type GuiSessionHostOwnershipController,
   prepareGuiSessionHostStartup,
@@ -24,24 +28,7 @@ import {
   startSessionHostRendererBridge,
 } from './session-host-renderer-bridge'
 
-type AppEffectRunner = <A, E>(effect: Effect.Effect<A, E, AppServices>) => Promise<A>
 const OWNED_HOST_RESTART_DELAY_MS = 250
-
-class SessionHostDrainedDuringStartupError extends Error {}
-
-function markSessionHostListening(
-  startupMark: (label: string) => void,
-  mode: 'attached' | 'owned',
-) {
-  startupMark('session-host-listening')
-  return mode
-}
-
-interface StartGuiSessionHostInput {
-  readonly runEffect: AppEffectRunner
-  readonly startOwnedServices: () => Promise<void>
-  readonly stopOwnedServices: () => Promise<void>
-}
 
 function guiRemoteClient(paths: LocalSessionHostPaths, clientVersion: string) {
   return { paths, clientVersion, supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION] }
@@ -125,6 +112,24 @@ async function startOwnedSessionHostRuntime(input: {
   })
 }
 
+function stopGuiSessionHostLifecycle(input: {
+  readonly setStopping: () => void
+  readonly stopRendererBridge: () => void
+  readonly stopRuntime: () => Promise<void>
+  readonly stopOwnedServices: () => Promise<void>
+  readonly clearOwnedServices: () => void
+}) {
+  return async () => {
+    input.setStopping()
+    input.stopRendererBridge()
+    configureGuiSessionCommandClient(null)
+    setGuiAttachedToRemoteSessionHost(false)
+    await input.stopRuntime()
+    await input.stopOwnedServices()
+    input.clearOwnedServices()
+  }
+}
+
 export async function prepareGuiSessionHostLifecycle(input: {
   readonly userDataRoot: string
   readonly clientVersion: string
@@ -203,46 +208,42 @@ export async function prepareGuiSessionHostLifecycle(input: {
 
   return {
     databaseAccess,
-    start: async ({
-      runEffect,
-      startOwnedServices: startServices,
-      stopOwnedServices: stopServices,
-    }) => {
-      stopping = false
-      ownedServices.configure(startServices, stopServices)
-      if (await attachToExistingHost()) {
-        return markSessionHostListening(input.startupMark, 'attached')
-      }
-      while (!stopping) {
-        try {
-          const ownedRuntime = await startOwnedRuntime(runEffect)
-          runtime = ownedRuntime
-          installOwnedRuntime(ownedRuntime, runEffect)
-          return markSessionHostListening(input.startupMark, 'owned')
-        } catch (error) {
-          const failedRuntime = runtime
-          runtime = null
-          await failedRuntime?.stop()
-          if (!(error instanceof SessionHostDrainedDuringStartupError)) throw error
-          input.requestShutdownForHandoff?.()
-          throw new Error('GUI Session Host retired during startup for a version handoff.', {
-            cause: error,
-          })
-        }
-      }
-      throw new Error('GUI Session Host startup was stopped.')
-    },
-    stop: async () => {
-      stopping = true
-      stopRendererBridge?.()
-      stopRendererBridge = null
-      configureGuiSessionCommandClient(null)
-      setGuiAttachedToRemoteSessionHost(false)
-      await runtime?.stop()
-      runtime = null
-      await ownedServices.stop()
-      ownedServices.clear()
-    },
+    start: createGuiSessionHostStarter({
+      databaseAccess,
+      remoteClient,
+      startupMark: input.startupMark,
+      ...(input.requestShutdownForHandoff
+        ? { requestShutdownForHandoff: input.requestShutdownForHandoff }
+        : {}),
+      configureOwnedServices: ownedServices.configure,
+      attachToExistingHost,
+      startOwnedRuntime,
+      installOwnedRuntime,
+      setStopping: (next) => {
+        stopping = next
+      },
+      isStopping: () => stopping,
+      stopFailedRuntime: async () => {
+        const failedRuntime = runtime
+        runtime = null
+        await failedRuntime?.stop()
+      },
+    }),
+    stop: stopGuiSessionHostLifecycle({
+      setStopping: () => {
+        stopping = true
+      },
+      stopRendererBridge: () => {
+        stopRendererBridge?.()
+        stopRendererBridge = null
+      },
+      stopRuntime: async () => {
+        await runtime?.stop()
+        runtime = null
+      },
+      stopOwnedServices: ownedServices.stop,
+      clearOwnedServices: ownedServices.clear,
+    }),
     releaseOwnership: ownership.release,
   }
 }

@@ -63,6 +63,20 @@ describe('registerSettingsHandlers', () => {
     })
   })
 
+  describe('settings:set-enabled-models', () => {
+    it('persists string model refs and preserves invalid-payload behavior', async () => {
+      registerSettingsHandlers()
+      const handler = getTypedEffectInvokeHandler('settings:set-enabled-models')
+
+      await expect(handler?.({}, ['openai/gpt-5.4'])).resolves.toBeUndefined()
+      expect(updateSettingsMock).toHaveBeenCalledWith({ enabledModels: ['openai/gpt-5.4'] })
+
+      updateSettingsMock.mockClear()
+      await expect(handler?.({}, ['openai/gpt-5.4', 42])).resolves.toBeUndefined()
+      expect(updateSettingsMock).not.toHaveBeenCalled()
+    })
+  })
+
   describe('settings:update', () => {
     it('validates and applies a valid settings update', async () => {
       registerSettingsHandlers()

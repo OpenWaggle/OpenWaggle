@@ -33,7 +33,7 @@ import type {
   ExtensionSetTrustedInput,
 } from '@shared/types/extensions'
 import * as Effect from 'effect/Effect'
-import { validateProjectPath, validateRequiredProjectPath } from './project-path-validation'
+import { validateProjectPath, validateRequiredProjectPath } from '../utils/project-path-validation'
 
 function dedupeProjectPaths(projectPaths: readonly string[]) {
   const deduped: string[] = []
@@ -54,9 +54,7 @@ function presentString(value: string | undefined): value is string {
 function validateProjectPaths(
   projectPaths: readonly string[] | undefined,
 ): Effect.Effect<readonly string[], Error> {
-  if (!projectPaths) {
-    return Effect.succeed([])
-  }
+  if (!projectPaths) return Effect.succeed([])
 
   return Effect.forEach(projectPaths, (projectPath) =>
     validateProjectPath(projectPath).pipe(Effect.catchAll(() => Effect.succeed(undefined))),
@@ -69,20 +67,15 @@ function validateProjectPaths(
 
 function decodeSchema<A, I>(schema: Schema.Schema<A, I, never>, value: unknown) {
   const decoded = safeDecodeUnknown(schema, value)
-  if (!decoded.success) {
-    return Effect.fail(new Error(decoded.issues.join('; ')))
-  }
+  if (!decoded.success) return Effect.fail(new Error(decoded.issues.join('; ')))
   return Effect.succeed(decoded.data)
 }
 
-export function decodeListPackagesInput(
+export function decodeHostUiExtensionListPackagesInput(
   raw: unknown,
 ): Effect.Effect<ExtensionListPackagesInput, Error> {
   return Effect.gen(function* () {
-    if (raw === undefined) {
-      return { projectPaths: [] }
-    }
-
+    if (raw === undefined) return { projectPaths: [] }
     const decoded = yield* decodeSchema(extensionListPackagesInputSchema, raw)
     const projectPaths = yield* validateProjectPaths(decoded.projectPaths)
     return { projectPaths }
@@ -90,10 +83,7 @@ export function decodeListPackagesInput(
 }
 
 function validateListContributionsInputShape(raw: unknown): Effect.Effect<void, Error> {
-  if (raw === undefined) {
-    return Effect.void
-  }
-
+  if (raw === undefined) return Effect.void
   return Effect.try({
     try: () => {
       assertMatching(
@@ -116,14 +106,11 @@ function normalizeOptionalSessionId(sessionId: string | undefined) {
   return trimmed ? { sessionId: trimmed } : {}
 }
 
-export function decodeListContributionsInput(
+export function decodeHostUiExtensionListContributionsInput(
   raw: unknown,
 ): Effect.Effect<ExtensionListContributionsInput, Error> {
   return Effect.gen(function* () {
-    if (raw === undefined) {
-      return { projectPaths: [] }
-    }
-
+    if (raw === undefined) return { projectPaths: [] }
     yield* validateListContributionsInputShape(raw)
     const decoded = yield* decodeSchema(extensionListContributionsInputSchema, raw)
     const projectPaths = yield* validateProjectPaths(decoded.projectPaths)
@@ -135,19 +122,12 @@ function validateLifecycleScope(
   scope: ExtensionPackageLifecycleScope,
 ): Effect.Effect<ExtensionPackageLifecycleScope, Error> {
   return Effect.gen(function* () {
-    if (scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND) {
-      return scope
-    }
-
+    if (scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND) return scope
     const projectPath = yield* validateProjectPath(scope.projectPath)
     if (!projectPath) {
       return yield* Effect.fail(new Error('Project extension scope requires a project path.'))
     }
-
-    return {
-      kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND,
-      projectPath,
-    }
+    return { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath }
   })
 }
 
@@ -160,15 +140,11 @@ function normalizeLifecycleTargetInput<
   return Effect.gen(function* () {
     const scope = yield* validateLifecycleScope(input.scope)
     const viewProjectPaths = yield* validateProjectPaths(input.viewProjectPaths)
-    return {
-      ...input,
-      scope,
-      viewProjectPaths,
-    }
+    return { ...input, scope, viewProjectPaths }
   })
 }
 
-export function normalizeTrustedInput(
+export function normalizeHostUiExtensionTrustedInput(
   raw: unknown,
 ): Effect.Effect<ExtensionSetTrustedInput, Error> {
   return Effect.gen(function* () {
@@ -177,7 +153,7 @@ export function normalizeTrustedInput(
   })
 }
 
-export function normalizeProposePackageWriteInput(
+export function normalizeHostUiExtensionProposePackageWriteInput(
   raw: unknown,
 ): Effect.Effect<ExtensionProposePackageWriteInput, Error> {
   return Effect.gen(function* () {
@@ -186,7 +162,7 @@ export function normalizeProposePackageWriteInput(
   })
 }
 
-export function normalizeApplyPackageWriteInput(
+export function normalizeHostUiExtensionApplyPackageWriteInput(
   raw: unknown,
 ): Effect.Effect<ExtensionApplyPackageWriteInput, Error> {
   return Effect.gen(function* () {
@@ -195,7 +171,7 @@ export function normalizeApplyPackageWriteInput(
   })
 }
 
-export function normalizeProposePackageRemoveInput(
+export function normalizeHostUiExtensionProposePackageRemoveInput(
   raw: unknown,
 ): Effect.Effect<ExtensionProposePackageRemoveInput, Error> {
   return Effect.gen(function* () {
@@ -204,7 +180,7 @@ export function normalizeProposePackageRemoveInput(
   })
 }
 
-export function normalizeApplyPackageRemoveInput(
+export function normalizeHostUiExtensionApplyPackageRemoveInput(
   raw: unknown,
 ): Effect.Effect<ExtensionApplyPackageRemoveInput, Error> {
   return Effect.gen(function* () {
@@ -213,7 +189,7 @@ export function normalizeApplyPackageRemoveInput(
   })
 }
 
-export function normalizeEnabledInput(
+export function normalizeHostUiExtensionEnabledInput(
   raw: unknown,
 ): Effect.Effect<ExtensionSetEnabledInput, Error> {
   return Effect.gen(function* () {
@@ -222,21 +198,18 @@ export function normalizeEnabledInput(
   })
 }
 
-export function normalizeProjectDisabledInput(
+export function normalizeHostUiExtensionProjectDisabledInput(
   raw: unknown,
 ): Effect.Effect<ExtensionSetProjectDisabledInput, Error> {
   return Effect.gen(function* () {
     const decoded = yield* decodeSchema(extensionSetProjectDisabledInputSchema, raw)
     const normalized = yield* normalizeLifecycleTargetInput(decoded)
     const projectPath = yield* validateRequiredProjectPath(decoded.projectPath)
-    return {
-      ...normalized,
-      projectPath,
-    }
+    return { ...normalized, projectPath }
   })
 }
 
-export function normalizeAcceptUpdateInput(
+export function normalizeHostUiExtensionAcceptUpdateInput(
   raw: unknown,
 ): Effect.Effect<ExtensionAcceptUpdateInput, Error> {
   return Effect.gen(function* () {
@@ -245,7 +218,7 @@ export function normalizeAcceptUpdateInput(
   })
 }
 
-export function normalizeApproveBuildInput(
+export function normalizeHostUiExtensionApproveBuildInput(
   raw: unknown,
 ): Effect.Effect<ExtensionApproveBuildInput, Error> {
   return Effect.gen(function* () {
@@ -254,7 +227,9 @@ export function normalizeApproveBuildInput(
   })
 }
 
-export function normalizeReloadInput(raw: unknown): Effect.Effect<ExtensionReloadInput, Error> {
+export function normalizeHostUiExtensionReloadInput(
+  raw: unknown,
+): Effect.Effect<ExtensionReloadInput, Error> {
   return Effect.gen(function* () {
     const decoded = yield* decodeSchema(extensionReloadInputSchema, raw)
     return yield* normalizeLifecycleTargetInput(decoded)

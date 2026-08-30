@@ -59,6 +59,7 @@ import { SqliteSessionRepositoryLive } from './adapters/sqlite-session-repositor
 import { SqliteSessionWorkspaceResourceRepositoryLive } from './adapters/sqlite-session-workspace-resource-repository'
 import { FilesystemStandardsLive } from './adapters/standards-adapter'
 import { ActiveProjectChangeServiceLive } from './application/active-project-change-service'
+import { activateTrustedMainExtensionsForActiveProjectSafely } from './application/extension-trusted-main-activation-service'
 import { SessionWaitServiceLive } from './application/session-wait-service'
 import { AppDatabaseLive } from './services/database-service'
 import { AppLogger } from './services/logger-service'
@@ -259,6 +260,7 @@ export async function startSessionHostOwnedServices(): Promise<void> {
       Effect.gen(function* () {
         yield* installAppSessionToolGateway
         yield* runSessionSemanticDiscoveryBackground
+        yield* activateTrustedMainExtensionsForActiveProjectSafely()
         yield* Effect.sync(() => {
           didStart = true
           markStarted()

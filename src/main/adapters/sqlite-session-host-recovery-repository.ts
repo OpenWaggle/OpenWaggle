@@ -13,6 +13,11 @@ interface AuthorizationRequestRow {
   readonly id: string
 }
 
+interface PendingWorktreeRemovalRow {
+  readonly id: string
+  readonly working_path: string
+}
+
 interface PendingOperationRow {
   readonly id: number
   readonly caller_id: string
@@ -98,6 +103,17 @@ function recoverAfterHostLoss(sql: SqlClient.SqlClient, now: number) {
         const pendingHandoffs = pendingOperations.filter(
           (operation) => operation.operation === 'handoff',
         )
+        const pendingWorktreeRemovals = yield* sql<PendingWorktreeRemovalRow>`
+          SELECT resources.id, resources.working_path
+          FROM workspace_resources AS resources
+          WHERE resources.kind = ${'managed-worktree'}
+            AND resources.lifecycle_state = ${'releasing'}
+            AND NOT EXISTS (
+              SELECT 1 FROM session_workspace_bindings AS bindings
+              WHERE bindings.workspace_id = resources.id
+            )
+          ORDER BY resources.created_at, resources.id
+        `
         const recoverableOperations = pendingOperations.filter(
           (operation) => operation.status === 'pending' && operation.operation !== 'handoff',
         )
@@ -122,6 +138,11 @@ function recoverAfterHostLoss(sql: SqlClient.SqlClient, now: number) {
             callerId: operation.caller_id,
             idempotencyKey: operation.idempotency_key,
             requestJson: operation.request_json,
+          })),
+          pendingWorktreeRemovals: pendingWorktreeRemovals.map((removal) => ({
+            resourceId: removal.id,
+            workingPath: removal.working_path,
+            createdReservation: removal.id.startsWith('worktree-removal:'),
           })),
         }
       }),

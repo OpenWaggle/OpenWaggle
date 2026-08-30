@@ -8,16 +8,19 @@ describe('Host UI protocol', () => {
         contractVersion: 1,
         requestId: 'request-list',
         channel: 'sessions:list-details',
-        args: [20],
+        args: [{ kind: 'value', value: 20 }],
       }),
-    ).toMatchObject({ channel: 'sessions:list-details', args: [20] })
+    ).toMatchObject({
+      channel: 'sessions:list-details',
+      args: [{ kind: 'value', value: 20 }],
+    })
 
     expect(() =>
       decodeHostUiV1Request({
         contractVersion: 1,
         requestId: 'request-shell',
         channel: 'shell:open-path',
-        args: ['/tmp'],
+        args: [{ kind: 'value', value: '/tmp' }],
       }),
     ).toThrow()
   })
@@ -28,16 +31,19 @@ describe('Host UI protocol', () => {
         contractVersion: 1,
         requestId: 'request-list',
         channel: 'sessions:list-details',
-        result: [],
+        result: { kind: 'value', value: [] },
       }),
-    ).toMatchObject({ channel: 'sessions:list-details', result: [] })
+    ).toMatchObject({
+      channel: 'sessions:list-details',
+      result: { kind: 'value', value: [] },
+    })
 
     expect(() =>
       decodeHostUiV1Result({
         contractVersion: 1,
         requestId: 'request-list',
         channel: 'sessions:list-details',
-        result: [],
+        result: { kind: 'value', value: [] },
         undeclared: true,
       }),
     ).toThrow()
@@ -46,7 +52,7 @@ describe('Host UI protocol', () => {
         contractVersion: 1,
         requestId: 'request-list',
         channel: 'shell:open-path',
-        result: undefined,
+        result: { kind: 'undefined' },
       }),
     ).toThrow()
   })

@@ -1,5 +1,6 @@
 import { decodeLocalSessionCommandPayloadForRevision } from '@shared/schemas/local-session-protocol'
 import * as Effect from 'effect/Effect'
+import { recoverPendingManagedWorktreeRemovals } from '../application/host-ui-worktree-operation'
 import {
   authorizeLocalSessionActiveRun,
   authorizeLocalSessionEvent,
@@ -77,6 +78,17 @@ export async function startAppSessionHost(input: {
           const projection = yield* SessionProjectionRepository
           const lifecyclePreparation = yield* SessionLifecyclePreparationService
           const recovery = yield* repository.recoverAfterHostLoss(Date.now())
+          const removalRecovery = yield* recoverPendingManagedWorktreeRemovals(
+            recovery.pendingWorktreeRemovals,
+          )
+          for (const result of removalRecovery) {
+            if (result.outcome._tag === 'Left') {
+              logger.error('Pending managed worktree removal recovery failed closed.', {
+                resourceId: result.resourceId,
+                error: result.outcome.left.message,
+              })
+            }
+          }
           yield* projection.recoverPendingDeletions?.() ?? Effect.void
           yield* lifecyclePreparation.recoverPending
           const handoffRecovery = yield* recoverPendingSessionHandoffs(recovery.pendingHandoffs)

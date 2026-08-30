@@ -45,8 +45,8 @@ describe('remote Session Host renderer recovery', () => {
     await ensured
     stop()
 
-    expect(watch).toHaveBeenCalled()
-    expect(ensure).toHaveBeenCalled()
+    expect(watch).toHaveBeenCalledWith(expect.objectContaining({ supportedRevisions: [5] }))
+    expect(ensure).toHaveBeenCalledWith(expect.objectContaining({ supportedRevisions: [5] }))
   })
 
   it('waits for a replacement snapshot subscription before asking the renderer to resync', async () => {

@@ -1,6 +1,7 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { parseJsonUnknown } from '@shared/schema'
 import type { Settings } from '@shared/types/settings'
+import { isRecord } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
 import { SETTINGS_KEY_DEFAULT_MODEL } from './settings/keys'
@@ -110,6 +111,13 @@ export async function refreshSettingsStore(): Promise<void> {
   settingsCache = buildSettingsSnapshot(storedSettings).settings
 }
 
+/** Install the authoritative Host snapshot without writing to the attached GUI's isolated DB. */
+export function hydrateSettingsStoreFromHost(snapshot: unknown): void {
+  if (!isRecord(snapshot)) throw new Error('Session Host returned an invalid settings snapshot.')
+  settingsCache = buildSettingsSnapshot(snapshot).settings
+  initializationPromise ??= Promise.resolve()
+}
+
 export async function flushSettingsStoreForTests(): Promise<void> {
   await writeQueue
 }
@@ -154,4 +162,21 @@ export function updateSettings(partial: Partial<Settings>): void {
 
 export async function updateSettingsDurably(partial: Partial<Settings>): Promise<void> {
   await Promise.all(applySettingsUpdate(partial))
+}
+
+export async function updateSkillToggleDurably(
+  projectPath: string,
+  skillId: string,
+  enabled: boolean,
+): Promise<void> {
+  const projectToggles = {
+    ...(settingsCache.skillTogglesByProject[projectPath] ?? {}),
+    [skillId]: enabled,
+  }
+  await updateSettingsDurably({
+    skillTogglesByProject: {
+      ...settingsCache.skillTogglesByProject,
+      [projectPath]: projectToggles,
+    },
+  })
 }

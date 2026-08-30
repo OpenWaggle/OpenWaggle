@@ -106,6 +106,7 @@ describe('SQLite Session Host recovery repository', () => {
         deniedAuthorizationRequestIds: ['authorization-1'],
         recoveredOperationIds: [],
         pendingHandoffs: [],
+        pendingWorktreeRemovals: [],
       },
       run: { status: 'interrupted-by-host-loss' },
       state: {
@@ -168,6 +169,43 @@ describe('SQLite Session Host recovery repository', () => {
       sessionId: 'session-1',
       code: 'host_lost',
     })
+  })
+
+  it('reports unbound releasing worktrees for filesystem reconciliation', async () => {
+    const layer = makeLayer(path.join(temporaryRoot, 'worktree-removal.sqlite'))
+    const recovery = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          INSERT INTO workspace_resources (
+            id, project_path, kind, working_path, lifecycle_state,
+            worktree_start_from_origin, created_at, updated_at
+          ) VALUES
+            (
+              ${'tracked-removal'}, ${'/project'}, ${'managed-worktree'}, ${'/tracked'},
+              ${'releasing'}, ${0}, ${1}, ${1}
+            ),
+            (
+              ${'worktree-removal:synthetic'}, ${'/project'}, ${'managed-worktree'},
+              ${'/synthetic'}, ${'releasing'}, ${0}, ${2}, ${2}
+            )
+        `
+        return yield* (yield* SessionHostRecoveryRepository).recoverAfterHostLoss(20)
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(recovery.pendingWorktreeRemovals).toEqual([
+      {
+        resourceId: 'tracked-removal',
+        workingPath: '/tracked',
+        createdReservation: false,
+      },
+      {
+        resourceId: 'worktree-removal:synthetic',
+        workingPath: '/synthetic',
+        createdReservation: true,
+      },
+    ])
   })
 
   it('retains pending Workspace handoffs for idempotent replay after host loss', async () => {

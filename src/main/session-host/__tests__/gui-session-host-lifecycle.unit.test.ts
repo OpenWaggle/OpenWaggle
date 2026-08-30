@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   configureGuiSessionCommandClientMock,
+  ensureLocalSessionHostMock,
   acquireSessionHostOwnershipMock,
   retireGuiSessionCommandClientForUpgradeMock,
   prepareLocalSessionHostPathsMock,
@@ -16,6 +17,7 @@ const {
   releaseOwnershipMock,
 } = vi.hoisted(() => ({
   configureGuiSessionCommandClientMock: vi.fn(),
+  ensureLocalSessionHostMock: vi.fn(async () => undefined),
   acquireSessionHostOwnershipMock: vi.fn(),
   retireGuiSessionCommandClientForUpgradeMock: vi.fn(),
   prepareLocalSessionHostPathsMock: vi.fn(async () => undefined),
@@ -45,6 +47,8 @@ vi.mock('../legacy-session-writer-fence', () => ({
 }))
 
 vi.mock('../local-session-host-launcher', () => ({
+  HOST_TAKEOVER_TIMEOUT_MS: 900_000,
+  ensureLocalSessionHost: ensureLocalSessionHostMock,
   isLocalSessionHostUnavailable: (error: unknown) =>
     typeof error === 'object' && error !== null && 'code' in error,
   waitForLocalSessionHostRelease: vi.fn(async () => false),
@@ -88,6 +92,7 @@ describe('GUI Session Host lifecycle', () => {
   beforeEach(() => {
     setGuiAttachedToRemoteSessionHost(false)
     configureGuiSessionCommandClientMock.mockReset()
+    ensureLocalSessionHostMock.mockReset().mockResolvedValue(undefined)
     acquireSessionHostOwnershipMock.mockReset().mockResolvedValue({
       targetPath: '/tmp/session-host.db',
       release: releaseOwnershipMock,

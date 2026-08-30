@@ -1,5 +1,6 @@
 import type { BackgroundRunSnapshot } from '@shared/types/background-run'
 import { SessionId } from '@shared/types/brand'
+import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
 import type { SessionHostEventEnvelope } from '@shared/types/session-host-event'
 import { broadcastToWindows } from '../utils/broadcast'
 import {
@@ -21,7 +22,7 @@ const REMOTE_RECONNECT_DELAY_MS = 250
 
 export interface RemoteSessionHostRendererBridgeDependencies {
   readonly watch: typeof watchLocalSessionEvents
-  readonly ensure: () => Promise<unknown>
+  readonly ensure: (input: Parameters<typeof ensureLocalSessionHost>[0]) => Promise<unknown>
   readonly wait: (milliseconds: number) => Promise<void>
 }
 
@@ -128,12 +129,7 @@ export function startRemoteSessionHostRendererBridge(
 ) {
   const dependencies: RemoteSessionHostRendererBridgeDependencies = {
     watch: watchLocalSessionEvents,
-    ensure: () =>
-      ensureLocalSessionHost({
-        paths: input.paths,
-        clientKind: 'gui',
-        clientVersion: input.clientVersion,
-      }),
+    ensure: ensureLocalSessionHost,
     wait: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
     ...dependencyOverrides,
   }
@@ -147,6 +143,7 @@ export function startRemoteSessionHostRendererBridge(
           paths: input.paths,
           clientKind: 'gui',
           clientVersion: input.clientVersion,
+          supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
           workingDirectory: process.cwd(),
           ...(after ? { after } : {}),
           signal: abortController.signal,
@@ -172,7 +169,14 @@ export function startRemoteSessionHostRendererBridge(
       } catch {
         // The last cursor is retained so a same-host reconnect replays the missed window.
         if (!abortController.signal.aborted) {
-          await dependencies.ensure().catch(() => undefined)
+          await dependencies
+            .ensure({
+              paths: input.paths,
+              clientKind: 'gui',
+              clientVersion: input.clientVersion,
+              supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
+            })
+            .catch(() => undefined)
         }
       }
       if (!abortController.signal.aborted) {

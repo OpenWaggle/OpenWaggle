@@ -68,7 +68,7 @@ export const emitRunCompletedMock: TestMock = mocks.emitRunCompletedMock
 export const dispatchLocalSessionCommandMock: TestMock = mocks.dispatchLocalSessionCommandMock
 
 vi.mock('../typed-ipc', () => ({
-  typedHandle: typedHandleMock,
+  hostHandle: typedHandleMock,
 }))
 
 vi.mock('../../agent/session-cleanup', () => ({

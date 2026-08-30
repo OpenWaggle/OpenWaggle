@@ -6,6 +6,11 @@ import { useDiffScopeStore } from '@/features/diff-panel'
 import { useSessionStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
 import {
+  reconcileLoadedSummaries,
+  reconcileMissingSessions,
+  visibleSummaries,
+} from './chat-session-loading'
+import {
   handleStoreError,
   isSameSessionId,
   mergeSummary,
@@ -40,61 +45,31 @@ function changedSince(id: SessionId, mutationVersions: ReadonlyMap<SessionId, nu
   return sessionMutationVersion(id) !== (mutationVersions.get(id) ?? 0)
 }
 
-function reconcileLoadedDetails(
-  all: readonly SessionDetail[],
-  current: ChatState,
-  mutationVersions: ReadonlyMap<SessionId, number>,
-) {
-  const sessionById = new Map<SessionId, SessionDetail>()
-  for (const session of all) {
-    const changed = changedSince(session.id, mutationVersions)
-    if (changed && current.missingSessionIds.has(session.id)) continue
-    sessionById.set(
-      session.id,
-      changed ? (current.sessionById.get(session.id) ?? session) : session,
-    )
-  }
-  for (const [sessionId, session] of current.sessionById) {
-    if (changedSince(sessionId, mutationVersions) && !current.missingSessionIds.has(sessionId)) {
-      sessionById.set(sessionId, session)
-    }
-  }
-  return sessionById
-}
-
-function visibleSummaries(sessionById: ReadonlyMap<SessionId, SessionDetail>) {
-  return [...sessionById.values()].flatMap((session) => {
-    const summary = toSummary(session)
-    return summary.title !== 'New session' || (summary.messageCount ?? 0) > 0 ? [summary] : []
-  })
-}
-
-function reconcileMissingSessions(
-  all: readonly SessionDetail[],
-  current: ChatState,
-  mutationVersions: ReadonlyMap<SessionId, number>,
-) {
-  const missingSessionIds = new Set(current.missingSessionIds)
-  for (const session of all) {
-    if (!changedSince(session.id, mutationVersions)) missingSessionIds.delete(session.id)
-  }
-  return missingSessionIds
-}
-
 async function loadSessions(set: ChatSet, get: ChatGet) {
   latestSessionLoad += 1
   const loadRequestId = latestSessionLoad
   const mutationVersions = new Map(latestSessionMutation)
   try {
-    const all = await api.listSessionDetails()
+    // The sidebar only needs summaries. Loading every transcript here made an attached GUI
+    // serialize the complete history of every Session into one Host response.
+    const all = await api.listSessions()
     if (loadRequestId !== latestSessionLoad) return
     const current = get()
-    const sessionById = reconcileLoadedDetails(all, current, mutationVersions)
-    const sessions = visibleSummaries(sessionById)
+    const changed = (id: SessionId) => changedSince(id, mutationVersions)
+    const reconciled = reconcileLoadedSummaries(all, current, changed)
+    const knownIds = new Set(reconciled.map((session) => session.id))
+    const sessionById = new Map(
+      [...current.sessionById].filter(
+        ([sessionId]) =>
+          knownIds.has(sessionId) ||
+          (changedSince(sessionId, mutationVersions) && !current.missingSessionIds.has(sessionId)),
+      ),
+    )
+    const sessions = visibleSummaries(reconciled)
     const activeSessionId = current.activeSessionId
     const activeSession = activeSessionId ? (sessionById.get(activeSessionId) ?? null) : null
-    const missingSessionIds = reconcileMissingSessions(all, current, mutationVersions)
-    if (activeSessionId && !activeSession) {
+    const missingSessionIds = reconcileMissingSessions(all, current, changed)
+    if (activeSessionId && !knownIds.has(activeSessionId)) {
       missingSessionIds.add(activeSessionId)
     }
 
@@ -102,8 +77,8 @@ async function loadSessions(set: ChatSet, get: ChatGet) {
       sessions,
       sessionById,
       missingSessionIds,
-      draftSession: activeSession ? null : current.draftSession,
-      activeSessionId: activeSession ? activeSessionId : null,
+      draftSession: activeSessionId && knownIds.has(activeSessionId) ? null : current.draftSession,
+      activeSessionId: activeSessionId && knownIds.has(activeSessionId) ? activeSessionId : null,
       activeSession,
       error: null,
     })

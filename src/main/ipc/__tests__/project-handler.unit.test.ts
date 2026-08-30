@@ -17,6 +17,7 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('../typed-ipc', () => ({
+  hostHandle: typedHandleMock,
   typedHandle: typedHandleMock,
 }))
 

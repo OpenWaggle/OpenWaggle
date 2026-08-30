@@ -1,6 +1,7 @@
 import * as SqlClient from '@effect/sql/SqlClient'
+import type { LocalSessionCommandResult } from '@shared/types/local-session-protocol'
 import * as Effect from 'effect/Effect'
-import { dispatchLocalSessionCommand } from '../application/local-session-command-dispatcher'
+import { dispatchNonHostUiLocalSessionCommand } from '../application/local-session-command-dispatcher'
 import type { AgentKernelService } from '../ports/agent-kernel-service'
 import type { AgentRunInterruptionService } from '../ports/agent-run-interruption-service'
 import type { AgentSteeringService } from '../ports/agent-steering-service'
@@ -79,6 +80,10 @@ export const installAppSessionToolGateway = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient
   const dependencies = yield* Effect.context<SessionToolDependencies>()
   const release = installSessionToolGateway(async (input) => {
+    if (input.payload.contract === 'host-ui-v1') {
+      throw new Error('The agent Session tool cannot invoke Host UI operations.')
+    }
+    const payload = input.payload
     const caller = await Effect.runPromise(
       resolveSessionToolAgentCaller(sql, {
         sessionId: input.sourceSessionId,
@@ -86,13 +91,15 @@ export const installAppSessionToolGateway = Effect.gen(function* () {
         workingDirectory: input.workingDirectory,
       }),
     )
-    return Effect.runPromise(
-      dispatchLocalSessionCommand({
-        caller,
-        payload: input.payload,
-        ...(input.signal ? { signal: input.signal } : {}),
-      }).pipe(Effect.provide(dependencies)),
+    const command = Effect.suspend(
+      (): Effect.Effect<LocalSessionCommandResult, unknown, SessionToolDependencies> =>
+        dispatchNonHostUiLocalSessionCommand({
+          caller,
+          payload,
+          ...(input.signal ? { signal: input.signal } : {}),
+        }),
     )
+    return Effect.runPromise(command.pipe(Effect.provide(dependencies)))
   })
   yield* Effect.addFinalizer(() => Effect.sync(release))
 })

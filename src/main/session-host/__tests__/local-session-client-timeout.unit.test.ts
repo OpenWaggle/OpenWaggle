@@ -60,4 +60,18 @@ describe('Local Session client command timeout', () => {
       }),
     ).toBeUndefined()
   })
+
+  it('does not time out a Host-backed GUI operation while the Host is still settling it', () => {
+    expect(
+      resolveLocalSessionCommandTimeoutMs({
+        contract: 'host-ui-v1',
+        request: {
+          contractVersion: 1,
+          requestId: 'request-host-ui',
+          channel: 'extensions:approve-build',
+          args: [{ kind: 'value', value: { packagePath: '/extension' } }],
+        },
+      }),
+    ).toBeUndefined()
+  })
 })

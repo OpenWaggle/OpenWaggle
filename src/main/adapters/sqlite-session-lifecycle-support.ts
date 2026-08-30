@@ -68,6 +68,7 @@ export function resolveLifecycleWorkspace(
           worktree_base_ref, worktree_start_from_origin
         FROM workspace_resources
         WHERE id = ${plan.workspaceId}
+          AND lifecycle_state = ${'ready'}
         LIMIT 1
       `
       if (!rows[0]) {

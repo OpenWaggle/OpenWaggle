@@ -26,6 +26,7 @@ vi.mock('../local-session-client', () => ({
   probeLocalSessionHost: probeLocalSessionHostMock,
 }))
 vi.mock('../local-session-host-launcher', () => ({
+  HOST_TAKEOVER_TIMEOUT_MS: 15 * 60_000,
   isLocalSessionHostUnavailable: (error: unknown) =>
     typeof error === 'object' && error !== null && 'code' in error,
 }))
@@ -47,6 +48,7 @@ vi.mock('../session-host-ownership', () => ({
 }))
 
 import { prepareGuiSessionHostStartup } from '../gui-session-host-startup'
+import { LocalSessionHostUpgradePendingError } from '../local-session-client'
 
 describe('GUI Session Host startup election', () => {
   beforeEach(() => {
@@ -98,7 +100,34 @@ describe('GUI Session Host startup election', () => {
     expect(probeLocalSessionHostMock).toHaveBeenCalledTimes(2)
     expect(runSessionHostCutoverMock).not.toHaveBeenCalled()
     expect(releaseOwnershipMock).not.toHaveBeenCalled()
-    expect(startup.databaseAccess).toBe('client-read-only')
+    expect(startup.databaseAccess).toBe('client-isolated')
     await startup.ownership.release()
+  })
+
+  it('keeps waiting beyond thirty seconds while an older Host drains for upgrade', async () => {
+    vi.useFakeTimers()
+    try {
+      probeLocalSessionHostMock.mockRejectedValue(
+        new LocalSessionHostUpgradePendingError('older-host', [], []),
+      )
+      acquireSessionHostOwnershipMock.mockRejectedValue(
+        Object.assign(new Error('owned'), { code: 'ELOCKED' }),
+      )
+      const startupPromise = prepareGuiSessionHostStartup({
+        userDataRoot: '/tmp/openwaggle-test',
+        clientVersion: 'test',
+        startupMark: vi.fn(),
+      })
+
+      await vi.advanceTimersByTimeAsync(31_000)
+      probeLocalSessionHostMock.mockResolvedValue(undefined)
+      await vi.advanceTimersByTimeAsync(50)
+
+      await expect(startupPromise).resolves.toEqual(
+        expect.objectContaining({ databaseAccess: 'client-isolated' }),
+      )
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

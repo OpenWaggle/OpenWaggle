@@ -23,6 +23,7 @@ const { typedHandleMock, listPackagesMock, removePackageMock, deleteLifecycleMoc
 )
 
 vi.mock('../typed-ipc', () => ({
+  hostHandle: typedHandleMock,
   typedHandle: typedHandleMock,
 }))
 

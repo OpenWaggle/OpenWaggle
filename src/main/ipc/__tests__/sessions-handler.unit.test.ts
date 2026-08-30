@@ -34,14 +34,23 @@ const {
 }))
 
 vi.mock('../typed-ipc', () => ({
-  typedHandle: typedHandleMock,
+  hostHandle: typedHandleMock,
 }))
 
-vi.mock('../session-host-ui-mutation', () => ({
-  mutateLocalUiSession: (command: unknown) =>
+vi.mock('../../application/local-session-command-dispatcher', () => ({
+  dispatchLocalSessionCommand: (input: {
+    readonly payload: { readonly request: { readonly command: unknown } }
+  }) =>
     Effect.sync(() => {
-      mutateLocalUiSessionMock(command)
-      return { requestId: 'request-ui', effect: 'tree-ui-state-updated', sessionId: 'session-1' }
+      mutateLocalUiSessionMock(input.payload.request.command)
+      return {
+        contract: 'local-ui-v1',
+        response: {
+          requestId: 'request-ui',
+          effect: 'tree-ui-state-updated',
+          sessionId: 'session-1',
+        },
+      }
     }),
 }))
 
@@ -94,18 +103,24 @@ describe('registerSessionsHandlers', () => {
     mutateLocalUiSessionMock.mockReset()
   })
 
-  it('registers session branch and tree UI IPC channels', () => {
+  it('registers every session tree and workspace IPC channel', () => {
     registerSessionsHandlers()
 
     const channels = typedHandleMock.mock.calls
       .map((call) => (typeof call[0] === 'string' ? call[0] : ''))
       .filter(Boolean)
 
-    expect(channels).toContain('sessions:rename-branch')
-    expect(channels).toContain('sessions:archive-branch')
-    expect(channels).toContain('sessions:restore-branch')
-    expect(channels).toContain('sessions:update-tree-ui-state')
-    expect(channels).toContain('sessions:list-archived-branches')
+    expect(channels).toEqual([
+      'sessions:list',
+      'sessions:list-archived-branches',
+      'sessions:get-tree',
+      'sessions:get-workspace',
+      'sessions:navigate-tree',
+      'sessions:rename-branch',
+      'sessions:archive-branch',
+      'sessions:restore-branch',
+      'sessions:update-tree-ui-state',
+    ])
   })
 
   it('validates and dispatches branch rename requests', async () => {

@@ -25,6 +25,7 @@ export type {
   ExtensionContributionRegistryView,
   ExtensionContributionTargetView,
   ExtensionListContributionsInput,
+  ExtensionRuntimeModuleAccessInput,
 } from './extension-contribution-registry'
 export type {
   ExtensionLifecycleMutationTarget,

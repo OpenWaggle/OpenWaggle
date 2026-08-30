@@ -8,6 +8,7 @@ import {
 } from './adapters/multilingual-e5-session-embedding-model'
 import { startAgentsCliIfRequested } from './agents-cli-entry'
 import { completeAppRuntimeShutdown } from './application/app-runtime-shutdown'
+import { invokeConfiguredHostUi } from './application/gui-session-command-router'
 import { applicationCliArguments } from './application-cli-arguments'
 import { startDelegationsCliIfRequested } from './delegations-cli-entry'
 import { getAllBrowserWindows, isAutomationMode } from './desktop-ui'
@@ -150,10 +151,17 @@ async function bootstrapServicesAndWindow() {
   await settingsStoreModule.initializeSettingsStore()
   startupMark('settings-store-initialized')
 
-  if (isAutomationMode() && env.OPENWAGGLE_AUTOMATION_PROJECT_PATH) {
+  const automationProjectPatch =
+    isAutomationMode() && env.OPENWAGGLE_AUTOMATION_PROJECT_PATH
+      ? {
+          projectPath: env.OPENWAGGLE_AUTOMATION_PROJECT_PATH,
+          recentProjects: [env.OPENWAGGLE_AUTOMATION_PROJECT_PATH],
+        }
+      : null
+
+  if (sessionHostLifecycleOnce.databaseAccess === 'owner' && automationProjectPatch) {
     settingsStoreModule.updateSettings({
-      projectPath: env.OPENWAGGLE_AUTOMATION_PROJECT_PATH,
-      recentProjects: [env.OPENWAGGLE_AUTOMATION_PROJECT_PATH],
+      ...automationProjectPatch,
     })
   }
 
@@ -163,17 +171,21 @@ async function bootstrapServicesAndWindow() {
     stopOwnedServices: runtimeModule.stopSessionHostOwnedServices,
   })
 
+  if (sessionHostMode === 'attached') {
+    if (automationProjectPatch) {
+      const update = await invokeConfiguredHostUi('settings:update', [automationProjectPatch])
+      if (!update.handled) throw new Error('Attached GUI lost its Session Host settings route.')
+    }
+    const settings = await invokeConfiguredHostUi('settings:get', [])
+    if (!settings.handled) throw new Error('Attached GUI lost its Session Host settings route.')
+    settingsStoreModule.hydrateSettingsStoreFromHost(settings.result)
+    startupMark('settings-store-hydrated-from-host')
+  }
+
   if (sessionHostMode === 'owned') {
     await runtimeModule.runAppEffect(agentRunServiceModule.reconcileInterruptedAgentRuns())
   }
   startupMark('interrupted-runs-reconciled')
-
-  const trustedMainActivationModule = await import(
-    './application/extension-trusted-main-activation-service'
-  )
-  await runtimeModule.runAppEffect(
-    trustedMainActivationModule.activateTrustedMainExtensionsForActiveProjectSafely(),
-  )
 
   await registerIpcHandlersOnce()
   startupMark('ipc-handlers-registered')

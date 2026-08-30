@@ -24,7 +24,7 @@ import {
   listStreamBuffers,
 } from '../utils/stream-bridge'
 import { cancelAllSessionRuns } from './active-agent-runs'
-import { typedHandle } from './typed-ipc'
+import { hostHandle, typedHandle } from './typed-ipc'
 
 function clearSessionTransportState(sessionId: SessionId) {
   clearAgentPhase(sessionId)
@@ -247,7 +247,7 @@ function registerAgentStateHandlers() {
 
   typedHandle('agent:list-active-runs', () => Effect.sync(() => listStreamBuffers()))
 
-  typedHandle('agent:get-context-usage', (_event, sessionId: SessionId, model: SupportedModelId) =>
+  hostHandle('agent:get-context-usage', (_event, sessionId: SessionId, model: SupportedModelId) =>
     getAgentContextUsage({ sessionId, model }),
   )
 }

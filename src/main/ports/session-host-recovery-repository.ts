@@ -12,6 +12,11 @@ export interface SessionHostRecoveryResult {
     readonly idempotencyKey: string
     readonly requestJson: string
   }[]
+  readonly pendingWorktreeRemovals: readonly {
+    readonly resourceId: string
+    readonly workingPath: string
+    readonly createdReservation: boolean
+  }[]
 }
 
 export interface SessionHostRecoveryRepositoryShape {

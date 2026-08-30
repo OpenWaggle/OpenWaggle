@@ -3,6 +3,7 @@ import {
   encodeLocalSessionFrame,
   LocalSessionFrameDecoder,
   MAX_LOCAL_SESSION_FRAME_BYTES,
+  MAX_PREAUTH_LOCAL_SESSION_FRAME_BYTES,
 } from '../local-session-framing'
 
 describe('Local Session transport framing', () => {
@@ -60,5 +61,84 @@ describe('Local Session transport framing', () => {
 
     expect(decoded).toEqual([{ text: 'fragmented' }])
     expect(decoder.pendingBytes).toBe(0)
+  })
+
+  it('chunks and reassembles a logical response larger than one physical frame', () => {
+    const value = { requestId: 'large-history', text: 'x'.repeat(MAX_LOCAL_SESSION_FRAME_BYTES) }
+    const encoded = encodeLocalSessionFrame(value)
+    const decoder = new LocalSessionFrameDecoder()
+
+    expect(encoded.byteLength).toBeGreaterThan(MAX_LOCAL_SESSION_FRAME_BYTES)
+    expect(decoder.push(encoded)).toEqual([value])
+    expect(decoder.pendingBytes).toBe(0)
+  })
+
+  it('rejects logical chunk envelopes before authentication', () => {
+    const decoder = new LocalSessionFrameDecoder(MAX_PREAUTH_LOCAL_SESSION_FRAME_BYTES)
+    const hostile = encodeLocalSessionFrame({
+      __openwaggleLocalSessionChunkV1: {
+        id: 'hostile',
+        index: 4_294_967_294,
+        total: 4_294_967_295,
+        payload: '',
+      },
+    })
+
+    expect(() => decoder.push(hostile)).toThrow('not accepted before authentication')
+  })
+
+  it('caps authenticated chunk counts before allocating attacker-sized metadata', () => {
+    const decoder = new LocalSessionFrameDecoder()
+    const hostile = encodeLocalSessionFrame({
+      __openwaggleLocalSessionChunkV1: {
+        id: 'hostile',
+        index: 4_294_967_294,
+        total: 4_294_967_295,
+        payload: '',
+      },
+    })
+
+    expect(() => decoder.push(hostile)).toThrow('metadata is invalid')
+  })
+
+  it('rejects oversized logical chunk identifiers before retaining assembly metadata', () => {
+    const decoder = new LocalSessionFrameDecoder()
+    const hostile = encodeLocalSessionFrame({
+      __openwaggleLocalSessionChunkV1: {
+        id: 'x'.repeat(1024 * 1024),
+        index: 0,
+        total: 2,
+        payload: '',
+      },
+    })
+
+    expect(() => decoder.push(hostile)).toThrow('metadata is invalid')
+    expect(decoder.pendingBytes).toBe(0)
+  })
+
+  it('bounds incomplete logical-message metadata even when chunk payloads are empty', () => {
+    const decoder = new LocalSessionFrameDecoder()
+    for (let index = 0; index < 4; index += 1) {
+      decoder.push(
+        encodeLocalSessionFrame({
+          __openwaggleLocalSessionChunkV1: {
+            id: `00000000-0000-4000-8000-00000000000${String(index)}`,
+            index: 0,
+            total: 2,
+            payload: '',
+          },
+        }),
+      )
+    }
+    const overflow = encodeLocalSessionFrame({
+      __openwaggleLocalSessionChunkV1: {
+        id: '00000000-0000-4000-8000-000000000004',
+        index: 0,
+        total: 2,
+        payload: '',
+      },
+    })
+
+    expect(() => decoder.push(overflow)).toThrow('Too many Local Session logical messages')
   })
 })
