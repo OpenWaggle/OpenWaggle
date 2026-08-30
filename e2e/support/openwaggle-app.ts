@@ -6,6 +6,7 @@ import { promisify } from 'node:util'
 import { expect, type ElectronApplication, type Page, test } from '@playwright/test'
 import electronExecutablePath from 'electron'
 import { shouldUseHiddenElectron } from '../../scripts/electron-launch-mode'
+import { applicationCliStdout } from '../../scripts/electron-cli-stdout'
 import { launchOpenWaggleElectron } from '../../scripts/playwright-electron-launcher'
 import { buildSafeElectronEnvironment } from '../../scripts/safe-electron-environment'
 import { MainWindowPage } from '../page-models/main-window.page'
@@ -15,17 +16,6 @@ let evidenceDirectoryPromise: Promise<string> | null = null
 let evidenceSequence = 0
 const QA_DIAGNOSTIC_TEXT_LIMIT = 1_000
 const QA_SCREENSHOT_SETTLE_MS = 250
-const EMPTY_ELECTRON_STDOUT_PREAMBLE = /^(?:\s*\[\]\s*)+(?=\{)/u
-
-function applicationCliStdout(stdout: string) {
-  if (process.platform !== 'linux') return stdout
-
-  // Headless Electron on Linux can prepend an empty native startup payload even with Chromium
-  // logging disabled. Remove only that exact payload; any other stdout contamination must still
-  // fail the CLI contract assertions below.
-  return stdout.replace(EMPTY_ELECTRON_STDOUT_PREAMBLE, '')
-}
-
 function evidenceDirectory() {
   evidenceDirectoryPromise ??= fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-e2e-evidence-')).then(
     (directory) => {
