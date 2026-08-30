@@ -33,8 +33,12 @@ trap 'openwaggle_forward_signal INT' INT
 trap 'openwaggle_forward_signal TERM' TERM
 mkfifo "$openwaggle_stdout_pipe" || exit 1
 awk '
-BEGIN { leading = 1; buffered = "" }
-leading && $0 ~ /^[[:space:]]*(\\[\\]|\\{\\})?[[:space:]]*$/ {
+function is_empty_startup_line(line) {
+  gsub(ansi_escape "\\\\[[0-9;]*m", "", line)
+  return line ~ /^[[:space:]]*(\\[\\]|\\{\\})?[[:space:]]*$/
+}
+BEGIN { leading = 1; buffered = ""; ansi_escape = sprintf("%c", 27) }
+leading && is_empty_startup_line($0) {
   buffered = buffered $0 ORS
   next
 }
