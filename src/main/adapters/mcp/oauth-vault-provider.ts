@@ -8,6 +8,7 @@ import type {
   StoredOAuthTokens,
 } from '@modelcontextprotocol/client'
 import { z } from 'zod'
+import { mcpOAuthVaultKey } from '../../domain/mcp/oauth-vault-key'
 
 export interface McpOAuthVault {
   readonly resolve: (name: string) => Promise<string>
@@ -65,10 +66,6 @@ function emptyState(): PersistedOAuthState {
   return { version: 1, tokensByIssuer: {}, clientsByIssuer: {} }
 }
 
-export function getMcpOAuthVaultKey(instanceId: string) {
-  return `oauth.${instanceId}`
-}
-
 function issuerKey(context?: OAuthClientInformationContext, stampedIssuer?: string) {
   return context?.issuer ?? stampedIssuer ?? 'unbound'
 }
@@ -118,7 +115,7 @@ export class OpenWaggleOAuthProvider implements OAuthClientProvider {
   private async read(): Promise<PersistedOAuthState> {
     try {
       return persistedOAuthStateSchema.parse(
-        JSON.parse(await this.input.vault.resolve(getMcpOAuthVaultKey(this.input.instanceId))),
+        JSON.parse(await this.input.vault.resolve(mcpOAuthVaultKey(this.input.instanceId))),
       )
     } catch (error) {
       if (error instanceof Error && error.message.includes('was not found')) return emptyState()
@@ -129,7 +126,7 @@ export class OpenWaggleOAuthProvider implements OAuthClientProvider {
   private async update(mutation: (state: PersistedOAuthState) => PersistedOAuthState) {
     const write = this.writeQueue.then(async () => {
       const next = mutation(await this.read())
-      await this.input.vault.set(getMcpOAuthVaultKey(this.input.instanceId), JSON.stringify(next))
+      await this.input.vault.set(mcpOAuthVaultKey(this.input.instanceId), JSON.stringify(next))
     })
     this.writeQueue = write.catch(() => undefined)
     await write
@@ -197,7 +194,7 @@ export class OpenWaggleOAuthProvider implements OAuthClientProvider {
 
   async invalidateCredentials(scope: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery') {
     if (scope === 'all') {
-      await this.input.vault.remove(getMcpOAuthVaultKey(this.input.instanceId))
+      await this.input.vault.remove(mcpOAuthVaultKey(this.input.instanceId))
       return
     }
     await this.update((state) => ({

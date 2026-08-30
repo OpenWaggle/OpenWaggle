@@ -1,15 +1,15 @@
 import { Schema } from '@shared/schema'
 import {
-  LOCAL_SESSION_CAPABILITIES,
   LOCAL_SESSION_PROTOCOL_NAME,
   LOCAL_SESSION_REVISION_2_CAPABILITIES,
   LOCAL_SESSION_REVISION_3_CAPABILITIES,
   LOCAL_SESSION_REVISION_4_CAPABILITIES,
+  LOCAL_SESSION_REVISION_5_CAPABILITIES,
   LOCAL_SESSION_SUPPORTED_REVISIONS,
   type LocalSessionNegotiationResult,
 } from '@shared/types/local-session-protocol'
 
-const [currentRevision, compactionRevision, waggleRevision, legacyRevision] =
+const [currentRevision, hostUiRevision, compactionRevision, waggleRevision, legacyRevision] =
   LOCAL_SESSION_SUPPORTED_REVISIONS
 const MAX_NEGOTIATION_REVISIONS = 16
 const [
@@ -24,7 +24,7 @@ const [
 const [, , , , , , , waggleRunCapability, waggleCancelCapability] =
   LOCAL_SESSION_REVISION_3_CAPABILITIES
 const [, , , , , , , , , localCompactionCapability] = LOCAL_SESSION_REVISION_4_CAPABILITIES
-const [, , , , , , , , , , hostUiCapability] = LOCAL_SESSION_CAPABILITIES
+const [, , , , , , , , , , hostUiCapability] = LOCAL_SESSION_REVISION_5_CAPABILITIES
 
 const supportedRevisionListSchema = Schema.Array(
   Schema.Number.pipe(Schema.int(), Schema.positive()),
@@ -82,6 +82,13 @@ export const localSessionNegotiationResultSchema: Schema.Schema<LocalSessionNego
       accepted: Schema.Literal(true),
       protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),
       revision: Schema.Literal(currentRevision),
+      hostInstanceId: Schema.String,
+      capabilities: currentCapabilitySchema,
+    }),
+    Schema.Struct({
+      accepted: Schema.Literal(true),
+      protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),
+      revision: Schema.Literal(hostUiRevision),
       hostInstanceId: Schema.String,
       capabilities: currentCapabilitySchema,
     }),

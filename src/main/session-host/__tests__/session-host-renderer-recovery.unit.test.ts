@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { LOCAL_SESSION_CURRENT_REVISION } from '../../../shared/types/local-session-protocol'
 import type { LocalSessionWatchInput, LocalSessionWatchResult } from '../local-session-event-client'
 
 const { broadcastToWindowsMock } = vi.hoisted(() => ({
@@ -45,8 +46,12 @@ describe('remote Session Host renderer recovery', () => {
     await ensured
     stop()
 
-    expect(watch).toHaveBeenCalledWith(expect.objectContaining({ supportedRevisions: [5] }))
-    expect(ensure).toHaveBeenCalledWith(expect.objectContaining({ supportedRevisions: [5] }))
+    expect(watch).toHaveBeenCalledWith(
+      expect.objectContaining({ supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION] }),
+    )
+    expect(ensure).toHaveBeenCalledWith(
+      expect.objectContaining({ supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION] }),
+    )
   })
 
   it('waits for a replacement snapshot subscription before asking the renderer to resync', async () => {

@@ -12,14 +12,14 @@ describe('Local Session protocol negotiation', () => {
   it('selects the highest mutually supported revision and its exact capabilities', () => {
     const hello = decodeLocalSessionClientHello({
       protocol: 'openwaggle-local-session',
-      supportedRevisions: [5, 4, 3, 2, 1],
+      supportedRevisions: [6, 5, 4, 3, 2, 1],
       clientKind: 'cli',
       clientVersion: '0.4.0-alpha.1',
     })
 
     expect(negotiateLocalSessionProtocol(hello, 'host-current')).toMatchObject({
       accepted: true,
-      revision: 5,
+      revision: 6,
       hostInstanceId: 'host-current',
       capabilities: expect.arrayContaining(['waggle:run-v1', 'ui:compact-v1', 'host-ui:invoke-v1']),
     })
@@ -30,7 +30,7 @@ describe('Local Session protocol negotiation', () => {
       negotiateLocalSessionProtocol(
         {
           protocol: 'openwaggle-local-session',
-          supportedRevisions: [7, 6],
+          supportedRevisions: [8, 7],
           clientKind: 'gui',
           clientVersion: 'future',
         },
@@ -66,7 +66,7 @@ describe('Local Session protocol negotiation', () => {
     expect(() =>
       decodeLocalSessionClientHello({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [5],
+        supportedRevisions: [6],
         clientKind: 'cli',
         clientVersion: 'current',
         undeclared: true,
@@ -74,7 +74,28 @@ describe('Local Session protocol negotiation', () => {
     ).toThrow()
   })
 
-  it('preserves exact revision-four, revision-three, and revision-two capability tuples', () => {
+  it('preserves exact revision-five through revision-two capability tuples', () => {
+    expect(() =>
+      decodeLocalSessionNegotiationResult({
+        accepted: true,
+        protocol: 'openwaggle-local-session',
+        revision: 5,
+        hostInstanceId: 'host-ui',
+        capabilities: [
+          'events:subscribe',
+          'events:replay',
+          'sessions:mutate-v2',
+          'sessions:query-v2',
+          'sessions:snapshot',
+          'access:profiles-v1',
+          'ui:mutate-v1',
+          'waggle:run-v1',
+          'waggle:cancel-v1',
+          'ui:compact-v1',
+          'host-ui:invoke-v1',
+        ],
+      }),
+    ).not.toThrow()
     expect(() =>
       decodeLocalSessionNegotiationResult({
         accepted: true,
@@ -239,6 +260,21 @@ describe('Local Session protocol negotiation', () => {
       /revision 5/,
     )
     expect(decodeLocalSessionCommandPayloadForRevision(hostUiCommand, 5)).toEqual(hostUiCommand)
+    const mcpHostUiCommand = {
+      contract: 'host-ui-v1',
+      request: {
+        contractVersion: 1,
+        requestId: 'request-mcp-host-ui',
+        channel: 'mcp:get-settings',
+        args: [],
+      },
+    }
+    expect(() => decodeLocalSessionCommandPayloadForRevision(mcpHostUiCommand, 5)).toThrow(
+      /revision 6/,
+    )
+    expect(decodeLocalSessionCommandPayloadForRevision(mcpHostUiCommand, 6)).toEqual(
+      mcpHostUiCommand,
+    )
     expect(() =>
       decodeLocalSessionCommandPayload({
         contract: 'session-control-v2',

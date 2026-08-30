@@ -263,6 +263,34 @@ describe('GUI Session Host command client', () => {
     expect(ensure).not.toHaveBeenCalled()
   })
 
+  it('does not retry a Local UI mutation after an ambiguous transport reset', async () => {
+    configureGuiSessionCommandClient({
+      paths: resolveLocalSessionHostPaths({ userDataRoot: temporaryRoot }),
+      clientVersion: 'test',
+    })
+    const reset = Object.assign(new Error('connection reset'), { code: 'ECONNRESET' })
+    const execute = vi.fn().mockRejectedValue(reset)
+    const ensure = vi.fn(async () => undefined)
+    const remote = dispatchConfiguredGuiSessionCommand(
+      {
+        caller: { callerId: 'gui:local-user' },
+        payload: {
+          contract: 'local-ui-v1',
+          request: {
+            requestId: 'gui-delete-reset',
+            command: { operation: 'delete', sessionId: 'session-1' },
+          },
+        },
+      },
+      { execute, ensure },
+    )
+    if (!remote) throw new Error('Expected the configured GUI Session client.')
+
+    await expect(Effect.runPromise(remote)).rejects.toThrow()
+    expect(execute).toHaveBeenCalledOnce()
+    expect(ensure).not.toHaveBeenCalled()
+  })
+
   it('fails closed instead of dispatching locally after an upgrade handoff', async () => {
     const execute = vi.fn()
     const ensure = vi.fn()

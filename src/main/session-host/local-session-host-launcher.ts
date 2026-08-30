@@ -50,7 +50,13 @@ export interface LocalSessionHostLauncherDependencies {
 
 export function isLocalSessionHostUnavailable(error: unknown) {
   if (typeof error !== 'object' || error === null || !('code' in error)) return false
-  return error.code === 'ENOENT' || error.code === 'ECONNREFUSED' || error.code === 'ECONNRESET'
+  return (
+    error.code === 'ENOENT' ||
+    error.code === 'ECONNREFUSED' ||
+    error.code === 'ECONNRESET' ||
+    error.code === 'ECONNABORTED' ||
+    error.code === 'EPIPE'
+  )
 }
 
 function canConnect(endpoint: string) {

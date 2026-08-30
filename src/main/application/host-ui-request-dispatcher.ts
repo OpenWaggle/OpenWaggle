@@ -24,6 +24,14 @@ import {
   setHostUiExtensionProjectDisabled,
   setHostUiExtensionTrusted,
 } from './host-ui-extension-operations'
+import * as McpHostUi from './host-ui-mcp-operation-dispatcher'
+import {
+  hostUiStringValue,
+  invalidHostUiInput,
+  optionalHostUiProjectPath,
+  requiredHostUiString,
+  requireHostUiArgCount,
+} from './host-ui-operation-validation'
 import { getHostUiProviderModels } from './host-ui-provider-operation'
 import { raceHostUiRequestWithSignal } from './host-ui-request-cancellation'
 import {
@@ -48,36 +56,6 @@ const TWO_ARGUMENTS = 2
 const THREE_ARGUMENTS = 3
 const REMOTE_GUI_SENDER_ID = 0
 
-function invalid(message: string) {
-  return Effect.fail(new Error(message))
-}
-
-function requireArgCount(args: readonly unknown[], minimum: number, maximum = minimum) {
-  return args.length >= minimum && args.length <= maximum
-    ? Effect.void
-    : invalid(
-        minimum === maximum
-          ? `Expected ${String(minimum)} Host UI arguments.`
-          : `Expected ${String(minimum)} to ${String(maximum)} Host UI arguments.`,
-      )
-}
-
-function requiredString(value: unknown, label: string) {
-  return typeof value === 'string' && value.trim().length > 0
-    ? Effect.succeed(value)
-    : invalid(`${label} must be a non-empty string.`)
-}
-
-function stringValue(value: unknown, label: string) {
-  return typeof value === 'string' ? Effect.succeed(value) : invalid(`${label} must be a string.`)
-}
-
-function optionalProjectPath(value: unknown) {
-  return value === undefined || value === null || typeof value === 'string'
-    ? Effect.succeed(value)
-    : invalid('Project path must be a string, null, or omitted.')
-}
-
 function decodeAgentDefinitionInput(value: unknown) {
   if (!isRecord(value) || !Object.hasOwn(value, 'command')) {
     return { command: value, selectedSourcePaths: undefined }
@@ -96,7 +74,7 @@ function oneInput<A, E, R>(
   operation: (input: unknown) => Effect.Effect<A, E, R>,
 ) {
   return Effect.gen(function* () {
-    yield* requireArgCount(args, 1)
+    yield* requireHostUiArgCount(args, 1)
     return yield* operation(args[0])
   })
 }
@@ -126,7 +104,7 @@ function dispatchSettingsOperation(
   return match(channel)
     .with('settings:get', () =>
       Effect.gen(function* () {
-        yield* requireArgCount(args, 0)
+        yield* requireHostUiArgCount(args, 0)
         return yield* getSettingsOperation()
       }),
     )
@@ -134,10 +112,10 @@ function dispatchSettingsOperation(
     .with('settings:set-enabled-models', () => oneInput(args, setEnabledModelsOperation))
     .with('settings:test-api-key', () =>
       Effect.gen(function* () {
-        yield* requireArgCount(args, TWO_ARGUMENTS, THREE_ARGUMENTS)
-        const provider = yield* requiredString(args[0], 'Provider')
-        const apiKey = yield* stringValue(args[1], 'API key')
-        const projectPath = yield* optionalProjectPath(args[TWO_ARGUMENTS])
+        yield* requireHostUiArgCount(args, TWO_ARGUMENTS, THREE_ARGUMENTS)
+        const provider = yield* requiredHostUiString(args[0], 'Provider')
+        const apiKey = yield* hostUiStringValue(args[1], 'API key')
+        const projectPath = yield* optionalHostUiProjectPath(args[TWO_ARGUMENTS])
         return yield* testApiKeyOperation(provider, apiKey, projectPath)
       }),
     )
@@ -151,13 +129,13 @@ function dispatchExtensionOperation(
   return match(channel)
     .with('extensions:list-packages', () =>
       Effect.gen(function* () {
-        yield* requireArgCount(args, 0, 1)
+        yield* requireHostUiArgCount(args, 0, 1)
         return yield* listHostUiExtensionPackages(args[0])
       }),
     )
     .with('extensions:list-contributions', () =>
       Effect.gen(function* () {
-        yield* requireArgCount(args, 0, 1)
+        yield* requireHostUiArgCount(args, 0, 1)
         return yield* listHostUiExtensionContributions(args[0])
       }),
     )
@@ -193,27 +171,27 @@ function dispatchSkillsOperation(
   return match(channel)
     .with('skills:list', () =>
       Effect.gen(function* () {
-        yield* requireArgCount(args, 1)
-        const projectPath = yield* requiredString(args[0], 'Project path')
+        yield* requireHostUiArgCount(args, 1)
+        const projectPath = yield* requiredHostUiString(args[0], 'Project path')
         return yield* listSkillsOperation(projectPath)
       }),
     )
     .with('skills:set-enabled', () =>
       Effect.gen(function* () {
-        yield* requireArgCount(args, THREE_ARGUMENTS)
-        const projectPath = yield* requiredString(args[0], 'Project path')
-        const skillId = yield* requiredString(args[1], 'Skill ID')
+        yield* requireHostUiArgCount(args, THREE_ARGUMENTS)
+        const projectPath = yield* requiredHostUiString(args[0], 'Project path')
+        const skillId = yield* requiredHostUiString(args[1], 'Skill ID')
         if (typeof args[TWO_ARGUMENTS] !== 'boolean') {
-          return yield* invalid('Skill enabled must be a boolean.')
+          return yield* invalidHostUiInput('Skill enabled must be a boolean.')
         }
         return yield* setSkillEnabledOperation(projectPath, skillId, args[TWO_ARGUMENTS])
       }),
     )
     .with('skills:get-preview', () =>
       Effect.gen(function* () {
-        yield* requireArgCount(args, TWO_ARGUMENTS)
-        const projectPath = yield* requiredString(args[0], 'Project path')
-        const skillId = yield* requiredString(args[1], 'Skill ID')
+        yield* requireHostUiArgCount(args, TWO_ARGUMENTS)
+        const projectPath = yield* requiredHostUiString(args[0], 'Project path')
+        const skillId = yield* requiredHostUiString(args[1], 'Skill ID')
         return yield* getSkillPreviewOperation(projectPath, skillId)
       }),
     )
@@ -221,9 +199,10 @@ function dispatchSkillsOperation(
 }
 
 function dispatchHostUiChannel(channel: HostBackedGuiChannel, args: readonly unknown[]) {
-  if (isHostBackedSessionGuiChannel(channel)) {
+  if (isHostBackedSessionGuiChannel(channel))
     return dispatchHostBackedSessionGuiOperation(channel, args)
-  }
+  if (McpHostUi.isMcpHostUiChannel(channel))
+    return McpHostUi.dispatchMcpHostUiOperation(channel, args)
   if (isSettingsChannel(channel)) {
     return dispatchSettingsOperation(channel, args)
   }
@@ -236,33 +215,33 @@ function dispatchHostUiChannel(channel: HostBackedGuiChannel, args: readonly unk
   return match(channel)
     .with('agent:get-context-usage', () =>
       Effect.gen(function* () {
-        yield* requireArgCount(args, TWO_ARGUMENTS)
+        yield* requireHostUiArgCount(args, TWO_ARGUMENTS)
         return yield* getHostUiAgentContextUsage(args[0], args[1])
       }),
     )
     .with('providers:get-models', () =>
       Effect.gen(function* () {
-        yield* requireArgCount(args, 0, 1)
-        return yield* getHostUiProviderModels(yield* optionalProjectPath(args[0]))
+        yield* requireHostUiArgCount(args, 0, 1)
+        return yield* getHostUiProviderModels(yield* optionalHostUiProjectPath(args[0]))
       }),
     )
     .with('project-config:set-preferences', () =>
       Effect.gen(function* () {
-        yield* requireArgCount(args, TWO_ARGUMENTS)
+        yield* requireHostUiArgCount(args, TWO_ARGUMENTS)
         return yield* setProjectPreferencesOperation(args[0], args[1])
       }),
     )
     .with('docs:discover', () =>
       Effect.gen(function* () {
-        yield* requireArgCount(args, 0, 1)
+        yield* requireHostUiArgCount(args, 0, 1)
         return yield* discoverHostUiDocs(args[0])
       }),
     )
     .with('agent-definitions:manage', () =>
       Effect.gen(function* () {
-        yield* requireArgCount(args, 1)
+        yield* requireHostUiArgCount(args, 1)
         const input = decodeAgentDefinitionInput(args[0])
-        if (!input) return yield* invalid('Agent definition source approval is invalid.')
+        if (!input) return yield* invalidHostUiInput('Agent definition source approval is invalid.')
         return yield* manageHostUiAgentDefinitions({
           senderId: REMOTE_GUI_SENDER_ID,
           command: input.command,
@@ -272,13 +251,13 @@ function dispatchHostUiChannel(channel: HostBackedGuiChannel, args: readonly unk
     )
     .with('git:worktrees:create', () =>
       Effect.gen(function* () {
-        yield* requireArgCount(args, TWO_ARGUMENTS)
+        yield* requireHostUiArgCount(args, TWO_ARGUMENTS)
         return yield* createHostUiWorktree(args[0], args[1])
       }),
     )
     .with('git:worktrees:remove', () =>
       Effect.gen(function* () {
-        yield* requireArgCount(args, TWO_ARGUMENTS)
+        yield* requireHostUiArgCount(args, TWO_ARGUMENTS)
         return yield* removeHostUiWorktree(args[0], args[1])
       }),
     )
@@ -291,8 +270,14 @@ export function dispatchHostUiRequest(input: {
   readonly signal?: AbortSignal
 }) {
   const operation = Effect.gen(function* () {
-    if (input.caller.callerId !== 'gui:local-user') {
-      return yield* invalid('Host UI operations are only available to the local OpenWaggle GUI.')
+    const localMachineMcpCaller =
+      McpHostUi.isMcpHostUiChannel(input.request.channel) &&
+      input.caller.profileAuthority === undefined &&
+      input.caller.callerId.startsWith('local-user:')
+    if (input.caller.callerId !== 'gui:local-user' && !localMachineMcpCaller) {
+      return yield* invalidHostUiInput(
+        'Host UI operations are only available to the local OpenWaggle GUI or an authenticated local-machine MCP client.',
+      )
     }
     const args = input.request.args.map((argument) =>
       argument.kind === 'undefined' ? undefined : argument.value,

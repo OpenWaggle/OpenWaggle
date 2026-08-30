@@ -1,11 +1,13 @@
 import {
   LOCAL_SESSION_CAPABILITIES,
+  LOCAL_SESSION_CURRENT_REVISION,
   LOCAL_SESSION_PROTOCOL_NAME,
 } from '@shared/types/local-session-protocol'
 import { describe, expect, it, vi } from 'vitest'
 import { LocalSessionHostUpgradePendingError } from '../local-session-client-connection'
 import {
   ensureLocalSessionHost,
+  isLocalSessionHostUnavailable,
   type LocalSessionHostLauncherDependencies,
   sessionHostChildEnvironment,
   sessionHostLaunchArguments,
@@ -24,7 +26,7 @@ const paths = {
 const accepted = {
   accepted: true as const,
   protocol: LOCAL_SESSION_PROTOCOL_NAME,
-  revision: 5 as const,
+  revision: LOCAL_SESSION_CURRENT_REVISION,
   hostInstanceId: 'host-current',
   capabilities: LOCAL_SESSION_CAPABILITIES,
 }
@@ -55,6 +57,19 @@ function dependencies(input?: {
 const client = { paths, clientKind: 'cli' as const, clientVersion: 'current' }
 
 describe('Local Session Host launcher', () => {
+  it.each(['ENOENT', 'ECONNREFUSED', 'ECONNRESET', 'ECONNABORTED', 'EPIPE'])(
+    'classifies %s as a recoverable Host transport failure',
+    (code) => {
+      expect(isLocalSessionHostUnavailable(Object.assign(new Error(code), { code }))).toBe(true)
+    },
+  )
+
+  it('does not classify application errors as Host transport failures', () => {
+    expect(
+      isLocalSessionHostUnavailable(Object.assign(new Error('denied'), { code: 'EACCES' })),
+    ).toBe(false)
+  })
+
   it('includes the Electron application path for a cold development Host', () => {
     expect(
       sessionHostLaunchArguments({ isPackaged: false, appPath: '/workspace/OpenWaggle' }),

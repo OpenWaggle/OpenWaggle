@@ -12,6 +12,7 @@ import {
   isLocalSessionHostUnavailable,
 } from '../session-host/local-session-host-launcher'
 import { executeConfiguredHostUi } from './configured-host-ui-client'
+import { reconcileMcpOwnerRuntime } from './mcp-owner-runtime-reconciliation'
 
 type GuiSessionClientInput = Omit<
   LocalSessionClientConnectionInput,
@@ -37,8 +38,13 @@ export interface GuiSessionCommandDependencies {
   readonly ensure: (input: Parameters<typeof ensureLocalSessionHost>[0]) => Promise<unknown>
 }
 
-function cannotRetryAfterAmbiguousTransportFailure(payload: LocalSessionCommandPayload) {
-  return payload.contract === 'session-waggle-v1' || payload.contract === 'local-compaction-v1'
+function canRetryAfterAmbiguousTransportFailure(payload: LocalSessionCommandPayload) {
+  return (
+    payload.contract === 'session-query-v2' ||
+    payload.contract === 'session-control-v2' ||
+    payload.contract === 'session-lifecycle-v2' ||
+    payload.contract === 'local-access-v1'
+  )
 }
 
 export function configureGuiSessionCommandClient(input: GuiSessionClientInput | null) {
@@ -71,6 +77,14 @@ export async function invokeConfiguredHostUiRaw<C extends HostBackedGuiChannel>(
   return { handled: true, result }
 }
 
+export async function reconcileConfiguredMcpOwnerRuntime(projectPath: string | null | undefined) {
+  const route = guiSessionCommandRoute
+  if (route.mode === 'local') return false
+  if (route.mode === 'retired-for-upgrade') throw new GuiSessionHostRetiredForUpgradeError()
+  await reconcileMcpOwnerRuntime({ ...route.client, clientKind: 'gui' }, projectPath)
+  return true
+}
+
 export function dispatchConfiguredGuiSessionCommand(
   input: {
     readonly caller: LocalSessionCallerIdentity
@@ -101,7 +115,7 @@ export function dispatchConfiguredGuiSessionCommand(
     } catch (error) {
       if (
         !isLocalSessionHostUnavailable(error) ||
-        cannotRetryAfterAmbiguousTransportFailure(input.payload)
+        !canRetryAfterAmbiguousTransportFailure(input.payload)
       ) {
         throw error
       }

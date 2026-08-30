@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import { decodeLocalSessionCommandPayload } from '@shared/schemas/local-session-protocol'
+import { HOST_BACKED_MCP_GUI_CHANNELS } from '@shared/types/host-ui-protocol'
 import type {
   LocalSessionCommandPayload,
   LocalSessionCommandResult,
 } from '@shared/types/local-session-protocol'
 import {
   LOCAL_SESSION_COMPACTION_REVISION,
-  LOCAL_SESSION_HOST_UI_REVISION,
+  LOCAL_SESSION_CURRENT_REVISION,
+  LOCAL_SESSION_LEGACY_HOST_UI_REVISION,
   LOCAL_SESSION_SUPPORTED_REVISIONS,
   LOCAL_SESSION_WAGGLE_REVISION,
 } from '@shared/types/local-session-protocol'
@@ -36,7 +38,11 @@ function minimumProtocolRevision(payload: LocalSessionCommandPayload) {
   ) {
     return LOCAL_SESSION_COMPACTION_REVISION
   }
-  if (payload.contract === 'host-ui-v1') return LOCAL_SESSION_HOST_UI_REVISION
+  if (payload.contract === 'host-ui-v1') {
+    return HOST_BACKED_MCP_GUI_CHANNELS.some((channel) => channel === payload.request.channel)
+      ? LOCAL_SESSION_CURRENT_REVISION
+      : LOCAL_SESSION_LEGACY_HOST_UI_REVISION
+  }
   if (payload.contract === 'session-waggle-v1' || payload.contract === 'session-waggle-cancel-v1') {
     return LOCAL_SESSION_WAGGLE_REVISION
   }

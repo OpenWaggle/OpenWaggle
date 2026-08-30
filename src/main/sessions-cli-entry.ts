@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import { flushCliOutput } from './cli-output-flush'
 import { env } from './env'
 import { configureAppStoragePaths } from './session-data'
 
@@ -11,10 +12,13 @@ export function startSessionsCliIfRequested(argv: readonly string[]) {
     .whenReady()
     .then(async () => {
       const { runSessionsCli } = await import('./sessions-cli')
-      app.exit(await runSessionsCli(argv.slice(1)))
+      const exitCode = await runSessionsCli(argv.slice(1))
+      await flushCliOutput()
+      app.exit(exitCode)
     })
-    .catch((error: unknown) => {
+    .catch(async (error: unknown) => {
       process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`)
+      await flushCliOutput().catch(() => undefined)
       app.exit(FAILURE_EXIT_CODE)
     })
   return true

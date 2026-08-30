@@ -19,6 +19,7 @@ export type LocalSessionCliClientInput = Omit<
 
 export async function createLocalSessionCliClientInput(
   arguments_: ParsedArguments,
+  options: { readonly supportedRevisions?: readonly number[] } = {},
 ): Promise<LocalSessionCliClientInput> {
   const paths = resolveLocalSessionHostPaths({ userDataRoot: app.getPath('userData') })
   await prepareLocalSessionHostPaths(paths)
@@ -42,6 +43,7 @@ export async function createLocalSessionCliClientInput(
     clientKind: 'cli' as const,
     clientVersion: app.getVersion(),
     workingDirectory: process.cwd(),
+    ...(options.supportedRevisions ? { supportedRevisions: options.supportedRevisions } : {}),
     ...(profile ? { profile } : {}),
     ...(profileCredential ? { profileCredential } : {}),
   }

@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import { flushCliOutput } from './cli-output-flush'
 import { env } from './env'
 import { configureAppStoragePaths } from './session-data'
 import { withLegacySessionWriterFence } from './session-host/legacy-session-writer-fence'
@@ -57,10 +58,12 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
       } finally {
         await ownership.release()
       }
+      await flushCliOutput()
       app.exit(0)
     })
-    .catch((error: unknown) => {
+    .catch(async (error: unknown) => {
       process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`)
+      await flushCliOutput().catch(() => undefined)
       app.exit(FAILURE_EXIT_CODE)
     })
   return true

@@ -14,10 +14,15 @@ describe('Electron CLI stdout normalization', () => {
     expect(applicationCliStdout(stdout, 'linux')).toBe(stdout)
   })
 
-  it('selects the versioned OpenWaggle envelope after Linux Electron diagnostics', () => {
-    const response = '{\n  "schemaVersion": 1,\n  "result": {}\n}\n'
+  it('preserves preamble-only output when Electron exits before the application response drains', () => {
+    expect(applicationCliStdout('[][]', 'linux')).toBe('[][]')
+  })
 
-    expect(applicationCliStdout(`[electron-diagnostic]\n${response}`, 'linux')).toBe(response)
+  it('preserves arbitrary Linux diagnostics before a versioned response', () => {
+    const response = '{\n  "schemaVersion": 1,\n  "result": {}\n}\n'
+    const stdout = `[electron-diagnostic]\n${response}`
+
+    expect(applicationCliStdout(stdout, 'linux')).toBe(stdout)
   })
 
   it('does not normalize stdout on other platforms', () => {

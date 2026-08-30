@@ -2,6 +2,33 @@ import type { IpcInvokeChannel } from './ipc'
 
 export const HOST_UI_CONTRACT_VERSION = 1 as const
 
+export const HOST_BACKED_MCP_GUI_CHANNELS = [
+  'mcp:get-settings',
+  'mcp:set-scope-state',
+  'mcp:set-server-enabled',
+  'mcp:set-project-server-enabled',
+  'mcp:write-source-config',
+  'mcp:set-server-trust',
+  'mcp:remove-server',
+  'mcp:logout-server',
+  'mcp:add-server',
+  'mcp:preview-imports',
+  'mcp:apply-imports',
+  'mcp:doctor',
+  'mcp:list-secrets',
+  'mcp:set-secret',
+  'mcp:remove-secret',
+  'mcp:list-capabilities',
+  'mcp:get-prompt',
+  'mcp:read-resource',
+  'mcp:review-remote-skill',
+  'mcp:operate-task',
+  'mcp:call-app-tool',
+  'mcp:set-event-subscription',
+  'mcp:list-events',
+  'mcp:list-event-subscriptions',
+] as const satisfies readonly IpcInvokeChannel[]
+
 /**
  * Closed set of renderer operations whose authority lives in the Session Host.
  * Adding a channel is a protocol change and must be reviewed alongside its Host dispatcher.
@@ -62,9 +89,11 @@ export const HOST_BACKED_GUI_CHANNELS = [
   'skills:get-preview',
   'git:worktrees:create',
   'git:worktrees:remove',
+  ...HOST_BACKED_MCP_GUI_CHANNELS,
 ] as const satisfies readonly IpcInvokeChannel[]
 
 export type HostBackedGuiChannel = (typeof HOST_BACKED_GUI_CHANNELS)[number]
+export type HostBackedMcpGuiChannel = (typeof HOST_BACKED_MCP_GUI_CHANNELS)[number]
 
 export type HostUiWireValue =
   | { readonly kind: 'undefined' }
