@@ -94,7 +94,12 @@ export class OpenWaggleApp {
   }
 
   async runCli(args: readonly string[]): Promise<{ readonly stdout: string; readonly stderr: string }> {
-    const result = await execFileAsync(electronExecutablePath, ['.', ...args], {
+    const electronArguments = [
+      ...(process.platform === 'linux' ? ['--no-sandbox'] : []),
+      '.',
+      ...args,
+    ]
+    const result = await execFileAsync(electronExecutablePath, electronArguments, {
       cwd: process.cwd(),
       env: buildSafeElectronEnvironment({
         OPENWAGGLE_DISABLE_SINGLE_INSTANCE: '1',
