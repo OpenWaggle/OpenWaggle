@@ -68,6 +68,11 @@ function requiredCapabilities(payload: LocalSessionCommandPayload) {
   if (payload.contract === 'local-access-v1') {
     throw new Error('Profile administration is not available through the Sessions MCP adapter.')
   }
+  if (payload.contract === 'session-waggle-v1' || payload.contract === 'session-waggle-cancel-v1') {
+    throw new Error(
+      'Explicit GUI Waggle contracts are not available through the Sessions MCP adapter.',
+    )
+  }
   return payload.contract === 'session-control-v2'
     ? requiredSessionControlCapabilities(payload.request.command)
     : payload.contract === 'session-lifecycle-v2'

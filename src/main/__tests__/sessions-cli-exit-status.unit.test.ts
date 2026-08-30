@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -48,6 +51,42 @@ describe('Sessions CLI structured failure exit status', () => {
     expect(process.stderr.write).toHaveBeenCalledWith(
       expect.stringContaining('Unknown option for OpenWaggle Sessions: --workspce'),
     )
+  })
+
+  it('rejects a typed request target mismatch before credentials or Host contact', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'openwaggle-cli-request-'))
+    const requestPath = path.join(directory, 'request.json')
+    try {
+      await writeFile(
+        requestPath,
+        JSON.stringify({
+          contract: 'session-control-v2',
+          request: {
+            contractVersion: 2,
+            requestId: 'request-message',
+            idempotencyKey: 'message-once',
+            command: {
+              operation: 'message',
+              sessionId: 'session-payload',
+              input: { text: 'Typed request', attachmentIds: [] },
+            },
+          },
+        }),
+        'utf8',
+      )
+
+      await expect(
+        runSessionsCli(['message', 'session-positional', '--request-json', requestPath, '--json']),
+      ).resolves.toBe(2)
+
+      expect(mocks.createClientInput).not.toHaveBeenCalled()
+      expect(mocks.executeCommand).not.toHaveBeenCalled()
+      expect(process.stderr.write).toHaveBeenCalledWith(
+        expect.stringContaining('target must be the same as the positional message target'),
+      )
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 
   it('rejects option-only invocations instead of reporting successful help', async () => {

@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { decodeLocalSessionCommandPayload } from '@shared/schemas/local-session-protocol'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
+import { resolveCliProjectPath } from './cli-project-path'
 import { hasFlag, option, type ParsedArguments } from './mcp-cli-arguments'
 
 const MAX_CLI_INPUT_BYTES = 16 * 1024 * 1024
@@ -50,19 +51,69 @@ function withResolvedText(arguments_: ParsedArguments, text: string): ParsedArgu
   return { ...arguments_, options }
 }
 
-function payloadOperation(payload: LocalSessionCommandPayload) {
-  if (payload.contract === 'local-ui-v1' || payload.contract === 'local-attachments-v1') {
-    throw new Error('GUI-only Session contracts cannot be loaded with --request-json.')
+function requestTargetBinding(payload: LocalSessionCommandPayload, workingDirectory: string) {
+  if (payload.contract === 'session-lifecycle-v2') {
+    const command = payload.request.command
+    if (command.operation === 'launch') {
+      const projectPath = resolveCliProjectPath(command.projectPath, workingDirectory)
+      return {
+        operation: command.operation,
+        target: projectPath,
+        payload: {
+          ...payload,
+          request: { ...payload.request, command: { ...command, projectPath } },
+        } satisfies LocalSessionCommandPayload,
+      }
+    }
+    if (command.operation === 'spawn') {
+      return { operation: command.operation, target: command.parentSessionId, payload }
+    }
+    return undefined
   }
-  return payload.contract === 'session-query-v2'
-    ? payload.request.query.operation
-    : payload.request.command.operation
+  if (payload.contract !== 'session-control-v2') return undefined
+  const command = payload.request.command
+  if (
+    command.operation !== 'message' &&
+    command.operation !== 'start' &&
+    command.operation !== 'follow-up' &&
+    command.operation !== 'steer' &&
+    command.operation !== 'replace' &&
+    command.operation !== 'report'
+  ) {
+    return undefined
+  }
+  return { operation: command.operation, target: command.sessionId, payload }
 }
 
-function assertRequestMatchesCommand(command: string, payload: LocalSessionCommandPayload) {
-  if (payloadOperation(payload) !== command) {
+function expectedRequestContract(command: string) {
+  return command === 'launch' || command === 'spawn' ? 'session-lifecycle-v2' : 'session-control-v2'
+}
+
+function assertRequestMatchesCommand(input: {
+  readonly command: string
+  readonly arguments: ParsedArguments
+  readonly payload: LocalSessionCommandPayload
+  readonly workingDirectory: string
+}) {
+  const { command, payload } = input
+  const binding = requestTargetBinding(payload, input.workingDirectory)
+  if (!binding) {
+    throw new Error(
+      `--request-json contract must be ${expectedRequestContract(command)} for ${command}.`,
+    )
+  }
+  if (binding.operation !== command) {
     throw new Error(`--request-json operation must be ${command}.`)
   }
+  const positionalTarget = input.arguments.positionals[0] ?? ''
+  const resolvedPositionalTarget =
+    command === 'launch'
+      ? resolveCliProjectPath(positionalTarget, input.workingDirectory)
+      : positionalTarget
+  if (binding.target !== resolvedPositionalTarget) {
+    throw new Error(`--request-json target must be the same as the positional ${command} target.`)
+  }
+  return binding.payload
 }
 
 function inputSources(arguments_: ParsedArguments) {
@@ -79,6 +130,7 @@ async function resolveRequestPayload(input: {
   readonly arguments: ParsedArguments
   readonly consumeStdin: () => Promise<string>
   readonly consumeFile: (filePath: string) => Promise<string>
+  readonly workingDirectory: string
 }) {
   const requestPath = option(input.arguments, 'request-json') ?? ''
   const json =
@@ -90,8 +142,12 @@ async function resolveRequestPayload(input: {
     throw new Error('The typed request is not valid JSON.', { cause })
   }
   const payload = decodeLocalSessionCommandPayload(value)
-  assertRequestMatchesCommand(input.command, payload)
-  return payload
+  return assertRequestMatchesCommand({
+    command: input.command,
+    arguments: input.arguments,
+    payload,
+    workingDirectory: input.workingDirectory,
+  })
 }
 
 async function resolveTextSource(input: {
@@ -111,6 +167,7 @@ export async function resolveSessionsCliMessageInput(
   dependencies: {
     readonly readStdin?: () => Promise<string>
     readonly readFile?: (filePath: string) => Promise<string>
+    readonly workingDirectory?: string
   } = {},
 ): Promise<ResolvedSessionsCliInput> {
   const sources = inputSources(arguments_)
@@ -135,6 +192,7 @@ export async function resolveSessionsCliMessageInput(
       arguments: arguments_,
       consumeStdin,
       consumeFile,
+      workingDirectory: dependencies.workingDirectory ?? process.cwd(),
     })
     return { arguments: arguments_, payload }
   }

@@ -54,8 +54,8 @@ export const SESSION_DELEGATION_TARGET_SCHEMA_STATEMENTS = [
   `
   CREATE TABLE delegation_conflicts (
     id TEXT PRIMARY KEY,
-    left_delegation_id TEXT NOT NULL REFERENCES delegation_contracts(id),
-    right_delegation_id TEXT NOT NULL REFERENCES delegation_contracts(id),
+    left_delegation_id TEXT NOT NULL REFERENCES delegation_contracts(id) ON DELETE CASCADE,
+    right_delegation_id TEXT NOT NULL REFERENCES delegation_contracts(id) ON DELETE CASCADE,
     kind TEXT NOT NULL CHECK (kind IN ('live-overlap', 'merge-overlap')),
     evidence_json TEXT NOT NULL,
     acknowledged_by TEXT,
@@ -129,7 +129,7 @@ export const SESSION_DELEGATION_TARGET_SCHEMA_STATEMENTS = [
     specification_revision INTEGER NOT NULL CHECK (specification_revision > 0),
     created_at INTEGER NOT NULL,
     FOREIGN KEY (delegation_id, submission_revision)
-      REFERENCES delegation_submissions(delegation_id, revision)
+      REFERENCES delegation_submissions(delegation_id, revision) ON DELETE CASCADE
   )
   `,
   `
@@ -148,7 +148,7 @@ export const SESSION_DELEGATION_TARGET_SCHEMA_STATEMENTS = [
     summary TEXT NOT NULL,
     created_at INTEGER NOT NULL,
     FOREIGN KEY (delegation_id, submission_revision)
-      REFERENCES delegation_submissions(delegation_id, revision)
+      REFERENCES delegation_submissions(delegation_id, revision) ON DELETE CASCADE
   )
   `,
   `

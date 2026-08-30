@@ -30,10 +30,11 @@ interface SessionWriterEntry {
 const activeRuns = new ActiveRunManager<SessionId, AgentRunMetadata>()
 const activeCompactions = new ActiveRunManager<SessionId, CompactionMetadata>()
 const activeWaggleRuns = new ActiveRunManager<SessionId, WaggleRunMetadata>()
+const pendingWaggleRuns = new ActiveRunManager<SessionId, WaggleRunMetadata>()
 const activeSessionWriters = new Map<SessionId, SessionWriterEntry>()
 const ACTIVE_RUN_POLL_INTERVAL_MS = 50
 
-export { activeCompactions, activeRuns, activeWaggleRuns }
+export { activeCompactions, activeRuns, activeWaggleRuns, pendingWaggleRuns }
 
 export interface ActiveSessionRunReservation {
   readonly controller: AbortController
@@ -85,8 +86,14 @@ function reserveSessionWriter(input: {
 export function reserveActiveSessionRun(
   sessionId: SessionId,
   runId: string,
+  successorToken?: symbol,
 ): ActiveSessionRunReservation {
-  const writer = reserveSessionWriter({ sessionId, kind: 'classic', runId })
+  const writer = reserveSessionWriter({
+    sessionId,
+    kind: 'classic',
+    runId,
+    ...(successorToken ? { successorToken } : {}),
+  })
   const { controller } = writer
   activeRuns.register(sessionId, controller, { runId })
   return {
@@ -127,13 +134,30 @@ export function reserveWaggleSessionWriter(
     runId,
     ...(successorToken ? { successorToken } : {}),
   })
-  activeWaggleRuns.register(sessionId, controller, { runId })
+  if (!activeWaggleRuns.isCurrent(sessionId, controller)) {
+    activeWaggleRuns.register(sessionId, controller, { runId })
+  }
+  pendingWaggleRuns.deleteIfCurrent(sessionId, controller)
   return {
     controller,
     release: () => {
       activeWaggleRuns.deleteIfCurrent(sessionId, controller)
       writer.release()
     },
+  }
+}
+
+export function reservePendingWaggleSessionRun(
+  sessionId: SessionId,
+  controller: AbortController,
+  runId: string,
+) {
+  if (pendingWaggleRuns.has(sessionId)) {
+    throw new Error(`Session ${sessionId} already has a pending Waggle run.`)
+  }
+  pendingWaggleRuns.register(sessionId, controller, { runId })
+  return {
+    release: () => pendingWaggleRuns.deleteIfCurrent(sessionId, controller),
   }
 }
 
@@ -152,6 +176,7 @@ export async function interruptSessionWriterAndWait(sessionId: SessionId) {
 export async function claimSessionWriterSuccessorAndWait(
   sessionId: SessionId,
   kind: SessionWriterKind,
+  signal?: AbortSignal,
 ): Promise<symbol | null> {
   const writer = activeSessionWriters.get(sessionId)
   if (!writer) return null
@@ -159,7 +184,22 @@ export async function claimSessionWriterSuccessorAndWait(
   const token = Symbol(`${kind}:${sessionId}`)
   writer.successor = { kind, token }
   writer.controller.abort()
-  await writer.settled
+  let rejectAbort: (error: Error) => void = () => undefined
+  const aborted = new Promise<never>((_resolve, reject) => {
+    rejectAbort = reject
+  })
+  const onAbort = () => rejectAbort(new Error(`Pending ${kind} Session writer was cancelled.`))
+  signal?.addEventListener('abort', onAbort, { once: true })
+  try {
+    if (signal?.aborted) onAbort()
+    await Promise.race([writer.settled, aborted])
+    if (signal?.aborted) throw new Error(`Pending ${kind} Session writer was cancelled.`)
+  } catch (error) {
+    releaseClaimedSessionWriterSuccessor(sessionId, token)
+    throw error
+  } finally {
+    signal?.removeEventListener('abort', onAbort)
+  }
   return token
 }
 
@@ -190,7 +230,14 @@ export function cancelSessionRuns(sessionId: SessionId): boolean {
   const cancelledAgent = activeRuns.cancel(sessionId)
   const cancelledCompaction = activeCompactions.cancel(sessionId)
   const cancelledWaggle = activeWaggleRuns.cancel(sessionId)
-  return writer !== undefined || cancelledAgent || cancelledCompaction || cancelledWaggle
+  const cancelledPendingWaggle = pendingWaggleRuns.cancel(sessionId)
+  return (
+    writer !== undefined ||
+    cancelledAgent ||
+    cancelledCompaction ||
+    cancelledWaggle ||
+    cancelledPendingWaggle
+  )
 }
 
 export async function interruptExactSessionRun(sessionId: SessionId, runId: string) {
@@ -199,7 +246,12 @@ export async function interruptExactSessionRun(sessionId: SessionId, runId: stri
     (metadata) => metadata.runId === runId,
   )
   if (interruptedAgent) return true
-  return activeWaggleRuns.interruptAndWait(sessionId, (metadata) => metadata.runId === runId)
+  const interruptedWaggle = await activeWaggleRuns.interruptAndWait(
+    sessionId,
+    (metadata) => metadata.runId === runId,
+  )
+  if (interruptedWaggle) return true
+  return pendingWaggleRuns.interruptAndWait(sessionId, (metadata) => metadata.runId === runId)
 }
 
 export function getAllActiveRunSessionIds(): SessionId[] {
@@ -209,6 +261,7 @@ export function getAllActiveRunSessionIds(): SessionId[] {
       ...activeRuns.keys(),
       ...activeCompactions.keys(),
       ...activeWaggleRuns.keys(),
+      ...pendingWaggleRuns.keys(),
     ]),
   ]
 }
@@ -219,6 +272,7 @@ export function cancelAllSessionRuns(): SessionId[] {
   activeRuns.cancelAll()
   activeCompactions.cancelAll()
   activeWaggleRuns.cancelAll()
+  pendingWaggleRuns.cancelAll()
   return sessionIds
 }
 

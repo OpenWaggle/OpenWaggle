@@ -5,9 +5,10 @@ import type { SessionDeletionRecord } from '../../store/session-details/session-
 import type { CheckpointRefSnapshot } from '../git/turn-checkpoint-refs'
 
 const {
-  deleteSessionMock,
+  commitSessionDeletionMock,
   deleteTurnCheckpointRefsMock,
   abandonSessionDeletionMock,
+  getSessionDeletionMock,
   listPendingSessionDeletionsMock,
   markSessionDeletionExternalCleanupCompleteMock,
   markSessionPiFileCleanupCompleteMock,
@@ -17,7 +18,7 @@ const {
   pruneSessionWorktreeMock,
   restoreTurnCheckpointRefsMock,
 } = vi.hoisted(() => ({
-  deleteSessionMock: vi.fn(async () => undefined),
+  commitSessionDeletionMock: vi.fn(),
   deleteTurnCheckpointRefsMock: vi.fn(
     async (
       _projectPath: string,
@@ -29,6 +30,7 @@ const {
     },
   ),
   abandonSessionDeletionMock: vi.fn(async () => undefined),
+  getSessionDeletionMock: vi.fn(async () => null),
   listPendingSessionDeletionsMock: vi.fn(async (): Promise<SessionId[]> => []),
   markSessionDeletionExternalCleanupCompleteMock: vi.fn(async () => undefined),
   markSessionPiFileCleanupCompleteMock: vi.fn(async () => undefined),
@@ -37,6 +39,9 @@ const {
     resumed: true,
     piSessionFile: null,
     stagedPiSessionFile: null,
+    projectPath: '/project',
+    worktreeProjectPath: '/project',
+    worktreePath: '/project/.worktrees/session-managed',
     checkpointRefs: [],
   })),
   prepareSessionDeletionMock: vi.fn(
@@ -45,6 +50,9 @@ const {
       resumed: false,
       piSessionFile: null,
       stagedPiSessionFile: null,
+      projectPath: '/project',
+      worktreeProjectPath: '/project',
+      worktreePath: '/project/.worktrees/session-managed',
       checkpointRefs: [],
     }),
   ),
@@ -72,7 +80,8 @@ vi.mock('../../store/session-details', () => ({
     },
   ]),
   clearSessionWorktree: vi.fn(async () => undefined),
-  deleteSession: deleteSessionMock,
+  commitSessionDeletion: commitSessionDeletionMock,
+  getSessionDeletion: getSessionDeletionMock,
   abandonSessionDeletion: abandonSessionDeletionMock,
   listPendingSessionDeletions: listPendingSessionDeletionsMock,
   markSessionDeletionExternalCleanupComplete: markSessionDeletionExternalCleanupCompleteMock,
@@ -120,8 +129,17 @@ function recoverPendingDeletions() {
 
 describe('SQLite Session projection deletion', () => {
   beforeEach(() => {
-    deleteSessionMock.mockReset()
-    deleteSessionMock.mockResolvedValue(undefined)
+    commitSessionDeletionMock.mockReset()
+    commitSessionDeletionMock.mockResolvedValue({
+      phase: 'durable-delete-complete',
+      resumed: true,
+      piSessionFile: null,
+      stagedPiSessionFile: null,
+      projectPath: '/project',
+      worktreeProjectPath: '/project',
+      worktreePath: '/project/.worktrees/session-managed',
+      checkpointRefs: [],
+    })
     deleteTurnCheckpointRefsMock.mockReset()
     deleteTurnCheckpointRefsMock.mockImplementation(
       async (_projectPath, _sessionId, beforeDelete) => {
@@ -134,6 +152,8 @@ describe('SQLite Session projection deletion', () => {
     restoreTurnCheckpointRefsMock.mockResolvedValue(undefined)
     abandonSessionDeletionMock.mockReset()
     abandonSessionDeletionMock.mockResolvedValue(undefined)
+    getSessionDeletionMock.mockReset()
+    getSessionDeletionMock.mockResolvedValue(null)
     listPendingSessionDeletionsMock.mockReset()
     listPendingSessionDeletionsMock.mockResolvedValue([])
     markSessionDeletionExternalCleanupCompleteMock.mockReset()
@@ -146,6 +166,9 @@ describe('SQLite Session projection deletion', () => {
       resumed: true,
       piSessionFile: null,
       stagedPiSessionFile: null,
+      projectPath: '/project',
+      worktreeProjectPath: '/project',
+      worktreePath: '/project/.worktrees/session-managed',
       checkpointRefs: [],
     })
     prepareSessionCheckpointRefCleanupMock.mockReset()
@@ -156,23 +179,26 @@ describe('SQLite Session projection deletion', () => {
       resumed: false,
       piSessionFile: null,
       stagedPiSessionFile: null,
+      projectPath: '/project',
+      worktreeProjectPath: '/project',
+      worktreePath: '/project/.worktrees/session-managed',
       checkpointRefs: [],
     })
   })
 
-  it('keeps the Session discoverable when its managed worktree cannot be pruned', async () => {
+  it('keeps the Session discoverable when worktree safety validation refuses deletion', async () => {
     pruneSessionWorktreeMock.mockResolvedValue({
       status: 'retained',
       reason: 'worktree-removal-refused',
     })
 
     await expect(deleteManagedSession()).rejects.toThrow()
-    expect(deleteSessionMock).not.toHaveBeenCalled()
-    expect(restoreTurnCheckpointRefsMock).toHaveBeenCalledWith('/project', [])
+    expect(commitSessionDeletionMock).not.toHaveBeenCalled()
+    expect(restoreTurnCheckpointRefsMock).not.toHaveBeenCalled()
     expect(abandonSessionDeletionMock).toHaveBeenCalledWith(SessionId('session-managed'))
   })
 
-  it('deletes the Session only after workspace cleanup succeeds', async () => {
+  it('commits Session deletion before workspace cleanup starts', async () => {
     pruneSessionWorktreeMock.mockResolvedValue({ status: 'ready-for-deletion' })
 
     await expect(deleteManagedSession()).resolves.toBeUndefined()
@@ -180,7 +206,7 @@ describe('SQLite Session projection deletion', () => {
       expect.objectContaining({ worktreePath: '/project/.worktrees/session-managed' }),
       expect.any(Object),
     )
-    expect(deleteSessionMock).toHaveBeenCalledWith(SessionId('session-managed'))
+    expect(commitSessionDeletionMock).toHaveBeenCalledWith(SessionId('session-managed'))
   })
 
   it('retains every SQLite checkpoint when fallible Git ref cleanup is refused', async () => {
@@ -190,22 +216,26 @@ describe('SQLite Session projection deletion', () => {
     })
 
     await expect(deleteManagedSession()).rejects.toThrow()
-    expect(pruneSessionWorktreeMock).not.toHaveBeenCalled()
-    expect(deleteSessionMock).not.toHaveBeenCalled()
+    expect(pruneSessionWorktreeMock).toHaveBeenCalledOnce()
+    expect(pruneSessionWorktreeMock).toHaveBeenCalledWith(
+      expect.objectContaining({ validateOnly: true }),
+      expect.any(Object),
+    )
+    expect(commitSessionDeletionMock).toHaveBeenCalledOnce()
   })
 
-  it('journals completed external cleanup when the SQLite Session transaction fails', async () => {
-    const removedRefs = [{ name: 'refs/openwaggle/checkpoint', objectId: 'abc123' }]
+  it('does not start external cleanup when the atomic SQLite deletion fails', async () => {
     pruneSessionWorktreeMock.mockResolvedValue({ status: 'ready-for-deletion' })
-    deleteTurnCheckpointRefsMock.mockResolvedValueOnce(removedRefs)
-    deleteSessionMock.mockRejectedValueOnce(new Error('database unavailable'))
+    commitSessionDeletionMock.mockRejectedValueOnce(new Error('database unavailable'))
 
     await expect(deleteManagedSession()).rejects.toThrow()
-    expect(markSessionDeletionExternalCleanupCompleteMock).toHaveBeenCalledWith(
-      SessionId('session-managed'),
+    expect(deleteTurnCheckpointRefsMock).not.toHaveBeenCalled()
+    expect(pruneSessionWorktreeMock).toHaveBeenCalledOnce()
+    expect(pruneSessionWorktreeMock).toHaveBeenCalledWith(
+      expect.objectContaining({ validateOnly: true }),
+      expect.any(Object),
     )
-    expect(restoreTurnCheckpointRefsMock).not.toHaveBeenCalled()
-    expect(abandonSessionDeletionMock).not.toHaveBeenCalled()
+    expect(abandonSessionDeletionMock).toHaveBeenCalledWith(SessionId('session-managed'))
   })
 
   it('resumes a journaled post-cleanup deletion without repeating external mutations', async () => {
@@ -215,6 +245,9 @@ describe('SQLite Session projection deletion', () => {
       resumed: true,
       piSessionFile: null,
       stagedPiSessionFile: null,
+      projectPath: '/project',
+      worktreeProjectPath: '/project',
+      worktreePath: '/project/.worktrees/session-managed',
       checkpointRefs: [],
     })
 
@@ -222,7 +255,7 @@ describe('SQLite Session projection deletion', () => {
 
     expect(deleteTurnCheckpointRefsMock).not.toHaveBeenCalled()
     expect(pruneSessionWorktreeMock).not.toHaveBeenCalled()
-    expect(deleteSessionMock).toHaveBeenCalledWith(SessionId('session-managed'))
+    expect(commitSessionDeletionMock).not.toHaveBeenCalled()
   })
 
   it('resumes journaled Pi file cleanup before deleting the SQLite Session', async () => {
@@ -232,13 +265,16 @@ describe('SQLite Session projection deletion', () => {
       resumed: true,
       piSessionFile: null,
       stagedPiSessionFile: null,
+      projectPath: '/project',
+      worktreeProjectPath: '/project',
+      worktreePath: '/project/.worktrees/session-managed',
       checkpointRefs: [],
     })
 
     await expect(recoverPendingDeletions()).resolves.toBeUndefined()
 
     expect(markSessionPiFileCleanupCompleteMock).toHaveBeenCalledWith(SessionId('session-managed'))
-    expect(deleteSessionMock).toHaveBeenCalledWith(SessionId('session-managed'))
+    expect(abandonSessionDeletionMock).toHaveBeenCalledWith(SessionId('session-managed'))
   })
 
   it('restores durably journaled checkpoint refs when resumed pruning is refused', async () => {
@@ -249,6 +285,9 @@ describe('SQLite Session projection deletion', () => {
       resumed: true,
       piSessionFile: null,
       stagedPiSessionFile: null,
+      projectPath: '/project',
+      worktreeProjectPath: '/project',
+      worktreePath: '/project/.worktrees/session-managed',
       checkpointRefs: refs,
     })
     pruneSessionWorktreeMock.mockResolvedValue({
@@ -259,7 +298,7 @@ describe('SQLite Session projection deletion', () => {
     await expect(recoverPendingDeletions()).resolves.toBeUndefined()
 
     expect(restoreTurnCheckpointRefsMock).toHaveBeenCalledWith('/project', refs)
-    expect(abandonSessionDeletionMock).toHaveBeenCalledWith(SessionId('session-managed'))
-    expect(deleteSessionMock).not.toHaveBeenCalled()
+    expect(abandonSessionDeletionMock).not.toHaveBeenCalled()
+    expect(commitSessionDeletionMock).not.toHaveBeenCalled()
   })
 })

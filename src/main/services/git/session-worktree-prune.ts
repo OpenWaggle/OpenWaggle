@@ -1,6 +1,10 @@
-import { removeGitWorktree } from '../../adapters/git/worktree'
+import { removeGitWorktree, validateGitWorktreeRemoval } from '../../adapters/git/worktree'
 import { createLogger } from '../../logger'
-import { getOrphanedWorktreePathForSession, type SessionWorktreeRef } from './worktree-cleanup'
+import {
+  getOrphanedWorktreePathForSession,
+  normalizeWorktreePath,
+  type SessionWorktreeRef,
+} from './worktree-cleanup'
 
 const logger = createLogger('session-worktree-prune')
 
@@ -39,6 +43,10 @@ export async function pruneSessionWorktree(
     readonly reason: 'delete' | 'archive'
     /** Host-loss recovery may encounter a worktree removed before its durable phase advanced. */
     readonly allowMissingWorktree?: boolean
+    /** Durable deletion removes the Session binding before filesystem cleanup begins. */
+    readonly allowMissingWorkspaceReference?: boolean
+    /** Check removal safety without changing Git or SQLite state. */
+    readonly validateOnly?: boolean
   },
   deps: PruneSessionWorktreeDeps,
 ): Promise<PruneSessionWorktreeResult> {
@@ -63,17 +71,28 @@ export async function pruneSessionWorktree(
     }
 
     const refs = await deps.listWorktreeRefs()
-    if (!refs.some((ref) => ref.sessionId === input.sessionId)) {
+    const hasTargetReference = refs.some((ref) => ref.sessionId === input.sessionId)
+    if (!hasTargetReference && !input.allowMissingWorkspaceReference) {
       return { status: 'retained', reason: 'workspace-reference-missing' }
     }
-    const orphaned = getOrphanedWorktreePathForSession(refs, input.sessionId)
+    const normalizedWorktreePath = normalizeWorktreePath(worktreePath)
+    const orphaned = hasTargetReference
+      ? getOrphanedWorktreePathForSession(refs, input.sessionId)
+      : refs.some((ref) => normalizeWorktreePath(ref.worktreePath) === normalizedWorktreePath)
+        ? null
+        : normalizedWorktreePath
     const removalFailed = orphaned
-      ? await removalFailedFor(input.projectPath, orphaned, input.allowMissingWorktree === true)
+      ? await removalFailedFor(
+          input.projectPath,
+          orphaned,
+          input.allowMissingWorktree === true,
+          input.validateOnly === true,
+        )
       : false
     if (removalFailed) {
       return { status: 'retained', reason: 'worktree-removal-refused' }
     }
-    await deps.clearWorktree(input.sessionId)
+    if (!input.validateOnly) await deps.clearWorktree(input.sessionId)
     return { status: 'ready-for-deletion' }
   } catch (error) {
     logger.warn('Failed to prune Session worktree', { error: String(error) })
@@ -92,8 +111,12 @@ async function removalFailedFor(
   projectPath: string,
   worktreePath: string,
   allowMissingWorktree: boolean,
+  validateOnly: boolean,
 ): Promise<boolean> {
-  const result = await removeGitWorktree(projectPath, { path: worktreePath })
+  const result = await (validateOnly ? validateGitWorktreeRemoval : removeGitWorktree)(
+    projectPath,
+    { path: worktreePath },
+  )
   if (result.ok) return false
   if (allowMissingWorktree && result.code === 'not-found') return false
 

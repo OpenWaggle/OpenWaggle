@@ -1,4 +1,4 @@
-import { decodeLocalSessionCommandPayload } from '@shared/schemas/local-session-protocol'
+import { decodeLocalSessionCommandPayloadForRevision } from '@shared/schemas/local-session-protocol'
 import * as Effect from 'effect/Effect'
 import {
   authorizeLocalSessionActiveRun,
@@ -91,11 +91,10 @@ export async function startAppSessionHost(input: {
     startOwnedServices: input.startOwnedServices,
     stopOwnedServices: input.stopOwnedServices,
     dispatch: async ({ caller, negotiatedRevision, eventCursor, payload, signal }) => {
-      void negotiatedRevision
       const result = await input.runEffect(
         dispatchLocalSessionCommand({
           caller,
-          payload: decodeLocalSessionCommandPayload(payload),
+          payload: decodeLocalSessionCommandPayloadForRevision(payload, negotiatedRevision),
           signal,
         }),
       )

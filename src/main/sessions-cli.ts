@@ -4,6 +4,11 @@ import { validateImplicitCliHelp } from './command-cli-option-contract'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
 import { hasFlag, parseMcpCliArguments } from './mcp-cli-arguments'
 import {
+  SESSION_CLI_EXIT as EXIT,
+  sessionCliExitCodeForError,
+  sessionCliResultErrorKind,
+} from './session-cli-exit-status'
+import {
   executeLocalSessionCommand,
   watchLocalSessionEvents,
 } from './session-host/local-session-client'
@@ -14,7 +19,6 @@ import { isSessionExportOperationCliCommand } from './sessions-cli-export-operat
 import { resolveSessionsCliMessageInput } from './sessions-cli-message-input'
 import { validateSessionsCliOptions } from './sessions-cli-option-contract'
 import {
-  type SessionsCliErrorKind,
   validateSessionsCliOutputMode,
   writeSessionsCliError,
   writeSessionsCliResponse,
@@ -22,18 +26,6 @@ import {
 } from './sessions-cli-output'
 import { buildSessionsCliPayload, FULL_TRANSCRIPT_PAGE_LIMIT } from './sessions-cli-payload'
 import { sessionsCliUsage } from './sessions-cli-usage'
-
-const EXIT = {
-  SUCCESS: 0,
-  FAILURE: 1,
-  USAGE: 2,
-  AUTHENTICATION: 3,
-  AUTHORIZATION: 4,
-  NOT_FOUND: 5,
-  CONFLICT: 6,
-  TIMEOUT: 7,
-  HOST_UNAVAILABLE: 8,
-} as const
 
 export { buildSessionsCliPayload } from './sessions-cli-payload'
 
@@ -153,10 +145,10 @@ async function runSessionCommand(
     ...clientInput,
     payload: payload ?? buildSessionsCliPayload(command, arguments_),
   })
-  const resultError = resultErrorKind(result)
+  const resultError = sessionCliResultErrorKind(result)
   if (resultError) {
     writeSessionsCliResponse(command, result, hasFlag(arguments_, 'json'))
-    return exitCodeForError(resultError)
+    return sessionCliExitCodeForError(resultError)
   }
   if (command === 'read' && hasFlag(arguments_, 'full')) {
     const sessionId = required(arguments_.positionals[0], 'Session ID')
@@ -196,56 +188,6 @@ function commandPayload(
   return resolvedPayload ?? buildSessionsCliPayload(command, arguments_)
 }
 
-function exitCodeForError(kind: SessionsCliErrorKind) {
-  const codes: Record<SessionsCliErrorKind, number> = {
-    usage: EXIT.USAGE,
-    authentication: EXIT.AUTHENTICATION,
-    authorization: EXIT.AUTHORIZATION,
-    not_found: EXIT.NOT_FOUND,
-    conflict: EXIT.CONFLICT,
-    timeout: EXIT.TIMEOUT,
-    host_unavailable: EXIT.HOST_UNAVAILABLE,
-    internal: EXIT.FAILURE,
-  }
-  return codes[kind]
-}
-
-function errorKindForOutcomeCode(code: string): SessionsCliErrorKind {
-  const normalized = code.toLowerCase()
-  if (normalized.includes('not_found') || normalized.includes('missing')) return 'not_found'
-  if (
-    normalized.includes('authoriz') ||
-    normalized.includes('capability') ||
-    normalized.includes('denied') ||
-    normalized.includes('target_scope')
-  ) {
-    return 'authorization'
-  }
-  if (normalized.includes('timeout')) return 'timeout'
-  if (normalized.includes('host_stopped') || normalized.includes('host_lost')) {
-    return 'host_unavailable'
-  }
-  if (normalized.endsWith('_failed')) return 'internal'
-  return 'conflict'
-}
-
-function resultErrorKind(
-  result: Awaited<ReturnType<typeof executeLocalSessionCommand>>,
-): SessionsCliErrorKind | undefined {
-  if (result.contract === 'session-query-v2') {
-    return 'error' in result.response.outcome
-      ? errorKindForOutcomeCode(result.response.outcome.error.code)
-      : undefined
-  }
-  if (
-    (result.contract === 'session-control-v2' || result.contract === 'session-lifecycle-v2') &&
-    result.response.outcome.effect === 'rejected'
-  ) {
-    return errorKindForOutcomeCode(result.response.outcome.code)
-  }
-  return undefined
-}
-
 export async function runSessionsCli(args: readonly string[]) {
   const parsed = parseMcpCliArguments(args)
   const command = parsed.positionals[0]
@@ -276,6 +218,6 @@ export async function runSessionsCli(args: readonly string[]) {
       error,
       hasFlag(unresolvedArguments, 'json') || hasFlag(unresolvedArguments, 'jsonl'),
     )
-    return exitCodeForError(kind)
+    return sessionCliExitCodeForError(kind)
   }
 }

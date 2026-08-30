@@ -140,6 +140,46 @@ describe('GUI Session Host command client', () => {
     expect(execute).toHaveBeenCalledTimes(2)
   })
 
+  it('does not retry explicit Waggle after an ambiguous transport reset', async () => {
+    configureGuiSessionCommandClient({
+      paths: resolveLocalSessionHostPaths({ userDataRoot: temporaryRoot }),
+      clientVersion: 'test',
+    })
+    const reset = Object.assign(new Error('connection reset'), { code: 'ECONNRESET' })
+    const execute = vi.fn().mockRejectedValue(reset)
+    const ensure = vi.fn(async () => undefined)
+    const remote = dispatchConfiguredGuiSessionCommand(
+      {
+        caller: { callerId: 'gui:local-user' },
+        payload: {
+          contract: 'session-waggle-v1',
+          request: {
+            contractVersion: 1,
+            requestId: 'gui-waggle-reset',
+            idempotencyKey: 'gui-waggle-once',
+            sessionId: 'session-1',
+            payload: { text: 'Review.', thinkingLevel: 'medium', attachments: [] },
+            model: 'openai/gpt-5.4',
+            config: {
+              mode: 'sequential',
+              agents: [
+                { label: 'Architect', model: '$inherit', roleDescription: 'Plan', color: 'blue' },
+                { label: 'Reviewer', model: '$inherit', roleDescription: 'Review', color: 'amber' },
+              ],
+              stop: { primary: 'consensus', maxTurnsSafety: 4 },
+            },
+          },
+        },
+      },
+      { execute, ensure },
+    )
+    if (!remote) throw new Error('Expected the configured GUI Session client.')
+
+    await expect(Effect.runPromise(remote)).rejects.toThrow()
+    expect(execute).toHaveBeenCalledOnce()
+    expect(ensure).not.toHaveBeenCalled()
+  })
+
   it('fails closed instead of dispatching locally after an upgrade handoff', async () => {
     const execute = vi.fn()
     const ensure = vi.fn()

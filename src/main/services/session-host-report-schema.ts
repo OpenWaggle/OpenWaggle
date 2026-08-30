@@ -3,8 +3,8 @@ export const SESSION_REPORT_TARGET_SCHEMA_STATEMENTS = [
   CREATE TABLE cross_session_reports (
     id TEXT PRIMARY KEY,
     correlation_id TEXT NOT NULL,
-    reply_to_report_id TEXT REFERENCES cross_session_reports(id),
-    source_session_id TEXT NOT NULL REFERENCES sessions(id),
+    reply_to_report_id TEXT REFERENCES cross_session_reports(id) ON DELETE SET NULL,
+    source_session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     source_run_id TEXT REFERENCES session_runs(id),
     authored_by TEXT NOT NULL,
     content TEXT NOT NULL,

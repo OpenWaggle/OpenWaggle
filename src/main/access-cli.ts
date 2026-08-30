@@ -101,6 +101,10 @@ function writeOutput(value: unknown, json: boolean) {
 
 type StagedProfileCredential = Awaited<ReturnType<typeof stageProfileCredential>>
 
+class AmbiguousProfileOperationError extends Error {
+  readonly preserveStagedCredential = true
+}
+
 async function prepareProfileCredential(input: {
   readonly operation: string
   readonly arguments_: ReturnType<typeof parseMcpCliArguments>
@@ -123,10 +127,10 @@ async function requestProfileOperation(input: {
   readonly arguments_: ReturnType<typeof parseMcpCliArguments>
   readonly idempotencyKey: string
   readonly staged?: StagedProfileCredential
+  readonly client: Awaited<ReturnType<typeof createLocalSessionCliClientInput>>
 }) {
-  const client = await createLocalSessionCliClientInput(input.arguments_)
   const result = await executeLocalSessionCommand({
-    ...client,
+    ...input.client,
     payload: {
       contract: 'local-access-v1',
       request: request(
@@ -139,6 +143,28 @@ async function requestProfileOperation(input: {
     throw new Error('Local Session Host returned an invalid profile response.')
   }
   return decodeLocalSessionProfileManagementResponse(result.response)
+}
+
+async function reconcileProfileOperation(input: {
+  readonly operation: string
+  readonly arguments_: ReturnType<typeof parseMcpCliArguments>
+  readonly idempotencyKey: string
+  readonly staged?: StagedProfileCredential
+}) {
+  const client = await createLocalSessionCliClientInput(input.arguments_)
+  try {
+    return await requestProfileOperation({ ...input, client })
+  } catch (firstError) {
+    if (!input.staged) throw firstError
+    try {
+      return await requestProfileOperation({ ...input, client })
+    } catch (retryError) {
+      throw new AmbiguousProfileOperationError(
+        `The profile operation outcome is unknown. Its credential remains protected; retry with --idempotency-key ${input.idempotencyKey}.`,
+        { cause: retryError },
+      )
+    }
+  }
 }
 
 async function finalizeProfileResponse(input: {
@@ -185,7 +211,7 @@ async function executeProfileOperation(input: {
       stateRoot: paths.stateRoot,
       idempotencyKey,
     })
-    const response = await requestProfileOperation({
+    const response = await reconcileProfileOperation({
       operation,
       arguments_,
       idempotencyKey,
@@ -199,7 +225,12 @@ async function executeProfileOperation(input: {
       json: hasFlag(arguments_, 'json'),
     })
   } catch (error) {
-    if (!accepted) await staged?.discard()
+    if (
+      !accepted &&
+      !(error instanceof AmbiguousProfileOperationError && error.preserveStagedCredential)
+    ) {
+      await staged?.discard()
+    }
     process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`)
     return isCommandCliUsageError(error) ||
       (error instanceof Error && error.message.includes('required'))

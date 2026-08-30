@@ -3,9 +3,13 @@ import { validateDelegationsCliOptions } from './delegations-cli-option-contract
 import { buildDelegationsCliPayload } from './delegations-cli-payload'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
 import { hasFlag, parseMcpCliArguments } from './mcp-cli-arguments'
+import {
+  SESSION_CLI_EXIT as EXIT,
+  sessionCliExitCodeForError,
+  sessionCliResultErrorKind,
+} from './session-cli-exit-status'
 import { executeLocalSessionCommand } from './session-host/local-session-client'
 
-const EXIT = { SUCCESS: 0, FAILURE: 1, USAGE: 2 } as const
 const JSON_INDENT_SPACES = 2
 
 export function delegationsCliUsage() {
@@ -64,7 +68,8 @@ export async function runDelegationsCli(args: readonly string[]) {
     process.stdout.write(
       `${JSON.stringify(result, null, hasFlag(arguments_, 'json') ? JSON_INDENT_SPACES : undefined)}\n`,
     )
-    return EXIT.SUCCESS
+    const resultError = sessionCliResultErrorKind(result)
+    return resultError ? sessionCliExitCodeForError(resultError) : EXIT.SUCCESS
   } catch (error) {
     process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`)
     return isCommandCliUsageError(error) ? EXIT.USAGE : EXIT.FAILURE

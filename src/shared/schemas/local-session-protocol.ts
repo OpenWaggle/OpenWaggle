@@ -7,12 +7,15 @@ import {
   type LocalSessionClientHello,
   type LocalSessionCommandPayload,
   type LocalSessionNegotiationResult,
+  SESSION_WAGGLE_CONTRACT_VERSION,
 } from '@shared/types/local-session-protocol'
 import { localSessionProfileAuthoritySchema } from './local-session-profile'
 import { localSessionProfileManagementRequestSchema } from './local-session-profile-management'
 import { sessionControlMutationRequestSchema } from './session-control'
 import { sessionLifecycleRequestSchema } from './session-lifecycle'
 import { sessionQueryRequestSchema } from './session-query'
+import { agentSendPayloadSchema } from './validation'
+import { waggleConfigSchema } from './waggle'
 
 const [
   subscribeCapability,
@@ -22,8 +25,10 @@ const [
   snapshotCapability,
   accessProfilesCapability,
   localUiMutationCapability,
+  waggleRunCapability,
+  waggleCancelCapability,
 ] = LOCAL_SESSION_CAPABILITIES
-const [currentRevision, legacyRevision] = LOCAL_SESSION_SUPPORTED_REVISIONS
+const [currentRevision, previousRevision] = LOCAL_SESSION_SUPPORTED_REVISIONS
 
 export const localSessionClientHelloSchema: Schema.Schema<LocalSessionClientHello> = Schema.Struct({
   protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),
@@ -149,6 +154,26 @@ export const localSessionCommandPayloadSchema: Schema.Schema<LocalSessionCommand
       contract: Schema.Literal('session-query-v2'),
       request: sessionQueryRequestSchema,
     }),
+    Schema.Struct({
+      contract: Schema.Literal('session-waggle-v1'),
+      request: Schema.Struct({
+        contractVersion: Schema.Literal(SESSION_WAGGLE_CONTRACT_VERSION),
+        requestId: Schema.String,
+        idempotencyKey: Schema.String,
+        sessionId: Schema.String,
+        payload: agentSendPayloadSchema,
+        model: Schema.String,
+        config: waggleConfigSchema,
+      }),
+    }),
+    Schema.Struct({
+      contract: Schema.Literal('session-waggle-cancel-v1'),
+      request: Schema.Struct({
+        contractVersion: Schema.Literal(SESSION_WAGGLE_CONTRACT_VERSION),
+        requestId: Schema.String,
+        sessionId: Schema.String,
+      }),
+    }),
   )
 
 export const localSessionNegotiationResultSchema: Schema.Schema<LocalSessionNegotiationResult> =
@@ -156,7 +181,24 @@ export const localSessionNegotiationResultSchema: Schema.Schema<LocalSessionNego
     Schema.Struct({
       accepted: Schema.Literal(true),
       protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),
-      revision: Schema.Literal(...LOCAL_SESSION_SUPPORTED_REVISIONS),
+      revision: Schema.Literal(currentRevision),
+      hostInstanceId: Schema.String,
+      capabilities: Schema.Tuple(
+        Schema.Literal(subscribeCapability),
+        Schema.Literal(replayCapability),
+        Schema.Literal(mutateCapability),
+        Schema.Literal(queryCapability),
+        Schema.Literal(snapshotCapability),
+        Schema.Literal(accessProfilesCapability),
+        Schema.Literal(localUiMutationCapability),
+        Schema.Literal(waggleRunCapability),
+        Schema.Literal(waggleCancelCapability),
+      ),
+    }),
+    Schema.Struct({
+      accepted: Schema.Literal(true),
+      protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),
+      revision: Schema.Literal(previousRevision),
       hostInstanceId: Schema.String,
       capabilities: Schema.Tuple(
         Schema.Literal(subscribeCapability),
@@ -174,7 +216,7 @@ export const localSessionNegotiationResultSchema: Schema.Schema<LocalSessionNego
       code: Schema.Literal('incompatible_protocol'),
       supportedRevisions: Schema.Tuple(
         Schema.Literal(currentRevision),
-        Schema.Literal(legacyRevision),
+        Schema.Literal(previousRevision),
       ),
     }),
     Schema.Struct({
@@ -184,7 +226,7 @@ export const localSessionNegotiationResultSchema: Schema.Schema<LocalSessionNego
       hostInstanceId: Schema.String,
       supportedRevisions: Schema.Tuple(
         Schema.Literal(currentRevision),
-        Schema.Literal(legacyRevision),
+        Schema.Literal(previousRevision),
       ),
       blockingRuns: Schema.Array(Schema.Struct({ sessionId: Schema.String, runId: Schema.String })),
       blockingOperations: Schema.Array(
@@ -207,6 +249,17 @@ export function decodeLocalSessionClientFrame(value: unknown) {
 
 export function decodeLocalSessionCommandPayload(value: unknown) {
   return decodeUnknownExactOrThrow(localSessionCommandPayloadSchema, value)
+}
+
+export function decodeLocalSessionCommandPayloadForRevision(value: unknown, revision: number) {
+  const payload = decodeLocalSessionCommandPayload(value)
+  if (
+    (payload.contract === 'session-waggle-v1' || payload.contract === 'session-waggle-cancel-v1') &&
+    revision < currentRevision
+  ) {
+    throw new Error(`Explicit Waggle requires Local Session protocol revision ${currentRevision}.`)
+  }
+  return payload
 }
 
 export function decodeLocalSessionNegotiationResult(value: unknown) {

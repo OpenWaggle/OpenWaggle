@@ -6,6 +6,8 @@ export { persistSessionSnapshot } from './session-details/persist-snapshot'
 export { createSession } from './session-details/session-creation'
 export {
   abandonSessionDeletion,
+  commitSessionDeletion,
+  getSessionDeletion,
   listPendingSessionDeletions,
   markSessionDeletionExternalCleanupComplete,
   markSessionPiFileCleanupComplete,

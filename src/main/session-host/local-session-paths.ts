@@ -2,7 +2,6 @@ import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
 import { DATABASE_FILE_NAME } from '../services/database-constants'
 
 const PORTABLE_UNIX_SOCKET_PATH_BYTES = 100
@@ -51,12 +50,12 @@ export function resolveLocalSessionHostPaths(input: {
       databasePath,
       recoveryDatabasePath,
       credentialPath,
-      endpoint: `\\\\.\\pipe\\openwaggle-${hash}-v${LOCAL_SESSION_CURRENT_REVISION}`,
+      endpoint: `\\\\.\\pipe\\openwaggle-${hash}-session-host`,
       endpointDirectory: null,
     }
   }
 
-  const preferredEndpoint = path.join(stateRoot, `host-v${LOCAL_SESSION_CURRENT_REVISION}.sock`)
+  const preferredEndpoint = path.join(stateRoot, 'host.sock')
   if (Buffer.byteLength(preferredEndpoint, 'utf8') <= PORTABLE_UNIX_SOCKET_PATH_BYTES) {
     return {
       stateRoot,
@@ -70,7 +69,7 @@ export function resolveLocalSessionHostPaths(input: {
   }
 
   const endpointDirectoryName = `owsh-${hash}`
-  const endpointName = `v${LOCAL_SESSION_CURRENT_REVISION}.sock`
+  const endpointName = 'host.sock'
   const temporaryEndpointDirectory = path.join(
     input.temporaryRoot ?? os.tmpdir(),
     endpointDirectoryName,

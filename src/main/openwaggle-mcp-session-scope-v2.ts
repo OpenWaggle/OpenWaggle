@@ -58,6 +58,11 @@ function directTarget(payload: LocalSessionCommandPayload) {
     .with('local-ui-v1', 'local-attachments-v1', () => {
       throw new Error('Local GUI contracts are not available through the Sessions MCP adapter.')
     })
+    .with('session-waggle-v1', 'session-waggle-cancel-v1', () => {
+      throw new Error(
+        'Explicit GUI Waggle contracts are not available through the Sessions MCP adapter.',
+      )
+    })
     .with('local-access-v1', () => undefined)
     .with('session-control-v2', controlTarget)
     .with('session-lifecycle-v2', lifecycleTarget)

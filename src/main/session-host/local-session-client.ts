@@ -4,6 +4,7 @@ import type {
   LocalSessionCommandPayload,
   LocalSessionCommandResult,
 } from '@shared/types/local-session-protocol'
+import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
 import {
   LOCAL_SESSION_DEFAULT_CLIENT_TIMEOUT_MS,
   type LocalSessionClientConnectionInput,
@@ -23,6 +24,10 @@ export {
 
 const LONG_RUNNING_COMMAND_GRACE_MS = 5_000
 
+function requiresCurrentProtocolRevision(payload: LocalSessionCommandPayload) {
+  return payload.contract === 'session-waggle-v1' || payload.contract === 'session-waggle-cancel-v1'
+}
+
 function requestedWaitTimeoutMs(payload: LocalSessionCommandPayload) {
   if (payload.contract !== 'session-query-v2') return undefined
   const query = payload.request.query
@@ -34,6 +39,7 @@ export function resolveLocalSessionCommandTimeoutMs(
   payload: LocalSessionCommandPayload,
   explicitTimeoutMs?: number,
 ) {
+  if (payload.contract === 'session-waggle-v1') return explicitTimeoutMs
   const requestedWait = requestedWaitTimeoutMs(payload)
   const commandMinimum =
     requestedWait === undefined
@@ -51,19 +57,30 @@ export async function executeLocalSessionCommand(input: {
   readonly profile?: string
   readonly profileCredential?: string
   readonly timeoutMs?: number
+  readonly supportedRevisions?: readonly number[]
 }): Promise<LocalSessionCommandResult> {
-  const { socket, reader, timeoutMs } = await openLocalSessionConnection({
+  const responseTimeoutMs = resolveLocalSessionCommandTimeoutMs(input.payload, input.timeoutMs)
+  const supportedRevisions =
+    input.supportedRevisions ??
+    (requiresCurrentProtocolRevision(input.payload) ? [LOCAL_SESSION_CURRENT_REVISION] : undefined)
+  const { socket, reader, negotiation } = await openLocalSessionConnection({
     ...input,
-    timeoutMs: resolveLocalSessionCommandTimeoutMs(input.payload, input.timeoutMs),
+    ...(supportedRevisions ? { supportedRevisions } : {}),
   })
   try {
+    if (
+      requiresCurrentProtocolRevision(input.payload) &&
+      negotiation.revision < LOCAL_SESSION_CURRENT_REVISION
+    ) {
+      throw new Error('The connected Session Host does not support explicit Waggle commands.')
+    }
     const requestId = randomUUID()
     await writeLocalSessionFrame(socket, {
       kind: 'command',
       requestId,
       payload: decodeLocalSessionCommandPayload(input.payload),
     })
-    return decodeLocalSessionCommandResponse(await reader.next(timeoutMs), requestId)
+    return decodeLocalSessionCommandResponse(await reader.next(responseTimeoutMs), requestId)
   } finally {
     socket.destroy()
   }

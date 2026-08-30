@@ -1,8 +1,9 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { SESSION_TRANSCRIPT_SEMANTIC_STORAGE_POLICY as TRANSCRIPT_POLICY } from '../domain/session-transcript-semantic-storage-policy'
+import { SESSION_HOST_SCHEMA_REVISION } from '../services/session-host-schema-identity'
 import { queryCutoverRecord, readCutoverCount } from './session-host-cutover-database'
 
-export const SESSION_HOST_SCHEMA_REVISION = 5
+export { SESSION_HOST_SCHEMA_REVISION }
 
 interface TargetCounts {
   readonly sessions: number

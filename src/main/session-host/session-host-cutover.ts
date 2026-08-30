@@ -5,7 +5,13 @@ import {
   defaultSessionEmbeddingModel,
   type SessionEmbeddingModel,
 } from '../adapters/multilingual-e5-session-embedding-model'
+import {
+  SESSION_HOST_BASELINE_MIGRATION_ID,
+  SESSION_HOST_BASELINE_MIGRATION_NAME,
+  SESSION_HOST_CUTOVER_REVISION,
+} from '../services/session-host-schema-identity'
 import { SESSION_HOST_TARGET_SCHEMA_STATEMENTS } from '../services/session-host-target-schema'
+import { validateSessionHostCompletionSeal } from './session-host-completion-seal'
 import { readCutoverCount, sourceSchemaRevision } from './session-host-cutover-database'
 import {
   normalizeLegacySessionColumns,
@@ -17,8 +23,8 @@ import { acquireSessionHostOwnership } from './session-host-ownership'
 
 export { SESSION_HOST_SCHEMA_REVISION } from './session-host-cutover-validation'
 
-export const SESSION_HOST_CUTOVER_MIGRATION_ID = 26
-export const SESSION_HOST_CUTOVER_MIGRATION_REVISION = 'session-host-v2'
+export const SESSION_HOST_CUTOVER_MIGRATION_ID = SESSION_HOST_BASELINE_MIGRATION_ID
+export const SESSION_HOST_CUTOVER_MIGRATION_REVISION = SESSION_HOST_CUTOVER_REVISION
 const OWNER_DIRECTORY_MODE = 0o700
 
 export interface SessionHostCutoverPaths {
@@ -79,7 +85,7 @@ function recordMigrationMetadata(
     .prepare('INSERT INTO _migrations (id, name, applied_at) VALUES (?, ?, ?)')
     .run(
       SESSION_HOST_CUTOVER_MIGRATION_ID,
-      'session-host-v2-target-schema',
+      SESSION_HOST_BASELINE_MIGRATION_NAME,
       new Date(input.now).toISOString(),
     )
 }
@@ -135,7 +141,16 @@ function finalizeStagingDatabase(
   }
 }
 
-function validateExistingTarget(targetPath: string, model: SessionEmbeddingModel) {
+function validateCompletedTarget(targetPath: string) {
+  const database = new DatabaseSync(targetPath, { readOnly: true })
+  try {
+    validateSessionHostCompletionSeal(database)
+  } finally {
+    database.close()
+  }
+}
+
+function validateStagedTarget(targetPath: string, model: SessionEmbeddingModel) {
   const database = new DatabaseSync(targetPath, { readOnly: true })
   try {
     database.exec('BEGIN')
@@ -185,18 +200,18 @@ export async function runSessionHostCutover(
     mode: OWNER_DIRECTORY_MODE,
   })
   if (await exists(paths.targetDatabasePath)) {
-    validateExistingTarget(paths.targetDatabasePath, model)
+    validateCompletedTarget(paths.targetDatabasePath)
     return { status: 'already-complete', targetDatabasePath: paths.targetDatabasePath }
   }
   const ownership = await acquireSessionHostOwnership(`${paths.targetDatabasePath}.cutover`)
   try {
     if (await exists(paths.targetDatabasePath)) {
-      validateExistingTarget(paths.targetDatabasePath, model)
+      validateCompletedTarget(paths.targetDatabasePath)
       return { status: 'already-complete', targetDatabasePath: paths.targetDatabasePath }
     }
     if (await exists(paths.recoveryDatabasePath)) {
       if (await exists(stagingPath)) {
-        validateExistingTarget(stagingPath, model)
+        validateStagedTarget(stagingPath, model)
         await rename(stagingPath, paths.targetDatabasePath)
         return { status: 'already-complete', targetDatabasePath: paths.targetDatabasePath }
       }

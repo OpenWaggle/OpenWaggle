@@ -252,3 +252,33 @@ export async function removeGitWorktree(
 
   return { ok: true, message: 'Worktree removed.', path: worktreePath }
 }
+
+export async function validateGitWorktreeRemoval(
+  projectPath: string,
+  payload: GitWorktreeRemovePayload,
+): Promise<GitWorktreeMutationResult> {
+  if (!(await isGitRepository(projectPath))) {
+    return worktreeFailure('not-git-repo', 'Selected folder is not a Git repository.')
+  }
+  const worktreePath = payload.path.trim()
+  if (!worktreePath) return worktreeFailure('not-found', 'A worktree path is required.')
+  const listed = await listGitWorktrees(projectPath)
+  let registered = false
+  for (const worktree of listed.worktrees) {
+    if (await isSamePath(worktree.path, worktreePath)) {
+      registered = true
+      break
+    }
+  }
+  if (!registered) return worktreeFailure('not-found', 'Worktree not found.')
+  const status = await runGit(worktreePath, ['status', '--porcelain=v1', '--untracked-files=all'])
+  if (status.code !== 0)
+    return worktreeFailure('unknown', status.stderr || 'Worktree check failed.')
+  if (status.stdout.trim()) {
+    return worktreeFailure(
+      'dirty-worktree',
+      'Worktree has uncommitted changes. Commit, push, or force-remove to discard them.',
+    )
+  }
+  return { ok: true, message: 'Worktree can be removed.', path: worktreePath }
+}

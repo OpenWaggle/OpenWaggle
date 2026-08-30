@@ -2,7 +2,10 @@ import { match } from '@diegogbrisa/ts-match'
 import { decodeLocalSessionProfileManagementResponse } from '@shared/schemas/local-session-profile-management'
 import { decodeSessionControlMutationResponse } from '@shared/schemas/session-control'
 import { decodeSessionLifecycleResponse } from '@shared/schemas/session-lifecycle'
-import type { LocalSessionCommandResult } from '@shared/types/local-session-protocol'
+import {
+  type LocalSessionCommandResult,
+  SESSION_WAGGLE_CONTRACT_VERSION,
+} from '@shared/types/local-session-protocol'
 import {
   SESSION_QUERY_CONTRACT_VERSION,
   type SessionQueryResponse,
@@ -71,6 +74,45 @@ function isSessionQueryResponse(value: unknown): value is SessionQueryResponse {
   )
 }
 
+function isAgentSendReport(value: unknown) {
+  return (
+    isRecord(value) &&
+    (value.outcome === 'delivered' ||
+      value.outcome === 'refused' ||
+      value.outcome === 'cancelled') &&
+    (value.message === undefined || typeof value.message === 'string') &&
+    (value.code === undefined || typeof value.code === 'string')
+  )
+}
+
+function isSessionWaggleResponse(
+  value: unknown,
+): value is Extract<LocalSessionCommandResult, { contract: 'session-waggle-v1' }>['response'] {
+  return (
+    isRecord(value) &&
+    value.contractVersion === SESSION_WAGGLE_CONTRACT_VERSION &&
+    typeof value.requestId === 'string' &&
+    typeof value.idempotencyKey === 'string' &&
+    typeof value.replayed === 'boolean' &&
+    isAgentSendReport(value.report)
+  )
+}
+
+function isSessionWaggleCancellationResponse(
+  value: unknown,
+): value is Extract<
+  LocalSessionCommandResult,
+  { contract: 'session-waggle-cancel-v1' }
+>['response'] {
+  return (
+    isRecord(value) &&
+    value.contractVersion === SESSION_WAGGLE_CONTRACT_VERSION &&
+    typeof value.requestId === 'string' &&
+    typeof value.sessionId === 'string' &&
+    typeof value.cancelled === 'boolean'
+  )
+}
+
 function decodeCommandPayload(payload: Record<string, unknown>): LocalSessionCommandResult {
   return match(payload.contract)
     .with('local-attachments-v1', () => {
@@ -96,6 +138,16 @@ function decodeCommandPayload(payload: Record<string, unknown>): LocalSessionCom
     .with('session-query-v2', () => {
       if (!isSessionQueryResponse(payload.response)) throw new Error('Invalid query response.')
       return { contract: 'session-query-v2' as const, response: payload.response }
+    })
+    .with('session-waggle-v1', () => {
+      if (!isSessionWaggleResponse(payload.response)) throw new Error('Invalid Waggle response.')
+      return { contract: 'session-waggle-v1' as const, response: payload.response }
+    })
+    .with('session-waggle-cancel-v1', () => {
+      if (!isSessionWaggleCancellationResponse(payload.response)) {
+        throw new Error('Invalid Waggle cancellation response.')
+      }
+      return { contract: 'session-waggle-cancel-v1' as const, response: payload.response }
     })
     .otherwise(() => {
       throw new Error('Local Session Host returned an invalid command contract.')

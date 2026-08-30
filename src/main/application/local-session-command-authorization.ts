@@ -24,7 +24,13 @@ export {
 
 type AuthorizedLocalSessionCommandPayload = Exclude<
   LocalSessionCommandPayload,
-  { contract: 'local-ui-v1' | 'local-attachments-v1' }
+  {
+    contract:
+      | 'local-ui-v1'
+      | 'local-attachments-v1'
+      | 'session-waggle-v1'
+      | 'session-waggle-cancel-v1'
+  }
 >
 
 function requestedRunAuthorizationOverride(payload: AuthorizedLocalSessionCommandPayload) {
@@ -258,7 +264,12 @@ export function authorizeLocalSessionCommand(input: {
 }) {
   return Effect.gen(function* () {
     const payload = input.payload
-    if (payload.contract === 'local-ui-v1' || payload.contract === 'local-attachments-v1') {
+    if (
+      payload.contract === 'local-ui-v1' ||
+      payload.contract === 'local-attachments-v1' ||
+      payload.contract === 'session-waggle-v1' ||
+      payload.contract === 'session-waggle-cancel-v1'
+    ) {
       return yield* Effect.fail(
         new LocalSessionCommandAuthorizationError({ code: 'capability_denied' }),
       )

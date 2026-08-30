@@ -173,12 +173,12 @@ describe('Local Session server', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [1],
+        supportedRevisions: [2],
         clientKind: 'cli',
         clientVersion: 'previous',
       }),
     )
-    await expect(reader.next()).resolves.toMatchObject({ accepted: true, revision: 1 })
+    await expect(reader.next()).resolves.toMatchObject({ accepted: true, revision: 2 })
     client.write(
       encodeLocalSessionFrame({ kind: 'command', requestId: 'previous-command', payload: {} }),
     )
@@ -187,7 +187,7 @@ describe('Local Session server', () => {
       requestId: 'previous-command',
       payload: { compatible: true },
     })
-    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ negotiatedRevision: 1 }))
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ negotiatedRevision: 2 }))
   })
 
   it('authenticates a newer client, reports blockers, and requests a safe drain', async () => {
@@ -214,7 +214,7 @@ describe('Local Session server', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [3],
+        supportedRevisions: [4],
         clientKind: 'gui',
         clientVersion: 'future',
       }),

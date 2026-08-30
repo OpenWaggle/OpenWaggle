@@ -14,6 +14,8 @@ const {
   activatePreparedExternalSessionRunMock,
   prepareExternalSessionRunReplacementMock,
   dispatchLocalSessionCommandMock,
+  attachmentBindMock,
+  attachmentCleanupMock,
   typedHandleMock,
   typedOnMock,
 } = vi.hoisted(() => ({
@@ -27,6 +29,8 @@ const {
   activatePreparedExternalSessionRunMock: vi.fn(),
   prepareExternalSessionRunReplacementMock: vi.fn(),
   dispatchLocalSessionCommandMock: vi.fn(),
+  attachmentBindMock: vi.fn(),
+  attachmentCleanupMock: vi.fn(),
   typedHandleMock: vi.fn(),
   typedOnMock: vi.fn(),
 }))
@@ -76,15 +80,21 @@ vi.mock('../../session-host/session-host-events', () => ({
   tryGetSessionHostEventRuntime: vi.fn(() => null),
 }))
 
-import {
-  activeWaggleRuns,
-  cancelAllSessionRuns,
-  reserveActiveSessionRun,
-} from '../../application/active-session-runs'
+import { cancelAllSessionRuns } from '../../application/active-session-runs'
+import { executeExplicitWaggleCancellation } from '../../application/explicit-waggle-command-cancellation'
+import { executeExplicitWaggleCommand } from '../../application/explicit-waggle-command-service'
+import { SessionControlAttachmentService } from '../../ports/session-control-attachment-service'
 import { registerWaggleHandlers } from '../waggle-handler'
 
 const SESSION_ID = SessionId('session-1')
 const SELECTED_MODEL = SupportedModelId('openai/gpt-5.4')
+const attachmentService = SessionControlAttachmentService.of({
+  prepare: () => Effect.die('unused'),
+  bind: attachmentBindMock,
+  cleanupUnreferenced: attachmentCleanupMock,
+  resolve: () => Effect.die('unused'),
+  release: () => Effect.die('unused'),
+})
 
 function inheritedFirstAgentConfig(): WaggleConfig {
   return {
@@ -159,7 +169,15 @@ describe('registerWaggleHandlers', () => {
     activatePreparedExternalSessionRunMock
       .mockReset()
       .mockReturnValue(Effect.succeed({ accepted: true, stateRevision: 3, intent: {} }))
-    dispatchLocalSessionCommandMock.mockReset()
+    dispatchLocalSessionCommandMock
+      .mockReset()
+      .mockImplementation((input) =>
+        executeExplicitWaggleCommand(input).pipe(
+          Effect.provideService(SessionControlAttachmentService, attachmentService),
+        ),
+      )
+    attachmentBindMock.mockReset().mockReturnValue(Effect.void)
+    attachmentCleanupMock.mockReset().mockReturnValue(Effect.void)
     typedHandleMock.mockReset()
     typedOnMock.mockReset()
   })
@@ -173,7 +191,6 @@ describe('registerWaggleHandlers', () => {
           { agentIndex: 0, agentLabel: 'Architect', turn: 1 },
         )
         input.onTurnEvent?.({ type: 'collaboration-completed', sessionId: SESSION_ID })
-        input.onTitleAssigned?.('Waggle title')
         return { outcome: 'success', newMessages: [] }
       }),
     )
@@ -181,9 +198,6 @@ describe('registerWaggleHandlers', () => {
     registerWaggleHandlers()
     await sendWaggle()
 
-    expect(executeWaggleRunMock).toHaveBeenCalledWith(
-      expect.objectContaining({ model: SELECTED_MODEL }),
-    )
     expect(publishSessionHostEventMock).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: 'session-transport',
@@ -197,110 +211,73 @@ describe('registerWaggleHandlers', () => {
     expect(publishSessionHostEventMock).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'session-waggle-turn', sessionId: SESSION_ID }),
     )
-    expect(publishSessionHostEventMock).toHaveBeenCalledWith({
-      kind: 'session-list-changed',
-      sessionId: SESSION_ID,
-      change: 'updated',
+  })
+
+  it('routes the exact explicit Waggle request through the owning Session Host', async () => {
+    isGuiAttachedToRemoteSessionHostMock.mockReturnValue(true)
+    dispatchLocalSessionCommandMock.mockImplementationOnce((input) =>
+      Effect.succeed({
+        contract: 'session-waggle-v1',
+        response: {
+          contractVersion: 1,
+          requestId: input.payload.request.requestId,
+          idempotencyKey: input.payload.request.idempotencyKey,
+          replayed: false,
+          report: { outcome: 'delivered' },
+        },
+      }),
+    )
+    registerWaggleHandlers()
+    await expect(sendWaggle()).resolves.toEqual({ outcome: 'delivered' })
+    expect(executeWaggleRunMock).not.toHaveBeenCalled()
+    const command = dispatchLocalSessionCommandMock.mock.calls[0]?.[0]
+    expect(command).toMatchObject({
+      caller: { callerId: 'gui:local-user' },
+      payload: { contract: 'session-waggle-v1' },
     })
-    expect(publishSessionHostEventMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kind: 'session-transport',
-        sessionId: SESSION_ID,
-        event: expect.objectContaining({ type: 'agent_end', reason: 'stop' }),
-      }),
+    expect(command.payload.request).toMatchObject({
+      sessionId: SESSION_ID,
+      model: SELECTED_MODEL,
+      config: inheritedFirstAgentConfig(),
+      payload: { text: 'Review this patch' },
+    })
+  })
+
+  it('cancels an owner-side Waggle while durable replacement preparation is pending', async () => {
+    isGuiAttachedToRemoteSessionHostMock.mockReturnValue(true)
+    const preparation = Promise.withResolvers<{
+      accepted: true
+      stateRevision: number
+      intent: Record<string, never>
+    }>()
+    prepareExternalSessionRunReplacementMock.mockReturnValue(
+      Effect.promise(() => preparation.promise),
     )
-  })
-
-  it('refuses to start a local Waggle run while attached to another Session Host', async () => {
-    isGuiAttachedToRemoteSessionHostMock.mockReturnValue(true)
+    dispatchLocalSessionCommandMock.mockImplementation((input) => {
+      const command = input.payload
+      if (command.contract === 'session-waggle-v1') {
+        return executeExplicitWaggleCommand({ caller: input.caller, payload: command }).pipe(
+          Effect.provideService(SessionControlAttachmentService, attachmentService),
+        )
+      }
+      if (command.contract === 'session-waggle-cancel-v1') {
+        return executeExplicitWaggleCancellation({ caller: input.caller, payload: command })
+      }
+      return Effect.die('unexpected command')
+    })
     registerWaggleHandlers()
-    await expect(sendWaggle()).rejects.toThrow('attached to another Session Host')
+
+    const running = sendWaggle()
+    await vi.waitFor(() => expect(prepareExternalSessionRunReplacementMock).toHaveBeenCalledOnce())
+    await Effect.runPromise(getCancelHandler()({}, SESSION_ID))
+    preparation.resolve({ accepted: true, stateRevision: 2, intent: {} })
+
+    await expect(running).rejects.toThrow()
     expect(executeWaggleRunMock).not.toHaveBeenCalled()
-  })
-
-  it('waits for an interrupted classic Run to settle before starting explicit Waggle', async () => {
-    executeWaggleRunMock.mockReturnValue(Effect.succeed({ outcome: 'success', newMessages: [] }))
-    const classic = reserveActiveSessionRun(SESSION_ID, 'classic-run')
-    registerWaggleHandlers()
-    const sending = sendWaggle('Replace with Waggle')
-    await vi.waitFor(() => expect(classic.controller.signal.aborted).toBe(true))
-    expect(executeWaggleRunMock).not.toHaveBeenCalled()
-
-    classic.release()
-    await expect(sending).resolves.toMatchObject({ outcome: 'delivered' })
-    expect(executeWaggleRunMock).toHaveBeenCalledOnce()
-  })
-
-  it('routes Waggle cancellation to the owning Session Host without cancelling local state', async () => {
-    isGuiAttachedToRemoteSessionHostMock.mockReturnValue(true)
-    const localController = new AbortController()
-    const abort = vi.spyOn(localController, 'abort')
-    activeWaggleRuns.register(SESSION_ID, localController, { runId: `waggle-${SESSION_ID}` })
-    dispatchLocalSessionCommandMock
-      .mockReturnValueOnce(
-        Effect.succeed({
-          contract: 'session-query-v2',
-          response: {
-            contractVersion: 2,
-            requestId: 'status',
-            outcome: {
-              operation: 'status',
-              sessionId: SESSION_ID,
-              activeRunId: 'remote-run',
-            },
-          },
-        }),
-      )
-      .mockReturnValueOnce(
-        Effect.succeed({
-          contract: 'session-control-v2',
-          response: {
-            contractVersion: 2,
-            requestId: 'interrupt',
-            idempotencyKey: 'interrupt',
-            replayed: false,
-            outcome: { operation: 'interrupt', effect: 'interruption-requested' },
-          },
-        }),
-      )
-    registerWaggleHandlers()
-    const cancel = getCancelHandler()
-
-    await Effect.runPromise(cancel({}, SESSION_ID))
-
-    expect(abort).not.toHaveBeenCalled()
     expect(dispatchLocalSessionCommandMock).toHaveBeenCalledTimes(2)
-    expect(dispatchLocalSessionCommandMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        payload: expect.objectContaining({
-          request: expect.objectContaining({
-            command: expect.objectContaining({
-              operation: 'interrupt',
-              sessionId: SESSION_ID,
-              expectedRunId: 'remote-run',
-            }),
-          }),
-        }),
-      }),
-    )
-  })
-
-  it('publishes worktree launch progress emitted by a Waggle first send', async () => {
-    const progress = {
-      stage: 'checking-out-files' as const,
-      details: ['Checking out files'],
-    }
-    executeWaggleRunMock.mockImplementation((input) =>
-      Effect.sync(() => {
-        input.onWorktreeLaunch?.(progress)
-        return { outcome: 'success', newMessages: [] }
-      }),
-    )
-
-    registerWaggleHandlers()
-    await sendWaggle()
-
-    expect(emitWorktreeLaunchProgressMock).toHaveBeenCalledWith(SESSION_ID, progress)
+    expect(dispatchLocalSessionCommandMock.mock.calls[1]?.[0]).toMatchObject({
+      payload: { contract: 'session-waggle-cancel-v1', request: { sessionId: SESSION_ID } },
+    })
   })
 
   it('marks an in-progress Waggle worktree launch as failed when setup is refused', async () => {

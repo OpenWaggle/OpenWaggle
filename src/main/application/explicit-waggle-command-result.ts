@@ -39,7 +39,7 @@ interface WaggleSuccessResult {
   readonly lastError?: string
 }
 
-export type WaggleHandlerResult =
+export type ExplicitWaggleCommandResult =
   | WaggleValidationErrorResult
   | WaggleNotFoundResult
   | WaggleNoProjectResult
@@ -47,7 +47,7 @@ export type WaggleHandlerResult =
   | WaggleErrorResult
   | WaggleSuccessResult
 
-export function waggleTerminalResult(result: WaggleHandlerResult) {
+export function explicitWaggleTerminalResult(result: ExplicitWaggleCommandResult) {
   if (result.outcome === 'success') {
     const assistant = result.newMessages.findLast((message) => message.role === 'assistant')
     const finalResponse = assistant ? getMessageText(assistant).trim() : ''
@@ -61,7 +61,9 @@ export function waggleTerminalResult(result: WaggleHandlerResult) {
   }
 }
 
-export function describeWaggleSendOutcome(result: WaggleHandlerResult): AgentSendReport {
+export function describeExplicitWaggleOutcome(
+  result: ExplicitWaggleCommandResult,
+): AgentSendReport {
   return matchBy(result, 'outcome')
     .with('success', () => ({ outcome: 'delivered' as const }))
     .with('aborted', () => ({ outcome: 'cancelled' as const }))
@@ -77,10 +79,10 @@ export function describeWaggleSendOutcome(result: WaggleHandlerResult): AgentSen
     }))
 }
 
-export function publishWaggleResult(
+export function publishExplicitWaggleResult(
   sessionId: SessionId,
   runId: string,
-  result: WaggleHandlerResult,
+  result: ExplicitWaggleCommandResult,
 ) {
   matchBy(result, 'outcome')
     .with('validation-error', 'not-found', 'no-project', 'error', (value) =>

@@ -3,6 +3,8 @@ import {
   decodeLocalSessionClientFrame,
   decodeLocalSessionClientHello,
   decodeLocalSessionCommandPayload,
+  decodeLocalSessionCommandPayloadForRevision,
+  decodeLocalSessionNegotiationResult,
 } from '../../../shared/schemas/local-session-protocol'
 import { negotiateLocalSessionProtocol } from '../local-session-negotiation'
 
@@ -17,8 +19,9 @@ describe('Local Session protocol negotiation', () => {
 
     expect(negotiateLocalSessionProtocol(hello, 'host-current')).toMatchObject({
       accepted: true,
-      revision: 2,
+      revision: 3,
       hostInstanceId: 'host-current',
+      capabilities: expect.arrayContaining(['waggle:run-v1']),
     })
   })
 
@@ -27,7 +30,7 @@ describe('Local Session protocol negotiation', () => {
       negotiateLocalSessionProtocol(
         {
           protocol: 'openwaggle-local-session',
-          supportedRevisions: [4, 3],
+          supportedRevisions: [5, 4],
           clientKind: 'gui',
           clientVersion: 'future',
         },
@@ -63,12 +66,32 @@ describe('Local Session protocol negotiation', () => {
     expect(() =>
       decodeLocalSessionClientHello({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [2],
+        supportedRevisions: [3],
         clientKind: 'cli',
         clientVersion: 'current',
         undeclared: true,
       }),
     ).toThrow()
+  })
+
+  it('accepts the previous revision capability tuple without explicit Waggle', () => {
+    expect(() =>
+      decodeLocalSessionNegotiationResult({
+        accepted: true,
+        protocol: 'openwaggle-local-session',
+        revision: 2,
+        hostInstanceId: 'host-previous',
+        capabilities: [
+          'events:subscribe',
+          'events:replay',
+          'sessions:mutate-v2',
+          'sessions:query-v2',
+          'sessions:snapshot',
+          'access:profiles-v1',
+          'ui:mutate-v1',
+        ],
+      }),
+    ).not.toThrow()
   })
 
   it('decodes command and subscription frames exactly after negotiation', () => {
@@ -102,6 +125,39 @@ describe('Local Session protocol negotiation', () => {
         },
       }),
     ).toMatchObject({ contract: 'session-control-v2' })
+    const waggleCommand = {
+      contract: 'session-waggle-v1',
+      request: {
+        contractVersion: 1,
+        requestId: 'request-waggle',
+        idempotencyKey: 'idempotency-waggle',
+        sessionId: 'session-target',
+        payload: { text: 'Review.', thinkingLevel: 'medium', attachments: [] },
+        model: 'openai/gpt-5.4',
+        config: {
+          mode: 'sequential',
+          agents: [
+            { label: 'Architect', model: '$inherit', roleDescription: 'Plans', color: 'blue' },
+            {
+              label: 'Reviewer',
+              model: 'openai/gpt-5.4',
+              roleDescription: 'Reviews',
+              color: 'amber',
+            },
+          ],
+          stop: { primary: 'consensus', maxTurnsSafety: 4 },
+        },
+      },
+    }
+    expect(decodeLocalSessionCommandPayload(waggleCommand)).toMatchObject({
+      contract: 'session-waggle-v1',
+    })
+    expect(() => decodeLocalSessionCommandPayloadForRevision(waggleCommand, 2)).toThrow(
+      /revision 3/,
+    )
+    expect(decodeLocalSessionCommandPayloadForRevision(waggleCommand, 3)).toMatchObject({
+      contract: 'session-waggle-v1',
+    })
     expect(() =>
       decodeLocalSessionCommandPayload({
         contract: 'session-control-v2',

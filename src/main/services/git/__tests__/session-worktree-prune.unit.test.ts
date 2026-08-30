@@ -2,7 +2,7 @@ import type { GitWorktreeMutationResult } from '@shared/types/git'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionWorktreeRef } from '../worktree-cleanup'
 
-const { removeGitWorktreeMock } = vi.hoisted(() => ({
+const { removeGitWorktreeMock, validateGitWorktreeRemovalMock } = vi.hoisted(() => ({
   removeGitWorktreeMock: vi.fn(
     async (): Promise<GitWorktreeMutationResult> => ({
       ok: true,
@@ -10,9 +10,19 @@ const { removeGitWorktreeMock } = vi.hoisted(() => ({
       path: '/wt/x',
     }),
   ),
+  validateGitWorktreeRemovalMock: vi.fn(
+    async (): Promise<GitWorktreeMutationResult> => ({
+      ok: true,
+      message: 'safe',
+      path: '/wt/x',
+    }),
+  ),
 }))
 
-vi.mock('../../../adapters/git/worktree', () => ({ removeGitWorktree: removeGitWorktreeMock }))
+vi.mock('../../../adapters/git/worktree', () => ({
+  removeGitWorktree: removeGitWorktreeMock,
+  validateGitWorktreeRemoval: validateGitWorktreeRemovalMock,
+}))
 
 const { pruneSessionWorktree } = await import('../session-worktree-prune')
 
@@ -27,6 +37,8 @@ describe('pruneSessionWorktree', () => {
   beforeEach(() => {
     removeGitWorktreeMock.mockReset()
     removeGitWorktreeMock.mockResolvedValue({ ok: true, message: 'removed', path: '/wt/x' })
+    validateGitWorktreeRemovalMock.mockReset()
+    validateGitWorktreeRemovalMock.mockResolvedValue({ ok: true, message: 'safe', path: '/wt/x' })
   })
 
   it('removes the worktree when the session solely owns it, then clears its legacy path', async () => {
@@ -51,6 +63,27 @@ describe('pruneSessionWorktree', () => {
     )
     expect(removeGitWorktreeMock).not.toHaveBeenCalled()
     expect(d.clearWorktree).toHaveBeenCalledWith('s1')
+  })
+
+  it('validates deletion safety without changing Git or SQLite state', async () => {
+    const d = deps([{ sessionId: 's1', worktreePath: '/wt/x' }])
+
+    await expect(
+      pruneSessionWorktree(
+        {
+          sessionId: 's1',
+          projectPath: '/repo',
+          worktreePath: '/wt/x',
+          reason: 'delete',
+          validateOnly: true,
+        },
+        d,
+      ),
+    ).resolves.toEqual({ status: 'ready-for-deletion' })
+
+    expect(validateGitWorktreeRemovalMock).toHaveBeenCalledWith('/repo', { path: '/wt/x' })
+    expect(removeGitWorktreeMock).not.toHaveBeenCalled()
+    expect(d.clearWorktree).not.toHaveBeenCalled()
   })
 
   it('does not mutate worktree state when the session has no worktree', async () => {

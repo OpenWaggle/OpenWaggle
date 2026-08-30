@@ -5,6 +5,10 @@ import { SESSION_LIFECYCLE_RESOURCE_SCHEMA_STATEMENTS } from './session-host-lif
 import { SESSION_ORCHESTRATION_TARGET_SCHEMA_STATEMENTS } from './session-host-orchestration-schema'
 import { SESSION_PROFILE_TARGET_SCHEMA_STATEMENTS } from './session-host-profile-schema'
 import { SESSION_REPORT_TARGET_SCHEMA_STATEMENTS } from './session-host-report-schema'
+import {
+  SESSION_HOST_FRESH_REVISION,
+  SESSION_HOST_SCHEMA_REVISION,
+} from './session-host-schema-identity'
 
 export const SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS = [
   `
@@ -19,7 +23,10 @@ export const SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS = [
   `
   INSERT INTO session_host_schema_metadata (
     singleton, schema_revision, migration_revision, source_high_watermark_json, completed_at
-  ) VALUES (1, 5, 'fresh-v5', '{}', CAST(strftime('%s', 'now') AS INTEGER) * 1000)
+  ) VALUES (
+    1, ${SESSION_HOST_SCHEMA_REVISION}, '${SESSION_HOST_FRESH_REVISION}', '{}',
+    CAST(strftime('%s', 'now') AS INTEGER) * 1000
+  )
   `,
   `
   CREATE TABLE workspace_resources (
@@ -179,7 +186,7 @@ export const SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS = [
   `
   CREATE TABLE delegation_dependencies (
     delegation_id TEXT NOT NULL REFERENCES delegation_contracts(id) ON DELETE CASCADE,
-    dependency_delegation_id TEXT NOT NULL REFERENCES delegation_contracts(id),
+    dependency_delegation_id TEXT NOT NULL REFERENCES delegation_contracts(id) ON DELETE CASCADE,
     required_state TEXT NOT NULL CHECK (required_state IN ('ready_for_review', 'accepted')),
     created_at INTEGER NOT NULL,
     PRIMARY KEY (delegation_id, dependency_delegation_id),

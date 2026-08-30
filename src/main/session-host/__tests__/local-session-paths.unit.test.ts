@@ -9,7 +9,7 @@ const OWNER_DIRECTORY_MODE = 0o700
 function longUserDataRoot(root: string) {
   let candidate = path.join(root, 'user-data')
   let index = 0
-  while (Buffer.byteLength(path.join(candidate, 'session-host', 'host-v2.sock'), 'utf8') <= 100) {
+  while (Buffer.byteLength(path.join(candidate, 'session-host', 'host.sock'), 'utf8') <= 100) {
     candidate = path.join(candidate, `nested-${String(index).padStart(2, '0')}`)
     index += 1
   }
@@ -36,7 +36,7 @@ describe('Local Session Host paths', () => {
     expect(paths).toMatchObject({
       stateRoot: '/users/test/OpenWaggle/session-host',
       databasePath: '/users/test/OpenWaggle/session-host/session-host.sqlite',
-      endpoint: '/users/test/OpenWaggle/session-host/host-v2.sock',
+      endpoint: '/users/test/OpenWaggle/session-host/host.sock',
     })
   })
 
@@ -54,7 +54,7 @@ describe('Local Session Host paths', () => {
     })
 
     expect(first.endpoint).toBe(second.endpoint)
-    expect(first.endpoint).toMatch(/^\/private\/tmp\/owsh-[a-f0-9]{20}\/v2\.sock$/)
+    expect(first.endpoint).toMatch(/^\/private\/tmp\/owsh-[a-f0-9]{20}\/host\.sock$/)
     expect(Buffer.byteLength(first.endpoint, 'utf8')).toBeLessThanOrEqual(100)
   })
 
@@ -65,7 +65,7 @@ describe('Local Session Host paths', () => {
       temporaryRoot: path.join('/private/tmp', 'temporary-segment'.repeat(20)),
     })
 
-    expect(paths.endpoint).toMatch(/^\/tmp\/owsh-[a-f0-9]{20}\/v2\.sock$/)
+    expect(paths.endpoint).toMatch(/^\/tmp\/owsh-[a-f0-9]{20}\/host\.sock$/)
     expect(Buffer.byteLength(paths.endpoint, 'utf8')).toBeLessThanOrEqual(100)
   })
 
@@ -127,7 +127,7 @@ describe('Local Session Host paths', () => {
     )
   })
 
-  it('scopes Windows named pipes by the configured user-data root and protocol revision', () => {
+  it('scopes stable Windows named pipes by the configured user-data root', () => {
     const first = resolveLocalSessionHostPaths({
       userDataRoot: 'C:\\Users\\one',
       platform: 'win32',
@@ -137,7 +137,7 @@ describe('Local Session Host paths', () => {
       platform: 'win32',
     })
 
-    expect(first.endpoint).toMatch(/^\\\\\.\\pipe\\openwaggle-[a-f0-9]{20}-v2$/)
+    expect(first.endpoint).toMatch(/^\\\\\.\\pipe\\openwaggle-[a-f0-9]{20}-session-host$/)
     expect(second.endpoint).not.toBe(first.endpoint)
   })
 })

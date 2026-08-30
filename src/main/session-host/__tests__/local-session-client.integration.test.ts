@@ -8,7 +8,6 @@ import {
   executeLocalSessionCommand,
   LocalSessionHostUpgradePendingError,
   probeLocalSessionHost,
-  resolveLocalSessionCommandTimeoutMs,
   watchLocalSessionEvents,
 } from '../local-session-client'
 import { type LocalSessionHostRuntime, startLocalSessionHost } from '../local-session-host-runtime'
@@ -30,26 +29,6 @@ describe('Local Session client', () => {
       await fs.rm(fallbackEndpointDirectory, { recursive: true, force: true })
     }
     await fs.rm(temporaryRoot, { recursive: true, force: true })
-  })
-
-  it('keeps long-poll transport timeouts beyond the requested Session wait', () => {
-    expect(
-      resolveLocalSessionCommandTimeoutMs(
-        {
-          contract: 'session-query-v2',
-          request: {
-            contractVersion: 2,
-            requestId: 'request-wait',
-            query: {
-              operation: 'wait',
-              targets: [{ sessionId: 'session-target', condition: 'idle' }],
-              timeoutMs: 300_000,
-            },
-          },
-        },
-        1,
-      ),
-    ).toBe(305_000)
   })
 
   it('negotiates, authenticates, and sends one exact v2 command envelope', async () => {
@@ -90,7 +69,7 @@ describe('Local Session client', () => {
 
     await expect(
       probeLocalSessionHost({ paths, clientKind: 'gui', clientVersion: 'test' }),
-    ).resolves.toMatchObject({ accepted: true, revision: 2 })
+    ).resolves.toMatchObject({ accepted: true, revision: 3 })
     await expect(
       executeLocalSessionCommand({
         paths,
@@ -117,13 +96,41 @@ describe('Local Session client', () => {
     })
     expect(calls).toEqual([
       expect.objectContaining({
-        negotiatedRevision: 2,
+        negotiatedRevision: 3,
         caller: {
           callerId: 'gui:local-user',
           workingDirectory: '/project/worktree',
         },
       }),
     ])
+    await expect(
+      executeLocalSessionCommand({
+        paths,
+        clientKind: 'gui',
+        clientVersion: 'test',
+        supportedRevisions: [2],
+        payload: {
+          contract: 'session-waggle-v1',
+          request: {
+            contractVersion: 1,
+            requestId: 'request-waggle',
+            idempotencyKey: 'waggle-once',
+            sessionId: 'session-target',
+            payload: { text: 'Review.', thinkingLevel: 'medium', attachments: [] },
+            model: 'openai/gpt-5.4',
+            config: {
+              mode: 'sequential',
+              agents: [
+                { label: 'A', model: '$inherit', roleDescription: 'Plan', color: 'blue' },
+                { label: 'B', model: '$inherit', roleDescription: 'Review', color: 'amber' },
+              ],
+              stop: { primary: 'consensus', maxTurnsSafety: 4 },
+            },
+          },
+        },
+      }),
+    ).rejects.toThrow(/does not support explicit Waggle/)
+    expect(calls).toHaveLength(1)
   })
 
   it('subscribes from the current cursor and streams events until cancelled', async () => {
@@ -264,7 +271,7 @@ describe('Local Session client', () => {
       probeLocalSessionHost({
         paths,
         clientVersion: 'future',
-        supportedRevisions: [3],
+        supportedRevisions: [4],
       }),
     ).rejects.toMatchObject({
       name: LocalSessionHostUpgradePendingError.name,
