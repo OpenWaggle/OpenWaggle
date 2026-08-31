@@ -1,10 +1,6 @@
-import type { SessionId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
-import { api } from '@/shared/lib/ipc'
-import { createRendererLogger } from '@/shared/lib/logger'
+import type { SessionWorktreePlan } from '@shared/types/session'
 import { draftWorktreePlanKey, useWorktreePlanStore } from './worktree-plan-store'
-
-const logger = createRendererLogger('worktree-plan-draft')
 
 /**
  * Stamp the resolved composer-strip plan onto the draft key so it survives the
@@ -21,17 +17,12 @@ export function stashDraftWorktreePlan(
  * Flush a stashed draft plan onto a freshly-created session before its first run
  * births the worktree, so the user's pre-send choice is honoured.
  */
-export async function flushDraftWorktreePlanToSession(
-  projectPath: string,
-  sessionId: SessionId,
-): Promise<void> {
+export function consumeDraftWorktreePlan(projectPath: string): SessionWorktreePlan | undefined {
   const override = useWorktreePlanStore.getState().takeOverride(draftWorktreePlanKey(projectPath))
-  if (!override?.envMode) return
-  await api
-    .setSessionWorktreePlan(sessionId, {
-      environmentMode: override.envMode,
-      baseRef: override.baseRef ?? null,
-      startFromOrigin: override.startFromOrigin ?? false,
-    })
-    .catch((error) => logger.warn('Failed to flush draft worktree plan', { error: String(error) }))
+  if (!override?.envMode) return undefined
+  return {
+    environmentMode: override.envMode,
+    baseRef: override.baseRef ?? null,
+    startFromOrigin: override.startFromOrigin ?? false,
+  }
 }

@@ -19,6 +19,9 @@ import {
   packageBoundarySourceGlobs,
   type RepositoryViolation,
 } from './repository-package-boundaries.js'
+import { collectSessionSummaryColumnViolations } from './standards/session-summary-columns'
+
+export { collectSessionSummaryColumnViolations } from './standards/session-summary-columns'
 
 interface Violation {
   readonly detail?: string
@@ -45,6 +48,19 @@ const forbiddenReferences: string[] = [
   legacyLessonsAlias,
   legacyVendorRuntime,
 ]
+
+/**
+ * Cross-tool Agent-definition importers must identify the foreign format they read. Keep the
+ * exception at the adapter, its contract test, and the format picker; it must not make the removed
+ * vendor-specific runtime or instruction files valid elsewhere in the repository.
+ */
+const foreignAgentImportFiles = new Set([
+  'src/main/agents/__tests__/agent-definition-management.unit.test.ts',
+  'src/main/agents/agent-definition-importer.ts',
+  'src/renderer/src/features/settings/components/sections/AgentDefinitionImportDialog.tsx',
+  'src/renderer/src/features/settings/components/sections/use-agent-definition-import.ts',
+  'website/src/content/docs/extending/agent-definitions.md',
+])
 
 const scanGlobs: string[] = [
   '**/*.{adoc,astro,cjs,css,html,js,json,jsonc,jsx,md,mdx,mjs,py,sh,toml,ts,tsx,txt,yaml,yml}',
@@ -95,6 +111,7 @@ function containsForbiddenReference(contents: string, reference: string) {
 }
 
 function collectForbiddenReferenceViolations(file: string, contents: string) {
+  if (foreignAgentImportFiles.has(normalizePath(file))) return []
   const violations: Violation[] = []
 
   for (const reference of forbiddenReferences) {
@@ -163,97 +180,6 @@ function printViolations(violations: readonly Violation[]) {
     const detail = violation.detail ? ` (${violation.detail})` : ''
     console.error(`${violation.file}: ${violation.message}${detail}`)
   }
-}
-
-/**
- * A SELECT column list is invisible to the type checker: `sql<SessionSummaryRow>` asserts
- * the row shape without verifying the query selects those columns.
- *
- * Observed failure: three queries typed that way omitted `environment_mode` and
- * `worktree_path`, so every session in the list reported local mode with no worktree and
- * the per-session git indicators were simply absent. Nothing failed — it was found by
- * opening the app.
- *
- * The columns now come from one fragment (`sessionSummaryColumns`). This keeps it that way
- * by rejecting a query that spells them out inline again.
- */
-const SESSION_SUMMARY_QUERY_PATTERN = /sql<SessionSummaryRow>`([^`]*)`/gsu
-const SESSION_SUMMARY_COLUMN_FRAGMENT = 'sessionSummaryColumns'
-/**
- * The projection of a query: what sits between its first `select` and the matching `from`.
- *
- * The rule is "use the shared fragment", not "avoid one particular column name". Two earlier versions
- * were wrong in opposite directions: firing only when the list mentioned `created_at` let through the
- * very defect it was written for, and skipping any query containing `count(` anywhere exempted an
- * inline list that merely carried a `COUNT(...)` subquery - which is the shape the detail-side row
- * actually uses, so a list missing `environment_mode` and `worktree_path` went unreported again.
- * Judging the projection alone keeps `SELECT COUNT(*) AS total` passing and that subquery failing.
- */
-const SESSION_SUMMARY_PROJECTION = /\bselect\b(?<projection>[\s\S]*?)\bfrom\b/iu
-/**
- * A projection that names no columns of its own: only aggregate terms.
- *
- * Checked term by term. An earlier version matched anything whose *first* term was an aggregate, so an
- * inline column list sitting behind a `COUNT(*)` was exempt - the same hole, in a different disguise,
- * as the version that skipped any query containing `count(` at all.
- */
-function namesNoColumns(projection: string) {
-  const terms = splitTopLevelTerms(projection)
-  if (terms.length === 0) return true
-  return terms.every((term) => AGGREGATE_TERM.test(term.trim()))
-}
-
-const AGGREGATE_TERM = /^\(?\s*\b(?:count|sum|min|max|avg)\s*\(/iu
-
-/** Split a projection on commas that are not inside parentheses. */
-function splitTopLevelTerms(projection: string): readonly string[] {
-  const terms: string[] = []
-  let depth = 0
-  let current = ''
-  for (const character of projection) {
-    if (character === '(') depth += 1
-    if (character === ')') depth -= 1
-    if (character === ',' && depth === 0) {
-      terms.push(current)
-      current = ''
-      continue
-    }
-    current += character
-  }
-  if (current.trim().length > 0) terms.push(current)
-  return terms.filter((term) => term.trim().length > 0)
-}
-
-function selectsNamedColumns(query: string) {
-  const projection = SESSION_SUMMARY_PROJECTION.exec(query)?.groups?.['projection']
-  if (projection === undefined) return false
-  return !namesNoColumns(projection)
-}
-const SESSION_SUMMARY_COLUMN_OWNERS: readonly string[] = [
-  // A different SessionSummaryRow: the detail-side shape with message_count and aliases.
-  'src/main/store/session-details/session-queries.ts',
-]
-
-export function collectSessionSummaryColumnViolations(file: string, contents: string) {
-  if (SESSION_SUMMARY_COLUMN_OWNERS.includes(normalizePath(file))) return []
-  /*
-   * Tests are exempt, as they are for the session-branch rule: this rule is about the queries the
-   * app ships, and a test that pins the rule has to contain the very pattern it detects.
-   */
-  if (normalizePath(file).includes('__tests__')) return []
-  const violations: Violation[] = []
-  for (const match of contents.matchAll(SESSION_SUMMARY_QUERY_PATTERN)) {
-    const query = match[1] ?? ''
-    if (query.includes(SESSION_SUMMARY_COLUMN_FRAGMENT)) continue
-    if (!selectsNamedColumns(query)) continue
-    violations.push({
-      file: normalizePath(file),
-      message:
-        'SessionSummaryRow queries must interpolate sessionSummaryColumns(sql), not list columns inline',
-      detail: 'an inline list can omit a column the row type promises, and the type checker cannot see it',
-    })
-  }
-  return violations
 }
 
 async function main() {

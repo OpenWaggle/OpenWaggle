@@ -87,7 +87,7 @@ export function SessionRowTitle({
   readonly onSelect: () => void
 }) {
   return (
-    <span data-qa="sidebar-row-title-line" className="flex h-4.5 min-w-0 items-center gap-1.5">
+    <span data-qa="sidebar-row-title-line" className="flex h-4.5 min-w-0 items-center">
       {/*
        * The hit area is the whole row, not the width of the title text.
        *

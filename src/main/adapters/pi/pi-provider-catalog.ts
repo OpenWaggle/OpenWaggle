@@ -247,12 +247,14 @@ export async function createPiProjectModelRuntime(input: {
   readonly projectPath: string
   readonly modelReference: string
   readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly skillAllowlist?: readonly string[]
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly enabledOpenWaggleExtensionResourceRoots?: PiRuntimeServicesOptions['enabledOpenWaggleExtensionResourceRoots']
   readonly extensionFactories?: readonly ExtensionFactory[]
 }): Promise<PiProjectModelRuntime> {
   const services = await createPiRuntimeServices(input.projectPath, {
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
+    ...(input.skillAllowlist ? { skillAllowlist: input.skillAllowlist } : {}),
     ...(input.enabledOpenWaggleExtensionPackagePaths
       ? { enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths }
       : {}),

@@ -1,11 +1,8 @@
 import { createServer } from 'node:http'
 import { type AuthProvider, auth } from '@modelcontextprotocol/client'
 import type { McpServerDefinition } from '@shared/types/mcp'
-import {
-  getMcpOAuthVaultKey,
-  type McpOAuthVault,
-  OpenWaggleOAuthProvider,
-} from './oauth-vault-provider'
+import { mcpOAuthVaultKey } from '../../domain/mcp/oauth-vault-key'
+import { type McpOAuthVault, OpenWaggleOAuthProvider } from './oauth-vault-provider'
 import { createSecureMcpFetch } from './runtime/secure-fetch'
 
 const OAUTH_CALLBACK_TIMEOUT_MS = 10 * 60 * 1_000
@@ -133,7 +130,7 @@ export async function logoutMcpOAuth(input: {
   readonly instanceId: string
   readonly vault: McpOAuthVault
 }) {
-  await input.vault.remove(getMcpOAuthVaultKey(input.instanceId))
+  await input.vault.remove(mcpOAuthVaultKey(input.instanceId))
 }
 
 export type { McpOAuthVault } from './oauth-vault-provider'

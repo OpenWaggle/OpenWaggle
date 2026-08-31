@@ -5,7 +5,7 @@ import { SqliteClient } from '@effect/sql-sqlite-node'
 import { Context, Effect, Layer } from 'effect'
 import { app } from 'electron'
 import { DatabaseBootstrapError } from '../errors'
-import { DATABASE_FILE_NAME, SQLITE_PREPARE_CACHE_SIZE } from './database-constants'
+import { SQLITE_PREPARE_CACHE_SIZE } from './database-constants'
 import { APP_MIGRATIONS } from './database-migrations'
 
 export interface AppDatabaseService {
@@ -18,7 +18,23 @@ export class AppDatabase extends Context.Tag('@openwaggle/AppDatabase')<
 >() {}
 
 function getDatabasePath() {
-  return join(app.getPath('userData'), DATABASE_FILE_NAME)
+  return join(app.getPath('userData'), 'session-host', 'session-host.sqlite')
+}
+
+export type AppDatabaseAccess = 'owner' | 'client-isolated'
+
+let configuredAccess: AppDatabaseAccess = 'owner'
+let databaseLayerCreated = false
+
+export function configureAppDatabaseAccess(access: AppDatabaseAccess) {
+  if (databaseLayerCreated) {
+    throw new Error('App database access must be configured before runtime initialization.')
+  }
+  configuredAccess = access
+}
+
+export function isAppDatabaseClientIsolated() {
+  return configuredAccess === 'client-isolated'
 }
 
 const createMigrationsTable = Effect.gen(function* () {
@@ -32,7 +48,7 @@ const createMigrationsTable = Effect.gen(function* () {
   `)
 })
 
-const runMigrations = Effect.gen(function* () {
+export const runAppDatabaseMigrations = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient
   yield* createMigrationsTable
 
@@ -50,12 +66,13 @@ const runMigrations = Effect.gen(function* () {
 
     // A column that is already present means the change landed under a different ledger id, so the
     // ALTER would fail and take boot with it. Record the migration and move on.
-    const skip = migration.skipIfColumn
+    const skip = migration.skipIfColumns
     if (skip) {
       const columns = yield* sql<{ name: string }>`
         SELECT name FROM pragma_table_info(${skip.table})
       `
-      if (columns.some((column) => column.name === skip.column)) {
+      const existingColumns = new Set(columns.map((column) => column.name))
+      if (skip.columns.every((column) => existingColumns.has(column))) {
         yield* sql`
           INSERT INTO _migrations (id, name, applied_at)
           VALUES (${migration.id}, ${migration.name}, ${new Date().toISOString()})
@@ -79,7 +96,8 @@ const runMigrations = Effect.gen(function* () {
 })
 
 const makeDatabaseLayer = Effect.gen(function* () {
-  const databasePath = getDatabasePath()
+  databaseLayerCreated = true
+  const databasePath = configuredAccess === 'client-isolated' ? ':memory:' : getDatabasePath()
 
   yield* Effect.tryPromise({
     try: () => mkdir(dirname(databasePath), { recursive: true }),
@@ -109,10 +127,10 @@ const makeDatabaseLayer = Effect.gen(function* () {
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
 
-      yield* sql.unsafe('PRAGMA journal_mode = WAL;')
       yield* sql.unsafe('PRAGMA foreign_keys = ON;')
       yield* sql.unsafe('PRAGMA busy_timeout = 5000;')
-      yield* runMigrations
+      yield* sql.unsafe('PRAGMA journal_mode = WAL;')
+      yield* runAppDatabaseMigrations
     }).pipe(
       Effect.mapError(
         (cause) =>

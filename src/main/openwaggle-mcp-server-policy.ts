@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server'
 import { SessionId } from '@shared/types/brand'
+import { SESSION_CAPABILITIES, type SessionCapability } from '@shared/types/session-capability'
 import * as Effect from 'effect/Effect'
 import { sessionAllowed } from './openwaggle-mcp-workspace-policy'
 import { SessionProjectionRepository } from './ports/session-projection-repository'
@@ -11,16 +12,9 @@ export {
   sessionAllowed,
 } from './openwaggle-mcp-workspace-policy'
 
-export const OPENWAGGLE_MCP_SERVE_GRANTS = [
-  'sessions:discover',
-  'sessions:read',
-  'sessions:create',
-  'sessions:message',
-  'sessions:interrupt',
-  'sessions:organize',
-] as const
+export const OPENWAGGLE_MCP_SERVE_GRANTS = SESSION_CAPABILITIES
 
-export type OpenWaggleMcpServeGrant = (typeof OPENWAGGLE_MCP_SERVE_GRANTS)[number]
+export type OpenWaggleMcpServeGrant = SessionCapability
 
 export interface OpenWaggleMcpServeOptions {
   readonly transport: 'stdio' | 'streamable-http'
@@ -28,11 +22,13 @@ export interface OpenWaggleMcpServeOptions {
   readonly bearerToken?: string
   readonly grants: ReadonlySet<OpenWaggleMcpServeGrant>
   readonly workspaceRoots: readonly string[]
+  readonly exportRoots?: readonly string[]
+  readonly attachmentRoots?: readonly string[]
   readonly sessionIds: ReadonlySet<string>
   /** Immutable session identity bound by the server owner to this caller profile. */
   readonly originSessionId?: string
   readonly profile: string
-  readonly taskStorePath: string
+  readonly userDataRoot: string
   readonly version: string
   readonly stderr?: Pick<NodeJS.WriteStream, 'write'>
 }

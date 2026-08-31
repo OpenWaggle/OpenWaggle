@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
-const DATABASE_FILE_NAME = 'openwaggle.db'
+const DATABASE_FILE_NAME = path.join('session-host', 'session-host.sqlite')
 const DB_WAIT_RETRY_DELAY_MS = 100
 const DB_WAIT_TIMEOUT_MS = 10_000
 const MAIN_BRANCH_NAME = 'main'
@@ -46,7 +46,24 @@ export interface SeedSessionInput {
   readonly interruptedRun?: boolean
 }
 
-function getDatabasePath(userDataDir: string): string {
+export interface SeedHiveWorkerInput extends SeedSessionInput {
+  readonly delegationState:
+    | 'working'
+    | 'waiting'
+    | 'needs_attention'
+    | 'ready_for_review'
+    | 'revision_requested'
+    | 'accepted'
+    | 'cancelled'
+  readonly agentDefinitionName?: string
+}
+
+export interface SeedHiveResult {
+  readonly queenSessionId: string
+  readonly workerSessionIds: readonly string[]
+}
+
+export function getDatabasePath(userDataDir: string): string {
   return path.join(userDataDir, DATABASE_FILE_NAME)
 }
 
@@ -86,6 +103,10 @@ async function waitForDatabase(userDataDir: string): Promise<void> {
 
 function mainBranchId(sessionId: string): string {
   return `${sessionId}:${MAIN_BRANCH_NAME}`
+}
+
+function fixtureWorkspaceId(projectPath: string): string {
+  return `e2e-workspace-${crypto.createHash('sha256').update(projectPath).digest('hex').slice(0, 20)}`
 }
 
 function insertSessionRow(database: DatabaseSync): SessionRowFixture {
@@ -180,8 +201,7 @@ function seedSessionRow(
   database.exec('BEGIN')
 
   try {
-    const projectPath =
-      sessionInput.projectPath === undefined ? defaultProjectPath : sessionInput.projectPath
+    const projectPath = sessionInput.projectPath ?? defaultProjectPath
     const waggleConfigJson =
       sessionInput.waggleConfig === undefined || sessionInput.waggleConfig === null
         ? null
@@ -214,6 +234,41 @@ function seedSessionRow(
         row.branchId,
         row.id,
       )
+
+    const workspaceId = fixtureWorkspaceId(projectPath)
+    database
+      .prepare(
+        `INSERT OR IGNORE INTO workspace_resources (
+           id, project_path, kind, working_path, lifecycle_state, created_at, updated_at
+         ) VALUES (?, ?, 'local', ?, 'ready', ?, ?)`,
+      )
+      .run(workspaceId, projectPath, projectPath, row.createdAt, sessionInput.updatedAt)
+    database
+      .prepare(
+        `INSERT INTO session_workspace_bindings (session_id, workspace_id, bound_at)
+         VALUES (?, ?, ?)`,
+      )
+      .run(row.id, workspaceId, row.createdAt)
+    database
+      .prepare(
+        `INSERT INTO session_execution_profiles (
+           session_id, profile_json, resolved_agent_snapshot_json,
+           authority_origin_caller_id, authorization_ceiling, created_at, updated_at
+         ) VALUES (?, ?, NULL, 'e2e:local-user', 'ask-for-approval', ?, ?)`,
+      )
+      .run(
+        row.id,
+        JSON.stringify({ modelId: 'openai/gpt-5.4', thinkingLevel: 'medium' }),
+        row.createdAt,
+        sessionInput.updatedAt,
+      )
+    database
+      .prepare(
+        `INSERT INTO session_control_states (
+           session_id, state_revision, active_run_id, queue_state, queue_revision, updated_at
+         ) VALUES (?, 0, NULL, 'running', 0, ?)`,
+      )
+      .run(row.id, sessionInput.updatedAt)
 
     database.prepare('DELETE FROM session_nodes WHERE session_id = ?').run(row.id)
 
@@ -381,6 +436,99 @@ export async function seedSessions(
       const row = insertSessionRow(database)
       seedSessionRow(database, row, sessionInput, userDataDir)
       if (sessionInput.interruptedRun === true) seedInterruptedRun(database, row, sessionInput)
+    }
+  } finally {
+    database.close()
+  }
+}
+
+/** Seed durable Hive lineage into the post-cutover Session Host database. */
+export async function seedHive(
+  userDataDir: string,
+  queenInput: SeedSessionInput,
+  workerInputs: readonly SeedHiveWorkerInput[],
+): Promise<SeedHiveResult> {
+  await waitForDatabase(userDataDir)
+  const database = openDatabase(userDataDir)
+  try {
+    const queen = insertSessionRow(database)
+    seedSessionRow(database, queen, queenInput, userDataDir)
+    const workers = workerInputs.map((workerInput) => {
+      const row = insertSessionRow(database)
+      seedSessionRow(database, row, workerInput, userDataDir)
+      return { row, input: workerInput }
+    })
+    const parentRunId = `e2e-parent-run-${queen.id}`
+    database.exec('BEGIN')
+    try {
+      database
+        .prepare(
+          `INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
+           VALUES (?, ?, 'completed', NULL, ?, ?)`,
+        )
+        .run(parentRunId, queen.id, queen.createdAt, queenInput.updatedAt)
+      for (const { row, input } of workers) {
+        const delegationId = `e2e-delegation-${row.id}`
+        database
+          .prepare(
+            `INSERT INTO session_spawn_lineage (
+               child_session_id, parent_session_id, parent_run_id,
+               hive_root_session_id, depth, created_at
+             ) VALUES (?, ?, ?, ?, 1, ?)`,
+          )
+          .run(row.id, queen.id, parentRunId, queen.id, row.createdAt)
+        database
+          .prepare(
+            `INSERT INTO delegation_contracts (
+               id, parent_session_id, child_session_id, state,
+               current_specification_revision, created_at, updated_at
+             ) VALUES (?, ?, ?, ?, 1, ?, ?)`,
+          )
+          .run(
+            delegationId,
+            queen.id,
+            row.id,
+            input.delegationState,
+            row.createdAt,
+            input.updatedAt,
+          )
+        database
+          .prepare(
+            `INSERT INTO delegation_specifications (
+               delegation_id, revision, specification_json, authored_by, created_at
+             ) VALUES (?, 1, ?, 'e2e:local-user', ?)`,
+          )
+          .run(
+            delegationId,
+            JSON.stringify({ objective: input.title, deliverables: [], acceptanceCriteria: [] }),
+            row.createdAt,
+          )
+        if (input.agentDefinitionName) {
+          database
+            .prepare(
+              `UPDATE session_execution_profiles
+               SET profile_json = ?, updated_at = ?
+               WHERE session_id = ?`,
+            )
+            .run(
+              JSON.stringify({
+                modelId: 'openai/gpt-5.4',
+                thinkingLevel: 'medium',
+                agentDefinitionName: input.agentDefinitionName,
+              }),
+              input.updatedAt,
+              row.id,
+            )
+        }
+      }
+      database.exec('COMMIT')
+    } catch (error) {
+      database.exec('ROLLBACK')
+      throw error
+    }
+    return {
+      queenSessionId: queen.id,
+      workerSessionIds: workers.map(({ row }) => row.id),
     }
   } finally {
     database.close()

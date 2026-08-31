@@ -8,9 +8,15 @@ import {
   SETTINGS_KEY_DIFF_WRAP_LINES,
   SETTINGS_KEY_ENABLED_MODELS,
   SETTINGS_KEY_FAVORITE_MODELS,
+  SETTINGS_KEY_MULTI_AGENT_ENABLED,
+  SETTINGS_KEY_MULTI_AGENT_ENABLED_BY_PROJECT,
   SETTINGS_KEY_PROJECT_DISPLAY_NAMES,
   SETTINGS_KEY_PROJECT_PATH,
   SETTINGS_KEY_RECENT_PROJECTS,
+  SETTINGS_KEY_SESSION_HOST_IDLE_GRACE_PERIOD_MS,
+  SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMIT,
+  SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMITS_BY_PROJECT,
+  SETTINGS_KEY_SESSION_HOST_RUN_CEILING,
   SETTINGS_KEY_SHORTCUT_BINDINGS,
   SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT,
   SETTINGS_KEY_THINKING_LEVEL,
@@ -27,13 +33,19 @@ import {
   resolveDiffWrapLines,
   resolveEnabledModels,
   resolveFavoriteModels,
+  resolveMultiAgentEnabled,
   resolveProjectPath,
   resolveRecentProjects,
   resolveSelectedModel,
+  resolveSessionHostIdleGracePeriodMs,
+  resolveSessionHostParentConcurrencyLimit,
+  resolveSessionHostRunCeiling,
   resolveSkillTogglesByProject,
   resolveThinkingLevel,
+  sanitizeBooleanByProject,
   sanitizeEnabledModels,
   sanitizeFavoriteModels,
+  sanitizePositiveIntegerByProject,
   sanitizeProjectDisplayNames,
   sanitizeRecentProjects,
   sanitizeShortcutBindings,
@@ -91,6 +103,24 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
   const diffWrapLines = resolveDiffWrapLines(
     getStoredValue(storedSettings, SETTINGS_KEY_DIFF_WRAP_LINES),
   )
+  const sessionHostParentConcurrencyLimit = resolveSessionHostParentConcurrencyLimit(
+    getStoredValue(storedSettings, SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMIT),
+  )
+  const sessionHostParentConcurrencyLimitsByProject = sanitizePositiveIntegerByProject(
+    getStoredValue(storedSettings, SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMITS_BY_PROJECT),
+  )
+  const sessionHostRunCeiling = resolveSessionHostRunCeiling(
+    getStoredValue(storedSettings, SETTINGS_KEY_SESSION_HOST_RUN_CEILING),
+  )
+  const sessionHostIdleGracePeriodMs = resolveSessionHostIdleGracePeriodMs(
+    getStoredValue(storedSettings, SETTINGS_KEY_SESSION_HOST_IDLE_GRACE_PERIOD_MS),
+  )
+  const multiAgentEnabled = resolveMultiAgentEnabled(
+    getStoredValue(storedSettings, SETTINGS_KEY_MULTI_AGENT_ENABLED),
+  )
+  const multiAgentEnabledByProject = sanitizeBooleanByProject(
+    getStoredValue(storedSettings, SETTINGS_KEY_MULTI_AGENT_ENABLED_BY_PROJECT),
+  )
 
   return {
     settings: {
@@ -108,6 +138,12 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       diffSyntaxTheme,
       diffView,
       diffWrapLines,
+      sessionHostParentConcurrencyLimit,
+      sessionHostParentConcurrencyLimitsByProject,
+      sessionHostRunCeiling,
+      sessionHostIdleGracePeriodMs,
+      multiAgentEnabled,
+      multiAgentEnabledByProject,
     } satisfies Settings,
   }
 }
@@ -129,6 +165,17 @@ function resolveNextDiffSettings(current: Settings, partial: Partial<Settings>) 
 }
 
 export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Settings>) {
+  const coreSettings = resolveNextCoreSettings(current, partial)
+  const hostSettings = resolveNextSessionHostSettings(current, partial)
+  return {
+    ...current,
+    ...coreSettings,
+    ...hostSettings,
+    ...resolveNextDiffSettings(current, partial),
+  } satisfies Settings
+}
+
+function resolveNextCoreSettings(current: Settings, partial: Partial<Settings>) {
   const enabledModels =
     partial.enabledModels !== undefined
       ? sanitizeEnabledModels(partial.enabledModels)
@@ -171,10 +218,7 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
     partial.defaultAuthorizationMode !== undefined
       ? resolveDefaultAuthorizationMode(partial.defaultAuthorizationMode)
       : current.defaultAuthorizationMode
-  const diffSettings = resolveNextDiffSettings(current, partial)
-
   return {
-    ...current,
     selectedModel,
     favoriteModels,
     enabledModels,
@@ -186,6 +230,41 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
     shortcutBindings,
     defaultSessionEnvironmentMode,
     defaultAuthorizationMode,
-    ...diffSettings,
-  } satisfies Settings
+  }
+}
+
+function resolveNextSessionHostSettings(current: Settings, partial: Partial<Settings>) {
+  const sessionHostParentConcurrencyLimit =
+    partial.sessionHostParentConcurrencyLimit !== undefined
+      ? resolveSessionHostParentConcurrencyLimit(partial.sessionHostParentConcurrencyLimit)
+      : current.sessionHostParentConcurrencyLimit
+  const sessionHostParentConcurrencyLimitsByProject =
+    partial.sessionHostParentConcurrencyLimitsByProject !== undefined
+      ? sanitizePositiveIntegerByProject(partial.sessionHostParentConcurrencyLimitsByProject)
+      : current.sessionHostParentConcurrencyLimitsByProject
+  const sessionHostRunCeiling =
+    partial.sessionHostRunCeiling !== undefined
+      ? resolveSessionHostRunCeiling(partial.sessionHostRunCeiling)
+      : current.sessionHostRunCeiling
+  const sessionHostIdleGracePeriodMs =
+    partial.sessionHostIdleGracePeriodMs !== undefined
+      ? resolveSessionHostIdleGracePeriodMs(partial.sessionHostIdleGracePeriodMs)
+      : current.sessionHostIdleGracePeriodMs
+  const multiAgentEnabled =
+    partial.multiAgentEnabled !== undefined
+      ? resolveMultiAgentEnabled(partial.multiAgentEnabled)
+      : current.multiAgentEnabled
+  const multiAgentEnabledByProject =
+    partial.multiAgentEnabledByProject !== undefined
+      ? sanitizeBooleanByProject(partial.multiAgentEnabledByProject)
+      : current.multiAgentEnabledByProject
+
+  return {
+    sessionHostParentConcurrencyLimit,
+    sessionHostParentConcurrencyLimitsByProject,
+    sessionHostRunCeiling,
+    sessionHostIdleGracePeriodMs,
+    multiAgentEnabled,
+    multiAgentEnabledByProject,
+  }
 }

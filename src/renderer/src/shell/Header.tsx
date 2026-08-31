@@ -1,10 +1,13 @@
 import { match } from '@diegogbrisa/ts-match'
+import type { SessionId } from '@shared/types/brand'
+import type { SessionSummary } from '@shared/types/session'
 import { useState } from 'react'
 import { useChat } from '@/features/chat/hooks'
 import { useDiffRouteNavigation } from '@/features/diff-panel/hooks'
 import { CommitDialog } from '@/features/git/components'
 import { useGit } from '@/features/git/hooks'
 import { useProject, useSessions } from '@/features/sessions/hooks'
+import { cn } from '@/shared/lib/cn'
 import { useUIStore } from '@/shell/ui-store'
 import {
   CommitButton,
@@ -15,9 +18,23 @@ import {
 } from './HeaderControls'
 import { FeedbackButton } from './HeaderFeedbackButton'
 
+function sessionIdentity(sessions: readonly SessionSummary[], activeSessionId: SessionId | null) {
+  const lineage = sessions.find((session) => session.id === activeSessionId)?.lineage
+  if (!lineage) return undefined
+  if (lineage.role === 'independent') {
+    return lineage.agentDefinitionName
+      ? { agentDefinitionName: lineage.agentDefinitionName }
+      : undefined
+  }
+  return {
+    role: lineage.role,
+    ...(lineage.agentDefinitionName ? { agentDefinitionName: lineage.agentDefinitionName } : {}),
+  }
+}
+
 export function Header() {
-  const { activeSession } = useChat()
-  const { activeSessionTree } = useSessions()
+  const { activeSession, activeSessionId } = useChat()
+  const { activeSessionTree, archivedSessions, sessions } = useSessions()
   const { projectPath } = useProject()
 
   const sidebarOpen = useUIStore((s) => s.sidebarOpen)
@@ -75,15 +92,25 @@ export function Header() {
 
   const activeBranchName = gitStatus?.branch ?? null
   const title = activeSessionTree?.session.title ?? activeSession?.title ?? 'New session'
+  const currentSessionIdentity = sessionIdentity(
+    [...sessions, ...archivedSessions],
+    activeSessionId,
+  )
 
   return (
     <>
-      <header className="drag-region flex h-12 shrink-0 items-center gap-3 overflow-hidden border-b border-border bg-bg px-5">
+      <header
+        className={cn(
+          'drag-region flex shrink-0 items-center gap-3 overflow-hidden border-b border-border bg-bg px-5',
+          currentSessionIdentity ? 'h-14' : 'h-12',
+        )}
+      >
         <HeaderLeft
           activeBranchName={activeBranchName}
           projectPath={projectPath}
           sidebarOpen={sidebarOpen}
           title={title}
+          sessionIdentity={currentSessionIdentity}
           onToggleSidebar={toggleSidebar}
         />
 

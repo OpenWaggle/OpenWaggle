@@ -3,8 +3,8 @@ import type { WaggleCollaborationStatus } from '@shared/types/waggle'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useAgentChat } from '@/features/chat/hooks/useAgentChat'
-import { useAutoSendQueue } from '@/features/chat/hooks/useAutoSendQueue'
 import { useSendMessage } from '@/features/chat/hooks/useSendMessage'
+import { useSessionFollowUpQueue } from '@/features/chat/hooks/useSessionFollowUpQueue'
 import { useStreamingPhase } from '@/features/chat/hooks/useStreamingPhase'
 import { useTurnReveal } from '@/features/chat/hooks/useTurnReveal'
 import { createBranchDraftSelection } from '@/features/chat/lib/branch-from-message'
@@ -14,9 +14,7 @@ import { useSkills } from '@/features/skills/hooks'
 import { useWaggleChat } from '@/features/waggle/hooks'
 import { useWaggleStore } from '@/features/waggle/state'
 import { extensionContributionsQueryOptions } from '@/queries/extensions'
-import { createRendererLogger } from '@/shared/lib/logger'
 import { buildDiffSection } from '../lib/diff-section'
-import { reportAutoSendQueueFailure } from '../lib/queue-failure-feedback'
 import { setComposerSessionAuthorizationMode } from '../lib/session-authorization-mode-action'
 import { sendStarterPrompt } from '../lib/starter-prompt-action'
 import type { ChatPanelSections } from '../model'
@@ -27,8 +25,6 @@ import { useComposerSection } from './useComposerSection'
 import { useSessionCopyWorkflow } from './useSessionCopyWorkflow'
 import { useSteerWorkflow } from './useSteerWorkflow'
 import { useTranscriptSection } from './useTranscriptSection'
-
-const logger = createRendererLogger('chat-panel')
 
 export function useChatPanelSections(): ChatPanelSections {
   const [userDidSend, setUserDidSend] = useState(false)
@@ -51,6 +47,7 @@ export function useChatPanelSections(): ChatPanelSections {
     handleDismissInterruptedRun,
     handleOpenProject,
     handleSelectProjectPath,
+    handleSelectSession,
     loadSessions,
     model,
     navigate,
@@ -70,10 +67,8 @@ export function useChatPanelSections(): ChatPanelSections {
     isLoading,
     status,
     stop,
-    steer,
     error,
     withDeferredSnapshotRefresh,
-    previewSteeredUserTurn,
     streamSignalVersion,
     compactionStatus,
     agentInteractions,
@@ -81,6 +76,7 @@ export function useChatPanelSections(): ChatPanelSections {
     agentInteractionEvents,
     respondAgentInteraction,
   } = useAgentChat(activeSessionId, activeSession, model, thinkingLevel)
+  const followUpQueue = useSessionFollowUpQueue(activeSessionId)
 
   const { handleSend, handleSendText, handleSendWaggle } = useSendMessage({
     activeSessionId,
@@ -161,20 +157,9 @@ export function useChatPanelSections(): ChatPanelSections {
 
   const { isSteering, handleSteer } = useSteerWorkflow({
     activeSessionId,
-    steer,
-    previewSteeredUserTurn,
+    promoteFollowUp: followUpQueue.promote,
     withDeferredSnapshotRefresh,
-    handleSendWithWaggle: sendWorkflow.sendWithWaggle,
     showToast,
-  })
-
-  useAutoSendQueue({
-    sessionId: activeSessionId,
-    status,
-    sendMessage: handleSend,
-    paused: isSteering,
-    onSendFailure: (payload, sendError) =>
-      reportAutoSendQueueFailure({ logger, showToast }, activeSessionId, payload, sendError),
   })
 
   function handleBranchFromMessage(messageId: string) {
@@ -284,6 +269,7 @@ export function useChatPanelSections(): ChatPanelSections {
     handleCloseForkSelector: sessionCopy.closeForkSelector,
     handleSelectForkTarget: sessionCopy.selectForkTarget,
     handleCloneToNewSession: () => void sessionCopy.cloneCurrentSessionToNewSession(),
+    handleNavigateSession: (sessionId) => void handleSelectSession(sessionId),
     handleOpenProject,
     handleSelectProjectPath,
     handleSetAuthorizationMode: (authorizationMode) =>

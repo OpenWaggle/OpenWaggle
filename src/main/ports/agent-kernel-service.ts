@@ -1,11 +1,17 @@
 import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { WorktreeLaunchProgress } from '@shared/types/background-run'
 import type { ContextCompactionResult, ContextUsageSnapshot } from '@shared/types/context-usage'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionDetail } from '@shared/types/session'
+import type { SessionCapability } from '@shared/types/session-capability'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import type { WaggleConfig, WaggleStreamMetadata, WaggleTurnEvent } from '@shared/types/waggle'
 import { Context, type Effect } from 'effect'
+import type {
+  PendingDelegationSpecificationUpdate,
+  PendingSessionOrchestrationUpdate,
+} from './session-orchestration-update-repository'
 import type { ProjectedSessionNodeInput } from './session-repository'
 
 export class AgentKernelMissingEntryError extends Error {
@@ -34,12 +40,39 @@ export interface AgentKernelRunInput {
   readonly runId: string
   readonly payload: HydratedAgentSendPayload
   readonly model: SupportedModelId
+  readonly runAuthorizationOverride?: AgentAuthorizationMode
+  readonly authorityCallerId?: string
+  readonly agentInstructions?: string
+  readonly sessionIdentityContext?: string
+  readonly peerAgentReports?: readonly PeerAgentReportContext[]
+  readonly onPeerAgentReportsDelivered?: (reportIds: readonly string[]) => void
+  readonly orchestrationUpdates?: readonly PendingSessionOrchestrationUpdate[]
+  readonly onOrchestrationUpdatesDelivered?: (updateIds: readonly string[]) => void
+  readonly delegationSpecificationUpdates?: readonly PendingDelegationSpecificationUpdate[]
+  readonly onDelegationSpecificationUpdatesDelivered?: (updateIds: readonly string[]) => void
+  readonly toolAllowlist?: readonly string[]
+  readonly skillAllowlist?: readonly string[]
+  readonly mcpServerAllowlist?: readonly string[]
+  readonly sessionCapabilities?: readonly SessionCapability[]
+  readonly modelMultiAgentEnabled?: boolean
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly signal: AbortSignal
   readonly onEvent: (event: AgentTransportEvent) => void
   readonly onWorktreeLaunch?: (progress: WorktreeLaunchProgress) => void
   readonly waggle?: AgentKernelWaggleRunOptions
+}
+
+export interface PeerAgentReportContext {
+  readonly reportId: string
+  readonly correlationId: string
+  readonly replyToReportId?: string
+  readonly sourceSessionId: string
+  readonly sourceRunId?: string
+  readonly authoredBy: string
+  readonly content: string
+  readonly requestReply: boolean
+  readonly createdAt: number
 }
 
 export interface AgentKernelWaggleRunOptions {

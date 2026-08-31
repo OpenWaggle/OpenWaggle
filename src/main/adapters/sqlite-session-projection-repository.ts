@@ -7,13 +7,16 @@
  * module-level side effects until runtime initialization.
  */
 
-import { SessionId } from '@shared/types/brand'
 import { Effect, Layer } from 'effect'
 import { SessionProjectionRepositoryError } from '../errors'
 import {
   SessionProjectionRepository,
   type SessionProjectionRepositoryShape,
 } from '../ports/session-projection-repository'
+import {
+  archiveSessionWorkspace,
+  createSessionProjectionDeletionMethods,
+} from './sqlite-session-projection-deletion'
 
 type RepoOperation =
   | 'get'
@@ -44,36 +47,22 @@ function repoOp<A>(operation: RepoOperation, thunk: () => Promise<A>) {
 }
 
 export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => {
-  const [store, turnCheckpoints, worktreePrune, pinnedSessions] = await Promise.all([
-    import('../store/session-details'),
-    import('../store/turn-checkpoints'),
-    import('../services/git/session-worktree-prune'),
-    import('../store/pinned-sessions'),
-  ])
+  const [store, turnCheckpoints, worktreePrune, checkpointRefs, pinnedSessions] = await Promise.all(
+    [
+      import('../store/session-details'),
+      import('../store/turn-checkpoints'),
+      import('../services/git/session-worktree-prune'),
+      import('./git/turn-checkpoint-refs'),
+      import('../store/pinned-sessions'),
+    ],
+  )
   const { pruneSessionWorktree } = worktreePrune
-  const { deleteTurnCheckpointsForSession } = turnCheckpoints
-
-  async function pruneWorktreeForSession(
-    id: Parameters<typeof store.getSessionDetail>[0],
-    reason: 'delete' | 'archive',
-  ) {
-    const session = await store.getSessionDetail(id)
-    if (!session) return
-    await pruneSessionWorktree(
-      {
-        sessionId: String(id),
-        projectPath: session.projectPath,
-        worktreePath: session.worktreePath ?? null,
-        reason,
-      },
-      {
-        listWorktreeRefs: () => store.listSessionWorktreeRefs(),
-        clearWorktree: (sessionId) => store.clearSessionWorktree(SessionId(sessionId)),
-        deleteCheckpoints: async (sessionId) => {
-          await deleteTurnCheckpointsForSession(SessionId(sessionId))
-        },
-      },
-    )
+  const { deleteSessionTurnCheckpointRefs, restoreSessionTurnCheckpointRefs } = checkpointRefs
+  const deletion = {
+    store,
+    pruneSessionWorktree,
+    deleteCheckpointRefs: deleteSessionTurnCheckpointRefs,
+    restoreCheckpointRefs: restoreSessionTurnCheckpointRefs,
   }
 
   return Layer.succeed(
@@ -105,16 +94,12 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
 
       create: (input) => repoOp('create', () => store.createSession(input)),
 
-      delete: (id) =>
-        repoOp('delete', async () => {
-          await pruneWorktreeForSession(id, 'delete')
-          return store.deleteSession(id)
-        }),
+      ...createSessionProjectionDeletionMethods(deletion),
 
       archive: (id) =>
         repoOp('archive', async () => {
           // Reversible, so the session's Turn history has to survive it.
-          await pruneWorktreeForSession(id, 'archive')
+          await archiveSessionWorkspace(deletion, id)
           return store.archiveSession(id)
         }),
 

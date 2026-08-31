@@ -18,6 +18,7 @@ const { typedHandleMock, listPackagesMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('../typed-ipc', () => ({
+  hostHandle: typedHandleMock,
   typedHandle: typedHandleMock,
 }))
 

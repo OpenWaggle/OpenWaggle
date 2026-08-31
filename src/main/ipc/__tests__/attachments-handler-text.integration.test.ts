@@ -38,7 +38,7 @@ describe('attachments:prepare-from-text', () => {
         name: expect.stringMatching(/^prompt-\d+\.md$/),
       }),
     )
-    expect(openMock).toHaveBeenCalledOnce()
+    expect(openMock).toHaveBeenCalledTimes(2)
     const progressCalls = broadcastToWindowsMock.mock.calls.filter(
       (call: unknown[]) => call[0] === 'attachments:prepare-from-text-progress',
     )

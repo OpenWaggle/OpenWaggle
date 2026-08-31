@@ -8,9 +8,15 @@ import {
   SETTINGS_KEY_DIFF_WRAP_LINES,
   SETTINGS_KEY_ENABLED_MODELS,
   SETTINGS_KEY_FAVORITE_MODELS,
+  SETTINGS_KEY_MULTI_AGENT_ENABLED,
+  SETTINGS_KEY_MULTI_AGENT_ENABLED_BY_PROJECT,
   SETTINGS_KEY_PROJECT_DISPLAY_NAMES,
   SETTINGS_KEY_PROJECT_PATH,
   SETTINGS_KEY_RECENT_PROJECTS,
+  SETTINGS_KEY_SESSION_HOST_IDLE_GRACE_PERIOD_MS,
+  SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMIT,
+  SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMITS_BY_PROJECT,
+  SETTINGS_KEY_SESSION_HOST_RUN_CEILING,
   SETTINGS_KEY_SHORTCUT_BINDINGS,
   SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT,
   SETTINGS_KEY_THINKING_LEVEL,
@@ -129,6 +135,42 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
     partial.diffWrapLines !== undefined,
     SETTINGS_KEY_DIFF_WRAP_LINES,
     next.diffWrapLines,
+  )
+  appendChangedSetting(
+    writes,
+    partial.sessionHostParentConcurrencyLimit !== undefined,
+    SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMIT,
+    next.sessionHostParentConcurrencyLimit,
+  )
+  appendChangedSetting(
+    writes,
+    partial.sessionHostParentConcurrencyLimitsByProject !== undefined,
+    SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMITS_BY_PROJECT,
+    next.sessionHostParentConcurrencyLimitsByProject,
+  )
+  appendChangedSetting(
+    writes,
+    partial.sessionHostRunCeiling !== undefined,
+    SETTINGS_KEY_SESSION_HOST_RUN_CEILING,
+    next.sessionHostRunCeiling,
+  )
+  appendChangedSetting(
+    writes,
+    partial.sessionHostIdleGracePeriodMs !== undefined,
+    SETTINGS_KEY_SESSION_HOST_IDLE_GRACE_PERIOD_MS,
+    next.sessionHostIdleGracePeriodMs,
+  )
+  appendChangedSetting(
+    writes,
+    partial.multiAgentEnabled !== undefined,
+    SETTINGS_KEY_MULTI_AGENT_ENABLED,
+    next.multiAgentEnabled,
+  )
+  appendChangedSetting(
+    writes,
+    partial.multiAgentEnabledByProject !== undefined,
+    SETTINGS_KEY_MULTI_AGENT_ENABLED_BY_PROJECT,
+    next.multiAgentEnabledByProject,
   )
 
   return writes

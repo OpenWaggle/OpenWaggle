@@ -93,6 +93,7 @@ export interface McpRuntimeStateService {
   getEventSubscriptions(
     sessionId?: string | null,
   ): Effect.Effect<readonly McpEventSubscriptionState[]>
+  invalidateSessionConnections(sessionId: string): Effect.Effect<void>
   disposeSession(sessionId: string): Effect.Effect<void>
   reconcileIdleConnections(isActive: (runtimeNamespace: string) => boolean): Effect.Effect<void>
   disposeAll(): Effect.Effect<void>

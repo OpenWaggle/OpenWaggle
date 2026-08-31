@@ -17,6 +17,7 @@ const optionalUrlSchema = Schema.optional(
 )
 
 const envSchema = Schema.Struct({
+  PATH: Schema.optional(Schema.String),
   ELECTRON_RENDERER_URL: optionalUrlSchema,
   OPENWAGGLE_AUTOMATION: Schema.optional(Schema.Literal('1')),
   OPENWAGGLE_AUTOMATION_LEASE_TOKEN: Schema.optional(Schema.String),
@@ -24,6 +25,9 @@ const envSchema = Schema.Struct({
   OPENWAGGLE_USER_DATA_DIR: Schema.optional(Schema.String),
   OPENWAGGLE_DISABLE_SINGLE_INSTANCE: Schema.optional(Schema.String),
   OPENWAGGLE_LOG_LEVEL: Schema.optional(Schema.Literal('debug', 'info', 'warn', 'error')),
+  OPENWAGGLE_PROFILE: Schema.optional(Schema.String),
+  OPENWAGGLE_PROFILE_CREDENTIAL_FILE: Schema.optional(Schema.String),
+  OPENWAGGLE_AGENT_RUN: Schema.optional(Schema.Literal('1')),
 })
 
 export type Env = SchemaType<typeof envSchema>

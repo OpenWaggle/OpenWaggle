@@ -2,6 +2,7 @@ import type { OAuthFlowStatus } from './auth'
 import type { WorktreeLaunchEventPayload } from './background-run'
 import type { SessionId } from './brand'
 import type { AgentPhaseEventPayload } from './phase'
+import type { SessionHostEventEnvelope } from './session-host-event'
 import type { AgentTransportEvent } from './stream'
 import type { UpdateStatus } from './updater'
 import type { WaggleStreamMetadata, WaggleTurnEvent } from './waggle'
@@ -34,6 +35,14 @@ export interface IpcEventChannelMap {
   }
   'agent:run-completed': {
     payload: { sessionId: SessionId }
+  }
+  'session-host:event': {
+    payload: SessionHostEventEnvelope
+  }
+  'session-host:resync-required': {
+    payload: {
+      reason: 'host-restarted' | 'cursor-expired' | 'cursor-ahead' | 'slow-consumer'
+    }
   }
   'agent:worktree-launch': {
     payload: WorktreeLaunchEventPayload

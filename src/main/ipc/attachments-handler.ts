@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { match } from '@diegogbrisa/ts-match'
-import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
+import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
-import type { PreparedAttachment } from '@shared/types/agent'
+import type { AttachmentOrigin } from '@shared/types/agent'
 import * as Effect from 'effect/Effect'
 import { app } from 'electron'
+import { dispatchLocalSessionCommand } from '../application/local-session-command-dispatcher'
 import { createLogger } from '../logger'
 import {
   configurePreparedAttachmentRegistry,
@@ -20,12 +20,6 @@ import {
   TEXT_ATTACHMENT_MAX_SIZE_MB,
   writePromptTextFileWithProgress,
 } from './attachment-temp-files'
-import {
-  DOCX_MIME_TYPE,
-  extractAttachmentText,
-  ODT_MIME_TYPE,
-  RTF_MIME_TYPE,
-} from './attachment-text-extraction'
 import { validateRequiredProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
 
@@ -48,91 +42,29 @@ function describeUnknownError(error: unknown) {
   return { message: String(error) }
 }
 
-function resolveAttachmentKind(mimeType: string) {
-  if (mimeType === 'application/pdf') return 'pdf'
-  if (mimeType.startsWith('image/')) return 'image'
-  return 'text'
-}
-
-function guessMimeType(filePath: string) {
-  const ext = path.extname(filePath).toLowerCase()
-  return match(ext)
-    .with('.pdf', () => 'application/pdf')
-    .with('.png', () => 'image/png')
-    .with('.jpg', () => 'image/jpeg')
-    .with('.jpeg', () => 'image/jpeg')
-    .with('.webp', () => 'image/webp')
-    .with('.gif', () => 'image/gif')
-    .with('.bmp', () => 'image/bmp')
-    .with('.svg', () => 'image/svg+xml')
-    .with('.md', () => 'text/markdown')
-    .with('.json', () => 'application/json')
-    .with('.yaml', () => 'application/yaml')
-    .with('.yml', () => 'application/yaml')
-    .with('.xml', () => 'application/xml')
-    .with('.csv', () => 'text/csv')
-    .with('.log', () => 'text/plain')
-    .with('.docx', () => DOCX_MIME_TYPE)
-    .with('.rtf', () => RTF_MIME_TYPE)
-    .with('.odt', () => ODT_MIME_TYPE)
-    .with('.ts', () => 'text/plain')
-    .with('.tsx', () => 'text/plain')
-    .with('.js', () => 'text/plain')
-    .with('.jsx', () => 'text/plain')
-    .with('.mjs', () => 'text/plain')
-    .with('.cjs', () => 'text/plain')
-    .with('.py', () => 'text/plain')
-    .with('.java', () => 'text/plain')
-    .with('.go', () => 'text/plain')
-    .with('.rs', () => 'text/plain')
-    .with('.swift', () => 'text/plain')
-    .with('.kt', () => 'text/plain')
-    .with('.css', () => 'text/plain')
-    .with('.scss', () => 'text/plain')
-    .with('.sass', () => 'text/plain')
-    .with('.less', () => 'text/plain')
-    .with('.html', () => 'text/plain')
-    .with('.htm', () => 'text/plain')
-    .with('.txt', () => 'text/plain')
-    .otherwise(() => null)
-}
-
-async function prepareAttachment(filePath: string): Promise<PreparedAttachment> {
-  const stats = await fs.stat(filePath)
-  if (!stats.isFile()) {
-    throw new Error(`Not a file: ${filePath}`)
-  }
-  if (stats.size > ATTACHMENT.MAX_SIZE_BYTES) {
-    throw new Error(
-      `Attachment exceeds ${String(ATTACHMENT.MAX_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${path.basename(filePath)}`,
-    )
-  }
-
-  const mimeType = guessMimeType(filePath)
-  if (!mimeType) {
-    throw new Error(
-      `Unsupported attachment type: ${path.basename(filePath)}. Supported: text files, images, PDFs.`,
-    )
-  }
-  const buffer = await fs.readFile(filePath)
-  const kind = resolveAttachmentKind(mimeType)
-  const attachmentName = path.basename(filePath)
-
-  const extractedText = await extractAttachmentText({ kind, mimeType, buffer, attachmentName })
-
-  return {
-    id: randomUUID(),
-    kind,
-    origin: 'user-file',
-    name: path.basename(filePath),
-    path: filePath,
-    mimeType,
-    sizeBytes: stats.size,
-    extractedText,
-  }
-}
-
 export { hydrateAttachmentSources } from '../utils/attachment-hydration'
+
+function prepareAttachmentsThroughHost(
+  baseDirectory: string,
+  entries: readonly { readonly path: string; readonly origin?: AttachmentOrigin }[],
+) {
+  return Effect.gen(function* () {
+    const result = yield* dispatchLocalSessionCommand({
+      caller: { callerId: 'gui:local-user', workingDirectory: baseDirectory },
+      payload: {
+        contract: 'local-attachments-v1',
+        request: { requestId: randomUUID(), entries },
+      },
+    })
+    if (result.contract !== 'local-attachments-v1') {
+      return yield* Effect.fail(new Error('Session Host rejected attachment preparation.'))
+    }
+    for (const attachment of result.response.attachments) {
+      yield* Effect.promise(() => rememberPreparedAttachment(attachment, attachment.path))
+    }
+    return [...result.response.attachments]
+  })
+}
 
 function registerPrepareAttachmentHandler() {
   typedHandle('attachments:prepare', (_event, rawProjectPath: unknown, rawPaths: unknown) =>
@@ -143,43 +75,10 @@ function registerPrepareAttachmentHandler() {
       })
 
       const projectPath = yield* validateRequiredProjectPath(pp)
-
-      const normalized = paths.map((entry) =>
-        path.normalize(path.isAbsolute(entry) ? entry : path.resolve(projectPath, entry)),
+      return yield* prepareAttachmentsThroughHost(
+        projectPath,
+        paths.map((filePath) => ({ path: filePath })),
       )
-
-      const uniquePaths = [...new Set(normalized)]
-      if (uniquePaths.length === 0) return []
-      if (uniquePaths.length > ATTACHMENT.MAX_COUNT) {
-        return yield* Effect.fail(
-          new Error(
-            `A maximum of ${String(ATTACHMENT.MAX_COUNT)} attachments is supported per message.`,
-          ),
-        )
-      }
-
-      const resolvedPaths = yield* Effect.promise(() =>
-        Promise.all(uniquePaths.map((filePath) => fs.realpath(filePath))),
-      )
-      const stats = yield* Effect.promise(() =>
-        Promise.all(resolvedPaths.map((filePath) => fs.stat(filePath))),
-      )
-      const totalSize = stats.reduce((sum, stat) => sum + stat.size, 0)
-      if (totalSize > ATTACHMENT.MAX_TOTAL_SIZE_BYTES) {
-        return yield* Effect.fail(
-          new Error(
-            `Total attachment size exceeds ${String(ATTACHMENT.MAX_TOTAL_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB.`,
-          ),
-        )
-      }
-
-      const prepared: PreparedAttachment[] = []
-      for (const filePath of resolvedPaths) {
-        const attachment = yield* Effect.promise(() => prepareAttachment(filePath))
-        yield* Effect.promise(() => rememberPreparedAttachment(attachment, filePath))
-        prepared.push(attachment)
-      }
-      return prepared
     }),
   )
 }
@@ -212,18 +111,14 @@ function registerPrepareFromTextAttachmentHandler() {
           )
         }
 
-        const attachment: PreparedAttachment = {
-          id: randomUUID(),
-          kind: 'text',
-          origin: 'auto-paste-text',
-          name: fileName,
-          path: filePath,
-          mimeType: TEMP_PROMPT_MIME_TYPE,
-          sizeBytes: stats.size,
-          extractedText: text,
+        const attachments = yield* prepareAttachmentsThroughHost(process.cwd(), [
+          { path: filePath, origin: 'auto-paste-text' },
+        ])
+        const attachment = attachments[0]
+        if (!attachment) {
+          return yield* Effect.fail(new Error('Generated attachment preparation returned no file.'))
         }
-        yield* Effect.promise(() => rememberPreparedAttachment(attachment, filePath))
-        return attachment
+        return { ...attachment, mimeType: TEMP_PROMPT_MIME_TYPE, extractedText: text }
       }),
   )
 }

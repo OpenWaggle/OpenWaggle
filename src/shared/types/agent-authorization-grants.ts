@@ -7,7 +7,13 @@ import type { AgentAuthorizationMode } from './agent-authorization'
  * is what stops a request from arriving with an unrecognised capability and being matched against a
  * grant the user never meant to give.
  */
-export const AGENT_AUTHORIZATION_CAPABILITIES = ['mcp.tool-call', 'mcp.sampling'] as const
+export const AGENT_AUTHORIZATION_CAPABILITIES = [
+  'mcp.tool-call',
+  'mcp.sampling',
+  'sessions.export-write',
+  'sessions.attachment-read',
+  'sessions.resource-read',
+] as const
 
 export type AgentAuthorizationCapability = (typeof AGENT_AUTHORIZATION_CAPABILITIES)[number]
 
@@ -97,6 +103,9 @@ export function findMatchingGrant(
 export const AGENT_AUTHORIZATION_CAPABILITY_LABELS = {
   'mcp.tool-call': 'Run a tool',
   'mcp.sampling': 'Use your model',
+  'sessions.export-write': 'Write Session exports',
+  'sessions.attachment-read': 'Read Session attachments',
+  'sessions.resource-read': 'Read Session export resources',
 } satisfies Record<AgentAuthorizationCapability, string>
 
 /** Modes in which a matching grant is consulted at all. */

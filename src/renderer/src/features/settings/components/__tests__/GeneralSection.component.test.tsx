@@ -27,6 +27,9 @@ vi.mock('@/shared/lib/ipc', () => ({
   },
 }))
 
+vi.mock('../sections/AgentAccessSection', () => ({ AgentAccessSection: () => null }))
+vi.mock('../sections/AgentDefinitionsCard', () => ({ AgentDefinitionsCard: () => null }))
+
 import { GeneralSection } from '../sections/GeneralSection'
 
 describe('GeneralSection', () => {

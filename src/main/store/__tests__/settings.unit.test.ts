@@ -1,160 +1,17 @@
-import fs from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
-import * as SqlClient from '@effect/sql/SqlClient'
 import { SupportedModelId } from '@shared/types/brand'
 import { DEFAULT_SHORTCUT_BINDINGS } from '@shared/types/shortcuts'
-import * as Effect from 'effect/Effect'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
-  REMOVED_PERSISTENCE_MIGRATION_IDS,
-  REMOVED_PERSISTENCE_TABLES,
-  REMOVED_SETTINGS_KEYS,
-  type SettingsStoreRow,
-  type TableColumnRow,
-  type TableRow,
-} from './settings-test-constants'
-
-const state = vi.hoisted(() => ({
-  userDataDir: '',
-  encryptionAvailable: false,
-  encryptThrows: false,
-}))
-
-vi.mock('electron', () => ({
-  app: {
-    getPath: () => state.userDataDir,
-  },
-  safeStorage: {
-    isEncryptionAvailable: () => state.encryptionAvailable,
-    encryptString: (value: string) => {
-      if (state.encryptThrows) {
-        throw new Error('encrypt failed')
-      }
-      return Buffer.from(value, 'utf8')
-    },
-    decryptString: (value: Buffer) => value.toString('utf8'),
-  },
-}))
-
-async function disposeRuntime() {
-  const { disposeAppRuntime } = await import('../../runtime')
-  await disposeAppRuntime()
-}
-
-async function loadSettingsModule() {
-  const module = await import('../settings')
-  await module.initializeSettingsStore()
-  return module
-}
-
-async function writeRawSetting(key: string, value: unknown) {
-  const { runAppEffect } = await import('../../runtime')
-  await runAppEffect(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      yield* sql`
-        INSERT INTO settings_store (key, value_json, updated_at)
-        VALUES (${key}, ${JSON.stringify(value)}, ${Date.now()})
-        ON CONFLICT(key) DO UPDATE SET
-          value_json = excluded.value_json,
-          updated_at = excluded.updated_at
-      `
-    }),
-  )
-}
-
-async function seedRemovedPersistenceForCleanup() {
-  const { resetAppRuntimeForTests, runAppEffect } = await import('../../runtime')
-  await runAppEffect(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      for (const tableName of REMOVED_PERSISTENCE_TABLES) {
-        yield* sql.unsafe(`CREATE TABLE IF NOT EXISTS ${tableName} (id TEXT PRIMARY KEY)`)
-      }
-      for (const key of REMOVED_SETTINGS_KEYS) {
-        yield* sql`
-          INSERT INTO settings_store (key, value_json, updated_at)
-          VALUES (${key}, ${JSON.stringify({ removed: true })}, ${Date.now()})
-          ON CONFLICT(key) DO UPDATE SET
-            value_json = excluded.value_json,
-            updated_at = excluded.updated_at
-        `
-      }
-      for (const migrationId of REMOVED_PERSISTENCE_MIGRATION_IDS) {
-        yield* sql`
-          DELETE FROM _migrations
-          WHERE id = ${migrationId}
-        `
-      }
-    }),
-  )
-  await resetAppRuntimeForTests()
-}
-
-async function readRemovedPersistenceNames() {
-  const { runAppEffect } = await import('../../runtime')
-  return runAppEffect(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      const tableRows = yield* sql<TableRow>`
-        SELECT name
-        FROM sqlite_master
-        WHERE type = ${'table'}
-          AND name IN ${sql.in([...REMOVED_PERSISTENCE_TABLES])}
-        ORDER BY name ASC
-      `
-      const settingRows = yield* sql<SettingsStoreRow>`
-        SELECT key
-        FROM settings_store
-        WHERE key IN ${sql.in([...REMOVED_SETTINGS_KEYS])}
-        ORDER BY key ASC
-      `
-      return {
-        tables: tableRows.map((row) => row.name),
-        settingsKeys: settingRows.map((row) => row.key),
-      }
-    }),
-  )
-}
-
-async function readTableColumns(tableName: string) {
-  const { runAppEffect } = await import('../../runtime')
-  return runAppEffect(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      const rows = yield* sql<TableColumnRow>`
-        SELECT name
-        FROM pragma_table_info(${tableName})
-      `
-      return rows.map((row) => row.name)
-    }),
-  )
-}
+  installSettingsTestHooks,
+  loadSettingsModule,
+  readRemovedPersistenceNames,
+  readTableColumns,
+  seedRemovedPersistenceForCleanup,
+  writeRawSetting,
+} from './settings-test-harness'
 
 describe('settings store', () => {
-  beforeEach(async () => {
-    state.userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-settings-test-'))
-    // Deliberately NOT vi.resetModules(). Resetting the registry gave every test its
-    // own copy of the runtime module, so each test left a live better-sqlite3
-    // Database orphaned in a worker that vitest reuses across files; the accumulated
-    // objects then crashed the addon at environment teardown (#151). Resetting the
-    // runtime and the settings cache in place gives the same isolation -- a fresh
-    // database per test -- with exactly one module instance alive.
-    const { resetAppRuntimeForTests } = await import('../../runtime')
-    await resetAppRuntimeForTests()
-    const { resetSettingsStoreForTests } = await import('../settings')
-    await resetSettingsStoreForTests()
-    state.encryptionAvailable = false
-    state.encryptThrows = false
-  })
-
-  afterEach(async () => {
-    await disposeRuntime()
-    if (state.userDataDir) {
-      await fs.rm(state.userDataDir, { recursive: true, force: true })
-    }
-  })
+  installSettingsTestHooks()
 
   it('drops removed pre-Pi persistence tables and settings keys during database bootstrap', async () => {
     await seedRemovedPersistenceForCleanup()
@@ -279,6 +136,35 @@ describe('settings store', () => {
     expect(getSettings().thinkingLevel).toBe('max')
   })
 
+  it('refreshes Session Host policy changed by another process', async () => {
+    const { getSettings, refreshSettingsStore } = await loadSettingsModule()
+    expect(getSettings().sessionHostRunCeiling).not.toBe(73)
+
+    await writeRawSetting('sessionHostRunCeiling', 73)
+    await writeRawSetting('multiAgentEnabled', false)
+    await refreshSettingsStore()
+
+    expect(getSettings()).toMatchObject({
+      sessionHostRunCeiling: 73,
+      multiAgentEnabled: false,
+    })
+  })
+
+  it('hydrates an attached GUI cache from a normalized Host snapshot', async () => {
+    const { getSettings, hydrateSettingsStoreFromHost } = await loadSettingsModule()
+
+    hydrateSettingsStoreFromHost({
+      ...getSettings(),
+      sessionHostRunCeiling: 91,
+      recentProjects: [' /tmp/host-project ', '/tmp/host-project'],
+    })
+
+    expect(getSettings()).toMatchObject({
+      sessionHostRunCeiling: 91,
+      recentProjects: ['/tmp/host-project'],
+    })
+  })
+
   it('roundtrips recentProjects through updateSettings', async () => {
     const { getSettings, updateSettings } = await loadSettingsModule()
     updateSettings({ recentProjects: ['/tmp/a', '/tmp/b'] })
@@ -322,6 +208,20 @@ describe('settings store', () => {
     })
     expect(getSettings().skillTogglesByProject).toEqual({
       '/tmp/repo': { 'code-review': true, 'frontend-design': false },
+    })
+  })
+
+  it('preserves concurrent skill toggles for the same project', async () => {
+    const { getSettings, updateSkillToggleDurably } = await loadSettingsModule()
+
+    await Promise.all([
+      updateSkillToggleDurably('/tmp/concurrent', 'code-review', true),
+      updateSkillToggleDurably('/tmp/concurrent', 'frontend-design', false),
+    ])
+
+    expect(getSettings().skillTogglesByProject['/tmp/concurrent']).toEqual({
+      'code-review': true,
+      'frontend-design': false,
     })
   })
 })

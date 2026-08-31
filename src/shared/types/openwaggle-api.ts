@@ -53,6 +53,7 @@ import type { ProviderInfo, SupportedModelId } from './llm'
 import type { OpenWaggleAuthorizationGrantApi } from './openwaggle-api-authorization-grants'
 import type { OpenWaggleFeedbackApi } from './openwaggle-api-feedback'
 import type { OpenWaggleProjectConfigApi } from './openwaggle-api-project'
+import type { OpenWaggleSessionControlApi } from './openwaggle-api-session-control'
 import type { OpenWaggleUpdaterApi } from './openwaggle-api-updater'
 import type { OpenWaggleWaggleApi } from './openwaggle-api-waggle'
 import type { OpenWaggleExtensionApi } from './openwaggle-extension-api'
@@ -90,6 +91,7 @@ export interface OpenWaggleApi
     OpenWaggleExtensionApi,
     OpenWaggleMcpApi,
     OpenWaggleWaggleApi,
+    OpenWaggleSessionControlApi,
     OpenWaggleWorkspaceFilesApi {
   // Agent
   sendMessage(
@@ -98,7 +100,6 @@ export interface OpenWaggleApi
     model: SupportedModelId,
   ): Promise<AgentSendReport>
   cancelAgent(sessionId?: SessionId): Promise<void>
-  steerAgent(sessionId: SessionId): Promise<{ preserved: boolean }>
   respondAgentInteraction(
     input: AgentLoopInteractionResponseInput,
   ): Promise<AgentLoopInteractionSubmitResult>
@@ -119,6 +120,10 @@ export interface OpenWaggleApi
   ): Promise<ContextCompactionResult>
   onRunCompleted(callback: (payload: IpcEventPayload<'agent:run-completed'>) => void): () => void
   onAgentPhase(callback: (payload: IpcEventPayload<'agent:phase'>) => void): () => void
+  onSessionHostEvent(callback: (payload: IpcEventPayload<'session-host:event'>) => void): () => void
+  onSessionHostResyncRequired(
+    callback: (payload: IpcEventPayload<'session-host:resync-required'>) => void,
+  ): () => void
   onWorktreeLaunch(callback: (payload: WorktreeLaunchEventPayload) => void): () => void
 
   // Settings
@@ -151,7 +156,7 @@ export interface OpenWaggleApi
   unpinSession(id: SessionId): Promise<void>
   /** Reposition one pin between the neighbours it should land between. */
   movePinnedSession(move: PinnedSessionMove): Promise<void>
-  createSession(projectPath: string): Promise<SessionDetail>
+  createSession(projectPath: string, worktreePlan?: SessionWorktreePlan): Promise<SessionDetail>
   forkSessionToNew(
     sessionId: SessionId,
     model: SupportedModelId,
@@ -168,7 +173,6 @@ export interface OpenWaggleApi
   unarchiveSession(id: SessionId): Promise<void>
   listArchivedSessions(): Promise<SessionSummary[]>
   updateSessionTitle(id: SessionId, title: string): Promise<void>
-  setSessionWorktreePlan(id: SessionId, plan: SessionWorktreePlan): Promise<void>
   setSessionAuthorizationMode(id: SessionId, mode: AgentAuthorizationMode | null): Promise<void>
   listArchivedSessionBranches(limit?: number): Promise<SessionSummary[]>
   getSessionTree(sessionId: SessionId): Promise<SessionTree | null>

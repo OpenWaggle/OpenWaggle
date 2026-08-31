@@ -284,7 +284,6 @@ export function useAgentChat(
     isLoading,
     status: backgroundStreaming ? 'streaming' : status,
     stop: runControls.stop,
-    steer: runControls.steer,
     error,
     withDeferredSnapshotRefresh: runControls.withDeferredSnapshotRefresh,
     previewSteeredUserTurn,

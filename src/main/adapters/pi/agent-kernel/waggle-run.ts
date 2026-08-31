@@ -14,9 +14,15 @@ import type {
   AgentKernelRunInput,
   AgentKernelWaggleRunOptions,
 } from '../../../ports/agent-kernel-service'
+import { createAgentRunContextExtension } from '../agent-run-context-extension'
+import { createDelegationSpecificationUpdateExtension } from '../delegation-specification-update-extension'
+import { createOrchestrationUpdateExtension } from '../orchestration-update-extension'
+import { createPeerAgentReportExtension } from '../peer-agent-report-extension'
 import type { PiModel } from '../pi-provider-catalog'
 import { buildPiRunAssistantMessages } from '../pi-run-result'
+import { createRunAttributionExtension } from '../run-attribution-extension'
 import { logger } from './constants'
+import { registerPiLiveRun } from './pi-live-run-registry'
 import { createPiRunSessionRuntime, runSubscribedPiOperation } from './run-lifecycle'
 import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
 import { createSessionListener } from './session-listener'
@@ -38,6 +44,7 @@ type PiWaggleKernelRunInput = AgentKernelRunInput & {
    */
   readonly workingPath: string
   readonly mcpExtensionFactory?: ExtensionFactory
+  readonly sessionsExtensionFactory?: ExtensionFactory
 } & PiRuntimeExtensionIsolationInput
 
 function appendEnabledWaggleModeState(input: {
@@ -204,26 +211,61 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
       currentMeta = meta
     },
   })
+  const peerReports = createPeerAgentReportExtension({
+    runId: input.runId,
+    pendingReports: input.peerAgentReports ?? [],
+    onDelivered: input.onPeerAgentReportsDelivered ?? (() => {}),
+  })
+  const orchestrationUpdates = createOrchestrationUpdateExtension({
+    runId: input.runId,
+    pendingUpdates: input.orchestrationUpdates ?? [],
+    onDelivered: input.onOrchestrationUpdatesDelivered ?? (() => {}),
+  })
+  const specificationUpdates = createDelegationSpecificationUpdateExtension({
+    runId: input.runId,
+    pendingUpdates: input.delegationSpecificationUpdates ?? [],
+    onDelivered: input.onDelegationSpecificationUpdatesDelivered ?? (() => {}),
+  })
 
   const { model, session } = await createPiRunSessionRuntime({
     session: input.session,
     projectPath,
     runId: input.runId,
     modelReference: initialRuntimeModel,
+    ...(input.runAuthorizationOverride
+      ? { runAuthorizationOverride: input.runAuthorizationOverride }
+      : {}),
+    ...(input.authorityCallerId ? { authorityCallerId: input.authorityCallerId } : {}),
     payload: input.payload,
     signal: input.signal,
     onEvent: (event) =>
       input.waggle.onWaggleEvent(withTransportEventModel(event, currentMeta), currentMeta),
     skillToggles: input.skillToggles,
+    skillAllowlist: input.skillAllowlist,
     enabledOpenWaggleExtensionPackages: input.enabledOpenWaggleExtensionPackages,
     enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths,
     recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure,
     extensionFactories: [
+      createRunAttributionExtension(input.runId),
+      peerReports.factory,
+      orchestrationUpdates.factory,
+      specificationUpdates.factory,
+      ...(input.sessionsExtensionFactory ? [input.sessionsExtensionFactory] : []),
       ...(input.mcpExtensionFactory ? [input.mcpExtensionFactory] : []),
       waggleExtension.factory,
+      ...(input.sessionIdentityContext
+        ? [
+            createAgentRunContextExtension({
+              sessionIdentityContext: input.sessionIdentityContext,
+              ...(input.agentInstructions ? { agentInstructions: input.agentInstructions } : {}),
+              ...(input.toolAllowlist ? { toolAllowlist: input.toolAllowlist } : {}),
+            }),
+          ]
+        : []),
     ],
   })
 
+  const unregisterLiveRun = registerPiLiveRun({ runId: input.runId, session, model })
   const unsubscribe = session.subscribe(
     createSessionListener(
       {
@@ -251,6 +293,11 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
         waggleDone: waggleExtension.done,
       }),
     buildErrorMessages: buildPiRunAssistantMessages,
+  }).finally(() => {
+    peerReports.close()
+    orchestrationUpdates.close()
+    specificationUpdates.close()
+    unregisterLiveRun()
   })
   await captureTurnCheckpoint({ session: input.session, projectPath, runId: input.runId })
   return result

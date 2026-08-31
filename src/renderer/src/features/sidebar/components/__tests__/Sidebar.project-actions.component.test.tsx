@@ -100,6 +100,12 @@ function makeArchivedSession(): SessionSummary {
     id: ARCHIVED_SESSION_ID,
     title: 'Archived project session',
     updatedAt: 5,
+    lineage: {
+      role: 'worker',
+      parentSessionId: SESSION_ID,
+      directWorkerCount: 0,
+      activeDirectWorkerCount: 0,
+    },
   }
 }
 
@@ -177,10 +183,6 @@ describe('Sidebar project actions', () => {
     expect(navigateMock).not.toHaveBeenCalled()
   })
 
-  /**
-   * Collapsing was useState only, so a restart undid it. The state now lives in the persisted
-   * view store, which is what makes it survive.
-   */
   it('records a collapsed project in the persisted view store', () => {
     render(<Sidebar />)
 
@@ -191,7 +193,6 @@ describe('Sidebar project actions', () => {
     })
   })
 
-  /** A fresh mount with restored state is what the user sees after relaunching. */
   it('renders a project collapsed when the restored state says so', () => {
     useSidebarViewStore.setState({ projectExpandedByPath: { [PROJECT_PATH]: false } })
 
@@ -286,9 +287,6 @@ describe('Sidebar project actions', () => {
       await cancellation.promise
       callOrder.push('cancel:end')
     })
-    deleteSessionMock.mockImplementation(async () => {
-      callOrder.push('delete')
-    })
     listArchivedSessionsMock.mockResolvedValueOnce([makeArchivedSession()])
     listActiveRunsMock.mockResolvedValueOnce([
       {
@@ -326,8 +324,8 @@ describe('Sidebar project actions', () => {
       )
       expect(showConfirmMock.mock.calls[0]?.join('\n')).not.toContain(PROJECT_PATH)
       expect(cancelAgentMock).toHaveBeenCalledWith(SESSION_ID)
-      expect(deleteSessionMock).toHaveBeenCalledWith(SESSION_ID)
-      expect(deleteSessionMock).toHaveBeenCalledWith(ARCHIVED_SESSION_ID)
+      expect(deleteSessionMock).toHaveBeenNthCalledWith(1, ARCHIVED_SESSION_ID)
+      expect(deleteSessionMock).toHaveBeenNthCalledWith(2, SESSION_ID)
       expect(updateSettingsMock).toHaveBeenCalledWith({
         projectPath: null,
         recentProjects: [],
@@ -337,6 +335,6 @@ describe('Sidebar project actions', () => {
       expect(useChatStore.getState().activeSessionId).toBeNull()
       expect(navigateMock).toHaveBeenCalledWith({ to: '/' })
     })
-    expect(callOrder).toEqual(['cancel:start', 'cancel:end', 'delete', 'delete'])
+    expect(callOrder).toEqual(['cancel:start', 'cancel:end'])
   })
 })

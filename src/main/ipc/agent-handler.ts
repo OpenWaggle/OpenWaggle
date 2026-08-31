@@ -1,12 +1,3 @@
-/**
- * Agent IPC handlers — transport layer.
- *
- * Responsibilities: abort controller lifecycle, active run tracking,
- * stream buffer management, IPC event emission, cleanup.
- *
- * Business logic (model validation, session fetching, run execution,
- * message persistence, error classification) lives in AgentRunService.
- */
 import { randomUUID } from 'node:crypto'
 import { decodeUnknownOrThrow } from '@shared/schema'
 import {
@@ -15,44 +6,25 @@ import {
 } from '@shared/schemas/agent-loop-interaction'
 import { agentSendPayloadSchema, toAgentSendPayload } from '@shared/schemas/validation'
 import type { AgentSendPayload } from '@shared/types/agent'
+import type { AgentLoopInteractionErrorCode } from '@shared/types/agent-loop-interaction'
 import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
-import type { AgentTransportEvent } from '@shared/types/stream'
+import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
+import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
-import { classifyAgentError } from '../agent/error-classifier'
 import { getPhaseForSession } from '../agent/phase-tracker'
 import { cleanupSessionRun } from '../agent/session-cleanup'
-import {
-  cancelAgentLoopInteractionsForRun,
-  submitAgentLoopInteractionResponse,
-} from '../application/agent-loop-interaction-broker'
-import { executeAgentRun } from '../application/agent-run-service'
-import { compactAgentSession, getAgentContextUsage } from '../application/agent-session-service'
-import { findWaggleHandoffRequest } from '../application/waggle-handoff'
-import { broadcastToWindows } from '../utils/broadcast'
+import { getAgentContextUsage } from '../application/agent-session-service'
+import { dispatchLocalSessionCommand } from '../application/local-session-command-dispatcher'
 import {
   clearAgentPhase,
   clearStreamBuffer,
   emitRunCompleted,
-  emitTransportEvent,
-  emitWorktreeLaunchFailure,
-  emitWorktreeLaunchProgress,
   getStreamBuffer,
   listStreamBuffers,
-  startStreamBuffer,
 } from '../utils/stream-bridge'
-import {
-  activeCompactions,
-  activeRuns,
-  activeWaggleRuns,
-  cancelAllSessionRuns,
-  cancelSessionRuns,
-  hasAnyActiveRun,
-} from './active-agent-runs'
-import { describeSendOutcome, handleRunResult } from './agent-run-result'
-import { runAgentRequestedWaggle } from './agent-waggle-handoff'
-import { emitErrorAndFinish } from './run-handler-utils'
-import { typedHandle } from './typed-ipc'
+import { cancelAllSessionRuns } from './active-agent-runs'
+import { hostHandle, typedHandle } from './typed-ipc'
 
 function clearSessionTransportState(sessionId: SessionId) {
   clearAgentPhase(sessionId)
@@ -63,6 +35,65 @@ function clearSessionTransportState(sessionId: SessionId) {
 function emitCancelledCompletion(sessionId: SessionId) {
   clearSessionTransportState(sessionId)
   emitRunCompleted(sessionId)
+}
+
+function interruptSessionRun(sessionId: SessionId) {
+  return Effect.gen(function* () {
+    const statusResult = yield* dispatchLocalSessionCommand({
+      caller: { callerId: 'gui:local-user' },
+      payload: {
+        contract: 'session-query-v2',
+        request: {
+          contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+          requestId: randomUUID(),
+          query: { operation: 'status', sessionId },
+        },
+      },
+    })
+    if (
+      statusResult.contract !== 'session-query-v2' ||
+      statusResult.response.outcome.operation !== 'status' ||
+      'error' in statusResult.response.outcome
+    ) {
+      return
+    }
+    if (statusResult.response.outcome.activeRunId) {
+      yield* dispatchLocalSessionCommand({
+        caller: { callerId: 'gui:local-user' },
+        payload: {
+          contract: 'session-control-v2',
+          request: {
+            contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+            requestId: randomUUID(),
+            idempotencyKey: randomUUID(),
+            command: {
+              operation: 'interrupt',
+              sessionId,
+              expectedRunId: statusResult.response.outcome.activeRunId,
+            },
+          },
+        },
+      })
+      return
+    }
+    const requestId = randomUUID()
+    const cancellation = yield* dispatchLocalSessionCommand({
+      caller: { callerId: 'gui:local-user' },
+      payload: {
+        contract: 'local-compaction-cancel-v1',
+        request: { requestId, sessionId },
+      },
+    })
+    if (
+      cancellation.contract !== 'local-compaction-cancel-v1' ||
+      cancellation.response.requestId !== requestId ||
+      cancellation.response.sessionId !== sessionId
+    ) {
+      return yield* Effect.fail(
+        new Error('Session Host returned an invalid compaction cancellation response.'),
+      )
+    }
+  })
 }
 
 /**
@@ -77,118 +108,130 @@ export function persistAllActiveRuns() {
 function registerAgentRunHandlers() {
   typedHandle(
     'agent:send-message',
-    (_event, sessionId: SessionId, payload: AgentSendPayload, model: SupportedModelId) =>
+    (_event, sessionId: SessionId, payload: AgentSendPayload, _model: SupportedModelId) =>
       Effect.gen(function* () {
         const validatedPayload = toAgentSendPayload(
           decodeUnknownOrThrow(agentSendPayloadSchema, payload),
         )
-        // ─── Transport: cancel existing same-session work, register new ────
-        if (cancelSessionRuns(sessionId)) {
-          clearSessionTransportState(sessionId)
-        }
-
-        const abortController = new AbortController()
-        const runId = randomUUID()
-        activeRuns.register(sessionId, abortController, {
-          model,
-        })
-
-        startStreamBuffer(sessionId, model, 'classic')
-
-        function onEventWithUsageCapture(event: AgentTransportEvent) {
-          emitTransportEvent(sessionId, event)
-        }
-
-        // The report is the handler's own result: `Effect.ensuring` runs cleanup without discarding it.
-        return yield* Effect.gen(function* () {
-          // ─── Application: delegate to service ────────────
-          const result = yield* executeAgentRun({
-            sessionId,
-            runId,
-            payload: validatedPayload,
-            model,
-            signal: abortController.signal,
-            onEvent: onEventWithUsageCapture,
-            onWorktreeLaunch: (progress) => emitWorktreeLaunchProgress(sessionId, progress),
-            onTitleAssigned: (title) => {
-              broadcastToWindows('sessions:title-updated', { sessionId, title })
+        const result = yield* dispatchLocalSessionCommand({
+          caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
+          payload: {
+            contract: 'session-control-v2',
+            request: {
+              contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+              requestId: randomUUID(),
+              idempotencyKey: randomUUID(),
+              command: {
+                operation: 'message',
+                sessionId,
+                input: {
+                  text: validatedPayload.text,
+                  thinkingLevel: validatedPayload.thinkingLevel,
+                  attachmentIds: validatedPayload.attachments.map((attachment) => attachment.id),
+                },
+              },
             },
-          })
-
-          const handoff =
-            result.outcome === 'success' ? findWaggleHandoffRequest(result.newMessages) : null
-          if (handoff && !abortController.signal.aborted) {
-            activeWaggleRuns.register(sessionId, abortController, {})
-            yield* runAgentRequestedWaggle({
-              sessionId,
-              handoff,
-              model,
-              thinkingLevel: validatedPayload.thinkingLevel,
-              abortController,
-            }).pipe(
-              Effect.tapError((error) =>
-                Effect.sync(() => {
-                  const classified = classifyAgentError(error)
-                  emitErrorAndFinish(
-                    sessionId,
-                    classified.userMessage,
-                    classified.code,
-                    `waggle-${sessionId}`,
-                  )
-                }),
-              ),
-            )
-          }
-
-          // ─── Transport: respond based on outcome ─────────
-          if (result.outcome === 'error' || result.outcome === 'invalid-model') {
-            emitWorktreeLaunchFailure(sessionId, result.message)
-          }
-          handleRunResult(sessionId, result)
-          /*
-           * Reported back, because main recovers every run failure into a value rather than failing the Effect:
-           * without this the invoke resolved identically whether the turn ran or was refused, and a caller with
-           * work to protect - a submitted review - cleared it on a failure that looked like success.
-           */
-          return describeSendOutcome(result)
-        }).pipe(
-          Effect.ensuring(
-            Effect.sync(() => {
-              // ─── Transport: cleanup ──────────────────────
-              cancelAgentLoopInteractionsForRun({ sessionId, runId })
-              activeWaggleRuns.deleteIfCurrent(sessionId, abortController)
-              if (activeRuns.deleteIfCurrent(sessionId, abortController)) {
-                clearAgentPhase(sessionId)
-                clearStreamBuffer(sessionId)
-                emitRunCompleted(sessionId)
-              }
-            }),
-          ),
-        )
+          },
+        })
+        if (result.contract !== 'session-control-v2') {
+          return yield* Effect.die(new Error('Session Control returned the wrong contract.'))
+        }
+        const outcome = result.response.outcome
+        return outcome.effect === 'rejected'
+          ? ({ outcome: 'refused', message: outcome.code, code: outcome.code } as const)
+          : ({ outcome: 'delivered' } as const)
       }),
   )
 
   typedHandle('agent:cancel', (_event, sessionId?: SessionId) =>
-    Effect.sync(() => {
-      if (sessionId) {
-        if (cancelSessionRuns(sessionId)) {
-          emitCancelledCompletion(sessionId)
-        }
-      } else {
+    Effect.gen(function* () {
+      if (!sessionId) {
         const cancelledSessionIds = cancelAllSessionRuns()
         for (const id of cancelledSessionIds) {
           emitCancelledCompletion(id)
         }
+        return
       }
+      yield* interruptSessionRun(sessionId)
     }),
   )
 }
 
 function registerAgentInteractionHandlers() {
   typedHandle('agent:respond-interaction', (_event, input) =>
-    Effect.sync(() => {
+    Effect.gen(function* () {
       const decoded = decodeUnknownOrThrow(agentLoopResponseInputSchema, input)
-      return submitAgentLoopInteractionResponse(toAgentLoopResponseInput(decoded))
+      const normalized = toAgentLoopResponseInput(decoded)
+      const pending = yield* dispatchLocalSessionCommand({
+        caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
+        payload: {
+          contract: 'session-query-v2',
+          request: {
+            contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+            requestId: randomUUID(),
+            query: { operation: 'requests-list', sessionId: normalized.sessionId },
+          },
+        },
+      })
+      const interaction =
+        pending.contract === 'session-query-v2' &&
+        pending.response.outcome.operation === 'requests-list' &&
+        !('error' in pending.response.outcome)
+          ? pending.response.outcome.requests.find(
+              (candidate) =>
+                candidate.runId === normalized.runId &&
+                candidate.interactionId === normalized.interactionId &&
+                candidate.kind === normalized.kind,
+            )
+          : undefined
+      if (!interaction) {
+        return {
+          ok: false,
+          error: {
+            code: 'interaction-not-found' as const,
+            message: 'No pending agent-loop interaction matches this response.',
+          },
+        }
+      }
+      const authorization =
+        interaction.kind === 'confirm' && interaction.purpose === 'authorization'
+      const result = yield* dispatchLocalSessionCommand({
+        caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
+        payload: {
+          contract: 'session-control-v2',
+          request: {
+            contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+            requestId: randomUUID(),
+            idempotencyKey: randomUUID(),
+            command: {
+              operation: authorization ? 'approval-respond' : 'request-respond',
+              sessionId: normalized.sessionId,
+              runId: normalized.runId,
+              interactionId: normalized.interactionId,
+              kind: normalized.kind,
+              response: normalized.response,
+            },
+          },
+        },
+      })
+      const outcome = result.contract === 'session-control-v2' ? result.response.outcome : undefined
+      if (outcome?.effect === 'interaction-resolved') {
+        return {
+          ok: true,
+          interactionId: outcome.interactionId,
+          status: outcome.status,
+        } as const
+      }
+      const supportedCodes: readonly AgentLoopInteractionErrorCode[] = [
+        'interaction-not-found',
+        'interaction-mismatch',
+        'invalid-response-payload',
+        'custom-renderer-unavailable',
+      ]
+      const rejectedCode = outcome?.effect === 'rejected' ? outcome.code : 'interaction-mismatch'
+      const code =
+        supportedCodes.find((candidate) => candidate === rejectedCode) ?? 'interaction-mismatch'
+      return { ok: false, error: { code, message: rejectedCode } } as const
     }),
   )
 }
@@ -204,7 +247,7 @@ function registerAgentStateHandlers() {
 
   typedHandle('agent:list-active-runs', () => Effect.sync(() => listStreamBuffers()))
 
-  typedHandle('agent:get-context-usage', (_event, sessionId: SessionId, model: SupportedModelId) =>
+  hostHandle('agent:get-context-usage', (_event, sessionId: SessionId, model: SupportedModelId) =>
     getAgentContextUsage({ sessionId, model }),
   )
 }
@@ -214,55 +257,30 @@ function registerAgentCompactionHandlers() {
     'agent:compact-session',
     (_event, sessionId: SessionId, model: SupportedModelId, customInstructions?: string) =>
       Effect.gen(function* () {
-        if (hasAnyActiveRun(sessionId)) {
+        const requestId = randomUUID()
+        const result = yield* dispatchLocalSessionCommand({
+          caller: { callerId: 'gui:local-user' },
+          payload: {
+            contract: 'local-compaction-v1',
+            request: {
+              requestId,
+              sessionId,
+              model,
+              ...(customInstructions !== undefined ? { customInstructions } : {}),
+            },
+          },
+        })
+        if (
+          result.contract !== 'local-compaction-v1' ||
+          result.response.requestId !== requestId ||
+          result.response.sessionId !== sessionId
+        ) {
           return yield* Effect.fail(
-            new Error('Wait for the current run to finish before compacting.'),
+            new Error('Session Host returned an invalid compaction response.'),
           )
         }
-
-        const abortController = new AbortController()
-        activeCompactions.register(sessionId, abortController, { model })
-        let delayedSuccessfulCompactionEnd: AgentTransportEvent | null = null
-
-        return yield* compactAgentSession({
-          sessionId,
-          model,
-          customInstructions,
-          signal: abortController.signal,
-          onEvent: (event) => {
-            if (event.type === 'compaction_end' && !event.aborted && !event.errorMessage) {
-              delayedSuccessfulCompactionEnd = event
-              return
-            }
-            emitTransportEvent(sessionId, event)
-          },
-        }).pipe(
-          Effect.tap(() =>
-            Effect.sync(() => {
-              if (delayedSuccessfulCompactionEnd) {
-                emitTransportEvent(sessionId, delayedSuccessfulCompactionEnd)
-              }
-            }),
-          ),
-          Effect.ensuring(
-            Effect.sync(() => {
-              activeCompactions.deleteIfCurrent(sessionId, abortController)
-            }),
-          ),
-        )
+        return result.response.result
       }),
-  )
-}
-
-function registerAgentSteeringHandlers() {
-  typedHandle('agent:steer', (_event, sessionId: SessionId) =>
-    Effect.sync(() => {
-      if (cancelSessionRuns(sessionId)) {
-        emitCancelledCompletion(sessionId)
-      }
-
-      return { preserved: false }
-    }),
   )
 }
 
@@ -271,8 +289,4 @@ export function registerAgentHandlers(): void {
   registerAgentInteractionHandlers()
   registerAgentStateHandlers()
   registerAgentCompactionHandlers()
-  registerAgentSteeringHandlers()
 }
-
-/** Exposed for tests: the reporting rule decides whether a caller keeps a submitted review. */
-export const describeSendOutcomeForTests = describeSendOutcome

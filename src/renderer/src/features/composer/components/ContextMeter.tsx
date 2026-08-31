@@ -1,7 +1,7 @@
 import { useChatStore } from '@/features/chat/state'
 import { useProviderStore } from '@/features/providers/state'
-import { usePreferencesStore } from '@/features/settings/state'
 import { formatContextWindow } from '@/shared/lib/format-tokens'
+import { useComposerModel } from '../hooks/useComposerModel'
 import { useContextUsageSnapshot } from '../hooks/useContextUsageSnapshot'
 import {
   buildContextMeterValue,
@@ -13,7 +13,7 @@ import { ContextMeterRing } from './ContextMeterRing'
 export function ContextMeter() {
   const activeSessionId = useChatStore((s) => s.activeSessionId)
   const activeSession = useChatStore((s) => s.activeSession)
-  const selectedModel = usePreferencesStore((s) => s.settings.selectedModel)
+  const selectedModel = useComposerModel().model
   const providerModels = useProviderStore((s) => s.providerModels)
   const fallbackContextWindow = findContextWindow(providerModels, selectedModel)
   const requestKey = buildContextUsageRequestKey(

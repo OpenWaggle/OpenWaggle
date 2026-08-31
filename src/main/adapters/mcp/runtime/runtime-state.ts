@@ -26,7 +26,7 @@ export type { CatalogTool, McpRuntimeStateService } from './runtime-state-types'
 
 const HANDLE_KEY_BYTES = 32
 
-function disposeSession(ctx: RuntimeStateContext, sessionId: string) {
+function invalidateSessionConnections(ctx: RuntimeStateContext, sessionId: string) {
   return ctx.connections.closeRuntimeNamespace(sessionId).pipe(
     Effect.zipRight(
       Ref.update(ctx.handles, (current) => {
@@ -44,6 +44,11 @@ function disposeSession(ctx: RuntimeStateContext, sessionId: string) {
         return next
       }),
     ),
+  )
+}
+
+function disposeSession(ctx: RuntimeStateContext, sessionId: string) {
+  return invalidateSessionConnections(ctx, sessionId).pipe(
     Effect.zipRight(
       Effect.promise(() => ctx.remoteTasks.setDisabled({ sessionId, disabled: true })),
     ),
@@ -165,6 +170,7 @@ export function makeMcpRuntimeState(input: {
       setEventSubscription: (subscriptionInput) => setEventSubscription(ctx, subscriptionInput),
       getEvents: (sessionId) => getEvents(ctx, sessionId),
       getEventSubscriptions: (sessionId) => getEventSubscriptions(ctx, sessionId),
+      invalidateSessionConnections: (sessionId) => invalidateSessionConnections(ctx, sessionId),
       disposeSession: (sessionId) => disposeSession(ctx, sessionId),
       reconcileIdleConnections: (isActive) => reconcileIdleConnections(ctx, isActive),
       disposeAll: () => disposeAll(ctx),

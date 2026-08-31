@@ -17,6 +17,7 @@ const {
   archiveBranchMock,
   restoreBranchMock,
   updateTreeUiStateMock,
+  mutateLocalUiSessionMock,
 } = vi.hoisted(() => ({
   typedHandleMock: vi.fn(),
   listMock: vi.fn(),
@@ -29,14 +30,28 @@ const {
   archiveBranchMock: vi.fn(),
   restoreBranchMock: vi.fn(),
   updateTreeUiStateMock: vi.fn(),
+  mutateLocalUiSessionMock: vi.fn(),
 }))
 
 vi.mock('../typed-ipc', () => ({
-  typedHandle: typedHandleMock,
+  hostHandle: typedHandleMock,
 }))
 
-vi.mock('../../application/agent-session-service', () => ({
-  navigateAgentSessionTree: () => Effect.succeed({ cancelled: false }),
+vi.mock('../../application/local-session-command-dispatcher', () => ({
+  dispatchLocalSessionCommand: (input: {
+    readonly payload: { readonly request: { readonly command: unknown } }
+  }) =>
+    Effect.sync(() => {
+      mutateLocalUiSessionMock(input.payload.request.command)
+      return {
+        contract: 'local-ui-v1',
+        response: {
+          requestId: 'request-ui',
+          effect: 'tree-ui-state-updated',
+          sessionId: 'session-1',
+        },
+      }
+    }),
 }))
 
 const TestSessionRepositoryLayer = Layer.succeed(SessionRepository, {
@@ -85,20 +100,27 @@ describe('registerSessionsHandlers', () => {
     archiveBranchMock.mockReset()
     restoreBranchMock.mockReset()
     updateTreeUiStateMock.mockReset()
+    mutateLocalUiSessionMock.mockReset()
   })
 
-  it('registers session branch and tree UI IPC channels', () => {
+  it('registers every session tree and workspace IPC channel', () => {
     registerSessionsHandlers()
 
     const channels = typedHandleMock.mock.calls
       .map((call) => (typeof call[0] === 'string' ? call[0] : ''))
       .filter(Boolean)
 
-    expect(channels).toContain('sessions:rename-branch')
-    expect(channels).toContain('sessions:archive-branch')
-    expect(channels).toContain('sessions:restore-branch')
-    expect(channels).toContain('sessions:update-tree-ui-state')
-    expect(channels).toContain('sessions:list-archived-branches')
+    expect(channels).toEqual([
+      'sessions:list',
+      'sessions:list-archived-branches',
+      'sessions:get-tree',
+      'sessions:get-workspace',
+      'sessions:navigate-tree',
+      'sessions:rename-branch',
+      'sessions:archive-branch',
+      'sessions:restore-branch',
+      'sessions:update-tree-ui-state',
+    ])
   })
 
   it('validates and dispatches branch rename requests', async () => {
@@ -107,11 +129,12 @@ describe('registerSessionsHandlers', () => {
 
     await handler({}, SessionId('session-1'), SessionBranchId('branch-1'), '  Review path  ')
 
-    expect(renameBranchMock).toHaveBeenCalledWith(
-      SessionId('session-1'),
-      SessionBranchId('branch-1'),
-      'Review path',
-    )
+    expect(mutateLocalUiSessionMock).toHaveBeenCalledWith({
+      operation: 'rename-branch',
+      sessionId: SessionId('session-1'),
+      branchId: SessionBranchId('branch-1'),
+      name: 'Review path',
+    })
   })
 
   it('rejects empty branch names before dispatching rename', async () => {
@@ -132,14 +155,16 @@ describe('registerSessionsHandlers', () => {
     await archiveHandler({}, SessionId('session-1'), SessionBranchId('branch-1'))
     await restoreHandler({}, SessionId('session-1'), SessionBranchId('branch-1'))
 
-    expect(archiveBranchMock).toHaveBeenCalledWith(
-      SessionId('session-1'),
-      SessionBranchId('branch-1'),
-    )
-    expect(restoreBranchMock).toHaveBeenCalledWith(
-      SessionId('session-1'),
-      SessionBranchId('branch-1'),
-    )
+    expect(mutateLocalUiSessionMock).toHaveBeenNthCalledWith(1, {
+      operation: 'archive-branch',
+      sessionId: SessionId('session-1'),
+      branchId: SessionBranchId('branch-1'),
+    })
+    expect(mutateLocalUiSessionMock).toHaveBeenNthCalledWith(2, {
+      operation: 'restore-branch',
+      sessionId: SessionId('session-1'),
+      branchId: SessionBranchId('branch-1'),
+    })
   })
 
   it('rejects missing branch IDs before dispatching branch mutations', async () => {
@@ -161,9 +186,13 @@ describe('registerSessionsHandlers', () => {
       branchesSidebarCollapsed: true,
     })
 
-    expect(updateTreeUiStateMock).toHaveBeenCalledWith(SessionId('session-1'), {
-      expandedNodeIds: [SessionNodeId('node-1')],
-      branchesSidebarCollapsed: true,
+    expect(mutateLocalUiSessionMock).toHaveBeenCalledWith({
+      operation: 'update-tree-ui-state',
+      sessionId: SessionId('session-1'),
+      patch: {
+        expandedNodeIds: [SessionNodeId('node-1')],
+        branchesSidebarCollapsed: true,
+      },
     })
   })
 

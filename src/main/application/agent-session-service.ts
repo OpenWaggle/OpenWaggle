@@ -14,6 +14,7 @@ import { ProviderService } from '../ports/provider-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
+import { reserveSessionTreeMutation } from './active-session-runs'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
 
 const logger = createLogger('agent-session-service')
@@ -141,56 +142,61 @@ function getSkillToggles(projectPath: string | null | undefined) {
 
 function copyAgentSessionToNewSession(input: AgentSessionCopyInput) {
   return Effect.gen(function* () {
-    const { session, skillToggles, enabledOpenWaggleExtensionPackagePaths } =
-      yield* loadValidatedAgentSession(input)
+    const writer = yield* Effect.sync(() => reserveSessionTreeMutation(input.sessionId))
+    return yield* Effect.gen(function* () {
+      const { session, skillToggles, enabledOpenWaggleExtensionPackagePaths } =
+        yield* loadValidatedAgentSession(input)
 
-    if (!session.projectPath) {
-      return yield* Effect.fail(new Error('No project path set on the session.'))
-    }
+      if (!session.projectPath) {
+        return yield* Effect.fail(new Error('No project path set on the session.'))
+      }
 
-    const agentKernel = yield* AgentKernelService
-    const result = yield* agentKernel.forkSession({
-      session,
-      model: input.model,
-      targetNodeId: String(input.targetNodeId),
-      position: input.position,
-      ...(skillToggles ? { skillToggles } : {}),
-      ...(enabledOpenWaggleExtensionPackagePaths ? { enabledOpenWaggleExtensionPackagePaths } : {}),
-    })
+      const agentKernel = yield* AgentKernelService
+      const result = yield* agentKernel.forkSession({
+        session,
+        model: input.model,
+        targetNodeId: String(input.targetNodeId),
+        position: input.position,
+        ...(skillToggles ? { skillToggles } : {}),
+        ...(enabledOpenWaggleExtensionPackagePaths
+          ? { enabledOpenWaggleExtensionPackagePaths }
+          : {}),
+      })
 
-    if (result.cancelled) {
-      return { cancelled: true }
-    }
+      if (result.cancelled) {
+        return { cancelled: true }
+      }
 
-    const sessionProjectionRepo = yield* SessionProjectionRepository
-    /*
-     * The fork inherits the source session's isolation.
-     *
-     * Omitting it defaulted the copy to local mode, so a fork of a worktree-mode session ran in the
-     * user's opened checkout - the agent editing exactly the tree worktree mode exists to protect -
-     * and the context row that would have shown it is hidden for a fork, because it only appears
-     * before the first message. The copy gets its own worktree at its own deterministic path on the
-     * first send; nothing is shared with the session it came from.
-     */
-    const createdProjection = yield* sessionProjectionRepo.create({
-      projectPath: session.projectPath,
-      piSessionId: result.piSessionId,
-      piSessionFile: result.piSessionFile,
-      // A fork inherits both: this branch's environment mode, and main's authorization mode.
-      ...(session.environmentMode ? { environmentMode: session.environmentMode } : {}),
-      authorizationMode: session.authorizationMode,
-    })
+      const sessionProjectionRepo = yield* SessionProjectionRepository
+      /*
+       * The fork inherits the source session's isolation.
+       *
+       * Omitting it defaulted the copy to local mode, so a fork of a worktree-mode session ran in the
+       * user's opened checkout - the agent editing exactly the tree worktree mode exists to protect -
+       * and the context row that would have shown it is hidden for a fork, because it only appears
+       * before the first message. The copy gets its own worktree at its own deterministic path on the
+       * first send; nothing is shared with the session it came from.
+       */
+      const createdProjection = yield* sessionProjectionRepo.create({
+        projectPath: session.projectPath,
+        piSessionId: result.piSessionId,
+        piSessionFile: result.piSessionFile,
+        // A fork inherits both: this branch's environment mode, and main's authorization mode.
+        ...(session.environmentMode ? { environmentMode: session.environmentMode } : {}),
+        authorizationMode: session.authorizationMode,
+      })
 
-    yield* persistKernelSnapshot(SessionId(String(createdProjection.id)), result)
+      yield* persistKernelSnapshot(SessionId(String(createdProjection.id)), result)
 
-    const persistedSession = yield* sessionProjectionRepo.get(
-      SessionId(String(createdProjection.id)),
-    )
-    return {
-      session: persistedSession,
-      cancelled: false,
-      ...(result.editorText ? { editorText: result.editorText } : {}),
-    }
+      const persistedSession = yield* sessionProjectionRepo.get(
+        SessionId(String(createdProjection.id)),
+      )
+      return {
+        session: persistedSession,
+        cancelled: false,
+        ...(result.editorText ? { editorText: result.editorText } : {}),
+      }
+    }).pipe(Effect.ensuring(Effect.sync(writer.release)))
   })
 }
 
@@ -229,51 +235,54 @@ export function compactAgentSession(input: AgentSessionCompactInput) {
 
 export function navigateAgentSessionTree(input: AgentSessionNavigateTreeInput) {
   return Effect.gen(function* () {
-    const { session, skillToggles, enabledOpenWaggleExtensionPackagePaths } =
-      yield* loadValidatedAgentSession(input)
-    const agentKernel = yield* AgentKernelService
-    const navigation = yield* agentKernel
-      .navigateTree({
-        session,
-        model: input.model,
-        targetNodeId: String(input.targetNodeId),
-        summarize: input.summarize,
-        customInstructions: input.customInstructions,
-        ...(skillToggles ? { skillToggles } : {}),
-        ...(enabledOpenWaggleExtensionPackagePaths
-          ? { enabledOpenWaggleExtensionPackagePaths }
-          : {}),
-      })
-      .pipe(
-        Effect.map(
-          (result): NavigateTreeOutcome => ({
-            type: 'success',
-            result,
+    const writer = yield* Effect.sync(() => reserveSessionTreeMutation(input.sessionId))
+    return yield* Effect.gen(function* () {
+      const { session, skillToggles, enabledOpenWaggleExtensionPackagePaths } =
+        yield* loadValidatedAgentSession(input)
+      const agentKernel = yield* AgentKernelService
+      const navigation = yield* agentKernel
+        .navigateTree({
+          session,
+          model: input.model,
+          targetNodeId: String(input.targetNodeId),
+          summarize: input.summarize,
+          customInstructions: input.customInstructions,
+          ...(skillToggles ? { skillToggles } : {}),
+          ...(enabledOpenWaggleExtensionPackagePaths
+            ? { enabledOpenWaggleExtensionPackagePaths }
+            : {}),
+        })
+        .pipe(
+          Effect.map(
+            (result): NavigateTreeOutcome => ({
+              type: 'success',
+              result,
+            }),
+          ),
+          Effect.catchAll((error) => {
+            if (isAgentKernelMissingEntryError(error)) {
+              logger.warn('Skipped Pi tree navigation because the target entry is absent', {
+                sessionId: String(input.sessionId),
+                targetNodeId: String(input.targetNodeId),
+              })
+              return Effect.succeed<NavigateTreeOutcome>({ type: 'missing-entry' })
+            }
+
+            return Effect.fail(error)
           }),
-        ),
-        Effect.catchAll((error) => {
-          if (isAgentKernelMissingEntryError(error)) {
-            logger.warn('Skipped Pi tree navigation because the target entry is absent', {
-              sessionId: String(input.sessionId),
-              targetNodeId: String(input.targetNodeId),
-            })
-            return Effect.succeed<NavigateTreeOutcome>({ type: 'missing-entry' })
-          }
+        )
 
-          return Effect.fail(error)
-        }),
-      )
+      if (navigation.type === 'missing-entry') {
+        return { cancelled: true }
+      }
 
-    if (navigation.type === 'missing-entry') {
-      return { cancelled: true }
-    }
+      const { result } = navigation
+      yield* persistKernelSnapshot(input.sessionId, result)
 
-    const { result } = navigation
-    yield* persistKernelSnapshot(input.sessionId, result)
-
-    return {
-      editorText: result.editorText,
-      cancelled: result.cancelled,
-    }
+      return {
+        editorText: result.editorText,
+        cancelled: result.cancelled,
+      }
+    }).pipe(Effect.ensuring(Effect.sync(writer.release)))
   })
 }

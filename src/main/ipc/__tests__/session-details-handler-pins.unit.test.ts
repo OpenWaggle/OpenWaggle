@@ -2,13 +2,11 @@ import { SessionId } from '@shared/types/brand'
 import type { PinnedSession } from '@shared/types/session'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
+  dispatchLocalSessionCommandMock,
   getInvokeHandler,
   listPinnedSessionsMock,
   loadSessionDetailsHandlers,
-  movePinnedSessionMock,
-  pinSessionMock,
   resetSessionDetailsHandlerMocks,
-  unpinSessionMock,
 } from './session-details-handler.test-harness'
 
 /**
@@ -46,13 +44,29 @@ describe('pinned session IPC handlers', () => {
   it('pins a session by id', async () => {
     await getInvokeHandler('sessions:pins:pin')?.({}, SessionId('session-a'))
 
-    expect(pinSessionMock).toHaveBeenCalledWith(SessionId('session-a'))
+    expect(dispatchLocalSessionCommandMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          request: expect.objectContaining({
+            command: { operation: 'pin', sessionId: 'session-a' },
+          }),
+        }),
+      }),
+    )
   })
 
   it('unpins a session by id', async () => {
     await getInvokeHandler('sessions:pins:unpin')?.({}, SessionId('session-a'))
 
-    expect(unpinSessionMock).toHaveBeenCalledWith(SessionId('session-a'))
+    expect(dispatchLocalSessionCommandMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          request: expect.objectContaining({
+            command: { operation: 'unpin', sessionId: 'session-a' },
+          }),
+        }),
+      }),
+    )
   })
 
   it('forwards a move with both neighbour bounds', async () => {
@@ -64,7 +78,13 @@ describe('pinned session IPC handlers', () => {
 
     await getInvokeHandler('sessions:pins:move')?.({}, move)
 
-    expect(movePinnedSessionMock).toHaveBeenCalledWith(move)
+    expect(dispatchLocalSessionCommandMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          request: expect.objectContaining({ command: { operation: 'move-pin', ...move } }),
+        }),
+      }),
+    )
   })
 
   it('forwards a move to either end, where a bound is null', async () => {
@@ -82,7 +102,21 @@ describe('pinned session IPC handlers', () => {
     await getInvokeHandler('sessions:pins:move')?.({}, toTop)
     await getInvokeHandler('sessions:pins:move')?.({}, toEnd)
 
-    expect(movePinnedSessionMock).toHaveBeenNthCalledWith(1, toTop)
-    expect(movePinnedSessionMock).toHaveBeenNthCalledWith(2, toEnd)
+    expect(dispatchLocalSessionCommandMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          request: expect.objectContaining({ command: { operation: 'move-pin', ...toTop } }),
+        }),
+      }),
+    )
+    expect(dispatchLocalSessionCommandMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          request: expect.objectContaining({ command: { operation: 'move-pin', ...toEnd } }),
+        }),
+      }),
+    )
   })
 })

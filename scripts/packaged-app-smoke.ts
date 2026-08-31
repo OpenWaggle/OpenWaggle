@@ -6,6 +6,7 @@ const APP_NAME = 'OpenWaggle.app'
 const RESOURCES_PATH = ['Contents', 'Resources'] as const
 const ASAR_FILE = 'app.asar'
 const DOCS_DIR = 'openwaggle-docs'
+const SESSION_EMBEDDING_MODEL_DIR = 'session-embedding-model'
 const PACKAGE_JSON = 'package.json'
 const NODE_MODULES_DIR = 'node_modules'
 const OUT_DIR = 'out'
@@ -17,6 +18,14 @@ const ALLOWED_OUT_ROOTS = ['/out/main', '/out/preload', '/out/renderer'] as cons
 
 const REQUIRED_ASAR_ROOTS = [NODE_MODULES_DIR, OUT_DIR, PACKAGE_JSON]
 const REQUIRED_DOCS_FILES = ['README.md', 'index.json']
+const REQUIRED_SESSION_EMBEDDING_MODEL_FILES = [
+  'Xenova/multilingual-e5-small/config.json',
+  'Xenova/multilingual-e5-small/tokenizer_config.json',
+  'Xenova/multilingual-e5-small/tokenizer.json',
+  'Xenova/multilingual-e5-small/onnx/model_quantized.onnx',
+  'Xenova/multilingual-e5-small/openwaggle-model-manifest.json',
+  'Xenova/multilingual-e5-small/THIRD_PARTY_NOTICE.md',
+]
 const ALLOWED_ASAR_ROOTS = new Set(REQUIRED_ASAR_ROOTS)
 
 interface AsarNode {
@@ -196,6 +205,10 @@ async function main() {
   assertAsarRoots(asarHeader)
   assertAsarEntries(asarHeader)
   await assertRequiredFiles(path.join(resourcesPath, DOCS_DIR), REQUIRED_DOCS_FILES)
+  await assertRequiredFiles(
+    path.join(resourcesPath, SESSION_EMBEDDING_MODEL_DIR),
+    REQUIRED_SESSION_EMBEDDING_MODEL_FILES,
+  )
 
   console.log(`packaged app smoke passed: ${appPath}`)
 }

@@ -29,6 +29,7 @@ describe('preferences-store integration', () => {
     apiMock.getProviderModels.mockResolvedValue([])
     apiMock.setProviderApiKey.mockResolvedValue(undefined)
     apiMock.setEnabledModels.mockResolvedValue(undefined)
+    apiMock.updateSettings.mockResolvedValue({ ok: true })
     usePreferencesStore.setState({
       settings: DEFAULT_SETTINGS,
       isLoaded: false,
@@ -123,6 +124,62 @@ describe('preferences-store integration', () => {
 
     expect(apiMock.updateSettings).toHaveBeenCalledWith({ selectedModel: 'openai/gpt-4.1-mini' })
     expect(usePreferencesStore.getState().settings.selectedModel).toBe('openai/gpt-4.1-mini')
+  })
+
+  it('preserves concurrent scalar settings when IPC responses resolve out of order', async () => {
+    const delayedMultiAgent = Promise.withResolvers<{ ok: true }>()
+    apiMock.updateSettings.mockImplementation((partial) =>
+      'multiAgentEnabled' in partial ? delayedMultiAgent.promise : Promise.resolve({ ok: true }),
+    )
+
+    const multiAgentUpdate = usePreferencesStore.getState().setMultiAgentEnabled(false)
+    const ceilingUpdate = usePreferencesStore.getState().setSessionHostRunCeiling(32)
+    await ceilingUpdate
+    delayedMultiAgent.resolve({ ok: true })
+    await multiAgentUpdate
+
+    expect(usePreferencesStore.getState().settings).toMatchObject({
+      multiAgentEnabled: false,
+      sessionHostRunCeiling: 32,
+    })
+  })
+
+  it('keeps scalar settings unchanged when main rejects the update', async () => {
+    apiMock.updateSettings.mockResolvedValue({ ok: false, error: 'Session Host policy rejected.' })
+
+    await expect(usePreferencesStore.getState().setMultiAgentEnabled(false)).rejects.toThrow(
+      'Session Host policy rejected.',
+    )
+
+    expect(usePreferencesStore.getState().settings.multiAgentEnabled).toBe(true)
+  })
+
+  it('persists Host idle grace and reversible project Worker overrides', async () => {
+    await usePreferencesStore.getState().setSessionHostIdleGracePeriodMs(0)
+    await usePreferencesStore.getState().setProjectMultiAgentEnabled('/tmp/repo', false)
+    await usePreferencesStore.getState().setProjectParentConcurrencyLimit('/tmp/repo', 9)
+
+    expect(apiMock.updateSettings).toHaveBeenNthCalledWith(1, {
+      sessionHostIdleGracePeriodMs: 0,
+    })
+    expect(apiMock.updateSettings).toHaveBeenNthCalledWith(2, {
+      multiAgentEnabledByProject: { '/tmp/repo': false },
+    })
+    expect(apiMock.updateSettings).toHaveBeenNthCalledWith(3, {
+      sessionHostParentConcurrencyLimitsByProject: { '/tmp/repo': 9 },
+    })
+    expect(usePreferencesStore.getState().settings).toMatchObject({
+      sessionHostIdleGracePeriodMs: 0,
+      multiAgentEnabledByProject: { '/tmp/repo': false },
+      sessionHostParentConcurrencyLimitsByProject: { '/tmp/repo': 9 },
+    })
+
+    await usePreferencesStore.getState().setProjectMultiAgentEnabled('/tmp/repo', null)
+    await usePreferencesStore.getState().setProjectParentConcurrencyLimit('/tmp/repo', null)
+    expect(usePreferencesStore.getState().settings).toMatchObject({
+      multiAgentEnabledByProject: {},
+      sessionHostParentConcurrencyLimitsByProject: {},
+    })
   })
 
   it('keeps shortcut state unchanged when main rejects a duplicate binding', async () => {

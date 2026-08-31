@@ -55,10 +55,17 @@ function prepareSelectedAttachments(projectPath: string, files: readonly File[])
  * Every method maps to a specific IPC channel with strict types.
  */
 export const api: OpenWaggleApi = {
+  getCliShimStatus: invoke('cli-shim:get-status'),
+  installCliShim: invoke('cli-shim:install'),
+  removeCliShim: invoke('cli-shim:remove'),
+  selectAgentDefinitionSource: invoke('agent-definitions:select-source'),
+  manageAgentDefinitions: invoke('agent-definitions:manage'),
+  manageAccessProfiles: invoke('access-profiles:manage'),
+  mutateSessionControl: invoke('session-control:mutate'),
+  querySessionControl: invoke('session-control:query'),
   // Agent
   sendMessage: invoke('agent:send-message'),
   cancelAgent: invoke('agent:cancel'),
-  steerAgent: invoke('agent:steer'),
   respondAgentInteraction: invoke('agent:respond-interaction'),
   onAgentEvent: on('agent:event'),
 
@@ -69,6 +76,8 @@ export const api: OpenWaggleApi = {
   compactSession: invoke('agent:compact-session'),
   onRunCompleted: on('agent:run-completed'),
   onAgentPhase: on('agent:phase'),
+  onSessionHostEvent: on('session-host:event'),
+  onSessionHostResyncRequired: on('session-host:resync-required'),
   onWorktreeLaunch: on('agent:worktree-launch'),
 
   // Settings
@@ -152,7 +161,6 @@ export const api: OpenWaggleApi = {
   unarchiveSession: invoke('sessions:unarchive'),
   listArchivedSessions: invoke('sessions:list-archived'),
   updateSessionTitle: invoke('sessions:update-title'),
-  setSessionWorktreePlan: invoke('sessions:set-worktree-plan'),
   setSessionAuthorizationMode: invoke('sessions:set-authorization-mode'),
   listArchivedSessionBranches: invoke('sessions:list-archived-branches'),
   getSessionTree: invoke('sessions:get-tree'),

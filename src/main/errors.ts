@@ -27,6 +27,92 @@ export class SessionProjectionRepositoryError extends Data.TaggedError(
   readonly cause?: unknown
 }> {}
 
+export class SessionControlRepositoryError extends Data.TaggedError(
+  'SessionControlRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionControlOperationPendingError extends Data.TaggedError(
+  'SessionControlOperationPendingError',
+)<{
+  readonly operation: string
+  readonly sessionId: string
+  readonly idempotencyKey: string
+}> {}
+
+export class SessionLifecycleRepositoryError extends Data.TaggedError(
+  'SessionLifecycleRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionLifecyclePreparationError extends Data.TaggedError(
+  'SessionLifecyclePreparationError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class LocalSessionProfileRepositoryError extends Data.TaggedError(
+  'LocalSessionProfileRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class LocalSessionAuthenticationError extends Data.TaggedError(
+  'LocalSessionAuthenticationError',
+)<{
+  readonly code: 'profile_not_found' | 'profile_revoked' | 'credential_rejected'
+}> {}
+
+export class LocalSessionCommandAuthorizationError extends Data.TaggedError(
+  'LocalSessionCommandAuthorizationError',
+)<{
+  readonly code:
+    | 'capability_denied'
+    | 'target_scope_denied'
+    | 'authorization_ceiling_exceeded'
+    | 'profile_not_found'
+    | 'profile_revoked'
+  readonly missing?: readonly string[]
+}> {}
+
+export class SessionAuthorizationTargetRepositoryError extends Data.TaggedError(
+  'SessionAuthorizationTargetRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionHostRecoveryRepositoryError extends Data.TaggedError(
+  'SessionHostRecoveryRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionQueryRepositoryError extends Data.TaggedError('SessionQueryRepositoryError')<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionExportOperationRepositoryError extends Data.TaggedError(
+  'SessionExportOperationRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionExportArtifactError extends Data.TaggedError('SessionExportArtifactError')<{
+  readonly operation: string
+  readonly message: string
+  readonly cause?: unknown
+}> {}
+
 export class StandardsLoadError extends Data.TaggedError('StandardsLoadError')<{
   readonly message: string
   readonly cause?: unknown

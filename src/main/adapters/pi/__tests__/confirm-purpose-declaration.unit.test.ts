@@ -19,6 +19,7 @@ function read(relativePath: string) {
 
 const toolExecution = read('src/main/adapters/pi/mcp-tool-execution.ts')
 const clientInteractions = read('src/main/adapters/pi/mcp-client-interactions.ts')
+const sessionsTool = read('src/main/adapters/pi/sessions-tool-extension.ts')
 const uiContext = read('src/main/adapters/pi/agent-kernel/interaction-ui-context.ts')
 const presetManagement = read('packages/pi-waggle/src/default-preset-management.ts')
 
@@ -61,6 +62,22 @@ describe('declared confirmation purpose', () => {
     expect(clientInteractions).toContain('requester: input.serverLabel')
     // Identity is the stable instance id, so a rename cannot move the grant.
     expect(clientInteractions).toContain('requesterId: input.serverInstanceId')
+  })
+
+  it('routes Session export writes through the filesystem authorization channel', () => {
+    expect(sessionsTool).toContain('Allow Session export write?')
+    expect(sessionsTool).toContain("capability: 'sessions.export-write'")
+    expect(sessionsTool).toContain("requesterId: 'openwaggle:sessions'")
+  })
+
+  it('routes Session attachment reads through the filesystem authorization channel', () => {
+    expect(sessionsTool).toContain('Allow Session attachment read?')
+    expect(sessionsTool).toContain("capability: 'sessions.attachment-read'")
+  })
+
+  it('routes Session export resource reads through the filesystem authorization channel', () => {
+    expect(sessionsTool).toContain('Allow Session export resource read?')
+    expect(sessionsTool).toContain("capability: 'sessions.resource-read'")
   })
 
   it('declares opening an external URL as external navigation', () => {
@@ -118,11 +135,11 @@ describe('declared confirmation purpose', () => {
     expect(presetManagement).not.toContain('getOpenWaggleAuthorize')
   })
 
-  it('has exactly two authorization call sites in the whole application', () => {
-    const authorizationSites = [toolExecution, clientInteractions].reduce(
+  it('has exactly five authorization call sites in the whole application', () => {
+    const authorizationSites = [toolExecution, clientInteractions, sessionsTool].reduce(
       (total, source) => total + source.split('getOpenWaggleAuthorize(').length - 1,
       0,
     )
-    expect(authorizationSites).toBe(2)
+    expect(authorizationSites).toBe(5)
   })
 })

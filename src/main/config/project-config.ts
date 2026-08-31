@@ -1,23 +1,24 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import {
-  decodeUnknownOrThrow,
-  parseJsonUnknown,
-  type SchemaType,
-  safeDecodeUnknown,
-} from '@shared/schema'
+import { decodeUnknownOrThrow, parseJsonUnknown, safeDecodeUnknown } from '@shared/schema'
 import { projectSettingsFileSchema } from '@shared/schemas/validation'
-import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import {
   type AgentAuthorizationScopeKey,
   authorizationScopeKeysMatch,
   type ScopedAuthorizationGrant,
 } from '@shared/types/agent-authorization-grants'
-import type { JsonObject } from '@shared/types/json'
-import type { ThinkingLevel } from '@shared/types/settings'
 import { isEnoent } from '@shared/utils/node-error'
 import { createLogger } from '../logger'
+import {
+  type ParsedProjectSettingsFile,
+  type ProjectConfig,
+  type ProjectPreferences,
+  type ProjectPreferencesUpdate,
+  parseProjectConfig,
+} from './project-config-parsing'
+
+export type { ProjectConfig, ProjectPreferences, ProjectPreferencesUpdate }
 
 const JSON_INDENT_SPACES = 2
 const OPENWAGGLE_CONFIG_DIR = '.openwaggle'
@@ -25,28 +26,6 @@ const PROJECT_SETTINGS_FILE_NAME = 'settings.json'
 const EMPTY_SETTINGS_JSON = '{}\n'
 
 const logger = createLogger('project-config')
-
-export interface ProjectPreferences {
-  readonly model?: string
-  readonly thinkingLevel?: ThinkingLevel
-  readonly authorizationMode?: AgentAuthorizationMode
-}
-
-/** A preference write, where `null` deletes the key and `undefined` leaves it alone. */
-export interface ProjectPreferencesUpdate {
-  readonly model?: string | null
-  readonly thinkingLevel?: ThinkingLevel | null
-  readonly authorizationMode?: AgentAuthorizationMode | null
-}
-
-export interface ProjectConfig {
-  readonly preferences?: ProjectPreferences
-  readonly authorizationGrants?: readonly ScopedAuthorizationGrant[]
-  readonly pi?: JsonObject
-}
-
-const EMPTY_CONFIG: ProjectConfig = {}
-type ParsedProjectSettingsFile = SchemaType<typeof projectSettingsFileSchema>
 
 function getConfigDirectoryPath(projectPath: string) {
   return join(projectPath, OPENWAGGLE_CONFIG_DIR)
@@ -301,36 +280,4 @@ export async function revokeProjectAuthorization(
     }
     return { ...next, authorizationGrants: remaining }
   })
-}
-
-function parseProjectConfig(settings: ParsedProjectSettingsFile | null) {
-  const preferences = parseProjectPreferences(settings)
-  const grants = settings?.authorizationGrants ?? []
-
-  if (!preferences && grants.length === 0 && !settings?.pi) {
-    return EMPTY_CONFIG
-  }
-
-  return {
-    ...(preferences ? { preferences } : {}),
-    ...(grants.length > 0 ? { authorizationGrants: grants } : {}),
-    ...(settings?.pi ? { pi: settings.pi } : {}),
-  }
-}
-
-function parseProjectPreferences(
-  settings: ParsedProjectSettingsFile | null,
-): ProjectPreferences | undefined {
-  const model = settings?.preferences?.model
-  const thinkingLevel = settings?.preferences?.thinkingLevel
-  const authorizationMode = settings?.preferences?.authorizationMode
-  if (!model && !thinkingLevel && !authorizationMode) {
-    return undefined
-  }
-
-  return {
-    ...(model ? { model } : {}),
-    ...(thinkingLevel ? { thinkingLevel } : {}),
-    ...(authorizationMode ? { authorizationMode } : {}),
-  }
 }

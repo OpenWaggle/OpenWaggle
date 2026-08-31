@@ -6,6 +6,7 @@ import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
 import { AgentAccessSection } from './AgentAccessSection'
+import { AgentDefinitionsCard } from './AgentDefinitionsCard'
 
 const logger = createRendererLogger('settings')
 
@@ -101,6 +102,7 @@ export function GeneralSection() {
   return (
     <div className="space-y-6">
       <AgentAccessSection />
+      <AgentDefinitionsCard />
 
       {/* About & Updates — title outside the card */}
       <div className="space-y-3">

@@ -1,6 +1,6 @@
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
-import type { SessionDetail, SessionSummary } from '@shared/types/session'
+import type { SessionDetail, SessionSummary, SessionWorktreePlan } from '@shared/types/session'
 import { type DraftSessionState, useChatStore } from '@/features/chat/state/chat-store'
 
 export interface ChatReturn {
@@ -8,7 +8,7 @@ export interface ChatReturn {
   activeSession: SessionDetail | null
   activeSessionId: SessionId | null
   draftSession: DraftSessionState | null
-  createSession: (projectPath: string) => Promise<SessionId>
+  createSession: (projectPath: string, worktreePlan?: SessionWorktreePlan) => Promise<SessionId>
   startDraftSession: (projectPath?: string | null) => void
   setActiveSession: (id: SessionId | null) => void
   refreshSession: (id: SessionId) => Promise<void>

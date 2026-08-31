@@ -32,11 +32,16 @@ const headerMocks = vi.hoisted(() => {
     commit: vi.fn().mockResolvedValue({ ok: true, commitHash: 'abc123', summary: 'abc123' }),
     toggleDiff: vi.fn(),
     toggleSessionTree: vi.fn(),
+    useArchivedSession: false,
+    useIndependentSession: false,
   }
 })
 
 vi.mock('@/features/chat/hooks', () => ({
-  useChat: () => ({ activeSession: { title: 'Fallback title' } }),
+  useChat: () => ({
+    activeSession: { title: 'Fallback title' },
+    activeSessionId: SessionId('session-1'),
+  }),
 }))
 
 vi.mock('@/features/diff-panel/hooks', () => ({
@@ -87,33 +92,57 @@ vi.mock('@/features/git/hooks', () => ({
 
 vi.mock('@/features/sessions/hooks', () => ({
   useProject: () => ({ projectPath: headerMocks.projectPath }),
-  useSessions: () => ({
-    activeSessionTree: {
-      session: {
-        id: SessionId('session-1'),
-        title: 'Session title',
-        projectPath: headerMocks.projectPath,
-        createdAt: 1,
-        updatedAt: 2,
-        lastActiveBranchId: SessionBranchId('branch-1'),
-      },
-      branches: [
-        {
-          id: SessionBranchId('branch-1'),
-          sessionId: SessionId('session-1'),
-          sourceNodeId: null,
-          headNodeId: null,
-          name: 'main',
-          isMain: true,
+  useSessions: () => {
+    const session = {
+      id: SessionId('session-1'),
+      title: 'Session title',
+      projectPath: headerMocks.projectPath,
+      createdAt: 1,
+      updatedAt: 2,
+      lineage: headerMocks.useIndependentSession
+        ? {
+            role: 'independent' as const,
+            directWorkerCount: 0,
+            activeDirectWorkerCount: 0,
+            agentDefinitionName: 'security-reviewer',
+          }
+        : {
+            role: 'queen' as const,
+            directWorkerCount: 2,
+            activeDirectWorkerCount: 1,
+            agentDefinitionName: 'release-lead',
+          },
+    }
+    return {
+      sessions: headerMocks.useArchivedSession ? [] : [session],
+      archivedSessions: headerMocks.useArchivedSession ? [session] : [],
+      activeSessionTree: {
+        session: {
+          id: SessionId('session-1'),
+          title: 'Session title',
+          projectPath: headerMocks.projectPath,
           createdAt: 1,
           updatedAt: 2,
+          lastActiveBranchId: SessionBranchId('branch-1'),
         },
-      ],
-      nodes: [],
-      branchStates: [],
-      uiState: null,
-    },
-  }),
+        branches: [
+          {
+            id: SessionBranchId('branch-1'),
+            sessionId: SessionId('session-1'),
+            sourceNodeId: null,
+            headNodeId: null,
+            name: 'feature/test-branch',
+            isMain: true,
+            createdAt: 1,
+            updatedAt: 2,
+          },
+        ],
+        nodes: [],
+        branchStates: [],
+        uiState: null,
+      },
+    }
+  },
 }))
 
 describe('Header', () => {
@@ -131,12 +160,16 @@ describe('Header', () => {
     headerMocks.commit.mockClear()
     headerMocks.toggleDiff.mockClear()
     headerMocks.toggleSessionTree.mockClear()
+    headerMocks.useArchivedSession = false
+    headerMocks.useIndependentSession = false
   })
 
   it('renders session/project context and wires app-level controls', async () => {
     render(<Header />)
 
     expect(screen.getByText('Session title')).toBeInTheDocument()
+    expect(screen.getByText('Queen')).toBeInTheDocument()
+    expect(screen.getByText('release-lead')).toBeInTheDocument()
     expect(screen.getByText('/ feat/actual-checkout')).toBeInTheDocument()
     expect(screen.getByText('openwaggle')).toBeInTheDocument()
 
@@ -168,5 +201,17 @@ describe('Header', () => {
     )
     expect(useUIStore.getState().diffRefreshKey).toBe(2)
     expect(useUIStore.getState().toastData?.message).toBe('Commit created: abc123')
+  })
+
+  it('keeps identity visible for archived Sessions and independent Agent definitions', () => {
+    headerMocks.useArchivedSession = true
+    const archived = render(<Header />)
+    expect(screen.getByText('Queen')).toBeInTheDocument()
+
+    headerMocks.useIndependentSession = true
+    archived.rerender(<Header />)
+    expect(screen.getByText('security-reviewer')).toBeInTheDocument()
+    expect(screen.queryByText('Queen')).not.toBeInTheDocument()
+    expect(screen.queryByText('Worker')).not.toBeInTheDocument()
   })
 })

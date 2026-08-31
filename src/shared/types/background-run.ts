@@ -55,5 +55,9 @@ export interface ActiveRunInfo {
 export interface BackgroundRunSnapshot extends ActiveRunInfo {
   readonly messageId?: string
   readonly parts: readonly MessagePart[]
+  readonly degraded?: {
+    readonly reason: 'content-limit'
+    readonly omittedBytes: number
+  }
   readonly worktreeLaunch?: WorktreeLaunchSnapshot
 }

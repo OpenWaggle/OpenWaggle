@@ -1,4 +1,5 @@
 import { getParseIssues } from '@shared/schema'
+import { HOST_BACKED_GUI_CHANNELS, type HostBackedGuiChannel } from '@shared/types/host-ui-protocol'
 import type {
   IpcInvokeArgs,
   IpcInvokeChannel,
@@ -11,6 +12,7 @@ import type { Effect as EffectType } from 'effect/Effect'
 import * as Exit from 'effect/Exit'
 import * as Option from 'effect/Option'
 import { type IpcMainEvent, type IpcMainInvokeEvent, ipcMain } from 'electron'
+import { invokeConfiguredHostUiRaw } from '../application/local-session-command-dispatcher'
 import { DatabaseBootstrapError, DatabaseQueryError, type ValidationIssuesError } from '../errors'
 import { createLogger } from '../logger'
 import type { AppServices } from '../runtime'
@@ -30,7 +32,7 @@ type MaybeVoid<T> = T extends undefined ? ImplicitVoid : T
 type IpcHandler<C extends IpcInvokeChannel> = (
   event: IpcMainInvokeEvent,
   ...args: IpcInvokeArgs<C>
-) => MaybeVoid<IpcInvokeReturn<C>> | Promise<MaybeVoid<IpcInvokeReturn<C>>>
+) => unknown | Promise<unknown>
 
 type EffectIpcHandler<C extends IpcInvokeChannel> = (
   event: IpcMainInvokeEvent,
@@ -150,6 +152,35 @@ export function typedHandle<C extends IpcInvokeChannel>(
       throw toIpcError(channel, defect.value)
     }
 
+    throw new Error('An unexpected Effect failure occurred.')
+  })
+}
+
+export function hostHandle<C extends HostBackedGuiChannel>(
+  channel: C,
+  handler: EffectIpcHandler<C>,
+  options: {
+    readonly prepareRemoteArgs?: (
+      event: IpcMainInvokeEvent,
+      ...args: IpcInvokeArgs<C>
+    ) => readonly unknown[] | Promise<readonly unknown[]>
+  } = {},
+): void {
+  if (!HOST_BACKED_GUI_CHANNELS.some((candidate) => candidate === channel)) {
+    throw new Error(`Host-backed IPC channel is not declared: ${channel}`)
+  }
+  rawHandle(channel, async (event, ...args) => {
+    const remoteArgs = options.prepareRemoteArgs
+      ? await options.prepareRemoteArgs(event, ...args)
+      : args
+    const remote = await invokeConfiguredHostUiRaw(channel, remoteArgs)
+    if (remote.handled) return remote.result
+    const exit = await runAppEffectExit(handler(event, ...args))
+    if (Exit.isSuccess(exit)) return exit.value
+    const failure = Cause.failureOption(exit.cause)
+    if (Option.isSome(failure)) throw toIpcError(channel, failure.value)
+    const defect = Cause.dieOption(exit.cause)
+    if (Option.isSome(defect)) throw toIpcError(channel, defect.value)
     throw new Error('An unexpected Effect failure occurred.')
   })
 }

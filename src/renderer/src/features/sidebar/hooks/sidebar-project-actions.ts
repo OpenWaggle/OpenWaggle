@@ -41,6 +41,35 @@ function projectSessionsForPath(
   return [...byId.values()]
 }
 
+function sessionsInDeletionOrder(sessions: readonly SessionSummary[]) {
+  const dependentsBySession = new Map<string, SessionSummary[]>()
+  const sessionIds = new Set(sessions.map((session) => String(session.id)))
+  for (const session of sessions) {
+    const dependencyIds = new Set([
+      ...(session.lineage?.parentSessionId ? [String(session.lineage.parentSessionId)] : []),
+      ...(session.derivation ? [String(session.derivation.sourceSessionId)] : []),
+    ])
+    for (const dependencyId of dependencyIds) {
+      if (!sessionIds.has(dependencyId)) continue
+      const dependents = dependentsBySession.get(dependencyId) ?? []
+      dependents.push(session)
+      dependentsBySession.set(dependencyId, dependents)
+    }
+  }
+
+  const ordered: SessionSummary[] = []
+  const visited = new Set<string>()
+  const visit = (session: SessionSummary) => {
+    const sessionId = String(session.id)
+    if (visited.has(sessionId)) return
+    visited.add(sessionId)
+    for (const dependent of dependentsBySession.get(sessionId) ?? []) visit(dependent)
+    ordered.push(session)
+  }
+  for (const session of sessions) visit(session)
+  return ordered
+}
+
 function resetToDraftForProject(deps: SidebarProjectActionDeps, projectPath: string | null) {
   deps.clearTransientDraftContext()
   deps.startDraftSession(projectPath)
@@ -95,7 +124,9 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
       projectSessionIds.has(String(run.sessionId)) ? [api.cancelAgent(run.sessionId)] : [],
     ),
   )
-  await Promise.all(projectSessions.map((session) => api.deleteSession(session.id)))
+  for (const session of sessionsInDeletionOrder(projectSessions)) {
+    await api.deleteSession(session.id)
+  }
   clearComposerDraftsForSessions(projectSessions)
   await deps.removeProjectReferences(path)
   await Promise.all([deps.loadChatSessions(), deps.loadSessionTrees()])

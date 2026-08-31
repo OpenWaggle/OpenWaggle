@@ -82,6 +82,7 @@ export function createSections(
       onCloseForkSelector: vi.fn(),
       onSelectForkTarget: vi.fn(),
       onCloneToNewSession: vi.fn(),
+      onNavigateSession: vi.fn(),
       onOpenProject: transcript.onOpenProject,
       onSelectProjectPath: transcript.onSelectProjectPath,
       onSetAuthorizationMode: vi.fn().mockResolvedValue(undefined),

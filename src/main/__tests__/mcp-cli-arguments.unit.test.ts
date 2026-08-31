@@ -24,6 +24,30 @@ describe('MCP CLI arguments', () => {
     expect(() => validateMcpCliOptions('serve', arguments_)).not.toThrow()
   })
 
+  it('enforces management positional and passthrough contracts before adapters run', () => {
+    expect(() =>
+      validateMcpCliOptions('remove', parseMcpCliArguments(['server', 'accidental-extra'])),
+    ).toThrow('received unexpected positional arguments')
+    expect(() =>
+      validateMcpCliOptions('list', parseMcpCliArguments(['--', 'accidental-command'])),
+    ).toThrow('does not accept arguments after --')
+    expect(() =>
+      validateMcpCliOptions(
+        'add',
+        parseMcpCliArguments(['server', '--', 'server-command', '--safe-argument']),
+      ),
+    ).not.toThrow()
+    expect(() => validateMcpCliOptions('unknown', parseMcpCliArguments([]))).toThrow(
+      'Unsupported MCP command',
+    )
+  })
+
+  it('rejects values assigned to MCP boolean flags', () => {
+    expect(() => validateMcpCliOptions('import', parseMcpCliArguments(['--apply=false']))).toThrow(
+      '--apply do not accept values',
+    )
+  })
+
   it('requires an explicit workspace or session scope for hosted server mode', () => {
     expect(() => requireServeScope(parseMcpCliArguments(['--stdio']))).toThrow(
       'requires at least one explicit --workspace <path> or --session <id>',

@@ -1,5 +1,6 @@
 import { SessionId } from '@shared/types/brand'
 import type { IpcEventChannelMap } from '@shared/types/ipc-events'
+import type { SessionHostEventEnvelope } from '@shared/types/session-host-event'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { type ShortcutBinding, shortcutBindingKey } from '@shared/types/shortcuts'
 import { act, renderHook, waitFor } from '@testing-library/react'
@@ -10,6 +11,8 @@ import { useWorkspaceLifecycle } from '../useWorkspaceLifecycle'
 
 type TitleUpdatedPayload = IpcEventChannelMap['sessions:title-updated']['payload']
 type TitleUpdatedHandler = (payload: TitleUpdatedPayload) => void
+type SessionHostEventHandler = (event: SessionHostEventEnvelope) => void
+type SessionHostResyncHandler = (payload: { readonly reason: 'slow-consumer' }) => void
 interface HotkeyBinding {
   readonly hotkey: ShortcutBinding
   readonly callback: () => void
@@ -17,6 +20,8 @@ interface HotkeyBinding {
 
 const lifecycleMocks = vi.hoisted(() => {
   let titleUpdatedHandler: TitleUpdatedHandler | null = null
+  let sessionHostEventHandler: SessionHostEventHandler | null = null
+  let sessionHostResyncHandler: SessionHostResyncHandler | null = null
   const titleUnsubscribe = vi.fn()
   const hotkeys: HotkeyBinding[] = []
   const singleHotkeys: { readonly hotkey: unknown; readonly callback: () => void }[] = []
@@ -41,12 +46,27 @@ const lifecycleMocks = vi.hoisted(() => {
     hotkeys,
     singleHotkeys,
     getTitleUpdatedHandler: () => titleUpdatedHandler,
+    getSessionHostEventHandler: () => sessionHostEventHandler,
+    getSessionHostResyncHandler: () => sessionHostResyncHandler,
     onSessionTitleUpdated: vi.fn((handler: TitleUpdatedHandler) => {
       titleUpdatedHandler = handler
       return titleUnsubscribe
     }),
+    onSessionHostEvent: vi.fn((handler: SessionHostEventHandler) => {
+      sessionHostEventHandler = handler
+      return vi.fn()
+    }),
+    onSessionHostResyncRequired: vi.fn((handler: SessionHostResyncHandler) => {
+      sessionHostResyncHandler = handler
+      return vi.fn()
+    }),
+    invalidateQueries: vi.fn().mockResolvedValue(undefined),
   }
 })
+
+vi.mock('@tanstack/react-query', () => ({
+  useQueryClient: () => ({ invalidateQueries: lifecycleMocks.invalidateQueries }),
+}))
 
 vi.mock('@tanstack/react-hotkeys', () => ({
   useHotkeys: (bindings: readonly HotkeyBinding[]) => {
@@ -72,6 +92,9 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 vi.mock('@/features/chat/hooks', () => ({
+  sessionFollowUpQueueOptions: (sessionId: string | null) => ({
+    queryKey: ['sessions', 'follow-up-queue', sessionId],
+  }),
   useChat: () => ({
     activeSessionId: lifecycleMocks.activeSessionId,
     startDraftSession: lifecycleMocks.startDraftSession,
@@ -113,6 +136,8 @@ vi.mock('@/features/sessions/hooks', () => ({
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     onSessionTitleUpdated: lifecycleMocks.onSessionTitleUpdated,
+    onSessionHostEvent: lifecycleMocks.onSessionHostEvent,
+    onSessionHostResyncRequired: lifecycleMocks.onSessionHostResyncRequired,
   },
 }))
 
@@ -135,6 +160,7 @@ describe('useWorkspaceLifecycle', () => {
     lifecycleMocks.loadChatSessions.mockClear()
     lifecycleMocks.startDraftSession.mockClear()
     lifecycleMocks.loadSessionTrees.mockClear()
+    lifecycleMocks.refreshSession.mockClear()
     lifecycleMocks.refreshGitStatus.mockClear()
     lifecycleMocks.refreshGitBranches.mockClear()
     lifecycleMocks.refreshSessionTree.mockClear()
@@ -145,6 +171,9 @@ describe('useWorkspaceLifecycle', () => {
     lifecycleMocks.useGitRefresh.mockClear()
     lifecycleMocks.useSessionStatusMonitor.mockClear()
     lifecycleMocks.onSessionTitleUpdated.mockClear()
+    lifecycleMocks.onSessionHostEvent.mockClear()
+    lifecycleMocks.onSessionHostResyncRequired.mockClear()
+    lifecycleMocks.invalidateQueries.mockClear()
     lifecycleMocks.titleUnsubscribe.mockClear()
     lifecycleMocks.hotkeys.length = 0
   })
@@ -196,5 +225,84 @@ describe('useWorkspaceLifecycle', () => {
 
     unmount()
     expect(lifecycleMocks.titleUnsubscribe).toHaveBeenCalledOnce()
+  })
+
+  it('coalesces Host event bursts and ignores out-of-order cursors', async () => {
+    renderHook(() => useWorkspaceLifecycle())
+    await waitFor(() => expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce())
+    lifecycleMocks.loadChatSessions.mockClear()
+    lifecycleMocks.loadSessionTrees.mockClear()
+    lifecycleMocks.refreshSession.mockClear()
+    lifecycleMocks.refreshSessionTree.mockClear()
+    lifecycleMocks.invalidateQueries.mockClear()
+
+    const handler = lifecycleMocks.getSessionHostEventHandler()
+    if (!handler) throw new Error('Expected Session Host event subscription')
+    handler({
+      cursor: { hostInstanceId: 'host-1', sequence: 2 },
+      timestamp: 2,
+      payload: {
+        kind: 'session-state-changed',
+        sessionId: 'session-1',
+        stateRevision: 2,
+        operation: 'queue-updated',
+      },
+    })
+    handler({
+      cursor: { hostInstanceId: 'host-1', sequence: 1 },
+      timestamp: 1,
+      payload: {
+        kind: 'session-list-changed',
+        sessionId: 'session-1',
+        change: 'updated',
+      },
+    })
+    handler({
+      cursor: { hostInstanceId: 'host-1', sequence: 3 },
+      timestamp: 3,
+      payload: {
+        kind: 'session-list-changed',
+        sessionId: 'session-1',
+        change: 'updated',
+      },
+    })
+
+    await waitFor(() => expect(lifecycleMocks.loadSessionTrees).toHaveBeenCalledOnce())
+    expect(lifecycleMocks.loadChatSessions).not.toHaveBeenCalled()
+    expect(lifecycleMocks.refreshSession).toHaveBeenCalledOnce()
+    expect(lifecycleMocks.refreshSession).toHaveBeenCalledWith('session-1')
+    expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledOnce()
+    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledOnce()
+  })
+
+  it('refreshes transcripts only for the active Session and performs a guarded resync', async () => {
+    renderHook(() => useWorkspaceLifecycle())
+    await waitFor(() => expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce())
+    lifecycleMocks.loadChatSessions.mockClear()
+    lifecycleMocks.loadSessionTrees.mockClear()
+    lifecycleMocks.refreshSession.mockClear()
+    lifecycleMocks.refreshSessionTree.mockClear()
+
+    const eventHandler = lifecycleMocks.getSessionHostEventHandler()
+    const resyncHandler = lifecycleMocks.getSessionHostResyncHandler()
+    if (!eventHandler || !resyncHandler) throw new Error('Expected Session Host subscriptions')
+    eventHandler({
+      cursor: { hostInstanceId: 'host-2', sequence: 1 },
+      timestamp: 1,
+      payload: {
+        kind: 'session-list-changed',
+        sessionId: 'session-2',
+        change: 'updated',
+      },
+    })
+    await waitFor(() => expect(lifecycleMocks.loadSessionTrees).toHaveBeenCalledOnce())
+    expect(lifecycleMocks.refreshSession).not.toHaveBeenCalled()
+    expect(lifecycleMocks.loadChatSessions).not.toHaveBeenCalled()
+
+    resyncHandler({ reason: 'slow-consumer' })
+    await waitFor(() => expect(lifecycleMocks.loadSessionTrees).toHaveBeenCalledTimes(2))
+    expect(lifecycleMocks.refreshSession).toHaveBeenCalledWith('session-1')
+    expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledWith(SessionId('session-1'))
+    expect(lifecycleMocks.loadChatSessions).not.toHaveBeenCalled()
   })
 })

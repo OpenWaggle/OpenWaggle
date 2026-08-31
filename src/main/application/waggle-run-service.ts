@@ -319,3 +319,5 @@ export function executeWaggleRun(input: WaggleRunInput) {
     Effect.ensuring(clearDurableWaggleActiveRun(() => activeRunIdentity)),
   )
 }
+
+export type WaggleRunResult = Effect.Effect.Success<ReturnType<typeof executeWaggleRun>>

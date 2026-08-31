@@ -1,6 +1,6 @@
 ---
 title: "App Settings"
-description: "Current OpenWaggle settings: connections, MCP, waggle mode, archived sessions and branches, and storage."
+description: "Configure providers, Agent access, Hives, MCP, worktrees, archived items, and storage."
 order: 1
 section: "Configuration"
 ---
@@ -18,6 +18,7 @@ filter that hides sessions should not outlive the reason you applied it.
 | Section | Description |
 |---------|-------------|
 | **General** | General application settings. |
+| **Agent Access** | Agent authorization, model-created Workers, concurrent Run limits, restricted CLI profiles, and CLI installation. |
 | **Appearance** | Diff view (unified or split), wrap long lines, and the diff syntax theme, with a live preview. |
 | **Waggle Mode** | Multi-agent Waggle configuration and presets. |
 | **Extensions** | Manage OpenWaggle and Pi extensions. |
@@ -27,6 +28,25 @@ filter that hides sessions should not outlive the reason you applied it.
 | **Connections** | Pi-backed API-key and OAuth provider authentication, plus enabled model selection. |
 
 Every section listed above is active; Settings has no placeholder or disabled areas.
+
+## Agent Access
+
+Settings > Agent Access controls the authorization defaults applied to new Runs and the external
+surfaces that can operate on Sessions. **Agent-created Workers** enables the native launch and spawn
+operations for OpenWaggle-hosted agents. **Workers per parent** defaults to `4` active direct Worker
+Runs and is user-configurable. **Active agent runs** defaults to `16` across every independent
+Session and Hive; saved Sessions, queue entries, searches, waits, and exports do not consume slots.
+**Host idle grace** controls how long the detached local Session Host remains available after its
+last client and active operation. When a project is open, the same card also offers per-project
+Worker enablement and parent-limit overrides with an explicit **Use global** reset.
+
+Restricted CLI profiles provide named, revocable capability and target subsets for external agents.
+They are optional: the local desktop user uses the machine's local-user identity. The OpenWaggle CLI
+card installs or updates the managed `~/.local/bin/openwaggle` shim on macOS and Linux, reports PATH
+problems, and never replaces an unrelated file. Windows installation is managed by the installer.
+
+Agent definitions are authored under General because they are optional reusable Run roles, not
+authorization identities or Hive roles. See [Agent Definitions](/docs/extending/agent-definitions).
 
 Archived branches are hidden from normal sidebar navigation but remain visible in the full Session Tree with archived state. Branch deletion is not exposed until Pi supports native branch deletion.
 
@@ -38,7 +58,9 @@ Settings > Appearance controls how diffs are rendered:
 - **Wrap long lines** — Soft-wrap long lines in the diff. Also shared with the panel's toggle.
 - **Syntax theme** — Five options with a live preview: **Default**, **Soft**, **Vibrant**, **Protanopia / deuteranopia safe**, and **Tritanopia safe**. The last two avoid red/green and blue/yellow pairings respectively, for colour-vision deficiency.
 
-These are app-global preferences stored in `openwaggle.db`, not per-project settings.
+These are app-global preferences stored in the Session Host database
+(`session-host/session-host.sqlite` under OpenWaggle's application-data directory), not per-project
+settings.
 
 ## Worktrees
 
@@ -47,7 +69,7 @@ Settings > Worktrees has two parts:
 - **Session environment mode** — the default for new sessions: **Current checkout** (sessions edit the opened checkout directly) or **New worktree** (each session runs in a dedicated worktree isolated from the checkout). The shipped default is Current checkout. Each session can override it before its first message; see [Git Integration](/docs/developer-workflow/git-integration).
 - **Worktrees** — every Git worktree of the opened repository, including the main checkout (marked `(main)`), whether or not OpenWaggle created it. Each linked worktree offers **Remove**; the main checkout cannot be removed. **Refresh** re-reads the list. Removing a worktree with uncommitted changes fails and reports that you must commit, push, or force-remove to discard them.
 
-Like Appearance, the default mode is an app-global preference in `openwaggle.db`.
+Like Appearance, the default mode is an app-global preference in the Session Host database.
 
 ## Connections
 
@@ -69,7 +91,12 @@ The Capabilities area connects lazily. Prompts create editable drafts; resources
 
 ## Data Storage
 
-OpenWaggle stores app-owned settings, sessions, and session projections in `openwaggle.db` under Electron's user-data directory. Waggle presets are stored by Pi, not in the user-data directory: user-scope presets live in `~/.pi/agent/waggle-presets.json`, and project-scope presets in `<project>/.pi/waggle-presets.json`.
+OpenWaggle stores app-owned settings and legacy state under Electron's user-data directory. The
+Session Host owns canonical Session state in `session-host/session-host.sqlite` beneath that
+directory. After the one-time cutover, a pre-cutover copy remains available only through the
+explicit [Session Recovery](/docs/configuration/session-recovery) commands. Waggle presets are
+stored by Pi: user-scope presets live in `~/.pi/agent/waggle-presets.json`, and project-scope presets
+in `<project>/.pi/waggle-presets.json`.
 
 Session worktrees are created outside your project, at `~/.openwaggle/worktrees/<repository>/<sessionId>`, each on a branch named `ow/session-<sessionId>` — the same id as the directory. Settings > Worktrees lists and removes them.
 

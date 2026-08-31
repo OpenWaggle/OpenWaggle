@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import { Effect, Ref } from 'effect'
 import type { McpRuntimeServiceShape } from '../../../ports/mcp-runtime-service'
 import type { McpTurnStateServiceShape } from '../../../ports/mcp-turn-state-service'
 import { makeMcpTurnState } from '../mcp-turn-state-service'
@@ -32,29 +32,55 @@ export function makeMcpRuntimeService(input: {
   return Effect.gen(function* () {
     const turnState = input.turnState ?? (yield* makeMcpTurnState())
     const state = yield* makeMcpRuntimeState(input)
+    const pendingInvalidations = yield* Ref.make(new Set<string>())
+    const lifecycleGate = yield* Effect.makeSemaphore(1)
+
+    const clearPendingInvalidation = (sessionId: string) =>
+      Ref.update(pendingInvalidations, (current) => {
+        if (!current.has(sessionId)) return current
+        const next = new Set(current)
+        next.delete(sessionId)
+        return next
+      })
+
+    const takePendingInvalidation = (sessionId: string) =>
+      Ref.modify(pendingInvalidations, (current) => {
+        if (!current.has(sessionId)) return [false, current] as const
+        const next = new Set(current)
+        next.delete(sessionId)
+        return [true, next] as const
+      })
 
     return {
       prepareTurn: ({ sessionId, snapshot }) =>
-        Effect.gen(function* () {
-          yield* turnState.begin(sessionId, snapshot?.revision ?? null)
-          if (!snapshot) return yield* state.disposeSession(sessionId)
-          yield* state.discardSupersededSessionConnections(snapshot)
-        }).pipe(
-          // If turn preparation fails/dies/interrupts, settle the turn and dispose
-          // the session so no stale "pending" turn or connection is left behind.
-          Effect.onError(() =>
-            turnState.complete(sessionId).pipe(
-              Effect.zipRight(state.disposeSession(sessionId)),
-              Effect.catchAllCause(() => Effect.void),
+        lifecycleGate.withPermits(1)(
+          Effect.gen(function* () {
+            yield* turnState.begin(sessionId, snapshot?.revision ?? null)
+            if (!snapshot) return yield* state.disposeSession(sessionId)
+            yield* state.discardSupersededSessionConnections(snapshot)
+          }).pipe(
+            // If turn preparation fails/dies/interrupts, settle the turn and dispose
+            // the session so no stale "pending" turn or connection is left behind.
+            Effect.onError(() =>
+              turnState.complete(sessionId).pipe(
+                Effect.zipRight(clearPendingInvalidation(sessionId)),
+                Effect.zipRight(state.disposeSession(sessionId)),
+                Effect.catchAllCause(() => Effect.void),
+              ),
             ),
           ),
         ),
       completeTurn: ({ sessionId, nextSnapshot }) =>
-        Effect.gen(function* () {
-          yield* turnState.complete(sessionId)
-          if (!nextSnapshot) return yield* state.disposeSession(sessionId)
-          yield* state.discardSupersededSessionConnections(nextSnapshot)
-        }),
+        lifecycleGate.withPermits(1)(
+          Effect.gen(function* () {
+            yield* turnState.complete(sessionId)
+            if (yield* takePendingInvalidation(sessionId)) {
+              yield* state.invalidateSessionConnections(sessionId)
+            }
+            if (!nextSnapshot) return yield* state.disposeSession(sessionId)
+            yield* state.discardSupersededSessionConnections(nextSnapshot)
+          }),
+        ),
       executeGateway: (input2) =>
         executeMcpGateway(
           state,
@@ -75,12 +101,31 @@ export function makeMcpRuntimeService(input: {
       getEvents: (sessionId) => state.getEvents(sessionId),
       getEventSubscriptions: (sessionId) => state.getEventSubscriptions(sessionId),
       disposeSession: (sessionId) =>
-        turnState.complete(sessionId).pipe(Effect.zipRight(state.disposeSession(sessionId))),
+        lifecycleGate.withPermits(1)(
+          turnState
+            .complete(sessionId)
+            .pipe(
+              Effect.zipRight(clearPendingInvalidation(sessionId)),
+              Effect.zipRight(state.disposeSession(sessionId)),
+            ),
+        ),
       reconcileIdleConnections: () =>
-        turnState
-          .activeSessions()
-          .pipe(Effect.flatMap((active) => state.reconcileIdleConnections((ns) => active.has(ns)))),
-      disposeAll: () => turnState.clear().pipe(Effect.zipRight(state.disposeAll())),
+        lifecycleGate.withPermits(1)(
+          Effect.gen(function* () {
+            const active = yield* turnState.activeSessions()
+            yield* Ref.update(pendingInvalidations, (current) => new Set([...current, ...active]))
+            yield* state.reconcileIdleConnections((namespace) => active.has(namespace))
+          }),
+        ),
+      disposeAll: () =>
+        lifecycleGate.withPermits(1)(
+          turnState
+            .clear()
+            .pipe(
+              Effect.zipRight(Ref.set(pendingInvalidations, new Set())),
+              Effect.zipRight(state.disposeAll()),
+            ),
+        ),
       getConnectionStatuses: () => state.getConnectionStatuses(),
       getNotices: (sessionId) => state.getNotices(sessionId),
       doctor: () => runMcpRuntimeDoctor(),

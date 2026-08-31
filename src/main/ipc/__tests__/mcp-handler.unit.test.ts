@@ -1,3 +1,4 @@
+import { HOST_BACKED_MCP_GUI_CHANNELS } from '@shared/types/host-ui-protocol'
 import type { McpSettingsView } from '@shared/types/mcp'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
@@ -9,11 +10,32 @@ import {
   McpRuntimeService,
   type McpRuntimeServiceShape,
 } from '../../ports/mcp-runtime-service'
+import {
+  McpSecretVaultService,
+  type McpSecretVaultServiceShape,
+} from '../../ports/mcp-secret-vault-service'
 
-const { typedHandleMock } = vi.hoisted(() => ({ typedHandleMock: vi.fn() }))
+const {
+  authorizeMcpServerMock,
+  hostHandleMock,
+  reconcileConfiguredMcpOwnerRuntimeMock,
+  typedHandleMock,
+} = vi.hoisted(() => ({
+  authorizeMcpServerMock: vi.fn(),
+  hostHandleMock: vi.fn(),
+  reconcileConfiguredMcpOwnerRuntimeMock: vi.fn(),
+  typedHandleMock: vi.fn(),
+}))
+
+vi.mock('../../adapters/mcp/oauth-provider', () => ({
+  authorizeMcpServer: authorizeMcpServerMock,
+}))
+vi.mock('../../application/gui-session-command-router', () => ({
+  reconcileConfiguredMcpOwnerRuntime: reconcileConfiguredMcpOwnerRuntimeMock,
+}))
 
 vi.mock('electron', () => ({ shell: { openExternal: vi.fn() } }))
-vi.mock('../typed-ipc', () => ({ typedHandle: typedHandleMock }))
+vi.mock('../typed-ipc', () => ({ hostHandle: hostHandleMock, typedHandle: typedHandleMock }))
 
 import { registerMcpHandlers } from '../mcp-handler'
 
@@ -89,6 +111,14 @@ function makeTestLayer(input?: { readonly clearStatusesOnReconcile?: boolean }) 
     }),
   )
   const config = fromPartial<McpConfigServiceShape>({
+    getServerDefinition: () =>
+      Effect.succeed({
+        instanceId: 'server-1',
+        definition: {
+          url: 'https://docs.example.com/mcp',
+          auth: { type: 'oauth' as const },
+        },
+      }),
     getView: () => Effect.succeed(SETTINGS_VIEW),
     setScopeState: () => Effect.succeed(SETTINGS_VIEW),
     createTurnSnapshot: ({ projectPath, sessionId }: { projectPath: string; sessionId: string }) =>
@@ -117,18 +147,28 @@ function makeTestLayer(input?: { readonly clearStatusesOnReconcile?: boolean }) 
         },
       ]),
   })
+  const setSecret = vi.fn<McpSecretVaultServiceShape['set']>(() => Effect.succeed([]))
+  const removeSecret = vi.fn<McpSecretVaultServiceShape['remove']>(() => Effect.succeed([]))
+  const vault = fromPartial<McpSecretVaultServiceShape>({
+    list: () => Effect.succeed([]),
+    set: setSecret,
+    remove: removeSecret,
+  })
   return {
     layer: Layer.mergeAll(
       Layer.succeed(McpConfigService, config),
       Layer.succeed(McpRuntimeService, runtime),
+      Layer.succeed(McpSecretVaultService, vault),
     ),
     reconcileIdleConnections,
     browseCapabilities,
+    removeSecret,
+    setSecret,
   }
 }
 
 function getRegisteredHandler(name: string, layer: ReturnType<typeof makeTestLayer>['layer']) {
-  const call = typedHandleMock.mock.calls.find(
+  const call = [...hostHandleMock.mock.calls, ...typedHandleMock.mock.calls].find(
     (candidate: readonly unknown[]) => candidate[0] === name && typeof candidate[1] === 'function',
   )
   const handler = call?.[1]
@@ -138,8 +178,26 @@ function getRegisteredHandler(name: string, layer: ReturnType<typeof makeTestLay
 
 describe('MCP IPC runtime settings lifecycle', () => {
   beforeEach(() => {
+    hostHandleMock.mockReset()
     typedHandleMock.mockReset()
+    authorizeMcpServerMock.mockReset()
+    authorizeMcpServerMock.mockImplementation(
+      async (input: { vault: { set(name: string, value: string): Promise<unknown> } }) => {
+        await input.vault.set('oauth.server-1', 'changed-token')
+        return { authorized: true, browserOpened: false }
+      },
+    )
+    reconcileConfiguredMcpOwnerRuntimeMock.mockReset()
+    reconcileConfiguredMcpOwnerRuntimeMock.mockResolvedValue(true)
     registerMcpHandlers()
+  })
+
+  it('routes runtime MCP handlers through the Host while keeping browser OAuth local', () => {
+    const hostChannels = hostHandleMock.mock.calls.map((call) => call[0])
+    const localChannels = typedHandleMock.mock.calls.map((call) => call[0])
+
+    expect(new Set(hostChannels)).toEqual(new Set(HOST_BACKED_MCP_GUI_CHANNELS))
+    expect(localChannels).toEqual(['mcp:authorize-server'])
   })
 
   it('returns live connection, capability, and runtime notice state', async () => {
@@ -159,6 +217,68 @@ describe('MCP IPC runtime settings lifecycle', () => {
       ],
       notices: [expect.objectContaining({ id: 'runtime:connected' })],
     })
+    expect(test.reconcileIdleConnections).not.toHaveBeenCalled()
+  })
+
+  it('reconciles the owner when settings explicitly carry a mutation notification', async () => {
+    const test = makeTestLayer()
+    const handler = getRegisteredHandler('mcp:get-settings', test.layer)
+
+    await handler?.({}, { projectPath: PROJECT_PATH, reconcileRuntime: true })
+
+    expect(test.reconcileIdleConnections).toHaveBeenCalledOnce()
+  })
+
+  it('notifies the owning Host after browser OAuth changes the shared vault', async () => {
+    const test = makeTestLayer()
+    const handler = getRegisteredHandler('mcp:authorize-server', test.layer)
+
+    await handler?.({}, { projectPath: PROJECT_PATH, instanceId: 'server-1' })
+
+    expect(reconcileConfiguredMcpOwnerRuntimeMock).toHaveBeenCalledWith(PROJECT_PATH)
+    expect(test.reconcileIdleConnections).not.toHaveBeenCalled()
+  })
+
+  it('notifies the owner when browser OAuth mutates the vault before failing', async () => {
+    const test = makeTestLayer()
+    const handler = getRegisteredHandler('mcp:authorize-server', test.layer)
+    authorizeMcpServerMock.mockImplementationOnce(
+      async (input: { vault: { remove(name: string): Promise<unknown> } }) => {
+        await input.vault.remove('oauth.server-1')
+        throw new Error('OAuth callback cancelled')
+      },
+    )
+
+    await expect(
+      handler?.({}, { projectPath: PROJECT_PATH, instanceId: 'server-1' }),
+    ).rejects.toThrow('OAuth callback cancelled')
+
+    expect(reconcileConfiguredMcpOwnerRuntimeMock).toHaveBeenCalledWith(PROJECT_PATH)
+  })
+
+  it('retries owner reconciliation when OAuth already persisted authorization', async () => {
+    const test = makeTestLayer()
+    const handler = getRegisteredHandler('mcp:authorize-server', test.layer)
+    authorizeMcpServerMock
+      .mockImplementationOnce(
+        async (input: { vault: { set(name: string, value: string): Promise<unknown> } }) => {
+          await input.vault.set('oauth.server-1', 'changed-token')
+          return { authorized: true, browserOpened: false }
+        },
+      )
+      .mockResolvedValueOnce({ authorized: true, browserOpened: false })
+    reconcileConfiguredMcpOwnerRuntimeMock
+      .mockRejectedValueOnce(new Error('owner connection reset'))
+      .mockResolvedValueOnce(true)
+
+    await expect(
+      handler?.({}, { projectPath: PROJECT_PATH, instanceId: 'server-1' }),
+    ).rejects.toThrow('owner connection reset')
+    await expect(
+      handler?.({}, { projectPath: PROJECT_PATH, instanceId: 'server-1' }),
+    ).resolves.toEqual({ authorized: true, browserOpened: false })
+
+    expect(reconcileConfiguredMcpOwnerRuntimeMock).toHaveBeenCalledTimes(2)
   })
 
   it('browses capabilities in a management namespace distinct from the logical session', async () => {
@@ -188,5 +308,21 @@ describe('MCP IPC runtime settings lifecycle', () => {
     expect(view).toMatchObject({
       servers: [expect.objectContaining({ connectionState: 'disconnected' })],
     })
+  })
+
+  it('invalidates idle owner connections after secret changes and OAuth logout', async () => {
+    const test = makeTestLayer()
+    const setSecret = getRegisteredHandler('mcp:set-secret', test.layer)
+    const removeSecret = getRegisteredHandler('mcp:remove-secret', test.layer)
+    const logout = getRegisteredHandler('mcp:logout-server', test.layer)
+
+    await setSecret?.({}, { name: 'TOKEN', value: 'changed' })
+    await removeSecret?.({}, { name: 'STALE_TOKEN' })
+    await logout?.({}, { projectPath: PROJECT_PATH, instanceId: 'server-1' })
+
+    expect(test.setSecret).toHaveBeenCalledWith({ name: 'TOKEN', value: 'changed' })
+    expect(test.removeSecret).toHaveBeenNthCalledWith(1, { name: 'STALE_TOKEN' })
+    expect(test.removeSecret).toHaveBeenNthCalledWith(2, { name: 'oauth.server-1' })
+    expect(test.reconcileIdleConnections).toHaveBeenCalledTimes(3)
   })
 })

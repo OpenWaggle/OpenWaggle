@@ -1,5 +1,5 @@
 import { SessionId } from '@shared/types/brand'
-import type { SessionDetail } from '@shared/types/session'
+import type { SessionDetail, SessionSummary } from '@shared/types/session'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useChatStore } from '../chat-store'
 
@@ -11,7 +11,7 @@ import { useChatStore } from '../chat-store'
 
 const mockApi = {
   listSessionDetails: vi.fn(),
-  listSessions: vi.fn(async (..._args: unknown[]) => []),
+  listSessions: vi.fn(async (..._args: unknown[]): Promise<readonly SessionSummary[]> => []),
   getSessionTree: vi.fn(async (..._args: unknown[]) => null),
   getSessionDetail: vi.fn(),
   createSession: vi.fn(),
@@ -61,6 +61,17 @@ function makeSessionDetail(id: SessionId, title = 'Session') {
   }
 }
 
+function makeSessionSummary(session: SessionDetail) {
+  return {
+    id: session.id,
+    title: session.title,
+    projectPath: session.projectPath,
+    messageCount: session.messages.length,
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+  }
+}
+
 describe('useChatStore integration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -104,20 +115,65 @@ describe('useChatStore integration', () => {
     expect(useChatStore.getState().draftSession).toEqual({ projectPath: '/repo/draft' })
   })
 
-  it('loads full sessions and switches between them without fetching on click', async () => {
+  it('loads lightweight summaries and fetches a transcript only when selected', async () => {
     const first = makeSessionDetail(SessionId('session-first'), 'First')
     const second = makeSessionDetail(SessionId('session-second'), 'Second')
-    mockApi.listSessionDetails.mockResolvedValue([first, second])
+    mockApi.listSessions.mockResolvedValue([makeSessionSummary(first), makeSessionSummary(second)])
+    mockApi.getSessionDetail.mockResolvedValue(second)
 
     await useChatStore.getState().loadSessions()
     useChatStore.getState().setActiveSessionId(second.id)
+
+    await vi.waitFor(() => {
+      expect(useChatStore.getState().activeSession).toBe(second)
+    })
 
     expect(useChatStore.getState().sessions.map((session) => session.id)).toEqual([
       first.id,
       second.id,
     ])
-    expect(useChatStore.getState().activeSession).toBe(second)
-    expect(mockApi.getSessionDetail).not.toHaveBeenCalled()
+    expect(mockApi.listSessionDetails).not.toHaveBeenCalled()
+    expect(mockApi.getSessionDetail).toHaveBeenCalledWith(second.id)
+  })
+
+  it('does not let an older transcript request overwrite a newer refresh', async () => {
+    const id = SessionId('session-race')
+    const older = makeSessionDetail(id, 'Older')
+    const newer = makeSessionDetail(id, 'Newer')
+    let resolveOlder: (session: SessionDetail | null) => void = () => undefined
+    const olderRequest = new Promise<SessionDetail | null>((resolve) => {
+      resolveOlder = resolve
+    })
+    mockApi.getSessionDetail.mockImplementationOnce(() => olderRequest)
+    mockApi.getSessionDetail.mockResolvedValueOnce(newer)
+
+    const first = useChatStore.getState().refreshSession(id)
+    const second = useChatStore.getState().refreshSession(id)
+    await second
+    resolveOlder(older)
+    await first
+
+    expect(useChatStore.getState().sessionById.get(id)?.title).toBe('Newer')
+  })
+
+  it('does not let an older bulk load overwrite a newer Host-event refresh', async () => {
+    const id = SessionId('session-bulk-race')
+    const older = makeSessionDetail(id, 'Older bulk snapshot')
+    const newer = makeSessionDetail(id, 'Newer Host refresh')
+    let resolveBulk: (sessions: readonly ReturnType<typeof makeSessionSummary>[]) => void = () =>
+      undefined
+    const bulkRequest = new Promise<readonly ReturnType<typeof makeSessionSummary>[]>((resolve) => {
+      resolveBulk = resolve
+    })
+    mockApi.listSessions.mockImplementationOnce(() => bulkRequest)
+    mockApi.getSessionDetail.mockResolvedValueOnce(newer)
+
+    const load = useChatStore.getState().loadSessions()
+    await useChatStore.getState().refreshSession(id)
+    resolveBulk([makeSessionSummary(older)])
+    await load
+
+    expect(useChatStore.getState().sessionById.get(id)?.title).toBe('Newer Host refresh')
   })
 
   it('throws and preserves state on createSession failure', async () => {

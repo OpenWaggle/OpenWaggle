@@ -43,6 +43,8 @@ Load `.agents/skills/pi-integration/SKILL.md` for details.
 - MCP activation resolves session → project → global and defaults off globally. Disabled servers must not connect, inject instructions/capabilities, or remain attached after the safe turn boundary; the UI must distinguish desired, applied, and pending state.
 - Interoperate with current MCP (`2026-07-28`) and the supported legacy revisions (`2025-11-25`, `2025-06-18`, `2025-03-26`, `2024-11-05`, `2024-10-07`) across both client and hosted-server paths. Preserve protocol/transport negotiation diagnostics instead of silently dropping older servers.
 - Treat remote MCP content as untrusted: require explicit trust and capability opt-ins, keep Event Inbox and server instructions out of context until reviewed, sandbox MCP Apps, isolate sampling, keep roots read-only, validate Remote Skills, and surface every required user or agent follow-up as a durable notice.
+- The owning Session Host is also the authority for MCP configuration, pooled connection status, capability browsing, Tasks, Events, and secret/logout reconciliation. An attached GUI must route those operations to the Host; only interactive OAuth authorization stays in the GUI because it may open the user's browser. Expanding Host-backed MCP channels requires a new Local Session protocol revision so an older detached Host is upgraded before the GUI sends a channel it cannot decode.
+- MCP credential or configuration reconciliation must not interrupt an active turn, but it must mark every active runtime namespace for deferred invalidation. Close those connections immediately after turn completion so the next turn reconnects; preserving them merely because the config-derived snapshot revision is unchanged can reuse revoked credentials indefinitely. Plain settings reads do not reconcile—CLI mutations and completed browser OAuth explicitly notify the owning Host.
 
 ## Electron Runtime Memory
 
@@ -74,14 +76,18 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - A hidden screenshot failure does not authorize headed QA. The agent reports the incomplete evidence and asks for exact-run approval before using any headed fallback.
 - CDP file upload can produce `File` objects without native paths; native file-path behavior needs preload/unit coverage or real OS selection QA.
 - **The Windows NSIS script is only compiled when electron-builder packages Windows, which happens in the release workflow, not CI.** An installer-variant StrFunc call inside `customUnInstall` broke two consecutive releases across six days before anyone noticed, because NSIS only rejects it at compile time. `build/installer.nsh` is now compile-checked by `pnpm check:installer` inside `pnpm check`, so it fails a pull request in seconds instead of a release in minutes. Two NSIS rules worth remembering: StrFunc helpers must be declared before use, and an uninstall section can only Call `un.`-prefixed functions, so `customUnInstall` needs the `Un` variants (`${UnStrRep}`, not `${StrRep}`).
+- Electron's `app.exit()` is forceful and does not wait for piped `process.stdout` or `process.stderr` writes. Every Electron CLI entrypoint must await the shared output barrier before exiting; otherwise Linux automation and real machine consumers can receive only Electron's empty startup payload while the versioned OpenWaggle response is lost.
 
 ## Renderer And Session Memory
 
 - Renderer state that represents chat transcripts or active runs must be keyed by concrete `SessionId`, not only the active route.
+- Every Session creation path, including Session Control `create`, `launch`, and `spawn`, must persist the canonical empty `main` branch, its branch state, tree UI state, and `last_active_branch_id` before a Run can start. `session_active_runs.branch_id` is a foreign key; a metadata-only Session is visible in discovery but fails before Pi receives its first prompt.
+- Local Session command transport timeouts must cover the operation's declared long-poll window plus a response grace period. The default 10-second socket timeout is correct for ordinary commands but must not truncate `wait`, `exports-wait`, or freshness-blocking search requests that legitimately wait longer.
+- E2E and diagnostic code that opens the application database must use the canonical Session Host database path (`session-host/session-host.sqlite`) through the shared fixture/path helper. `userData/openwaggle.db` is only the pre-cutover source and is absent for a fresh profile.
 - Switching away from a foreground run should demote it to background state, not reject the send promise as an error.
 - Active-run UI continuity needs a renderer-owned render snapshot keyed by session id; persisted run metadata alone does not prove visible reasoning/tool rows remain continuous.
 - First-message sends must bind to the concrete newly created session before async send begins; do not enqueue by current active session after users can switch projects.
-- First-send worktree recovery must retain the exact submitted payload, Waggle config, and model until main reports delivery. Retry and Work locally replay that retained turn once; reading current composer preferences during recovery changes the user's request.
+- First-send worktree recovery must retain the exact submitted payload, Waggle config, and model until terminal transcript reconciliation proves delivery. Session Host command acceptance only means the supervised Run was scheduled; worktree birth and Pi execution can still fail asynchronously. Retry and Work locally replay that retained turn once; reading current composer preferences during recovery changes the user's request.
 - Session tree/header refreshes for background sessions must not overwrite the active session tree/header.
 - Session-native transcript rendering reads from the active `SessionWorkspace.transcriptPath`; preserve live tails only at active branch head.
 - TanStack Router uses hash history in Electron QA; navigate to `http://localhost:5173/#/<route>`.
@@ -344,3 +350,23 @@ The consequence that outlives the ring: anything hidden behind `group-focus-with
 ### The menu role and its keyboard model are one decision
 
 `role="menu"` with `role="menuitemradio"` children tells a screen reader to use arrow keys. Declaring it on a panel of plain buttons produces a menu that is operable by Tab and Enter but announces a model that does not exist, which is worse than announcing nothing. `useMenuKeyboard` in `src/renderer/src/shared/hooks/` holds the model and `Popover` switches it on with the role, so the two cannot be declared separately. Items are found in the DOM rather than registered by each call site, because a menu's items are arbitrary children.
+
+### Session Host authority and subscriptions are live boundaries
+
+Session authority stores canonical project and workspace paths as a durable snapshot, then checks
+the live Run scope again for long-running operations such as exports. Tests for these boundaries
+must use real canonical directories; invented paths exercise rejection rather than the intended
+authorization branch.
+
+Native Session capabilities constrain OpenWaggle tools and the Session Host API. They are not an
+OS sandbox against arbitrary commands from another process running as the same user. A hostile or
+YOLO shell needs a separate account, container, or operating-system sandbox for containment.
+
+Restricted event subscriptions are filtered at admission before bounded buffering. Events outside
+the exact Session scope become payload-free cursor advances, preserving global cursor ordering and
+resume semantics without allowing unrelated event payloads or activity to consume subscriber
+capacity.
+
+Agent-definition semantic catalogs must load the same enabled OpenWaggle-managed Pi packages and
+resource roots as a real Session Run, including runtime load-failure isolation. A catalog built from
+bare project Pi resources incorrectly rejects valid managed-extension tools and skills.
