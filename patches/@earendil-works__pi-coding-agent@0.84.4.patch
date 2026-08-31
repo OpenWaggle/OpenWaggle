@@ -671,7 +671,7 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..6df586cff1497bd93185b0ea2dec3703
       * Get session header.
       */
 diff --git a/dist/core/session-manager.js b/dist/core/session-manager.js
-index f887c04976596f8956bc04c16ca59c4030e09f92..55cf39ea0736c1363f36dcf8f0479e3a7ed584e8 100644
+index f887c04976596f8956bc04c16ca59c4030e09f92..43794ab99be051e5d4dab8b3aa5a27baf81f2cde 100644
 --- a/dist/core/session-manager.js
 +++ b/dist/core/session-manager.js
 @@ -183,7 +183,7 @@ export function sessionEntryToContextMessages(entry) {
@@ -747,7 +747,7 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..55cf39ea0736c1363f36dcf8f0479e3a
 +            if (block.type === "text")
 +                chars += block.text?.length ?? 0;
 +            else if (block.type === "thinking")
-+                chars += block.thinking?.length ?? 0;
++                chars += (block.thinking?.length ?? 0) + (block.thinkingSignature?.length ?? 0);
 +            else if (block.type === "toolCall")
 +                chars += (block.name?.length ?? 0) + JSON.stringify(block.arguments ?? {}).length;
 +        }

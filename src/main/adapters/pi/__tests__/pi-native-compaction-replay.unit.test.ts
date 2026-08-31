@@ -131,6 +131,46 @@ describe('Pi native compaction replay', () => {
     expect(reconstructed.reconstruction?.firstKeptEntryId).toBe(firstKeptEntryId)
   })
 
+  it('counts replayed reasoning signatures in the target reconstruction budget', () => {
+    const sessionManager = SessionManager.inMemory('/repo')
+    sessionManager.appendMessage({ role: 'user', content: 'old reasoning turn', timestamp: 1 })
+    sessionManager.appendMessage({
+      ...makeAssistant('', 2),
+      content: [
+        {
+          type: 'thinking',
+          thinking: '',
+          thinkingSignature: JSON.stringify({
+            type: 'reasoning',
+            encrypted_content: 'opaque-reasoning-'.repeat(30),
+          }),
+        },
+      ],
+    })
+    const firstKeptEntryId = sessionManager.appendMessage({
+      role: 'user',
+      content: 'new-user',
+      timestamp: 3,
+    })
+    sessionManager.appendMessage(makeAssistant('new-assistant', 4))
+    const compactionId = sessionManager.appendCompaction(
+      'Native compaction checkpoint',
+      'native-replacement',
+      80_000,
+      NATIVE_DETAILS,
+    )
+
+    const reconstructed = buildSessionContext(
+      sessionManager.getBranch(),
+      compactionId,
+      undefined,
+      makeTargetModel(100, 40),
+    )
+
+    expect(reconstructed.messages[0]).toMatchObject({ content: 'new-user' })
+    expect(reconstructed.reconstruction?.firstKeptEntryId).toBe(firstKeptEntryId)
+  })
+
   it.each([
     {
       name: 'bash execution',
