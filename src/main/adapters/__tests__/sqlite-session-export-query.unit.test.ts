@@ -42,6 +42,17 @@ describe('SQLite Session export query', () => {
           UPDATE session_branches SET head_node_id = ${'node-worker-1'}
           WHERE id = ${'worker:branch:main'}
         `
+        yield* sql`
+          UPDATE session_control_states
+          SET queue_state = ${'paused'}, queue_revision = queue_revision + 1,
+            active_run_id = ${null}
+          WHERE session_id = ${'worker'}
+        `
+        yield* sql`
+          UPDATE session_follow_ups
+          SET delivery_state = ${'needs_attention'}, attention_reason = ${'authority_changed'}
+          WHERE session_id = ${'worker'}
+        `
       }),
     )
     const second = await executeQuery(runtime, {
@@ -54,6 +65,7 @@ describe('SQLite Session export query', () => {
       snapshotStateRevision: first.outcome.manifest.snapshot.stateRevision,
       snapshotHeadNodeId: first.outcome.manifest.snapshot.selectedHeadNodeId,
       capturedAt: first.outcome.manifest.snapshot.capturedAt,
+      snapshotManifest: first.outcome.manifest,
     })
 
     expect(first.outcome).toMatchObject({
@@ -67,6 +79,7 @@ describe('SQLite Session export query', () => {
       nextCreatedOrder: 0,
     })
     expect(second.outcome).toMatchObject({
+      manifest: first.outcome.manifest,
       records: [{ nodeId: 'node-worker-2', parentNodeId: 'node-worker-1' }],
     })
     expect(JSON.stringify(first.outcome)).not.toContain('"text":"next"')

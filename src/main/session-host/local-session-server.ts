@@ -25,6 +25,7 @@ import {
   DEFAULT_MAX_CONNECTIONS,
   LocalSessionAuthenticationBudget,
   LocalSessionInboundByteBudget,
+  LocalSessionSubscriptionBudget,
 } from './local-session-resource-policy'
 import type { LocalSessionServerAuthenticator } from './local-session-server-authentication'
 
@@ -62,6 +63,7 @@ export interface LocalSessionServerDependencies {
   readonly maxConnections?: number
   readonly maxSubscriptionsPerConnection?: number
   readonly maxSubscriptionsGlobal?: number
+  readonly subscriptionBudget?: LocalSessionSubscriptionBudget
   readonly maxPendingInboundBytesGlobal?: number
   readonly maxPendingOutboundBytesGlobal?: number
   readonly maxPendingOutboundFramesPerConnection?: number
@@ -153,6 +155,7 @@ export async function listenLocalSessionServer(
       ? { cooldownMs: dependencies.authenticationCooldownMs }
       : {}),
   })
+  const subscriptionBudget = new LocalSessionSubscriptionBudget(dependencies.maxSubscriptionsGlobal)
   const invalidateProfile = (profileId: string) => {
     for (const connection of connections) connection.disconnectRevokedProfile(profileId)
   }
@@ -176,6 +179,7 @@ export async function listenLocalSessionServer(
   const serverDependencies: LocalSessionServerDependencies = {
     ...dependencies,
     disconnectProfile: invalidateProfile,
+    subscriptionBudget,
   }
   const quarantinedSockets = new Set<Socket>()
   let admissionOpen = !isWindowsPipe(endpoint)

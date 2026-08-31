@@ -1,5 +1,4 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
-import { SESSION_EXPORT_SCHEMA_VERSION } from '@shared/types/session-export'
 import {
   SESSION_QUERY_MAX_RESPONSE_BYTES,
   type SessionQueryRequest,
@@ -9,9 +8,10 @@ import {
   byteBoundedPage,
   SESSION_QUERY_SQL_READ_BUDGET_BYTES,
 } from './session-query-byte-pagination'
+import { exportBaseOutcome } from './sqlite-session-export-manifest'
 import { type ExportNodeRow, exportNodeRecord } from './sqlite-session-export-record'
 import { resolveExportSnapshotHead } from './sqlite-session-export-snapshot'
-import { parseSessionJson, sessionQueryResponse } from './sqlite-session-query-support'
+import { sessionQueryResponse } from './sqlite-session-query-support'
 
 type ExportRequest = SessionQueryRequest & {
   readonly query: Extract<SessionQueryRequest['query'], { operation: 'export' }>
@@ -149,52 +149,81 @@ function readExportNodes(
   })
 }
 
-function exportBaseOutcome(input: {
-  readonly request: ExportRequest
-  readonly snapshot: ExportSnapshotRow
-  readonly selectedBranchId: string | null
-  readonly branchScope: 'active-branch' | 'tree'
-  readonly highWaterMark: number
-  readonly stateRevision: number
-  readonly capturedAt: number
-  readonly selectedHeadNodeId: string | null
-  readonly queueRows: readonly ExportQueueRow[]
-}) {
-  const { query } = input.request
-  return {
-    operation: 'export',
-    manifest: {
-      schemaVersion: SESSION_EXPORT_SCHEMA_VERSION,
+function continuationMatchesSnapshot(
+  query: ExportRequest['query'],
+  branchScope: 'active-branch' | 'tree',
+) {
+  const manifest = query.snapshotManifest
+  return (
+    !manifest ||
+    (manifest.sessionId === query.sessionId &&
+      manifest.branchScope === branchScope &&
+      manifest.snapshot.nodeHighWaterMark === query.throughCreatedOrder &&
+      manifest.snapshot.stateRevision === query.snapshotStateRevision &&
+      manifest.snapshot.capturedAt === query.capturedAt &&
+      manifest.snapshot.selectedHeadNodeId === query.snapshotHeadNodeId &&
+      (branchScope === 'tree' || !query.branchId || manifest.selectedBranchId === query.branchId) &&
+      manifest.queue.bodyScope === (query.includeQueueBodies ? 'included' : 'omitted-by-choice'))
+  )
+}
+
+function exportSelection(
+  sql: SqlClient.SqlClient,
+  request: ExportRequest,
+  snapshot: ExportSnapshotRow,
+) {
+  const query = request.query
+  return Effect.gen(function* () {
+    const branchScope = query.branchScope ?? 'active-branch'
+    if (!continuationMatchesSnapshot(query, branchScope)) {
+      return yield* Effect.fail(new Error('EXPORT_SNAPSHOT_MISMATCH'))
+    }
+    const selectedBranchId =
+      query.branchId ?? query.snapshotManifest?.selectedBranchId ?? snapshot.last_active_branch_id
+    const head = yield* resolveExportSnapshotHead(sql, {
       sessionId: query.sessionId,
-      title: input.snapshot.title,
-      branchScope: input.branchScope,
-      activeBranchId: input.snapshot.last_active_branch_id,
-      selectedBranchId: input.branchScope === 'tree' ? null : input.selectedBranchId,
-      snapshot: {
-        nodeHighWaterMark: input.highWaterMark,
-        stateRevision: input.stateRevision,
-        queueRevision: input.snapshot.queue_revision,
-        capturedAt: input.capturedAt,
-        ...(input.selectedHeadNodeId ? { selectedHeadNodeId: input.selectedHeadNodeId } : {}),
-      },
-      activeRunId: input.snapshot.active_run_id,
-      activeTurnIncomplete: input.snapshot.active_run_id !== null,
-      queue: {
-        state: input.snapshot.queue_state,
-        pendingCount: input.queueRows.length,
-        bodyScope: query.includeQueueBodies ? 'included' : 'omitted-by-choice',
-        omittedBodyCount: query.includeQueueBodies ? 0 : input.queueRows.length,
-        items: input.queueRows.map((row) => ({
-          followUpId: row.id,
-          position: row.position,
-          createdAt: row.created_at,
-          deliveryState: row.delivery_state,
-          ...(row.attention_reason ? { attentionReason: row.attention_reason } : {}),
-          ...(query.includeQueueBodies ? { intent: parseSessionJson(row.intent_json) } : {}),
-        })),
-      },
-    },
-  } as const
+      branchScope,
+      selectedBranchId,
+      ...(query.snapshotHeadNodeId ? { suppliedHeadNodeId: query.snapshotHeadNodeId } : {}),
+    })
+    if (head.status === 'not-found') return yield* Effect.fail(new Error(head.message))
+    return { branchScope, selectedBranchId, selectedHeadNodeId: head.headNodeId }
+  })
+}
+
+function exportErrorResponse(
+  request: ExportRequest,
+  code: 'record_too_large' | 'resync_required',
+  message: string,
+) {
+  return sessionQueryResponse(request, { operation: 'export', error: { code, message } })
+}
+
+function renderExportNodePage(
+  request: ExportRequest,
+  baseOutcome: ReturnType<typeof exportBaseOutcome>,
+  nodePage: Effect.Effect.Success<ReturnType<typeof readExportNodes>>,
+) {
+  const tooLarge = () =>
+    exportErrorResponse(
+      request,
+      'record_too_large',
+      'An export record exceeds the maximum Session query response size.',
+    )
+  if (nodePage.oversized) return tooLarge()
+  const candidates = nodePage.rows.map((row) => exportNodeRecord(request.query.sessionId, row))
+  const page = byteBoundedPage({
+    candidates,
+    hasAdditionalCandidates: nodePage.hasMore,
+    emptyResponse: sessionQueryResponse(request, { ...baseOutcome, records: [] }),
+  })
+  if (!page.accepted) return tooLarge()
+  const last = page.records.at(-1)
+  return sessionQueryResponse(request, {
+    ...baseOutcome,
+    records: page.records,
+    ...(page.hasMore && last ? { nextCreatedOrder: last.createdOrder } : {}),
+  })
 }
 
 export function readSessionExport(sql: SqlClient.SqlClient, request: ExportRequest) {
@@ -218,21 +247,23 @@ export function readSessionExport(sql: SqlClient.SqlClient, request: ExportReque
         error: { code: 'session_not_found', message: 'Session not found.' },
       })
     }
-    const branchScope = query.branchScope ?? 'active-branch'
-    const selectedBranchId = query.branchId ?? snapshot.last_active_branch_id
-    const head = yield* resolveExportSnapshotHead(sql, {
-      sessionId: query.sessionId,
-      branchScope,
-      selectedBranchId,
-      ...(query.snapshotHeadNodeId ? { suppliedHeadNodeId: query.snapshotHeadNodeId } : {}),
-    })
-    if (head.status === 'not-found') {
-      return sessionQueryResponse(request, {
-        operation: 'export',
-        error: { code: 'branch_not_found', message: head.message },
-      })
-    }
-    const selectedHeadNodeId = head.headNodeId
+    const selection = yield* exportSelection(sql, request, snapshot).pipe(
+      Effect.mapError((error) =>
+        error.message === 'EXPORT_SNAPSHOT_MISMATCH'
+          ? exportErrorResponse(
+              request,
+              'resync_required',
+              'Export continuation metadata does not match its immutable manifest.',
+            )
+          : sessionQueryResponse(request, {
+              operation: 'export',
+              error: { code: 'branch_not_found', message: error.message },
+            }),
+      ),
+      Effect.either,
+    )
+    if (selection._tag === 'Left') return selection.left
+    const { branchScope, selectedBranchId, selectedHeadNodeId } = selection.right
     const queueRows = yield* sql<ExportQueueRow>`
       SELECT id, position, delivery_state, attention_reason, intent_json, created_at
       FROM session_follow_ups
@@ -250,15 +281,6 @@ export function readSessionExport(sql: SqlClient.SqlClient, request: ExportReque
       throughCreatedOrder: highWaterMark,
       limit: query.limit,
     })
-    if (nodePage.oversized) {
-      return sessionQueryResponse(request, {
-        operation: 'export',
-        error: {
-          code: 'record_too_large',
-          message: 'An export record exceeds the maximum Session query response size.',
-        },
-      })
-    }
     const baseOutcome = exportBaseOutcome({
       request,
       snapshot,
@@ -270,26 +292,6 @@ export function readSessionExport(sql: SqlClient.SqlClient, request: ExportReque
       selectedHeadNodeId,
       queueRows,
     })
-    const candidates = nodePage.rows.map((row) => exportNodeRecord(query.sessionId, row))
-    const page = byteBoundedPage({
-      candidates,
-      hasAdditionalCandidates: nodePage.hasMore,
-      emptyResponse: sessionQueryResponse(request, { ...baseOutcome, records: [] }),
-    })
-    if (!page.accepted) {
-      return sessionQueryResponse(request, {
-        operation: 'export',
-        error: {
-          code: 'record_too_large',
-          message: 'An export record exceeds the maximum Session query response size.',
-        },
-      })
-    }
-    const last = page.records.at(-1)
-    return sessionQueryResponse(request, {
-      ...baseOutcome,
-      records: page.records,
-      ...(page.hasMore && last ? { nextCreatedOrder: last.createdOrder } : {}),
-    })
+    return renderExportNodePage(request, baseOutcome, nodePage)
   }).pipe(sql.withTransaction)
 }

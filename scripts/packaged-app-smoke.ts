@@ -13,6 +13,7 @@ const OUT_DIR = 'out'
 const ASAR_HEADER_PREFIX_BYTES = 16
 const ASAR_JSON_SIZE_OFFSET = 12
 const FIRST_USER_ARGUMENT_INDEX = 2
+const ARGUMENT_SEPARATOR = '--'
 const PREVIEW_LIMIT = 20
 const ALLOWED_OUT_ROOTS = ['/out/main', '/out/preload', '/out/renderer'] as const
 
@@ -63,7 +64,9 @@ async function pathExists(filePath: string) {
 }
 
 async function findPackagedApp() {
-  const explicitAppPath = process.argv[FIRST_USER_ARGUMENT_INDEX]
+  const explicitAppPath = process.argv
+    .slice(FIRST_USER_ARGUMENT_INDEX)
+    .find((argument) => argument !== ARGUMENT_SEPARATOR)
   if (explicitAppPath) return explicitAppPath
 
   const distEntries = await fs.readdir(DIST_DIR, { withFileTypes: true })

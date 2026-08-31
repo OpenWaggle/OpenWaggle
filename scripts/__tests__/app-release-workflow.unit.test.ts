@@ -133,7 +133,9 @@ describe('desktop app release workflow', () => {
   })
 
   it('verifies the Windows installer through the typed deterministic verifier', () => {
-    expect(WORKFLOW).toContain('node scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"')
+    expect(WORKFLOW).toContain(
+      'pnpm exec tsx scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"',
+    )
     expect(WORKFLOW).toContain("INSTALLER_PATH: ${{ runner.temp }}\\release\\windows\\openwaggle-")
     expect(WORKFLOW).not.toContain('Installed executable not found after silent install')
   })

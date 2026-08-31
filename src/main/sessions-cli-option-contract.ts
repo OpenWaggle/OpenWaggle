@@ -1,10 +1,9 @@
 import type { ParsedArguments } from './mcp-cli-arguments'
+import { validateSessionsCliCombinations } from './sessions-cli-option-combinations'
 import { validateSessionsCliPositionals } from './sessions-cli-positional-contract'
 
 const CLIENT_OPTIONS = ['profile', 'credential-stdin', 'profile-credential-file'] as const
 const OUTPUT_OPTIONS = ['json', 'jsonl'] as const
-const CLIENT_OPTION_NAMES: ReadonlySet<string> = new Set(CLIENT_OPTIONS)
-const OUTPUT_OPTION_NAMES: ReadonlySet<string> = new Set(OUTPUT_OPTIONS)
 const MESSAGE_INPUT_OPTIONS = ['text', 'stdin', 'input-file', 'request-json'] as const
 const IDEMPOTENCY = ['idempotency-key'] as const
 
@@ -123,9 +122,9 @@ const DIRECT_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
     'require-fresh',
     'timeout-ms',
   ],
-  read: ['full'],
+  read: ['full', 'scope', 'branch'],
   turns: ['limit', 'cursor'],
-  items: ['run', 'after', 'limit'],
+  items: ['run', 'scope', 'branch', 'after', 'through', 'snapshot-head', 'limit'],
   status: [],
   watch: ['after-host', 'after-sequence'],
   wait: ['condition', 'after-state-revision', 'timeout-ms', 'after-host', 'after-sequence'],
@@ -247,41 +246,6 @@ function validateOptionValues(arguments_: ParsedArguments) {
   }
 }
 
-function validateCombinations(command: string, arguments_: ParsedArguments) {
-  if (arguments_.options.has('all') && arguments_.options.has('project')) {
-    throw new Error('Choose either --project or --all, not both.')
-  }
-  if (
-    arguments_.options.has('credential-stdin') &&
-    arguments_.options.has('profile-credential-file')
-  ) {
-    throw new Error('Choose either --credential-stdin or --profile-credential-file, not both.')
-  }
-  const workspace = arguments_.options.get('workspace')?.at(-1)
-  if (arguments_.options.has('workspace-id') && workspace !== 'existing') {
-    throw new Error('--workspace-id requires --workspace existing.')
-  }
-  if (
-    (arguments_.options.has('base-ref') || arguments_.options.has('start-from-origin')) &&
-    workspace !== 'new-worktree'
-  ) {
-    throw new Error('--base-ref and --start-from-origin require --workspace new-worktree.')
-  }
-  if (!arguments_.options.has('request-json')) return
-  const payloadOptions = [...arguments_.options.keys()].filter(
-    (name) =>
-      name !== 'request-json' && !CLIENT_OPTION_NAMES.has(name) && !OUTPUT_OPTION_NAMES.has(name),
-  )
-  if (payloadOptions.length > 0) {
-    throw new Error(
-      `--request-json contains the complete ${command} request and cannot be combined with ${payloadOptions
-        .sort()
-        .map((name) => `--${name}`)
-        .join(', ')}.`,
-    )
-  }
-}
-
 export function validateSessionsCliOptions(command: string, arguments_: ParsedArguments) {
   const route = commandRoute(command, arguments_)
   const allowed = allowedOptions(route)
@@ -304,6 +268,6 @@ export function validateSessionsCliOptions(command: string, arguments_: ParsedAr
     )
   }
   validateOptionValues(arguments_)
-  validateCombinations(command, arguments_)
+  validateSessionsCliCombinations(command, arguments_)
   validateSessionsCliPositionals(route, arguments_)
 }

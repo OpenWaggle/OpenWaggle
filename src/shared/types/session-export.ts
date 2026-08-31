@@ -15,6 +15,8 @@ export interface SessionExportQuery {
   readonly snapshotStateRevision?: number
   readonly snapshotHeadNodeId?: string
   readonly capturedAt?: number
+  /** Exact immutable manifest returned by the first page. Required for stable continuation pages. */
+  readonly snapshotManifest?: SessionExportManifest
 }
 
 export interface SessionExportManifest {

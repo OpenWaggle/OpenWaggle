@@ -14,6 +14,27 @@ const MAX_TRACKED_AUTHENTICATION_FAILURES = 1024
 const DEFAULT_MAX_SUBSCRIPTIONS_PER_CONNECTION = 16
 const DEFAULT_MAX_SUBSCRIPTIONS_GLOBAL = 256
 
+export class LocalSessionSubscriptionBudget {
+  private active = 0
+
+  constructor(private readonly capacity = DEFAULT_MAX_SUBSCRIPTIONS_GLOBAL) {
+    if (!Number.isSafeInteger(capacity) || capacity < 1) {
+      throw new Error('Local Session subscription capacity must be a positive safe integer.')
+    }
+  }
+
+  reserve() {
+    if (this.active >= this.capacity) return undefined
+    this.active += 1
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      this.active = Math.max(0, this.active - 1)
+    }
+  }
+}
+
 export class LocalSessionInboundByteBudget {
   private retainedBytes = 0
 
@@ -218,9 +239,5 @@ export function subscriptionLimitReached(
 ) {
   const perConnectionLimit =
     dependencies.maxSubscriptionsPerConnection ?? DEFAULT_MAX_SUBSCRIPTIONS_PER_CONNECTION
-  const globalLimit = dependencies.maxSubscriptionsGlobal ?? DEFAULT_MAX_SUBSCRIPTIONS_GLOBAL
-  return (
-    connectionSubscriptions >= perConnectionLimit ||
-    dependencies.eventHub.subscriberCount() >= globalLimit
-  )
+  return connectionSubscriptions >= perConnectionLimit
 }

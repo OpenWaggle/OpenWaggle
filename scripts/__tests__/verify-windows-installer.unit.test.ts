@@ -6,13 +6,14 @@ describe('Windows installer verification', () => {
   it('installs silently into an isolated directory and verifies the exact executable', async () => {
     const runInstaller = vi.fn(async () => 0)
     const verifyPath = vi.fn(async () => undefined)
+    const verifyCli = vi.fn(async () => undefined)
 
     await verifyWindowsInstaller(
       {
         installerPath: 'D:\\artifacts\\openwaggle.exe',
         installDirectory: 'D:\\temp\\openwaggle-install',
       },
-      { runInstaller, verifyPath },
+      { runInstaller, verifyCli, verifyPath },
     )
 
     expect(runInstaller).toHaveBeenCalledWith('D:\\artifacts\\openwaggle.exe', [
@@ -28,6 +29,9 @@ describe('Windows installer verification', () => {
       3,
       join('D:\\temp\\openwaggle-install', 'openwaggle.cmd'),
     )
+    expect(verifyCli).toHaveBeenCalledWith(
+      join('D:\\temp\\openwaggle-install', 'openwaggle.cmd'),
+    )
   })
 
   it('rejects a nonzero installer exit code before checking the executable', async () => {
@@ -36,7 +40,7 @@ describe('Windows installer verification', () => {
     await expect(
       verifyWindowsInstaller(
         { installerPath: 'installer.exe', installDirectory: 'install' },
-        { runInstaller: async () => 1, verifyPath },
+        { runInstaller: async () => 1, verifyCli: vi.fn(), verifyPath },
       ),
     ).rejects.toThrow('Windows installer exited with code 1')
 

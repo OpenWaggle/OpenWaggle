@@ -23,6 +23,7 @@ import {
   isSessionExportOperationCliCommand,
 } from './sessions-cli-export-operation-payload'
 import { buildSessionsCliExportPayload } from './sessions-cli-export-payload'
+import { itemsPayload } from './sessions-cli-items-payload'
 import {
   forkLifecyclePayload,
   rootLifecyclePayload,
@@ -137,6 +138,7 @@ function waitPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
 }
 
 function detailsPayload(command: string, arguments_: ParsedArguments): LocalSessionCommandPayload {
+  if (command === 'items') return itemsPayload(arguments_)
   const sessionId = required(arguments_.positionals[0], 'Session ID')
   if (command === 'turns') {
     return {
@@ -165,25 +167,7 @@ function detailsPayload(command: string, arguments_: ParsedArguments): LocalSess
       },
     }
   }
-  if (command !== 'items') throw new Error(`Unsupported Session query command: ${command}.`)
-  return {
-    contract: 'session-query-v2',
-    request: {
-      contractVersion: SESSION_QUERY_CONTRACT_VERSION,
-      requestId: randomUUID(),
-      query: {
-        operation: 'items',
-        sessionId,
-        ...(option(arguments_, 'run') ? { runId: option(arguments_, 'run') } : {}),
-        limit: option(arguments_, 'limit')
-          ? positiveInteger(option(arguments_, 'limit'), '--limit')
-          : SESSION_QUERY_DISCOVERY_LIMIT,
-        ...(option(arguments_, 'after')
-          ? { afterCreatedOrder: nonNegativeInteger(option(arguments_, 'after'), '--after') }
-          : {}),
-      },
-    },
-  }
+  throw new Error(`Unsupported Session query command: ${command}.`)
 }
 
 function queueListPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {

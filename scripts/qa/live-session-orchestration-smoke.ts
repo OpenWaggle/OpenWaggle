@@ -29,15 +29,27 @@ import {
   verifyLiveHiveGui,
   waitForLiveGui,
 } from './live-session-orchestration-gui'
-import { shutdownSessionHostForQa } from './session-host-shutdown'
+import { prepareQaProfileRemoval, shutdownSessionHostForQa } from './session-host-shutdown'
 
 const DEFAULT_MODEL = 'openai-codex/gpt-5.6-sol'
 const DEFAULT_TIMEOUT_MS = 300_000
-const QA_PROFILE_REMOVAL_MAX_RETRIES = 10
-const QA_PROFILE_REMOVAL_RETRY_DELAY_MS = 100
 const LIST_LIMIT = 20
 const DISABLED_QA_SKILL = 'herdr-orchestration'
 const DETACHED_HOST_SURVIVAL_DELAY_MS = 10_000
+
+async function launchLiveGui(
+  executable: string,
+  environment: Record<string, string>,
+) {
+  const debugPort = await reserveDebugPort()
+  const automationIdentity = randomUUID()
+  const gui = launchGui(
+    executable,
+    { ...environment, OPENWAGGLE_AUTOMATION_LEASE_TOKEN: automationIdentity },
+    [`--remote-debugging-port=${String(debugPort)}`],
+  )
+  return { automationIdentity, debugPort, gui }
+}
 
 async function completeLiveQaCleanup(input: {
   readonly gui: ReturnType<typeof launchGui>
@@ -58,13 +70,7 @@ async function completeLiveQaCleanup(input: {
     await shutdownSessionHostForQa(
       input.userDataRoot,
       input.passed && closeSucceeded
-        ? () =>
-            fs.rm(input.userDataRoot, {
-              recursive: true,
-              force: true,
-              maxRetries: QA_PROFILE_REMOVAL_MAX_RETRIES,
-              retryDelay: QA_PROFILE_REMOVAL_RETRY_DELAY_MS,
-            })
+        ? (ownership) => prepareQaProfileRemoval(input.userDataRoot, ownership)
         : async () => undefined,
     )
   } catch (error) {
@@ -162,15 +168,15 @@ async function main() {
     projectPath,
     skillId: DISABLED_QA_SKILL,
   })
-  let debugPort = await reserveDebugPort()
-  let gui = launchGui(executable, env, [`--remote-debugging-port=${String(debugPort)}`])
+  let guiLaunch = await launchLiveGui(executable, env)
+  let { automationIdentity, debugPort, gui } = guiLaunch
   const guiLogs = [gui.logs]
   let passed = false
   let primaryFailure: { readonly error: unknown } | null = null
 
   try {
     await waitForHost(cliExecutable, env)
-    await waitForLiveGui(debugPort, timeoutMs)
+    await waitForLiveGui(debugPort, timeoutMs, automationIdentity)
     const launch = await runJsonCli(cliExecutable, env, [
       'sessions',
       'launch',
@@ -234,13 +240,16 @@ async function main() {
     if (!exported.stdout.includes(workerSessionId)) {
       throw new Error('Markdown tree export omitted the Worker Session ID.')
     }
-    debugPort = await reserveDebugPort()
-    gui = launchGui(executable, env, [`--remote-debugging-port=${String(debugPort)}`])
+    guiLaunch = await launchLiveGui(executable, env)
+    automationIdentity = guiLaunch.automationIdentity
+    debugPort = guiLaunch.debugPort
+    gui = guiLaunch.gui
     guiLogs.push(gui.logs)
     const screenshotPath = await verifyLiveHiveGui({
       debugPort,
       queenTitle: 'Packaged live Queen Worker QA',
       timeoutMs,
+      automationIdentity,
     })
     passed = true
     console.log(

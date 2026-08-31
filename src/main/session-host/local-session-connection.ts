@@ -1,5 +1,8 @@
 import type { Socket } from 'node:net'
-import { decodeLocalSessionClientFrame } from '@shared/schemas/local-session-protocol'
+import {
+  decodeLocalSessionClientFrame,
+  decodeLocalSessionCommandPayloadForRevision,
+} from '@shared/schemas/local-session-protocol'
 import type {
   LocalSessionClientFrame,
   LocalSessionServerFrame,
@@ -27,6 +30,29 @@ import type {
 import { describeLocalSessionServerError } from './local-session-server-frame'
 
 const DEFAULT_HANDSHAKE_TIMEOUT_MS = 5000
+
+function isSelfProfileCredentialMutation(input: {
+  readonly caller: AuthenticatedLocalSessionCaller
+  readonly frame: Extract<LocalSessionClientFrame, { kind: 'command' }>
+  readonly negotiatedRevision: number
+}) {
+  const profileName = input.caller.profileAuthority?.profileName
+  if (!profileName) return false
+  try {
+    const payload = decodeLocalSessionCommandPayloadForRevision(
+      input.frame.payload,
+      input.negotiatedRevision,
+    )
+    if (payload.contract !== 'local-access-v1') return false
+    const command = payload.request.command
+    return (
+      (command.operation === 'rotate' || command.operation === 'revoke') &&
+      command.profileName === profileName
+    )
+  } catch {
+    return false
+  }
+}
 
 export class LocalSessionConnection {
   private readonly inbound: LocalSessionInboundRetention
@@ -200,14 +226,37 @@ export class LocalSessionConnection {
     const controller = new AbortController()
     this.commandControllers.set(frame.requestId, controller)
     try {
-      await executeLocalSessionCommandFrame({
-        frame,
-        caller: this.caller,
-        negotiatedRevision: this.negotiatedRevision,
-        dependencies: this.dependencies,
-        signal: controller.signal,
-        send: (response) => this.send(response),
-      })
+      while (!this.closed) {
+        await this.admission.waitUntilReady()
+        const releaseAdmissionReader = this.admission.acquireReader(this.closed)
+        if (!releaseAdmissionReader) continue
+        const caller = this.caller
+        const negotiatedRevision = this.negotiatedRevision
+        if (!caller || negotiatedRevision === null) {
+          releaseAdmissionReader()
+          return
+        }
+        const selfCredentialMutation = isSelfProfileCredentialMutation({
+          caller,
+          frame,
+          negotiatedRevision,
+        })
+        if (selfCredentialMutation) releaseAdmissionReader()
+        try {
+          await executeLocalSessionCommandFrame({
+            frame,
+            caller,
+            negotiatedRevision,
+            dependencies: this.dependencies,
+            signal: controller.signal,
+            send: (response) => this.send(response),
+            ...(!selfCredentialMutation ? { releaseAdmissionReader: releaseAdmissionReader } : {}),
+          })
+        } finally {
+          releaseAdmissionReader()
+        }
+        return
+      }
     } finally {
       this.commandControllers.delete(frame.requestId)
     }

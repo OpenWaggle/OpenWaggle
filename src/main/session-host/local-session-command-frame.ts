@@ -39,6 +39,7 @@ export async function executeLocalSessionCommandFrame(input: {
   readonly dependencies: LocalSessionServerDependencies
   readonly signal: AbortSignal
   readonly send: (frame: LocalSessionServerFrame) => Promise<void>
+  readonly releaseAdmissionReader?: () => void
 }) {
   const releaseOperation = input.dependencies.liveness.acquire('operation')
   try {
@@ -49,6 +50,7 @@ export async function executeLocalSessionCommandFrame(input: {
       payload: input.frame.payload,
       signal: input.signal,
     })
+    input.releaseAdmissionReader?.()
     const refreshed = refreshedProfileId(payload)
     if (refreshed) await refreshLocalSessionProfileAdmissions(refreshed)
     await input.send({ kind: 'response', requestId: input.frame.requestId, payload })
@@ -64,6 +66,7 @@ export async function executeLocalSessionCommandFrame(input: {
       retryable: failure.retryable,
     })
   } finally {
+    input.releaseAdmissionReader?.()
     releaseOperation()
   }
 }

@@ -59,6 +59,15 @@ export async function verifyRevokedWorkspaceRootStopsExport() {
           )
         `)
         yield* sql.unsafe(`
+          CREATE TABLE derived_child_management_grants (
+            child_session_id TEXT PRIMARY KEY,
+            source_caller_id TEXT NOT NULL,
+            capabilities_json TEXT NOT NULL,
+            authorization_ceiling TEXT NOT NULL,
+            revoked_at INTEGER
+          )
+        `)
+        yield* sql.unsafe(`
           CREATE TABLE workspace_resources (
             id TEXT PRIMARY KEY,
             working_path TEXT NOT NULL,

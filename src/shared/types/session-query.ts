@@ -18,6 +18,7 @@ import type {
   SessionDiscoveryMode,
   SessionQuerySummary,
 } from './session-query-discovery'
+import type { SessionItemsOutcome, SessionItemsQuery } from './session-query-items'
 import type { SessionWaitState } from './session-wait'
 
 export type { DelegationQuerySummary } from './session-delegation-query'
@@ -93,14 +94,7 @@ export type SessionQuery =
       readonly limit: number
       readonly cursor?: string
     }
-  | {
-      readonly operation: 'items'
-      readonly sessionId: string
-      readonly limit: number
-      readonly runId?: string
-      readonly afterCreatedOrder?: number
-      readonly throughCreatedOrder?: number
-    }
+  | SessionItemsQuery
   | SessionExportQuery
   | SessionExportOperationQuery
   | { readonly operation: 'status'; readonly sessionId: string }
@@ -221,23 +215,7 @@ export type SessionQueryOutcome =
       }[]
       readonly nextCursor?: string
     }
-  | {
-      readonly operation: 'items'
-      readonly sessionId: string
-      readonly items: readonly {
-        readonly nodeId: string
-        readonly parentNodeId: string | null
-        readonly role: string | null
-        readonly kind: string
-        readonly timestampMs: number
-        readonly createdOrder: number
-        readonly runId?: string
-        readonly content: unknown
-        readonly metadata: unknown
-      }[]
-      readonly highWaterMark: number
-      readonly nextCreatedOrder?: number
-    }
+  | SessionItemsOutcome
   | SessionExportOutcome
   | SessionExportOperationQueryOutcome
   | {

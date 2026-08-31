@@ -13,7 +13,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.integration.test.ts'],
+    include: ['src/**/*.integration.test.ts', 'scripts/**/*.integration.test.ts'],
     // Real-Git integration tests shell out to `git` many times (worktree add, commit,
     // prune). Under the suite's parallel execution those subprocesses contend for CPU and
     // a single test can take ~12s on a busy machine while passing in isolation. A timeout

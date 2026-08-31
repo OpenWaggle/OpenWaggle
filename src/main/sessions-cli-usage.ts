@@ -58,9 +58,11 @@ Usage:
     [--full-transcript] [--include-archived] [--project <path>|--all]
     [--limit <n>] [--cursor <cursor>] [--timeout-ms <ms>]
     (default: hybrid discovery; lexical with --full-transcript)
-  openwaggle sessions read <session-id> [--full]
+  openwaggle sessions read <session-id> [--full] [--scope active-branch|tree] [--branch <branch-id>]
   openwaggle sessions turns <session-id> [--limit <n>] [--cursor <cursor>]
-  openwaggle sessions items <session-id> [--run <run-id>] [--after <created-order>] [--limit <n>]
+  openwaggle sessions items <session-id> [--run <run-id>] [--scope active-branch|tree]
+    [--branch <branch-id>] [--after <created-order>] [--through <created-order>]
+    [--snapshot-head <node-id>] [--limit <n>]
   openwaggle sessions export <session-id> [--format markdown|jsonl] [--scope active-branch|tree]
     [--branch <branch-id>] [--include-queue-bodies] [--limit <n>]
   openwaggle sessions export create <session-id> <destination> [--format jsonl|markdown|bundle]

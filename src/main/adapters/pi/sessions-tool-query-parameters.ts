@@ -4,6 +4,46 @@ import {
 } from '@shared/types/session-query'
 import { Type } from 'typebox'
 
+const exportSnapshotManifest = Type.Object({
+  schemaVersion: Type.Literal(1),
+  sessionId: Type.String(),
+  title: Type.String(),
+  branchScope: Type.Union([Type.Literal('active-branch'), Type.Literal('tree')]),
+  activeBranchId: Type.Union([Type.String(), Type.Null()]),
+  selectedBranchId: Type.Union([Type.String(), Type.Null()]),
+  snapshot: Type.Object({
+    nodeHighWaterMark: Type.Integer({ minimum: 0 }),
+    stateRevision: Type.Integer({ minimum: 0 }),
+    queueRevision: Type.Integer({ minimum: 0 }),
+    capturedAt: Type.Integer({ minimum: 0 }),
+    selectedHeadNodeId: Type.Optional(Type.String()),
+  }),
+  activeRunId: Type.Union([Type.String(), Type.Null()]),
+  activeTurnIncomplete: Type.Boolean(),
+  queue: Type.Object({
+    state: Type.Union([Type.Literal('running'), Type.Literal('paused')]),
+    pendingCount: Type.Integer({ minimum: 0 }),
+    bodyScope: Type.Union([Type.Literal('included'), Type.Literal('omitted-by-choice')]),
+    omittedBodyCount: Type.Integer({ minimum: 0 }),
+    items: Type.Array(
+      Type.Object({
+        followUpId: Type.String(),
+        position: Type.Integer({ minimum: 0 }),
+        createdAt: Type.Integer({ minimum: 0 }),
+        deliveryState: Type.Union([Type.Literal('pending'), Type.Literal('needs_attention')]),
+        attentionReason: Type.Optional(
+          Type.Union([
+            Type.Literal('authorization_ceiling_changed'),
+            Type.Literal('profile_revoked'),
+            Type.Literal('authority_changed'),
+          ]),
+        ),
+        intent: Type.Optional(Type.Unknown()),
+      }),
+    ),
+  }),
+})
+
 export const sessionsToolReadParameters = [
   Type.Object({
     action: Type.Union([
@@ -25,9 +65,12 @@ export const sessionsToolReadParameters = [
     action: Type.Literal('items'),
     sessionId: Type.String(),
     runId: Type.Optional(Type.String()),
+    branchScope: Type.Optional(Type.Union([Type.Literal('active-branch'), Type.Literal('tree')])),
+    branchId: Type.Optional(Type.String()),
     limit: Type.Optional(Type.Integer({ minimum: 1, maximum: SESSION_QUERY_TRANSCRIPT_LIMIT })),
     afterCreatedOrder: Type.Optional(Type.Integer({ minimum: 0 })),
     throughCreatedOrder: Type.Optional(Type.Integer({ minimum: 0 })),
+    snapshotHeadNodeId: Type.Optional(Type.String()),
   }),
   Type.Object({
     action: Type.Literal('export'),
@@ -40,5 +83,6 @@ export const sessionsToolReadParameters = [
     throughCreatedOrder: Type.Optional(Type.Integer({ minimum: 0 })),
     snapshotStateRevision: Type.Optional(Type.Integer({ minimum: 0 })),
     capturedAt: Type.Optional(Type.Integer({ minimum: 0 })),
+    snapshotManifest: Type.Optional(exportSnapshotManifest),
   }),
 ] as const

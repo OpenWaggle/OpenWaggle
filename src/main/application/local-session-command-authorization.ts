@@ -213,7 +213,10 @@ function resolveAuthorizationTarget(payload: AuthorizedLocalSessionCommandPayloa
   return Effect.gen(function* () {
     const repository = yield* SessionAuthorizationTargetRepository
     if (payload.contract === 'session-control-v2') {
-      return yield* repository.resolve(payload.request.command.sessionId)
+      const target = yield* repository.resolve(payload.request.command.sessionId)
+      if (payload.request.command.operation !== 'interrupt-descendants') return target
+      const { sessionId: _, ...hiveTarget } = target
+      return hiveTarget
     }
     if (payload.request.command.operation === 'fork') {
       return yield* repository.resolve(payload.request.command.sourceSessionId)

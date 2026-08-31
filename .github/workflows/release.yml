@@ -466,6 +466,15 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
+      - name: Verify unpacked macOS applications
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d dist/mac-arm64/OpenWaggle.app
+          test -d dist/mac/OpenWaggle.app
+          pnpm packaged-app:smoke -- dist/mac-arm64/OpenWaggle.app
+          pnpm packaged-app:smoke -- dist/mac/OpenWaggle.app
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: macos-artifacts
@@ -499,6 +508,9 @@ jobs:
       - name: Build Linux AppImage
         run: pnpm exec electron-builder --linux --publish never
 
+      - name: Verify unpacked Linux application
+        run: pnpm packaged-app:smoke -- dist/linux-unpacked
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: linux-artifacts
@@ -530,6 +542,9 @@ jobs:
 
       - name: Build Windows NSIS installer
         run: pnpm exec electron-builder --win --publish never
+
+      - name: Verify unpacked Windows application
+        run: pnpm packaged-app:smoke -- dist\win-unpacked
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -567,10 +582,18 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: ${{ runner.temp }}/release/${{ matrix.platform }}
 
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        if: matrix.platform == 'windows'
         with:
           node-version: 24.14.0
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Linux Electron dependencies
+        if: matrix.platform == 'linux'
+        run: pnpm exec playwright install-deps chromium
 
       - name: Verify Linux installer
         if: matrix.platform == 'linux'
@@ -616,6 +639,7 @@ jobs:
 
           test -x "$HOME/.local/bin/openwaggle"
           test -f "$HOME/.local/share/applications/openwaggle.desktop"
+          xvfb-run -a pnpm exec tsx scripts/verify-installed-cli.ts "$HOME/.local/bin/openwaggle"
 
       - name: Verify macOS installers
         if: matrix.platform == 'macos'
@@ -633,19 +657,25 @@ jobs:
           test -f "$ARTIFACT_DIR/$ARM64_ZIP"
           test -f "$ARTIFACT_DIR/$X64_ZIP"
 
-          MOUNT_POINT="$(hdiutil attach -nobrowse -readonly "$ARTIFACT_DIR/$ARM64_DMG" | awk -F'\t' '/\/Volumes\// { print $NF; exit }')"
+          case "$(uname -m)" in
+            arm64) NATIVE_DMG="$ARM64_DMG" ;;
+            x86_64) NATIVE_DMG="$X64_DMG" ;;
+            *) echo "Unsupported macOS runner architecture: $(uname -m)" >&2; exit 1 ;;
+          esac
+          MOUNT_POINT="$(hdiutil attach -nobrowse -readonly "$ARTIFACT_DIR/$NATIVE_DMG" | awk -F'\t' '/\/Volumes\// { print $NF; exit }')"
           trap 'hdiutil detach "$MOUNT_POINT" -quiet >/dev/null 2>&1 || true' EXIT
           APP_PATH=$(find "$MOUNT_POINT" -maxdepth 1 -name '*.app' | head -n 1)
           test -d "$APP_PATH"
           APP_BINARY="$APP_PATH/Contents/MacOS/OpenWaggle"
           test -x "$APP_BINARY"
+          pnpm exec tsx scripts/verify-installed-cli.ts "$APP_BINARY"
 
       - name: Verify Windows installer
         if: matrix.platform == 'windows'
         shell: pwsh
         env:
           INSTALLER_PATH: ${{ runner.temp }}\release\windows\openwaggle-${{ needs.version.outputs.new_version }}-x64.exe
-        run: node scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"
+        run: pnpm exec tsx scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"
 
   release:
     name: Create GitHub Release

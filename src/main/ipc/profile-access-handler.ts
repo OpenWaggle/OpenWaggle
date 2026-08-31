@@ -16,6 +16,7 @@ import {
 } from '../session-host/local-session-profile-invalidation'
 import { generateProfileCredential } from '../session-host/profile-credential'
 import {
+  ProfileCredentialCommitError,
   removeStoredProfileCredential,
   stageProfileCredential,
 } from '../session-host/profile-credential-destination'
@@ -37,6 +38,26 @@ function managementCommand(
 }
 
 type StagedProfileCredential = Awaited<ReturnType<typeof stageProfileCredential>>
+
+export class AcceptedProfileCredentialRecoveryError extends Error {
+  readonly code = 'profile_credential_recovery_required'
+
+  constructor(
+    readonly profileId: string,
+    readonly profileName: string,
+    readonly idempotencyKey: string,
+    readonly recoveryLocation: string,
+    options: ErrorOptions,
+  ) {
+    super(
+      `Profile "${profileName}" was created, but its credential installation did not finish. ` +
+        `The protected secret remains recoverable at ${recoveryLocation}. ` +
+        `Retry the accepted operation with idempotency key ${idempotencyKey}.`,
+      options,
+    )
+    this.name = 'AcceptedProfileCredentialRecoveryError'
+  }
+}
 
 function generateCommandCredential(command: LocalSessionProfileUiCommand) {
   return command.operation === 'create' || command.operation === 'rotate'
@@ -79,33 +100,52 @@ function settleProfileCredential(input: {
   readonly staged: StagedProfileCredential | undefined
   readonly stateRoot: string
 }) {
+  const outcome = input.response.outcome
+  const disconnectInvalidatedProfile = Effect.sync(() => {
+    if (outcome.effect === 'profile-revoked' || outcome.effect === 'profile-rotated') {
+      disconnectLocalSessionProfile(outcome.profile.id)
+    }
+  })
   return Effect.gen(function* () {
     const staged = input.staged
-    if (input.response.outcome.effect === 'rejected') {
+    if (outcome.effect === 'rejected') {
       if (staged) yield* Effect.promise(() => staged.discard())
       return
     }
-    if (staged) yield* Effect.promise(() => staged.commit())
-    if (input.response.outcome.effect === 'profile-updated') {
-      const profileId = input.response.outcome.profile.id
-      yield* Effect.promise(() => refreshLocalSessionProfileAdmissions(profileId))
+    if (staged) {
+      yield* Effect.tryPromise({
+        try: () => staged.commit(),
+        catch: (cause) => {
+          if (
+            outcome.effect !== 'profile-created' ||
+            !(cause instanceof ProfileCredentialCommitError)
+          ) {
+            return cause instanceof Error ? cause : new Error(String(cause))
+          }
+          return new AcceptedProfileCredentialRecoveryError(
+            outcome.profile.id,
+            outcome.profile.name,
+            input.response.idempotencyKey,
+            cause.recoveryLocation,
+            { cause },
+          )
+        },
+      })
     }
-    if (input.response.outcome.effect === 'profile-revoked') {
-      const revokedProfileName = input.response.outcome.profile.name
-      yield* Effect.promise(() =>
-        removeStoredProfileCredential({
-          stateRoot: input.stateRoot,
-          profileName: revokedProfileName,
-        }),
-      )
+    if (outcome.effect === 'profile-updated') {
+      yield* Effect.promise(() => refreshLocalSessionProfileAdmissions(outcome.profile.id))
     }
-    if (
-      input.response.outcome.effect === 'profile-revoked' ||
-      input.response.outcome.effect === 'profile-rotated'
-    ) {
-      disconnectLocalSessionProfile(input.response.outcome.profile.id)
+    if (outcome.effect === 'profile-revoked') {
+      yield* Effect.tryPromise({
+        try: () =>
+          removeStoredProfileCredential({
+            stateRoot: input.stateRoot,
+            profileName: outcome.profile.name,
+          }),
+        catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
+      })
     }
-  })
+  }).pipe(Effect.ensuring(disconnectInvalidatedProfile))
 }
 
 export function registerProfileAccessHandlers() {

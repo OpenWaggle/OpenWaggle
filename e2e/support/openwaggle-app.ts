@@ -8,7 +8,10 @@ import electronExecutablePath from 'electron'
 import { shouldUseHiddenElectron } from '../../scripts/electron-launch-mode'
 import { applicationCliStdout } from '../../scripts/electron-cli-stdout'
 import { launchOpenWaggleElectron } from '../../scripts/playwright-electron-launcher'
-import { shutdownSessionHostForQa } from '../../scripts/qa/session-host-shutdown'
+import {
+  prepareQaProfileRemoval,
+  shutdownSessionHostForQa,
+} from '../../scripts/qa/session-host-shutdown'
 import { buildSafeElectronEnvironment } from '../../scripts/safe-electron-environment'
 import { MainWindowPage } from '../page-models/main-window.page'
 
@@ -17,8 +20,6 @@ let evidenceDirectoryPromise: Promise<string> | null = null
 let evidenceSequence = 0
 const QA_DIAGNOSTIC_TEXT_LIMIT = 1_000
 const QA_SCREENSHOT_SETTLE_MS = 250
-const QA_PROFILE_REMOVAL_MAX_RETRIES = 10
-const QA_PROFILE_REMOVAL_RETRY_DELAY_MS = 100
 const CLI_MAX_OUTPUT_BYTES = 10 * 1024 * 1024
 const CLI_TIMEOUT_MS = 30_000
 
@@ -87,15 +88,6 @@ function reportRetainedProfile(userDataDir: string) {
   console.error(`[electron-qa] retained profile: ${userDataDir}`)
 }
 
-function removeQaProfile(userDataDir: string) {
-  return fs.rm(userDataDir, {
-    recursive: true,
-    force: true,
-    maxRetries: QA_PROFILE_REMOVAL_MAX_RETRIES,
-    retryDelay: QA_PROFILE_REMOVAL_RETRY_DELAY_MS,
-  })
-}
-
 export class OpenWaggleApp {
   private constructor(
     readonly userDataDir: string,
@@ -153,7 +145,7 @@ export class OpenWaggleApp {
         await shutdownSessionHostForQa(
           userDataDir,
           closeSucceeded
-            ? () => removeQaProfile(userDataDir)
+            ? (ownership) => prepareQaProfileRemoval(userDataDir, ownership)
             : async () => undefined,
         )
       } catch (shutdownError) {
@@ -245,7 +237,7 @@ export class OpenWaggleApp {
       await shutdownSessionHostForQa(
         this.userDataDir,
         closeSucceeded
-          ? () => removeQaProfile(this.userDataDir)
+          ? (ownership) => prepareQaProfileRemoval(this.userDataDir, ownership)
           : async () => undefined,
       )
     } catch (error) {

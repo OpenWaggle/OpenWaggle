@@ -66,6 +66,15 @@ export async function verifyProfileCapabilityReductionStopsExport() {
             revoked_at INTEGER
           )
         `)
+        yield* sql.unsafe(`
+          CREATE TABLE derived_child_management_grants (
+            child_session_id TEXT PRIMARY KEY,
+            source_caller_id TEXT NOT NULL,
+            capabilities_json TEXT NOT NULL,
+            authorization_ceiling TEXT NOT NULL,
+            revoked_at INTEGER
+          )
+        `)
         yield* sql`INSERT INTO sessions (id, project_path) VALUES (${'session-export'}, ${temporaryRoot})`
         yield* sql`
           INSERT INTO session_execution_profiles (session_id, authority_scope_snapshot_json)

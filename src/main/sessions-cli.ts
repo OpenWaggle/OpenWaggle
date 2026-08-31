@@ -1,6 +1,3 @@
-import { randomUUID } from 'node:crypto'
-import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
-import { isRecord } from '@shared/utils/validation'
 import { writeCliStdout } from './cli-stdout'
 import { validateImplicitCliHelp } from './command-cli-option-contract'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
@@ -26,7 +23,8 @@ import {
   writeSessionsCliResponse,
   writeSessionsCliStreamRecord,
 } from './sessions-cli-output'
-import { buildSessionsCliPayload, FULL_TRANSCRIPT_PAGE_LIMIT } from './sessions-cli-payload'
+import { buildSessionsCliPayload } from './sessions-cli-payload'
+import { streamFullTranscript } from './sessions-cli-transcript'
 import { sessionsCliUsage } from './sessions-cli-usage'
 
 export { buildSessionsCliPayload } from './sessions-cli-payload'
@@ -75,85 +73,6 @@ async function runWatchCommand(
   }
 }
 
-function transcriptOutcome(value: unknown) {
-  if (!isRecord(value) || !isRecord(value.response) || !isRecord(value.response.outcome)) {
-    return undefined
-  }
-  return value.response.outcome
-}
-
-function throwTranscriptOutcomeError(outcome: Record<string, unknown>) {
-  if (isRecord(outcome.error)) {
-    const code = 'code' in outcome.error ? String(outcome.error.code) : 'query_failed'
-    const message = 'message' in outcome.error ? String(outcome.error.message) : 'Query failed.'
-    throw new Error(`${code}: ${message}`)
-  }
-}
-
-function optionalNumber(record: Record<string, unknown>, key: string) {
-  const value = record[key]
-  return typeof value === 'number' ? value : undefined
-}
-
-function transcriptPage(value: unknown) {
-  const outcome = transcriptOutcome(value)
-  if (!outcome) return undefined
-  throwTranscriptOutcomeError(outcome)
-  if (!('items' in outcome)) return undefined
-  if (!Array.isArray(outcome.items)) return undefined
-  return {
-    items: outcome.items.map((item: unknown) => item),
-    highWaterMark: optionalNumber(outcome, 'highWaterMark'),
-    nextCreatedOrder: optionalNumber(outcome, 'nextCreatedOrder'),
-  }
-}
-
-async function streamFullTranscript(
-  sessionId: string,
-  session: unknown,
-  clientInput: ClientInput,
-  jsonl: boolean,
-) {
-  await writeSessionsCliStreamRecord({ record: 'session', session }, jsonl)
-  let afterCreatedOrder: number | undefined
-  let throughCreatedOrder: number | undefined
-  while (true) {
-    const result = await executeLocalSessionCommand({
-      ...clientInput,
-      payload: {
-        contract: 'session-query-v2',
-        request: {
-          contractVersion: SESSION_QUERY_CONTRACT_VERSION,
-          requestId: randomUUID(),
-          query: {
-            operation: 'items',
-            sessionId,
-            limit: FULL_TRANSCRIPT_PAGE_LIMIT,
-            ...(afterCreatedOrder === undefined ? {} : { afterCreatedOrder }),
-            ...(throughCreatedOrder === undefined ? {} : { throughCreatedOrder }),
-          },
-        },
-      },
-    })
-    const page = transcriptPage(result)
-    if (!page || page.highWaterMark === undefined) {
-      throw new Error('Local Session Host returned an invalid transcript page.')
-    }
-    throughCreatedOrder ??= page.highWaterMark
-    for (const item of page.items) {
-      await writeSessionsCliStreamRecord({ record: 'item', item }, jsonl)
-    }
-    if (page.nextCreatedOrder === undefined) {
-      await writeSessionsCliStreamRecord(
-        { record: 'end', highWaterMark: throughCreatedOrder },
-        jsonl,
-      )
-      return
-    }
-    afterCreatedOrder = page.nextCreatedOrder
-  }
-}
-
 async function runSessionCommand(
   command: string,
   arguments_: ReturnType<typeof parseMcpCliArguments>,
@@ -176,7 +95,13 @@ async function runSessionCommand(
   }
   if (command === 'read' && hasFlag(arguments_, 'full')) {
     const sessionId = required(arguments_.positionals[0], 'Session ID')
-    await streamFullTranscript(sessionId, result, clientInput, hasFlag(arguments_, 'jsonl'))
+    await streamFullTranscript({
+      sessionId,
+      session: result,
+      clientInput,
+      jsonl: hasFlag(arguments_, 'jsonl'),
+      arguments: arguments_,
+    })
     return EXIT.SUCCESS
   }
   if (command === 'export' && !isSessionExportOperationCliCommand(arguments_.positionals[0])) {

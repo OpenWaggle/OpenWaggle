@@ -1,4 +1,6 @@
+import fs from 'node:fs/promises'
 import net from 'node:net'
+import path from 'node:path'
 import { LOCAL_SESSION_CURRENT_REVISION } from '../../src/shared/types/local-session-protocol'
 import {
   LocalSessionHostUpgradePendingError,
@@ -19,6 +21,14 @@ const QA_HOST_SHUTDOWN_POLL_INTERVAL_MS = 50
 const QA_HOST_CONNECT_TIMEOUT_MS = 250
 const QA_HOST_CLIENT_VERSION = 'qa-graceful-shutdown'
 const FUTURE_PROTOCOL_REVISION = LOCAL_SESSION_CURRENT_REVISION + 1
+const QA_PROFILE_REMOVAL_MAX_RETRIES = 10
+const QA_PROFILE_REMOVAL_RETRY_DELAY_MS = 100
+const PROPER_LOCKFILE_SUFFIX = '.lock'
+
+type AfterOwnershipReleased = () => Promise<void>
+type WhileOwnershipHeld = (
+  ownership: SessionHostOwnership,
+) => Promise<AfterOwnershipReleased | undefined | void>
 
 interface SessionHostShutdownDependencies {
   readonly resolvePaths: (userDataRoot: string) => LocalSessionHostPaths
@@ -42,6 +52,67 @@ function isUnavailable(error: unknown) {
     hasErrorCode(error, 'ECONNABORTED') ||
     hasErrorCode(error, 'EPIPE')
   )
+}
+
+function isMissing(error: unknown) {
+  return hasErrorCode(error, 'ENOENT')
+}
+
+function containsPath(directory: string, candidate: string) {
+  const relative = path.relative(directory, candidate)
+  return (
+    relative === '' ||
+    (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+  )
+}
+
+async function removeEntriesExcept(root: string, preservedPath: string): Promise<void> {
+  const entries = await fs.readdir(root, { withFileTypes: true })
+  for (const entry of entries) {
+    const candidate = path.join(root, entry.name)
+    if (candidate === preservedPath) continue
+    if (containsPath(candidate, preservedPath)) {
+      await removeEntriesExcept(candidate, preservedPath)
+      continue
+    }
+    await fs.rm(candidate, {
+      recursive: true,
+      force: true,
+      maxRetries: QA_PROFILE_REMOVAL_MAX_RETRIES,
+      retryDelay: QA_PROFILE_REMOVAL_RETRY_DELAY_MS,
+    })
+  }
+}
+
+async function removeEmptyOwnershipParents(userDataRoot: string, lockPath: string) {
+  let candidate = path.dirname(lockPath)
+  while (containsPath(userDataRoot, candidate)) {
+    try {
+      await fs.rmdir(candidate)
+    } catch (error) {
+      if (!isMissing(error)) throw error
+    }
+    if (candidate === userDataRoot) return
+    candidate = path.dirname(candidate)
+  }
+}
+
+/**
+ * Deletes QA profile data without deleting the live proper-lockfile lease. The returned finalizer
+ * removes only the empty lock-parent chain after ownership is released, so a competing Host that
+ * reacquires first makes cleanup fail closed instead of having its new profile recursively removed.
+ */
+export async function prepareQaProfileRemoval(
+  userDataRoot: string,
+  ownership: SessionHostOwnership,
+): Promise<AfterOwnershipReleased> {
+  const profileRoot = path.resolve(userDataRoot)
+  const lockPath = path.resolve(`${ownership.targetPath}${PROPER_LOCKFILE_SUFFIX}`)
+  if (lockPath === profileRoot || !containsPath(profileRoot, lockPath)) {
+    throw new Error(`Session Host ownership lock is outside the QA profile: ${lockPath}.`)
+  }
+  await removeEntriesExcept(profileRoot, lockPath)
+  return () => removeEmptyOwnershipParents(profileRoot, lockPath)
 }
 
 function canConnect(endpoint: string) {
@@ -97,11 +168,12 @@ const defaultDependencies: SessionHostShutdownDependencies = {
 
 async function runWhileOwnershipHeld(
   ownership: SessionHostOwnership,
-  whileOwnershipHeld: () => Promise<void>,
+  whileOwnershipHeld: WhileOwnershipHeld,
 ) {
   let profileFailure: { readonly error: unknown } | null = null
+  let afterOwnershipReleased: AfterOwnershipReleased | undefined
   try {
-    await whileOwnershipHeld()
+    afterOwnershipReleased = (await whileOwnershipHeld(ownership)) ?? undefined
   } catch (error) {
     profileFailure = { error }
   }
@@ -119,6 +191,7 @@ async function runWhileOwnershipHeld(
   }
   if (profileFailure) throw profileFailure.error
   if (releaseFailure) throw releaseFailure.error
+  await afterOwnershipReleased?.()
 }
 
 /**
@@ -127,7 +200,7 @@ async function runWhileOwnershipHeld(
  */
 export async function shutdownSessionHostForQa(
   userDataRoot: string,
-  whileOwnershipHeld: () => Promise<void>,
+  whileOwnershipHeld: WhileOwnershipHeld,
   timeoutMs = QA_HOST_SHUTDOWN_TIMEOUT_MS,
   dependencies: SessionHostShutdownDependencies = defaultDependencies,
 ) {

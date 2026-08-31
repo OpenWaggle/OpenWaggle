@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto'
+import { decodeUnknownExactOrThrow } from '@shared/schema'
+import { sessionExportManifestSchema } from '@shared/schemas/session-export-operation'
 import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import { writeCliStdout } from './cli-stdout'
 import type { createLocalSessionCliClientInput } from './local-session-cli-client'
@@ -80,8 +82,9 @@ export function continuationQuery(input: {
   readonly manifest: unknown
   readonly arguments: ParsedArguments
 }) {
-  const manifest = isRecord(input.manifest) ? input.manifest : {}
-  const snapshot = isRecord(manifest.snapshot) ? manifest.snapshot : {}
+  const snapshotManifest = decodeUnknownExactOrThrow(sessionExportManifestSchema, input.manifest)
+  const manifest = snapshotManifest
+  const snapshot = manifest.snapshot
   const branchId =
     input.arguments.options.get('branch')?.at(-1) ??
     (typeof manifest.selectedBranchId === 'string' ? manifest.selectedBranchId : undefined)
@@ -106,6 +109,7 @@ export function continuationQuery(input: {
       ? { snapshotHeadNodeId: snapshot.selectedHeadNodeId }
       : {}),
     ...(typeof snapshot.capturedAt === 'number' ? { capturedAt: snapshot.capturedAt } : {}),
+    snapshotManifest,
   }
 }
 

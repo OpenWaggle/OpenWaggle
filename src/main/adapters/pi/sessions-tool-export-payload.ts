@@ -6,9 +6,46 @@ import {
 } from '@shared/types/session-query'
 import type { SessionsToolParameters } from './sessions-tool-parameters'
 
-export function buildSessionsToolExportPayload(
-  input: Extract<SessionsToolParameters, { action: 'export' }>,
-): LocalSessionCommandPayload {
+type ExportInput = Extract<SessionsToolParameters, { action: 'export' }>
+
+function exportSelection(input: ExportInput) {
+  const manifest = input.snapshotManifest
+  const branchId = input.branchId ?? manifest?.selectedBranchId ?? undefined
+  const includeQueueBodies =
+    input.includeQueueBodies ?? (manifest?.queue.bodyScope === 'included' ? true : undefined)
+  return {
+    branchScope: input.branchScope ?? manifest?.branchScope ?? ('active-branch' as const),
+    ...(branchId ? { branchId } : {}),
+    ...(includeQueueBodies ? { includeQueueBodies: true } : {}),
+  }
+}
+
+function exportSnapshot(input: ExportInput) {
+  const manifest = input.snapshotManifest
+  const throughCreatedOrder = input.throughCreatedOrder ?? manifest?.snapshot.nodeHighWaterMark
+  const snapshotStateRevision = input.snapshotStateRevision ?? manifest?.snapshot.stateRevision
+  const capturedAt = input.capturedAt ?? manifest?.snapshot.capturedAt
+  return {
+    ...(throughCreatedOrder === undefined ? {} : { throughCreatedOrder }),
+    ...(snapshotStateRevision === undefined ? {} : { snapshotStateRevision }),
+    ...(capturedAt === undefined ? {} : { capturedAt }),
+    ...(manifest?.snapshot.selectedHeadNodeId
+      ? { snapshotHeadNodeId: manifest.snapshot.selectedHeadNodeId }
+      : {}),
+    ...(manifest === undefined ? {} : { snapshotManifest: manifest }),
+  }
+}
+
+function exportPagination(input: ExportInput) {
+  return {
+    limit: input.limit ?? SESSION_QUERY_TRANSCRIPT_LIMIT,
+    ...(input.afterCreatedOrder === undefined
+      ? {}
+      : { afterCreatedOrder: input.afterCreatedOrder }),
+  }
+}
+
+export function buildSessionsToolExportPayload(input: ExportInput): LocalSessionCommandPayload {
   return {
     contract: 'session-query-v2',
     request: {
@@ -17,20 +54,9 @@ export function buildSessionsToolExportPayload(
       query: {
         operation: 'export',
         sessionId: input.sessionId,
-        branchScope: input.branchScope ?? 'active-branch',
-        ...(input.branchId ? { branchId: input.branchId } : {}),
-        ...(input.includeQueueBodies ? { includeQueueBodies: true } : {}),
-        limit: input.limit ?? SESSION_QUERY_TRANSCRIPT_LIMIT,
-        ...(input.afterCreatedOrder === undefined
-          ? {}
-          : { afterCreatedOrder: input.afterCreatedOrder }),
-        ...(input.throughCreatedOrder === undefined
-          ? {}
-          : { throughCreatedOrder: input.throughCreatedOrder }),
-        ...(input.snapshotStateRevision === undefined
-          ? {}
-          : { snapshotStateRevision: input.snapshotStateRevision }),
-        ...(input.capturedAt === undefined ? {} : { capturedAt: input.capturedAt }),
+        ...exportSelection(input),
+        ...exportPagination(input),
+        ...exportSnapshot(input),
       },
     },
   }

@@ -90,4 +90,34 @@ describe('Sessions CLI query contract', () => {
       request: { command: { expectedQueueRevision: 0 } },
     })
   })
+
+  it('builds branch-scoped immutable transcript continuations', () => {
+    const items = command([
+      'items',
+      'session-1',
+      '--scope',
+      'active-branch',
+      '--branch',
+      'branch-main',
+      '--after',
+      '10',
+      '--through',
+      '20',
+      '--snapshot-head',
+      'node-head',
+    ])
+
+    expect(buildSessionsCliPayload(items.name, items.arguments)).toMatchObject({
+      request: {
+        query: {
+          operation: 'items',
+          branchScope: 'active-branch',
+          branchId: 'branch-main',
+          afterCreatedOrder: 10,
+          throughCreatedOrder: 20,
+          snapshotHeadNodeId: 'node-head',
+        },
+      },
+    })
+  })
 })

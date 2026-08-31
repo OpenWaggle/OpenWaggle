@@ -25,7 +25,7 @@ async function collectLargeTranscriptPages(
     const result = await executeQuery(
       runtime,
       operation === 'items'
-        ? { operation, sessionId: 'worker', limit: 500, ...pageCursor }
+        ? { operation, sessionId: 'worker', limit: 500, branchScope: 'tree', ...pageCursor }
         : { operation, sessionId: 'worker', limit: 500, branchScope: 'tree', ...pageCursor },
     )
     expect(Buffer.byteLength(JSON.stringify(result))).toBeLessThanOrEqual(
@@ -133,6 +133,84 @@ describe('SQLite Session transcript queries', () => {
     expect(JSON.stringify(second)).not.toContain('committed after snapshot')
   })
 
+  it('pins the selected branch head across pages and exposes tree traversal explicitly', async () => {
+    const runtime = makeRuntime(path.join(temporaryRoot, 'branch-snapshot-read.sqlite'))
+    runtimes.push(runtime)
+    const first = await executeQuery(runtime, {
+      operation: 'items',
+      sessionId: 'worker',
+      branchScope: 'active-branch',
+      limit: 1,
+    })
+    if (first.outcome.operation !== 'items' || !('items' in first.outcome)) {
+      throw new Error('Expected transcript items.')
+    }
+    expect(first.outcome).toMatchObject({
+      selectedBranchId: 'worker:branch:main',
+      snapshotHeadNodeId: 'node-worker-2',
+      items: [{ nodeId: 'node-worker-1', branchHintId: 'worker:branch:main' }],
+    })
+
+    await runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          INSERT INTO session_nodes (
+            id, session_id, parent_id, kind, role, timestamp_ms,
+            content_json, metadata_json, branch_hint_id, created_order
+          ) VALUES (
+            ${'node-worker-fork'}, ${'worker'}, ${'node-worker-1'}, ${'message'}, ${'assistant'},
+            ${3}, ${'{"text":"fork-only"}'}, ${'{}'}, ${'worker:branch:fork'}, ${2}
+          )
+        `
+        yield* sql`
+          INSERT INTO session_branches (id, session_id, head_node_id)
+          VALUES (${'worker:branch:fork'}, ${'worker'}, ${'node-worker-fork'})
+        `
+        yield* sql`
+          UPDATE sessions SET last_active_branch_id = ${'worker:branch:fork'}
+          WHERE id = ${'worker'}
+        `
+      }),
+    )
+
+    const second = await executeQuery(runtime, {
+      operation: 'items',
+      sessionId: 'worker',
+      branchScope: 'active-branch',
+      branchId: first.outcome.selectedBranchId ?? undefined,
+      snapshotHeadNodeId: first.outcome.snapshotHeadNodeId ?? undefined,
+      throughCreatedOrder: first.outcome.highWaterMark,
+      afterCreatedOrder: first.outcome.nextCreatedOrder,
+      limit: 10,
+    })
+    expect(second.outcome).toMatchObject({
+      operation: 'items',
+      selectedBranchId: 'worker:branch:main',
+      snapshotHeadNodeId: 'node-worker-2',
+      items: [{ nodeId: 'node-worker-2' }],
+    })
+    expect(JSON.stringify(second)).not.toContain('fork-only')
+
+    const tree = await executeQuery(runtime, {
+      operation: 'items',
+      sessionId: 'worker',
+      branchScope: 'tree',
+      limit: 10,
+    })
+    expect(tree.outcome).toMatchObject({
+      operation: 'items',
+      branchScope: 'tree',
+      selectedBranchId: null,
+      snapshotHeadNodeId: null,
+      items: [
+        { nodeId: 'node-worker-1' },
+        { nodeId: 'node-worker-2' },
+        { nodeId: 'node-worker-fork', branchHintId: 'worker:branch:fork' },
+      ],
+    })
+  })
+
   it('reads one exact Run without scanning unrelated transcript items into the result page', async () => {
     const runtime = makeRuntime(path.join(temporaryRoot, 'run-items.sqlite'))
     runtimes.push(runtime)
@@ -199,6 +277,7 @@ describe('SQLite Session transcript queries', () => {
     const result = await executeQuery(runtime, {
       operation: 'items',
       sessionId: 'worker',
+      branchScope: 'tree',
       afterCreatedOrder: 1,
       limit: 500,
     })

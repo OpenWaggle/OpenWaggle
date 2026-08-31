@@ -8,6 +8,7 @@ import type {
 export interface ActiveLocalSessionSubscription {
   readonly subscription: SessionHostEventSubscription
   readonly releaseLiveness: () => void
+  readonly releaseBudget: () => void
 }
 
 export type LocalSessionSubscriptionPumpFrame =

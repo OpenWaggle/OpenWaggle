@@ -125,6 +125,8 @@ function itemsPayload(
         operation: 'items',
         sessionId: input.sessionId,
         ...(input.runId ? { runId: input.runId } : {}),
+        branchScope: input.branchScope ?? 'active-branch',
+        ...(input.branchId ? { branchId: input.branchId } : {}),
         limit:
           input.limit ?? Math.min(SESSION_QUERY_DISCOVERY_LIMIT, SESSION_QUERY_TRANSCRIPT_LIMIT),
         ...(input.afterCreatedOrder === undefined
@@ -133,6 +135,7 @@ function itemsPayload(
         ...(input.throughCreatedOrder === undefined
           ? {}
           : { throughCreatedOrder: input.throughCreatedOrder }),
+        ...(input.snapshotHeadNodeId ? { snapshotHeadNodeId: input.snapshotHeadNodeId } : {}),
       },
     },
   }

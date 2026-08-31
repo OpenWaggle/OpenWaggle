@@ -3,6 +3,7 @@ import { access, mkdtemp } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
+import { verifyInstalledCli } from './verify-installed-cli'
 
 const INSTALLER_ARGUMENT_INDEX = 2
 const INSTALLED_EXECUTABLE = 'OpenWaggle.exe'
@@ -16,6 +17,7 @@ type VerifyWindowsInstallerInput = {
 
 type VerifyWindowsInstallerDependencies = {
   readonly runInstaller?: (installerPath: string, args: readonly string[]) => Promise<number | null>
+  readonly verifyCli?: (commandPath: string) => Promise<void>
   readonly verifyPath?: (filePath: string) => Promise<void>
 }
 
@@ -33,6 +35,7 @@ export async function verifyWindowsInstaller(
 ) {
   const verifyPath = dependencies.verifyPath ?? access
   const executeInstaller = dependencies.runInstaller ?? runInstaller
+  const verifyCli = dependencies.verifyCli ?? ((commandPath) => verifyInstalledCli(commandPath, 'win32'))
   await verifyPath(input.installerPath)
 
   const exitCode = await executeInstaller(input.installerPath, [
@@ -44,7 +47,9 @@ export async function verifyWindowsInstaller(
   }
 
   await verifyPath(join(input.installDirectory, INSTALLED_EXECUTABLE))
-  await verifyPath(join(input.installDirectory, INSTALLED_CLI_SHIM))
+  const cliShimPath = join(input.installDirectory, INSTALLED_CLI_SHIM)
+  await verifyPath(cliShimPath)
+  await verifyCli(cliShimPath)
 }
 
 async function main() {

@@ -30,83 +30,103 @@ export class LocalSessionConnectionSubscriptions {
   constructor(private readonly input: LocalSessionConnectionSubscriptionsInput) {}
 
   async subscribe(requestId: string, cursor?: SessionHostEventCursor) {
-    if (subscriptionLimitReached(this.input.dependencies, this.subscriptions.size)) {
-      await this.input.send({
-        kind: 'error',
-        requestId,
-        code: 'subscription_limit_exceeded',
-        message: 'The Local Session subscription limit was reached.',
-        retryable: true,
-      })
-      return
-    }
+    if (await this.connectionLimitReached(requestId)) return
     while (!this.input.closed()) {
       await this.input.admission.waitUntilReady()
-      const releaseAdmissionReader = this.input.admission.acquireReader(this.input.closed())
-      if (!releaseAdmissionReader) continue
-      try {
-        const caller = this.input.caller()
-        if (!caller) return
-        const admissionEpoch = this.input.admission.currentEpoch()
-        const snapshotCursor = cursor ?? this.input.dependencies.eventHub.cursor()
-        const result = this.input.dependencies.eventHub.subscribeAfter(
-          snapshotCursor,
-          createLocalSessionEventAdmissionFilter(() =>
-            this.input.admission.isFenced() ? null : this.input.caller(),
-          ),
-          { advanceFilteredCursor: true },
-        )
-        if (result.status === 'resync-required') {
-          await this.input.send({
-            kind: 'resync-required',
-            requestId,
-            reason: result.reason,
-            cursor: result.cursor,
-          })
-          return
-        }
-        const activeRunSnapshot = cursor
-          ? undefined
-          : (this.input.dependencies.snapshotActiveRuns?.() ?? [])
-        const activeRuns = activeRunSnapshot
-          ? (
-              await Promise.all(
-                activeRunSnapshot.map(async (snapshot) => ({
-                  snapshot,
-                  authorized:
-                    (await this.input.dependencies.authorizeActiveRun?.(caller, snapshot)) ?? true,
-                })),
-              )
-            )
-              .filter((entry) => entry.authorized)
-              .map((entry) => entry.snapshot)
-          : undefined
-        if (
-          this.input.admission.isFenced() ||
-          admissionEpoch !== this.input.admission.currentEpoch()
-        ) {
-          result.subscription.close()
-        } else {
-          const subscriptionId = randomUUID()
-          const active = {
-            subscription: result.subscription,
-            releaseLiveness: this.input.dependencies.liveness.acquire('subscription'),
-          } satisfies ActiveLocalSessionSubscription
-          this.subscriptions.set(subscriptionId, active)
-          await this.input.send({
-            kind: 'subscribed',
-            requestId,
-            subscriptionId,
-            cursor: snapshotCursor,
-            ...(activeRuns ? { activeRuns } : {}),
-          })
-          void this.pump(subscriptionId, active)
-          return
-        }
-      } finally {
-        releaseAdmissionReader()
-      }
+      if (await this.subscribeWhenReady(requestId, cursor)) return
     }
+  }
+
+  private async subscribeWhenReady(requestId: string, cursor?: SessionHostEventCursor) {
+    const releaseAdmissionReader = this.input.admission.acquireReader(this.input.closed())
+    if (!releaseAdmissionReader) return false
+    let releaseBudget: (() => void) | undefined
+    try {
+      const caller = this.input.caller()
+      if (!caller) return true
+      const admissionEpoch = this.input.admission.currentEpoch()
+      const snapshotCursor = cursor ?? this.input.dependencies.eventHub.cursor()
+      releaseBudget = this.input.dependencies.subscriptionBudget?.reserve()
+      if (!releaseBudget) {
+        await this.sendLimitReached(requestId)
+        return true
+      }
+      const result = this.input.dependencies.eventHub.subscribeAfter(
+        snapshotCursor,
+        createLocalSessionEventAdmissionFilter(() =>
+          this.input.admission.isFenced() ? null : this.input.caller(),
+        ),
+        { advanceFilteredCursor: true },
+      )
+      if (result.status === 'resync-required') {
+        await this.input.send({
+          kind: 'resync-required',
+          requestId,
+          reason: result.reason,
+          cursor: result.cursor,
+        })
+        return true
+      }
+      const activeRuns = await this.authorizedActiveRuns(caller, cursor)
+      if (
+        this.input.admission.isFenced() ||
+        admissionEpoch !== this.input.admission.currentEpoch()
+      ) {
+        result.subscription.close()
+        return false
+      }
+      const subscriptionId = randomUUID()
+      const active = {
+        subscription: result.subscription,
+        releaseLiveness: this.input.dependencies.liveness.acquire('subscription'),
+        releaseBudget,
+      } satisfies ActiveLocalSessionSubscription
+      releaseBudget = undefined
+      this.subscriptions.set(subscriptionId, active)
+      await this.input.send({
+        kind: 'subscribed',
+        requestId,
+        subscriptionId,
+        cursor: snapshotCursor,
+        ...(activeRuns ? { activeRuns } : {}),
+      })
+      void this.pump(subscriptionId, active)
+      return true
+    } finally {
+      releaseBudget?.()
+      releaseAdmissionReader()
+    }
+  }
+
+  private async authorizedActiveRuns(
+    caller: AuthenticatedLocalSessionCaller,
+    cursor?: SessionHostEventCursor,
+  ) {
+    if (cursor) return
+    const snapshots = this.input.dependencies.snapshotActiveRuns?.() ?? []
+    const authorization = await Promise.all(
+      snapshots.map(async (snapshot) => ({
+        snapshot,
+        authorized: (await this.input.dependencies.authorizeActiveRun?.(caller, snapshot)) ?? true,
+      })),
+    )
+    return authorization.filter((entry) => entry.authorized).map((entry) => entry.snapshot)
+  }
+
+  private async connectionLimitReached(requestId: string) {
+    if (!subscriptionLimitReached(this.input.dependencies, this.subscriptions.size)) return false
+    await this.sendLimitReached(requestId)
+    return true
+  }
+
+  private sendLimitReached(requestId: string) {
+    return this.input.send({
+      kind: 'error',
+      requestId,
+      code: 'subscription_limit_exceeded',
+      message: 'The Local Session subscription limit was reached.',
+      retryable: true,
+    })
   }
 
   async unsubscribe(requestId: string, subscriptionId: string) {
@@ -115,6 +135,7 @@ export class LocalSessionConnectionSubscriptions {
       this.subscriptions.delete(subscriptionId)
       active.subscription.close()
       active.releaseLiveness()
+      active.releaseBudget()
     }
     await this.input.send({ kind: 'unsubscribed', requestId, subscriptionId })
   }
@@ -123,6 +144,7 @@ export class LocalSessionConnectionSubscriptions {
     for (const active of this.subscriptions.values()) {
       active.subscription.close()
       active.releaseLiveness()
+      active.releaseBudget()
     }
     this.subscriptions.clear()
   }
@@ -168,6 +190,7 @@ export class LocalSessionConnectionSubscriptions {
       }
       active.subscription.close()
       active.releaseLiveness()
+      active.releaseBudget()
     }
   }
 }

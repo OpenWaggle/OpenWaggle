@@ -19,6 +19,7 @@ import {
   exportListQuerySchema,
   exportReadQuerySchema,
   exportWaitQuerySchema,
+  sessionExportManifestSchema,
 } from './session-export-operation'
 
 const discoveryLimit = Schema.Number.pipe(
@@ -78,8 +79,11 @@ const sessionQuerySchema = Schema.Union(
     sessionId: Schema.String,
     limit: transcriptLimit,
     runId: Schema.optional(Schema.String),
+    branchScope: Schema.optional(Schema.Literal('active-branch', 'tree')),
+    branchId: Schema.optional(Schema.String),
     afterCreatedOrder: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
     throughCreatedOrder: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
+    snapshotHeadNodeId: Schema.optional(Schema.String),
   }),
   Schema.Struct({ operation: Schema.Literal('status'), sessionId: Schema.String }),
   Schema.Struct({ operation: Schema.Literal('requests-list'), sessionId: Schema.String }),
@@ -95,6 +99,7 @@ const sessionQuerySchema = Schema.Union(
     snapshotStateRevision: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
     snapshotHeadNodeId: Schema.optional(Schema.String),
     capturedAt: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
+    snapshotManifest: Schema.optional(sessionExportManifestSchema),
   }),
   exportListQuerySchema,
   exportReadQuerySchema,

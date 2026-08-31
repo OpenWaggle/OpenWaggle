@@ -37,6 +37,7 @@ function exportQuery(
               ? { snapshotHeadNodeId: manifest.snapshot.selectedHeadNodeId }
               : {}),
             capturedAt: manifest.snapshot.capturedAt,
+            snapshotManifest: manifest,
           }
         : {}),
     },

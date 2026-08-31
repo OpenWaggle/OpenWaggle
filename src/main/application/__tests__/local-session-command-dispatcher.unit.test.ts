@@ -149,6 +149,37 @@ describe('Local Session command authorization', () => {
     expect(wrongScope).toMatchObject({ code: 'target_scope_denied' })
   })
 
+  it('requires Hive-wide scope before interrupting descendants', async () => {
+    const payload = controlPayload({
+      operation: 'interrupt-descendants',
+      sessionId: 'session-queen',
+    })
+    const exactSessionError = await Effect.runPromise(
+      authorizeLocalSessionCommand({
+        caller: restrictedCaller({
+          capabilities: ['sessions:interrupt'],
+          scope: { sessionIds: ['session-queen'] },
+        }),
+        payload,
+      })
+        .pipe(Effect.flip)
+        .pipe(Effect.provide(authorizationLayer)),
+    )
+
+    expect(exactSessionError).toMatchObject({ code: 'target_scope_denied' })
+    await expect(
+      Effect.runPromise(
+        authorizeLocalSessionCommand({
+          caller: restrictedCaller({
+            capabilities: ['sessions:interrupt'],
+            scope: { hiveRootSessionIds: ['session-queen'] },
+          }),
+          payload,
+        }).pipe(Effect.provide(authorizationLayer)),
+      ),
+    ).resolves.toBeUndefined()
+  })
+
   it('accepts a live non-transferable child grant outside the profile base scope', async () => {
     const caller: LocalSessionCallerIdentity = {
       callerId: 'profile:worker-client',
