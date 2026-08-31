@@ -1,22 +1,20 @@
-import type { WorkspaceTextFileReadResult } from '@shared/types/workspace-files'
 import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { useEffect, useRef, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Button } from '@/shared/ui/Button'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 import { WorkspaceFileEditor } from '../WorkspaceFileEditor'
+import { workspaceTextFileFixture as file } from './workspace-file-editor-test-fixtures'
 
 const applyWorkspaceDocumentEditsMock = vi.hoisted(() => vi.fn())
 const readWorkspaceFileMock = vi.hoisted(() => vi.fn())
 const focusedSourceEditorRenderMock = vi.hoisted(() => vi.fn())
-
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     readWorkspaceFile: readWorkspaceFileMock,
     applyWorkspaceDocumentEdits: applyWorkspaceDocumentEditsMock,
   },
 }))
-
 vi.mock('@/shared/ui/FocusedSourceEditor', () => ({
   FocusedSourceEditor: ({
     source,
@@ -69,28 +67,6 @@ vi.mock('@/shared/ui/FocusedSourceEditor', () => ({
     )
   },
 }))
-
-const file: WorkspaceTextFileReadResult = {
-  path: 'src/example.ts',
-  basename: 'example.ts',
-  size: 24,
-  modifiedAt: 1,
-  revision: 'revision-1',
-  mimeType: 'text/typescript',
-  previewKind: 'text',
-  content: 'first line\nsecond line\n',
-  language: 'typescript',
-  documentVersion: 0,
-  fidelity: {
-    encoding: 'utf-8',
-    lineEnding: 'lf',
-    finalNewline: true,
-    indentStyle: 'space',
-    indentSize: 2,
-    editorConfigApplied: false,
-  },
-}
-
 describe('WorkspaceFileEditor', () => {
   afterEach(() => vi.useRealTimers())
 
@@ -107,7 +83,6 @@ describe('WorkspaceFileEditor', () => {
       revision: 'revision-2',
     })
   })
-
   it('queues the newest draft when closing during an in-flight autosave', async () => {
     vi.useFakeTimers()
     let resolveFirstSave:
@@ -125,7 +100,6 @@ describe('WorkspaceFileEditor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
     await act(async () => Promise.resolve())
     const editor = screen.getByRole('textbox', { name: 'Edit src/example.ts' })
-
     fireEvent.change(editor, { target: { value: 'draft A' } })
     await act(() => vi.advanceTimersByTimeAsync(500))
     expect(applyWorkspaceDocumentEditsMock).toHaveBeenCalledTimes(1)
@@ -224,52 +198,6 @@ describe('WorkspaceFileEditor', () => {
     expect(screen.getByText('Save failed')).toHaveAttribute('title', 'Disk is full')
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Use Disk' })).not.toBeInTheDocument()
-  })
-
-  it('autosaves EditorConfig-normalized content and refreshes the focused editor', async () => {
-    vi.useFakeTimers()
-    const policyFile: WorkspaceTextFileReadResult = {
-      ...file,
-      fidelity: {
-        ...file.fidelity,
-        editorConfigApplied: true,
-        editorConfigPolicy: {
-          trimTrailingWhitespace: true,
-          finalNewline: true,
-        },
-      },
-    }
-    applyWorkspaceDocumentEditsMock.mockResolvedValueOnce({
-      status: 'saved',
-      version: 1,
-      size: 16,
-      modifiedAt: 2,
-      revision: 'revision-2',
-      encoding: 'utf-8',
-      lineEnding: 'lf',
-    })
-    renderWithQueryClient(
-      <WorkspaceFileEditor projectPath="/project" file={policyFile} targetLine={null} />,
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
-    await act(async () => Promise.resolve())
-    const editor = screen.getByRole('textbox', { name: 'Edit src/example.ts' })
-
-    fireEvent.change(editor, { target: { value: 'const value = 1   ' } })
-    await act(() => vi.advanceTimersByTimeAsync(500))
-
-    expect(applyWorkspaceDocumentEditsMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        batches: [
-          expect.objectContaining({
-            changes: [expect.objectContaining({ text: 'const value = 1\n' })],
-          }),
-        ],
-      }),
-    )
-    expect(screen.getByRole('textbox', { name: 'Edit src/example.ts' })).toHaveValue(
-      'const value = 1\n',
-    )
   })
 
   it('keeps search results in review mode until focused editing is explicit', async () => {
