@@ -42,7 +42,7 @@ The app also spreads persistent session context across the composer, header, dif
 ### The Session Summary is host-owned
 
 - Show the Summary only after the first message. Before first send, the existing setup dock owns project, environment, and run target.
-- Support the same content in persisted pinned and header-popover modes. Pin it at the top-right, fall back to the popover on narrow layouts, and hide it whenever the right sidebar is open.
+- Render the same content in one top-right floating overlay after the first message. It never reserves transcript or composer width. Hide it automatically when the chat container is too narrow or the right sidebar opens, but keep the Summary toggle available so the user can explicitly reopen or hide the overlay at any width.
 - Initial first-party order is Environment, Hive, Outputs, Sources. Add future capabilities as explicitly named conditional sections. Do not add generic Activity or Usage buckets.
 - Authorization mode and model context usage remain in the composer before and after first send.
 - Environment exposes Changes, Local/worktree, Branch, adaptive commit/push, and provider-specific GitHub PR or GitLab MR actions through existing guarded Git services.
@@ -68,7 +68,7 @@ The app also spreads persistent session context across the composer, header, dif
 
 ## Consequences
 
-The change adds a persistence port/adapter, migration, managed-file service, typed IPC, renderer resource feature, Summary shell, Resource Browser, image viewer, extension contract additions, and provider-aware change-request workflow UI. Tests must cover session isolation, branch provenance, idempotent backfill, archive/delete lifecycle, capture limits and SSRF protection, Session switching, pinned/popover behavior, sidebar yielding, extension isolation, image keyboard/zoom behavior, and GitHub/GitLab workflows. Real hidden Electron QA and end-to-end interaction tests are required because layout ownership, route state, and image rendering cannot be proven through unit tests alone.
+The change adds a persistence port/adapter, migration, managed-file service, typed IPC, renderer resource feature, Summary shell, Resource Browser, image viewer, extension contract additions, and provider-aware change-request workflow UI. Tests must cover session isolation, branch provenance, idempotent backfill, archive/delete lifecycle, capture limits and SSRF protection, Session switching, floating-overlay responsiveness, sidebar yielding, extension isolation, image keyboard/zoom behavior, and GitHub/GitLab workflows. Real hidden Electron QA and end-to-end interaction tests are required because layout ownership, route state, and image rendering cannot be proven through unit tests alone.
 
 ## Alternatives considered
 

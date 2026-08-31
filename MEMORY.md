@@ -94,6 +94,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 
 ## Product And UX Memory
 
+- The Session Summary is a floating overlay, never a layout column. It must not add transcript or composer padding. The host auto-hides it when the chat container has less than 840px or the right sidebar opens, while the Summary toggle remains available so an explicit open can overlay the chat at any width.
 - Pi-native sidebar navigation is Projects-only. Do not add a global projectless Chats section.
 - Waggle mode must run inside Pi as extension/runtime behavior, not as an OpenWaggle application loop that calls Pi once per agent turn.
 - Waggle currently supports exactly two agents. Third-agent JSON edits must be rejected at core, Pi extension, shared schema, store schema, and application-service boundaries until N-agent turn policy, prompts, consensus, and UI are implemented first-class.

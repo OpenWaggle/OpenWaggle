@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   SessionResourceViewer,
   type SessionSummaryExtensionSidePanelTarget,
@@ -13,6 +13,8 @@ import { ChatComposerStack } from './ChatComposerStack'
 import { ChatDisplayPathProvider } from './ChatDisplayPathContext'
 import { ChatTranscript } from './ChatTranscript'
 
+const SESSION_SUMMARY_AUTO_OPEN_MIN_WIDTH_PX = 840
+
 interface ChatPanelContentProps {
   readonly sections: ChatPanelSections
   readonly onOpenSessionTree?: () => void
@@ -21,6 +23,23 @@ interface ChatPanelContentProps {
   readonly onNavigateSession?: (sessionId: string) => void
   readonly onOpenExtensionSidePanel?: (target: SessionSummaryExtensionSidePanelTarget) => void
   readonly rightSidebarOpen?: boolean
+}
+
+function useSessionSummarySpace() {
+  const panelRef = useRef<HTMLDivElement>(null)
+  const [hasSpace, setHasSpace] = useState(true)
+
+  useEffect(() => {
+    const element = panelRef.current
+    if (!element || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => {
+      setHasSpace(element.clientWidth >= SESSION_SUMMARY_AUTO_OPEN_MIN_WIDTH_PX)
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+
+  return { panelRef, hasSpace }
 }
 
 export function ChatPanelContent({
@@ -32,9 +51,6 @@ export function ChatPanelContent({
   onOpenExtensionSidePanel = () => {},
   rightSidebarOpen = false,
 }: ChatPanelContentProps) {
-  const [sessionSummaryExpansion, setSessionSummaryExpansion] = useState<
-    Readonly<Record<string, boolean>>
-  >({})
   const activeSessionId = sections.transcript.activeSessionId
     ? String(sections.transcript.activeSessionId)
     : null
@@ -45,22 +61,11 @@ export function ChatPanelContent({
   )
   const summaryMessageCount = sections.composer.isFirstMessage ? 0 : messageCount
   const activeMessageIds = new Set(sections.transcript.messages.map((message) => message.id))
-  const persistedSummaryExpanded = (() => {
-    if (!activeSessionId) return false
-    try {
-      return localStorage.getItem(`openwaggle:session-summary:${activeSessionId}:panel`) !== 'false'
-    } catch {
-      return true
-    }
-  })()
-  const summaryExpanded = activeSessionId
-    ? (sessionSummaryExpansion[activeSessionId] ?? persistedSummaryExpanded)
-    : false
-  const sessionSummaryVisible =
-    activeSessionId !== null && summaryMessageCount > 0 && !rightSidebarOpen && summaryExpanded
+  const summarySpace = useSessionSummarySpace()
   return (
     <div className="flex size-full overflow-hidden">
       <div
+        ref={summarySpace.panelRef}
         className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-bg"
         data-chat-panel-main="true"
       >
@@ -73,20 +78,13 @@ export function ChatPanelContent({
             input={{
               session: sections.composer.session,
               messageCount: summaryMessageCount,
-              hidden: rightSidebarOpen,
+              autoHidden: rightSidebarOpen || !summarySpace.hasSpace,
               extensionRegistry: sections.extensionRegistry,
               extensionProjectPaths: sections.extensionProjectPaths,
               onOpenDiff,
               onOpenResources,
               onNavigateSession,
               onOpenExtensionSidePanel,
-              onPanelExpandedChange: (expanded) => {
-                if (!activeSessionId) return
-                setSessionSummaryExpansion((current) => ({
-                  ...current,
-                  [activeSessionId]: expanded,
-                }))
-              },
             }}
           />
           {/* Anchored here rather than inside the composer: the composer area is reserved for
@@ -107,10 +105,7 @@ export function ChatPanelContent({
             name="Chat transcript"
             className="flex flex-1 flex-col overflow-hidden"
           >
-            <ChatTranscript
-              section={sections.transcript}
-              reserveSessionSummarySpace={sessionSummaryVisible}
-            />
+            <ChatTranscript section={sections.transcript} />
           </PanelErrorBoundary>
 
           <PanelErrorBoundary name="Composer">

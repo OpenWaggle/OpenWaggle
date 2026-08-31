@@ -93,7 +93,7 @@ function renderHub(
   props: {
     readonly activeSession?: SessionDetail | null
     readonly messageCount?: number
-    readonly hidden?: boolean
+    readonly autoHidden?: boolean
   } = {},
 ) {
   return renderWithQueryClient(
@@ -102,7 +102,7 @@ function renderHub(
       input={{
         session: props.activeSession === undefined ? session() : props.activeSession,
         messageCount: props.messageCount ?? 1,
-        hidden: props.hidden ?? false,
+        autoHidden: props.autoHidden ?? false,
         onOpenDiff: vi.fn(),
         onOpenResources: vi.fn(),
         onNavigateSession: vi.fn(),
@@ -137,17 +137,31 @@ describe('SessionSummaryHub', () => {
   it('keeps long summary content inside a bounded, scrollable surface', () => {
     renderHub()
     const summary = screen.getByRole('complementary', { name: 'Session Summary' })
-    expect(summary).toHaveClass('max-h-full', 'overflow-hidden')
-    expect(summary.parentElement).toHaveClass('inset-y-4', 'items-start')
+    expect(summary).toHaveClass('max-h-full', 'max-w-full', 'overflow-hidden')
+    expect(summary.parentElement).toHaveClass(
+      'absolute',
+      'right-4',
+      'bottom-4',
+      'left-4',
+      'top-14',
+      'items-start',
+    )
     expect(summary.querySelector('.overflow-y-auto')).toBeInTheDocument()
   })
 
-  it('yields to the right sidebar and returns when it closes', () => {
-    const view = renderHub({ hidden: true })
+  it('keeps the Summary toggle available when the panel is automatically hidden', () => {
+    renderHub({ autoHidden: true })
     expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
-    view.unmount()
-    renderHub({ hidden: false })
+    const toggle = screen.getByRole('button', { name: 'Open Session Summary' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(toggle)
+
     expect(screen.getByRole('complementary', { name: 'Session Summary' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Hide Session Summary' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
   })
 
   it('shows only resources returned for the opened session', async () => {

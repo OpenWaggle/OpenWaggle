@@ -76,11 +76,37 @@ test('Session Summary follows first-message, dock, and sidebar behavior', async 
     await expect(setupDock).toHaveAttribute('aria-hidden', 'true')
     await expect(summary.getByText('main')).toBeVisible({ timeout: 30_000 })
     await expect(summary.getByRole('button', { name: /Changes/ })).toContainText('+2')
+    const transcript = page.getByRole('log', { name: 'Chat messages' })
+    const expandedTranscriptWidth = await transcript.evaluate(
+      (element) => element.getBoundingClientRect().width,
+    )
+
+    await page.getByRole('button', { name: 'Hide Session Summary' }).click()
+    await expect(summary).toHaveCount(0)
+    const collapsedTranscriptWidth = await transcript.evaluate(
+      (element) => element.getBoundingClientRect().width,
+    )
+    expect(Math.abs(expandedTranscriptWidth - collapsedTranscriptWidth)).toBeLessThan(1)
+    await page.getByRole('button', { name: 'Open Session Summary' }).click()
+    await expect(summary).toBeVisible()
 
     await page.getByRole('button', { name: 'Toggle diff panel' }).click()
     await expect(summary).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Open Session Summary' })).toBeVisible()
     await page.getByRole('button', { name: 'Close diff sidebar' }).click()
     await expect(summary).toBeVisible()
+
+    await app.resizeMainWindow(720, 700)
+    await expect(summary).toHaveCount(0)
+    const narrowTranscriptWidth = await transcript.evaluate(
+      (element) => element.getBoundingClientRect().width,
+    )
+    await page.getByRole('button', { name: 'Open Session Summary' }).click()
+    await expect(summary).toBeVisible()
+    const narrowOverlayTranscriptWidth = await transcript.evaluate(
+      (element) => element.getBoundingClientRect().width,
+    )
+    expect(Math.abs(narrowTranscriptWidth - narrowOverlayTranscriptWidth)).toBeLessThan(1)
   } finally {
     await app.cleanup()
   }
@@ -159,10 +185,12 @@ test('session resources stay scoped while inline images and the gallery navigate
     await expect(inlineUserImage).toBeVisible()
     await expect(page.getByRole('button', { name: 'Open image agent-output.svg' })).toBeVisible()
 
+    await page.getByRole('button', { name: 'Hide Session Summary' }).click()
     await inlineUserImage.click()
     await expect(page.getByRole('dialog', { name: 'Image viewer: user-reference.svg' })).toBeVisible()
     await page.keyboard.press('Escape')
 
+    await page.getByRole('button', { name: 'Open Session Summary' }).click()
     const summary = page.getByRole('complementary', { name: 'Session Summary' })
     await summary.getByRole('button', { name: /Sources/ }).click()
     await summary.getByText('user-reference.svg').click()

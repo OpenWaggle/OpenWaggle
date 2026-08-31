@@ -2,7 +2,7 @@ import { match } from '@diegogbrisa/ts-match'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { GitStackedAction } from '@shared/types/git'
 import type { SessionDetail } from '@shared/types/session'
-import { Info } from 'lucide-react'
+import { ListFilter } from 'lucide-react'
 import { useState } from 'react'
 import {
   CommitMessageDialog,
@@ -58,29 +58,55 @@ function runSessionQuickAction(input: {
     .exhaustive()
 }
 
-function CollapsedSummaryButton({ onOpen }: { readonly onOpen: () => void }) {
+function SessionSummaryToggle({
+  expanded,
+  panelId,
+  onToggle,
+}: {
+  readonly expanded: boolean
+  readonly panelId: string
+  readonly onToggle: () => void
+}) {
   return (
     <Button
-      variant="secondary"
+      variant={expanded ? 'subtle' : 'secondary'}
       size="icon-sm"
-      className="absolute right-4 top-4 z-20 rounded-full shadow-lg"
-      aria-label="Open Session Summary"
-      onClick={onOpen}
+      className="absolute right-4 top-4 z-30 shadow-lg"
+      aria-controls={panelId}
+      aria-expanded={expanded}
+      aria-label={expanded ? 'Hide Session Summary' : 'Open Session Summary'}
+      title={expanded ? 'Hide Session Summary' : 'Open Session Summary'}
+      onClick={onToggle}
     >
-      <Info className="size-4" />
+      <ListFilter className="size-4" />
     </Button>
   )
+}
+
+function useSessionSummaryPanelVisibility(sessionId: string, autoHidden: boolean) {
+  const [expanded, setExpanded] = usePersistedExpanded(sessionId, 'panel', true)
+  const [forcedOpen, setForcedOpen] = useState(false)
+  const visible = expanded && (!autoHidden || forcedOpen)
+  const close = () => {
+    setExpanded(false)
+    setForcedOpen(false)
+  }
+  const toggle = () => {
+    if (visible) return close()
+    setExpanded(true)
+    setForcedOpen(autoHidden)
+  }
+  return { close, toggle, visible }
 }
 
 export interface SessionSummaryHubInput {
   readonly session: SessionDetail | null
   readonly messageCount: number
-  readonly hidden: boolean
+  readonly autoHidden: boolean
   readonly onOpenDiff: () => void
   readonly onOpenResources: () => void
   readonly onNavigateSession: (sessionId: string) => void
   readonly onOpenExtensionSidePanel?: (target: SessionSummaryExtensionSidePanelTarget) => void
-  readonly onPanelExpandedChange?: (expanded: boolean) => void
   readonly extensionRegistry: ExtensionContributionRegistryView | null
   readonly extensionProjectPaths: readonly string[]
 }
@@ -89,17 +115,17 @@ export function SessionSummaryHub({ input }: { readonly input: SessionSummaryHub
   const {
     session,
     messageCount,
-    hidden,
+    autoHidden,
     onOpenDiff,
     onOpenResources,
     onNavigateSession,
     onOpenExtensionSidePanel,
     extensionRegistry,
     extensionProjectPaths,
-    onPanelExpandedChange,
   } = input
   const sessionId = session ? String(session.id) : 'none'
-  const [panelExpanded, setPanelExpanded] = usePersistedExpanded(sessionId, 'panel', true)
+  const panelId = `session-summary-${sessionId}`
+  const panel = useSessionSummaryPanelVisibility(sessionId, autoHidden)
   const [environmentExpanded, setEnvironmentExpanded] = usePersistedExpanded(
     sessionId,
     'environment',
@@ -121,7 +147,7 @@ export function SessionSummaryHub({ input }: { readonly input: SessionSummaryHub
   const quickAction = resolveQuickAction(combined.status, stackedActions.isRunning)
   const resources = useSessionResources(session ? sessionId : null)
 
-  if (!session || messageCount === 0 || hidden) return null
+  if (!session || messageCount === 0) return null
 
   const allResources = resources.data ?? []
   const outputs = allResources.filter((resource) => resource.isOutput)
@@ -134,50 +160,41 @@ export function SessionSummaryHub({ input }: { readonly input: SessionSummaryHub
       openCommitDialog: setPendingCommitAction,
       openChangeRequestComposer: () => setComposerOpen(true),
     })
-  if (!panelExpanded) {
-    return (
-      <CollapsedSummaryButton
-        onOpen={() => {
-          setPanelExpanded(true)
-          onPanelExpandedChange?.(true)
-        }}
-      />
-    )
-  }
 
   return (
     <>
-      <SessionSummaryExpandedPanel
-        input={{
-          session,
-          sessionId,
-          messageCount,
-          gitStatus: git.status,
-          vcsStatus: combined.status,
-          quickAction,
-          environmentExpanded,
-          outputsExpanded,
-          sourcesExpanded,
-          outputs,
-          sources,
-          resources: allResources,
-          extensionRegistry,
-          extensionProjectPaths,
-          onCollapse: () => {
-            setPanelExpanded(false)
-            onPanelExpandedChange?.(false)
-          },
-          onEnvironmentExpandedChange: setEnvironmentExpanded,
-          onOutputsExpandedChange: setOutputsExpanded,
-          onSourcesExpandedChange: setSourcesExpanded,
-          onOpenDiff,
-          onOpenResources,
-          onNavigateSession,
-          onCreateChangeRequest: () => setComposerOpen(true),
-          onQuickAction: runQuickAction,
-          onOpenExtensionSidePanel,
-        }}
-      />
+      <SessionSummaryToggle expanded={panel.visible} panelId={panelId} onToggle={panel.toggle} />
+      {panel.visible ? (
+        <SessionSummaryExpandedPanel
+          input={{
+            panelId,
+            session,
+            sessionId,
+            messageCount,
+            gitStatus: git.status,
+            vcsStatus: combined.status,
+            quickAction,
+            environmentExpanded,
+            outputsExpanded,
+            sourcesExpanded,
+            outputs,
+            sources,
+            resources: allResources,
+            extensionRegistry,
+            extensionProjectPaths,
+            onCollapse: panel.close,
+            onEnvironmentExpandedChange: setEnvironmentExpanded,
+            onOutputsExpandedChange: setOutputsExpanded,
+            onSourcesExpandedChange: setSourcesExpanded,
+            onOpenDiff,
+            onOpenResources,
+            onNavigateSession,
+            onCreateChangeRequest: () => setComposerOpen(true),
+            onQuickAction: runQuickAction,
+            onOpenExtensionSidePanel,
+          }}
+        />
+      ) : null}
 
       {composerOpen && git.workingPath ? (
         <ChangeRequestComposer
