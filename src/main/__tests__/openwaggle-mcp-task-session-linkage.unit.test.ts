@@ -188,7 +188,7 @@ describe('hosted MCP task session linkage', () => {
       }),
     )
 
-    await Effect.runPromise(
+    const original = await Effect.runPromise(
       first.start({
         projectPath: temporaryRoot,
         sessionId: 'shared-session',
@@ -213,8 +213,12 @@ describe('hosted MCP task session linkage', () => {
     releaseAccepted()
 
     await waitForTaskStatus(second, replacement.id, 'working')
+    await waitForTaskStatus(first, original.id, 'completed')
     await vi.waitFor(() => expect(projectedStates).toContain('working'))
     await vi.waitFor(() => expect(projectedStates).toContain('accepted'))
     expect(projectedStates.at(-1)).toBe('working')
+
+    await Effect.runPromise(second.cancel(replacement.id))
+    await waitForTaskStatus(second, replacement.id, 'cancelled')
   })
 })

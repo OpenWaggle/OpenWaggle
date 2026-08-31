@@ -13,15 +13,29 @@ interface ProcessFileLockOptions {
   readonly waitUntilAvailable?: boolean
 }
 
-/**
- * Serializes a filesystem transaction across the desktop app and MCP CLI.
- * The target does not have to exist yet; proper-lockfile owns a sibling lock
- * directory and refreshes it while the transaction is running.
- */
-export async function withProcessFileLock<T>(
+const waitQueues = new Map<string, Promise<void>>()
+
+async function withLocalWaitQueue<T>(targetPath: string, operation: () => Promise<T>) {
+  const previous = waitQueues.get(targetPath) ?? Promise.resolve()
+  let releaseTurn = () => {}
+  const turn = new Promise<void>((resolve) => {
+    releaseTurn = resolve
+  })
+  const queued = previous.then(() => turn)
+  waitQueues.set(targetPath, queued)
+  await previous
+  try {
+    return await operation()
+  } finally {
+    releaseTurn()
+    if (waitQueues.get(targetPath) === queued) waitQueues.delete(targetPath)
+  }
+}
+
+async function runWithProcessFileLock<T>(
   targetPath: string,
   operation: () => Promise<T>,
-  options: ProcessFileLockOptions = {},
+  waitUntilAvailable: boolean,
 ) {
   await mkdir(path.dirname(targetPath), { recursive: true })
   const release = await lockfile.lock(targetPath, {
@@ -29,7 +43,7 @@ export async function withProcessFileLock<T>(
     stale: LOCK_STALE_MS,
     update: LOCK_UPDATE_MS,
     retries: {
-      ...(options.waitUntilAvailable ? { forever: true } : { retries: LOCK_RETRIES }),
+      ...(waitUntilAvailable ? { forever: true } : { retries: LOCK_RETRIES }),
       factor: LOCK_RETRY_FACTOR,
       minTimeout: LOCK_RETRY_MIN_TIMEOUT_MS,
       maxTimeout: LOCK_RETRY_MAX_TIMEOUT_MS,
@@ -41,4 +55,19 @@ export async function withProcessFileLock<T>(
   } finally {
     await release()
   }
+}
+
+/**
+ * Serializes a filesystem transaction across the desktop app and MCP CLI.
+ * The target does not have to exist yet; proper-lockfile owns a sibling lock
+ * directory and refreshes it while the transaction is running.
+ */
+export async function withProcessFileLock<T>(
+  targetPath: string,
+  operation: () => Promise<T>,
+  options: ProcessFileLockOptions = {},
+) {
+  const waitUntilAvailable = options.waitUntilAvailable ?? false
+  const run = () => runWithProcessFileLock(targetPath, operation, waitUntilAvailable)
+  return waitUntilAvailable ? withLocalWaitQueue(targetPath, run) : run()
 }
