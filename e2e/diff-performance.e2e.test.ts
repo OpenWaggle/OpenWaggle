@@ -154,7 +154,9 @@ test('a large diff gives immediate feedback and keeps rendering off the main thr
     })
     await toggle.click()
 
-    const diffPanel = page.locator('aside[data-right-sidebar-shell="true"]')
+    // The responsive sidebar is docked on wide viewports and a sheet on narrower/DPI-scaled
+    // ones. Assert against their shared visible panel contract rather than one layout shell.
+    const diffPanel = page.locator('[data-right-sidebar-panel="true"]')
     if (process.platform !== 'darwin') {
       await expect(
         diffPanel.getByLabel('Loading').or(diffPanel.locator('.diff-scroll code').first()).first(),
@@ -242,7 +244,7 @@ test('a single oversized patch is parsed off the renderer thread', async () => {
     })
 
     await page.getByRole('button', { name: 'Toggle diff panel' }).click()
-    const diffPanel = page.locator('aside[data-right-sidebar-shell="true"]')
+    const diffPanel = page.locator('[data-right-sidebar-panel="true"]')
     if (process.platform !== 'darwin') {
       await expect(
         diffPanel.getByLabel('Loading').or(diffPanel.locator('.diff-scroll code').first()).first(),
