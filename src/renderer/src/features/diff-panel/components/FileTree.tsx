@@ -172,6 +172,14 @@ function useVirtualizedNavigator(files: readonly GitFileDiff[]) {
     items.length,
     firstVisibleIndex + visibleRowCount + VIRTUAL_OVERSCAN_ROWS,
   )
+  const visibleRows = items
+    .slice(startIndex, endIndex)
+    .map((item, offset) => ({ item, index: startIndex + offset }))
+  const focusedIndex = items.findIndex((item) => item.isFocused())
+  if (focusedIndex >= 0 && (focusedIndex < startIndex || focusedIndex >= endIndex)) {
+    const focusedItem = items[focusedIndex]
+    if (focusedItem !== undefined) visibleRows.push({ item: focusedItem, index: focusedIndex })
+  }
   const containerProps = tree.getContainerProps()
   const treeContainerRef = isContainerRefCallback(containerProps.ref)
     ? containerProps.ref
@@ -198,7 +206,7 @@ function useVirtualizedNavigator(files: readonly GitFileDiff[]) {
     items,
     rowHeight,
     startIndex,
-    visibleItems: items.slice(startIndex, endIndex),
+    visibleRows,
   }
 }
 
@@ -211,16 +219,8 @@ export function FileTree({ files, onFileClick }: FileTreeProps) {
   // structurally blind to this class of bug (see MEMORY.md).
   'use no memo'
 
-  const {
-    tree,
-    containerProps,
-    handleContainerRef,
-    handleScroll,
-    items,
-    rowHeight,
-    startIndex,
-    visibleItems,
-  } = useVirtualizedNavigator(files)
+  const { tree, containerProps, handleContainerRef, handleScroll, items, rowHeight, visibleRows } =
+    useVirtualizedNavigator(files)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col py-2">
@@ -236,14 +236,12 @@ export function FileTree({ files, onFileClick }: FileTreeProps) {
           data-navigator-virtual-space="true"
           style={{ height: `${String(items.length * rowHeight)}px` }}
         >
-          {visibleItems.map((item, visibleIndex) => {
+          {visibleRows.map(({ item, index }) => {
             const data = item.getItemData()
             const isFolder = !data.isFile
             const ChevIcon = item.isExpanded() ? ChevronDown : ChevronRight
             const itemProps = item.getProps()
             const libraryOnClick = isClickHandler(itemProps.onClick) ? itemProps.onClick : undefined
-            const absoluteIndex = startIndex + visibleIndex
-
             return (
               <Button
                 variant="unstyled"
@@ -264,7 +262,7 @@ export function FileTree({ files, onFileClick }: FileTreeProps) {
                 style={{
                   position: 'absolute',
                   insetInline: 0,
-                  top: `${String(absoluteIndex * rowHeight)}px`,
+                  top: `${String(index * rowHeight)}px`,
                   paddingLeft: `${String(item.getItemMeta().level * INDENT_PX + ROW_PADDING_PX)}px`,
                   // Chromium can skip layout and paint for navigator rows outside the scrollport.
                   // Keep the intrinsic height equal to h-5.5 so scrolling does not jump as rows enter view.

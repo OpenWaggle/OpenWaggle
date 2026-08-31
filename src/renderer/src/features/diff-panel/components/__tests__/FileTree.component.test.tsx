@@ -109,12 +109,17 @@ describe('Changed-file navigator', () => {
 
     expect(screen.getAllByRole('treeitem').length).toBeLessThan(40)
     expect(screen.queryByText('file-079.ts')).not.toBeInTheDocument()
+    const focusedRow = screen.getByText('src').closest('button')
+    expect(focusedRow).not.toBeNull()
+    focusedRow?.focus()
 
     const tree = screen.getByRole('tree')
     Object.defineProperty(tree, 'scrollTop', { configurable: true, value: 1_760 })
     fireEvent.scroll(tree)
 
     expect(screen.getByText('file-079.ts')).toBeInTheDocument()
+    expect(screen.getByText('src').closest('button')).toBe(focusedRow)
+    expect(focusedRow).toHaveFocus()
     expect(screen.getAllByRole('treeitem').length).toBeLessThan(40)
   })
 
