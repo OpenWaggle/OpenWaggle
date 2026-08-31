@@ -96,8 +96,8 @@ function resolveDiffPlaceholder(input: {
   readonly loadError: string | null
   readonly fileCount: number
 }) {
-  if (input.isLoading) return 'loading'
   if (input.loadError !== null) return 'error'
+  if (input.isLoading) return 'loading'
   return input.fileCount === 0 ? 'empty' : 'diff'
 }
 

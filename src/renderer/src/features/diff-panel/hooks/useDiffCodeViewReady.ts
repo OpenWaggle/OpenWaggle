@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 
-function hasRenderedCode(root: HTMLElement) {
-  if (root.querySelector('code') !== null) return true
+const READY_SELECTOR = 'code, [data-diffs-header]'
+
+function hasRenderedDiff(root: HTMLElement) {
+  if (root.querySelector(READY_SELECTOR) !== null) return true
   return [...root.querySelectorAll('diffs-container')].some(
-    (container) => container.shadowRoot?.querySelector('code') !== null,
+    (container) => container.shadowRoot?.querySelector(READY_SELECTOR) !== null,
   )
 }
 
@@ -14,7 +16,7 @@ function watchForRenderedCode(root: HTMLElement, onReady: () => void) {
     shadowObserver.disconnect()
   }
   const scan = () => {
-    if (hasRenderedCode(root)) {
+    if (hasRenderedDiff(root)) {
       disconnect()
       onReady()
       return
@@ -33,7 +35,7 @@ function watchForRenderedCode(root: HTMLElement, onReady: () => void) {
   return disconnect
 }
 
-/** Keep loading feedback visible until Pierre emits the first rendered code node. */
+/** Keep loading feedback visible until Pierre emits its first code row or header-only change. */
 export function useDiffCodeViewReady() {
   const rootRef = useRef<HTMLDivElement>(null)
   const [ready, setReady] = useState(false)
