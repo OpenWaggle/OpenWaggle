@@ -234,7 +234,7 @@ index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..4288b10efc89990e277b86c5ede879e4
 +export declare function compact(preparation: CompactionPreparation, model: Model<any>, apiKey: string | undefined, headers?: Record<string, string>, customInstructions?: string, signal?: AbortSignal, thinkingLevel?: ThinkingLevel, streamFn?: StreamFn, env?: Record<string, string>, retry?: RetryPolicy, callbacks?: RetryCallbacks, sessionId?: string, systemPrompt?: string): Promise<CompactionResult>;
  //# sourceMappingURL=compaction.d.ts.map
 diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
-index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..09e1620c044dfe2605d3d275853290b0d20f0282 100644
+index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..6c449a49cc4e319706ca2877c408f2e2146f8b59 100644
 --- a/dist/core/compaction/compaction.js
 +++ b/dist/core/compaction/compaction.js
 @@ -4,7 +4,8 @@
@@ -484,7 +484,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..09e1620c044dfe2605d3d275853290b0
          turnPrefixMessages,
          isSplitTurn: cutPoint.isSplitTurn,
          tokensBefore,
-@@ -606,7 +625,43 @@ Be concise. Focus on what's needed to understand the kept suffix.`;
+@@ -606,7 +625,44 @@ Be concise. Focus on what's needed to understand the kept suffix.`;
   * @param customInstructions - Optional custom focus for the summary
   * @param sessionId - Optional routing session ID forwarded without enabling prompt caching
   */
@@ -503,7 +503,8 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..09e1620c044dfe2605d3d275853290b0
 +            signal,
 +            env,
 +            sessionId,
-+            maxRetries: retry?.enabled === false ? 0 : retry?.maxRetries,
++            retryPolicy: retry,
++            retryCallbacks: callbacks,
 +        });
 +        if (!Array.isArray(response.output) ||
 +            !response.output.some((item) => item && typeof item === "object" && item.type === "compaction" &&
@@ -529,7 +530,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..09e1620c044dfe2605d3d275853290b0
      const { firstKeptEntryId, messagesToSummarize, turnPrefixMessages, isSplitTurn, tokensBefore, previousSummary, fileOps, settings, } = preparation;
      // Generate summaries and merge into one
      let summary;
-@@ -641,7 +696,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
+@@ -641,7 +697,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
          firstKeptEntryId,
          tokensBefore,
          usage: summaryUsage,

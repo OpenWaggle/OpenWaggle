@@ -14,25 +14,30 @@ index c35771dcc9b2173d0b459d13c6d86e622de45e9a..534410119f2c83b9e2989170815d321a
                  }
                  else if (block.type === "text") {
 diff --git a/dist/api/openai-responses.d.ts b/dist/api/openai-responses.d.ts
-index 41267bd50904069aa0879cc8634ea94bc1045236..783744879277a95d9b8d15636d64bce93ca94bc4 100644
+index 41267bd50904069aa0879cc8634ea94bc1045236..67311574dd60cc7fe1d6f2013b8a7cdfd7b26a30 100644
 --- a/dist/api/openai-responses.d.ts
 +++ b/dist/api/openai-responses.d.ts
-@@ -1,5 +1,5 @@
+@@ -1,5 +1,6 @@
 -import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
 -import type { SimpleStreamOptions, StreamFunction, StreamOptions } from "../types.ts";
 +import type { CompactedResponse, ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
 +import type { Context, Model, SimpleStreamOptions, StreamFunction, StreamOptions } from "../types.ts";
++import type { RetryCallbacks, RetryPolicy } from "../utils/retry.ts";
  export interface OpenAIResponsesOptions extends StreamOptions {
      reasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
      reasoningSummary?: "auto" | "detailed" | "concise" | null;
-@@ -11,4 +11,5 @@ export interface OpenAIResponsesOptions extends StreamOptions {
+@@ -11,4 +12,9 @@ export interface OpenAIResponsesOptions extends StreamOptions {
   */
  export declare const stream: StreamFunction<"openai-responses", OpenAIResponsesOptions>;
  export declare const streamSimple: StreamFunction<"openai-responses", SimpleStreamOptions>;
-+export declare function compactResponses(model: Model<"openai-responses" | "azure-openai-responses" | "openai-codex-responses">, context: Context, options?: SimpleStreamOptions): Promise<CompactedResponse>;
++export interface CompactResponsesOptions extends SimpleStreamOptions {
++    retryPolicy?: RetryPolicy;
++    retryCallbacks?: RetryCallbacks;
++}
++export declare function compactResponses(model: Model<"openai-responses" | "azure-openai-responses" | "openai-codex-responses">, context: Context, options?: CompactResponsesOptions): Promise<CompactedResponse>;
  //# sourceMappingURL=openai-responses.d.ts.map
 diff --git a/dist/api/openai-responses.js b/dist/api/openai-responses.js
-index 0fb7e8b26f323f2b44a5a4b760bccedc4c3abdd0..250c73acf4d616f2b26538e3241a7851e8159a6e 100644
+index 0fb7e8b26f323f2b44a5a4b760bccedc4c3abdd0..890fbe79b87d408ae0f95d09b492463716cc4119 100644
 --- a/dist/api/openai-responses.js
 +++ b/dist/api/openai-responses.js
 @@ -13,6 +13,7 @@ import { clampOpenAIPromptCacheKey } from "./openai-prompt-cache.js";
@@ -73,7 +78,7 @@ index 0fb7e8b26f323f2b44a5a4b760bccedc4c3abdd0..250c73acf4d616f2b26538e3241a7851
          supportsDeveloperRole: model.compat?.supportsDeveloperRole ?? true,
          sessionAffinityFormat: model.compat?.sessionAffinityFormat ?? detectSessionAffinityFormat(model),
          supportsLongCacheRetention: model.compat?.supportsLongCacheRetention ?? true,
-@@ -160,7 +177,47 @@ export const streamSimple = (model, context, options) => {
+@@ -160,7 +177,49 @@ export const streamSimple = (model, context, options) => {
          reasoningEffort,
      });
  };
@@ -114,6 +119,8 @@ index 0fb7e8b26f323f2b44a5a4b760bccedc4c3abdd0..250c73acf4d616f2b26538e3241a7851
 +        maxRetries: options?.maxRetries,
 +        maxRetryDelayMs: options?.maxRetryDelayMs,
 +        signal: options?.signal,
++        retryPolicy: options?.retryPolicy,
++        retryCallbacks: options?.retryCallbacks,
 +    });
 +    await options?.onResponse?.({ status: response.status, headers: headersToRecord(response.headers) }, model);
 +    return data;
@@ -122,7 +129,7 @@ index 0fb7e8b26f323f2b44a5a4b760bccedc4c3abdd0..250c73acf4d616f2b26538e3241a7851
      const compat = getCompat(model);
      const headers = { "User-Agent": getPiUserAgent(), ...model.headers };
      if (model.provider === "github-copilot") {
-@@ -186,9 +243,16 @@ function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId)
+@@ -186,9 +245,16 @@ function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId)
      if (optionsHeaders) {
          Object.assign(headers, optionsHeaders);
      }
@@ -203,3 +210,106 @@ index 2bb23658ee692343e4561ac461bd0e8d9328c5a1..ec2b3366e793d76dc56096fff87fd06c
      /** Whether the provider supports the `developer` role (vs `system`). Default: true. */
      supportsDeveloperRole?: boolean;
      /** Session-affinity header format: `openai` sends `session_id` and `x-client-request-id`; `openai-nosession` sends `x-client-request-id`; `openrouter` sends `x-session-id`. Does not affect the `prompt_cache_key` body param, which is governed by cache retention. Default: auto-detected. */
+diff --git a/dist/utils/provider-retry.d.ts b/dist/utils/provider-retry.d.ts
+index 1872cd204eba7d413f452ccc747fa28a920b3ac7..4bcbd327bbd4068baf124f70a422f99eac50d87d 100644
+--- a/dist/utils/provider-retry.d.ts
++++ b/dist/utils/provider-retry.d.ts
+@@ -1,7 +1,10 @@
++import type { RetryCallbacks, RetryPolicy } from "./retry.ts";
+ interface ProviderRetryOptions {
+     maxRetries?: number;
+     maxRetryDelayMs?: number;
+     signal?: AbortSignal;
++    retryPolicy?: RetryPolicy;
++    retryCallbacks?: RetryCallbacks;
+ }
+ /**
+  * Reproduce the retry behavior used by the OpenAI and Anthropic SDKs while making
+diff --git a/dist/utils/provider-retry.js b/dist/utils/provider-retry.js
+index a08fefd7e254f494f838ffa95affd6bf279973db..bbad2564d6b8c24501672f83ce9fe9491cba263a 100644
+--- a/dist/utils/provider-retry.js
++++ b/dist/utils/provider-retry.js
+@@ -1,3 +1,4 @@
++import { isRetryableProviderErrorMessage } from "./retry.js";
+ const DEFAULT_MAX_RETRY_DELAY_MS = 60_000;
+ function isProviderError(error) {
+     if (!(error instanceof Error) || !("status" in error) || !("headers" in error))
+@@ -73,21 +74,47 @@ function abortableSleep(ms, signal) {
+  * disable the limit.
+  */
+ export async function retryProviderRequest(request, options = {}) {
+-    const maxRetries = options.maxRetries ?? 0;
++    const policy = options.retryPolicy;
++    const maxRetries = policy ? (policy.enabled ? policy.maxRetries : 0) : (options.maxRetries ?? 0);
+     let retriesRemaining = maxRetries;
++    let retryAttempt = 0;
+     for (;;) {
+         try {
+             // Each retry is a fresh SDK request, so X-Stainless-Retry-Count remains zero.
+-            return await request();
++            const result = await request();
++            if (retryAttempt > 0)
++                await options.retryCallbacks?.onRetryFinished?.(true, retryAttempt);
++            return result;
+         }
+         catch (error) {
+-            if (options.signal?.aborted)
++            const errorMessage = error instanceof Error ? error.message : String(error);
++            if (options.signal?.aborted) {
++                if (retryAttempt > 0)
++                    await options.retryCallbacks?.onRetryFinished?.(false, retryAttempt, errorMessage);
+                 throw createAbortError();
+-            if (retriesRemaining <= 0 || !isProviderError(error) || !isRetryableProviderError(error))
++            }
++            const retryableByProvider = isProviderError(error) && isRetryableProviderError(error);
++            const retryableByPolicy = !policy || isRetryableProviderErrorMessage(errorMessage);
++            if (retriesRemaining <= 0 || !retryableByProvider || !retryableByPolicy) {
++                if (retryAttempt > 0)
++                    await options.retryCallbacks?.onRetryFinished?.(false, retryAttempt, errorMessage);
+                 throw error;
++            }
+             const retryIndex = maxRetries - retriesRemaining;
+             retriesRemaining--;
+-            await abortableSleep(getRetryDelayMs(error, retryIndex, options.maxRetryDelayMs), options.signal);
++            retryAttempt = retryIndex + 1;
++            const delayMs = policy
++                ? policy.baseDelayMs * 2 ** retryIndex
++                : getRetryDelayMs(error, retryIndex, options.maxRetryDelayMs);
++            await options.retryCallbacks?.onRetryScheduled?.(retryAttempt, maxRetries, delayMs, errorMessage);
++            try {
++                await abortableSleep(delayMs, options.signal);
++            }
++            catch (sleepError) {
++                await options.retryCallbacks?.onRetryFinished?.(false, retryAttempt, errorMessage);
++                throw sleepError;
++            }
++            await options.retryCallbacks?.onRetryAttemptStart?.();
+         }
+     }
+ }
+diff --git a/dist/utils/retry.d.ts b/dist/utils/retry.d.ts
+index 19a199b4bfbe6956d9ec47a3943bbb4845759d36..4f55345d406dbd8da9fdb8f5e2b04aa8296f2af6 100644
+--- a/dist/utils/retry.d.ts
++++ b/dist/utils/retry.d.ts
+@@ -50,4 +50,6 @@ export declare function retryAssistantCall(produce: () => Promise<AssistantMessa
+  * before restarting the assistant turn.
+  */
+ export declare function isRetryableAssistantError(message: AssistantMessage): boolean;
++/** Classify a provider/transport error string using the shared Pi retry rules. */
++export declare function isRetryableProviderErrorMessage(errorMessage: string): boolean;
+ //# sourceMappingURL=retry.d.ts.map
+diff --git a/dist/utils/retry.js b/dist/utils/retry.js
+index 65c7c9efd7667445b711fcd43549062ee3eb5ecf..fa71d237af074e7adcb204ecdf9eb2e6726871f4 100644
+--- a/dist/utils/retry.js
++++ b/dist/utils/retry.js
+@@ -166,7 +166,9 @@ export async function retryAssistantCall(produce, policy, signal, callbacks) {
+ export function isRetryableAssistantError(message) {
+     if (message.stopReason !== "error" || !message.errorMessage)
+         return false;
+-    const errorMessage = message.errorMessage;
++    return isRetryableProviderErrorMessage(message.errorMessage);
++}
++export function isRetryableProviderErrorMessage(errorMessage) {
+     if (NON_RETRYABLE_PROVIDER_LIMIT_ERROR_PATTERN.test(errorMessage))
+         return false;
+     return RETRYABLE_PROVIDER_ERROR_PATTERN.test(errorMessage);

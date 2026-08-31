@@ -217,4 +217,96 @@ describe('Pi Responses native compaction transport', () => {
     ).rejects.toThrow(expected)
     expect(portableStream).not.toHaveBeenCalled()
   })
+
+  it('applies Pi retry timing and callbacks to transient Native failures', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: { message: 'transient rate limit' } }), {
+          status: 429,
+          headers: { 'content-type': 'application/json', 'retry-after-ms': '1' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        makeCompactResponse([
+          { type: 'compaction', id: 'cmp_retry', encrypted_content: 'opaque-checkpoint' },
+        ]),
+      )
+    vi.stubGlobal('fetch', fetchMock)
+    const callbacks = {
+      onRetryScheduled: vi.fn(),
+      onRetryAttemptStart: vi.fn(),
+      onRetryFinished: vi.fn(),
+    }
+
+    await compact(
+      makePreparation(),
+      makeNativeModel(),
+      'test-key',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { enabled: true, maxRetries: 2, baseDelayMs: 7 },
+      callbacks,
+      'session-1',
+      'System instructions',
+    )
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(callbacks.onRetryScheduled).toHaveBeenCalledWith(
+      1,
+      2,
+      7,
+      expect.stringContaining('transient rate limit'),
+    )
+    expect(callbacks.onRetryAttemptStart).toHaveBeenCalledOnce()
+    expect(callbacks.onRetryFinished).toHaveBeenCalledWith(true, 1)
+  })
+
+  it('does not retry terminal quota failures from Native compaction', async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            error: { code: 'insufficient_quota', message: 'quota exceeded for this account' },
+          }),
+          {
+            status: 429,
+            headers: { 'content-type': 'application/json', 'retry-after-ms': '1' },
+          },
+        ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const callbacks = {
+      onRetryScheduled: vi.fn(),
+      onRetryAttemptStart: vi.fn(),
+      onRetryFinished: vi.fn(),
+    }
+
+    await expect(
+      compact(
+        makePreparation(),
+        makeNativeModel(),
+        'test-key',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        { enabled: true, maxRetries: 2, baseDelayMs: 7 },
+        callbacks,
+        'session-1',
+        'System instructions',
+      ),
+    ).rejects.toThrow('quota exceeded')
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(callbacks.onRetryScheduled).not.toHaveBeenCalled()
+    expect(callbacks.onRetryAttemptStart).not.toHaveBeenCalled()
+    expect(callbacks.onRetryFinished).not.toHaveBeenCalled()
+  })
 })
