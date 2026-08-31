@@ -8,12 +8,14 @@ import { useSessionResourceRunCompletion, useSessionResources } from '../useSess
 
 const resourceMocks = vi.hoisted(() => ({
   list: vi.fn(),
+  advanceBackfill: vi.fn(),
   onRunCompleted: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     listSessionResources: resourceMocks.list,
+    advanceSessionResourceBackfill: resourceMocks.advanceBackfill,
     onRunCompleted: resourceMocks.onRunCompleted,
   },
 }))
@@ -37,6 +39,7 @@ const RESOURCE: SessionResource = {
 describe('useSessionResources', () => {
   beforeEach(() => {
     resourceMocks.list.mockReset().mockResolvedValue([])
+    resourceMocks.advanceBackfill.mockReset().mockResolvedValue({ backfillComplete: true })
     resourceMocks.onRunCompleted.mockReset()
   })
 
@@ -114,6 +117,9 @@ describe('useSessionResources', () => {
     resourceMocks.list
       .mockResolvedValueOnce({ resources: [], backfillComplete: false })
       .mockResolvedValueOnce({ resources: [RESOURCE], backfillComplete: true })
+    resourceMocks.advanceBackfill
+      .mockResolvedValueOnce({ backfillComplete: false })
+      .mockResolvedValueOnce({ backfillComplete: true })
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const wrapper = ({ children }: { readonly children: ReactNode }) => (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
@@ -123,5 +129,6 @@ describe('useSessionResources', () => {
 
     await waitFor(() => expect(result.current.data).toEqual([RESOURCE]))
     expect(resourceMocks.list).toHaveBeenCalledTimes(2)
+    expect(resourceMocks.advanceBackfill).toHaveBeenCalledTimes(2)
   })
 })

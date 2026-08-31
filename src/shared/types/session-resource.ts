@@ -45,6 +45,10 @@ export interface SessionResourceList {
   readonly backfillComplete: boolean
 }
 
+export interface SessionResourceBackfillStatus {
+  readonly backfillComplete: boolean
+}
+
 export interface SessionResourceContent {
   readonly resourceId: string
   readonly fileName: string

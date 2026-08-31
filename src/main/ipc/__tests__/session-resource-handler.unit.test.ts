@@ -110,6 +110,10 @@ function invoke(channel: string, ...args: readonly unknown[]) {
   return Effect.runPromise(Effect.provide(handler({}, ...args), TestLayer))
 }
 
+function emptyProjectionPage(hasMore: boolean) {
+  return { nodes: [], throughCreatedOrder: 41, hasMore }
+}
+
 describe('session resource IPC handlers', () => {
   beforeEach(() => {
     handlerMocks.typedHandle.mockClear()
@@ -165,11 +169,7 @@ describe('session resource IPC handlers', () => {
 
   it('backfills one persisted page instead of hydrating the complete session tree', async () => {
     handlerMocks.getBackfillCursor.mockReturnValue(23)
-    handlerMocks.listResourceProjectionPage.mockReturnValue({
-      nodes: [],
-      throughCreatedOrder: 41,
-      hasMore: false,
-    })
+    handlerMocks.listResourceProjectionPage.mockReturnValue(emptyProjectionPage(false))
 
     await expect(invoke('sessions:resources:list', SessionId('session-one'))).resolves.toEqual({
       resources: [],
@@ -185,11 +185,7 @@ describe('session resource IPC handlers', () => {
   })
 
   it('keeps polling after a fully projected page when persisted history remains', async () => {
-    handlerMocks.listResourceProjectionPage.mockReturnValue({
-      nodes: [],
-      throughCreatedOrder: 41,
-      hasMore: true,
-    })
+    handlerMocks.listResourceProjectionPage.mockReturnValue(emptyProjectionPage(true))
 
     await expect(invoke('sessions:resources:list', SessionId('session-one'))).resolves.toEqual({
       resources: [],
@@ -197,6 +193,11 @@ describe('session resource IPC handlers', () => {
     })
 
     expect(handlerMocks.advanceBackfillCursor).toHaveBeenCalledWith(SessionId('session-one'), 41)
+    handlerMocks.list.mockClear()
+    await expect(invoke('sessions:resources:backfill', SessionId('session-one'))).resolves.toEqual({
+      backfillComplete: false,
+    })
+    expect(handlerMocks.list).toHaveBeenCalledOnce()
   })
 
   it('looks up retry provenance only inside the requested session', async () => {

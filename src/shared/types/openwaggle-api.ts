@@ -76,6 +76,7 @@ import type {
 import type {
   RecordSessionChangeRequestInput,
   SessionResource,
+  SessionResourceBackfillStatus,
   SessionResourceContent,
   SessionResourceList,
 } from './session-resource'
@@ -89,6 +90,9 @@ import type { TurnCheckpointSummary, TurnDiff } from './turn-diff'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 
 type SessionTitleUpdatedHandler = (payload: IpcEventPayload<'sessions:title-updated'>) => void
+type SessionResourceReader = (
+  ...args: [SessionId, string]
+) => Promise<SessionResourceContent | null>
 
 export interface OpenWaggleApi
   extends OpenWaggleAuthorizationGrantApi,
@@ -152,14 +156,9 @@ export interface OpenWaggleApi
   listSessionDetails(limit?: number): Promise<SessionDetail[]>
   getSessionDetail(id: SessionId): Promise<SessionDetail | null>
   listSessionResources(sessionId: SessionId): Promise<SessionResourceList>
-  readSessionResource(
-    sessionId: SessionId,
-    resourceId: string,
-  ): Promise<SessionResourceContent | null>
-  readSessionResourceThumbnail(
-    sessionId: SessionId,
-    resourceId: string,
-  ): Promise<SessionResourceContent | null>
+  advanceSessionResourceBackfill(sessionId: SessionId): Promise<SessionResourceBackfillStatus>
+  readSessionResource: SessionResourceReader
+  readSessionResourceThumbnail: SessionResourceReader
   retrySessionResource(sessionId: SessionId, resourceId: string): Promise<void>
   recordSessionChangeRequest(
     sessionId: SessionId,

@@ -30,8 +30,13 @@ export function sessionResourcesQueryOptions(
 ): OpenWaggleQueryOptions<SessionResourceList, Error, SessionResource[], SessionResourcesQueryKey> {
   return queryOptions({
     queryKey: sessionResourcesQueryKey(sessionId ?? 'none'),
-    queryFn: async () => {
+    queryFn: async ({ client, queryKey }) => {
       if (!sessionId) return { resources: [], backfillComplete: true }
+      const previous = client.getQueryData<SessionResourceList>(queryKey)
+      if (previous?.backfillComplete === false) {
+        const status = await api.advanceSessionResourceBackfill(SessionId(sessionId))
+        if (!status.backfillComplete) return previous
+      }
       const result = await api.listSessionResources(SessionId(sessionId))
       return Array.isArray(result) ? { resources: result, backfillComplete: true } : result
     },

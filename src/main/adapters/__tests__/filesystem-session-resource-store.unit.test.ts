@@ -113,6 +113,28 @@ describe('FilesystemSessionResourceStore', () => {
     await expect(fs.readdir(sessionDirectory)).resolves.toEqual([targetName])
   })
 
+  it('recovers byte writes from a stale deterministic temporary file', async () => {
+    const sessionDirectory = path.join(tmpRoot, 'session-1')
+    const target = path.join(sessionDirectory, 'resource-1-image.png')
+    await fs.mkdir(sessionDirectory, { recursive: true })
+    await fs.writeFile(`${target}.tmp`, 'interrupted write')
+
+    const stored = await Effect.runPromise(
+      Effect.gen(function* () {
+        const store = yield* SessionResourceStore
+        return yield* store.storeBytes({
+          sessionId: SessionId('session-1'),
+          resourceId: 'resource-1',
+          fileName: 'image.png',
+          bytes: new Uint8Array([1, 2, 3]),
+        })
+      }).pipe(Effect.provide(makeFilesystemSessionResourceStoreLayer(tmpRoot))),
+    )
+
+    await expect(fs.readFile(stored.path)).resolves.toEqual(Buffer.from([1, 2, 3]))
+    await expect(fs.stat(`${target}.tmp`)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
   it('streams a source file into managed storage when its size is unchanged', async () => {
     const bytes = Buffer.from('unchanged attachment')
     const sourcePath = path.join(tmpRoot, 'source-attachment.txt')
@@ -135,6 +157,33 @@ describe('FilesystemSessionResourceStore', () => {
     expect(stored.sizeBytes).toBe(bytes.byteLength)
     expect(stored.sha256).toHaveLength(64)
     await expect(fs.readFile(stored.path)).resolves.toEqual(bytes)
+  })
+
+  it('recovers file copies from a stale deterministic temporary file', async () => {
+    const bytes = Buffer.from('recovered attachment')
+    const sourcePath = path.join(tmpRoot, 'source-recovered.txt')
+    const sessionDirectory = path.join(tmpRoot, 'session-1')
+    const target = path.join(sessionDirectory, 'resource-1-attachment.txt')
+    await fs.writeFile(sourcePath, bytes)
+    await fs.mkdir(sessionDirectory, { recursive: true })
+    await fs.writeFile(`${target}.tmp`, 'interrupted copy')
+
+    const stored = await Effect.runPromise(
+      Effect.gen(function* () {
+        const store = yield* SessionResourceStore
+        return yield* store.storeFile({
+          sessionId: SessionId('session-1'),
+          resourceId: 'resource-1',
+          fileName: 'attachment.txt',
+          sourcePath,
+          expectedSizeBytes: bytes.byteLength,
+          maxSizeBytes: bytes.byteLength,
+        })
+      }).pipe(Effect.provide(makeFilesystemSessionResourceStoreLayer(tmpRoot))),
+    )
+
+    await expect(fs.readFile(stored.path)).resolves.toEqual(bytes)
+    await expect(fs.stat(`${target}.tmp`)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('rejects a source file that grew beyond its expected size', async () => {

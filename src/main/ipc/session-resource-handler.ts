@@ -18,6 +18,37 @@ import { typedHandle } from './typed-ipc'
 
 export const SESSION_RESOURCE_BACKFILL_PAGE_SIZE = 64
 
+function advanceSessionResourceBackfillPage(sessionId: SessionId) {
+  return Effect.gen(function* () {
+    const repository = yield* SessionResourceRepository
+    const sessions = yield* SessionRepository
+    const cursor = yield* repository.getBackfillCursor(sessionId)
+    const page = yield* sessions.listResourceProjectionPage(
+      sessionId,
+      cursor,
+      SESSION_RESOURCE_BACKFILL_PAGE_SIZE,
+    )
+    let backfillComplete = true
+    if (page.throughCreatedOrder !== null) {
+      const result = yield* captureProjectedSessionResources({
+        sessionId,
+        nodes: page.nodes,
+      }).pipe(Effect.option)
+      if (result._tag === 'Some') {
+        if (result.value.fullyProjected) {
+          yield* repository.advanceBackfillCursor(sessionId, page.throughCreatedOrder)
+          backfillComplete = !page.hasMore
+        } else {
+          backfillComplete = false
+        }
+      } else {
+        backfillComplete = false
+      }
+    }
+    return { backfillComplete }
+  })
+}
+
 export function registerSessionResourceHandlers(): void {
   typedHandle('sessions:resources:list', (_event, rawSessionId: unknown) =>
     Effect.gen(function* () {
@@ -25,32 +56,15 @@ export function registerSessionResourceHandlers(): void {
         decodeUnknownOrThrow(sessionResourceSessionIdSchema, rawSessionId),
       )
       const repository = yield* SessionResourceRepository
-      const sessions = yield* SessionRepository
-      const cursor = yield* repository.getBackfillCursor(sessionId)
-      const page = yield* sessions.listResourceProjectionPage(
-        sessionId,
-        cursor,
-        SESSION_RESOURCE_BACKFILL_PAGE_SIZE,
-      )
-      let backfillComplete = true
-      if (page.throughCreatedOrder !== null) {
-        const result = yield* captureProjectedSessionResources({
-          sessionId,
-          nodes: page.nodes,
-        }).pipe(Effect.option)
-        if (result._tag === 'Some') {
-          if (result.value.fullyProjected) {
-            yield* repository.advanceBackfillCursor(sessionId, page.throughCreatedOrder)
-            backfillComplete = !page.hasMore
-          } else {
-            backfillComplete = false
-          }
-        } else {
-          backfillComplete = false
-        }
-      }
-      return { resources: [...(yield* repository.list(sessionId))], backfillComplete }
+      const status = yield* advanceSessionResourceBackfillPage(sessionId)
+      return { resources: [...(yield* repository.list(sessionId))], ...status }
     }),
+  )
+
+  typedHandle('sessions:resources:backfill', (_event, rawSessionId: unknown) =>
+    advanceSessionResourceBackfillPage(
+      SessionId(decodeUnknownOrThrow(sessionResourceSessionIdSchema, rawSessionId)),
+    ),
   )
 
   typedHandle('sessions:resources:read', (_event, rawSessionId: unknown, rawResourceId: unknown) =>

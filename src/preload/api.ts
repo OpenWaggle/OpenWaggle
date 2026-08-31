@@ -138,6 +138,7 @@ export const api: OpenWaggleApi = {
   listSessionDetails: invoke('sessions:list-details'),
   getSessionDetail: invoke('sessions:get-detail'),
   listSessionResources: invoke('sessions:resources:list'),
+  advanceSessionResourceBackfill: invoke('sessions:resources:backfill'),
   readSessionResource: invoke('sessions:resources:read'),
   readSessionResourceThumbnail: invoke('sessions:resources:thumbnail'),
   retrySessionResource: invoke('sessions:resources:retry'),

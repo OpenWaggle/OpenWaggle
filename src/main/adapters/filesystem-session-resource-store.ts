@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import * as Effect from 'effect/Effect'
@@ -55,6 +55,11 @@ function managedFileName(resourceId: string, fileName: string) {
   const availableNameBytes =
     MAX_DIRECTORY_ENTRY_BYTES - Buffer.byteLength(prefix) - Buffer.byteLength(TEMPORARY_SUFFIX)
   return `${prefix}${truncateFileName(safeFileName(fileName), availableNameBytes)}`
+}
+
+async function temporaryPathFor(targetPath: string) {
+  await fs.rm(`${targetPath}${TEMPORARY_SUFFIX}`, { force: true })
+  return path.join(path.dirname(targetPath), `.${randomUUID()}${TEMPORARY_SUFFIX}`)
 }
 
 function isWithinRoot(root: string, candidate: string) {
@@ -188,7 +193,7 @@ function makeStore(root: string): SessionResourceStoreShape {
           sessionDirectory,
           managedFileName(input.resourceId, input.fileName),
         )
-        const temporary = `${target}${TEMPORARY_SUFFIX}`
+        const temporary = await temporaryPathFor(target)
         await writeBytesAtomically(temporary, target, input.bytes)
         return {
           path: target,
@@ -211,7 +216,7 @@ function makeStore(root: string): SessionResourceStoreShape {
             sessionDirectory,
             managedFileName(input.resourceId, input.fileName),
           )
-          const temporary = `${target}${TEMPORARY_SUFFIX}`
+          const temporary = await temporaryPathFor(target)
           const copied = await copyBoundedFile({
             sourcePath: input.sourcePath,
             temporaryPath: temporary,

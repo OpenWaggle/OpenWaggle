@@ -37,6 +37,17 @@ describe('preload api surface contract', () => {
     )
   })
 
+  it('advances historical resource backfill without requesting the catalog', async () => {
+    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce({ backfillComplete: false })
+
+    await api.advanceSessionResourceBackfill(SessionId('session-1'))
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      'sessions:resources:backfill',
+      SessionId('session-1'),
+    )
+  })
+
   it('requests a bounded session resource thumbnail through its own IPC channel', async () => {
     vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce({
       resourceId: 'resource-1',
