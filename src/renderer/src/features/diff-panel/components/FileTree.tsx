@@ -249,14 +249,11 @@ export function FileTree({ files, onFileClick }: FileTreeProps) {
                 {...itemProps}
                 key={item.getId()}
                 onClick={(event) => {
-                  // Folders: we own expand/collapse, so the library's handler is not
-                  // invoked for them -- calling both toggled twice and cancelled out.
-                  if (isFolder) {
-                    if (item.isExpanded()) item.collapse()
-                    else item.expand()
-                    return
-                  }
+                  // The library handler synchronizes selection and internal focus, then
+                  // performs the folder toggle. Calling it alongside our own toggle used
+                  // to collapse and immediately re-expand the row.
                   libraryOnClick?.(event)
+                  if (isFolder) return
                   onFileClick(data.path)
                 }}
                 style={{

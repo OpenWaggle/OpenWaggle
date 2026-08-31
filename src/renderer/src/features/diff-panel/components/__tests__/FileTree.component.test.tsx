@@ -74,6 +74,25 @@ describe('Changed-file navigator', () => {
     expect(screen.getByText('app.ts')).toBeInTheDocument()
   })
 
+  it('starts arrow navigation from a folder selected by click', async () => {
+    render(
+      <FileTree
+        files={[fileDiff('docs/readme.md'), fileDiff('src/app.ts')]}
+        onFileClick={vi.fn()}
+      />,
+    )
+
+    // Restore the folder to expanded after clicking it so ArrowDown has a child
+    // to enter. Both clicks must update Headless Tree focus without double-toggling.
+    fireEvent.click(screen.getByText('src'))
+    fireEvent.click(screen.getByText('src'))
+    const tree = screen.getByRole('tree')
+    Object.defineProperty(tree, 'scrollTo', { configurable: true, value: vi.fn() })
+    fireEvent.keyDown(tree, { key: 'ArrowDown' })
+
+    await waitFor(() => expect(screen.getByText('app.ts').closest('button')).toHaveFocus())
+  })
+
   it('shows per-file status and change counts', () => {
     render(
       <FileTree
