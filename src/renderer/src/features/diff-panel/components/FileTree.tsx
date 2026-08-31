@@ -20,6 +20,7 @@ interface FileTreeProps {
 
 const INDENT_PX = 10
 const ROW_PADDING_PX = 8
+const ROW_INTRINSIC_HEIGHT_PX = 22
 
 const STATUS_GLYPH: Record<FileChangeStatus, string> = {
   added: 'A',
@@ -161,6 +162,10 @@ export function FileTree({ files, onFileClick }: FileTreeProps) {
               }}
               style={{
                 paddingLeft: `${String(item.getItemMeta().level * INDENT_PX + ROW_PADDING_PX)}px`,
+                // Chromium can skip layout and paint for navigator rows outside the scrollport.
+                // Keep the intrinsic height equal to h-5.5 so scrolling does not jump as rows enter view.
+                contentVisibility: 'auto',
+                containIntrinsicSize: `auto ${String(ROW_INTRINSIC_HEIGHT_PX)}px`,
               }}
               className={cn(
                 'flex h-5.5 w-full items-center gap-1.5 pr-1.5 text-left outline-none',

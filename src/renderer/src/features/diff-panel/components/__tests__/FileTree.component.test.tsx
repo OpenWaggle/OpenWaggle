@@ -13,6 +13,10 @@ describe('Changed-file navigator', () => {
 
     expect(screen.getByRole('tree')).toBeInTheDocument()
     expect(screen.getAllByRole('treeitem').length).toBeGreaterThan(0)
+    expect(screen.getByRole('treeitem', { name: /app\.ts/ })).toHaveStyle({
+      contentVisibility: 'auto',
+      containIntrinsicSize: 'auto 22px',
+    })
   })
 
   // Regression: the panel mounts before a diff has loaded, and in Branch/Turn
