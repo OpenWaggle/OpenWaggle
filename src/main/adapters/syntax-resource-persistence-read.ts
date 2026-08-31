@@ -97,8 +97,9 @@ export async function readPersistedResources<T>(
   let names: string[]
   try {
     names = await fs.readdir(directory)
-  } catch {
-    return []
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return []
+    throw error
   }
   const resourceNames = names.filter((entry) => entry.endsWith('.json'))
   if (resourceNames.length > INSTALLED_RESOURCE_FILE_LIMIT) {

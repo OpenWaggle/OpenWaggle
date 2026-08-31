@@ -109,7 +109,7 @@ export const useSyntaxThemeCatalogStore = create<SyntaxThemeCatalogState>((set, 
       registerResources(global, languages)
       set({
         resources: global.themes,
-        languages,
+        languages: global.languages,
         appearances: global.appearances,
         loadedProjectPath: undefined,
       })
@@ -122,7 +122,7 @@ export const useSyntaxThemeCatalogStore = create<SyntaxThemeCatalogState>((set, 
       registerResources(catalog, languages)
       set({
         resources: catalog.themes,
-        languages,
+        languages: catalog.languages,
         appearances: catalog.appearances,
         loading: false,
         loadedProjectPath: projectPath,
@@ -157,7 +157,7 @@ export const useSyntaxThemeCatalogStore = create<SyntaxThemeCatalogState>((set, 
       registerResources(catalog, languages)
       set({
         resources: catalog.themes,
-        languages,
+        languages: catalog.languages,
         appearances: catalog.appearances,
         preview: null,
         loading: false,
@@ -182,7 +182,7 @@ export const useSyntaxThemeCatalogStore = create<SyntaxThemeCatalogState>((set, 
       registerResources(catalog, languages)
       set({
         resources: catalog.themes,
-        languages,
+        languages: catalog.languages,
         appearances: catalog.appearances,
         loading: false,
         loadedProjectPath: projectPath,

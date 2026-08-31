@@ -6,21 +6,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   applySyntaxThemeImportMock,
+  activatableLanguagesMock,
   listSyntaxThemesMock,
   removeSyntaxThemeMock,
   registerLanguagesMock,
   registerThemesMock,
 } = vi.hoisted(() => ({
   applySyntaxThemeImportMock: vi.fn(),
+  activatableLanguagesMock: vi.fn(),
   listSyntaxThemesMock: vi.fn(),
   removeSyntaxThemeMock: vi.fn(),
   registerLanguagesMock: vi.fn(),
   registerThemesMock: vi.fn(),
 }))
-
-function activateLanguages<T>(languages: readonly T[]) {
-  return languages
-}
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
@@ -31,7 +29,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 }))
 
 vi.mock('@/shared/lib/syntax/language-registry', () => ({
-  activatableSyntaxLanguageResources: activateLanguages,
+  activatableSyntaxLanguageResources: activatableLanguagesMock,
   registerImportedSyntaxLanguageResources: vi.fn(),
 }))
 
@@ -87,6 +85,7 @@ function deferred<T>() {
 describe('syntax theme catalog store', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    activatableLanguagesMock.mockImplementation((languages: readonly unknown[]) => languages)
     applySyntaxThemeImportMock.mockResolvedValue(EMPTY_CATALOG)
     removeSyntaxThemeMock.mockResolvedValue(EMPTY_CATALOG)
     useSyntaxThemeCatalogStore.setState({
@@ -98,6 +97,40 @@ describe('syntax theme catalog store', () => {
       error: null,
       loadedProjectPath: undefined,
     })
+  })
+
+  it('retains disabled project grammars in the settings catalog', async () => {
+    const projectLanguage = {
+      id: 'project:typescript',
+      packageId: 'project:package',
+      revision: 'revision-1',
+      label: 'Project TypeScript',
+      languageId: 'typescript',
+      scope: 'project',
+      format: 'openwaggle',
+      sourcePath: '/project/.openwaggle/languages/typescript.json',
+      engine: 'javascript',
+      registration: {
+        name: 'typescript',
+        displayName: 'Project TypeScript',
+        scopeName: 'source.ts',
+        aliases: [],
+        fileExtensions: ['.ts'],
+        fileNames: [],
+        embeddedLanguages: {},
+        injectTo: [],
+        grammar: {},
+      },
+      original: {},
+    } satisfies SyntaxResourceCatalog['languages'][number]
+    const catalog = { ...EMPTY_CATALOG, languages: [projectLanguage] }
+    listSyntaxThemesMock.mockResolvedValue(catalog)
+    activatableLanguagesMock.mockReturnValue([])
+
+    await useSyntaxThemeCatalogStore.getState().load('/project')
+
+    expect(activatableLanguagesMock).toHaveBeenCalledWith([projectLanguage])
+    expect(useSyntaxThemeCatalogStore.getState().languages).toEqual([projectLanguage])
   })
 
   it('does not restore an imported-theme refresh after the active project changes', async () => {

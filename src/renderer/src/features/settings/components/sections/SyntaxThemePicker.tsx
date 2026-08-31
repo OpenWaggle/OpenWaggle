@@ -18,6 +18,7 @@ import { usePreferencesStore } from '@/features/settings/state'
 import { useSyntaxThemeCatalogStore } from '@/features/settings/state/syntax-theme-store'
 import { useSyntaxTheme } from '@/shared/hooks/useSyntaxTheme'
 import { api } from '@/shared/lib/ipc'
+import { syntaxLanguageResourceActivations } from '@/shared/lib/syntax/language-registry'
 import { Button } from '@/shared/ui/Button'
 import { useUIStore } from '@/shell/ui-store'
 import { SyntaxThemeCatalog } from './SyntaxThemeCatalog'
@@ -109,6 +110,7 @@ function useSyntaxThemePickerState() {
         return leftRank - rightRank || left.label.localeCompare(right.label)
       })
   }, [allThemes, query, variant])
+  const languageActivations = syntaxLanguageResourceActivations(languages)
   const previewTheme = allThemes.find((theme) => theme.id === previewThemeId) ??
     allThemes.find((theme) => theme.id === selectedThemeId) ?? {
       ...BUNDLED_SYNTAX_THEMES[0],
@@ -118,7 +120,7 @@ function useSyntaxThemePickerState() {
   return {
     selections,
     setSyntaxTheme,
-    languages,
+    languageActivations,
     appearances,
     preview,
     loading,
@@ -245,14 +247,15 @@ export function SyntaxThemePicker() {
         }}
       />
       <InstalledSyntaxResources
-        languages={state.languages}
+        languages={state.languageActivations}
         appearances={state.appearances}
         onRemove={(resource) => void removeResource(resource)}
       />
       <p className="text-xs text-text-muted">
         Imports accept VS Code JSON/JSONC, TextMate themes and grammars, VSIX or unpacked VS Code
-        extensions, and native OpenWaggle packages. Project resources under .openwaggle/themes and
-        .openwaggle/languages override matching global identities.
+        extensions, and native OpenWaggle packages. Project themes may override matching global
+        themes. Project grammars stay disabled when they conflict with bundled or imported language
+        identities and file associations.
       </p>
     </section>
   )

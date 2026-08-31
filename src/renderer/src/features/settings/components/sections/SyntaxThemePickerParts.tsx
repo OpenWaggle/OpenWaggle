@@ -1,9 +1,9 @@
 import type {
   SyntaxAppearanceResource,
-  SyntaxLanguageResource,
   SyntaxThemeImportPreview,
 } from '@shared/types/syntax-resources'
 import { Trash2 } from 'lucide-react'
+import type { SyntaxLanguageResourceActivation } from '@/shared/lib/syntax/language-registry'
 import { Button } from '@/shared/ui/Button'
 
 export function SyntaxImportStatus({
@@ -64,9 +64,11 @@ export function InstalledSyntaxResources({
   appearances,
   onRemove,
 }: {
-  readonly languages: readonly SyntaxLanguageResource[]
+  readonly languages: readonly SyntaxLanguageResourceActivation[]
   readonly appearances: readonly SyntaxAppearanceResource[]
-  readonly onRemove: (resource: SyntaxLanguageResource | SyntaxAppearanceResource) => void
+  readonly onRemove: (
+    resource: SyntaxLanguageResourceActivation['resource'] | SyntaxAppearanceResource,
+  ) => void
 }) {
   if (languages.length === 0 && appearances.length === 0) return null
   return (
@@ -74,17 +76,31 @@ export function InstalledSyntaxResources({
       <p className="border-b border-border px-4 py-2 text-xs font-medium text-text-secondary">
         Installed package resources
       </p>
-      {[...languages, ...appearances].map((resource) => (
+      {[
+        ...languages.map(({ resource, disabledReason }) => ({
+          resource,
+          disabledReason,
+          kind: 'Language grammar',
+        })),
+        ...appearances.map((resource) => ({
+          resource,
+          disabledReason: null,
+          kind: 'Future app appearance',
+        })),
+      ].map(({ resource, disabledReason, kind }) => (
         <div
           key={resource.id}
+          aria-disabled={disabledReason ? true : undefined}
           className="flex items-center gap-3 border-b border-border px-4 py-2 last:border-b-0"
         >
           <span className="min-w-0 flex-1">
             <span className="block truncate text-xs text-text-primary">{resource.label}</span>
             <span className="block text-xs text-text-muted">
-              {'languageId' in resource ? 'Language grammar' : 'Future app appearance'} ·{' '}
-              {resource.scope}
+              {kind} · {resource.scope}
             </span>
+            {disabledReason ? (
+              <span className="block text-xs text-warning">{disabledReason}</span>
+            ) : null}
           </span>
           {resource.scope === 'user' ? (
             <Button
