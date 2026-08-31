@@ -9,6 +9,7 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { snapshot } from '../../adapters/mcp/__tests__/mcp-runtime-test-utils'
+import { mcpOAuthVaultKey } from '../../domain/mcp/oauth-vault-key'
 import { McpConfigService, type McpConfigServiceShape } from '../../ports/mcp-config-service'
 import { McpRuntimeService, type McpRuntimeServiceShape } from '../../ports/mcp-runtime-service'
 import {
@@ -31,7 +32,10 @@ import {
   dispatchConfiguredGuiSessionCommand,
 } from '../local-session-command-dispatcher'
 import { listMcpCapabilitiesOperation } from '../mcp-capability-operations'
-import { setMcpSecretOperation } from '../mcp-management-operations'
+import {
+  logoutMcpServerRevision6Operation,
+  setMcpSecretOperation,
+} from '../mcp-management-operations'
 
 describe('MCP Host authority', () => {
   let temporaryRoot = ''
@@ -203,5 +207,34 @@ describe('MCP Host authority', () => {
     releaseBrowse()
     await Promise.all([browsing, mutating])
     expect(persistedSecret).toBe('rotated')
+  })
+
+  it('preserves revision-six OAuth-only logout semantics and result shape', async () => {
+    const remove = vi.fn<McpSecretVaultServiceShape['remove']>(() => Effect.succeed([]))
+    const reconcileIdleConnections = vi.fn(() => Effect.void)
+    const config = fromPartial<McpConfigServiceShape>({
+      getServerDefinition: () =>
+        Effect.succeed({
+          instanceId: 'server-legacy-logout',
+          definition: { url: 'https://docs.example.com/mcp', auth: { type: 'oauth' } },
+        }),
+    })
+    const mcpRuntime = fromPartial<McpRuntimeServiceShape>({ reconcileIdleConnections })
+    const vault = fromPartial<McpSecretVaultServiceShape>({ remove })
+    const result = await Effect.runPromise(
+      logoutMcpServerRevision6Operation({
+        projectPath: process.cwd(),
+        instanceId: 'server-legacy-logout',
+      }).pipe(
+        Effect.provideService(McpConfigService, config),
+        Effect.provideService(McpRuntimeService, mcpRuntime),
+        Effect.provideService(McpSecretVaultService, vault),
+      ),
+    )
+
+    expect(result).toEqual({ loggedOut: true })
+    expect(remove).toHaveBeenCalledOnce()
+    expect(remove).toHaveBeenCalledWith({ name: mcpOAuthVaultKey('server-legacy-logout') })
+    expect(reconcileIdleConnections).toHaveBeenCalledOnce()
   })
 })

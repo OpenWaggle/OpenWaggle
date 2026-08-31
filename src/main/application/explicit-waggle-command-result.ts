@@ -50,6 +50,9 @@ export type ExplicitWaggleCommandResult =
 export function explicitWaggleTerminalResult(result: ExplicitWaggleCommandResult) {
   if (result.outcome === 'success') {
     const assistant = result.newMessages.findLast((message) => message.role === 'assistant')
+    if (!assistant && result.lastError) {
+      return { terminalStatus: 'failed' as const }
+    }
     const finalResponse = assistant ? getMessageText(assistant).trim() : ''
     return {
       terminalStatus: 'completed' as const,

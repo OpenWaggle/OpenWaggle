@@ -66,15 +66,16 @@ export class LocalSessionConnection {
     this.socket.on('data', (chunk) => {
       this.socket.pause()
       try {
-        const values = this.inbound.push(chunk, MAX_DECODED_FRAMES_PER_CHUNK)
+        const batch = this.inbound.push(chunk, MAX_DECODED_FRAMES_PER_CHUNK)
         this.readTail = this.readTail
           .then(async () => {
-            for (const value of values) await this.handleValue(value)
+            for (const value of batch.values) await this.handleValue(value)
           })
           .catch((error) =>
             this.fail(undefined, 'protocol_error', describeLocalSessionServerError(error)),
           )
           .finally(() => {
+            batch.release()
             if (!this.closed) this.socket.resume()
           })
       } catch (error) {

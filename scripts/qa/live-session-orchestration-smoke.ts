@@ -16,6 +16,7 @@ import {
   waitForHost,
   waitForIdle,
 } from './live-session-orchestration-support'
+import { reserveDebugPort, verifyLiveHiveGui } from './live-session-orchestration-gui'
 
 const DEFAULT_MODEL = 'openai-codex/gpt-5.6-sol'
 const DEFAULT_TIMEOUT_MS = 300_000
@@ -92,7 +93,8 @@ async function main() {
     projectPath,
     skillId: DISABLED_QA_SKILL,
   })
-  const gui = launchGui(executable, env)
+  const debugPort = await reserveDebugPort()
+  const gui = launchGui(executable, env, [`--remote-debugging-port=${String(debugPort)}`])
   let passed = false
 
   try {
@@ -155,6 +157,11 @@ async function main() {
     if (!exported.stdout.includes(workerSessionId)) {
       throw new Error('Markdown tree export omitted the Worker Session ID.')
     }
+    const screenshotPath = await verifyLiveHiveGui({
+      debugPort,
+      queenTitle: 'Packaged live Queen Worker QA',
+      timeoutMs,
+    })
     passed = true
     console.log(
       JSON.stringify({
@@ -164,6 +171,7 @@ async function main() {
         model,
         package: expectedPackage.name,
         version: expectedPackage.version,
+        screenshotPath,
       }),
     )
   } finally {

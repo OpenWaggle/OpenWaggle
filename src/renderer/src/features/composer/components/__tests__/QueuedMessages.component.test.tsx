@@ -1,5 +1,5 @@
 import { SessionId } from '@shared/types/brand'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueuedMessages } from '../QueuedMessages'
 
@@ -16,6 +16,9 @@ interface QueuedMessageFixture {
     | 'authorization_ceiling_changed'
     | 'profile_revoked'
     | 'authority_changed'
+  readonly wagglePresetName?: string
+  readonly waggleSource?: 'user' | 'agent'
+  readonly authorizationMode?: 'yolo' | 'ask-for-approval'
 }
 
 const queueMock = vi.hoisted(() => {
@@ -44,6 +47,9 @@ function queue(
     attachmentCount?: number
     deliveryState?: 'pending' | 'needs_attention'
     attentionReason?: 'authorization_ceiling_changed' | 'profile_revoked' | 'authority_changed'
+    wagglePresetName?: string
+    waggleSource?: 'user' | 'agent'
+    authorizationMode?: 'yolo' | 'ask-for-approval'
   }[]
 ) {
   queueMock.snapshot.items = items.map((item, index) => ({
@@ -104,6 +110,28 @@ describe('QueuedMessages', () => {
     expect(screen.getByText('2')).toBeInTheDocument()
     expect(screen.getByText('first message')).toBeInTheDocument()
     expect(screen.getByText('second message')).toBeInTheDocument()
+  })
+
+  it('shows Waggle source and authorization metadata for queued intent', () => {
+    queue({
+      id: 'follow-up-1',
+      text: 'cross-check this',
+      wagglePresetName: 'Release review',
+      waggleSource: 'agent',
+      authorizationMode: 'yolo',
+    })
+    render(
+      <QueuedMessages
+        sessionId={CONV_A}
+        onSteer={noOpSteer}
+        isStreaming={false}
+        onToast={noOpToast}
+      />,
+    )
+
+    expect(screen.getByText('Waggle · Release review')).toBeVisible()
+    expect(screen.getByText('From agent')).toBeVisible()
+    expect(screen.getByText('YOLO access')).toBeVisible()
   })
 
   it('offers promotion to steering only while a Run can accept it', () => {
@@ -208,5 +236,32 @@ describe('QueuedMessages', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Use current access' }))
     await waitFor(() => expect(noOpToast).toHaveBeenCalledWith('Access changed again.'))
+  })
+
+  it('keeps remediation focus while the request is in flight', async () => {
+    queue({
+      id: 'follow-up-1',
+      text: 'requires current authority',
+      deliveryState: 'needs_attention',
+      attentionReason: 'authority_changed',
+    })
+    let finishRemediation: (() => void) | undefined
+    queueMock.resubmitWithCurrentAccess.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishRemediation = resolve
+      }),
+    )
+    render(
+      <QueuedMessages sessionId={CONV_A} onSteer={noOpSteer} isStreaming onToast={noOpToast} />,
+    )
+    const remediation = screen.getByRole('button', { name: 'Re-submit' })
+    remediation.focus()
+    fireEvent.click(remediation)
+
+    await waitFor(() => expect(remediation).toHaveAttribute('aria-disabled', 'true'))
+    expect(remediation).toHaveFocus()
+    expect(remediation).not.toBeDisabled()
+    await act(async () => finishRemediation?.())
+    await waitFor(() => expect(remediation).toHaveAttribute('aria-disabled', 'false'))
   })
 })

@@ -265,3 +265,29 @@ export function logoutMcpServerOperation(raw: unknown) {
     )
   })
 }
+
+/** Revision-6 Host UI compatibility: OAuth-only removal with the historical result shape. */
+export function logoutMcpServerRevision6Operation(raw: unknown) {
+  return Effect.gen(function* () {
+    const decoded = yield* decodeMcpOperationInput(mcpRemoveServerSchema, raw, 'server logout')
+    const input = yield* validateMcpProjectInput(decoded)
+    const server = yield* (yield* McpConfigService).getServerDefinition(input)
+    const vault = yield* McpSecretVaultService
+    const runtime = yield* McpRuntimeService
+    return yield* Effect.uninterruptible(
+      withMcpManagementWrite(
+        Effect.gen(function* () {
+          yield* Effect.tryPromise({
+            try: () =>
+              mcpOAuthVaultAuthority.revoke(server.instanceId, () =>
+                Effect.runPromise(vault.remove({ name: mcpOAuthVaultKey(server.instanceId) })),
+              ),
+            catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+          })
+          yield* runtime.reconcileIdleConnections()
+          return { loggedOut: true as const }
+        }),
+      ),
+    )
+  })
+}

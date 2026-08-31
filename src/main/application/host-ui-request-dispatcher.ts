@@ -198,11 +198,15 @@ function dispatchSkillsOperation(
     .exhaustive()
 }
 
-function dispatchHostUiChannel(channel: HostBackedGuiChannel, args: readonly unknown[]) {
+function dispatchHostUiChannel(
+  channel: HostBackedGuiChannel,
+  args: readonly unknown[],
+  negotiatedRevision?: number,
+) {
   if (isHostBackedSessionGuiChannel(channel))
     return dispatchHostBackedSessionGuiOperation(channel, args)
   if (McpHostUi.isMcpHostUiChannel(channel))
-    return McpHostUi.dispatchMcpHostUiOperation(channel, args)
+    return McpHostUi.dispatchMcpHostUiOperation(channel, args, negotiatedRevision)
   if (isSettingsChannel(channel)) {
     return dispatchSettingsOperation(channel, args)
   }
@@ -267,6 +271,7 @@ function dispatchHostUiChannel(channel: HostBackedGuiChannel, args: readonly unk
 export function dispatchHostUiRequest(input: {
   readonly caller: LocalSessionCallerIdentity
   readonly request: HostUiV1Request
+  readonly negotiatedRevision?: number
   readonly signal?: AbortSignal
 }) {
   const operation = Effect.gen(function* () {
@@ -282,7 +287,11 @@ export function dispatchHostUiRequest(input: {
     const args = input.request.args.map((argument) =>
       argument.kind === 'undefined' ? undefined : argument.value,
     )
-    const result = yield* dispatchHostUiChannel(input.request.channel, args)
+    const result = yield* dispatchHostUiChannel(
+      input.request.channel,
+      args,
+      input.negotiatedRevision,
+    )
     return {
       contract: 'host-ui-v1',
       response: {

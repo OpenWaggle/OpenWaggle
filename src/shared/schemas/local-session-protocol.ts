@@ -1,7 +1,7 @@
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
 import {
   HOST_BACKED_MCP_GUI_CHANNELS,
-  HOST_UI_REVISION_7_REQUIRED_CHANNELS,
+  HOST_UI_REVISION_7_NEW_CHANNELS,
 } from '@shared/types/host-ui-protocol'
 import {
   LOCAL_SESSION_COMPACTION_REVISION,
@@ -207,7 +207,7 @@ export function decodeLocalSessionCommandPayloadForRevision(value: unknown, revi
   const payload = decodeLocalSessionCommandPayload(value)
   const requiredRevision =
     payload.contract === 'host-ui-v1'
-      ? HOST_UI_REVISION_7_REQUIRED_CHANNELS.some((channel) => channel === payload.request.channel)
+      ? HOST_UI_REVISION_7_NEW_CHANNELS.some((channel) => channel === payload.request.channel)
         ? LOCAL_SESSION_CURRENT_REVISION
         : HOST_BACKED_MCP_GUI_CHANNELS.some((channel) => channel === payload.request.channel)
           ? LOCAL_SESSION_MCP_HOST_UI_REVISION

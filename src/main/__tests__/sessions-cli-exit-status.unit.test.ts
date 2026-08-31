@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   createClientInput: vi.fn(),
   executeCommand: vi.fn(),
+  watchEvents: vi.fn(),
 }))
 
 vi.mock('../local-session-cli-client', () => ({
@@ -14,7 +15,7 @@ vi.mock('../local-session-cli-client', () => ({
 
 vi.mock('../session-host/local-session-client', () => ({
   executeLocalSessionCommand: mocks.executeCommand,
-  watchLocalSessionEvents: vi.fn(),
+  watchLocalSessionEvents: mocks.watchEvents,
 }))
 
 import { runSessionsCli } from '../sessions-cli'
@@ -28,6 +29,7 @@ describe('Sessions CLI structured failure exit status', () => {
       clientVersion: 'test',
       workingDirectory: '/project',
     })
+    mocks.watchEvents.mockResolvedValue({ status: 'closed' })
     vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
     vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
   })
@@ -187,5 +189,68 @@ describe('Sessions CLI structured failure exit status', () => {
         'run-parent',
       ]),
     ).resolves.toBe(4)
+  })
+
+  it('emits cursor checkpoints for initial and filtered watch progress', async () => {
+    mocks.watchEvents.mockImplementationOnce(async (input) => {
+      await input.onCursor({ hostInstanceId: 'host-1', sequence: 4 })
+      await input.onEvent({
+        cursor: { hostInstanceId: 'host-1', sequence: 5 },
+        timestamp: 5,
+        payload: {
+          kind: 'session-state-changed',
+          sessionId: 'session-other',
+          stateRevision: 1,
+          operation: 'message',
+        },
+      })
+      return {
+        status: 'resync-required',
+        reason: 'cursor-expired',
+        cursor: { hostInstanceId: 'host-1', sequence: 8 },
+      }
+    })
+
+    await expect(runSessionsCli(['watch', 'session-target', '--jsonl'])).resolves.toBe(1)
+
+    const records = vi
+      .mocked(process.stdout.write)
+      .mock.calls.map(([value]) => JSON.parse(String(value)).record)
+    expect(records).toEqual([
+      { kind: 'cursor', cursor: { hostInstanceId: 'host-1', sequence: 4 } },
+      { kind: 'cursor', cursor: { hostInstanceId: 'host-1', sequence: 5 } },
+      {
+        status: 'resync-required',
+        reason: 'cursor-expired',
+        cursor: { hostInstanceId: 'host-1', sequence: 8 },
+      },
+    ])
+  })
+
+  it('emits export-watch cursor and resynchronization records before failing', async () => {
+    mocks.watchEvents.mockImplementationOnce(async (input) => {
+      await input.onCursor({ hostInstanceId: 'host-export', sequence: 2 })
+      return {
+        status: 'resync-required',
+        reason: 'host-restarted',
+        cursor: { hostInstanceId: 'host-export-new', sequence: 0 },
+      }
+    })
+
+    await expect(
+      runSessionsCli(['export', 'watch', 'session-1', 'export-1', '--jsonl']),
+    ).resolves.toBe(1)
+
+    const records = vi
+      .mocked(process.stdout.write)
+      .mock.calls.map(([value]) => JSON.parse(String(value)).record)
+    expect(records).toEqual([
+      { kind: 'cursor', cursor: { hostInstanceId: 'host-export', sequence: 2 } },
+      {
+        status: 'resync-required',
+        reason: 'host-restarted',
+        cursor: { hostInstanceId: 'host-export-new', sequence: 0 },
+      },
+    ])
   })
 })

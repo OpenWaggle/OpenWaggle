@@ -61,43 +61,31 @@ export function authorizeMcpServerOperation(raw: unknown) {
             rawVault,
           )
           try {
-            let vaultMutated = false
             let result: Awaited<ReturnType<typeof authorizeMcpServer>> | undefined
             let authorizationError: unknown
             try {
               result = await authorizeMcpServer({
                 ...server,
-                vault: {
-                  resolve: authorization.vault.resolve,
-                  set: async (name, value) => {
-                    const summaries = await authorization.vault.set(name, value)
-                    vaultMutated = true
-                    return summaries
-                  },
-                  remove: async (name) => {
-                    const summaries = await authorization.vault.remove(name)
-                    vaultMutated = true
-                    return summaries
-                  },
-                },
+                vault: authorization.vault,
                 openExternal,
                 signal,
               })
             } catch (error) {
               authorizationError = error
             }
-            if (result || vaultMutated) {
-              try {
-                await Effect.runPromise(runtime.reconcileIdleConnections())
-              } catch (reconciliationError) {
-                if (!authorizationError) throw reconciliationError
-                logger.error('MCP reconciliation failed after OAuth changed the vault.', {
-                  error:
-                    reconciliationError instanceof Error
-                      ? reconciliationError.message
-                      : String(reconciliationError),
-                })
-              }
+            try {
+              // beginAuthorization advances the server's credential generation before the
+              // browser flow starts. Reconcile even when the flow is cancelled or fails before
+              // writing so providers from the previous generation cannot remain authoritative.
+              await Effect.runPromise(runtime.reconcileIdleConnections())
+            } catch (reconciliationError) {
+              if (!authorizationError) throw reconciliationError
+              logger.error('MCP reconciliation failed after OAuth authorization ended.', {
+                error:
+                  reconciliationError instanceof Error
+                    ? reconciliationError.message
+                    : String(reconciliationError),
+              })
             }
             if (authorizationError) throw authorizationError
             if (!result) throw new Error('MCP authorization completed without a result.')

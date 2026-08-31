@@ -163,12 +163,16 @@ describe('Local Session client', () => {
     const abortController = new AbortController()
     const events: unknown[] = []
     const snapshots: unknown[] = []
+    const cursors: unknown[] = []
     const watching = watchLocalSessionEvents({
       paths,
       clientVersion: 'test',
       signal: abortController.signal,
       onSnapshot: (activeRuns) => {
         snapshots.push(activeRuns)
+      },
+      onCursor: (cursor) => {
+        cursors.push(cursor)
       },
       onEvent: (event) => {
         events.push(event)
@@ -243,6 +247,7 @@ describe('Local Session client', () => {
         },
       ],
     ])
+    expect(cursors).toEqual([{ hostInstanceId: expect.any(String), sequence: 0 }])
   })
 
   it('surfaces authenticated upgrade blockers without starting a second Host', async () => {

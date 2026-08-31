@@ -42,22 +42,28 @@ async function runWatchCommand(
   process.once('SIGTERM', interrupt)
   try {
     const after = watchCursor(arguments_)
+    const jsonl = hasFlag(arguments_, 'jsonl')
+    const writeCursor = (cursor: { readonly hostInstanceId: string; readonly sequence: number }) =>
+      writeSessionsCliStreamRecord({ kind: 'cursor', cursor }, jsonl)
     const result = await watchLocalSessionEvents({
       ...clientInput,
       ...(after ? { after } : {}),
       signal: abortController.signal,
+      onCursor: writeCursor,
       onEvent: (event) => {
         if (
           sessionIds.size > 0 &&
           (event.payload.kind === 'semantic-discovery-readiness-changed' ||
             !sessionIds.has(event.payload.sessionId))
-        )
+        ) {
+          writeCursor(event.cursor)
           return
-        writeSessionsCliStreamRecord(event, hasFlag(arguments_, 'jsonl'))
+        }
+        writeSessionsCliStreamRecord(event, jsonl)
       },
     })
     if (result.status === 'resync-required') {
-      writeSessionsCliStreamRecord(result, hasFlag(arguments_, 'jsonl'))
+      writeSessionsCliStreamRecord(result, jsonl)
       return EXIT.FAILURE
     }
     return EXIT.SUCCESS

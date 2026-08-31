@@ -35,9 +35,27 @@ export async function findPackagedExecutable() {
       ? path.join(resolved, 'Contents', 'MacOS', 'OpenWaggle')
       : resolved
   }
-  const candidates = (await fs.readdir('dist', { withFileTypes: true }))
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => path.resolve('dist', entry.name, APP_NAME, 'Contents', 'MacOS', 'OpenWaggle'))
+  const entries = await fs.readdir('dist', { withFileTypes: true })
+  const candidates = entries.flatMap((entry) => {
+    if (process.platform === 'darwin' && entry.isDirectory()) {
+      return [path.resolve('dist', entry.name, APP_NAME, 'Contents', 'MacOS', 'OpenWaggle')]
+    }
+    if (process.platform === 'win32' && entry.isDirectory()) {
+      return [path.resolve('dist', entry.name, 'OpenWaggle.exe')]
+    }
+    if (process.platform === 'linux') {
+      if (entry.isFile() && entry.name.endsWith('.AppImage')) {
+        return [path.resolve('dist', entry.name)]
+      }
+      if (entry.isDirectory()) {
+        return [
+          path.resolve('dist', entry.name, 'openwaggle'),
+          path.resolve('dist', entry.name, 'OpenWaggle'),
+        ]
+      }
+    }
+    return []
+  })
   const existing: string[] = []
   for (const candidate of candidates) {
     if (await pathExists(candidate)) existing.push(candidate)
@@ -54,6 +72,8 @@ export function childEnvironment(userDataRoot: string) {
       ...process.env,
       OPENWAGGLE_DISABLE_SINGLE_INSTANCE: '1',
       OPENWAGGLE_USER_DATA_DIR: userDataRoot,
+      OPENWAGGLE_AUTOMATION: '1',
+      OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1',
       ELECTRON_ENABLE_LOGGING: '1',
       ELECTRON_RUN_AS_NODE: undefined,
     }).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
@@ -65,8 +85,12 @@ function appendBoundedLog(current: string, chunk: unknown) {
   return next.length <= MAX_LOG_BYTES ? next : next.slice(-MAX_LOG_BYTES)
 }
 
-export function launchGui(executable: string, env: Record<string, string>) {
-  const child = spawn(executable, [], { env, stdio: ['ignore', 'pipe', 'pipe'] })
+export function launchGui(
+  executable: string,
+  env: Record<string, string>,
+  args: readonly string[] = [],
+) {
+  const child = spawn(executable, [...args], { env, stdio: ['ignore', 'pipe', 'pipe'] })
   let logs = ''
   child.stdout?.on('data', (chunk) => {
     logs = appendBoundedLog(logs, chunk)

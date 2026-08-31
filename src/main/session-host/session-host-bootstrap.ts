@@ -111,6 +111,7 @@ export async function startAppSessionHost(input: {
       const result = await input.runEffect(
         dispatchLocalSessionCommand({
           caller,
+          negotiatedRevision,
           payload: decodeLocalSessionCommandPayloadForRevision(payload, negotiatedRevision),
           signal,
         }),

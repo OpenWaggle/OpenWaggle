@@ -21,6 +21,7 @@ const envSchema = Schema.Struct({
   APPIMAGE: Schema.optional(Schema.String),
   ELECTRON_RENDERER_URL: optionalUrlSchema,
   OPENWAGGLE_AUTOMATION: Schema.optional(Schema.Literal('1')),
+  OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: Schema.optional(Schema.Literal('1')),
   OPENWAGGLE_AUTOMATION_LEASE_TOKEN: Schema.optional(Schema.String),
   OPENWAGGLE_AUTOMATION_PROJECT_PATH: Schema.optional(Schema.String),
   OPENWAGGLE_USER_DATA_DIR: Schema.optional(Schema.String),

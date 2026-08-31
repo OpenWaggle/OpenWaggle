@@ -34,6 +34,11 @@ export const HOST_UI_REVISION_7_REQUIRED_CHANNELS = [
   'mcp:authorize-server',
 ] as const satisfies readonly IpcInvokeChannel[]
 
+/** Channels introduced in revision 7. Changed channels may still have a legacy dispatcher. */
+export const HOST_UI_REVISION_7_NEW_CHANNELS = [
+  'mcp:authorize-server',
+] as const satisfies readonly IpcInvokeChannel[]
+
 export const HOST_BACKED_MCP_GUI_CHANNELS = [
   ...HOST_BACKED_MCP_GUI_CHANNELS_REVISION_6,
   'mcp:authorize-server',

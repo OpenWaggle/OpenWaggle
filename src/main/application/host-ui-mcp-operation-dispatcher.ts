@@ -24,6 +24,7 @@ import {
   getMcpSettingsOperation,
   listMcpSecretsOperation,
   logoutMcpServerOperation,
+  logoutMcpServerRevision6Operation,
   previewMcpImportsOperation,
   removeMcpSecretOperation,
   removeMcpServerOperation,
@@ -34,6 +35,8 @@ import {
   setMcpServerTrustOperation,
   writeMcpSourceConfigOperation,
 } from './mcp-management-operations'
+
+const LEGACY_MCP_LOGOUT_REVISION = 6
 
 function invalid(message: string) {
   return Effect.fail(new Error(message))
@@ -66,6 +69,7 @@ export function isMcpHostUiChannel(
 export function dispatchMcpHostUiOperation(
   channel: HostBackedMcpGuiChannel,
   args: readonly unknown[],
+  negotiatedRevision?: number,
 ) {
   return match(channel)
     .with('mcp:get-settings', () => optionalInput(args, getMcpSettingsOperation))
@@ -77,7 +81,11 @@ export function dispatchMcpHostUiOperation(
     .with('mcp:write-source-config', () => oneInput(args, writeMcpSourceConfigOperation))
     .with('mcp:set-server-trust', () => oneInput(args, setMcpServerTrustOperation))
     .with('mcp:remove-server', () => oneInput(args, removeMcpServerOperation))
-    .with('mcp:logout-server', () => oneInput(args, logoutMcpServerOperation))
+    .with('mcp:logout-server', () =>
+      negotiatedRevision === LEGACY_MCP_LOGOUT_REVISION
+        ? oneInput(args, logoutMcpServerRevision6Operation)
+        : oneInput(args, logoutMcpServerOperation),
+    )
     .with('mcp:authorize-server', () => oneInput(args, authorizeMcpServerOperation))
     .with('mcp:add-server', () => oneInput(args, addMcpServerOperation))
     .with('mcp:preview-imports', () => oneInput(args, previewMcpImportsOperation))

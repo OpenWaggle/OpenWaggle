@@ -167,7 +167,9 @@ describe('HiveSessionNavigator', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Expand Hive Sessions' }))
 
     expect(
-      screen.getByRole('button', { name: 'Open Queen Session: Coordinate release' }),
+      screen.getByRole('button', {
+        name: `Open Queen Session: Coordinate release · Status: ${label}`,
+      }),
     ).toHaveTextContent(label)
   })
 
@@ -204,10 +206,12 @@ describe('HiveSessionNavigator', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Expand Hive Sessions' }))
 
     expect(
-      screen.getByRole('button', { name: 'Open Worker Session: Validate migration' }),
+      screen.getByRole('button', {
+        name: 'Open Worker Session: Validate migration · Status: Ready for review',
+      }),
     ).toBeVisible()
     expect(
-      screen.queryByRole('button', { name: 'Open Queen Session: Validate migration' }),
+      screen.queryByRole('button', { name: /Open Queen Session: Validate migration/ }),
     ).not.toBeInTheDocument()
   })
 

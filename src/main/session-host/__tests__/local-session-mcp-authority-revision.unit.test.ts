@@ -43,12 +43,14 @@ describe('Local Session MCP authority protocol revision', () => {
     ).not.toThrow()
   })
 
-  it('rejects changed OAuth authority commands on revision six', () => {
-    for (const channel of ['mcp:logout-server', 'mcp:authorize-server'] as const) {
-      const command = hostUiCommand(channel)
-      expect(() => decodeLocalSessionCommandPayloadForRevision(command, 6)).toThrow(/revision 7/)
-      expect(decodeLocalSessionCommandPayloadForRevision(command, 7)).toEqual(command)
-    }
+  it('accepts legacy logout while rejecting the authorization command added in revision seven', () => {
+    const logout = hostUiCommand('mcp:logout-server')
+    expect(decodeLocalSessionCommandPayloadForRevision(logout, 6)).toEqual(logout)
+    expect(decodeLocalSessionCommandPayloadForRevision(logout, 7)).toEqual(logout)
+
+    const authorize = hostUiCommand('mcp:authorize-server')
+    expect(() => decodeLocalSessionCommandPayloadForRevision(authorize, 6)).toThrow(/revision 7/)
+    expect(decodeLocalSessionCommandPayloadForRevision(authorize, 7)).toEqual(authorize)
   })
 
   it('forces changed authority commands to upgrade a revision-six Host', () => {

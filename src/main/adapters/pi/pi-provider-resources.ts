@@ -91,8 +91,9 @@ function filterDisabledCatalogSkills(
     skills: base.skills.filter((skill) => {
       const skillId = getCatalogSkillIdForPiSkill(projectPath, skill.filePath)
       const normalizedName = normalizeSkillId(skill.name)
+      const toggleId = skillId ?? normalizedName
       return (
-        (skillId === null || skillToggles[skillId] !== false) &&
+        skillToggles[toggleId] !== false &&
         (allowedSkills === null || allowedSkills.has(skillId ?? normalizedName))
       )
     }),
@@ -102,6 +103,10 @@ function filterDisabledCatalogSkills(
 
 function disableExecutableExtensionsForAutomation() {
   return env.OPENWAGGLE_AUTOMATION === '1'
+}
+
+function allowFirstPartyExtensionFactoriesForAutomation() {
+  return env.OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS === '1'
 }
 
 export function createOpenWaggleGlobalPiResourceLoaderOptions(): PiResourceLoaderOptions {
@@ -115,6 +120,8 @@ export function createOpenWagglePiResourceLoaderOptions(
 ): PiResourceLoaderOptions {
   const skillToggles = options.skillToggles ?? {}
   const disableExtensions = disableExecutableExtensionsForAutomation()
+  const allowInlineExtensions =
+    !disableExtensions || allowFirstPartyExtensionFactoriesForAutomation()
   return {
     additionalExtensionPaths:
       disableExtensions || settingsManager
@@ -132,7 +139,7 @@ export function createOpenWagglePiResourceLoaderOptions(
     skillsOverride: (base) =>
       filterDisabledCatalogSkills(projectPath, skillToggles, base, options.skillAllowlist),
     ...(disableExtensions ? { noExtensions: true } : {}),
-    ...(!disableExtensions && options.extensionFactories
+    ...(allowInlineExtensions && options.extensionFactories
       ? { extensionFactories: [...options.extensionFactories] }
       : {}),
   }

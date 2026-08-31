@@ -97,9 +97,8 @@ describe('MCP authorization identity lease', () => {
           definition: { url: 'https://docs.example.com/mcp', auth: { type: 'oauth' } },
         }),
     })
-    const runtime = fromPartial<McpRuntimeServiceShape>({
-      reconcileIdleConnections: () => Effect.void,
-    })
+    const reconcileIdleConnections = vi.fn(() => Effect.void)
+    const runtime = fromPartial<McpRuntimeServiceShape>({ reconcileIdleConnections })
     const vault = fromPartial<McpSecretVaultServiceShape>({
       resolve: () => Effect.fail(new Error('secret was not found')),
       set: setSecret,
@@ -120,11 +119,49 @@ describe('MCP authorization identity lease', () => {
 
     await Effect.runPromise(Fiber.interrupt(fiber))
     expect(authorizationSignal?.aborted).toBe(true)
+    expect(reconcileIdleConnections).toHaveBeenCalledOnce()
     await expect(
       Effect.runPromise(
         Effect.provide(setMcpSecretOperation({ name: 'TOKEN', value: 'replacement' }), layer),
       ),
     ).resolves.toEqual([])
     expect(setSecret).toHaveBeenCalledWith({ name: 'TOKEN', value: 'replacement' })
+  })
+
+  it('reconciles stale providers when authorization fails before a vault write', async () => {
+    const authorizationError = new Error('browser could not be opened')
+    mocks.authorize.mockRejectedValueOnce(authorizationError)
+    const reconcileIdleConnections = vi.fn(() => Effect.void)
+    const config = fromPartial<McpConfigServiceShape>({
+      getServerDefinition: () =>
+        Effect.succeed({
+          instanceId: 'server-pre-write-failure',
+          definition: { url: 'https://docs.example.com/mcp', auth: { type: 'oauth' } },
+        }),
+    })
+    const runtime = fromPartial<McpRuntimeServiceShape>({ reconcileIdleConnections })
+    const vault = fromPartial<McpSecretVaultServiceShape>({
+      resolve: () => Effect.succeed('old-token'),
+      set: () => Effect.succeed([]),
+      remove: () => Effect.succeed([]),
+    })
+    const layer = Layer.mergeAll(
+      Layer.succeed(McpConfigService, config),
+      Layer.succeed(McpRuntimeService, runtime),
+      Layer.succeed(McpSecretVaultService, vault),
+    )
+
+    await expect(
+      Effect.runPromise(
+        Effect.provide(
+          authorizeMcpServerOperation({
+            projectPath: process.cwd(),
+            instanceId: 'server-pre-write-failure',
+          }),
+          layer,
+        ),
+      ),
+    ).rejects.toThrow('browser could not be opened')
+    expect(reconcileIdleConnections).toHaveBeenCalledOnce()
   })
 })

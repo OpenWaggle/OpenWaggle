@@ -147,6 +147,7 @@ async function establishSubscription(
   return {
     status: 'ready' as const,
     subscriptionId: first.subscriptionId,
+    cursor: decodeCursor(first.cursor, 'subscription cursor'),
     ...(first.activeRuns === undefined
       ? {}
       : { activeRuns: decodeActiveRunSnapshots(first.activeRuns) }),
@@ -193,14 +194,18 @@ async function consumeSubscriptionFrame(
 }
 
 async function consumeCursorAdvancement(cursor: unknown, input: LocalSessionWatchInput) {
+  await input.onCursor?.(decodeCursor(cursor, 'cursor advancement'))
+}
+
+function decodeCursor(value: unknown, label: string): SessionHostEventCursor {
   if (
-    !isRecord(cursor) ||
-    typeof cursor.hostInstanceId !== 'string' ||
-    typeof cursor.sequence !== 'number'
+    !isRecord(value) ||
+    typeof value.hostInstanceId !== 'string' ||
+    typeof value.sequence !== 'number'
   ) {
-    throw new Error('Local Session Host returned an invalid cursor advancement.')
+    throw new Error(`Local Session Host returned an invalid ${label}.`)
   }
-  await input.onCursor?.({ hostInstanceId: cursor.hostInstanceId, sequence: cursor.sequence })
+  return { hostInstanceId: value.hostInstanceId, sequence: value.sequence }
 }
 
 export async function watchLocalSessionEvents(
@@ -215,6 +220,7 @@ export async function watchLocalSessionEvents(
     if (subscription.activeRuns !== undefined) {
       await input.onSnapshot?.(subscription.activeRuns)
     }
+    await input.onCursor?.(subscription.cursor)
     return await consumeSubscription(reader, subscription.subscriptionId, input)
   } catch (error) {
     if (input.signal?.aborted) return { status: 'closed' }
@@ -241,9 +247,6 @@ function decodeResyncRequired(frame: Record<string, unknown>): LocalSessionWatch
   return {
     status: 'resync-required',
     reason,
-    cursor: {
-      hostInstanceId: frame.cursor.hostInstanceId,
-      sequence: frame.cursor.sequence,
-    },
+    cursor: decodeCursor(frame.cursor, 'resynchronization cursor'),
   }
 }

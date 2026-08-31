@@ -50,7 +50,7 @@ function SessionNavigationRow({
       variant="unstyled"
       type="button"
       onClick={() => onNavigateSession(session.id)}
-      aria-label={`Open ${lineageRole === 'queen' ? 'Queen' : 'Worker'} Session: ${session.title}`}
+      aria-label={`Open ${lineageRole === 'queen' ? 'Queen' : 'Worker'} Session: ${session.title} · Status: ${statusLabel}`}
       title={`Open ${lineageRole === 'queen' ? 'Queen' : 'Worker'} Session: ${session.title}`}
       className="group flex min-h-8 w-full items-center gap-2 rounded-md px-2 text-left transition-colors hover:bg-bg-hover"
     >

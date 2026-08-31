@@ -238,6 +238,7 @@ export function dispatchNonHostUiLocalSessionCommand(input: {
 export function dispatchLocalSessionCommand(input: {
   readonly caller: LocalSessionCallerIdentity
   readonly payload: LocalSessionCommandPayload
+  readonly negotiatedRevision?: number
   readonly signal?: AbortSignal
 }) {
   const remote = dispatchConfiguredGuiSessionCommand(input)
@@ -246,6 +247,9 @@ export function dispatchLocalSessionCommand(input: {
     return dispatchHostUiRequest({
       caller: input.caller,
       request: input.payload.request,
+      ...(input.negotiatedRevision !== undefined
+        ? { negotiatedRevision: input.negotiatedRevision }
+        : {}),
       ...(input.signal ? { signal: input.signal } : {}),
     })
   }

@@ -46,7 +46,12 @@ function queueResponse() {
           createdAt: 10,
           deliveryState: 'needs_attention' as const,
           attentionReason: 'authorization_ceiling_changed' as const,
-          intent: { text: 'Existing follow-up', attachmentIds: [] },
+          intent: {
+            text: 'Existing follow-up',
+            attachmentIds: [],
+            runAuthorizationOverride: 'yolo',
+            waggle: { presetName: 'Cross-check', source: 'agent' },
+          },
         },
       ],
       omittedBodyCount: 0,
@@ -82,6 +87,9 @@ describe('useSessionFollowUpQueue', () => {
       text: 'Existing follow-up',
       deliveryState: 'needs_attention',
       attentionReason: 'authorization_ceiling_changed',
+      authorizationMode: 'yolo',
+      wagglePresetName: 'Cross-check',
+      waggleSource: 'agent',
     })
 
     await act(() => result.current.enqueue(PAYLOAD))

@@ -65,7 +65,7 @@ openwaggle sessions requests respond <session-id> <run-id> <request-id> \
 
 Pending agent-loop questions survive GUI disconnects and have no automatic expiry. Inspect and answer them explicitly through the GUI or CLI. Queue mutations use an expected revision so concurrent callers cannot silently overwrite each other.
 
-`sessions wait` blocks until an idle, queue-empty, or state-revision condition is reached. `sessions watch` subscribes to the ordered Host event stream; persist the emitted Host identity and sequence and reconnect with `--after-host` and `--after-sequence`. A `resync-required` record means the client must reload canonical state.
+`sessions wait` blocks until an idle, queue-empty, or state-revision condition is reached. `sessions watch` subscribes to the ordered Host event stream. JSONL output emits versioned `{ "kind": "cursor", "cursor": ... }` records for the initial subscription boundary and whenever a scoped watcher advances past a filtered event. Persist the latest emitted Host identity and sequence, including the cursor embedded in visible events, and reconnect with `--after-host` and `--after-sequence`. A `resync-required` record means the client must reload canonical state.
 
 ## Export
 
@@ -76,7 +76,7 @@ openwaggle sessions export create <session-id> ./handoff --format bundle
 openwaggle sessions export wait <session-id> <operation-id> --timeout-ms 60000
 ```
 
-Streaming export writes to stdout. Artifact export is durable, supports status/list/read/cancel/watch operations, validates destination and resource scope, and refuses an existing destination unless `--overwrite` is explicit.
+Streaming export writes to stdout. Artifact export is durable, supports status/list/read/cancel/watch operations, validates destination and resource scope, and refuses an existing destination unless `--overwrite` is explicit. `export watch --jsonl` uses the same cursor checkpoint and `resync-required` records as `sessions watch`, including when unrelated export events are filtered out.
 
 On Windows, workspace-scoped artifact export currently fails closed because the platform does not provide the descriptor-relative installation semantics OpenWaggle requires to prevent path-swap attacks. Use streaming export to stdout instead, for example `openwaggle sessions export <session-id> --format markdown > conversation.md`.
 

@@ -61,14 +61,16 @@ function QueueHeader({
         <Button
           variant="unstyled"
           type="button"
-          onClick={onResume}
-          disabled={isResuming || headNeedsAttention}
+          onClick={() => {
+            if (!isResuming && !headNeedsAttention) onResume()
+          }}
+          aria-disabled={isResuming || headNeedsAttention}
           title={
             headNeedsAttention
               ? 'Resolve the first Follow-up before resuming the queue.'
               : 'Resume Follow-up delivery'
           }
-          className="ml-auto flex items-center gap-1 rounded-md px-2 py-1 text-accent hover:bg-accent/8 disabled:text-text-muted disabled:opacity-50"
+          className="ml-auto flex items-center gap-1 rounded-md px-2 py-1 text-accent hover:bg-accent/8 aria-disabled:text-text-muted aria-disabled:opacity-50"
         >
           <Play className="size-3" />
           <span className="text-xs font-semibold">Resume</span>
@@ -86,6 +88,29 @@ interface QueueItemsProps {
   readonly onDismiss: (followUpId: string) => void
   readonly onResolve: (item: SessionFollowUpQueueItem) => void
   readonly onSteer: (followUpId: string) => void
+}
+
+function QueueIntentBadges({ item }: { readonly item: SessionFollowUpQueueItem }) {
+  if (!item.wagglePresetName && !item.authorizationMode) return null
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {item.wagglePresetName ? (
+        <span className="rounded bg-accent/8 px-1.5 py-0.5 text-xs text-accent">
+          Waggle · {item.wagglePresetName}
+        </span>
+      ) : null}
+      {item.waggleSource ? (
+        <span className="rounded bg-bg-hover px-1.5 py-0.5 text-xs text-text-tertiary">
+          {item.waggleSource === 'agent' ? 'From agent' : 'From user'}
+        </span>
+      ) : null}
+      {item.authorizationMode ? (
+        <span className="rounded bg-bg-hover px-1.5 py-0.5 text-xs text-text-tertiary">
+          {item.authorizationMode === 'yolo' ? 'YOLO access' : 'Ask for approval'}
+        </span>
+      ) : null}
+    </div>
+  )
 }
 
 function QueueItems({
@@ -114,6 +139,7 @@ function QueueItems({
               <div className="whitespace-pre-wrap text-xs leading-normal text-text-muted">
                 {item.text || `${String(item.attachmentCount)} attachment(s)`}
               </div>
+              <QueueIntentBadges item={item} />
               {attention && (
                 <div className="flex items-start gap-1 text-xs leading-normal text-warning">
                   <AlertTriangle className="mt-0.5 size-3 shrink-0" />
@@ -126,9 +152,11 @@ function QueueItems({
                 <Button
                   variant="unstyled"
                   type="button"
-                  onClick={() => onResolve(item)}
-                  disabled={resolvingId !== null}
-                  className="flex items-center gap-1 rounded-md border border-warning/30 bg-warning/8 px-2 py-1 text-warning hover:bg-warning/15 disabled:opacity-50"
+                  onClick={() => {
+                    if (resolvingId === null) onResolve(item)
+                  }}
+                  aria-disabled={resolvingId !== null}
+                  className="flex items-center gap-1 rounded-md border border-warning/30 bg-warning/8 px-2 py-1 text-warning hover:bg-warning/15 aria-disabled:opacity-50"
                 >
                   <RotateCcw className="size-3" />
                   <span className="text-xs font-semibold">

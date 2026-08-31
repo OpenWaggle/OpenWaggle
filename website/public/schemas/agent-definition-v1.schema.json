@@ -15,7 +15,7 @@
     },
     "name": {
       "type": "string",
-      "pattern": "^[a-z0-9](?:[a-z0-9._-]{0,78}[a-z0-9])?$"
+      "pattern": "^(?!(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\\.|$))[a-z0-9](?:[a-z0-9._-]{0,78}[a-z0-9])?$"
     },
     "description": {
       "type": "string",
@@ -28,7 +28,7 @@
       "maxLength": 200
     },
     "reasoning": {
-      "enum": ["off", "minimal", "low", "medium", "high", "xhigh"]
+      "enum": ["off", "minimal", "low", "medium", "high", "xhigh", "max"]
     },
     "tools": {
       "$ref": "#/$defs/nameList"

@@ -243,6 +243,25 @@ describe('createPiRuntimeServices', () => {
     expect(skillPaths).toContain(piSkill)
   })
 
+  it('applies an explicit project toggle to a same-named global Pi skill', async () => {
+    const projectPath = await createTempProject()
+    const agentDir = path.join(projectPath, 'pi-agent')
+    vi.stubEnv('PI_CODING_AGENT_DIR', agentDir)
+    const globalSkill = await writeSkill(agentDir, '.', 'herdr-orchestration')
+
+    const enabledServices = await createPiRuntimeServices(projectPath)
+    expect(
+      enabledServices.resourceLoader.getSkills().skills.map((skill) => skill.filePath),
+    ).toContain(globalSkill)
+
+    const disabledServices = await createPiRuntimeServices(projectPath, {
+      skillToggles: { 'herdr-orchestration': false },
+    })
+    expect(
+      disabledServices.resourceLoader.getSkills().skills.map((skill) => skill.filePath),
+    ).not.toContain(globalSkill)
+  })
+
   it('loads Pi project settings from the nested pi object with .pi fallback', async () => {
     const projectPath = await createTempProject()
     await writeJson(path.join(projectPath, '.pi', 'settings.json'), {

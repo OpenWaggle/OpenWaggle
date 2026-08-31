@@ -78,7 +78,9 @@ test('Hive Sessions stay ordinary sidebar sessions with reciprocal composer navi
     await hive.getByRole('button', { name: 'Expand archived Workers' }).click()
     await expect(hive.getByText(ARCHIVED_WORKER_TITLE)).toBeVisible()
 
-    await hive.getByRole('button', { name: `Open Worker Session: ${ACTIVE_WORKER_TITLE}` }).click()
+    await hive
+      .getByRole('button', { name: new RegExp(`^Open Worker Session: ${ACTIVE_WORKER_TITLE}`) })
+      .click()
     await expect(page.locator('header').getByText('Worker', { exact: true })).toBeVisible()
     await expect(page.locator('header').getByText('release-verifier', { exact: false })).toBeVisible()
     const parentShortcut = hive.getByRole('button', {

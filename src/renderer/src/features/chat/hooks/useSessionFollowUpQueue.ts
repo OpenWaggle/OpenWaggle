@@ -6,6 +6,7 @@ import {
   type SessionControlMutationResponse,
 } from '@shared/types/session-control'
 import type { SessionQueryOutcome } from '@shared/types/session-query'
+import { isRecord } from '@shared/utils/validation'
 import { queryOptions, type UseQueryOptions, useQuery } from '@tanstack/react-query'
 import { api } from '@/shared/lib/ipc'
 
@@ -19,6 +20,9 @@ export interface SessionFollowUpQueueItem {
     | 'authorization_ceiling_changed'
     | 'profile_revoked'
     | 'authority_changed'
+  readonly wagglePresetName?: string
+  readonly waggleSource?: 'user' | 'agent'
+  readonly authorizationMode?: 'yolo' | 'ask-for-approval'
 }
 
 export interface SessionFollowUpQueueSnapshot {
@@ -41,14 +45,30 @@ function sessionFollowUpQueueKey(sessionId: SessionId | string) {
 
 type SessionFollowUpQueueKey = readonly ['session-control', 'queue', string | null]
 
-function queueIntent(value: unknown) {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+type SessionFollowUpQueueIntent = Pick<
+  SessionFollowUpQueueItem,
+  'text' | 'attachmentCount' | 'wagglePresetName' | 'waggleSource' | 'authorizationMode'
+>
+
+function queueIntent(value: unknown): SessionFollowUpQueueIntent {
+  if (!isRecord(value)) {
     return { text: '', attachmentCount: 0 }
   }
-  const record = Object.fromEntries(Object.entries(value))
+  const record = value
+  const waggle = isRecord(record.waggle) ? record.waggle : undefined
   return {
     text: typeof record.text === 'string' ? record.text : '',
     attachmentCount: Array.isArray(record.attachmentIds) ? record.attachmentIds.length : 0,
+    ...(waggle && typeof waggle.presetName === 'string'
+      ? { wagglePresetName: waggle.presetName }
+      : {}),
+    ...(waggle && (waggle.source === 'user' || waggle.source === 'agent')
+      ? { waggleSource: waggle.source }
+      : {}),
+    ...(record.runAuthorizationOverride === 'yolo' ||
+    record.runAuthorizationOverride === 'ask-for-approval'
+      ? { authorizationMode: record.runAuthorizationOverride }
+      : {}),
   }
 }
 
