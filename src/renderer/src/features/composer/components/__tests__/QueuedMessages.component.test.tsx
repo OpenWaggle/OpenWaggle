@@ -19,6 +19,8 @@ interface QueuedMessageFixture {
   readonly wagglePresetName?: string
   readonly waggleSource?: 'user' | 'agent'
   readonly authorizationMode?: 'yolo' | 'ask-for-approval'
+  readonly thinkingLevel?: 'low' | 'high'
+  readonly callerId?: string
 }
 
 const queueMock = vi.hoisted(() => {
@@ -50,6 +52,8 @@ function queue(
     wagglePresetName?: string
     waggleSource?: 'user' | 'agent'
     authorizationMode?: 'yolo' | 'ask-for-approval'
+    thinkingLevel?: 'low' | 'high'
+    callerId?: string
   }[]
 ) {
   queueMock.snapshot.items = items.map((item, index) => ({
@@ -71,7 +75,7 @@ describe('QueuedMessages', () => {
     noOpToast.mockClear()
   })
 
-  it('renders nothing when the queue is empty or no Session is selected', () => {
+  it('keeps a persistent live region while hiding an empty queue dock', () => {
     const empty = render(
       <QueuedMessages
         sessionId={CONV_A}
@@ -80,7 +84,8 @@ describe('QueuedMessages', () => {
         onToast={noOpToast}
       />,
     )
-    expect(empty.container.firstChild).toBeNull()
+    expect(screen.getByRole('status')).toHaveTextContent('Follow-up queue empty.')
+    expect(screen.queryByText('Queued')).not.toBeInTheDocument()
     queue({ id: 'follow-up-1', text: 'test' })
     empty.rerender(
       <QueuedMessages
@@ -90,7 +95,7 @@ describe('QueuedMessages', () => {
         onToast={noOpToast}
       />,
     )
-    expect(empty.container.firstChild).toBeNull()
+    expect(screen.getByRole('status')).toHaveTextContent('')
   })
 
   it('renders the durable Follow-up count and bodies', () => {
@@ -119,6 +124,8 @@ describe('QueuedMessages', () => {
       wagglePresetName: 'Release review',
       waggleSource: 'agent',
       authorizationMode: 'yolo',
+      thinkingLevel: 'high',
+      callerId: 'session-agent:worker:run-1',
     })
     render(
       <QueuedMessages
@@ -132,6 +139,8 @@ describe('QueuedMessages', () => {
     expect(screen.getByText('Waggle · Release review')).toBeVisible()
     expect(screen.getByText('From agent')).toBeVisible()
     expect(screen.getByText('YOLO access')).toBeVisible()
+    expect(screen.getByText('Thinking · high')).toBeVisible()
+    expect(screen.getByText('From Worker')).toHaveAttribute('title', 'session-agent:worker:run-1')
   })
 
   it('offers promotion to steering only while a Run can accept it', () => {

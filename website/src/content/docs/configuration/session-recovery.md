@@ -5,7 +5,9 @@ order: 5
 section: "Configuration"
 ---
 
-The Session Host release performs one breaking, one-time migration from the legacy `openwaggle.db` to its complete Session Host schema. It builds the target database beside the source, preserves stable Session and transcript identities, rebuilds Workspace bindings and search projections, validates the result, closes it durably, and only then installs it atomically.
+The Session Host release performs one breaking, one-time migration from the legacy `openwaggle.db` to its complete Session Host schema. It builds the target database beside the source, preserves stable Session and transcript identities, rebuilds Workspace bindings and the complete lexical search projection, validates the authoritative result, closes it durably, and only then installs it atomically.
+
+Semantic search is a resumable derived projection, so it does not hold the app or CLI hostage during a large first launch. The migration durably queues every migrated Session, and the authoritative Session Host prepares embeddings in the background after it becomes available. Search remains complete through the lexical index while semantic readiness reports `preparing` or `failed`; hybrid search explicitly degrades to lexical until enough semantic coverage is ready. A restart resumes the remaining queue instead of repeating the canonical migration.
 
 A failed or cancelled migration leaves the legacy database untouched and refuses to open a partial target. After success, ordinary launches use only `session-host/session-host.sqlite`; the migration ledger prevents the cutover from repeating. OpenWaggle retains `session-host/pre-cutover-openwaggle.sqlite` as an explicit recovery copy and never reads or writes it during normal operation.
 
@@ -25,7 +27,7 @@ Quit every OpenWaggle window and allow active Runs to finish so the Session Host
 openwaggle recovery restore-pre-cutover --yes --json
 ```
 
-Restore requires exclusive ownership. Before replacement it preserves the current active database as a timestamped artifact, then reruns the full validated migration from the recovery copy. Sessions and mutations created after the original cutover are not present in that restored history. If restoration fails, the current active database is put back.
+Restore requires exclusive ownership. Before replacement it preserves the current active database as a timestamped artifact, then reruns the authoritative and lexical migration from the recovery copy and resumes semantic preparation in the background. Sessions and mutations created after the original cutover are not present in that restored history. If restoration fails, the current active database is put back.
 
 OpenWaggle never restores automatically after a crash, Run failure, or validation error because doing so could discard valid newer work.
 

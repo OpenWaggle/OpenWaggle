@@ -38,7 +38,9 @@ describe('Agent definitions CLI', () => {
     return runAgentsCli(args, {
       cwd: project,
       home,
-      stdout: (value) => stdout.push(value),
+      stdout: (value) => {
+        stdout.push(value)
+      },
       stderr: (value) => stderr.push(value),
       loadSemanticCatalog: async () => ({
         models: ['openai/gpt-5.6'],
@@ -138,5 +140,39 @@ describe('Agent definitions CLI', () => {
     expect(firstImport, stderr.join('')).toBe(0)
     await expect(run(['import', sourcePath, '--scope', 'user'])).resolves.toBe(1)
     await expect(run(['import', sourcePath, '--scope', 'user', '--replace'])).resolves.toBe(0)
+  })
+
+  it('waits for asynchronous stdout before completing', async () => {
+    let release: (() => void) | undefined
+    let settled = false
+    const outputReady = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const running = runAgentsCli(['list', '--json'], {
+      cwd: project,
+      home,
+      stdout: async () => outputReady,
+      stderr: (value) => stderr.push(value),
+    }).then((exitCode) => {
+      settled = true
+      return exitCode
+    })
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(settled).toBe(false)
+
+    release?.()
+    await expect(running).resolves.toBe(0)
+  })
+
+  it('converts asynchronous stdout failures into the controlled CLI failure path', async () => {
+    await expect(
+      runAgentsCli(['list', '--json'], {
+        cwd: project,
+        home,
+        stdout: async () => Promise.reject(new Error('stdout closed')),
+        stderr: (value) => stderr.push(value),
+      }),
+    ).resolves.toBe(1)
+    expect(stderr.join('')).toContain('stdout closed')
   })
 })

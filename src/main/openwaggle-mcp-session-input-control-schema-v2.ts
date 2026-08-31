@@ -189,7 +189,11 @@ export const mcpSessionControlOperationSchemasV2 = [
     limit: discoveryLimit.optional(),
     cursor: boundedCursor.optional(),
   }),
-  operationSchema('delegations-read', { delegationId: mcpSessionIdSchemaV2.optional() }),
+  operationSchema('delegations-read', {
+    delegationId: mcpSessionIdSchemaV2.optional(),
+    limit: discoveryLimit.optional(),
+    cursor: boundedCursor.optional(),
+  }),
   operationSchema('delegations-conflicts', {
     projectPath: mcpSessionPathSchemaV2.optional(),
     catalogScope: catalogScope.optional(),

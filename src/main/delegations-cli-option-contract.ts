@@ -8,7 +8,7 @@ const CATALOG_OPTIONS = ['project', 'all', 'parent', 'worker', 'limit', 'cursor'
 const OPTIONS_BY_COMMAND: Readonly<Record<string, readonly string[]>> = {
   help: [],
   list: [...CATALOG_OPTIONS, 'state'],
-  read: [],
+  read: ['limit', 'cursor'],
   conflicts: [...CATALOG_OPTIONS, 'delegation', 'kind', 'status'],
   submit: ['evidence-json', ...MUTATION_OPTIONS],
   state: MUTATION_OPTIONS,

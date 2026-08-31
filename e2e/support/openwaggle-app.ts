@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -16,6 +16,49 @@ let evidenceDirectoryPromise: Promise<string> | null = null
 let evidenceSequence = 0
 const QA_DIAGNOSTIC_TEXT_LIMIT = 1_000
 const QA_SCREENSHOT_SETTLE_MS = 250
+const CLI_MAX_OUTPUT_BYTES = 10 * 1024 * 1024
+const CLI_TIMEOUT_MS = 30_000
+
+function runRoutedElectronCli(
+  electronArguments: readonly string[],
+  environment: Readonly<Record<string, string>>,
+) {
+  return new Promise<{ readonly stdout: string; readonly stderr: string }>((resolve, reject) => {
+    const child = spawn(electronExecutablePath, electronArguments, {
+      cwd: process.cwd(),
+      env: { ...environment, OPENWAGGLE_CLI_OUTPUT_FD: '3' },
+      stdio: ['ignore', 'ignore', 'pipe', 'pipe'],
+    })
+    const stdout: Buffer[] = []
+    const stderr: Buffer[] = []
+    let outputBytes = 0
+    const timeout = setTimeout(() => child.kill('SIGKILL'), CLI_TIMEOUT_MS)
+    const collect = (target: Buffer[]) => (chunk: Buffer) => {
+      outputBytes += chunk.byteLength
+      if (outputBytes > CLI_MAX_OUTPUT_BYTES) {
+        child.kill('SIGKILL')
+        return
+      }
+      target.push(chunk)
+    }
+    child.stdio[3]?.on('data', collect(stdout))
+    child.stderr?.on('data', collect(stderr))
+    child.once('error', reject)
+    child.once('close', (code, signal) => {
+      clearTimeout(timeout)
+      if (outputBytes > CLI_MAX_OUTPUT_BYTES) {
+        reject(new Error('OpenWaggle CLI exceeded the E2E output limit.'))
+        return
+      }
+      if (code !== 0) {
+        reject(new Error(`OpenWaggle CLI exited with ${String(code ?? signal)}.`))
+        return
+      }
+      resolve({ stdout: Buffer.concat(stdout).toString(), stderr: Buffer.concat(stderr).toString() })
+    })
+  })
+}
+
 function evidenceDirectory() {
   evidenceDirectoryPromise ??= fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-e2e-evidence-')).then(
     (directory) => {
@@ -101,14 +144,18 @@ export class OpenWaggleApp {
       '.',
       ...args,
     ]
+    const environment = buildSafeElectronEnvironment({
+      OPENWAGGLE_DISABLE_SINGLE_INSTANCE: '1',
+      OPENWAGGLE_USER_DATA_DIR: this.userDataDir,
+    })
+    if (process.platform === 'linux') {
+      return runRoutedElectronCli(electronArguments, environment)
+    }
     const result = await execFileAsync(electronExecutablePath, electronArguments, {
       cwd: process.cwd(),
-      env: buildSafeElectronEnvironment({
-        OPENWAGGLE_DISABLE_SINGLE_INSTANCE: '1',
-        OPENWAGGLE_USER_DATA_DIR: this.userDataDir,
-      }),
-      maxBuffer: 10 * 1024 * 1024,
-      timeout: 30_000,
+      env: environment,
+      maxBuffer: CLI_MAX_OUTPUT_BYTES,
+      timeout: CLI_TIMEOUT_MS,
     })
     return { stdout: applicationCliStdout(result.stdout), stderr: result.stderr }
   }

@@ -44,7 +44,8 @@ vi.mock('../session-host/legacy-session-writer-fence', () => ({
   withLegacySessionWriterFence: vi.fn((operation: () => Promise<unknown>) => operation()),
 }))
 vi.mock('../session-host/local-session-paths', () => ({
-  prepareLocalSessionHostPaths: vi.fn(async () => undefined),
+  prepareLocalSessionHostPaths: vi.fn(async (paths: object) => paths),
+  rotateLocalSessionHostEndpoint: vi.fn(async (paths: object) => paths),
   resolveLocalSessionHostPaths: vi.fn(() => ({
     stateRoot: '/tmp/openwaggle-profile/session-host',
     legacyDatabasePath: '/tmp/openwaggle-profile/legacy.sqlite',
@@ -53,6 +54,7 @@ vi.mock('../session-host/local-session-paths', () => ({
     credentialPath: '/tmp/openwaggle-profile/credential',
     endpoint: '/tmp/openwaggle-profile/session-host.sock',
     endpointDirectory: '/tmp/openwaggle-profile',
+    endpointCapabilityPath: null,
   })),
 }))
 vi.mock('../session-host/session-host-cutover', () => ({

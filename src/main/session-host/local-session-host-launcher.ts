@@ -1,16 +1,17 @@
 import { spawn } from 'node:child_process'
 import net from 'node:net'
+import path from 'node:path'
 import { app } from 'electron'
-import { env, getSafeChildEnv } from '../env'
+import { env, getSessionHostChildEnv } from '../env'
 import { probeLocalSessionHost } from './local-session-client'
 import {
   type LocalSessionClientConnectionInput,
   LocalSessionHostUpgradePendingError,
 } from './local-session-client-connection'
+import { type LocalSessionHostPaths, refreshLocalSessionHostEndpoint } from './local-session-paths'
 import type { SessionHostOwnership } from './session-host-ownership'
 import { acquireSessionHostOwnership } from './session-host-ownership'
 
-const HOST_START_TIMEOUT_MS = 30_000
 export const HOST_TAKEOVER_TIMEOUT_MS = 15 * 60_000
 const HOST_POLL_INTERVAL_MS = 50
 const CONNECT_PROBE_TIMEOUT_MS = 250
@@ -22,10 +23,31 @@ export function sessionHostLaunchArguments(input: {
   return input.isPackaged ? ['session-host-internal'] : [input.appPath, 'session-host-internal']
 }
 
+export function sessionHostLaunchCommand(input: {
+  readonly platform: NodeJS.Platform
+  readonly isPackaged: boolean
+  readonly executablePath: string
+  readonly appPath: string
+  readonly appImagePath?: string
+}) {
+  if (
+    input.platform === 'linux' &&
+    input.isPackaged &&
+    input.appImagePath &&
+    path.isAbsolute(input.appImagePath)
+  ) {
+    return { command: input.appImagePath, args: ['session-host-internal'] }
+  }
+  return {
+    command: input.executablePath,
+    args: sessionHostLaunchArguments({ isPackaged: input.isPackaged, appPath: input.appPath }),
+  }
+}
+
 /**
  * The detached Host outlives the client that starts it, so it must not retain the client's
- * arbitrary secrets or inherit Electron's Node-compatibility switch. The explicit OpenWaggle
- * values are the minimum needed to select the same data root and logging policy as the client.
+ * client-scoped credentials or inherit Electron's Node-compatibility switch. Provider and shell
+ * environment must survive because this process owns Pi Runs after the launching client exits.
  */
 export function sessionHostChildEnvironment(input: {
   readonly safeEnvironment?: Readonly<Record<string, string | undefined>>
@@ -33,7 +55,7 @@ export function sessionHostChildEnvironment(input: {
   readonly logLevel?: 'debug' | 'info' | 'warn' | 'error'
 }) {
   return {
-    ...(input.safeEnvironment ?? getSafeChildEnv()),
+    ...(input.safeEnvironment ?? getSessionHostChildEnv()),
     OPENWAGGLE_USER_DATA_DIR: input.userDataRoot,
     ...(input.logLevel ? { OPENWAGGLE_LOG_LEVEL: input.logLevel } : {}),
   }
@@ -46,6 +68,7 @@ export interface LocalSessionHostLauncherDependencies {
   readonly launch: () => void
   readonly now: () => number
   readonly wait: (milliseconds: number) => Promise<void>
+  readonly refreshPaths: (paths: LocalSessionHostPaths) => Promise<LocalSessionHostPaths>
 }
 
 export function isLocalSessionHostUnavailable(error: unknown) {
@@ -97,22 +120,26 @@ const defaultDependencies: LocalSessionHostLauncherDependencies = {
     }
   },
   launch: () => {
-    const child = spawn(
-      process.execPath,
-      sessionHostLaunchArguments({ isPackaged: app.isPackaged, appPath: app.getAppPath() }),
-      {
-        detached: true,
-        stdio: 'ignore',
-        env: sessionHostChildEnvironment({
-          userDataRoot: app.getPath('userData'),
-          ...(env.OPENWAGGLE_LOG_LEVEL ? { logLevel: env.OPENWAGGLE_LOG_LEVEL } : {}),
-        }),
-      },
-    )
+    const launch = sessionHostLaunchCommand({
+      platform: process.platform,
+      isPackaged: app.isPackaged,
+      executablePath: process.execPath,
+      appPath: app.getAppPath(),
+      ...(env.APPIMAGE ? { appImagePath: env.APPIMAGE } : {}),
+    })
+    const child = spawn(launch.command, launch.args, {
+      detached: true,
+      stdio: 'ignore',
+      env: sessionHostChildEnvironment({
+        userDataRoot: app.getPath('userData'),
+        ...(env.OPENWAGGLE_LOG_LEVEL ? { logLevel: env.OPENWAGGLE_LOG_LEVEL } : {}),
+      }),
+    })
     child.unref()
   },
   now: Date.now,
   wait: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+  refreshPaths: refreshLocalSessionHostEndpoint,
 }
 
 async function waitForCondition(input: {
@@ -150,9 +177,10 @@ async function waitForCompatibleHost(
     timeoutMs,
     dependencies,
     condition: async () => {
-      if (!(await dependencies.canConnect(input.paths.endpoint))) return false
+      const paths = await dependencies.refreshPaths(input.paths)
+      if (!(await dependencies.canConnect(paths.endpoint))) return false
       try {
-        await dependencies.probe(input)
+        await dependencies.probe({ ...input, paths })
         return true
       } catch (error) {
         lastError = error
@@ -173,9 +201,13 @@ async function waitForLocalSessionHostAuthority(
   let upgradePendingError: LocalSessionHostUpgradePendingError | null = null
   const deadline = dependencies.now() + timeoutMs
   while (dependencies.now() < deadline) {
-    if (await dependencies.canConnect(input.paths.endpoint)) {
+    const paths = await dependencies.refreshPaths(input.paths)
+    if (await dependencies.canConnect(paths.endpoint)) {
       try {
-        return { status: 'connected' as const, negotiation: await dependencies.probe(input) }
+        return {
+          status: 'connected' as const,
+          negotiation: await dependencies.probe({ ...input, paths }),
+        }
       } catch (error) {
         if (!(error instanceof LocalSessionHostUpgradePendingError)) throw error
         upgradePendingError = error
@@ -201,6 +233,9 @@ export async function ensureLocalSessionHost(
   if (authority.status === 'connected') return authority.negotiation
 
   dependencies.launch()
-  await waitForCompatibleHost(input, HOST_START_TIMEOUT_MS, dependencies)
-  return dependencies.probe(input)
+  await waitForCompatibleHost(input, takeoverTimeoutMs, dependencies)
+  return dependencies.probe({
+    ...input,
+    paths: await dependencies.refreshPaths(input.paths),
+  })
 }

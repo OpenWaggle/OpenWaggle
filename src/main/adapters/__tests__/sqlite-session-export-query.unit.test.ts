@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
+import { SESSION_QUERY_MAX_RESPONSE_BYTES } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
@@ -108,5 +109,90 @@ describe('SQLite Session export query', () => {
       operation: 'exports-read',
       export: { exportOperationId: 'export-1', destinationPath: '/tmp/worker.jsonl' },
     })
+  })
+
+  it('byte-pages export operation summaries before large manifests can exceed the Host limit', async () => {
+    const runtime = makeRuntime(path.join(temporaryRoot, 'large-operation-list.sqlite'))
+    runtimes.push(runtime)
+    const largeText = 'x'.repeat(20 * 1024 * 1024)
+    const manifest = JSON.stringify({
+      schemaVersion: 1,
+      sessionId: 'worker',
+      title: 'Large export',
+      branchScope: 'tree',
+      activeBranchId: 'worker:branch:main',
+      selectedBranchId: null,
+      snapshot: {
+        nodeHighWaterMark: 1,
+        stateRevision: 0,
+        queueRevision: 0,
+        capturedAt: 1,
+      },
+      activeRunId: null,
+      activeTurnIncomplete: false,
+      queue: {
+        state: 'paused',
+        pendingCount: 1,
+        bodyScope: 'included',
+        omittedBodyCount: 0,
+        items: [
+          {
+            followUpId: 'follow-up-large',
+            position: 0,
+            createdAt: 1,
+            deliveryState: 'pending',
+            intent: { text: largeText },
+          },
+        ],
+      },
+    })
+    await runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        for (let index = 0; index < 3; index += 1) {
+          yield* sql`
+            INSERT INTO session_export_operations (
+              id, caller_id, session_id, idempotency_key, request_json, format,
+              destination_path, temporary_path, overwrite_existing, branch_scope,
+              include_queue_bodies, resources_json, status, manifest_json,
+              snapshot_high_water_mark, snapshot_state_revision, snapshot_captured_at,
+              records_written, resources_written, bytes_written, created_at, updated_at,
+              completed_at
+            ) VALUES (
+              ${`export-large-${index}`}, ${'cli'}, ${'worker'}, ${`key-large-${index}`},
+              ${'{}'}, ${'jsonl'}, ${`/tmp/large-${index}.jsonl`},
+              ${`/tmp/large-${index}.jsonl.tmp`}, ${0}, ${'tree'}, ${1}, ${'[]'},
+              ${'completed'}, ${manifest}, ${1}, ${0}, ${1}, ${1}, ${0}, ${1},
+              ${index + 1}, ${index + 1}, ${index + 1}
+            )
+          `
+        }
+      }),
+    )
+
+    const first = await executeQuery(runtime, {
+      operation: 'exports-list',
+      sessionId: 'worker',
+      limit: 200,
+    })
+    expect(Buffer.byteLength(JSON.stringify(first))).toBeLessThanOrEqual(
+      SESSION_QUERY_MAX_RESPONSE_BYTES,
+    )
+    if (first.outcome.operation !== 'exports-list' || !('exports' in first.outcome)) {
+      throw new Error('Expected export operation list.')
+    }
+    expect(first.outcome.exports).toHaveLength(1)
+    expect(first.outcome.nextCursor).toBeTypeOf('string')
+    const second = await executeQuery(runtime, {
+      operation: 'exports-list',
+      sessionId: 'worker',
+      limit: 200,
+      cursor: first.outcome.nextCursor,
+    })
+    if (second.outcome.operation !== 'exports-list' || !('exports' in second.outcome)) {
+      throw new Error('Expected export operation continuation.')
+    }
+    expect(second.outcome.exports).toHaveLength(1)
+    expect(second.outcome.nextCursor).toBeTypeOf('string')
   })
 })

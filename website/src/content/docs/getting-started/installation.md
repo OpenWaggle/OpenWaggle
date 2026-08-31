@@ -20,7 +20,8 @@ curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/
 The script downloads the latest release, verifies the SHA-256 checksum, and installs the app:
 
 - **macOS** — copies `OpenWaggle.app` to `/Applications`
-- **Linux** — installs the AppImage to `~/.local/bin` and creates a `.desktop` entry
+- **Linux** — installs the AppImage under `~/.local/lib/openwaggle`, installs the `openwaggle`
+  command in `~/.local/bin`, and creates a `.desktop` entry
 
 ## Pre-Built Installers
 

@@ -6,6 +6,7 @@ import {
   type SessionControlMutationResponse,
 } from '@shared/types/session-control'
 import type { SessionQueryOutcome } from '@shared/types/session-query'
+import { THINKING_LEVELS } from '@shared/types/settings'
 import { isRecord } from '@shared/utils/validation'
 import { queryOptions, type UseQueryOptions, useQuery } from '@tanstack/react-query'
 import { api } from '@/shared/lib/ipc'
@@ -23,6 +24,8 @@ export interface SessionFollowUpQueueItem {
   readonly wagglePresetName?: string
   readonly waggleSource?: 'user' | 'agent'
   readonly authorizationMode?: 'yolo' | 'ask-for-approval'
+  readonly thinkingLevel?: AgentSendPayload['thinkingLevel']
+  readonly callerId?: string
 }
 
 export interface SessionFollowUpQueueSnapshot {
@@ -47,7 +50,13 @@ type SessionFollowUpQueueKey = readonly ['session-control', 'queue', string | nu
 
 type SessionFollowUpQueueIntent = Pick<
   SessionFollowUpQueueItem,
-  'text' | 'attachmentCount' | 'wagglePresetName' | 'waggleSource' | 'authorizationMode'
+  | 'text'
+  | 'attachmentCount'
+  | 'wagglePresetName'
+  | 'waggleSource'
+  | 'authorizationMode'
+  | 'thinkingLevel'
+  | 'callerId'
 >
 
 function queueIntent(value: unknown): SessionFollowUpQueueIntent {
@@ -56,6 +65,7 @@ function queueIntent(value: unknown): SessionFollowUpQueueIntent {
   }
   const record = value
   const waggle = isRecord(record.waggle) ? record.waggle : undefined
+  const thinkingLevel = THINKING_LEVELS.find((level) => level === record.thinkingLevel)
   return {
     text: typeof record.text === 'string' ? record.text : '',
     attachmentCount: Array.isArray(record.attachmentIds) ? record.attachmentIds.length : 0,
@@ -69,6 +79,8 @@ function queueIntent(value: unknown): SessionFollowUpQueueIntent {
     record.runAuthorizationOverride === 'ask-for-approval'
       ? { authorizationMode: record.runAuthorizationOverride }
       : {}),
+    ...(thinkingLevel ? { thinkingLevel } : {}),
+    ...(typeof record.callerId === 'string' ? { callerId: record.callerId } : {}),
   }
 }
 
@@ -192,7 +204,15 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
       if (!repairedHead) return
       let queueRevision = response.outcome.queueRevision
       if (response.outcome.queueState === 'running') {
-        if (query.data?.activeRunId) return
+        const current = await readQueue(sessionId)
+        if (
+          current.activeRunId ||
+          current.state !== 'running' ||
+          current.items[0]?.id !== followUpId
+        ) {
+          return
+        }
+        queueRevision = current.revision
         const paused = await mutate({
           operation: 'queue-pause',
           sessionId,

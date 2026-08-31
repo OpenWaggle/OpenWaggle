@@ -13,6 +13,8 @@ import {
   LocalSessionInboundCapacityError,
   LocalSessionInboundRetention,
 } from './local-session-inbound-retention'
+import type { LocalSessionOutboundByteBudget } from './local-session-outbound-budget'
+import { LocalSessionOutboundWriter } from './local-session-outbound-writer'
 import {
   type LocalSessionAuthenticationBudget,
   type LocalSessionInboundByteBudget,
@@ -23,10 +25,7 @@ import type {
   AuthenticatedLocalSessionCaller,
   LocalSessionServerDependencies,
 } from './local-session-server'
-import {
-  describeLocalSessionServerError,
-  writeLocalSessionSocketFrame,
-} from './local-session-server-frame'
+import { describeLocalSessionServerError } from './local-session-server-frame'
 import {
   type ActiveLocalSessionSubscription,
   localSessionEventIsDenied,
@@ -40,22 +39,31 @@ export class LocalSessionConnection {
   private readonly subscriptions = new Map<string, ActiveLocalSessionSubscription>()
   private readonly commandControllers = new Map<string, AbortController>()
   private readTail = Promise.resolve()
-  private writeTail = Promise.resolve()
   private profileRefreshTail = Promise.resolve()
   private caller: AuthenticatedLocalSessionCaller | null = null
   private negotiatedRevision: number | null = null
+  private serverAuthenticated: boolean
   private releaseClientLiveness: (() => void) | null = null
   private closed = false
   private readonly handshakeTimer: ReturnType<typeof setTimeout>
   private readonly authenticationController = new AbortController()
+  private readonly outbound: LocalSessionOutboundWriter
 
   constructor(
     private readonly socket: Socket,
     private readonly dependencies: LocalSessionServerDependencies,
     inboundBudget: LocalSessionInboundByteBudget,
     private readonly authenticationBudget: LocalSessionAuthenticationBudget,
+    outboundBudget: LocalSessionOutboundByteBudget,
   ) {
     this.inbound = new LocalSessionInboundRetention(inboundBudget)
+    this.outbound = new LocalSessionOutboundWriter(
+      socket,
+      outboundBudget,
+      this.authenticationController.signal,
+      dependencies.maxPendingOutboundFramesPerConnection,
+    )
+    this.serverAuthenticated = dependencies.authenticateServer === undefined
     const timeout = dependencies.handshakeTimeoutMs ?? DEFAULT_HANDSHAKE_TIMEOUT_MS
     this.handshakeTimer = setTimeout(() => {
       void this.fail(undefined, 'handshake_timeout', 'Local Session handshake timed out.')
@@ -69,7 +77,10 @@ export class LocalSessionConnection {
         const batch = this.inbound.push(chunk, MAX_DECODED_FRAMES_PER_CHUNK)
         this.readTail = this.readTail
           .then(async () => {
-            for (const value of batch.values) await this.handleValue(value)
+            for (const value of batch.values) {
+              if (this.closed) break
+              await this.handleValue(value)
+            }
           })
           .catch((error) =>
             this.fail(undefined, 'protocol_error', describeLocalSessionServerError(error)),
@@ -116,19 +127,27 @@ export class LocalSessionConnection {
   }
 
   private send(frame: LocalSessionServerFrame | unknown): Promise<void> {
-    this.writeTail = this.writeTail.then(() => {
-      if (this.closed || this.socket.destroyed || !this.socket.writable) return
-      return writeLocalSessionSocketFrame(this.socket, frame)
-    })
-    return this.writeTail
+    return this.outbound.send(frame)
   }
 
   private async handleValue(value: unknown): Promise<void> {
+    if (!this.serverAuthenticated) {
+      await this.handleServerAuthentication(value)
+      return
+    }
     if (!this.caller || this.negotiatedRevision === null) {
       await this.handleHello(value)
       return
     }
     await this.handleClientFrame(decodeLocalSessionClientFrame(value))
+  }
+
+  private async handleServerAuthentication(value: unknown): Promise<void> {
+    const authenticateServer = this.dependencies.authenticateServer
+    if (!authenticateServer)
+      throw new Error('Local Session Host identity authority is unavailable.')
+    await this.send(await authenticateServer(value))
+    this.serverAuthenticated = true
   }
 
   private async handleHello(value: unknown): Promise<void> {
@@ -282,7 +301,7 @@ export class LocalSessionConnection {
     if (this.closed) return
     this.closed = true
     this.authenticationController.abort()
-    this.inbound.release()
+    this.inbound.releasePendingFrame()
     clearTimeout(this.handshakeTimer)
     for (const controller of this.commandControllers.values()) {
       controller.abort(new Error('Local Session client disconnected.'))

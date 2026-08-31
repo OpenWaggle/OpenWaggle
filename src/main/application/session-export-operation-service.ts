@@ -8,6 +8,7 @@ import type {
   SessionExportOperationStatus,
   SessionExportProgress,
 } from '@shared/types/session-export-operation'
+import { SESSION_EXPORT_RESOURCE_BYTES_LIMIT } from '@shared/types/session-export-operation'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
 import { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
@@ -110,6 +111,7 @@ function runClaimedExport(operation: SessionExportOperationRecord) {
     let sink: SessionExportArtifactSink | undefined
     let durableInstallPrepared = false
     let progress = { recordsWritten: 0, resourcesWritten: 0, bytesWritten: 0 }
+    let resourceBytesWritten = 0
     yield* Effect.gen(function* () {
       yield* ensureLiveExportAuthority(sql, operation)
       const openedSink = yield* artifacts.open(operation)
@@ -144,11 +146,19 @@ function runClaimedExport(operation: SessionExportOperationRecord) {
             resource,
             ...(expectedWorkspacePath ? { expectedWorkspacePath } : {}),
           }),
-          (resolved) =>
-            openedSink.writeResource({
+          (resolved) => {
+            if (resolved.size > SESSION_EXPORT_RESOURCE_BYTES_LIMIT - resourceBytesWritten) {
+              return Effect.fail(
+                new Error('Export resources exceed the 256 MiB aggregate byte limit.'),
+              )
+            }
+            return openedSink.writeResource({
               path: resolved.path,
               sourceHandle: resolved.sourceHandle,
-            }),
+              expectedSize: resolved.size,
+              expectedIdentity: resolved.identity,
+            })
+          },
           (resolved) => Effect.promise(() => resolved.sourceHandle.close().catch(() => undefined)),
         )
         progress = {
@@ -156,6 +166,7 @@ function runClaimedExport(operation: SessionExportOperationRecord) {
           resourcesWritten: progress.resourcesWritten + 1,
           bytesWritten: progress.bytesWritten + bytes,
         }
+        resourceBytesWritten += bytes
         yield* operations.updateProgress(operation.exportOperationId, progress, Date.now())
         publishExportChange(operation, 'running', progress)
       }

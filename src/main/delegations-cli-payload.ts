@@ -80,6 +80,10 @@ function readPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
       query: {
         operation: 'delegations-read',
         delegationId: required(arguments_.positionals[0], 'Delegation ID'),
+        ...(option(arguments_, 'limit')
+          ? { limit: positiveInteger(option(arguments_, 'limit'), '--limit') }
+          : {}),
+        ...(option(arguments_, 'cursor') ? { cursor: option(arguments_, 'cursor') } : {}),
       },
     },
   }

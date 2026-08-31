@@ -2,9 +2,15 @@ import { matchBy } from '@diegogbrisa/ts-match'
 import type { FollowUpId } from '@shared/types/brand'
 
 const REVISION_INCREMENT = 1
+export const MAX_FOLLOW_UP_QUEUE_ITEMS = 256
+export const MAX_FOLLOW_UP_QUEUE_BYTES = 32 * 1024 * 1024
 
 export interface FollowUpQueueItem {
   readonly id: FollowUpId
+}
+
+interface SizedFollowUpQueueItem extends FollowUpQueueItem {
+  readonly intent: unknown
 }
 
 export interface FollowUpQueue<TItem extends FollowUpQueueItem> {
@@ -55,6 +61,8 @@ interface FollowUpQueueMutationRejection {
   readonly code:
     | 'queue_revision_changed'
     | 'follow_up_already_exists'
+    | 'queue_capacity_reached'
+    | 'queue_byte_capacity_reached'
     | 'follow_up_not_found'
     | 'queue_order_mismatch'
     | 'queue_already_paused'
@@ -74,6 +82,14 @@ function acceptedQueue<TItem extends FollowUpQueueItem>(
       items,
     },
   }
+}
+
+function serializedBytes(value: unknown) {
+  return new TextEncoder().encode(JSON.stringify(value)).byteLength
+}
+
+function hasIntent(item: FollowUpQueueItem): item is SizedFollowUpQueueItem {
+  return 'intent' in item
 }
 
 function revisionRejection(
@@ -99,6 +115,28 @@ export function mutateFollowUpQueue<TItem extends FollowUpQueueItem>(
         return {
           accepted: false,
           code: 'follow_up_already_exists',
+          currentRevision: queue.revision,
+        }
+      }
+      if (queue.items.length >= MAX_FOLLOW_UP_QUEUE_ITEMS) {
+        return {
+          accepted: false,
+          code: 'queue_capacity_reached',
+          currentRevision: queue.revision,
+        }
+      }
+      if (
+        hasIntent(append.item) &&
+        serializedBytes(append.item.intent) +
+          queue.items.reduce(
+            (bytes, item) => bytes + (hasIntent(item) ? serializedBytes(item.intent) : 0),
+            0,
+          ) >
+          MAX_FOLLOW_UP_QUEUE_BYTES
+      ) {
+        return {
+          accepted: false,
+          code: 'queue_byte_capacity_reached',
           currentRevision: queue.revision,
         }
       }

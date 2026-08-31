@@ -8,6 +8,7 @@ import {
   SESSION_EXPORT_FORMATS,
   SESSION_EXPORT_OPERATION_QUERY_LIMIT,
   SESSION_EXPORT_OPERATION_STATUSES,
+  SESSION_EXPORT_RESOURCE_LIMIT,
 } from '@shared/types/session-export-operation'
 import {
   SESSION_QUERY_MAX_CURSOR_LENGTH,
@@ -24,7 +25,7 @@ export const exportResourceInputSchema = Schema.Struct({
 })
 
 export const exportResourcesSchema: Schema.Schema<readonly SessionExportResourceInput[]> =
-  Schema.Array(exportResourceInputSchema)
+  Schema.Array(exportResourceInputSchema).pipe(Schema.maxItems(SESSION_EXPORT_RESOURCE_LIMIT))
 
 export const sessionExportManifestSchema: Schema.Schema<SessionExportManifest> = Schema.Struct({
   schemaVersion: Schema.Literal(1),
@@ -86,7 +87,7 @@ export const exportCreateCommandSchema = Schema.Struct({
   branchScope: Schema.optional(Schema.Literal('active-branch', 'tree')),
   branchId: Schema.optional(Schema.String),
   includeQueueBodies: Schema.optional(Schema.Boolean),
-  resources: Schema.optional(Schema.Array(exportResourceInputSchema)),
+  resources: Schema.optional(exportResourcesSchema),
 })
 
 export const exportCancelCommandSchema = Schema.Struct({

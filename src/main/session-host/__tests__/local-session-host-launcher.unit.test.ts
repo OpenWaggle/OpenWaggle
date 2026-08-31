@@ -11,6 +11,7 @@ import {
   type LocalSessionHostLauncherDependencies,
   sessionHostChildEnvironment,
   sessionHostLaunchArguments,
+  sessionHostLaunchCommand,
 } from '../local-session-host-launcher'
 
 const paths = {
@@ -21,6 +22,7 @@ const paths = {
   credentialPath: '/state/credential',
   endpoint: '/state/host.sock',
   endpointDirectory: '/state',
+  endpointCapabilityPath: null,
 }
 
 const accepted = {
@@ -34,6 +36,7 @@ const accepted = {
 function dependencies(input?: {
   readonly canConnect?: LocalSessionHostLauncherDependencies['canConnect']
   readonly probe?: LocalSessionHostLauncherDependencies['probe']
+  readonly refreshPaths?: LocalSessionHostLauncherDependencies['refreshPaths']
   readonly tryAcquireOwnership?: LocalSessionHostLauncherDependencies['tryAcquireOwnership']
 }) {
   let now = 0
@@ -48,6 +51,7 @@ function dependencies(input?: {
       })),
     launch: vi.fn(),
     now: () => now,
+    refreshPaths: input?.refreshPaths ?? vi.fn(async (candidate) => candidate),
     wait: vi.fn(async (milliseconds: number) => {
       now += milliseconds
     }),
@@ -79,7 +83,45 @@ describe('Local Session Host launcher', () => {
     ).toEqual(['session-host-internal'])
   })
 
-  it('launches the detached Host with an explicit secret-free Electron environment', () => {
+  it('launches a packaged Linux Host from the stable AppImage mount source', () => {
+    expect(
+      sessionHostLaunchCommand({
+        platform: 'linux',
+        isPackaged: true,
+        executablePath: '/tmp/.mount_openwaggle/openwaggle',
+        appPath: '/tmp/.mount_openwaggle/resources/app.asar',
+        appImagePath: '/opt/OpenWaggle.AppImage',
+      }),
+    ).toEqual({ command: '/opt/OpenWaggle.AppImage', args: ['session-host-internal'] })
+  })
+
+  it('keeps the Electron executable for development and non-AppImage packages', () => {
+    expect(
+      sessionHostLaunchCommand({
+        platform: 'linux',
+        isPackaged: false,
+        executablePath: '/workspace/node_modules/electron/dist/electron',
+        appPath: '/workspace/OpenWaggle',
+        appImagePath: '/opt/OpenWaggle.AppImage',
+      }),
+    ).toEqual({
+      command: '/workspace/node_modules/electron/dist/electron',
+      args: ['/workspace/OpenWaggle', 'session-host-internal'],
+    })
+    expect(
+      sessionHostLaunchCommand({
+        platform: 'darwin',
+        isPackaged: true,
+        executablePath: '/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle',
+        appPath: '/Applications/OpenWaggle.app/Contents/Resources/app.asar',
+      }),
+    ).toEqual({
+      command: '/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle',
+      args: ['session-host-internal'],
+    })
+  })
+
+  it('adds explicit Host identity settings to the selected runtime environment', () => {
     const environment = sessionHostChildEnvironment({
       safeEnvironment: {
         PATH: '/safe/bin',
@@ -146,6 +188,40 @@ describe('Local Session Host launcher', () => {
 
     expect(launcher.launch).toHaveBeenCalledOnce()
     expect(launcher.probe).toHaveBeenCalledTimes(2)
+  })
+
+  it('rereads a rotated Windows endpoint after launching the owning Host', async () => {
+    const rotatedPaths = { ...paths, endpoint: '\\\\.\\pipe\\openwaggle-rotated' }
+    const refreshPaths = vi
+      .fn<LocalSessionHostLauncherDependencies['refreshPaths']>()
+      .mockResolvedValueOnce(paths)
+      .mockResolvedValue(rotatedPaths)
+    const canConnect = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true)
+    const probe = vi.fn(async () => accepted)
+    const launcher = dependencies({ canConnect, probe, refreshPaths })
+
+    await expect(ensureLocalSessionHost(client, launcher)).resolves.toEqual(accepted)
+
+    expect(launcher.launch).toHaveBeenCalledOnce()
+    expect(refreshPaths).toHaveBeenCalledTimes(3)
+    expect(probe).toHaveBeenCalledTimes(2)
+    expect(probe).toHaveBeenCalledWith(expect.objectContaining({ paths: rotatedPaths }))
+  })
+
+  it('keeps the first CLI attached while a one-time migration exceeds 30 seconds', async () => {
+    let probes = 0
+    const canConnect = vi.fn(async () => {
+      probes += 1
+      return probes > 700
+    })
+    const launcher = dependencies({ canConnect })
+
+    await expect(
+      ensureLocalSessionHost({ ...client, takeoverTimeoutMs: 60_000 }, launcher),
+    ).resolves.toEqual(accepted)
+
+    expect(launcher.launch).toHaveBeenCalledOnce()
+    expect(launcher.wait).toHaveBeenCalledTimes(699)
   })
 
   it('waits for an incompatible Host to drain before launching its replacement', async () => {

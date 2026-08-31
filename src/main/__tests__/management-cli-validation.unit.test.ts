@@ -26,7 +26,12 @@ describe('management CLI validation boundaries', () => {
   })
 
   it('rejects option-only Access and Delegation invocations', async () => {
-    const stdout = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
+    const stdout = vi
+      .spyOn(process.stdout, 'write')
+      .mockImplementation((_chunk, _encoding, callback) => {
+        callback?.()
+        return true
+      })
     const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
 
     await expect(runAccessCli(['profiles', '--capabilty', 'sessions:read'])).resolves.toBe(2)

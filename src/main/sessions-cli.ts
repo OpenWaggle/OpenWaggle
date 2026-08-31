@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
+import { isRecord } from '@shared/utils/validation'
+import { writeCliStdout } from './cli-stdout'
 import { validateImplicitCliHelp } from './command-cli-option-contract'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
 import { hasFlag, parseMcpCliArguments } from './mcp-cli-arguments'
@@ -50,20 +52,20 @@ async function runWatchCommand(
       ...(after ? { after } : {}),
       signal: abortController.signal,
       onCursor: writeCursor,
-      onEvent: (event) => {
+      onEvent: async (event) => {
         if (
           sessionIds.size > 0 &&
           (event.payload.kind === 'semantic-discovery-readiness-changed' ||
             !sessionIds.has(event.payload.sessionId))
         ) {
-          writeCursor(event.cursor)
+          await writeCursor(event.cursor)
           return
         }
-        writeSessionsCliStreamRecord(event, jsonl)
+        await writeSessionsCliStreamRecord(event, jsonl)
       },
     })
     if (result.status === 'resync-required') {
-      writeSessionsCliStreamRecord(result, jsonl)
+      await writeSessionsCliStreamRecord(result, jsonl)
       return EXIT.FAILURE
     }
     return EXIT.SUCCESS
@@ -73,25 +75,36 @@ async function runWatchCommand(
   }
 }
 
-function transcriptPage(value: unknown) {
-  if (typeof value !== 'object' || value === null || !('response' in value)) return undefined
-  const response = value.response
-  if (typeof response !== 'object' || response === null || !('outcome' in response)) {
+function transcriptOutcome(value: unknown) {
+  if (!isRecord(value) || !isRecord(value.response) || !isRecord(value.response.outcome)) {
     return undefined
   }
-  const outcome = response.outcome
-  if (typeof outcome !== 'object' || outcome === null || !('items' in outcome)) return undefined
+  return value.response.outcome
+}
+
+function throwTranscriptOutcomeError(outcome: Record<string, unknown>) {
+  if (isRecord(outcome.error)) {
+    const code = 'code' in outcome.error ? String(outcome.error.code) : 'query_failed'
+    const message = 'message' in outcome.error ? String(outcome.error.message) : 'Query failed.'
+    throw new Error(`${code}: ${message}`)
+  }
+}
+
+function optionalNumber(record: Record<string, unknown>, key: string) {
+  const value = record[key]
+  return typeof value === 'number' ? value : undefined
+}
+
+function transcriptPage(value: unknown) {
+  const outcome = transcriptOutcome(value)
+  if (!outcome) return undefined
+  throwTranscriptOutcomeError(outcome)
+  if (!('items' in outcome)) return undefined
   if (!Array.isArray(outcome.items)) return undefined
   return {
     items: outcome.items.map((item: unknown) => item),
-    highWaterMark:
-      'highWaterMark' in outcome && typeof outcome.highWaterMark === 'number'
-        ? outcome.highWaterMark
-        : undefined,
-    nextCreatedOrder:
-      'nextCreatedOrder' in outcome && typeof outcome.nextCreatedOrder === 'number'
-        ? outcome.nextCreatedOrder
-        : undefined,
+    highWaterMark: optionalNumber(outcome, 'highWaterMark'),
+    nextCreatedOrder: optionalNumber(outcome, 'nextCreatedOrder'),
   }
 }
 
@@ -101,7 +114,7 @@ async function streamFullTranscript(
   clientInput: ClientInput,
   jsonl: boolean,
 ) {
-  writeSessionsCliStreamRecord({ record: 'session', session }, jsonl)
+  await writeSessionsCliStreamRecord({ record: 'session', session }, jsonl)
   let afterCreatedOrder: number | undefined
   let throughCreatedOrder: number | undefined
   while (true) {
@@ -127,9 +140,14 @@ async function streamFullTranscript(
       throw new Error('Local Session Host returned an invalid transcript page.')
     }
     throughCreatedOrder ??= page.highWaterMark
-    for (const item of page.items) writeSessionsCliStreamRecord({ record: 'item', item }, jsonl)
+    for (const item of page.items) {
+      await writeSessionsCliStreamRecord({ record: 'item', item }, jsonl)
+    }
     if (page.nextCreatedOrder === undefined) {
-      writeSessionsCliStreamRecord({ record: 'end', highWaterMark: throughCreatedOrder }, jsonl)
+      await writeSessionsCliStreamRecord(
+        { record: 'end', highWaterMark: throughCreatedOrder },
+        jsonl,
+      )
       return
     }
     afterCreatedOrder = page.nextCreatedOrder
@@ -153,7 +171,7 @@ async function runSessionCommand(
   })
   const resultError = sessionCliResultErrorKind(result)
   if (resultError) {
-    writeSessionsCliResponse(command, result, hasFlag(arguments_, 'json'))
+    await writeSessionsCliResponse(command, result, hasFlag(arguments_, 'json'))
     return sessionCliExitCodeForError(resultError)
   }
   if (command === 'read' && hasFlag(arguments_, 'full')) {
@@ -170,7 +188,7 @@ async function runSessionCommand(
     })
     return EXIT.SUCCESS
   }
-  writeSessionsCliResponse(command, result, hasFlag(arguments_, 'json'))
+  await writeSessionsCliResponse(command, result, hasFlag(arguments_, 'json'))
   return EXIT.SUCCESS
 }
 
@@ -201,12 +219,12 @@ export async function runSessionsCli(args: readonly string[]) {
   try {
     if (!command) {
       validateImplicitCliHelp('OpenWaggle Sessions', parsed)
-      process.stdout.write(`${sessionsCliUsage()}\n`)
+      await writeCliStdout(`${sessionsCliUsage()}\n`)
       return EXIT.SUCCESS
     }
     validateSessionsCliOptions(command, unresolvedArguments)
     if (command === 'help') {
-      process.stdout.write(`${sessionsCliUsage()}\n`)
+      await writeCliStdout(`${sessionsCliUsage()}\n`)
       return EXIT.SUCCESS
     }
     const resolvedInput = await resolveSessionsCliMessageInput(command, unresolvedArguments)

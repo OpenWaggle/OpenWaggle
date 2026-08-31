@@ -12,10 +12,12 @@ const STOP_TIMEOUT_MS = 3_000
 const MAX_LOG_BYTES = 64_000
 const LIST_LIMIT = 20
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 function assertRecord(value: unknown, message: string): asserts value is Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new Error(message)
-  }
+  if (!isRecord(value)) throw new Error(message)
 }
 
 async function pathExists(candidate: string) {
@@ -60,10 +62,19 @@ export async function findPackagedExecutable() {
   for (const candidate of candidates) {
     if (await pathExists(candidate)) existing.push(candidate)
   }
-  if (existing.length !== 1) {
-    throw new Error(`Expected one packaged OpenWaggle executable, found ${existing.length}.`)
+  return selectPackagedExecutable(existing, process.platform)
+}
+
+export function selectPackagedExecutable(
+  existing: readonly string[],
+  platform: NodeJS.Platform,
+) {
+  const appImages = platform === 'linux' ? existing.filter((entry) => entry.endsWith('.AppImage')) : []
+  const candidates = appImages.length > 0 ? appImages : existing
+  if (candidates.length !== 1) {
+    throw new Error(`Expected one packaged OpenWaggle executable, found ${candidates.length}.`)
   }
-  return existing[0] ?? ''
+  return candidates[0] ?? ''
 }
 
 export function childEnvironment(userDataRoot: string) {

@@ -1,12 +1,17 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { DATABASE_FILE_NAME } from '../services/database-constants'
+import { secureWindowsUserOnly, type WindowsUserOnlySecurity } from './windows-user-only-security'
 
 const PORTABLE_UNIX_SOCKET_PATH_BYTES = 100
 const ENDPOINT_HASH_CHARACTERS = 20
+const WINDOWS_ENDPOINT_CAPABILITY_BYTES = 32
+const WINDOWS_ENDPOINT_CAPABILITY_PATTERN = /^[A-Za-z0-9_-]{43}$/
+const WINDOWS_ENDPOINT_CAPABILITY_FILE = 'endpoint.capability'
 const OWNER_DIRECTORY_MODE = 0o700
+const OWNER_FILE_MODE = 0o600
 const PORTABLE_TEMPORARY_ROOT = '/tmp'
 const filesystemConstants = process.getBuiltinModule('node:fs').constants
 const OPEN_DIRECTORY_NO_FOLLOW =
@@ -22,6 +27,7 @@ export interface LocalSessionHostPaths {
   readonly credentialPath: string
   readonly endpoint: string
   readonly endpointDirectory: string | null
+  readonly endpointCapabilityPath: string | null
 }
 
 function endpointHash(userDataRoot: string) {
@@ -50,8 +56,9 @@ export function resolveLocalSessionHostPaths(input: {
       databasePath,
       recoveryDatabasePath,
       credentialPath,
-      endpoint: `\\\\.\\pipe\\openwaggle-${hash}-session-host`,
+      endpoint: '',
       endpointDirectory: null,
+      endpointCapabilityPath: path.join(stateRoot, WINDOWS_ENDPOINT_CAPABILITY_FILE),
     }
   }
 
@@ -65,6 +72,7 @@ export function resolveLocalSessionHostPaths(input: {
       credentialPath,
       endpoint: preferredEndpoint,
       endpointDirectory: stateRoot,
+      endpointCapabilityPath: null,
     }
   }
 
@@ -87,6 +95,88 @@ export function resolveLocalSessionHostPaths(input: {
     credentialPath,
     endpoint: path.join(endpointDirectory, endpointName),
     endpointDirectory,
+    endpointCapabilityPath: null,
+  }
+}
+
+function hasErrorCode(error: unknown, code: string) {
+  return error instanceof Error && 'code' in error && error.code === code
+}
+
+async function readWindowsEndpointCapability(capabilityPath: string) {
+  const capability = (await fs.readFile(capabilityPath, 'utf8')).trim()
+  if (!WINDOWS_ENDPOINT_CAPABILITY_PATTERN.test(capability)) {
+    throw new Error('The Windows Local Session endpoint capability is invalid.')
+  }
+  return capability
+}
+
+function withWindowsEndpoint(paths: LocalSessionHostPaths, capability: string) {
+  return {
+    ...paths,
+    endpoint: `\\\\.\\pipe\\openwaggle-${capability}-session-host`,
+  }
+}
+
+async function writeProtectedWindowsEndpointCapability(
+  capabilityPath: string,
+  capability: string,
+  secureUserOnly: WindowsUserOnlySecurity,
+) {
+  const temporaryPath = path.join(
+    path.dirname(capabilityPath),
+    `.${path.basename(capabilityPath)}.${randomUUID()}.tmp`,
+  )
+  try {
+    await fs.writeFile(temporaryPath, `${capability}\n`, {
+      encoding: 'utf8',
+      mode: OWNER_FILE_MODE,
+      flag: 'wx',
+    })
+    await secureUserOnly([{ kind: 'file', path: temporaryPath }])
+    return temporaryPath
+  } catch (error) {
+    await fs.unlink(temporaryPath).catch((cleanupError: unknown) => {
+      if (!hasErrorCode(cleanupError, 'ENOENT')) {
+        throw new AggregateError(
+          [error, cleanupError],
+          'Windows endpoint capability creation and cleanup both failed.',
+        )
+      }
+    })
+    throw error
+  }
+}
+
+async function ensureWindowsEndpointCapability(
+  capabilityPath: string,
+  secureUserOnly: WindowsUserOnlySecurity,
+) {
+  try {
+    return await readWindowsEndpointCapability(capabilityPath)
+  } catch (error) {
+    if (!hasErrorCode(error, 'ENOENT')) throw error
+  }
+  const capability = randomBytes(WINDOWS_ENDPOINT_CAPABILITY_BYTES).toString('base64url')
+  let temporaryPath = ''
+  try {
+    temporaryPath = await writeProtectedWindowsEndpointCapability(
+      capabilityPath,
+      capability,
+      secureUserOnly,
+    )
+    try {
+      await fs.link(temporaryPath, capabilityPath)
+    } catch (error) {
+      if (!hasErrorCode(error, 'EEXIST')) throw error
+    }
+    return await readWindowsEndpointCapability(capabilityPath)
+  } finally {
+    if (temporaryPath) {
+      await fs.unlink(temporaryPath).catch((error: unknown) => {
+        if (!hasErrorCode(error, 'ENOENT')) throw error
+      })
+    }
   }
 }
 
@@ -119,14 +209,72 @@ async function prepareUnixOwnerDirectory(directory: string, label: string) {
   }
 }
 
-export async function prepareLocalSessionHostPaths(paths: LocalSessionHostPaths): Promise<void> {
-  if (process.platform === 'win32') {
+export async function prepareLocalSessionHostPaths(
+  paths: LocalSessionHostPaths,
+  platform: NodeJS.Platform = process.platform,
+  secureUserOnly: WindowsUserOnlySecurity = secureWindowsUserOnly,
+): Promise<LocalSessionHostPaths> {
+  if (platform === 'win32') {
+    const capabilityPath = paths.endpointCapabilityPath
+    if (!capabilityPath) {
+      throw new Error('The Windows Local Session endpoint capability path is unavailable.')
+    }
     await fs.mkdir(paths.stateRoot, { recursive: true, mode: OWNER_DIRECTORY_MODE })
     await fs.chmod(paths.stateRoot, OWNER_DIRECTORY_MODE)
-    return
+    await secureUserOnly([{ kind: 'directory', path: paths.stateRoot }])
+    const capability = await ensureWindowsEndpointCapability(capabilityPath, secureUserOnly)
+    await fs.chmod(capabilityPath, OWNER_FILE_MODE)
+    await secureUserOnly([{ kind: 'file', path: capabilityPath }])
+    return withWindowsEndpoint(paths, capability)
   }
   await prepareUnixOwnerDirectory(paths.stateRoot, 'Local Session state directory')
   if (paths.endpointDirectory && paths.endpointDirectory !== paths.stateRoot) {
     await prepareUnixOwnerDirectory(paths.endpointDirectory, 'Local Session endpoint directory')
   }
+  return paths
+}
+
+export async function refreshLocalSessionHostEndpoint(
+  paths: LocalSessionHostPaths,
+  platform: NodeJS.Platform = process.platform,
+): Promise<LocalSessionHostPaths> {
+  if (platform !== 'win32') return paths
+  const capabilityPath = paths.endpointCapabilityPath
+  if (!capabilityPath) {
+    throw new Error('The Windows Local Session endpoint capability path is unavailable.')
+  }
+  return withWindowsEndpoint(paths, await readWindowsEndpointCapability(capabilityPath))
+}
+
+export async function rotateLocalSessionHostEndpoint(
+  paths: LocalSessionHostPaths,
+  platform: NodeJS.Platform = process.platform,
+  secureUserOnly: WindowsUserOnlySecurity = secureWindowsUserOnly,
+): Promise<LocalSessionHostPaths> {
+  if (platform !== 'win32') return paths
+  const capabilityPath = paths.endpointCapabilityPath
+  if (!capabilityPath) {
+    throw new Error('The Windows Local Session endpoint capability path is unavailable.')
+  }
+  const capability = randomBytes(WINDOWS_ENDPOINT_CAPABILITY_BYTES).toString('base64url')
+  const temporaryPath = await writeProtectedWindowsEndpointCapability(
+    capabilityPath,
+    capability,
+    secureUserOnly,
+  )
+  try {
+    await fs.rename(temporaryPath, capabilityPath)
+    await secureUserOnly([{ kind: 'file', path: capabilityPath }])
+  } catch (error) {
+    await fs.unlink(temporaryPath).catch((cleanupError: unknown) => {
+      if (!hasErrorCode(cleanupError, 'ENOENT')) {
+        throw new AggregateError(
+          [error, cleanupError],
+          'Windows endpoint capability rotation and cleanup both failed.',
+        )
+      }
+    })
+    throw error
+  }
+  return withWindowsEndpoint(paths, capability)
 }

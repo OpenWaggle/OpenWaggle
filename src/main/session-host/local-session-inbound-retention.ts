@@ -19,7 +19,6 @@ interface LocalSessionInboundLease {
 
 export class LocalSessionInboundRetention {
   private readonly decoder = new LocalSessionFrameDecoder(MAX_PREAUTH_LOCAL_SESSION_FRAME_BYTES)
-  private readonly leases = new Set<LocalSessionInboundLease>()
 
   constructor(private readonly budget: LocalSessionInboundByteBudget) {}
 
@@ -34,7 +33,6 @@ export class LocalSessionInboundRetention {
       const values = this.decoder.push(chunk, maxFrames)
       const consumedBytes = pendingBefore + chunk.byteLength - this.decoder.pendingBytes
       const lease = { bytes: consumedBytes, active: consumedBytes > 0 }
-      if (lease.active) this.leases.add(lease)
       return {
         values,
         release: () => this.releaseLease(lease),
@@ -50,17 +48,14 @@ export class LocalSessionInboundRetention {
     this.decoder.setMaxFrameBytes(MAX_LOCAL_SESSION_FRAME_BYTES)
   }
 
-  release() {
+  releasePendingFrame() {
     this.budget.release(this.decoder.pendingBytes)
     this.decoder.reset()
-    for (const lease of this.leases) this.releaseLease(lease)
-    this.leases.clear()
   }
 
   private releaseLease(lease: LocalSessionInboundLease) {
     if (!lease.active) return
     lease.active = false
-    this.leases.delete(lease)
     this.budget.release(lease.bytes)
   }
 }

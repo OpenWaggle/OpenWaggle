@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { app } from 'electron'
+import { writeCliStdout } from './cli-stdout'
 import {
   formatMcpCliOutput,
   hasFlag,
@@ -118,7 +119,7 @@ async function runServeCommand(arguments_: ParsedArguments) {
 }
 
 function writeOutput(value: unknown, json: boolean) {
-  process.stdout.write(`${formatMcpCliOutput(value, json)}\n`)
+  return writeCliStdout(`${formatMcpCliOutput(value, json)}\n`)
 }
 
 function writeError(error: unknown, json: boolean) {
@@ -159,14 +160,14 @@ export async function runMcpCli(args: readonly string[]) {
   try {
     validateMcpCliOptions(command ?? 'help', commandArguments)
     if (!command || command === 'help') {
-      writeOutput(usage(), false)
+      await writeOutput(usage(), false)
       return EXIT.SUCCESS
     }
     const result =
       command === 'serve'
         ? await runServeCommand(commandArguments)
         : await runMcpManagementCommand(command, commandArguments)
-    if (command !== 'serve') writeOutput(result, json)
+    if (command !== 'serve') await writeOutput(result, json)
     return EXIT.SUCCESS
   } catch (error) {
     writeError(error, command === 'serve' ? false : json)

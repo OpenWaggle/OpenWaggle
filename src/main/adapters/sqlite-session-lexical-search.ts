@@ -15,10 +15,12 @@ export function lexicalFtsQuery(value: string) {
   const explicitPhrase =
     input.length >= QUOTED_QUERY_DELIMITER_COUNT && input.startsWith('"') && input.endsWith('"')
   const terms = explicitPhrase ? [input.slice(1, -1)] : input.split(/\s+/u)
-  return terms
+  const query = terms
     .filter(Boolean)
     .map((term) => `"${term.replaceAll('"', '""')}"`)
     .join(explicitPhrase ? '' : ' AND ')
+  if (!query) throw new Error('Lexical search requires at least one searchable term.')
+  return query
 }
 
 export function loadLexicalDiscoveryRows(

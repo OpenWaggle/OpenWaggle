@@ -33,6 +33,7 @@ interface DelegationReadRows {
   readonly amendmentProposals: readonly AmendmentProposalRow[]
   readonly verifications: readonly VerificationRow[]
   readonly verificationEvidence: readonly VerificationEvidenceRow[]
+  readonly nextCursor?: string
 }
 
 function claimTarget(claim: ClaimRow) {
@@ -47,6 +48,12 @@ function claimTarget(claim: ClaimRow) {
 }
 
 export function delegationReadResponse(rows: DelegationReadRows) {
+  const evidenceBySubmission = Map.groupBy(rows.evidence, (item) => item.submission_revision)
+  const claimsByRevision = Map.groupBy(rows.claims, (item) => item.revision)
+  const evidenceByVerification = Map.groupBy(
+    rows.verificationEvidence,
+    (item) => item.verification_id,
+  )
   return {
     operation: 'delegations-read',
     delegation: delegationSummary(rows.delegation),
@@ -65,14 +72,12 @@ export function delegationReadResponse(rows: DelegationReadRows) {
       ...(row.source_run_id ? { sourceRunId: row.source_run_id } : {}),
       provenance: row.provenance,
       createdAt: row.created_at,
-      evidence: rows.evidence
-        .filter((item) => item.submission_revision === row.revision)
-        .map((item) => ({
-          kind: item.kind,
-          summary: item.summary,
-          ...(item.reference ? { reference: item.reference } : {}),
-          ...(item.provenance_json ? { provenance: parseSessionJson(item.provenance_json) } : {}),
-        })),
+      evidence: (evidenceBySubmission.get(row.revision) ?? []).map((item) => ({
+        kind: item.kind,
+        summary: item.summary,
+        ...(item.reference ? { reference: item.reference } : {}),
+        ...(item.provenance_json ? { provenance: parseSessionJson(item.provenance_json) } : {}),
+      })),
     })),
     reviews: rows.reviews.map((row) => ({
       submissionRevision: row.submission_revision,
@@ -102,9 +107,10 @@ export function delegationReadResponse(rows: DelegationReadRows) {
       authoredBy: revision.authored_by,
       reason: revision.reason,
       createdAt: revision.created_at,
-      claims: rows.claims
-        .filter((claim) => claim.revision === revision.revision)
-        .map((claim) => ({ access: claim.access, target: claimTarget(claim) })),
+      claims: (claimsByRevision.get(revision.revision) ?? []).map((claim) => ({
+        access: claim.access,
+        target: claimTarget(claim),
+      })),
     })),
     undeclaredWrites: rows.undeclaredWrites.map((row) => ({
       observationId: row.id,
@@ -151,14 +157,13 @@ export function delegationReadResponse(rows: DelegationReadRows) {
       outcome: row.outcome,
       summary: row.summary,
       createdAt: row.created_at,
-      evidence: rows.verificationEvidence
-        .filter((item) => item.verification_id === row.id)
-        .map((item) => ({
-          kind: item.kind,
-          summary: item.summary,
-          ...(item.reference ? { reference: item.reference } : {}),
-          ...(item.provenance_json ? { provenance: parseSessionJson(item.provenance_json) } : {}),
-        })),
+      evidence: (evidenceByVerification.get(row.id) ?? []).map((item) => ({
+        kind: item.kind,
+        summary: item.summary,
+        ...(item.reference ? { reference: item.reference } : {}),
+        ...(item.provenance_json ? { provenance: parseSessionJson(item.provenance_json) } : {}),
+      })),
     })),
+    ...(rows.nextCursor ? { nextCursor: rows.nextCursor } : {}),
   } satisfies Extract<SessionQueryOutcome, { readonly operation: 'delegations-read' }>
 }

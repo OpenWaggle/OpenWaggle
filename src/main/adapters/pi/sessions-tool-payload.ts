@@ -186,7 +186,12 @@ function delegationQueryPayload(
 ): LocalSessionCommandPayload {
   const query =
     input.action === 'delegations_read'
-      ? { operation: 'delegations-read' as const, delegationId: input.delegationId }
+      ? {
+          operation: 'delegations-read' as const,
+          delegationId: input.delegationId,
+          ...(input.limit ? { limit: input.limit } : {}),
+          ...(input.cursor ? { cursor: input.cursor } : {}),
+        }
       : input.action === 'delegations_conflicts'
         ? delegationConflictsQuery(input, source)
         : delegationListQuery(input, source)

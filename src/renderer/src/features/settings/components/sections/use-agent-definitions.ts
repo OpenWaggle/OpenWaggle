@@ -88,34 +88,41 @@ export function useAgentDefinitions(projectPath: string | null) {
     async (item: AgentDefinitionCatalogItem) => {
       if (!projectPath) return
       const generation = projectGeneration.current
-      const result = await api.manageAgentDefinitions({
-        operation: 'refresh-plan',
-        projectPath,
-        name: item.name,
-      })
-      if (projectGeneration.current !== generation) return
-      if (result.operation !== 'refresh-plan') {
-        throw new Error('Unexpected Agent definition refresh response.')
+      setError(null)
+      try {
+        const result = await api.manageAgentDefinitions({
+          operation: 'refresh-plan',
+          projectPath,
+          name: item.name,
+        })
+        if (projectGeneration.current !== generation) return
+        if (result.operation !== 'refresh-plan') {
+          throw new Error('Unexpected Agent definition refresh response.')
+        }
+        const { plan } = result
+        if (plan.status === 'blocked') {
+          throw new Error(plan.diagnostics.join(' ') || 'The imported definition cannot refresh.')
+        }
+        let replaceModified = false
+        if (plan.status === 'conflict') {
+          replaceModified = await api.showConfirm(
+            `Replace local changes in “${item.name}”?`,
+            'The source changed, but this imported definition was also edited locally.',
+          )
+          if (!replaceModified || projectGeneration.current !== generation) return
+        }
+        await mutate({
+          operation: 'refresh-apply',
+          projectPath,
+          name: item.name,
+          expectedSourceDigest: plan.sourceDigest,
+          replaceModified,
+        })
+      } catch (cause) {
+        if (projectGeneration.current !== generation) return
+        logger.warn('Failed to refresh Agent definition', { error: String(cause) })
+        setError(cause instanceof Error ? cause.message : String(cause))
       }
-      const { plan } = result
-      if (plan.status === 'blocked') {
-        throw new Error(plan.diagnostics.join(' ') || 'The imported definition cannot refresh.')
-      }
-      let replaceModified = false
-      if (plan.status === 'conflict') {
-        replaceModified = await api.showConfirm(
-          `Replace local changes in “${item.name}”?`,
-          'The source changed, but this imported definition was also edited locally.',
-        )
-        if (!replaceModified || projectGeneration.current !== generation) return
-      }
-      await mutate({
-        operation: 'refresh-apply',
-        projectPath,
-        name: item.name,
-        expectedSourceDigest: plan.sourceDigest,
-        replaceModified,
-      })
     },
     [mutate, projectPath],
   )

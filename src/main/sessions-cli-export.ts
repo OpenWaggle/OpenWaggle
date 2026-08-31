@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
+import { writeCliStdout } from './cli-stdout'
 import type { createLocalSessionCliClientInput } from './local-session-cli-client'
 import { hasFlag, type ParsedArguments } from './mcp-cli-arguments'
 import { executeLocalSessionCommand } from './session-host/local-session-client'
@@ -18,6 +19,12 @@ function exportPage(value: unknown) {
     return undefined
   }
   const outcome = value.response.outcome
+  if (!isRecord(outcome)) return undefined
+  if ('error' in outcome && isRecord(outcome.error)) {
+    throw new Error(
+      `${String(outcome.error.code ?? 'query_failed')}: ${String(outcome.error.message ?? 'Query failed.')}`,
+    )
+  }
   if (!('manifest' in outcome) || !Array.isArray(outcome.records)) return undefined
   return {
     manifest: outcome.manifest,
@@ -35,11 +42,10 @@ function markdownContent(content: unknown) {
 
 function writeHeader(manifest: unknown, format: ExportFormat) {
   if (format === 'jsonl') {
-    process.stdout.write(`${JSON.stringify({ record: 'manifest', manifest })}\n`)
-    return
+    return writeCliStdout(`${JSON.stringify({ record: 'manifest', manifest })}\n`)
   }
   const value = isRecord(manifest) ? manifest : {}
-  process.stdout.write(
+  return writeCliStdout(
     `# ${String(value.title ?? 'Session export')}\n\n` +
       `- Session: ${String(value.sessionId ?? '')}\n` +
       `- Scope: ${String(value.branchScope ?? '')}\n` +
@@ -47,14 +53,14 @@ function writeHeader(manifest: unknown, format: ExportFormat) {
   )
 }
 
-function writeRecords(records: readonly unknown[], format: ExportFormat) {
+async function writeRecords(records: readonly unknown[], format: ExportFormat) {
   for (const record of records) {
     if (format === 'jsonl') {
-      process.stdout.write(`${JSON.stringify(record)}\n`)
+      await writeCliStdout(`${JSON.stringify(record)}\n`)
       continue
     }
     if (!isRecord(record)) continue
-    process.stdout.write(
+    await writeCliStdout(
       `## ${String(record.role ?? 'event')}\n\n${markdownContent(record.content ?? record)}\n\n`,
     )
   }
@@ -110,8 +116,8 @@ export async function streamSessionExport(input: {
   let page = exportPage(input.firstResult)
   if (!page) throw new Error('Local Session Host returned an invalid export page.')
   const firstManifest = page.manifest
-  writeHeader(firstManifest, format)
-  writeRecords(page.records, format)
+  await writeHeader(firstManifest, format)
+  await writeRecords(page.records, format)
   while (page.nextCreatedOrder !== undefined) {
     const result = await executeLocalSessionCommand({
       ...input.clientInput,
@@ -131,6 +137,6 @@ export async function streamSessionExport(input: {
     })
     page = exportPage(result)
     if (!page) throw new Error('Local Session Host returned an invalid export page.')
-    writeRecords(page.records, format)
+    await writeRecords(page.records, format)
   }
 }

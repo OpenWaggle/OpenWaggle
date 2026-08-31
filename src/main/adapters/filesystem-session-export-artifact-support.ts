@@ -186,16 +186,82 @@ export function normalizeResourcePath(resourcePath: string) {
   return normalized.replace(/^\.\//, '')
 }
 
-export async function copyFileHandles(source: FileHandle, destination: FileHandle) {
+function throwIfCopyAborted(signal?: AbortSignal) {
+  if (!signal?.aborted) return
+  throw signal.reason instanceof Error
+    ? signal.reason
+    : new Error('Export resource copy cancelled.')
+}
+
+function assertAuthorizedSource(
+  stats: { readonly dev: number | bigint; readonly ino: number | bigint; readonly size: number },
+  expected: {
+    readonly size: number
+    readonly identity: { readonly dev: number | bigint; readonly ino: number | bigint }
+  },
+) {
+  if (!sameFilesystemEntry(stats, expected.identity) || stats.size !== expected.size) {
+    throw new Error('Export resource changed after its descriptor was authorized.')
+  }
+}
+
+function authorizedCopySource(options: {
+  readonly expectedSize?: number
+  readonly expectedIdentity?: { readonly dev: number | bigint; readonly ino: number | bigint }
+}) {
+  if ((options.expectedSize === undefined) !== (options.expectedIdentity === undefined)) {
+    throw new Error('Export resource size and identity authorization must be provided together.')
+  }
+  if (options.expectedSize === undefined || !options.expectedIdentity) return null
+  if (!Number.isSafeInteger(options.expectedSize) || options.expectedSize < 0) {
+    throw new Error('Export resource size authorization is invalid.')
+  }
+  return { size: options.expectedSize, identity: options.expectedIdentity }
+}
+
+export async function copyFileHandles(
+  source: FileHandle,
+  destination: FileHandle,
+  options: {
+    readonly expectedSize?: number
+    readonly expectedIdentity?: { readonly dev: number | bigint; readonly ino: number | bigint }
+    readonly destinationOffset?: number
+    readonly signal?: AbortSignal
+  } = {},
+) {
+  const expected = authorizedCopySource(options)
+  throwIfCopyAborted(options.signal)
+  if (expected) assertAuthorizedSource(await source.stat(), expected)
   const buffer = Buffer.allocUnsafe(COPY_BUFFER_BYTES)
   let readPosition = 0
-  let writePosition = 0
+  const destinationOffset = options.destinationOffset ?? 0
+  if (!Number.isSafeInteger(destinationOffset) || destinationOffset < 0) {
+    throw new Error('Export resource destination offset is invalid.')
+  }
+  let writePosition = destinationOffset
   while (true) {
-    const { bytesRead } = await source.read(buffer, 0, buffer.length, readPosition)
-    if (bytesRead === 0) return writePosition
+    throwIfCopyAborted(options.signal)
+    const remaining = expected ? expected.size - readPosition : buffer.length
+    if (expected && remaining === 0) {
+      const { bytesRead } = await source.read(buffer, 0, 1, readPosition)
+      if (bytesRead !== 0) throw new Error('Export resource grew while it was being copied.')
+      assertAuthorizedSource(await source.stat(), expected)
+      return writePosition - destinationOffset
+    }
+    const { bytesRead } = await source.read(
+      buffer,
+      0,
+      Math.min(buffer.length, remaining),
+      readPosition,
+    )
+    if (bytesRead === 0) {
+      if (expected) throw new Error('Export resource shrank while it was being copied.')
+      return writePosition - destinationOffset
+    }
     readPosition += bytesRead
     let writtenFromChunk = 0
     while (writtenFromChunk < bytesRead) {
+      throwIfCopyAborted(options.signal)
       const { bytesWritten } = await destination.write(
         buffer,
         writtenFromChunk,

@@ -17,6 +17,7 @@ import { executeLocalSessionCommand } from './session-host/local-session-client'
 import { ensureLocalSessionHost } from './session-host/local-session-host-launcher'
 import {
   prepareLocalSessionHostPaths,
+  refreshLocalSessionHostEndpoint,
   resolveLocalSessionHostPaths,
 } from './session-host/local-session-paths'
 import { assertFilesystemWriteScope } from './utils/filesystem-write-scope'
@@ -204,18 +205,24 @@ export function registerOpenWaggleSessionToolV2(
   options: OpenWaggleMcpServeOptions,
   client: { readonly userDataRoot: string; readonly version: string },
 ) {
-  const paths = resolveLocalSessionHostPaths({ userDataRoot: client.userDataRoot })
+  const paths = prepareLocalSessionHostPaths(
+    resolveLocalSessionHostPaths({ userDataRoot: client.userDataRoot }),
+  )
   const execute = async (payload: LocalSessionCommandPayload) => {
-    await prepareLocalSessionHostPaths(paths)
+    const preparedPaths = await paths
     const connection = {
-      paths,
+      paths: preparedPaths,
       clientKind: 'mcp' as const,
       clientVersion: client.version,
       workingDirectory: options.workspaceRoots[0] ?? process.cwd(),
       transientAuthority: mcpTransientAuthority(options, payload),
     }
     await ensureLocalSessionHost(connection)
-    return executeLocalSessionCommand({ ...connection, payload })
+    return executeLocalSessionCommand({
+      ...connection,
+      paths: await refreshLocalSessionHostEndpoint(preparedPaths),
+      payload,
+    })
   }
   server.registerTool(
     'openwaggle_sessions',

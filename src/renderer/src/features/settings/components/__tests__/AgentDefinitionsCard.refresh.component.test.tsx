@@ -125,4 +125,17 @@ describe('AgentDefinitionsCard refresh lifecycle', () => {
       expect.objectContaining({ operation: 'delete' }),
     )
   })
+
+  it('surfaces refresh-plan failures without an unhandled rejected interaction', async () => {
+    manageAgentDefinitionsMock.mockImplementation(async (command) => {
+      if (command.operation === 'list') return { operation: 'list', items: [IMPORTED_REVIEWER] }
+      if (command.operation === 'refresh-plan') throw new Error('Import source is unavailable.')
+      return { operation: command.operation }
+    })
+    render(<AgentDefinitionsCard />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Refresh reviewer' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Import source is unavailable.')
+  })
 })

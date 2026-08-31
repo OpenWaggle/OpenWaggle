@@ -9,17 +9,22 @@ import {
 describe('Sessions CLI output contract', () => {
   afterEach(() => vi.restoreAllMocks())
 
-  it('uses human-readable output by default and schema-versioned JSON explicitly', () => {
-    const write = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
+  it('uses human-readable output by default and schema-versioned JSON explicitly', async () => {
+    const write = vi
+      .spyOn(process.stdout, 'write')
+      .mockImplementation((_chunk, _encoding, callback) => {
+        callback?.()
+        return true
+      })
     const result = {
       contract: 'session-control-v2',
       response: { outcome: { operation: 'start', effect: 'started-run', sessionId: 'session-1' } },
     }
 
-    writeSessionsCliResponse('start', result, false)
-    expect(write).toHaveBeenLastCalledWith('Started Run\nSessionId: session-1\n')
+    await writeSessionsCliResponse('start', result, false)
+    expect(write.mock.calls.at(-1)?.[0]).toBe('Started Run\nSessionId: session-1\n')
 
-    writeSessionsCliResponse('start', result, true)
+    await writeSessionsCliResponse('start', result, true)
     const machine = String(write.mock.calls.at(-1)?.[0])
     expect(JSON.parse(machine)).toMatchObject({
       schemaVersion: 1,
@@ -29,9 +34,14 @@ describe('Sessions CLI output contract', () => {
     })
   })
 
-  it('emits one schema-versioned JSON object per stream record', () => {
-    const write = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
-    writeSessionsCliStreamRecord({ cursor: 3 }, true)
+  it('emits one schema-versioned JSON object per stream record', async () => {
+    const write = vi
+      .spyOn(process.stdout, 'write')
+      .mockImplementation((_chunk, _encoding, callback) => {
+        callback?.()
+        return true
+      })
+    await writeSessionsCliStreamRecord({ cursor: 3 }, true)
     expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toEqual({
       schemaVersion: 1,
       type: 'record',

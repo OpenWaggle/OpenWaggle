@@ -271,12 +271,15 @@ export function logoutMcpServerRevision6Operation(raw: unknown) {
   return Effect.gen(function* () {
     const decoded = yield* decodeMcpOperationInput(mcpRemoveServerSchema, raw, 'server logout')
     const input = yield* validateMcpProjectInput(decoded)
-    const server = yield* (yield* McpConfigService).getServerDefinition(input)
+    const config = yield* McpConfigService
     const vault = yield* McpSecretVaultService
     const runtime = yield* McpRuntimeService
+    let vaultMutationAttempted = false
     return yield* Effect.uninterruptible(
       withMcpManagementWrite(
         Effect.gen(function* () {
+          const server = yield* config.getServerDefinition(input)
+          vaultMutationAttempted = true
           yield* Effect.tryPromise({
             try: () =>
               mcpOAuthVaultAuthority.revoke(server.instanceId, () =>
@@ -284,9 +287,14 @@ export function logoutMcpServerRevision6Operation(raw: unknown) {
               ),
             catch: (error) => (error instanceof Error ? error : new Error(String(error))),
           })
-          yield* runtime.reconcileIdleConnections()
           return { loggedOut: true as const }
-        }),
+        }).pipe(
+          Effect.ensuring(
+            Effect.suspend(() =>
+              vaultMutationAttempted ? runtime.reconcileIdleConnections() : Effect.void,
+            ),
+          ),
+        ),
       ),
     )
   })

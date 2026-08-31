@@ -1,4 +1,4 @@
-import { type FileHandle, mkdir, rm, unlink } from 'node:fs/promises'
+import { type FileHandle, rm, unlink } from 'node:fs/promises'
 import path from 'node:path'
 import type { SessionExportManifest } from '@shared/types/session-export'
 import { Layer } from 'effect'
@@ -8,7 +8,6 @@ import {
   SessionExportArtifactWriter,
 } from '../ports/session-export-artifact-writer'
 import type { SessionExportOperationRecord } from '../ports/session-export-operation-repository'
-import { isPathInsideDirectory } from '../utils/project-path-validation'
 import {
   assertOperationPathScope,
   copyFileHandles,
@@ -31,8 +30,6 @@ import {
   type SessionExportBundleSource,
 } from './session-export-bundle'
 
-const OWNER_DIRECTORY_MODE = 0o700
-
 class FilesystemSessionExportArtifactSink implements SessionExportArtifactSink {
   private closed = false
   private exportManifest: SessionExportManifest | null = null
@@ -46,14 +43,21 @@ class FilesystemSessionExportArtifactSink implements SessionExportArtifactSink {
     private readonly transcriptHandle: FileHandle,
     private readonly stagingPath: string | null,
     private readonly bundleHandle: FileHandle | null,
+    private readonly resourceSpoolHandle: FileHandle | null,
     private readonly bundleSources: SessionExportBundleSource[],
   ) {}
 
+  private resourceSpoolOffset = 0
+
   private async closeHandles() {
-    const handles = this.bundleHandle
-      ? [this.bundleHandle, ...this.bundleSources.map((source) => source.handle)]
-      : [this.transcriptHandle]
-    await Promise.all(handles.map((handle) => handle.close().catch(() => undefined)))
+    const handles = new Set(
+      this.bundleHandle
+        ? [this.bundleHandle, this.transcriptHandle, this.resourceSpoolHandle].filter(
+            (handle): handle is FileHandle => handle !== null,
+          )
+        : [this.transcriptHandle],
+    )
+    await Promise.all([...handles].map((handle) => handle.close().catch(() => undefined)))
   }
 
   private writeText(text: string) {
@@ -87,53 +91,27 @@ class FilesystemSessionExportArtifactSink implements SessionExportArtifactSink {
 
   writeResource = (input: Parameters<SessionExportArtifactSink['writeResource']>[0]) =>
     Effect.tryPromise({
-      try: async () => {
+      try: async (signal) => {
         try {
-          if (!this.stagingPath) throw new Error('Resources require the bundle export format.')
+          if (!this.stagingPath || !this.resourceSpoolHandle) {
+            throw new Error('Resources require the bundle export format.')
+          }
           const relativePath = normalizeResourcePath(input.path)
-          if (this.operation.destinationRoot) {
-            const destinationHandle = await openUnlinkedScopedExportFile('resource')
-            let retained = false
-            try {
-              const bytesWritten = await copyFileHandles(input.sourceHandle, destinationHandle)
-              await destinationHandle.sync()
-              const size = (await destinationHandle.stat()).size
-              if (size !== bytesWritten)
-                throw new Error('Export resource size changed while copying.')
-              this.bundleSources.push({
-                path: `resources/${relativePath}`,
-                handle: destinationHandle,
-              })
-              retained = true
-              return size
-            } finally {
-              if (!retained) await destinationHandle.close().catch(() => undefined)
-            }
-          }
-          const resourcesRoot = path.join(this.stagingPath, 'resources')
-          const destination = path.resolve(resourcesRoot, relativePath)
-          if (!isPathInsideDirectory(resourcesRoot, destination)) {
-            throw new Error('Export resource path cannot leave the bundle.')
-          }
-          await mkdir(path.dirname(destination), { recursive: true, mode: OWNER_DIRECTORY_MODE })
-          const destinationHandle = await openNewExportArtifact(destination)
-          let retained = false
-          try {
-            const bytesWritten = await copyFileHandles(input.sourceHandle, destinationHandle)
-            await destinationHandle.sync()
-            const size = (await destinationHandle.stat()).size
-            if (size !== bytesWritten)
-              throw new Error('Export resource size changed while copying.')
-            await unlink(destination)
-            this.bundleSources.push({
-              path: `resources/${relativePath}`,
-              handle: destinationHandle,
-            })
-            retained = true
-            return size
-          } finally {
-            if (!retained) await destinationHandle.close().catch(() => undefined)
-          }
+          const offset = this.resourceSpoolOffset
+          const size = await copyFileHandles(input.sourceHandle, this.resourceSpoolHandle, {
+            expectedSize: input.expectedSize,
+            expectedIdentity: input.expectedIdentity,
+            destinationOffset: offset,
+            signal,
+          })
+          this.resourceSpoolOffset += size
+          this.bundleSources.push({
+            path: `resources/${relativePath}`,
+            handle: this.resourceSpoolHandle,
+            offset,
+            size,
+          })
+          return size
         } finally {
           await input.sourceHandle.close().catch(() => undefined)
         }
@@ -151,6 +129,7 @@ class FilesystemSessionExportArtifactSink implements SessionExportArtifactSink {
         if (this.stagingPath) {
           if (!this.exportManifest) throw new Error('Bundle export manifest was not written.')
           if (!this.bundleHandle) throw new Error('Bundle export destination is not open.')
+          await this.resourceSpoolHandle?.sync()
           await finalizeSessionExportBundle({
             sources: this.bundleSources,
             destinationHandle: this.bundleHandle,
@@ -231,19 +210,34 @@ async function openSink(operation: SessionExportOperationRecord) {
   if (operation.destinationRoot) {
     const transcriptHandle = await openUnlinkedScopedExportFile('transcript')
     if (operation.format !== 'bundle') {
-      return new FilesystemSessionExportArtifactSink(operation, transcriptHandle, null, null, [])
+      return new FilesystemSessionExportArtifactSink(
+        operation,
+        transcriptHandle,
+        null,
+        null,
+        null,
+        [],
+      )
     }
+    let bundleHandle: FileHandle | null = null
+    let resourceSpoolHandle: FileHandle | null = null
     try {
-      const bundleHandle = await openUnlinkedScopedExportFile('bundle')
+      bundleHandle = await openUnlinkedScopedExportFile('bundle')
+      resourceSpoolHandle = await openUnlinkedScopedExportFile('resources')
       return new FilesystemSessionExportArtifactSink(
         operation,
         transcriptHandle,
         'unlinked-scoped-bundle',
         bundleHandle,
+        resourceSpoolHandle,
         [{ path: 'session.jsonl', handle: transcriptHandle }],
       )
     } catch (error) {
-      await transcriptHandle.close().catch(() => undefined)
+      await Promise.all(
+        [transcriptHandle, bundleHandle, resourceSpoolHandle]
+          .filter((handle): handle is FileHandle => handle !== null)
+          .map((handle) => handle.close().catch(() => undefined)),
+      )
       throw error
     }
   }
@@ -251,20 +245,35 @@ async function openSink(operation: SessionExportOperationRecord) {
   const transcriptPath = stagingPath ? path.join(stagingPath, 'session.jsonl') : artifactPath
   const transcriptHandle = await openNewExportArtifact(transcriptPath)
   if (!stagingPath) {
-    return new FilesystemSessionExportArtifactSink(operation, transcriptHandle, null, null, [])
+    return new FilesystemSessionExportArtifactSink(
+      operation,
+      transcriptHandle,
+      null,
+      null,
+      null,
+      [],
+    )
   }
+  let bundleHandle: FileHandle | null = null
+  let resourceSpoolHandle: FileHandle | null = null
   try {
     await unlink(transcriptPath)
-    const bundleHandle = await openNewExportArtifact(artifactPath)
+    bundleHandle = await openNewExportArtifact(artifactPath)
+    resourceSpoolHandle = await openUnlinkedScopedExportFile('resources')
     return new FilesystemSessionExportArtifactSink(
       operation,
       transcriptHandle,
       stagingPath,
       bundleHandle,
+      resourceSpoolHandle,
       [{ path: 'session.jsonl', handle: transcriptHandle }],
     )
   } catch (error) {
-    await transcriptHandle.close().catch(() => undefined)
+    await Promise.all(
+      [transcriptHandle, bundleHandle, resourceSpoolHandle]
+        .filter((handle): handle is FileHandle => handle !== null)
+        .map((handle) => handle.close().catch(() => undefined)),
+    )
     throw error
   }
 }

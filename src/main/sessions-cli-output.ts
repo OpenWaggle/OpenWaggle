@@ -1,3 +1,5 @@
+import { writeCliStdout } from './cli-stdout'
+
 const JSON_INDENT_SPACES = 2
 export const SESSIONS_CLI_OUTPUT_SCHEMA_VERSION = 1 as const
 
@@ -45,7 +47,7 @@ export function writeSessionsCliResponse(command: string, value: unknown, json: 
         JSON_INDENT_SPACES,
       )
     : humanOutcome(value)
-  process.stdout.write(`${output}\n`)
+  return writeCliStdout(`${output}\n`)
 }
 
 export function writeSessionsCliStreamRecord(record: unknown, jsonl: boolean) {
@@ -56,7 +58,7 @@ export function writeSessionsCliStreamRecord(record: unknown, jsonl: boolean) {
         record,
       })
     : humanOutcome(record)
-  process.stdout.write(`${output}\n`)
+  return writeCliStdout(`${output}\n`)
 }
 
 export type SessionsCliErrorKind =

@@ -10,68 +10,13 @@ import {
   releaseValidatedChild,
   waitForChildExit,
 } from '../utils/validated-child-process'
+import {
+  DARWIN_BOUND_INSTALL,
+  LINUX_BOUND_INSTALL,
+  NODE_BOUND_COPY_INSTALL,
+} from './filesystem-session-export-bound-installer-scripts'
 
 const INSTALL_DIAGNOSTIC_LIMIT = 4096
-
-const DARWIN_BOUND_INSTALL = `
-set -eu
-actual_directory=$(/usr/bin/stat -f '%d:%i' .)
-[ "$actual_directory" = "$3" ] || exit 73
-actual_source=$(/usr/bin/stat -f '%d:%i' "$1")
-[ "$actual_source" = "$4" ] || exit 74
-/usr/bin/printf ready
-IFS= read -r _
-if [ "$5" = "overwrite" ]; then
-  /bin/rm -f -- "$2"
-  /bin/ln -h -- "$1" "$2"
-  /bin/rm -- "$1"
-else
-  /bin/ln -h -- "$1" "$2"
-  /bin/rm -- "$1"
-fi
-`
-
-const LINUX_BOUND_INSTALL = `
-set -eu
-actual_directory=$(/usr/bin/stat -c '%d:%i' .)
-[ "$actual_directory" = "$3" ] || exit 73
-actual_source=$(/usr/bin/stat -c '%d:%i' -- "$1")
-[ "$actual_source" = "$4" ] || exit 74
-/usr/bin/printf ready
-IFS= read -r _
-if [ "$5" = "overwrite" ]; then
-  /bin/rm -f -- "$2"
-  /bin/ln -T -- "$1" "$2"
-  /bin/rm -- "$1"
-else
-  /bin/ln -T -- "$1" "$2"
-  /bin/rm -- "$1"
-fi
-`
-
-const DARWIN_BOUND_COPY_INSTALL = `
-set -eu
-[ "$(/usr/bin/stat -f '%d:%i' .)" = "$3" ] || exit 73
-/usr/bin/printf ready
-IFS= read -r _
-trap '/bin/rm -f -- "$1"' EXIT
-umask 077
-/bin/cat <&3 > "$1"
-[ "$(/usr/bin/shasum -a 256 "$1" | /usr/bin/awk '{print $1}')" = "$4" ] || exit 74
-if [ "$5" = "overwrite" ]; then /bin/rm -f -- "$2"; /bin/ln -h -- "$1" "$2"; /bin/rm -- "$1"; else /bin/ln -h -- "$1" "$2"; /bin/rm -- "$1"; fi
-`
-
-const LINUX_BOUND_COPY_INSTALL = `
-set -eu
-[ "$(/usr/bin/stat -c '%d:%i' .)" = "$3" ] || exit 73
-/usr/bin/printf ready
-IFS= read -r _
-trap '/bin/rm -f -- "$1"' EXIT
-umask 077
-/bin/cat <&3 > "$1"
-[ "$(/usr/bin/sha256sum "$1" | /usr/bin/awk '{print $1}')" = "$4" ] || exit 74
-if [ "$5" = "overwrite" ]; then /bin/rm -f -- "$2"; /bin/ln -T -- "$1" "$2"; /bin/rm -- "$1"; else /bin/ln -T -- "$1" "$2"; /bin/rm -- "$1"; fi
-`
 
 interface BoundArtifactInstallInput {
   readonly sourcePath: string
@@ -93,6 +38,8 @@ interface BoundArtifactDescriptorInstallInput {
   readonly afterSpawn?: () => Promise<void>
   /** Test-only interleaving point before the helper pins its working directory. */
   readonly beforeSpawn?: () => Promise<void>
+  /** Test-only deterministic pending name for hostile-entry interleavings. */
+  readonly pendingName?: string
 }
 
 export function sameFilesystemEntry(
@@ -237,34 +184,20 @@ export async function installArtifactDescriptorInBoundDirectory(
     const directoryStats = await directoryHandle.stat({ bigint: true })
     await rootHandle.stat({ bigint: true })
     const expectedCanonicalDirectory = await realpath(directory)
-    const pendingName = `.openwaggle-export-${randomUUID()}.pending`
-    const script = platform === 'darwin' ? DARWIN_BOUND_COPY_INSTALL : LINUX_BOUND_COPY_INSTALL
-    const scriptArguments =
-      platform === 'darwin'
-        ? [
-            '-c',
-            script,
-            'openwaggle-export-copy-install',
-            pendingName,
-            path.basename(input.destinationPath),
-            `${directoryStats.dev}:${directoryStats.ino}`,
-            input.sourceDigest,
-            input.overwriteExisting ? 'overwrite' : 'create',
-          ]
-        : [
-            '-c',
-            script,
-            'openwaggle-export-copy-install',
-            pendingName,
-            path.basename(input.destinationPath),
-            `${directoryStats.dev}:${directoryStats.ino}`,
-            input.sourceDigest,
-            input.overwriteExisting ? 'overwrite' : 'create',
-          ]
+    const pendingName = input.pendingName ?? `.openwaggle-export-${randomUUID()}.pending`
+    const scriptArguments = [
+      '-e',
+      NODE_BOUND_COPY_INSTALL,
+      pendingName,
+      path.basename(input.destinationPath),
+      `${directoryStats.dev}:${directoryStats.ino}`,
+      input.sourceDigest,
+      input.overwriteExisting ? 'overwrite' : 'create',
+    ]
     await input.beforeSpawn?.()
-    const child = spawn('/bin/sh', scriptArguments, {
+    const child = spawn(process.execPath, scriptArguments, {
       cwd: directory,
-      env: getSafeChildEnv(),
+      env: { ...getSafeChildEnv(), ELECTRON_RUN_AS_NODE: '1' },
       stdio: ['pipe', 'pipe', 'pipe', input.sourceHandle.fd],
     })
     const exitCodePromise = waitForChildExit(child)

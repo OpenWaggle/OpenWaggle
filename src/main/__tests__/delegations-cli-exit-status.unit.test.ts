@@ -24,7 +24,10 @@ describe('Delegations CLI structured failure exit status', () => {
       clientVersion: 'test',
       workingDirectory: '/project',
     })
-    vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
+    vi.spyOn(process.stdout, 'write').mockImplementation((_chunk, _encoding, callback) => {
+      callback?.()
+      return true
+    })
     vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
   })
 
@@ -43,7 +46,10 @@ describe('Delegations CLI structured failure exit status', () => {
 
     await expect(runDelegationsCli(['read', 'missing-delegation', '--json'])).resolves.toBe(5)
     expect(JSON.parse(String(vi.mocked(process.stdout.write).mock.calls[0]?.[0]))).toMatchObject({
-      response: { outcome: { error: { code: 'delegation_not_found' } } },
+      schemaVersion: 1,
+      type: 'response',
+      command: 'read',
+      result: { response: { outcome: { error: { code: 'delegation_not_found' } } } },
     })
   })
 
@@ -68,7 +74,32 @@ describe('Delegations CLI structured failure exit status', () => {
       runDelegationsCli(['accept', 'queen', 'delegation-1', '2', '--json']),
     ).resolves.toBe(6)
     expect(JSON.parse(String(vi.mocked(process.stdout.write).mock.calls[0]?.[0]))).toMatchObject({
-      response: { outcome: { effect: 'rejected', code: 'submission_revision_stale' } },
+      schemaVersion: 1,
+      type: 'response',
+      command: 'accept',
+      result: {
+        response: { outcome: { effect: 'rejected', code: 'submission_revision_stale' } },
+      },
     })
+  })
+
+  it('renders a readable summary by default', async () => {
+    mocks.executeCommand.mockResolvedValue({
+      contract: 'session-query-v2',
+      response: {
+        contractVersion: 2,
+        requestId: 'request-list',
+        outcome: {
+          operation: 'delegations-list',
+          delegations: [{ delegationId: 'delegation-1', state: 'working' }],
+        },
+      },
+    })
+
+    await expect(runDelegationsCli(['list', '--all'])).resolves.toBe(0)
+    const output = String(vi.mocked(process.stdout.write).mock.calls[0]?.[0])
+    expect(output).toContain('Delegations List')
+    expect(output).toContain('delegation-1')
+    expect(output).not.toMatch(/^\{"contract"/)
   })
 })

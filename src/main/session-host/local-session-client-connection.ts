@@ -6,8 +6,13 @@ import {
   LOCAL_SESSION_PROTOCOL_NAME,
   LOCAL_SESSION_SUPPORTED_REVISIONS,
 } from '@shared/types/local-session-protocol'
+import { isWindowsPipe } from './local-session-endpoint'
 import { encodeLocalSessionFrame, LocalSessionFrameDecoder } from './local-session-framing'
 import type { LocalSessionHostPaths } from './local-session-paths'
+import {
+  createLocalSessionServerAuthenticationRequest,
+  verifyLocalSessionServerAuthenticationResponse,
+} from './local-session-server-authentication'
 
 export const LOCAL_SESSION_DEFAULT_CLIENT_TIMEOUT_MS = 10_000
 
@@ -43,7 +48,8 @@ export class LocalSessionFrameReader {
   private waiter: ((value: unknown) => void) | null = null
   private failure: Error | null = null
 
-  constructor(socket: Socket) {
+  constructor(private readonly socket: Socket) {
+    socket.pause()
     socket.on('data', (chunk) => {
       try {
         for (const value of this.decoder.push(chunk)) this.push(value)
@@ -62,12 +68,14 @@ export class LocalSessionFrameReader {
     }
     const waiter = this.waiter
     this.waiter = null
+    this.socket.pause()
     waiter(value)
   }
 
   private fail(error: Error) {
     if (this.failure) return
     this.failure = error
+    this.socket.pause()
     if (!this.waiter) return
     const waiter = this.waiter
     this.waiter = null
@@ -75,8 +83,7 @@ export class LocalSessionFrameReader {
   }
 
   async next(timeoutMs?: number): Promise<unknown> {
-    const queued = this.pending.shift()
-    if (queued !== undefined) return queued
+    if (this.pending.length > 0) return this.pending.shift()
     if (this.failure) throw this.failure
     return new Promise((resolve, reject) => {
       const timer =
@@ -84,6 +91,7 @@ export class LocalSessionFrameReader {
           ? undefined
           : setTimeout(() => {
               this.waiter = null
+              this.socket.pause()
               reject(new Error('Timed out waiting for the Local Session Host.'))
             }, timeoutMs)
       this.waiter = (value) => {
@@ -94,7 +102,12 @@ export class LocalSessionFrameReader {
         }
         resolve(value)
       }
+      this.socket.resume()
     })
+  }
+
+  bufferedFrameCount() {
+    return this.pending.length
   }
 }
 
@@ -111,15 +124,75 @@ export interface LocalSessionClientConnectionInput {
   readonly supportedRevisions?: readonly number[]
 }
 
+export interface ResolvedLocalSessionClientAuthentication {
+  readonly credential: string
+  readonly serverAuthentication?: {
+    readonly credential: string
+    readonly profile?: string
+  }
+}
+
+export async function resolveLocalSessionClientAuthentication(
+  input: Pick<LocalSessionClientConnectionInput, 'paths' | 'profile' | 'profileCredential'>,
+  readLocalUserCredential: (path: string) => Promise<string> = (path) => readFile(path, 'utf8'),
+): Promise<ResolvedLocalSessionClientAuthentication> {
+  if (input.profile !== undefined) {
+    if (input.profile.length === 0) throw new Error('A Local Session profile name is required.')
+    if (!input.profileCredential) throw new Error('A Local Session credential is required.')
+    return {
+      credential: input.profileCredential,
+      ...(isWindowsPipe(input.paths.endpoint)
+        ? {
+            serverAuthentication: {
+              credential: input.profileCredential,
+              profile: input.profile,
+            },
+          }
+        : {}),
+    }
+  }
+  const credential = (await readLocalUserCredential(input.paths.credentialPath)).trim()
+  if (!credential) throw new Error('A Local Session credential is required.')
+  return {
+    credential,
+    ...(isWindowsPipe(input.paths.endpoint) ? { serverAuthentication: { credential } } : {}),
+  }
+}
+
+export async function authenticateLocalSessionServer(input: {
+  readonly socket: Socket
+  readonly reader: LocalSessionFrameReader
+  readonly credential: string
+  readonly profile?: string
+  readonly timeoutMs: number
+}) {
+  const request = createLocalSessionServerAuthenticationRequest(input.profile)
+  await writeLocalSessionFrame(input.socket, request)
+  const value = await input.reader.next(input.timeoutMs)
+  await verifyLocalSessionServerAuthenticationResponse({
+    value,
+    request,
+    credential: input.credential,
+  })
+}
+
 export async function openLocalSessionConnection(input: LocalSessionClientConnectionInput) {
   const timeoutMs = input.timeoutMs ?? LOCAL_SESSION_DEFAULT_CLIENT_TIMEOUT_MS
-  const credential = input.profile
-    ? input.profileCredential
-    : (await readFile(input.paths.credentialPath, 'utf8')).trim()
-  if (!credential) throw new Error('A Local Session credential is required.')
+  const authentication = await resolveLocalSessionClientAuthentication(input)
   const socket = await connect(input.paths.endpoint, timeoutMs)
   const reader = new LocalSessionFrameReader(socket)
   try {
+    if (authentication.serverAuthentication) {
+      await authenticateLocalSessionServer({
+        socket,
+        reader,
+        credential: authentication.serverAuthentication.credential,
+        ...(authentication.serverAuthentication.profile !== undefined
+          ? { profile: authentication.serverAuthentication.profile }
+          : {}),
+        timeoutMs,
+      })
+    }
     await writeLocalSessionFrame(socket, {
       protocol: LOCAL_SESSION_PROTOCOL_NAME,
       supportedRevisions: input.supportedRevisions ?? [...LOCAL_SESSION_SUPPORTED_REVISIONS],
@@ -128,7 +201,7 @@ export async function openLocalSessionConnection(input: LocalSessionClientConnec
       ...(input.workingDirectory ? { workingDirectory: input.workingDirectory } : {}),
       ...(input.profile ? { profile: input.profile } : {}),
       ...(input.transientAuthority ? { transientAuthority: input.transientAuthority } : {}),
-      credential,
+      credential: authentication.credential,
     })
     const negotiationFrame = await reader.next(timeoutMs)
     if (isRecord(negotiationFrame) && negotiationFrame.kind === 'error') {

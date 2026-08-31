@@ -91,7 +91,10 @@ interface QueueItemsProps {
 }
 
 function QueueIntentBadges({ item }: { readonly item: SessionFollowUpQueueItem }) {
-  if (!item.wagglePresetName && !item.authorizationMode) return null
+  if (!item.wagglePresetName && !item.authorizationMode && !item.thinkingLevel && !item.callerId) {
+    return null
+  }
+  const callerLabel = queueCallerLabel(item.callerId)
   return (
     <div className="flex flex-wrap items-center gap-1">
       {item.wagglePresetName ? (
@@ -109,8 +112,31 @@ function QueueIntentBadges({ item }: { readonly item: SessionFollowUpQueueItem }
           {item.authorizationMode === 'yolo' ? 'YOLO access' : 'Ask for approval'}
         </span>
       ) : null}
+      {item.thinkingLevel ? (
+        <span className="rounded bg-bg-hover px-1.5 py-0.5 text-xs text-text-tertiary">
+          Thinking · {item.thinkingLevel}
+        </span>
+      ) : null}
+      {callerLabel ? (
+        <span
+          className="rounded bg-bg-hover px-1.5 py-0.5 text-xs text-text-tertiary"
+          title={item.callerId}
+        >
+          {callerLabel}
+        </span>
+      ) : null}
     </div>
   )
+}
+
+function queueCallerLabel(callerId: string | undefined) {
+  if (!callerId) return undefined
+  if (callerId.startsWith('session-agent:')) return 'From Worker'
+  if (callerId.startsWith('profile:')) return 'From profile'
+  if (callerId.startsWith('transient-mcp:')) return 'From MCP'
+  if (callerId === 'gui:local-user') return 'From OpenWaggle'
+  if (callerId.startsWith('local-user:')) return 'From CLI'
+  return 'From agent'
 }
 
 function QueueItems({
@@ -246,28 +272,37 @@ export function QueuedMessages({
     }
   }
 
-  if (queue.length === 0 || !sessionId) return null
-
   return (
-    <ComposerDock className="flex flex-col gap-1.5 px-2.5 pt-2 pb-1.5">
-      <QueueHeader
-        count={queue.length}
-        headNeedsAttention={queue[0]?.deliveryState === 'needs_attention'}
-        isCompacting={isCompacting}
-        isResuming={isResuming}
-        queueState={snapshot.state}
-        onResume={() => void resumeQueue()}
-      />
+    <>
+      <span aria-live="polite" className="sr-only" role="status">
+        {sessionId
+          ? queue.length === 0
+            ? 'Follow-up queue empty.'
+            : `${String(queue.length)} Follow-up${queue.length === 1 ? '' : 's'} ${snapshot.state === 'paused' ? 'paused' : 'queued'}.`
+          : ''}
+      </span>
+      {queue.length > 0 && sessionId ? (
+        <ComposerDock className="flex flex-col gap-1.5 px-2.5 pt-2 pb-1.5">
+          <QueueHeader
+            count={queue.length}
+            headNeedsAttention={queue[0]?.deliveryState === 'needs_attention'}
+            isCompacting={isCompacting}
+            isResuming={isResuming}
+            queueState={snapshot.state}
+            onResume={() => void resumeQueue()}
+          />
 
-      <QueueItems
-        isCompacting={isCompacting}
-        isStreaming={isStreaming}
-        items={queue}
-        resolvingId={resolvingId}
-        onDismiss={(followUpId) => void dismiss(followUpId)}
-        onResolve={(item) => void resolveAttention(item)}
-        onSteer={(followUpId) => void onSteer(followUpId)}
-      />
-    </ComposerDock>
+          <QueueItems
+            isCompacting={isCompacting}
+            isStreaming={isStreaming}
+            items={queue}
+            resolvingId={resolvingId}
+            onDismiss={(followUpId) => void dismiss(followUpId)}
+            onResolve={(item) => void resolveAttention(item)}
+            onSteer={(followUpId) => void onSteer(followUpId)}
+          />
+        </ComposerDock>
+      ) : null}
+    </>
   )
 }

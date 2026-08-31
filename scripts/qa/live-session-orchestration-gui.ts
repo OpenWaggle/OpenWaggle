@@ -37,6 +37,20 @@ async function connectToElectron(debugPort: number, timeoutMs: number) {
   throw new Error(`Could not connect to packaged Electron over CDP: ${String(lastError)}`)
 }
 
+export async function waitForLiveGui(debugPort: number, timeoutMs: number) {
+  const browser = await connectToElectron(debugPort, timeoutMs)
+  try {
+    const page = browser
+      .contexts()
+      .flatMap((context) => context.pages())
+      .find((candidate) => candidate.url().startsWith('openwaggle://'))
+    if (!page) throw new Error('Packaged Electron did not finish opening its renderer page.')
+    await page.locator('body').waitFor({ state: 'visible', timeout: timeoutMs })
+  } finally {
+    await browser.close().catch(() => undefined)
+  }
+}
+
 export async function verifyLiveHiveGui(input: {
   readonly debugPort: number
   readonly queenTitle: string

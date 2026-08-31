@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
   acquire: vi.fn(),
   configureClient: vi.fn(),
   ensure: vi.fn(async () => undefined),
-  preparePaths: vi.fn(async () => undefined),
+  preparePaths: vi.fn(async (paths: object) => paths),
   probe: vi.fn(),
   remoteBridge: vi.fn(() => vi.fn()),
   startHost: vi.fn(),
@@ -27,11 +27,13 @@ vi.mock('../local-session-host-launcher', () => ({
 }))
 vi.mock('../local-session-paths', () => ({
   prepareLocalSessionHostPaths: mocks.preparePaths,
+  refreshLocalSessionHostEndpoint: vi.fn(async (paths: object) => paths),
   resolveLocalSessionHostPaths: () => ({
     endpoint: '/tmp/openwaggle.sock',
     legacyDatabasePath: '/tmp/legacy.db',
     databasePath: '/tmp/session-host.db',
     recoveryDatabasePath: '/tmp/recovery.db',
+    endpointCapabilityPath: null,
   }),
 }))
 vi.mock('../session-host-ownership', () => ({
@@ -57,11 +59,7 @@ describe('isolated GUI Session Host lifecycle', () => {
     const unavailable = Object.assign(new Error('missing socket'), { code: 'ENOENT' })
     mocks.acquire.mockReset()
     mocks.ensure.mockReset().mockResolvedValue(undefined)
-    mocks.probe
-      .mockReset()
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(unavailable)
-      .mockResolvedValueOnce(undefined)
+    mocks.probe.mockReset().mockRejectedValueOnce(unavailable).mockResolvedValueOnce(undefined)
     mocks.remoteBridge.mockClear()
     mocks.startHost.mockReset()
   })

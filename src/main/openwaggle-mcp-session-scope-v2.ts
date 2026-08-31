@@ -5,8 +5,6 @@ import type { OpenWaggleMcpServeOptions } from './openwaggle-mcp-server-policy'
 import { resolveScopedMcpWorkerReference } from './openwaggle-mcp-session-worker-reference-v2'
 import { assertProjectAllowed } from './openwaggle-mcp-workspace-policy'
 
-const DELEGATION_CONFLICT_PEER_COUNT = 2
-
 export function mcpSessionPathAllowed(
   roots: readonly string[],
   candidate: string | null | undefined,
@@ -109,13 +107,6 @@ function workerSessionId(value: unknown) {
   return typeof value.workerSessionId === 'string' ? value.workerSessionId : undefined
 }
 
-function conflictWorkerSessionIds(value: unknown) {
-  if (typeof value !== 'object' || value === null) return []
-  const left = 'leftWorkerSessionId' in value ? value.leftWorkerSessionId : undefined
-  const right = 'rightWorkerSessionId' in value ? value.rightWorkerSessionId : undefined
-  return [left, right].filter((sessionId): sessionId is string => typeof sessionId === 'string')
-}
-
 function projectPathFromReadResult(read: unknown) {
   const outcome = resultOutcome(read)
   if (typeof outcome !== 'object' || outcome === null || !('session' in outcome)) return
@@ -145,40 +136,9 @@ async function sessionIdAllowed(
   )
 }
 
-async function filterConflicts(
-  options: OpenWaggleMcpServeOptions,
-  execute: (payload: LocalSessionCommandPayload) => Promise<unknown>,
-  conflicts: readonly unknown[],
-) {
-  const allowed = await Promise.all(
-    conflicts.map(async (conflict) => {
-      const workerSessionIds = conflictWorkerSessionIds(conflict)
-      const visibility = await Promise.all(
-        workerSessionIds.map((id) => sessionIdAllowed(options, execute, id)),
-      )
-      return workerSessionIds.length === DELEGATION_CONFLICT_PEER_COUNT && visibility.every(Boolean)
-    }),
-  )
-  return conflicts.filter((_, index) => allowed[index])
-}
-
-async function filterDelegations(
-  options: OpenWaggleMcpServeOptions,
-  execute: (payload: LocalSessionCommandPayload) => Promise<unknown>,
-  delegations: readonly unknown[],
-) {
-  const allowed = await Promise.all(
-    delegations.map((delegation) => {
-      const sessionId = workerSessionId(delegation)
-      return sessionId ? sessionIdAllowed(options, execute, sessionId) : false
-    }),
-  )
-  return delegations.filter((_, index) => allowed[index])
-}
-
 export async function filterMcpSessionQueryResult(
   options: OpenWaggleMcpServeOptions,
-  execute: (payload: LocalSessionCommandPayload) => Promise<unknown>,
+  _execute: (payload: LocalSessionCommandPayload) => Promise<unknown>,
   value: unknown,
 ) {
   const outcome = resultOutcome(value)
@@ -193,26 +153,9 @@ export async function filterMcpSessionQueryResult(
       sessions: outcome.sessions.filter((session) => sessionSummaryAllowed(options, session)),
     })
   }
-  if (
-    outcome.operation === 'delegations-conflicts' &&
-    'conflicts' in outcome &&
-    Array.isArray(outcome.conflicts)
-  ) {
-    return replaceResultOutcome(value, {
-      ...outcome,
-      conflicts: await filterConflicts(options, execute, outcome.conflicts),
-    })
-  }
-  if (
-    outcome.operation === 'delegations-list' &&
-    'delegations' in outcome &&
-    Array.isArray(outcome.delegations)
-  ) {
-    return replaceResultOutcome(value, {
-      ...outcome,
-      delegations: await filterDelegations(options, execute, outcome.delegations),
-    })
-  }
+  // Delegation and conflict repository queries already apply the transient Session Host
+  // authority in SQL. Re-reading every returned Worker here would open one Host connection per
+  // row (twice per conflict) and can exceed the global connection cap for one valid page.
   return value
 }
 

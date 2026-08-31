@@ -1,3 +1,4 @@
+import { MAX_NODE_TIMER_DELAY_MS } from '@shared/constants/time'
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import type {
@@ -60,7 +61,9 @@ const launchCommandSchema = Schema.Struct({
   runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
   objective: Schema.String,
   attachmentIds: Schema.Array(Schema.String),
-  interactionTimeoutMs: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
+  interactionTimeoutMs: Schema.optional(
+    Schema.Number.pipe(Schema.int(), Schema.between(0, MAX_NODE_TIMER_DELAY_MS)),
+  ),
 })
 
 export const delegationSpecificationSchema = Schema.Struct({
@@ -84,7 +87,9 @@ const spawnCommandSchema = Schema.Struct({
   workspace: Schema.optional(spawnWorkspaceSchema),
   specialization: Schema.optional(specializationSchema),
   runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
-  interactionTimeoutMs: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
+  interactionTimeoutMs: Schema.optional(
+    Schema.Number.pipe(Schema.int(), Schema.between(0, MAX_NODE_TIMER_DELAY_MS)),
+  ),
   attachmentIds: Schema.optional(Schema.Array(Schema.String)),
   delegation: delegationSpecificationSchema,
 })

@@ -1,5 +1,7 @@
+import { writeCliStdout } from './cli-stdout'
 import { isCommandCliUsageError, validateImplicitCliHelp } from './command-cli-option-contract'
 import { validateDelegationsCliOptions } from './delegations-cli-option-contract'
+import { writeDelegationsCliResponse } from './delegations-cli-output'
 import { buildDelegationsCliPayload } from './delegations-cli-payload'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
 import { hasFlag, parseMcpCliArguments } from './mcp-cli-arguments'
@@ -10,14 +12,12 @@ import {
 } from './session-cli-exit-status'
 import { executeLocalSessionCommand } from './session-host/local-session-client'
 
-const JSON_INDENT_SPACES = 2
-
 export function delegationsCliUsage() {
   return `OpenWaggle Delegations
 
 Usage:
   openwaggle delegations list [--parent <session>] [--worker <session>] [--state <state>]...
-  openwaggle delegations read <delegation-id>
+  openwaggle delegations read <delegation-id> [--limit <n>] [--cursor <cursor>]
   openwaggle delegations conflicts [--delegation <id>] [--kind live-overlap|merge-overlap] [--status unacknowledged|acknowledged|resolved]
   openwaggle delegations submit <worker-id> <delegation-id> <summary> [--evidence-json <json>]...
   openwaggle delegations state <worker-id> <delegation-id> working|waiting|needs_attention <reason>
@@ -50,12 +50,12 @@ export async function runDelegationsCli(args: readonly string[]) {
   try {
     if (!command) {
       validateImplicitCliHelp('OpenWaggle Delegations', parsed)
-      process.stdout.write(delegationsCliUsage())
+      await writeCliStdout(delegationsCliUsage())
       return EXIT.SUCCESS
     }
     validateDelegationsCliOptions(command, arguments_)
     if (command === 'help') {
-      process.stdout.write(delegationsCliUsage())
+      await writeCliStdout(delegationsCliUsage())
       return EXIT.SUCCESS
     }
     const client = await createLocalSessionCliClientInput(arguments_)
@@ -65,9 +65,7 @@ export async function runDelegationsCli(args: readonly string[]) {
         ...(client.workingDirectory ? { workingDirectory: client.workingDirectory } : {}),
       }),
     })
-    process.stdout.write(
-      `${JSON.stringify(result, null, hasFlag(arguments_, 'json') ? JSON_INDENT_SPACES : undefined)}\n`,
-    )
+    await writeDelegationsCliResponse(command, result, hasFlag(arguments_, 'json'))
     const resultError = sessionCliResultErrorKind(result)
     return resultError ? sessionCliExitCodeForError(resultError) : EXIT.SUCCESS
   } catch (error) {

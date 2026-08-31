@@ -62,6 +62,8 @@ export type ApplyQueueMutationResult =
       readonly code:
         | 'queue_revision_changed'
         | 'follow_up_already_exists'
+        | 'queue_capacity_reached'
+        | 'queue_byte_capacity_reached'
         | 'follow_up_not_found'
         | 'queue_order_mismatch'
         | 'queue_already_paused'

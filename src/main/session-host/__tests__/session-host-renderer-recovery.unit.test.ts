@@ -20,6 +20,7 @@ const paths = {
   credentialPath: '/state/credential',
   endpoint: '/state/host.sock',
   endpointDirectory: '/state',
+  endpointCapabilityPath: null,
 }
 
 describe('remote Session Host renderer recovery', () => {

@@ -18,6 +18,12 @@ export interface SessionExportArtifactSink {
     readonly path: string
     /** Ownership transfers to the sink, which closes the handle on success or failure. */
     readonly sourceHandle: FileHandle
+    /** Descriptor identity and exact size authorized by the resource resolver. */
+    readonly expectedSize: number
+    readonly expectedIdentity: {
+      readonly dev: number | bigint
+      readonly ino: number | bigint
+    }
   }) => Effect.Effect<number, SessionExportArtifactError>
   readonly prepareFinalization?: () => Effect.Effect<
     SessionExportArtifactReceipt,

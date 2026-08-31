@@ -68,7 +68,12 @@ export async function openFilesystemSessionExportResource(input: {
     if (!sameFile(openedStats, linkedStats)) {
       throw new Error('Bundled workspace resource changed while it was being authorized.')
     }
-    return { path: relativePath, sourceHandle, size: openedStats.size }
+    return {
+      path: relativePath,
+      sourceHandle,
+      size: openedStats.size,
+      identity: { dev: openedStats.dev, ino: openedStats.ino },
+    }
   } catch (error) {
     await sourceHandle.close().catch(() => undefined)
     throw error

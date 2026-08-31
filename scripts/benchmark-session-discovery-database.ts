@@ -2,6 +2,17 @@ import { mkdtemp, rm, stat } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
+import * as SqlClient from '@effect/sql/SqlClient'
+import { SqliteClient } from '@effect/sql-sqlite-node'
+import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
+import * as Effect from 'effect/Effect'
+import * as ManagedRuntime from 'effect/ManagedRuntime'
+import { loadLexicalDiscoveryRows } from '../src/main/adapters/sqlite-session-lexical-search'
+import { listSessions } from '../src/main/adapters/sqlite-session-query-catalog'
+import { readItems } from '../src/main/adapters/sqlite-session-query-items'
+import { CURRENT_SESSION_SCHEMA_STATEMENTS } from '../src/main/services/database-schema'
+import { SQLITE_PREPARE_CACHE_SIZE } from '../src/main/services/database-constants'
+import { SESSION_HOST_TARGET_SCHEMA_STATEMENTS } from '../src/main/services/session-host-target-schema'
 
 const STANDARD_SESSION_COUNT = 100_000
 const STANDARD_MESSAGE_COUNT = 10_000_000
@@ -23,40 +34,10 @@ function percentile(values: readonly number[], fraction: number) {
 }
 
 function schema(database: DatabaseSync) {
-  database.exec(`
-    PRAGMA journal_mode = OFF;
-    PRAGMA synchronous = OFF;
-    PRAGMA temp_store = FILE;
-    PRAGMA cache_size = -131072;
-    CREATE TABLE sessions (
-      id TEXT PRIMARY KEY, pi_session_id TEXT NOT NULL UNIQUE, project_path TEXT,
-      title TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0,
-      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
-    );
-    CREATE INDEX idx_sessions_updated ON sessions(updated_at DESC, id DESC);
-    CREATE TABLE session_nodes (
-      id TEXT PRIMARY KEY, session_id TEXT NOT NULL, kind TEXT NOT NULL, role TEXT,
-      timestamp_ms INTEGER NOT NULL, content_json TEXT NOT NULL,
-      metadata_json TEXT NOT NULL, created_order INTEGER NOT NULL
-    );
-    CREATE UNIQUE INDEX idx_nodes_session_order ON session_nodes(session_id, created_order);
-    CREATE TABLE session_spawn_lineage (
-      child_session_id TEXT PRIMARY KEY, parent_session_id TEXT NOT NULL,
-      hive_root_session_id TEXT NOT NULL
-    );
-    CREATE INDEX idx_lineage_parent ON session_spawn_lineage(parent_session_id, child_session_id);
-    CREATE TABLE session_execution_profiles (session_id TEXT PRIMARY KEY, profile_json TEXT);
-    CREATE TABLE delegation_contracts (
-      id TEXT PRIMARY KEY, child_session_id TEXT UNIQUE, state TEXT
-    );
-    CREATE VIRTUAL TABLE session_title_search USING fts5(
-      session_id UNINDEXED, title, tokenize = 'unicode61 remove_diacritics 2'
-    );
-    CREATE VIRTUAL TABLE session_node_search USING fts5(
-      session_id UNINDEXED, node_id UNINDEXED, content,
-      tokenize = 'unicode61 remove_diacritics 2'
-    );
-  `)
+  database.exec('PRAGMA journal_mode = OFF; PRAGMA synchronous = OFF; PRAGMA temp_store = FILE;')
+  database.exec('PRAGMA cache_size = -131072;')
+  for (const statement of CURRENT_SESSION_SCHEMA_STATEMENTS) database.exec(statement)
+  for (const statement of SESSION_HOST_TARGET_SCHEMA_STATEMENTS) database.exec(statement)
 }
 
 function populate(database: DatabaseSync, sessionCount: number, messageCount: number) {
@@ -81,10 +62,12 @@ function populate(database: DatabaseSync, sessionCount: number, messageCount: nu
         SELECT 0 UNION ALL SELECT value + 1 FROM sequence WHERE value + 1 < ?
       )
       INSERT INTO session_nodes (
-        id, session_id, kind, role, timestamp_ms, content_json, metadata_json, created_order
+        id, session_id, pi_entry_type, kind, role, timestamp_ms, content_json,
+        metadata_json, path_depth, created_order
       )
       SELECT printf('node-%08d', value), printf('session-%06d', value % ?),
-        'message', CASE WHEN CAST(value / ? AS INTEGER) % 2 = 0 THEN 'user' ELSE 'assistant' END,
+        'message', 'message',
+        CASE WHEN CAST(value / ? AS INTEGER) % 2 = 0 THEN 'user' ELSE 'assistant' END,
         value,
         json_object('text', CASE
           WHEN CAST(value / ? AS INTEGER) = CAST((? - 1) / ? AS INTEGER)
@@ -92,7 +75,7 @@ function populate(database: DatabaseSync, sessionCount: number, messageCount: nu
           THEN 'rare benchmarktoken final result'
           ELSE 'ordinary project implementation message'
         END),
-        '{}', CAST(value / ? AS INTEGER)
+        '{}', 0, CAST(value / ? AS INTEGER)
       FROM sequence
     `)
     .run(
@@ -105,59 +88,88 @@ function populate(database: DatabaseSync, sessionCount: number, messageCount: nu
       sessionCount,
     )
   database.exec('INSERT INTO session_node_search SELECT session_id, id, content_json FROM session_nodes')
+  database.exec(`
+    INSERT INTO session_node_discovery_search
+    SELECT nodes.session_id, nodes.id, nodes.content_json
+    FROM session_nodes AS nodes
+    WHERE nodes.created_order = 0 OR nodes.created_order = (
+      SELECT MAX(preview.created_order) FROM session_nodes AS preview
+      WHERE preview.session_id = nodes.session_id
+    )
+  `)
   database.exec('COMMIT; PRAGMA optimize;')
 }
 
-function measure(statement: ReturnType<DatabaseSync['prepare']>) {
+async function measure(run: () => Promise<unknown>) {
   const timings: number[] = []
-  for (let run = 0; run < WARMUP_RUNS + MEASURED_RUNS; run += 1) {
+  for (let iteration = 0; iteration < WARMUP_RUNS + MEASURED_RUNS; iteration += 1) {
     const startedAt = performance.now()
-    statement.all()
+    await run()
     const elapsed = performance.now() - startedAt
-    if (run >= WARMUP_RUNS) timings.push(elapsed)
+    if (iteration >= WARMUP_RUNS) timings.push(elapsed)
   }
   return { p95Ms: percentile(timings, P95), timings }
 }
 
-function benchmarkQueries(database: DatabaseSync) {
-  const list = database.prepare(`
-    SELECT sessions.id, sessions.title, sessions.updated_at,
-      (SELECT COUNT(*) FROM session_spawn_lineage AS lineage
-        WHERE lineage.parent_session_id = sessions.id) AS direct_worker_count
-    FROM sessions
-    ORDER BY sessions.updated_at DESC, sessions.id DESC LIMIT ${PAGE_SIZE + 1}
-  `)
-  const lexical = database.prepare(`
-    WITH matches AS (
-      SELECT session_node_search.session_id, bm25(session_node_search) AS score
-      FROM session_node_search
-      JOIN session_nodes ON session_nodes.id = session_node_search.node_id
-      WHERE session_node_search MATCH 'benchmarktoken'
-        AND session_nodes.id = (
-          SELECT preview.id FROM session_nodes AS preview
-          WHERE preview.session_id = session_nodes.session_id
-            AND preview.role IN ('user', 'assistant')
-          ORDER BY preview.created_order DESC, preview.id DESC LIMIT 1
-        )
-      ORDER BY score LIMIT 1001
-    )
-    SELECT sessions.id, sessions.title, matches.score
-    FROM matches JOIN sessions ON sessions.id = matches.session_id
-    ORDER BY matches.score, sessions.id LIMIT 1001
-  `)
-  const transcript = database.prepare(`
-    SELECT id, role, content_json, metadata_json, created_order
-    FROM session_nodes WHERE session_id = 'session-000000'
-    ORDER BY created_order LIMIT ${PAGE_SIZE + 1}
-  `)
-  const coldStartedAt = performance.now()
-  list.all()
-  const coldListMs = performance.now() - coldStartedAt
+function queryExecutor(databasePath: string) {
+  const runtime = ManagedRuntime.make(
+    SqliteClient.layer({ filename: databasePath, prepareCacheSize: SQLITE_PREPARE_CACHE_SIZE }),
+  )
   return {
-    coldListMs,
-    list: measure(list),
-    lexical: measure(lexical),
-    transcript: measure(transcript),
+    run: <A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>) => runtime.runPromise(effect),
+    dispose: () => runtime.dispose(),
+  }
+}
+
+async function benchmarkQueries(databasePath: string) {
+  const runtime = queryExecutor(databasePath)
+  const list = () =>
+    runtime.run(
+      Effect.flatMap(SqlClient.SqlClient, (sql) =>
+        listSessions(sql, undefined, {
+          contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+          requestId: 'benchmark-list',
+          query: { operation: 'list', limit: PAGE_SIZE },
+        }),
+      ),
+    )
+  const lexical = () =>
+    runtime.run(
+      Effect.flatMap(SqlClient.SqlClient, (sql) =>
+        loadLexicalDiscoveryRows(sql, undefined, {
+          contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+          requestId: 'benchmark-lexical',
+          query: {
+            operation: 'search',
+            query: 'benchmarktoken',
+            limit: PAGE_SIZE,
+            mode: 'lexical',
+          },
+        }),
+      ),
+    )
+  const transcript = () =>
+    runtime.run(
+      Effect.flatMap(SqlClient.SqlClient, (sql) =>
+        readItems(sql, {
+          contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+          requestId: 'benchmark-transcript',
+          query: { operation: 'items', sessionId: 'session-000000', limit: PAGE_SIZE },
+        }),
+      ),
+    )
+  const coldStartedAt = performance.now()
+  await list()
+  const coldListMs = performance.now() - coldStartedAt
+  try {
+    return {
+      coldListMs,
+      list: await measure(list),
+      lexical: await measure(lexical),
+      transcript: await measure(transcript),
+    }
+  } finally {
+    await runtime.dispose()
   }
 }
 
@@ -191,7 +203,9 @@ async function main() {
     database.close()
     database = new DatabaseSync(databasePath, { readOnly: true })
     const corpus = counts(database)
-    const queries = benchmarkQueries(database)
+    database.close()
+    const queries = await benchmarkQueries(databasePath)
+    database = new DatabaseSync(databasePath, { readOnly: true })
     const databaseSizeMb = (await stat(databasePath)).size / BYTES_PER_MEBIBYTE
     const passed =
       corpus.sessions === sessionCount &&

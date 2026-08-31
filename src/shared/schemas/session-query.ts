@@ -5,6 +5,7 @@ import {
 } from '@shared/types/session-delegation-query'
 import {
   SESSION_QUERY_CONTRACT_VERSION,
+  SESSION_QUERY_DELEGATION_READ_LIMIT,
   SESSION_QUERY_DISCOVERY_LIMIT,
   SESSION_QUERY_MAX_CURSOR_LENGTH,
   SESSION_QUERY_MAX_PATH_LENGTH,
@@ -112,7 +113,14 @@ const sessionQuerySchema = Schema.Union(
     workerSessionId: Schema.optional(Schema.String),
     states: Schema.optional(Schema.Array(delegationStateSchema)),
   }),
-  Schema.Struct({ operation: Schema.Literal('delegations-read'), delegationId: Schema.String }),
+  Schema.Struct({
+    operation: Schema.Literal('delegations-read'),
+    delegationId: Schema.String,
+    limit: Schema.optional(
+      Schema.Number.pipe(Schema.int(), Schema.between(1, SESSION_QUERY_DELEGATION_READ_LIMIT)),
+    ),
+    cursor: Schema.optional(cursor),
+  }),
   Schema.Struct({
     operation: Schema.Literal('delegations-conflicts'),
     limit: discoveryLimit,

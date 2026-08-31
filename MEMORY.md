@@ -365,6 +365,14 @@ Native Session capabilities constrain OpenWaggle tools and the Session Host API.
 OS sandbox against arbitrary commands from another process running as the same user. A hostile or
 YOLO shell needs a separate account, container, or operating-system sandbox for containment.
 
+Windows libuv named pipes use the operating system's default security descriptor, which grants
+Everyone read access and lets another account occupy a duplex server's read-only connections.
+Session Host pipe names therefore rotate after canonical database ownership is acquired, clients
+reread the protected endpoint capability while attaching, and the Host applies and verifies a
+protected current-user-SID DACL before opening admission. Keep the Windows CI integration test for
+this boundary. Unit tests on Unix cannot prove that `SetNamedSecurityInfoW` accepts the live pipe
+object path or that Windows returns the expected DACL.
+
 Restricted event subscriptions are filtered at admission before bounded buffering. Events outside
 the exact Session scope become payload-free cursor advances, preserving global cursor ordering and
 resume semantics without allowing unrelated event payloads or activity to consume subscriber

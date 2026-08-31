@@ -22,14 +22,22 @@ const READ_BUFFER_BYTES = 1024 * 1024
 export interface SessionExportBundleSource {
   readonly path: string
   readonly handle: FileHandle
+  readonly offset?: number
+  readonly size?: number
+}
+
+async function sourceSize(source: SessionExportBundleSource) {
+  if (source.size !== undefined) return source.size
+  return (await source.handle.stat()).size - (source.offset ?? 0)
 }
 
 async function* readHandle(source: SessionExportBundleSource) {
-  const size = (await source.handle.stat()).size
+  const size = await sourceSize(source)
+  const offset = source.offset ?? 0
   let position = 0
   while (position < size) {
     const buffer = Buffer.allocUnsafe(Math.min(READ_BUFFER_BYTES, size - position))
-    const { bytesRead } = await source.handle.read(buffer, 0, buffer.length, position)
+    const { bytesRead } = await source.handle.read(buffer, 0, buffer.length, offset + position)
     if (bytesRead === 0) throw new Error(`Bundle entry became unreadable: ${source.path}`)
     position += bytesRead
     yield bytesRead === buffer.length ? buffer : buffer.subarray(0, bytesRead)
@@ -59,7 +67,7 @@ async function bundleEntry(source: SessionExportBundleSource): Promise<SessionEx
   return {
     path: source.path,
     mediaType: mediaType(source.path),
-    size: (await source.handle.stat()).size,
+    size: await sourceSize(source),
     sha256: await sha256(source),
   }
 }
@@ -70,10 +78,15 @@ function recordKind(value: unknown) {
 }
 
 async function validateTranscript(source: SessionExportBundleSource) {
-  const transcriptStat = await source.handle.stat()
-  if (transcriptStat.size === 0) throw new Error('Bundle transcript is empty.')
+  const transcriptSize = await sourceSize(source)
+  if (transcriptSize === 0) throw new Error('Bundle transcript is empty.')
   const trailing = Buffer.alloc(1)
-  await source.handle.read(trailing, 0, trailing.length, transcriptStat.size - trailing.length)
+  await source.handle.read(
+    trailing,
+    0,
+    trailing.length,
+    (source.offset ?? 0) + transcriptSize - trailing.length,
+  )
   if (trailing[0] !== LINE_FEED_BYTE) {
     throw new Error('Bundle transcript must end with a newline.')
   }
@@ -127,11 +140,12 @@ export async function finalizeSessionExportBundle(input: {
   const transcript = input.sources.find((source) => source.path === BUNDLE_TRANSCRIPT_PATH)
   if (!transcript) throw new Error('Bundle transcript is missing.')
   await validateTranscript(transcript)
-  const entries = await Promise.all(
-    [...input.sources]
-      .sort((left, right) => left.path.localeCompare(right.path))
-      .map((source) => bundleEntry(source)),
-  )
+  const entries: SessionExportBundleEntry[] = []
+  for (const source of [...input.sources].sort((left, right) =>
+    left.path.localeCompare(right.path),
+  )) {
+    entries.push(await bundleEntry(source))
+  }
   const manifest = {
     schemaVersion: SESSION_EXPORT_BUNDLE_SCHEMA_VERSION,
     kind: 'openwaggle-session-export-bundle',

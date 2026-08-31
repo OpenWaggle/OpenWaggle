@@ -183,6 +183,7 @@ describe('Local Session Host runtime', () => {
         removeEndpoint: async () => {
           order.push('remove-endpoint')
         },
+        outboundByteUsage: () => ({ pendingBytes: 0, peakBytes: 0, maxBytes: 1 }),
       },
       {
         targetPath: path.join(temporaryRoot, 'unused.sqlite'),
@@ -227,6 +228,7 @@ describe('Local Session Host runtime', () => {
         removeEndpoint: async () => {
           order.push('remove-endpoint')
         },
+        outboundByteUsage: () => ({ pendingBytes: 0, peakBytes: 0, maxBytes: 1 }),
       },
       {
         targetPath: path.join(temporaryRoot, 'failing-stop.sqlite'),

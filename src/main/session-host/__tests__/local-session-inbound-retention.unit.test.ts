@@ -35,20 +35,24 @@ describe('LocalSessionInboundRetention', () => {
     secondBatch.release()
   })
 
-  it('releases active batches on connection close without double releasing later', () => {
+  it('keeps decoded batches leased when connection close releases an incomplete frame', () => {
     const firstFrame = encodeLocalSessionFrame({ payload: 'first' })
-    const secondFrame = encodeLocalSessionFrame({ payload: 'second' })
-    const budget = new LocalSessionInboundByteBudget(firstFrame.byteLength + secondFrame.byteLength)
+    const incompleteFrame = Buffer.alloc(8)
+    incompleteFrame.writeUInt32BE(32)
+    const budget = new LocalSessionInboundByteBudget(
+      firstFrame.byteLength + incompleteFrame.byteLength,
+    )
     const retention = new LocalSessionInboundRetention(budget)
 
     const firstBatch = retention.push(firstFrame)
-    const secondBatch = retention.push(secondFrame)
-    expect(budget.pendingBytes).toBe(firstFrame.byteLength + secondFrame.byteLength)
+    const incompleteBatch = retention.push(incompleteFrame)
+    expect(incompleteBatch.values).toEqual([])
+    expect(budget.pendingBytes).toBe(firstFrame.byteLength + incompleteFrame.byteLength)
 
-    retention.release()
-    expect(budget.pendingBytes).toBe(0)
+    retention.releasePendingFrame()
+    expect(budget.pendingBytes).toBe(firstFrame.byteLength)
     firstBatch.release()
-    secondBatch.release()
+    incompleteBatch.release()
     expect(budget.pendingBytes).toBe(0)
   })
 })

@@ -14,11 +14,23 @@ export interface CliShimServiceInput {
   readonly executablePath: string
   readonly appPath?: string
   readonly environmentPath?: string
+  /** Running legacy quick-install AppImage that occupies the managed command path. */
+  readonly legacyLinuxAppImagePath?: string
   /** Test-only interleaving point after update admission and before replacement. */
   readonly beforeManagedReplacement?: () => Promise<void>
+  /** Test-only interleaving point after helper revalidation and before mutation. */
+  readonly beforeManagedCommit?: () => Promise<void>
+  /** Test-only interleaving point after target displacement and before installation. */
+  readonly afterManagedDisplacement?: () => Promise<void>
   /** Test-only interleaving point before the helper pins the command directory. */
-  readonly beforeManagedSpawn?: () => Promise<void>
+  readonly beforeManagedSpawn?: (input: {
+    readonly directory: string
+    readonly pendingName: string
+  }) => Promise<void>
 }
+
+const LEGACY_LINUX_LAYOUT_ERROR =
+  'Re-run the OpenWaggle installer and restart the app to migrate the legacy Linux AppImage layout safely.'
 
 export function resolveCliShimExecutablePath(input: {
   readonly platform: NodeJS.Platform
@@ -51,6 +63,10 @@ function commandDirectoryIsOnPath(input: CliShimServiceInput, commandPath: strin
 
 function commandPath(input: CliShimServiceInput) {
   return path.join(input.homeDirectory, '.local', 'bin', 'openwaggle')
+}
+
+function usesLegacyLinuxRuntime(input: CliShimServiceInput, target: string) {
+  return input.platform === 'linux' && input.legacyLinuxAppImagePath === target
 }
 
 async function readCommand(command: string) {
@@ -90,6 +106,16 @@ function unsupportedStatus(input: CliShimServiceInput): CliShimStatus | null {
   }
 }
 
+function legacyLinuxRuntimeStatus(target: string, onPath: boolean): CliShimStatus {
+  return {
+    management: 'user-shim',
+    state: 'outdated',
+    commandPath: target,
+    onPath,
+    detail: LEGACY_LINUX_LAYOUT_ERROR,
+  }
+}
+
 export function createCliShimService(input: CliShimServiceInput) {
   const target = commandPath(input)
   const expectedContent = managedCliShimContent(input)
@@ -97,8 +123,9 @@ export function createCliShimService(input: CliShimServiceInput) {
   async function status(): Promise<CliShimStatus> {
     const unsupported = unsupportedStatus(input)
     if (unsupported) return unsupported
-    const current = await readCommand(target)
     const onPath = commandDirectoryIsOnPath(input, target)
+    if (usesLegacyLinuxRuntime(input, target)) return legacyLinuxRuntimeStatus(target, onPath)
+    const current = await readCommand(target)
     if (current.kind === 'missing') {
       return { management: 'user-shim', state: 'not-installed', commandPath: target, onPath }
     }
@@ -136,6 +163,9 @@ export function createCliShimService(input: CliShimServiceInput) {
       }
     }
     if (before.state === 'installed') return { ok: true, status: before }
+    if (usesLegacyLinuxRuntime(input, target)) {
+      return { ok: false, error: LEGACY_LINUX_LAYOUT_ERROR, status: before }
+    }
     try {
       if (before.state === 'not-installed') {
         await runManagedShimMutation({ service: input, target, expectedContent, mode: 'create' })
@@ -205,15 +235,21 @@ export function createCliShimService(input: CliShimServiceInput) {
 }
 
 export function createAppCliShimService() {
+  const homeDirectory = os.homedir()
+  const command = path.join(homeDirectory, '.local', 'bin', 'openwaggle')
+  const appImagePath = resolveCliShimExecutablePath({
+    platform: process.platform,
+    executablePath: process.execPath,
+    isPackaged: app.isPackaged,
+    ...(env.APPIMAGE ? { appImagePath: env.APPIMAGE } : {}),
+  })
+  const legacyLinuxAppImage =
+    process.platform === 'linux' && app.isPackaged && path.resolve(appImagePath) === command
   return createCliShimService({
     platform: process.platform,
-    homeDirectory: os.homedir(),
-    executablePath: resolveCliShimExecutablePath({
-      platform: process.platform,
-      executablePath: process.execPath,
-      isPackaged: app.isPackaged,
-      ...(env.APPIMAGE ? { appImagePath: env.APPIMAGE } : {}),
-    }),
+    homeDirectory,
+    executablePath: appImagePath,
+    ...(legacyLinuxAppImage ? { legacyLinuxAppImagePath: command } : {}),
     ...(app.isPackaged ? {} : { appPath: app.getAppPath() }),
     environmentPath: env.PATH,
   })

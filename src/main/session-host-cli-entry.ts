@@ -6,6 +6,7 @@ import { withLegacySessionWriterFence } from './session-host/legacy-session-writ
 import {
   prepareLocalSessionHostPaths,
   resolveLocalSessionHostPaths,
+  rotateLocalSessionHostEndpoint,
 } from './session-host/local-session-paths'
 import { startAppSessionHost } from './session-host/session-host-bootstrap'
 import { runSessionHostCutover, sessionHostTargetExists } from './session-host/session-host-cutover'
@@ -20,10 +21,12 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
   void app
     .whenReady()
     .then(async () => {
-      const paths = resolveLocalSessionHostPaths({ userDataRoot: app.getPath('userData') })
-      await prepareLocalSessionHostPaths(paths)
-      const ownership = await acquireSessionHostOwnership(paths.databasePath)
+      const preparedPaths = await prepareLocalSessionHostPaths(
+        resolveLocalSessionHostPaths({ userDataRoot: app.getPath('userData') }),
+      )
+      const ownership = await acquireSessionHostOwnership(preparedPaths.databasePath)
       try {
+        const paths = await rotateLocalSessionHostEndpoint(preparedPaths)
         const cutoverPaths = {
           sourceDatabasePath: paths.legacyDatabasePath,
           targetDatabasePath: paths.databasePath,

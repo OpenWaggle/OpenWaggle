@@ -26,6 +26,15 @@ function encodePhysicalFrame(payload: Buffer): Buffer {
   return frame
 }
 
+function frameHeader(payloadBytes: number): Buffer {
+  if (payloadBytes > MAX_LOCAL_SESSION_FRAME_BYTES) {
+    throw new Error(`Local Session frame exceeds ${MAX_LOCAL_SESSION_FRAME_BYTES} bytes.`)
+  }
+  const header = Buffer.allocUnsafe(FRAME_HEADER_BYTES)
+  header.writeUInt32BE(payloadBytes, 0)
+  return header
+}
+
 function chunkEnvelope(input: {
   readonly id: string
   readonly index: number
@@ -45,9 +54,22 @@ function chunkEnvelope(input: {
   )
 }
 
-export function encodeLocalSessionFrame(value: unknown): Buffer {
+export function encodeLocalSessionPayload(value: unknown): Buffer {
   const payload = Buffer.from(JSON.stringify(value), 'utf8')
-  if (payload.byteLength <= MAX_LOCAL_SESSION_FRAME_BYTES) return encodePhysicalFrame(payload)
+  if (payload.byteLength > MAX_LOCAL_SESSION_LOGICAL_MESSAGE_BYTES) {
+    throw new Error(
+      `Local Session logical message exceeds ${MAX_LOCAL_SESSION_LOGICAL_MESSAGE_BYTES} bytes.`,
+    )
+  }
+  return payload
+}
+
+export function* encodeLocalSessionFrameSegments(payload: Buffer): Generator<Buffer> {
+  if (payload.byteLength <= MAX_LOCAL_SESSION_FRAME_BYTES) {
+    yield frameHeader(payload.byteLength)
+    yield payload
+    return
+  }
   if (payload.byteLength > MAX_LOCAL_SESSION_LOGICAL_MESSAGE_BYTES) {
     throw new Error(
       `Local Session logical message exceeds ${MAX_LOCAL_SESSION_LOGICAL_MESSAGE_BYTES} bytes.`,
@@ -55,21 +77,23 @@ export function encodeLocalSessionFrame(value: unknown): Buffer {
   }
   const id = randomUUID()
   const total = Math.ceil(payload.byteLength / LOGICAL_CHUNK_PAYLOAD_BYTES)
-  const frames: Buffer[] = []
   for (let index = 0; index < total; index += 1) {
     const offset = index * LOGICAL_CHUNK_PAYLOAD_BYTES
-    frames.push(
-      encodePhysicalFrame(
-        chunkEnvelope({
-          id,
-          index,
-          total,
-          payload: payload.subarray(offset, offset + LOGICAL_CHUNK_PAYLOAD_BYTES),
-        }),
-      ),
-    )
+    const envelope = chunkEnvelope({
+      id,
+      index,
+      total,
+      payload: payload.subarray(offset, offset + LOGICAL_CHUNK_PAYLOAD_BYTES),
+    })
+    yield frameHeader(envelope.byteLength)
+    yield envelope
   }
-  return Buffer.concat(frames)
+}
+
+export function encodeLocalSessionFrame(value: unknown): Buffer {
+  const payload = encodeLocalSessionPayload(value)
+  if (payload.byteLength <= MAX_LOCAL_SESSION_FRAME_BYTES) return encodePhysicalFrame(payload)
+  return Buffer.concat([...encodeLocalSessionFrameSegments(payload)])
 }
 
 interface LogicalChunkState {

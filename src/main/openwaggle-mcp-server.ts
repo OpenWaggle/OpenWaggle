@@ -1,7 +1,9 @@
 import { McpServer } from '@modelcontextprotocol/server'
+import { StdioServerTransport } from '@modelcontextprotocol/server/stdio'
 import { MCP_LEGACY_PROTOCOL_VERSIONS, MCP_MODERN_PROTOCOL_VERSIONS } from '@shared/constants/mcp'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import { z } from 'zod'
+import { routedCliStdoutStream } from './cli-stdout'
 import { serveDualEraMcpLoopbackHttp } from './mcp-server-http'
 import { serveDualEraMcpStdio } from './mcp-server-stdio'
 import type { OpenWaggleMcpServeOptions } from './openwaggle-mcp-server-policy'
@@ -123,7 +125,9 @@ export async function serveOpenWaggleMcpServer(options: OpenWaggleMcpServeOption
     }).finally(close)
     return
   }
+  const routedStdout = routedCliStdoutStream()
   const handle = serveDualEraMcpStdio(factory, {
+    ...(routedStdout ? { transport: new StdioServerTransport(process.stdin, routedStdout) } : {}),
     maxSubscriptions: MAX_SERVER_SUBSCRIPTIONS,
     onerror: reportError,
   })

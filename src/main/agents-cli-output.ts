@@ -12,22 +12,23 @@ export interface CompactAgentCatalogItem {
 export function writeAgentsCliResult(
   value: unknown,
   json: boolean,
-  stdout: (value: string) => void,
+  stdout: (value: string) => void | Promise<void>,
 ) {
   if (json) {
-    stdout(`${JSON.stringify({ schemaVersion: 1, result: value }, null, JSON_INDENT_SPACES)}\n`)
-    return
+    return stdout(
+      `${JSON.stringify({ schemaVersion: 1, result: value }, null, JSON_INDENT_SPACES)}\n`,
+    )
   }
-  stdout(`${JSON.stringify(value, null, JSON_INDENT_SPACES)}\n`)
+  return stdout(`${JSON.stringify(value, null, JSON_INDENT_SPACES)}\n`)
 }
 
 export function writeAgentsCliCatalog(
   value: readonly CompactAgentCatalogItem[],
   json: boolean,
-  stdout: (value: string) => void,
+  stdout: (value: string) => void | Promise<void>,
 ) {
   if (json) return writeAgentsCliResult(value, true, stdout)
-  stdout(
+  return stdout(
     `${value
       .map(
         (entry) =>

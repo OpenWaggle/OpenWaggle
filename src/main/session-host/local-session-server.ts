@@ -10,10 +10,12 @@ import type { SessionHostEventHub } from '../application/session-host-event-hub'
 import type { SessionHostLiveness } from '../application/session-host-liveness'
 import { LocalSessionConnection } from './local-session-connection'
 import {
+  isWindowsPipe,
   prepareLocalSessionEndpoint,
   removeLocalSessionEndpoint,
   secureLocalSessionEndpoint,
 } from './local-session-endpoint'
+import { LocalSessionOutboundByteBudget } from './local-session-outbound-budget'
 import {
   installLocalSessionProfileAdmissionRefresher,
   installLocalSessionProfileInvalidator,
@@ -23,11 +25,13 @@ import {
   LocalSessionAuthenticationBudget,
   LocalSessionInboundByteBudget,
 } from './local-session-resource-policy'
+import type { LocalSessionServerAuthenticator } from './local-session-server-authentication'
 
 export type AuthenticatedLocalSessionCaller = LocalSessionCallerIdentity
 
 export interface LocalSessionServerDependencies {
   readonly hostInstanceId: string
+  readonly authenticateServer?: LocalSessionServerAuthenticator
   readonly eventHub: SessionHostEventHub
   readonly liveness: SessionHostLiveness
   readonly authenticate: (
@@ -58,11 +62,14 @@ export interface LocalSessionServerDependencies {
   readonly maxSubscriptionsPerConnection?: number
   readonly maxSubscriptionsGlobal?: number
   readonly maxPendingInboundBytesGlobal?: number
+  readonly maxPendingOutboundBytesGlobal?: number
+  readonly maxPendingOutboundFramesPerConnection?: number
   readonly maxConcurrentAuthentications?: number
   readonly maxFailedAuthenticationAttempts?: number
   readonly maxFailedAuthenticationAttemptsGlobal?: number
   readonly authenticationFailureWindowMs?: number
   readonly authenticationCooldownMs?: number
+  readonly secureEndpoint?: typeof secureLocalSessionEndpoint
   readonly disconnectProfile?: (profileId: string) => void
   readonly describeUpgradeBlockers?: () => Promise<{
     readonly blockingRuns: readonly { readonly sessionId: string; readonly runId: string }[]
@@ -80,16 +87,33 @@ export interface LocalSessionServerHandle {
   readonly server: Server
   readonly close: (removeEndpointAfterClose?: boolean) => Promise<void>
   readonly removeEndpoint: () => Promise<void>
+  readonly outboundByteUsage: () => {
+    readonly pendingBytes: number
+    readonly peakBytes: number
+    readonly maxBytes: number
+  }
 }
 
 function listen(server: Server, endpoint: string) {
   return new Promise<void>((resolve, reject) => {
     server.once('error', reject)
-    server.listen(endpoint, () => {
-      server.off('error', reject)
-      resolve()
-    })
+    server.listen(
+      {
+        path: endpoint,
+        exclusive: true,
+        readableAll: false,
+        writableAll: false,
+      },
+      () => {
+        server.off('error', reject)
+        resolve()
+      },
+    )
   })
+}
+
+function nextEventLoopTurn() {
+  return new Promise<void>((resolve) => setImmediate(resolve))
 }
 
 function close(server: Server) {
@@ -108,6 +132,9 @@ export async function listenLocalSessionServer(
   await prepareLocalSessionEndpoint(endpoint)
   const connections = new Set<LocalSessionConnection>()
   const inboundBudget = new LocalSessionInboundByteBudget(dependencies.maxPendingInboundBytesGlobal)
+  const outboundBudget = new LocalSessionOutboundByteBudget(
+    dependencies.maxPendingOutboundBytesGlobal,
+  )
   const authenticationBudget = new LocalSessionAuthenticationBudget({
     ...(dependencies.maxConcurrentAuthentications !== undefined
       ? { maxConcurrent: dependencies.maxConcurrentAuthentications }
@@ -140,7 +167,15 @@ export async function listenLocalSessionServer(
     ...dependencies,
     disconnectProfile: invalidateProfile,
   }
+  const quarantinedSockets = new Set<Socket>()
+  let admissionOpen = !isWindowsPipe(endpoint)
   const server = net.createServer((socket) => {
+    if (!admissionOpen) {
+      quarantinedSockets.add(socket)
+      socket.once('close', () => quarantinedSockets.delete(socket))
+      socket.destroy()
+      return
+    }
     if (connections.size >= (dependencies.maxConnections ?? DEFAULT_MAX_CONNECTIONS)) {
       socket.destroy()
       return
@@ -150,13 +185,29 @@ export async function listenLocalSessionServer(
       serverDependencies,
       inboundBudget,
       authenticationBudget,
+      outboundBudget,
     )
     connections.add(connection)
     socket.once('close', () => connections.delete(connection))
     connection.start()
   })
-  await listen(server, endpoint)
-  await secureLocalSessionEndpoint(endpoint)
+  try {
+    await listen(server, endpoint)
+    await (dependencies.secureEndpoint ?? secureLocalSessionEndpoint)(endpoint)
+    if (!admissionOpen) {
+      for (const socket of quarantinedSockets) socket.destroy()
+      await nextEventLoopTurn()
+      await nextEventLoopTurn()
+      for (const socket of quarantinedSockets) socket.destroy()
+      admissionOpen = true
+    }
+  } catch (error) {
+    releaseProfileInvalidator()
+    releaseProfileAdmissionRefresher()
+    for (const socket of quarantinedSockets) socket.destroy()
+    await close(server).catch(() => undefined)
+    throw error
+  }
   return {
     endpoint,
     server,
@@ -169,5 +220,10 @@ export async function listenLocalSessionServer(
       if (removeEndpointAfterClose) await removeLocalSessionEndpoint(endpoint)
     },
     removeEndpoint: () => removeLocalSessionEndpoint(endpoint),
+    outboundByteUsage: () => ({
+      pendingBytes: outboundBudget.pendingBytes,
+      peakBytes: outboundBudget.peakBytes,
+      maxBytes: outboundBudget.maxBytes,
+    }),
   }
 }

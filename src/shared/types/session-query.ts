@@ -54,8 +54,12 @@ export const SESSION_QUERY_OPERATIONS = [
 ] as const
 
 export const SESSION_QUERY_CONTRACT_VERSION = 2 as const
+// Keep query pages below the Local Session transport's 64 MiB logical-message ceiling.
+// The margin covers protocol envelopes and leaves room for future additive fields.
+export const SESSION_QUERY_MAX_RESPONSE_BYTES = 48 * 1024 * 1024
 export const SESSION_QUERY_DISCOVERY_LIMIT = 200
 export const SESSION_QUERY_TRANSCRIPT_LIMIT = 500
+export const SESSION_QUERY_DELEGATION_READ_LIMIT = 200
 export const SESSION_QUERY_MAX_SEARCH_LENGTH = 4_096
 export const SESSION_QUERY_MAX_CURSOR_LENGTH = 4_096
 export const SESSION_QUERY_MAX_PATH_LENGTH = 4_096
@@ -119,7 +123,12 @@ export type SessionQuery =
       readonly workerSessionId?: string
       readonly states?: readonly DelegationState[]
     }
-  | { readonly operation: 'delegations-read'; readonly delegationId: string }
+  | {
+      readonly operation: 'delegations-read'
+      readonly delegationId: string
+      readonly limit?: number
+      readonly cursor?: string
+    }
   | {
       readonly operation: 'delegations-conflicts'
       readonly limit: number
@@ -288,6 +297,7 @@ export type SessionQueryOutcome =
           | 'cursor_expired'
           | 'cursor_mismatch'
           | 'semantic_not_ready'
+          | 'record_too_large'
           | 'resync_required'
           | 'host_stopped'
         readonly message: string

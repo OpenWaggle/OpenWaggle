@@ -12,6 +12,8 @@ export const SESSION_EXPORT_OPERATION_STATUSES = [
   'cancelled',
 ] as const
 export const SESSION_EXPORT_OPERATION_QUERY_LIMIT = 200
+export const SESSION_EXPORT_RESOURCE_LIMIT = 256
+export const SESSION_EXPORT_RESOURCE_BYTES_LIMIT = 256 * 1024 * 1024
 
 export type SessionExportFormat = (typeof SESSION_EXPORT_FORMATS)[number]
 export type SessionExportOperationStatus = (typeof SESSION_EXPORT_OPERATION_STATUSES)[number]

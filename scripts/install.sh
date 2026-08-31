@@ -19,6 +19,23 @@ READY_CURSOR_BLINK_CYCLES=2
 info()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 error() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
+install_executable_atomically() {
+  local source_path="$1"
+  local destination_path="$2"
+  local destination_directory
+  local temporary_path
+  destination_directory="$(dirname "${destination_path}")"
+  temporary_path="$(mktemp "${destination_directory}/.openwaggle-install.XXXXXX")"
+  if ! cp "${source_path}" "${temporary_path}" || ! chmod +x "${temporary_path}"; then
+    rm -f "${temporary_path}"
+    return 1
+  fi
+  if command -v sync >/dev/null 2>&1; then
+    sync -f "${temporary_path}" 2>/dev/null || true
+  fi
+  mv -f "${temporary_path}" "${destination_path}"
+}
+
 animate_ready() {
   if [ ! -t 1 ]; then
     info "${READY_MESSAGE}"
@@ -129,7 +146,16 @@ if [ "${PLATFORM}" = "mac" ]; then
   INSTALL_DIR="${HOME}/.local/bin"
   mkdir -p "${INSTALL_DIR}"
   APP_EXECUTABLE="/Applications/$(basename "${APP_PATH}")/Contents/MacOS/OpenWaggle"
-  ln -sf "${APP_EXECUTABLE}" "${INSTALL_DIR}/openwaggle"
+  INSTALL_PATH="${INSTALL_DIR}/openwaggle"
+  ESCAPED_APP_EXECUTABLE="$(printf '%s' "${APP_EXECUTABLE}" | sed "s/'/'\"'\"'/g")"
+  SHIM_TEMP_PATH="$(mktemp "${INSTALL_DIR}/.openwaggle-cli.XXXXXX")"
+  {
+    printf '%s\n' '#!/bin/sh'
+    printf '%s\n' '# Managed by OpenWaggle. Configure from Settings > Agent access.'
+    printf 'exec '\''%s'\'' "$@"\n' "${ESCAPED_APP_EXECUTABLE}"
+  } > "${SHIM_TEMP_PATH}"
+  chmod +x "${SHIM_TEMP_PATH}"
+  mv -f "${SHIM_TEMP_PATH}" "${INSTALL_PATH}"
   info "Installed CLI to ${INSTALL_DIR}/openwaggle"
   if ! echo "${PATH}" | grep -q "${INSTALL_DIR}"; then
     info "Add ${INSTALL_DIR} to your PATH if not already present"
@@ -137,10 +163,21 @@ if [ "${PLATFORM}" = "mac" ]; then
 
 elif [ "${PLATFORM}" = "linux" ]; then
   INSTALL_DIR="${HOME}/.local/bin"
+  APP_DIR="${HOME}/.local/lib/openwaggle"
   mkdir -p "${INSTALL_DIR}"
+  mkdir -p "${APP_DIR}"
   INSTALL_PATH="${INSTALL_DIR}/openwaggle"
-  cp "${DOWNLOAD_PATH}" "${INSTALL_PATH}"
-  chmod +x "${INSTALL_PATH}"
+  APPIMAGE_PATH="${APP_DIR}/OpenWaggle.AppImage"
+  install_executable_atomically "${DOWNLOAD_PATH}" "${APPIMAGE_PATH}"
+  ESCAPED_APPIMAGE_PATH="$(printf '%s' "${APPIMAGE_PATH}" | sed "s/'/'\"'\"'/g")"
+  SHIM_TEMP_PATH="$(mktemp "${INSTALL_DIR}/.openwaggle-cli.XXXXXX")"
+  {
+    printf '%s\n' '#!/bin/sh'
+    printf '%s\n' '# Managed by OpenWaggle. Configure from Settings > Agent access.'
+    printf 'exec env OPENWAGGLE_CLI_OUTPUT_FD=3 '\''%s'\'' "$@" 3>&1 1>/dev/null\n' "${ESCAPED_APPIMAGE_PATH}"
+  } > "${SHIM_TEMP_PATH}"
+  chmod +x "${SHIM_TEMP_PATH}"
+  mv -f "${SHIM_TEMP_PATH}" "${INSTALL_PATH}"
 
   # Create .desktop entry
   DESKTOP_DIR="${HOME}/.local/share/applications"
@@ -149,13 +186,14 @@ elif [ "${PLATFORM}" = "linux" ]; then
 [Desktop Entry]
 Name=OpenWaggle
 Comment=Desktop coding agent with multi-model support
-Exec=${INSTALL_PATH} %U
+Exec=${APPIMAGE_PATH} %U
 Terminal=false
 Type=Application
 Categories=Development;IDE;
 DESKTOP
 
-  info "Installed to ${INSTALL_PATH}"
+  info "Installed app to ${APPIMAGE_PATH}"
+  info "Installed CLI to ${INSTALL_PATH}"
   if ! echo "${PATH}" | grep -q "${INSTALL_DIR}"; then
     info "Add ${INSTALL_DIR} to your PATH if not already present"
   fi

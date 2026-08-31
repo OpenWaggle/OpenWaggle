@@ -11,6 +11,10 @@ export interface ResolvedSessionExportResource {
    */
   readonly sourceHandle: FileHandle
   readonly size: number
+  readonly identity: {
+    readonly dev: number | bigint
+    readonly ino: number | bigint
+  }
 }
 
 export interface SessionExportResourceResolverShape {

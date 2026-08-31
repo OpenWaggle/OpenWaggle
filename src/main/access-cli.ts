@@ -7,6 +7,7 @@ import {
 import { app } from 'electron'
 import { validateAccessCliOptions } from './access-cli-option-contract'
 import { parseProfilePolicy } from './access-cli-policy'
+import { writeCliStdout } from './cli-stdout'
 import { isCommandCliUsageError, validateImplicitCliHelp } from './command-cli-option-contract'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
 import { hasFlag, option, parseMcpCliArguments } from './mcp-cli-arguments'
@@ -96,7 +97,7 @@ function buildCommand(
 }
 
 function writeOutput(value: unknown, json: boolean) {
-  process.stdout.write(`${JSON.stringify(value, null, json ? JSON_INDENT_SPACES : undefined)}\n`)
+  return writeCliStdout(`${JSON.stringify(value, null, json ? JSON_INDENT_SPACES : undefined)}\n`)
 }
 
 type StagedProfileCredential = Awaited<ReturnType<typeof stageProfileCredential>>
@@ -175,7 +176,7 @@ async function finalizeProfileResponse(input: {
 }) {
   if (input.response.outcome.effect === 'rejected') {
     await input.staged?.discard()
-    writeOutput(input.response, input.json)
+    await writeOutput(input.response, input.json)
     return EXIT.FAILURE
   }
   await input.staged?.commit()
@@ -185,7 +186,7 @@ async function finalizeProfileResponse(input: {
       profileName: input.response.outcome.profile.name,
     })
   }
-  writeOutput(
+  await writeOutput(
     input.staged
       ? { ...input.response, credentialDestination: input.staged.metadata }
       : input.response,
@@ -256,7 +257,7 @@ export async function runAccessCli(args: readonly string[]) {
   if (invocation.kind === 'help') {
     try {
       validateImplicitCliHelp('OpenWaggle Access profiles', invocation.parsed)
-      process.stdout.write(`${accessCliUsage()}\n`)
+      await writeCliStdout(`${accessCliUsage()}\n`)
       return EXIT.SUCCESS
     } catch (error) {
       process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`)
@@ -272,13 +273,13 @@ export async function runAccessCli(args: readonly string[]) {
         return EXIT.USAGE
       }
     }
-    process.stdout.write(`${accessCliUsage()}\n`)
+    await writeCliStdout(`${accessCliUsage()}\n`)
     return invocation.parsed.positionals[0] ? EXIT.USAGE : EXIT.SUCCESS
   }
   if (invocation.operation === 'help') {
     try {
       validateAccessCliOptions(invocation.operation, invocation.arguments_)
-      process.stdout.write(`${accessCliUsage()}\n`)
+      await writeCliStdout(`${accessCliUsage()}\n`)
       return EXIT.SUCCESS
     } catch (error) {
       process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`)

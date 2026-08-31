@@ -22,6 +22,7 @@ import {
 } from './local-session-host-launcher'
 import type { LocalSessionHostRuntime } from './local-session-host-runtime'
 import type { LocalSessionHostPaths } from './local-session-paths'
+import { refreshLocalSessionHostEndpoint } from './local-session-paths'
 import { startAppSessionHost } from './session-host-bootstrap'
 import {
   startRemoteSessionHostRendererBridge,
@@ -78,16 +79,22 @@ async function attachToRemoteSessionHost(input: {
   readonly isStopping: () => boolean
   readonly stopOwnedServices: () => Promise<void>
 }) {
+  let currentPaths = input.client.paths
   try {
-    await probeLocalSessionHost({ ...input.client, clientKind: 'gui' })
+    currentPaths = await refreshLocalSessionHostEndpoint(currentPaths)
+    const client = {
+      ...input.client,
+      paths: currentPaths,
+    }
+    await probeLocalSessionHost({ ...client, clientKind: 'gui' })
     if (input.isStopping()) return null
     await input.stopOwnedServices()
-    configureGuiSessionCommandClient(input.client)
+    configureGuiSessionCommandClient(client)
     setGuiAttachedToRemoteSessionHost(true)
-    return startRemoteSessionHostRendererBridge(input.client)
+    return startRemoteSessionHostRendererBridge(client)
   } catch (error) {
     if (error instanceof LocalSessionHostUpgradePendingError) {
-      const released = await waitForLocalSessionHostRelease(input.client.paths.endpoint)
+      const released = await waitForLocalSessionHostRelease(currentPaths.endpoint)
       if (released) return null
     }
     if (isLocalSessionHostUnavailable(error)) return null

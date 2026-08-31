@@ -1,3 +1,4 @@
+import { MAX_NODE_TIMER_DELAY_MS } from '@shared/constants/time'
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import {
@@ -58,7 +59,9 @@ const startCommandSchema = Schema.Struct({
   operation: Schema.Literal('start'),
   sessionId: Schema.String,
   runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
-  interactionTimeoutMs: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
+  interactionTimeoutMs: Schema.optional(
+    Schema.Number.pipe(Schema.int(), Schema.between(0, MAX_NODE_TIMER_DELAY_MS)),
+  ),
   input: messageInputSchema,
 })
 

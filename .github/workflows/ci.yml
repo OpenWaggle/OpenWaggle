@@ -237,6 +237,10 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      - name: Verify Windows Session Host pipe isolation
+        run: pnpm exec vitest run -c vitest.integration.config.ts src/main/session-host/__tests__/local-session-windows-security.integration.test.ts
+
       - run: pnpm test:e2e:functional
 
       - name: Upload Electron E2E failure artifacts

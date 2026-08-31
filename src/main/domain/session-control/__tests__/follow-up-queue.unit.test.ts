@@ -1,6 +1,10 @@
 import { FollowUpId } from '@shared/types/brand'
 import { describe, expect, it } from 'vitest'
-import { mutateFollowUpQueue } from '../follow-up-queue'
+import {
+  MAX_FOLLOW_UP_QUEUE_BYTES,
+  MAX_FOLLOW_UP_QUEUE_ITEMS,
+  mutateFollowUpQueue,
+} from '../follow-up-queue'
 
 describe('Session Control Follow-up queue', () => {
   it('appends durable intent at the tail and advances the queue revision', () => {
@@ -80,5 +84,40 @@ describe('Session Control Follow-up queue', () => {
       accepted: true,
       queue: { state: 'running', revision: 22, items: [pending] },
     })
+  })
+
+  it('rejects appends after the durable queue item capacity is reached', () => {
+    const items = Array.from({ length: MAX_FOLLOW_UP_QUEUE_ITEMS }, (_, index) => ({
+      id: FollowUpId(`follow-up-${index}`),
+      intent: { text: 'queued' },
+    }))
+
+    expect(
+      mutateFollowUpQueue(
+        { state: 'paused', revision: 4, items },
+        {
+          type: 'append',
+          item: { id: FollowUpId('follow-up-overflow'), intent: { text: 'later' } },
+        },
+      ),
+    ).toEqual({ accepted: false, code: 'queue_capacity_reached', currentRevision: 4 })
+  })
+
+  it('rejects appends that exceed the durable queue byte capacity', () => {
+    const nearlyFull = 'x'.repeat(MAX_FOLLOW_UP_QUEUE_BYTES - 128)
+
+    expect(
+      mutateFollowUpQueue(
+        {
+          state: 'paused',
+          revision: 5,
+          items: [{ id: FollowUpId('follow-up-large'), intent: { text: nearlyFull } }],
+        },
+        {
+          type: 'append',
+          item: { id: FollowUpId('follow-up-overflow'), intent: { text: 'x'.repeat(256) } },
+        },
+      ),
+    ).toEqual({ accepted: false, code: 'queue_byte_capacity_reached', currentRevision: 5 })
   })
 })

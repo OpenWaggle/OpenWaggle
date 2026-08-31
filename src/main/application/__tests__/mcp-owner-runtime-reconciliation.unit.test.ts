@@ -12,6 +12,7 @@ const client = {
     credentialPath: '/state/credential',
     endpoint: '/state/host.sock',
     endpointDirectory: '/state',
+    endpointCapabilityPath: null,
   },
   clientKind: 'cli' as const,
   clientVersion: 'test',

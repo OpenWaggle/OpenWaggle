@@ -1,3 +1,4 @@
+import { MAX_NODE_TIMER_DELAY_MS } from '@shared/constants/time'
 import {
   SESSION_QUERY_DISCOVERY_LIMIT,
   SESSION_QUERY_MAX_CURSOR_LENGTH,
@@ -23,7 +24,7 @@ export const transcriptLimit = z.number().int().min(1).max(SESSION_QUERY_TRANSCR
 export const revision = z.number().int().min(0)
 export const positiveRevision = z.number().int().min(1)
 export const timeout = z.number().int().min(0).max(SESSION_QUERY_MAX_WAIT_MS)
-export const interactionTimeout = z.number().int().min(0)
+export const interactionTimeout = z.number().int().min(0).max(MAX_NODE_TIMER_DELAY_MS)
 export const booleanFlag = z.boolean()
 export const searchMode = z.enum(['hybrid', 'lexical', 'semantic'])
 export const catalogScope = z.enum(['current', 'project', 'all'])
@@ -44,11 +45,30 @@ export const newWorktreeFields = {
 
 export const interactionResponseSchema = z.discriminatedUnion('kind', [
   z
-    .object({ kind: z.literal('confirm'), accepted: z.boolean(), scope: z.string().optional() })
+    .object({
+      kind: z.literal('confirm'),
+      accepted: z.boolean(),
+      scope: z.string().max(MCP_SESSION_INPUT_LIMITS_V2.itemTextLength).optional(),
+    })
     .strict(),
-  z.object({ kind: z.literal('select'), selected: z.string().nullable() }).strict(),
-  z.object({ kind: z.literal('input'), value: z.string().nullable() }).strict(),
-  z.object({ kind: z.literal('editor'), value: z.string().nullable() }).strict(),
+  z
+    .object({
+      kind: z.literal('select'),
+      selected: z.string().max(MCP_SESSION_INPUT_LIMITS_V2.textLength).nullable(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('input'),
+      value: z.string().max(MCP_SESSION_INPUT_LIMITS_V2.textLength).nullable(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('editor'),
+      value: z.string().max(MCP_SESSION_INPUT_LIMITS_V2.textLength).nullable(),
+    })
+    .strict(),
   z.object({ kind: z.literal('notify'), acknowledged: z.literal(true) }).strict(),
   z.object({ kind: z.literal('custom'), value: mcpSessionJsonSchemaV2.nullable() }).strict(),
 ])

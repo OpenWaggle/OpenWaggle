@@ -76,7 +76,10 @@ export type ApplyAdaptiveMessageResult =
     }
   | {
       readonly accepted: false
-      readonly code: 'follow_up_already_exists'
+      readonly code:
+        | 'follow_up_already_exists'
+        | 'queue_capacity_reached'
+        | 'queue_byte_capacity_reached'
       readonly state: SessionControlSessionState
     }
 
@@ -135,9 +138,16 @@ export function applyAdaptiveMessage(input: ApplyAdaptiveMessageInput): ApplyAda
         item: followUp,
       })
       if (!queueResult.accepted) {
+        if (
+          queueResult.code !== 'follow_up_already_exists' &&
+          queueResult.code !== 'queue_capacity_reached' &&
+          queueResult.code !== 'queue_byte_capacity_reached'
+        ) {
+          throw new Error(`Unexpected Follow-up append rejection: ${queueResult.code}`)
+        }
         return {
           accepted: false,
-          code: 'follow_up_already_exists',
+          code: queueResult.code,
           state: input.state,
         }
       }

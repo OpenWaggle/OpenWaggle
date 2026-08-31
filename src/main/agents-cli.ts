@@ -28,6 +28,7 @@ import {
   writeAgentsCliResult,
 } from './agents-cli-output'
 import { AGENTS_CLI_USAGE } from './agents-cli-usage'
+import { writeCliStdout } from './cli-stdout'
 import { isCommandCliUsageError, validateImplicitCliHelp } from './command-cli-option-contract'
 import { hasFlag, option, parseMcpCliArguments } from './mcp-cli-arguments'
 
@@ -36,7 +37,7 @@ const EXIT = { SUCCESS: 0, FAILURE: 1, USAGE: 2 } as const
 export interface AgentsCliIo {
   readonly cwd?: string
   readonly home?: string
-  readonly stdout?: (value: string) => void
+  readonly stdout?: (value: string) => void | Promise<void>
   readonly stderr?: (value: string) => void
   readonly loadSemanticCatalog?: AgentDefinitionSemanticCatalogLoader
 }
@@ -190,7 +191,7 @@ async function executeAgentDefinitionCommand(input: {
   readonly arguments_: ReturnType<typeof parseMcpCliArguments>
   readonly cwd: string
   readonly home: string
-  readonly stdout: (value: string) => void
+  readonly stdout: (value: string) => void | Promise<void>
   readonly loadSemanticCatalog: AgentDefinitionSemanticCatalogLoader
 }) {
   const { command, arguments_, cwd, home, stdout } = input
@@ -205,7 +206,7 @@ async function executeAgentDefinitionCommand(input: {
     loadSemanticCatalog: input.loadSemanticCatalog,
   })
   if (mutation) {
-    writeAgentsCliResult(mutation, json, stdout)
+    await writeAgentsCliResult(mutation, json, stdout)
     return EXIT.SUCCESS
   }
   if (command === 'list' || command === 'search') {
@@ -217,7 +218,7 @@ async function executeAgentDefinitionCommand(input: {
             userHome: home,
             query: required(arguments_.positionals.join(' '), 'Search query'),
           })
-    writeAgentsCliCatalog(compactAgentCatalog(items), json, stdout)
+    await writeAgentsCliCatalog(compactAgentCatalog(items), json, stdout)
     return EXIT.SUCCESS
   }
   if (command === 'validate') {
@@ -227,7 +228,7 @@ async function executeAgentDefinitionCommand(input: {
       definition,
       await input.loadSemanticCatalog({ projectPath: project, userHome: home }),
     )
-    writeAgentsCliResult(
+    await writeAgentsCliResult(
       {
         valid: validation.valid,
         name: definition.name,
@@ -249,7 +250,7 @@ async function executeAgentDefinitionCommand(input: {
       definition,
       await input.loadSemanticCatalog({ projectPath: project, userHome: home }),
     )
-    writeAgentsCliResult({ ...definition, semanticValidation: validation }, json, stdout)
+    await writeAgentsCliResult({ ...definition, semanticValidation: validation }, json, stdout)
     return validation.valid ? EXIT.SUCCESS : EXIT.FAILURE
   }
   throw new Error(`Unsupported Agent definitions command: ${command}.`)
@@ -258,7 +259,7 @@ async function executeAgentDefinitionCommand(input: {
 export async function runAgentsCli(args: readonly string[], io: AgentsCliIo = {}) {
   const cwd = io.cwd ?? process.cwd()
   const home = io.home ?? os.homedir()
-  const stdout = io.stdout ?? ((value: string) => process.stdout.write(value))
+  const stdout = io.stdout ?? writeCliStdout
   const stderr = io.stderr ?? ((value: string) => process.stderr.write(value))
   const loadSemanticCatalog = io.loadSemanticCatalog ?? loadAgentDefinitionSemanticCatalog
   const parsed = parseMcpCliArguments(args)
@@ -267,12 +268,12 @@ export async function runAgentsCli(args: readonly string[], io: AgentsCliIo = {}
   try {
     if (!command) {
       validateImplicitCliHelp('OpenWaggle Agents', parsed)
-      stdout(AGENTS_CLI_USAGE)
+      await stdout(AGENTS_CLI_USAGE)
       return EXIT.SUCCESS
     }
     validateAgentsCliOptions(command, arguments_)
     if (command === 'help') {
-      stdout(AGENTS_CLI_USAGE)
+      await stdout(AGENTS_CLI_USAGE)
       return EXIT.SUCCESS
     }
     return await executeAgentDefinitionCommand({

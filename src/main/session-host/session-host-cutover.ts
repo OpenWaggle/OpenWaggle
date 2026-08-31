@@ -17,7 +17,6 @@ import {
   normalizeLegacySessionColumns,
   populateSessionHostTarget,
 } from './session-host-cutover-population'
-import { populateSessionHostSemanticIndex } from './session-host-cutover-semantic'
 import { validateSessionHostTarget } from './session-host-cutover-validation'
 import { acquireSessionHostOwnership } from './session-host-ownership'
 
@@ -124,7 +123,14 @@ function finalizeStagingDatabase(
   try {
     database.exec('PRAGMA foreign_keys = ON; BEGIN IMMEDIATE;')
     try {
-      const validation = validateSessionHostTarget(database, prepared.sourceCounts, model.metadata)
+      const validation = validateSessionHostTarget(
+        database,
+        prepared.sourceCounts,
+        model.metadata,
+        {
+          requireCompleteSemanticCoverage: false,
+        },
+      )
       recordMigrationMetadata(database, {
         now,
         sourceSchemaRevision: prepared.revision,
@@ -223,7 +229,6 @@ export async function runSessionHostCutover(
     await rm(stagingPath, { force: true })
     await copySourceToStaging(paths.sourceDatabasePath, stagingPath)
     const prepared = prepareStagingDatabase(stagingPath, now)
-    await populateSessionHostSemanticIndex(stagingPath, model, now)
     const validation = finalizeStagingDatabase(stagingPath, now, prepared, model)
     await installMigratedDatabase(paths, stagingPath)
     return {

@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import { writeCliStdout } from './cli-stdout'
 import { isCommandCliUsageError } from './command-cli-option-contract'
 import { hasFlag, parseMcpCliArguments } from './mcp-cli-arguments'
 import { validateRecoveryCliOptions } from './recovery-cli-option-contract'
@@ -27,10 +28,9 @@ database as a timestamped artifact before rebuilding from the pre-cutover recove
 
 function writeResult(value: unknown, json: boolean) {
   if (json) {
-    process.stdout.write(`${JSON.stringify(value, null, JSON_INDENT_SPACES)}\n`)
-    return
+    return writeCliStdout(`${JSON.stringify(value, null, JSON_INDENT_SPACES)}\n`)
   }
-  process.stdout.write(`${JSON.stringify(value)}\n`)
+  return writeCliStdout(`${JSON.stringify(value)}\n`)
 }
 
 export async function runRecoveryCli(args: readonly string[]) {
@@ -40,12 +40,12 @@ export async function runRecoveryCli(args: readonly string[]) {
   try {
     validateRecoveryCliOptions(command, arguments_)
     if (!command || command === 'help') {
-      process.stdout.write(`${usage()}\n`)
+      await writeCliStdout(`${usage()}\n`)
       return EXIT.SUCCESS
     }
     const paths = resolveLocalSessionHostPaths({ userDataRoot: app.getPath('userData') })
     if (command === 'status') {
-      writeResult(await sessionHostRecoveryStatus(paths), hasFlag(arguments_, 'json'))
+      await writeResult(await sessionHostRecoveryStatus(paths), hasFlag(arguments_, 'json'))
       return EXIT.SUCCESS
     }
     if (!hasFlag(arguments_, 'yes')) {
@@ -56,7 +56,7 @@ export async function runRecoveryCli(args: readonly string[]) {
       command === 'restore-pre-cutover'
         ? await withLegacySessionWriterFence(() => restorePreCutoverDatabase(paths))
         : await deletePreCutoverDatabase(paths)
-    writeResult(result, hasFlag(arguments_, 'json'))
+    await writeResult(result, hasFlag(arguments_, 'json'))
     return EXIT.SUCCESS
   } catch (error) {
     process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`)

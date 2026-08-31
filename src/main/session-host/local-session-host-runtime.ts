@@ -25,6 +25,7 @@ async function collectStopError(errors: unknown[], cleanup: () => void | Promise
 export interface StartLocalSessionHostInput {
   readonly endpoint: string
   readonly databasePath: string
+  readonly authenticateServer?: LocalSessionServerDependencies['authenticateServer']
   readonly externalOwnership?: SessionHostOwnership
   readonly idleGracePeriodMs: number
   readonly readIdleGracePeriod?: () => Promise<number>
@@ -151,6 +152,30 @@ async function cleanupFailedStartup(input: {
   if (input.releaseOwnership) await input.ownership.release()
 }
 
+function createServerDependencies(input: {
+  readonly host: StartLocalSessionHostInput
+  readonly eventHub: SessionHostEventHub
+  readonly liveness: SessionHostLiveness
+}): LocalSessionServerDependencies {
+  const { host, eventHub, liveness } = input
+  return {
+    hostInstanceId: eventHub.hostInstanceId,
+    ...(host.authenticateServer ? { authenticateServer: host.authenticateServer } : {}),
+    eventHub,
+    liveness,
+    authenticate: host.authenticate,
+    ...(host.authorizeEvent ? { authorizeEvent: host.authorizeEvent } : {}),
+    ...(host.refreshCaller ? { refreshCaller: host.refreshCaller } : {}),
+    ...(host.snapshotActiveRuns ? { snapshotActiveRuns: host.snapshotActiveRuns } : {}),
+    ...(host.authorizeActiveRun ? { authorizeActiveRun: host.authorizeActiveRun } : {}),
+    ...(host.describeUpgradeBlockers
+      ? { describeUpgradeBlockers: host.describeUpgradeBlockers }
+      : {}),
+    requestUpgradeDrain: () => liveness.requestDrain('upgrade'),
+    dispatch: host.dispatch,
+  }
+}
+
 export async function startLocalSessionHost(
   input: StartLocalSessionHostInput,
 ): Promise<LocalSessionHostRuntime> {
@@ -177,21 +202,10 @@ export async function startLocalSessionHost(
   try {
     releaseEventPublisher = installSessionHostEventRuntime({ eventHub, liveness })
     await input.recover?.()
-    const server = await listenLocalSessionServer(input.endpoint, {
-      hostInstanceId: eventHub.hostInstanceId,
-      eventHub,
-      liveness,
-      authenticate: input.authenticate,
-      ...(input.authorizeEvent ? { authorizeEvent: input.authorizeEvent } : {}),
-      ...(input.refreshCaller ? { refreshCaller: input.refreshCaller } : {}),
-      ...(input.snapshotActiveRuns ? { snapshotActiveRuns: input.snapshotActiveRuns } : {}),
-      ...(input.authorizeActiveRun ? { authorizeActiveRun: input.authorizeActiveRun } : {}),
-      ...(input.describeUpgradeBlockers
-        ? { describeUpgradeBlockers: input.describeUpgradeBlockers }
-        : {}),
-      requestUpgradeDrain: () => liveness.requestDrain('upgrade'),
-      dispatch: input.dispatch,
-    })
+    const server = await listenLocalSessionServer(
+      input.endpoint,
+      createServerDependencies({ host: input, eventHub, liveness }),
+    )
     if (input.readIdleGracePeriod) {
       releaseSettingsObserver = observeIdleGracePeriod({
         liveness,

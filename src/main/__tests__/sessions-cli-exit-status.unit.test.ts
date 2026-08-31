@@ -30,7 +30,10 @@ describe('Sessions CLI structured failure exit status', () => {
       workingDirectory: '/project',
     })
     mocks.watchEvents.mockResolvedValue({ status: 'closed' })
-    vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
+    vi.spyOn(process.stdout, 'write').mockImplementation((_chunk, _encoding, callback) => {
+      callback?.()
+      return true
+    })
     vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
   })
 

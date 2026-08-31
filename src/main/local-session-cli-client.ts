@@ -5,6 +5,7 @@ import type { executeLocalSessionCommand } from './session-host/local-session-cl
 import { ensureLocalSessionHost } from './session-host/local-session-host-launcher'
 import {
   prepareLocalSessionHostPaths,
+  refreshLocalSessionHostEndpoint,
   resolveLocalSessionHostPaths,
 } from './session-host/local-session-paths'
 import {
@@ -21,8 +22,9 @@ export async function createLocalSessionCliClientInput(
   arguments_: ParsedArguments,
   options: { readonly supportedRevisions?: readonly number[] } = {},
 ): Promise<LocalSessionCliClientInput> {
-  const paths = resolveLocalSessionHostPaths({ userDataRoot: app.getPath('userData') })
-  await prepareLocalSessionHostPaths(paths)
+  const paths = await prepareLocalSessionHostPaths(
+    resolveLocalSessionHostPaths({ userDataRoot: app.getPath('userData') }),
+  )
   const profile = option(arguments_, 'profile') ?? env.OPENWAGGLE_PROFILE
   if (env.OPENWAGGLE_AGENT_RUN === '1' && !profile) {
     throw new Error(
@@ -48,5 +50,5 @@ export async function createLocalSessionCliClientInput(
     ...(profileCredential ? { profileCredential } : {}),
   }
   await ensureLocalSessionHost(input)
-  return input
+  return { ...input, paths: await refreshLocalSessionHostEndpoint(paths) }
 }

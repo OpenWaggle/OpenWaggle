@@ -1,194 +1,282 @@
-import { spawn } from 'node:child_process'
-import { randomUUID } from 'node:crypto'
-import fs from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
-import { getSafeChildEnv } from '../env'
-import { ensureDirectoryPathPinned } from '../utils/pinned-directory-creation'
-import {
-  abortValidatedChild,
-  releaseValidatedChild,
-  waitForChildExit,
-} from '../utils/validated-child-process'
+import { runManagedShimMutationInternal } from './cli-shim-mutation-runner'
 
 const EXECUTABLE_MODE = 0o755
-const OWNER_DIRECTORY_MODE = 0o700
-const ROLLBACK_DESTINATION_OCCUPIED_EXIT_CODE = 77
-const filesystemConstants = process.getBuiltinModule('node:fs').constants
-const OPEN_DIRECTORY_NO_FOLLOW =
-  filesystemConstants.O_RDONLY |
-  (filesystemConstants.O_DIRECTORY ?? 0) |
-  (filesystemConstants.O_NOFOLLOW ?? 0)
 
-const DARWIN_CLI_MUTATION = `
-set -eu
-[ "$(/usr/bin/stat -f '%d:%i' .)" = "$5" ] || exit 73
-/usr/bin/printf ready
-IFS= read -r _
-if [ "$1" = "create" ]; then trap '/bin/rm -f -- "$3"' EXIT; /bin/cat <&3 > "$3"; /bin/chmod 755 "$3"; /bin/ln -h -- "$3" "$2"; /bin/rm -- "$3"; trap - EXIT; exit 0; fi
-rollback() { code=$?; trap - EXIT; /bin/rm -f -- "$3"; if [ -e "$4" ] || [ -L "$4" ]; then if [ -e "$2" ] || [ -L "$2" ]; then exit 77; else /bin/ln -h -- "$4" "$2"; /bin/rm -- "$4"; fi; fi; exit "$code"; }
-trap rollback EXIT
-if [ "$1" != "remove" ]; then /bin/cat <&3 > "$3"; /bin/chmod 755 "$3"; fi
-/bin/mv -- "$2" "$4"
-actual_identity=$(/usr/bin/stat -f '%d:%i' "$4")
-actual_digest=$(/usr/bin/shasum -a 256 "$4" | /usr/bin/awk '{print $1}')
-if [ "$actual_identity" != "$6" ] || [ "$actual_digest" != "$7" ]; then if [ -e "$2" ] || [ -L "$2" ]; then exit 77; else /bin/ln -h -- "$4" "$2"; /bin/rm -- "$4"; trap - EXIT; exit 74; fi; fi
-if [ "$1" = "replace" ]; then /bin/ln -h -- "$3" "$2"; /bin/rm -- "$3"; fi
-/bin/rm -- "$4"
-trap - EXIT
-`
+/**
+ * Runs inside the packaged Electron executable with `ELECTRON_RUN_AS_NODE=1`.
+ *
+ * The helper's cwd is the descriptor-pinned command directory. New bytes arrive
+ * through inherited fd 3, never through a path that an untrusted peer can swap.
+ * Create uses hard-link no-replace semantics. Replace atomically preserves the
+ * current target in a private recovery directory, then installs no-replace; the
+ * bounded gap favors retaining raced-in user data over path continuity because
+ * standard Node exposes no pathname compare-and-swap. Every cleanup checks the
+ * inode it created before unlinking, so hostile replacements are not deleted.
+ */
+const NODE_CLI_SHIM_MUTATION = String.raw`
+const crypto = require('node:crypto')
+const fs = require('node:fs')
 
-const LINUX_CLI_MUTATION = `
-set -eu
-[ "$(/usr/bin/stat -c '%d:%i' .)" = "$5" ] || exit 73
-/usr/bin/printf ready
-IFS= read -r _
-if [ "$1" = "create" ]; then trap '/bin/rm -f -- "$3"' EXIT; /bin/cat <&3 > "$3"; /bin/chmod 755 "$3"; /bin/ln -T -- "$3" "$2"; /bin/rm -- "$3"; trap - EXIT; exit 0; fi
-rollback() { code=$?; trap - EXIT; /bin/rm -f -- "$3"; if [ -e "$4" ] || [ -L "$4" ]; then if [ -e "$2" ] || [ -L "$2" ]; then exit 77; else /bin/ln -T -- "$4" "$2"; /bin/rm -- "$4"; fi; fi; exit "$code"; }
-trap rollback EXIT
-if [ "$1" != "remove" ]; then /bin/cat <&3 > "$3"; /bin/chmod 755 "$3"; fi
-/bin/mv -- "$2" "$4"
-actual_identity=$(/usr/bin/stat -c '%d:%i' "$4")
-actual_digest=$(/usr/bin/sha256sum "$4" | /usr/bin/awk '{print $1}')
-if [ "$actual_identity" != "$6" ] || [ "$actual_digest" != "$7" ]; then if [ -e "$2" ] || [ -L "$2" ]; then exit 77; else /bin/ln -T -- "$4" "$2"; /bin/rm -- "$4"; trap - EXIT; exit 74; fi; fi
-if [ "$1" = "replace" ]; then /bin/ln -T -- "$3" "$2"; /bin/rm -- "$3"; fi
-/bin/rm -- "$4"
-trap - EXIT
+const [mode, target, pendingName, expectedDirectory, expectedIdentity, expectedDigest] = process.argv.slice(1)
+const constants = fs.constants
+const noFollow = constants.O_NOFOLLOW || 0
+const identity = (stats) => stats.dev + ':' + stats.ino
+const directory = fs.statSync('.')
+if (identity(directory) !== expectedDirectory) process.exit(73)
+
+let pendingIdentity
+let pendingDigest
+let pendingHandle
+let recoveryIdentity
+let commitIdentity
+let retainRecovery = false
+let retainCommit = false
+let recoveryRoot
+let recoveryRootIdentity
+let recoveryName
+let commitName
+
+function pathIdentity(name) {
+  try {
+    return identity(fs.lstatSync(name))
+  } catch (error) {
+    if (error && error.code === 'ENOENT') return undefined
+    throw error
+  }
+}
+
+function unlinkOwned(name, ownedIdentity) {
+  if (name && ownedIdentity && pathIdentity(name) === ownedIdentity) fs.unlinkSync(name)
+}
+
+function prepareRecoveryRoot() {
+  recoveryRoot = fs.mkdtempSync('.openwaggle-cli-recovery-')
+  fs.chmodSync(recoveryRoot, 0o700)
+  recoveryRootIdentity = pathIdentity(recoveryRoot)
+  recoveryName = recoveryRoot + '/authorized'
+  commitName = recoveryRoot + '/displaced'
+}
+
+function cleanupPending() {
+  if (pendingHandle !== undefined) {
+    fs.closeSync(pendingHandle)
+    pendingHandle = undefined
+  }
+  unlinkOwned(pendingName, pendingIdentity)
+  if (!retainCommit) unlinkOwned(commitName, commitIdentity)
+  if (!retainRecovery) unlinkOwned(recoveryName, recoveryIdentity)
+  if (
+    !retainCommit &&
+    !retainRecovery &&
+    recoveryRootIdentity &&
+    pathIdentity(recoveryRoot) === recoveryRootIdentity
+  ) {
+    try {
+      fs.rmdirSync(recoveryRoot)
+    } catch (error) {
+      if (!error || error.code !== 'ENOTEMPTY') throw error
+    }
+  }
+}
+
+for (const signal of ['SIGHUP', 'SIGINT', 'SIGTERM']) {
+  process.on(signal, () => {
+    recoverMutation(new Error('CLI shim mutation was interrupted.'))
+    cleanupPending()
+    process.exit(128)
+  })
+}
+
+function readDescriptor(fd) {
+  const chunks = []
+  const buffer = Buffer.allocUnsafe(64 * 1024)
+  while (true) {
+    const bytes = fs.readSync(fd, buffer, 0, buffer.length, null)
+    if (bytes === 0) break
+    chunks.push(Buffer.from(buffer.subarray(0, bytes)))
+  }
+  return Buffer.concat(chunks)
+}
+
+function waitForRelease() {
+  const byte = Buffer.allocUnsafe(1)
+  while (fs.readSync(0, byte, 0, 1, null) !== 0) {
+    if (byte[0] === 10) return
+  }
+  throw new Error('CLI shim mutation authorization closed early.')
+}
+
+function validatePending() {
+  const stats = fs.fstatSync(pendingHandle)
+  if (!stats.isFile() || identity(stats) !== pendingIdentity || pathIdentity(pendingName) !== pendingIdentity) {
+    throw new Error('Pending CLI shim identity changed.')
+  }
+  const readHandle = fs.openSync(pendingName, constants.O_RDONLY | noFollow)
+  try {
+    const readStats = fs.fstatSync(readHandle)
+    const digest = crypto.createHash('sha256').update(readDescriptor(readHandle)).digest('hex')
+    if (identity(readStats) !== pendingIdentity || digest !== pendingDigest) {
+      throw new Error('Pending CLI shim content changed.')
+    }
+  } finally {
+    fs.closeSync(readHandle)
+  }
+}
+
+function linkTarget(name) {
+  const handle = fs.openSync(target, constants.O_RDONLY | noFollow)
+  try {
+    const stats = fs.fstatSync(handle)
+    if (!stats.isFile()) throw new Error('CLI target is not a regular file.')
+    const sourceIdentity = identity(stats)
+    fs.linkSync(target, name)
+    return sourceIdentity
+  } finally {
+    fs.closeSync(handle)
+  }
+}
+
+function validateTarget(linkName, linkedIdentity, targetState) {
+  const handle = fs.openSync(linkName, constants.O_RDONLY | noFollow)
+  try {
+    const stats = fs.fstatSync(handle)
+    const targetIdentity = pathIdentity(target)
+    if (
+      !stats.isFile() ||
+      identity(stats) !== expectedIdentity ||
+      linkedIdentity !== expectedIdentity ||
+      pathIdentity(linkName) !== expectedIdentity ||
+      (targetState === 'linked' ? targetIdentity !== expectedIdentity : targetIdentity !== undefined)
+    ) {
+      throw new Error('CLI target identity changed.')
+    }
+    const digest = crypto.createHash('sha256').update(readDescriptor(handle)).digest('hex')
+    if (digest !== expectedDigest) throw new Error('CLI target content changed.')
+  } finally {
+    fs.closeSync(handle)
+  }
+}
+
+function restoreNoReplace(name, ownedIdentity) {
+  if (!ownedIdentity || pathIdentity(name) !== ownedIdentity) return false
+  try {
+    fs.linkSync(name, target)
+  } catch (error) {
+    if (error && error.code === 'EEXIST') return false
+    throw error
+  }
+  if (pathIdentity(target) !== ownedIdentity) return false
+  unlinkOwned(name, ownedIdentity)
+  return true
+}
+
+function recoverMutation(error) {
+  if (commitIdentity) {
+    if (pathIdentity(target) === commitIdentity) return error
+    if (restoreNoReplace(commitName, commitIdentity)) return error
+    retainCommit = pathIdentity(commitName) === commitIdentity
+    if (retainCommit) {
+      return new Error(
+        (error instanceof Error ? error.message : String(error)) +
+          ' The preserved target remains recoverable at ' +
+          require('node:path').resolve(commitName) +
+          '.',
+      )
+    }
+  }
+  if (recoveryIdentity) {
+    if (pathIdentity(target) === recoveryIdentity) return error
+    if (restoreNoReplace(recoveryName, recoveryIdentity)) return error
+    retainRecovery = pathIdentity(recoveryName) === recoveryIdentity
+    if (retainRecovery) {
+      return new Error(
+        (error instanceof Error ? error.message : String(error)) +
+          ' The managed target remains recoverable at ' +
+          require('node:path').resolve(recoveryName) +
+          '.',
+      )
+    }
+  }
+  return error
+}
+
+try {
+  if (mode !== 'remove') {
+    pendingHandle = fs.openSync(
+      pendingName,
+      constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | noFollow,
+      ${String(EXECUTABLE_MODE)},
+    )
+    pendingIdentity = identity(fs.fstatSync(pendingHandle))
+    const content = readDescriptor(3)
+    pendingDigest = crypto.createHash('sha256').update(content).digest('hex')
+    fs.writeFileSync(pendingHandle, content)
+    fs.fchmodSync(pendingHandle, ${String(EXECUTABLE_MODE)})
+    fs.fsyncSync(pendingHandle)
+  }
+
+  process.stdout.write('ready\n')
+  waitForRelease()
+
+  if (mode === 'create') {
+    validatePending()
+    fs.linkSync(pendingName, target)
+    if (pathIdentity(target) !== pendingIdentity) throw new Error('Created CLI shim identity changed.')
+  } else if (mode === 'replace' || mode === 'remove') {
+    prepareRecoveryRoot()
+    recoveryIdentity = linkTarget(recoveryName)
+    validateTarget(recoveryName, recoveryIdentity, 'linked')
+    process.stdout.write('validated\n')
+    waitForRelease()
+
+    fs.renameSync(target, commitName)
+    commitIdentity = pathIdentity(commitName)
+    if (!commitIdentity) throw new Error('CLI target displacement disappeared.')
+    validateTarget(commitName, commitIdentity, 'absent')
+    process.stdout.write('displaced\n')
+    waitForRelease()
+    if (mode === 'replace') {
+      validatePending()
+      fs.linkSync(pendingName, target)
+      if (pathIdentity(target) !== pendingIdentity) throw new Error('Replaced CLI shim identity changed.')
+    }
+  } else {
+    throw new Error('Unsupported CLI shim mutation.')
+  }
+} catch (error) {
+  const recovered = recoverMutation(error)
+  process.stderr.write(recovered instanceof Error ? recovered.message : String(recovered))
+  process.exitCode = 74
+} finally {
+  cleanupPending()
+}
 `
 
 export interface CliShimMutationServiceInput {
   readonly platform: NodeJS.Platform
   readonly homeDirectory: string
   readonly beforeManagedReplacement?: () => Promise<void>
-  readonly beforeManagedSpawn?: () => Promise<void>
+  readonly beforeManagedCommit?: () => Promise<void>
+  readonly afterManagedDisplacement?: () => Promise<void>
+  readonly beforeManagedSpawn?: (input: {
+    readonly directory: string
+    readonly pendingName: string
+  }) => Promise<void>
 }
 
-interface ExpectedShim {
+export interface ExpectedShim {
   readonly identity: string
   readonly digest: string
 }
 
-async function validateCommandDirectory(input: {
-  readonly homeDirectory: string
-  readonly directory: string
-  readonly expected: { readonly dev: number; readonly ino: number }
-  readonly expectedCanonicalDirectory: string
-}) {
-  const [canonicalHome, canonicalDirectory, current] = await Promise.all([
-    fs.realpath(input.homeDirectory),
-    fs.realpath(input.directory),
-    fs.stat(input.directory),
-  ])
-  const relative = path.relative(canonicalHome, canonicalDirectory)
-  const escaped =
-    relative.startsWith('..') ||
-    path.isAbsolute(relative) ||
-    canonicalDirectory !== input.expectedCanonicalDirectory
-  const changed = current.dev !== input.expected.dev || current.ino !== input.expected.ino
-  if (escaped || changed) throw new Error('The CLI command directory changed before mutation.')
-}
-
-function mutationArguments(input: {
-  readonly platform: NodeJS.Platform
-  readonly mode: 'create' | 'replace' | 'remove'
-  readonly target: string
-  readonly pendingName: string
-  readonly displacedName: string
-  readonly directoryIdentity: string
-  readonly expectedTarget?: ExpectedShim
-}) {
-  return [
-    '-c',
-    input.platform === 'darwin' ? DARWIN_CLI_MUTATION : LINUX_CLI_MUTATION,
-    'openwaggle-cli-shim',
-    input.mode,
-    path.basename(input.target),
-    input.pendingName,
-    input.displacedName,
-    input.directoryIdentity,
-    input.expectedTarget?.identity ?? 'missing',
-    input.expectedTarget?.digest ?? 'missing',
-  ]
-}
-
-export async function runManagedShimMutation(input: {
+export interface ManagedShimMutationInput {
   readonly service: CliShimMutationServiceInput
   readonly target: string
   readonly expectedContent?: string
   readonly mode: 'create' | 'replace' | 'remove'
   readonly expectedTarget?: ExpectedShim
-}) {
-  const directory = path.dirname(input.target)
-  await ensureDirectoryPathPinned({ targetDirectory: directory, mode: EXECUTABLE_MODE })
-  const directoryHandle = await fs.open(directory, OPEN_DIRECTORY_NO_FOLLOW)
-  const directoryStats = await directoryHandle.stat()
-  const expectedCanonicalDirectory = await fs.realpath(directory)
-  const workingRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-cli-shim-'))
-  await fs.chmod(workingRoot, OWNER_DIRECTORY_MODE)
-  const sourcePath = path.join(workingRoot, 'shim.pending')
-  const pendingName = `.openwaggle-${process.pid}-${randomUUID()}.pending`
-  const displacedName = `.openwaggle-${process.pid}-${randomUUID()}.displaced`
-  let sourceHandle: Awaited<ReturnType<typeof fs.open>> | undefined
-  try {
-    if (input.expectedContent !== undefined) {
-      await fs.writeFile(sourcePath, input.expectedContent, {
-        encoding: 'utf8',
-        flag: 'wx',
-        mode: EXECUTABLE_MODE,
-      })
-      sourceHandle = await fs.open(sourcePath, filesystemConstants.O_RDONLY)
-    }
-    await input.service.beforeManagedSpawn?.()
-    const child = spawn(
-      '/bin/sh',
-      mutationArguments({
-        platform: input.service.platform,
-        mode: input.mode,
-        target: input.target,
-        pendingName,
-        displacedName,
-        directoryIdentity: `${directoryStats.dev}:${directoryStats.ino}`,
-        ...(input.expectedTarget ? { expectedTarget: input.expectedTarget } : {}),
-      }),
-      {
-        cwd: directory,
-        env: getSafeChildEnv(),
-        stdio: ['pipe', 'pipe', 'ignore', sourceHandle?.fd ?? 'ignore'],
-      },
-    )
-    const exitCodePromise = waitForChildExit(child)
-    try {
-      await validateCommandDirectory({
-        homeDirectory: input.service.homeDirectory,
-        directory,
-        expected: directoryStats,
-        expectedCanonicalDirectory,
-      })
-      await releaseValidatedChild({
-        child,
-        label: 'CLI shim mutation helper',
-        ...(input.mode === 'replace' && input.service.beforeManagedReplacement
-          ? { afterValidation: input.service.beforeManagedReplacement }
-          : {}),
-      })
-    } catch (error) {
-      await abortValidatedChild(child, exitCodePromise)
-      throw error
-    }
-    const exitCode = await exitCodePromise
-    if (exitCode === ROLLBACK_DESTINATION_OCCUPIED_EXIT_CODE) {
-      throw new Error(
-        `The CLI destination was occupied during rollback; the managed shim remains recoverable at ${path.join(directory, displacedName)}.`,
-      )
-    }
-    if (exitCode !== 0) {
-      throw new Error('The CLI path changed during mutation; OpenWaggle did not modify it.')
-    }
-  } finally {
-    await Promise.all([
-      directoryHandle.close(),
-      sourceHandle?.close(),
-      fs.rm(workingRoot, { recursive: true, force: true }),
-    ])
-  }
+}
+
+export function runManagedShimMutation(input: ManagedShimMutationInput) {
+  return runManagedShimMutationInternal(input, NODE_CLI_SHIM_MUTATION)
 }

@@ -147,6 +147,83 @@ describe('descriptor-bound Session export installation', () => {
     await expect(fs.readdir(outsideDirectory)).resolves.toEqual([])
   })
 
+  it('fails closed when a hostile symlink claims the pending name after validation', async () => {
+    if (process.platform === 'win32') return
+    const workspace = path.join(temporaryRoot, 'workspace-pending-symlink')
+    const outsidePath = path.join(temporaryRoot, 'outside-pending-target')
+    const sourcePath = path.join(temporaryRoot, 'pending-symlink-source')
+    const pendingName = '.openwaggle-export-hostile.pending'
+    await Promise.all([
+      fs.mkdir(workspace),
+      fs.writeFile(outsidePath, 'outside user data'),
+      fs.writeFile(sourcePath, 'authorized export'),
+    ])
+    const sourceHandle = await fs.open(sourcePath, 'r')
+    try {
+      await expect(
+        installArtifactDescriptorInBoundDirectory({
+          sourceHandle,
+          sourceDigest: createHash('sha256').update('authorized export').digest('hex'),
+          destinationPath: path.join(workspace, 'session.jsonl'),
+          destinationRoot: await fs.realpath(workspace),
+          overwriteExisting: true,
+          pendingName,
+          afterSpawn: async () => {
+            await fs.symlink(outsidePath, path.join(workspace, pendingName))
+          },
+        }),
+      ).rejects.toThrow('copy-install failed')
+    } finally {
+      await sourceHandle.close()
+    }
+    await expect(fs.readFile(outsidePath, 'utf8')).resolves.toBe('outside user data')
+    await expect(fs.lstat(path.join(workspace, pendingName))).resolves.toMatchObject({})
+    await expect(fs.stat(path.join(workspace, 'session.jsonl'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    })
+  })
+
+  it('keeps the prior destination continuously present until atomic overwrite', async () => {
+    if (process.platform === 'win32') return
+    const workspace = path.join(temporaryRoot, 'workspace-atomic-overwrite')
+    const sourcePath = path.join(temporaryRoot, 'atomic-source')
+    const destinationPath = path.join(workspace, 'session.jsonl')
+    const replacement = Buffer.alloc(8 * 1024 * 1024, 97)
+    await fs.mkdir(workspace)
+    await Promise.all([
+      fs.writeFile(sourcePath, replacement),
+      fs.writeFile(destinationPath, 'prior artifact'),
+    ])
+    const sourceHandle = await fs.open(sourcePath, 'r')
+    let observing = true
+    let missing = false
+    const observer = (async () => {
+      while (observing) {
+        try {
+          await fs.lstat(destinationPath)
+        } catch (error) {
+          if (error instanceof Error && 'code' in error && error.code === 'ENOENT') missing = true
+        }
+        await new Promise<void>((resolve) => setImmediate(resolve))
+      }
+    })()
+    try {
+      await installArtifactDescriptorInBoundDirectory({
+        sourceHandle,
+        sourceDigest: createHash('sha256').update(replacement).digest('hex'),
+        destinationPath,
+        destinationRoot: await fs.realpath(workspace),
+        overwriteExisting: true,
+      })
+    } finally {
+      observing = false
+      await observer
+      await sourceHandle.close()
+    }
+    expect(missing).toBe(false)
+    await expect(fs.readFile(destinationPath)).resolves.toEqual(replacement)
+  })
+
   it('rejects a destination directory replaced before the helper pins it', async () => {
     if (process.platform === 'win32') return
     const workspace = path.join(temporaryRoot, 'workspace-pre-spawn')

@@ -26,20 +26,20 @@ export async function watchSessionExportOperations(
       ...(after ? { after } : {}),
       signal: abortController.signal,
       onCursor: writeCursor,
-      onEvent: (event) => {
+      onEvent: async (event) => {
         const payload = event.payload
         if (
           payload.kind !== 'session-export-changed' ||
           payload.sessionId !== sessionId ||
           (exportOperationId && payload.exportOperationId !== exportOperationId)
         ) {
-          writeCursor(event.cursor)
+          await writeCursor(event.cursor)
           return
         }
-        writeSessionsCliStreamRecord(event, jsonl)
+        await writeSessionsCliStreamRecord(event, jsonl)
       },
     })
-    if (result.status === 'resync-required') writeSessionsCliStreamRecord(result, jsonl)
+    if (result.status === 'resync-required') await writeSessionsCliStreamRecord(result, jsonl)
     return result
   } finally {
     process.off('SIGINT', interrupt)

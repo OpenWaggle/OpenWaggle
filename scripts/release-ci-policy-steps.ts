@@ -72,6 +72,8 @@ const e2eFailureArtifactStep = (platform: 'linux' | 'macos' | 'windows') =>
           retention-days: 7`
 const LINUX_ELECTRON_DEPENDENCIES_STEP = `      - name: Install Linux Electron dependencies
         run: pnpm exec playwright install-deps chromium`
+const WINDOWS_PIPE_ISOLATION_STEP = `      - name: Verify Windows Session Host pipe isolation
+        run: pnpm exec vitest run -c vitest.integration.config.ts src/main/session-host/__tests__/local-session-windows-security.integration.test.ts`
 /*
  * NSIS is required by `pnpm check:installer`, which compile-checks build/installer.nsh.
  * Pinned here because a broken installer script otherwise only surfaces when the release
@@ -157,6 +159,7 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
       PNPM_SETUP_STEP,
       NODE_SETUP_STEP,
       INSTALL_STEP,
+      WINDOWS_PIPE_ISOLATION_STEP,
       '      - run: pnpm test:e2e:functional',
       e2eFailureArtifactStep('windows'),
     ],

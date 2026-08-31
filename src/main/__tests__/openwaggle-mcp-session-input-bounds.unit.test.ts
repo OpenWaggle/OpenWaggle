@@ -1,3 +1,4 @@
+import { MAX_NODE_TIMER_DELAY_MS } from '@shared/constants/time'
 import {
   SESSION_QUERY_MAX_CURSOR_LENGTH,
   SESSION_QUERY_MAX_PATH_LENGTH,
@@ -165,6 +166,42 @@ describe('OpenWaggle MCP Session input bounds', () => {
           kind: 'custom',
           value: 'j'.repeat(MCP_SESSION_INPUT_LIMITS_V2.jsonLength - 1),
         },
+      }).success,
+    ).toBe(false)
+  })
+
+  it('bounds text interaction responses', () => {
+    expect(
+      sessionInputSchemaV2.safeParse({
+        operation: 'request-respond',
+        interactionResponse: {
+          kind: 'editor',
+          value: 'x'.repeat(MCP_SESSION_INPUT_LIMITS_V2.textLength),
+        },
+      }).success,
+    ).toBe(true)
+    expect(
+      sessionInputSchemaV2.safeParse({
+        operation: 'request-respond',
+        interactionResponse: {
+          kind: 'editor',
+          value: 'x'.repeat(MCP_SESSION_INPUT_LIMITS_V2.textLength + 1),
+        },
+      }).success,
+    ).toBe(false)
+  })
+
+  it('rejects interaction timeouts that Node would coerce to one millisecond', () => {
+    expect(
+      sessionInputSchemaV2.safeParse({
+        operation: 'start',
+        interactionTimeoutMs: MAX_NODE_TIMER_DELAY_MS,
+      }).success,
+    ).toBe(true)
+    expect(
+      sessionInputSchemaV2.safeParse({
+        operation: 'start',
+        interactionTimeoutMs: MAX_NODE_TIMER_DELAY_MS + 1,
       }).success,
     ).toBe(false)
   })

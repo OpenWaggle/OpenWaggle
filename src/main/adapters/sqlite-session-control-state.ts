@@ -1,5 +1,6 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type * as SqlClient from '@effect/sql/SqlClient'
+import { MAX_NODE_TIMER_DELAY_MS } from '@shared/constants/time'
 import { decodeUnknownExactOrThrow, parseJsonUnknown, Schema } from '@shared/schema'
 import { toWaggleInvocation, waggleInvocationSchema } from '@shared/schemas/waggle'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
@@ -44,7 +45,9 @@ const intentSnapshotSchema = Schema.Struct({
   thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
   waggle: Schema.optional(waggleInvocationSchema),
   runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
-  interactionTimeoutMs: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
+  interactionTimeoutMs: Schema.optional(
+    Schema.Number.pipe(Schema.int(), Schema.between(0, MAX_NODE_TIMER_DELAY_MS)),
+  ),
   callerId: Schema.String,
   acceptedAt: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
   idempotencyKey: Schema.String,

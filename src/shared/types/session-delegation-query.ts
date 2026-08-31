@@ -154,4 +154,5 @@ export interface DelegationReadQueryOutcome {
       readonly provenance?: unknown
     }[]
   }[]
+  readonly nextCursor?: string
 }

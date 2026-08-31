@@ -1,3 +1,4 @@
+import { MAX_NODE_TIMER_DELAY_MS } from '@shared/constants/time'
 import {
   SESSION_QUERY_DISCOVERY_LIMIT,
   SESSION_QUERY_MAX_WAIT_MS,
@@ -73,7 +74,9 @@ export const sessionsToolParameters = Type.Union([
     authorization: Type.Optional(
       Type.Union([Type.Literal('ask-for-approval'), Type.Literal('yolo')]),
     ),
-    interactionTimeoutMs: Type.Optional(Type.Integer({ minimum: 0 })),
+    interactionTimeoutMs: Type.Optional(
+      Type.Integer({ minimum: 0, maximum: MAX_NODE_TIMER_DELAY_MS }),
+    ),
     ...rootSpecialization,
   }),
   Type.Object({
@@ -89,7 +92,9 @@ export const sessionsToolParameters = Type.Union([
     authorization: Type.Optional(
       Type.Union([Type.Literal('ask-for-approval'), Type.Literal('yolo')]),
     ),
-    interactionTimeoutMs: Type.Optional(Type.Integer({ minimum: 0 })),
+    interactionTimeoutMs: Type.Optional(
+      Type.Integer({ minimum: 0, maximum: MAX_NODE_TIMER_DELAY_MS }),
+    ),
   }),
   Type.Object({
     action: Type.Literal('message'),
@@ -103,7 +108,9 @@ export const sessionsToolParameters = Type.Union([
     authorization: Type.Optional(
       Type.Union([Type.Literal('ask-for-approval'), Type.Literal('yolo')]),
     ),
-    interactionTimeoutMs: Type.Optional(Type.Integer({ minimum: 0 })),
+    interactionTimeoutMs: Type.Optional(
+      Type.Integer({ minimum: 0, maximum: MAX_NODE_TIMER_DELAY_MS }),
+    ),
   }),
   Type.Object({
     action: Type.Literal('follow_up'),
@@ -181,7 +188,12 @@ export const sessionsToolParameters = Type.Union([
     limit: Type.Optional(Type.Integer({ minimum: 1, maximum: SESSION_QUERY_DISCOVERY_LIMIT })),
     cursor: Type.Optional(Type.String()),
   }),
-  Type.Object({ action: Type.Literal('delegations_read'), delegationId: Type.String() }),
+  Type.Object({
+    action: Type.Literal('delegations_read'),
+    delegationId: Type.String(),
+    limit: Type.Optional(Type.Integer({ minimum: 1, maximum: SESSION_QUERY_DISCOVERY_LIMIT })),
+    cursor: Type.Optional(Type.String()),
+  }),
   delegationsConflictsParameter,
   Type.Object({
     action: Type.Literal('list'),

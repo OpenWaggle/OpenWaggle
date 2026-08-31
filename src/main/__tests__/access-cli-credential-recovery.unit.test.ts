@@ -79,7 +79,10 @@ describe('Access CLI credential recovery', () => {
       commit: commitMock,
       discard: discardMock,
     })
-    vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
+    vi.spyOn(process.stdout, 'write').mockImplementation((_chunk, _encoding, callback) => {
+      callback?.()
+      return true
+    })
     vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
   })
 

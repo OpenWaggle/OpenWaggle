@@ -3,6 +3,7 @@ import { constants } from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { SESSION_EXPORT_RESOURCE_LIMIT } from '@shared/types/session-export-operation'
 import * as Effect from 'effect/Effect'
 import JSZip from 'jszip'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -131,6 +132,7 @@ describe('filesystem Session export artifact writer', () => {
     const sourcePath = path.join(temporaryRoot, 'README.md')
     await fs.writeFile(sourcePath, '# Included resource\n')
     const sourceHandle = await fs.open(sourcePath, OPEN_READ_NO_FOLLOW)
+    const sourceStats = await sourceHandle.stat()
 
     await Effect.runPromise(
       Effect.gen(function* () {
@@ -138,7 +140,12 @@ describe('filesystem Session export artifact writer', () => {
         const sink = yield* writer.open(exportOperation)
         yield* sink.writeManifest(manifest)
         yield* sink.writeRecords(records)
-        yield* sink.writeResource({ path: 'docs/README.md', sourceHandle })
+        yield* sink.writeResource({
+          path: 'docs/README.md',
+          sourceHandle,
+          expectedSize: sourceStats.size,
+          expectedIdentity: { dev: sourceStats.dev, ino: sourceStats.ino },
+        })
         yield* sink.finalize()
       }).pipe(Effect.provide(FilesystemSessionExportArtifactWriterLive)),
     )
@@ -164,41 +171,39 @@ describe('filesystem Session export artifact writer', () => {
     )
   })
 
-  it('reads a bundled resource through the descriptor authorized by the resolver', async () => {
-    const workspacePath = path.join(temporaryRoot, 'workspace')
-    const sourcePath = path.join(workspacePath, 'README.md')
-    const movedPath = path.join(workspacePath, 'README.original.md')
-    const outsidePath = path.join(temporaryRoot, 'outside-secret.md')
-    await fs.mkdir(workspacePath)
-    await fs.writeFile(sourcePath, '# Authorized contents\n')
-    await fs.writeFile(outsidePath, 'must not be exported\n')
-    const resolved = await openFilesystemSessionExportResource({
-      workspacePath,
-      resourcePath: 'README.md',
-    })
-
-    // Replacing the authorized pathname after resolution must not change the bytes copied.
-    await fs.rename(sourcePath, movedPath)
-    await fs.symlink(outsidePath, sourcePath)
-    const exportOperation = operation('bundle', 'descriptor-bound.zip')
-    await Effect.runPromise(
+  it('keeps descriptor use bounded at the maximum valid resource count', async () => {
+    if (process.platform === 'win32') return
+    const exportOperation = operation('bundle', 'bounded-descriptors.zip')
+    const sourcePath = path.join(temporaryRoot, 'tiny-resource.txt')
+    await fs.writeFile(sourcePath, 'x')
+    const sink = await Effect.runPromise(
       Effect.gen(function* () {
         const writer = yield* SessionExportArtifactWriter
-        const sink = yield* writer.open(exportOperation)
-        yield* sink.writeManifest(manifest)
-        yield* sink.writeRecords(records)
-        yield* sink.writeResource({
-          path: resolved.path,
-          sourceHandle: resolved.sourceHandle,
-        })
-        yield* sink.finalize()
+        const opened = yield* writer.open(exportOperation)
+        yield* opened.writeManifest(manifest)
+        return opened
       }).pipe(Effect.provide(FilesystemSessionExportArtifactWriterLive)),
     )
-
-    const zip = await JSZip.loadAsync(await fs.readFile(exportOperation.destinationPath))
-    await expect(zip.file('resources/README.md')?.async('string')).resolves.toBe(
-      '# Authorized contents\n',
-    )
+    const descriptorDirectory = process.platform === 'linux' ? '/proc/self/fd' : '/dev/fd'
+    const before = (await fs.readdir(descriptorDirectory)).length
+    try {
+      for (let index = 0; index < SESSION_EXPORT_RESOURCE_LIMIT; index += 1) {
+        const sourceHandle = await fs.open(sourcePath, OPEN_READ_NO_FOLLOW)
+        const sourceStats = await sourceHandle.stat()
+        await Effect.runPromise(
+          sink.writeResource({
+            path: `resource-${String(index)}.txt`,
+            sourceHandle,
+            expectedSize: sourceStats.size,
+            expectedIdentity: { dev: sourceStats.dev, ino: sourceStats.ino },
+          }),
+        )
+      }
+      const after = (await fs.readdir(descriptorDirectory)).length
+      expect(after - before).toBeLessThan(16)
+    } finally {
+      await Effect.runPromise(sink.discard())
+    }
   })
 
   it('rejects a symlink as a bundled resource before returning a descriptor', async () => {

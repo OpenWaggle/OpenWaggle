@@ -2,12 +2,51 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
+import { SESSION_QUERY_MAX_RESPONSE_BYTES } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   executeSessionQuery as executeQuery,
   makeSessionQueryRuntime as makeRuntime,
 } from './sqlite-session-query-test-layer'
+
+async function collectLargeTranscriptPages(
+  runtime: ReturnType<typeof makeRuntime>,
+  operation: 'export' | 'items',
+) {
+  const seen = new Set<string>()
+  let afterCreatedOrder: number | undefined
+  let throughCreatedOrder: number | undefined
+  do {
+    const pageCursor = {
+      ...(afterCreatedOrder === undefined ? {} : { afterCreatedOrder }),
+      ...(throughCreatedOrder === undefined ? {} : { throughCreatedOrder }),
+    }
+    const result = await executeQuery(
+      runtime,
+      operation === 'items'
+        ? { operation, sessionId: 'worker', limit: 500, ...pageCursor }
+        : { operation, sessionId: 'worker', limit: 500, branchScope: 'tree', ...pageCursor },
+    )
+    expect(Buffer.byteLength(JSON.stringify(result))).toBeLessThanOrEqual(
+      SESSION_QUERY_MAX_RESPONSE_BYTES,
+    )
+    if (result.outcome.operation === 'items' && !('error' in result.outcome)) {
+      for (const record of result.outcome.items) seen.add(record.nodeId)
+      throughCreatedOrder ??= result.outcome.highWaterMark
+      afterCreatedOrder = result.outcome.nextCreatedOrder
+      continue
+    }
+    if (result.outcome.operation === 'export' && !('error' in result.outcome)) {
+      for (const record of result.outcome.records) seen.add(record.nodeId)
+      throughCreatedOrder ??= result.outcome.manifest.snapshot.nodeHighWaterMark
+      afterCreatedOrder = result.outcome.nextCreatedOrder
+      continue
+    }
+    throw new Error(`Expected ${operation} page.`)
+  } while (afterCreatedOrder !== undefined)
+  return seen
+}
 
 describe('SQLite Session transcript queries', () => {
   let temporaryRoot = ''
@@ -108,5 +147,67 @@ describe('SQLite Session transcript queries', () => {
       items: [{ nodeId: 'node-worker-1', runId: 'run-worker' }],
     })
     expect(JSON.stringify(result)).not.toContain('second page')
+  })
+
+  it('byte-pages transcripts and exports whose aggregate content exceeds the Host message limit', async () => {
+    const runtime = makeRuntime(path.join(temporaryRoot, 'large-pages.sqlite'))
+    runtimes.push(runtime)
+    const largeText = 'x'.repeat(10 * 1024 * 1024)
+    await runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        for (let index = 2; index < 9; index += 1) {
+          yield* sql`
+            INSERT INTO session_nodes (
+              id, session_id, parent_id, kind, role, timestamp_ms,
+              content_json, metadata_json, branch_hint_id, created_order
+            ) VALUES (
+              ${`node-large-${index}`}, ${'worker'}, ${null}, ${'message'}, ${'assistant'},
+              ${index}, ${JSON.stringify({ text: largeText })}, ${'{}'},
+              ${'worker:branch:large'}, ${index}
+            )
+          `
+        }
+      }),
+    )
+
+    for (const operation of ['items', 'export'] as const) {
+      const seen = await collectLargeTranscriptPages(runtime, operation)
+      expect(seen.size).toBe(9)
+    }
+  })
+
+  it('rejects one oversized transcript record before hydrating its body', async () => {
+    const runtime = makeRuntime(path.join(temporaryRoot, 'oversized-record.sqlite'))
+    runtimes.push(runtime)
+    await runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql.unsafe(`
+          INSERT INTO session_nodes (
+            id, session_id, kind, role, timestamp_ms, content_json,
+            metadata_json, branch_hint_id, created_order
+          ) VALUES (
+            'node-oversized', 'worker', 'message', 'assistant', 3,
+            json_object('text', replace(hex(zeroblob(51380224)), '00', 'x')),
+            '{}', 'worker:branch:oversized', 2
+          )
+        `)
+      }),
+    )
+
+    const result = await executeQuery(runtime, {
+      operation: 'items',
+      sessionId: 'worker',
+      afterCreatedOrder: 1,
+      limit: 500,
+    })
+    expect(result.outcome).toEqual({
+      operation: 'items',
+      error: {
+        code: 'record_too_large',
+        message: 'A transcript item exceeds the maximum Session query response size.',
+      },
+    })
   })
 })

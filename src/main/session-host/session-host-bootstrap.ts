@@ -11,6 +11,7 @@ import { authenticateLocalSessionProfile } from '../application/local-session-pr
 import { recoverSessionExportsAfterHostLoss } from '../application/session-export-recovery'
 import { recoverPendingSessionHandoffs } from '../application/session-organization-service'
 import { createLogger } from '../logger'
+import { LocalSessionProfileRepository } from '../ports/local-session-profile-repository'
 import { SessionHostRecoveryRepository } from '../ports/session-host-recovery-repository'
 import { SessionLifecyclePreparationService } from '../ports/session-lifecycle-preparation-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
@@ -18,8 +19,10 @@ import type { AppServices } from '../runtime'
 import { SettingsService } from '../services/settings-service'
 import { listStreamBufferSnapshots } from '../utils/stream-buffer'
 import { createLocalSessionAuthenticator } from './local-session-authenticator'
+import { isWindowsPipe } from './local-session-endpoint'
 import { startLocalSessionHost } from './local-session-host-runtime'
 import type { LocalSessionHostPaths } from './local-session-paths'
+import { createLocalSessionServerAuthenticator } from './local-session-server-authentication'
 import { ensureLocalUserCredential } from './local-user-credential'
 import type { SessionHostOwnership } from './session-host-ownership'
 import { readSessionHostUpgradeBlockers } from './session-host-upgrade-blockers'
@@ -54,10 +57,22 @@ export async function startAppSessionHost(input: {
         ),
     },
   })
+  const authenticateServer = createLocalSessionServerAuthenticator({
+    localUserCredential,
+    resolveProfileCredentialVerifier: (profile) =>
+      input.runEffect(
+        Effect.gen(function* () {
+          const repository = yield* LocalSessionProfileRepository
+          const record = yield* repository.findForAuthentication(profile)
+          return record?.revokedAt === null ? record.credentialVerifier : null
+        }),
+      ),
+  })
 
   return startLocalSessionHost({
     endpoint: input.paths.endpoint,
     databasePath: input.paths.databasePath,
+    ...(isWindowsPipe(input.paths.endpoint) ? { authenticateServer } : {}),
     ...(input.externalOwnership ? { externalOwnership: input.externalOwnership } : {}),
     idleGracePeriodMs: settings.sessionHostIdleGracePeriodMs,
     readIdleGracePeriod: () =>

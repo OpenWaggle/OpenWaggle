@@ -8,27 +8,6 @@ import {
   sessionQuerySummary,
 } from './sqlite-session-query-support'
 
-interface ItemRow {
-  readonly id: string
-  readonly parent_id: string | null
-  readonly role: string | null
-  readonly kind: string
-  readonly timestamp_ms: number
-  readonly created_order: number
-  readonly content_json: string
-  readonly metadata_json: string
-}
-
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function runIdFromMetadata(metadata: unknown) {
-  if (!isRecord(metadata) || !isRecord(metadata.openWaggle)) return undefined
-  const runId = metadata.openWaggle.runId
-  return typeof runId === 'string' ? runId : undefined
-}
-
 export function readSession(sql: SqlClient.SqlClient, request: SessionQueryRequest) {
   const sessionId = 'sessionId' in request.query ? request.query.sessionId : ''
   return Effect.gen(function* () {
@@ -122,73 +101,6 @@ export function readSession(sql: SqlClient.SqlClient, request: SessionQueryReque
             },
           }
         : {}),
-    })
-  })
-}
-
-export function readItems(sql: SqlClient.SqlClient, request: SessionQueryRequest) {
-  if (request.query.operation !== 'items') throw new Error('Expected items query.')
-  const query = request.query
-  return Effect.gen(function* () {
-    const sessionRows = yield* sql<{
-      readonly session_exists: number
-      readonly high_water_mark: number
-    }>`
-      SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ${query.sessionId}) AS session_exists,
-        COALESCE(MAX(created_order), 0) AS high_water_mark
-      FROM session_nodes
-      WHERE session_id = ${query.sessionId}
-    `
-    const snapshot = sessionRows[0]
-    if (snapshot?.session_exists !== 1) {
-      return sessionQueryResponse(request, {
-        operation: 'items',
-        error: { code: 'session_not_found', message: 'Session not found.' },
-      })
-    }
-    const highWaterMark = query.throughCreatedOrder ?? snapshot.high_water_mark
-    const rows = query.runId
-      ? yield* sql<ItemRow>`
-          SELECT id, parent_id, role, kind, timestamp_ms, created_order, content_json, metadata_json
-          FROM session_nodes
-          WHERE session_id = ${query.sessionId}
-            AND json_extract(metadata_json, '$.openWaggle.runId') = ${query.runId}
-            AND created_order > ${query.afterCreatedOrder ?? -1}
-            AND created_order <= ${highWaterMark}
-          ORDER BY created_order ASC
-          LIMIT ${query.limit + 1}
-        `
-      : yield* sql<ItemRow>`
-          SELECT id, parent_id, role, kind, timestamp_ms, created_order, content_json, metadata_json
-          FROM session_nodes
-          WHERE session_id = ${query.sessionId}
-            AND created_order > ${query.afterCreatedOrder ?? -1}
-            AND created_order <= ${highWaterMark}
-          ORDER BY created_order ASC
-          LIMIT ${query.limit + 1}
-        `
-    const page = rows.slice(0, query.limit)
-    const last = page.at(-1)
-    return sessionQueryResponse(request, {
-      operation: 'items',
-      sessionId: query.sessionId,
-      highWaterMark,
-      items: page.map((row) => {
-        const metadata = parseSessionJson(row.metadata_json)
-        const runId = runIdFromMetadata(metadata)
-        return {
-          nodeId: row.id,
-          parentNodeId: row.parent_id,
-          role: row.role,
-          kind: row.kind,
-          timestampMs: row.timestamp_ms,
-          createdOrder: row.created_order,
-          ...(runId ? { runId } : {}),
-          content: parseSessionJson(row.content_json),
-          metadata,
-        }
-      }),
-      ...(rows.length > query.limit && last ? { nextCreatedOrder: last.created_order } : {}),
     })
   })
 }

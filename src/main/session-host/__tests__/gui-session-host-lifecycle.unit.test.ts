@@ -3,83 +3,50 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   configureGuiSessionCommandClientMock,
   ensureLocalSessionHostMock,
-  acquireSessionHostOwnershipMock,
-  retireGuiSessionCommandClientForUpgradeMock,
   prepareLocalSessionHostPathsMock,
   probeLocalSessionHostMock,
-  runSessionHostCutoverMock,
-  sessionHostTargetExistsMock,
   startAppSessionHostMock,
   startRemoteSessionHostRendererBridgeMock,
-  startSessionHostRendererBridgeMock,
   stopRendererBridgeMock,
-  withLegacySessionWriterFenceMock,
-  releaseOwnershipMock,
 } = vi.hoisted(() => ({
   configureGuiSessionCommandClientMock: vi.fn(),
   ensureLocalSessionHostMock: vi.fn(async () => undefined),
-  acquireSessionHostOwnershipMock: vi.fn(),
-  retireGuiSessionCommandClientForUpgradeMock: vi.fn(),
-  prepareLocalSessionHostPathsMock: vi.fn(async () => undefined),
+  prepareLocalSessionHostPathsMock: vi.fn(async (paths: object) => paths),
   probeLocalSessionHostMock: vi.fn(async () => undefined),
-  runSessionHostCutoverMock: vi.fn(async () => undefined),
-  sessionHostTargetExistsMock: vi.fn(async () => true),
   startAppSessionHostMock: vi.fn(),
   startRemoteSessionHostRendererBridgeMock: vi.fn(),
-  startSessionHostRendererBridgeMock: vi.fn(),
   stopRendererBridgeMock: vi.fn(),
-  withLegacySessionWriterFenceMock: vi.fn((operation: () => Promise<unknown>) => operation()),
-  releaseOwnershipMock: vi.fn(async () => undefined),
 }))
 
 vi.mock('../../application/local-session-command-dispatcher', () => ({
   configureGuiSessionCommandClient: configureGuiSessionCommandClientMock,
-  retireGuiSessionCommandClientForUpgrade: retireGuiSessionCommandClientForUpgradeMock,
+  retireGuiSessionCommandClientForUpgrade: vi.fn(),
 }))
-
 vi.mock('../local-session-client', () => ({
   LocalSessionHostUpgradePendingError: class extends Error {},
   probeLocalSessionHost: probeLocalSessionHostMock,
 }))
-
-vi.mock('../legacy-session-writer-fence', () => ({
-  withLegacySessionWriterFence: withLegacySessionWriterFenceMock,
-}))
-
 vi.mock('../local-session-host-launcher', () => ({
-  HOST_TAKEOVER_TIMEOUT_MS: 900_000,
   ensureLocalSessionHost: ensureLocalSessionHostMock,
   isLocalSessionHostUnavailable: (error: unknown) =>
     typeof error === 'object' && error !== null && 'code' in error,
   waitForLocalSessionHostRelease: vi.fn(async () => false),
 }))
-
 vi.mock('../local-session-paths', () => ({
   prepareLocalSessionHostPaths: prepareLocalSessionHostPathsMock,
+  refreshLocalSessionHostEndpoint: vi.fn(async (paths: object) => paths),
   resolveLocalSessionHostPaths: () => ({
     endpoint: '/tmp/openwaggle.sock',
     legacyDatabasePath: '/tmp/legacy.db',
     databasePath: '/tmp/session-host.db',
     recoveryDatabasePath: '/tmp/recovery.db',
+    endpointCapabilityPath: null,
   }),
 }))
-
-vi.mock('../session-host-bootstrap', () => ({
-  startAppSessionHost: startAppSessionHostMock,
-}))
-
-vi.mock('../session-host-ownership', () => ({
-  acquireSessionHostOwnership: acquireSessionHostOwnershipMock,
-}))
-
-vi.mock('../session-host-cutover', () => ({
-  runSessionHostCutover: runSessionHostCutoverMock,
-  sessionHostTargetExists: sessionHostTargetExistsMock,
-}))
-
+vi.mock('../session-host-bootstrap', () => ({ startAppSessionHost: startAppSessionHostMock }))
 vi.mock('../session-host-renderer-bridge', () => ({
   startRemoteSessionHostRendererBridge: startRemoteSessionHostRendererBridgeMock,
-  startSessionHostRendererBridge: startSessionHostRendererBridgeMock,
+  startSessionHostRendererBridge: vi.fn(),
 }))
 
 import { prepareGuiSessionHostLifecycle } from '../gui-session-host-lifecycle'
@@ -93,23 +60,14 @@ describe('GUI Session Host lifecycle', () => {
     setGuiAttachedToRemoteSessionHost(false)
     configureGuiSessionCommandClientMock.mockReset()
     ensureLocalSessionHostMock.mockReset().mockResolvedValue(undefined)
-    acquireSessionHostOwnershipMock.mockReset().mockResolvedValue({
-      targetPath: '/tmp/session-host.db',
-      release: releaseOwnershipMock,
-    })
-    releaseOwnershipMock.mockReset()
-    retireGuiSessionCommandClientForUpgradeMock.mockReset()
+    prepareLocalSessionHostPathsMock.mockClear()
     probeLocalSessionHostMock.mockReset().mockResolvedValue(undefined)
-    startRemoteSessionHostRendererBridgeMock.mockReset().mockReturnValue(stopRendererBridgeMock)
-    startSessionHostRendererBridgeMock.mockReset().mockReturnValue(stopRendererBridgeMock)
     startAppSessionHostMock.mockReset()
-    sessionHostTargetExistsMock.mockReset().mockResolvedValue(true)
-    runSessionHostCutoverMock.mockReset().mockResolvedValue(undefined)
+    startRemoteSessionHostRendererBridgeMock.mockReset().mockReturnValue(stopRendererBridgeMock)
     stopRendererBridgeMock.mockReset()
-    withLegacySessionWriterFenceMock.mockClear()
   })
 
-  it('publishes remote attachment state for IPC ownership guards and clears it on stop', async () => {
+  it('attaches the GUI to an existing detached Host and clears attachment on stop', async () => {
     const lifecycle = await prepareGuiSessionHostLifecycle({
       userDataRoot: '/tmp/openwaggle-test',
       clientVersion: 'test',
@@ -125,8 +83,8 @@ describe('GUI Session Host lifecycle', () => {
         stopOwnedServices: vi.fn(async () => undefined),
       }),
     ).resolves.toBe('attached')
-    expect(acquireSessionHostOwnershipMock).not.toHaveBeenCalled()
-    expect(runSessionHostCutoverMock).not.toHaveBeenCalled()
+    expect(ensureLocalSessionHostMock).not.toHaveBeenCalled()
+    expect(startAppSessionHostMock).not.toHaveBeenCalled()
     expect(isGuiAttachedToRemoteSessionHost()).toBe(true)
 
     await lifecycle.stop()
@@ -135,38 +93,9 @@ describe('GUI Session Host lifecycle', () => {
     expect(isGuiAttachedToRemoteSessionHost()).toBe(false)
   })
 
-  it('restarts a GUI-owned Host after supervised Run failure drains its runtime', async () => {
+  it('launches a detached Host when none exists and never promotes the GUI to owner', async () => {
     const unavailable = Object.assign(new Error('missing socket'), { code: 'ENOENT' })
-    probeLocalSessionHostMock.mockRejectedValue(unavailable)
-    let stopFirst: (() => void) | undefined
-    const firstStopped = new Promise<void>((resolve) => {
-      stopFirst = resolve
-    })
-    let stopSecond: (() => void) | undefined
-    const secondStopped = new Promise<void>((resolve) => {
-      stopSecond = resolve
-    })
-    const firstRuntime = {
-      liveness: { drainReason: () => 'recovery' as const },
-      isStopping: () => false,
-      waitUntilStopped: () => firstStopped,
-      stop: vi.fn(async () => stopFirst?.()),
-    }
-    const secondRuntime = {
-      liveness: { drainReason: () => 'recovery' as const },
-      isStopping: () => false,
-      waitUntilStopped: () => secondStopped,
-      stop: vi.fn(async () => stopSecond?.()),
-    }
-    startAppSessionHostMock
-      .mockImplementationOnce(async (hostInput) => {
-        await hostInput.startOwnedServices()
-        return firstRuntime
-      })
-      .mockImplementationOnce(async (hostInput) => {
-        await hostInput.startOwnedServices()
-        return secondRuntime
-      })
+    probeLocalSessionHostMock.mockRejectedValueOnce(unavailable).mockResolvedValue(undefined)
     const lifecycle = await prepareGuiSessionHostLifecycle({
       userDataRoot: '/tmp/openwaggle-test',
       clientVersion: 'test',
@@ -179,141 +108,11 @@ describe('GUI Session Host lifecycle', () => {
         startOwnedServices: vi.fn(async () => undefined),
         stopOwnedServices: vi.fn(async () => undefined),
       }),
-    ).resolves.toBe('owned')
-    stopFirst?.()
-    await vi.waitFor(() => expect(startAppSessionHostMock).toHaveBeenCalledTimes(2))
+    ).resolves.toBe('attached')
 
-    expect(startSessionHostRendererBridgeMock).toHaveBeenCalledTimes(2)
-    expect(isGuiAttachedToRemoteSessionHost()).toBe(false)
+    expect(ensureLocalSessionHostMock).toHaveBeenCalledOnce()
+    expect(startAppSessionHostMock).not.toHaveBeenCalled()
+    expect(lifecycle.databaseAccess).toBe('client-isolated')
     await lifecycle.stop()
-    expect(secondRuntime.stop).toHaveBeenCalledOnce()
-    expect(startAppSessionHostMock).toHaveBeenCalledTimes(2)
-  })
-
-  it('retains ownership while restarting after a recoverable owned Host failure', async () => {
-    const unavailable = Object.assign(new Error('missing socket'), { code: 'ENOENT' })
-    probeLocalSessionHostMock.mockRejectedValue(unavailable)
-    let markStopped: (() => void) | undefined
-    const stopped = new Promise<void>((resolve) => {
-      markStopped = resolve
-    })
-    const runtime = {
-      liveness: { drainReason: () => 'recovery' as const },
-      isStopping: () => false,
-      waitUntilStopped: () => stopped,
-      stop: vi.fn(async () => markStopped?.()),
-    }
-    const recoveredRuntime = {
-      ...runtime,
-      waitUntilStopped: () => new Promise<void>(() => undefined),
-      stop: vi.fn(async () => undefined),
-    }
-    startAppSessionHostMock
-      .mockImplementationOnce(async (hostInput) => {
-        await hostInput.startOwnedServices()
-        return runtime
-      })
-      .mockImplementationOnce(async (hostInput) => {
-        await hostInput.startOwnedServices()
-        return recoveredRuntime
-      })
-    const stopOwnedServices = vi.fn(async () => undefined)
-    const lifecycle = await prepareGuiSessionHostLifecycle({
-      userDataRoot: '/tmp/openwaggle-test',
-      clientVersion: 'test',
-      startupMark: vi.fn(),
-    })
-
-    await lifecycle.start({
-      runEffect: vi.fn(),
-      startOwnedServices: vi.fn(async () => undefined),
-      stopOwnedServices,
-    })
-    markStopped?.()
-    await vi.waitFor(() => expect(startAppSessionHostMock).toHaveBeenCalledTimes(2))
-
-    expect(releaseOwnershipMock).not.toHaveBeenCalled()
-    expect(startRemoteSessionHostRendererBridgeMock).not.toHaveBeenCalled()
-    expect(isGuiAttachedToRemoteSessionHost()).toBe(false)
-    await lifecycle.stop()
-    expect(stopOwnedServices).toHaveBeenCalledOnce()
-  })
-
-  it('does not restart a GUI-owned Host that retired for an upgrade handoff', async () => {
-    const unavailable = Object.assign(new Error('missing socket'), { code: 'ENOENT' })
-    probeLocalSessionHostMock.mockRejectedValue(unavailable)
-    let markStopped: (() => void) | undefined
-    const stopped = new Promise<void>((resolve) => {
-      markStopped = resolve
-    })
-    const runtime = {
-      liveness: { drainReason: () => 'upgrade' as const },
-      isStopping: () => false,
-      waitUntilStopped: () => stopped,
-      stop: vi.fn(async () => markStopped?.()),
-    }
-    startAppSessionHostMock.mockImplementation(async (hostInput) => {
-      await hostInput.startOwnedServices()
-      return runtime
-    })
-    const requestShutdownForHandoff = vi.fn()
-    const lifecycle = await prepareGuiSessionHostLifecycle({
-      userDataRoot: '/tmp/openwaggle-test',
-      clientVersion: 'test',
-      startupMark: vi.fn(),
-      requestShutdownForHandoff,
-    })
-
-    const stopOwnedServices = vi.fn(async () => undefined)
-    await lifecycle.start({
-      runEffect: vi.fn(),
-      startOwnedServices: vi.fn(async () => undefined),
-      stopOwnedServices,
-    })
-    markStopped?.()
-    await vi.waitFor(() => expect(stopOwnedServices).toHaveBeenCalledOnce())
-
-    expect(startAppSessionHostMock).toHaveBeenCalledOnce()
-    expect(retireGuiSessionCommandClientForUpgradeMock).toHaveBeenCalledOnce()
-    expect(requestShutdownForHandoff).toHaveBeenCalledOnce()
-    expect(isGuiAttachedToRemoteSessionHost()).toBe(false)
-    await lifecycle.stop()
-  })
-
-  it('does not reactivate writer services when the Host drains during startup', async () => {
-    const unavailable = Object.assign(new Error('missing socket'), { code: 'ENOENT' })
-    probeLocalSessionHostMock.mockRejectedValue(unavailable)
-    const runtime = {
-      liveness: { drainReason: () => 'upgrade' as const },
-      isStopping: () => true,
-      waitUntilStopped: () => Promise.resolve(),
-      stop: vi.fn(async () => undefined),
-    }
-    startAppSessionHostMock.mockImplementationOnce(async (hostInput) => {
-      await hostInput.startOwnedServices()
-      await hostInput.stopOwnedServices()
-      return runtime
-    })
-    const startOwnedServices = vi.fn(async () => undefined)
-    const stopOwnedServices = vi.fn(async () => undefined)
-    const requestShutdownForHandoff = vi.fn()
-    const lifecycleWithShutdown = await prepareGuiSessionHostLifecycle({
-      userDataRoot: '/tmp/openwaggle-test',
-      clientVersion: 'test',
-      startupMark: vi.fn(),
-      requestShutdownForHandoff,
-    })
-
-    await expect(
-      lifecycleWithShutdown.start({ runEffect: vi.fn(), startOwnedServices, stopOwnedServices }),
-    ).rejects.toThrow('retired during startup')
-
-    expect(startOwnedServices).toHaveBeenCalledOnce()
-    expect(stopOwnedServices).toHaveBeenCalledOnce()
-    expect(requestShutdownForHandoff).toHaveBeenCalledOnce()
-    expect(startRemoteSessionHostRendererBridgeMock).not.toHaveBeenCalled()
-    await lifecycleWithShutdown.stop()
-    expect(startOwnedServices).toHaveBeenCalledOnce()
-    expect(stopOwnedServices).toHaveBeenCalledOnce()
   })
 })

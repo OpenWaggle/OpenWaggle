@@ -62,6 +62,7 @@ function pathsFor(root: string): LocalSessionHostPaths {
     credentialPath: path.join(stateRoot, 'local-user.credential'),
     endpoint: path.join(stateRoot, 'host-v2.sock'),
     endpointDirectory: stateRoot,
+    endpointCapabilityPath: null,
   }
 }
 

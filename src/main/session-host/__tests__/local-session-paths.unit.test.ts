@@ -2,7 +2,12 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { prepareLocalSessionHostPaths, resolveLocalSessionHostPaths } from '../local-session-paths'
+import {
+  prepareLocalSessionHostPaths,
+  refreshLocalSessionHostEndpoint,
+  resolveLocalSessionHostPaths,
+  rotateLocalSessionHostEndpoint,
+} from '../local-session-paths'
 
 const OWNER_DIRECTORY_MODE = 0o700
 
@@ -127,17 +132,61 @@ describe('Local Session Host paths', () => {
     )
   })
 
-  it('scopes stable Windows named pipes by the configured user-data root', () => {
-    const first = resolveLocalSessionHostPaths({
-      userDataRoot: 'C:\\Users\\one',
-      platform: 'win32',
-    })
-    const second = resolveLocalSessionHostPaths({
-      userDataRoot: 'C:\\Users\\two',
+  it('persists an owner-private random Windows endpoint capability', async () => {
+    const temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-session-paths-'))
+    temporaryRoots.push(temporaryRoot)
+    const secureUserOnly = vi.fn(async () => ({ userSid: 'S-1-5-21-1000' }))
+    const unresolved = resolveLocalSessionHostPaths({
+      userDataRoot: temporaryRoot,
       platform: 'win32',
     })
 
-    expect(first.endpoint).toMatch(/^\\\\\.\\pipe\\openwaggle-[a-f0-9]{20}-session-host$/)
-    expect(second.endpoint).not.toBe(first.endpoint)
+    const first = await prepareLocalSessionHostPaths(unresolved, 'win32', secureUserOnly)
+    const second = await prepareLocalSessionHostPaths(
+      resolveLocalSessionHostPaths({ userDataRoot: temporaryRoot, platform: 'win32' }),
+      'win32',
+      secureUserOnly,
+    )
+
+    expect(unresolved.endpoint).toBe('')
+    expect(first.endpoint).toBe(second.endpoint)
+    expect(first.endpoint).toMatch(/^\\\\\.\\pipe\\openwaggle-[A-Za-z0-9_-]{43}-session-host$/)
+    expect(secureUserOnly).toHaveBeenCalledTimes(5)
+    expect(secureUserOnly).toHaveBeenNthCalledWith(1, [
+      { kind: 'directory', path: first.stateRoot },
+    ])
+    expect(secureUserOnly).toHaveBeenNthCalledWith(2, [
+      { kind: 'file', path: expect.stringContaining('.endpoint.capability.') },
+    ])
+    expect(secureUserOnly).toHaveBeenNthCalledWith(3, [
+      { kind: 'file', path: first.endpointCapabilityPath },
+    ])
+    expect(secureUserOnly).toHaveBeenNthCalledWith(4, [
+      { kind: 'directory', path: first.stateRoot },
+    ])
+    expect(secureUserOnly).toHaveBeenNthCalledWith(5, [
+      { kind: 'file', path: first.endpointCapabilityPath },
+    ])
+    const capabilityPath = first.endpointCapabilityPath
+    if (!capabilityPath) throw new Error('Expected a Windows endpoint capability path.')
+    expect((await fs.stat(capabilityPath)).mode & 0o777).toBe(0o600)
+  })
+
+  it('rotates and atomically publishes a new Windows endpoint for each Host launch', async () => {
+    const temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-session-paths-'))
+    temporaryRoots.push(temporaryRoot)
+    const secureUserOnly = vi.fn(async () => ({ userSid: 'S-1-5-21-1000' }))
+    const prepared = await prepareLocalSessionHostPaths(
+      resolveLocalSessionHostPaths({ userDataRoot: temporaryRoot, platform: 'win32' }),
+      'win32',
+      secureUserOnly,
+    )
+
+    const rotated = await rotateLocalSessionHostEndpoint(prepared, 'win32', secureUserOnly)
+    const refreshed = await refreshLocalSessionHostEndpoint(prepared, 'win32')
+
+    expect(rotated.endpoint).not.toBe(prepared.endpoint)
+    expect(refreshed.endpoint).toBe(rotated.endpoint)
+    expect(secureUserOnly).toHaveBeenCalledTimes(5)
   })
 })

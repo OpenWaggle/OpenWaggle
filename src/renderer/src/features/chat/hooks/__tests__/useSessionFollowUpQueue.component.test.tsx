@@ -181,9 +181,13 @@ describe('useSessionFollowUpQueue', () => {
   })
 
   it('revision-safely recovers a running idle attention head before resuming it', async () => {
-    apiMocks.querySessionControl.mockResolvedValue({
+    const idleQueue = {
       ...queueResponse(),
       outcome: { ...queueResponse().outcome, activeRunId: null },
+    }
+    apiMocks.querySessionControl.mockResolvedValueOnce(idleQueue).mockResolvedValue({
+      ...idleQueue,
+      outcome: { ...idleQueue.outcome, queueRevision: 5 },
     })
     apiMocks.mutateSessionControl.mockImplementation(async (request) => ({
       contractVersion: 2,
@@ -246,5 +250,67 @@ describe('useSessionFollowUpQueue', () => {
         },
       }),
     )
+  })
+
+  it('re-reads a stale active Run before recovering a repaired running queue', async () => {
+    const idleQueue = {
+      ...queueResponse(),
+      outcome: {
+        ...queueResponse().outcome,
+        queueRevision: 5,
+        activeRunId: null,
+      },
+    }
+    apiMocks.querySessionControl.mockResolvedValueOnce(queueResponse()).mockResolvedValue(idleQueue)
+    apiMocks.mutateSessionControl.mockImplementation(async (request) => ({
+      contractVersion: 2,
+      requestId: request.requestId,
+      idempotencyKey: request.idempotencyKey,
+      replayed: false,
+      outcome:
+        request.command.operation === 'queue-update-authorization'
+          ? {
+              operation: 'queue-update-authorization',
+              effect: 'queue-updated',
+              sessionId: SESSION_ID,
+              queueState: 'running',
+              queueRevision: 5,
+              followUpIds: ['follow-up-1'],
+              stateRevision: 6,
+            }
+          : request.command.operation === 'queue-pause'
+            ? {
+                operation: 'queue-pause',
+                effect: 'queue-updated',
+                sessionId: SESSION_ID,
+                queueState: 'paused',
+                queueRevision: 6,
+                followUpIds: ['follow-up-1'],
+                stateRevision: 7,
+              }
+            : {
+                operation: 'queue-resume',
+                effect: 'started-run',
+                sessionId: SESSION_ID,
+                runId: 'run-recovered',
+                followUpId: 'follow-up-1',
+                queueRevision: 8,
+                stateRevision: 8,
+              },
+    }))
+    const { result } = renderHookWithQueryClient(() => useSessionFollowUpQueue(SESSION_ID))
+    await waitFor(() => expect(result.current.snapshot.activeRunId).toBe('run-1'))
+
+    await act(() => result.current.resubmitWithCurrentAccess('follow-up-1'))
+
+    expect(apiMocks.querySessionControl).toHaveBeenCalledTimes(3)
+    const commands = apiMocks.mutateSessionControl.mock.calls.map(([request]) => request.command)
+    expect(commands.map((command) => command.operation)).toEqual([
+      'queue-update-authorization',
+      'queue-pause',
+      'queue-resume',
+    ])
+    expect(commands[1]).toMatchObject({ sessionId: SESSION_ID, expectedQueueRevision: 5 })
+    expect(commands[2]).toMatchObject({ sessionId: SESSION_ID, expectedQueueRevision: 6 })
   })
 })

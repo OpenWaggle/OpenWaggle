@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import type { SessionEmbeddingModel } from '../../adapters/multilingual-e5-session-embedding-model'
 import { runSessionHostCutover } from '../session-host-cutover'
 import { fakeEmbeddingModel, seedLegacyDatabase } from './session-host-cutover-test-support'
 
@@ -76,6 +77,11 @@ describe('Session Host full cutover', () => {
       expect(
         target.prepare(`SELECT content FROM session_node_search WHERE node_id = 'node-1'`).get(),
       ).toMatchObject({ content: 'Visible cutover message' })
+      expect(
+        target
+          .prepare('SELECT session_id FROM session_discovery_embedding_queue ORDER BY session_id')
+          .all(),
+      ).toEqual([{ session_id: 'session-root' }])
     } finally {
       target.close()
     }
@@ -87,6 +93,39 @@ describe('Session Host full cutover', () => {
         fakeEmbeddingModel,
       ),
     ).resolves.toMatchObject({ status: 'already-complete' })
+  })
+
+  it('does not block canonical cutover on semantic model availability', async () => {
+    const sourceDatabasePath = path.join(temporaryRoot, 'openwaggle.db')
+    const targetDatabasePath = path.join(temporaryRoot, 'session-host', 'session-host.sqlite')
+    const recoveryDatabasePath = path.join(temporaryRoot, 'openwaggle.pre-session-host-v2.db')
+    seedLegacyDatabase(sourceDatabasePath)
+    const unavailableModel: SessionEmbeddingModel = {
+      ...fakeEmbeddingModel,
+      embedPassages: async () => {
+        throw new Error('model resource unavailable')
+      },
+    }
+
+    await expect(
+      runSessionHostCutover(
+        { sourceDatabasePath, targetDatabasePath, recoveryDatabasePath },
+        Date.now(),
+        unavailableModel,
+      ),
+    ).resolves.toMatchObject({ status: 'migrated', sessionCount: 1, nodeCount: 1 })
+
+    const target = new DatabaseSync(targetDatabasePath, { readOnly: true })
+    try {
+      expect(
+        target.prepare('SELECT COUNT(*) AS count FROM session_discovery_embeddings').get(),
+      ).toMatchObject({ count: 0 })
+      expect(
+        target.prepare('SELECT COUNT(*) AS count FROM session_discovery_embedding_queue').get(),
+      ).toMatchObject({ count: 1 })
+    } finally {
+      target.close()
+    }
   })
 
   it('accepts an idle Session whose model remains unresolved until its first configured Run', async () => {

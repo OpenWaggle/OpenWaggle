@@ -1,18 +1,47 @@
 import type { Socket } from 'node:net'
 import type { LocalSessionProfileManagementResponse } from '@shared/types/local-session-profile-management'
-import { encodeLocalSessionFrame } from './local-session-framing'
+import { encodeLocalSessionFrameSegments } from './local-session-framing'
+import {
+  type LocalSessionOutboundByteBudget,
+  LocalSessionOutboundCapacityError,
+} from './local-session-outbound-budget'
 
 export function describeLocalSessionServerError(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }
 
-export function writeLocalSessionSocketFrame(socket: Socket, value: unknown): Promise<void> {
+function writeSocketSegment(socket: Socket, segment: Buffer): Promise<void> {
   return new Promise((resolve, reject) => {
-    socket.write(encodeLocalSessionFrame(value), (error) => {
+    socket.write(segment, (error) => {
       if (error) reject(error)
       else resolve()
     })
   })
+}
+
+export async function writeLocalSessionSocketFrame(input: {
+  readonly socket: Socket
+  readonly value: unknown
+  readonly budget: LocalSessionOutboundByteBudget
+  readonly signal: AbortSignal
+}): Promise<void> {
+  const lease = await input.budget.encode(input.value, input.signal).catch((error: unknown) => {
+    if (error instanceof LocalSessionOutboundCapacityError) input.socket.destroy()
+    throw error
+  })
+  const release = lease.release
+  input.socket.once('close', release)
+  try {
+    if (input.signal.aborted || input.socket.destroyed || !input.socket.writable) {
+      throw new Error('Local Session client disconnected before its response was written.')
+    }
+    for (const segment of encodeLocalSessionFrameSegments(lease.payload)) {
+      await writeSocketSegment(input.socket, segment)
+    }
+  } finally {
+    input.socket.off('close', release)
+    release()
+  }
 }
 
 interface LocalAccessPayload {

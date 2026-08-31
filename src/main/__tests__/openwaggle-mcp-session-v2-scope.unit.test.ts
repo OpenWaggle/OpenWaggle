@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OpenWaggleMcpServeOptions } from '../openwaggle-mcp-server-policy'
 import {
   mcpSessionPathAllowed,
@@ -139,75 +139,20 @@ describe('OpenWaggle MCP Session Control v2 scope', () => {
     })
   })
 
-  it('filters Delegation discovery through each linked Worker Session scope', async () => {
-    const result = await filterMcpSessionQueryResult(
-      scopedOptions(),
-      async (payload) => {
-        const query = payload.contract === 'session-query-v2' ? payload.request.query : undefined
-        const projectPath =
-          query && 'sessionId' in query && query.sessionId === 'worker-allowed'
-            ? allowedProject()
-            : privateRoot
-        return {
-          response: { outcome: { operation: 'read', session: { projectPath } } },
-        }
-      },
-      {
-        response: {
-          outcome: {
-            operation: 'delegations-list',
-            delegations: [
-              { delegationId: 'allowed', workerSessionId: 'worker-allowed' },
-              { delegationId: 'private', workerSessionId: 'worker-private' },
-            ],
-          },
-        },
-      },
-    )
+  it.each(['delegations-list', 'delegations-conflicts'] as const)(
+    'trusts the authority-filtered %s page without opening per-result Host connections',
+    async (operation) => {
+      const execute = vi.fn(async () => ({}))
+      const field = operation === 'delegations-list' ? 'delegations' : 'conflicts'
+      const page = Array.from({ length: 200 }, (_, index) => ({ id: String(index) }))
+      const value = { response: { outcome: { operation, [field]: page } } }
 
-    expect(result).toMatchObject({
-      response: { outcome: { delegations: [{ delegationId: 'allowed' }] } },
-    })
-  })
-
-  it('omits Delegation conflicts unless both linked Worker Sessions are visible', async () => {
-    const result = await filterMcpSessionQueryResult(
-      scopedOptions(),
-      async (payload) => {
-        const query = payload.contract === 'session-query-v2' ? payload.request.query : undefined
-        const projectPath =
-          query && 'sessionId' in query && query.sessionId === 'worker-allowed'
-            ? allowedProject()
-            : privateRoot
-        return {
-          response: { outcome: { operation: 'read', session: { projectPath } } },
-        }
-      },
-      {
-        response: {
-          outcome: {
-            operation: 'delegations-conflicts',
-            conflicts: [
-              {
-                conflictId: 'both-visible',
-                leftWorkerSessionId: 'worker-allowed',
-                rightWorkerSessionId: 'session-explicit',
-              },
-              {
-                conflictId: 'hidden-peer',
-                leftWorkerSessionId: 'worker-allowed',
-                rightWorkerSessionId: 'worker-private',
-              },
-            ],
-          },
-        },
-      },
-    )
-
-    expect(result).toMatchObject({
-      response: { outcome: { conflicts: [{ conflictId: 'both-visible' }] } },
-    })
-  })
+      await expect(filterMcpSessionQueryResult(scopedOptions(), execute, value)).resolves.toBe(
+        value,
+      )
+      expect(execute).not.toHaveBeenCalled()
+    },
+  )
 
   it('resolves Worker report references only against Sessions visible to the MCP grant', async () => {
     const submittedPayloads: unknown[] = []

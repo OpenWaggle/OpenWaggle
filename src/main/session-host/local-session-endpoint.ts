@@ -1,5 +1,6 @@
 import { chmod, lstat, unlink } from 'node:fs/promises'
 import net from 'node:net'
+import { secureWindowsUserOnly, type WindowsUserOnlySecurity } from './windows-user-only-security'
 
 const ENDPOINT_PROBE_TIMEOUT_MS = 250
 const OWNER_SOCKET_MODE = 0o600
@@ -49,8 +50,15 @@ export async function prepareLocalSessionEndpoint(endpoint: string) {
   await unlink(endpoint)
 }
 
-export async function secureLocalSessionEndpoint(endpoint: string) {
-  if (!isWindowsPipe(endpoint)) await chmod(endpoint, OWNER_SOCKET_MODE)
+export async function secureLocalSessionEndpoint(
+  endpoint: string,
+  secureUserOnly: WindowsUserOnlySecurity = secureWindowsUserOnly,
+) {
+  if (isWindowsPipe(endpoint)) {
+    await secureUserOnly([{ kind: 'pipe', path: endpoint }])
+    return
+  }
+  await chmod(endpoint, OWNER_SOCKET_MODE)
 }
 
 export async function removeLocalSessionEndpoint(endpoint: string) {

@@ -1,6 +1,13 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
-import type { SessionQueryRequest } from '@shared/types/session-query'
+import {
+  SESSION_QUERY_MAX_RESPONSE_BYTES,
+  type SessionQueryRequest,
+} from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
+import {
+  byteBoundedPage,
+  SESSION_QUERY_SQL_READ_BUDGET_BYTES,
+} from './session-query-byte-pagination'
 import {
   type SessionExportOperationRow,
   sessionExportOperationRecord,
@@ -21,6 +28,25 @@ type ReadRequest = SessionQueryRequest & {
   readonly query: Extract<SessionQueryRequest['query'], { operation: 'exports-read' }>
 }
 
+interface ExportOperationSizeRow {
+  readonly id: string
+  readonly updated_at: number
+  readonly estimated_bytes: number
+}
+
+function selectSizePrefix(rows: readonly ExportOperationSizeRow[], limit: number) {
+  const selected: ExportOperationSizeRow[] = []
+  let bytes = 0
+  for (const row of rows.slice(0, limit)) {
+    if (selected.length > 0 && bytes + row.estimated_bytes > SESSION_QUERY_SQL_READ_BUDGET_BYTES) {
+      break
+    }
+    selected.push(row)
+    bytes += row.estimated_bytes
+  }
+  return selected
+}
+
 function listCursor(request: ListRequest) {
   const cursor = decodeSessionQueryCursor(request.query.cursor)
   if (cursor === 'invalid') return 'invalid' as const
@@ -30,20 +56,64 @@ function listCursor(request: ListRequest) {
     : ('invalid' as const)
 }
 
+function exportOperationPage(
+  request: ListRequest,
+  rows: readonly SessionExportOperationRow[],
+  hasAdditionalCandidates: boolean,
+) {
+  const candidates = rows.map(sessionExportOperationRecord).map(sessionExportOperationSummary)
+  const baseOutcome = {
+    operation: 'exports-list',
+    sessionId: request.query.sessionId,
+  } as const
+  const page = byteBoundedPage({
+    candidates,
+    hasAdditionalCandidates,
+    emptyResponse: sessionQueryResponse(request, { ...baseOutcome, exports: [] }),
+  })
+  if (!page.accepted) {
+    return sessionQueryResponse(request, {
+      operation: 'exports-list',
+      error: {
+        code: 'record_too_large',
+        message: 'An export operation exceeds the maximum Session query response size.',
+      },
+    })
+  }
+  const last = page.records.at(-1)
+  return sessionQueryResponse(request, {
+    ...baseOutcome,
+    exports: page.records,
+    ...(page.hasMore && last
+      ? {
+          nextCursor: encodeSessionQueryCursor({
+            updatedAt: last.updatedAt,
+            exportOperationId: last.exportOperationId,
+          }),
+        }
+      : {}),
+  })
+}
+
 export function listSessionExportOperations(sql: SqlClient.SqlClient, request: ListRequest) {
   const cursor = listCursor(request)
   if (cursor === 'invalid') return Effect.succeed(invalidSessionQueryCursor(request))
   const statuses = request.query.statuses ?? [
     'queued',
     'running',
+    'installing',
     'cancelling',
     'completed',
     'failed',
     'cancelled',
   ]
   return Effect.gen(function* () {
-    const rows = yield* sql<SessionExportOperationRow>`
-      SELECT * FROM session_export_operations
+    const sizes = yield* sql<ExportOperationSizeRow>`
+      SELECT id, updated_at,
+        length(CAST(resources_json AS BLOB)) +
+          COALESCE(length(CAST(manifest_json AS BLOB)), 0) +
+          COALESCE(length(CAST(error_json AS BLOB)), 0) + 8192 AS estimated_bytes
+      FROM session_export_operations
       WHERE session_id = ${request.query.sessionId}
         AND status IN ${sql.in(statuses)}
         AND (${cursor?.updatedAt ?? null} IS NULL
@@ -53,21 +123,26 @@ export function listSessionExportOperations(sql: SqlClient.SqlClient, request: L
       ORDER BY updated_at DESC, id DESC
       LIMIT ${request.query.limit + 1}
     `
-    const page = rows.slice(0, request.query.limit)
-    const last = page.at(-1)
-    return sessionQueryResponse(request, {
-      operation: 'exports-list',
-      sessionId: request.query.sessionId,
-      exports: page.map(sessionExportOperationRecord).map(sessionExportOperationSummary),
-      ...(rows.length > request.query.limit && last
-        ? {
-            nextCursor: encodeSessionQueryCursor({
-              updatedAt: last.updated_at,
-              exportOperationId: last.id,
-            }),
-          }
-        : {}),
-    })
+    const selected = selectSizePrefix(sizes, request.query.limit)
+    if ((selected[0]?.estimated_bytes ?? 0) > SESSION_QUERY_MAX_RESPONSE_BYTES) {
+      return sessionQueryResponse(request, {
+        operation: 'exports-list',
+        error: {
+          code: 'record_too_large',
+          message: 'An export operation exceeds the maximum Session query response size.',
+        },
+      })
+    }
+    const selectedIds = selected.map((row) => row.id)
+    const rows =
+      selectedIds.length === 0
+        ? []
+        : yield* sql<SessionExportOperationRow>`
+            SELECT * FROM session_export_operations
+            WHERE id IN ${sql.in(selectedIds)}
+            ORDER BY updated_at DESC, id DESC
+          `
+    return exportOperationPage(request, rows, sizes.length > selected.length)
   })
 }
 
