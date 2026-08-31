@@ -153,6 +153,104 @@ describe('hosted MCP task lineage recovery', () => {
     ])
   })
 
+  it('does not replay an older terminal state over a newer active task', async () => {
+    const options = serveOptions(temporaryRoot)
+    const store = new OpenWaggleMcpTaskStore(options.taskStorePath)
+    await store.update(() => ({
+      tasks: [
+        {
+          id: 'older-completed-worker',
+          callerProfile: options.profile,
+          projectPath: temporaryRoot,
+          model: 'provider/model',
+          objective: 'older work',
+          sessionId: 'reused-worker',
+          status: 'completed',
+          createdAt: 1,
+          updatedAt: 5,
+        },
+        {
+          id: 'newer-active-worker',
+          callerProfile: 'other-profile',
+          projectPath: temporaryRoot,
+          model: 'provider/model',
+          objective: 'newer work',
+          sessionId: 'reused-worker',
+          status: 'working',
+          lease: { ownerId: 'live-owner', expiresAt: 100 },
+          createdAt: 2,
+          updatedAt: 2,
+        },
+      ],
+      result: true,
+    }))
+    const services = recoveryServices()
+    const metadata = new OpenWaggleMcpSessionMetadataStore(
+      sessionMetadataStorePath(options.taskStorePath),
+    )
+    const manager = new OpenWaggleServerTaskManager(options, metadata, services, {
+      now: () => 10,
+    })
+
+    await Effect.runPromise(manager.recoverInterruptedTasks())
+
+    expect(services.setDelegationState).not.toHaveBeenCalled()
+  })
+
+  it('projects only the newest terminal task for a reused session', async () => {
+    const options = serveOptions(temporaryRoot)
+    const store = new OpenWaggleMcpTaskStore(options.taskStorePath)
+    await store.update(() => ({
+      tasks: [
+        {
+          id: 'older-cancelled-worker',
+          callerProfile: options.profile,
+          projectPath: temporaryRoot,
+          model: 'provider/model',
+          objective: 'older work',
+          sessionId: 'reused-worker',
+          status: 'cancelled',
+          createdAt: 1,
+          updatedAt: 10,
+        },
+        {
+          id: 'newer-completed-worker',
+          callerProfile: options.profile,
+          projectPath: temporaryRoot,
+          model: 'provider/model',
+          objective: 'newer work',
+          sessionId: 'reused-worker',
+          status: 'completed',
+          createdAt: 2,
+          updatedAt: 3,
+        },
+      ],
+      result: true,
+    }))
+    const services = recoveryServices()
+    const metadata = new OpenWaggleMcpSessionMetadataStore(
+      sessionMetadataStorePath(options.taskStorePath),
+    )
+    const manager = new OpenWaggleServerTaskManager(options, metadata, services)
+
+    await Effect.runPromise(manager.recoverInterruptedTasks())
+
+    expect(services.setDelegationState).toHaveBeenCalledTimes(1)
+    expect(services.setDelegationState).toHaveBeenCalledWith(SessionId('reused-worker'), 'accepted')
+    const tasks = await store.readTasks()
+    expect(tasks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'newer-completed-worker',
+          projectedDelegationState: 'accepted',
+        }),
+      ]),
+    )
+    expect(tasks.find(({ id }) => id === 'older-cancelled-worker')).not.toHaveProperty(
+      'projectedDelegationState',
+    )
+  })
+
   it('projects direct cancellation after an expired lease', async () => {
     const options = serveOptions(temporaryRoot)
     const store = new OpenWaggleMcpTaskStore(options.taskStorePath)

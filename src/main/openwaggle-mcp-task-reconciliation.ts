@@ -2,7 +2,11 @@ import { SessionId } from '@shared/types/brand'
 import { recoverStaleTask } from './openwaggle-mcp-task-leases'
 import { projectTaskDelegationState, terminalDelegationState } from './openwaggle-mcp-task-lineage'
 import type { OpenWaggleServerTaskServices } from './openwaggle-mcp-task-runtime'
-import { isTerminalTaskStatus, type OpenWaggleMcpTaskStore } from './openwaggle-mcp-task-store'
+import {
+  isTerminalTaskStatus,
+  type OpenWaggleMcpTaskStore,
+  type ServerTaskRecord,
+} from './openwaggle-mcp-task-store'
 
 interface ReconcileProfileTasksInput {
   readonly now: number
@@ -11,13 +15,29 @@ interface ReconcileProfileTasksInput {
   readonly store: OpenWaggleMcpTaskStore
 }
 
+function isNewerTask(candidate: ServerTaskRecord, current: ServerTaskRecord) {
+  if (candidate.createdAt !== current.createdAt) return candidate.createdAt > current.createdAt
+  if (candidate.updatedAt !== current.updatedAt) return candidate.updatedAt > current.updatedAt
+  return candidate.id.localeCompare(current.id) > 0
+}
+
+function authoritativeTasksBySession(tasks: readonly ServerTaskRecord[]) {
+  const authoritative = new Map<string, ServerTaskRecord>()
+  for (const task of tasks) {
+    if (!task.sessionId) continue
+    const current = authoritative.get(task.sessionId)
+    if (!current || isNewerTask(task, current)) authoritative.set(task.sessionId, task)
+  }
+  return authoritative.values()
+}
+
 export async function reconcileOpenWaggleProfileTasks(input: ReconcileProfileTasksInput) {
   const reconciliation = await input.store.update((tasks) => {
     const reconciled = tasks.map((task) => {
       if (task.callerProfile !== input.profile) return task
       return recoverStaleTask(task, input.now)
     })
-    const pending = reconciled.flatMap((task) => {
+    const pending = [...authoritativeTasksBySession(reconciled)].flatMap((task) => {
       if (
         task.callerProfile !== input.profile ||
         !task.sessionId ||
