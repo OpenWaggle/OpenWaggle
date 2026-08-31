@@ -15,6 +15,7 @@ import {
 } from './workspace-document-sessions'
 import { encodeWorkspaceText, workspaceFileRevision } from './workspace-file-content'
 import { resolveExistingWorkspaceFile } from './workspace-file-paths'
+import { readWorkspaceFile } from './workspace-file-reader'
 import { rememberWorkspaceFile } from './workspace-file-search'
 import { withWorkspacePathLocks } from './workspace-path-locks'
 
@@ -79,6 +80,22 @@ async function atomicWrite(filePath: string, content: Uint8Array, mode: number) 
   }
 }
 
+async function rehydrateWorkspaceDocumentSession(
+  input: WorkspaceDocumentApplyInput,
+  projectRoot: string,
+  relativePath: string,
+) {
+  const reopened = await readWorkspaceFile(input)
+  if (!('documentVersion' in reopened) || reopened.revision !== input.expectedRevision) {
+    return undefined
+  }
+  const session = workspaceDocumentSession(projectRoot, relativePath)
+  if (!session) return undefined
+  session.version = input.baseVersion
+  storeWorkspaceDocumentSession(session)
+  return session
+}
+
 export async function applyWorkspaceDocumentEdits(
   input: WorkspaceDocumentApplyInput,
 ): Promise<WorkspaceDocumentApplyResult> {
@@ -92,7 +109,14 @@ async function applyWorkspaceDocumentEditsLocked(
   input: WorkspaceDocumentApplyInput,
 ): Promise<WorkspaceDocumentApplyResult> {
   const resolved = await resolveExistingWorkspaceFile(input)
-  const session = workspaceDocumentSession(resolved.projectRoot, resolved.relativePath)
+  let session = workspaceDocumentSession(resolved.projectRoot, resolved.relativePath)
+  if (!session) {
+    session = await rehydrateWorkspaceDocumentSession(
+      input,
+      resolved.projectRoot,
+      resolved.relativePath,
+    )
+  }
   if (!session || session.revision !== input.expectedRevision) {
     return {
       status: 'conflict',

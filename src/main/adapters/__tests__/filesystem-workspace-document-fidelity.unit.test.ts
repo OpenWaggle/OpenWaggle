@@ -150,6 +150,57 @@ describe('workspace document fidelity', () => {
     )
   })
 
+  it('edits a renderer-cached file after its document session is evicted', async () => {
+    const initial = await runWithWorkspaceFiles((service) =>
+      service.readFile({ projectPath, path: 'src/alpha.ts' }),
+    )
+    if (!('documentVersion' in initial)) throw new Error('Expected a text document.')
+
+    const firstSave = await runWithWorkspaceFiles((service) =>
+      service.applyDocumentEdits({
+        projectPath,
+        path: 'src/alpha.ts',
+        expectedRevision: initial.revision,
+        baseVersion: initial.documentVersion,
+        batches: [
+          {
+            version: initial.documentVersion + 1,
+            changes: [{ rangeOffset: 21, rangeLength: 1, text: '2' }],
+          },
+        ],
+      }),
+    )
+    if (firstSave.status !== 'saved') throw new Error('Expected the first edit to save.')
+
+    for (let index = 0; index < 16; index += 1) {
+      const relativePath = `src/eviction-${index}.ts`
+      await fs.writeFile(path.join(projectPath, relativePath), `export const value = ${index}\n`)
+      await runWithWorkspaceFiles((service) =>
+        service.readFile({ projectPath, path: relativePath }),
+      )
+    }
+
+    const saved = await runWithWorkspaceFiles((service) =>
+      service.applyDocumentEdits({
+        projectPath,
+        path: 'src/alpha.ts',
+        expectedRevision: firstSave.revision,
+        baseVersion: firstSave.version,
+        batches: [
+          {
+            version: firstSave.version + 1,
+            changes: [{ rangeOffset: 21, rangeLength: 1, text: '3' }],
+          },
+        ],
+      }),
+    )
+
+    expect(saved.status).toBe('saved')
+    expect(await fs.readFile(path.join(projectPath, 'src', 'alpha.ts'), 'utf8')).toBe(
+      'export const alpha = 3\n',
+    )
+  })
+
   it('resolves EditorConfig inside the worktree and applies safe encoding and EOL policy', async () => {
     await fs.writeFile(
       path.join(projectPath, '.editorconfig'),
