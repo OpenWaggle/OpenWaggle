@@ -11,7 +11,6 @@ import { typedHandle } from './typed-ipc'
 
 const nonEmptyStringSchema = Schema.String.pipe(Schema.minLength(1))
 const MAX_WORKSPACE_QUERY_CODE_UNITS = 1_024
-const MAX_DOCUMENT_CHANGES_PER_BATCH = 256
 const workspaceQuerySchema = Schema.String.pipe(Schema.maxLength(MAX_WORKSPACE_QUERY_CODE_UNITS))
 const explorerResultLimitSchema = Schema.Number.pipe(
   Schema.int(),
@@ -41,7 +40,9 @@ const documentChangeSchema = Schema.Struct({
 })
 const documentEditBatchSchema = Schema.Struct({
   version: nonNegativeIntegerSchema,
-  changes: Schema.Array(documentChangeSchema).pipe(Schema.maxItems(MAX_DOCUMENT_CHANGES_PER_BATCH)),
+  changes: Schema.Array(documentChangeSchema).pipe(
+    Schema.maxItems(WORKSPACE_FILES.DOCUMENT_EDIT_CHANGES_PER_BATCH_LIMIT),
+  ),
 })
 const externalEditorIdSchema = Schema.Literal(
   ...WORKSPACE_EXTERNAL_EDITOR_DEFINITIONS.map((editor) => editor.id),

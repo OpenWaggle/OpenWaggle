@@ -206,7 +206,7 @@ function FilePreviewContent({
   if (file.previewKind === 'oversized') {
     return (
       <OversizedSourcePreview
-        key={workspaceFileIdentity(projectPath, file.path)}
+        key={`${workspaceFileIdentity(projectPath, file.path)}:${file.revision}`}
         file={file}
         projectPath={projectPath}
       />

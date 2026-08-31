@@ -7,6 +7,7 @@ import type {
 import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { queryKeys } from '@/queries/query-keys'
 import { Button } from '@/shared/ui/Button'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 import { WorkspaceFilePane } from '../WorkspaceFilePreview'
@@ -147,5 +148,27 @@ describe('WorkspaceFilePane file identity', () => {
     await act(async () => oldNextPage.resolve(page('stale worktree A page', 100, null)))
     expect(screen.getByText('worktree B first page')).toBeVisible()
     expect(screen.queryByText('stale worktree A page')).not.toBeInTheDocument()
+  })
+
+  it('reloads an oversized preview when the file revision changes in place', async () => {
+    ipcMocks.readWorkspaceFile.mockResolvedValue(oversizedFile satisfies WorkspaceFileReadResult)
+    ipcMocks.readWorkspaceFilePage
+      .mockResolvedValueOnce(page('old revision page', 0, null))
+      .mockResolvedValueOnce(page('new revision page', 0, null))
+    const { client } = renderWithQueryClient(
+      <WorkspaceFilePane projectPath="/worktree-a" relativePath={SHARED_PATH} line={null} />,
+    )
+
+    expect(await screen.findByText('old revision page')).toBeVisible()
+    act(() => {
+      client.setQueryData(queryKeys.workspaceFile('/worktree-a', SHARED_PATH), {
+        ...oversizedFile,
+        revision: 'new-revision',
+      } satisfies WorkspaceFileReadResult)
+    })
+
+    expect(await screen.findByText('new revision page')).toBeVisible()
+    expect(screen.queryByText('old revision page')).not.toBeInTheDocument()
+    expect(ipcMocks.readWorkspaceFilePage).toHaveBeenCalledTimes(2)
   })
 })

@@ -1,5 +1,4 @@
 import { matchBy } from '@diegogbrisa/ts-match'
-import { WORKSPACE_FILES } from '@shared/constants/resource-limits'
 import { WORKSPACE_EDITOR_PERFORMANCE } from '@shared/constants/workspace-editor-performance'
 import type {
   WorkspaceDocumentChange,
@@ -16,6 +15,7 @@ import {
   type PersistedDraftJournal,
   removeDraftJournal,
 } from '../lib/workspace-draft-journal'
+import { isWithinWorkspaceEditTransportLimits } from './workspace-save-queue-limits'
 
 export const AUTOSAVE_DELAY_MS = 500
 const MAX_PROJECTED_SAVE_COPY_CODE_UNITS = 8 * 1024 * 1024
@@ -151,14 +151,9 @@ export function takeWorkspaceEditBatchesForSave(
   context: WorkspaceSaveQueueContext,
   savingContent: string,
 ) {
-  const changeCount = context.pending.current.reduce(
-    (total, batch) => total + batch.changes.length,
-    0,
-  )
   const projectedCopyCodeUnits = context.pending.current.length * savingContent.length
   if (
-    context.pending.current.length <= WORKSPACE_FILES.DOCUMENT_EDIT_BATCH_LIMIT &&
-    changeCount <= WORKSPACE_FILES.DOCUMENT_EDIT_CHANGE_LIMIT &&
+    isWithinWorkspaceEditTransportLimits(context.pending.current) &&
     projectedCopyCodeUnits <= MAX_PROJECTED_SAVE_COPY_CODE_UNITS
   ) {
     return context.pending.current.splice(0)

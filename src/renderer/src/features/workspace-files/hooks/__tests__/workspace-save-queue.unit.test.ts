@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { WORKSPACE_FILES } from '@shared/constants/resource-limits'
 import type { WorkspaceTextFileReadResult } from '@shared/types/workspace-files'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
@@ -172,6 +173,47 @@ describe('workspace save queue hot path', () => {
     ])
     expect(context.pending.current).toEqual([])
     expect(context.nextVersion.current).toBe(6)
+  })
+
+  it('compacts a batch that exceeds the IPC per-batch change limit', () => {
+    const context = contextFixture()
+    context.pending.current = [
+      {
+        version: 1,
+        changes: Array.from(
+          { length: WORKSPACE_FILES.DOCUMENT_EDIT_CHANGES_PER_BATCH_LIMIT + 1 },
+          () => ({ rangeOffset: 0, rangeLength: 0, text: 'x' }),
+        ),
+      },
+    ]
+
+    expect(takeWorkspaceEditBatchesForSave(context, 'after')).toEqual([
+      {
+        version: 1,
+        changes: [{ rangeOffset: 0, rangeLength: 6, text: 'after' }],
+      },
+    ])
+  })
+
+  it('compacts queued inserts that exceed the IPC aggregate text limit', () => {
+    const context = contextFixture()
+    const chunk = 'x'.repeat(WORKSPACE_FILES.DOCUMENT_EDIT_INSERT_CODE_UNIT_LIMIT / 2 + 1)
+    context.pending.current = [
+      {
+        version: 1,
+        changes: [
+          { rangeOffset: 0, rangeLength: 0, text: chunk },
+          { rangeOffset: 0, rangeLength: 0, text: chunk },
+        ],
+      },
+    ]
+
+    expect(takeWorkspaceEditBatchesForSave(context, 'after')).toEqual([
+      {
+        version: 1,
+        changes: [{ rangeOffset: 0, rangeLength: 6, text: 'after' }],
+      },
+    ])
   })
 
   it('rejects a coordinated flush while the file has an unresolved conflict', async () => {
