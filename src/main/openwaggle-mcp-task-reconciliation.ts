@@ -3,11 +3,7 @@ import type { SessionDelegationState } from '@shared/types/session'
 import { isActiveTaskStatus, recoverStaleTask } from './openwaggle-mcp-task-leases'
 import { projectTaskDelegationState, terminalDelegationState } from './openwaggle-mcp-task-lineage'
 import type { OpenWaggleServerTaskServices } from './openwaggle-mcp-task-runtime'
-import {
-  isTerminalTaskStatus,
-  type OpenWaggleMcpTaskStore,
-  type ServerTaskRecord,
-} from './openwaggle-mcp-task-store'
+import type { OpenWaggleMcpTaskStore, ServerTaskRecord } from './openwaggle-mcp-task-store'
 
 interface ReconcileProfileTasksInput {
   readonly now: number
@@ -47,6 +43,26 @@ function delegationStateForTask(task: ServerTaskRecord) {
   return isActiveTaskStatus(task.status) ? 'working' : terminalDelegationState(task.status)
 }
 
+function acknowledgeProjectedState(
+  input: Pick<ReconcileProfileTasksInput, 'store'>,
+  taskId: string,
+  sessionId: SessionId,
+  state: SessionDelegationState,
+) {
+  return input.store.update((tasks) => {
+    const authoritative = authoritativeTaskForSession(tasks, sessionId)
+    if (authoritative?.id !== taskId || delegationStateForTask(authoritative) !== state) {
+      return { tasks, result: false }
+    }
+    return {
+      tasks: tasks.map((task) =>
+        task.id === taskId ? { ...task, projectedDelegationState: state } : task,
+      ),
+      result: true,
+    }
+  })
+}
+
 export async function projectTaskStateIfAuthoritative(
   input: Pick<ReconcileProfileTasksInput, 'services' | 'store'>,
   taskId: string,
@@ -61,10 +77,8 @@ export async function projectTaskStateIfAuthoritative(
     const projectedState = delegationStateForTask(before)
     const succeeded = await projectTaskDelegationState(input.services, sessionId, projectedState)
     if (!succeeded) continue
-    const after = authoritativeTaskForSession(await input.store.readTasks(), sessionId)
     const projectedRequestedState = before.id === taskId && projectedState === state
-    if (!after) return projectedRequestedState
-    if (after.id === before.id && delegationStateForTask(after) === projectedState) {
+    if (await acknowledgeProjectedState(input, before.id, sessionId, projectedState)) {
       return projectedRequestedState
     }
   }
@@ -78,46 +92,18 @@ export async function reconcileOpenWaggleProfileTasks(input: ReconcileProfileTas
       return recoverStaleTask(task, input.now)
     })
     const pending = [...authoritativeTasksBySession(reconciled)].flatMap((task) => {
-      if (
-        task.callerProfile !== input.profile ||
-        !task.sessionId ||
-        !isTerminalTaskStatus(task.status)
-      ) {
-        return []
-      }
-      const state = terminalDelegationState(task.status)
+      if (task.callerProfile !== input.profile || !task.sessionId) return []
+      const state = delegationStateForTask(task)
       return task.projectedDelegationState === state
         ? []
         : [{ taskId: task.id, sessionId: SessionId(task.sessionId), state }]
     })
     return { tasks: reconciled, result: { pending, tasks: reconciled } }
   })
-  const projected = (
-    await Promise.all(
-      reconciliation.pending.map(async (task) => ({
-        ...task,
-        succeeded: await projectTaskStateIfAuthoritative(
-          input,
-          task.taskId,
-          task.sessionId,
-          task.state,
-        ),
-      })),
-    )
-  ).filter(({ succeeded }) => succeeded)
-  if (projected.length > 0) {
-    const stateByTaskId = new Map(projected.map(({ taskId, state }) => [taskId, state]))
-    await input.store.update((tasks) => ({
-      tasks: tasks.map((task) => {
-        const state = stateByTaskId.get(task.id)
-        return state &&
-          isTerminalTaskStatus(task.status) &&
-          terminalDelegationState(task.status) === state
-          ? { ...task, projectedDelegationState: state }
-          : task
-      }),
-      result: true,
-    }))
-  }
+  await Promise.all(
+    reconciliation.pending.map((task) =>
+      projectTaskStateIfAuthoritative(input, task.taskId, task.sessionId, task.state),
+    ),
+  )
   return reconciliation.tasks
 }

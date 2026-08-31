@@ -12,6 +12,7 @@ import {
   OpenWaggleServerTaskManager,
   type OpenWaggleServerTaskServices,
 } from '../openwaggle-mcp-task-manager'
+import { OpenWaggleMcpTaskStore } from '../openwaggle-mcp-task-store'
 import { serveOptions } from './openwaggle-mcp-session-control.test-support'
 import { waitForTaskStatus } from './openwaggle-mcp-task-leases.test-support'
 
@@ -108,10 +109,12 @@ describe('hosted MCP task session linkage', () => {
     expect(cancelled.sessionId).toBe(`created-${task.id}`)
   })
 
-  it('retries a transient working-state projection for a reused session', async () => {
+  it('persists a working projection retry after immediate attempts are exhausted', async () => {
     const options = serveOptions(temporaryRoot)
     const taskServices = services()
     vi.mocked(taskServices.setDelegationState)
+      .mockRejectedValueOnce(new Error('session database temporarily unavailable'))
+      .mockRejectedValueOnce(new Error('session database temporarily unavailable'))
       .mockRejectedValueOnce(new Error('session database temporarily unavailable'))
       .mockResolvedValue(undefined)
     const manager = track(
@@ -129,11 +132,16 @@ describe('hosted MCP task session linkage', () => {
 
     await vi.waitFor(() => {
       expect(taskServices.setDelegationState).toHaveBeenNthCalledWith(
-        2,
+        4,
         SessionId('reused-session'),
         'working',
       )
     })
+    await expect(new OpenWaggleMcpTaskStore(options.taskStorePath).readTasks()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: task.id, projectedDelegationState: 'working' }),
+      ]),
+    )
   })
 
   it('restores the authoritative working state when an older terminal projection finishes late', async () => {
