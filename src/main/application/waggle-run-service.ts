@@ -67,6 +67,7 @@ interface PreparedWaggleRun {
   readonly hydratedPayload: HydratedAgentSendPayload
   readonly inheritedModel: SupportedModelId
   readonly runtimeModel: SupportedModelId
+  readonly compactionThresholdPercent: number
   readonly session: SessionDetail
   readonly skillToggles: Record<string, boolean> | undefined
   readonly enabledOpenWaggleExtensionPackagePaths: readonly string[]
@@ -155,6 +156,7 @@ function prepareWaggleRun(input: WaggleRunInput) {
           config: input.config,
           selectedModel: input.model,
         }),
+        compactionThresholdPercent: settings.compactionThresholdPercent,
         session,
         skillToggles: settings.skillTogglesByProject[session.projectPath],
         enabledOpenWaggleExtensionPackagePaths,
@@ -205,6 +207,7 @@ function runPreparedWaggle(
       runId: input.runId,
       payload: prepared.hydratedPayload,
       model: prepared.runtimeModel,
+      compactionThresholdPercent: prepared.compactionThresholdPercent,
       signal: input.signal,
       skillToggles: prepared.skillToggles,
       enabledOpenWaggleExtensionPackagePaths: prepared.enabledOpenWaggleExtensionPackagePaths,

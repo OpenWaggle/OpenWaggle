@@ -3,11 +3,19 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { SettingsService } from '../../services/settings-service'
 
+function keepCurrentWhenUndefined<T>(next: T | undefined, current: T): T {
+  return next === undefined ? current : next
+}
+
 function mergeSettings(current: Settings, partial: Partial<Settings>): Settings {
   return {
     selectedModel: partial.selectedModel ?? current.selectedModel,
     favoriteModels: partial.favoriteModels ?? current.favoriteModels,
     enabledModels: partial.enabledModels ?? current.enabledModels,
+    compactionThresholdPercent: keepCurrentWhenUndefined(
+      partial.compactionThresholdPercent,
+      current.compactionThresholdPercent,
+    ),
     projectPath: partial.projectPath !== undefined ? partial.projectPath : current.projectPath,
     thinkingLevel: partial.thinkingLevel ?? current.thinkingLevel,
     recentProjects: partial.recentProjects ?? current.recentProjects,

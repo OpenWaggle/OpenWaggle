@@ -125,6 +125,17 @@ describe('session-details compaction projection', () => {
             summary: 'Summarized the old request and answer.',
             firstKeptEntryId: 'kept-user',
             tokensBefore: 123456,
+            details: {
+              schemaVersion: 1,
+              mechanism: 'native',
+              identity: {
+                api: 'openai-responses',
+                provider: 'openai',
+                baseUrl: 'https://api.openai.com/v1',
+                modelId: 'gpt-5.2',
+              },
+              items: [{ type: 'compaction', encrypted_content: 'opaque' }],
+            },
           }),
           metadataJson: '{}',
           pathDepth: 4,

@@ -22,6 +22,7 @@ export interface PreferencesState {
   setDiffSyntaxTheme: (theme: DiffSyntaxTheme) => Promise<void>
   setDiffView: (view: DiffView) => Promise<void>
   setDiffWrapLines: (wrap: boolean) => Promise<void>
+  setCompactionThresholdPercent: (percent: number) => Promise<void>
   setEnabledModels: (models: string[]) => Promise<void>
   setProjectDisplayName: (path: string, name: string) => Promise<void>
   setShortcutBinding: (command: ShortcutCommand, binding: ShortcutBinding | null) => Promise<void>

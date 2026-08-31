@@ -49,6 +49,7 @@ interface CreatePiRunSessionRuntimeInput extends PiRuntimeExtensionIsolationInpu
   readonly runId: AgentKernelRunInput['runId']
   readonly payload: HydratedAgentSendPayload
   readonly modelReference: AgentKernelRunInput['model']
+  readonly compactionThresholdPercent: AgentKernelRunInput['compactionThresholdPercent']
   readonly signal: AgentKernelRunInput['signal']
   readonly onEvent: AgentKernelRunInput['onEvent']
   readonly skillToggles?: Readonly<Record<string, boolean>>
@@ -95,6 +96,7 @@ export async function createPiRunSessionRuntime(
   const runtimeOptions = {
     projectPath: input.projectPath,
     modelReference: input.modelReference,
+    compactionThresholdPercent: input.compactionThresholdPercent,
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
     ...(input.extensionFactories ? { extensionFactories: [...input.extensionFactories] } : {}),
   } satisfies PiProjectRuntimeIsolationOptions

@@ -34,6 +34,7 @@ export interface AgentKernelRunInput {
   readonly runId: string
   readonly payload: HydratedAgentSendPayload
   readonly model: SupportedModelId
+  readonly compactionThresholdPercent?: number
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly signal: AbortSignal
@@ -82,6 +83,7 @@ export interface CreateAgentKernelSessionResult {
 export interface AgentKernelSessionInput {
   readonly session: SessionDetail
   readonly model: SupportedModelId
+  readonly compactionThresholdPercent?: number
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
 }

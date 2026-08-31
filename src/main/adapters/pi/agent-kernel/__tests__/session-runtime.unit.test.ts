@@ -101,6 +101,7 @@ describe('Pi session runtime', () => {
     expect(runtimeMocks.createPiProjectModelRuntime).toHaveBeenCalledWith({
       projectPath: '/repo',
       modelReference: MODEL,
+      compactionThresholdPercent: 80,
       skillToggles: { audit: true },
     })
     expect(runtimeMocks.createOpenWaggleAgentSessionFromServices).toHaveBeenCalledWith({

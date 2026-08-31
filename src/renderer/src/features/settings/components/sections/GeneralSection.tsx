@@ -1,10 +1,13 @@
 import { matchBy } from '@diegogbrisa/ts-match'
+import { PERCENT_BASE } from '@shared/constants/math'
 import type { UpdateStatus } from '@shared/types/updater'
 import { Loader2, RefreshCw, RotateCcw } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
+import { RangeInput } from '@/shared/ui/RangeInput'
 import { AgentAccessSection } from './AgentAccessSection'
 
 const logger = createRendererLogger('settings')
@@ -92,6 +95,12 @@ export function GeneralSection() {
   const version = useAppVersion()
   const status = useUpdateStatus()
   const statusRow = getStatusRow(status)
+  const compactionThresholdPercent = usePreferencesStore(
+    (state) => state.settings.compactionThresholdPercent,
+  )
+  const setCompactionThresholdPercent = usePreferencesStore(
+    (state) => state.setCompactionThresholdPercent,
+  )
 
   const canCheck =
     status.type === 'idle' || status.type === 'not-available' || status.type === 'error'
@@ -101,6 +110,35 @@ export function GeneralSection() {
   return (
     <div className="space-y-6">
       <AgentAccessSection />
+
+      <div className="space-y-3">
+        <h3 className="text-base font-semibold text-text-primary">Context compaction</h3>
+        <div className="overflow-hidden rounded-lg border border-border bg-bg">
+          <div className="flex min-h-14 items-center justify-between gap-4 px-5 py-3">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs font-medium text-text-primary">
+                Automatic compaction threshold
+              </span>
+              <span className="text-xs text-text-tertiary">
+                Compact before the next model request when context reaches this percentage.
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <RangeInput
+                aria-label="Automatic compaction threshold"
+                min={1}
+                max={PERCENT_BASE}
+                value={compactionThresholdPercent}
+                onChange={(event) => void setCompactionThresholdPercent(Number(event.target.value))}
+                className="w-32 accent-accent"
+              />
+              <span className="w-9 text-right text-xs text-text-secondary">
+                {compactionThresholdPercent}%
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* About & Updates — title outside the card */}
       <div className="space-y-3">

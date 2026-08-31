@@ -76,17 +76,31 @@ describe('Pi entry projection', () => {
         thinkingLevel: 'xhigh',
       }),
     ).toMatchObject({ kind: 'thinking_level_change', role: null })
-    expect(
-      projectionForPiEntry({
-        ...base('compaction'),
-        type: 'compaction',
-        summary: 'summary',
-        firstKeptEntryId: 'kept',
-        tokensBefore: 12,
-        details: { source: 'test' },
-        fromHook: true,
-      }),
-    ).toMatchObject({ kind: 'compaction_summary', role: null })
+    const compactionProjection = projectionForPiEntry({
+      ...base('compaction'),
+      type: 'compaction',
+      summary: 'summary',
+      firstKeptEntryId: 'kept',
+      tokensBefore: 12,
+      details: {
+        schemaVersion: 1,
+        mechanism: 'native',
+        identity: {
+          api: 'openai-responses',
+          provider: 'openai',
+          baseUrl: 'https://api.openai.com/v1',
+          modelId: 'gpt-5.2',
+        },
+        items: [{ type: 'compaction', encrypted_content: 'opaque' }],
+      },
+      fromHook: true,
+    })
+    expect(compactionProjection).toMatchObject({ kind: 'compaction_summary', role: null })
+    expect(JSON.parse(compactionProjection.contentJson)).toMatchObject({
+      summary: 'summary',
+      tokensBefore: 12,
+      details: { schemaVersion: 1, mechanism: 'native' },
+    })
     expect(
       projectionForPiEntry({
         ...base('branch'),

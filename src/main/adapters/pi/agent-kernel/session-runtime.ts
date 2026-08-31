@@ -6,6 +6,7 @@ import {
   createAgentSessionRuntime,
   SessionManager,
 } from '@earendil-works/pi-coding-agent'
+import { DEFAULT_COMPACTION_THRESHOLD_PERCENT } from '@shared/types/settings'
 import type { AgentKernelSessionInput } from '../../../ports/agent-kernel-service'
 import { getPiAgentDir, type PiModel } from '../pi-provider-catalog'
 import {
@@ -74,6 +75,8 @@ export async function withPiSession<T>(
     runtimeOptions: {
       projectPath,
       modelReference: input.model,
+      compactionThresholdPercent:
+        input.compactionThresholdPercent ?? DEFAULT_COMPACTION_THRESHOLD_PERCENT,
       ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
     },
     createSession: async ({ services, model }) => {
@@ -102,6 +105,8 @@ export async function createPiSessionRuntime(
     const runtimeOptions = {
       projectPath: options.cwd,
       modelReference: input.model,
+      compactionThresholdPercent:
+        input.compactionThresholdPercent ?? DEFAULT_COMPACTION_THRESHOLD_PERCENT,
       ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
     } satisfies PiProjectRuntimeIsolationOptions
     const selectedRuntime = await createIsolatedPiProjectRuntime({

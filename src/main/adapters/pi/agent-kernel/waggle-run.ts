@@ -210,6 +210,7 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
     projectPath,
     runId: input.runId,
     modelReference: initialRuntimeModel,
+    compactionThresholdPercent: input.compactionThresholdPercent,
     payload: input.payload,
     signal: input.signal,
     onEvent: (event) =>

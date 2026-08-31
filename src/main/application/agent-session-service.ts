@@ -74,12 +74,17 @@ function loadSessionForCommand(input: AgentSessionCommandInput) {
 function loadValidatedAgentSession(input: AgentSessionCommandInput) {
   return Effect.gen(function* () {
     const session = yield* loadSessionForCommand(input)
-    const skillToggles = yield* getSkillToggles(session.projectPath)
+    const settingsService = yield* SettingsService
+    const settings = yield* settingsService.get()
+    const skillToggles = session.projectPath
+      ? settings.skillTogglesByProject[session.projectPath]
+      : undefined
     const enabledOpenWaggleExtensionPackagePaths = session.projectPath
       ? yield* listRuntimeEnabledOpenWaggleExtensionPackagePaths(session.projectPath)
       : undefined
     return {
       session,
+      compactionThresholdPercent: settings.compactionThresholdPercent,
       ...(skillToggles ? { skillToggles } : {}),
       ...(enabledOpenWaggleExtensionPackagePaths ? { enabledOpenWaggleExtensionPackagePaths } : {}),
     }
@@ -125,24 +130,21 @@ export function getAgentContextUsage(input: AgentSessionCommandInput) {
     return yield* agentKernel.getContextUsage({
       session,
       model: input.model,
+      compactionThresholdPercent: settings.compactionThresholdPercent,
       ...(skillToggles ? { skillToggles } : {}),
       ...(enabledOpenWaggleExtensionPackagePaths ? { enabledOpenWaggleExtensionPackagePaths } : {}),
     })
   })
 }
 
-function getSkillToggles(projectPath: string | null | undefined) {
-  return Effect.gen(function* () {
-    const settingsService = yield* SettingsService
-    const settings = yield* settingsService.get()
-    return projectPath ? settings.skillTogglesByProject[projectPath] : undefined
-  })
-}
-
 function copyAgentSessionToNewSession(input: AgentSessionCopyInput) {
   return Effect.gen(function* () {
-    const { session, skillToggles, enabledOpenWaggleExtensionPackagePaths } =
-      yield* loadValidatedAgentSession(input)
+    const {
+      session,
+      compactionThresholdPercent,
+      skillToggles,
+      enabledOpenWaggleExtensionPackagePaths,
+    } = yield* loadValidatedAgentSession(input)
 
     if (!session.projectPath) {
       return yield* Effect.fail(new Error('No project path set on the session.'))
@@ -152,6 +154,7 @@ function copyAgentSessionToNewSession(input: AgentSessionCopyInput) {
     const result = yield* agentKernel.forkSession({
       session,
       model: input.model,
+      compactionThresholdPercent,
       targetNodeId: String(input.targetNodeId),
       position: input.position,
       ...(skillToggles ? { skillToggles } : {}),
@@ -204,12 +207,17 @@ export function cloneAgentSessionToNewSession(input: AgentSessionForkInput) {
 
 export function compactAgentSession(input: AgentSessionCompactInput) {
   return Effect.gen(function* () {
-    const { session, skillToggles, enabledOpenWaggleExtensionPackagePaths } =
-      yield* loadValidatedAgentSession(input)
+    const {
+      session,
+      compactionThresholdPercent,
+      skillToggles,
+      enabledOpenWaggleExtensionPackagePaths,
+    } = yield* loadValidatedAgentSession(input)
     const agentKernel = yield* AgentKernelService
     const result = yield* agentKernel.compact({
       session,
       model: input.model,
+      compactionThresholdPercent,
       customInstructions: input.customInstructions,
       ...(input.signal ? { signal: input.signal } : {}),
       ...(input.onEvent ? { onEvent: input.onEvent } : {}),
@@ -229,13 +237,18 @@ export function compactAgentSession(input: AgentSessionCompactInput) {
 
 export function navigateAgentSessionTree(input: AgentSessionNavigateTreeInput) {
   return Effect.gen(function* () {
-    const { session, skillToggles, enabledOpenWaggleExtensionPackagePaths } =
-      yield* loadValidatedAgentSession(input)
+    const {
+      session,
+      compactionThresholdPercent,
+      skillToggles,
+      enabledOpenWaggleExtensionPackagePaths,
+    } = yield* loadValidatedAgentSession(input)
     const agentKernel = yield* AgentKernelService
     const navigation = yield* agentKernel
       .navigateTree({
         session,
         model: input.model,
+        compactionThresholdPercent,
         targetNodeId: String(input.targetNodeId),
         summarize: input.summarize,
         customInstructions: input.customInstructions,

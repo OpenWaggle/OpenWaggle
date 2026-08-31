@@ -1,3 +1,4 @@
+import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import type { UpdateStatus } from '@shared/types/updater'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -27,7 +28,10 @@ vi.mock('@/shared/lib/ipc', () => ({
   },
 }))
 
+import { usePreferencesStore } from '../../state/preferences-store'
 import { GeneralSection } from '../sections/GeneralSection'
+
+const setCompactionThresholdPercentMock = vi.fn()
 
 describe('GeneralSection', () => {
   beforeEach(() => {
@@ -36,6 +40,11 @@ describe('GeneralSection', () => {
     onUpdateStatusMock.mockReset()
     checkForUpdatesMock.mockReset()
     installUpdateMock.mockReset()
+    setCompactionThresholdPercentMock.mockReset()
+    usePreferencesStore.setState({
+      settings: DEFAULT_SETTINGS,
+      setCompactionThresholdPercent: setCompactionThresholdPercentMock,
+    })
 
     getAppVersionMock.mockResolvedValue('0.2.0')
     getUpdateStatusMock.mockResolvedValue({ type: 'idle' } satisfies UpdateStatus)
@@ -50,6 +59,20 @@ describe('GeneralSection', () => {
     await waitFor(() => {
       expect(screen.getByText(/OpenWaggle v0\.2\.0/)).toBeInTheDocument()
     })
+  })
+
+  it('updates the global automatic compaction threshold', () => {
+    render(<GeneralSection />)
+
+    const threshold = screen.getByRole('slider', { name: 'Automatic compaction threshold' })
+    expect(threshold).toHaveAttribute('min', '1')
+    expect(threshold).toHaveAttribute('max', '100')
+
+    fireEvent.change(threshold, {
+      target: { value: '75' },
+    })
+
+    expect(setCompactionThresholdPercentMock).toHaveBeenCalledWith(75)
   })
 
   it('renders the "About & Updates" section heading', () => {

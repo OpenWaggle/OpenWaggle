@@ -1,0 +1,166 @@
+diff --git a/dist/api/openai-responses-shared.js b/dist/api/openai-responses-shared.js
+index c35771dcc9b2173d0b459d13c6d86e622de45e9a..534410119f2c83b9e2989170815d321aabd6b396 100644
+--- a/dist/api/openai-responses-shared.js
++++ b/dist/api/openai-responses-shared.js
+@@ -137,7 +137,9 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
+                 if (block.type === "thinking") {
+                     if (block.thinkingSignature) {
+                         const reasoningItem = JSON.parse(block.thinkingSignature);
+-                        output.push(reasoningItem);
++                        if (reasoningItem.type !== "compaction" || isSameModel) {
++                            output.push(reasoningItem);
++                        }
+                     }
+                 }
+                 else if (block.type === "text") {
+diff --git a/dist/api/openai-responses.d.ts b/dist/api/openai-responses.d.ts
+index 41267bd50904069aa0879cc8634ea94bc1045236..77b9a067b4bb2118e8e07f5843aa8580eea80b41 100644
+--- a/dist/api/openai-responses.d.ts
++++ b/dist/api/openai-responses.d.ts
+@@ -1,5 +1,5 @@
+-import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
+-import type { SimpleStreamOptions, StreamFunction, StreamOptions } from "../types.ts";
++import type { CompactedResponse, ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
++import type { Context, Model, SimpleStreamOptions, StreamFunction, StreamOptions } from "../types.ts";
+ export interface OpenAIResponsesOptions extends StreamOptions {
+     reasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+     reasoningSummary?: "auto" | "detailed" | "concise" | null;
+@@ -11,4 +11,5 @@ export interface OpenAIResponsesOptions extends StreamOptions {
+  */
+ export declare const stream: StreamFunction<"openai-responses", OpenAIResponsesOptions>;
+ export declare const streamSimple: StreamFunction<"openai-responses", SimpleStreamOptions>;
++export declare function compactResponses(model: Model<"openai-responses">, context: Context, options?: SimpleStreamOptions): Promise<CompactedResponse>;
+ //# sourceMappingURL=openai-responses.d.ts.map
+diff --git a/dist/api/openai-responses.js b/dist/api/openai-responses.js
+index 0fb7e8b26f323f2b44a5a4b760bccedc4c3abdd0..efe0961ee795f7eb6f74f76e54f99022c2c20fce 100644
+--- a/dist/api/openai-responses.js
++++ b/dist/api/openai-responses.js
+@@ -50,6 +50,7 @@ function resolveCacheRetention(cacheRetention, env) {
+ }
+ function getCompat(model) {
+     return {
++        compactionBaseUrl: model.compat?.compactionBaseUrl,
+         supportsDeveloperRole: model.compat?.supportsDeveloperRole ?? true,
+         sessionAffinityFormat: model.compat?.sessionAffinityFormat ?? detectSessionAffinityFormat(model),
+         supportsLongCacheRetention: model.compat?.supportsLongCacheRetention ?? true,
+@@ -160,7 +161,47 @@ export const streamSimple = (model, context, options) => {
+         reasoningEffort,
+     });
+ };
+-function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId) {
++export async function compactResponses(model, context, options) {
++    if (model.compat?.supportsCompaction !== true) {
++        throw new Error(`Responses compaction is not supported by ${model.provider}/${model.id}`);
++    }
++    const apiKey = getClientApiKey(model.provider, options?.apiKey, options?.headers);
++    const cacheRetention = resolveCacheRetention(options?.cacheRetention, options?.env);
++    const cacheSessionId = cacheRetention === "none" ? undefined : options?.sessionId;
++    const compat = getCompat(model);
++    const client = createClient(model, context, apiKey, options?.headers, options?.fetch, cacheSessionId, compat.compactionBaseUrl);
++    const input = convertResponsesMessages(model, context, OPENAI_TOOL_CALL_PROVIDERS, {
++        includeSystemPrompt: false,
++        toolOptions: {
++            supportsStrictMode: compat.supportsStrictMode,
++            supportsOpenAIGrammarTools: compat.supportsOpenAIGrammarTools,
++        },
++    });
++    let params = {
++        model: model.id,
++        input,
++        instructions: context.systemPrompt || undefined,
++        prompt_cache_key: cacheRetention === "none" ? undefined : clampOpenAIPromptCacheKey(options?.sessionId),
++        prompt_cache_retention: getPromptCacheRetention(compat, cacheRetention),
++    };
++    const nextParams = await options?.onPayload?.(params, model);
++    if (nextParams !== undefined) {
++        params = nextParams;
++    }
++    const requestOptions = {
++        ...(options?.signal ? { signal: options.signal } : {}),
++        ...(options?.timeoutMs !== undefined ? { timeout: options.timeoutMs } : {}),
++        maxRetries: 0,
++    };
++    const { data, response } = await retryProviderRequest(() => client.responses.compact(params, requestOptions).withResponse(), {
++        maxRetries: options?.maxRetries,
++        maxRetryDelayMs: options?.maxRetryDelayMs,
++        signal: options?.signal,
++    });
++    await options?.onResponse?.({ status: response.status, headers: headersToRecord(response.headers) }, model);
++    return data;
++}
++function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId, baseUrlOverride) {
+     const compat = getCompat(model);
+     const headers = { "User-Agent": getPiUserAgent(), ...model.headers };
+     if (model.provider === "github-copilot") {
+@@ -188,7 +229,7 @@ function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId)
+     }
+     return new OpenAI({
+         apiKey,
+-        baseURL: model.baseUrl,
++        baseURL: baseUrlOverride ?? model.baseUrl,
+         dangerouslyAllowBrowser: true,
+         fetch,
+         defaultHeaders: headers,
+diff --git a/dist/providers/openai-codex.models.js b/dist/providers/openai-codex.models.js
+index c53dcaa13ee7106a07383697302e63962bb23f9d..76164bf1c686f7fd7360f7407c5091e58d3b1fdc 100644
+--- a/dist/providers/openai-codex.models.js
++++ b/dist/providers/openai-codex.models.js
+@@ -2,5 +2,27 @@
+ // Do not edit manually - run 'npm run generate-models' to update
+ import values from "./data/openai-codex.json" with { type: "json" };
+ import { flattenModelCatalog } from "../model-catalog.js";
+-export const OPENAI_CODEX_MODELS = flattenModelCatalog("openai-codex", values);
++const COMPACTION_CAPABLE_MODEL_IDS = new Set([
++    "gpt-5.3-codex-spark",
++    "gpt-5.4",
++    "gpt-5.4-mini",
++    "gpt-5.5",
++    "gpt-5.6-luna",
++    "gpt-5.6-sol",
++    "gpt-5.6-terra",
++]);
++const openAICodexModels = flattenModelCatalog("openai-codex", values);
++export const OPENAI_CODEX_MODELS = Object.fromEntries(Object.entries(openAICodexModels).map(([modelId, model]) => COMPACTION_CAPABLE_MODEL_IDS.has(modelId)
++    ? [
++        modelId,
++        {
++            ...model,
++            compat: {
++                ...model.compat,
++                supportsCompaction: true,
++                compactionBaseUrl: "https://chatgpt.com/backend-api/codex",
++            },
++        },
++    ]
++    : [modelId, model]));
+ //# sourceMappingURL=openai-codex.models.js.map
+diff --git a/dist/providers/openai.models.js b/dist/providers/openai.models.js
+index b64f4cd6014db2429b22dec1923d80460b4cee49..ccf1666e7a5e920cc04ddddfa6985afed99583a3 100644
+--- a/dist/providers/openai.models.js
++++ b/dist/providers/openai.models.js
+@@ -2,5 +2,9 @@
+ // Do not edit manually - run 'npm run generate-models' to update
+ import values from "./data/openai.json" with { type: "json" };
+ import { flattenModelCatalog } from "../model-catalog.js";
+-export const OPENAI_MODELS = flattenModelCatalog("openai", values);
++const COMPACTION_CAPABLE_MODEL_IDS = new Set(["gpt-5.2", "gpt-5.6-sol"]);
++const openAIModels = flattenModelCatalog("openai", values);
++export const OPENAI_MODELS = Object.fromEntries(Object.entries(openAIModels).map(([modelId, model]) => COMPACTION_CAPABLE_MODEL_IDS.has(modelId)
++    ? [modelId, { ...model, compat: { ...model.compat, supportsCompaction: true } }]
++    : [modelId, model]));
+ //# sourceMappingURL=openai.models.js.map
+diff --git a/dist/types.d.ts b/dist/types.d.ts
+index 2bb23658ee692343e4561ac461bd0e8d9328c5a1..ec2b3366e793d76dc56096fff87fd06cc37b5dfb 100644
+--- a/dist/types.d.ts
++++ b/dist/types.d.ts
+@@ -515,6 +515,10 @@ export interface OpenAICompletionsCompat {
+ }
+ /** Compatibility settings for OpenAI Responses APIs. */
+ export interface OpenAIResponsesCompat {
++    /** Whether this transport implements the public Responses Compaction protocol. Default: false. */
++    supportsCompaction?: boolean;
++    /** Optional public Responses Compaction base URL when it differs from the normal Responses transport. */
++    compactionBaseUrl?: string;
+     /** Whether the provider supports the `developer` role (vs `system`). Default: true. */
+     supportsDeveloperRole?: boolean;
+     /** Session-affinity header format: `openai` sends `session_id` and `x-client-request-id`; `openai-nosession` sends `x-client-request-id`; `openrouter` sends `x-session-id`. Does not affect the `prompt_cache_key` body param, which is governed by cache retention. Default: auto-detected. */

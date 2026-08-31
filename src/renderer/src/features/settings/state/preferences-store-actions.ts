@@ -123,11 +123,10 @@ async function persistSetting<K extends keyof Settings>(
   key: K,
   value: Settings[K],
   set: PreferencesSet,
-  get: PreferencesGet,
 ) {
-  const { settings } = get()
-  await api.updateSettings({ [key]: value })
-  set({ settings: { ...settings, [key]: value } })
+  const result = await api.updateSettings({ [key]: value })
+  if (!result.ok) throw new Error(result.error)
+  set((state) => ({ settings: { ...state.settings, [key]: value } }))
 }
 
 export function createPreferencesActions(
@@ -184,13 +183,14 @@ export function createPreferencesActions(
       persistProjectPreference(settings.projectPath, { thinkingLevel: preset })
     },
     setDefaultAuthorizationMode: (mode: AgentAuthorizationMode) =>
-      persistSetting('defaultAuthorizationMode', mode, set, get),
+      persistSetting('defaultAuthorizationMode', mode, set),
     setDefaultSessionEnvironmentMode: (mode: SessionEnvironmentMode) =>
-      persistSetting('defaultSessionEnvironmentMode', mode, set, get),
-    setDiffSyntaxTheme: (theme: DiffSyntaxTheme) =>
-      persistSetting('diffSyntaxTheme', theme, set, get),
-    setDiffView: (view: DiffView) => persistSetting('diffView', view, set, get),
-    setDiffWrapLines: (wrap: boolean) => persistSetting('diffWrapLines', wrap, set, get),
+      persistSetting('defaultSessionEnvironmentMode', mode, set),
+    setDiffSyntaxTheme: (theme: DiffSyntaxTheme) => persistSetting('diffSyntaxTheme', theme, set),
+    setDiffView: (view: DiffView) => persistSetting('diffView', view, set),
+    setDiffWrapLines: (wrap: boolean) => persistSetting('diffWrapLines', wrap, set),
+    setCompactionThresholdPercent: (percent: number) =>
+      persistSetting('compactionThresholdPercent', percent, set),
     setEnabledModels: (models) => setEnabledModels(models, set, get),
     setProjectDisplayName: async (path, name) => {
       const { settings } = get()

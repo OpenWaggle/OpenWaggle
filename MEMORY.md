@@ -75,6 +75,15 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - CDP file upload can produce `File` objects without native paths; native file-path behavior needs preload/unit coverage or real OS selection QA.
 - **The Windows NSIS script is only compiled when electron-builder packages Windows, which happens in the release workflow, not CI.** An installer-variant StrFunc call inside `customUnInstall` broke two consecutive releases across six days before anyone noticed, because NSIS only rejects it at compile time. `build/installer.nsh` is now compile-checked by `pnpm check:installer` inside `pnpm check`, so it fails a pull request in seconds instead of a release in minutes. Two NSIS rules worth remembering: StrFunc helpers must be declared before use, and an uninstall section can only Call `un.`-prefixed functions, so `customUnInstall` needs the `Un` variants (`${UnStrRep}`, not `${StrRep}`).
 
+## Pi Compaction Memory
+
+- Automatic compaction is one app-global percentage, default 80%, injected into Pi after project settings merge. Strip the injected `thresholdPercent` before Pi persists project settings; otherwise the global preference leaks into project configuration and becomes an accidental override.
+- Native compaction is an explicit model-transport capability, never an inference from provider name or generic Responses support. The canonical Responses `output` is opaque durable data and must contain a valid compaction item before a new boundary is appended.
+- A native checkpoint identity includes the effective credential-resolved endpoint. Resolve the target model/auth first, then rebuild model-visible history; a fallback startup or model switch must never call the source model and must not replay its checkpoint to a different endpoint.
+- The Pi JSONL branch stays append-only and authoritative. Incompatible targets reconstruct raw entries, trim only the oldest complete model-facing units when the target hard window requires it, and append a deduplicated reconstruction-boundary diagnostic without deleting source entries.
+- Codex-like scheduling defers idle compaction: check before a new user turn, and after a tool/model step only when another model call follows. Large tool-call/result pairs are atomic recent-tail units.
+- These changes require Pi core/provider patches, not an extension. On each Pi upgrade, regenerate both pnpm patches and re-audit generated model capability metadata, cold resume, repeated native replay, malformed native output, portable tail fit, and tool-loop scheduling.
+
 ## Renderer And Session Memory
 
 - Renderer state that represents chat transcripts or active runs must be keyed by concrete `SessionId`, not only the active route.

@@ -12,3 +12,4 @@ export const SETTINGS_KEY_DEFAULT_AUTHORIZATION_MODE = 'defaultAuthorizationMode
 export const SETTINGS_KEY_DIFF_SYNTAX_THEME = 'diffSyntaxTheme'
 export const SETTINGS_KEY_DIFF_VIEW = 'diffView'
 export const SETTINGS_KEY_DIFF_WRAP_LINES = 'diffWrapLines'
+export const SETTINGS_KEY_COMPACTION_THRESHOLD_PERCENT = 'compactionThresholdPercent'

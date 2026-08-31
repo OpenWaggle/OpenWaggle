@@ -33,6 +33,7 @@ export async function runPiSession(
     projectPath,
     runId: input.runId,
     modelReference: input.model,
+    compactionThresholdPercent: input.compactionThresholdPercent,
     payload: input.payload,
     signal: input.signal,
     onEvent: input.onEvent,

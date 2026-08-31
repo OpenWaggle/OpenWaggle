@@ -1,4 +1,5 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
+import { PERCENT_BASE } from '@shared/constants/math'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import { SupportedModelId } from '@shared/types/brand'
@@ -115,6 +116,9 @@ const settingsUpdateSchema = Schema.Struct({
   enabledModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
   projectPath: Schema.optional(Schema.NullOr(Schema.String)),
   thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
+  compactionThresholdPercent: Schema.optional(
+    Schema.Number.pipe(Schema.int(), Schema.between(1, PERCENT_BASE)),
+  ),
   recentProjects: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
   skillTogglesByProject: Schema.optional(
     Schema.mutable(

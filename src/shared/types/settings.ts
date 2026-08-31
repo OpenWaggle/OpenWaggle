@@ -34,6 +34,7 @@ export const DIFF_SYNTAX_THEMES = [
 export type DiffSyntaxTheme = (typeof DIFF_SYNTAX_THEMES)[number]
 
 export const DEFAULT_MODEL_REF = SupportedModelId('')
+export const DEFAULT_COMPACTION_THRESHOLD_PERCENT = 80
 
 export interface Settings {
   readonly selectedModel: SupportedModelId
@@ -56,6 +57,8 @@ export interface Settings {
   readonly diffView: DiffView
   /** Wrap long diff lines instead of scrolling horizontally. */
   readonly diffWrapLines: boolean
+  /** Context-window usage percentage at which Pi automatically compacts. */
+  readonly compactionThresholdPercent: number
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -73,4 +76,5 @@ export const DEFAULT_SETTINGS: Settings = {
   diffSyntaxTheme: 'pierre-dark',
   diffView: 'unified',
   diffWrapLines: false,
+  compactionThresholdPercent: DEFAULT_COMPACTION_THRESHOLD_PERCENT,
 }
