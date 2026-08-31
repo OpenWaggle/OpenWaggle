@@ -25,7 +25,7 @@ overrides:
 
 patchedDependencies:
   '@earendil-works/pi-ai@0.84.4': e06c5cb2cab5c8ebc58624d869c03953cd7b2fa68fd2f9aecdf9590e89473eab
-  '@earendil-works/pi-coding-agent@0.84.4': 340e7c2776ea8f5a8efba0a1472d82e651abd598f73c4b856e870a20c7448017
+  '@earendil-works/pi-coding-agent@0.84.4': acd3dc0cd50c1ba71ee1f23065d18c09ddbd2f066d833b5c49d467c7a331a11b
 
 importers:
 
@@ -39,7 +39,7 @@ importers:
         version: 0.84.4(patch_hash=e06c5cb2cab5c8ebc58624d869c03953cd7b2fa68fd2f9aecdf9590e89473eab)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.2.0))(supports-color@7.2.0)(ws@8.21.3)(zod@4.2.0)
       '@earendil-works/pi-coding-agent':
         specifier: 0.84.4
-        version: 0.84.4(patch_hash=340e7c2776ea8f5a8efba0a1472d82e651abd598f73c4b856e870a20c7448017)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.2.0))(supports-color@7.2.0)(ws@8.21.3)(zod@4.2.0)
+        version: 0.84.4(patch_hash=acd3dc0cd50c1ba71ee1f23065d18c09ddbd2f066d833b5c49d467c7a331a11b)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.2.0))(supports-color@7.2.0)(ws@8.21.3)(zod@4.2.0)
       '@headless-tree/core':
         specifier: 1.7.0
         version: 1.7.0
@@ -457,7 +457,7 @@ importers:
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: 0.84.4
-        version: 0.84.4(patch_hash=340e7c2776ea8f5a8efba0a1472d82e651abd598f73c4b856e870a20c7448017)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.2.0))(supports-color@7.2.0)(ws@8.21.3)(zod@4.2.0)
+        version: 0.84.4(patch_hash=acd3dc0cd50c1ba71ee1f23065d18c09ddbd2f066d833b5c49d467c7a331a11b)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.2.0))(supports-color@7.2.0)(ws@8.21.3)(zod@4.2.0)
       '@earendil-works/pi-tui':
         specifier: 0.84.4
         version: 0.84.4
@@ -8525,7 +8525,7 @@ snapshots:
     dependencies:
       '@earendil-works/pi-protocol': 0.84.4
 
-  '@earendil-works/pi-coding-agent@0.84.4(patch_hash=340e7c2776ea8f5a8efba0a1472d82e651abd598f73c4b856e870a20c7448017)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.2.0))(supports-color@7.2.0)(ws@8.21.3)(zod@4.2.0)':
+  '@earendil-works/pi-coding-agent@0.84.4(patch_hash=acd3dc0cd50c1ba71ee1f23065d18c09ddbd2f066d833b5c49d467c7a331a11b)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.2.0))(supports-color@7.2.0)(ws@8.21.3)(zod@4.2.0)':
     dependencies:
       '@earendil-works/pi-agent-core': 0.84.4(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.2.0))(supports-color@7.2.0)(ws@8.21.3)(zod@4.2.0)
       '@earendil-works/pi-ai': 0.84.4(patch_hash=e06c5cb2cab5c8ebc58624d869c03953cd7b2fa68fd2f9aecdf9590e89473eab)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.2.0))(supports-color@7.2.0)(ws@8.21.3)(zod@4.2.0)
