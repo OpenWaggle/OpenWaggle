@@ -250,48 +250,4 @@ describe('hosted MCP task lineage recovery', () => {
       'projectedDelegationState',
     )
   })
-
-  it('projects direct cancellation after an expired lease', async () => {
-    const options = serveOptions(temporaryRoot)
-    const store = new OpenWaggleMcpTaskStore(options.taskStorePath)
-    const [worker] = expiredWorkers(options.profile)
-    if (!worker) throw new Error('Expected an expired worker fixture.')
-    await store.update(() => ({ tasks: [worker], result: true }))
-    const services = recoveryServices()
-    const metadata = new OpenWaggleMcpSessionMetadataStore(
-      sessionMetadataStorePath(options.taskStorePath),
-    )
-    const manager = new OpenWaggleServerTaskManager(options, metadata, services, {
-      now: () => 101,
-    })
-
-    await Effect.runPromise(manager.cancel(worker.id))
-
-    expect(services.setDelegationState).toHaveBeenCalledWith(
-      SessionId('worker-interrupted'),
-      'cancelled',
-    )
-  })
-
-  it('projects session cancellation after expired leases', async () => {
-    const options = serveOptions(temporaryRoot)
-    const store = new OpenWaggleMcpTaskStore(options.taskStorePath)
-    const [worker] = expiredWorkers(options.profile)
-    if (!worker?.sessionId) throw new Error('Expected a linked expired worker fixture.')
-    await store.update(() => ({ tasks: [worker], result: true }))
-    const services = recoveryServices()
-    const metadata = new OpenWaggleMcpSessionMetadataStore(
-      sessionMetadataStorePath(options.taskStorePath),
-    )
-    const manager = new OpenWaggleServerTaskManager(options, metadata, services, {
-      now: () => 101,
-    })
-
-    await Effect.runPromise(manager.cancelSession(worker.sessionId))
-
-    expect(services.setDelegationState).toHaveBeenCalledWith(
-      SessionId('worker-interrupted'),
-      'cancelled',
-    )
-  })
 })

@@ -1,13 +1,14 @@
 import { match } from '@diegogbrisa/ts-match'
 import { SessionId } from '@shared/types/brand'
 import type { SessionResource } from '@shared/types/session-resource'
+import { useQueryClient } from '@tanstack/react-query'
 import { ExternalLink, File, Image, Link2, X } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
 import { useUIStore } from '@/shell/ui-store'
-import { useSessionResources } from '../hooks/useSessionResources'
+import { sessionResourceThumbnailQueryKey, useSessionResources } from '../hooks/useSessionResources'
 import { SessionResourcePreview } from './SessionResourcePreview'
 
 type ResourceFilter = 'all' | 'sources' | 'outputs' | 'images'
@@ -141,6 +142,7 @@ export function SessionResourcesPanel({
 }) {
   const [filter, setFilter] = useState<ResourceFilter>('all')
   const [visibleCount, setVisibleCount] = useState(RESOURCE_PAGE_SIZE)
+  const queryClient = useQueryClient()
   const query = useSessionResources(sessionId)
   const resources = filteredResources(query.data ?? [], filter)
   const visibleResources = resources.slice(0, visibleCount)
@@ -148,6 +150,9 @@ export function SessionResourcesPanel({
   async function retryResource(resourceId: string) {
     if (!sessionId) return
     await api.retrySessionResource(SessionId(sessionId), resourceId)
+    await queryClient.invalidateQueries({
+      queryKey: sessionResourceThumbnailQueryKey(sessionId, resourceId),
+    })
     await query.refetch()
   }
 

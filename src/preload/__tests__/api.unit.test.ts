@@ -202,6 +202,7 @@ describe('preload api surface contract', () => {
       'onWaggleTurnEvent',
       'onOAuthStatus',
       'onSessionTitleUpdated',
+      'onSessionListInvalidated',
       'onUpdateStatus',
     ] as const
 

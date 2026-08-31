@@ -1,12 +1,14 @@
-import { SessionId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { Effect } from 'effect'
 import type { OpenWaggleMcpServeOptions } from './openwaggle-mcp-server-policy'
 import type { OpenWaggleMcpSessionMetadataStore } from './openwaggle-mcp-session-metadata-store'
 import { admitOpenWaggleTask, type OpenWaggleTaskStartInput } from './openwaggle-mcp-task-admission'
-import { cancelOpenWaggleSessionTasks } from './openwaggle-mcp-task-cancellation'
 import {
-  cancellationRequestedTaskRecord,
+  cancelOpenWaggleSessionTasks,
+  cancelOpenWaggleTask,
+} from './openwaggle-mcp-task-cancellation'
+import {
   cancelledTaskRecord,
   hasLiveLease,
   isActiveTaskStatus,
@@ -49,17 +51,6 @@ export class OpenWaggleServerTaskManager {
 
   recoverInterruptedTasks() {
     return Effect.promise(() => this.reconcileProfileTasks()).pipe(Effect.asVoid)
-  }
-
-  private async mutate(taskId: string, update: (current: ServerTaskRecord) => ServerTaskRecord) {
-    return this.store.update((tasks) => {
-      const current = tasks.find(
-        (task) => task.id === taskId && task.callerProfile === this.options.profile,
-      )
-      if (!current) throw new Error(`OpenWaggle task ${JSON.stringify(taskId)} was not found.`)
-      const next = update(current)
-      return { tasks: tasks.map((task) => (task.id === taskId ? next : task)), result: next }
-    })
   }
 
   private async mutateOwned(
@@ -241,26 +232,16 @@ export class OpenWaggleServerTaskManager {
   }
 
   cancel(taskId: string) {
-    return Effect.gen(this, function* () {
-      const now = this.leases.now()
-      const next = yield* Effect.promise(() =>
-        this.mutate(taskId, (current) => {
-          if (!isActiveTaskStatus(current.status)) return current
-          return hasLiveLease(current, now)
-            ? cancellationRequestedTaskRecord(current, now)
-            : cancelledTaskRecord(current, now)
-        }),
-      )
-      this.active.get(taskId)?.controller.abort()
-      const cancelledSessionId =
-        next.status === 'cancelled' && next.sessionId ? SessionId(next.sessionId) : null
-      if (cancelledSessionId) {
-        yield* Effect.promise(() =>
-          projectTaskDelegationState(this.services, cancelledSessionId, 'cancelled'),
-        )
-      }
-      return taskResult(next)
-    })
+    return Effect.promise(() =>
+      cancelOpenWaggleTask({
+        abortTask: (id) => this.active.get(id)?.controller.abort(),
+        now: this.leases.now(),
+        profile: this.options.profile,
+        services: this.services,
+        store: this.store,
+        taskId,
+      }),
+    ).pipe(Effect.map(taskResult))
   }
 
   cancelSession(sessionId: string) {

@@ -63,6 +63,13 @@ export function useWorkspaceLifecycle(): void {
     })
   }, [updateSessionTitle])
 
+  useEffect(() => {
+    return api.onSessionListInvalidated(() => {
+      void loadChatSessions()
+      void loadSessionTrees()
+    })
+  }, [loadChatSessions, loadSessionTrees])
+
   useGitRefresh({
     workingPath,
     repositoryPath,

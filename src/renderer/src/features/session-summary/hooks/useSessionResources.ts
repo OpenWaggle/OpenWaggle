@@ -14,9 +14,16 @@ type SessionResourceContentQueryKey = readonly ['session-resource-content', stri
 type SessionResourceThumbnailQueryKey = readonly ['session-resource-thumbnail', string, string]
 
 const SESSION_RESOURCE_BACKFILL_POLL_INTERVAL_MS = 100
+const SESSION_RESOURCE_THUMBNAIL_RETRY_INTERVAL_MS = 1_000
 
 export const sessionResourcesQueryKey = (sessionId: string): SessionResourcesQueryKey =>
   ['session-resources', sessionId] as const
+
+export const sessionResourceThumbnailQueryKey = (
+  sessionId: string,
+  resourceId: string,
+): SessionResourceThumbnailQueryKey =>
+  ['session-resource-thumbnail', sessionId, resourceId] as const
 
 export function sessionResourcesQueryOptions(
   sessionId: string | null,
@@ -63,9 +70,11 @@ export function sessionResourceThumbnailQueryOptions(
   SessionResourceThumbnailQueryKey
 > {
   return queryOptions({
-    queryKey: ['session-resource-thumbnail', sessionId, resourceId] as const,
+    queryKey: sessionResourceThumbnailQueryKey(sessionId, resourceId),
     queryFn: () => api.readSessionResourceThumbnail(SessionId(sessionId), resourceId),
     staleTime: Number.POSITIVE_INFINITY,
+    refetchInterval: (query) =>
+      query.state.data === null ? SESSION_RESOURCE_THUMBNAIL_RETRY_INTERVAL_MS : false,
   })
 }
 

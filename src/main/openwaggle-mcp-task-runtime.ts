@@ -8,6 +8,7 @@ import { AgentKernelService } from './ports/agent-kernel-service'
 import { SessionProjectionRepository } from './ports/session-projection-repository'
 import { runAppEffect } from './runtime'
 import { SettingsService } from './services/settings-service'
+import { broadcastToWindows } from './utils/broadcast'
 
 export interface TaskExecutionProfile {
   readonly model: string
@@ -40,20 +41,26 @@ export interface OpenWaggleServerTaskServices {
 export const defaultTaskServices: OpenWaggleServerTaskServices = {
   resolveExecutionProfile: resolveTargetExecutionProfile,
   createOrReuseSession,
-  establishLineage: (input) =>
-    runAppEffect(
+  establishLineage: async (input) => {
+    await runAppEffect(
       Effect.gen(function* () {
         const sessions = yield* SessionProjectionRepository
         yield* sessions.establishLineage(input)
       }),
-    ),
-  setDelegationState: (sessionId, state) =>
-    runAppEffect(
+    )
+    broadcastToWindows('sessions:list-invalidated', {
+      sessionIds: [input.parentSessionId, input.sessionId],
+    })
+  },
+  setDelegationState: async (sessionId, state) => {
+    await runAppEffect(
       Effect.gen(function* () {
         const sessions = yield* SessionProjectionRepository
         yield* sessions.setDelegationState(sessionId, state)
       }),
-    ),
+    )
+    broadcastToWindows('sessions:list-invalidated', { sessionIds: [sessionId] })
+  },
   execute: (input) =>
     runAppEffect(
       executeAgentRun({

@@ -66,6 +66,9 @@ export interface IpcEventChannelMap {
   'sessions:title-updated': {
     payload: { sessionId: SessionId; title: string }
   }
+  'sessions:list-invalidated': {
+    payload: { sessionIds: readonly SessionId[] }
+  }
   /**
    * A working tree's git state changed because OpenWaggle mutated it.
    *

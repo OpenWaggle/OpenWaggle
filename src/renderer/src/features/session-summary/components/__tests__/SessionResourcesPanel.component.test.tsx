@@ -100,6 +100,26 @@ describe('SessionResourcesPanel', () => {
     expect(apiMocks.read).not.toHaveBeenCalled()
   })
 
+  it('retries a transient null thumbnail while the preview remains mounted', async () => {
+    apiMocks.readThumbnail.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      resourceId: 'image',
+      fileName: 'image-thumbnail.webp',
+      mimeType: 'image/webp',
+      dataBase64: 'cmVwYWlyZWQ=',
+    })
+
+    renderWithQueryClient(<SessionResourcesPanel sessionId="session-one" onClose={vi.fn()} />)
+
+    expect(await screen.findByText('reference.png')).toBeInTheDocument()
+    await waitFor(() => expect(apiMocks.readThumbnail).toHaveBeenCalledTimes(2), {
+      timeout: 2_500,
+    })
+    expect(screen.getByRole('img', { name: 'reference.png' })).toHaveAttribute(
+      'src',
+      'data:image/webp;base64,cmVwYWlyZWQ=',
+    )
+  })
+
   it('opens managed images in the current session viewer and links externally', async () => {
     renderWithQueryClient(<SessionResourcesPanel sessionId="session-one" onClose={vi.fn()} />)
     fireEvent.click(await screen.findByText('reference.png'))

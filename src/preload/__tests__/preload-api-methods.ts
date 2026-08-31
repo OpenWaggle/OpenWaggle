@@ -99,6 +99,7 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'updateSessionTreeUiState',
   'onGitWorkingTreeChanged',
   'onSessionTitleUpdated',
+  'onSessionListInvalidated',
   // Terminal
   'createTerminal',
   'closeTerminal',

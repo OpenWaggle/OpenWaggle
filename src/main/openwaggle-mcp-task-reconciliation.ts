@@ -21,6 +21,15 @@ function isNewerTask(candidate: ServerTaskRecord, current: ServerTaskRecord) {
   return candidate.id.localeCompare(current.id) > 0
 }
 
+export function authoritativeTaskForSession(tasks: readonly ServerTaskRecord[], sessionId: string) {
+  let authoritative: ServerTaskRecord | null = null
+  for (const task of tasks) {
+    if (task.sessionId !== sessionId) continue
+    if (!authoritative || isNewerTask(task, authoritative)) authoritative = task
+  }
+  return authoritative
+}
+
 function authoritativeTasksBySession(tasks: readonly ServerTaskRecord[]) {
   const authoritative = new Map<string, ServerTaskRecord>()
   for (const task of tasks) {

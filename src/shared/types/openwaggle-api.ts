@@ -88,6 +88,8 @@ import type {
 import type { TurnCheckpointSummary, TurnDiff } from './turn-diff'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 
+type SessionTitleUpdatedHandler = (payload: IpcEventPayload<'sessions:title-updated'>) => void
+
 export interface OpenWaggleApi
   extends OpenWaggleAuthorizationGrantApi,
     OpenWaggleFeedbackApi,
@@ -209,8 +211,9 @@ export interface OpenWaggleApi
   onGitWorkingTreeChanged(
     callback: (payload: IpcEventPayload<'git:working-tree-changed'>) => void,
   ): () => void
-  onSessionTitleUpdated(
-    callback: (payload: IpcEventPayload<'sessions:title-updated'>) => void,
+  onSessionTitleUpdated(callback: SessionTitleUpdatedHandler): () => void
+  onSessionListInvalidated(
+    callback: (payload: IpcEventPayload<'sessions:list-invalidated'>) => void,
   ): () => void
 
   // Terminal
