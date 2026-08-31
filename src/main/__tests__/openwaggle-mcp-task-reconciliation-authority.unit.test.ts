@@ -93,21 +93,22 @@ describe('hosted task reconciliation authority', () => {
       ],
       result: true,
     }))
-    projectedStates.push('working')
-
-    releaseAccepted()
-    await reconciliation
-
-    expect(projectedStates).toEqual(['working', 'accepted', 'working', 'working'])
-    expect((await store.readTasks()).find(({ id }) => id === 'newer-working')).not.toHaveProperty(
-      'projectedDelegationState',
-    )
-    await reconcileOpenWaggleProfileTasks({
+    let overlappingReconciliationCompleted = false
+    const overlappingReconciliation = reconcileOpenWaggleProfileTasks({
       now: 10,
       profile: 'test-profile',
       services,
       store,
+    }).then(() => {
+      overlappingReconciliationCompleted = true
     })
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    expect(overlappingReconciliationCompleted).toBe(false)
+    projectedStates.push('working')
+
+    releaseAccepted()
+    await Promise.all([reconciliation, overlappingReconciliation])
 
     expect(projectedStates).toEqual(['working', 'accepted', 'working', 'working', 'working'])
     expect((await store.readTasks()).find(({ id }) => id === 'newer-working')).toMatchObject({

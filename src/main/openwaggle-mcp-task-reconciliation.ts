@@ -76,7 +76,7 @@ function acknowledgeProjectedState(
   })
 }
 
-export async function projectTaskStateIfAuthoritative(
+async function projectTaskStateIfAuthoritativeUnlocked(
   input: Pick<ReconcileProfileTasksInput, 'services' | 'store'>,
   taskId: string,
   sessionId: SessionId,
@@ -98,7 +98,18 @@ export async function projectTaskStateIfAuthoritative(
   return false
 }
 
-export async function reconcileOpenWaggleProfileTasks(input: ReconcileProfileTasksInput) {
+export function projectTaskStateIfAuthoritative(
+  input: Pick<ReconcileProfileTasksInput, 'services' | 'store'>,
+  taskId: string,
+  sessionId: SessionId,
+  state: SessionDelegationState,
+) {
+  return input.store.withProjectionLock(() =>
+    projectTaskStateIfAuthoritativeUnlocked(input, taskId, sessionId, state),
+  )
+}
+
+async function reconcileOpenWaggleProfileTasksUnlocked(input: ReconcileProfileTasksInput) {
   const reconciliation = await input.store.update((tasks) => {
     const reconciled = tasks.map((task) => {
       if (task.callerProfile !== input.profile) return task
@@ -115,8 +126,12 @@ export async function reconcileOpenWaggleProfileTasks(input: ReconcileProfileTas
   })
   await Promise.all(
     reconciliation.pending.map((task) =>
-      projectTaskStateIfAuthoritative(input, task.taskId, task.sessionId, task.state),
+      projectTaskStateIfAuthoritativeUnlocked(input, task.taskId, task.sessionId, task.state),
     ),
   )
   return reconciliation.tasks
+}
+
+export function reconcileOpenWaggleProfileTasks(input: ReconcileProfileTasksInput) {
+  return input.store.withProjectionLock(() => reconcileOpenWaggleProfileTasksUnlocked(input))
 }

@@ -190,6 +190,10 @@ export class OpenWaggleMcpTaskStore {
     return this.queue.then(async () => (await readTaskFile(this.filePath)).tasks)
   }
 
+  withProjectionLock<T>(operation: () => Promise<T>) {
+    return withProcessFileLock(`${this.filePath}.projection`, operation)
+  }
+
   async update<T>(
     mutation: (tasks: readonly ServerTaskRecord[]) => {
       tasks: readonly ServerTaskRecord[]

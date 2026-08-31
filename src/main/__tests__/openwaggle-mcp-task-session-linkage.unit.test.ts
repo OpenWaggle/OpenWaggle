@@ -27,7 +27,7 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  await Promise.all(managers.map((manager) => Effect.runPromise(manager.cancelAll())))
+  for (const manager of managers) await Effect.runPromise(manager.cancelAll())
   await rm(temporaryRoot, { recursive: true, force: true })
 })
 
@@ -203,11 +203,17 @@ describe('hosted MCP task session linkage', () => {
         objective: 'keep working',
       }),
     )
-    await waitForTaskStatus(second, replacement.id, 'working')
-    await vi.waitFor(() => expect(projectedStates).toContain('working'))
+    const store = new OpenWaggleMcpTaskStore(options.taskStorePath)
+    await vi.waitFor(async () => {
+      expect((await store.readTasks()).find(({ id }) => id === replacement.id)?.status).toBe(
+        'working',
+      )
+    })
 
     releaseAccepted()
 
+    await waitForTaskStatus(second, replacement.id, 'working')
+    await vi.waitFor(() => expect(projectedStates).toContain('working'))
     await vi.waitFor(() => expect(projectedStates).toContain('accepted'))
     expect(projectedStates.at(-1)).toBe('working')
   })
