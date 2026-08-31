@@ -7,6 +7,8 @@ import { emptySyntaxCatalog } from './syntax-resource-import-utils'
 const PROJECT_RESOURCE_FILE_LIMIT = 20
 const PROJECT_RESOURCE_PARSE_CONCURRENCY = 4
 export const PROJECT_CATALOG_MAX_BYTES = 8 * 1024 * 1024
+const PROJECT_CATALOG_MAX_INPUT_ENTRIES = 1_000
+const PROJECT_CATALOG_MAX_INPUT_DEPTH = 64
 const PROJECT_CATALOG_MAX_RESOURCES = 200
 
 export type SyntaxSourceParser = (
@@ -14,14 +16,61 @@ export type SyntaxSourceParser = (
   scope: SyntaxResourceScope,
 ) => Promise<SyntaxResourceCatalog>
 
-async function assertProjectResourceInputCapacity(resourcePaths: readonly string[]) {
-  let inputBytes = 0
-  for (const resourcePath of resourcePaths) {
-    const size = (await fs.stat(resourcePath)).size
-    if (size > PROJECT_CATALOG_MAX_BYTES - inputBytes) {
+interface ProjectResourceInputBudget {
+  remainingBytes: number
+  remainingEntries: number
+}
+
+function exceedsConfinementRoot(candidatePath: string, confinementRoot: string) {
+  const relative = path.relative(confinementRoot, candidatePath)
+  return relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)
+}
+
+async function chargeProjectResourceInput(
+  resourcePath: string,
+  budget: ProjectResourceInputBudget,
+  confinementRoot?: string,
+  depth = 0,
+): Promise<void> {
+  if (depth > PROJECT_CATALOG_MAX_INPUT_DEPTH) {
+    throw new Error('Project syntax resource inputs exceed the aggregate depth limit.')
+  }
+  if (budget.remainingEntries <= 0) {
+    throw new Error('Project syntax resource inputs exceed the aggregate entry limit.')
+  }
+  budget.remainingEntries -= 1
+  const stats = await fs.lstat(resourcePath)
+  if (stats.isSymbolicLink()) return
+  if (stats.isFile()) {
+    if (stats.size > budget.remainingBytes) {
       throw new Error('Project syntax resource inputs exceed the aggregate byte limit.')
     }
-    inputBytes += size
+    budget.remainingBytes -= stats.size
+    return
+  }
+  if (!stats.isDirectory()) return
+  const realDirectory = await fs.realpath(resourcePath)
+  const nextConfinementRoot = confinementRoot ?? realDirectory
+  if (exceedsConfinementRoot(realDirectory, nextConfinementRoot)) return
+  const directory = await fs.opendir(realDirectory)
+  for await (const entry of directory) {
+    if (entry.isSymbolicLink()) continue
+    await chargeProjectResourceInput(
+      path.join(realDirectory, entry.name),
+      budget,
+      nextConfinementRoot,
+      depth + 1,
+    )
+  }
+}
+
+async function assertProjectResourceInputCapacity(resourcePaths: readonly string[]) {
+  const budget = {
+    remainingBytes: PROJECT_CATALOG_MAX_BYTES,
+    remainingEntries: PROJECT_CATALOG_MAX_INPUT_ENTRIES,
+  }
+  for (const resourcePath of resourcePaths) {
+    await chargeProjectResourceInput(resourcePath, budget)
   }
 }
 

@@ -80,16 +80,75 @@ describe('project syntax catalog capacity', () => {
       fs.realpath(unreadPath),
     ])
     const parseSource: SyntaxSourceParser = vi.fn(async () => EMPTY_CATALOG)
-    const stat = vi.spyOn(fs, 'stat')
+    const lstat = vi.spyOn(fs, 'lstat')
 
     await expect(readProjectSyntaxCatalog(projectPath, parseSource)).rejects.toThrow(
       'aggregate byte limit',
     )
     expect(parseSource).not.toHaveBeenCalled()
-    expect(stat).toHaveBeenCalledTimes(2)
-    expect(stat).toHaveBeenNthCalledWith(1, nearLimitRealPath)
-    expect(stat).toHaveBeenNthCalledWith(2, overflowRealPath)
-    expect(stat).not.toHaveBeenCalledWith(unreadRealPath)
+    expect(lstat).toHaveBeenCalledTimes(2)
+    expect(lstat).toHaveBeenNthCalledWith(1, nearLimitRealPath)
+    expect(lstat).toHaveBeenNthCalledWith(2, overflowRealPath)
+    expect(lstat).not.toHaveBeenCalledWith(unreadRealPath)
+  })
+
+  it('counts nested files in an unpacked extension before invoking its parser', async () => {
+    await Promise.all([
+      sparseResource(
+        '.openwaggle/themes/oversized-extension/package.json',
+        Math.floor(PROJECT_CATALOG_MAX_BYTES / 2),
+      ),
+      sparseResource(
+        '.openwaggle/themes/oversized-extension/themes/dark.json',
+        Math.floor(PROJECT_CATALOG_MAX_BYTES / 2) + 1,
+      ),
+    ])
+    const parseSource: SyntaxSourceParser = vi.fn(async () => EMPTY_CATALOG)
+
+    await expect(readProjectSyntaxCatalog(projectPath, parseSource)).rejects.toThrow(
+      'aggregate byte limit',
+    )
+    expect(parseSource).not.toHaveBeenCalled()
+  })
+
+  it('does not follow symlinks outside an unpacked extension during preflight', async () => {
+    const outsidePath = await sparseResource('outside.json', PROJECT_CATALOG_MAX_BYTES + 1)
+    const extensionPath = path.join(projectPath, '.openwaggle', 'themes', 'confined-extension')
+    await fs.mkdir(extensionPath, { recursive: true })
+    await fs.writeFile(path.join(extensionPath, 'package.json'), '{}')
+    await fs.symlink(outsidePath, path.join(extensionPath, 'outside-link.json'))
+    const parseSource: SyntaxSourceParser = vi.fn(async () => EMPTY_CATALOG)
+
+    await expect(readProjectSyntaxCatalog(projectPath, parseSource)).resolves.toEqual(EMPTY_CATALOG)
+    expect(parseSource).toHaveBeenCalledTimes(1)
+  })
+
+  it('bounds zero-byte entries in unpacked extensions before parsing', async () => {
+    const extensionPath = path.join(projectPath, '.openwaggle', 'themes', 'entry-heavy-extension')
+    await fs.mkdir(extensionPath, { recursive: true })
+    await Promise.all(
+      Array.from({ length: 1_000 }, (_, index) =>
+        fs.writeFile(path.join(extensionPath, `empty-${String(index)}.json`), ''),
+      ),
+    )
+    const parseSource: SyntaxSourceParser = vi.fn(async () => EMPTY_CATALOG)
+
+    await expect(readProjectSyntaxCatalog(projectPath, parseSource)).rejects.toThrow(
+      'aggregate entry limit',
+    )
+    expect(parseSource).not.toHaveBeenCalled()
+  })
+
+  it('bounds directory depth in unpacked extensions before parsing', async () => {
+    const extensionPath = path.join(projectPath, '.openwaggle', 'themes', 'deep-extension')
+    const nestedPath = path.join(extensionPath, ...Array.from({ length: 65 }, () => 'nested'))
+    await fs.mkdir(nestedPath, { recursive: true })
+    const parseSource: SyntaxSourceParser = vi.fn(async () => EMPTY_CATALOG)
+
+    await expect(readProjectSyntaxCatalog(projectPath, parseSource)).rejects.toThrow(
+      'aggregate depth limit',
+    )
+    expect(parseSource).not.toHaveBeenCalled()
   })
 
   it('propagates aggregate parsed-catalog capacity errors', async () => {
