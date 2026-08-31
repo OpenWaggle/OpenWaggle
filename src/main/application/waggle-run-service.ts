@@ -6,7 +6,6 @@
  * stream forwarding, persistence) and delegates turn sequencing to Pi-native
  * Waggle package logic through AgentKernelService.
  */
-
 import { safeDecodeUnknown } from '@shared/schema'
 import { waggleConfigSchema } from '@shared/schemas/waggle'
 import type { AgentSendPayload, HydratedAgentSendPayload } from '@shared/types/agent'
@@ -21,7 +20,6 @@ import {
   type WaggleTurnEvent,
 } from '@shared/types/waggle'
 import * as Effect from 'effect/Effect'
-import { makeErrorInfo } from '../agent/error-classifier'
 import { FileConflictTracker } from '../agent/file-conflict-tracker'
 import { createLogger } from '../logger'
 import { AgentKernelService } from '../ports/agent-kernel-service'
@@ -37,7 +35,14 @@ import { createWorktreeLaunchEventCollector } from './agent-run/worktree-launch-
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
 import { assignSessionTitleFromUserText, hydratePayloadAttachments } from './run-handler-utils'
 import { extractFilePath } from './waggle-run/metadata'
-import { createWaggleSuccessOutcome, recoverWaggleRunFailure } from './waggle-run/outcome'
+import {
+  createWaggleSuccessOutcome,
+  recoverWaggleRunFailure,
+  waggleNoInheritedModelOutcome,
+  waggleNoProjectOutcome,
+  waggleSessionNotFoundOutcome,
+  waggleValidationErrorOutcome,
+} from './waggle-run/outcome'
 import { persistWaggleSnapshot } from './waggle-run/persistence'
 import {
   clearDurableWaggleActiveRun,
@@ -45,10 +50,14 @@ import {
   resolveWaggleBranchId,
   type WaggleActiveRunIdentity,
 } from './waggle-run/runtime-state'
+import {
+  toWaggleKernelExecutionContext,
+  type WaggleExecutionContext,
+} from './waggle-run-execution-context'
 
 const logger = createLogger('waggle-run-service')
 
-export interface WaggleRunInput {
+export interface WaggleRunInput extends Partial<WaggleExecutionContext> {
   readonly sessionId: SessionId
   readonly runId: string
   readonly payload: AgentSendPayload
@@ -72,39 +81,6 @@ interface PreparedWaggleRun {
   readonly enabledOpenWaggleExtensionPackagePaths: readonly string[]
 }
 
-function validationErrorOutcome() {
-  return {
-    outcome: 'validation-error' as const,
-    message: 'Invalid Waggle mode configuration',
-    code: 'validation-error',
-  }
-}
-
-function notFoundOutcome() {
-  const errorInfo = makeErrorInfo('session-not-found', 'Session not found')
-  return {
-    outcome: 'not-found' as const,
-    message: errorInfo.userMessage,
-    code: errorInfo.code,
-  }
-}
-
-function noProjectOutcome() {
-  return {
-    outcome: 'no-project' as const,
-    message: 'Please select a project folder before starting Waggle mode.',
-    code: 'no-project',
-  }
-}
-
-function noInheritedModelOutcome() {
-  return {
-    outcome: 'validation-error' as const,
-    message: 'Select a model before starting Waggle mode.',
-    code: 'validation-error',
-  }
-}
-
 function resolveInitialWaggleRuntimeModel(input: {
   readonly config: WaggleConfig
   readonly selectedModel: SupportedModelId
@@ -122,18 +98,18 @@ function configRequiresInheritedModel(config: WaggleConfig) {
 function prepareWaggleRun(input: WaggleRunInput) {
   return Effect.gen(function* () {
     if (!safeDecodeUnknown(waggleConfigSchema, input.config).success) {
-      return { ok: false as const, outcome: validationErrorOutcome() }
+      return { ok: false as const, outcome: waggleValidationErrorOutcome() }
     }
     if (configRequiresInheritedModel(input.config) && !input.model.trim()) {
-      return { ok: false as const, outcome: noInheritedModelOutcome() }
+      return { ok: false as const, outcome: waggleNoInheritedModelOutcome() }
     }
 
     const settingsService = yield* SettingsService
     const settings = yield* settingsService.get()
     const sessionProjectionRepo = yield* SessionProjectionRepository
     const session = yield* sessionProjectionRepo.getOptional(input.sessionId)
-    if (!session) return { ok: false as const, outcome: notFoundOutcome() }
-    if (!session.projectPath) return { ok: false as const, outcome: noProjectOutcome() }
+    if (!session) return { ok: false as const, outcome: waggleSessionNotFoundOutcome() }
+    if (!session.projectPath) return { ok: false as const, outcome: waggleNoProjectOutcome() }
 
     const assignedTitle = yield* assignPreparedTitle(input, session)
     const hydratedPayload: HydratedAgentSendPayload = {
@@ -205,6 +181,7 @@ function runPreparedWaggle(
       runId: input.runId,
       payload: prepared.hydratedPayload,
       model: prepared.runtimeModel,
+      ...toWaggleKernelExecutionContext(input),
       signal: input.signal,
       skillToggles: prepared.skillToggles,
       enabledOpenWaggleExtensionPackagePaths: prepared.enabledOpenWaggleExtensionPackagePaths,

@@ -132,6 +132,7 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
       input: {
         text: payload.text,
         thinkingLevel: payload.thinkingLevel,
+        ...(payload.waggle ? { waggle: payload.waggle } : {}),
         attachmentIds: payload.attachments.map((attachment) => attachment.id),
       },
     })

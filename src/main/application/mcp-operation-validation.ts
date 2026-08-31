@@ -131,7 +131,7 @@ export const mcpTaskOperationSchema = Schema.Struct({
 export const mcpAppToolCallSchema = Schema.Struct({
   ...mcpProjectAndSessionFields,
   serverInstanceId: Schema.String,
-  serverConfigHash: Schema.optional(Schema.String),
+  serverConfigHash: Schema.String,
   toolName: Schema.String,
   arguments: Schema.mutable(Schema.Record({ key: Schema.String, value: mcpConfigValueSchema })),
 })

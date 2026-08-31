@@ -3,12 +3,11 @@ import type { Settings } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { registerAgentLoopInteractionDeadline } from '../application/agent-loop-interaction-broker'
-import { executeAgentRun } from '../application/agent-run-service'
 import { preserveOutcomeAfterAttachmentCleanup } from '../application/session-attachment-cleanup'
 import { loadProjectConfig } from '../config/project-config'
 import { resolveSessionHostProjectPolicy } from '../domain/session-control/session-host-policy'
 import type { AgentKernelService } from '../ports/agent-kernel-service'
-import { AgentRequestedWaggleService } from '../ports/agent-requested-waggle-service'
+import type { AgentRequestedWaggleService } from '../ports/agent-requested-waggle-service'
 import type { ExtensionLifecycleRepository } from '../ports/extension-lifecycle-repository'
 import type { ExtensionManagerService } from '../ports/extension-manager-service'
 import type { ExtensionProjectOverridesRepository } from '../ports/extension-project-overrides-repository'
@@ -21,24 +20,16 @@ import {
   type SessionControlRunExecutionInput,
   SessionControlRunExecutor,
 } from '../ports/session-control-run-executor'
-import { SessionOrchestrationUpdateRepository } from '../ports/session-orchestration-update-repository'
+import type { SessionOrchestrationUpdateRepository } from '../ports/session-orchestration-update-repository'
 import type { SessionProjectionRepository } from '../ports/session-projection-repository'
-import { SessionReportRepository } from '../ports/session-report-repository'
+import type { SessionReportRepository } from '../ports/session-report-repository'
 import type { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
-import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { startStreamBuffer } from '../utils/stream-bridge'
-import {
-  markOrchestrationUpdatesDelivered,
-  markReportsDelivered,
-  markSpecificationUpdatesDelivered,
-} from './session-control-run-context-delivery'
+import { executeRegisteredRun } from './session-control-run-dispatch'
 import { loadRunExecutionProfile } from './session-control-run-executor-profile'
-import { publishRunFailure, terminalRunResult } from './session-control-run-result'
-import {
-  narrowRunAuthorization,
-  type ResolvedSessionRunExecution,
-} from './session-run-execution-profile'
+import { terminalRunResult } from './session-control-run-result'
+import type { ResolvedSessionRunExecution } from './session-run-execution-profile'
 import {
   liveSessionAuthorityBlockReason,
   loadSessionAuthoritySnapshot,
@@ -99,7 +90,11 @@ function registerInteractionDeadline(input: {
   readonly request: SessionControlRunExecutionInput
   readonly onInteractionTimeout: () => void
 }) {
-  startStreamBuffer(input.request.sessionId, input.execution.model, 'classic')
+  startStreamBuffer(
+    input.request.sessionId,
+    input.execution.model,
+    input.request.intent.waggle ? 'waggle' : 'classic',
+  )
   return input.request.intent.interactionTimeoutMs === undefined
     ? () => undefined
     : registerAgentLoopInteractionDeadline({
@@ -107,107 +102,6 @@ function registerInteractionDeadline(input: {
         timeoutMs: input.request.intent.interactionTimeoutMs,
         onTimeout: input.onInteractionTimeout,
       })
-}
-
-function executeRegisteredRun(input: {
-  readonly request: SessionControlRunExecutionInput
-  readonly execution: ResolvedSessionRunExecution
-  readonly controller: AbortController
-  readonly allowModelMultiAgent: boolean
-}) {
-  return Effect.gen(function* () {
-    const attachments = yield* SessionControlAttachmentService
-    const requestedWaggle = yield* AgentRequestedWaggleService
-    const orchestrationUpdates = yield* SessionOrchestrationUpdateRepository
-    const reports = yield* SessionReportRepository
-    const pendingReports = yield* reports.listPending({ targetSessionId: input.request.sessionId })
-    const pendingOrchestrationUpdates = yield* orchestrationUpdates.listPending({
-      parentSessionId: input.request.sessionId,
-    })
-    const pendingSpecificationUpdates = yield* orchestrationUpdates.listPendingSpecifications({
-      workerSessionId: input.request.sessionId,
-    })
-    const resolvedAttachments = yield* attachments.resolve({
-      attachmentIds: input.request.intent.attachmentIds,
-      sessionId: input.request.sessionId,
-      ownerCallerId: input.request.intent.callerId,
-    })
-    const preparedAttachments = resolvedAttachments.map(
-      ({ source: _source, ...attachment }) => attachment,
-    )
-    const result = yield* executeAgentRun({
-      sessionId: input.request.sessionId,
-      runId: input.request.runId,
-      model: input.execution.model,
-      payload: {
-        text: input.request.intent.text,
-        thinkingLevel: input.request.intent.thinkingLevel ?? input.execution.thinkingLevel,
-        attachments: preparedAttachments,
-      },
-      hydratedAttachments: resolvedAttachments,
-      runAuthorizationOverride: narrowRunAuthorization(
-        input.request.intent.runAuthorizationOverride,
-        input.execution.authorizationCeiling,
-      ),
-      authorityCallerId: input.request.intent.callerId,
-      ...(input.execution.agentInstructions
-        ? { agentInstructions: input.execution.agentInstructions }
-        : {}),
-      sessionIdentityContext: input.execution.identityContext,
-      peerAgentReports: pendingReports,
-      onPeerAgentReportsDelivered: (reportIds) => {
-        markReportsDelivered(reports, input.request, reportIds)
-      },
-      orchestrationUpdates: pendingOrchestrationUpdates,
-      onOrchestrationUpdatesDelivered: (updateIds) => {
-        markOrchestrationUpdatesDelivered(orchestrationUpdates, input.request, updateIds)
-      },
-      delegationSpecificationUpdates: pendingSpecificationUpdates,
-      onDelegationSpecificationUpdatesDelivered: (updateIds) => {
-        markSpecificationUpdatesDelivered(orchestrationUpdates, input.request, updateIds)
-      },
-      ...(input.execution.toolAllowlist ? { toolAllowlist: input.execution.toolAllowlist } : {}),
-      ...(input.execution.skillAllowlist ? { skillAllowlist: input.execution.skillAllowlist } : {}),
-      ...(input.execution.mcpServerAllowlist
-        ? { mcpServerAllowlist: input.execution.mcpServerAllowlist }
-        : {}),
-      sessionCapabilities: input.execution.sessionCapabilities,
-      modelMultiAgentEnabled: input.allowModelMultiAgent,
-      signal: input.controller.signal,
-      onEvent: (event) => {
-        publishSessionHostEvent({
-          kind: 'session-transport',
-          sessionId: input.request.sessionId,
-          event,
-        })
-      },
-      onTitleAssigned: () => {
-        publishSessionHostEvent({
-          kind: 'session-list-changed',
-          sessionId: input.request.sessionId,
-          change: 'updated',
-        })
-      },
-    })
-    if (
-      result.outcome === 'invalid-model' ||
-      result.outcome === 'not-found' ||
-      result.outcome === 'error'
-    ) {
-      publishRunFailure(input.request, result)
-    }
-    if (result.outcome === 'success') {
-      yield* requestedWaggle.runIfRequested({
-        sessionId: input.request.sessionId,
-        runId: input.request.runId,
-        messages: result.newMessages,
-        model: input.execution.model,
-        thinkingLevel: input.request.intent.thinkingLevel ?? input.execution.thinkingLevel,
-        controller: input.controller,
-      })
-    }
-    return result
-  })
 }
 
 function executeRun(input: SessionControlRunExecutionInput) {
@@ -266,7 +160,7 @@ function executeRun(input: SessionControlRunExecutionInput) {
         )
       },
     })
-    const result = yield* withRunAttachmentCleanup({
+    const registered = yield* withRunAttachmentCleanup({
       effect: executeRegisteredRun({
         request: input,
         execution,
@@ -285,7 +179,9 @@ function executeRun(input: SessionControlRunExecutionInput) {
       sessionId: input.sessionId,
       ownerCallerId: input.intent.callerId,
     })
-    return terminalRunResult(result, interactionTimedOut)
+    return registered.mode === 'waggle'
+      ? registered.result
+      : terminalRunResult(registered.result, interactionTimedOut)
   })
 }
 

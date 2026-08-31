@@ -1,9 +1,13 @@
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
-import { HOST_BACKED_MCP_GUI_CHANNELS } from '@shared/types/host-ui-protocol'
+import {
+  HOST_BACKED_MCP_GUI_CHANNELS,
+  HOST_UI_REVISION_7_REQUIRED_CHANNELS,
+} from '@shared/types/host-ui-protocol'
 import {
   LOCAL_SESSION_COMPACTION_REVISION,
   LOCAL_SESSION_CURRENT_REVISION,
   LOCAL_SESSION_LEGACY_HOST_UI_REVISION,
+  LOCAL_SESSION_MCP_HOST_UI_REVISION,
   LOCAL_SESSION_PROTOCOL_NAME,
   LOCAL_SESSION_WAGGLE_REVISION,
   type LocalSessionClientFrame,
@@ -203,9 +207,11 @@ export function decodeLocalSessionCommandPayloadForRevision(value: unknown, revi
   const payload = decodeLocalSessionCommandPayload(value)
   const requiredRevision =
     payload.contract === 'host-ui-v1'
-      ? HOST_BACKED_MCP_GUI_CHANNELS.some((channel) => channel === payload.request.channel)
+      ? HOST_UI_REVISION_7_REQUIRED_CHANNELS.some((channel) => channel === payload.request.channel)
         ? LOCAL_SESSION_CURRENT_REVISION
-        : LOCAL_SESSION_LEGACY_HOST_UI_REVISION
+        : HOST_BACKED_MCP_GUI_CHANNELS.some((channel) => channel === payload.request.channel)
+          ? LOCAL_SESSION_MCP_HOST_UI_REVISION
+          : LOCAL_SESSION_LEGACY_HOST_UI_REVISION
       : payload.contract === 'local-compaction-v1' ||
           payload.contract === 'local-compaction-cancel-v1'
         ? LOCAL_SESSION_COMPACTION_REVISION

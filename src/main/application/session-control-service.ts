@@ -18,6 +18,7 @@ import {
 import { applyRunStart } from '../domain/session-control/run-start'
 import { SessionControlIdentityService } from '../ports/session-control-identity-service'
 import { SessionControlRepository } from '../ports/session-control-repository'
+import { toSessionControlIntentMessage } from './session-control-message-input'
 import { clampRunAuthorizationOverride } from './session-control-run-authorization'
 
 export interface SubmitSessionMessageInput {
@@ -94,7 +95,7 @@ export function submitSessionMessage(input: SubmitSessionMessageInput) {
           state,
           identities: { runId, followUpId },
           intent: {
-            ...input.request.command.input,
+            ...toSessionControlIntentMessage(input.request.command.input),
             ...(input.callerAuthorizationCeiling === 'ask-for-approval'
               ? { runAuthorizationOverride: 'ask-for-approval' as const }
               : {}),
@@ -142,7 +143,7 @@ export function startSessionRun(input: StartSessionRunInput) {
           state,
           runId,
           intent: {
-            ...input.request.command.input,
+            ...toSessionControlIntentMessage(input.request.command.input),
             ...(clampRunAuthorizationOverride(
               input.request.command.runAuthorizationOverride,
               input.callerAuthorizationCeiling,
@@ -200,7 +201,7 @@ export function queueSessionFollowUp(input: QueueSessionFollowUpInput) {
           state,
           followUpId,
           intent: {
-            ...input.request.command.input,
+            ...toSessionControlIntentMessage(input.request.command.input),
             ...(clampRunAuthorizationOverride(
               input.request.command.runAuthorizationOverride,
               input.callerAuthorizationCeiling,

@@ -25,6 +25,7 @@ import {
 import { sessionControlMutationOutcomeSchema } from './session-control-outcomes'
 import { exportCancelCommandSchema, exportCreateCommandSchema } from './session-export-operation'
 import { sessionOrganizationCommandSchemas } from './session-organization'
+import { waggleInvocationSchema } from './waggle'
 
 export { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 export { sessionControlMutationOutcomeSchema } from './session-control-outcomes'
@@ -37,6 +38,7 @@ const steeringInputSchema = Schema.Struct({
 const messageInputSchema = Schema.Struct({
   ...steeringInputSchema.fields,
   thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
+  waggle: Schema.optional(waggleInvocationSchema),
 })
 
 const steerCommandSchema = Schema.Struct({

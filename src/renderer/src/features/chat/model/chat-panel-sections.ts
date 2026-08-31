@@ -50,6 +50,7 @@ export interface ChatComposerSectionState {
   readonly projectPath?: string | null
   readonly recentProjects: readonly string[]
   readonly session: SessionDetail | null
+  readonly sessionDetailPending: boolean
   readonly isFirstMessage: boolean
   readonly waggleStatus: WaggleCollaborationStatus
   readonly slashCommandMenuOpen: boolean

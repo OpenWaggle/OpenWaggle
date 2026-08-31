@@ -1,10 +1,12 @@
 import type { AgentAuthorizationMode } from './agent-authorization'
 import type { ThinkingLevel } from './settings'
+import type { WaggleInvocationInput } from './waggle'
 
 export interface SessionControlMessageInput {
   readonly text: string
   readonly attachmentIds: readonly string[]
   readonly thinkingLevel?: ThinkingLevel
+  readonly waggle?: WaggleInvocationInput
 }
 
 export interface SessionControlSteeringInput {

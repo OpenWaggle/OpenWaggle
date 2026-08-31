@@ -1,6 +1,6 @@
 import type { AgentSendPayload, PreparedAttachment } from '@shared/types/agent'
 import type { LexicalEditor } from 'lexical'
-import { type RefObject, useRef } from 'react'
+import type { RefObject } from 'react'
 import { useSelectedModelThinkingLevel } from '@/features/providers/hooks'
 import { clearEditor } from '../lib/lexical-utils'
 import { consumeSendResult } from '../lib/send-result'
@@ -8,6 +8,7 @@ import { useComposerStore } from '../state/composer-store'
 import { useComposerModel } from './useComposerModel'
 
 const SILENT_SUBMIT_BLOCK = { type: 'silent' } as const
+const pendingQueuedSubmissions = new Map<string, Promise<boolean>>()
 
 interface UseComposerSubmissionInput {
   readonly onSend: (payload: AgentSendPayload) => Promise<void> | void
@@ -64,7 +65,6 @@ export function useComposerSubmission({
   const selectedWagglePreset = useComposerStore((s) => s.selectedWagglePreset)
   const reset = useComposerStore((s) => s.reset)
   const pushHistory = useComposerStore((s) => s.pushHistory)
-  const pendingQueuedSubmissions = useRef(new Map<string, Promise<boolean>>())
   const selectedModel = useComposerModel().model
   const { effectiveThinkingLevel } = useSelectedModelThinkingLevel(selectedModel)
 
@@ -74,8 +74,9 @@ export function useComposerSubmission({
       return
     }
     reset()
-    if (editorRef.current) {
-      clearEditor(editorRef.current)
+    const activeEditor = useComposerStore.getState().lexicalEditor ?? editorRef.current
+    if (activeEditor) {
+      clearEditor(activeEditor)
     }
   }
 
@@ -97,7 +98,7 @@ export function useComposerSubmission({
   function submitPayload(payload: AgentSendPayload) {
     const draftSnapshot = captureCurrentComposerDraft()
     const pendingKey = queuedSubmissionKey(draftSnapshot, payload)
-    const pending = pendingQueuedSubmissions.current.get(pendingKey)
+    const pending = pendingQueuedSubmissions.get(pendingKey)
     if (pending) return pending
     const dispatch = dispatchPayload(payload)
     if (dispatch.type === 'blocked') return false
@@ -112,10 +113,10 @@ export function useComposerSubmission({
       },
       () => false,
     )
-    pendingQueuedSubmissions.current.set(pendingKey, result)
+    pendingQueuedSubmissions.set(pendingKey, result)
     void result.then(() => {
-      if (pendingQueuedSubmissions.current.get(pendingKey) === result) {
-        pendingQueuedSubmissions.current.delete(pendingKey)
+      if (pendingQueuedSubmissions.get(pendingKey) === result) {
+        pendingQueuedSubmissions.delete(pendingKey)
       }
     })
     return result

@@ -8,16 +8,22 @@ import {
   type ExplicitWaggleCommandResult,
   publishExplicitWaggleResult,
 } from './explicit-waggle-command-result'
+import {
+  toWaggleKernelExecutionContext,
+  type WaggleExecutionContext,
+} from './waggle-run-execution-context'
 import { executeWaggleRun } from './waggle-run-service'
 
-export function runRegisteredExplicitWaggle(input: {
-  readonly sessionId: SessionId
-  readonly runId: string
-  readonly payload: ReturnType<typeof toAgentSendPayload>
-  readonly model: SupportedModelId
-  readonly config: ReturnType<typeof toWaggleConfig>
-  readonly abortController: AbortController
-}) {
+export function runRegisteredExplicitWaggle(
+  input: {
+    readonly sessionId: SessionId
+    readonly runId: string
+    readonly payload: ReturnType<typeof toAgentSendPayload>
+    readonly model: SupportedModelId
+    readonly config: ReturnType<typeof toWaggleConfig>
+    readonly abortController: AbortController
+  } & Partial<WaggleExecutionContext>,
+) {
   return Effect.gen(function* () {
     const result: ExplicitWaggleCommandResult = yield* executeWaggleRun({
       sessionId: input.sessionId,
@@ -25,6 +31,7 @@ export function runRegisteredExplicitWaggle(input: {
       payload: input.payload,
       model: input.model,
       config: input.config,
+      ...toWaggleKernelExecutionContext(input),
       signal: input.abortController.signal,
       onRunPrepared: (runtimeModel) => startWaggleStream(input, runtimeModel),
       onEvent: (event, meta) => {

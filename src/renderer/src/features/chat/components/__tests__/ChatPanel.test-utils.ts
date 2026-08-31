@@ -58,6 +58,7 @@ export function createSections(
       projectPath: transcript.projectPath,
       recentProjects: transcript.recentProjects,
       session: null,
+      sessionDetailPending: false,
       isFirstMessage: false,
       waggleStatus: 'idle',
       slashCommandMenuOpen: false,

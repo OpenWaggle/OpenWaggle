@@ -15,6 +15,7 @@ import { SessionControlOperationPendingError } from '../errors'
 import { AgentRunInterruptionService } from '../ports/agent-run-interruption-service'
 import { SessionControlIdentityService } from '../ports/session-control-identity-service'
 import { SessionControlOperationJournal } from '../ports/session-control-operation-journal'
+import { toSessionControlIntentMessage } from './session-control-message-input'
 import { clampRunAuthorizationOverride } from './session-control-run-authorization'
 
 export interface ReplaceSessionRunInput {
@@ -45,7 +46,7 @@ export function replaceSessionRun(input: ReplaceSessionRunInput) {
     const replacementRunId = yield* identities.nextRunId
     const acceptedAt = yield* identities.now
     const replacementIntent = {
-      ...input.request.command.input,
+      ...toSessionControlIntentMessage(input.request.command.input),
       ...(clampRunAuthorizationOverride(
         input.request.command.runAuthorizationOverride,
         input.callerAuthorizationCeiling,

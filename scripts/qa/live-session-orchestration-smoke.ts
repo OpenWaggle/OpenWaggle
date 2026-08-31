@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import {
   childEnvironment,
   cliOutcome,
@@ -19,6 +20,41 @@ import {
 const DEFAULT_MODEL = 'openai-codex/gpt-5.6-sol'
 const DEFAULT_TIMEOUT_MS = 300_000
 const LIST_LIMIT = 20
+const DISABLED_QA_SKILL = 'herdr-orchestration'
+
+async function disableProjectSkillForQa(input: {
+  readonly userDataRoot: string
+  readonly projectPath: string
+  readonly skillId: string
+}) {
+  const databaseDirectory = path.join(input.userDataRoot, 'session-host')
+  await fs.mkdir(databaseDirectory, { recursive: true })
+  const database = new DatabaseSync(path.join(databaseDirectory, 'session-host.sqlite'))
+  try {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS settings_store (
+        key TEXT PRIMARY KEY,
+        value_json TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    `)
+    database
+      .prepare(
+        `INSERT INTO settings_store (key, value_json, updated_at)
+         VALUES (?, ?, ?)
+         ON CONFLICT(key) DO UPDATE SET
+           value_json = excluded.value_json,
+           updated_at = excluded.updated_at`,
+      )
+      .run(
+        'skillTogglesByProject',
+        JSON.stringify({ [input.projectPath]: { [input.skillId]: false } }),
+        Date.now(),
+      )
+  } finally {
+    database.close()
+  }
+}
 
 async function readPackageIdentity(projectPath: string) {
   const parsed: unknown = JSON.parse(
@@ -45,6 +81,17 @@ async function main() {
   const model = process.env.OPENWAGGLE_LIVE_MODEL?.trim() || DEFAULT_MODEL
   const timeoutMs = Number(process.env.OPENWAGGLE_LIVE_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS)
   const expectedPackage = await readPackageIdentity(projectPath)
+  const bootstrapGui = launchGui(executable, env)
+  try {
+    await waitForHost(executable, env)
+  } finally {
+    await stopChild(bootstrapGui.child)
+  }
+  await disableProjectSkillForQa({
+    userDataRoot,
+    projectPath,
+    skillId: DISABLED_QA_SKILL,
+  })
   const gui = launchGui(executable, env)
   let passed = false
 
@@ -57,7 +104,7 @@ async function main() {
       '--title',
       'Packaged live Queen Worker QA',
       '--text',
-      'Use the native sessions tool to spawn exactly one Worker in the shared parent workspace. Ask it to inspect package.json and report the package name and version without modifying files. Wait for it, read its report, then answer with its Session ID, package name, and version. Do not inspect package.json yourself.',
+      'Use the native sessions tool to spawn exactly one Worker in the shared parent workspace. Do not use herdr or any external orchestration skill. Ask the Worker to inspect package.json and report the package name and version without modifying files. Wait for it, read its report, then answer with its Session ID, package name, and version. Do not inspect package.json yourself.',
       '--model',
       model,
       '--thinking',
@@ -80,6 +127,9 @@ async function main() {
     ])
     const workerSessionId = findWorker(list, queenSessionId)
     const queenTranscript = await readTranscript(executable, env, queenSessionId)
+    if (queenTranscript.includes(DISABLED_QA_SKILL)) {
+      throw new Error(`Queen transcript unexpectedly used disabled skill ${DISABLED_QA_SKILL}.`)
+    }
     for (const expected of [workerSessionId, expectedPackage.name, expectedPackage.version]) {
       if (!queenTranscript.includes(String(expected))) {
         throw new Error(`Queen transcript omitted ${JSON.stringify(expected)}.`)

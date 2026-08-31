@@ -113,7 +113,7 @@ export interface McpTaskRecord {
 
 export interface McpAppToolCallInput extends McpGetSettingsInput {
   readonly serverInstanceId: string
-  readonly serverConfigHash?: string
+  readonly serverConfigHash: string
   readonly toolName: string
   readonly arguments: Readonly<Record<string, McpJsonValue>>
 }

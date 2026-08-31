@@ -58,9 +58,13 @@ function projectDisplayName(projectPath: string | null) {
   return projectName(projectPath)
 }
 
-function branchSummaryComposerMode(branchSummaryMode: 'choice' | 'summarizing' | 'custom' | null) {
+function branchSummaryComposerMode(
+  branchSummaryMode: 'choice' | 'summarizing' | 'custom' | null,
+  sessionDetailPending: boolean,
+) {
   return {
-    disabled: branchSummaryMode === 'choice' || branchSummaryMode === 'summarizing',
+    disabled:
+      sessionDetailPending || branchSummaryMode === 'choice' || branchSummaryMode === 'summarizing',
     placeholder:
       branchSummaryMode === 'custom' ? 'Custom instructions for the branch summary' : undefined,
     requiresText: branchSummaryMode === 'custom',
@@ -249,6 +253,7 @@ export function ChatComposerStack({
           <Composer
             accessControl={
               <SessionAuthorizationModeMenu
+                disabled={section.sessionDetailPending}
                 projectPath={section.projectPath ?? null}
                 session={section.session}
                 onSetAuthorizationMode={section.onSetAuthorizationMode}
@@ -266,7 +271,7 @@ export function ChatComposerStack({
             }
             onCancel={onCancel}
             isLoading={isLoading}
-            mode={branchSummaryComposerMode(branchSummaryMode)}
+            mode={branchSummaryComposerMode(branchSummaryMode, section.sessionDetailPending)}
             onToast={onToast}
           />
         </div>

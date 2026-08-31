@@ -2,6 +2,7 @@ import { matchBy } from '@diegogbrisa/ts-match'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { FollowUpId, RunId, SessionId } from '@shared/types/brand'
 import type { ThinkingLevel } from '@shared/types/settings'
+import type { WaggleInvocation } from '@shared/types/waggle'
 import { type FollowUpQueue, type FollowUpQueueItem, mutateFollowUpQueue } from './follow-up-queue'
 import { planMessageSubmission, type SessionRunAvailability } from './message-submission'
 
@@ -11,6 +12,7 @@ export interface SessionControlIntentSnapshot {
   readonly text: string
   readonly attachmentIds: readonly string[]
   readonly thinkingLevel?: ThinkingLevel
+  readonly waggle?: WaggleInvocation
   readonly runAuthorizationOverride?: AgentAuthorizationMode
   readonly interactionTimeoutMs?: number
   readonly callerId: string

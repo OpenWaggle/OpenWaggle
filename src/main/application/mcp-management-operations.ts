@@ -1,4 +1,5 @@
 import * as Effect from 'effect/Effect'
+import { mcpOAuthVaultAuthority } from '../adapters/mcp/oauth-vault-authority'
 import { mcpOAuthVaultKey } from '../domain/mcp/oauth-vault-key'
 import {
   partitionServerLogoutSecretReferences,
@@ -217,6 +218,7 @@ export function logoutMcpServerOperation(raw: unknown) {
     const config = yield* McpConfigService
     const vault = yield* McpSecretVaultService
     const runtime = yield* McpRuntimeService
+    let vaultMutationAttempted = false
     return yield* Effect.uninterruptible(
       withMcpManagementWrite(
         Effect.gen(function* () {
@@ -232,10 +234,19 @@ export function logoutMcpServerOperation(raw: unknown) {
             target,
           })
           if (server.definition.auth?.type === 'oauth') {
-            yield* vault.remove({ name: mcpOAuthVaultKey(server.instanceId) })
+            vaultMutationAttempted = true
+            yield* Effect.tryPromise({
+              try: () =>
+                mcpOAuthVaultAuthority.revoke(server.instanceId, () =>
+                  Effect.runPromise(vault.remove({ name: mcpOAuthVaultKey(server.instanceId) })),
+                ),
+              catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+            })
           }
-          for (const name of partition.removable) yield* vault.remove({ name })
-          yield* runtime.reconcileIdleConnections()
+          for (const name of partition.removable) {
+            vaultMutationAttempted = true
+            yield* vault.remove({ name })
+          }
           return {
             removedSecrets: partition.removable,
             retainedSharedSecrets: partition.retained,
@@ -243,7 +254,13 @@ export function logoutMcpServerOperation(raw: unknown) {
             unreadableSources: partition.unreadableSources,
             oauthRemoved: server.definition.auth?.type === 'oauth',
           }
-        }),
+        }).pipe(
+          Effect.ensuring(
+            Effect.suspend(() =>
+              vaultMutationAttempted ? runtime.reconcileIdleConnections() : Effect.void,
+            ),
+          ),
+        ),
       ),
     )
   })

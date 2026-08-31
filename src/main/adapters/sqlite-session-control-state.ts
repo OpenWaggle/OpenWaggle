@@ -1,6 +1,7 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type * as SqlClient from '@effect/sql/SqlClient'
 import { decodeUnknownExactOrThrow, parseJsonUnknown, Schema } from '@shared/schema'
+import { toWaggleInvocation, waggleInvocationSchema } from '@shared/schemas/waggle'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import { FollowUpId, RunId, SessionId } from '@shared/types/brand'
 import { THINKING_LEVELS } from '@shared/types/settings'
@@ -37,10 +38,11 @@ interface SessionFollowUpRow {
   readonly intent_json: string
 }
 
-const intentSnapshotSchema: Schema.Schema<SessionControlIntentSnapshot> = Schema.Struct({
+const intentSnapshotSchema = Schema.Struct({
   text: Schema.String,
   attachmentIds: Schema.Array(Schema.String),
   thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
+  waggle: Schema.optional(waggleInvocationSchema),
   runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
   interactionTimeoutMs: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
   callerId: Schema.String,
@@ -53,7 +55,12 @@ function repositoryError(operation: string, cause: unknown) {
 }
 
 function decodeIntent(raw: string) {
-  return decodeUnknownExactOrThrow(intentSnapshotSchema, parseJsonUnknown(raw))
+  const decoded = decodeUnknownExactOrThrow(intentSnapshotSchema, parseJsonUnknown(raw))
+  const { waggle, ...intent } = decoded
+  return {
+    ...intent,
+    ...(waggle ? { waggle: toWaggleInvocation(waggle) } : {}),
+  } satisfies SessionControlIntentSnapshot
 }
 
 function decodeQueueState(raw: string): 'running' | 'paused' {

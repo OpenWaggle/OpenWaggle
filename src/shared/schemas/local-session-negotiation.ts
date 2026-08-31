@@ -1,5 +1,6 @@
 import { Schema } from '@shared/schema'
 import {
+  LOCAL_SESSION_CAPABILITIES,
   LOCAL_SESSION_PROTOCOL_NAME,
   LOCAL_SESSION_REVISION_2_CAPABILITIES,
   LOCAL_SESSION_REVISION_3_CAPABILITIES,
@@ -9,8 +10,14 @@ import {
   type LocalSessionNegotiationResult,
 } from '@shared/types/local-session-protocol'
 
-const [currentRevision, hostUiRevision, compactionRevision, waggleRevision, legacyRevision] =
-  LOCAL_SESSION_SUPPORTED_REVISIONS
+const [
+  currentRevision,
+  mcpHostUiRevision,
+  hostUiRevision,
+  compactionRevision,
+  waggleRevision,
+  legacyRevision,
+] = LOCAL_SESSION_SUPPORTED_REVISIONS
 const MAX_NEGOTIATION_REVISIONS = 16
 const [
   subscribeCapability,
@@ -25,6 +32,7 @@ const [, , , , , , , waggleRunCapability, waggleCancelCapability] =
   LOCAL_SESSION_REVISION_3_CAPABILITIES
 const [, , , , , , , , , localCompactionCapability] = LOCAL_SESSION_REVISION_4_CAPABILITIES
 const [, , , , , , , , , , hostUiCapability] = LOCAL_SESSION_REVISION_5_CAPABILITIES
+const [, , , , , , , , , , , mcpAuthCapability] = LOCAL_SESSION_CAPABILITIES
 
 const supportedRevisionListSchema = Schema.Array(
   Schema.Number.pipe(Schema.int(), Schema.positive()),
@@ -74,10 +82,32 @@ const currentCapabilitySchema = Schema.Tuple(
   Schema.Literal(waggleCancelCapability),
   Schema.Literal(localCompactionCapability),
   Schema.Literal(hostUiCapability),
+  Schema.Literal(mcpAuthCapability),
+)
+
+const revision6CapabilitySchema = Schema.Tuple(
+  Schema.Literal(subscribeCapability),
+  Schema.Literal(replayCapability),
+  Schema.Literal(mutateCapability),
+  Schema.Literal(queryCapability),
+  Schema.Literal(snapshotCapability),
+  Schema.Literal(accessProfilesCapability),
+  Schema.Literal(localUiMutationCapability),
+  Schema.Literal(waggleRunCapability),
+  Schema.Literal(waggleCancelCapability),
+  Schema.Literal(localCompactionCapability),
+  Schema.Literal(hostUiCapability),
 )
 
 export const localSessionNegotiationResultSchema: Schema.Schema<LocalSessionNegotiationResult> =
   Schema.Union(
+    Schema.Struct({
+      accepted: Schema.Literal(true),
+      protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),
+      revision: Schema.Literal(mcpHostUiRevision),
+      hostInstanceId: Schema.String,
+      capabilities: revision6CapabilitySchema,
+    }),
     Schema.Struct({
       accepted: Schema.Literal(true),
       protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),
@@ -90,7 +120,7 @@ export const localSessionNegotiationResultSchema: Schema.Schema<LocalSessionNego
       protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),
       revision: Schema.Literal(hostUiRevision),
       hostInstanceId: Schema.String,
-      capabilities: currentCapabilitySchema,
+      capabilities: revision6CapabilitySchema,
     }),
     Schema.Struct({
       accepted: Schema.Literal(true),

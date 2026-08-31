@@ -83,6 +83,16 @@ describe('ChatPanel composer regressions', () => {
     expect(document.querySelector('[data-extension-run-status-host="true"]')).toBeInTheDocument()
   })
 
+  it('keeps mutable composer controls disabled while an existing Session detail is loading', () => {
+    renderSections(
+      createSections({}, { sessionDetailPending: true, session: null, isFirstMessage: false }),
+    )
+
+    expect(screen.getByTitle('Send message')).toBeDisabled()
+    expect(screen.getByRole('button', { name: /Session access mode/ })).toBeDisabled()
+    expect(screen.queryByRole('group', { name: 'Session setup' })).not.toBeInTheDocument()
+  })
+
   it('brings the setup dock back when an established session worktree is missing', async () => {
     const session = fromPartial<SessionDetail>({
       id: SessionId('session-1'),

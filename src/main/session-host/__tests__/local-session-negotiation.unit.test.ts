@@ -12,14 +12,14 @@ describe('Local Session protocol negotiation', () => {
   it('selects the highest mutually supported revision and its exact capabilities', () => {
     const hello = decodeLocalSessionClientHello({
       protocol: 'openwaggle-local-session',
-      supportedRevisions: [6, 5, 4, 3, 2, 1],
+      supportedRevisions: [7, 6, 5, 4, 3, 2, 1],
       clientKind: 'cli',
       clientVersion: '0.4.0-alpha.1',
     })
 
     expect(negotiateLocalSessionProtocol(hello, 'host-current')).toMatchObject({
       accepted: true,
-      revision: 6,
+      revision: 7,
       hostInstanceId: 'host-current',
       capabilities: expect.arrayContaining(['waggle:run-v1', 'ui:compact-v1', 'host-ui:invoke-v1']),
     })
@@ -30,7 +30,7 @@ describe('Local Session protocol negotiation', () => {
       negotiateLocalSessionProtocol(
         {
           protocol: 'openwaggle-local-session',
-          supportedRevisions: [8, 7],
+          supportedRevisions: [9, 8],
           clientKind: 'gui',
           clientVersion: 'future',
         },

@@ -1,5 +1,6 @@
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
+import * as Fiber from 'effect/Fiber'
 import * as Layer from 'effect/Layer'
 import { describe, expect, it, vi } from 'vitest'
 import { McpConfigService, type McpConfigServiceShape } from '../../ports/mcp-config-service'
@@ -69,6 +70,61 @@ describe('MCP authorization identity lease', () => {
     expect(setSecret).not.toHaveBeenCalled()
     releaseDefinition()
     await Promise.all([authorizing, mutation])
+    expect(setSecret).toHaveBeenCalledWith({ name: 'TOKEN', value: 'replacement' })
+  })
+
+  it('aborts a disconnected authorization and releases the management writer', async () => {
+    let authorizationSignal: AbortSignal | undefined
+    const authorizationStarted = new Promise<void>((resolve) => {
+      mocks.authorize.mockImplementationOnce(
+        ({ signal }: { readonly signal?: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            authorizationSignal = signal
+            signal?.addEventListener(
+              'abort',
+              () => reject(signal.reason ?? new Error('cancelled')),
+              { once: true },
+            )
+            resolve()
+          }),
+      )
+    })
+    const setSecret = vi.fn<McpSecretVaultServiceShape['set']>(() => Effect.succeed([]))
+    const config = fromPartial<McpConfigServiceShape>({
+      getServerDefinition: () =>
+        Effect.succeed({
+          instanceId: 'server-cancel',
+          definition: { url: 'https://docs.example.com/mcp', auth: { type: 'oauth' } },
+        }),
+    })
+    const runtime = fromPartial<McpRuntimeServiceShape>({
+      reconcileIdleConnections: () => Effect.void,
+    })
+    const vault = fromPartial<McpSecretVaultServiceShape>({
+      resolve: () => Effect.fail(new Error('secret was not found')),
+      set: setSecret,
+      remove: () => Effect.succeed([]),
+    })
+    const layer = Layer.mergeAll(
+      Layer.succeed(McpConfigService, config),
+      Layer.succeed(McpRuntimeService, runtime),
+      Layer.succeed(McpSecretVaultService, vault),
+    )
+    const fiber = Effect.runFork(
+      Effect.provide(
+        authorizeMcpServerOperation({ projectPath: process.cwd(), instanceId: 'server-cancel' }),
+        layer,
+      ),
+    )
+    await authorizationStarted
+
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    expect(authorizationSignal?.aborted).toBe(true)
+    await expect(
+      Effect.runPromise(
+        Effect.provide(setMcpSecretOperation({ name: 'TOKEN', value: 'replacement' }), layer),
+      ),
+    ).resolves.toEqual([])
     expect(setSecret).toHaveBeenCalledWith({ name: 'TOKEN', value: 'replacement' })
   })
 })

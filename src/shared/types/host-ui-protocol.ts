@@ -2,7 +2,7 @@ import type { IpcInvokeChannel } from './ipc'
 
 export const HOST_UI_CONTRACT_VERSION = 1 as const
 
-export const HOST_BACKED_MCP_GUI_CHANNELS = [
+export const HOST_BACKED_MCP_GUI_CHANNELS_REVISION_6 = [
   'mcp:get-settings',
   'mcp:set-scope-state',
   'mcp:set-server-enabled',
@@ -11,7 +11,6 @@ export const HOST_BACKED_MCP_GUI_CHANNELS = [
   'mcp:set-server-trust',
   'mcp:remove-server',
   'mcp:logout-server',
-  'mcp:authorize-server',
   'mcp:add-server',
   'mcp:preview-imports',
   'mcp:apply-imports',
@@ -28,6 +27,16 @@ export const HOST_BACKED_MCP_GUI_CHANNELS = [
   'mcp:set-event-subscription',
   'mcp:list-events',
   'mcp:list-event-subscriptions',
+] as const satisfies readonly IpcInvokeChannel[]
+
+export const HOST_UI_REVISION_7_REQUIRED_CHANNELS = [
+  'mcp:logout-server',
+  'mcp:authorize-server',
+] as const satisfies readonly IpcInvokeChannel[]
+
+export const HOST_BACKED_MCP_GUI_CHANNELS = [
+  ...HOST_BACKED_MCP_GUI_CHANNELS_REVISION_6,
+  'mcp:authorize-server',
 ] as const satisfies readonly IpcInvokeChannel[]
 
 /**

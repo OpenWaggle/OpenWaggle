@@ -1,10 +1,15 @@
 import type { PreparedAttachment } from '@shared/types/agent'
 import { act, renderHook } from '@testing-library/react'
+import { fromPartial } from '@total-typescript/shoehorn'
 import type { LexicalEditor } from 'lexical'
 import type { RefObject } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerStore } from '../../state/composer-store'
 import { useComposerSubmission } from '../useComposerSubmission'
+
+const { clearEditor } = vi.hoisted(() => ({ clearEditor: vi.fn() }))
+
+vi.mock('../../lib/lexical-utils', () => ({ clearEditor }))
 
 vi.mock('@/features/providers/hooks', () => ({
   useSelectedModelThinkingLevel: () => ({ effectiveThinkingLevel: 'off' }),
@@ -45,6 +50,7 @@ function renderSubmission(onEnqueue: () => Promise<void>) {
 
 describe('useComposerSubmission Follow-up lifecycle', () => {
   beforeEach(() => {
+    clearEditor.mockReset()
     const attachment: PreparedAttachment = {
       id: 'attachment-a',
       kind: 'text',
@@ -187,5 +193,33 @@ describe('useComposerSubmission Follow-up lifecycle', () => {
     })
     expect(useComposerStore.getState().input).toBe('')
     expect(useComposerStore.getState().attachments).toEqual([])
+  })
+
+  it('deduplicates across composer remounts and clears the current editor after acknowledgement', async () => {
+    const request = deferred()
+    const onEnqueue = vi.fn(() => request.promise)
+    const firstHook = renderSubmission(onEnqueue)
+    let first!: Promise<boolean>
+    act(() => {
+      first = Promise.resolve(firstHook.result.current.handleSubmit())
+    })
+    firstHook.unmount()
+
+    const remountedEditor = fromPartial<LexicalEditor>({})
+    act(() => useComposerStore.getState().setLexicalEditor(remountedEditor))
+    const secondHook = renderSubmission(onEnqueue)
+    let second!: Promise<boolean>
+    act(() => {
+      second = Promise.resolve(secondHook.result.current.handleSubmit())
+    })
+
+    expect(onEnqueue).toHaveBeenCalledOnce()
+    await act(async () => {
+      request.resolve()
+      await Promise.all([first, second])
+    })
+    expect(useComposerStore.getState().input).toBe('')
+    expect(clearEditor).toHaveBeenCalledWith(remountedEditor)
+    secondHook.unmount()
   })
 })

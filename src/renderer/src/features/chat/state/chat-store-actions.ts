@@ -52,12 +52,13 @@ async function loadSessions(set: ChatSet, get: ChatGet) {
   try {
     // The sidebar only needs summaries. Loading every transcript here made an attached GUI
     // serialize the complete history of every Session into one Host response.
-    const all = await api.listSessions()
+    const [all, archived] = await Promise.all([api.listSessions(), api.listArchivedSessions()])
     if (loadRequestId !== latestSessionLoad) return
     const current = get()
     const changed = (id: SessionId) => changedSince(id, mutationVersions)
     const reconciled = reconcileLoadedSummaries(all, current, changed)
-    const knownIds = new Set(reconciled.map((session) => session.id))
+    const knownSummaries = [...all, ...archived]
+    const knownIds = new Set(knownSummaries.map((session) => session.id))
     const sessionById = new Map(
       [...current.sessionById].filter(
         ([sessionId]) =>
@@ -68,7 +69,7 @@ async function loadSessions(set: ChatSet, get: ChatGet) {
     const sessions = visibleSummaries(reconciled)
     const activeSessionId = current.activeSessionId
     const activeSession = activeSessionId ? (sessionById.get(activeSessionId) ?? null) : null
-    const missingSessionIds = reconcileMissingSessions(all, current, changed)
+    const missingSessionIds = reconcileMissingSessions(knownSummaries, current, changed)
     if (activeSessionId && !knownIds.has(activeSessionId)) {
       missingSessionIds.add(activeSessionId)
     }

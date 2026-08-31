@@ -12,6 +12,9 @@ import { useChatStore } from '../chat-store'
 const mockApi = {
   listSessionDetails: vi.fn(),
   listSessions: vi.fn(async (..._args: unknown[]): Promise<readonly SessionSummary[]> => []),
+  listArchivedSessions: vi.fn(
+    async (..._args: unknown[]): Promise<readonly SessionSummary[]> => [],
+  ),
   getSessionTree: vi.fn(async (..._args: unknown[]) => null),
   getSessionDetail: vi.fn(),
   createSession: vi.fn(),
@@ -22,6 +25,7 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: {
     listSessionDetails: (...args: unknown[]) => mockApi.listSessionDetails(...args),
     listSessions: (...args: unknown[]) => mockApi.listSessions(...args),
+    listArchivedSessions: (...args: unknown[]) => mockApi.listArchivedSessions(...args),
     getSessionTree: (...args: unknown[]) => mockApi.getSessionTree(...args),
     getSessionDetail: (...args: unknown[]) => mockApi.getSessionDetail(...args),
     createSession: (...args: unknown[]) => mockApi.createSession(...args),
@@ -174,6 +178,21 @@ describe('useChatStore integration', () => {
     await load
 
     expect(useChatStore.getState().sessionById.get(id)?.title).toBe('Newer Host refresh')
+  })
+
+  it('retains an archived Worker deep link without showing it in the normal catalog', async () => {
+    const worker = makeSessionDetail(SessionId('archived-worker'), 'Archived Worker')
+    useChatStore.setState({ activeSessionId: worker.id })
+    mockApi.listSessions.mockResolvedValue([])
+    mockApi.listArchivedSessions.mockResolvedValue([
+      { ...makeSessionSummary(worker), archived: true },
+    ])
+
+    await useChatStore.getState().loadSessions()
+
+    expect(useChatStore.getState().activeSessionId).toBe(worker.id)
+    expect(useChatStore.getState().missingSessionIds.has(worker.id)).toBe(false)
+    expect(useChatStore.getState().sessions).toEqual([])
   })
 
   it('throws and preserves state on createSession failure', async () => {

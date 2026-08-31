@@ -22,6 +22,7 @@ export interface ComposerSectionParams {
   readonly projectPath?: string | null
   readonly recentProjects: readonly string[]
   readonly session: SessionDetail | null
+  readonly sessionDetailPending: boolean
   readonly isFirstMessage: boolean
   readonly waggleStatus: WaggleCollaborationStatus
   readonly slashCommandMenuOpen: boolean
@@ -95,6 +96,7 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
     projectPath: params.projectPath ?? params.session?.projectPath ?? null,
     recentProjects,
     session: params.session,
+    sessionDetailPending: params.sessionDetailPending,
     isFirstMessage,
     waggleStatus,
     slashCommandMenuOpen,

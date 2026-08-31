@@ -191,4 +191,70 @@ describe('Session Control application service', () => {
     })
     expect(state.run).toEqual({ state: 'active', runId: activeRunId })
   })
+
+  it('preserves a queued Waggle invocation in the durable Follow-up intent', async () => {
+    const sessionId = SessionId('session-waggle')
+    let state: SessionControlSessionState = {
+      sessionId,
+      revision: 1,
+      run: { state: 'active', runId: RunId('run-active') },
+      followUpQueue: { state: 'running', revision: 0, items: [] },
+    }
+    const repositoryLayer = Layer.succeed(SessionControlRepository, {
+      executeMutation: (input) =>
+        Effect.sync(() => {
+          const decision = input.decide(state)
+          if (decision.accepted) state = decision.state
+          return { replayed: false, outcome: decision.outcome }
+        }),
+    })
+    const identityLayer = Layer.succeed(SessionControlIdentityService, {
+      nextRunId: Effect.succeed(RunId('run-unused')),
+      nextFollowUpId: Effect.succeed(FollowUpId('follow-up-waggle')),
+      nextReportId: Effect.succeed(ReportId('report-unused')),
+      nextReportCorrelationId: Effect.succeed(ReportCorrelationId('correlation-unused')),
+      now: Effect.succeed(4567),
+    })
+    const waggle = {
+      presetId: 'preset-review',
+      presetName: 'Review pair',
+      source: 'user' as const,
+      config: {
+        mode: 'sequential' as const,
+        agents: [
+          {
+            label: 'Builder',
+            model: '$inherit',
+            roleDescription: 'Implements the change',
+            color: 'blue' as const,
+          },
+          {
+            label: 'Reviewer',
+            model: 'openai/gpt-5',
+            roleDescription: 'Reviews the change',
+            color: 'amber' as const,
+          },
+        ] as const,
+        stop: { primary: 'consensus' as const, maxTurnsSafety: 4 },
+      },
+    }
+
+    await Effect.runPromise(
+      queueSessionFollowUp({
+        callerId: 'local-user',
+        request: {
+          contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+          requestId: 'request-waggle',
+          idempotencyKey: 'idempotency-waggle',
+          command: {
+            operation: 'follow-up',
+            sessionId,
+            input: { text: 'Review this next.', attachmentIds: [], waggle },
+          },
+        },
+      }).pipe(Effect.provide(Layer.merge(repositoryLayer, identityLayer))),
+    )
+
+    expect(state.followUpQueue.items[0]?.intent.waggle).toEqual(waggle)
+  })
 })
