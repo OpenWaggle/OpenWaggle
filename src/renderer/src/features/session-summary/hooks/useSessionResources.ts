@@ -11,19 +11,30 @@ import { api } from '@/shared/lib/ipc'
 
 type SessionResourcesQueryKey = readonly ['session-resources', string]
 type SessionResourceContentQueryKey = readonly ['session-resource-content', string, string]
-type SessionResourceThumbnailQueryKey = readonly ['session-resource-thumbnail', string, string]
+type SessionResourceThumbnailQueryKey = readonly [
+  'session-resource-thumbnail',
+  string,
+  string,
+  number,
+]
 
 const SESSION_RESOURCE_BACKFILL_POLL_INTERVAL_MS = 100
 const SESSION_RESOURCE_THUMBNAIL_RETRY_INTERVAL_MS = 1_000
+const SESSION_RESOURCE_THUMBNAIL_MAX_ATTEMPTS = 3
 
 export const sessionResourcesQueryKey = (sessionId: string): SessionResourcesQueryKey =>
   ['session-resources', sessionId] as const
 
-export const sessionResourceThumbnailQueryKey = (
+export const sessionResourceThumbnailQueryKey = (sessionId: string, resourceId: string) =>
+  ['session-resource-thumbnail', sessionId, resourceId] as const
+
+function versionedSessionResourceThumbnailQueryKey(
   sessionId: string,
   resourceId: string,
-): SessionResourceThumbnailQueryKey =>
-  ['session-resource-thumbnail', sessionId, resourceId] as const
+  resourceRevision: number,
+): SessionResourceThumbnailQueryKey {
+  return ['session-resource-thumbnail', sessionId, resourceId, resourceRevision]
+}
 
 export function sessionResourcesQueryOptions(
   sessionId: string | null,
@@ -68,6 +79,7 @@ export function sessionResourceContentQueryOptions(
 export function sessionResourceThumbnailQueryOptions(
   sessionId: string,
   resourceId: string,
+  resourceRevision: number,
 ): OpenWaggleQueryOptions<
   SessionResourceContent | null,
   Error,
@@ -75,11 +87,14 @@ export function sessionResourceThumbnailQueryOptions(
   SessionResourceThumbnailQueryKey
 > {
   return queryOptions({
-    queryKey: sessionResourceThumbnailQueryKey(sessionId, resourceId),
+    queryKey: versionedSessionResourceThumbnailQueryKey(sessionId, resourceId, resourceRevision),
     queryFn: () => api.readSessionResourceThumbnail(SessionId(sessionId), resourceId),
     staleTime: Number.POSITIVE_INFINITY,
     refetchInterval: (query) =>
-      query.state.data === null ? SESSION_RESOURCE_THUMBNAIL_RETRY_INTERVAL_MS : false,
+      query.state.data === null &&
+      query.state.dataUpdateCount < SESSION_RESOURCE_THUMBNAIL_MAX_ATTEMPTS
+        ? SESSION_RESOURCE_THUMBNAIL_RETRY_INTERVAL_MS
+        : false,
   })
 }
 

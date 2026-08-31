@@ -140,6 +140,25 @@ describe('SessionResourceViewer', () => {
     expect(await screen.findByRole('dialog', { name: 'Image viewer: new.png' })).toBeInTheDocument()
   })
 
+  it('skips unavailable managed images during gallery navigation', async () => {
+    listSessionResources.mockResolvedValue([
+      image('image-1', 'first.png'),
+      { ...image('missing-image', 'missing.png'), available: false },
+      image('image-2', 'second.png'),
+    ])
+    useUIStore.getState().openResourceViewer('session-1', 'image-1')
+    renderViewer('session-1')
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Image viewer: first.png' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('1 of 2')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Next image' }))
+    expect(
+      await screen.findByRole('dialog', { name: 'Image viewer: second.png' }),
+    ).toBeInTheDocument()
+  })
+
   it('requests remote image content only after the user opens the viewer', async () => {
     listSessionResources
       .mockResolvedValueOnce([remoteImage('remote-image', 'Remote image')])

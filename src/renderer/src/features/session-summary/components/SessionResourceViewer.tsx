@@ -153,7 +153,11 @@ function orderedImages(
   activeMessageIds: ReadonlySet<string>,
 ) {
   return (resources ?? [])
-    .filter((resource) => resource.kind === 'image')
+    .filter(
+      (resource) =>
+        resource.kind === 'image' &&
+        (resource.available || resource.locator?.startsWith('https://') === true),
+    )
     .sort((left, right) => {
       const pathOrder =
         Number(belongsToActivePath(right, activeMessageIds)) -

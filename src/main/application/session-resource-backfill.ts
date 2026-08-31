@@ -108,6 +108,10 @@ function attemptBackfilledImage(input: BackfillImageInput, state: BackfillImageS
     state.budget = prepared.budget
     const slot = generatedImageOccurrencePrefix(input)
     if (!prepared.image) {
+      if (prepared.byteBudgetExceeded) {
+        state.projectionBlocked = true
+        return
+      }
       yield* captureUnavailableGeneratedImage(input)
       state.knownSlots.add(slot)
       return

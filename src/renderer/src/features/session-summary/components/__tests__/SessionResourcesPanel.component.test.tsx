@@ -120,6 +120,19 @@ describe('SessionResourcesPanel', () => {
     )
   })
 
+  it('bounds automatic retries for a permanently unavailable thumbnail', async () => {
+    apiMocks.readThumbnail.mockResolvedValue(null)
+
+    renderWithQueryClient(<SessionResourcesPanel sessionId="session-one" onClose={vi.fn()} />)
+
+    expect(await screen.findByText('reference.png')).toBeInTheDocument()
+    await waitFor(() => expect(apiMocks.readThumbnail).toHaveBeenCalledTimes(3), {
+      timeout: 3_500,
+    })
+    await new Promise((resolve) => setTimeout(resolve, 1_200))
+    expect(apiMocks.readThumbnail).toHaveBeenCalledTimes(3)
+  })
+
   it('opens managed images in the current session viewer and links externally', async () => {
     renderWithQueryClient(<SessionResourcesPanel sessionId="session-one" onClose={vi.fn()} />)
     fireEvent.click(await screen.findByText('reference.png'))

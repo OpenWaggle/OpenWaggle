@@ -36,7 +36,7 @@ export function SessionResourcePreview({
     return () => observer.disconnect()
   }, [nearViewport])
   const content = useQuery({
-    ...sessionResourceThumbnailQueryOptions(sessionId, resource.id),
+    ...sessionResourceThumbnailQueryOptions(sessionId, resource.id, resource.updatedAt),
     enabled:
       nearViewport &&
       resource.available &&

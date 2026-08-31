@@ -66,6 +66,7 @@ export function prepareGeneratedImageForCapture(
   validate: GeneratedImageValidator = validatedImageBytes,
 ): {
   readonly budget: GeneratedImageCaptureBudget
+  readonly byteBudgetExceeded: boolean
   readonly image: ValidatedSessionResourceImage | null
 } | null {
   if (
@@ -81,15 +82,23 @@ export function prepareGeneratedImageForCapture(
     decodedByteLength === null ||
     advanceGeneratedImageCaptureBudget(attemptedBudget, decodedByteLength) === null
   ) {
-    return { budget: attemptedBudget, image: null }
+    return {
+      budget: attemptedBudget,
+      byteBudgetExceeded:
+        decodedByteLength !== null &&
+        current.bytes > GENERATED_IMAGE_CAPTURE_LIMITS.maxBytes - decodedByteLength,
+      image: null,
+    }
   }
   const validatedImage = validate(image.data, image.mimeType)
-  if (!validatedImage) return { budget: attemptedBudget, image: null }
+  if (!validatedImage) {
+    return { budget: attemptedBudget, byteBudgetExceeded: false, image: null }
+  }
   const budget = advanceGeneratedImageCaptureBudget(
     attemptedBudget,
     validatedImage.bytes.byteLength,
   )
-  return budget ? { budget, image: validatedImage } : null
+  return budget ? { budget, byteBudgetExceeded: false, image: validatedImage } : null
 }
 
 export { captureAttachment } from './session-resource-capture-attachment'

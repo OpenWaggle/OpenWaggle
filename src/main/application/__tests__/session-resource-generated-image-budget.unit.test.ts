@@ -71,7 +71,7 @@ describe('generated-image capture budget', () => {
         { data: PNG_BASE64, mimeType: 'image/png' },
         validate,
       ),
-    ).toMatchObject({ image: null, budget: { attempts: 2 } })
+    ).toMatchObject({ image: null, byteBudgetExceeded: true, budget: { attempts: 2 } })
     expect(validate).not.toHaveBeenCalled()
   })
 
