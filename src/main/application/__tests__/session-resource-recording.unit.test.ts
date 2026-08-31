@@ -42,6 +42,7 @@ describe('recordSessionChangeRequest', () => {
           getTree: () => Effect.succeed(null),
           listResourceProjectionPage: () =>
             Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
+          getResourceProjectionNodes: () => Effect.succeed([]),
           getWorkspace: () =>
             Effect.succeed(
               fromPartial<SessionWorkspace>({

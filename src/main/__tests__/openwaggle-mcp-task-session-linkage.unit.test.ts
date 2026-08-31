@@ -107,4 +107,72 @@ describe('hosted MCP task session linkage', () => {
 
     expect(cancelled.sessionId).toBe(`created-${task.id}`)
   })
+
+  it('restores the authoritative working state when an older terminal projection finishes late', async () => {
+    const options = serveOptions(temporaryRoot)
+    const projectedStates: string[] = []
+    let releaseAccepted = () => {}
+    let markAcceptedStarted = () => {}
+    const acceptedStarted = new Promise<void>((resolve) => {
+      markAcceptedStarted = resolve
+    })
+    const acceptedBlocked = new Promise<void>((resolve) => {
+      releaseAccepted = resolve
+    })
+    const taskServices = services()
+    vi.mocked(taskServices.execute).mockImplementation(async ({ objective, signal }) => {
+      if (objective === 'finish first') {
+        return {
+          outcome: 'success' as const,
+          newMessages: [],
+          resourceMessages: [],
+          resourceNodeIds: {},
+          resourceBranchIds: {},
+        }
+      }
+      return new Promise<{ readonly outcome: 'aborted' }>((resolve) => {
+        signal.addEventListener('abort', () => resolve({ outcome: 'aborted' }), { once: true })
+      })
+    })
+    vi.mocked(taskServices.setDelegationState).mockImplementation(async (_sessionId, state) => {
+      if (state === 'accepted') {
+        markAcceptedStarted()
+        await acceptedBlocked
+      }
+      projectedStates.push(state)
+    })
+    const first = track(
+      new OpenWaggleServerTaskManager(options, metadata(options.taskStorePath), taskServices, {
+        ownerId: 'owner-a',
+      }),
+    )
+    const second = track(
+      new OpenWaggleServerTaskManager(options, metadata(options.taskStorePath), taskServices, {
+        ownerId: 'owner-b',
+      }),
+    )
+
+    await Effect.runPromise(
+      first.start({
+        projectPath: temporaryRoot,
+        sessionId: 'shared-session',
+        objective: 'finish first',
+      }),
+    )
+    await acceptedStarted
+    const replacement = await Effect.runPromise(
+      second.start({
+        projectPath: temporaryRoot,
+        sessionId: 'shared-session',
+        objective: 'keep working',
+      }),
+    )
+    await waitForTaskStatus(second, replacement.id, 'working')
+    await vi.waitFor(() => expect(projectedStates).toContain('working'))
+
+    releaseAccepted()
+
+    await vi.waitFor(() => expect(projectedStates).toContain('accepted'))
+    expect(projectedStates.at(-1)).toBe('working')
+  })
 })

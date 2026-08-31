@@ -200,8 +200,7 @@ const TestAgentKernelLayer = Layer.succeed(
         catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
       }),
     run: () => Effect.fail(new Error('agent run not used by session detail handler tests')),
-    getContextUsage: () =>
-      Effect.fail(new Error('context usage not used by session detail handler tests')),
+    getContextUsage: () => Effect.fail(new Error('context usage is not used')),
     compact: () => Effect.fail(new Error('compaction not used by session detail handler tests')),
     navigateTree: () =>
       Effect.fail(new Error('tree navigation not used by session detail handler tests')),
@@ -221,6 +220,7 @@ const TestSessionRepoLayer = Layer.succeed(SessionRepository, {
   getTree: () => Effect.succeed(null),
   listResourceProjectionPage: () =>
     Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
+  getResourceProjectionNodes: () => Effect.succeed([]),
   getWorkspace: () => Effect.succeed(null),
   persistSnapshot: (input) =>
     Effect.sync(() => {

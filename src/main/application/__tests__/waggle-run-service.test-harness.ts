@@ -103,6 +103,7 @@ const TestSessionLayer = Layer.succeed(SessionRepository, {
   getTree: (requestedSessionId) => Effect.sync(() => getTreeMock(requestedSessionId)),
   listResourceProjectionPage: () =>
     Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
+  getResourceProjectionNodes: () => Effect.succeed([]),
   getWorkspace: () => Effect.succeed(null),
   persistSnapshot: (input: PersistSessionSnapshotInput) =>
     Effect.sync(() => {

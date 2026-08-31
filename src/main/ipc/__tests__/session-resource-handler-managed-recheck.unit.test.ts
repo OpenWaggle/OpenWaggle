@@ -17,6 +17,7 @@ import { registerSessionResourceHandlers } from '../session-resource-handler'
 const mocks = vi.hoisted(() => ({
   typedHandle: vi.fn(),
   inspect: vi.fn(),
+  getResourceProjectionNodes: vi.fn(),
 }))
 
 vi.mock('../typed-ipc', () => ({ typedHandle: mocks.typedHandle }))
@@ -78,7 +79,8 @@ const TestLayer = Layer.mergeAll(
       fromPartial<SessionRepositoryShape>({
         listResourceProjectionPage: () =>
           Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
-        getTree: () => Effect.succeed({ nodes: [MANAGED_NODE] }),
+        getResourceProjectionNodes: (sessionId: SessionId, nodeIds: readonly string[]) =>
+          Effect.sync(() => mocks.getResourceProjectionNodes(sessionId, nodeIds)),
       }),
     ),
   ),
@@ -121,6 +123,7 @@ describe('completed session resource backfill', () => {
   beforeEach(() => {
     mocks.typedHandle.mockClear()
     mocks.inspect.mockReset().mockReturnValue(undefined)
+    mocks.getResourceProjectionNodes.mockReset().mockReturnValue([MANAGED_NODE])
     registerSessionResourceHandlers()
   })
 
@@ -131,5 +134,8 @@ describe('completed session resource backfill', () => {
     })
 
     expect(mocks.inspect).toHaveBeenCalledWith('/managed/managed.txt')
+    expect(mocks.getResourceProjectionNodes).toHaveBeenCalledWith(SessionId('session-one'), [
+      'node-one',
+    ])
   })
 })

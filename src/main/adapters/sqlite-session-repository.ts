@@ -35,6 +35,10 @@ function createSessionReadMethods(deps: SessionRepositoryStores) {
       repositoryOperation('listSessionResourceProjectionPage', () =>
         deps.store.listSessionResourceProjectionPage(sessionId, afterCreatedOrder, limit),
       ),
+    getResourceProjectionNodes: (sessionId, nodeIds) =>
+      repositoryOperation('getSessionResourceProjectionNodes', () =>
+        deps.store.getSessionResourceProjectionNodes(sessionId, nodeIds),
+      ),
     getWorkspace: (sessionId, selection) =>
       repositoryOperation('getSessionWorkspace', () =>
         deps.store.getSessionWorkspace(sessionId, selection),
@@ -49,6 +53,7 @@ function createSessionReadMethods(deps: SessionRepositoryStores) {
     | 'listArchivedBranches'
     | 'getTree'
     | 'listResourceProjectionPage'
+    | 'getResourceProjectionNodes'
     | 'getWorkspace'
     | 'listActiveRunsForRecovery'
   >

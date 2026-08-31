@@ -41,9 +41,7 @@ function recheckCompletedManagedResources(
   return Effect.gen(function* () {
     const nodeIds = managedResourceNodeIds(yield* repository.list(sessionId))
     if (nodeIds.size === 0) return
-    const tree = yield* sessions.getTree(sessionId)
-    if (!tree) return
-    const nodes = tree.nodes.filter(({ id }) => nodeIds.has(String(id)))
+    const nodes = yield* sessions.getResourceProjectionNodes(sessionId, [...nodeIds])
     if (nodes.length === 0) return
     yield* captureProjectedSessionResources({ sessionId, nodes }).pipe(
       Effect.catchAll(() => Effect.void),
@@ -134,9 +132,7 @@ export function registerSessionResourceHandlers(): void {
       )
       if (nodeIds.size === 0) return undefined
       const sessions = yield* SessionRepository
-      const tree = yield* sessions.getTree(sessionId)
-      if (!tree) return undefined
-      const nodes = tree.nodes.filter(({ id }) => nodeIds.has(String(id)))
+      const nodes = yield* sessions.getResourceProjectionNodes(sessionId, [...nodeIds])
       yield* captureProjectedSessionResources({
         sessionId,
         nodes,

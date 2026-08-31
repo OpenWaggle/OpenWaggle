@@ -34,7 +34,7 @@ const handlerMocks = vi.hoisted(() => ({
   read: vi.fn(),
   thumbnail: vi.fn(),
   listResourceProjectionPage: vi.fn(),
-  getTree: vi.fn(),
+  getResourceProjectionNodes: vi.fn(),
   getBackfillCursor: vi.fn(),
   advanceBackfillCursor: vi.fn(),
 }))
@@ -48,7 +48,8 @@ const TestLayer = Layer.mergeAll(
       fromPartial<SessionRepositoryShape>({
         listResourceProjectionPage: (sessionId: SessionId, cursor: number, limit: number) =>
           Effect.sync(() => handlerMocks.listResourceProjectionPage(sessionId, cursor, limit)),
-        getTree: (sessionId: SessionId) => Effect.sync(() => handlerMocks.getTree(sessionId)),
+        getResourceProjectionNodes: (sessionId: SessionId, nodeIds: readonly string[]) =>
+          Effect.sync(() => handlerMocks.getResourceProjectionNodes(sessionId, nodeIds)),
       }),
     ),
   ),
@@ -126,7 +127,7 @@ describe('session resource IPC handlers', () => {
     handlerMocks.listResourceProjectionPage
       .mockReset()
       .mockReturnValue({ nodes: [], throughCreatedOrder: null, hasMore: false })
-    handlerMocks.getTree.mockReset().mockReturnValue(null)
+    handlerMocks.getResourceProjectionNodes.mockReset().mockReturnValue([])
     handlerMocks.getBackfillCursor.mockReset().mockReturnValue(-1)
     handlerMocks.advanceBackfillCursor.mockReset()
     registerSessionResourceHandlers()
@@ -234,7 +235,7 @@ describe('session resource IPC handlers', () => {
     ).resolves.toBeUndefined()
 
     expect(handlerMocks.list).toHaveBeenCalledWith(SessionId('session-one'))
-    expect(handlerMocks.getTree).toHaveBeenCalledWith(SessionId('session-one'))
+    expect(handlerMocks.getResourceProjectionNodes).toHaveBeenCalledOnce()
   })
 
   it('does not advance the page cursor when a capture budget leaves work pending', async () => {

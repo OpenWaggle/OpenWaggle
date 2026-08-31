@@ -222,6 +222,7 @@ function makeBrokerLayer(input: {
         Effect.succeed(input.sessionTree?.session.id === sessionId ? input.sessionTree : null),
       listResourceProjectionPage: () =>
         Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
+      getResourceProjectionNodes: () => Effect.succeed([]),
       getWorkspace: () => Effect.succeed(null),
       persistSnapshot: () => Effect.void,
       updateRuntime: () => Effect.void,

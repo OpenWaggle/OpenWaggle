@@ -13,6 +13,7 @@ import {
   sessionResourcesQueryKey,
   useSessionResources,
 } from '../hooks/useSessionResources'
+import { isViewableSessionImage } from '../model/session-resource-viewability'
 import {
   SessionResourceViewerCanvas,
   type ImageViewerZoom as Zoom,
@@ -152,20 +153,14 @@ function orderedImages(
   resources: readonly SessionResource[] | undefined,
   activeMessageIds: ReadonlySet<string>,
 ) {
-  return (resources ?? [])
-    .filter(
-      (resource) =>
-        resource.kind === 'image' &&
-        (resource.available || resource.locator?.startsWith('https://') === true),
-    )
-    .sort((left, right) => {
-      const pathOrder =
-        Number(belongsToActivePath(right, activeMessageIds)) -
-        Number(belongsToActivePath(left, activeMessageIds))
-      if (pathOrder !== 0) return pathOrder
-      const timeOrder = left.updatedAt - right.updatedAt
-      return timeOrder !== 0 ? timeOrder : left.id.localeCompare(right.id)
-    })
+  return (resources ?? []).filter(isViewableSessionImage).sort((left, right) => {
+    const pathOrder =
+      Number(belongsToActivePath(right, activeMessageIds)) -
+      Number(belongsToActivePath(left, activeMessageIds))
+    if (pathOrder !== 0) return pathOrder
+    const timeOrder = left.updatedAt - right.updatedAt
+    return timeOrder !== 0 ? timeOrder : left.id.localeCompare(right.id)
+  })
 }
 
 function selectedImage(resourceId: string | null, images: readonly SessionResource[]) {

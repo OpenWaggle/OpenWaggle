@@ -21,7 +21,10 @@ import {
   projectTaskDelegationState,
   terminalDelegationState,
 } from './openwaggle-mcp-task-lineage'
-import { reconcileOpenWaggleProfileTasks } from './openwaggle-mcp-task-reconciliation'
+import {
+  authoritativeTaskForSession,
+  reconcileOpenWaggleProfileTasks,
+} from './openwaggle-mcp-task-reconciliation'
 import { type ActiveServerTask, taskResult } from './openwaggle-mcp-task-result'
 import {
   defaultTaskServices,
@@ -77,6 +80,23 @@ export class OpenWaggleServerTaskManager {
       services: this.services,
       store: this.store,
     })
+  }
+
+  private async projectTaskStateIfAuthoritative(
+    taskId: string,
+    sessionId: SessionId,
+    state: Parameters<typeof projectTaskDelegationState>[2],
+  ) {
+    const before = authoritativeTaskForSession(await this.store.readTasks(), sessionId)
+    if (before?.id !== taskId) return
+    await projectTaskDelegationState(this.services, sessionId, state)
+    const after = authoritativeTaskForSession(await this.store.readTasks(), sessionId)
+    if (!after || after.id === taskId) return
+    await projectTaskDelegationState(
+      this.services,
+      sessionId,
+      isActiveTaskStatus(after.status) ? 'working' : terminalDelegationState(after.status),
+    )
   }
 
   list() {
@@ -181,7 +201,9 @@ export class OpenWaggleServerTaskManager {
       })
       if (working?.status !== 'working') {
         abort.abort()
-        await projectTaskDelegationState(this.services, sessionId, 'cancelled')
+        if (working) {
+          await this.projectTaskStateIfAuthoritative(task.id, sessionId, 'cancelled')
+        }
         return
       }
       if (!created) {
@@ -202,8 +224,8 @@ export class OpenWaggleServerTaskManager {
           : terminalTaskRecord(linkedCurrent, result, this.leases.now())
       })
       if (terminal) {
-        await projectTaskDelegationState(
-          this.services,
+        await this.projectTaskStateIfAuthoritative(
+          task.id,
           sessionId,
           terminalDelegationState(terminal.status),
         )
@@ -224,8 +246,8 @@ export class OpenWaggleServerTaskManager {
             }
       }).catch(() => undefined)
       if (linkedSessionId && failed) {
-        await projectTaskDelegationState(
-          this.services,
+        await this.projectTaskStateIfAuthoritative(
+          task.id,
           linkedSessionId,
           terminalDelegationState(failed.status),
         )

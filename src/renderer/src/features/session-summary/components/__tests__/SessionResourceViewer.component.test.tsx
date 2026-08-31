@@ -61,6 +61,15 @@ function remoteImage(id: string, title: string): SessionResource {
   }
 }
 
+function httpImage(id: string, title: string): SessionResource {
+  return {
+    ...image(id, title),
+    canonicalKey: `url:http://images.example/${id}.png`,
+    mimeType: null,
+    locator: `http://images.example/${id}.png`,
+  }
+}
+
 function renderViewer(
   activeSessionId: string | null,
   activeMessageIds: ReadonlySet<string> = new Set(),
@@ -144,6 +153,25 @@ describe('SessionResourceViewer', () => {
     listSessionResources.mockResolvedValue([
       image('image-1', 'first.png'),
       { ...image('missing-image', 'missing.png'), available: false },
+      image('image-2', 'second.png'),
+    ])
+    useUIStore.getState().openResourceViewer('session-1', 'image-1')
+    renderViewer('session-1')
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Image viewer: first.png' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('1 of 2')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Next image' }))
+    expect(
+      await screen.findByRole('dialog', { name: 'Image viewer: second.png' }),
+    ).toBeInTheDocument()
+  })
+
+  it('skips HTTP-only images during gallery navigation', async () => {
+    listSessionResources.mockResolvedValue([
+      image('image-1', 'first.png'),
+      httpImage('http-image', 'http.png'),
       image('image-2', 'second.png'),
     ])
     useUIStore.getState().openResourceViewer('session-1', 'image-1')

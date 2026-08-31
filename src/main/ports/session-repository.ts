@@ -91,6 +91,10 @@ export interface SessionRepositoryShape {
     },
     SessionProjectionRepositoryError
   >
+  readonly getResourceProjectionNodes: (
+    sessionId: SessionId,
+    nodeIds: readonly string[],
+  ) => Effect.Effect<readonly SessionNode[], SessionProjectionRepositoryError>
   readonly getWorkspace: (
     sessionId: SessionId,
     selection?: SessionWorkspaceSelection,

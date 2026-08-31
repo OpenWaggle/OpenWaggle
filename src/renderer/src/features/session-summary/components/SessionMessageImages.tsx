@@ -2,6 +2,7 @@ import type { SessionId } from '@shared/types/brand'
 import { Button } from '@/shared/ui/Button'
 import { useUIStore } from '@/shell/ui-store'
 import { useSessionResources } from '../hooks/useSessionResources'
+import { isViewableSessionImage } from '../model/session-resource-viewability'
 import { SessionResourcePreview } from './SessionResourcePreview'
 
 function SessionMessageImagesForSession({
@@ -15,7 +16,7 @@ function SessionMessageImagesForSession({
   const openViewer = useUIStore((state) => state.openResourceViewer)
   const images = (resources.data ?? []).filter(
     (resource) =>
-      resource.kind === 'image' &&
+      isViewableSessionImage(resource) &&
       resource.occurrences.some((occurrence) => occurrence.nodeId === messageId),
   )
 

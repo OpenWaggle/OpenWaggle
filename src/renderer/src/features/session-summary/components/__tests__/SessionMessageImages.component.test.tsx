@@ -1,6 +1,6 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionResource } from '@shared/types/session-resource'
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@/shell/ui-store'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
@@ -104,5 +104,16 @@ describe('SessionMessageImages', () => {
       resourceId: 'remote',
     })
     expect(readSessionResource).not.toHaveBeenCalled()
+  })
+
+  it('does not render an action for unavailable managed images', async () => {
+    listSessionResources.mockResolvedValue([{ ...image('missing', 'message-1'), available: false }])
+    renderWithQueryClient(
+      <SessionMessageImages sessionId={SessionId('session-1')} messageId="message-1" />,
+    )
+
+    await waitFor(() => expect(listSessionResources).toHaveBeenCalled())
+    expect(screen.queryByRole('group', { name: 'Message images' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Open image missing.png' })).toBeNull()
   })
 })

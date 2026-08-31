@@ -5,6 +5,49 @@ import type { SessionNodeRow } from '../session-details'
 import { runStoreEffect } from '../store-runtime'
 import { buildSessionNodes } from './hydration'
 
+const RESOURCE_NODE_QUERY_CHUNK_SIZE = 400
+
+const resourceNodeColumns = `
+  id,
+  session_id,
+  parent_id,
+  pi_entry_type,
+  kind,
+  role,
+  timestamp_ms,
+  content_json,
+  metadata_json,
+  branch_hint_id,
+  path_depth,
+  created_order
+`
+
+export async function getSessionResourceProjectionNodes(
+  sessionId: SessionId,
+  nodeIds: readonly string[],
+) {
+  if (nodeIds.length === 0) return []
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows: SessionNodeRow[] = []
+      for (let index = 0; index < nodeIds.length; index += RESOURCE_NODE_QUERY_CHUNK_SIZE) {
+        const chunk = nodeIds.slice(index, index + RESOURCE_NODE_QUERY_CHUNK_SIZE)
+        const chunkRows = yield* sql<SessionNodeRow>`
+          SELECT
+            ${sql.unsafe(resourceNodeColumns)}
+          FROM session_nodes
+          WHERE session_id = ${sessionId}
+            AND id IN ${sql.in(chunk)}
+        `
+        rows.push(...chunkRows)
+      }
+      rows.sort((left, right) => left.created_order - right.created_order)
+      return buildSessionNodes(rows)
+    }),
+  )
+}
+
 export async function listSessionResourceProjectionPage(
   sessionId: SessionId,
   afterCreatedOrder: number,
@@ -15,18 +58,7 @@ export async function listSessionResourceProjectionPage(
       const sql = yield* SqlClient.SqlClient
       const rows = yield* sql<SessionNodeRow>`
         SELECT
-          id,
-          session_id,
-          parent_id,
-          pi_entry_type,
-          kind,
-          role,
-          timestamp_ms,
-          content_json,
-          metadata_json,
-          branch_hint_id,
-          path_depth,
-          created_order
+          ${sql.unsafe(resourceNodeColumns)}
         FROM session_nodes
         WHERE session_id = ${sessionId}
           AND created_order > ${afterCreatedOrder}
