@@ -185,13 +185,15 @@ index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..4288b10efc89990e277b86c5ede879e4
 +export declare function compact(preparation: CompactionPreparation, model: Model<any>, apiKey: string | undefined, headers?: Record<string, string>, customInstructions?: string, signal?: AbortSignal, thinkingLevel?: ThinkingLevel, streamFn?: StreamFn, env?: Record<string, string>, retry?: RetryPolicy, callbacks?: RetryCallbacks, sessionId?: string, systemPrompt?: string): Promise<CompactionResult>;
  //# sourceMappingURL=compaction.d.ts.map
 diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
-index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..36f060ba006bec2851ed79ba3de0584a11545b1f 100644
+index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..d8197a4aa7b7dd64382d4e2799356de62d027d9b 100644
 --- a/dist/core/compaction/compaction.js
 +++ b/dist/core/compaction/compaction.js
-@@ -5,6 +5,7 @@
+@@ -4,7 +4,8 @@
+  * Pure functions for compaction logic. The session manager handles I/O,
   * and after compaction the session is reloaded.
   */
- import { contentText, retryAssistantCall, uuidv7 } from "@earendil-works/pi-ai";
+-import { contentText, retryAssistantCall, uuidv7 } from "@earendil-works/pi-ai";
++import { calculateCost, contentText, retryAssistantCall, uuidv7 } from "@earendil-works/pi-ai";
 +import { compactResponses } from "@earendil-works/pi-ai/api/openai-responses";
  import { completeSimple } from "@earendil-works/pi-ai/compat";
  import { convertToLlm } from "../messages.js";
@@ -204,7 +206,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..36f060ba006bec2851ed79ba3de0584a
  };
  // ============================================================================
  // Token calculation
-@@ -160,7 +162,44 @@ export function estimateContextTokens(messages) {
+@@ -160,7 +162,48 @@ export function estimateContextTokens(messages) {
  export function shouldCompact(contextTokens, contextWindow, settings) {
      if (!settings.enabled)
          return false;
@@ -230,15 +232,17 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..36f060ba006bec2851ed79ba3de0584a
 +        return true;
 +    if (!model)
 +        return true;
++    if (selectCompactionMechanism(model) !== "native")
++        return false;
 +    const identity = details.identity;
 +    return identity?.api === model.api &&
 +        identity?.provider === model.provider &&
 +        identity?.baseUrl === model.baseUrl &&
 +        identity?.modelId === model.id;
 +}
-+function nativeCompactionUsage(usage) {
++function nativeCompactionUsage(usage, model) {
 +    const cached = usage.input_tokens_details?.cached_tokens ?? 0;
-+    return {
++    const normalized = {
 +        input: Math.max(0, usage.input_tokens - cached),
 +        output: usage.output_tokens,
 +        cacheRead: cached,
@@ -247,10 +251,12 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..36f060ba006bec2851ed79ba3de0584a
 +        totalTokens: usage.total_tokens,
 +        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 +    };
++    normalized.cost = calculateCost(model, normalized);
++    return normalized;
  }
  // ============================================================================
  // Cut point detection
-@@ -322,12 +361,20 @@ export function findCutPoint(entries, startIndex, endIndex, keepRecentTokens) {
+@@ -322,12 +365,20 @@ export function findCutPoint(entries, startIndex, endIndex, keepRecentTokens) {
          // Check if we've exceeded the budget
          if (accumulatedTokens >= keepRecentTokens) {
              // Find the closest valid cut point at or after this entry
@@ -271,7 +277,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..36f060ba006bec2851ed79ba3de0584a
              break;
          }
      }
-@@ -353,74 +400,19 @@ export function findCutPoint(entries, startIndex, endIndex, keepRecentTokens) {
+@@ -353,76 +404,21 @@ export function findCutPoint(entries, startIndex, endIndex, keepRecentTokens) {
  // ============================================================================
  // Summarization
  // ============================================================================
@@ -301,16 +307,10 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..36f060ba006bec2851ed79ba3de0584a
 -
 -## Next Steps
 -1. [Ordered list of what should happen next]
-+const SUMMARIZATION_PROMPT = `You are performing a CONTEXT CHECKPOINT COMPACTION. Create a handoff summary for another LLM that will resume the task.
 -
 -## Critical Context
 -- [Any data, examples, or references needed to continue]
 -- [Or "(none)" if not applicable]
-+Include:
-+- Current progress and key decisions made
-+- Important context, constraints, or user preferences
-+- What remains to be done (clear next steps)
-+- Any critical data, examples, or references needed to continue
 -
 -Keep each section concise. Preserve exact file paths, function names, and error messages.`;
 -const UPDATE_SUMMARIZATION_INSTRUCTIONS = `Update the existing structured summary with new information. RULES:
@@ -320,15 +320,8 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..36f060ba006bec2851ed79ba3de0584a
 -- UPDATE "Next Steps" based on what was accomplished
 -- PRESERVE exact file paths, function names, and error messages
 -- If something is no longer relevant, you may remove it
-+Be concise, structured, and focused on helping the next LLM seamlessly continue the work.`;
-+const UPDATE_SUMMARIZATION_INSTRUCTIONS = `Update the existing handoff summary with the new conversation messages while preserving the same four-part contract.
 -
 -Use this EXACT format:
-+Include:
-+- Current progress and key decisions made
-+- Important context, constraints, or user preferences
-+- What remains to be done (clear next steps)
-+- Any critical data, examples, or references needed to continue
 -
 -## Goal
 -[Preserve existing goals, add new ones if the task expanded]
@@ -356,11 +349,26 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..36f060ba006bec2851ed79ba3de0584a
 -- [Preserve important context, add new if needed]
 -
 -Keep each section concise. Preserve exact file paths, function names, and error messages.`;
++const SUMMARIZATION_PROMPT = `You are performing a CONTEXT CHECKPOINT COMPACTION. Create a handoff summary for another LLM that will resume the task.
++Include:
++- Current progress and key decisions made
++- Important context, constraints, or user preferences
++- What remains to be done (clear next steps)
++- Any critical data, examples, or references needed to continue
++Be concise, structured, and focused on helping the next LLM seamlessly continue the work.`;
++const UPDATE_SUMMARIZATION_INSTRUCTIONS = `Update the existing handoff summary with the new conversation messages while preserving the same four-part contract.
++Include:
++- Current progress and key decisions made
++- Important context, constraints, or user preferences
++- What remains to be done (clear next steps)
++- Any critical data, examples, or references needed to continue
 +Preserve still-relevant details from the previous summary, including exact file paths, function names, and error messages. Remove only information that is no longer relevant. Be concise, structured, and focused on helping the next LLM seamlessly continue the work.`;
  const UPDATE_SUMMARIZATION_PROMPT = `The messages above are NEW conversation messages to incorporate into the existing summary provided in <previous-summary> tags.
 -
  ${UPDATE_SUMMARIZATION_INSTRUCTIONS}`;
-@@ -514,7 +511,7 @@ export async function generateSummaryWithUsage(currentMessages, model, reserveTo
+ /**
+  * Returns an error message when a summarization response cannot safely be persisted.
+@@ -514,7 +510,7 @@ export async function generateSummaryWithUsage(currentMessages, model, reserveTo
      const textContent = contentText(response.content);
      return { text: textContent, usage: response.usage };
  }
@@ -369,7 +377,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..36f060ba006bec2851ed79ba3de0584a
      if (pathEntries.length > 0 && pathEntries[pathEntries.length - 1].type === "compaction") {
          return undefined;
      }
-@@ -529,13 +526,32 @@ export function prepareCompaction(pathEntries, settings) {
+@@ -529,13 +525,32 @@ export function prepareCompaction(pathEntries, settings) {
      let boundaryStart = 0;
      if (prevCompactionIndex >= 0) {
          const prevCompaction = pathEntries[prevCompactionIndex];
@@ -407,7 +415,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..36f060ba006bec2851ed79ba3de0584a
      // Get UUID of first kept entry
      const firstKeptEntry = pathEntries[cutPoint.firstKeptEntryIndex];
      if (!firstKeptEntry?.id) {
-@@ -559,7 +575,8 @@ export function prepareCompaction(pathEntries, settings) {
+@@ -559,7 +574,8 @@ export function prepareCompaction(pathEntries, settings) {
                  turnPrefixMessages.push(msg);
          }
      }
@@ -417,7 +425,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..36f060ba006bec2851ed79ba3de0584a
          return undefined;
      }
      // Extract file operations from messages and previous compaction
-@@ -573,6 +590,7 @@ export function prepareCompaction(pathEntries, settings) {
+@@ -573,6 +589,7 @@ export function prepareCompaction(pathEntries, settings) {
      return {
          firstKeptEntryId,
          messagesToSummarize,
@@ -425,15 +433,18 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..36f060ba006bec2851ed79ba3de0584a
          turnPrefixMessages,
          isSplitTurn: cutPoint.isSplitTurn,
          tokensBefore,
-@@ -606,7 +624,37 @@ Be concise. Focus on what's needed to understand the kept suffix.`;
+@@ -606,7 +623,43 @@ Be concise. Focus on what's needed to understand the kept suffix.`;
   * @param customInstructions - Optional custom focus for the summary
   * @param sessionId - Optional routing session ID forwarded without enabling prompt caching
   */
 -export async function compact(preparation, model, apiKey, headers, customInstructions, signal, thinkingLevel, streamFn, env, retry, callbacks, sessionId) {
 +export async function compact(preparation, model, apiKey, headers, customInstructions, signal, thinkingLevel, streamFn, env, retry, callbacks, sessionId, systemPrompt = "") {
 +    if (selectCompactionMechanism(model) === "native") {
++        const nativeInstructions = customInstructions?.trim()
++            ? `${systemPrompt}\n\nAdditional compaction instructions:\n${customInstructions.trim()}`
++            : systemPrompt;
 +        const response = await compactResponses(model, {
-+            systemPrompt,
++            systemPrompt: nativeInstructions,
 +            messages: convertToLlm(preparation.messagesForNativeCompaction),
 +        }, {
 +            apiKey,
@@ -448,11 +459,14 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..36f060ba006bec2851ed79ba3de0584a
 +                typeof item.encrypted_content === "string")) {
 +            throw new Error("Native compaction response did not contain a valid compaction item");
 +        }
++        if (!response.output.every((item) => item && typeof item === "object" && typeof item.type === "string")) {
++            throw new Error("Native compaction response did not contain only valid replacement items");
++        }
 +        return {
 +            summary: "Native compaction checkpoint",
 +            firstKeptEntryId: "native-replacement",
 +            tokensBefore: preparation.tokensBefore,
-+            usage: nativeCompactionUsage(response.usage),
++            usage: nativeCompactionUsage(response.usage, model),
 +            details: {
 +                schemaVersion: 1,
 +                mechanism: "native",
@@ -464,7 +478,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..36f060ba006bec2851ed79ba3de0584a
      const { firstKeptEntryId, messagesToSummarize, turnPrefixMessages, isSplitTurn, tokensBefore, previousSummary, fileOps, settings, } = preparation;
      // Generate summaries and merge into one
      let summary;
-@@ -641,7 +689,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
+@@ -641,7 +694,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
          firstKeptEntryId,
          tokensBefore,
          usage: summaryUsage,
@@ -655,7 +669,7 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..6df586cff1497bd93185b0ea2dec3703
       * Get session header.
       */
 diff --git a/dist/core/session-manager.js b/dist/core/session-manager.js
-index f887c04976596f8956bc04c16ca59c4030e09f92..d0eb0032c2579ba93aee86e7b355930f07bb54e3 100644
+index f887c04976596f8956bc04c16ca59c4030e09f92..55cf39ea0736c1363f36dcf8f0479e3a7ed584e8 100644
 --- a/dist/core/session-manager.js
 +++ b/dist/core/session-manager.js
 @@ -183,7 +183,7 @@ export function sessionEntryToContextMessages(entry) {
@@ -667,7 +681,7 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..d0eb0032c2579ba93aee86e7b355930f
      }
      return [];
  }
-@@ -195,7 +195,19 @@ export function sessionEntryToContextMessages(entry) {
+@@ -195,7 +195,25 @@ export function sessionEntryToContextMessages(entry) {
   * by the kept entries starting at firstKeptEntryId and all entries after the
   * compaction entry. Older summarized entries are omitted.
   */
@@ -678,6 +692,12 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..d0eb0032c2579ba93aee86e7b355930f
 +        return true;
 +    if (!targetModel)
 +        return true;
++    const supportsNativeCompaction = (targetModel.api === "openai-responses" ||
++        targetModel.api === "azure-openai-responses" ||
++        targetModel.api === "openai-codex-responses") &&
++        targetModel.compat?.supportsCompaction === true;
++    if (!supportsNativeCompaction)
++        return false;
 +    const identity = details.identity;
 +    return identity?.api === targetModel.api &&
 +        identity?.provider === targetModel.provider &&
@@ -688,7 +708,7 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..d0eb0032c2579ba93aee86e7b355930f
      const path = buildSessionPath(entries, leafId, byId);
      let compaction = null;
      for (const entry of path) {
-@@ -206,6 +218,9 @@ export function buildContextEntries(entries, leafId, byId) {
+@@ -206,6 +224,9 @@ export function buildContextEntries(entries, leafId, byId) {
      if (!compaction) {
          return path;
      }
@@ -698,7 +718,7 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..d0eb0032c2579ba93aee86e7b355930f
      const compactionIdx = path.findIndex((entry) => entry.id === compaction.id);
      if (compactionIdx < 0) {
          return path;
-@@ -224,15 +239,106 @@ export function buildContextEntries(entries, leafId, byId) {
+@@ -224,15 +245,118 @@ export function buildContextEntries(entries, leafId, byId) {
      contextEntries.push(...path.slice(compactionIdx + 1));
      return contextEntries;
  }
@@ -736,7 +756,7 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..d0eb0032c2579ba93aee86e7b355930f
 +    else if (message.role === "branchSummary") {
 +        chars = message.summary?.length ?? 0;
 +    }
-+    return Math.ceil(chars / 4);
++    return Math.ceil(chars / 3);
 +}
 +function targetModelIdentity(model) {
 +    return {
@@ -746,12 +766,19 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..d0eb0032c2579ba93aee86e7b355930f
 +        modelId: model.id,
 +    };
 +}
++function isReconstructionTurnStart(message) {
++    return message.role === "user" ||
++        message.role === "bashExecution" ||
++        message.role === "custom" ||
++        message.role === "branchSummary" ||
++        message.role === "compactionSummary";
++}
 +function fitNativeReconstruction(entries, sourceCompaction, targetModel) {
 +    const units = [];
 +    let currentUnit = [];
 +    for (const entry of entries) {
 +        const messages = sessionEntryToContextMessages(entry);
-+        const startsTurn = messages.some((message) => message.role === "user" || message.role === "custom");
++        const startsTurn = messages.some(isReconstructionTurnStart);
 +        if (startsTurn && currentUnit.some((item) => item.messages.length > 0)) {
 +            units.push(currentUnit);
 +            currentUnit = [];
@@ -762,9 +789,14 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..d0eb0032c2579ba93aee86e7b355930f
 +        units.push(currentUnit);
 +    const unitTokens = units.map((unit) => unit.reduce((total, item) => total + item.messages.reduce((subtotal, message) => subtotal + estimateReconstructionMessageTokens(message), 0), 0));
 +    const contextWindow = Number.isFinite(targetModel.contextWindow) ? Math.max(0, targetModel.contextWindow) : Number.POSITIVE_INFINITY;
++    const outputReserve = Number.isFinite(targetModel.maxTokens) ? Math.max(0, targetModel.maxTokens) : 0;
++    const safetyReserve = Number.isFinite(contextWindow) ? Math.ceil(contextWindow * 0.25) : 0;
++    const inputBudget = Number.isFinite(contextWindow)
++        ? Math.max(0, contextWindow - Math.max(outputReserve, safetyReserve))
++        : Number.POSITIVE_INFINITY;
 +    let totalTokens = unitTokens.reduce((total, tokens) => total + tokens, 0);
 +    let firstKeptUnit = 0;
-+    while (totalTokens > contextWindow && firstKeptUnit < units.length) {
++    while (totalTokens > inputBudget && firstKeptUnit < units.length) {
 +        totalTokens -= unitTokens[firstKeptUnit];
 +        firstKeptUnit++;
 +    }
@@ -807,7 +839,7 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..d0eb0032c2579ba93aee86e7b355930f
      return { messages, thinkingLevel, model };
  }
  /**
-@@ -957,15 +1063,32 @@ export class SessionManager {
+@@ -957,15 +1081,32 @@ export class SessionManager {
       * Build the active, compaction-aware entry list for context/rendering.
       * Uses tree traversal from current leaf.
       */

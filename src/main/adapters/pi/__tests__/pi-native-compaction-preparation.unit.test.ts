@@ -98,4 +98,35 @@ describe('Pi native compaction preparation', () => {
     expect(JSON.stringify(preparation?.messagesForNativeCompaction)).not.toContain('source-opaque')
     expect(JSON.stringify(preparation?.messagesToSummarize)).toContain('source raw request')
   })
+
+  it('reconstructs raw history when Native capability is removed from the same identity', () => {
+    const sessionManager = SessionManager.inMemory('/repo')
+    sessionManager.appendMessage({
+      role: 'user',
+      content: 'authoritative raw request',
+      timestamp: 1,
+    })
+    sessionManager.appendMessage(makeAssistant('authoritative raw response', 2))
+    sessionManager.appendCompaction(
+      'Native compaction checkpoint',
+      'native-replacement',
+      80_000,
+      NATIVE_DETAILS,
+    )
+    sessionManager.appendMessage({ role: 'user', content: 'recent request', timestamp: 3 })
+    sessionManager.appendMessage(makeAssistant('recent response', 4))
+    const downgradedModel = makeNativeModel({ compat: undefined })
+
+    const preparation = prepareCompaction(
+      sessionManager.getBranch(),
+      { ...COMPACTION_SETTINGS, keepRecentTokens: 1 },
+      downgradedModel,
+    )
+
+    expect(preparation?.previousSummary).toBeUndefined()
+    expect(JSON.stringify(preparation?.messagesForNativeCompaction)).toContain(
+      'authoritative raw request',
+    )
+    expect(JSON.stringify(preparation?.messagesToSummarize)).toContain('authoritative raw request')
+  })
 })

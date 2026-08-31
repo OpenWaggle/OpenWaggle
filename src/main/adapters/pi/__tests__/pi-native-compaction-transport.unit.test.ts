@@ -1,4 +1,4 @@
-import type { Context } from '@earendil-works/pi-ai'
+import type { Context, Model } from '@earendil-works/pi-ai'
 import { compactResponses } from '@earendil-works/pi-ai/api/openai-responses'
 import { compact } from '@earendil-works/pi-coding-agent'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -58,6 +58,44 @@ describe('Pi Responses native compaction transport', () => {
     })
   })
 
+  it('uses Codex OAuth account headers for subscription compaction', async () => {
+    const payload = Buffer.from(
+      JSON.stringify({
+        'https://api.openai.com/auth': { chatgpt_account_id: 'account-123' },
+      }),
+    ).toString('base64url')
+    const accessToken = `header.${payload}.signature`
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers)
+      expect(headers.get('authorization')).toBe(`Bearer ${accessToken}`)
+      expect(headers.get('chatgpt-account-id')).toBe('account-123')
+      expect(headers.get('originator')).toBe('pi')
+      return makeCompactResponse([
+        { type: 'compaction', id: 'cmp_codex', encrypted_content: 'opaque-checkpoint' },
+      ])
+    })
+    const model: Model<'openai-codex-responses'> = {
+      ...makeNativeModel(),
+      api: 'openai-codex-responses',
+      provider: 'openai-codex',
+      baseUrl: 'https://chatgpt.com/backend-api/codex',
+    }
+
+    await compactResponses(
+      model,
+      { systemPrompt: '', messages: [] },
+      {
+        apiKey: accessToken,
+        fetch: fetchMock,
+      },
+    )
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://chatgpt.com/backend-api/codex/responses/compact',
+      expect.objectContaining({ method: 'POST' }),
+    )
+  })
+
   it('persists a versioned opaque envelope without invoking Portable', async () => {
     vi.stubGlobal(
       'fetch',
@@ -73,7 +111,9 @@ describe('Pi Responses native compaction transport', () => {
 
     const result = await compact(
       makePreparation(),
-      makeNativeModel(),
+      makeNativeModel({
+        cost: { input: 2, output: 3, cacheRead: 0.5, cacheWrite: 0 },
+      }),
       'test-key',
       undefined,
       undefined,
@@ -90,6 +130,43 @@ describe('Pi Responses native compaction transport', () => {
     expect(portableStream).not.toHaveBeenCalled()
     expect(result.firstKeptEntryId).toBe('native-replacement')
     expect(result.details).toEqual(NATIVE_DETAILS)
+    expect(result.usage).toBeDefined()
+    if (!result.usage) throw new Error('Expected Native compaction usage')
+    expect(result.usage.cost.input).toBeCloseTo(0.0002)
+    expect(result.usage.cost.output).toBeCloseTo(0.00003)
+    expect(result.usage.cost.cacheRead).toBe(0)
+    expect(result.usage.cost.cacheWrite).toBe(0)
+    expect(result.usage.cost.total).toBeCloseTo(0.00023)
+  })
+
+  it('includes manual compaction instructions in the Native request', async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body))).toMatchObject({
+        instructions: expect.stringContaining('Preserve schema decisions'),
+      })
+      return makeCompactResponse([
+        { type: 'compaction', id: 'cmp_1', encrypted_content: 'opaque-checkpoint' },
+      ])
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await compact(
+      makePreparation(),
+      makeNativeModel(),
+      'test-key',
+      undefined,
+      'Preserve schema decisions',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      'session-1',
+      'System instructions',
+    )
+
+    expect(fetchMock).toHaveBeenCalledOnce()
   })
 
   it.each([
@@ -102,6 +179,15 @@ describe('Pi Responses native compaction transport', () => {
       name: 'rejects a malformed replacement window',
       response: () => makeCompactResponse([]),
       expected: 'valid compaction item',
+    },
+    {
+      name: 'rejects malformed items mixed into a replacement window',
+      response: () =>
+        makeCompactResponse([
+          { type: 'compaction', id: 'cmp_1', encrypted_content: 'opaque-checkpoint' },
+          { malformed: true },
+        ]),
+      expected: 'valid replacement items',
     },
   ])('$name without silently invoking Portable', async ({ response, expected }) => {
     vi.stubGlobal(

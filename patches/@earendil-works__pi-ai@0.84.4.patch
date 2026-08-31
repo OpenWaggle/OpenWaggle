@@ -14,7 +14,7 @@ index c35771dcc9b2173d0b459d13c6d86e622de45e9a..534410119f2c83b9e2989170815d321a
                  }
                  else if (block.type === "text") {
 diff --git a/dist/api/openai-responses.d.ts b/dist/api/openai-responses.d.ts
-index 41267bd50904069aa0879cc8634ea94bc1045236..77b9a067b4bb2118e8e07f5843aa8580eea80b41 100644
+index 41267bd50904069aa0879cc8634ea94bc1045236..783744879277a95d9b8d15636d64bce93ca94bc4 100644
 --- a/dist/api/openai-responses.d.ts
 +++ b/dist/api/openai-responses.d.ts
 @@ -1,5 +1,5 @@
@@ -29,13 +29,43 @@ index 41267bd50904069aa0879cc8634ea94bc1045236..77b9a067b4bb2118e8e07f5843aa8580
   */
  export declare const stream: StreamFunction<"openai-responses", OpenAIResponsesOptions>;
  export declare const streamSimple: StreamFunction<"openai-responses", SimpleStreamOptions>;
-+export declare function compactResponses(model: Model<"openai-responses">, context: Context, options?: SimpleStreamOptions): Promise<CompactedResponse>;
++export declare function compactResponses(model: Model<"openai-responses" | "azure-openai-responses" | "openai-codex-responses">, context: Context, options?: SimpleStreamOptions): Promise<CompactedResponse>;
  //# sourceMappingURL=openai-responses.d.ts.map
 diff --git a/dist/api/openai-responses.js b/dist/api/openai-responses.js
-index 0fb7e8b26f323f2b44a5a4b760bccedc4c3abdd0..efe0961ee795f7eb6f74f76e54f99022c2c20fce 100644
+index 0fb7e8b26f323f2b44a5a4b760bccedc4c3abdd0..250c73acf4d616f2b26538e3241a7851e8159a6e 100644
 --- a/dist/api/openai-responses.js
 +++ b/dist/api/openai-responses.js
-@@ -50,6 +50,7 @@ function resolveCacheRetention(cacheRetention, env) {
+@@ -13,6 +13,7 @@ import { clampOpenAIPromptCacheKey } from "./openai-prompt-cache.js";
+ import { convertResponsesMessages, convertResponsesTools, processResponsesStream } from "./openai-responses-shared.js";
+ import { buildBaseOptions } from "./simple-options.js";
+ const OPENAI_TOOL_CALL_PROVIDERS = new Set(["openai", "openai-codex", "opencode"]);
++const CODEX_JWT_CLAIM_PATH = "https://api.openai.com/auth";
+ // OpenAI Responses rejects max_output_tokens below 16: https://github.com/earendil-works/pi/issues/6265
+ const OPENAI_RESPONSES_MIN_OUTPUT_TOKENS = 16;
+ function hasHeader(headers, name) {
+@@ -32,6 +33,21 @@ function getClientApiKey(provider, apiKey, headers) {
+         return "unused";
+     throw new Error(`No API key for provider: ${provider}`);
+ }
++function getCodexAccountId(token) {
++    try {
++        const parts = token.split(".");
++        if (parts.length !== 3)
++            throw new Error("Invalid token");
++        const payload = JSON.parse(atob(parts[1]));
++        const accountId = payload?.[CODEX_JWT_CLAIM_PATH]?.chatgpt_account_id;
++        if (!accountId)
++            throw new Error("No account ID in token");
++        return accountId;
++    }
++    catch {
++        throw new Error("Failed to extract accountId from token");
++    }
++}
+ function detectSessionAffinityFormat(model) {
+     return model.provider === "openrouter" || model.baseUrl.includes("openrouter.ai") ? "openrouter" : "openai";
+ }
+@@ -50,6 +66,7 @@ function resolveCacheRetention(cacheRetention, env) {
  }
  function getCompat(model) {
      return {
@@ -43,7 +73,7 @@ index 0fb7e8b26f323f2b44a5a4b760bccedc4c3abdd0..efe0961ee795f7eb6f74f76e54f99022
          supportsDeveloperRole: model.compat?.supportsDeveloperRole ?? true,
          sessionAffinityFormat: model.compat?.sessionAffinityFormat ?? detectSessionAffinityFormat(model),
          supportsLongCacheRetention: model.compat?.supportsLongCacheRetention ?? true,
-@@ -160,7 +161,47 @@ export const streamSimple = (model, context, options) => {
+@@ -160,7 +177,47 @@ export const streamSimple = (model, context, options) => {
          reasoningEffort,
      });
  };
@@ -92,8 +122,17 @@ index 0fb7e8b26f323f2b44a5a4b760bccedc4c3abdd0..efe0961ee795f7eb6f74f76e54f99022
      const compat = getCompat(model);
      const headers = { "User-Agent": getPiUserAgent(), ...model.headers };
      if (model.provider === "github-copilot") {
-@@ -188,7 +229,7 @@ function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId)
+@@ -186,9 +243,16 @@ function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId)
+     if (optionsHeaders) {
+         Object.assign(headers, optionsHeaders);
      }
++    if (model.api === "openai-codex-responses") {
++        headers.Authorization = `Bearer ${apiKey}`;
++        headers["chatgpt-account-id"] = getCodexAccountId(apiKey);
++        headers.originator = "pi";
++        headers["OpenAI-Beta"] = "responses=experimental";
++        headers["User-Agent"] = getPiUserAgent();
++    }
      return new OpenAI({
          apiKey,
 -        baseURL: model.baseUrl,

@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { fauxProvider, InMemoryCredentialStore } from '@earendil-works/pi-ai'
+import { fauxAssistantMessage, fauxProvider, InMemoryCredentialStore } from '@earendil-works/pi-ai'
 import {
   createAgentSession,
   ModelRuntime,
@@ -87,6 +87,12 @@ describe('Pi compaction model switching', () => {
     expect(session.messages.map((message) => message.role)).toEqual(['user', 'assistant'])
     expect(session.messages[0]).toMatchObject({ content: 'raw user context' })
     expect(target.state.callCount).toBe(0)
+
+    target.setResponses([fauxAssistantMessage('continued on target')])
+    await session.prompt('continue from the reconstructed context')
+
+    expect(target.state.callCount).toBe(1)
+    expect(session.messages.at(-1)).toMatchObject({ role: 'assistant' })
   })
 
   it('treats a credential-specific endpoint change as an incompatible Native identity', async () => {

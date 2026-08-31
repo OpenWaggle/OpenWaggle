@@ -8,14 +8,14 @@ import {
   NATIVE_DETAILS,
 } from './pi-native-compaction-test-fixtures'
 
-function makeTargetModel(contextWindow = 100_000): Model<'openai-responses'> {
+function makeTargetModel(contextWindow = 100_000, maxTokens = 0): Model<'openai-responses'> {
   return makeNativeModel({
     id: 'target-model',
     name: 'Target model',
     provider: 'target-provider',
     baseUrl: 'https://target.test/v1',
     contextWindow,
-    maxTokens: 0,
+    maxTokens,
     compat: undefined,
   })
 }
@@ -84,7 +84,7 @@ describe('Pi native compaction replay', () => {
       sessionManager.getBranch(),
       compactionId,
       undefined,
-      makeTargetModel(8),
+      makeTargetModel(12),
     )
 
     expect(reconstructed.messages.map((message) => message.role)).toEqual(['user', 'assistant'])
@@ -101,6 +101,81 @@ describe('Pi native compaction replay', () => {
         modelId: 'target-model',
       },
     })
+  })
+
+  it('reserves target context for system, tools, framing, and model output', () => {
+    const sessionManager = SessionManager.inMemory('/repo')
+    sessionManager.appendMessage({ role: 'user', content: 'old-user-'.repeat(6), timestamp: 1 })
+    sessionManager.appendMessage(makeAssistant('old-assistant-'.repeat(4), 2))
+    const firstKeptEntryId = sessionManager.appendMessage({
+      role: 'user',
+      content: 'new-user-'.repeat(6),
+      timestamp: 3,
+    })
+    sessionManager.appendMessage(makeAssistant('new-assistant-'.repeat(4), 4))
+    const compactionId = sessionManager.appendCompaction(
+      'Native compaction checkpoint',
+      'native-replacement',
+      80_000,
+      NATIVE_DETAILS,
+    )
+
+    const reconstructed = buildSessionContext(
+      sessionManager.getBranch(),
+      compactionId,
+      undefined,
+      makeTargetModel(100, 40),
+    )
+
+    expect(reconstructed.messages[0]).toMatchObject({ content: 'new-user-'.repeat(6) })
+    expect(reconstructed.reconstruction?.firstKeptEntryId).toBe(firstKeptEntryId)
+  })
+
+  it.each([
+    {
+      name: 'bash execution',
+      appendRecent: (sessionManager: SessionManager) =>
+        sessionManager.appendMessage({
+          role: 'bashExecution',
+          command: 'pwd',
+          output: '/repo',
+          exitCode: 0,
+          cancelled: false,
+          truncated: false,
+          timestamp: 2,
+        }),
+      expectedRole: 'bashExecution',
+    },
+    {
+      name: 'branch summary',
+      appendRecent: (sessionManager: SessionManager) =>
+        sessionManager.branchWithSummary(
+          sessionManager.getLeafId(),
+          'recent branch summary',
+          undefined,
+          false,
+        ),
+      expectedRole: 'branchSummary',
+    },
+  ])('keeps a recent $name as a complete reconstruction unit', ({ appendRecent, expectedRole }) => {
+    const sessionManager = SessionManager.inMemory('/repo')
+    sessionManager.appendMessage({ role: 'user', content: 'old-context-'.repeat(50), timestamp: 1 })
+    appendRecent(sessionManager)
+    const compactionId = sessionManager.appendCompaction(
+      'Native compaction checkpoint',
+      'native-replacement',
+      80_000,
+      NATIVE_DETAILS,
+    )
+
+    const reconstructed = buildSessionContext(
+      sessionManager.getBranch(),
+      compactionId,
+      undefined,
+      makeTargetModel(100),
+    )
+
+    expect(reconstructed.messages.map((message) => message.role)).toEqual([expectedRole])
   })
 
   it('records a deduplicated append-only reconstruction boundary', () => {
