@@ -2,8 +2,7 @@ import { match } from '@diegogbrisa/ts-match'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { GitStackedAction } from '@shared/types/git'
 import type { SessionDetail } from '@shared/types/session'
-import { ListFilter } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   CommitMessageDialog,
   resolveQuickAction,
@@ -12,22 +11,34 @@ import {
 } from '@/features/git'
 import { useGit } from '@/features/git/hooks'
 import { api } from '@/shared/lib/ipc'
-import { Button } from '@/shared/ui/Button'
 import { useSessionResources } from '../hooks/useSessionResources'
+import {
+  isSessionSummaryPanelVisible,
+  type SessionSummaryPanelState,
+  useSessionSummaryUIStore,
+} from '../state/session-summary-ui-store'
 import { ChangeRequestComposer } from './ChangeRequestComposer'
 import type { SessionSummaryExtensionSidePanelTarget } from './ExtensionSessionSummarySections'
 import { SessionSummaryExpandedPanel } from './SessionSummaryExpandedPanel'
 
 function readExpanded(sessionId: string, key: string, fallback: boolean) {
-  const stored = localStorage.getItem(`openwaggle:session-summary:${sessionId}:${key}`)
-  return stored === null ? fallback : stored === 'true'
+  try {
+    const stored = localStorage.getItem(`openwaggle:session-summary:${sessionId}:${key}`)
+    return stored === null ? fallback : stored === 'true'
+  } catch {
+    return fallback
+  }
 }
 
 function usePersistedExpanded(sessionId: string, key: string, fallback: boolean) {
   const [expanded, setExpanded] = useState(() => readExpanded(sessionId, key, fallback))
   const update = (next: boolean) => {
     setExpanded(next)
-    localStorage.setItem(`openwaggle:session-summary:${sessionId}:${key}`, String(next))
+    try {
+      localStorage.setItem(`openwaggle:session-summary:${sessionId}:${key}`, String(next))
+    } catch {
+      // Persistence is optional. Keep the current renderer state usable.
+    }
   }
   return [expanded, update] as const
 }
@@ -58,51 +69,6 @@ function runSessionQuickAction(input: {
     .exhaustive()
 }
 
-function SessionSummaryToggle({
-  expanded,
-  panelId,
-  onToggle,
-}: {
-  readonly expanded: boolean
-  readonly panelId: string
-  readonly onToggle: () => void
-}) {
-  return (
-    <Button
-      variant={expanded ? 'subtle' : 'secondary'}
-      size="icon-sm"
-      className="absolute right-4 top-4 z-30 shadow-lg"
-      aria-controls={panelId}
-      aria-expanded={expanded}
-      aria-label={expanded ? 'Hide Session Summary' : 'Open Session Summary'}
-      title={expanded ? 'Hide Session Summary' : 'Open Session Summary'}
-      onClick={onToggle}
-    >
-      <ListFilter className="size-4" />
-    </Button>
-  )
-}
-
-function useSessionSummaryPanelVisibility(
-  sessionId: string,
-  autoHidden: boolean,
-  rightSidebarOpen: boolean,
-) {
-  const [expanded, setExpanded] = usePersistedExpanded(sessionId, 'panel', true)
-  const [forcedOpen, setForcedOpen] = useState(false)
-  const visible = !rightSidebarOpen && expanded && (!autoHidden || forcedOpen)
-  const close = () => {
-    setExpanded(false)
-    setForcedOpen(false)
-  }
-  const toggle = () => {
-    if (visible) return close()
-    setExpanded(true)
-    setForcedOpen(autoHidden)
-  }
-  return { close, toggle, visible }
-}
-
 export interface SessionSummaryHubInput {
   readonly session: SessionDetail | null
   readonly messageCount: number
@@ -116,12 +82,38 @@ export interface SessionSummaryHubInput {
   readonly extensionProjectPaths: readonly string[]
 }
 
+function useSyncSessionSummaryPanel(input: SessionSummaryHubInput, sessionId: string) {
+  const syncPanel = useSessionSummaryUIStore((state) => state.syncPanel)
+  const { session, messageCount, autoHidden, rightSidebarOpen } = input
+  useEffect(() => {
+    if (!session) return
+    syncPanel(sessionId, {
+      available: messageCount > 0,
+      autoHidden,
+      rightSidebarOpen,
+    })
+  }, [autoHidden, messageCount, rightSidebarOpen, session, sessionId, syncPanel])
+}
+
+function panelIsVisible(
+  input: SessionSummaryHubInput,
+  panel: SessionSummaryPanelState | undefined,
+  sessionId: string,
+) {
+  if (!panel) {
+    return readExpanded(sessionId, 'panel', true) && !input.autoHidden && !input.rightSidebarOpen
+  }
+  return isSessionSummaryPanelVisible(panel, {
+    available: input.messageCount > 0,
+    autoHidden: input.autoHidden,
+    rightSidebarOpen: input.rightSidebarOpen,
+  })
+}
+
 export function SessionSummaryHub({ input }: { readonly input: SessionSummaryHubInput }) {
   const {
     session,
     messageCount,
-    autoHidden,
-    rightSidebarOpen,
     onOpenDiff,
     onOpenResources,
     onNavigateSession,
@@ -131,7 +123,9 @@ export function SessionSummaryHub({ input }: { readonly input: SessionSummaryHub
   } = input
   const sessionId = session ? String(session.id) : 'none'
   const panelId = `session-summary-${sessionId}`
-  const panel = useSessionSummaryPanelVisibility(sessionId, autoHidden, rightSidebarOpen)
+  const panelState = useSessionSummaryUIStore((state) => state.panels[sessionId])
+  const closePanel = useSessionSummaryUIStore((state) => state.closePanel)
+  useSyncSessionSummaryPanel(input, sessionId)
   const [environmentExpanded, setEnvironmentExpanded] = usePersistedExpanded(
     sessionId,
     'environment',
@@ -155,6 +149,13 @@ export function SessionSummaryHub({ input }: { readonly input: SessionSummaryHub
 
   if (!session || messageCount === 0) return null
 
+  const panelVisible = panelIsVisible(input, panelState, sessionId)
+
+  const closePanelAndRestoreFocus = () => {
+    closePanel(sessionId)
+    queueMicrotask(() => document.getElementById(`${panelId}-toggle`)?.focus())
+  }
+
   const allResources = resources.data ?? []
   const outputs = allResources.filter((resource) => resource.isOutput)
   const sources = allResources.filter((resource) => resource.isSource)
@@ -169,8 +170,7 @@ export function SessionSummaryHub({ input }: { readonly input: SessionSummaryHub
 
   return (
     <>
-      <SessionSummaryToggle expanded={panel.visible} panelId={panelId} onToggle={panel.toggle} />
-      {panel.visible ? (
+      {panelVisible ? (
         <SessionSummaryExpandedPanel
           input={{
             panelId,
@@ -188,7 +188,7 @@ export function SessionSummaryHub({ input }: { readonly input: SessionSummaryHub
             resources: allResources,
             extensionRegistry,
             extensionProjectPaths,
-            onCollapse: panel.close,
+            onCollapse: closePanelAndRestoreFocus,
             onEnvironmentExpandedChange: setEnvironmentExpanded,
             onOutputsExpandedChange: setOutputsExpanded,
             onSourcesExpandedChange: setSourcesExpanded,

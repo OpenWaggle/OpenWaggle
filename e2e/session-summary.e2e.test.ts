@@ -74,6 +74,9 @@ test('Session Summary follows first-message, dock, and sidebar behavior', async 
     await mainWindow.openThread(ALPHA_TITLE)
     const summary = page.getByRole('complementary', { name: 'Session Summary' })
     await expect(summary).toBeVisible()
+    await expect(
+      page.locator('header').getByRole('button', { name: 'Hide Session Summary' }),
+    ).toBeVisible()
     await expect(setupDock).toHaveAttribute('aria-hidden', 'true')
     await expect(summary.getByText('main')).toBeVisible({ timeout: 30_000 })
     await expect(summary.getByRole('button', { name: /Changes/ })).toContainText('+2')
@@ -82,19 +85,39 @@ test('Session Summary follows first-message, dock, and sidebar behavior', async 
       (element) => element.getBoundingClientRect().width,
     )
 
-    await page.getByRole('button', { name: 'Hide Session Summary' }).click()
+    await page.locator('header').getByRole('button', { name: 'Hide Session Summary' }).click()
     await expect(summary).toHaveCount(0)
     const collapsedTranscriptWidth = await transcript.evaluate(
       (element) => element.getBoundingClientRect().width,
     )
     expect(Math.abs(expandedTranscriptWidth - collapsedTranscriptWidth)).toBeLessThan(1)
-    await page.getByRole('button', { name: 'Open Session Summary' }).click()
+    await page.locator('header').getByRole('button', { name: 'Open Session Summary' }).click()
+    await expect(summary).toBeVisible()
+
+    await summary.getByRole('button', { name: 'Collapse Session Summary' }).click()
+    const focusedSummaryToggle = page
+      .locator('header')
+      .getByRole('button', { name: 'Open Session Summary' })
+    await expect(focusedSummaryToggle).toBeFocused()
+    await focusedSummaryToggle.click()
     await expect(summary).toBeVisible()
 
     await page.getByRole('button', { name: 'Toggle diff panel' }).click()
     await expect(summary).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'Open Session Summary' })).toBeVisible()
+    await expect(
+      page.locator('header').getByRole('button', { name: 'Hide Session Summary' }),
+    ).toBeVisible()
+    await page.locator('header').getByRole('button', { name: 'Hide Session Summary' }).click()
     await page.getByRole('button', { name: 'Close diff sidebar' }).click()
+    await expect(summary).toHaveCount(0)
+    await expect
+      .poll(() =>
+        page
+          .locator('[data-chat-panel-main="true"]')
+          .evaluate((element) => element.clientWidth),
+      )
+      .toBeGreaterThanOrEqual(840)
+    await page.locator('header').getByRole('button', { name: 'Open Session Summary' }).click()
     await expect(summary).toBeVisible()
 
     await app.resizeMainWindow(720, 700)
@@ -102,7 +125,7 @@ test('Session Summary follows first-message, dock, and sidebar behavior', async 
     const narrowTranscriptWidth = await transcript.evaluate(
       (element) => element.getBoundingClientRect().width,
     )
-    await page.getByRole('button', { name: 'Open Session Summary' }).click()
+    await page.locator('header').getByRole('button', { name: 'Open Session Summary' }).click()
     await expect(summary).toBeVisible()
     const narrowOverlayTranscriptWidth = await transcript.evaluate(
       (element) => element.getBoundingClientRect().width,
@@ -189,13 +212,13 @@ test('session resources stay scoped while inline images and the gallery navigate
     await expect(page.getByRole('button', { name: 'Open image agent-output.svg' })).toBeVisible()
 
     await expect(summary).toBeVisible()
-    await page.getByRole('button', { name: 'Hide Session Summary' }).click()
+    await page.locator('header').getByRole('button', { name: 'Hide Session Summary' }).click()
     await expect(summary).toHaveCount(0)
     await inlineUserImage.click()
     await expect(page.getByRole('dialog', { name: 'Image viewer: user-reference.svg' })).toBeVisible()
     await page.keyboard.press('Escape')
 
-    await page.getByRole('button', { name: 'Open Session Summary' }).click()
+    await page.locator('header').getByRole('button', { name: 'Open Session Summary' }).click()
     await summary.getByRole('button', { name: /Sources/ }).click()
     await summary.getByText('user-reference.svg').click()
 
@@ -230,7 +253,9 @@ test('session resources stay scoped while inline images and the gallery navigate
     await mainWindow.openThread(ALPHA_TITLE)
     await expect(page.getByRole('complementary', { name: 'Session Summary' })).toBeVisible()
     await mainWindow.openThread(BETA_TITLE)
-    await expect(page.getByRole('button', { name: 'Open Session Summary' })).toBeVisible()
+    await expect(
+      page.locator('header').getByRole('button', { name: 'Open Session Summary' }),
+    ).toBeVisible()
   } finally {
     await app.cleanup()
   }

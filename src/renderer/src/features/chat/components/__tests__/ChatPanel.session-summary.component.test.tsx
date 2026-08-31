@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useProviderStore } from '@/features/providers/state'
+import { useSessionSummaryUIStore } from '@/features/session-summary'
 import { usePreferencesStore } from '@/features/settings/state'
 import type { ChatPanelSections } from '../../model'
 import { ChatPanel } from '../ChatPanel'
@@ -75,6 +76,7 @@ describe('ChatPanel session summary and setup dock', () => {
   beforeEach(() => {
     vi.stubGlobal('ResizeObserver', TestResizeObserver)
     localStorage.clear()
+    useSessionSummaryUIStore.setState({ panels: {} })
     usePreferencesStore.setState({
       ...usePreferencesStore.getInitialState(),
       settings: {
@@ -88,6 +90,7 @@ describe('ChatPanel session summary and setup dock', () => {
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     vi.unstubAllGlobals()
   })
 
@@ -123,7 +126,7 @@ describe('ChatPanel session summary and setup dock', () => {
     expect(screen.getByRole('log', { name: 'Chat messages' })).not.toHaveClass('pr-84')
     fireEvent.click(screen.getByRole('button', { name: 'Collapse Session Summary' }))
     expect(screen.getByRole('log', { name: 'Chat messages' })).not.toHaveClass('pr-84')
-    expect(screen.getByRole('button', { name: 'Open Session Summary' })).toBeInTheDocument()
+    expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
   })
 
   it('automatically hides the panel in a narrow chat while keeping its toggle usable', () => {
@@ -154,9 +157,35 @@ describe('ChatPanel session summary and setup dock', () => {
     act(() => notifyResize())
 
     expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
-    const toggle = screen.getByRole('button', { name: 'Open Session Summary' })
-    fireEvent.click(toggle)
+    act(() => useSessionSummaryUIStore.getState().togglePanel('session-1'))
     expect(screen.getByRole('complementary', { name: 'Session Summary' })).toBeInTheDocument()
+  })
+
+  it('hides before paint when the chat mounts below the automatic summary width', () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(700)
+    const message = makeMessage({
+      id: 'u1',
+      role: 'user',
+      parts: [{ type: 'text', content: 'Hello agent' }],
+    })
+
+    renderPanel(
+      {
+        messages: [message],
+        chatRows: [
+          {
+            type: 'message',
+            message,
+            isStreaming: false,
+            isRunActive: false,
+            showTurnDivider: false,
+          },
+        ],
+      },
+      { isFirstMessage: false, session: SESSION },
+    )
+
+    expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
   })
 
   it('shows the session setup dock before the first message', () => {

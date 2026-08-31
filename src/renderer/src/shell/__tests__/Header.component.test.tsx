@@ -2,6 +2,7 @@ import { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { GitCommitResult, GitStatusSummary } from '@shared/types/git'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useSessionSummaryUIStore } from '@/features/session-summary'
 import { Button } from '@/shared/ui/Button'
 import { Header } from '../Header'
 import { useUIStore } from '../ui-store'
@@ -36,7 +37,13 @@ const headerMocks = vi.hoisted(() => {
 })
 
 vi.mock('@/features/chat/hooks', () => ({
-  useChat: () => ({ activeSession: { title: 'Fallback title' } }),
+  useChat: () => ({
+    activeSession: {
+      id: SessionId('session-1'),
+      title: 'Fallback title',
+      messages: [{ id: 'message-1', role: 'user', parts: [], createdAt: 1 }],
+    },
+  }),
 }))
 
 vi.mock('@/features/diff-panel/hooks', () => ({
@@ -126,6 +133,12 @@ describe('Header', () => {
       toastData: null,
       toastMessage: null,
     })
+    useSessionSummaryUIStore.setState({ panels: {} })
+    useSessionSummaryUIStore.getState().syncPanel('session-1', {
+      available: true,
+      autoHidden: false,
+      rightSidebarOpen: false,
+    })
     headerMocks.refreshStatus.mockClear()
     headerMocks.refreshBranches.mockClear()
     headerMocks.commit.mockClear()
@@ -141,11 +154,13 @@ describe('Header', () => {
     expect(screen.getByText('openwaggle')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Open terminal' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Hide Session Summary' }))
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Session Tree' }))
     fireEvent.click(screen.getByRole('button', { name: 'Toggle diff panel' }))
     fireEvent.click(screen.getByRole('button', { name: 'Report a bug' }))
 
     expect(useUIStore.getState().terminalOpen).toBe(true)
+    expect(useSessionSummaryUIStore.getState().panels['session-1']?.expanded).toBe(false)
     expect(useUIStore.getState().feedbackModalOpen).toBe(true)
     expect(headerMocks.toggleSessionTree).toHaveBeenCalledOnce()
     expect(headerMocks.toggleDiff).toHaveBeenCalledOnce()
@@ -168,5 +183,12 @@ describe('Header', () => {
     )
     expect(useUIStore.getState().diffRefreshKey).toBe(2)
     expect(useUIStore.getState().toastData?.message).toBe('Commit created: abc123')
+  })
+
+  it('does not show the Session Summary toggle until the current session has summary content', () => {
+    useSessionSummaryUIStore.setState({ panels: {} })
+    render(<Header />)
+
+    expect(screen.queryByRole('button', { name: /Session Summary/ })).toBeNull()
   })
 })

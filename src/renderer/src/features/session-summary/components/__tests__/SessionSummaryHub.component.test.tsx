@@ -1,9 +1,10 @@
 import { SessionId, WorkingPath } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import type { SessionResource } from '@shared/types/session-resource'
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
+import { useSessionSummaryUIStore } from '../../state/session-summary-ui-store'
 import { SessionSummaryHub } from '../SessionSummaryHub'
 
 const listSessionResources = vi.hoisted(() => vi.fn())
@@ -118,6 +119,7 @@ function renderHub(
 describe('SessionSummaryHub', () => {
   beforeEach(() => {
     localStorage.clear()
+    useSessionSummaryUIStore.setState({ panels: {} })
     listSessionResources.mockReset().mockResolvedValue([])
     listArchivedSessions.mockReset().mockResolvedValue([])
   })
@@ -151,29 +153,19 @@ describe('SessionSummaryHub', () => {
     expect(summary.querySelector('.overflow-y-auto')).toBeInTheDocument()
   })
 
-  it('keeps the Summary toggle available when the panel is automatically hidden', () => {
+  it('lets the header state force the panel open when it is automatically hidden', () => {
     renderHub({ autoHidden: true })
     expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
-    const toggle = screen.getByRole('button', { name: 'Open Session Summary' })
-    expect(toggle).toHaveAttribute('aria-expanded', 'false')
 
-    fireEvent.click(toggle)
+    act(() => useSessionSummaryUIStore.getState().togglePanel('session-1'))
 
     expect(screen.getByRole('complementary', { name: 'Session Summary' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Hide Session Summary' })).toHaveAttribute(
-      'aria-expanded',
-      'true',
-    )
   })
 
-  it('keeps the toggle but hard-hides the panel while a right sidebar is open', () => {
+  it('hard-hides the panel while a right sidebar is open', () => {
     renderHub({ rightSidebarOpen: true })
 
     expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Open Session Summary' })).toHaveAttribute(
-      'aria-expanded',
-      'false',
-    )
   })
 
   it('shows only resources returned for the opened session', async () => {
@@ -198,10 +190,11 @@ describe('SessionSummaryHub', () => {
   it('persists collapsed state per session', () => {
     const first = renderHub()
     fireEvent.click(screen.getByRole('button', { name: 'Collapse Session Summary' }))
-    expect(screen.getByRole('button', { name: 'Open Session Summary' })).toBeInTheDocument()
+    expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
+    expect(localStorage.getItem('openwaggle:session-summary:session-1:panel')).toBe('false')
     first.unmount()
 
     renderHub()
-    expect(screen.getByRole('button', { name: 'Open Session Summary' })).toBeInTheDocument()
+    expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
   })
 })

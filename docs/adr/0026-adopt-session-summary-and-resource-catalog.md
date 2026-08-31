@@ -42,7 +42,7 @@ The app also spreads persistent session context across the composer, header, dif
 ### The Session Summary is host-owned
 
 - Show the Summary only after the first message. Before first send, the existing setup dock owns project, environment, and run target.
-- Render the same content in one top-right floating overlay after the first message. It never reserves transcript or composer width. Hide it automatically when the chat container is too narrow or the right sidebar opens, but keep the Summary toggle available so the user can explicitly reopen or hide the overlay at any width.
+- Render the same content in one top-right floating overlay after the first message. It never reserves transcript or composer width. Hide it automatically when the chat container is too narrow or the right sidebar opens, but keep a Layout list toggle in the header available so the user can explicitly reopen or hide the overlay at any width.
 - Initial first-party order is Environment, Hive, Outputs, Sources. Add future capabilities as explicitly named conditional sections. Do not add generic Activity or Usage buckets.
 - Authorization mode and model context usage remain in the composer before and after first send.
 - Environment exposes Changes, Local/worktree, Branch, adaptive commit/push, and provider-specific GitHub PR or GitLab MR actions through existing guarded Git services.

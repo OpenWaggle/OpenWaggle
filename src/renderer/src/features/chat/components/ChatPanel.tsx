@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   SessionResourceViewer,
   type SessionSummaryExtensionSidePanelTarget,
@@ -25,19 +25,28 @@ interface ChatPanelContentProps {
   readonly rightSidebarOpen?: boolean
 }
 
-function useSessionSummarySpace() {
+function useSessionSummarySpace(rightSidebarOpen: boolean) {
   const panelRef = useRef<HTMLDivElement>(null)
   const [hasSpace, setHasSpace] = useState(true)
+
+  useLayoutEffect(() => {
+    if (rightSidebarOpen) return
+    const element = panelRef.current
+    if (!element) return
+    const width = element.clientWidth
+    setHasSpace(width === 0 || width >= SESSION_SUMMARY_AUTO_OPEN_MIN_WIDTH_PX)
+  }, [rightSidebarOpen])
 
   useEffect(() => {
     const element = panelRef.current
     if (!element || typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(() => {
+      if (rightSidebarOpen) return
       setHasSpace(element.clientWidth >= SESSION_SUMMARY_AUTO_OPEN_MIN_WIDTH_PX)
     })
     observer.observe(element)
     return () => observer.disconnect()
-  }, [])
+  }, [rightSidebarOpen])
 
   return { panelRef, hasSpace }
 }
@@ -61,7 +70,7 @@ export function ChatPanelContent({
   )
   const summaryMessageCount = sections.composer.isFirstMessage ? 0 : messageCount
   const activeMessageIds = new Set(sections.transcript.messages.map((message) => message.id))
-  const summarySpace = useSessionSummarySpace()
+  const summarySpace = useSessionSummarySpace(rightSidebarOpen)
   return (
     <div className="flex size-full overflow-hidden">
       <div
