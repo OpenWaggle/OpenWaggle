@@ -7,6 +7,7 @@ import { extensionInvokeScopeSchema } from '@shared/schemas/extension-broker'
 import { extensionFrameConfigSchema } from '@shared/schemas/extension-frame'
 import { extensionContributionIdSchema } from '@shared/schemas/extensions'
 import { jsonValueSchema } from '@shared/schemas/validation'
+import { MAX_SYNTAX_SOURCE_CODE_UNITS } from '@shared/syntax-highlighting-performance'
 import type { ExtensionInvokeInput, ExtensionInvokeResult } from '@shared/types/extension-broker'
 import type { ExtensionFrameConfig } from '@shared/types/extension-frame'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
@@ -63,7 +64,7 @@ const extensionFrameSyntaxHighlightMessageSchema = Schema.Struct({
   type: Schema.Literal('syntax-highlight'),
   requestId: Schema.String,
   input: Schema.Struct({
-    source: Schema.String,
+    source: Schema.String.pipe(Schema.maxLength(MAX_SYNTAX_SOURCE_CODE_UNITS)),
     language: Schema.optional(Schema.String),
     path: Schema.optional(Schema.String),
     priority: Schema.optional(Schema.Literal('visible', 'near-viewport', 'background')),

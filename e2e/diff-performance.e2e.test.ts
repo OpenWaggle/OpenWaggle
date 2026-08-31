@@ -156,7 +156,9 @@ test('a large diff gives immediate feedback and keeps rendering off the main thr
 
     const diffPanel = page.locator('aside[data-right-sidebar-shell="true"]')
     if (process.platform !== 'darwin') {
-      await expect(diffPanel.getByLabel('Loading')).toBeVisible({ timeout: FIRST_DIFF_BUDGET_MS })
+      await expect(
+        diffPanel.getByLabel('Loading').or(diffPanel.locator('.diff-scroll code').first()).first(),
+      ).toBeVisible({ timeout: FIRST_DIFF_BUDGET_MS })
     }
     await expect(diffPanel.locator('.diff-scroll code').first()).toBeVisible({
       timeout: HIGHLIGHT_TIMEOUT_MS,
@@ -179,8 +181,9 @@ test('a large diff gives immediate feedback and keeps rendering off the main thr
     })
 
     // Hidden Chromium throttles requestAnimationFrame and worker startup under Xvfb and on
-    // Windows. There the strict 1.5 s gate applies to visible loading feedback above while the
-    // eventual highlighted result must remain free of long tasks. macOS owns the highlighted gate.
+    // Windows. There the strict 1.5 s gate applies to visible loading feedback or an already
+    // highlighted result, while the eventual result must remain free of long tasks. macOS owns
+    // the highlighted gate.
     if (process.platform === 'darwin') {
       expect(measurements.firstFrameMs).toBeLessThan(FIRST_FRAME_BUDGET_MS)
     }
@@ -241,7 +244,9 @@ test('a single oversized patch is parsed off the renderer thread', async () => {
     await page.getByRole('button', { name: 'Toggle diff panel' }).click()
     const diffPanel = page.locator('aside[data-right-sidebar-shell="true"]')
     if (process.platform !== 'darwin') {
-      await expect(diffPanel.getByLabel('Loading')).toBeVisible({ timeout: FIRST_DIFF_BUDGET_MS })
+      await expect(
+        diffPanel.getByLabel('Loading').or(diffPanel.locator('.diff-scroll code').first()).first(),
+      ).toBeVisible({ timeout: FIRST_DIFF_BUDGET_MS })
     }
     await expect(diffPanel.locator('.diff-scroll code').first()).toBeVisible({
       timeout: HIGHLIGHT_TIMEOUT_MS,

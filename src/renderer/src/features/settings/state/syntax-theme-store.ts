@@ -36,8 +36,21 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }
 
-let latestCatalogLoad = 0
+let latestCatalogOperation = 0
 let registeredResourceKey = 'themes:|languages:'
+
+function beginCatalogOperation() {
+  latestCatalogOperation += 1
+  return latestCatalogOperation
+}
+
+function isCurrentCatalogOperation(
+  operationId: number,
+  projectPath: string | null | undefined,
+  get: () => SyntaxThemeCatalogState,
+) {
+  return operationId === latestCatalogOperation && get().loadedProjectPath === projectPath
+}
 
 function catalogLanguages(catalog: SyntaxResourceCatalog) {
   // Imports are validated before they are persisted. Re-validating the entire installed
@@ -88,8 +101,7 @@ export const useSyntaxThemeCatalogStore = create<SyntaxThemeCatalogState>((set, 
   loadedProjectPath: undefined,
   load: async (projectPath = null) => {
     if (get().loadedProjectPath === projectPath) return
-    latestCatalogLoad += 1
-    const loadId = latestCatalogLoad
+    const loadId = beginCatalogOperation()
     const current = get()
     if (current.loadedProjectPath !== undefined) {
       const global = globalCatalog(current)
@@ -105,7 +117,7 @@ export const useSyntaxThemeCatalogStore = create<SyntaxThemeCatalogState>((set, 
     set({ loading: true, error: null })
     try {
       const catalog = await api.listSyntaxThemes(projectPath)
-      if (loadId !== latestCatalogLoad) return
+      if (loadId !== latestCatalogOperation) return
       const languages = catalogLanguages(catalog)
       registerResources(catalog, languages)
       set({
@@ -116,7 +128,7 @@ export const useSyntaxThemeCatalogStore = create<SyntaxThemeCatalogState>((set, 
         loadedProjectPath: projectPath,
       })
     } catch (error) {
-      if (loadId !== latestCatalogLoad) return
+      if (loadId !== latestCatalogOperation) return
       set({ loading: false, error: errorMessage(error) })
     }
   },
@@ -134,10 +146,13 @@ export const useSyntaxThemeCatalogStore = create<SyntaxThemeCatalogState>((set, 
     const preview = get().preview
     if (!preview) return
     const projectPath = get().loadedProjectPath
+    const operationId = beginCatalogOperation()
     set({ loading: true, error: null })
     try {
       await api.applySyntaxThemeImport(preview.token)
+      if (!isCurrentCatalogOperation(operationId, projectPath, get)) return
       const catalog = await api.listSyntaxThemes(projectPath)
+      if (!isCurrentCatalogOperation(operationId, projectPath, get)) return
       const languages = catalogLanguages(catalog)
       registerResources(catalog, languages)
       set({
@@ -149,16 +164,20 @@ export const useSyntaxThemeCatalogStore = create<SyntaxThemeCatalogState>((set, 
         loadedProjectPath: projectPath,
       })
     } catch (error) {
+      if (!isCurrentCatalogOperation(operationId, projectPath, get)) return
       set({ loading: false, error: errorMessage(error) })
     }
   },
   cancelImport: () => set({ preview: null }),
   remove: async (themeId) => {
     const projectPath = get().loadedProjectPath
+    const operationId = beginCatalogOperation()
     set({ loading: true, error: null })
     try {
       await api.removeSyntaxTheme(themeId)
+      if (!isCurrentCatalogOperation(operationId, projectPath, get)) return
       const catalog = await api.listSyntaxThemes(projectPath)
+      if (!isCurrentCatalogOperation(operationId, projectPath, get)) return
       const languages = catalogLanguages(catalog)
       registerResources(catalog, languages)
       set({
@@ -169,6 +188,7 @@ export const useSyntaxThemeCatalogStore = create<SyntaxThemeCatalogState>((set, 
         loadedProjectPath: projectPath,
       })
     } catch (error) {
+      if (!isCurrentCatalogOperation(operationId, projectPath, get)) return
       set({ loading: false, error: errorMessage(error) })
     }
   },
