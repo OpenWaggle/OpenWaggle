@@ -74,6 +74,8 @@ export async function restoreWorkspaceDraftOverDisk(context: WorkspaceSaveQueueC
       context.savedContent.current = draft
       context.setEditorRevision(saved.revision)
       context.setSavedContent(draft)
+      context.setEncoding(saved.encoding)
+      context.setLineEnding(saved.lineEnding)
       context.setStatus('saved')
       context.setErrorMessage(null)
       context.setConflictDiskContent(null)
@@ -87,6 +89,11 @@ export async function restoreWorkspaceDraftOverDisk(context: WorkspaceSaveQueueC
           revision: saved.revision,
           size: saved.size,
           modifiedAt: saved.modifiedAt,
+          fidelity: {
+            ...disk.fidelity,
+            encoding: saved.encoding,
+            lineEnding: saved.lineEnding,
+          },
         },
       )
     })
