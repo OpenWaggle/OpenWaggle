@@ -22,7 +22,7 @@ import {
   terminalDelegationState,
 } from './openwaggle-mcp-task-lineage'
 import {
-  authoritativeTaskForSession,
+  projectTaskStateIfAuthoritative,
   reconcileOpenWaggleProfileTasks,
 } from './openwaggle-mcp-task-reconciliation'
 import { type ActiveServerTask, taskResult } from './openwaggle-mcp-task-result'
@@ -87,15 +87,11 @@ export class OpenWaggleServerTaskManager {
     sessionId: SessionId,
     state: Parameters<typeof projectTaskDelegationState>[2],
   ) {
-    const before = authoritativeTaskForSession(await this.store.readTasks(), sessionId)
-    if (before?.id !== taskId) return
-    await projectTaskDelegationState(this.services, sessionId, state)
-    const after = authoritativeTaskForSession(await this.store.readTasks(), sessionId)
-    if (!after || after.id === taskId) return
-    await projectTaskDelegationState(
-      this.services,
+    await projectTaskStateIfAuthoritative(
+      { services: this.services, store: this.store },
+      taskId,
       sessionId,
-      isActiveTaskStatus(after.status) ? 'working' : terminalDelegationState(after.status),
+      state,
     )
   }
 

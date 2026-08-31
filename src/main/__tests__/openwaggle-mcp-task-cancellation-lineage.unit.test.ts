@@ -164,6 +164,94 @@ describe('hosted MCP task cancellation lineage', () => {
     expect(services.setDelegationState).not.toHaveBeenCalled()
   })
 
+  it('restores a newer authoritative task when cancellation projection races session reuse', async () => {
+    const options = serveOptions(temporaryRoot)
+    const store = new OpenWaggleMcpTaskStore(options.taskStorePath)
+    const expired = linkedTask({
+      id: 'older-expired-worker',
+      profile: options.profile,
+      status: 'working',
+      createdAt: 1,
+      lease: { ownerId: 'stopped-owner', expiresAt: 5 },
+    })
+    await store.update(() => ({ tasks: [expired], result: true }))
+    const services = cancellationServices()
+    vi.mocked(services.setDelegationState).mockImplementation(async (_sessionId, state) => {
+      if (state !== 'cancelled') return
+      await store.update((tasks) => ({
+        tasks: [
+          ...tasks,
+          linkedTask({
+            id: 'newer-active-worker',
+            profile: 'other-profile',
+            status: 'working',
+            createdAt: 200,
+            lease: { ownerId: 'live-owner', expiresAt: 500 },
+          }),
+        ],
+        result: true,
+      }))
+    })
+    const manager = managerFor(options.taskStorePath, services, 10)
+
+    await Effect.runPromise(manager.cancel(expired.id))
+
+    expect(services.setDelegationState).toHaveBeenNthCalledWith(
+      1,
+      SessionId('reused-worker'),
+      'cancelled',
+    )
+    expect(services.setDelegationState).toHaveBeenNthCalledWith(
+      2,
+      SessionId('reused-worker'),
+      'working',
+    )
+  })
+
+  it('restores a newer authoritative task when session cancellation races reuse', async () => {
+    const options = serveOptions(temporaryRoot)
+    const store = new OpenWaggleMcpTaskStore(options.taskStorePath)
+    const expired = linkedTask({
+      id: 'older-expired-worker',
+      profile: options.profile,
+      status: 'working',
+      createdAt: 1,
+      lease: { ownerId: 'stopped-owner', expiresAt: 5 },
+    })
+    await store.update(() => ({ tasks: [expired], result: true }))
+    const services = cancellationServices()
+    vi.mocked(services.setDelegationState).mockImplementation(async (_sessionId, state) => {
+      if (state !== 'cancelled') return
+      await store.update((tasks) => ({
+        tasks: [
+          ...tasks,
+          linkedTask({
+            id: 'newer-active-worker',
+            profile: 'other-profile',
+            status: 'working',
+            createdAt: 200,
+            lease: { ownerId: 'live-owner', expiresAt: 500 },
+          }),
+        ],
+        result: true,
+      }))
+    })
+    const manager = managerFor(options.taskStorePath, services, 10)
+
+    await Effect.runPromise(manager.cancelSession('reused-worker'))
+
+    expect(services.setDelegationState).toHaveBeenNthCalledWith(
+      1,
+      SessionId('reused-worker'),
+      'cancelled',
+    )
+    expect(services.setDelegationState).toHaveBeenNthCalledWith(
+      2,
+      SessionId('reused-worker'),
+      'working',
+    )
+  })
+
   it('projects authoritative session cancellation after an expired lease', async () => {
     const options = serveOptions(temporaryRoot)
     const store = new OpenWaggleMcpTaskStore(options.taskStorePath)

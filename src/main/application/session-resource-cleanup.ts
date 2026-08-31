@@ -1,6 +1,9 @@
 import type { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
-import { SessionResourceCleanupRepository } from '../ports/session-resource-cleanup-repository'
+import {
+  type SessionResourceCleanupCursor,
+  SessionResourceCleanupRepository,
+} from '../ports/session-resource-cleanup-repository'
 import { SessionResourceStore } from '../ports/session-resource-store'
 import { withSessionResourceLock } from './session-resource-lock'
 
@@ -20,13 +23,21 @@ export function cleanupQueuedSessionResources(sessionId: SessionId) {
 export function cleanupPendingSessionResources() {
   return Effect.gen(function* () {
     const cleanup = yield* SessionResourceCleanupRepository
-    const pending = yield* cleanup.listPending(SESSION_RESOURCE_CLEANUP_BATCH_SIZE)
-    yield* Effect.forEach(
-      pending,
-      (sessionId) =>
-        cleanupQueuedSessionResources(sessionId).pipe(Effect.catchAll(() => Effect.void)),
-      { concurrency: 1, discard: true },
-    )
+    let cursor: SessionResourceCleanupCursor | undefined
+    while (true) {
+      const pending: readonly SessionResourceCleanupCursor[] = yield* cleanup.listPending(
+        SESSION_RESOURCE_CLEANUP_BATCH_SIZE,
+        cursor,
+      )
+      yield* Effect.forEach(
+        pending,
+        ({ sessionId }) =>
+          cleanupQueuedSessionResources(sessionId).pipe(Effect.catchAll(() => Effect.void)),
+        { concurrency: 1, discard: true },
+      )
+      if (pending.length < SESSION_RESOURCE_CLEANUP_BATCH_SIZE) return
+      cursor = pending.at(-1)
+    }
   })
 }
 

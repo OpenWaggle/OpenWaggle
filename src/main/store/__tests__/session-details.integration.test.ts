@@ -251,6 +251,11 @@ describe('session-details integration basics', () => {
         return yield* cleanup.listPending(10)
       }),
     )
-    expect(pending).toEqual([session.id])
+    expect(pending).toEqual([
+      expect.objectContaining({
+        sessionId: session.id,
+        queuedAt: expect.any(Number),
+      }),
+    ])
   })
 })

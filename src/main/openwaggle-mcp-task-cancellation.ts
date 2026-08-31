@@ -5,8 +5,10 @@ import {
   hasLiveLease,
   isActiveTaskStatus,
 } from './openwaggle-mcp-task-leases'
-import { projectTaskDelegationState } from './openwaggle-mcp-task-lineage'
-import { authoritativeTaskForSession } from './openwaggle-mcp-task-reconciliation'
+import {
+  authoritativeTaskForSession,
+  projectTaskStateIfAuthoritative,
+} from './openwaggle-mcp-task-reconciliation'
 import type { OpenWaggleServerTaskServices } from './openwaggle-mcp-task-runtime'
 import type { OpenWaggleMcpTaskStore } from './openwaggle-mcp-task-store'
 
@@ -42,8 +44,9 @@ export async function cancelOpenWaggleTask(input: CancelTaskInput) {
   })
   input.abortTask(input.taskId)
   if (transition.projectCancellation && transition.next.sessionId) {
-    await projectTaskDelegationState(
-      input.services,
+    await projectTaskStateIfAuthoritative(
+      { services: input.services, store: input.store },
+      transition.next.id,
       SessionId(transition.next.sessionId),
       'cancelled',
     )
@@ -80,14 +83,20 @@ export async function cancelOpenWaggleSessionTasks(input: CancelSessionTasksInpu
         : cancelledTaskRecord(task, input.now)
     })
     const authoritative = authoritativeTaskForSession(nextTasks, input.sessionId)
-    const projectedCancellation = Boolean(
-      authoritative && cancelledIds.has(authoritative.id) && authoritative.status === 'cancelled',
-    )
-    return { tasks: nextTasks, result: { projectedCancellation, taskIds: [...matchingIds] } }
+    const projectedTaskId =
+      authoritative && cancelledIds.has(authoritative.id) && authoritative.status === 'cancelled'
+        ? authoritative.id
+        : null
+    return { tasks: nextTasks, result: { projectedTaskId, taskIds: [...matchingIds] } }
   })
   for (const taskId of result.taskIds) input.abortTask(taskId)
-  if (result.projectedCancellation) {
-    await projectTaskDelegationState(input.services, SessionId(input.sessionId), 'cancelled')
+  if (result.projectedTaskId) {
+    await projectTaskStateIfAuthoritative(
+      { services: input.services, store: input.store },
+      result.projectedTaskId,
+      SessionId(input.sessionId),
+      'cancelled',
+    )
   }
   return result.taskIds.length
 }

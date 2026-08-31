@@ -17,14 +17,29 @@ export const SqliteSessionResourceCleanupRepositoryLive = Layer.effect(
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     return SessionResourceCleanupRepository.of({
-      listPending: (limit) =>
-        sql<{ readonly session_id: string }>`
-          SELECT session_id
-          FROM session_resource_cleanup_queue
-          ORDER BY queued_at ASC
-          LIMIT ${limit}
-        `.pipe(
-          Effect.map((rows) => rows.map(({ session_id }) => SessionId(session_id))),
+      listPending: (limit, after) =>
+        (after
+          ? sql<{ readonly queued_at: number; readonly session_id: string }>`
+              SELECT session_id, queued_at
+              FROM session_resource_cleanup_queue
+              WHERE queued_at > ${after.queuedAt}
+                OR (queued_at = ${after.queuedAt} AND session_id > ${after.sessionId})
+              ORDER BY queued_at ASC, session_id ASC
+              LIMIT ${limit}
+            `
+          : sql<{ readonly queued_at: number; readonly session_id: string }>`
+              SELECT session_id, queued_at
+              FROM session_resource_cleanup_queue
+              ORDER BY queued_at ASC, session_id ASC
+              LIMIT ${limit}
+            `
+        ).pipe(
+          Effect.map((rows) =>
+            rows.map(({ queued_at, session_id }) => ({
+              queuedAt: queued_at,
+              sessionId: SessionId(session_id),
+            })),
+          ),
           Effect.mapError((cause) => cleanupError('listPendingResourceCleanup', cause)),
         ),
       complete: (sessionId) =>

@@ -1,4 +1,5 @@
 import { SessionId } from '@shared/types/brand'
+import type { SessionDelegationState } from '@shared/types/session'
 import { isActiveTaskStatus, recoverStaleTask } from './openwaggle-mcp-task-leases'
 import { projectTaskDelegationState, terminalDelegationState } from './openwaggle-mcp-task-lineage'
 import type { OpenWaggleServerTaskServices } from './openwaggle-mcp-task-runtime'
@@ -44,21 +45,19 @@ function delegationStateForTask(task: ServerTaskRecord) {
   return isActiveTaskStatus(task.status) ? 'working' : terminalDelegationState(task.status)
 }
 
-async function projectIfStillAuthoritative(
-  input: ReconcileProfileTasksInput,
-  task: {
-    readonly taskId: string
-    readonly sessionId: SessionId
-    readonly state: ReturnType<typeof terminalDelegationState>
-  },
+export async function projectTaskStateIfAuthoritative(
+  input: Pick<ReconcileProfileTasksInput, 'services' | 'store'>,
+  taskId: string,
+  sessionId: SessionId,
+  state: SessionDelegationState,
 ) {
-  const before = authoritativeTaskForSession(await input.store.readTasks(), task.sessionId)
-  if (before?.id !== task.taskId) return false
-  const succeeded = await projectTaskDelegationState(input.services, task.sessionId, task.state)
+  const before = authoritativeTaskForSession(await input.store.readTasks(), sessionId)
+  if (before?.id !== taskId) return false
+  const succeeded = await projectTaskDelegationState(input.services, sessionId, state)
   if (!succeeded) return false
-  const after = authoritativeTaskForSession(await input.store.readTasks(), task.sessionId)
-  if (!after || after.id === task.taskId) return true
-  await projectTaskDelegationState(input.services, task.sessionId, delegationStateForTask(after))
+  const after = authoritativeTaskForSession(await input.store.readTasks(), sessionId)
+  if (!after || after.id === taskId) return true
+  await projectTaskDelegationState(input.services, sessionId, delegationStateForTask(after))
   return false
 }
 
@@ -87,7 +86,12 @@ export async function reconcileOpenWaggleProfileTasks(input: ReconcileProfileTas
     await Promise.all(
       reconciliation.pending.map(async (task) => ({
         ...task,
-        succeeded: await projectIfStillAuthoritative(input, task),
+        succeeded: await projectTaskStateIfAuthoritative(
+          input,
+          task.taskId,
+          task.sessionId,
+          task.state,
+        ),
       })),
     )
   ).filter(({ succeeded }) => succeeded)
