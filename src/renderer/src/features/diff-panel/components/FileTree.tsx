@@ -18,13 +18,12 @@ import {
 } from 'react'
 import {
   buildNavigatorTree,
-  type FileChangeStats,
-  type FileChangeStatus,
   NAVIGATOR_ROOT_ID,
   type NavigatorNode,
 } from '@/features/diff-panel/lib/navigator-tree'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
+import { FileChangeBadges } from './FileChangeBadges'
 
 interface FileTreeProps {
   readonly files: readonly GitFileDiff[]
@@ -33,21 +32,11 @@ interface FileTreeProps {
 
 const INDENT_PX = 10
 const ROW_PADDING_PX = 8
-const ROW_INTRINSIC_HEIGHT_PX = 22
+const ROW_HEIGHT_REM = 1.375
+const DEFAULT_ROOT_FONT_SIZE_PX = 16
+const DEFAULT_ROW_HEIGHT_PX = ROW_HEIGHT_REM * DEFAULT_ROOT_FONT_SIZE_PX
 const VIRTUAL_OVERSCAN_ROWS = 6
-const FALLBACK_VIEWPORT_HEIGHT_PX = ROW_INTRINSIC_HEIGHT_PX * 12
-
-const STATUS_GLYPH: Record<FileChangeStatus, string> = {
-  added: 'A',
-  modified: 'M',
-  deleted: 'D',
-}
-
-const STATUS_CLASS: Record<FileChangeStatus, string> = {
-  added: 'text-diff-add-mark',
-  modified: 'text-accent',
-  deleted: 'text-diff-remove-text',
-}
+const FALLBACK_VIEWPORT_HEIGHT_PX = DEFAULT_ROW_HEIGHT_PX * 12
 
 type ButtonClickHandler = (event: MouseEvent<HTMLButtonElement>) => void
 type ContainerRefCallback = (element: HTMLDivElement | null) => void
@@ -65,28 +54,14 @@ function isContainerRefCallback(value: unknown): value is ContainerRefCallback {
   return typeof value === 'function'
 }
 
-const ROOT_NODE: NavigatorNode = { path: NAVIGATOR_ROOT_ID, name: 'Changed files', isFile: false }
-
-function FileChangeBadges({ stats }: { readonly stats: FileChangeStats }) {
-  return (
-    <span className="ml-auto flex shrink-0 items-center gap-1 pl-1">
-      {stats.additions > 0 ? (
-        <span className="text-xs text-diff-add-mark">+{String(stats.additions)}</span>
-      ) : null}
-      {stats.deletions > 0 ? (
-        <span className="text-xs text-diff-remove-text">-{String(stats.deletions)}</span>
-      ) : null}
-      <span
-        role="img"
-        aria-label={stats.status}
-        title={stats.status}
-        className={cn('w-2 text-center text-xs font-semibold', STATUS_CLASS[stats.status])}
-      >
-        {STATUS_GLYPH[stats.status]}
-      </span>
-    </span>
-  )
+function currentRowHeight() {
+  const rootFontSize = Number.parseFloat(getComputedStyle(document.documentElement).fontSize)
+  return Number.isFinite(rootFontSize) && rootFontSize > 0
+    ? rootFontSize * ROW_HEIGHT_REM
+    : DEFAULT_ROW_HEIGHT_PX
 }
+
+const ROOT_NODE: NavigatorNode = { path: NAVIGATOR_ROOT_ID, name: 'Changed files', isFile: false }
 
 /**
  * Changed-file navigator.
@@ -148,12 +123,14 @@ function useVirtualizedNavigator(files: readonly GitFileDiff[]) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [viewportHeight, setViewportHeight] = useState(FALLBACK_VIEWPORT_HEIGHT_PX)
+  const [rowHeight, setRowHeight] = useState(currentRowHeight)
   const scrollToItem = useCallback((item: ItemInstance<NavigatorNode>) => {
     const viewport = viewportRef.current
     if (viewport === null) return
     const index = item.getItemMeta().index
-    const rowTop = index * ROW_INTRINSIC_HEIGHT_PX
-    const rowBottom = rowTop + ROW_INTRINSIC_HEIGHT_PX
+    const measuredRowHeight = currentRowHeight()
+    const rowTop = index * measuredRowHeight
+    const rowBottom = rowTop + measuredRowHeight
     const visibleBottom = viewport.scrollTop + viewport.clientHeight
     let nextScrollTop = viewport.scrollTop
     if (rowTop < viewport.scrollTop) nextScrollTop = rowTop
@@ -172,16 +149,25 @@ function useVirtualizedNavigator(files: readonly GitFileDiff[]) {
     if (viewport === null || typeof ResizeObserver === 'undefined') return
     const updateHeight = () => {
       if (viewport.clientHeight > 0) setViewportHeight(viewport.clientHeight)
+      setRowHeight(currentRowHeight())
     }
     updateHeight()
     const observer = new ResizeObserver(updateHeight)
     observer.observe(viewport)
-    return () => observer.disconnect()
+    const rootObserver = new MutationObserver(updateHeight)
+    rootObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['style'],
+    })
+    return () => {
+      observer.disconnect()
+      rootObserver.disconnect()
+    }
   }, [])
 
-  const firstVisibleIndex = Math.floor(scrollTop / ROW_INTRINSIC_HEIGHT_PX)
+  const firstVisibleIndex = Math.floor(scrollTop / rowHeight)
   const startIndex = Math.max(0, firstVisibleIndex - VIRTUAL_OVERSCAN_ROWS)
-  const visibleRowCount = Math.ceil(viewportHeight / ROW_INTRINSIC_HEIGHT_PX)
+  const visibleRowCount = Math.ceil(viewportHeight / rowHeight)
   const endIndex = Math.min(
     items.length,
     firstVisibleIndex + visibleRowCount + VIRTUAL_OVERSCAN_ROWS,
@@ -210,6 +196,7 @@ function useVirtualizedNavigator(files: readonly GitFileDiff[]) {
     handleContainerRef,
     handleScroll,
     items,
+    rowHeight,
     startIndex,
     visibleItems: items.slice(startIndex, endIndex),
   }
@@ -230,6 +217,7 @@ export function FileTree({ files, onFileClick }: FileTreeProps) {
     handleContainerRef,
     handleScroll,
     items,
+    rowHeight,
     startIndex,
     visibleItems,
   } = useVirtualizedNavigator(files)
@@ -245,7 +233,8 @@ export function FileTree({ files, onFileClick }: FileTreeProps) {
         <AssistiveTreeDescription tree={tree} />
         <div
           className="relative w-full"
-          style={{ height: `${String(items.length * ROW_INTRINSIC_HEIGHT_PX)}px` }}
+          data-navigator-virtual-space="true"
+          style={{ height: `${String(items.length * rowHeight)}px` }}
         >
           {visibleItems.map((item, visibleIndex) => {
             const data = item.getItemData()
@@ -275,12 +264,12 @@ export function FileTree({ files, onFileClick }: FileTreeProps) {
                 style={{
                   position: 'absolute',
                   insetInline: 0,
-                  top: `${String(absoluteIndex * ROW_INTRINSIC_HEIGHT_PX)}px`,
+                  top: `${String(absoluteIndex * rowHeight)}px`,
                   paddingLeft: `${String(item.getItemMeta().level * INDENT_PX + ROW_PADDING_PX)}px`,
                   // Chromium can skip layout and paint for navigator rows outside the scrollport.
                   // Keep the intrinsic height equal to h-5.5 so scrolling does not jump as rows enter view.
                   contentVisibility: 'auto',
-                  containIntrinsicSize: `auto ${String(ROW_INTRINSIC_HEIGHT_PX)}px`,
+                  containIntrinsicSize: `auto ${String(ROW_HEIGHT_REM)}rem`,
                 }}
                 className={cn(
                   'flex h-5.5 w-full items-center gap-1.5 pr-1.5 text-left outline-none',

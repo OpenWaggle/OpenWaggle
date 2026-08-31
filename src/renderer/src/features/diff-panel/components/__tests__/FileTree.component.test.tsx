@@ -1,5 +1,5 @@
 import type { GitFileDiff } from '@shared/types/git'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { FileTree } from '../FileTree'
 
@@ -15,7 +15,7 @@ describe('Changed-file navigator', () => {
     expect(screen.getAllByRole('treeitem').length).toBeGreaterThan(0)
     expect(screen.getByRole('treeitem', { name: /app\.ts/ })).toHaveStyle({
       contentVisibility: 'auto',
-      containIntrinsicSize: 'auto 22px',
+      containIntrinsicSize: 'auto 1.375rem',
     })
   })
 
@@ -116,5 +116,21 @@ describe('Changed-file navigator', () => {
 
     expect(screen.getByText('file-079.ts')).toBeInTheDocument()
     expect(screen.getAllByRole('treeitem').length).toBeLessThan(40)
+  })
+
+  it('keeps virtual geometry aligned when the interface scale changes', async () => {
+    const root = document.documentElement
+    const previousFontSize = root.style.fontSize
+    try {
+      render(<FileTree files={[fileDiff('src/app.ts')]} onFileClick={vi.fn()} />)
+      const virtualSpace = document.querySelector('[data-navigator-virtual-space="true"]')
+      expect(virtualSpace).toHaveStyle({ height: '44px' })
+
+      root.style.fontSize = '20px'
+
+      await waitFor(() => expect(virtualSpace).toHaveStyle({ height: '55px' }))
+    } finally {
+      root.style.fontSize = previousFontSize
+    }
   })
 })
