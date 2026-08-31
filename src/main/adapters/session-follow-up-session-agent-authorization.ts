@@ -78,14 +78,21 @@ function sourceCeilingChanged(
 
 function resolveOriginAuthority(
   sql: SqlClient.SqlClient,
+  sourceId: string,
   source: SourceRow,
   target: TargetRow,
   capabilities: readonly SessionCapability[],
 ) {
   return Effect.gen(function* () {
     const originProfile = yield* loadProfile(sql, source.authority_origin_caller_id)
+    const baseRelationshipAuthorized =
+      source.parent_session_id === null || target.session_id === sourceId
     if (!profileId(source.authority_origin_caller_id)) {
-      return { effectiveCapabilities: capabilities, originProfile, baseScopeAuthorized: true }
+      return {
+        effectiveCapabilities: capabilities,
+        originProfile,
+        baseScopeAuthorized: baseRelationshipAuthorized,
+      }
     }
     if (!originProfile || originProfile.revoked_at !== null) {
       return { blockReason: 'profile_revoked' as const, effectiveCapabilities: capabilities }
@@ -97,8 +104,9 @@ function resolveOriginAuthority(
     return {
       effectiveCapabilities,
       originProfile,
-      baseScopeAuthorized: authorizeSessionTarget(originAuthority, targetDescriptor(target))
-        .authorized,
+      baseScopeAuthorized:
+        baseRelationshipAuthorized &&
+        authorizeSessionTarget(originAuthority, targetDescriptor(target)).authorized,
     }
   })
 }
@@ -156,6 +164,7 @@ export function sessionAgentBlockReason(
     if (sourceCapabilities.blockReason) return sourceCapabilities.blockReason
     const origin = yield* resolveOriginAuthority(
       sql,
+      sourceId,
       source,
       target,
       sourceCapabilities.capabilities,

@@ -4,101 +4,44 @@ import type {
   SessionControlMutationResponse,
   SessionExportCreateMutationRequest,
 } from '@shared/types/session-control'
-import type {
-  SessionExportOperationStatus,
-  SessionExportProgress,
-} from '@shared/types/session-export-operation'
 import { SESSION_EXPORT_RESOURCE_BYTES_LIMIT } from '@shared/types/session-export-operation'
 import * as Effect from 'effect/Effect'
-import { createLogger } from '../logger'
 import { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
-import type {
-  SessionExportArtifactSink,
-  SessionExportArtifactWriterShape,
-} from '../ports/session-export-artifact-writer'
+import type { SessionExportArtifactSink } from '../ports/session-export-artifact-writer'
 import { SessionExportArtifactWriter } from '../ports/session-export-artifact-writer'
 import {
   type SessionExportOperationRecord,
   SessionExportOperationRepository,
-  type SessionExportOperationRepositoryShape,
 } from '../ports/session-export-operation-repository'
 import { SessionExportResourceResolver } from '../ports/session-export-resource-resolver'
 import { SessionQueryRepository } from '../ports/session-query-repository'
-import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { assertCanonicalDirectoryRoots } from '../utils/canonical-directory-roots'
 import { assertFilesystemReadDirectoryScope } from '../utils/filesystem-read-directory-scope'
+import {
+  acquireLocalSessionProfileBackgroundWork,
+  type LocalSessionProfileBackgroundWorkLease,
+} from './local-session-profile-background-work'
 import { prepareDurableExportInstallation } from './session-export-artifact-installation'
-import { ensureLiveExportAuthority } from './session-export-live-authority'
+import {
+  ensureLiveExportAuthority,
+  resolveExportOriginProfileId,
+} from './session-export-live-authority'
+import {
+  publishSessionExportChange,
+  settleFailedSessionExport,
+} from './session-export-operation-settlement'
 import { checkExportCancellation, readExportPage } from './session-export-query'
 import { forkSupervisedSessionExport } from './session-export-supervision'
 import { acquireSessionHostRunLease, type SessionHostRunLease } from './session-host-run-admission'
 
-const logger = createLogger('session-export/operation')
-
-function publishExportChange(
-  operation: SessionExportOperationRecord,
-  status: SessionExportOperationStatus,
-  progress: SessionExportProgress,
-) {
-  publishSessionHostEvent({
-    kind: 'session-export-changed',
-    sessionId: operation.sessionId,
-    exportOperationId: operation.exportOperationId,
-    status,
-    progress,
-  })
-}
-
-function describeExportError(error: unknown) {
-  return {
-    code: 'export_failed',
-    message: error instanceof Error ? error.message : String(error),
-  }
-}
-
-function discardFailedExport(
-  operations: SessionExportOperationRepositoryShape,
-  artifacts: SessionExportArtifactWriterShape,
-  sink: SessionExportArtifactSink | undefined,
-  operation: SessionExportOperationRecord,
-) {
-  const discard = sink ? sink.discard() : artifacts.discard(operation)
-  return discard.pipe(
-    Effect.zipRight(operations.completeCleanup(operation.exportOperationId, Date.now())),
-    Effect.catchAllCause((cause) =>
-      Effect.sync(() => {
-        logger.warn('Export cleanup remains pending after terminal settlement.', {
-          cause: String(cause),
-          exportOperationId: operation.exportOperationId,
-          sessionId: operation.sessionId,
-        })
-      }),
-    ),
-  )
-}
-
-function settleFailedExport(input: {
-  readonly operations: SessionExportOperationRepositoryShape
-  readonly artifacts: SessionExportArtifactWriterShape
-  readonly operation: SessionExportOperationRecord
-  readonly progress: SessionExportProgress
-  readonly sink?: SessionExportArtifactSink
-  readonly error: unknown
-}) {
-  return Effect.gen(function* () {
-    if (input.error instanceof Error && input.error.message === 'EXPORT_CANCELLED') {
-      yield* input.operations.cancel(input.operation.exportOperationId, Date.now())
-      publishExportChange(input.operation, 'cancelled', input.progress)
-    } else {
-      yield* input.operations.fail(
-        input.operation.exportOperationId,
-        describeExportError(input.error),
-        Date.now(),
+function checkProfileFence(lease: LocalSessionProfileBackgroundWorkLease | undefined) {
+  return lease?.signal?.aborted
+    ? Effect.fail(
+        lease.signal.reason instanceof Error
+          ? lease.signal.reason
+          : new Error('Profile authority changed.'),
       )
-      publishExportChange(input.operation, 'failed', input.progress)
-    }
-    yield* discardFailedExport(input.operations, input.artifacts, input.sink, input.operation)
-  })
+    : Effect.void
 }
 
 function runClaimedExport(operation: SessionExportOperationRecord) {
@@ -108,11 +51,17 @@ function runClaimedExport(operation: SessionExportOperationRecord) {
     const artifacts = yield* SessionExportArtifactWriter
     const resources = yield* SessionExportResourceResolver
     const sql = yield* SqlClient.SqlClient
+    const originProfileId = yield* resolveExportOriginProfileId(sql, operation)
+    const profileLease = originProfileId
+      ? acquireLocalSessionProfileBackgroundWork(originProfileId, { cancelOnFence: true })
+      : { release: () => undefined }
     let sink: SessionExportArtifactSink | undefined
     let durableInstallPrepared = false
     let progress = { recordsWritten: 0, resourcesWritten: 0, bytesWritten: 0 }
     let resourceBytesWritten = 0
     yield* Effect.gen(function* () {
+      if (!profileLease) return yield* Effect.fail(new Error('Profile authority is changing.'))
+      yield* checkProfileFence(profileLease)
       yield* ensureLiveExportAuthority(sql, operation)
       const openedSink = yield* artifacts.open(operation)
       sink = openedSink
@@ -124,6 +73,7 @@ function runClaimedExport(operation: SessionExportOperationRecord) {
         bytesWritten: progress.bytesWritten + (yield* openedSink.writeManifest(manifest)),
       }
       while (true) {
+        yield* checkProfileFence(profileLease)
         yield* checkExportCancellation(operations, operation.exportOperationId)
         yield* ensureLiveExportAuthority(sql, operation)
         const bytes = yield* openedSink.writeRecords(page.records)
@@ -133,11 +83,12 @@ function runClaimedExport(operation: SessionExportOperationRecord) {
           bytesWritten: progress.bytesWritten + bytes,
         }
         yield* operations.updateProgress(operation.exportOperationId, progress, Date.now())
-        publishExportChange(operation, 'running', progress)
+        publishSessionExportChange(operation, 'running', progress)
         if (page.nextCreatedOrder === undefined) break
         page = yield* readExportPage(queries, operation, manifest, page.nextCreatedOrder)
       }
       for (const resource of operation.resources) {
+        yield* checkProfileFence(profileLease)
         yield* checkExportCancellation(operations, operation.exportOperationId)
         const expectedWorkspacePath = yield* ensureLiveExportAuthority(sql, operation)
         const bytes = yield* Effect.acquireUseRelease(
@@ -161,6 +112,7 @@ function runClaimedExport(operation: SessionExportOperationRecord) {
           },
           (resolved) => Effect.promise(() => resolved.sourceHandle.close().catch(() => undefined)),
         )
+        yield* checkProfileFence(profileLease)
         progress = {
           ...progress,
           resourcesWritten: progress.resourcesWritten + 1,
@@ -168,8 +120,9 @@ function runClaimedExport(operation: SessionExportOperationRecord) {
         }
         resourceBytesWritten += bytes
         yield* operations.updateProgress(operation.exportOperationId, progress, Date.now())
-        publishExportChange(operation, 'running', progress)
+        publishSessionExportChange(operation, 'running', progress)
       }
+      yield* checkProfileFence(profileLease)
       yield* checkExportCancellation(operations, operation.exportOperationId)
       yield* ensureLiveExportAuthority(sql, operation)
       const installation = yield* prepareDurableExportInstallation({
@@ -180,13 +133,21 @@ function runClaimedExport(operation: SessionExportOperationRecord) {
       if (installation === false) return yield* Effect.fail(new Error('EXPORT_CANCELLED'))
       if (installation === true) durableInstallPrepared = true
       if (installation === undefined) {
+        yield* checkProfileFence(profileLease)
         yield* openedSink.finalize()
         yield* operations.complete(operation.exportOperationId, progress, Date.now())
-        publishExportChange(operation, 'completed', progress)
+        publishSessionExportChange(operation, 'completed', progress)
+      }
+      if (durableInstallPrepared && sink) {
+        yield* checkProfileFence(profileLease)
+        yield* ensureLiveExportAuthority(sql, operation)
+        yield* sink.finalize()
+        yield* operations.complete(operation.exportOperationId, progress, Date.now())
+        publishSessionExportChange(operation, 'completed', progress)
       }
     }).pipe(
       Effect.catchAll((error) =>
-        settleFailedExport({
+        settleFailedSessionExport({
           operations,
           artifacts,
           operation,
@@ -195,13 +156,8 @@ function runClaimedExport(operation: SessionExportOperationRecord) {
           error,
         }),
       ),
+      Effect.ensuring(Effect.sync(() => profileLease?.release())),
     )
-    if (durableInstallPrepared && sink) {
-      yield* ensureLiveExportAuthority(sql, operation)
-      yield* sink.finalize()
-      yield* operations.complete(operation.exportOperationId, progress, Date.now())
-      publishExportChange(operation, 'completed', progress)
-    }
   })
 }
 

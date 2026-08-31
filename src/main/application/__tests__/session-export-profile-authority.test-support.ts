@@ -9,6 +9,10 @@ import { expect, vi } from 'vitest'
 import type { SessionExportArtifactWriterShape } from '../../ports/session-export-artifact-writer'
 import { SessionQueryRepository } from '../../ports/session-query-repository'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
+import {
+  fenceLocalSessionProfileBackgroundWork,
+  releaseLocalSessionProfileBackgroundWorkFence,
+} from '../local-session-profile-background-work'
 import { runSessionExportOperation } from '../session-export-operation-service'
 import {
   exportManifest as manifest,
@@ -170,6 +174,111 @@ export async function verifyProfileCapabilityReductionStopsExport() {
     expect(failureMessage).toContain('authority changed')
     expect(queryCount).toBe(2)
   } finally {
+    await fs.rm(temporaryRoot, { recursive: true, force: true })
+  }
+}
+
+export async function verifyProfileFenceDrainsExportBeforePolicyChange() {
+  const temporaryRoot = await fs.realpath(
+    await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-export-fence-')),
+  )
+  try {
+    const sqlite = SqliteClient.layer({
+      filename: path.join(temporaryRoot, 'export.sqlite'),
+      prepareCacheSize: SQLITE_PREPARE_CACHE_SIZE,
+    })
+    const schema = Layer.effectDiscard(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql.unsafe(`CREATE TABLE sessions (id TEXT PRIMARY KEY, project_path TEXT)`)
+        yield* sql.unsafe(`CREATE TABLE session_spawn_lineage (
+          child_session_id TEXT PRIMARY KEY, hive_root_session_id TEXT NOT NULL)`)
+        yield* sql.unsafe(`CREATE TABLE session_execution_profiles (
+          session_id TEXT PRIMARY KEY, authority_scope_snapshot_json TEXT)`)
+        yield* sql.unsafe(`CREATE TABLE workspace_resources (
+          id TEXT PRIMARY KEY, working_path TEXT NOT NULL, lifecycle_state TEXT NOT NULL)`)
+        yield* sql.unsafe(`CREATE TABLE session_workspace_bindings (
+          session_id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL)`)
+        yield* sql.unsafe(`CREATE TABLE session_client_profiles (
+          id TEXT PRIMARY KEY, capabilities_json TEXT NOT NULL, scope_json TEXT NOT NULL,
+          authorization_ceiling TEXT NOT NULL, revoked_at INTEGER)`)
+        yield* sql.unsafe(`CREATE TABLE derived_child_management_grants (
+          child_session_id TEXT PRIMARY KEY, source_caller_id TEXT NOT NULL,
+          capabilities_json TEXT NOT NULL, authorization_ceiling TEXT NOT NULL,
+          revoked_at INTEGER)`)
+        yield* sql`INSERT INTO sessions (id, project_path)
+          VALUES (${'session-export'}, ${temporaryRoot})`
+        yield* sql`INSERT INTO session_execution_profiles (
+          session_id, authority_scope_snapshot_json) VALUES (${'session-export'}, ${null})`
+        yield* sql`INSERT INTO session_client_profiles (
+          id, capabilities_json, scope_json, authorization_ceiling, revoked_at
+        ) VALUES (
+          ${'exporter'}, ${JSON.stringify(['sessions:export', 'sessions:read'])},
+          ${JSON.stringify({ all: true, exportRoots: [temporaryRoot] })},
+          ${'ask-for-approval'}, ${null})`
+      }),
+    )
+    let releaseWrite: () => void = () => undefined
+    let markWriteStarted: () => void = () => undefined
+    const writeStarted = new Promise<void>((resolve) => {
+      markWriteStarted = resolve
+    })
+    const writeFinished = new Promise<void>((resolve) => {
+      releaseWrite = resolve
+    })
+    const fail = vi.fn(() => Effect.void)
+    const complete = vi.fn(() => Effect.void)
+    const finalize = vi.fn(() => Effect.void)
+    const operations = repository({
+      claimExecution: () =>
+        Effect.succeed({
+          status: 'claimed' as const,
+          operation: {
+            ...operation,
+            callerId: 'profile:exporter',
+            destinationPath: path.join(temporaryRoot, 'conversation.jsonl'),
+            destinationRoot: temporaryRoot,
+          },
+        }),
+      fail,
+      complete,
+    })
+    const artifacts: SessionExportArtifactWriterShape = {
+      open: () =>
+        Effect.succeed({
+          writeManifest: () => Effect.succeed(0),
+          writeRecords: () =>
+            Effect.promise(async () => {
+              markWriteStarted()
+              await writeFinished
+              return 0
+            }),
+          writeResource: () => Effect.succeed(0),
+          finalize,
+          discard: () => Effect.void,
+        }),
+      discard: () => Effect.void,
+    }
+    const database = Layer.provideMerge(schema, sqlite)
+    const running = Effect.runPromise(
+      runSessionExportOperation(operation.exportOperationId, { release: vi.fn() }).pipe(
+        Effect.provide(Layer.merge(testDependencies(operations, artifacts), database)),
+      ),
+    )
+    await writeStarted
+    let fenceSettled = false
+    const fenced = fenceLocalSessionProfileBackgroundWork('exporter').then(() => {
+      fenceSettled = true
+    })
+    await Promise.resolve()
+    expect(fenceSettled).toBe(false)
+    releaseWrite()
+    await Promise.all([running, fenced])
+    expect(fail).toHaveBeenCalledOnce()
+    expect(complete).not.toHaveBeenCalled()
+    expect(finalize).not.toHaveBeenCalled()
+  } finally {
+    releaseLocalSessionProfileBackgroundWorkFence('exporter')
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   }
 }

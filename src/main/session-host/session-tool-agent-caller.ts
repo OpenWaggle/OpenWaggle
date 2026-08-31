@@ -153,9 +153,7 @@ function loadDerivedAuthorities(
   sql: SqlClient.SqlClient,
   row: AuthorityRow,
   targetIds: readonly string[],
-  hasOriginAuthority: boolean,
 ) {
-  if (!hasOriginAuthority) return Effect.succeed<readonly DerivedAuthorityRow[]>([])
   return sql<DerivedAuthorityRow>`
     SELECT child_session_id, capabilities_json, authorization_ceiling
     FROM derived_child_management_grants
@@ -258,7 +256,6 @@ export function resolveSessionToolAgentCaller(
       sql,
       row,
       inherentTargets.map((target) => target.session_id),
-      origins.length > 0,
     )
     const sharesProjectScope =
       row.parent_session_id === null &&
@@ -270,6 +267,9 @@ export function resolveSessionToolAgentCaller(
             candidate.scope.projectPaths?.includes(row.project_path ?? '') === true,
         ))
     const filesystemRoot = authoritySnapshot?.workingPath ?? input.workingDirectory
+    const baseSessionIds = visibleTargets
+      .filter((target) => row.parent_session_id === null || target.session_id === input.sessionId)
+      .map((target) => target.session_id)
     const baseScope = sharesProjectScope
       ? {
           projectPaths: [row.project_path],
@@ -277,7 +277,7 @@ export function resolveSessionToolAgentCaller(
           attachmentRoots: [filesystemRoot],
         }
       : {
-          sessionIds: visibleTargets.map((target) => target.session_id),
+          sessionIds: baseSessionIds,
           exportRoots: [filesystemRoot],
           attachmentRoots: [filesystemRoot],
         }
@@ -288,19 +288,18 @@ export function resolveSessionToolAgentCaller(
       ...(origins.length > 0
         ? {
             baseProfileScope: baseScope,
-            derivedSessionAuthorities: derived.map((authority) => ({
-              sessionId: authority.child_session_id,
-              capabilities: decodeCapabilities(authority.capabilities_json).filter((capability) =>
-                effective.capabilities.includes(capability),
-              ),
-              authorizationCeiling:
-                ceiling === 'ask-for-approval' ||
-                authority.authorization_ceiling === 'ask-for-approval'
-                  ? ('ask-for-approval' as const)
-                  : ('yolo' as const),
-            })),
           }
         : {}),
+      derivedSessionAuthorities: derived.map((authority) => ({
+        sessionId: authority.child_session_id,
+        capabilities: decodeCapabilities(authority.capabilities_json).filter((capability) =>
+          effective.capabilities.includes(capability),
+        ),
+        authorizationCeiling:
+          ceiling === 'ask-for-approval' || authority.authorization_ceiling === 'ask-for-approval'
+            ? ('ask-for-approval' as const)
+            : ('yolo' as const),
+      })),
       profileAuthority: {
         profileId: `session-agent:${input.sessionId}`,
         profileName: `session-agent:${input.sessionId}`,

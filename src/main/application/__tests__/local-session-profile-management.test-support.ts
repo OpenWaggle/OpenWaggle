@@ -5,7 +5,10 @@ import { LOCAL_SESSION_PROFILE_MANAGEMENT_CONTRACT_VERSION } from '@shared/types
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { AgentRunInterruptionService } from '../../ports/agent-run-interruption-service'
-import type { LocalSessionProfileRepositoryShape } from '../../ports/local-session-profile-repository'
+import type {
+  LocalSessionProfileAuthenticationRecord,
+  LocalSessionProfileRepositoryShape,
+} from '../../ports/local-session-profile-repository'
 import { LocalSessionProfileRepository } from '../../ports/local-session-profile-repository'
 
 export const PROJECT_PATH = fs.realpathSync(os.tmpdir())
@@ -45,11 +48,12 @@ export function localSessionProfileManagementTestLayer(
   ) => Promise<LocalSessionProfileManagementResponse>,
   interrupt: () => Effect.Effect<{ readonly accepted: true }> = () =>
     Effect.succeed({ accepted: true }),
+  profile?: LocalSessionProfileAuthenticationRecord,
 ) {
   return Layer.mergeAll(
     Layer.succeed(LocalSessionProfileRepository, {
       list: () => Effect.succeed([]),
-      findForAuthentication: () => Effect.succeed(null),
+      findForAuthentication: () => Effect.succeed(profile ?? null),
       findById: () => Effect.succeed(null),
       recordAuthentication: () => Effect.void,
       executeManagement: (input) => Effect.promise(() => executeManagement(input)),

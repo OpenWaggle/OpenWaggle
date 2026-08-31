@@ -41,6 +41,7 @@ import {
   runSessionToolCallerResolution,
   throwIfSessionToolAborted,
 } from './session-tool-gateway-cancellation'
+import { admitSessionToolMutation } from './session-tool-mutation-admission'
 
 export { resolveSessionToolAgentCaller } from './session-tool-agent-caller'
 
@@ -103,9 +104,20 @@ export const installAppSessionToolGateway = Effect.gen(function* () {
           caller,
           payload,
           ...(input.signal ? { signal: input.signal } : {}),
+          mutationAdmission: () =>
+            admitSessionToolMutation({
+              sql,
+              sessionId: input.sourceSessionId,
+              runId: input.sourceRunId,
+              workingDirectory: input.workingDirectory,
+              ...(input.signal ? { signal: input.signal } : {}),
+            }),
         }),
     )
-    return Effect.runPromise(command.pipe(Effect.provide(dependencies)))
+    return Effect.runPromise(
+      command.pipe(Effect.provide(dependencies)),
+      input.signal ? { signal: input.signal } : undefined,
+    )
   })
   yield* Effect.addFinalizer(() => Effect.sync(release))
 })

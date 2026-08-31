@@ -24,6 +24,10 @@ import {
 } from './local-session-command-scoping'
 import { authorizeTargetForCaller } from './local-session-derived-authority'
 import {
+  acquireLocalSessionMutationAdmission,
+  type LocalSessionMutationAdmission,
+} from './local-session-mutation-admission'
+import {
   dispatchOwnerLocalSessionCommand,
   isLocallyHandledCommand,
 } from './local-session-owned-command'
@@ -35,6 +39,7 @@ import {
 } from './local-ui-session-service'
 import { preserveOutcomeAfterAttachmentCleanup } from './session-attachment-cleanup'
 import { prepareSessionCommandAttachments } from './session-command-attachment-preparation'
+import { bindSessionControlAttachments } from './session-control-command-attachments'
 import { executeSessionControlMutation } from './session-control-command-service'
 import { publishControlResponse } from './session-control-event-projection'
 import { executeSessionLifecycleCommand } from './session-lifecycle-command-service'
@@ -119,42 +124,6 @@ export function lifecycleCallerCapabilities(
   })
 }
 
-function controlAttachmentIds(
-  command: Extract<
-    LocalSessionCommandPayload,
-    { contract: 'session-control-v2' }
-  >['request']['command'],
-): readonly string[] {
-  if (
-    command.operation === 'message' ||
-    command.operation === 'start' ||
-    command.operation === 'follow-up' ||
-    command.operation === 'steer' ||
-    command.operation === 'replace'
-  ) {
-    return command.input.attachmentIds
-  }
-  return []
-}
-
-function bindSessionControlAttachments(
-  caller: LocalSessionCallerIdentity,
-  payload: Extract<LocalSessionCommandPayload, { contract: 'session-control-v2' }>,
-) {
-  const attachmentIds = controlAttachmentIds(payload.request.command)
-  return attachmentIds.length === 0
-    ? Effect.void
-    : SessionControlAttachmentService.pipe(
-        Effect.flatMap((service) =>
-          service.bind({
-            attachmentIds,
-            sessionId: payload.request.command.sessionId,
-            ownerCallerId: caller.callerId,
-          }),
-        ),
-      )
-}
-
 type NonHostUiLocalSessionCommandPayload = Exclude<
   LocalSessionCommandPayload,
   { readonly contract: 'host-ui-v1' }
@@ -164,6 +133,7 @@ export function dispatchNonHostUiLocalSessionCommand(input: {
   readonly caller: LocalSessionCallerIdentity
   readonly payload: NonHostUiLocalSessionCommandPayload
   readonly signal?: AbortSignal
+  readonly mutationAdmission?: () => Promise<LocalSessionMutationAdmission>
 }) {
   const commandPayload = input.payload
   const ownerLocal = dispatchOwnerLocalSessionCommand(input)
@@ -204,51 +174,69 @@ export function dispatchNonHostUiLocalSessionCommand(input: {
       return yield* dispatchSessionQuery(caller, payload, input.signal)
     }
 
-    if (payload.contract === 'session-control-v2') {
-      const attachmentService = yield* SessionControlAttachmentService
-      return yield* preserveOutcomeAfterAttachmentCleanup({
-        effect: Effect.gen(function* () {
-          yield* bindSessionControlAttachments(caller, payload)
-          const settings = yield* SettingsService
-          const snapshot = yield* settings.get()
-          const authority = profileAuthorityForCapabilities(
-            caller,
-            requiredSessionControlCapabilities(payload.request.command),
-          )
-          const response = yield* executeSessionControlMutation({
-            callerId: caller.callerId,
-            caller,
-            hostRunCeiling: snapshot.sessionHostRunCeiling,
-            ...(authority ? { authority } : {}),
-            request: payload.request,
-          })
-          publishControlResponse(response)
-          return { contract: 'session-control-v2', response } as const
-        }),
-        cleanup: attachmentService.cleanupUnreferenced({
-          sessionId: payload.request.command.sessionId,
-        }),
-        operation: 'command',
-        sessionId: payload.request.command.sessionId,
-      })
-    }
-    const callerCapabilities = yield* lifecycleCallerCapabilities(caller, payload)
-    const response = yield* executeSessionLifecycleCommand({
-      callerId: caller.callerId,
-      ...(caller.profileAuthority && callerCapabilities
-        ? {
-            callerCapabilities,
-            callerAuthorizationCeiling: caller.profileAuthority.authorizationCeiling,
-            callerAuthorityScope: caller.baseProfileScope ?? caller.profileAuthority.scope,
-          }
-        : {}),
-      ...(caller.workingDirectory ? { initiatingWorkingDirectory: caller.workingDirectory } : {}),
-      request: payload.request,
-      beforeDispatchAcceptedRun: refreshAdmissionBeforeStartedLifecycleProjection,
-    })
-    yield* refreshAdmissionBeforeIdleLifecycleProjection(response)
-    publishLifecycleResponse(response)
-    return { contract: 'session-lifecycle-v2', response } as const
+    const admission = yield* acquireLocalSessionMutationAdmission(input, caller)
+    return yield* Effect.gen(function* () {
+      const admittedPayload = payload
+      yield* authorizeLocalSessionCommand({ caller: admission.caller, payload: admittedPayload })
+      if (input.signal?.aborted) {
+        return yield* Effect.fail(
+          input.signal.reason instanceof Error ? input.signal.reason : new Error('aborted'),
+        )
+      }
+      if (admittedPayload.contract === 'session-control-v2') {
+        const attachmentService = yield* SessionControlAttachmentService
+        return yield* preserveOutcomeAfterAttachmentCleanup({
+          effect: Effect.gen(function* () {
+            yield* bindSessionControlAttachments(admission.caller, admittedPayload)
+            const settings = yield* SettingsService
+            const snapshot = yield* settings.get()
+            const authority = profileAuthorityForCapabilities(
+              admission.caller,
+              requiredSessionControlCapabilities(admittedPayload.request.command),
+            )
+            const response = yield* executeSessionControlMutation({
+              callerId: admission.caller.callerId,
+              caller: admission.caller,
+              hostRunCeiling: snapshot.sessionHostRunCeiling,
+              ...(authority ? { authority } : {}),
+              request: admittedPayload.request,
+            })
+            publishControlResponse(response)
+            return { contract: 'session-control-v2', response } as const
+          }),
+          cleanup: attachmentService.cleanupUnreferenced({
+            sessionId: admittedPayload.request.command.sessionId,
+          }),
+          operation: 'command',
+          sessionId: admittedPayload.request.command.sessionId,
+        }).pipe(Effect.uninterruptible)
+      }
+      const callerCapabilities = yield* lifecycleCallerCapabilities(
+        admission.caller,
+        admittedPayload,
+      )
+      return yield* Effect.gen(function* () {
+        const response = yield* executeSessionLifecycleCommand({
+          callerId: admission.caller.callerId,
+          ...(admission.caller.profileAuthority && callerCapabilities
+            ? {
+                callerCapabilities,
+                callerAuthorizationCeiling: admission.caller.profileAuthority.authorizationCeiling,
+                callerAuthorityScope:
+                  admission.caller.baseProfileScope ?? admission.caller.profileAuthority.scope,
+              }
+            : {}),
+          ...(admission.caller.workingDirectory
+            ? { initiatingWorkingDirectory: admission.caller.workingDirectory }
+            : {}),
+          request: admittedPayload.request,
+          beforeDispatchAcceptedRun: refreshAdmissionBeforeStartedLifecycleProjection,
+        })
+        yield* refreshAdmissionBeforeIdleLifecycleProjection(response)
+        publishLifecycleResponse(response)
+        return { contract: 'session-lifecycle-v2', response } as const
+      }).pipe(Effect.uninterruptible)
+    }).pipe(Effect.ensuring(Effect.sync(admission.release)))
   })
 }
 

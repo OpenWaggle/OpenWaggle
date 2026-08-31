@@ -7,8 +7,7 @@ import {
   launchGui,
   runProcess,
   selectPackagedExecutable,
-  type StoppableChild,
-  stopChild,
+  waitForHost,
 } from '../live-session-orchestration-support'
 import {
   transcriptInvokedSessionsSpawn,
@@ -60,77 +59,62 @@ describe('live Session orchestration support', () => {
     await expect(launchGui(missingExecutable, {})).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
-  it('terminates the complete Windows process tree and waits for proven exit', async () => {
-    class FakeChild implements StoppableChild {
-      readonly pid = 42
-      readonly exitCode = null
-      readonly signalCode = null
-      readonly kill = vi.fn(() => true)
-      once() {
-        return this
-      }
-      off() {
-        return this
-      }
-    }
-    const child = new FakeChild()
-    const waitForExit = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true)
-    const terminateWindowsTree = vi.fn(async () => undefined)
-
-    await stopChild(child, { platform: 'win32', terminateWindowsTree, waitForExit })
-
-    expect(child.kill).not.toHaveBeenCalled()
-    expect(terminateWindowsTree).toHaveBeenNthCalledWith(1, 42, false)
-    expect(terminateWindowsTree).toHaveBeenNthCalledWith(2, 42, true)
-    expect(waitForExit).toHaveBeenCalledTimes(2)
-  })
-
-  it('targets the Windows process tree before accepting a fast root exit', async () => {
-    class FakeChild implements StoppableChild {
-      readonly pid = 44
-      readonly exitCode = null
-      readonly signalCode = null
-      readonly kill = vi.fn(() => true)
-      once() {
-        return this
-      }
-      off() {
-        return this
-      }
-    }
-    const child = new FakeChild()
-    const waitForExit = vi.fn(async () => true)
-    const terminateWindowsTree = vi.fn(async () => undefined)
-
-    await stopChild(child, { platform: 'win32', terminateWindowsTree, waitForExit })
-
-    expect(terminateWindowsTree).toHaveBeenCalledWith(44, false)
-    expect(terminateWindowsTree.mock.invocationCallOrder[0]).toBeLessThan(
-      waitForExit.mock.invocationCallOrder[0],
-    )
-    expect(child.kill).not.toHaveBeenCalled()
-  })
-
-  it('fails closed when forced termination cannot prove process exit', async () => {
-    class FakeChild implements StoppableChild {
-      readonly pid = 43
-      readonly exitCode = null
-      readonly signalCode = null
-      readonly kill = vi.fn(() => true)
-      once() {
-        return this
-      }
-      off() {
-        return this
-      }
-    }
+  it('bounds a hanging CLI probe and terminates its descendant process', async () => {
+    workingDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-live-qa-timeout-'))
+    const descendantMarker = path.join(workingDirectory, 'descendant-survived')
+    const descendantScript = [
+      `const fs = require('node:fs')`,
+      `setTimeout(() => fs.writeFileSync(${JSON.stringify(descendantMarker)}, 'alive'), 1200)`,
+      `setInterval(() => undefined, 1000)`,
+    ].join(';')
+    const parentScript = [
+      `const { spawn } = require('node:child_process')`,
+      `spawn(${JSON.stringify(process.execPath)}, ['-e', ${JSON.stringify(descendantScript)}], { stdio: 'ignore' })`,
+      `setInterval(() => undefined, 1000)`,
+    ].join(';')
+    const startedAt = Date.now()
 
     await expect(
-      stopChild(new FakeChild(), {
-        platform: 'linux',
-        waitForExit: async () => false,
+      runProcess(process.execPath, ['-e', parentScript], {}, { timeoutMs: 500 }),
+    ).rejects.toThrow('timed out after 500ms')
+
+    expect(Date.now() - startedAt).toBeLessThan(2_500)
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+    await expect(fs.access(descendantMarker)).rejects.toThrow()
+  })
+
+  it('bounds each Host-readiness probe by the remaining startup deadline', async () => {
+    let now = 1_000
+    const runCli = vi.fn(async () => {
+      now += 400
+      throw new Error('Host unavailable')
+    })
+
+    await expect(
+      waitForHost('/packaged/OpenWaggle', {}, {
+        timeoutMs: 1_000,
+        now: () => now,
+        runCli,
+        wait: async (milliseconds) => {
+          now += milliseconds
+        },
       }),
-    ).rejects.toThrow('Could not prove GUI process 43 exited')
+    ).rejects.toThrow('Session Host did not become ready')
+
+    expect(runCli).toHaveBeenNthCalledWith(
+      1,
+      '/packaged/OpenWaggle',
+      {},
+      ['sessions', 'list', '--all', '--limit', '1'],
+      { timeoutMs: 1_000 },
+    )
+    expect(runCli).toHaveBeenNthCalledWith(
+      2,
+      '/packaged/OpenWaggle',
+      {},
+      ['sessions', 'list', '--all', '--limit', '1'],
+      { timeoutMs: 350 },
+    )
   })
 
   it('does not treat a user prompt mention as a skill invocation', () => {

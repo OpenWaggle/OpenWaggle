@@ -12,6 +12,10 @@ import {
   refreshLocalSessionProfileAdmissions,
 } from '../session-host/local-session-profile-invalidation'
 import {
+  fenceLocalSessionProfileBackgroundWork,
+  releaseLocalSessionProfileBackgroundWorkFence,
+} from './local-session-profile-background-work'
+import {
   profileManagementRejection,
   profileManagementRejectionReason,
   profileManagementTargetName,
@@ -88,6 +92,10 @@ export function manageLocalSessionProfiles(input: {
       command.operation === 'revoke'
         ? command.profileName.trim()
         : undefined
+    const backgroundFenceProfile =
+      command.operation === 'update' || command.operation === 'revoke'
+        ? yield* repository.findForAuthentication(command.profileName.trim())
+        : null
     const execute = Effect.gen(function* () {
       if (fencedProfileName) {
         yield* Effect.promise(() => fenceLocalSessionProfileAdmissions(fencedProfileName))
@@ -114,9 +122,18 @@ export function manageLocalSessionProfiles(input: {
       yield* interruptRevokedRuns(response.outcome, response.replayed)
       return response
     })
-    const execution = fencedProfileName
-      ? withLocalSessionProfileMutationLock(fencedProfileName, execute)
+    const backgroundFencedExecution = backgroundFenceProfile
+      ? Effect.acquireUseRelease(
+          Effect.promise(() => fenceLocalSessionProfileBackgroundWork(backgroundFenceProfile.id)),
+          () => execute,
+          () =>
+            Effect.sync(() =>
+              releaseLocalSessionProfileBackgroundWorkFence(backgroundFenceProfile.id),
+            ),
+        )
       : execute
-    return yield* execution
+    return yield* fencedProfileName
+      ? withLocalSessionProfileMutationLock(fencedProfileName, backgroundFencedExecution)
+      : backgroundFencedExecution
   })
 }

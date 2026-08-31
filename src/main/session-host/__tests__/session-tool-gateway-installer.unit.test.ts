@@ -5,6 +5,7 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import { SqliteClient } from '@effect/sql-sqlite-node'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { authorizeSessionTargetForCaller } from '../../domain/session-control/session-capability-authorization'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
 import { resolveSessionToolAgentCaller } from '../session-tool-gateway-installer'
 
@@ -94,11 +95,16 @@ describe('Sessions tool agent authority', () => {
           INSERT INTO derived_child_management_grants (
             id, parent_session_id, child_session_id, source_caller_id,
             capabilities_json, authorization_ceiling, revoked_at
-          ) VALUES (
-            ${'grant-worker'}, ${'queen'}, ${'worker'}, ${'local-user'},
-            ${'["sessions:spawn","sessions:read","unknown:grant"]'},
-            ${'ask-for-approval'}, ${null}
-          )
+          ) VALUES
+            (
+              ${'grant-worker'}, ${'queen'}, ${'worker'}, ${'local-user'},
+              ${'["sessions:spawn","sessions:read","sessions:message","unknown:grant"]'},
+              ${'ask-for-approval'}, ${null}
+            ),
+            (
+              ${'grant-grandchild'}, ${'worker'}, ${'grandchild'}, ${'local-user'},
+              ${'["sessions:read"]'}, ${'ask-for-approval'}, ${null}
+            )
         `
           yield* sql`
           INSERT INTO session_client_profiles (
@@ -191,14 +197,36 @@ describe('Sessions tool agent authority', () => {
     expect(worker.profileAuthority).toEqual({
       profileId: 'session-agent:worker',
       profileName: 'session-agent:worker',
-      capabilities: ['sessions:spawn', 'sessions:read'],
+      capabilities: ['sessions:spawn', 'sessions:read', 'sessions:message'],
       scope: {
-        sessionIds: ['worker', 'grandchild'],
+        sessionIds: ['worker'],
         exportRoots: ['/project'],
         attachmentRoots: ['/project'],
       },
       authorizationCeiling: 'ask-for-approval',
     })
+    expect(worker.derivedSessionAuthorities).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sessionId: 'grandchild',
+          capabilities: ['sessions:read'],
+        }),
+      ]),
+    )
+    expect(
+      authorizeSessionTargetForCaller(
+        worker,
+        { sessionId: 'grandchild', projectPath: '/project', hiveRootSessionId: 'queen' },
+        ['sessions:message'],
+      ),
+    ).toMatchObject({ authorized: false, code: 'capability_denied' })
+    expect(
+      authorizeSessionTargetForCaller(
+        worker,
+        { sessionId: 'grandchild', projectPath: '/project', hiveRootSessionId: 'queen' },
+        ['sessions:read'],
+      ),
+    ).toMatchObject({ authorized: true })
     expect(restrictedBefore.profileAuthority).toMatchObject({
       capabilities: ['sessions:read', 'sessions:spawn', 'sessions:report'],
       authorizationCeiling: 'yolo',

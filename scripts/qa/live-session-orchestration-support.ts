@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { Client } from '@modelcontextprotocol/client'
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
+import { type RunProcessOptions, runProcess } from './bounded-child-process'
 
 const APP_NAME = 'OpenWaggle.app'
 const FIRST_USER_ARGUMENT_INDEX = 2
@@ -10,6 +11,14 @@ const STARTUP_TIMEOUT_MS = 30_000
 const RETRY_DELAY_MS = 250
 const MAX_LOG_BYTES = 64_000
 const LIST_LIMIT = 20
+const MIN_PROCESS_TIMEOUT_MS = 1
+
+interface WaitForHostOptions {
+  readonly timeoutMs?: number
+  readonly now?: () => number
+  readonly runCli?: typeof runJsonCli
+  readonly wait?: (milliseconds: number) => Promise<void>
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -115,39 +124,13 @@ export async function launchGui(
   return { child, logs: () => logs }
 }
 
-export async function runProcess(
-  command: string,
-  args: readonly string[],
-  env: Record<string, string>,
-) {
-  return await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
-    const child = spawn(command, [...args], { env, stdio: ['ignore', 'pipe', 'pipe'] })
-    let stdout = ''
-    let stderr = ''
-    child.stdout.on('data', (chunk) => {
-      stdout += String(chunk)
-    })
-    child.stderr.on('data', (chunk) => {
-      stderr += String(chunk)
-    })
-    child.once('error', reject)
-    child.once('exit', (code, signal) => {
-      if (code === 0) return resolve({ stdout, stderr })
-      reject(
-        new Error(
-          `${path.basename(command)} ${args.join(' ')} failed (${code ?? signal}): ${stderr || stdout}`,
-        ),
-      )
-    })
-  })
-}
-
 export async function runJsonCli(
   executable: string,
   env: Record<string, string>,
   args: readonly string[],
+  options: RunProcessOptions = {},
 ) {
-  const result = await runProcess(executable, [...args, '--json'], env)
+  const result = await runProcess(executable, [...args, '--json'], env, options)
   const parsed: unknown = JSON.parse(result.stdout)
   assertRecord(parsed, 'CLI response was not an object.')
   if (parsed.type === 'error') throw new Error(`CLI error: ${result.stdout}`)
@@ -164,16 +147,26 @@ export function cliOutcome(response: Record<string, unknown>) {
   return outcome
 }
 
-export async function waitForHost(executable: string, env: Record<string, string>) {
-  const deadline = Date.now() + STARTUP_TIMEOUT_MS
+export async function waitForHost(
+  executable: string,
+  env: Record<string, string>,
+  options: WaitForHostOptions = {},
+) {
+  const now = options.now ?? Date.now
+  const runCli = options.runCli ?? runJsonCli
+  const wait =
+    options.wait ?? ((milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds)))
+  const deadline = now() + (options.timeoutMs ?? STARTUP_TIMEOUT_MS)
   let lastError: unknown
-  while (Date.now() < deadline) {
+  while (now() < deadline) {
     try {
-      await runJsonCli(executable, env, ['sessions', 'list', '--all', '--limit', '1'])
+      await runCli(executable, env, ['sessions', 'list', '--all', '--limit', '1'], {
+        timeoutMs: Math.max(MIN_PROCESS_TIMEOUT_MS, deadline - now()),
+      })
       return
     } catch (error) {
       lastError = error
-      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS))
+      await wait(RETRY_DELAY_MS)
     }
   }
   throw new Error(`Session Host did not become ready: ${String(lastError)}`)
@@ -311,4 +304,5 @@ export async function verifyExternalMcp(input: {
   }
 }
 
+export { runProcess } from './bounded-child-process'
 export { type StoppableChild, stopChild } from './child-process-lifecycle'

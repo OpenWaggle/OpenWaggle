@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import { writeAgentsCliError } from './agents-cli-output'
 import { flushCliOutput } from './cli-output-flush'
 import { env } from './env'
 import { configureAppStoragePaths } from './session-data'
@@ -17,7 +18,7 @@ export function startAgentsCliIfRequested(argv: readonly string[]) {
       app.exit(exitCode)
     })
     .catch(async (error: unknown) => {
-      process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`)
+      writeAgentsCliError(error, argv.includes('--json'), process.stderr.write.bind(process.stderr))
       await flushCliOutput().catch(() => undefined)
       app.exit(FAILURE_EXIT_CODE)
     })

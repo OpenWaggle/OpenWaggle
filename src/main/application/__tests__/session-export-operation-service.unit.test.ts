@@ -13,7 +13,10 @@ import {
   exportRepository as repository,
   exportTestLayer as testLayer,
 } from './session-export-operation-service.test-support'
-import { verifyProfileCapabilityReductionStopsExport } from './session-export-profile-authority.test-support'
+import {
+  verifyProfileCapabilityReductionStopsExport,
+  verifyProfileFenceDrainsExportBeforePolicyChange,
+} from './session-export-profile-authority.test-support'
 import { verifyRevokedWorkspaceRootStopsExport } from './session-export-resource-authority.test-support'
 
 describe('Session export operation service', () => {
@@ -152,6 +155,10 @@ describe('Session export operation service', () => {
 
   it('stops a profile export when required capabilities are reduced between pages', async () => {
     await verifyProfileCapabilityReductionStopsExport()
+  })
+
+  it('drains an in-flight profile export before changing its authority', async () => {
+    await verifyProfileFenceDrainsExportBeforePolicyChange()
   })
 
   it('stops before reading a bundled resource when its live workspace export root is revoked', async () => {

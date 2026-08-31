@@ -5,6 +5,7 @@ import {
   installLocalSessionProfileAdmissionFencer,
   installLocalSessionProfileAdmissionRefresher,
 } from '../../session-host/local-session-profile-invalidation'
+import { acquireLocalSessionProfileBackgroundWork } from '../local-session-profile-background-work'
 import { manageLocalSessionProfiles } from '../local-session-profile-management'
 import {
   localSessionProfileManagementTestLayer,
@@ -154,6 +155,44 @@ describe('Local Session profile management fencing', () => {
       'persist-2:end',
       'refresh:1',
     ])
+  })
+
+  it('drains profile background work before persisting an authority update', async () => {
+    const work = acquireLocalSessionProfileBackgroundWork(PROFILE.id, { cancelOnFence: false })
+    expect(work).toBeDefined()
+    const persist = vi.fn(async () => ({
+      contractVersion: LOCAL_SESSION_PROFILE_MANAGEMENT_CONTRACT_VERSION,
+      requestId: 'request-1',
+      idempotencyKey: 'key-1',
+      replayed: false,
+      outcome: {
+        operation: 'update' as const,
+        effect: 'profile-updated' as const,
+        profile: PROFILE,
+      },
+    }))
+    const layer = localSessionProfileManagementTestLayer(persist, undefined, {
+      id: PROFILE.id,
+      name: PROFILE.name,
+      credentialVerifier: 'verifier',
+      capabilities: PROFILE.capabilities,
+      scope: PROFILE.scope,
+      authorizationCeiling: PROFILE.authorizationCeiling,
+      revokedAt: null,
+    })
+    const update = Effect.runPromise(
+      manageLocalSessionProfiles({
+        caller: { callerId: 'local-user' },
+        request: updateRequest(),
+        now: 2,
+      }).pipe(Effect.provide(layer)),
+    )
+
+    await Promise.resolve()
+    expect(persist).not.toHaveBeenCalled()
+    work?.release()
+    await update
+    expect(persist).toHaveBeenCalledOnce()
   })
 
   it('keeps a revoked profile fenced while live runs are interrupted', async () => {

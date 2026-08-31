@@ -175,6 +175,28 @@ function parseSessionAgentCaller(callerId: string) {
   }
 }
 
+export function resolveExportOriginProfileId(
+  sql: SqlClient.SqlClient,
+  operation: SessionExportOperationRecord,
+) {
+  if (operation.callerId.startsWith('profile:')) {
+    return Effect.succeed(operation.callerId.slice('profile:'.length))
+  }
+  const source = parseSessionAgentCaller(operation.callerId)
+  if (!source) return Effect.succeed<string | undefined>(undefined)
+  return sql<{ readonly authority_origin_caller_id: string }>`
+    SELECT authority_origin_caller_id
+    FROM session_execution_profiles
+    WHERE session_id = ${source.sessionId}
+    LIMIT 1
+  `.pipe(
+    Effect.map((rows) => {
+      const callerId = rows[0]?.authority_origin_caller_id
+      return callerId?.startsWith('profile:') ? callerId.slice('profile:'.length) : undefined
+    }),
+  )
+}
+
 function loadSessionAgentCaller(sql: SqlClient.SqlClient, callerId: string) {
   const source = parseSessionAgentCaller(callerId)
   if (!source) return Effect.fail(new Error('Export Session-agent caller identity is invalid.'))
