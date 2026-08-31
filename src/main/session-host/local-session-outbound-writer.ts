@@ -3,6 +3,7 @@ import type { LocalSessionOutboundByteBudget } from './local-session-outbound-bu
 import { writeLocalSessionSocketFrame } from './local-session-server-frame'
 
 const DEFAULT_MAX_PENDING_OUTBOUND_FRAMES_PER_CONNECTION = 16
+export type LocalSessionSocketFrameWriter = typeof writeLocalSessionSocketFrame
 
 export class LocalSessionOutboundWriter {
   private writeTail = Promise.resolve()
@@ -14,6 +15,7 @@ export class LocalSessionOutboundWriter {
     private readonly budget: LocalSessionOutboundByteBudget,
     private readonly signal: AbortSignal,
     maxPendingFrames = DEFAULT_MAX_PENDING_OUTBOUND_FRAMES_PER_CONNECTION,
+    private readonly writeFrame: LocalSessionSocketFrameWriter = writeLocalSessionSocketFrame,
   ) {
     if (!Number.isSafeInteger(maxPendingFrames) || maxPendingFrames < 1) {
       throw new Error('Local Session pending outbound frame limit must be a positive safe integer.')
@@ -30,7 +32,7 @@ export class LocalSessionOutboundWriter {
     const operation = this.writeTail
       .then(() => {
         if (this.signal.aborted || this.socket.destroyed || !this.socket.writable) return
-        return writeLocalSessionSocketFrame({
+        return this.writeFrame({
           socket: this.socket,
           value,
           budget: this.budget,

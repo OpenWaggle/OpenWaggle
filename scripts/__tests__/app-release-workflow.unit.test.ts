@@ -156,6 +156,16 @@ describe('desktop app release workflow', () => {
     ).toHaveLength(3)
     expect(WORKFLOW).toContain('dist/linux-unpacked/openwaggle')
     expect(WORKFLOW).toContain('dist\\win-unpacked\\OpenWaggle.exe')
-    expect(WORKFLOW).toContain('$NATIVE_APP/Contents/MacOS/OpenWaggle')
+    expect(WORKFLOW).toContain('$APP_ROOT/OpenWaggle.app/Contents/MacOS/OpenWaggle')
+    expect(WORKFLOW).toContain(
+      'architecture: x64\n            runner: macos-15-intel\n            expected_uname: x86_64',
+    )
+    expect(WORKFLOW).toContain(
+      'architecture: arm64\n            runner: macos-15\n            expected_uname: arm64',
+    )
+    expect(WORKFLOW).toContain('test "$(uname -m)" = "${{ matrix.expected_uname }}"')
+    expect(WORKFLOW).toContain('electron-builder --mac --arm64 --x64')
+    expect(WORKFLOW).not.toContain('NATIVE_APP=')
+    expect(WORKFLOW).toContain('needs: [version, smoke-macos, verify-installers]')
   })
 })

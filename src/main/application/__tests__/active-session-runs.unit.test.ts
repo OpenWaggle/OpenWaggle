@@ -7,6 +7,7 @@ import {
   interruptExactSessionRun,
   interruptSessionWriterAndWait,
   releaseClaimedSessionWriterSuccessor,
+  requestExactSessionRunInterruption,
   reserveActiveSessionRun,
   reserveCompactionSessionWriter,
   reserveSessionTreeMutation,
@@ -42,6 +43,19 @@ describe('active Session Runs', () => {
     await expect(interruption).resolves.toBe(true)
     expect(abort).toHaveBeenCalledOnce()
     expect(activeRuns.has(sessionId)).toBe(false)
+  })
+
+  it('requests an exact interruption without waiting for Run cleanup', () => {
+    const sessionId = SessionId('session-request-only')
+    const run = reserveActiveSessionRun(sessionId, 'run-active')
+
+    expect(requestExactSessionRunInterruption(sessionId, 'run-stale')).toBe(false)
+    expect(run.controller.signal.aborted).toBe(false)
+    expect(requestExactSessionRunInterruption(sessionId, 'run-active')).toBe(true)
+    expect(run.controller.signal.aborted).toBe(true)
+    expect(activeRuns.has(sessionId)).toBe(true)
+
+    run.release()
   })
 
   it('admits only one Pi writer across classic, Waggle, compaction, and tree mutation', () => {

@@ -32,6 +32,7 @@ import type {
 import { describeLocalSessionServerError } from './local-session-server-frame'
 
 const DEFAULT_HANDSHAKE_TIMEOUT_MS = 5000
+const DEFAULT_PROFILE_ADMISSION_DRAIN_TIMEOUT_MS = 1000
 
 export class LocalSessionConnection {
   private readonly inbound: LocalSessionInboundRetention
@@ -61,6 +62,7 @@ export class LocalSessionConnection {
       outboundBudget,
       this.authenticationController.signal,
       dependencies.maxPendingOutboundFramesPerConnection,
+      dependencies.writeFrame,
     )
     this.subscriptions = new LocalSessionConnectionSubscriptions({
       dependencies,
@@ -122,7 +124,7 @@ export class LocalSessionConnection {
         command.controller.abort(new LocalSessionProfileAdmissionChangedError())
       }
     }
-    return drained
+    return this.drainProfileAdmission(drained)
   }
 
   refreshProfileAdmission(
@@ -135,7 +137,8 @@ export class LocalSessionConnection {
       options?.consumeExistingFence === true && this.admission.hasFence()
     const drained = consumesExistingFence ? this.admission.waitForReaders() : this.admission.fence()
     const refresh = async () => {
-      await drained
+      await this.drainProfileAdmission(drained)
+      if (this.closed) return
       const caller = this.caller
       if (!caller || !this.dependencies.refreshCaller) {
         this.admission.releaseFence()
@@ -153,6 +156,25 @@ export class LocalSessionConnection {
 
   shutdown(): void {
     this.socket.destroy()
+  }
+
+  private async drainProfileAdmission(drained: Promise<void>): Promise<void> {
+    let timeout: ReturnType<typeof setTimeout> | undefined
+    const timeoutMs =
+      this.dependencies.profileAdmissionDrainTimeoutMs ?? DEFAULT_PROFILE_ADMISSION_DRAIN_TIMEOUT_MS
+    const result = await Promise.race([
+      drained.then(() => 'drained' as const),
+      new Promise<'timed-out'>((resolve) => {
+        timeout = setTimeout(() => resolve('timed-out'), timeoutMs)
+        timeout.unref?.()
+      }),
+    ])
+    if (timeout) clearTimeout(timeout)
+    if (result === 'drained') return
+
+    this.close()
+    this.socket.destroy()
+    await drained
   }
 
   private send(frame: LocalSessionServerFrame | unknown): Promise<void> {

@@ -18,6 +18,7 @@ interface CliResult {
 }
 
 interface VerifyInstalledCliDependencies {
+  readonly environmentOverrides?: Readonly<Record<string, string>>
   readonly createProfile?: () => Promise<string>
   readonly runCli?: (
     command: string,
@@ -131,12 +132,14 @@ export async function verifyInstalledCli(
   const shutdownAndRemoveProfile =
     dependencies.shutdownAndRemoveProfile ?? defaultShutdownAndRemoveProfile
   const userDataRoot = await createProfile()
-  const environment = buildSafeElectronEnvironment({
+  const environment = {
+    ...buildSafeElectronEnvironment({}),
+    ...dependencies.environmentOverrides,
     ...(platform === 'linux' ? { APPIMAGE_EXTRACT_AND_RUN: '1' } : {}),
     OPENWAGGLE_AUTOMATION: '1',
     OPENWAGGLE_DISABLE_SINGLE_INSTANCE: '1',
     OPENWAGGLE_USER_DATA_DIR: userDataRoot,
-  })
+  }
   let primaryFailure: { readonly error: unknown } | null = null
   try {
     const result = await executeCli(

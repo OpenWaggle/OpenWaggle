@@ -264,12 +264,14 @@ export function readSessionExport(sql: SqlClient.SqlClient, request: ExportReque
     )
     if (selection._tag === 'Left') return selection.left
     const { branchScope, selectedBranchId, selectedHeadNodeId } = selection.right
-    const queueRows = yield* sql<ExportQueueRow>`
-      SELECT id, position, delivery_state, attention_reason, intent_json, created_at
-      FROM session_follow_ups
-      WHERE session_id = ${query.sessionId}
-      ORDER BY position, id
-    `
+    const queueRows = query.snapshotManifest
+      ? []
+      : yield* sql<ExportQueueRow>`
+          SELECT id, position, delivery_state, attention_reason, intent_json, created_at
+          FROM session_follow_ups
+          WHERE session_id = ${query.sessionId}
+          ORDER BY position, id
+        `
     const highWaterMark = query.throughCreatedOrder ?? snapshot.node_high_water_mark
     const stateRevision = query.snapshotStateRevision ?? snapshot.state_revision
     const capturedAt = query.capturedAt ?? Date.now()

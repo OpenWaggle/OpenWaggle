@@ -42,6 +42,13 @@ export class ActiveRunManager<K, M> {
     return true
   }
 
+  requestInterrupt(key: K, matches: (metadata: M) => boolean) {
+    const entry = this.runs.get(key)
+    if (!entry || !matches(entry.metadata)) return false
+    entry.controller.abort()
+    return true
+  }
+
   cancelAll(predicate?: (entry: ActiveRunEntry<M>, key: K) => boolean) {
     for (const [key, entry] of this.runs) {
       if (!predicate || predicate(entry, key)) {

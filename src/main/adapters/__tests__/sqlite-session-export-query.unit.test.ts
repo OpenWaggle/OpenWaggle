@@ -53,6 +53,7 @@ describe('SQLite Session export query', () => {
           SET delivery_state = ${'needs_attention'}, attention_reason = ${'authority_changed'}
           WHERE session_id = ${'worker'}
         `
+        yield* sql`DROP TABLE session_follow_ups`
       }),
     )
     const second = await executeQuery(runtime, {

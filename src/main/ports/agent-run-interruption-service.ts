@@ -10,6 +10,9 @@ export type AgentRunInterruptionResult =
   | { readonly accepted: false; readonly code: 'run_not_live' }
 
 export interface AgentRunInterruptionServiceShape {
+  readonly requestInterrupt: (
+    input: AgentRunInterruptionInput,
+  ) => Effect.Effect<AgentRunInterruptionResult>
   readonly interrupt: (
     input: AgentRunInterruptionInput,
   ) => Effect.Effect<AgentRunInterruptionResult>

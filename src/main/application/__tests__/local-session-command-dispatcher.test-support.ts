@@ -93,7 +93,13 @@ export function queryPayload(
         readonly limit: number
         readonly searchScope?: 'discovery' | 'full-transcript'
       }
-    | { readonly operation: 'read'; readonly sessionId: string },
+    | { readonly operation: 'read'; readonly sessionId: string }
+    | { readonly operation: 'items'; readonly sessionId: string; readonly limit: number }
+    | {
+        readonly operation: 'wait'
+        readonly targets: readonly [{ readonly sessionId: string; readonly condition: 'idle' }]
+        readonly timeoutMs: number
+      },
 ): LocalSessionCommandPayload {
   return {
     contract: 'session-query-v2',

@@ -158,13 +158,15 @@ async function runScenario(executable: string, scenario: 'fresh' | 'legacy') {
     executable,
     workingDirectory: userDataRoot,
   })
-  const gui = launchGui(executable, environment, packagedGuiArguments())
-  const guiLogs = [gui.logs]
+  let gui: Awaited<ReturnType<typeof launchGui>> | null = null
+  const guiLogs: Array<() => string> = []
   let passed = false
   let primaryFailure: { readonly error: unknown } | null = null
   try {
+    gui = await launchGui(executable, environment, packagedGuiArguments())
+    guiLogs.push(gui.logs)
     await waitForHost(cliExecutable, environment)
-    const secondGui = launchGui(executable, environment, packagedGuiArguments())
+    const secondGui = await launchGui(executable, environment, packagedGuiArguments())
     guiLogs.push(secondGui.logs)
     try {
       await waitForExit(secondGui.child)

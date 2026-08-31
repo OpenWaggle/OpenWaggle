@@ -29,6 +29,7 @@ describe('Session Control replacement coordination', () => {
       Effect.gen(function* () {
         const lifecycle = yield* SessionControlRunLifecycleRepository
         return AgentRunInterruptionService.of({
+          requestInterrupt: () => Effect.succeed({ accepted: true }),
           interrupt: ({ sessionId, runId }) =>
             lifecycle
               .settle({

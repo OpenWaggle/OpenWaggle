@@ -51,6 +51,9 @@ export function resolveItemSnapshot(sql: SqlClient.SqlClient, query: ItemSnapsho
     const snapshot = sessionRows[0]
     if (snapshot?.session_exists !== 1) return { status: 'session-not-found' } as const
     const branchScope = query.branchScope ?? 'active-branch'
+    if (branchScope === 'tree' && (query.branchId || query.snapshotHeadNodeId)) {
+      return { status: 'branch-not-found' } as const
+    }
     const selectedBranchId =
       branchScope === 'tree' ? null : (query.branchId ?? snapshot.last_active_branch_id)
     const head =

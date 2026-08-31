@@ -3,7 +3,6 @@ import type { LocalSessionCallerIdentity } from '@shared/types/local-session-pro
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
 import * as Effect from 'effect/Effect'
 import {
-  authorizeSessionCapabilities,
   requiredSessionControlCapabilities,
   requiredSessionLifecycleCapabilities,
   requiredSessionQueryCapabilities,
@@ -11,6 +10,7 @@ import {
 import { LocalSessionCommandAuthorizationError } from '../errors'
 import { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
 import { SettingsService } from '../services/settings-service'
+import { authorizeLocalSessionCommandCapabilities } from './local-session-capability-authorization'
 import {
   authorizeTargetForCaller,
   derivedAuthorityForTarget,
@@ -89,28 +89,6 @@ function requestedRunAuthorizationOverride(payload: AuthorizedLocalSessionComman
       () => undefined,
     )
     .exhaustive()
-}
-
-function authorizeCapabilities(
-  caller: LocalSessionCallerIdentity,
-  payload: AuthorizedLocalSessionCommandPayload,
-) {
-  if (payload.contract === 'local-access-v1') return Effect.void
-  const required =
-    payload.contract === 'session-control-v2'
-      ? requiredSessionControlCapabilities(payload.request.command)
-      : payload.contract === 'session-lifecycle-v2'
-        ? requiredSessionLifecycleCapabilities(payload.request.command)
-        : requiredSessionQueryCapabilities(payload.request.query)
-  const authorization = authorizeSessionCapabilities(caller.profileAuthority, required)
-  return authorization.authorized
-    ? Effect.void
-    : Effect.fail(
-        new LocalSessionCommandAuthorizationError({
-          code: authorization.code,
-          missing: authorization.missing,
-        }),
-      )
 }
 
 function requiredCapabilities(payload: AuthorizedLocalSessionCommandPayload) {
@@ -271,7 +249,7 @@ export function authorizeLocalSessionCommand(input: {
         new LocalSessionCommandAuthorizationError({ code: 'capability_denied' }),
       )
     }
-    yield* authorizeCapabilities(input.caller, payload)
+    yield* authorizeLocalSessionCommandCapabilities(input.caller, payload)
     if (payload.contract === 'local-access-v1') return
     if (
       payload.contract === 'session-query-v2' &&

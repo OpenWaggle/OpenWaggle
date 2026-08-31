@@ -14,7 +14,7 @@ import { SessionDescendantRunRepository } from '../../ports/session-descendant-r
 import { interruptSessionDescendants } from '../session-control-external-service'
 
 describe('Session descendant interruption authorization', () => {
-  it('interrupts deepest active descendants explicitly without interrupting the parent', async () => {
+  it('requests every deepest-first interruption without waiting for Run settlement', async () => {
     const states = new Map<string, SessionControlSessionState>([
       [
         'queen',
@@ -44,7 +44,10 @@ describe('Session descendant interruption authorization', () => {
         },
       ],
     ])
-    const interrupt = vi.fn((_input: AgentRunInterruptionInput) => ({ accepted: true as const }))
+    const requestInterrupt = vi.fn((_input: AgentRunInterruptionInput) => ({
+      accepted: true as const,
+    }))
+    const awaitSettlement = vi.fn(() => Effect.never)
     const layer = Layer.mergeAll(
       Layer.succeed(SessionDescendantRunRepository, {
         listActive: () =>
@@ -54,7 +57,8 @@ describe('Session descendant interruption authorization', () => {
           ]),
       }),
       Layer.succeed(AgentRunInterruptionService, {
-        interrupt: (input) => Effect.succeed(interrupt(input)),
+        requestInterrupt: (input) => Effect.succeed(requestInterrupt(input)),
+        interrupt: awaitSettlement,
       }),
       Layer.succeed(SessionAuthorizationTargetRepository, {
         resolve: () => Effect.die('unrestricted callers do not resolve authorization targets'),
@@ -91,10 +95,11 @@ describe('Session descendant interruption authorization', () => {
       }).pipe(Effect.provide(layer)),
     )
 
-    expect(interrupt.mock.calls).toEqual([
+    expect(requestInterrupt.mock.calls).toEqual([
       [{ sessionId: 'grandchild', runId: 'run-grandchild' }],
       [{ sessionId: 'worker', runId: 'run-worker' }],
     ])
+    expect(awaitSettlement).not.toHaveBeenCalled()
     expect(states.get('queen')?.run).toEqual({ state: 'active', runId: RunId('run-queen') })
     expect(response.outcome).toMatchObject({
       operation: 'interrupt-descendants',
@@ -129,7 +134,7 @@ describe('Session descendant interruption authorization', () => {
         listLiveDerivedAuthorities: () => Effect.succeed([]),
       }),
       Layer.succeed(SessionControlOperationJournal, { claim, complete: () => Effect.void }),
-      Layer.succeed(AgentRunInterruptionService, { interrupt }),
+      Layer.succeed(AgentRunInterruptionService, { requestInterrupt: interrupt, interrupt }),
     )
 
     const error = await Effect.runPromise(

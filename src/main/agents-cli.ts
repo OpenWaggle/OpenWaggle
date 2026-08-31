@@ -25,6 +25,7 @@ import {
 import {
   compactAgentCatalog,
   writeAgentsCliCatalog,
+  writeAgentsCliError,
   writeAgentsCliResult,
 } from './agents-cli-output'
 import { AGENTS_CLI_USAGE } from './agents-cli-usage'
@@ -285,7 +286,7 @@ export async function runAgentsCli(args: readonly string[], io: AgentsCliIo = {}
       loadSemanticCatalog,
     })
   } catch (error) {
-    stderr(`error: ${error instanceof Error ? error.message : String(error)}\n`)
+    writeAgentsCliError(error, hasFlag(arguments_, 'json'), stderr)
     return isCommandCliUsageError(error) ||
       (error instanceof Error && error.message.includes('required'))
       ? EXIT.USAGE

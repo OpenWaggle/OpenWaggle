@@ -46,6 +46,12 @@ export class MainWindowPage {
     const thread = this.threadItem(title)
     await expect(thread).toBeVisible({ timeout: THREAD_VISIBILITY_TIMEOUT_MS })
     await thread.click()
+    await expect(
+      this.page
+        .locator('[data-qa="sidebar-session-row"]')
+        .filter({ hasText: title })
+        .first(),
+    ).toHaveAttribute('aria-current', 'true', { timeout: THREAD_VISIBILITY_TIMEOUT_MS })
   }
 
   async pasteIntoComposer(text: string): Promise<void> {

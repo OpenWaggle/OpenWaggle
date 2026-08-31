@@ -54,6 +54,6 @@ export function localSessionProfileManagementTestLayer(
       recordAuthentication: () => Effect.void,
       executeManagement: (input) => Effect.promise(() => executeManagement(input)),
     }),
-    Layer.succeed(AgentRunInterruptionService, { interrupt }),
+    Layer.succeed(AgentRunInterruptionService, { requestInterrupt: interrupt, interrupt }),
   )
 }

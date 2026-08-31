@@ -34,6 +34,7 @@ function testLayer(
       executeManagement: (input) => Effect.promise(() => executeManagement(input)),
     }),
     Layer.succeed(AgentRunInterruptionService, {
+      requestInterrupt: () => Effect.succeed({ accepted: true }),
       interrupt: () => Effect.succeed({ accepted: true }),
     }),
   )

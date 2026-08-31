@@ -41,6 +41,30 @@ describe('installed CLI verification', () => {
     )
   })
 
+  it('uses the caller-provided fresh-shell PATH for Windows command resolution', async () => {
+    const runCli = vi.fn(async () => ({ stdout: VALID_RESPONSE, stderr: '' }))
+
+    await verifyInstalledCli('openwaggle', 'win32', {
+      createProfile: async () => 'D:\\isolated-profile',
+      environmentOverrides: {
+        PATH: 'D:\\installed-openwaggle;C:\\Windows\\System32',
+        PATHEXT: '.COM;.EXE;.BAT;.CMD',
+      },
+      runCli,
+      shutdownAndRemoveProfile: async () => undefined,
+    })
+
+    expect(runCli).toHaveBeenCalledWith(
+      'openwaggle',
+      expect.any(Array),
+      expect.objectContaining({
+        PATH: 'D:\\installed-openwaggle;C:\\Windows\\System32',
+        PATHEXT: '.COM;.EXE;.BAT;.CMD',
+      }),
+      'win32',
+    )
+  })
+
   it('preserves the CLI failure when Host cleanup also fails', async () => {
     const cliFailure = new Error('CLI failed')
     const cleanupFailure = new Error('cleanup failed')

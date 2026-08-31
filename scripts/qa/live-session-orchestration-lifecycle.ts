@@ -2,13 +2,13 @@ import { type launchGui, stopChild } from './live-session-orchestration-support'
 import { prepareQaProfileRemoval, shutdownSessionHostForQa } from './session-host-shutdown'
 
 export interface LiveQaLifecycleState {
-  gui: ReturnType<typeof launchGui> | null
+  gui: Awaited<ReturnType<typeof launchGui>> | null
   guiLogs: Array<() => string>
   passed: boolean
 }
 
 export interface CompleteLiveQaCleanupInput {
-  readonly gui: ReturnType<typeof launchGui> | null
+  readonly gui: Awaited<ReturnType<typeof launchGui>> | null
   readonly guiLogs: readonly (() => string)[]
   readonly passed: boolean
   readonly primaryFailure: { readonly error: unknown } | null

@@ -1,4 +1,5 @@
 const JSON_INDENT_SPACES = 2
+export const AGENTS_CLI_OUTPUT_SCHEMA_VERSION = 1 as const
 
 export interface CompactAgentCatalogItem {
   readonly name: string
@@ -16,10 +17,29 @@ export function writeAgentsCliResult(
 ) {
   if (json) {
     return stdout(
-      `${JSON.stringify({ schemaVersion: 1, result: value }, null, JSON_INDENT_SPACES)}\n`,
+      `${JSON.stringify(
+        { schemaVersion: AGENTS_CLI_OUTPUT_SCHEMA_VERSION, result: value },
+        null,
+        JSON_INDENT_SPACES,
+      )}\n`,
     )
   }
   return stdout(`${JSON.stringify(value, null, JSON_INDENT_SPACES)}\n`)
+}
+
+export function writeAgentsCliError(
+  error: unknown,
+  json: boolean,
+  stderr: (value: string) => void,
+) {
+  const message = error instanceof Error ? error.message : String(error)
+  const output = json
+    ? JSON.stringify({
+        schemaVersion: AGENTS_CLI_OUTPUT_SCHEMA_VERSION,
+        error: { message },
+      })
+    : `error: ${message}`
+  stderr(`${output}\n`)
 }
 
 export function writeAgentsCliCatalog(

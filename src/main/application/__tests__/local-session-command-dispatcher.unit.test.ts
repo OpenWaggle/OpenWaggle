@@ -1,4 +1,3 @@
-import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { describe, expect, it } from 'vitest'
@@ -175,36 +174,6 @@ describe('Local Session command authorization', () => {
             scope: { hiveRootSessionIds: ['session-queen'] },
           }),
           payload,
-        }).pipe(Effect.provide(authorizationLayer)),
-      ),
-    ).resolves.toBeUndefined()
-  })
-
-  it('accepts a live non-transferable child grant outside the profile base scope', async () => {
-    const caller: LocalSessionCallerIdentity = {
-      callerId: 'profile:worker-client',
-      baseProfileScope: { sessionIds: ['session-parent'] },
-      derivedSessionAuthorities: [
-        {
-          sessionId: 'session-worker',
-          capabilities: ['sessions:read'],
-          authorizationCeiling: 'ask-for-approval',
-        },
-      ],
-      profileAuthority: {
-        profileId: 'worker-client',
-        profileName: 'worker-client',
-        capabilities: ['sessions:read'],
-        scope: { sessionIds: ['session-parent', 'session-worker'] },
-        authorizationCeiling: 'ask-for-approval',
-      },
-    }
-
-    await expect(
-      Effect.runPromise(
-        authorizeLocalSessionCommand({
-          caller,
-          payload: queryPayload({ operation: 'read', sessionId: 'session-worker' }),
         }).pipe(Effect.provide(authorizationLayer)),
       ),
     ).resolves.toBeUndefined()

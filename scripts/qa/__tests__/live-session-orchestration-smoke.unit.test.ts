@@ -3,6 +3,7 @@ import {
   completeLiveQaCleanup,
   runLiveQaProfileLifecycle,
 } from '../live-session-orchestration-lifecycle'
+import { launchGui } from '../live-session-orchestration-support'
 
 describe('live Session orchestration profile lifecycle', () => {
   it('drains and reports a retained profile when setup fails before GUI launch', async () => {
@@ -67,5 +68,42 @@ describe('live Session orchestration profile lifecycle', () => {
     })
 
     expect(prepareProfileRemoval).not.toHaveBeenCalled()
+  })
+
+  it('retains the profile when GUI exit cannot be proved', async () => {
+    const gui = await launchGui(process.execPath, {}, ['-e', ''])
+    const stopFailure = new Error('Could not prove GUI process exited')
+    const prepareProfileRemoval = vi.fn()
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    await expect(
+      completeLiveQaCleanup(
+        {
+          gui,
+          guiLogs: [gui.logs],
+          passed: true,
+          primaryFailure: null,
+          userDataRoot: '/tmp/openwaggle-unproved-exit',
+        },
+        {
+          prepareProfileRemoval,
+          shutdownHost: vi.fn(async (_userDataRoot, whileHeld) => {
+            await whileHeld({
+              targetPath: '/tmp/openwaggle-unproved-exit/session-host.sqlite',
+              release: async () => undefined,
+            })
+          }),
+          stopGui: vi.fn(async () => {
+            throw stopFailure
+          }),
+        },
+      ),
+    ).rejects.toBe(stopFailure)
+
+    expect(prepareProfileRemoval).not.toHaveBeenCalled()
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.stringContaining('Live QA data retained at /tmp/openwaggle-unproved-exit'),
+    )
+    consoleError.mockRestore()
   })
 })

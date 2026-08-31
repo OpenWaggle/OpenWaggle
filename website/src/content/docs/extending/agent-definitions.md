@@ -84,6 +84,10 @@ reference is unknown, duplicated, or cannot be checked because a project catalog
 `create`, `update`, import, and refresh use the same validation before writing, so an invalid role is
 not installed through the CLI or settings UI.
 
+Pass `--json` when another tool consumes the command. Successful commands emit
+`{"schemaVersion":1,"result":...}`. Failures emit
+`{"schemaVersion":1,"error":{"message":"..."}}` on stderr and retain their non-zero exit code.
+
 Import uses an explicit source adapter for OpenWaggle, Codex, Claude Code, Cursor, Gemini CLI,
 GitHub Copilot, or OpenCode. A dry run returns the schema-versioned conversion plan, diagnostics,
 unmapped source fields, and destination without writing. Conversion must resolve ambiguous names and

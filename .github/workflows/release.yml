@@ -461,25 +461,19 @@ jobs:
 
       - run: pnpm build
 
-      - name: Build macOS artifacts (arm64 + x64)
+      - name: Build macOS artifacts
         run: pnpm exec electron-builder --mac --arm64 --x64 --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
-      - name: Verify unpacked macOS applications
+      - name: Verify and archive unpacked macOS applications
         shell: bash
         run: |
           set -euo pipefail
-          test -d dist/mac-arm64/OpenWaggle.app
-          test -d dist/mac/OpenWaggle.app
-          pnpm packaged-app:smoke -- dist/mac-arm64/OpenWaggle.app
           pnpm packaged-app:smoke -- dist/mac/OpenWaggle.app
-          case "$(uname -m)" in
-            arm64) NATIVE_APP="dist/mac-arm64/OpenWaggle.app" ;;
-            x86_64) NATIVE_APP="dist/mac/OpenWaggle.app" ;;
-            *) echo "Unsupported macOS runner architecture: $(uname -m)" >&2; exit 1 ;;
-          esac
-          pnpm qa:packaged-session-host-startup -- "$NATIVE_APP/Contents/MacOS/OpenWaggle"
+          pnpm packaged-app:smoke -- dist/mac-arm64/OpenWaggle.app
+          tar -czf dist/openwaggle-macos-x64-unpacked.tar.gz -C dist/mac OpenWaggle.app
+          tar -czf dist/openwaggle-macos-arm64-unpacked.tar.gz -C dist/mac-arm64 OpenWaggle.app
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -489,6 +483,56 @@ jobs:
             dist/*.zip
             dist/*.yml
           if-no-files-found: error
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: macos-unpacked-apps
+          path: dist/openwaggle-macos-*-unpacked.tar.gz
+          if-no-files-found: error
+
+  smoke-macos:
+    name: Smoke macOS (${{ matrix.architecture }})
+    needs: [version, build-macos]
+    if: needs.version.outputs.should_release == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: x64
+            runner: macos-15-intel
+            expected_uname: x86_64
+          - architecture: arm64
+            runner: macos-15
+            expected_uname: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ needs.version.outputs.new_tag }}
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: macos-unpacked-apps
+          path: ${{ runner.temp }}/macos-unpacked
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Run production startup smoke on matching architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = "${{ matrix.expected_uname }}"
+          APP_ROOT="$RUNNER_TEMP/macos-${{ matrix.architecture }}"
+          mkdir -p "$APP_ROOT"
+          tar -xzf "$RUNNER_TEMP/macos-unpacked/openwaggle-macos-${{ matrix.architecture }}-unpacked.tar.gz" -C "$APP_ROOT"
+          pnpm qa:packaged-session-host-startup -- "$APP_ROOT/OpenWaggle.app/Contents/MacOS/OpenWaggle"
 
   build-linux:
     name: Build Linux
@@ -716,7 +760,7 @@ jobs:
 
   release:
     name: Create GitHub Release
-    needs: [version, verify-installers]
+    needs: [version, smoke-macos, verify-installers]
     if: needs.version.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     permissions:

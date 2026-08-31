@@ -69,6 +69,8 @@ function makeLayer(input: {
         steer: (steeringInput) => Effect.promise(() => input.steer(steeringInput)),
       }),
       Layer.succeed(AgentRunInterruptionService, {
+        requestInterrupt: (interruptionInput) =>
+          Effect.succeed(input.interrupt?.(interruptionInput) ?? ({ accepted: true } as const)),
         interrupt: (interruptionInput) =>
           Effect.succeed(input.interrupt?.(interruptionInput) ?? ({ accepted: true } as const)),
       }),

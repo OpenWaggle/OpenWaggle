@@ -30,6 +30,7 @@ export interface SteerSessionRunInput {
 export interface InterruptSessionRunInput {
   readonly callerId: string
   readonly request: SessionControlInterruptMutationRequest
+  readonly requestOnly?: boolean
 }
 
 function response(
@@ -84,33 +85,36 @@ export function interruptSessionDescendants(input: {
       )
     }
 
-    const interrupted: Array<{
-      readonly sessionId: string
-      readonly runId: string
-      readonly stateRevision: number
-    }> = []
-    for (const descendant of descendants) {
-      const child = yield* interruptSessionRun({
-        callerId: input.callerId,
-        request: {
-          contractVersion: input.request.contractVersion,
-          requestId: `${input.request.requestId}:${descendant.sessionId}`,
-          idempotencyKey: `${input.request.idempotencyKey}:descendant:${descendant.runId}`,
-          command: {
-            operation: 'interrupt',
-            sessionId: descendant.sessionId,
-            expectedRunId: descendant.runId,
+    const children = yield* Effect.forEach(
+      descendants,
+      (descendant) =>
+        interruptSessionRun({
+          callerId: input.callerId,
+          requestOnly: true,
+          request: {
+            contractVersion: input.request.contractVersion,
+            requestId: `${input.request.requestId}:${descendant.sessionId}`,
+            idempotencyKey: `${input.request.idempotencyKey}:descendant:${descendant.runId}`,
+            command: {
+              operation: 'interrupt',
+              sessionId: descendant.sessionId,
+              expectedRunId: descendant.runId,
+            },
           },
-        },
-      })
-      if (child.outcome.effect === 'interruption-requested') {
-        interrupted.push({
-          sessionId: descendant.sessionId,
-          runId: descendant.runId,
-          stateRevision: child.outcome.stateRevision,
-        })
-      }
-    }
+        }),
+      { concurrency: 'unbounded' },
+    )
+    const interrupted = children.flatMap((child) =>
+      child.outcome.effect === 'interruption-requested'
+        ? [
+            {
+              sessionId: child.outcome.sessionId,
+              runId: child.outcome.runId,
+              stateRevision: child.outcome.stateRevision,
+            },
+          ]
+        : [],
+    )
     const outcome: SessionControlMutationOutcome = {
       operation: 'interrupt-descendants',
       effect: 'descendant-interruptions-requested',
@@ -267,7 +271,7 @@ export function interruptSessionRun(input: InterruptSessionRunInput) {
 
     const interruption = yield* AgentRunInterruptionService.pipe(
       Effect.flatMap((service) =>
-        service.interrupt({
+        (input.requestOnly ? service.requestInterrupt : service.interrupt)({
           sessionId: input.request.command.sessionId,
           runId: input.request.command.expectedRunId,
         }),

@@ -16,6 +16,7 @@ import {
   secureLocalSessionEndpoint,
 } from './local-session-endpoint'
 import { LocalSessionOutboundByteBudget } from './local-session-outbound-budget'
+import type { LocalSessionSocketFrameWriter } from './local-session-outbound-writer'
 import {
   installLocalSessionProfileAdmissionFencer,
   installLocalSessionProfileAdmissionRefresher,
@@ -67,6 +68,8 @@ export interface LocalSessionServerDependencies {
   readonly maxPendingInboundBytesGlobal?: number
   readonly maxPendingOutboundBytesGlobal?: number
   readonly maxPendingOutboundFramesPerConnection?: number
+  readonly profileAdmissionDrainTimeoutMs?: number
+  readonly writeFrame?: LocalSessionSocketFrameWriter
   readonly maxConcurrentAuthentications?: number
   readonly maxFailedAuthenticationAttempts?: number
   readonly maxFailedAuthenticationAttemptsGlobal?: number

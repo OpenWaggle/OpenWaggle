@@ -55,10 +55,12 @@ test('draft branch selection shows transcript only up to the selected source nod
     await expect(branchButton).toBeVisible()
     await branchButton.click()
 
-    await expect(mainWindow.text(ROOT_USER)).toBeVisible()
-    await expect(mainWindow.text(ROOT_ASSISTANT)).toBeVisible()
-    await expect(mainWindow.text(BRANCH_POINT)).toBeVisible()
-    await expect(mainWindow.text(MAIN_CONTINUATION)).toBeHidden()
+    const transcript = mainWindow.page.getByRole('log', { name: 'Chat messages' })
+    await expect(transcript.getByText(ROOT_USER)).toBeVisible()
+    await expect(transcript.getByText(ROOT_ASSISTANT)).toBeVisible()
+    await expect(transcript.getByText(BRANCH_POINT)).toBeHidden()
+    await expect(mainWindow.messageInput()).toHaveText(BRANCH_POINT)
+    await expect(transcript.getByText(MAIN_CONTINUATION)).toBeHidden()
   } finally {
     await app.cleanup()
   }

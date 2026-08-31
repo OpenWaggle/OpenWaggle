@@ -51,6 +51,10 @@ describe('Agent definitions CLI', () => {
     })
   }
 
+  function parsedError() {
+    return JSON.parse(stderr.join(''))
+  }
+
   it('validates before importing and resolves the imported definition by stable name', async () => {
     const sourcePath = path.join(root, 'incoming.md')
     await fs.writeFile(sourcePath, definition, 'utf8')
@@ -81,6 +85,29 @@ describe('Agent definitions CLI', () => {
     ).resolves.toBe(1)
     await expect(fs.readdir(path.join(project, '.openwaggle/agents'))).rejects.toThrow()
     expect(stderr.join('')).toContain('frontmatter')
+  })
+
+  it('emits a schema-versioned JSON error when an import fails', async () => {
+    const sourcePath = path.join(root, 'invalid.md')
+    await fs.writeFile(sourcePath, '# missing frontmatter', 'utf8')
+
+    await expect(
+      run(['import', sourcePath, '--from', 'openwaggle', '--scope', 'project', '--json']),
+    ).resolves.toBe(1)
+
+    expect(parsedError()).toEqual({
+      schemaVersion: 1,
+      error: { message: 'Agent definition requires terminated YAML frontmatter.' },
+    })
+  })
+
+  it('emits a schema-versioned JSON error when explain cannot resolve a definition', async () => {
+    await expect(run(['explain', 'missing-role', '--json'])).resolves.toBe(1)
+
+    expect(parsedError()).toEqual({
+      schemaVersion: 1,
+      error: { message: 'Agent definition "missing-role" was not found.' },
+    })
   })
 
   it('reports unresolved project references and blocks import before writing', async () => {
@@ -122,6 +149,24 @@ describe('Agent definitions CLI', () => {
     await expect(run(['import', sourcePath, '--scope', 'project', '--dryrun'])).resolves.toBe(2)
     await expect(fs.readdir(path.join(project, '.openwaggle/agents'))).rejects.toThrow()
     expect(stderr.join('')).toContain('Unknown option for OpenWaggle Agents: --dryrun')
+  })
+
+  it('keeps usage failures machine-readable when --json is selected', async () => {
+    await expect(run(['validate', '--json'])).resolves.toBe(2)
+
+    expect(parsedError()).toEqual({
+      schemaVersion: 1,
+      error: { message: 'OpenWaggle Agents validate requires more positional arguments.' },
+    })
+  })
+
+  it('keeps validation read failures machine-readable when --json is selected', async () => {
+    await expect(run(['validate', 'missing.md', '--json'])).resolves.toBe(1)
+
+    expect(parsedError()).toMatchObject({
+      schemaVersion: 1,
+      error: { message: expect.stringContaining('missing.md') },
+    })
   })
 
   it('rejects option-only invocations instead of reporting successful help', async () => {

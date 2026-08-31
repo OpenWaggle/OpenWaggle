@@ -47,7 +47,7 @@ async function launchLiveGui(
 ) {
   const debugPort = await reserveDebugPort()
   const automationIdentity = randomUUID()
-  const gui = launchGui(
+  const gui = await launchGui(
     executable,
     { ...environment, OPENWAGGLE_AUTOMATION_LEASE_TOKEN: automationIdentity },
     [`--remote-debugging-port=${String(debugPort)}`],

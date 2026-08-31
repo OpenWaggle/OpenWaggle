@@ -1,11 +1,14 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { prepareLiveQaCliExecutable } from '../live-session-cli-executable'
 import {
+  launchGui,
   runProcess,
   selectPackagedExecutable,
+  type StoppableChild,
+  stopChild,
 } from '../live-session-orchestration-support'
 import {
   transcriptInvokedSessionsSpawn,
@@ -46,6 +49,61 @@ describe('live Session orchestration support', () => {
         'linux',
       ),
     ).toBe('/project/dist/openwaggle-x64.AppImage')
+  })
+
+  it('rejects a GUI spawn error so the profile lifecycle can retain evidence', async () => {
+    const missingExecutable = path.join(
+      os.tmpdir(),
+      `openwaggle-missing-gui-${process.pid}-${Date.now()}`,
+    )
+
+    await expect(launchGui(missingExecutable, {})).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('terminates the complete Windows process tree and waits for proven exit', async () => {
+    class FakeChild implements StoppableChild {
+      readonly pid = 42
+      readonly exitCode = null
+      readonly signalCode = null
+      readonly kill = vi.fn(() => true)
+      once() {
+        return this
+      }
+      off() {
+        return this
+      }
+    }
+    const child = new FakeChild()
+    const waitForExit = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+    const terminateWindowsTree = vi.fn(async () => undefined)
+
+    await stopChild(child, { platform: 'win32', terminateWindowsTree, waitForExit })
+
+    expect(child.kill).toHaveBeenCalledWith('SIGTERM')
+    expect(terminateWindowsTree).toHaveBeenCalledWith(42)
+    expect(waitForExit).toHaveBeenCalledTimes(2)
+  })
+
+  it('fails closed when forced termination cannot prove process exit', async () => {
+    class FakeChild implements StoppableChild {
+      readonly pid = 43
+      readonly exitCode = null
+      readonly signalCode = null
+      readonly kill = vi.fn(() => true)
+      once() {
+        return this
+      }
+      off() {
+        return this
+      }
+    }
+
+    await expect(
+      stopChild(new FakeChild(), {
+        platform: 'linux',
+        waitForExit: async () => false,
+      }),
+    ).rejects.toThrow('Could not prove GUI process 43 exited')
   })
 
   it('does not treat a user prompt mention as a skill invocation', () => {

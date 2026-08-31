@@ -258,6 +258,13 @@ export async function interruptExactSessionRun(sessionId: SessionId, runId: stri
   return pendingWaggleRuns.interruptAndWait(sessionId, (metadata) => metadata.runId === runId)
 }
 
+export function requestExactSessionRunInterruption(sessionId: SessionId, runId: string) {
+  if (activeRuns.requestInterrupt(sessionId, (metadata) => metadata.runId === runId)) return true
+  if (activeWaggleRuns.requestInterrupt(sessionId, (metadata) => metadata.runId === runId))
+    return true
+  return pendingWaggleRuns.requestInterrupt(sessionId, (metadata) => metadata.runId === runId)
+}
+
 export function getAllActiveRunSessionIds(): SessionId[] {
   return [
     ...new Set([

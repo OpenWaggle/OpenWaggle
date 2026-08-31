@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { Client } from '@modelcontextprotocol/client'
@@ -8,7 +8,6 @@ const APP_NAME = 'OpenWaggle.app'
 const FIRST_USER_ARGUMENT_INDEX = 2
 const STARTUP_TIMEOUT_MS = 30_000
 const RETRY_DELAY_MS = 250
-const STOP_TIMEOUT_MS = 3_000
 const MAX_LOG_BYTES = 64_000
 const LIST_LIMIT = 20
 
@@ -96,7 +95,7 @@ function appendBoundedLog(current: string, chunk: unknown) {
   return next.length <= MAX_LOG_BYTES ? next : next.slice(-MAX_LOG_BYTES)
 }
 
-export function launchGui(
+export async function launchGui(
   executable: string,
   env: Record<string, string>,
   args: readonly string[] = [],
@@ -108,6 +107,10 @@ export function launchGui(
   })
   child.stderr?.on('data', (chunk) => {
     logs = appendBoundedLog(logs, chunk)
+  })
+  await new Promise<void>((resolve, reject) => {
+    child.once('spawn', resolve)
+    child.once('error', reject)
   })
   return { child, logs: () => logs }
 }
@@ -308,12 +311,4 @@ export async function verifyExternalMcp(input: {
   }
 }
 
-export async function stopChild(child: ChildProcess) {
-  if (child.exitCode !== null || child.signalCode !== null) return
-  child.kill('SIGTERM')
-  await Promise.race([
-    new Promise<void>((resolve) => child.once('exit', () => resolve())),
-    new Promise<void>((resolve) => setTimeout(resolve, STOP_TIMEOUT_MS)),
-  ])
-  if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
-}
+export { type StoppableChild, stopChild } from './child-process-lifecycle'
