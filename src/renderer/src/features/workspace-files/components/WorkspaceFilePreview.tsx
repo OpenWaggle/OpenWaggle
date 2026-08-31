@@ -40,6 +40,10 @@ function UnavailablePreview({ file }: { readonly file: WorkspaceUnavailableFileR
   )
 }
 
+function workspaceFileIdentity(projectPath: string, filePath: string) {
+  return `${String(projectPath.length)}:${projectPath}${filePath}`
+}
+
 function PagedSourceToolbar({
   file,
   page,
@@ -189,7 +193,7 @@ function FilePreviewContent({
   ) {
     return (
       <WorkspaceFileEditor
-        key={file.path}
+        key={workspaceFileIdentity(projectPath, file.path)}
         projectPath={projectPath}
         file={file}
         targetLine={line}
@@ -200,7 +204,13 @@ function FilePreviewContent({
     return <WorkspaceFileBlobPreview key={file.revision} file={file} />
   }
   if (file.previewKind === 'oversized') {
-    return <OversizedSourcePreview file={file} projectPath={projectPath} />
+    return (
+      <OversizedSourcePreview
+        key={workspaceFileIdentity(projectPath, file.path)}
+        file={file}
+        projectPath={projectPath}
+      />
+    )
   }
   if (file.previewKind === 'binary') return <UnavailablePreview file={file} />
   return null

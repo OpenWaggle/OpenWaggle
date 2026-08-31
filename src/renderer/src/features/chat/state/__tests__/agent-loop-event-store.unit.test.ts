@@ -72,4 +72,28 @@ describe('agent loop event store', () => {
     expect(sessions.size).toBe(50)
     expect(sessions.has(SESSION_ID)).toBe(false)
   })
+
+  it('removes a dismissed notification from workspace-lifetime history', () => {
+    const store = useAgentLoopEventStore.getState()
+    store.applyEvent(SESSION_ID, {
+      type: 'agent_interaction_request',
+      timestamp: 1,
+      interaction: {
+        interactionId: 'notice-1',
+        sessionId: SESSION_ID,
+        runId: 'run-1',
+        kind: 'notify',
+        source: 'pi-ui',
+        createdAt: 1,
+        message: 'Persistent notice',
+        level: 'error',
+      },
+    })
+
+    store.dismissNotification(SESSION_ID, 'notice-1')
+
+    expect(
+      useAgentLoopEventStore.getState().sessionsById.get(SESSION_ID)?.interactionEvents,
+    ).toEqual([])
+  })
 })

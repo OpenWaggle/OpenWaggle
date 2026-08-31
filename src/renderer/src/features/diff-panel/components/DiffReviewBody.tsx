@@ -1,18 +1,15 @@
-import type { CodeViewHandle } from '@pierre/diffs/react'
 import type { GitFileDiff } from '@shared/types/git'
-import type { Ref } from 'react'
 import { isReportableSendFailure } from '@/features/chat/lib'
-import type { ReviewAnnotationMetadata } from '@/features/diff-panel/lib/code-view-items'
 import { WorkspaceTreePanel } from '@/shared/ui/WorkspaceTreePanel'
 import { useUIStore } from '@/shell/ui-store'
 import { useDiffReviewActions } from '../hooks/useDiffReviewActions'
 import { useDiffViewOptions } from '../hooks/useDiffViewOptions'
+import type { DiffFileNavigation } from '../hooks/usePreparedDiffFileNavigation'
 import { DiffCodeView } from './DiffCodeView'
 import { FileTree } from './FileTree'
 import { ReviewBar } from './ReviewBar'
 
 interface DiffReviewBodyProps {
-  readonly viewerRef: Ref<CodeViewHandle<ReviewAnnotationMetadata>>
   readonly files: readonly GitFileDiff[]
   readonly isLoading: boolean
   /** A failed diff load, surfaced instead of an empty diff. */
@@ -20,6 +17,7 @@ interface DiffReviewBodyProps {
   readonly onRetryLoad: () => void
   readonly onSendMessage: (content: string) => void | Promise<void>
   readonly onFileClick: (path: string) => void
+  readonly fileNavigation?: DiffFileNavigation | null
   /** Isolates pending comments to the tree and scope they were written against. */
   /** The key this panel's review lives under, with the draft key it would use before a session exists. */
   /**
@@ -40,13 +38,13 @@ interface DiffReviewBodyProps {
  * callback per action through it.
  */
 export function DiffReviewBody({
-  viewerRef,
   files,
   isLoading,
   loadError,
   onRetryLoad,
   onSendMessage,
   onFileClick,
+  fileNavigation = null,
   reviewKeys,
 }: DiffReviewBodyProps) {
   const { viewOptions } = useDiffViewOptions()
@@ -73,11 +71,11 @@ export function DiffReviewBody({
     <>
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <DiffCodeView
-          viewerRef={viewerRef}
           files={files}
           isLoading={isLoading}
           loadError={loadError}
           onRetryLoad={onRetryLoad}
+          fileNavigation={fileNavigation}
           viewOptions={viewOptions}
           review={{
             comments: review.comments,

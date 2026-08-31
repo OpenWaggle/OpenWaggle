@@ -13,6 +13,20 @@ export interface ReviewAnnotationMetadata {
 export type ReviewAnnotation = DiffLineAnnotation<ReviewAnnotationMetadata>
 export type ReviewCodeViewItem = CodeViewItem<ReviewAnnotationMetadata>
 
+export interface ParsedReviewCodeViewItem {
+  readonly filePath: string
+  readonly patchHash: string
+  readonly fileDiff: FileDiffMetadata
+}
+
+export interface DiffParserWorkerRequest {
+  readonly files: readonly GitFileDiff[]
+}
+
+export type DiffParserWorkerResponse =
+  | { readonly ok: true; readonly items: readonly ParsedReviewCodeViewItem[] }
+  | { readonly ok: false; readonly error: string }
+
 const FNV_OFFSET_BASIS_32 = 0x811c9dc5
 const FNV_PRIME_32 = 0x01000193
 const HASH_RADIX = 36
@@ -62,7 +76,11 @@ export function buildCodeViewItems(
   files: readonly GitFileDiff[],
   annotationsByPath: ReadonlyMap<string, readonly ReviewAnnotation[]>,
 ) {
-  const items: ReviewCodeViewItem[] = []
+  return decorateCodeViewItems(parseCodeViewItems(files), annotationsByPath)
+}
+
+export function parseCodeViewItems(files: readonly GitFileDiff[]) {
+  const items: ParsedReviewCodeViewItem[] = []
   for (const file of files) {
     // Large diffs can contain megabytes of patch text. Hash that text once per
     // file and reuse the digest for both Pierre's cache key and our version.
@@ -71,16 +89,29 @@ export function buildCodeViewItems(
     const patchHash = hashPatch(file.diff)
     const fileDiff = parseFileDiff(file, patchHash)
     if (fileDiff === null) continue
-    const annotations = annotationsByPath.get(file.path) ?? []
     items.push({
-      id: codeViewItemId(file.path),
+      filePath: file.path,
+      patchHash,
+      fileDiff,
+    })
+  }
+  return items
+}
+
+export function decorateCodeViewItems(
+  parsedItems: readonly ParsedReviewCodeViewItem[],
+  annotationsByPath: ReadonlyMap<string, readonly ReviewAnnotation[]>,
+) {
+  return parsedItems.map(({ filePath, patchHash, fileDiff }): ReviewCodeViewItem => {
+    const annotations = annotationsByPath.get(filePath) ?? []
+    return {
+      id: codeViewItemId(filePath),
       type: 'diff',
       fileDiff,
       annotations: [...annotations],
       version: versionFor(patchHash, annotations),
-    })
-  }
-  return items
+    }
+  })
 }
 
 function versionFor(patchHash: string, annotations: readonly ReviewAnnotation[]) {

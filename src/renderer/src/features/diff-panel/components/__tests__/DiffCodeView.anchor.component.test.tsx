@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DiffCodeView } from '../DiffCodeView'
 import { fileDiff } from './diff-panel.test-harness'
 
@@ -25,6 +25,97 @@ vi.mock('@pierre/diffs/react', async () => ({
 const VIEW_OPTIONS = { syntaxTheme: 'github-dark', diffView: 'unified', wrapLines: false } as const
 
 describe('review comment anchoring', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('yields before mounting a multi-file diff worker', async () => {
+    pierreMocks.workerProvider.mockClear()
+    render(
+      <DiffCodeView
+        files={Array.from({ length: 8 }, (_, index) => fileDiff(`src/file-${String(index)}.ts`))}
+        isLoading={false}
+        loadError={null}
+        onRetryLoad={vi.fn()}
+        viewOptions={VIEW_OPTIONS}
+        review={{
+          comments: [],
+          activeCommentLocation: null,
+          onSetActiveComment: vi.fn(),
+          onAddSingleComment: vi.fn(),
+          onAddToReview: vi.fn(),
+          onRemoveComment: vi.fn(),
+        }}
+      />,
+    )
+
+    expect(screen.getByLabelText('Loading')).toBeVisible()
+    expect(pierreMocks.workerProvider).not.toHaveBeenCalled()
+    await waitFor(() => expect(pierreMocks.workerProvider).toHaveBeenCalledOnce())
+    expect(screen.getAllByRole('button', { name: /^select/ })).toHaveLength(8)
+  })
+
+  it('replays navigation once a late progressive item is prepared', async () => {
+    render(
+      <DiffCodeView
+        files={Array.from({ length: 8 }, (_, index) => fileDiff(`src/file-${String(index)}.ts`))}
+        fileNavigation={{ path: 'src/file-7.ts', requestId: 1 }}
+        isLoading={false}
+        loadError={null}
+        onRetryLoad={vi.fn()}
+        viewOptions={VIEW_OPTIONS}
+        review={{
+          comments: [],
+          activeCommentLocation: null,
+          onSetActiveComment: vi.fn(),
+          onAddSingleComment: vi.fn(),
+          onAddToReview: vi.fn(),
+          onRemoveComment: vi.fn(),
+        }}
+      />,
+    )
+
+    await waitFor(() =>
+      expect(screen.getByTestId('code-view')).toHaveAttribute(
+        'data-scrolled-item-id',
+        'diff:src/file-7.ts',
+      ),
+    )
+  })
+
+  it('offloads a single oversized patch before parsing it', async () => {
+    const posted: unknown[] = []
+    class ParserWorker {
+      onmessage: ((event: MessageEvent<unknown>) => void) | null = null
+      onerror: ((event: ErrorEvent) => void) | null = null
+      postMessage(message: unknown) {
+        posted.push(message)
+      }
+      terminate() {}
+    }
+    vi.stubGlobal('Worker', ParserWorker)
+    const oversized = fileDiff('src/large.ts')
+
+    render(
+      <DiffCodeView
+        files={[{ ...oversized, diff: `${oversized.diff}\n${'x'.repeat(70 * 1024)}` }]}
+        isLoading={false}
+        loadError={null}
+        onRetryLoad={vi.fn()}
+        viewOptions={VIEW_OPTIONS}
+        review={{
+          comments: [],
+          activeCommentLocation: null,
+          onSetActiveComment: vi.fn(),
+          onAddSingleComment: vi.fn(),
+          onAddToReview: vi.fn(),
+          onRemoveComment: vi.fn(),
+        }}
+      />,
+    )
+
+    expect(screen.getByLabelText('Loading')).toBeVisible()
+    await waitFor(() => expect(posted).toHaveLength(1))
+  })
+
   it('routes diff rendering through a bounded worker pool', () => {
     render(
       <DiffCodeView

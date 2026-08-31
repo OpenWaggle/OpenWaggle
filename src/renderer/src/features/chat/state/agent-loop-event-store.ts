@@ -17,6 +17,7 @@ export interface AgentLoopSessionState {
 interface AgentLoopEventState {
   readonly sessionsById: ReadonlyMap<SessionId, AgentLoopSessionState>
   applyEvent: (sessionId: SessionId, event: AgentTransportEvent) => void
+  dismissNotification: (sessionId: SessionId, interactionId: string) => void
   clearSession: (sessionId: SessionId) => void
 }
 
@@ -100,6 +101,28 @@ export const useAgentLoopEventStore = create<AgentLoopEventState>((set) => ({
       const nextSession = applySessionEvent(current, event)
       if (!nextSession) return state
       return { sessionsById: boundedSessions(state.sessionsById, sessionId, nextSession) }
+    })
+  },
+
+  dismissNotification(sessionId, interactionId) {
+    set((state) => {
+      const current = state.sessionsById.get(sessionId)
+      if (!current) return state
+      const interactionEvents = current.interactionEvents.filter(
+        (event) =>
+          !(
+            event.type === 'agent_interaction_request' &&
+            event.interaction.kind === 'notify' &&
+            event.interaction.interactionId === interactionId
+          ),
+      )
+      if (interactionEvents.length === current.interactionEvents.length) return state
+      return {
+        sessionsById: boundedSessions(state.sessionsById, sessionId, {
+          ...current,
+          interactionEvents,
+        }),
+      }
     })
   },
 

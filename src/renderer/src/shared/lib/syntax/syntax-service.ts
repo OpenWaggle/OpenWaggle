@@ -114,6 +114,7 @@ export class SyntaxService {
     }
     this.cache.clear()
     this.sourceState.clear()
+    for (const slot of [...this.slots]) this.cancelSlot(slot)
     for (const slot of this.slots) {
       slot.knownSourceKeys.clear()
       slot.worker.postMessage({ type: 'register-themes', themes })
@@ -130,6 +131,7 @@ export class SyntaxService {
     }
     this.cache.clear()
     this.sourceState.clear()
+    for (const slot of [...this.slots]) this.cancelSlot(slot)
     for (const slot of this.slots) {
       slot.knownSourceKeys.clear()
       slot.worker.postMessage({ type: 'register-languages', languages })

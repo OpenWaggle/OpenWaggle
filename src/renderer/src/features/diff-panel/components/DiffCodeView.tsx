@@ -1,12 +1,14 @@
-import type { CodeViewItem, CodeViewLineSelection } from '@pierre/diffs'
+import type { CodeViewItem } from '@pierre/diffs'
 import { CodeView, type CodeViewHandle, WorkerPoolContextProvider } from '@pierre/diffs/react'
 import type { GitFileDiff } from '@shared/types/git'
-import { type Ref, useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
+import { useDiffCodeSelection } from '@/features/diff-panel/hooks/useDiffCodeSelection'
 import {
-  buildCodeViewItems,
-  codeViewItemId,
-  type ReviewAnnotationMetadata,
-} from '@/features/diff-panel/lib/code-view-items'
+  type DiffFileNavigation,
+  usePreparedDiffFileNavigation,
+} from '@/features/diff-panel/hooks/usePreparedDiffFileNavigation'
+import { useProgressiveCodeViewItems } from '@/features/diff-panel/hooks/useProgressiveCodeViewItems'
+import type { ReviewAnnotationMetadata } from '@/features/diff-panel/lib/code-view-items'
 import type { ReviewCommentWithSnippet } from '@/features/diff-panel/lib/review-comment-payload'
 import type { ReviewCommentLocation } from '@/features/diff-panel/state/review-store'
 import { registerPendingPierreSyntaxResources } from '@/shared/lib/syntax/pierre-syntax-runtime'
@@ -34,7 +36,6 @@ export interface DiffCodeViewReview {
 }
 
 interface DiffCodeViewProps {
-  readonly viewerRef?: Ref<CodeViewHandle<ReviewAnnotationMetadata>>
   readonly files: readonly GitFileDiff[]
   readonly isLoading: boolean
   /** A failed load, which must never be presented as an empty diff. */
@@ -42,6 +43,7 @@ interface DiffCodeViewProps {
   readonly onRetryLoad: () => void
   readonly viewOptions: DiffViewOptions
   readonly review: DiffCodeViewReview
+  readonly fileNavigation?: DiffFileNavigation | null
 }
 
 const CODE_VIEW_LAYOUT = { paddingTop: 10, paddingBottom: 10, gap: 10 } as const
@@ -66,6 +68,19 @@ function resolveDiffPlaceholder(input: {
   if (input.isLoading) return 'loading'
   if (input.loadError !== null) return 'error'
   return input.fileCount === 0 ? 'empty' : 'diff'
+}
+
+function resolveCodeViewPlaceholder(
+  isLoading: boolean,
+  loadError: string | null,
+  fileCount: number,
+  itemsReady: boolean,
+) {
+  return resolveDiffPlaceholder({
+    isLoading: isLoading || (fileCount > 0 && !itemsReady),
+    loadError,
+    fileCount,
+  })
 }
 
 /** Loading, failed, or empty - anything other than an actual diff. */
@@ -153,18 +168,18 @@ function filePathOfItem(item: CodeViewItem<ReviewAnnotationMetadata>) {
  * Match the item id exactly. A suffix test resolves `diff:docs/README.md` to `README.md` whenever
  * both exist, moving review comments and their snippets onto a file the reviewer never selected.
  */
-function selectedFilePath(paths: Iterable<string>, itemId: string) {
-  return [...paths].find((path) => codeViewItemId(path) === itemId)
+function buildPatchByPath(files: readonly GitFileDiff[]) {
+  return new Map(files.map((file) => [file.path, file.diff] as const))
 }
 
 export function DiffCodeView({
-  viewerRef,
   files,
   isLoading,
   loadError,
   onRetryLoad,
   viewOptions,
   review,
+  fileNavigation = null,
 }: DiffCodeViewProps) {
   const {
     comments,
@@ -174,18 +189,17 @@ export function DiffCodeView({
     onAddToReview,
     onRemoveComment,
   } = review
-  const [selection, setSelection] = useState<CodeViewLineSelection | null>(null)
+  const viewerRef = useRef<CodeViewHandle<ReviewAnnotationMetadata>>(null)
+  const patchByPath = useMemo(() => buildPatchByPath(files), [files])
+  const [selection, handleSelectionChange] = useDiffCodeSelection(patchByPath, onSetActiveComment)
 
-  const patchByPath = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const file of files) map.set(file.path, file.diff)
-    return map
-  }, [files])
-
-  const items = useMemo(
-    () => buildCodeViewItems(files, buildAnnotationsByPath(comments, activeCommentLocation)),
-    [files, comments, activeCommentLocation],
+  const annotationsByPath = useMemo(
+    () => buildAnnotationsByPath(comments, activeCommentLocation),
+    [comments, activeCommentLocation],
   )
+  const progressiveItems = useProgressiveCodeViewItems(files, annotationsByPath)
+  const { items, preparedPaths, error: preparationError } = progressiveItems
+  usePreparedDiffFileNavigation(viewerRef, fileNavigation, preparedPaths)
 
   const options = useMemo(
     () => ({
@@ -236,31 +250,20 @@ export function DiffCodeView({
     ],
   )
 
-  const handleSelectionChange = useCallback(
-    (next: CodeViewLineSelection | null) => {
-      setSelection(next)
-      if (next === null) {
-        onSetActiveComment(null)
-        return
-      }
-      const filePath = selectedFilePath(patchByPath.keys(), next.id)
-      if (filePath === undefined) return
-      const start = Math.min(next.range.start, next.range.end)
-      const end = Math.max(next.range.start, next.range.end)
-      onSetActiveComment({
-        filePath,
-        line: start,
-        endLine: end,
-        lineType: next.range.side === 'deletions' ? 'remove' : 'add',
-      })
-    },
-    [onSetActiveComment, patchByPath],
+  const effectiveLoadError = loadError ?? preparationError
+  const placeholder = resolveCodeViewPlaceholder(
+    isLoading,
+    effectiveLoadError,
+    files.length,
+    items !== null,
   )
-
-  const placeholder = resolveDiffPlaceholder({ isLoading, loadError, fileCount: files.length })
   if (placeholder !== 'diff') {
     return (
-      <DiffPlaceholder kind={placeholder} message={loadError ?? ''} onRetryLoad={onRetryLoad} />
+      <DiffPlaceholder
+        kind={placeholder}
+        message={effectiveLoadError ?? ''}
+        onRetryLoad={onRetryLoad}
+      />
     )
   }
 
@@ -277,7 +280,7 @@ export function DiffCodeView({
       <CodeView<ReviewAnnotationMetadata>
         ref={viewerRef}
         className="diff-chrome diff-scroll min-h-0 min-w-0 flex-1 overflow-auto"
-        items={items}
+        items={items ?? []}
         options={options}
         selectedLines={selection}
         onSelectedLinesChange={handleSelectionChange}

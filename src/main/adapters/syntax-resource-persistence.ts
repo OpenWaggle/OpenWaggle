@@ -21,6 +21,7 @@ import {
 
 const JSON_INDENT_SPACES = 2
 const IMPORT_RESOURCE_FILE_LIMIT = 20
+const INSTALLED_RESOURCE_KINDS = ['themes', 'languages', 'appearances'] as const
 
 const resourceDirectoryTails = new Map<string, Promise<void>>()
 
@@ -55,6 +56,21 @@ async function assertInstalledResourceCapacity(directory: string, resourceIds: r
   for (const resourceId of resourceIds) resultingNames.add(resourceFileName(resourceId))
   if (resultingNames.size > INSTALLED_RESOURCE_FILE_LIMIT) {
     throw new Error('Installing this import would exceed the syntax resource library limit.')
+  }
+}
+
+async function assertStagedInstalledResourceCatalogByteCapacity(stagingDirectory: string) {
+  const byteTotals = await Promise.all(
+    INSTALLED_RESOURCE_KINDS.map(async (kind) => {
+      const directory = path.join(stagingDirectory, kind)
+      const names = (await fs.readdir(directory)).filter((entry) => entry.endsWith('.json'))
+      const sizes = await Promise.all(names.map((name) => fs.stat(path.join(directory, name))))
+      return sizes.reduce((total, stats) => total + stats.size, 0)
+    }),
+  )
+  const serializedBytes = byteTotals.reduce((total, kindTotal) => total + kindTotal, 0)
+  if (serializedBytes > INSTALLED_RESOURCE_CATALOG_MAX_BYTES) {
+    throw new Error('Installing this import would exceed the syntax resource aggregate byte limit.')
   }
 }
 
@@ -127,6 +143,7 @@ async function applySyntaxThemePreviewLocked(
         )
       }),
     )
+    await assertStagedInstalledResourceCatalogByteCapacity(stagingDirectory)
     await fs.rename(resourcesDirectory, backupDirectory).then(
       () => {
         originalMoved = true

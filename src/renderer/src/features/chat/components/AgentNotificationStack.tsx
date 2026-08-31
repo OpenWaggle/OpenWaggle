@@ -209,14 +209,17 @@ function NotificationCard({
  * so it belongs somewhere else. Follows T3 Code's placement (`ui/toast.tsx:562`), including the
  * offset below the header so it does not land on the window chrome.
  *
- * Remounted per session by its key at the mount site, so dismissals reset with the session rather
- * than accumulating in a set that only ever grows, and switching away and back cannot resurrect a
- * notice already gone. T3 Code achieves the same by filtering toasts to the active thread.
+ * Remounted per session by its key at the mount site, so the local set cannot grow across the
+ * workspace lifetime. The dismissal callback also removes the event from workspace-lifetime state,
+ * so switching away and back cannot resurrect a notice already gone. T3 Code achieves the same by
+ * filtering toasts to the active thread.
  */
 export function AgentNotificationStack({
   events,
+  onDismiss,
 }: {
   readonly events: readonly AgentInteractionEvent[]
+  readonly onDismiss?: (id: string) => void
 }) {
   const [dismissedIds, setDismissedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [expanded, setExpanded] = useState(false)
@@ -227,9 +230,13 @@ export function AgentNotificationStack({
     [events, dismissedIds],
   )
 
-  const dismiss = useCallback((id: string) => {
-    setDismissedIds((current) => new Set(current).add(id))
-  }, [])
+  const dismiss = useCallback(
+    (id: string) => {
+      setDismissedIds((current) => new Set(current).add(id))
+      onDismiss?.(id)
+    },
+    [onDismiss],
+  )
 
   const visible = expanded ? notifications : notifications.slice(0, MAX_VISIBLE_NOTIFICATIONS)
   const overflowCount = Math.max(0, notifications.length - MAX_VISIBLE_NOTIFICATIONS)

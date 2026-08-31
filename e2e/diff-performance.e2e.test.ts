@@ -11,6 +11,7 @@ const LINES_PER_FILE = 200
 const FIRST_FRAME_BUDGET_MS = 100
 const FIRST_DIFF_BUDGET_MS = 1_500
 const LONG_TASK_BUDGET_MS = 50
+const OVERSIZED_FILE_LINES = 2_000
 
 function initializeRepository(projectPath: string) {
   execFileSync('git', ['init', '-b', 'main'], { cwd: projectPath, stdio: 'ignore' })
@@ -57,6 +58,35 @@ async function createLargeChangedRepository(projectPath: string) {
       fs.writeFile(path.join(sourceDirectory, `file-${String(fileIndex).padStart(3, '0')}.ts`), sourceFor(fileIndex, 1)),
     ),
   )
+}
+
+async function createOversizedSingleFileRepository(projectPath: string) {
+  const sourceDirectory = path.join(projectPath, 'src')
+  await fs.mkdir(sourceDirectory, { recursive: true })
+  initializeRepository(projectPath)
+  const sourcePath = path.join(sourceDirectory, 'oversized.ts')
+  const source = (revision: number) =>
+    Array.from(
+      { length: OVERSIZED_FILE_LINES },
+      (_, line) => `export const oversized_${String(line)}: number = ${String(line + revision)}\n`,
+    ).join('')
+  await fs.writeFile(sourcePath, source(0))
+  execFileSync('git', ['add', '.'], { cwd: projectPath, stdio: 'ignore' })
+  execFileSync(
+    'git',
+    [
+      '-c',
+      'user.name=OpenWaggle E2E',
+      '-c',
+      'user.email=e2e@openwaggle.dev',
+      'commit',
+      '--no-gpg-sign',
+      '-m',
+      'Seed oversized diff fixture',
+    ],
+    { cwd: projectPath, stdio: 'ignore' },
+  )
+  await fs.writeFile(sourcePath, source(1))
 }
 
 test('a large diff gives immediate feedback and keeps rendering off the main thread', async () => {
@@ -155,6 +185,71 @@ test('a large diff gives immediate feedback and keeps rendering off the main thr
     expect(Math.max(0, ...measurements.longTasks)).toBeLessThanOrEqual(LONG_TASK_BUDGET_MS)
     expect(measurements.workers).toHaveLength(1)
     expect(measurements.workers[0]).toContain('/assets/worker-')
+    expect(rendererErrors).toEqual([])
+  } finally {
+    await app.cleanup()
+  }
+})
+
+test('a single oversized patch is parsed off the renderer thread', async () => {
+  const app = await OpenWaggleApp.launch('openwaggle-oversized-diff-e2e-')
+  const projectPath = path.join(app.userDataDir, 'oversized-diff-project')
+
+  try {
+    await createOversizedSingleFileRepository(projectPath)
+    await seedSingleSession(app.userDataDir, {
+      title: SESSION_TITLE,
+      projectPath,
+      updatedAt: Date.now(),
+      messages: [],
+    })
+    await app.restart()
+
+    const { page } = app.mainWindow()
+    const rendererErrors: string[] = []
+    page.on('console', (message) => {
+      if (message.type() === 'error') rendererErrors.push(message.text())
+    })
+    page.on('pageerror', (error) => rendererErrors.push(error.message))
+    await app.mainWindow().openThread(SESSION_TITLE)
+    await page.evaluate(() => {
+      const longTasks: number[] = []
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) longTasks.push(entry.duration)
+      }).observe({ type: 'longtask' })
+      const NativeWorker = window.Worker
+      const workers: string[] = []
+      Reflect.set(
+        window,
+        'Worker',
+        new Proxy(NativeWorker, {
+          construct(target, args) {
+            workers.push(String(args[0]))
+            return Reflect.construct(target, args)
+          },
+        }),
+      )
+      Reflect.set(window, '__openwaggleDiffLongTasks', longTasks)
+      Reflect.set(window, '__openwaggleDiffWorkers', workers)
+    })
+
+    await page.getByRole('button', { name: 'Toggle diff panel' }).click()
+    const diffPanel = page.locator('aside[data-right-sidebar-shell="true"]')
+    await expect(diffPanel.locator('.diff-scroll code').first()).toBeVisible({ timeout: 30_000 })
+    const measurements = await page.evaluate(() => ({
+      longTasks: Reflect.get(window, '__openwaggleDiffLongTasks'),
+      workers: Reflect.get(window, '__openwaggleDiffWorkers'),
+    }))
+    const longTasks = Array.isArray(measurements.longTasks)
+      ? measurements.longTasks.filter((duration): duration is number => typeof duration === 'number')
+      : []
+    const workers = Array.isArray(measurements.workers)
+      ? measurements.workers.filter((url): url is string => typeof url === 'string')
+      : []
+
+    expect(Math.max(0, ...longTasks)).toBeLessThanOrEqual(LONG_TASK_BUDGET_MS)
+    expect(workers.some((url) => url.includes('/assets/diff-parser.worker-'))).toBe(true)
+    expect(workers.some((url) => url.includes('/assets/worker-'))).toBe(true)
     expect(rendererErrors).toEqual([])
   } finally {
     await app.cleanup()
