@@ -1,12 +1,14 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
+import type { LocalSessionProfileScope } from '@shared/types/local-session-profile'
 import { SESSION_CAPABILITIES, type SessionCapability } from '@shared/types/session-capability'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { SessionAuthorizationTargetRepositoryError } from '../errors'
 import { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
 import { isPathInsideDirectory } from '../utils/project-path-validation'
+import { authorizedSessionScope } from './sqlite-session-query-support'
 
 interface TargetRow {
   readonly session_id: string
@@ -107,11 +109,42 @@ async function canonicalWorkspaceProjects(
   return [...new Set(allowed)]
 }
 
+function listAuthorizedSessionIds(sql: SqlClient.SqlClient, scope: LocalSessionProfileScope) {
+  const allowed = authorizedSessionScope({
+    profileId: 'event-admission',
+    profileName: 'event-admission',
+    capabilities: [],
+    scope,
+    authorizationCeiling: 'ask-for-approval',
+  })
+  return sql<{ readonly session_id: string }>`
+    SELECT sessions.id AS session_id FROM sessions
+    LEFT JOIN session_spawn_lineage
+      ON session_spawn_lineage.child_session_id = sessions.id
+    WHERE ${allowed.all} = 1
+      OR sessions.project_path IN ${sql.in(allowed.projectPaths)}
+      OR sessions.id IN ${sql.in(allowed.sessionIds)}
+      OR COALESCE(session_spawn_lineage.hive_root_session_id, sessions.id)
+        IN ${sql.in(allowed.hiveRootSessionIds)}
+    ORDER BY sessions.id
+  `.pipe(
+    Effect.map((rows) => rows.map((row) => row.session_id)),
+    Effect.mapError(
+      (cause) =>
+        new SessionAuthorizationTargetRepositoryError({
+          operation: 'list-authorized-session-ids',
+          cause,
+        }),
+    ),
+  )
+}
+
 export const SqliteSessionAuthorizationTargetRepositoryLive = Layer.effect(
   SessionAuthorizationTargetRepository,
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     return SessionAuthorizationTargetRepository.of({
+      listAuthorizedSessionIds: (scope) => listAuthorizedSessionIds(sql, scope),
       resolveWorkspaceProjectPaths: (workspaceRoots) =>
         Effect.gen(function* () {
           const canonicalRoots = yield* Effect.tryPromise({

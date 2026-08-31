@@ -41,6 +41,25 @@ function expandTransientWorkspaceScope(caller: LocalSessionCallerIdentity) {
   })
 }
 
+function refreshEventAdmissionSessionIds(caller: LocalSessionCallerIdentity) {
+  const authority = caller.profileAuthority
+  if (!authority) return Effect.succeed(caller)
+  const scope = caller.baseProfileScope ?? authority.scope
+  if (scope.all) {
+    const { eventAdmissionSessionIds: _, ...withoutSnapshot } = caller
+    return Effect.succeed(withoutSnapshot)
+  }
+  return Effect.gen(function* () {
+    const repository = yield* SessionAuthorizationTargetRepository
+    const authorizedSessionIds = repository.listAuthorizedSessionIds
+      ? yield* repository.listAuthorizedSessionIds(scope)
+      : (scope.sessionIds ?? [])
+    const admitted = new Set(authorizedSessionIds)
+    for (const derived of caller.derivedSessionAuthorities ?? []) admitted.add(derived.sessionId)
+    return { ...caller, eventAdmissionSessionIds: [...admitted] }
+  })
+}
+
 type RefreshedProfileCallerEffect = Effect.Effect<
   LocalSessionCallerIdentity,
   | Error
@@ -105,6 +124,7 @@ export function refreshNamedProfileCaller(
       })
     }),
     Effect.flatMap(expandTransientWorkspaceScope),
+    Effect.flatMap(refreshEventAdmissionSessionIds),
   )
 }
 

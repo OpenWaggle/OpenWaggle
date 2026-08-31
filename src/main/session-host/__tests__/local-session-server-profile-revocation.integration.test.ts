@@ -105,7 +105,9 @@ describe('Local Session server profile revocation', () => {
       idleGracePeriodMs: 60_000,
       requestShutdown: vi.fn(),
     })
-    let currentCredential = 'old-secret'
+    const oldCredential = 'B'.repeat(43)
+    const newCredential = 'C'.repeat(43)
+    let currentCredential = oldCredential
     const authority = {
       callerId: 'profile:worker',
       profileAuthority: {
@@ -127,7 +129,7 @@ describe('Local Session server profile revocation', () => {
         return authority
       },
       dispatch: async () => {
-        currentCredential = 'new-secret'
+        currentCredential = newCredential
         return {
           contract: 'local-access-v1',
           response: {
@@ -149,8 +151,8 @@ describe('Local Session server profile revocation', () => {
     const second = await connectLocalSessionTestClient(endpoint)
     const firstReader = new TestFrameReader(first)
     const secondReader = new TestFrameReader(second)
-    first.write(hello('old-secret'))
-    second.write(hello('old-secret'))
+    first.write(hello(oldCredential))
+    second.write(hello(oldCredential))
     await within(
       Promise.all([firstReader.next(), secondReader.next()]),
       'authenticating old sockets',
@@ -174,7 +176,7 @@ describe('Local Session server profile revocation', () => {
 
     const stale = await connectLocalSessionTestClient(endpoint)
     const staleReader = new TestFrameReader(stale)
-    stale.write(hello('old-secret'))
+    stale.write(hello(oldCredential))
     await expect(
       within(staleReader.next(), 'rejecting the stale credential'),
     ).resolves.toMatchObject({
@@ -185,7 +187,7 @@ describe('Local Session server profile revocation', () => {
 
     const fresh = await connectLocalSessionTestClient(endpoint)
     const freshReader = new TestFrameReader(fresh)
-    fresh.write(hello('new-secret'))
+    fresh.write(hello(newCredential))
     await expect(
       within(freshReader.next(), 'accepting the fresh credential'),
     ).resolves.toMatchObject({ accepted: true })

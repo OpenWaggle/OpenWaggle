@@ -35,6 +35,15 @@ describe('SQLite Session export query', () => {
     if (first.outcome.operation !== 'export' || !('manifest' in first.outcome)) {
       throw new Error('Expected export outcome.')
     }
+    await runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          UPDATE session_branches SET head_node_id = ${'node-worker-1'}
+          WHERE id = ${'worker:branch:main'}
+        `
+      }),
+    )
     const second = await executeQuery(runtime, {
       operation: 'export',
       sessionId: 'worker',
@@ -43,6 +52,7 @@ describe('SQLite Session export query', () => {
       afterCreatedOrder: first.outcome.nextCreatedOrder,
       throughCreatedOrder: first.outcome.manifest.snapshot.nodeHighWaterMark,
       snapshotStateRevision: first.outcome.manifest.snapshot.stateRevision,
+      snapshotHeadNodeId: first.outcome.manifest.snapshot.selectedHeadNodeId,
       capturedAt: first.outcome.manifest.snapshot.capturedAt,
     })
 
@@ -50,7 +60,7 @@ describe('SQLite Session export query', () => {
       manifest: {
         schemaVersion: 1,
         selectedBranchId: 'worker:branch:main',
-        snapshot: { nodeHighWaterMark: 1 },
+        snapshot: { nodeHighWaterMark: 1, selectedHeadNodeId: 'node-worker-2' },
         queue: { pendingCount: 1, bodyScope: 'omitted-by-choice', omittedBodyCount: 1 },
       },
       records: [{ record: 'node', nodeId: 'node-worker-1', runId: 'run-worker' }],

@@ -74,8 +74,23 @@ function publishLifecycleResponse(response: SessionLifecycleResponse) {
   })
 }
 
-function refreshDerivedAdmissionBeforeLifecycleProjection(response: SessionLifecycleResponse) {
-  if (response.replayed || response.outcome.effect !== 'spawned-worker') return Effect.void
+function refreshAdmissionBeforeStartedLifecycleProjection(response: SessionLifecycleResponse) {
+  if (
+    response.replayed ||
+    (response.outcome.effect !== 'launched-root' && response.outcome.effect !== 'spawned-worker')
+  ) {
+    return Effect.void
+  }
+  return Effect.promise(() => refreshLocalSessionProfileAdmissions())
+}
+
+function refreshAdmissionBeforeIdleLifecycleProjection(response: SessionLifecycleResponse) {
+  if (
+    response.replayed ||
+    (response.outcome.effect !== 'created-root' && response.outcome.effect !== 'forked-session')
+  ) {
+    return Effect.void
+  }
   return Effect.promise(() => refreshLocalSessionProfileAdmissions())
 }
 
@@ -228,8 +243,9 @@ export function dispatchNonHostUiLocalSessionCommand(input: {
         : {}),
       ...(caller.workingDirectory ? { initiatingWorkingDirectory: caller.workingDirectory } : {}),
       request: payload.request,
-      beforeDispatchAcceptedRun: refreshDerivedAdmissionBeforeLifecycleProjection,
+      beforeDispatchAcceptedRun: refreshAdmissionBeforeStartedLifecycleProjection,
     })
+    yield* refreshAdmissionBeforeIdleLifecycleProjection(response)
     publishLifecycleResponse(response)
     return { contract: 'session-lifecycle-v2', response } as const
   })

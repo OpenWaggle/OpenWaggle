@@ -16,6 +16,8 @@ describe('Local Session server subscriptions', () => {
   let client: Socket | null = null
 
   beforeEach(async () => {
+    handle = null
+    client = null
     temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-session-host-'))
   })
 

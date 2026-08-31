@@ -93,6 +93,7 @@ const sessionQuerySchema = Schema.Union(
     afterCreatedOrder: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
     throughCreatedOrder: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
     snapshotStateRevision: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
+    snapshotHeadNodeId: Schema.optional(Schema.String),
     capturedAt: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
   }),
   exportListQuerySchema,

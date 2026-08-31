@@ -116,6 +116,31 @@ describe('SQLite Session authorization target repository', () => {
     })
   })
 
+  it('snapshots event admission ids for project, explicit Session, and Hive scopes', async () => {
+    const layer = makeLayer(path.join(temporaryRoot, 'admission.sqlite'))
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* SessionAuthorizationTargetRepository
+        if (!repository.listAuthorizedSessionIds) throw new Error('Admission snapshot missing.')
+        return {
+          project: yield* repository.listAuthorizedSessionIds({ projectPaths: ['/project'] }),
+          explicit: yield* repository.listAuthorizedSessionIds({
+            sessionIds: ['session-worker'],
+          }),
+          hive: yield* repository.listAuthorizedSessionIds({
+            hiveRootSessionIds: ['session-root'],
+          }),
+        }
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result).toEqual({
+      project: ['session-root', 'session-worker'],
+      explicit: ['session-worker'],
+      hive: ['session-root', 'session-worker'],
+    })
+  })
+
   it('expands canonical workspace roots without admitting sibling or symlink-escaped projects', async () => {
     const allowedRoot = path.join(temporaryRoot, 'allowed')
     const allowedProject = path.join(allowedRoot, 'project')

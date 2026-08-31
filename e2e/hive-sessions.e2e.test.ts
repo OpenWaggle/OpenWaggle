@@ -62,7 +62,13 @@ test('Hive Sessions stay ordinary sidebar sessions with reciprocal composer navi
       `Worker Session · Parent: ${QUEEN_TITLE} · Agent: release-verifier`,
     )
 
-    await row(QUEEN_TITLE).click()
+    const queenLineage = row(QUEEN_TITLE).locator('[data-qa="sidebar-session-lineage"]')
+    const queenLineageBox = await queenLineage.boundingBox()
+    if (!queenLineageBox) throw new Error('Expected the Queen lineage glyph to have a hit area')
+    await page.mouse.click(
+      queenLineageBox.x + queenLineageBox.width / 2,
+      queenLineageBox.y + queenLineageBox.height / 2,
+    )
     await expect(page.locator('header').getByText('Queen', { exact: true })).toBeVisible()
     await expect(
       page.locator('[data-qa="header-session-main"] [data-qa="header-session-identity"]'),

@@ -102,6 +102,9 @@ export function continuationQuery(input: {
     ...(typeof snapshot.stateRevision === 'number'
       ? { snapshotStateRevision: snapshot.stateRevision }
       : {}),
+    ...(typeof snapshot.selectedHeadNodeId === 'string'
+      ? { snapshotHeadNodeId: snapshot.selectedHeadNodeId }
+      : {}),
     ...(typeof snapshot.capturedAt === 'number' ? { capturedAt: snapshot.capturedAt } : {}),
   }
 }

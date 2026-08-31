@@ -33,6 +33,9 @@ function exportQuery(
         ? {
             throughCreatedOrder: manifest.snapshot.nodeHighWaterMark,
             snapshotStateRevision: manifest.snapshot.stateRevision,
+            ...(manifest.snapshot.selectedHeadNodeId
+              ? { snapshotHeadNodeId: manifest.snapshot.selectedHeadNodeId }
+              : {}),
             capturedAt: manifest.snapshot.capturedAt,
           }
         : {}),

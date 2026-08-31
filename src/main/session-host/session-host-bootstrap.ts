@@ -45,7 +45,7 @@ export async function startAppSessionHost(input: {
       return yield* service.get()
     }),
   )
-  const authenticate = createLocalSessionAuthenticator({
+  const authenticateCaller = createLocalSessionAuthenticator({
     localUserCredential,
     namedProfiles: {
       authenticate: (profileInput) =>
@@ -57,6 +57,8 @@ export async function startAppSessionHost(input: {
         ),
     },
   })
+  const authenticate = async (hello: Parameters<typeof authenticateCaller>[0]) =>
+    input.runEffect(refreshNamedProfileCaller(await authenticateCaller(hello)))
   const authenticateServer = createLocalSessionServerAuthenticator({
     localUserCredential,
     resolveProfileCredentialVerifier: (profile) =>

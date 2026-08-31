@@ -373,10 +373,16 @@ protected current-user-SID DACL before opening admission. Keep the Windows CI in
 this boundary. Unit tests on Unix cannot prove that `SetNamedSecurityInfoW` accepts the live pipe
 object path or that Windows returns the expected DACL.
 
-Restricted event subscriptions are filtered at admission before bounded buffering. Events outside
-the exact Session scope become payload-free cursor advances, preserving global cursor ordering and
+Restricted event subscriptions are filtered at admission before bounded buffering. Exact Session,
+project, workspace, and Hive scopes use a synchronously readable authorized-Session snapshot that
+is refreshed on authentication, profile changes, and lineage-producing lifecycle changes. Events
+outside that snapshot become payload-free cursor advances, preserving global cursor ordering and
 resume semantics without allowing unrelated event payloads or activity to consume subscriber
 capacity.
+
+Paginated active-branch exports must pin the selected branch head on the first page and carry that
+immutable node through every continuation. Re-reading `session_branches.head_node_id` per page lets
+concurrent tree navigation silently truncate or mix the exported artifact.
 
 Agent-definition semantic catalogs must load the same enabled OpenWaggle-managed Pi packages and
 resource roots as a real Session Run, including runtime load-failure isolation. A catalog built from

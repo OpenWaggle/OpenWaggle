@@ -1,4 +1,5 @@
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
+import type { LocalSessionProfileScope } from '@shared/types/local-session-profile'
 import type { SessionCapability } from '@shared/types/session-capability'
 import { Context, type Effect } from 'effect'
 import type { SessionAuthorizationTargetRepositoryError } from '../errors'
@@ -12,6 +13,9 @@ export interface SessionAuthorizationTarget {
 }
 
 export interface SessionAuthorizationTargetRepositoryShape {
+  readonly listAuthorizedSessionIds?: (
+    scope: LocalSessionProfileScope,
+  ) => Effect.Effect<readonly string[], SessionAuthorizationTargetRepositoryError>
   readonly resolveWorkspaceProjectPaths?: (
     workspaceRoots: readonly string[],
   ) => Effect.Effect<readonly string[], SessionAuthorizationTargetRepositoryError>

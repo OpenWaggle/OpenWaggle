@@ -10,6 +10,7 @@ import {
   SESSION_QUERY_SQL_READ_BUDGET_BYTES,
 } from './session-query-byte-pagination'
 import { type ExportNodeRow, exportNodeRecord } from './sqlite-session-export-record'
+import { resolveExportSnapshotHead } from './sqlite-session-export-snapshot'
 import { parseSessionJson, sessionQueryResponse } from './sqlite-session-query-support'
 
 type ExportRequest = SessionQueryRequest & {
@@ -63,7 +64,7 @@ function readExportNodes(
   sql: SqlClient.SqlClient,
   input: {
     readonly sessionId: string
-    readonly branchId: string | null
+    readonly headNodeId: string | null
     readonly tree: boolean
     readonly afterCreatedOrder: number
     readonly throughCreatedOrder: number
@@ -71,7 +72,7 @@ function readExportNodes(
   },
 ) {
   return Effect.gen(function* () {
-    if (!input.tree && !input.branchId) {
+    if (!input.tree && !input.headNodeId) {
       return { rows: EMPTY_EXPORT_NODE_ROWS, hasMore: false, oversized: false }
     }
     const sizes = input.tree
@@ -88,8 +89,8 @@ function readExportNodes(
         `
       : yield* sql<ExportNodeSizeRow>`
           WITH RECURSIVE selected_path(id) AS (
-            SELECT head_node_id FROM session_branches
-            WHERE id = ${input.branchId} AND session_id = ${input.sessionId}
+            SELECT id FROM session_nodes
+            WHERE id = ${input.headNodeId} AND session_id = ${input.sessionId}
             UNION ALL
             SELECT nodes.parent_id
             FROM session_nodes AS nodes
@@ -127,8 +128,8 @@ function readExportNodes(
         `
       : yield* sql<ExportNodeRow>`
           WITH RECURSIVE selected_path(id) AS (
-            SELECT head_node_id FROM session_branches
-            WHERE id = ${input.branchId} AND session_id = ${input.sessionId}
+            SELECT id FROM session_nodes
+            WHERE id = ${input.headNodeId} AND session_id = ${input.sessionId}
             UNION ALL
             SELECT nodes.parent_id
             FROM session_nodes AS nodes
@@ -148,19 +149,6 @@ function readExportNodes(
   })
 }
 
-function selectedBranchExists(
-  sql: SqlClient.SqlClient,
-  sessionId: string,
-  branchId: string | null,
-) {
-  if (!branchId) return Effect.succeed(true)
-  return sql<{ readonly found: number }>`
-    SELECT EXISTS(
-      SELECT 1 FROM session_branches WHERE id = ${branchId} AND session_id = ${sessionId}
-    ) AS found
-  `.pipe(Effect.map((rows) => rows[0]?.found === 1))
-}
-
 function exportBaseOutcome(input: {
   readonly request: ExportRequest
   readonly snapshot: ExportSnapshotRow
@@ -169,6 +157,7 @@ function exportBaseOutcome(input: {
   readonly highWaterMark: number
   readonly stateRevision: number
   readonly capturedAt: number
+  readonly selectedHeadNodeId: string | null
   readonly queueRows: readonly ExportQueueRow[]
 }) {
   const { query } = input.request
@@ -186,6 +175,7 @@ function exportBaseOutcome(input: {
         stateRevision: input.stateRevision,
         queueRevision: input.snapshot.queue_revision,
         capturedAt: input.capturedAt,
+        ...(input.selectedHeadNodeId ? { selectedHeadNodeId: input.selectedHeadNodeId } : {}),
       },
       activeRunId: input.snapshot.active_run_id,
       activeTurnIncomplete: input.snapshot.active_run_id !== null,
@@ -230,12 +220,19 @@ export function readSessionExport(sql: SqlClient.SqlClient, request: ExportReque
     }
     const branchScope = query.branchScope ?? 'active-branch'
     const selectedBranchId = query.branchId ?? snapshot.last_active_branch_id
-    if (!(yield* selectedBranchExists(sql, query.sessionId, selectedBranchId))) {
+    const head = yield* resolveExportSnapshotHead(sql, {
+      sessionId: query.sessionId,
+      branchScope,
+      selectedBranchId,
+      ...(query.snapshotHeadNodeId ? { suppliedHeadNodeId: query.snapshotHeadNodeId } : {}),
+    })
+    if (head.status === 'not-found') {
       return sessionQueryResponse(request, {
         operation: 'export',
-        error: { code: 'branch_not_found', message: 'Session branch not found.' },
+        error: { code: 'branch_not_found', message: head.message },
       })
     }
+    const selectedHeadNodeId = head.headNodeId
     const queueRows = yield* sql<ExportQueueRow>`
       SELECT id, position, delivery_state, attention_reason, intent_json, created_at
       FROM session_follow_ups
@@ -247,7 +244,7 @@ export function readSessionExport(sql: SqlClient.SqlClient, request: ExportReque
     const capturedAt = query.capturedAt ?? Date.now()
     const nodePage = yield* readExportNodes(sql, {
       sessionId: query.sessionId,
-      branchId: selectedBranchId,
+      headNodeId: selectedHeadNodeId,
       tree: branchScope === 'tree',
       afterCreatedOrder: query.afterCreatedOrder ?? -1,
       throughCreatedOrder: highWaterMark,
@@ -270,6 +267,7 @@ export function readSessionExport(sql: SqlClient.SqlClient, request: ExportReque
       highWaterMark,
       stateRevision,
       capturedAt,
+      selectedHeadNodeId,
       queueRows,
     })
     const candidates = nodePage.rows.map((row) => exportNodeRecord(query.sessionId, row))

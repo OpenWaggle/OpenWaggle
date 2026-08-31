@@ -15,6 +15,7 @@ import * as Effect from 'effect/Effect'
 import { AgentRunInterruptionService } from '../ports/agent-run-interruption-service'
 import { LocalSessionProfileRepository } from '../ports/local-session-profile-repository'
 import { createProfileCredentialVerifier } from '../session-host/profile-credential'
+import { profileCredentialGenerationBudget } from '../session-host/profile-credential-generation-budget'
 import { canonicalizeExistingDirectoryRoots } from '../utils/canonical-directory-roots'
 
 function isLocalUser(caller: LocalSessionCallerIdentity) {
@@ -109,14 +110,26 @@ function profileName(command: LocalSessionProfileManagementCommand) {
       : undefined
 }
 
-function prepareCredential(command: LocalSessionProfileManagementCommand) {
+function prepareCredential(input: {
+  readonly callerId: string
+  readonly idempotencyKey: string
+  readonly command: LocalSessionProfileManagementCommand
+}) {
+  const command = input.command
   if (command.operation !== 'create' && command.operation !== 'rotate')
     return Effect.succeed(undefined)
   return Effect.tryPromise({
-    try: async () => ({
-      verifier: await createProfileCredentialVerifier(command.credential),
-      fingerprint: createHash('sha256').update(command.credential).digest('base64url'),
-    }),
+    try: () =>
+      profileCredentialGenerationBudget
+        .run({
+          callerId: input.callerId,
+          operationKey: input.idempotencyKey,
+          task: () => createProfileCredentialVerifier(command.credential),
+        })
+        .then((verifier) => ({
+          verifier,
+          fingerprint: createHash('sha256').update(command.credential).digest('base64url'),
+        })),
     catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
   })
 }
@@ -204,7 +217,11 @@ export function manageLocalSessionProfiles(input: {
     const reason = rejectsNamedAdministration(input.caller, command)
     if (reason) return rejection(request, reason, profileName(command))
     const repository = yield* LocalSessionProfileRepository
-    const preparedCredential = yield* prepareCredential(command)
+    const preparedCredential = yield* prepareCredential({
+      callerId: input.caller.callerId,
+      idempotencyKey: request.idempotencyKey,
+      command,
+    })
     const response = yield* repository.executeManagement({
       actorCallerId: input.caller.callerId,
       request,

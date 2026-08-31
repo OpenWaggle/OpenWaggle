@@ -1,6 +1,10 @@
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import {
+  isLocalSessionProfileCredential,
+  LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH,
+} from '@shared/types/local-session-profile'
+import {
   LOCAL_SESSION_PROFILE_MANAGEMENT_CONTRACT_VERSION,
   type LocalSessionProfileManagementRequest,
   type LocalSessionProfileManagementResponse,
@@ -13,6 +17,17 @@ import {
 } from './local-session-profile'
 
 const authorizationCeilingSchema = Schema.Literal(...AGENT_AUTHORIZATION_MODES)
+const profileNameSchema = Schema.String.pipe(
+  Schema.minLength(1),
+  Schema.maxLength(LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH),
+)
+const profileCredentialSchema = Schema.String.pipe(
+  Schema.filter(
+    (value) =>
+      isLocalSessionProfileCredential(value) ||
+      'Profile credentials must be 43-character base64url values.',
+  ),
+)
 
 const profilePolicyFields = {
   capabilities: localSessionProfileCapabilitiesSchema,
@@ -25,23 +40,23 @@ const commandSchema = Schema.Union(
   Schema.Struct({ operation: Schema.Literal('list') }),
   Schema.Struct({
     operation: Schema.Literal('create'),
-    name: Schema.String.pipe(Schema.minLength(1)),
-    credential: Schema.String.pipe(Schema.minLength(1)),
+    name: profileNameSchema,
+    credential: profileCredentialSchema,
     ...profilePolicyFields,
   }),
   Schema.Struct({
     operation: Schema.Literal('update'),
-    profileName: Schema.String.pipe(Schema.minLength(1)),
+    profileName: profileNameSchema,
     ...profilePolicyFields,
   }),
   Schema.Struct({
     operation: Schema.Literal('rotate'),
-    profileName: Schema.String.pipe(Schema.minLength(1)),
-    credential: Schema.String.pipe(Schema.minLength(1)),
+    profileName: profileNameSchema,
+    credential: profileCredentialSchema,
   }),
   Schema.Struct({
     operation: Schema.Literal('revoke'),
-    profileName: Schema.String.pipe(Schema.minLength(1)),
+    profileName: profileNameSchema,
   }),
 )
 
@@ -50,21 +65,21 @@ export const localSessionProfileUiCommandSchema: Schema.Schema<LocalSessionProfi
     Schema.Struct({ operation: Schema.Literal('list') }),
     Schema.Struct({
       operation: Schema.Literal('create'),
-      name: Schema.String.pipe(Schema.minLength(1)),
+      name: profileNameSchema,
       ...profilePolicyFields,
     }),
     Schema.Struct({
       operation: Schema.Literal('update'),
-      profileName: Schema.String.pipe(Schema.minLength(1)),
+      profileName: profileNameSchema,
       ...profilePolicyFields,
     }),
     Schema.Struct({
       operation: Schema.Literal('rotate'),
-      profileName: Schema.String.pipe(Schema.minLength(1)),
+      profileName: profileNameSchema,
     }),
     Schema.Struct({
       operation: Schema.Literal('revoke'),
-      profileName: Schema.String.pipe(Schema.minLength(1)),
+      profileName: profileNameSchema,
     }),
   )
 

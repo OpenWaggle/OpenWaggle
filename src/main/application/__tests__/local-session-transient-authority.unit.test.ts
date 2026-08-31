@@ -67,6 +67,7 @@ function emptySearchResponse(): SessionQueryResponse {
 
 function testLayer(repository: SessionQueryRepositoryShape) {
   const resolveWorkspaceProjectPaths = vi.fn(() => Effect.succeed([PROJECT_PATH]))
+  const listAuthorizedSessionIds = vi.fn(() => Effect.succeed(['session-workspace']))
   const layer = Layer.mergeAll(
     Layer.succeed(LocalSessionProfileRepository, {
       list: () => Effect.succeed([]),
@@ -76,6 +77,7 @@ function testLayer(repository: SessionQueryRepositoryShape) {
       executeManagement: () => Effect.die('Profile management is not used in this test.'),
     }),
     Layer.succeed(SessionAuthorizationTargetRepository, {
+      listAuthorizedSessionIds,
       resolveWorkspaceProjectPaths,
       resolve: (sessionId) =>
         Effect.succeed({
@@ -101,24 +103,29 @@ function testLayer(repository: SessionQueryRepositoryShape) {
       flushForTests: () => Effect.void,
     }),
   )
-  return { layer, resolveWorkspaceProjectPaths }
+  return { layer, resolveWorkspaceProjectPaths, listAuthorizedSessionIds }
 }
 
 describe('Local Session transient MCP authority', () => {
   it('expands canonical workspace projects before executing a repository query', async () => {
     const execute = vi.fn(() => Effect.succeed(emptySearchResponse()))
-    const { layer, resolveWorkspaceProjectPaths } = testLayer({ execute })
+    const { layer, resolveWorkspaceProjectPaths, listAuthorizedSessionIds } = testLayer({ execute })
 
-    await Effect.runPromise(
+    const refreshed = await Effect.runPromise(
       Effect.gen(function* () {
         const payload = searchPayload()
         const caller = yield* refreshNamedProfileCaller(transientCaller)
         yield* authorizeLocalSessionCommand({ caller, payload })
-        return yield* dispatchSessionRepositoryQuery(caller, payload)
+        yield* dispatchSessionRepositoryQuery(caller, payload)
+        return caller
       }).pipe(Effect.provide(layer)),
     )
 
     expect(resolveWorkspaceProjectPaths).toHaveBeenCalledWith([WORKSPACE_ROOT])
+    expect(listAuthorizedSessionIds).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceRoots: [WORKSPACE_ROOT], projectPaths: [PROJECT_PATH] }),
+    )
+    expect(refreshed.eventAdmissionSessionIds).toEqual(['session-workspace'])
     expect(execute).toHaveBeenCalledWith(
       expect.objectContaining({
         callerId: 'transient-mcp:workspace-reader',

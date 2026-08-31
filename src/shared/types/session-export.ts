@@ -13,6 +13,7 @@ export interface SessionExportQuery {
   readonly afterCreatedOrder?: number
   readonly throughCreatedOrder?: number
   readonly snapshotStateRevision?: number
+  readonly snapshotHeadNodeId?: string
   readonly capturedAt?: number
 }
 
@@ -28,6 +29,8 @@ export interface SessionExportManifest {
     readonly stateRevision: number
     readonly queueRevision: number
     readonly capturedAt: number
+    /** Present for active-branch exports created by snapshot-aware clients. */
+    readonly selectedHeadNodeId?: string
   }
   readonly activeRunId: string | null
   readonly activeTurnIncomplete: boolean

@@ -39,6 +39,8 @@ export const sessionExportManifestSchema: Schema.Schema<SessionExportManifest> =
     stateRevision: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
     queueRevision: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
     capturedAt: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+    // Optional so schema-v1 artifacts written before branch-head pinning remain readable.
+    selectedHeadNodeId: Schema.optional(Schema.String),
   }),
   activeRunId: Schema.NullOr(Schema.String),
   activeTurnIncomplete: Schema.Boolean,

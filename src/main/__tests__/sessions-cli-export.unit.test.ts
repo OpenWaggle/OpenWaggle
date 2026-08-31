@@ -8,7 +8,12 @@ describe('Sessions CLI export continuation', () => {
       afterCreatedOrder: 100,
       manifest: {
         selectedBranchId: 'branch-at-snapshot',
-        snapshot: { nodeHighWaterMark: 200, stateRevision: 4, capturedAt: 1234 },
+        snapshot: {
+          nodeHighWaterMark: 200,
+          stateRevision: 4,
+          capturedAt: 1234,
+          selectedHeadNodeId: 'node-at-snapshot',
+        },
       },
       arguments: { positionals: [], passthrough: [], options: new Map() },
     })
@@ -19,6 +24,7 @@ describe('Sessions CLI export continuation', () => {
       afterCreatedOrder: 100,
       throughCreatedOrder: 200,
       snapshotStateRevision: 4,
+      snapshotHeadNodeId: 'node-at-snapshot',
       capturedAt: 1234,
     })
   })

@@ -1,4 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
+import { LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH } from '@shared/types/local-session-profile'
 import {
   deriveProfileCredentialServerKey,
   type ProfileCredentialServerChallenge,
@@ -53,7 +54,10 @@ function decodeRequest(value: unknown): LocalSessionServerAuthenticationRequest 
     value.kind !== 'server-authentication-request' ||
     typeof value.nonce !== 'string' ||
     !BASE64URL_32_BYTE_PATTERN.test(value.nonce) ||
-    ('profile' in value && (typeof value.profile !== 'string' || value.profile.length === 0))
+    ('profile' in value &&
+      (typeof value.profile !== 'string' ||
+        value.profile.length === 0 ||
+        value.profile.length > LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH))
   ) {
     throw new Error('Invalid Local Session server-authentication request.')
   }

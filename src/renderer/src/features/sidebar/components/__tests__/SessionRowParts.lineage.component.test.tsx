@@ -44,4 +44,22 @@ describe('Session row lineage glyphs', () => {
       screen.getByRole('img', { name: 'Worker Session · Parent: Release Queen' }),
     ).toHaveAttribute('title', 'Worker Session · Parent: Release Queen')
   })
+
+  it('keeps a recursive Worker role and shows its direct Worker count', () => {
+    renderIndicator(
+      session({
+        role: 'worker',
+        parentSessionId: SessionId('session-queen'),
+        parentTitle: 'Release Queen',
+        directWorkerCount: 2,
+        activeDirectWorkerCount: 1,
+      }),
+    )
+
+    const indicator = screen.getByRole('img', {
+      name: 'Worker Session · Parent: Release Queen · 2 direct Workers',
+    })
+    expect(indicator).toHaveTextContent('2')
+    expect(indicator).toHaveClass('pointer-events-none')
+  })
 })

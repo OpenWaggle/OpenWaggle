@@ -4,6 +4,10 @@ import {
   HOST_UI_REVISION_7_NEW_CHANNELS,
 } from '@shared/types/host-ui-protocol'
 import {
+  isLocalSessionProfileCredential,
+  LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH,
+} from '@shared/types/local-session-profile'
+import {
   LOCAL_SESSION_COMPACTION_REVISION,
   LOCAL_SESSION_CURRENT_REVISION,
   LOCAL_SESSION_LEGACY_HOST_UI_REVISION,
@@ -25,15 +29,23 @@ import { sessionQueryRequestSchema } from './session-query'
 import { agentSendPayloadSchema } from './validation'
 import { waggleConfigSchema } from './waggle'
 
+const localSessionCredentialSchema = Schema.String.pipe(
+  Schema.filter((value) => isLocalSessionProfileCredential(value) || 'Invalid credential format.'),
+)
+const localSessionProfileNameSchema = Schema.String.pipe(
+  Schema.minLength(1),
+  Schema.maxLength(LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH),
+)
+
 export const localSessionClientHelloSchema: Schema.Schema<LocalSessionClientHello> = Schema.Struct({
   protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),
   supportedRevisions: Schema.Array(Schema.Number.pipe(Schema.int(), Schema.positive())),
   clientKind: Schema.Literal('gui', 'cli', 'mcp', 'internal'),
   clientVersion: Schema.String,
   workingDirectory: Schema.optional(Schema.String),
-  profile: Schema.optional(Schema.String),
+  profile: Schema.optional(localSessionProfileNameSchema),
   transientAuthority: Schema.optional(localSessionProfileAuthoritySchema),
-  credential: Schema.optional(Schema.String),
+  credential: Schema.optional(localSessionCredentialSchema),
 })
 
 const sessionHostEventCursorSchema = Schema.Struct({

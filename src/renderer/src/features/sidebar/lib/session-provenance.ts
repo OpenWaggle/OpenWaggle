@@ -107,6 +107,7 @@ export function buildSessionProvenance(
  */
 export function describeSessionRow(input: {
   readonly indicators: readonly SessionProvenanceIndicator[]
+  readonly lineageDescription: string | null
   readonly projectLabel: string
   readonly stateLabel: string | null
   readonly gitDivergence: string | null
@@ -115,6 +116,7 @@ export function describeSessionRow(input: {
   const parts = [
     input.projectLabel,
     input.stateLabel,
+    input.lineageDescription,
     ...input.indicators.map((indicator) => indicator.description),
     input.gitDivergence,
     input.hasInterruptedRun ? 'A run was interrupted in this session' : null,

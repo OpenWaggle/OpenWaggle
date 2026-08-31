@@ -1,4 +1,5 @@
 import type { SessionSummary } from '@shared/types/session'
+import { sessionLineagePresentation } from '../lib/session-lineage'
 import { buildSessionProvenance, describeSessionRow } from '../lib/session-provenance'
 import { useSessionGitBranch, useSessionGitIndicator } from './useSessionGitIndicators'
 
@@ -26,6 +27,7 @@ export function useSessionRowDescription(input: {
 
   return describeSessionRow({
     indicators,
+    lineageDescription: sessionLineagePresentation(input.session)?.title ?? null,
     projectLabel: input.projectLabel,
     stateLabel: input.stateLabel,
     gitDivergence: gitIndicator.label === '' ? null : gitIndicator.description,

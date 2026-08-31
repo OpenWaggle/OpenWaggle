@@ -36,7 +36,7 @@ describe('Local Session authentication budget', () => {
         clientKind: 'cli',
         clientVersion: 'authentication-throttle',
         profile,
-        credential: 'credential',
+        credential: 'A'.repeat(43),
       }),
     )
     return reader.next()

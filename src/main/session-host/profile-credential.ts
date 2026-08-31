@@ -1,4 +1,5 @@
 import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
+import { isLocalSessionProfileCredential } from '@shared/types/local-session-profile'
 
 const PROFILE_CREDENTIAL_BYTES = 32
 const PROFILE_SALT_BYTES = 16
@@ -44,6 +45,9 @@ export function generateProfileCredential(): string {
 }
 
 export async function createProfileCredentialVerifier(credential: string): Promise<string> {
+  if (!isLocalSessionProfileCredential(credential)) {
+    throw new Error('Profile credentials must be 43-character base64url values.')
+  }
   const salt = randomBytes(PROFILE_SALT_BYTES)
   const derived = await deriveCredential(credential, salt)
   return [

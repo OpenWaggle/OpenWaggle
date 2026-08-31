@@ -1,6 +1,14 @@
 import type { AgentAuthorizationMode } from './agent-authorization'
 import type { SessionCapability } from './session-capability'
 
+export const LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH = 128
+export const LOCAL_SESSION_PROFILE_CREDENTIAL_LENGTH = 43
+const LOCAL_SESSION_PROFILE_CREDENTIAL_PATTERN = /^[A-Za-z0-9_-]{43}$/
+
+export function isLocalSessionProfileCredential(value: string) {
+  return LOCAL_SESSION_PROFILE_CREDENTIAL_PATTERN.test(value)
+}
+
 export interface LocalSessionProfileScope {
   readonly all?: boolean
   /** Canonical directory roots used only by machine-authenticated transient authorities. */
@@ -41,4 +49,6 @@ export interface LocalSessionCallerIdentity {
   }[]
   /** Original named-profile scope before derived child targets are projected into it. */
   readonly baseProfileScope?: LocalSessionProfileScope
+  /** Live Session ids admitted synchronously into this caller's event subscription buffer. */
+  readonly eventAdmissionSessionIds?: readonly string[]
 }

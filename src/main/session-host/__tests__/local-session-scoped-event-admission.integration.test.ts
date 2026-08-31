@@ -1,0 +1,119 @@
+import fs from 'node:fs/promises'
+import type { Socket } from 'node:net'
+import os from 'node:os'
+import path from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SessionHostEventHub } from '../../application/session-host-event-hub'
+import { SessionHostLiveness } from '../../application/session-host-liveness'
+import { encodeLocalSessionFrame } from '../local-session-framing'
+import { type LocalSessionServerHandle, listenLocalSessionServer } from '../local-session-server'
+import { connectLocalSessionTestClient, TestFrameReader } from './local-session-server-test-client'
+
+describe('Local Session scoped event admission', () => {
+  let temporaryRoot = ''
+  let handle: LocalSessionServerHandle | null = null
+  let client: Socket | null = null
+
+  beforeEach(async () => {
+    temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-event-admit-'))
+  })
+
+  afterEach(async () => {
+    client?.destroy()
+    if (handle) await handle.close()
+    await fs.rm(temporaryRoot, { recursive: true, force: true })
+  })
+
+  it.each([
+    { label: 'project', scope: { projectPaths: ['/allowed-project'] } },
+    { label: 'workspace', scope: { workspaceRoots: ['/allowed-workspace'] } },
+    { label: 'hive', scope: { hiveRootSessionIds: ['allowed-hive'] } },
+  ])(
+    'drops more than subscriber capacity of unrelated events for $label scope before buffering',
+    async ({ scope }) => {
+      const endpoint = path.join(temporaryRoot, 'scoped.sock')
+      const eventHub = new SessionHostEventHub({
+        hostInstanceId: 'host-current',
+        subscriberCapacity: 1,
+      })
+      const liveness = new SessionHostLiveness({
+        idleGracePeriodMs: 60_000,
+        requestShutdown: vi.fn(),
+      })
+      const authorizeEvent = vi.fn(async (_caller, event) =>
+        event.payload.kind === 'semantic-discovery-readiness-changed'
+          ? false
+          : event.payload.sessionId === 'session-allowed',
+      )
+      handle = await listenLocalSessionServer(endpoint, {
+        hostInstanceId: 'host-current',
+        eventHub,
+        liveness,
+        authenticate: async () => ({
+          callerId: 'profile:restricted',
+          profileAuthority: {
+            profileId: 'restricted',
+            profileName: 'restricted',
+            capabilities: ['sessions:discover'],
+            scope,
+            authorizationCeiling: 'ask-for-approval',
+          },
+          eventAdmissionSessionIds: ['session-allowed'],
+        }),
+        authorizeEvent,
+        dispatch: async () => ({ accepted: true }),
+      })
+      client = await connectLocalSessionTestClient(endpoint)
+      const reader = new TestFrameReader(client)
+      client.write(
+        encodeLocalSessionFrame({
+          protocol: 'openwaggle-local-session',
+          supportedRevisions: [2],
+          clientKind: 'cli',
+          clientVersion: 'test',
+        }),
+      )
+      await expect(reader.next()).resolves.toMatchObject({ accepted: true })
+      client.write(
+        encodeLocalSessionFrame({
+          kind: 'subscribe',
+          requestId: 'request-subscribe',
+          after: eventHub.cursor(),
+        }),
+      )
+      await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
+
+      const firstDenied = eventHub.publish({
+        kind: 'session-state-changed',
+        sessionId: 'session-denied',
+        stateRevision: 1,
+        operation: 'message',
+      })
+      let lastDenied = firstDenied
+      for (let stateRevision = 2; stateRevision <= 300; stateRevision += 1) {
+        lastDenied = eventHub.publish({
+          kind: 'session-state-changed',
+          sessionId: 'session-denied',
+          stateRevision,
+          operation: 'message',
+        })
+      }
+      const visible = eventHub.publish({
+        kind: 'session-state-changed',
+        sessionId: 'session-allowed',
+        stateRevision: 1,
+        operation: 'message',
+      })
+
+      await expect(reader.next()).resolves.toMatchObject({ cursor: firstDenied.cursor })
+      await expect(reader.next()).resolves.toMatchObject({ cursor: lastDenied.cursor })
+      await expect(reader.next()).resolves.toEqual({
+        kind: 'event',
+        subscriptionId: expect.any(String),
+        event: visible,
+      })
+      expect(authorizeEvent).toHaveBeenCalledOnce()
+      expect(authorizeEvent).toHaveBeenCalledWith(expect.any(Object), visible)
+    },
+  )
+})

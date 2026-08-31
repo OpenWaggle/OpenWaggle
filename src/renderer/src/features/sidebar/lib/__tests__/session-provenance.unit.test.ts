@@ -1,7 +1,7 @@
 import { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionBranch, SessionSummary } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
-import { buildSessionProvenance } from '../session-provenance'
+import { buildSessionProvenance, describeSessionRow } from '../session-provenance'
 
 function branch(id: string, overrides: Partial<SessionBranch> = {}): SessionBranch {
   return {
@@ -160,5 +160,18 @@ describe('buildSessionProvenance', () => {
     }).map((indicator) => indicator.kind)
 
     expect(kinds).toEqual(['git-branch', 'worktree', 'conversation-branches', 'terminal'])
+  })
+
+  it('includes Hive lineage in the whole-row hover description', () => {
+    expect(
+      describeSessionRow({
+        indicators: [],
+        lineageDescription: 'Worker Session · Parent: Release Queen · 2 direct Workers',
+        projectLabel: '',
+        stateLabel: 'Working',
+        gitDivergence: null,
+        hasInterruptedRun: false,
+      }),
+    ).toBe('Working · Worker Session · Parent: Release Queen · 2 direct Workers')
   })
 })

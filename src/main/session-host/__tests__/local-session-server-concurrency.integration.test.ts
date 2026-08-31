@@ -232,7 +232,7 @@ describe('Local Session server concurrency', () => {
           clientKind: 'cli',
           clientVersion: 'authentication-budget',
           profile: 'worker',
-          credential: 'invalid-for-test',
+          credential: 'a'.repeat(43),
         }),
       )
     }
