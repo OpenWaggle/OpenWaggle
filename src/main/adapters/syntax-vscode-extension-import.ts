@@ -8,6 +8,7 @@ import {
   ARCHIVE_EXPANDED_LIMIT_BYTES,
   appearanceVariantFromUiTheme,
   confinedExtensionPath,
+  createThemeIncludeBudget,
   emptySyntaxCatalog,
   isRecord,
   parseJsonText,
@@ -16,6 +17,7 @@ import {
   resolveThemeDeclaration,
   SYNTAX_IMPORT_RESOURCE_KIND_LIMIT,
   safeArchivePath,
+  type ThemeIncludeBudget,
 } from './syntax-resource-import-utils'
 import { normalizedTheme } from './syntax-theme-normalization'
 
@@ -23,7 +25,7 @@ interface ExtensionResourceReader {
   readonly format: Extract<SyntaxImportFormat, 'vscode-extension' | 'vscode-vsix'>
   readonly resolveDeclared: (declaredPath: string) => string
   readonly resolveInclude: (resourcePath: string, includePath: string) => string
-  readonly readText: (resourcePath: string) => Promise<string>
+  readonly readText: (resourcePath: string, budget?: ThemeIncludeBudget) => Promise<string>
   readonly sourcePath: (resourcePath: string) => string
 }
 
@@ -115,9 +117,12 @@ async function importExtensionThemes(
     concurrency,
     async (declaration) => {
       const resourcePath = reader.resolveDeclared(declaration.path)
+      const includeBudget =
+        reader.format === 'vscode-extension' ? createThemeIncludeBudget() : undefined
       const resolved = await resolveThemeDeclaration(
         resourcePath,
-        async (candidate) => parseJsonText(await reader.readText(candidate)),
+        async (candidate) =>
+          parseJsonText(await reader.readText(candidate, includeBudget), includeBudget),
         reader.resolveInclude,
       )
       const label =
@@ -212,13 +217,13 @@ async function importExtensionResources(
 
 export async function parseUnpackedSyntaxExtension(directory: string, scope: SyntaxResourceScope) {
   const packageRoot = await fs.realpath(directory)
-  const readConfinedText = async (resourcePath: string) => {
+  const readConfinedText = async (resourcePath: string, budget?: ThemeIncludeBudget) => {
     const realResourcePath = await fs.realpath(resourcePath)
     const relative = path.relative(packageRoot, realResourcePath)
     if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
       throw new Error('Syntax extension resource symlink leaves its package.')
     }
-    return (await readBoundedFile(realResourcePath)).toString('utf8')
+    return (await readBoundedFile(realResourcePath, budget)).toString('utf8')
   }
   const manifestPath = path.join(packageRoot, 'package.json')
   const manifest = extensionManifest(

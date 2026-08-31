@@ -4,6 +4,7 @@ import { normalizedLanguage } from './syntax-language-normalization'
 import { nativeSyntaxResources } from './syntax-native-import'
 import {
   confinedExtensionPath,
+  createThemeIncludeBudget,
   isRecord,
   parseJsonText,
   parseTextMatePlist,
@@ -13,7 +14,11 @@ import {
 import { normalizedTheme } from './syntax-theme-normalization'
 
 export async function parseJsonSyntaxFile(filePath: string, scope: SyntaxResourceScope) {
-  const raw = parseJsonText((await readBoundedFile(filePath)).toString('utf8'))
+  const includeBudget = createThemeIncludeBudget()
+  const raw = parseJsonText(
+    (await readBoundedFile(filePath, includeBudget)).toString('utf8'),
+    includeBudget,
+  )
   if (!isRecord(raw)) throw new Error('Theme JSON must contain an object.')
   const native = nativeSyntaxResources(raw, filePath, scope)
   if (native) return native
@@ -36,11 +41,18 @@ export async function parseJsonSyntaxFile(filePath: string, scope: SyntaxResourc
   }
   const label =
     typeof raw.name === 'string' ? raw.name : path.basename(filePath, path.extname(filePath))
+  const parsedByPath = new Map<string, unknown>([[filePath, raw]])
   const resolved = await resolveThemeDeclaration(
     filePath,
     async (resourcePath) => {
-      const value = parseJsonText((await readBoundedFile(resourcePath)).toString('utf8'))
+      const cached = parsedByPath.get(resourcePath)
+      if (cached !== undefined) return cached
+      const value = parseJsonText(
+        (await readBoundedFile(resourcePath, includeBudget)).toString('utf8'),
+        includeBudget,
+      )
       if (!isRecord(value)) throw new Error('VS Code theme declaration must contain an object.')
+      parsedByPath.set(resourcePath, value)
       return value
     },
     (resourcePath, includePath) =>

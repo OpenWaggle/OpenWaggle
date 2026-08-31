@@ -20,7 +20,16 @@ const RESOURCE_ID_PART_LIMIT = 100
 const JSON_STRUCTURE_DEPTH_LIMIT = 64
 const JSON_STRUCTURE_NODE_LIMIT = 100_000
 
-function assertSyntaxSourceComplexity(value: unknown) {
+export interface ThemeIncludeBudget {
+  bytes: number
+  jsonValues: number
+}
+
+export function createThemeIncludeBudget(): ThemeIncludeBudget {
+  return { bytes: 0, jsonValues: 0 }
+}
+
+function assertSyntaxSourceComplexity(value: unknown, budget?: ThemeIncludeBudget) {
   const stack: { readonly value: unknown; readonly depth: number }[] = [{ value, depth: 0 }]
   let nodes = 0
   while (stack.length > 0) {
@@ -29,6 +38,9 @@ function assertSyntaxSourceComplexity(value: unknown) {
     nodes += 1
     if (nodes > JSON_STRUCTURE_NODE_LIMIT) {
       throw new Error('Syntax source contains too many JSON values.')
+    }
+    if (budget && budget.jsonValues + nodes > JSON_STRUCTURE_NODE_LIMIT) {
+      throw new Error('VS Code theme include chain exceeds the aggregate complexity limit.')
     }
     if (current.depth > JSON_STRUCTURE_DEPTH_LIMIT) {
       throw new Error('Syntax source is nested too deeply.')
@@ -43,6 +55,7 @@ function assertSyntaxSourceComplexity(value: unknown) {
       }
     }
   }
+  if (budget) budget.jsonValues += nodes
 }
 
 export interface MutableSyntaxCatalog {
@@ -111,22 +124,32 @@ export function syntaxResourceSlug(value: string) {
     .slice(0, RESOURCE_ID_PART_LIMIT)
 }
 
-export function parseJsonText(source: string) {
+export function parseJsonText(source: string, budget?: ThemeIncludeBudget) {
   const errors: ParseError[] = []
   const parsed: unknown = parseJsonc(source, errors, {
     allowTrailingComma: true,
     disallowComments: false,
   })
   if (errors.length > 0) throw new Error('Theme JSON/JSONC is malformed.')
-  assertSyntaxSourceComplexity(parsed)
+  assertSyntaxSourceComplexity(parsed, budget)
   return parsed
 }
 
-export async function readBoundedFile(filePath: string) {
+export async function readBoundedFile(filePath: string, budget?: ThemeIncludeBudget) {
   const stats = await fs.stat(filePath)
   if (!stats.isFile()) throw new Error('Theme import source must be a file.')
   if (stats.size > IMPORT_SIZE_LIMIT_BYTES) throw new Error('Theme import exceeds the size limit.')
-  return fs.readFile(filePath)
+  if (budget && budget.bytes + stats.size > ARCHIVE_EXPANDED_LIMIT_BYTES) {
+    throw new Error('VS Code theme include chain exceeds the aggregate byte limit.')
+  }
+  const data = await fs.readFile(filePath)
+  if (budget) {
+    if (budget.bytes + data.byteLength > ARCHIVE_EXPANDED_LIMIT_BYTES) {
+      throw new Error('VS Code theme include chain exceeds the aggregate byte limit.')
+    }
+    budget.bytes += data.byteLength
+  }
+  return data
 }
 
 export function parseTextMatePlist(source: string) {

@@ -6,13 +6,24 @@ import { emptySyntaxCatalog } from './syntax-resource-import-utils'
 
 const PROJECT_RESOURCE_FILE_LIMIT = 20
 const PROJECT_RESOURCE_PARSE_CONCURRENCY = 4
-const PROJECT_CATALOG_MAX_BYTES = 8 * 1024 * 1024
+export const PROJECT_CATALOG_MAX_BYTES = 8 * 1024 * 1024
 const PROJECT_CATALOG_MAX_RESOURCES = 200
 
 export type SyntaxSourceParser = (
   filePath: string,
   scope: SyntaxResourceScope,
 ) => Promise<SyntaxResourceCatalog>
+
+async function assertProjectResourceInputCapacity(resourcePaths: readonly string[]) {
+  let inputBytes = 0
+  for (const resourcePath of resourcePaths) {
+    const size = (await fs.stat(resourcePath)).size
+    if (size > PROJECT_CATALOG_MAX_BYTES - inputBytes) {
+      throw new Error('Project syntax resource inputs exceed the aggregate byte limit.')
+    }
+    inputBytes += size
+  }
+}
 
 async function parseProjectResources(
   resourcePaths: readonly string[],
@@ -21,28 +32,34 @@ async function parseProjectResources(
   const parsedByIndex = new Map<number, SyntaxResourceCatalog>()
   let catalogBytes = 0
   let resourceCount = 0
-  function parseChain(index: number): Promise<void> {
+  let capacityError: Error | null = null
+  async function parseChain(index: number): Promise<void> {
+    if (capacityError) return
     const resourcePath = resourcePaths[index]
-    if (!resourcePath) return Promise.resolve()
-    return parseSource(resourcePath, 'project')
-      .then((parsed) => {
-        const nextResourceCount =
-          parsed.themes.length + parsed.languages.length + parsed.appearances.length
-        const nextBytes = Buffer.byteLength(JSON.stringify(parsed), 'utf8')
-        if (
-          resourceCount + nextResourceCount > PROJECT_CATALOG_MAX_RESOURCES ||
-          catalogBytes + nextBytes > PROJECT_CATALOG_MAX_BYTES
-        ) {
-          throw new Error('Project syntax resources exceed the aggregate catalog limit.')
-        }
-        resourceCount += nextResourceCount
-        catalogBytes += nextBytes
-        parsedByIndex.set(index, parsed)
-      })
-      .catch(() => {
-        // One malformed project resource does not hide the remaining catalog.
-      })
-      .then(() => parseChain(index + PROJECT_RESOURCE_PARSE_CONCURRENCY))
+    if (!resourcePath) return
+    let parsed: SyntaxResourceCatalog
+    try {
+      parsed = await parseSource(resourcePath, 'project')
+    } catch {
+      // One malformed project resource does not hide the remaining catalog.
+      await parseChain(index + PROJECT_RESOURCE_PARSE_CONCURRENCY)
+      return
+    }
+    if (capacityError) return
+    const nextResourceCount =
+      parsed.themes.length + parsed.languages.length + parsed.appearances.length
+    const nextBytes = Buffer.byteLength(JSON.stringify(parsed), 'utf8')
+    if (
+      resourceCount + nextResourceCount > PROJECT_CATALOG_MAX_RESOURCES ||
+      catalogBytes + nextBytes > PROJECT_CATALOG_MAX_BYTES
+    ) {
+      capacityError = new Error('Project syntax resources exceed the aggregate catalog limit.')
+      throw capacityError
+    }
+    resourceCount += nextResourceCount
+    catalogBytes += nextBytes
+    parsedByIndex.set(index, parsed)
+    await parseChain(index + PROJECT_RESOURCE_PARSE_CONCURRENCY)
   }
   await Promise.all(
     Array.from(
@@ -84,6 +101,7 @@ export async function readProjectSyntaxCatalog(
       entries.map((entry) => path.join(roots[rootIndex] ?? projectPath, entry.name)),
     )
     .slice(0, PROJECT_RESOURCE_FILE_LIMIT)
+  await assertProjectResourceInputCapacity(resourcePaths)
   for (const parsed of await parseProjectResources(resourcePaths, parseSource)) {
     catalog.themes.push(...parsed.themes)
     catalog.languages.push(...parsed.languages)
