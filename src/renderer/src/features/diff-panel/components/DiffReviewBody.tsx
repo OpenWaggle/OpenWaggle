@@ -1,4 +1,5 @@
 import type { GitFileDiff } from '@shared/types/git'
+import { useDeferredValue } from 'react'
 import { isReportableSendFailure } from '@/features/chat/lib'
 import { WorkspaceTreePanel } from '@/shared/ui/WorkspaceTreePanel'
 import { useUIStore } from '@/shell/ui-store'
@@ -30,6 +31,8 @@ interface DiffReviewBodyProps {
   }
 }
 
+const EMPTY_DIFF_FILES: readonly GitFileDiff[] = []
+
 /**
  * The diff surface, its Changed-file navigator, and the Review bar.
  *
@@ -50,6 +53,9 @@ export function DiffReviewBody({
   const { viewOptions } = useDiffViewOptions()
   const showToast = useUIStore((state) => state.showToast)
   const workspaceTreeOpen = useUIStore((state) => state.workspaceTreeOpen)
+  // A large expanded navigator can contain hundreds of rows. Let the loading/highlight surface
+  // commit first, then fill the secondary navigator without extending time-to-feedback.
+  const deferredTreeFiles = useDeferredValue(files, EMPTY_DIFF_FILES)
   const review = useDiffReviewActions(
     onSendMessage,
     files,
@@ -87,7 +93,7 @@ export function DiffReviewBody({
           }}
         />
         <WorkspaceTreePanel open={workspaceTreeOpen}>
-          <FileTree files={files} onFileClick={onFileClick} />
+          <FileTree files={deferredTreeFiles} onFileClick={onFileClick} />
         </WorkspaceTreePanel>
       </div>
       <ReviewBar

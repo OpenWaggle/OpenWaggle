@@ -213,6 +213,7 @@ test('six primary surfaces match their visual baselines', { tag: '@visual' }, as
     await expect(
       diffPanel.getByText('visual-regression.ts', { exact: true }).first(),
     ).toBeVisible({ timeout: 30_000 })
+    await expect(diffPanel.locator('.diff-scroll code').first()).toBeVisible({ timeout: 30_000 })
     await expect(diffPanel.getByRole('status', { name: 'Loading' })).toHaveCount(0)
     await expect(diffPanel.getByText('No changes to review')).toHaveCount(0)
     await expect(diffPanel.getByRole('button', { name: 'Commit' })).toBeEnabled({ timeout: 30_000 })

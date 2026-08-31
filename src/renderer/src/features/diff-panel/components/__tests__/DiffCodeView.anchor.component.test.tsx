@@ -6,15 +6,37 @@ import { fileDiff } from './diff-panel.test-harness'
 
 const pierreMocks = vi.hoisted(() => ({
   codeReady: vi.fn(() => true),
+  shadowCodeReady: vi.fn(() => false),
   workerProvider: vi.fn(),
 }))
 
 vi.mock('@pierre/diffs/react', async () => {
   const { StubCodeView } = await import('./diff-panel.test-harness')
   type StubProps = Parameters<typeof StubCodeView>[0]
+  function ShadowCodeView() {
+    return (
+      <div
+        data-testid="code-view"
+        ref={(host) => {
+          if (!host || host.querySelector('diffs-container')) return
+          const container = document.createElement('diffs-container')
+          host.append(container)
+          const shadowRoot = container.shadowRoot
+          if (!shadowRoot) throw new Error('expected the test diffs container to expose its root')
+          shadowRoot.append(document.createElement('code'))
+        }}
+      />
+    )
+  }
   return {
     CodeView: (props: StubProps) =>
-      pierreMocks.codeReady() ? <StubCodeView {...props} /> : <div data-testid="code-view" />,
+      pierreMocks.codeReady() ? (
+        <StubCodeView {...props} />
+      ) : pierreMocks.shadowCodeReady() ? (
+        <ShadowCodeView />
+      ) : (
+        <div data-testid="code-view" />
+      ),
     WorkerPoolContextProvider: ({
       children,
       poolOptions,
@@ -36,6 +58,7 @@ describe('review comment anchoring', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     pierreMocks.codeReady.mockReturnValue(true)
+    pierreMocks.shadowCodeReady.mockReturnValue(false)
   })
 
   it('yields before mounting a multi-file diff worker', async () => {
@@ -93,6 +116,31 @@ describe('review comment anchoring', () => {
 
     pierreMocks.codeReady.mockReturnValue(true)
     rerender(<DiffCodeView {...props} files={[fileDiff('src/refreshed.ts')]} />)
+    await waitFor(() => expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument())
+  })
+
+  it("recognises highlighted code inside Pierre's shadow root", async () => {
+    pierreMocks.codeReady.mockReturnValue(false)
+    pierreMocks.shadowCodeReady.mockReturnValue(true)
+
+    render(
+      <DiffCodeView
+        files={[fileDiff()]}
+        isLoading={false}
+        loadError={null}
+        onRetryLoad={vi.fn()}
+        viewOptions={VIEW_OPTIONS}
+        review={{
+          comments: [],
+          activeCommentLocation: null,
+          onSetActiveComment: vi.fn(),
+          onAddSingleComment: vi.fn(),
+          onAddToReview: vi.fn(),
+          onRemoveComment: vi.fn(),
+        }}
+      />,
+    )
+
     await waitFor(() => expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument())
   })
 
