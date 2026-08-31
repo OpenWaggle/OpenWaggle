@@ -240,9 +240,21 @@ export default defineConfig({
       watch: {
         ignored: MCP_CONFIG_WATCH_IGNORES,
       },
+      // Transform the renderer and syntax worker graph while the dev server is
+      // starting. Without this warmup, opening the first syntax-eligible file
+      // causes Vite to discover Shiki on demand and reload the renderer.
+      warmup: {
+        clientFiles: [
+          './src/main.tsx',
+          './src/shared/lib/syntax/syntax.worker.ts',
+        ],
+      },
     },
     optimizeDeps: {
-      include: ['react/compiler-runtime'],
+      // Shiki's WASM engine is imported only by the syntax worker. Include it
+      // up front so the first TypeScript file cannot trigger dependency
+      // optimization and a renderer reload in the middle of a user action.
+      include: ['react/compiler-runtime', 'shiki', 'shiki/wasm'],
     },
     resolve: {
       alias: {

@@ -108,6 +108,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Appearance packages provide semantic-token and typography defaults; global user preferences are sparse runtime overrides. Reset removes the override so a future whole-app theme can supply its own defaults. Theme catalogs use CSS-only specimens and mount exactly one tabbed live syntax preview to keep Settings responsive.
 - Tailwind source discovery must not walk the repository or linked worktree Git metadata during startup. `isolatedTailwindSourcePlugin` writes one renderer-source manifest under the OS temp directory and `source(none)` points Tailwind at that file; this keeps Git worktree indirection and dependency trees off the Vite critical path while preserving hot updates.
 - Renderer startup must keep optional editing and appearance work off the shell path. Do not force Vite dependency re-optimization on every launch, lazy-load Settings, and never statically import a syntax worker constructor into the shell path.
+- Vite development must pre-optimize `shiki` and `shiki/wasm` and warm the renderer plus syntax-worker entrypoints. A cold first `.ts` open otherwise discovers the WASM dependency in response to the user action, reloads the renderer, and lets the four-second syntax timeout fire repeatedly. The `server.warmup` and `optimizeDeps.include` entries in `electron.vite.config.ts` keep that cost on server startup; the review surface still paints plain text immediately and tokenizes off-thread.
 
 ## Product And UX Memory
 
