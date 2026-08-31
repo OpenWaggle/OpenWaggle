@@ -178,25 +178,24 @@ test('session resources stay scoped while inline images and the gallery navigate
       },
     ])
     await app.restart()
+    await app.resizeMainWindow(1_400, 800)
 
     const mainWindow = app.mainWindow()
     const page = mainWindow.page
     await mainWindow.openThread(ALPHA_TITLE)
+    const summary = page.getByRole('complementary', { name: 'Session Summary' })
     const inlineUserImage = page.getByRole('button', { name: 'Open image user-reference.svg' })
     await expect(inlineUserImage).toBeVisible()
     await expect(page.getByRole('button', { name: 'Open image agent-output.svg' })).toBeVisible()
 
-    const summaryToggle = page.locator('button[aria-controls^="session-summary-"]')
-    await expect(summaryToggle).toBeVisible()
-    if ((await summaryToggle.getAttribute('aria-expanded')) === 'true') {
-      await summaryToggle.click()
-    }
+    await expect(summary).toBeVisible()
+    await page.getByRole('button', { name: 'Hide Session Summary' }).click()
+    await expect(summary).toHaveCount(0)
     await inlineUserImage.click()
     await expect(page.getByRole('dialog', { name: 'Image viewer: user-reference.svg' })).toBeVisible()
     await page.keyboard.press('Escape')
 
     await page.getByRole('button', { name: 'Open Session Summary' }).click()
-    const summary = page.getByRole('complementary', { name: 'Session Summary' })
     await summary.getByRole('button', { name: /Sources/ }).click()
     await summary.getByText('user-reference.svg').click()
 
