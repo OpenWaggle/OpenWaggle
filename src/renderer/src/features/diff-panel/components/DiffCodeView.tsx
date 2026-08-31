@@ -1,7 +1,12 @@
 import type { CodeViewItem } from '@pierre/diffs'
-import { CodeView, type CodeViewHandle, WorkerPoolContextProvider } from '@pierre/diffs/react'
+import {
+  CodeView,
+  type CodeViewHandle,
+  useWorkerPool,
+  WorkerPoolContextProvider,
+} from '@pierre/diffs/react'
 import type { GitFileDiff } from '@shared/types/git'
-import { type ReactNode, useCallback, useMemo, useRef } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useDiffCodeSelection } from '@/features/diff-panel/hooks/useDiffCodeSelection'
 import { useDiffCodeViewReady } from '@/features/diff-panel/hooks/useDiffCodeViewReady'
 import {
@@ -62,6 +67,14 @@ function DiffCodeViewReadiness({ children }: { readonly children: ReactNode }) {
       ) : null}
     </div>
   )
+}
+
+function DiffWorkerPoolTheme({ theme }: { readonly theme: string }) {
+  const workerPool = useWorkerPool()
+  useEffect(() => {
+    void workerPool?.setRenderOptions({ theme })
+  }, [theme, workerPool])
+  return null
 }
 
 const CODE_VIEW_LAYOUT = { paddingTop: 10, paddingBottom: 10, gap: 10 } as const
@@ -290,6 +303,7 @@ export function DiffCodeView({
         }}
         highlighterOptions={{ theme: viewOptions.syntaxTheme }}
       >
+        <DiffWorkerPoolTheme theme={viewOptions.syntaxTheme} />
         <CodeView<ReviewAnnotationMetadata>
           ref={viewerRef}
           className="diff-chrome diff-scroll min-h-0 min-w-0 flex-1 overflow-auto"

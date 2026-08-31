@@ -7,6 +7,7 @@ import { fileDiff } from './diff-panel.test-harness'
 const pierreMocks = vi.hoisted(() => ({
   codeReady: vi.fn(() => true),
   shadowCodeReady: vi.fn(() => false),
+  setRenderOptions: vi.fn(async () => {}),
   workerProvider: vi.fn(),
 }))
 
@@ -49,6 +50,7 @@ vi.mock('@pierre/diffs/react', async () => {
       pierreMocks.workerProvider({ poolOptions, highlighterOptions })
       return children
     },
+    useWorkerPool: () => ({ setRenderOptions: pierreMocks.setRenderOptions }),
   }
 })
 
@@ -59,6 +61,7 @@ describe('review comment anchoring', () => {
     vi.unstubAllGlobals()
     pierreMocks.codeReady.mockReturnValue(true)
     pierreMocks.shadowCodeReady.mockReturnValue(false)
+    pierreMocks.setRenderOptions.mockClear()
   })
 
   it('yields before mounting a multi-file diff worker', async () => {
@@ -230,6 +233,42 @@ describe('review comment anchoring', () => {
       poolOptions: expect.objectContaining({ poolSize: 1 }),
       highlighterOptions: { theme: 'github-dark' },
     })
+  })
+
+  it('updates the working pool when the live syntax theme changes', async () => {
+    const review = {
+      comments: [],
+      activeCommentLocation: null,
+      onSetActiveComment: vi.fn(),
+      onAddSingleComment: vi.fn(),
+      onAddToReview: vi.fn(),
+      onRemoveComment: vi.fn(),
+    } as const
+    const { rerender } = render(
+      <DiffCodeView
+        files={[fileDiff()]}
+        isLoading={false}
+        loadError={null}
+        onRetryLoad={vi.fn()}
+        viewOptions={VIEW_OPTIONS}
+        review={review}
+      />,
+    )
+
+    rerender(
+      <DiffCodeView
+        files={[fileDiff()]}
+        isLoading={false}
+        loadError={null}
+        onRetryLoad={vi.fn()}
+        viewOptions={{ ...VIEW_OPTIONS, syntaxTheme: 'github-light' }}
+        review={review}
+      />,
+    )
+
+    await waitFor(() =>
+      expect(pierreMocks.setRenderOptions).toHaveBeenLastCalledWith({ theme: 'github-light' }),
+    )
   })
 
   it('anchors a selection to the exact file, not one whose path is a suffix of it', () => {
