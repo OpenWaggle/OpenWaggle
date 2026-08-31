@@ -124,7 +124,10 @@ export function useDiffPanelDiffs(
 ) {
   const [state, dispatch] = useReducer(diffPanelReducer, {
     fileDiffs: [],
-    isLoading: false,
+    // A working-tree or branch request is known at mount time. Rendering "No changes" until the
+    // effect starts the request creates a blank/empty flash on slow hidden renderers and can leave
+    // users without feedback while the initial diff bundle and IPC work start.
+    isLoading: workingPath !== null && selection.kind !== 'turn',
     error: null,
     resolvedBaseRef: null,
     automaticFellBackToWorkingTree: false,
