@@ -1,5 +1,9 @@
 import type { SyntaxResourceCatalog, SyntaxThemeImportPreview } from './syntax-resources'
 import type {
+  WorkspaceExternalEditor,
+  WorkspaceFileExternalOpenInput,
+} from './workspace-external-editor'
+import type {
   WorkspaceContentMatch,
   WorkspaceDocumentApplyInput,
   WorkspaceDocumentApplyResult,
@@ -59,8 +63,12 @@ export interface IpcWorkspaceFileInvokeChannelMap {
     args: [input: WorkspaceDocumentApplyInput]
     return: WorkspaceDocumentApplyResult
   }
+  'workspace-files:list-external-editors': {
+    args: []
+    return: WorkspaceExternalEditor[]
+  }
   'workspace-files:open-external': {
-    args: [projectPath: string, path: string]
+    args: [input: WorkspaceFileExternalOpenInput]
     return: undefined
   }
   'workspace-files:create-entry': {

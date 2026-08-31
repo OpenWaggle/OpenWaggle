@@ -8,6 +8,7 @@ import { useUIStore } from '@/shell/ui-store'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 
 const mocks = vi.hoisted(() => ({
+  listWorkspaceExternalEditors: vi.fn(),
   onWorkspaceFilesChanged: vi.fn(() => vi.fn()),
   openWorkspaceFileExternal: vi.fn(),
   searchWorkspaceFiles: vi.fn(),
@@ -60,12 +61,17 @@ const IMAGE_FILE: WorkspaceBinaryFileReadResult = {
 describe('WorkspaceFilePanel external open', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    window.localStorage.clear()
     Object.defineProperties(URL, {
       createObjectURL: { configurable: true, value: mocks.createObjectURL },
       revokeObjectURL: { configurable: true, value: mocks.revokeObjectURL },
     })
     useUIStore.getState().clearToast()
     mocks.readWorkspaceFile.mockResolvedValue(FILE)
+    mocks.listWorkspaceExternalEditors.mockResolvedValue([
+      { id: 'vscode', label: 'Visual Studio Code' },
+      { id: 'zed', label: 'Zed' },
+    ])
     mocks.searchWorkspaceFiles.mockResolvedValue([
       { path: 'src/example.ts', basename: 'example.ts' },
       { path: 'src/other.ts', basename: 'other.ts' },
@@ -91,6 +97,7 @@ describe('WorkspaceFilePanel external open', () => {
     const openButton = await screen.findByRole('button', { name: 'Open file in external editor' })
 
     fireEvent.click(openButton)
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: 'Visual Studio Code' }))
 
     await vi.waitFor(() =>
       expect(useUIStore.getState().toastData).toEqual({
@@ -98,6 +105,45 @@ describe('WorkspaceFilePanel external open', () => {
         variant: 'error',
       }),
     )
+  })
+
+  it('opens the selected editor and remembers it for the primary action', async () => {
+    mocks.openWorkspaceFileExternal.mockResolvedValue(undefined)
+    renderWithQueryClient(
+      <WorkspaceFilePanel
+        projectPath="/project"
+        relativePath="src/example.ts"
+        line={12}
+        onClose={vi.fn()}
+        onOpenFile={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose external editor' }))
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: 'Zed' }))
+
+    await vi.waitFor(() =>
+      expect(mocks.openWorkspaceFileExternal).toHaveBeenCalledWith({
+        projectPath: '/project',
+        path: 'src/example.ts',
+        editor: 'zed',
+        line: 12,
+      }),
+    )
+    expect(window.localStorage.getItem('openwaggle:preferred-external-editor')).toBe('zed')
+
+    const primaryButton = await screen.findByRole('button', {
+      name: 'Open file in external editor',
+    })
+    await vi.waitFor(() => expect(primaryButton).toHaveAttribute('title', 'Open in Zed'))
+    fireEvent.click(primaryButton)
+    await vi.waitFor(() => expect(mocks.openWorkspaceFileExternal).toHaveBeenCalledTimes(2))
+    expect(mocks.openWorkspaceFileExternal).toHaveBeenLastCalledWith({
+      projectPath: '/project',
+      path: 'src/example.ts',
+      editor: 'zed',
+      line: 12,
+    })
   })
 
   it('releases a binary preview URL when the preview unmounts', async () => {

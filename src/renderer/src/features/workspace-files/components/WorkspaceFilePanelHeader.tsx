@@ -1,6 +1,5 @@
 import {
   Copy,
-  ExternalLink,
   FilePlus2,
   FolderOpen,
   FolderPlus,
@@ -14,6 +13,7 @@ import {
 import { Button } from '@/shared/ui/Button'
 import { Popover } from '@/shared/ui/Popover'
 import type { WorkspaceMutationAction } from '../lib/workspace-file-layout'
+import { WorkspaceExternalEditorPicker } from './WorkspaceExternalEditorPicker'
 
 const WORKSPACE_MUTATION_ITEMS = [
   { label: 'New file…', icon: FilePlus2, action: 'create-file' },
@@ -35,7 +35,7 @@ interface HeaderState {
 
 interface HeaderActions {
   readonly onToggleWorkspaceTree: () => void
-  readonly onOpenExternal: () => void
+  readonly onExternalEditorError: (error: unknown) => void
   readonly onGoToLine: () => void
   readonly onBeginMutation: (action: WorkspaceMutationAction) => void
   readonly onCopyRelativePath: () => void
@@ -135,15 +135,12 @@ export function WorkspaceFilePanelHeader({
         <FolderTree className="size-3.5" />
       </Button>
       {state.projectPath ? (
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          title="Open in external editor"
-          aria-label="Open file in external editor"
-          onClick={actions.onOpenExternal}
-        >
-          <ExternalLink className="size-3.5" />
-        </Button>
+        <WorkspaceExternalEditorPicker
+          projectPath={state.projectPath}
+          relativePath={state.relativePath}
+          line={state.line}
+          onError={actions.onExternalEditorError}
+        />
       ) : null}
       <Button
         variant="ghost"

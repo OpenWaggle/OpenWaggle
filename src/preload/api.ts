@@ -262,6 +262,7 @@ export const api: OpenWaggleApi = {
   readWorkspaceFileWithEncoding: invoke('workspace-files:read-with-encoding'),
   writeWorkspaceFile: invoke('workspace-files:write'),
   applyWorkspaceDocumentEdits: invoke('workspace-files:apply-document-edits'),
+  listWorkspaceExternalEditors: invoke('workspace-files:list-external-editors'),
   openWorkspaceFileExternal: invoke('workspace-files:open-external'),
   createWorkspaceEntry: invoke('workspace-files:create-entry'),
   moveWorkspaceEntry: invoke('workspace-files:move-entry'),

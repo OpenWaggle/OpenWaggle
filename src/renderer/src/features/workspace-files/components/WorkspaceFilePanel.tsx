@@ -79,13 +79,6 @@ export function WorkspaceFilePanel(input: WorkspaceFilePanelProps) {
       )
   }
 
-  function openExternal() {
-    if (!input.projectPath) return
-    void api.openWorkspaceFileExternal(input.projectPath, input.relativePath).catch((error) => {
-      showToast(error instanceof Error ? error.message : String(error), 'error')
-    })
-  }
-
   function openGoToLine() {
     navigation.setGoToLineValue(input.line ? String(input.line) : '')
     navigation.setGoToLineOpen(true)
@@ -102,7 +95,8 @@ export function WorkspaceFilePanel(input: WorkspaceFilePanelProps) {
         }}
         actions={{
           onToggleWorkspaceTree: toggleWorkspaceTree,
-          onOpenExternal: openExternal,
+          onExternalEditorError: (error: unknown) =>
+            showToast(error instanceof Error ? error.message : String(error), 'error'),
           onGoToLine: openGoToLine,
           onBeginMutation: mutations.begin,
           onCopyRelativePath: () => void navigator.clipboard.writeText(input.relativePath),

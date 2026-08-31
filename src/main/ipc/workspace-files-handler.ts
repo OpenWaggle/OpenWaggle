@@ -1,6 +1,7 @@
 import { WORKSPACE_FILES } from '@shared/constants/resource-limits'
 import { WORKSPACE_EDITOR_PERFORMANCE } from '@shared/constants/workspace-editor-performance'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { WORKSPACE_EXTERNAL_EDITOR_DEFINITIONS } from '@shared/types/workspace-external-editor'
 import * as Effect from 'effect/Effect'
 import { unwatchWorkspaceFiles, watchWorkspaceFiles } from '../adapters/workspace-file-watcher'
 import { WorkspaceFileService } from '../ports/workspace-file-service'
@@ -31,6 +32,15 @@ const documentChangeSchema = Schema.Struct({
 const documentEditBatchSchema = Schema.Struct({
   version: nonNegativeIntegerSchema,
   changes: Schema.Array(documentChangeSchema).pipe(Schema.maxItems(MAX_DOCUMENT_CHANGES_PER_BATCH)),
+})
+const externalEditorIdSchema = Schema.Literal(
+  ...WORKSPACE_EXTERNAL_EDITOR_DEFINITIONS.map((editor) => editor.id),
+)
+const externalOpenInputSchema = Schema.Struct({
+  projectPath: nonEmptyStringSchema,
+  path: nonEmptyStringSchema,
+  editor: externalEditorIdSchema,
+  line: Schema.optional(nonNegativeIntegerSchema),
 })
 
 function assertBoundedDocumentEditWorkload(input: {
@@ -88,6 +98,14 @@ function registerWorkspaceFileReadHandlers() {
       const workspaceFiles = yield* WorkspaceFileService
       const results = yield* workspaceFiles.searchFiles({ projectPath, query, limit })
       return [...results]
+    }),
+  )
+
+  typedHandle('workspace-files:list-external-editors', () =>
+    Effect.gen(function* () {
+      const workspaceFiles = yield* WorkspaceFileService
+      const editors = yield* workspaceFiles.listExternalEditors()
+      return [...editors]
     }),
   )
 
@@ -162,12 +180,12 @@ function registerWorkspaceFileReadHandlers() {
 }
 
 function registerWorkspaceFileMutationHandlers() {
-  typedHandle('workspace-files:open-external', (_event, rawProjectPath, rawPath) =>
+  typedHandle('workspace-files:open-external', (_event, rawInput) =>
     Effect.gen(function* () {
-      const projectPath = yield* validatedProjectPath(rawProjectPath)
-      const relativePath = decodeUnknownOrThrow(nonEmptyStringSchema, rawPath)
+      const input = decodeUnknownOrThrow(externalOpenInputSchema, rawInput)
+      const projectPath = yield* validatedProjectPath(input.projectPath)
       const workspaceFiles = yield* WorkspaceFileService
-      yield* workspaceFiles.openFile({ projectPath, path: relativePath })
+      yield* workspaceFiles.openFile({ ...input, projectPath })
     }),
   )
 

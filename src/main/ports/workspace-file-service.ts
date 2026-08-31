@@ -1,4 +1,8 @@
 import type {
+  WorkspaceExternalEditor,
+  WorkspaceExternalEditorId,
+} from '@shared/types/workspace-external-editor'
+import type {
   WorkspaceContentMatch,
   WorkspaceDocumentApplyInput,
   WorkspaceDocumentApplyResult,
@@ -45,9 +49,15 @@ export interface WorkspaceFileServiceShape {
   readonly applyDocumentEdits: (
     input: WorkspaceDocumentApplyInput,
   ) => EffectType<WorkspaceDocumentApplyResult, WorkspaceFileError>
+  readonly listExternalEditors: () => EffectType<
+    readonly WorkspaceExternalEditor[],
+    WorkspaceFileError
+  >
   readonly openFile: (input: {
     readonly projectPath: string
     readonly path: string
+    readonly editor: WorkspaceExternalEditorId
+    readonly line?: number
   }) => EffectType<void, WorkspaceFileError>
   readonly createEntry: (
     input: WorkspaceEntryCreateInput,

@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import type { WorkspaceContentMatch, WorkspaceFileEntry } from '@shared/types/workspace-files'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
-import { openPath, showItemInFolder } from '../desktop-ui'
+import { showItemInFolder } from '../desktop-ui'
 import { WorkspaceFileService } from '../ports/workspace-file-service'
 import { applyWorkspaceDocumentEdits, writeWorkspaceFile } from './workspace-document-writer'
 import {
@@ -11,6 +11,8 @@ import {
   moveWorkspaceEntry,
   trashWorkspaceEntry,
 } from './workspace-entry-mutations'
+import { listAvailableWorkspaceExternalEditors } from './workspace-external-editor'
+import { openWorkspaceFileInExternalEditor } from './workspace-external-editor-launcher'
 import { hasBinaryBytes } from './workspace-file-content'
 import {
   filterGitignoredWorkspacePaths,
@@ -206,12 +208,20 @@ export const FilesystemWorkspaceFileLive = Layer.succeed(
         try: () => applyWorkspaceDocumentEdits(input),
         catch: (cause) => workspaceFileError('apply-document-edits', cause),
       }),
+    listExternalEditors: () =>
+      Effect.tryPromise({
+        try: () => listAvailableWorkspaceExternalEditors(),
+        catch: (cause) => workspaceFileError('list-external-editors', cause),
+      }),
     openFile: (input) =>
       Effect.tryPromise({
         try: async () => {
           const filePath = (await resolveExistingWorkspaceFile(input)).realFilePath
-          const result = await openPath(filePath)
-          if (result) throw new Error(result)
+          await openWorkspaceFileInExternalEditor({
+            editor: input.editor,
+            filePath,
+            ...(input.line === undefined ? {} : { line: input.line }),
+          })
         },
         catch: (cause) => workspaceFileError('open-file', cause),
       }),
