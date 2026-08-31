@@ -1,3 +1,4 @@
+import type { WorkspaceTextFileReadResult } from '@shared/types/workspace-files'
 import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { useEffect, useRef, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
