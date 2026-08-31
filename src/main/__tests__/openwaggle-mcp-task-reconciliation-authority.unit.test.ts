@@ -23,7 +23,7 @@ afterEach(async () => {
 })
 
 describe('hosted task reconciliation authority', () => {
-  it('retries restoration when an older terminal projection finishes late', async () => {
+  it('invalidates a stale acknowledgement before retrying later', async () => {
     const store = new OpenWaggleMcpTaskStore(path.join(temporaryRoot, 'tasks.json'))
     await store.update(() => ({
       tasks: [
@@ -62,7 +62,7 @@ describe('hosted task reconciliation authority', () => {
           await acceptedBlocked
         }
         projectedStates.push(state)
-        if (state === 'working' && correctiveAttempts++ === 0) {
+        if (state === 'working' && correctiveAttempts++ < 2) {
           throw new Error('session database temporarily unavailable')
         }
       }),
@@ -86,6 +86,7 @@ describe('hosted task reconciliation authority', () => {
           sessionId: 'reused-session',
           status: 'working',
           lease: { ownerId: 'live-owner', expiresAt: 100 },
+          projectedDelegationState: 'working',
           createdAt: 3,
           updatedAt: 3,
         },
@@ -98,6 +99,20 @@ describe('hosted task reconciliation authority', () => {
     await reconciliation
 
     expect(projectedStates).toEqual(['working', 'accepted', 'working', 'working'])
+    expect((await store.readTasks()).find(({ id }) => id === 'newer-working')).not.toHaveProperty(
+      'projectedDelegationState',
+    )
+    await reconcileOpenWaggleProfileTasks({
+      now: 10,
+      profile: 'test-profile',
+      services,
+      store,
+    })
+
+    expect(projectedStates).toEqual(['working', 'accepted', 'working', 'working', 'working'])
+    expect((await store.readTasks()).find(({ id }) => id === 'newer-working')).toMatchObject({
+      projectedDelegationState: 'working',
+    })
     expect((await store.readTasks()).find(({ id }) => id === 'older-completed')).not.toHaveProperty(
       'projectedDelegationState',
     )

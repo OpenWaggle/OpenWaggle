@@ -43,6 +43,11 @@ function delegationStateForTask(task: ServerTaskRecord) {
   return isActiveTaskStatus(task.status) ? 'working' : terminalDelegationState(task.status)
 }
 
+function invalidateProjectedState(task: ServerTaskRecord) {
+  const { projectedDelegationState: _projectedDelegationState, ...unacknowledged } = task
+  return unacknowledged
+}
+
 function acknowledgeProjectedState(
   input: Pick<ReconcileProfileTasksInput, 'store'>,
   taskId: string,
@@ -52,7 +57,15 @@ function acknowledgeProjectedState(
   return input.store.update((tasks) => {
     const authoritative = authoritativeTaskForSession(tasks, sessionId)
     if (authoritative?.id !== taskId || delegationStateForTask(authoritative) !== state) {
-      return { tasks, result: false }
+      return {
+        tasks:
+          authoritative?.projectedDelegationState === undefined
+            ? tasks
+            : tasks.map((task) =>
+                task.id === authoritative.id ? invalidateProjectedState(task) : task,
+              ),
+        result: false,
+      }
     }
     return {
       tasks: tasks.map((task) =>
