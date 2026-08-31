@@ -108,6 +108,34 @@ describe('hosted MCP task session linkage', () => {
     expect(cancelled.sessionId).toBe(`created-${task.id}`)
   })
 
+  it('retries a transient working-state projection for a reused session', async () => {
+    const options = serveOptions(temporaryRoot)
+    const taskServices = services()
+    vi.mocked(taskServices.setDelegationState)
+      .mockRejectedValueOnce(new Error('session database temporarily unavailable'))
+      .mockResolvedValue(undefined)
+    const manager = track(
+      new OpenWaggleServerTaskManager(options, metadata(options.taskStorePath), taskServices),
+    )
+
+    const task = await Effect.runPromise(
+      manager.start({
+        projectPath: temporaryRoot,
+        sessionId: 'reused-session',
+        objective: 'keep working',
+      }),
+    )
+    await waitForTaskStatus(manager, task.id, 'working')
+
+    await vi.waitFor(() => {
+      expect(taskServices.setDelegationState).toHaveBeenNthCalledWith(
+        2,
+        SessionId('reused-session'),
+        'working',
+      )
+    })
+  })
+
   it('restores the authoritative working state when an older terminal projection finishes late', async () => {
     const options = serveOptions(temporaryRoot)
     const projectedStates: string[] = []

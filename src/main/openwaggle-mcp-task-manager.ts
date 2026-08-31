@@ -18,7 +18,7 @@ import {
 } from './openwaggle-mcp-task-leases'
 import {
   establishTaskLineage,
-  projectTaskDelegationState,
+  type projectTaskDelegationState,
   terminalDelegationState,
 } from './openwaggle-mcp-task-lineage'
 import {
@@ -203,7 +203,7 @@ export class OpenWaggleServerTaskManager {
         return
       }
       if (!created) {
-        await projectTaskDelegationState(this.services, sessionId, 'working')
+        await this.projectTaskStateIfAuthoritative(task.id, sessionId, 'working')
       }
       const result = await this.services.execute({
         sessionId,

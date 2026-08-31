@@ -16,7 +16,7 @@ interface ReconcileProfileTasksInput {
   readonly store: OpenWaggleMcpTaskStore
 }
 
-const TASK_PROJECTION_CORRECTION_MAX_ATTEMPTS = 3
+const TASK_PROJECTION_MAX_ATTEMPTS = 3
 
 function isNewerTask(candidate: ServerTaskRecord, current: ServerTaskRecord) {
   if (candidate.createdAt !== current.createdAt) return candidate.createdAt > current.createdAt
@@ -47,37 +47,27 @@ function delegationStateForTask(task: ServerTaskRecord) {
   return isActiveTaskStatus(task.status) ? 'working' : terminalDelegationState(task.status)
 }
 
-async function restoreAuthoritativeTaskProjection(
-  input: Pick<ReconcileProfileTasksInput, 'services' | 'store'>,
-  sessionId: SessionId,
-) {
-  for (let attempt = 0; attempt < TASK_PROJECTION_CORRECTION_MAX_ATTEMPTS; attempt += 1) {
-    const authoritative = authoritativeTaskForSession(await input.store.readTasks(), sessionId)
-    if (!authoritative) return false
-    const succeeded = await projectTaskDelegationState(
-      input.services,
-      sessionId,
-      delegationStateForTask(authoritative),
-    )
-    if (succeeded) return true
-  }
-  return false
-}
-
 export async function projectTaskStateIfAuthoritative(
   input: Pick<ReconcileProfileTasksInput, 'services' | 'store'>,
   taskId: string,
   sessionId: SessionId,
   state: SessionDelegationState,
 ) {
-  const before = authoritativeTaskForSession(await input.store.readTasks(), sessionId)
-  if (before?.id !== taskId) return false
-  const succeeded = await projectTaskDelegationState(input.services, sessionId, state)
-  if (!succeeded) return false
-  const after = authoritativeTaskForSession(await input.store.readTasks(), sessionId)
-  if (!after) return true
-  if (after.id === taskId && delegationStateForTask(after) === state) return true
-  await restoreAuthoritativeTaskProjection(input, sessionId)
+  const initial = authoritativeTaskForSession(await input.store.readTasks(), sessionId)
+  if (initial?.id !== taskId || delegationStateForTask(initial) !== state) return false
+  for (let attempt = 0; attempt < TASK_PROJECTION_MAX_ATTEMPTS; attempt += 1) {
+    const before = authoritativeTaskForSession(await input.store.readTasks(), sessionId)
+    if (!before) return false
+    const projectedState = delegationStateForTask(before)
+    const succeeded = await projectTaskDelegationState(input.services, sessionId, projectedState)
+    if (!succeeded) continue
+    const after = authoritativeTaskForSession(await input.store.readTasks(), sessionId)
+    const projectedRequestedState = before.id === taskId && projectedState === state
+    if (!after) return projectedRequestedState
+    if (after.id === before.id && delegationStateForTask(after) === projectedState) {
+      return projectedRequestedState
+    }
+  }
   return false
 }
 
