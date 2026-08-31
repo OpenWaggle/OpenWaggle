@@ -48,7 +48,11 @@ test('draft branch selection shows transcript only up to the selected source nod
     const mainWindow = app.mainWindow()
     await mainWindow.openThread(TITLE)
     await expect(mainWindow.text(MAIN_CONTINUATION)).toBeVisible()
-    await mainWindow.page.getByRole('button', { name: 'Hide Session Summary' }).click()
+    const summaryToggle = mainWindow.page.locator('button[aria-controls^="session-summary-"]')
+    await expect(summaryToggle).toBeVisible()
+    if ((await summaryToggle.getAttribute('aria-expanded')) === 'true') {
+      await summaryToggle.click()
+    }
 
     const branchPointRow = mainWindow.page.locator('[data-user-message-id="branch-point"]')
     await branchPointRow.hover()

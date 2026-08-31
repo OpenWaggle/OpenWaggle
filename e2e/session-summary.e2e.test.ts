@@ -62,6 +62,7 @@ test('Session Summary follows first-message, dock, and sidebar behavior', async 
       messages: [message(ALPHA_USER_MESSAGE_ID, 'user', 'Start the populated session.', Date.now())],
     })
     await app.restart()
+    await app.resizeMainWindow(1_400, 800)
 
     const mainWindow = app.mainWindow()
     const page = mainWindow.page
@@ -185,7 +186,11 @@ test('session resources stay scoped while inline images and the gallery navigate
     await expect(inlineUserImage).toBeVisible()
     await expect(page.getByRole('button', { name: 'Open image agent-output.svg' })).toBeVisible()
 
-    await page.getByRole('button', { name: 'Hide Session Summary' }).click()
+    const summaryToggle = page.locator('button[aria-controls^="session-summary-"]')
+    await expect(summaryToggle).toBeVisible()
+    if ((await summaryToggle.getAttribute('aria-expanded')) === 'true') {
+      await summaryToggle.click()
+    }
     await inlineUserImage.click()
     await expect(page.getByRole('dialog', { name: 'Image viewer: user-reference.svg' })).toBeVisible()
     await page.keyboard.press('Escape')
