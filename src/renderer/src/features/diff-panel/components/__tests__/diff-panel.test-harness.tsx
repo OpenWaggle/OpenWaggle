@@ -50,6 +50,7 @@ export function StubCodeView({
   useImperativeHandle(ref, () => ({ scrollTo: (target) => setScrolledItemId(target.id) }), [])
   return (
     <div data-scrolled-item-id={scrolledItemId ?? undefined} data-testid="code-view">
+      <code data-testid="code-view-ready" />
       {items.map((item) => (
         <div key={item.id}>
           <Button

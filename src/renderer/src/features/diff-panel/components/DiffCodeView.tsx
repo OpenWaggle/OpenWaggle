@@ -3,6 +3,7 @@ import { CodeView, type CodeViewHandle, WorkerPoolContextProvider } from '@pierr
 import type { GitFileDiff } from '@shared/types/git'
 import { useCallback, useMemo, useRef } from 'react'
 import { useDiffCodeSelection } from '@/features/diff-panel/hooks/useDiffCodeSelection'
+import { useDiffCodeViewReady } from '@/features/diff-panel/hooks/useDiffCodeViewReady'
 import {
   type DiffFileNavigation,
   usePreparedDiffFileNavigation,
@@ -172,6 +173,38 @@ function buildPatchByPath(files: readonly GitFileDiff[]) {
   return new Map(files.map((file) => [file.path, file.diff] as const))
 }
 
+function useDiffAnnotationRenderer(review: DiffCodeViewReview) {
+  return useCallback(
+    (
+      annotation: { metadata?: ReviewAnnotationMetadata | undefined },
+      item: CodeViewItem<ReviewAnnotationMetadata>,
+    ) => {
+      const metadata = annotation.metadata
+      if (metadata === undefined) return null
+      if (metadata.kind === 'pending') {
+        const comment = review.comments.find((entry) => entry.id === metadata.commentId)
+        if (comment === undefined) return null
+        return (
+          <PendingComment comment={comment} onRemove={() => review.onRemoveComment(comment.id)} />
+        )
+      }
+      const location = review.activeCommentLocation
+      if (location === null || location.filePath !== filePathOfItem(item)) return null
+      return (
+        <InlineComment
+          startLine={location.line}
+          endLine={location.endLine ?? location.line}
+          hasPendingReview={review.comments.length > 0}
+          onAddSingleComment={(content) => review.onAddSingleComment(location, content)}
+          onAddToReview={(content) => review.onAddToReview(location, content)}
+          onCancel={() => review.onSetActiveComment(null)}
+        />
+      )
+    },
+    [review],
+  )
+}
+
 export function DiffCodeView({
   files,
   isLoading,
@@ -181,24 +214,22 @@ export function DiffCodeView({
   review,
   fileNavigation = null,
 }: DiffCodeViewProps) {
-  const {
-    comments,
-    activeCommentLocation,
-    onSetActiveComment,
-    onAddSingleComment,
-    onAddToReview,
-    onRemoveComment,
-  } = review
   const viewerRef = useRef<CodeViewHandle<ReviewAnnotationMetadata>>(null)
   const patchByPath = useMemo(() => buildPatchByPath(files), [files])
-  const [selection, handleSelectionChange] = useDiffCodeSelection(patchByPath, onSetActiveComment)
+  const [selection, handleSelectionChange] = useDiffCodeSelection(
+    patchByPath,
+    review.onSetActiveComment,
+  )
 
   const annotationsByPath = useMemo(
-    () => buildAnnotationsByPath(comments, activeCommentLocation),
-    [comments, activeCommentLocation],
+    () => buildAnnotationsByPath(review.comments, review.activeCommentLocation),
+    [review.comments, review.activeCommentLocation],
   )
-  const progressiveItems = useProgressiveCodeViewItems(files, annotationsByPath)
-  const { items, preparedPaths, error: preparationError } = progressiveItems
+  const {
+    items,
+    preparedPaths,
+    error: preparationError,
+  } = useProgressiveCodeViewItems(files, annotationsByPath)
   usePreparedDiffFileNavigation(viewerRef, fileNavigation, preparedPaths)
 
   const options = useMemo(
@@ -212,43 +243,7 @@ export function DiffCodeView({
     }),
     [viewOptions.syntaxTheme, viewOptions.diffView, viewOptions.wrapLines],
   )
-
-  const renderAnnotation = useCallback(
-    (
-      annotation: { metadata?: ReviewAnnotationMetadata | undefined },
-      item: CodeViewItem<ReviewAnnotationMetadata>,
-    ) => {
-      const metadata = annotation.metadata
-      if (metadata === undefined) return null
-
-      if (metadata.kind === 'pending') {
-        const comment = comments.find((c) => c.id === metadata.commentId)
-        if (comment === undefined) return null
-        return <PendingComment comment={comment} onRemove={() => onRemoveComment(comment.id)} />
-      }
-
-      const location = activeCommentLocation
-      if (location === null || location.filePath !== filePathOfItem(item)) return null
-      return (
-        <InlineComment
-          startLine={location.line}
-          endLine={location.endLine ?? location.line}
-          hasPendingReview={comments.length > 0}
-          onAddSingleComment={(content) => onAddSingleComment(location, content)}
-          onAddToReview={(content) => onAddToReview(location, content)}
-          onCancel={() => onSetActiveComment(null)}
-        />
-      )
-    },
-    [
-      comments,
-      activeCommentLocation,
-      onAddSingleComment,
-      onAddToReview,
-      onRemoveComment,
-      onSetActiveComment,
-    ],
-  )
+  const renderAnnotation = useDiffAnnotationRenderer(review)
 
   const effectiveLoadError = loadError ?? preparationError
   const placeholder = resolveCodeViewPlaceholder(
@@ -257,6 +252,7 @@ export function DiffCodeView({
     files.length,
     items !== null,
   )
+  const codeViewReady = useDiffCodeViewReady(placeholder === 'diff')
   if (placeholder !== 'diff') {
     return (
       <DiffPlaceholder
@@ -269,23 +265,33 @@ export function DiffCodeView({
 
   registerPendingPierreSyntaxResources()
   return (
-    <WorkerPoolContextProvider
-      poolOptions={{
-        workerFactory: createPierreWorker,
-        poolSize: 1,
-        totalASTLRUCacheSize: DIFF_AST_CACHE_ENTRIES,
-      }}
-      highlighterOptions={{ theme: viewOptions.syntaxTheme }}
+    <div
+      ref={codeViewReady.rootRef}
+      className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
     >
-      <CodeView<ReviewAnnotationMetadata>
-        ref={viewerRef}
-        className="diff-chrome diff-scroll min-h-0 min-w-0 flex-1 overflow-auto"
-        items={items ?? []}
-        options={options}
-        selectedLines={selection}
-        onSelectedLinesChange={handleSelectionChange}
-        renderAnnotation={renderAnnotation}
-      />
-    </WorkerPoolContextProvider>
+      <WorkerPoolContextProvider
+        poolOptions={{
+          workerFactory: createPierreWorker,
+          poolSize: 1,
+          totalASTLRUCacheSize: DIFF_AST_CACHE_ENTRIES,
+        }}
+        highlighterOptions={{ theme: viewOptions.syntaxTheme }}
+      >
+        <CodeView<ReviewAnnotationMetadata>
+          ref={viewerRef}
+          className="diff-chrome diff-scroll min-h-0 min-w-0 flex-1 overflow-auto"
+          items={items ?? []}
+          options={options}
+          selectedLines={selection}
+          onSelectedLinesChange={handleSelectionChange}
+          renderAnnotation={renderAnnotation}
+        />
+      </WorkerPoolContextProvider>
+      {!codeViewReady.ready ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-diff-bg">
+          <Spinner />
+        </div>
+      ) : null}
+    </div>
   )
 }

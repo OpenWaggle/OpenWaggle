@@ -50,6 +50,7 @@ describe('review comment anchoring', () => {
     expect(screen.getByLabelText('Loading')).toBeVisible()
     expect(pierreMocks.workerProvider).not.toHaveBeenCalled()
     await waitFor(() => expect(pierreMocks.workerProvider).toHaveBeenCalledOnce())
+    await waitFor(() => expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument())
     await waitFor(() => expect(screen.getAllByRole('button', { name: /^select/ })).toHaveLength(8))
   })
 
