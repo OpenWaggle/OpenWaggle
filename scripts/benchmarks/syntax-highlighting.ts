@@ -42,6 +42,7 @@ interface MetricSummary {
 
 interface SyntaxBenchmarkProfile {
   readonly metricBudgetsMs: Readonly<Record<string, number>>
+  readonly metricMedianBudgetsMs?: Readonly<Record<string, number>>
 }
 
 function fixture(targetBytes: number) {
@@ -106,15 +107,23 @@ async function warmTokenization(source: string, samples = WARM_SAMPLE_COUNT) {
   return result
 }
 
-function isProfile(value: unknown): value is SyntaxBenchmarkProfile {
-  if (typeof value !== 'object' || value === null || !('metricBudgetsMs' in value)) return false
-  const budgets = value.metricBudgetsMs
+function isBudgetMap(value: unknown): value is Readonly<Record<string, number>> {
   return (
-    typeof budgets === 'object' &&
-    budgets !== null &&
-    Object.values(budgets).every(
+    typeof value === 'object' &&
+    value !== null &&
+    Object.values(value).every(
       (budget) => typeof budget === 'number' && Number.isFinite(budget) && budget > 0,
     )
+  )
+}
+
+function isProfile(value: unknown): value is SyntaxBenchmarkProfile {
+  if (typeof value !== 'object' || value === null || !('metricBudgetsMs' in value)) return false
+  const medianBudgets =
+    'metricMedianBudgetsMs' in value ? value.metricMedianBudgetsMs : undefined
+  return (
+    isBudgetMap(value.metricBudgetsMs) &&
+    (medianBudgets === undefined || isBudgetMap(medianBudgets))
   )
 }
 
@@ -189,13 +198,22 @@ async function main() {
   if (!process.argv.includes('--check')) return
   const profilePath = benchmarkProfilePath()
   const profile = await loadProfile(profilePath)
-  const failures = Object.entries(profile.metricBudgetsMs).flatMap(([name, budget]) => {
-    const metric = Object.entries(metrics).find(([metricName]) => metricName === name)?.[1]
-    if (!metric) return [`${name} is configured but was not measured`]
-    return metric.p95Ms > budget
-      ? [`${name} p95 ${metric.p95Ms.toFixed(DECIMAL_PLACES)} ms exceeded ${String(budget)} ms`]
-      : []
-  })
+  const metricFailures = (
+    budgets: Readonly<Record<string, number>>,
+    field: 'medianMs' | 'p95Ms',
+    label: 'median' | 'p95',
+  ) =>
+    Object.entries(budgets).flatMap(([name, budget]) => {
+      const metric = Object.entries(metrics).find(([metricName]) => metricName === name)?.[1]
+      if (!metric) return [`${name} is configured but was not measured`]
+      return metric[field] > budget
+        ? [`${name} ${label} ${metric[field].toFixed(DECIMAL_PLACES)} ms exceeded ${String(budget)} ms`]
+        : []
+    })
+  const failures = [
+    ...metricFailures(profile.metricBudgetsMs, 'p95Ms', 'p95'),
+    ...metricFailures(profile.metricMedianBudgetsMs ?? {}, 'medianMs', 'median'),
+  ]
   if (failures.length > 0) {
     throw new Error(
       `Syntax benchmark failed against ${path.relative(process.cwd(), profilePath)}:\n${failures.join('\n')}`,
