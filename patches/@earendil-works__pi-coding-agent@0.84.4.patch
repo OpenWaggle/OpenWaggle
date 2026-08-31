@@ -1,5 +1,5 @@
 diff --git a/dist/core/agent-session-runtime.js b/dist/core/agent-session-runtime.js
-index 2f53b55e0a9979403af4288f6d89c4e53ca1f749..83e7ab239a0cb6e449dab16ec278dc54ab293746 100644
+index 2f53b55e0a9979403af4288f6d89c4e53ca1f749..cc3b45b94f8ff61464a2a4103c1d18872875aedd 100644
 --- a/dist/core/agent-session-runtime.js
 +++ b/dist/core/agent-session-runtime.js
 @@ -166,7 +166,7 @@ export class AgentSessionRuntime {
@@ -12,7 +12,7 @@ index 2f53b55e0a9979403af4288f6d89c4e53ca1f749..83e7ab239a0cb6e449dab16ec278dc54
          await this.finishSessionReplacement(options?.withSession);
          return { cancelled: false };
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index fd82b71cf332715f185d07459429f04ed7491ce9..bcaceded6018ddb036763211d1b2d0740a859bf4 100644
+index fd82b71cf332715f185d07459429f04ed7491ce9..18641d0fc3e8941783fe788fd5360b5a66a9408f 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
 @@ -802,12 +802,13 @@ export class AgentSession {
@@ -189,7 +189,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..bcaceded6018ddb036763211d1b2d074
              // Emit session_tree event
              await this._extensionRunner.emit({
 diff --git a/dist/core/compaction/compaction.d.ts b/dist/core/compaction/compaction.d.ts
-index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..4288b10efc89990e277b86c5ede879e4242f4556 100644
+index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..6ef5600927bafe257ab9ee5f92019f9d1381c7a2 100644
 --- a/dist/core/compaction/compaction.d.ts
 +++ b/dist/core/compaction/compaction.d.ts
 @@ -29,6 +29,7 @@ export interface CompactionSettings {
@@ -233,8 +233,9 @@ index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..4288b10efc89990e277b86c5ede879e4
 -export declare function compact(preparation: CompactionPreparation, model: Model<any>, apiKey: string | undefined, headers?: Record<string, string>, customInstructions?: string, signal?: AbortSignal, thinkingLevel?: ThinkingLevel, streamFn?: StreamFn, env?: Record<string, string>, retry?: RetryPolicy, callbacks?: RetryCallbacks, sessionId?: string): Promise<CompactionResult>;
 +export declare function compact(preparation: CompactionPreparation, model: Model<any>, apiKey: string | undefined, headers?: Record<string, string>, customInstructions?: string, signal?: AbortSignal, thinkingLevel?: ThinkingLevel, streamFn?: StreamFn, env?: Record<string, string>, retry?: RetryPolicy, callbacks?: RetryCallbacks, sessionId?: string, systemPrompt?: string): Promise<CompactionResult>;
  //# sourceMappingURL=compaction.d.ts.map
+\ No newline at end of file
 diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
-index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..6c449a49cc4e319706ca2877c408f2e2146f8b59 100644
+index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..8ef98832fe8a702e1fde675b7eae7fd4ffe893b5 100644
 --- a/dist/core/compaction/compaction.js
 +++ b/dist/core/compaction/compaction.js
 @@ -4,7 +4,8 @@
@@ -546,7 +547,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..6c449a49cc4e319706ca2877c408f2e2
  }
  /**
 diff --git a/dist/core/messages.d.ts b/dist/core/messages.d.ts
-index a38bc241173d0e8885a9f64724ad8cd7e9e9d239..ac004df9ffbf6882ea82f9dacaf8df8a7f01381d 100644
+index a38bc241173d0e8885a9f64724ad8cd7e9e9d239..13ac751e092f60aac80544daddea0a6d74731ef3 100644
 --- a/dist/core/messages.d.ts
 +++ b/dist/core/messages.d.ts
 @@ -47,6 +47,7 @@ export interface CompactionSummaryMessage {
@@ -567,7 +568,7 @@ index a38bc241173d0e8885a9f64724ad8cd7e9e9d239..ac004df9ffbf6882ea82f9dacaf8df8a
  export declare function createCustomMessage(customType: string, content: string | (TextContent | ImageContent)[], display: boolean, details: unknown | undefined, timestamp: string): CustomMessage;
  /**
 diff --git a/dist/core/messages.js b/dist/core/messages.js
-index 69923d6ba8d48ab2508c49d14fa054f28d5b4a2e..8987978c755d707d188e554bea732ef1d0ddeb2e 100644
+index 69923d6ba8d48ab2508c49d14fa054f28d5b4a2e..5a9982b7832119bc180e538dc085c155803bd9ba 100644
 --- a/dist/core/messages.js
 +++ b/dist/core/messages.js
 @@ -45,11 +45,12 @@ export function createBranchSummaryMessage(summary, fromId, timestamp) {
@@ -617,40 +618,66 @@ index 69923d6ba8d48ab2508c49d14fa054f28d5b4a2e..8987978c755d707d188e554bea732ef1
                      role: "user",
                      content: [
 diff --git a/dist/core/sdk.js b/dist/core/sdk.js
-index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..d6790e0f9b2d63e659cc0871e0a3a52ec8153c19 100644
+index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..8a61e059131e756282545e1248befc0d28c78e41 100644
 --- a/dist/core/sdk.js
 +++ b/dist/core/sdk.js
-@@ -78,7 +78,7 @@ export async function createAgentSession(options = {}) {
+@@ -11,7 +11,7 @@ import { findInitialModel } from "./model-resolver.js";
+ import { ModelRuntime } from "./model-runtime.js";
+ import { mergeProviderAttributionHeaders } from "./provider-attribution.js";
+ import { DefaultResourceLoader } from "./resource-loader.js";
+-import { getDefaultSessionDir, SessionManager } from "./session-manager.js";
++import { buildSessionContext, getDefaultSessionDir, SessionManager } from "./session-manager.js";
+ import { SettingsManager } from "./settings-manager.js";
+ import { time } from "./timings.js";
+ import { createBashTool, createCodingTools, createEditTool, createFindTool, createGrepTool, createLsTool, createPowerShellTool, createReadOnlyTools, createReadTool, createWriteTool, withFileMutationQueue, } from "./tools/index.js";
+@@ -78,7 +78,8 @@ export async function createAgentSession(options = {}) {
          time("resourceLoader.reload");
      }
      // Check if session has existing data to restore
 -    const existingSession = sessionManager.buildSessionContext();
-+    const existingSession = sessionManager.buildSessionContext(options.model);
++    const projectSession = (targetModel, forceNativeReconstruction = false) => buildSessionContext(sessionManager.getEntries(), sessionManager.getLeafId(), undefined, targetModel, { forceNativeReconstruction });
++    const existingSession = projectSession(options.model);
      const hasExistingSession = existingSession.messages.length > 0;
      const hasThinkingEntry = sessionManager.getBranch().some((entry) => entry.type === "thinking_level_change");
      let model = options.model;
-@@ -136,6 +136,20 @@ export async function createAgentSession(options = {}) {
+@@ -136,6 +137,36 @@ export async function createAgentSession(options = {}) {
      else {
          thinkingLevel = clampThinkingLevel(model, thinkingLevel);
      }
++    const latestCompaction = [...sessionManager.getBranch()]
++        .reverse()
++        .find((entry) => entry.type === "compaction");
++    const hasNativeCheckpoint = latestCompaction?.details?.schemaVersion === 1 &&
++        latestCompaction.details.mechanism === "native";
++    let forceNativeReconstruction = false;
 +    // Credential resolution may select a provider-specific endpoint (for
-+    // example, a subscription backend). Keep that effective endpoint on the
-+    // active model so native checkpoint compatibility is evaluated against the
-+    // same transport identity that will receive the request.
-+    if (model) {
-+        const auth = await modelRuntime.getAuth(model);
-+        if (auth?.auth.baseUrl) {
-+            model = { ...model, baseUrl: auth.auth.baseUrl };
++    // example, a subscription backend). Resolve it only when an identity-bound
++    // native checkpoint is active. If credentials cannot be refreshed, restore
++    // raw history so read-only session inspection remains available offline.
++    if (model && hasNativeCheckpoint) {
++        try {
++            const auth = await modelRuntime.getAuth(model);
++            if (auth?.auth.baseUrl) {
++                model = { ...model, baseUrl: auth.auth.baseUrl };
++            }
++            else if (!auth) {
++                forceNativeReconstruction = true;
++            }
++        }
++        catch {
++            forceNativeReconstruction = true;
 +        }
 +    }
 +    // Rebuild model-visible history only after the final target model is known.
 +    // Native compaction checkpoints are identity-bound; a restored fallback model
 +    // must receive append-only raw reconstruction instead of the source checkpoint.
-+    const resolvedExistingSession = model ? sessionManager.buildSessionContext(model) : existingSession;
++    const resolvedExistingSession = model
++        ? projectSession(model, forceNativeReconstruction)
++        : existingSession;
      const defaultActiveToolNames = ["read", "bash", "edit", "write"];
      const configuredDefaultToolNames = settingsManager.getDefaultTools();
      const allowedToolNames = options.tools ?? (options.noTools === "all" ? [] : undefined);
-@@ -238,7 +252,7 @@ export async function createAgentSession(options = {}) {
+@@ -238,7 +269,7 @@ export async function createAgentSession(options = {}) {
      });
      // Restore messages if session has existing data
      if (hasExistingSession) {
@@ -660,7 +687,7 @@ index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..d6790e0f9b2d63e659cc0871e0a3a52e
              sessionManager.appendThinkingLevelChange(thinkingLevel);
          }
 diff --git a/dist/core/session-manager.d.ts b/dist/core/session-manager.d.ts
-index 8cdfbdec42f696b8cd6b762a92180a81ec142433..6df586cff1497bd93185b0ea2dec370327da8e5c 100644
+index 8cdfbdec42f696b8cd6b762a92180a81ec142433..99ae44db12abe7faee77e1f6188fc83eb7d8acce 100644
 --- a/dist/core/session-manager.d.ts
 +++ b/dist/core/session-manager.d.ts
 @@ -1,5 +1,5 @@
@@ -670,7 +697,7 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..6df586cff1497bd93185b0ea2dec3703
  import { type BashExecutionMessage, type CustomMessage } from "./messages.ts";
  export declare const CURRENT_SESSION_VERSION = 3;
  export interface SessionHeader {
-@@ -121,6 +121,18 @@ export interface SessionContext {
+@@ -121,6 +121,21 @@ export interface SessionContext {
          provider: string;
          modelId: string;
      } | null;
@@ -686,10 +713,13 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..6df586cff1497bd93185b0ea2dec3703
 +            modelId: string;
 +        };
 +    };
++}
++export interface BuildSessionContextOptions {
++    forceNativeReconstruction?: boolean;
  }
  export interface SessionInfo {
      path: string;
-@@ -157,13 +169,13 @@ export declare function sessionEntryToContextMessages(entry: SessionEntry): Agen
+@@ -157,13 +172,13 @@ export declare function sessionEntryToContextMessages(entry: SessionEntry): Agen
   * by the kept entries starting at firstKeptEntryId and all entries after the
   * compaction entry. Older summarized entries are omitted.
   */
@@ -701,11 +731,11 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..6df586cff1497bd93185b0ea2dec3703
   * Handles compaction and branch summaries along the path.
   */
 -export declare function buildSessionContext(entries: SessionEntry[], leafId?: string | null, byId?: Map<string, SessionEntry>): SessionContext;
-+export declare function buildSessionContext(entries: SessionEntry[], leafId?: string | null, byId?: Map<string, SessionEntry>, targetModel?: Model<any>): SessionContext;
++export declare function buildSessionContext(entries: SessionEntry[], leafId?: string | null, byId?: Map<string, SessionEntry>, targetModel?: Model<any>, options?: BuildSessionContextOptions): SessionContext;
  export declare function getDefaultSessionDir(cwd: string, agentDir?: string): string;
  /** Exported for testing */
  export declare function loadEntriesFromFile(filePath: string): FileEntry[];
-@@ -263,12 +275,12 @@ export declare class SessionManager {
+@@ -263,12 +278,12 @@ export declare class SessionManager {
       * Build the active, compaction-aware entry list for context/rendering.
       * Uses tree traversal from current leaf.
       */
@@ -721,7 +751,7 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..6df586cff1497bd93185b0ea2dec3703
       * Get session header.
       */
 diff --git a/dist/core/session-manager.js b/dist/core/session-manager.js
-index f887c04976596f8956bc04c16ca59c4030e09f92..43794ab99be051e5d4dab8b3aa5a27baf81f2cde 100644
+index f887c04976596f8956bc04c16ca59c4030e09f92..f992c8d1aedf07dadf4ea612f34e185fce070f17 100644
 --- a/dist/core/session-manager.js
 +++ b/dist/core/session-manager.js
 @@ -183,7 +183,7 @@ export function sessionEntryToContextMessages(entry) {
@@ -770,7 +800,7 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..43794ab99be051e5d4dab8b3aa5a27ba
      const compactionIdx = path.findIndex((entry) => entry.id === compaction.id);
      if (compactionIdx < 0) {
          return path;
-@@ -224,15 +245,118 @@ export function buildContextEntries(entries, leafId, byId) {
+@@ -224,15 +245,122 @@ export function buildContextEntries(entries, leafId, byId) {
      contextEntries.push(...path.slice(compactionIdx + 1));
      return contextEntries;
  }
@@ -877,13 +907,17 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..43794ab99be051e5d4dab8b3aa5a27ba
   * Handles compaction and branch summaries along the path.
   */
 -export function buildSessionContext(entries, leafId, byId) {
-+export function buildSessionContext(entries, leafId, byId, targetModel) {
++export function buildSessionContext(entries, leafId, byId, targetModel, options = {}) {
      const path = buildSessionPath(entries, leafId, byId);
      const { thinkingLevel, model } = getSessionContextSettings(path);
 -    const messages = buildContextEntries(entries, leafId, byId).flatMap(sessionEntryToContextMessages);
-+    const contextEntries = buildContextEntries(entries, leafId, byId, targetModel);
++    const forceNativeReconstruction = options.forceNativeReconstruction === true;
++    const contextEntries = forceNativeReconstruction
++        ? path.filter((entry) => entry.type !== "compaction")
++        : buildContextEntries(entries, leafId, byId, targetModel);
 +    const sourceCompaction = [...path].reverse().find((entry) => entry.type === "compaction");
-+    if (targetModel && sourceCompaction && !isCompatibleNativeCompaction(sourceCompaction, targetModel)) {
++    if (targetModel && sourceCompaction &&
++        (forceNativeReconstruction || !isCompatibleNativeCompaction(sourceCompaction, targetModel))) {
 +        const fitted = fitNativeReconstruction(contextEntries, sourceCompaction, targetModel);
 +        return { ...fitted, thinkingLevel, model };
 +    }
@@ -891,7 +925,7 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..43794ab99be051e5d4dab8b3aa5a27ba
      return { messages, thinkingLevel, model };
  }
  /**
-@@ -957,15 +1081,32 @@ export class SessionManager {
+@@ -957,15 +1085,32 @@ export class SessionManager {
       * Build the active, compaction-aware entry list for context/rendering.
       * Uses tree traversal from current leaf.
       */
@@ -929,7 +963,7 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..43794ab99be051e5d4dab8b3aa5a27ba
      /**
       * Get session header.
 diff --git a/dist/core/settings-manager.d.ts b/dist/core/settings-manager.d.ts
-index f93ac1aa9f8f45977863021c4ea3a486ecb489ab..6b70336ac60d768b6080ec9040c0e83fed6d0b58 100644
+index f93ac1aa9f8f45977863021c4ea3a486ecb489ab..68546e7cacc51a5b3273b7c1795d78a63ce917e6 100644
 --- a/dist/core/settings-manager.d.ts
 +++ b/dist/core/settings-manager.d.ts
 @@ -5,6 +5,7 @@ export interface CompactionSettings {
@@ -954,7 +988,7 @@ index f93ac1aa9f8f45977863021c4ea3a486ecb489ab..6b70336ac60d768b6080ec9040c0e83f
      getBranchSummarySettings(): {
          reserveTokens: number;
 diff --git a/dist/core/settings-manager.js b/dist/core/settings-manager.js
-index f0f936eb01afe5d158f1834c5e40421e36af0d24..4ea02292dd0dc3875658904a2ff05712169b7617 100644
+index f0f936eb01afe5d158f1834c5e40421e36af0d24..21e6273e14519b83313f3162c37abb24f336cfc9 100644
 --- a/dist/core/settings-manager.js
 +++ b/dist/core/settings-manager.js
 @@ -562,11 +562,15 @@ export class SettingsManager {
@@ -974,7 +1008,7 @@ index f0f936eb01afe5d158f1834c5e40421e36af0d24..4ea02292dd0dc3875658904a2ff05712
      }
      getBranchSummarySettings() {
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 3e9241dc237322f9ba64aac399f4eda31ac4715c..526a4225b7eee9f24ac910bafd898bbe29adbac3 100644
+index 3e9241dc237322f9ba64aac399f4eda31ac4715c..950b8b571e6c5ed4de3718b8600325093a3fe1e2 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
 @@ -2,7 +2,7 @@ export { type Args, parseArgs } from "./cli/args.ts";
@@ -987,7 +1021,7 @@ index 3e9241dc237322f9ba64aac399f4eda31ac4715c..526a4225b7eee9f24ac910bafd898bbe
  export type { AgentEndEvent, AgentSettledEvent, AgentStartEvent, AgentToolResult, AgentToolUpdateCallback, AppKeybinding, AutocompleteProviderFactory, BashToolCallEvent, BeforeAgentStartEvent, BeforeAgentStartEventResult, BeforeProviderHeadersEvent, BeforeProviderRequestEvent, BeforeProviderRequestEventResult, BuildSystemPromptOptions, CompactOptions, ContextEvent, ContextUsage, CustomToolCallEvent, EditToolCallEvent, EntryRenderer, EntryRenderOptions, ExecOptions, ExecResult, Extension, ExtensionActions, ExtensionAPI, ExtensionCommandContext, ExtensionCommandContextActions, ExtensionContext, ExtensionContextActions, ExtensionError, ExtensionEvent, ExtensionFactory, ExtensionFlag, ExtensionHandler, ExtensionRuntime, ExtensionShortcut, ExtensionUIContext, ExtensionUIDialogOptions, ExtensionWidgetOptions, FindToolCallEvent, GrepToolCallEvent, InlineExtension, InputEvent, InputEventResult, InputSource, KeybindingsManager, LoadExtensionsResult, LsToolCallEvent, MarkdownTransformContext, MarkdownTransformer, MessageEndEvent, MessageRenderer, MessageRenderOptions, MessageStartEvent, MessageUpdateEvent, PowerShellToolCallEvent, ProjectTrustContext, ProjectTrustEvent, ProjectTrustEventDecision, ProjectTrustEventResult, ProjectTrustHandler, ProviderConfig, ProviderModelConfig, ReadToolCallEvent, RegisteredCommand, RegisteredTool, ResolvedCommand, SessionBeforeCompactEvent, SessionBeforeForkEvent, SessionBeforeSwitchEvent, SessionBeforeTreeEvent, SessionCompactEvent, SessionInfoChangedEvent, SessionShutdownEvent, SessionStartEvent, SessionTreeEvent, SlashCommandInfo, SlashCommandSource, SourceInfo, TerminalInputHandler, ToolCallEvent, ToolCallEventResult, ToolDefinition, ToolExecutionEndEvent, ToolExecutionMode, ToolExecutionStartEvent, ToolExecutionUpdateEvent, ToolInfo, ToolRenderResultOptions, ToolResultEvent, TurnEndEvent, TurnStartEvent, UIPromptEndEvent, UIPromptKind, UIPromptStartEvent, UserBashEvent, UserBashEventResult, WidgetPlacement, WorkingIndicatorOptions, WriteToolCallEvent, } from "./core/extensions/index.ts";
  export { createExtensionRuntime, defineTool, discoverAndLoadExtensions, ExtensionRunner, isBashToolResult, isEditToolResult, isFindToolResult, isGrepToolResult, isLsToolResult, isPowerShellToolResult, isReadToolResult, isToolCallEventType, isWriteToolResult, wrapRegisteredTool, wrapRegisteredTools, } from "./core/extensions/index.ts";
 diff --git a/dist/index.js b/dist/index.js
-index 01017cdbf6a26b3d36e236c7f9e835fbf0fa5c3a..dd3a642011fdbe0970e07e3407148604de448357 100644
+index 01017cdbf6a26b3d36e236c7f9e835fbf0fa5c3a..387378ff8e94f458c756e818b1f70f7f4feca528 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -5,7 +5,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
