@@ -53,6 +53,8 @@ function diffPanelReducer(state: DiffPanelState, action: DiffPanelAction) {
     .with('start-loading', () => ({
       ...state,
       isLoading: true,
+      // A retry is a fresh request. Keeping the previous failure visible masked its loading state.
+      error: null,
       /*
        * Reset what the last load reported about Automatic. Keeping it meant the header claimed the
        * working tree was on display while a newly selected base ref was loading - two contradictory
