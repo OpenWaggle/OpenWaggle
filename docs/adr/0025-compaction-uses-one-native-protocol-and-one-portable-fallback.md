@@ -45,7 +45,7 @@ The model-facing implementation belongs in Pi core and its provider transports. 
 
 - The user-facing setting is a global user preference expressed as a percentage of the active model's advertised context window and defaults to 80 percent.
 - Every project and session inherits the current global value. V1 has no project-level or session-level threshold override.
-- Pi converts the configured percentage to a token threshold for the active model and may clamp it earlier only when model or transport safety requires more headroom.
+- Pi converts the configured percentage to a token threshold for the active model and compacts at the earlier of that threshold or its reserve-token safety boundary. High user values therefore cannot consume the response headroom required for a usable next model call.
 - The current Composer context meter continues to show usage and context-window information. The current Compaction status strip continues to show its generic activity state and stop action. Neither surface gains threshold, mechanism, or provider information.
 - The versioned Portable compaction envelope layout is an implementation detail governed by these durability and replay rules, not another product policy.
 

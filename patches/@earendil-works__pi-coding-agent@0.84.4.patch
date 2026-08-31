@@ -185,7 +185,7 @@ index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..4288b10efc89990e277b86c5ede879e4
 +export declare function compact(preparation: CompactionPreparation, model: Model<any>, apiKey: string | undefined, headers?: Record<string, string>, customInstructions?: string, signal?: AbortSignal, thinkingLevel?: ThinkingLevel, streamFn?: StreamFn, env?: Record<string, string>, retry?: RetryPolicy, callbacks?: RetryCallbacks, sessionId?: string, systemPrompt?: string): Promise<CompactionResult>;
  //# sourceMappingURL=compaction.d.ts.map
 diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
-index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..d8197a4aa7b7dd64382d4e2799356de62d027d9b 100644
+index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..09e1620c044dfe2605d3d275853290b0d20f0282 100644
 --- a/dist/core/compaction/compaction.js
 +++ b/dist/core/compaction/compaction.js
 @@ -4,7 +4,8 @@
@@ -206,12 +206,14 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..d8197a4aa7b7dd64382d4e2799356de6
  };
  // ============================================================================
  // Token calculation
-@@ -160,7 +162,48 @@ export function estimateContextTokens(messages) {
+@@ -160,7 +162,50 @@ export function estimateContextTokens(messages) {
  export function shouldCompact(contextTokens, contextWindow, settings) {
      if (!settings.enabled)
          return false;
 -    return contextTokens > contextWindow - settings.reserveTokens;
-+    return contextTokens >= contextWindow * (settings.thresholdPercent / 100);
++    const configuredThreshold = contextWindow * (settings.thresholdPercent / 100);
++    const reserveThreshold = Math.max(0, contextWindow - settings.reserveTokens);
++    return contextTokens >= Math.min(configuredThreshold, reserveThreshold);
 +}
 +export function selectCompactionMechanism(model) {
 +    const responsesApi = model.api === "openai-responses" ||
@@ -256,7 +258,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..d8197a4aa7b7dd64382d4e2799356de6
  }
  // ============================================================================
  // Cut point detection
-@@ -322,12 +365,20 @@ export function findCutPoint(entries, startIndex, endIndex, keepRecentTokens) {
+@@ -322,12 +367,20 @@ export function findCutPoint(entries, startIndex, endIndex, keepRecentTokens) {
          // Check if we've exceeded the budget
          if (accumulatedTokens >= keepRecentTokens) {
              // Find the closest valid cut point at or after this entry
@@ -277,7 +279,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..d8197a4aa7b7dd64382d4e2799356de6
              break;
          }
      }
-@@ -353,76 +404,21 @@ export function findCutPoint(entries, startIndex, endIndex, keepRecentTokens) {
+@@ -353,76 +406,21 @@ export function findCutPoint(entries, startIndex, endIndex, keepRecentTokens) {
  // ============================================================================
  // Summarization
  // ============================================================================
@@ -368,7 +370,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..d8197a4aa7b7dd64382d4e2799356de6
  ${UPDATE_SUMMARIZATION_INSTRUCTIONS}`;
  /**
   * Returns an error message when a summarization response cannot safely be persisted.
-@@ -514,7 +510,7 @@ export async function generateSummaryWithUsage(currentMessages, model, reserveTo
+@@ -514,7 +512,7 @@ export async function generateSummaryWithUsage(currentMessages, model, reserveTo
      const textContent = contentText(response.content);
      return { text: textContent, usage: response.usage };
  }
@@ -377,7 +379,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..d8197a4aa7b7dd64382d4e2799356de6
      if (pathEntries.length > 0 && pathEntries[pathEntries.length - 1].type === "compaction") {
          return undefined;
      }
-@@ -529,13 +525,32 @@ export function prepareCompaction(pathEntries, settings) {
+@@ -529,13 +527,32 @@ export function prepareCompaction(pathEntries, settings) {
      let boundaryStart = 0;
      if (prevCompactionIndex >= 0) {
          const prevCompaction = pathEntries[prevCompactionIndex];
@@ -415,7 +417,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..d8197a4aa7b7dd64382d4e2799356de6
      // Get UUID of first kept entry
      const firstKeptEntry = pathEntries[cutPoint.firstKeptEntryIndex];
      if (!firstKeptEntry?.id) {
-@@ -559,7 +574,8 @@ export function prepareCompaction(pathEntries, settings) {
+@@ -559,7 +576,8 @@ export function prepareCompaction(pathEntries, settings) {
                  turnPrefixMessages.push(msg);
          }
      }
@@ -425,7 +427,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..d8197a4aa7b7dd64382d4e2799356de6
          return undefined;
      }
      // Extract file operations from messages and previous compaction
-@@ -573,6 +589,7 @@ export function prepareCompaction(pathEntries, settings) {
+@@ -573,6 +591,7 @@ export function prepareCompaction(pathEntries, settings) {
      return {
          firstKeptEntryId,
          messagesToSummarize,
@@ -433,7 +435,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..d8197a4aa7b7dd64382d4e2799356de6
          turnPrefixMessages,
          isSplitTurn: cutPoint.isSplitTurn,
          tokensBefore,
-@@ -606,7 +623,43 @@ Be concise. Focus on what's needed to understand the kept suffix.`;
+@@ -606,7 +625,43 @@ Be concise. Focus on what's needed to understand the kept suffix.`;
   * @param customInstructions - Optional custom focus for the summary
   * @param sessionId - Optional routing session ID forwarded without enabling prompt caching
   */
@@ -478,7 +480,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..d8197a4aa7b7dd64382d4e2799356de6
      const { firstKeptEntryId, messagesToSummarize, turnPrefixMessages, isSplitTurn, tokensBefore, previousSummary, fileOps, settings, } = preparation;
      // Generate summaries and merge into one
      let summary;
-@@ -641,7 +694,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
+@@ -641,7 +696,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
          firstKeptEntryId,
          tokensBefore,
          usage: summaryUsage,

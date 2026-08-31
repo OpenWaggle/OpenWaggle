@@ -18,6 +18,17 @@ describe('Pi compaction policy', () => {
     expect(shouldCompact(80_000, 100_000, settings)).toBe(true)
   })
 
+  it('preserves the output reserve when the configured percentage is too late', () => {
+    const settings = {
+      ...DEFAULT_COMPACTION_SETTINGS,
+      thresholdPercent: 95,
+      reserveTokens: 16_384,
+    }
+
+    expect(shouldCompact(83_615, 100_000, settings)).toBe(false)
+    expect(shouldCompact(83_616, 100_000, settings)).toBe(true)
+  })
+
   it('selects Native only from an explicit transport capability', () => {
     const baseModel = {
       id: 'model',

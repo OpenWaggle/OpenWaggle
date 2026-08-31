@@ -37,6 +37,8 @@ OpenWaggle calls Pi `session.compact(customInstructions)`. The command is a cont
 
 OpenWaggle asks Pi to compact before the next model request when context reaches a global percentage of the active model's reported window. The default is **80%**. Change it in **Settings > General > Context compaction**; the value applies to every project and session.
 
+The percentage is a preference, not permission to consume the model's output reserve. If a very high configured value would cross Pi's reserve-token safety boundary first, Pi compacts at that earlier boundary.
+
 The check runs at safe turn boundaries. Crossing the threshold on a completed response does not start background work while the session is idle. Pi compacts before the next user turn, or between a tool result and the next model call when an agent turn is still continuing. It never interrupts an active stream.
 
 Pi chooses one of two mechanisms without adding provider-specific user settings:
