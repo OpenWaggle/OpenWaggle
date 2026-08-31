@@ -1,7 +1,7 @@
 import type { CodeViewItem } from '@pierre/diffs'
 import { CodeView, type CodeViewHandle, WorkerPoolContextProvider } from '@pierre/diffs/react'
 import type { GitFileDiff } from '@shared/types/git'
-import { useCallback, useMemo, useRef } from 'react'
+import { type ReactNode, useCallback, useMemo, useRef } from 'react'
 import { useDiffCodeSelection } from '@/features/diff-panel/hooks/useDiffCodeSelection'
 import { useDiffCodeViewReady } from '@/features/diff-panel/hooks/useDiffCodeViewReady'
 import {
@@ -45,6 +45,23 @@ interface DiffCodeViewProps {
   readonly viewOptions: DiffViewOptions
   readonly review: DiffCodeViewReview
   readonly fileNavigation?: DiffFileNavigation | null
+}
+
+function DiffCodeViewReadiness({ children }: { readonly children: ReactNode }) {
+  const codeViewReady = useDiffCodeViewReady()
+  return (
+    <div
+      ref={codeViewReady.rootRef}
+      className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
+    >
+      {children}
+      {!codeViewReady.ready ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-diff-bg">
+          <Spinner />
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 const CODE_VIEW_LAYOUT = { paddingTop: 10, paddingBottom: 10, gap: 10 } as const
@@ -252,7 +269,6 @@ export function DiffCodeView({
     files.length,
     items !== null,
   )
-  const codeViewReady = useDiffCodeViewReady(placeholder === 'diff')
   if (placeholder !== 'diff') {
     return (
       <DiffPlaceholder
@@ -265,10 +281,7 @@ export function DiffCodeView({
 
   registerPendingPierreSyntaxResources()
   return (
-    <div
-      ref={codeViewReady.rootRef}
-      className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
-    >
+    <DiffCodeViewReadiness>
       <WorkerPoolContextProvider
         poolOptions={{
           workerFactory: createPierreWorker,
@@ -287,11 +300,6 @@ export function DiffCodeView({
           renderAnnotation={renderAnnotation}
         />
       </WorkerPoolContextProvider>
-      {!codeViewReady.ready ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-diff-bg">
-          <Spinner />
-        </div>
-      ) : null}
-    </div>
+    </DiffCodeViewReadiness>
   )
 }

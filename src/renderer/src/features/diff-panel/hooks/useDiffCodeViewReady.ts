@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 
 /** Keep loading feedback visible until Pierre emits the first rendered code node. */
-export function useDiffCodeViewReady(active: boolean) {
+export function useDiffCodeViewReady() {
   const rootRef = useRef<HTMLDivElement>(null)
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    if (!active) return
     const root = rootRef.current
     if (!root) return
     const markReady = () => {
@@ -20,7 +19,7 @@ export function useDiffCodeViewReady(active: boolean) {
     })
     observer.observe(root, { childList: true, subtree: true })
     return () => observer.disconnect()
-  }, [active])
+  }, [])
 
   return { rootRef, ready }
 }

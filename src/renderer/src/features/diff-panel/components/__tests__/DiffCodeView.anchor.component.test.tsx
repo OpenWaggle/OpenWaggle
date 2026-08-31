@@ -4,28 +4,39 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DiffCodeView } from '../DiffCodeView'
 import { fileDiff } from './diff-panel.test-harness'
 
-const pierreMocks = vi.hoisted(() => ({ workerProvider: vi.fn() }))
-
-vi.mock('@pierre/diffs/react', async () => ({
-  CodeView: (await import('./diff-panel.test-harness')).StubCodeView,
-  WorkerPoolContextProvider: ({
-    children,
-    poolOptions,
-    highlighterOptions,
-  }: {
-    children: ReactNode
-    poolOptions: unknown
-    highlighterOptions: unknown
-  }) => {
-    pierreMocks.workerProvider({ poolOptions, highlighterOptions })
-    return children
-  },
+const pierreMocks = vi.hoisted(() => ({
+  codeReady: vi.fn(() => true),
+  workerProvider: vi.fn(),
 }))
+
+vi.mock('@pierre/diffs/react', async () => {
+  const { StubCodeView } = await import('./diff-panel.test-harness')
+  type StubProps = Parameters<typeof StubCodeView>[0]
+  return {
+    CodeView: (props: StubProps) =>
+      pierreMocks.codeReady() ? <StubCodeView {...props} /> : <div data-testid="code-view" />,
+    WorkerPoolContextProvider: ({
+      children,
+      poolOptions,
+      highlighterOptions,
+    }: {
+      children: ReactNode
+      poolOptions: unknown
+      highlighterOptions: unknown
+    }) => {
+      pierreMocks.workerProvider({ poolOptions, highlighterOptions })
+      return children
+    },
+  }
+})
 
 const VIEW_OPTIONS = { syntaxTheme: 'github-dark', diffView: 'unified', wrapLines: false } as const
 
 describe('review comment anchoring', () => {
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    pierreMocks.codeReady.mockReturnValue(true)
+  })
 
   it('yields before mounting a multi-file diff worker', async () => {
     pierreMocks.workerProvider.mockClear()
@@ -52,6 +63,37 @@ describe('review comment anchoring', () => {
     await waitFor(() => expect(pierreMocks.workerProvider).toHaveBeenCalledOnce())
     await waitFor(() => expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument())
     await waitFor(() => expect(screen.getAllByRole('button', { name: /^select/ })).toHaveLength(8))
+  })
+
+  it('restores loading feedback for each refreshed diff generation', async () => {
+    const props = {
+      files: [fileDiff()],
+      isLoading: false,
+      loadError: null,
+      onRetryLoad: vi.fn(),
+      viewOptions: VIEW_OPTIONS,
+      review: {
+        comments: [],
+        activeCommentLocation: null,
+        onSetActiveComment: vi.fn(),
+        onAddSingleComment: vi.fn(),
+        onAddToReview: vi.fn(),
+        onRemoveComment: vi.fn(),
+      },
+    } as const
+    const { rerender } = render(<DiffCodeView {...props} />)
+
+    await waitFor(() => expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument())
+    rerender(<DiffCodeView {...props} isLoading />)
+    expect(screen.getByLabelText('Loading')).toBeVisible()
+
+    pierreMocks.codeReady.mockReturnValue(false)
+    rerender(<DiffCodeView {...props} files={[fileDiff('src/refreshed.ts')]} />)
+    expect(screen.getByLabelText('Loading')).toBeVisible()
+
+    pierreMocks.codeReady.mockReturnValue(true)
+    rerender(<DiffCodeView {...props} files={[fileDiff('src/refreshed.ts')]} />)
+    await waitFor(() => expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument())
   })
 
   it('replays navigation once a late progressive item is prepared', async () => {

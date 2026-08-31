@@ -20,7 +20,7 @@ export function StubWorkerPoolContextProvider({ children }: { readonly children:
   return children
 }
 
-interface StubCodeViewProps {
+export interface StubCodeViewProps {
   ref?: Ref<StubCodeViewHandle>
   items: readonly {
     id: string
