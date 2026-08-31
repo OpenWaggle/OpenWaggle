@@ -191,7 +191,9 @@ export class OpenWaggleMcpTaskStore {
   }
 
   withProjectionLock<T>(operation: () => Promise<T>) {
-    return withProcessFileLock(`${this.filePath}.projection`, operation)
+    return withProcessFileLock(`${this.filePath}.projection`, operation, {
+      waitUntilAvailable: true,
+    })
   }
 
   async update<T>(

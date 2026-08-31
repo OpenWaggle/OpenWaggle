@@ -94,17 +94,24 @@ describe('hosted task reconciliation authority', () => {
       result: true,
     }))
     let overlappingReconciliationCompleted = false
+    let overlappingReconciliationFailure: unknown
     const overlappingReconciliation = reconcileOpenWaggleProfileTasks({
       now: 10,
       profile: 'test-profile',
       services,
       store,
-    }).then(() => {
-      overlappingReconciliationCompleted = true
-    })
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    }).then(
+      () => {
+        overlappingReconciliationCompleted = true
+      },
+      (error: unknown) => {
+        overlappingReconciliationFailure = error
+      },
+    )
+    await new Promise((resolve) => setTimeout(resolve, 2_000))
 
     expect(overlappingReconciliationCompleted).toBe(false)
+    expect(overlappingReconciliationFailure).toBeUndefined()
     projectedStates.push('working')
 
     releaseAccepted()
