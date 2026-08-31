@@ -11,13 +11,10 @@ interface WorkspaceNavigationInput {
 }
 
 function useWorkspaceNavigationState(input: WorkspaceNavigationInput) {
-  const [explorerOpen, setExplorerOpen] = useState(true)
   const [goToLineOpen, setGoToLineOpen] = useState(false)
   const [goToLineValue, setGoToLineValue] = useState(input.line ? String(input.line) : '')
 
   return {
-    explorerOpen,
-    setExplorerOpen,
     goToLineOpen,
     setGoToLineOpen,
     goToLineValue,

@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Search } from 'lucide-react'
+import { Check, ChevronDown, Code2, Search } from 'lucide-react'
 import { useState } from 'react'
 import { syntaxLanguageCatalog } from '@/shared/lib/syntax/language-registry'
 import { Button } from '@/shared/ui/Button'
@@ -9,11 +9,13 @@ import { workspaceLanguagePatternLabel } from '../lib/workspace-language-associa
 export function WorkspaceLanguageMenu({
   language,
   filePath,
+  compact = false,
   onChange,
   onAssociatePattern,
 }: {
   readonly language: string
   readonly filePath: string
+  readonly compact?: boolean
   readonly onChange: (language: string) => void
   readonly onAssociatePattern: () => void
 }) {
@@ -21,6 +23,7 @@ export function WorkspaceLanguageMenu({
   const [query, setQuery] = useState('')
   const catalog = syntaxLanguageCatalog()
   const selected = catalog.find((entry) => entry.id === language)
+  const selectedName = selected?.name ?? language
   const normalizedQuery = query.trim().toLowerCase()
   const visible = normalizedQuery
     ? catalog.filter(
@@ -42,12 +45,13 @@ export function WorkspaceLanguageMenu({
       trigger={({ toggle }) => (
         <Button
           variant="ghost"
-          size="xs"
-          title="Choose the language for this file"
+          size={compact ? 'icon-sm' : 'xs'}
+          aria-label={compact ? selectedName : undefined}
+          title={`File language: ${selectedName}`}
           onClick={toggle}
-          rightIcon={<ChevronDown className="size-3" />}
+          rightIcon={compact ? undefined : <ChevronDown className="size-3" />}
         >
-          {selected?.name ?? language}
+          {compact ? <Code2 className="size-3.5" /> : selectedName}
         </Button>
       )}
     >
@@ -92,7 +96,7 @@ export function WorkspaceLanguageMenu({
             setOpen(false)
           }}
         >
-          Use {selected?.name ?? language} for {workspaceLanguagePatternLabel(filePath)}
+          Use {selectedName} for {workspaceLanguagePatternLabel(filePath)}
         </Button>
       </div>
     </Popover>

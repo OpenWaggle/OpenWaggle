@@ -30,11 +30,11 @@ interface HeaderState {
   readonly projectPath: string | null
   readonly relativePath: string
   readonly line: number | null
-  readonly explorerOpen: boolean
+  readonly workspaceTreeOpen: boolean
 }
 
 interface HeaderActions {
-  readonly onToggleExplorer: () => void
+  readonly onToggleWorkspaceTree: () => void
   readonly onOpenExternal: () => void
   readonly onGoToLine: () => void
   readonly onBeginMutation: (action: WorkspaceMutationAction) => void
@@ -117,15 +117,6 @@ export function WorkspaceFilePanelHeader({
 }) {
   return (
     <header className="flex h-10 shrink-0 items-center gap-2 border-b border-border bg-bg-secondary px-2">
-      <Button
-        variant={state.explorerOpen ? 'accent' : 'ghost'}
-        size="icon-sm"
-        aria-label="Toggle file explorer"
-        title="Toggle file explorer"
-        onClick={actions.onToggleExplorer}
-      >
-        <FolderTree className="size-3.5" />
-      </Button>
       <span
         className="min-w-0 flex-1 truncate font-mono text-xs text-text-secondary"
         title={state.relativePath}
@@ -133,6 +124,16 @@ export function WorkspaceFilePanelHeader({
         {state.relativePath}
         {state.line ? <span className="text-accent">:{state.line}</span> : null}
       </span>
+      <Button
+        variant={state.workspaceTreeOpen ? 'accent' : 'ghost'}
+        size="icon-sm"
+        aria-label="Toggle workspace navigator"
+        aria-pressed={state.workspaceTreeOpen}
+        title="Toggle workspace navigator"
+        onClick={actions.onToggleWorkspaceTree}
+      >
+        <FolderTree className="size-3.5" />
+      </Button>
       {state.projectPath ? (
         <Button
           variant="ghost"

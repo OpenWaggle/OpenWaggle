@@ -3,7 +3,6 @@ import { AssistiveTreeDescription, useTree } from '@headless-tree/react'
 import type { GitFileDiff } from '@shared/types/git'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { type MouseEvent, useMemo, useState } from 'react'
-import { useNavigatorResize } from '@/features/diff-panel/hooks/useNavigatorResize'
 import {
   buildNavigatorTree,
   type FileChangeStats,
@@ -130,40 +129,10 @@ export function FileTree({ files, onFileClick }: FileTreeProps) {
   'use no memo'
 
   const tree = useNavigatorTree(files)
-  const resize = useNavigatorResize()
-  const { width, isResizing } = resize
 
   return (
-    <div
-      // max-w guard: the stored width is absolute pixels, so in a narrow docked
-      // panel a wide navigator would starve the diff body and clip the code.
-      className="relative flex h-full max-w-1/2 shrink-0 flex-col border-l border-border bg-diff-bg py-2"
-      style={{ width: `${String(width)}px` }}
-    >
-      {/*
-        Resize rail, docked on the left edge of a right-docked panel, so dragging
-        left widens it. Focusable with arrow-key resizing: the app's existing
-        right-sidebar rail is pointer-only (tabIndex -1), which is not reachable
-        for keyboard users.
-      */}
-      <Button
-        variant="unstyled"
-        type="button"
-        aria-label={`Resize changed file list, currently ${String(width)} pixels`}
-        title="Drag or use arrow keys to resize"
-        onKeyDown={resize.handleKeyDown}
-        onLostPointerCapture={resize.handleLostPointerCapture}
-        onPointerCancel={resize.handlePointerCancel}
-        onPointerDown={resize.handlePointerDown}
-        onPointerMove={resize.handlePointerMove}
-        onPointerUp={resize.handlePointerUp}
-        className={cn(
-          'absolute inset-y-0 left-0 z-10 w-1 cursor-col-resize border-0 bg-transparent p-0 transition-colors',
-          isResizing ? 'bg-accent/60' : 'hover:bg-accent/40 focus-visible:bg-accent/60',
-        )}
-      />
-
-      <div {...tree.getContainerProps()} className="flex-1 overflow-auto outline-none">
+    <div className="flex min-h-0 flex-1 flex-col py-2">
+      <div {...tree.getContainerProps()} className="min-h-0 flex-1 overflow-auto outline-none">
         <AssistiveTreeDescription tree={tree} />
         {tree.getItems().map((item) => {
           const data = item.getItemData()

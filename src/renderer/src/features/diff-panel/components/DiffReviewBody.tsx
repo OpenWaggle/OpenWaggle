@@ -3,6 +3,7 @@ import type { GitFileDiff } from '@shared/types/git'
 import type { Ref } from 'react'
 import { isReportableSendFailure } from '@/features/chat/lib'
 import type { ReviewAnnotationMetadata } from '@/features/diff-panel/lib/code-view-items'
+import { WorkspaceTreePanel } from '@/shared/ui/WorkspaceTreePanel'
 import { useUIStore } from '@/shell/ui-store'
 import { useDiffReviewActions } from '../hooks/useDiffReviewActions'
 import { useDiffViewOptions } from '../hooks/useDiffViewOptions'
@@ -50,6 +51,7 @@ export function DiffReviewBody({
 }: DiffReviewBodyProps) {
   const { viewOptions } = useDiffViewOptions()
   const showToast = useUIStore((state) => state.showToast)
+  const workspaceTreeOpen = useUIStore((state) => state.workspaceTreeOpen)
   const review = useDiffReviewActions(
     onSendMessage,
     files,
@@ -86,7 +88,9 @@ export function DiffReviewBody({
             onRemoveComment: review.onRemoveComment,
           }}
         />
-        <FileTree files={files} onFileClick={onFileClick} />
+        <WorkspaceTreePanel open={workspaceTreeOpen}>
+          <FileTree files={files} onFileClick={onFileClick} />
+        </WorkspaceTreePanel>
       </div>
       <ReviewBar
         commentCount={review.comments.length}

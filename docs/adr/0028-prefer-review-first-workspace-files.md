@@ -6,7 +6,7 @@ OpenWaggle uses a worktree-aware, single-file review surface with focused editin
 
 ## Decision
 
-The workspace shows one active file from the session's exact working path. It keeps the file tree, Quick Open, project text search, Go to Line, review comments, Markdown/source switching, and external-editor handoff. It removes Monaco, editor tabs, split panes, editor navigation history, diagnostics, autocomplete, refactoring, semantic symbol navigation, and language-service workers.
+The workspace shows one active file from the session's exact working path. File review and diff review share one collapsible, resizable workspace navigator docked on the right, with the same width and open state across both surfaces. It keeps Quick Open, project text search, Go to Line, review comments, Markdown/source switching, and external-editor handoff. It removes Monaco, editor tabs, split panes, editor navigation history, diagnostics, autocomplete, refactoring, semantic symbol navigation, and language-service workers.
 
 OpenWaggle's lightweight `SourceView` owns the virtualized, immediately readable review path. `@pierre/diffs` loads only after an explicit Edit action and owns focused single-file editing interactions. Editing remains limited to text files no larger than 1 MiB. Larger text files open in a read-only paged source view using approximately 256 KiB requests, with no force-full-edit action. Binary and rendered document previews keep their purpose-specific renderers.
 

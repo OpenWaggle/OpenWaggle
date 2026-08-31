@@ -148,8 +148,8 @@ export function WorkspaceFileEditorToolbar({
   readonly file: WorkspaceTextFileReadResult
 }) {
   return (
-    <div className="flex h-9 shrink-0 items-center justify-between border-b border-border px-2">
-      <div className="flex items-center gap-1.5 text-xs text-text-muted">
+    <div className="flex h-9 min-w-0 shrink-0 items-center overflow-hidden border-b border-border px-2">
+      <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden whitespace-nowrap text-xs text-text-muted">
         {state.focusedEdit ? <Save className="size-3" /> : null}
         {state.focusedEdit ? (
           <>
@@ -178,10 +178,11 @@ export function WorkspaceFileEditorToolbar({
             : `Spaces: ${String(file.fidelity.indentSize)}`}
         </span>
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex shrink-0 items-center gap-1">
         <WorkspaceLanguageMenu
           language={state.language}
           filePath={file.path}
+          compact
           onChange={actions.onLanguageChange}
           onAssociatePattern={actions.onAssociateLanguagePattern}
         />

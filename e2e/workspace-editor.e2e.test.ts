@@ -224,6 +224,22 @@ test('workspace files stay review-first, edit reliably on demand, and remain res
     await expect(source).toHaveAttribute('data-syntax-language', 'typescript')
     await expect(source).toHaveAttribute('data-syntax-status', 'highlighted')
     await expect(page.locator('[aria-label="Edit src/main.ts"]')).toHaveCount(0)
+    const workspaceNavigator = page.getByRole('complementary', { name: 'Workspace navigator' })
+    await expect(workspaceNavigator).toBeVisible()
+    const [sourceBounds, navigatorBounds] = await Promise.all([
+      source.boundingBox(),
+      workspaceNavigator.boundingBox(),
+    ])
+    expect(sourceBounds).not.toBeNull()
+    expect(navigatorBounds).not.toBeNull()
+    expect(navigatorBounds?.x).toBeGreaterThan(sourceBounds?.x ?? Number.POSITIVE_INFINITY)
+
+    const navigatorToggle = page.getByRole('button', { name: 'Toggle workspace navigator' })
+    await navigatorToggle.click()
+    await expect(workspaceNavigator).toHaveCount(0)
+    await expect(source).toBeVisible()
+    await navigatorToggle.click()
+    await expect(workspaceNavigator).toBeVisible()
     const reviewWorkerCount = await createdWorkerCount(page)
 
     await page.getByRole('button', { name: 'Edit', exact: true }).click()

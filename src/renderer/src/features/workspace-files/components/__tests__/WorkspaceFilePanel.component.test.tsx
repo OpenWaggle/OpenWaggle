@@ -10,6 +10,7 @@ import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 const mocks = vi.hoisted(() => ({
   onWorkspaceFilesChanged: vi.fn(() => vi.fn()),
   openWorkspaceFileExternal: vi.fn(),
+  searchWorkspaceFiles: vi.fn(),
   readWorkspaceFile: vi.fn(),
   unwatchWorkspaceFiles: vi.fn().mockResolvedValue(undefined),
   watchWorkspaceFiles: vi.fn().mockResolvedValue(undefined),
@@ -65,6 +66,11 @@ describe('WorkspaceFilePanel external open', () => {
     })
     useUIStore.getState().clearToast()
     mocks.readWorkspaceFile.mockResolvedValue(FILE)
+    mocks.searchWorkspaceFiles.mockResolvedValue([
+      { path: 'src/example.ts', basename: 'example.ts' },
+      { path: 'src/other.ts', basename: 'other.ts' },
+    ])
+    useUIStore.setState({ workspaceTreeOpen: true })
   })
 
   afterEach(() => {
@@ -112,5 +118,30 @@ describe('WorkspaceFilePanel external open', () => {
     view.unmount()
 
     expect(mocks.revokeObjectURL).toHaveBeenCalledWith('blob:workspace-preview')
+  })
+
+  it('places the shared workspace navigator after the file content and collapses it', async () => {
+    renderWithQueryClient(
+      <WorkspaceFilePanel
+        projectPath="/project"
+        relativePath="src/example.ts"
+        line={null}
+        onClose={vi.fn()}
+        onOpenFile={vi.fn()}
+      />,
+    )
+
+    const navigator = await screen.findByRole('complementary', { name: 'Workspace navigator' })
+    const body = navigator.parentElement
+    expect(body?.firstElementChild).not.toBe(navigator)
+    expect(body?.lastElementChild).toBe(navigator)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle workspace navigator' }))
+    expect(screen.queryByRole('complementary', { name: 'Workspace navigator' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle workspace navigator' }))
+    expect(
+      await screen.findByRole('complementary', { name: 'Workspace navigator' }),
+    ).toBeInTheDocument()
   })
 })

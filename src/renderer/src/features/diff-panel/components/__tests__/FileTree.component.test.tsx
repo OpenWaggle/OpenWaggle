@@ -1,6 +1,6 @@
 import type { GitFileDiff } from '@shared/types/git'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { FileTree } from '../FileTree'
 
 function fileDiff(path: string, additions = 1, deletions = 1, diff = '@@ -1 +1 @@\n-a\n+b') {
@@ -8,10 +8,6 @@ function fileDiff(path: string, additions = 1, deletions = 1, diff = '@@ -1 +1 @
 }
 
 describe('Changed-file navigator', () => {
-  beforeEach(() => {
-    window.localStorage.clear()
-  })
-
   it('exposes ARIA tree semantics from the tree library', () => {
     render(<FileTree files={[fileDiff('src/app.ts')]} onFileClick={vi.fn()} />)
 
@@ -99,35 +95,5 @@ describe('Changed-file navigator', () => {
     expect(screen.getByRole('img', { name: 'deleted' })).toBeInTheDocument()
     expect(screen.getByText('+3')).toBeInTheDocument()
     expect(screen.getByText('-5')).toBeInTheDocument()
-  })
-
-  it('resizes with the keyboard and persists the width', () => {
-    const { unmount } = render(<FileTree files={[fileDiff('a.ts')]} onFileClick={vi.fn()} />)
-
-    const rail = screen.getByRole('button', { name: /Resize changed file list/ })
-    // Left widens, because the navigator is docked on the right.
-    fireEvent.keyDown(rail, { key: 'ArrowLeft' })
-
-    const widened = screen.getByRole('button', { name: /Resize changed file list/ })
-    expect(widened.getAttribute('aria-label')).toMatch(/236 pixels/)
-
-    unmount()
-    render(<FileTree files={[fileDiff('a.ts')]} onFileClick={vi.fn()} />)
-    expect(
-      screen.getByRole('button', { name: /Resize changed file list/ }).getAttribute('aria-label'),
-    ).toMatch(/236 pixels/)
-  })
-
-  it('clamps the width at its minimum', () => {
-    render(<FileTree files={[fileDiff('a.ts')]} onFileClick={vi.fn()} />)
-    const rail = screen.getByRole('button', { name: /Resize changed file list/ })
-
-    for (let press = 0; press < 12; press += 1) {
-      fireEvent.keyDown(rail, { key: 'ArrowRight' })
-    }
-
-    expect(
-      screen.getByRole('button', { name: /Resize changed file list/ }).getAttribute('aria-label'),
-    ).toMatch(/140 pixels/)
   })
 })

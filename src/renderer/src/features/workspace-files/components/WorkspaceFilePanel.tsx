@@ -1,4 +1,5 @@
 import { api } from '@/shared/lib/ipc'
+import { WorkspaceTreePanel } from '@/shared/ui/WorkspaceTreePanel'
 import { useUIStore } from '@/shell/ui-store'
 import { useWorkspaceEntryMutations } from '../hooks/useWorkspaceEntryMutations'
 import { useWorkspaceFileNavigation } from '../hooks/useWorkspaceFileNavigation'
@@ -21,7 +22,7 @@ function WorkspaceFilePanelBody({
   actions,
 }: {
   readonly state: {
-    readonly explorerOpen: boolean
+    readonly workspaceTreeOpen: boolean
     readonly projectPath: string | null
     readonly relativePath: string
     readonly line: number | null
@@ -33,14 +34,6 @@ function WorkspaceFilePanelBody({
 }) {
   return (
     <div className="flex min-h-0 flex-1">
-      {state.explorerOpen && state.projectPath ? (
-        <WorkspaceFileBrowser
-          projectPath={state.projectPath}
-          currentPath={state.relativePath}
-          onOpenFile={actions.onOpenFile}
-          onMoveEntry={actions.onMoveEntry}
-        />
-      ) : null}
       <div className="flex min-h-0 min-w-0 flex-1">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <WorkspaceFilePane
@@ -50,6 +43,16 @@ function WorkspaceFilePanelBody({
           />
         </div>
       </div>
+      {state.projectPath ? (
+        <WorkspaceTreePanel open={state.workspaceTreeOpen}>
+          <WorkspaceFileBrowser
+            projectPath={state.projectPath}
+            currentPath={state.relativePath}
+            onOpenFile={actions.onOpenFile}
+            onMoveEntry={actions.onMoveEntry}
+          />
+        </WorkspaceTreePanel>
+      ) : null}
     </div>
   )
 }
@@ -64,6 +67,8 @@ export function WorkspaceFilePanel(input: WorkspaceFilePanelProps) {
   })
   useWorkspaceFileWatcher(input.projectPath, mutations.refreshAllWatchedQueries)
   const showToast = useUIStore((state) => state.showToast)
+  const workspaceTreeOpen = useUIStore((state) => state.workspaceTreeOpen)
+  const toggleWorkspaceTree = useUIStore((state) => state.toggleWorkspaceTree)
 
   function moveEntry(sourcePath: string, targetPath: string) {
     void mutations
@@ -93,10 +98,10 @@ export function WorkspaceFilePanel(input: WorkspaceFilePanelProps) {
           projectPath: input.projectPath,
           relativePath: input.relativePath,
           line: input.line,
-          explorerOpen: navigation.explorerOpen,
+          workspaceTreeOpen,
         }}
         actions={{
-          onToggleExplorer: () => navigation.setExplorerOpen((current) => !current),
+          onToggleWorkspaceTree: toggleWorkspaceTree,
           onOpenExternal: openExternal,
           onGoToLine: openGoToLine,
           onBeginMutation: mutations.begin,
@@ -129,7 +134,7 @@ export function WorkspaceFilePanel(input: WorkspaceFilePanelProps) {
       />
       <WorkspaceFilePanelBody
         state={{
-          explorerOpen: navigation.explorerOpen,
+          workspaceTreeOpen,
           projectPath: input.projectPath,
           relativePath: input.relativePath,
           line: input.line,
