@@ -94,6 +94,7 @@ function renderHub(
     readonly activeSession?: SessionDetail | null
     readonly messageCount?: number
     readonly autoHidden?: boolean
+    readonly rightSidebarOpen?: boolean
   } = {},
 ) {
   return renderWithQueryClient(
@@ -103,6 +104,7 @@ function renderHub(
         session: props.activeSession === undefined ? session() : props.activeSession,
         messageCount: props.messageCount ?? 1,
         autoHidden: props.autoHidden ?? false,
+        rightSidebarOpen: props.rightSidebarOpen ?? false,
         onOpenDiff: vi.fn(),
         onOpenResources: vi.fn(),
         onNavigateSession: vi.fn(),
@@ -161,6 +163,16 @@ describe('SessionSummaryHub', () => {
     expect(screen.getByRole('button', { name: 'Hide Session Summary' })).toHaveAttribute(
       'aria-expanded',
       'true',
+    )
+  })
+
+  it('keeps the toggle but hard-hides the panel while a right sidebar is open', () => {
+    renderHub({ rightSidebarOpen: true })
+
+    expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Open Session Summary' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
     )
   })
 

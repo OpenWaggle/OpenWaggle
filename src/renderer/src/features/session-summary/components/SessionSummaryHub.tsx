@@ -83,10 +83,14 @@ function SessionSummaryToggle({
   )
 }
 
-function useSessionSummaryPanelVisibility(sessionId: string, autoHidden: boolean) {
+function useSessionSummaryPanelVisibility(
+  sessionId: string,
+  autoHidden: boolean,
+  rightSidebarOpen: boolean,
+) {
   const [expanded, setExpanded] = usePersistedExpanded(sessionId, 'panel', true)
   const [forcedOpen, setForcedOpen] = useState(false)
-  const visible = expanded && (!autoHidden || forcedOpen)
+  const visible = !rightSidebarOpen && expanded && (!autoHidden || forcedOpen)
   const close = () => {
     setExpanded(false)
     setForcedOpen(false)
@@ -103,6 +107,7 @@ export interface SessionSummaryHubInput {
   readonly session: SessionDetail | null
   readonly messageCount: number
   readonly autoHidden: boolean
+  readonly rightSidebarOpen: boolean
   readonly onOpenDiff: () => void
   readonly onOpenResources: () => void
   readonly onNavigateSession: (sessionId: string) => void
@@ -116,6 +121,7 @@ export function SessionSummaryHub({ input }: { readonly input: SessionSummaryHub
     session,
     messageCount,
     autoHidden,
+    rightSidebarOpen,
     onOpenDiff,
     onOpenResources,
     onNavigateSession,
@@ -125,7 +131,7 @@ export function SessionSummaryHub({ input }: { readonly input: SessionSummaryHub
   } = input
   const sessionId = session ? String(session.id) : 'none'
   const panelId = `session-summary-${sessionId}`
-  const panel = useSessionSummaryPanelVisibility(sessionId, autoHidden)
+  const panel = useSessionSummaryPanelVisibility(sessionId, autoHidden, rightSidebarOpen)
   const [environmentExpanded, setEnvironmentExpanded] = usePersistedExpanded(
     sessionId,
     'environment',

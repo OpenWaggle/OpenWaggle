@@ -78,7 +78,8 @@ export function ChatPanelContent({
             input={{
               session: sections.composer.session,
               messageCount: summaryMessageCount,
-              autoHidden: rightSidebarOpen || !summarySpace.hasSpace,
+              autoHidden: !summarySpace.hasSpace,
+              rightSidebarOpen,
               extensionRegistry: sections.extensionRegistry,
               extensionProjectPaths: sections.extensionProjectPaths,
               onOpenDiff,
