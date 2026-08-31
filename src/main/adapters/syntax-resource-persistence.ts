@@ -5,6 +5,7 @@ import type {
   SyntaxResourceCatalog,
   SyntaxThemeImportPreview,
 } from '@shared/types/syntax-resources'
+import { SYNTAX_IMPORT_RESOURCE_KIND_LIMIT } from './syntax-resource-import-utils'
 import {
   INSTALLED_RESOURCE_CATALOG_MAX_BYTES,
   INSTALLED_RESOURCE_FILE_LIMIT,
@@ -20,7 +21,6 @@ import {
 } from './syntax-resource-project-catalog'
 
 const JSON_INDENT_SPACES = 2
-const IMPORT_RESOURCE_FILE_LIMIT = 20
 const INSTALLED_RESOURCE_KINDS = ['themes', 'languages', 'appearances'] as const
 
 const resourceDirectoryTails = new Map<string, Promise<void>>()
@@ -88,7 +88,7 @@ async function applySyntaxThemePreviewLocked(
   preview: SyntaxThemeImportPreview,
 ) {
   for (const resources of [preview.themes, preview.languages, preview.appearances]) {
-    if (resources.length > IMPORT_RESOURCE_FILE_LIMIT) {
+    if (resources.length > SYNTAX_IMPORT_RESOURCE_KIND_LIMIT) {
       throw new Error('A syntax import contains too many resources of one kind.')
     }
     const identities = new Set<string>()

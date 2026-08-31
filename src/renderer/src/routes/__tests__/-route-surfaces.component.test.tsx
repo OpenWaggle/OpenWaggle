@@ -223,6 +223,7 @@ describe('route surfaces', () => {
     )
 
     expect(screen.getByText('Chat content')).toBeInTheDocument()
+    expect(screen.getByLabelText('Loading')).toHaveTextContent('Loading diff…')
     expect(await screen.findByText('Diff pane')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Close right sidebar' }))
 

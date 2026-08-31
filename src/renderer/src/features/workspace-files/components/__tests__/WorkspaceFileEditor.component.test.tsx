@@ -226,6 +226,52 @@ describe('WorkspaceFileEditor', () => {
     expect(screen.queryByRole('button', { name: 'Use Disk' })).not.toBeInTheDocument()
   })
 
+  it('autosaves EditorConfig-normalized content and refreshes the focused editor', async () => {
+    vi.useFakeTimers()
+    const policyFile: WorkspaceTextFileReadResult = {
+      ...file,
+      fidelity: {
+        ...file.fidelity,
+        editorConfigApplied: true,
+        editorConfigPolicy: {
+          trimTrailingWhitespace: true,
+          finalNewline: true,
+        },
+      },
+    }
+    applyWorkspaceDocumentEditsMock.mockResolvedValueOnce({
+      status: 'saved',
+      version: 1,
+      size: 16,
+      modifiedAt: 2,
+      revision: 'revision-2',
+      encoding: 'utf-8',
+      lineEnding: 'lf',
+    })
+    renderWithQueryClient(
+      <WorkspaceFileEditor projectPath="/project" file={policyFile} targetLine={null} />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    await act(async () => Promise.resolve())
+    const editor = screen.getByRole('textbox', { name: 'Edit src/example.ts' })
+
+    fireEvent.change(editor, { target: { value: 'const value = 1   ' } })
+    await act(() => vi.advanceTimersByTimeAsync(500))
+
+    expect(applyWorkspaceDocumentEditsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        batches: [
+          expect.objectContaining({
+            changes: [expect.objectContaining({ text: 'const value = 1\n' })],
+          }),
+        ],
+      }),
+    )
+    expect(screen.getByRole('textbox', { name: 'Edit src/example.ts' })).toHaveValue(
+      'const value = 1\n',
+    )
+  })
+
   it('keeps search results in review mode until focused editing is explicit', async () => {
     const setSelectionRange = vi.spyOn(HTMLTextAreaElement.prototype, 'setSelectionRange')
     renderWithQueryClient(<WorkspaceFileEditor projectPath="/project" file={file} targetLine={2} />)
@@ -249,6 +295,11 @@ describe('WorkspaceFileEditor', () => {
       content: 'externally replaced\n',
       documentVersion: 1,
       revision: 'revision-2',
+      fidelity: {
+        ...file.fidelity,
+        encoding: 'utf-16le' as const,
+        lineEnding: 'crlf' as const,
+      },
     }
     function ExternalChangeHarness() {
       const [currentFile, setCurrentFile] = useState(file)
@@ -281,6 +332,8 @@ describe('WorkspaceFileEditor', () => {
     expect(screen.getByRole('textbox', { name: 'Edit src/example.ts' })).toHaveValue(
       externalFile.content,
     )
+    expect(screen.getByText('UTF-16LE')).toBeInTheDocument()
+    expect(screen.getByText('CRLF')).toBeInTheDocument()
   })
 
   it('opens a Markdown content-search result in review mode and edits on request', async () => {

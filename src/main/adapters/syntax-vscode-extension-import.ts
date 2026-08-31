@@ -14,6 +14,7 @@ import {
   parseTextMatePlist,
   readBoundedFile,
   resolveThemeDeclaration,
+  SYNTAX_IMPORT_RESOURCE_KIND_LIMIT,
   safeArchivePath,
 } from './syntax-resource-import-utils'
 import { normalizedTheme } from './syntax-theme-normalization'
@@ -188,6 +189,18 @@ async function importExtensionResources(
   reader: ExtensionResourceReader,
   scope: SyntaxResourceScope,
 ) {
+  const themeDeclarations = Array.isArray(manifest.contributes.themes)
+    ? manifest.contributes.themes
+    : []
+  const grammarDeclarations = Array.isArray(manifest.contributes.grammars)
+    ? manifest.contributes.grammars
+    : []
+  if (
+    themeDeclarations.length > SYNTAX_IMPORT_RESOURCE_KIND_LIMIT ||
+    grammarDeclarations.length > SYNTAX_IMPORT_RESOURCE_KIND_LIMIT
+  ) {
+    throw new Error('A VS Code syntax extension declares too many resources of one kind.')
+  }
   const catalog = emptySyntaxCatalog()
   catalog.themes.push(...(await importExtensionThemes(manifest, reader, scope)))
   catalog.languages.push(...(await importExtensionGrammars(manifest, reader, scope)))

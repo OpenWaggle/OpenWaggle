@@ -15,6 +15,7 @@ import {
   type PersistedDraftJournal,
   removeDraftJournal,
 } from '../lib/workspace-draft-journal'
+import { applyWorkspaceContentPolicyForSave } from './workspace-save-content-policy'
 import { isWithinWorkspaceEditTransportLimits } from './workspace-save-queue-limits'
 
 export const AUTOSAVE_DELAY_MS = 500
@@ -150,9 +151,11 @@ export function preserveFailedDraft(
 export function takeWorkspaceEditBatchesForSave(
   context: WorkspaceSaveQueueContext,
   savingContent: string,
+  forceFullDocument = false,
 ) {
   const projectedCopyCodeUnits = context.pending.current.length * savingContent.length
   if (
+    !forceFullDocument &&
     isWithinWorkspaceEditTransportLimits(context.pending.current) &&
     projectedCopyCodeUnits <= MAX_PROJECTED_SAVE_COPY_CODE_UNITS
   ) {
@@ -224,8 +227,10 @@ async function flushWorkspaceEditLoop(context: WorkspaceSaveQueueContext) {
   context.saving.current = true
   try {
     while (context.pending.current.length > 0 && !context.conflict.current) {
-      const savingContent = captureWorkspaceDocumentSnapshot(context)
-      const batches = takeWorkspaceEditBatchesForSave(context, savingContent)
+      const capturedContent = captureWorkspaceDocumentSnapshot(context)
+      const { content: savingContent, applied: contentPolicyApplied } =
+        applyWorkspaceContentPolicyForSave(context, capturedContent)
+      const batches = takeWorkspaceEditBatchesForSave(context, savingContent, contentPolicyApplied)
       if (context.mounted.current) {
         context.setStatus('saving')
         context.setErrorMessage(null)

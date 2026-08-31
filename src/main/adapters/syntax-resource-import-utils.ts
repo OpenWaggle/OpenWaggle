@@ -12,6 +12,7 @@ import { type ParseError, parse as parseJsonc } from 'jsonc-parser'
 import plist from 'plist'
 
 export const IMPORT_SIZE_LIMIT_BYTES = 20 * 1024 * 1024
+export const SYNTAX_IMPORT_RESOURCE_KIND_LIMIT = 20
 export const ARCHIVE_ENTRY_LIMIT = 1_000
 export const ARCHIVE_EXPANDED_LIMIT_BYTES = 40 * 1024 * 1024
 const THEME_INCLUDE_DEPTH_LIMIT = 16

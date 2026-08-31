@@ -127,6 +127,8 @@ function useSaveQueueLifecycle(context: WorkspaceSaveQueueContext, changeSequenc
     context.setContent(file.content)
     context.setSavedContent(file.content)
     context.setNormalizationRequired(file.fidelity.lineEnding === 'mixed')
+    context.setEncoding(file.fidelity.encoding)
+    context.setLineEnding(file.fidelity.lineEnding)
   })
 
   useEffect(() => {

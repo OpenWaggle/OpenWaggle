@@ -57,6 +57,7 @@ interface ChatRouteSurfaceProps {
 function DiffSidebarFallback() {
   return (
     <output
+      aria-label="Loading"
       className="flex size-full items-center justify-center bg-diff-bg text-sm text-text-tertiary"
       aria-live="polite"
     >

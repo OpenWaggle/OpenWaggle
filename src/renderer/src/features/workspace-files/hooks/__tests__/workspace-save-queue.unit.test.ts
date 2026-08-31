@@ -3,7 +3,7 @@
 import { WORKSPACE_FILES } from '@shared/constants/resource-limits'
 import type { WorkspaceTextFileReadResult } from '@shared/types/workspace-files'
 import { fromPartial } from '@total-typescript/shoehorn'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   captureWorkspaceDocumentSnapshot,
   flushWorkspaceEdits,
@@ -22,13 +22,15 @@ vi.mock('@/shell/ui-store', () => ({
   useUIStore: { getState: () => ({ showToast: vi.fn() }) },
 }))
 
-function contextFixture() {
+function contextFixture(
+  editorConfigPolicy?: WorkspaceTextFileReadResult['fidelity']['editorConfigPolicy'],
+) {
   return fromPartial<WorkspaceSaveQueueContext>({
     projectPath: '/project',
     file: {
       path: 'src/file.ts',
       basename: 'file.ts',
-      fidelity: { encoding: 'utf-8', lineEnding: 'lf' },
+      fidelity: { encoding: 'utf-8', lineEnding: 'lf', editorConfigPolicy },
     },
     queryClient: { setQueryData: vi.fn() },
     conflict: { current: false },
@@ -46,6 +48,7 @@ function contextFixture() {
     setContent: vi.fn(),
     setSavedContent: vi.fn(),
     setEncoding: vi.fn(),
+    setEditorRevision: vi.fn(),
     setErrorMessage: vi.fn(),
     setLineEnding: vi.fn(),
     setStatus: vi.fn(),
@@ -53,6 +56,10 @@ function contextFixture() {
 }
 
 describe('workspace save queue hot path', () => {
+  beforeEach(() => {
+    applyWorkspaceDocumentEdits.mockReset()
+  })
+
   it('preserves a recovered draft when the disk baseline changed', () => {
     const file = fromPartial<WorkspaceTextFileReadResult>({
       path: 'src/file.ts',
@@ -214,6 +221,54 @@ describe('workspace save queue hot path', () => {
         changes: [{ rangeOffset: 0, rangeLength: 6, text: 'after' }],
       },
     ])
+  })
+
+  it('applies EditorConfig content policy before autosave batches reach the host', async () => {
+    const context = contextFixture({
+      trimTrailingWhitespace: true,
+      finalNewline: true,
+    })
+    context.latestContent.current = 'const value = 1   '
+    context.latestSnapshot.current = () => 'const value = 1   '
+    context.pending.current = [
+      {
+        version: 1,
+        changes: [{ rangeOffset: 0, rangeLength: 6, text: 'const value = 1   ' }],
+      },
+    ]
+    applyWorkspaceDocumentEdits.mockResolvedValueOnce({
+      status: 'saved',
+      version: 1,
+      size: 16,
+      modifiedAt: 2,
+      revision: 'revision-2',
+      encoding: 'utf-8',
+      lineEnding: 'lf',
+    })
+
+    await flushWorkspaceEdits(context)
+
+    expect(applyWorkspaceDocumentEdits).toHaveBeenCalledWith(
+      expect.objectContaining({
+        batches: [
+          {
+            version: 1,
+            changes: [
+              {
+                rangeOffset: 0,
+                rangeLength: 'before'.length,
+                text: 'const value = 1\n',
+              },
+            ],
+          },
+        ],
+      }),
+    )
+    expect(context.latestContent.current).toBe('const value = 1\n')
+    expect(context.savedContent.current).toBe('const value = 1\n')
+    expect(context.latestSnapshot.current).toBeNull()
+    expect(context.setContent).toHaveBeenCalledWith('const value = 1\n')
+    expect(context.setEditorRevision).toHaveBeenCalledWith('revision-1:editorconfig:1')
   })
 
   it('rejects a coordinated flush while the file has an unresolved conflict', async () => {
