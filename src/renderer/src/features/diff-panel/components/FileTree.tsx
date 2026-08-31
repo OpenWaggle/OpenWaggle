@@ -1,8 +1,21 @@
-import { hotkeysCoreFeature, selectionFeature, syncDataLoaderFeature } from '@headless-tree/core'
+import {
+  hotkeysCoreFeature,
+  type ItemInstance,
+  selectionFeature,
+  syncDataLoaderFeature,
+} from '@headless-tree/core'
 import { AssistiveTreeDescription, useTree } from '@headless-tree/react'
 import type { GitFileDiff } from '@shared/types/git'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import { type MouseEvent, useMemo, useState } from 'react'
+import {
+  type MouseEvent,
+  type UIEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import {
   buildNavigatorTree,
   type FileChangeStats,
@@ -21,6 +34,8 @@ interface FileTreeProps {
 const INDENT_PX = 10
 const ROW_PADDING_PX = 8
 const ROW_INTRINSIC_HEIGHT_PX = 22
+const VIRTUAL_OVERSCAN_ROWS = 6
+const FALLBACK_VIEWPORT_HEIGHT_PX = ROW_INTRINSIC_HEIGHT_PX * 12
 
 const STATUS_GLYPH: Record<FileChangeStatus, string> = {
   added: 'A',
@@ -35,6 +50,7 @@ const STATUS_CLASS: Record<FileChangeStatus, string> = {
 }
 
 type ButtonClickHandler = (event: MouseEvent<HTMLButtonElement>) => void
+type ContainerRefCallback = (element: HTMLDivElement | null) => void
 
 /**
  * getProps() from the tree library is loosely typed, so narrow its click handler
@@ -42,6 +58,10 @@ type ButtonClickHandler = (event: MouseEvent<HTMLButtonElement>) => void
  * and selection handling would be lost.
  */
 function isClickHandler(value: unknown): value is ButtonClickHandler {
+  return typeof value === 'function'
+}
+
+function isContainerRefCallback(value: unknown): value is ContainerRefCallback {
   return typeof value === 'function'
 }
 
@@ -82,7 +102,10 @@ function FileChangeBadges({ stats }: { readonly stats: FileChangeStats }) {
  * an empty expanded set forever and rendered zero rows while the diff body showed
  * files. Deriving it makes the rendered tree a pure function of the current diff.
  */
-function useNavigatorTree(files: readonly GitFileDiff[]) {
+function useNavigatorTree(
+  files: readonly GitFileDiff[],
+  scrollToItem: (item: ItemInstance<NavigatorNode>) => void,
+) {
   const { nodes, childrenByPath } = useMemo(() => buildNavigatorTree(files), [files])
   const folderIds = useMemo(() => [...childrenByPath.keys()], [childrenByPath])
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set())
@@ -100,6 +123,7 @@ function useNavigatorTree(files: readonly GitFileDiff[]) {
       getChildren: (itemId) => [...(childrenByPath.get(itemId) ?? [])],
     },
     indent: INDENT_PX,
+    scrollToItem,
     // Only expandedItems is controlled; selection and focus stay internal to the
     // library so its own keyboard handling keeps working.
     state: { expandedItems },
@@ -120,6 +144,77 @@ function useNavigatorTree(files: readonly GitFileDiff[]) {
   })
 }
 
+function useVirtualizedNavigator(files: readonly GitFileDiff[]) {
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const [scrollTop, setScrollTop] = useState(0)
+  const [viewportHeight, setViewportHeight] = useState(FALLBACK_VIEWPORT_HEIGHT_PX)
+  const scrollToItem = useCallback((item: ItemInstance<NavigatorNode>) => {
+    const viewport = viewportRef.current
+    if (viewport === null) return
+    const index = item.getItemMeta().index
+    const rowTop = index * ROW_INTRINSIC_HEIGHT_PX
+    const rowBottom = rowTop + ROW_INTRINSIC_HEIGHT_PX
+    const visibleBottom = viewport.scrollTop + viewport.clientHeight
+    let nextScrollTop = viewport.scrollTop
+    if (rowTop < viewport.scrollTop) nextScrollTop = rowTop
+    if (rowTop >= viewport.scrollTop && rowBottom > visibleBottom) {
+      nextScrollTop = rowBottom - viewport.clientHeight
+    }
+    if (nextScrollTop === viewport.scrollTop) return
+    viewport.scrollTo({ top: nextScrollTop })
+    setScrollTop(nextScrollTop)
+  }, [])
+  const tree = useNavigatorTree(files, scrollToItem)
+  const items = tree.getItems().filter((item) => item.getItemData().path !== NAVIGATOR_ROOT_ID)
+
+  useEffect(() => {
+    const viewport = viewportRef.current
+    if (viewport === null || typeof ResizeObserver === 'undefined') return
+    const updateHeight = () => {
+      if (viewport.clientHeight > 0) setViewportHeight(viewport.clientHeight)
+    }
+    updateHeight()
+    const observer = new ResizeObserver(updateHeight)
+    observer.observe(viewport)
+    return () => observer.disconnect()
+  }, [])
+
+  const firstVisibleIndex = Math.floor(scrollTop / ROW_INTRINSIC_HEIGHT_PX)
+  const startIndex = Math.max(0, firstVisibleIndex - VIRTUAL_OVERSCAN_ROWS)
+  const visibleRowCount = Math.ceil(viewportHeight / ROW_INTRINSIC_HEIGHT_PX)
+  const endIndex = Math.min(
+    items.length,
+    firstVisibleIndex + visibleRowCount + VIRTUAL_OVERSCAN_ROWS,
+  )
+  const containerProps = tree.getContainerProps()
+  const treeContainerRef = isContainerRefCallback(containerProps.ref)
+    ? containerProps.ref
+    : undefined
+  const handleContainerRef = useCallback(
+    (element: HTMLDivElement | null) => {
+      viewportRef.current = element
+      treeContainerRef?.(element)
+    },
+    [treeContainerRef],
+  )
+  const handleScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
+    setScrollTop(event.currentTarget.scrollTop)
+    if (event.currentTarget.clientHeight > 0) {
+      setViewportHeight(event.currentTarget.clientHeight)
+    }
+  }, [])
+
+  return {
+    tree,
+    containerProps,
+    handleContainerRef,
+    handleScroll,
+    items,
+    startIndex,
+    visibleItems: items.slice(startIndex, endIndex),
+  }
+}
+
 export function FileTree({ files, onFileClick }: FileTreeProps) {
   // React Compiler must not memoize this component. @headless-tree owns a mutable
   // tree instance and mutates it in place, so `tree` keeps the same identity while
@@ -129,68 +224,89 @@ export function FileTree({ files, onFileClick }: FileTreeProps) {
   // structurally blind to this class of bug (see MEMORY.md).
   'use no memo'
 
-  const tree = useNavigatorTree(files)
+  const {
+    tree,
+    containerProps,
+    handleContainerRef,
+    handleScroll,
+    items,
+    startIndex,
+    visibleItems,
+  } = useVirtualizedNavigator(files)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col py-2">
-      <div {...tree.getContainerProps()} className="min-h-0 flex-1 overflow-auto outline-none">
+      <div
+        {...containerProps}
+        ref={handleContainerRef}
+        onScroll={handleScroll}
+        className="min-h-0 flex-1 overflow-auto outline-none"
+      >
         <AssistiveTreeDescription tree={tree} />
-        {tree.getItems().map((item) => {
-          const data = item.getItemData()
-          if (data.path === NAVIGATOR_ROOT_ID) return null
-          const isFolder = !data.isFile
-          const ChevIcon = item.isExpanded() ? ChevronDown : ChevronRight
-          const itemProps = item.getProps()
-          const libraryOnClick = isClickHandler(itemProps.onClick) ? itemProps.onClick : undefined
+        <div
+          className="relative w-full"
+          style={{ height: `${String(items.length * ROW_INTRINSIC_HEIGHT_PX)}px` }}
+        >
+          {visibleItems.map((item, visibleIndex) => {
+            const data = item.getItemData()
+            const isFolder = !data.isFile
+            const ChevIcon = item.isExpanded() ? ChevronDown : ChevronRight
+            const itemProps = item.getProps()
+            const libraryOnClick = isClickHandler(itemProps.onClick) ? itemProps.onClick : undefined
+            const absoluteIndex = startIndex + visibleIndex
 
-          return (
-            <Button
-              variant="unstyled"
-              type="button"
-              {...itemProps}
-              key={item.getId()}
-              onClick={(event) => {
-                // Folders: we own expand/collapse, so the library's handler is not
-                // invoked for them -- calling both toggled twice and cancelled out.
-                if (isFolder) {
-                  if (item.isExpanded()) item.collapse()
-                  else item.expand()
-                  return
-                }
-                libraryOnClick?.(event)
-                onFileClick(data.path)
-              }}
-              style={{
-                paddingLeft: `${String(item.getItemMeta().level * INDENT_PX + ROW_PADDING_PX)}px`,
-                // Chromium can skip layout and paint for navigator rows outside the scrollport.
-                // Keep the intrinsic height equal to h-5.5 so scrolling does not jump as rows enter view.
-                contentVisibility: 'auto',
-                containIntrinsicSize: `auto ${String(ROW_INTRINSIC_HEIGHT_PX)}px`,
-              }}
-              className={cn(
-                'flex h-5.5 w-full items-center gap-1.5 pr-1.5 text-left outline-none',
-                item.isFocused() && 'bg-bg-hover',
-                item.isSelected() && 'bg-diff-highlight-bg',
-                'hover:bg-bg-hover',
-              )}
-            >
-              {isFolder ? (
-                <ChevIcon className="size-3 shrink-0 text-text-tertiary" />
-              ) : (
-                <span className="size-3 shrink-0" />
-              )}
-              <span
+            return (
+              <Button
+                variant="unstyled"
+                type="button"
+                {...itemProps}
+                key={item.getId()}
+                onClick={(event) => {
+                  // Folders: we own expand/collapse, so the library's handler is not
+                  // invoked for them -- calling both toggled twice and cancelled out.
+                  if (isFolder) {
+                    if (item.isExpanded()) item.collapse()
+                    else item.expand()
+                    return
+                  }
+                  libraryOnClick?.(event)
+                  onFileClick(data.path)
+                }}
+                style={{
+                  position: 'absolute',
+                  insetInline: 0,
+                  top: `${String(absoluteIndex * ROW_INTRINSIC_HEIGHT_PX)}px`,
+                  paddingLeft: `${String(item.getItemMeta().level * INDENT_PX + ROW_PADDING_PX)}px`,
+                  // Chromium can skip layout and paint for navigator rows outside the scrollport.
+                  // Keep the intrinsic height equal to h-5.5 so scrolling does not jump as rows enter view.
+                  contentVisibility: 'auto',
+                  containIntrinsicSize: `auto ${String(ROW_INTRINSIC_HEIGHT_PX)}px`,
+                }}
                 className={cn(
-                  'truncate text-xs',
-                  data.isFile ? 'text-text-primary' : 'text-text-secondary',
+                  'flex h-5.5 w-full items-center gap-1.5 pr-1.5 text-left outline-none',
+                  item.isFocused() && 'bg-bg-hover',
+                  item.isSelected() && 'bg-diff-highlight-bg',
+                  'hover:bg-bg-hover',
                 )}
               >
-                {data.name}
-              </span>
-              {data.stats ? <FileChangeBadges stats={data.stats} /> : null}
-            </Button>
-          )
-        })}
+                {isFolder ? (
+                  <ChevIcon className="size-3 shrink-0 text-text-tertiary" />
+                ) : (
+                  <span className="size-3 shrink-0" />
+                )}
+                <span
+                  className={cn(
+                    'truncate text-xs',
+                    data.isFile ? 'text-text-primary' : 'text-text-secondary',
+                  )}
+                >
+                  {data.name}
+                </span>
+                {data.stats ? <FileChangeBadges stats={data.stats} /> : null}
+              </Button>
+            )
+          })}
+        </div>
       </div>
     </div>
   )

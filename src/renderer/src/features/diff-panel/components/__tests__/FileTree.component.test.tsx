@@ -100,4 +100,21 @@ describe('Changed-file navigator', () => {
     expect(screen.getByText('+3')).toBeInTheDocument()
     expect(screen.getByText('-5')).toBeInTheDocument()
   })
+
+  it('windows a large changed-file list and reveals later rows on scroll', () => {
+    const files = Array.from({ length: 80 }, (_, index) =>
+      fileDiff(`src/file-${String(index).padStart(3, '0')}.ts`),
+    )
+    render(<FileTree files={files} onFileClick={vi.fn()} />)
+
+    expect(screen.getAllByRole('treeitem').length).toBeLessThan(40)
+    expect(screen.queryByText('file-079.ts')).not.toBeInTheDocument()
+
+    const tree = screen.getByRole('tree')
+    Object.defineProperty(tree, 'scrollTop', { configurable: true, value: 1_760 })
+    fireEvent.scroll(tree)
+
+    expect(screen.getByText('file-079.ts')).toBeInTheDocument()
+    expect(screen.getAllByRole('treeitem').length).toBeLessThan(40)
+  })
 })
