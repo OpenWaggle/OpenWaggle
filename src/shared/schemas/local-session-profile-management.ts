@@ -20,6 +20,7 @@ const authorizationCeilingSchema = Schema.Literal(...AGENT_AUTHORIZATION_MODES)
 const profileNameSchema = Schema.String.pipe(
   Schema.minLength(1),
   Schema.maxLength(LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH),
+  Schema.filter((value) => value.trim() === value || 'Profile names must be trimmed.'),
 )
 const profileCredentialSchema = Schema.String.pipe(
   Schema.filter(

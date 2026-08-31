@@ -109,7 +109,7 @@ export class LocalSessionConnection {
     const refresh = async () => {
       const caller = this.caller
       const authority = caller?.profileAuthority
-      if (!caller || !authority || !caller.callerId.startsWith('profile:')) return
+      if (!caller || !authority) return
       if (profileId && authority.profileId !== profileId) return
       if (!this.dependencies.refreshCaller) return
       try {

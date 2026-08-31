@@ -1,12 +1,13 @@
-import { matchBy } from '@diegogbrisa/ts-match'
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import type { SessionHostEventEnvelope } from '@shared/types/session-host-event'
 import * as Effect from 'effect/Effect'
 import { authorizeSessionCapabilities } from '../domain/session-control/session-capability-authorization'
+import { requiredCapabilityForSessionEvent } from '../domain/session-control/session-event-capability'
 import { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
 import {
   authorizeTargetForCaller,
   refreshNamedProfileCaller,
+  refreshNamedProfileCallerForEvent,
 } from './local-session-derived-authority'
 
 export function authorizeLocalSessionEvent(
@@ -15,24 +16,10 @@ export function authorizeLocalSessionEvent(
 ) {
   if (!caller.profileAuthority) return Effect.succeed(true)
   return Effect.gen(function* () {
-    const refreshedCaller = yield* refreshNamedProfileCaller(caller)
+    const refreshedCaller = yield* refreshNamedProfileCallerForEvent(caller)
     const authority = refreshedCaller.profileAuthority
     if (!authority) return true
-    const capability = matchBy(event.payload, 'kind')
-      .with(
-        'session-transport',
-        'session-waggle-transport',
-        'session-waggle-turn',
-        () => 'sessions:read' as const,
-      )
-      .with('session-export-changed', () => 'sessions:export' as const)
-      .with(
-        'session-state-changed',
-        'session-list-changed',
-        'semantic-discovery-readiness-changed',
-        () => 'sessions:discover' as const,
-      )
-      .exhaustive()
+    const capability = requiredCapabilityForSessionEvent(event.payload)
     if (!authorizeSessionCapabilities(authority, [capability]).authorized) return false
     if (event.payload.kind === 'semantic-discovery-readiness-changed') return false
     const repository = yield* SessionAuthorizationTargetRepository

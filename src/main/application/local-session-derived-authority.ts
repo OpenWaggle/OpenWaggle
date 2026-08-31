@@ -41,6 +41,12 @@ function expandTransientWorkspaceScope(caller: LocalSessionCallerIdentity) {
   })
 }
 
+function captureDurableProfileScope(caller: LocalSessionCallerIdentity) {
+  const scope = caller.profileAuthority?.scope
+  if (!scope || caller.durableProfileScope) return caller
+  return { ...caller, durableProfileScope: scope }
+}
+
 function refreshEventAdmissionSessionIds(caller: LocalSessionCallerIdentity) {
   const authority = caller.profileAuthority
   if (!authority) return Effect.succeed(caller)
@@ -96,6 +102,7 @@ export function refreshNamedProfileCaller(
           return {
             ...caller,
             baseProfileScope: profile.scope,
+            durableProfileScope: profile.scope,
             derivedSessionAuthorities,
             profileAuthority: {
               profileId: profile.id,
@@ -110,6 +117,7 @@ export function refreshNamedProfileCaller(
           } satisfies LocalSessionCallerIdentity
         })
   return refreshed.pipe(
+    Effect.map(captureDurableProfileScope),
     Effect.flatMap((resolved: LocalSessionCallerIdentity) => {
       const scope = resolved.profileAuthority?.scope
       if (!scope) return Effect.succeed(resolved)
@@ -126,6 +134,52 @@ export function refreshNamedProfileCaller(
     Effect.flatMap(expandTransientWorkspaceScope),
     Effect.flatMap(refreshEventAdmissionSessionIds),
   )
+}
+
+export function refreshNamedProfileCallerForEvent(
+  caller: LocalSessionCallerIdentity,
+): RefreshedProfileCallerEffect {
+  const connectedAuthority = caller.profileAuthority
+  if (!connectedAuthority || !caller.callerId.startsWith('profile:')) {
+    return Effect.succeed(caller)
+  }
+  return Effect.gen(function* () {
+    const repository = yield* LocalSessionProfileRepository
+    const targetRepository = yield* SessionAuthorizationTargetRepository
+    const profile = yield* repository.findById(connectedAuthority.profileId)
+    if (!profile) {
+      return yield* Effect.fail(
+        new LocalSessionCommandAuthorizationError({ code: 'profile_not_found' }),
+      )
+    }
+    if (profile.revokedAt !== null) {
+      return yield* Effect.fail(
+        new LocalSessionCommandAuthorizationError({ code: 'profile_revoked' }),
+      )
+    }
+    const durableScope =
+      caller.durableProfileScope ?? caller.baseProfileScope ?? connectedAuthority.scope
+    if (JSON.stringify(profile.scope) !== JSON.stringify(durableScope)) {
+      return yield* Effect.fail(
+        new LocalSessionCommandAuthorizationError({ code: 'target_scope_denied' }),
+      )
+    }
+    const derivedSessionAuthorities = yield* targetRepository.listLiveDerivedAuthorities(
+      caller.callerId,
+    )
+    const { managementEnvelope: _, ...connectedAuthorityWithoutEnvelope } = connectedAuthority
+    return {
+      ...caller,
+      derivedSessionAuthorities,
+      profileAuthority: {
+        ...connectedAuthorityWithoutEnvelope,
+        profileName: profile.name,
+        capabilities: profile.capabilities,
+        authorizationCeiling: profile.authorizationCeiling,
+        ...(profile.managementEnvelope ? { managementEnvelope: profile.managementEnvelope } : {}),
+      },
+    }
+  })
 }
 
 export function profileAuthorityForCapabilities(

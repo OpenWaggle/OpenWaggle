@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import type { Socket } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
+import type { LocalSessionProfileScope } from '@shared/types/local-session-profile'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionHostEventHub } from '../../application/session-host-event-hub'
 import { SessionHostLiveness } from '../../application/session-host-liveness'
@@ -9,6 +10,26 @@ import { encodeLocalSessionFrame } from '../local-session-framing'
 import { refreshLocalSessionProfileAdmissions } from '../local-session-profile-invalidation'
 import { type LocalSessionServerHandle, listenLocalSessionServer } from '../local-session-server'
 import { connectLocalSessionTestClient, TestFrameReader } from './local-session-server-test-client'
+
+const SCOPE_REFRESH_CASES: readonly {
+  readonly label: string
+  readonly callerId: string
+  readonly scope: LocalSessionProfileScope
+  readonly refreshId: string | undefined
+}[] = [
+  {
+    label: 'named profile',
+    callerId: 'profile:mutable',
+    scope: { sessionIds: ['session-original'] },
+    refreshId: 'mutable',
+  },
+  {
+    label: 'transient MCP workspace authority',
+    callerId: 'transient-mcp:mutable',
+    scope: { workspaceRoots: ['/workspace'] },
+    refreshId: undefined,
+  },
+]
 
 describe('Local Session server subscriptions', () => {
   let temporaryRoot = ''
@@ -114,155 +135,162 @@ describe('Local Session server subscriptions', () => {
     expect(authorizeEvent).toHaveBeenCalledWith(expect.any(Object), visible)
   })
 
-  it('uses live event authorization when a named profile gains Session scope', async () => {
-    const endpoint = path.join(temporaryRoot, 'live-profile-scope.sock')
-    const eventHub = new SessionHostEventHub({ hostInstanceId: 'host-current' })
-    const liveness = new SessionHostLiveness({
-      idleGracePeriodMs: 60_000,
-      requestShutdown: vi.fn(),
-    })
-    const liveSessionIds = new Set(['session-original'])
-    const authorizeEvent = vi.fn(async (_caller, event) => {
-      if (event.payload.kind === 'semantic-discovery-readiness-changed') return false
-      return liveSessionIds.has(event.payload.sessionId)
-    })
-    handle = await listenLocalSessionServer(endpoint, {
-      hostInstanceId: 'host-current',
-      eventHub,
-      liveness,
-      authenticate: async () => ({
-        callerId: 'profile:mutable',
-        profileAuthority: {
-          profileId: 'mutable',
-          profileName: 'mutable',
-          capabilities: ['sessions:discover'],
-          scope: { sessionIds: ['session-original'] },
-          authorizationCeiling: 'ask-for-approval',
-        },
-      }),
-      refreshCaller: async (caller) => ({
-        ...caller,
-        baseProfileScope: { sessionIds: [...liveSessionIds] },
-        profileAuthority: caller.profileAuthority
-          ? {
-              ...caller.profileAuthority,
-              scope: { sessionIds: [...liveSessionIds] },
-            }
-          : undefined,
-      }),
-      authorizeEvent,
-      dispatch: async () => ({ accepted: true }),
-    })
-    client = await connectLocalSessionTestClient(endpoint)
-    const reader = new TestFrameReader(client)
-    client.write(
-      encodeLocalSessionFrame({
-        protocol: 'openwaggle-local-session',
-        supportedRevisions: [2],
-        clientKind: 'cli',
-        clientVersion: 'test',
-      }),
-    )
-    await expect(reader.next()).resolves.toMatchObject({ accepted: true })
-    client.write(
-      encodeLocalSessionFrame({
-        kind: 'subscribe',
-        requestId: 'request-subscribe',
-        after: eventHub.cursor(),
-      }),
-    )
-    await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
+  it.each(SCOPE_REFRESH_CASES)(
+    'uses live event authorization when a $label gains Session scope',
+    async ({ callerId, scope, refreshId }) => {
+      const endpoint = path.join(temporaryRoot, 'live-profile-scope.sock')
+      const eventHub = new SessionHostEventHub({ hostInstanceId: 'host-current' })
+      const liveness = new SessionHostLiveness({
+        idleGracePeriodMs: 60_000,
+        requestShutdown: vi.fn(),
+      })
+      const liveSessionIds = new Set(['session-original'])
+      const authorizeEvent = vi.fn(async (_caller, event) => {
+        if (event.payload.kind === 'semantic-discovery-readiness-changed') return false
+        return liveSessionIds.has(event.payload.sessionId)
+      })
+      handle = await listenLocalSessionServer(endpoint, {
+        hostInstanceId: 'host-current',
+        eventHub,
+        liveness,
+        authenticate: async () => ({
+          callerId,
+          profileAuthority: {
+            profileId: 'mutable',
+            profileName: 'mutable',
+            capabilities: ['sessions:discover'],
+            scope,
+            authorizationCeiling: 'ask-for-approval',
+          },
+          eventAdmissionSessionIds: ['session-original'],
+        }),
+        refreshCaller: async (caller) => ({
+          ...caller,
+          eventAdmissionSessionIds: [...liveSessionIds],
+          profileAuthority: caller.profileAuthority
+            ? {
+                ...caller.profileAuthority,
+                scope:
+                  callerId === 'profile:mutable'
+                    ? { sessionIds: [...liveSessionIds] }
+                    : caller.profileAuthority.scope,
+              }
+            : undefined,
+        }),
+        authorizeEvent,
+        dispatch: async () => ({ accepted: true }),
+      })
+      client = await connectLocalSessionTestClient(endpoint)
+      const reader = new TestFrameReader(client)
+      client.write(
+        encodeLocalSessionFrame({
+          protocol: 'openwaggle-local-session',
+          supportedRevisions: [2],
+          clientKind: 'cli',
+          clientVersion: 'test',
+        }),
+      )
+      await expect(reader.next()).resolves.toMatchObject({ accepted: true })
+      client.write(
+        encodeLocalSessionFrame({
+          kind: 'subscribe',
+          requestId: 'request-subscribe',
+          after: eventHub.cursor(),
+        }),
+      )
+      await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
 
-    const firstDenied = eventHub.publish({
-      kind: 'session-state-changed',
-      sessionId: 'session-denied',
-      stateRevision: 1,
-      operation: 'message',
-    })
-    let lastDenied = firstDenied
-    for (let stateRevision = 2; stateRevision <= 300; stateRevision += 1) {
-      lastDenied = eventHub.publish({
+      const firstDenied = eventHub.publish({
         kind: 'session-state-changed',
         sessionId: 'session-denied',
-        stateRevision,
+        stateRevision: 1,
         operation: 'message',
       })
-    }
-    const original = eventHub.publish({
-      kind: 'session-state-changed',
-      sessionId: 'session-original',
-      stateRevision: 1,
-      operation: 'message',
-    })
-    await expect(reader.next()).resolves.toEqual({
-      kind: 'cursor-advanced',
-      subscriptionId: expect.any(String),
-      cursor: firstDenied.cursor,
-    })
-    await expect(reader.next()).resolves.toEqual({
-      kind: 'cursor-advanced',
-      subscriptionId: expect.any(String),
-      cursor: lastDenied.cursor,
-    })
-    await expect(reader.next()).resolves.toEqual({
-      kind: 'event',
-      subscriptionId: expect.any(String),
-      event: original,
-    })
-
-    liveSessionIds.add('session-newly-authorized')
-    await refreshLocalSessionProfileAdmissions('mutable')
-    const visible = eventHub.publish({
-      kind: 'session-state-changed',
-      sessionId: 'session-newly-authorized',
-      stateRevision: 1,
-      operation: 'spawn',
-    })
-
-    await expect(reader.next()).resolves.toEqual({
-      kind: 'event',
-      subscriptionId: expect.any(String),
-      event: visible,
-    })
-    expect(authorizeEvent).toHaveBeenCalledWith(expect.any(Object), visible)
-
-    liveSessionIds.delete('session-original')
-    await refreshLocalSessionProfileAdmissions('mutable')
-    const firstRevoked = eventHub.publish({
-      kind: 'session-state-changed',
-      sessionId: 'session-original',
-      stateRevision: 2,
-      operation: 'message',
-    })
-    let lastRevoked = firstRevoked
-    for (let stateRevision = 3; stateRevision <= 302; stateRevision += 1) {
-      lastRevoked = eventHub.publish({
+      let lastDenied = firstDenied
+      for (let stateRevision = 2; stateRevision <= 300; stateRevision += 1) {
+        lastDenied = eventHub.publish({
+          kind: 'session-state-changed',
+          sessionId: 'session-denied',
+          stateRevision,
+          operation: 'message',
+        })
+      }
+      const original = eventHub.publish({
         kind: 'session-state-changed',
         sessionId: 'session-original',
-        stateRevision,
+        stateRevision: 1,
         operation: 'message',
       })
-    }
-    const stillVisible = eventHub.publish({
-      kind: 'session-state-changed',
-      sessionId: 'session-newly-authorized',
-      stateRevision: 2,
-      operation: 'message',
-    })
-    await expect(reader.next()).resolves.toEqual({
-      kind: 'cursor-advanced',
-      subscriptionId: expect.any(String),
-      cursor: firstRevoked.cursor,
-    })
-    await expect(reader.next()).resolves.toEqual({
-      kind: 'cursor-advanced',
-      subscriptionId: expect.any(String),
-      cursor: lastRevoked.cursor,
-    })
-    await expect(reader.next()).resolves.toEqual({
-      kind: 'event',
-      subscriptionId: expect.any(String),
-      event: stillVisible,
-    })
-  })
+      await expect(reader.next()).resolves.toEqual({
+        kind: 'cursor-advanced',
+        subscriptionId: expect.any(String),
+        cursor: firstDenied.cursor,
+      })
+      await expect(reader.next()).resolves.toEqual({
+        kind: 'cursor-advanced',
+        subscriptionId: expect.any(String),
+        cursor: lastDenied.cursor,
+      })
+      await expect(reader.next()).resolves.toEqual({
+        kind: 'event',
+        subscriptionId: expect.any(String),
+        event: original,
+      })
+
+      liveSessionIds.add('session-newly-authorized')
+      await refreshLocalSessionProfileAdmissions(refreshId)
+      const visible = eventHub.publish({
+        kind: 'session-state-changed',
+        sessionId: 'session-newly-authorized',
+        stateRevision: 1,
+        operation: 'spawn',
+      })
+
+      await expect(reader.next()).resolves.toEqual({
+        kind: 'event',
+        subscriptionId: expect.any(String),
+        event: visible,
+      })
+      expect(authorizeEvent).toHaveBeenCalledWith(expect.any(Object), visible)
+
+      liveSessionIds.delete('session-original')
+      await refreshLocalSessionProfileAdmissions(refreshId)
+      const firstRevoked = eventHub.publish({
+        kind: 'session-state-changed',
+        sessionId: 'session-original',
+        stateRevision: 2,
+        operation: 'message',
+      })
+      let lastRevoked = firstRevoked
+      for (let stateRevision = 3; stateRevision <= 302; stateRevision += 1) {
+        lastRevoked = eventHub.publish({
+          kind: 'session-state-changed',
+          sessionId: 'session-original',
+          stateRevision,
+          operation: 'message',
+        })
+      }
+      const stillVisible = eventHub.publish({
+        kind: 'session-state-changed',
+        sessionId: 'session-newly-authorized',
+        stateRevision: 2,
+        operation: 'message',
+      })
+      await expect(reader.next()).resolves.toEqual({
+        kind: 'cursor-advanced',
+        subscriptionId: expect.any(String),
+        cursor: firstRevoked.cursor,
+      })
+      await expect(reader.next()).resolves.toEqual({
+        kind: 'cursor-advanced',
+        subscriptionId: expect.any(String),
+        cursor: lastRevoked.cursor,
+      })
+      await expect(reader.next()).resolves.toEqual({
+        kind: 'event',
+        subscriptionId: expect.any(String),
+        event: stillVisible,
+      })
+    },
+  )
 })

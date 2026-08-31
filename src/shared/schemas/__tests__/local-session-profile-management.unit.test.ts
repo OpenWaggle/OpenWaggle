@@ -55,4 +55,20 @@ describe('Local Session profile management schema', () => {
       ),
     ).toThrow()
   })
+
+  it.each(['', '   ', ' worker', 'worker ', '\tworker'])(
+    'requires profile names to be nonblank and trimmed: %j',
+    (name) => {
+      expect(() =>
+        decodeLocalSessionProfileManagementRequest(
+          request({ operation: 'create', name, credential: 'A'.repeat(43), ...policy }),
+        ),
+      ).toThrow()
+      expect(() =>
+        decodeLocalSessionProfileManagementRequest(
+          request({ operation: 'revoke', profileName: name }),
+        ),
+      ).toThrow()
+    },
+  )
 })

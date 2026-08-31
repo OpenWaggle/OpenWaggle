@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { AgentRunInterruptionService } from '../../ports/agent-run-interruption-service'
 import type { LocalSessionProfileRepositoryShape } from '../../ports/local-session-profile-repository'
 import { LocalSessionProfileRepository } from '../../ports/local-session-profile-repository'
+import { verifyProfileCredential } from '../../session-host/profile-credential'
 import { manageLocalSessionProfiles } from '../local-session-profile-management'
 
 const PROJECT_PATH = fs.realpathSync(os.tmpdir())
@@ -22,7 +23,15 @@ function request(
         readonly authorizationCeiling: 'ask-for-approval'
       }
     | { readonly operation: 'revoke'; readonly profileName: string }
-    | { readonly operation: 'rotate'; readonly profileName: string; readonly credential: string },
+    | { readonly operation: 'rotate'; readonly profileName: string; readonly credential: string }
+    | {
+        readonly operation: 'create'
+        readonly name: string
+        readonly credential: string
+        readonly capabilities: readonly ['sessions:read']
+        readonly scope: { readonly projectPaths: readonly string[] }
+        readonly authorizationCeiling: 'ask-for-approval'
+      },
 ) {
   return {
     contractVersion: LOCAL_SESSION_PROFILE_MANAGEMENT_CONTRACT_VERSION,
@@ -52,6 +61,67 @@ function testLayer(
 }
 
 describe('Local Session profile management', () => {
+  it('isolates concurrent verifier work for distinct targets sharing an idempotency key', async () => {
+    const prepared = new Map<string, string>()
+    const executeManagement = vi.fn(async (input) => {
+      const command = input.request.command
+      if (command.operation !== 'create' || !input.preparedCredential) {
+        throw new Error('Expected a prepared create command.')
+      }
+      prepared.set(command.name, input.preparedCredential.verifier)
+      return {
+        contractVersion: LOCAL_SESSION_PROFILE_MANAGEMENT_CONTRACT_VERSION,
+        requestId: input.request.requestId,
+        idempotencyKey: input.request.idempotencyKey,
+        replayed: false,
+        outcome: {
+          operation: 'create' as const,
+          effect: 'profile-created' as const,
+          profile: {
+            id: command.name,
+            name: command.name,
+            capabilities: command.capabilities,
+            scope: command.scope,
+            authorizationCeiling: command.authorizationCeiling,
+            revokedAt: null,
+            lastAuthenticatedAt: null,
+            createdAt: 1,
+            updatedAt: 1,
+          },
+        },
+      }
+    })
+    const credentialA = 'A'.repeat(43)
+    const credentialB = 'B'.repeat(43)
+    const run = (name: string, credential: string) =>
+      Effect.runPromise(
+        manageLocalSessionProfiles({
+          caller: { callerId: 'local-user' },
+          request: request({
+            operation: 'create',
+            name,
+            credential,
+            capabilities: ['sessions:read'],
+            scope: { projectPaths: [PROJECT_PATH] },
+            authorizationCeiling: 'ask-for-approval',
+          }),
+          now: 1,
+        }).pipe(Effect.provide(testLayer(executeManagement))),
+      )
+
+    await Promise.all([run('alice', credentialA), run('bob', credentialB)])
+
+    await expect(verifyProfileCredential(credentialA, prepared.get('alice') ?? '')).resolves.toBe(
+      true,
+    )
+    await expect(verifyProfileCredential(credentialB, prepared.get('bob') ?? '')).resolves.toBe(
+      true,
+    )
+    await expect(verifyProfileCredential(credentialA, prepared.get('bob') ?? '')).resolves.toBe(
+      false,
+    )
+  })
+
   it('rejects delegated policy expansion and self-edit before persistence', async () => {
     const executeManagement = vi.fn()
     const caller = {

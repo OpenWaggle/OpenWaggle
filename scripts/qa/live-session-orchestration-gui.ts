@@ -2,7 +2,7 @@ import { createServer } from 'node:net'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { chromium } from '@playwright/test'
+import { type Browser, chromium, type Page } from '@playwright/test'
 
 const CDP_RETRY_DELAY_MS = 250
 
@@ -37,14 +37,23 @@ async function connectToElectron(debugPort: number, timeoutMs: number) {
   throw new Error(`Could not connect to packaged Electron over CDP: ${String(lastError)}`)
 }
 
-export async function waitForLiveGui(debugPort: number, timeoutMs: number) {
-  const browser = await connectToElectron(debugPort, timeoutMs)
-  try {
+async function waitForRendererPage(browser: Browser, timeoutMs: number): Promise<Page> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
     const page = browser
       .contexts()
       .flatMap((context) => context.pages())
       .find((candidate) => candidate.url().startsWith('openwaggle://'))
-    if (!page) throw new Error('Packaged Electron did not finish opening its renderer page.')
+    if (page) return page
+    await new Promise((resolve) => setTimeout(resolve, CDP_RETRY_DELAY_MS))
+  }
+  throw new Error('Packaged Electron did not expose its renderer page.')
+}
+
+export async function waitForLiveGui(debugPort: number, timeoutMs: number) {
+  const browser = await connectToElectron(debugPort, timeoutMs)
+  try {
+    const page = await waitForRendererPage(browser, timeoutMs)
     await page.locator('body').waitFor({ state: 'visible', timeout: timeoutMs })
   } finally {
     await browser.close().catch(() => undefined)
@@ -58,9 +67,7 @@ export async function verifyLiveHiveGui(input: {
 }) {
   const browser = await connectToElectron(input.debugPort, input.timeoutMs)
   try {
-    const pages = browser.contexts().flatMap((context) => context.pages())
-    const page = pages.find((candidate) => candidate.url().startsWith('openwaggle://')) ?? pages[0]
-    if (!page) throw new Error('Packaged Electron did not expose its renderer page.')
+    const page = await waitForRendererPage(browser, input.timeoutMs)
     const row = (title: string) =>
       page.locator('[data-qa="sidebar-session-row"]').filter({ hasText: title })
     const queenRow = row(input.queenTitle)

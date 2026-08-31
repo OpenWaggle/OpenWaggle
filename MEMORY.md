@@ -332,6 +332,10 @@ jsdom has no hit testing, so a component test passes whether or not the fix is p
 
 `npx playwright test` does not build. Running it directly tests the previous `out/`, which produces failures that look like broken source. Use `pnpm test:e2e`, or run `pnpm build` first.
 
+CDP becoming reachable does not mean Electron has created its renderer page. Packaged restart QA can
+connect to the browser endpoint while `contexts().flatMap(...pages())` is still empty; poll for the
+`openwaggle://` page before asserting UI state or the same healthy restart will fail intermittently.
+
 The dev server rewrites `src/renderer/src/routeTree.gen.ts` (import ordering only, no route change). Any script that checks out commits in sequence fails on every checkout while that file is dirty. Stop the dev server before such a loop.
 
 ### Focus draws nothing, by decision
@@ -376,13 +380,20 @@ object path or that Windows returns the expected DACL.
 Restricted event subscriptions are filtered at admission before bounded buffering. Exact Session,
 project, workspace, and Hive scopes use a synchronously readable authorized-Session snapshot that
 is refreshed on authentication, profile changes, and lineage-producing lifecycle changes. Events
-outside that snapshot become payload-free cursor advances, preserving global cursor ordering and
-resume semantics without allowing unrelated event payloads or activity to consume subscriber
-capacity.
+outside that snapshot, or whose event kind lacks the required base or derived capability, become
+payload-free cursor advances. This preserves global cursor ordering and resume semantics without
+allowing unrelated or capability-denied payloads to consume subscriber capacity. Per-event live
+authorization still refreshes revocation, capability, and derived grants, but must not rebuild the
+filesystem/workspace/catalog admission snapshot for every streamed token.
 
 Paginated active-branch exports must pin the selected branch head on the first page and carry that
 immutable node through every continuation. Re-reading `session_branches.head_node_id` per page lets
 concurrent tree navigation silently truncate or mix the exported artifact.
+
+Credential-verifier work may deduplicate only an exact canonical operation. A caller id and
+idempotency key are insufficient because persistence scopes idempotency by operation and target;
+include the normalized target and credential fingerprint so concurrent profile operations cannot
+share the wrong verifier.
 
 Agent-definition semantic catalogs must load the same enabled OpenWaggle-managed Pi packages and
 resource roots as a real Session Run, including runtime load-failure isolation. A catalog built from

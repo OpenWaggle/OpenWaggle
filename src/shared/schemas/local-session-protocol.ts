@@ -11,6 +11,8 @@ import {
   LOCAL_SESSION_COMPACTION_REVISION,
   LOCAL_SESSION_CURRENT_REVISION,
   LOCAL_SESSION_LEGACY_HOST_UI_REVISION,
+  LOCAL_SESSION_MAX_CLIENT_VERSION_LENGTH,
+  LOCAL_SESSION_MAX_SUPPORTED_REVISIONS,
   LOCAL_SESSION_MCP_HOST_UI_REVISION,
   LOCAL_SESSION_PROTOCOL_NAME,
   LOCAL_SESSION_WAGGLE_REVISION,
@@ -35,13 +37,17 @@ const localSessionCredentialSchema = Schema.String.pipe(
 const localSessionProfileNameSchema = Schema.String.pipe(
   Schema.minLength(1),
   Schema.maxLength(LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH),
+  Schema.filter((value) => value.trim() === value || 'Profile names must be trimmed.'),
 )
 
 export const localSessionClientHelloSchema: Schema.Schema<LocalSessionClientHello> = Schema.Struct({
   protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),
-  supportedRevisions: Schema.Array(Schema.Number.pipe(Schema.int(), Schema.positive())),
+  supportedRevisions: Schema.Array(Schema.Number.pipe(Schema.int(), Schema.positive())).pipe(
+    Schema.minItems(1),
+    Schema.maxItems(LOCAL_SESSION_MAX_SUPPORTED_REVISIONS),
+  ),
   clientKind: Schema.Literal('gui', 'cli', 'mcp', 'internal'),
-  clientVersion: Schema.String,
+  clientVersion: Schema.String.pipe(Schema.maxLength(LOCAL_SESSION_MAX_CLIENT_VERSION_LENGTH)),
   workingDirectory: Schema.optional(Schema.String),
   profile: Schema.optional(localSessionProfileNameSchema),
   transientAuthority: Schema.optional(localSessionProfileAuthoritySchema),

@@ -8,6 +8,8 @@ import type {
   LOCAL_SESSION_REVISION_6_CAPABILITIES,
 } from './local-session-protocol-revisions'
 export const LOCAL_SESSION_PROTOCOL_NAME = 'openwaggle-local-session' as const
+export const LOCAL_SESSION_MAX_CLIENT_VERSION_LENGTH = 128
+export const LOCAL_SESSION_MAX_SUPPORTED_REVISIONS = 16
 export * from './local-session-protocol-revisions'
 export { SESSION_WAGGLE_CONTRACT_VERSION } from './local-session-waggle'
 

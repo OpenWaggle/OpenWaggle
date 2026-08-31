@@ -25,8 +25,11 @@ interface QueuedMessageFixture {
 
 const queueMock = vi.hoisted(() => {
   const items: QueuedMessageFixture[] = []
+  const error: Error | null = null
   return {
     snapshot: { state: 'running', revision: 0, activeRunId: 'run-1', items },
+    error,
+    refresh: vi.fn().mockResolvedValue(undefined),
     withdraw: vi.fn().mockResolvedValue(undefined),
     resubmitWithCurrentAccess: vi.fn().mockResolvedValue(undefined),
     setPaused: vi.fn().mockResolvedValue(undefined),
@@ -36,6 +39,8 @@ const queueMock = vi.hoisted(() => {
 vi.mock('@/features/chat/hooks/useSessionFollowUpQueue', () => ({
   useSessionFollowUpQueue: () => ({
     snapshot: queueMock.snapshot,
+    error: queueMock.error,
+    refresh: queueMock.refresh,
     withdraw: queueMock.withdraw,
     resubmitWithCurrentAccess: queueMock.resubmitWithCurrentAccess,
     setPaused: queueMock.setPaused,
@@ -68,6 +73,8 @@ describe('QueuedMessages', () => {
   beforeEach(() => {
     queue()
     queueMock.snapshot.state = 'running'
+    queueMock.error = null
+    queueMock.refresh.mockReset().mockResolvedValue(undefined)
     noOpSteer.mockClear()
     queueMock.withdraw.mockClear()
     queueMock.resubmitWithCurrentAccess.mockClear()

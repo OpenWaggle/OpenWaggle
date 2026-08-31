@@ -118,17 +118,25 @@ function prepareCredential(input: {
   const command = input.command
   if (command.operation !== 'create' && command.operation !== 'rotate')
     return Effect.succeed(undefined)
+  const fingerprint = createHash('sha256').update(command.credential).digest('base64url')
+  const targetName = (command.operation === 'create' ? command.name : command.profileName).trim()
+  const operationKey = JSON.stringify([
+    command.operation,
+    targetName,
+    fingerprint,
+    input.idempotencyKey,
+  ])
   return Effect.tryPromise({
     try: () =>
       profileCredentialGenerationBudget
         .run({
           callerId: input.callerId,
-          operationKey: input.idempotencyKey,
+          operationKey,
           task: () => createProfileCredentialVerifier(command.credential),
         })
         .then((verifier) => ({
           verifier,
-          fingerprint: createHash('sha256').update(command.credential).digest('base64url'),
+          fingerprint,
         })),
     catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
   })
