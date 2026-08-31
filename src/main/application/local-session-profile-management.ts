@@ -1,207 +1,28 @@
-import { createHash } from 'node:crypto'
+import { matchBy } from '@diegogbrisa/ts-match'
+import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import type {
-  LocalSessionCallerIdentity,
-  LocalSessionProfileManagementEnvelope,
-  LocalSessionProfileScope,
-} from '@shared/types/local-session-profile'
-import {
-  LOCAL_SESSION_PROFILE_MANAGEMENT_CONTRACT_VERSION,
-  type LocalSessionProfileManagementCommand,
-  type LocalSessionProfileManagementOutcome,
-  type LocalSessionProfileManagementRequest,
+  LocalSessionProfileManagementOutcome,
+  LocalSessionProfileManagementRequest,
 } from '@shared/types/local-session-profile-management'
-import type { SessionCapability } from '@shared/types/session-capability'
 import * as Effect from 'effect/Effect'
 import { AgentRunInterruptionService } from '../ports/agent-run-interruption-service'
 import { LocalSessionProfileRepository } from '../ports/local-session-profile-repository'
-import { createProfileCredentialVerifier } from '../session-host/profile-credential'
-import { profileCredentialGenerationBudget } from '../session-host/profile-credential-generation-budget'
-import { canonicalizeExistingDirectoryRoots } from '../utils/canonical-directory-roots'
+import {
+  fenceLocalSessionProfileAdmissions,
+  refreshLocalSessionProfileAdmissions,
+} from '../session-host/local-session-profile-invalidation'
+import {
+  profileManagementRejection,
+  profileManagementRejectionReason,
+  profileManagementTargetName,
+} from './local-session-profile-management-policy'
+import {
+  canonicalizeLocalSessionProfilePolicyCommand,
+  prepareLocalSessionProfileCredential,
+} from './local-session-profile-management-preparation'
+import { withLocalSessionProfileMutationLock } from './local-session-profile-mutation-lock'
 
-function isLocalUser(caller: LocalSessionCallerIdentity) {
-  return caller.profileAuthority === undefined
-}
-
-function includesAll<T>(available: readonly T[], requested: readonly T[]) {
-  return requested.every((value) => available.includes(value))
-}
-
-function arraySubset(
-  available: readonly string[] | undefined,
-  requested: readonly string[] | undefined,
-) {
-  if (!requested || requested.length === 0) return true
-  if (!available) return false
-  return includesAll(available, requested)
-}
-
-function scopeSubset(available: LocalSessionProfileScope, requested: LocalSessionProfileScope) {
-  if (!arraySubset(available.workspaceRoots, requested.workspaceRoots)) return false
-  if (!arraySubset(available.attachmentRoots, requested.attachmentRoots)) return false
-  if (!arraySubset(available.exportRoots, requested.exportRoots)) return false
-  if (available.all) return true
-  if (requested.all) return false
-  return (
-    arraySubset(available.projectPaths, requested.projectPaths) &&
-    arraySubset(available.sessionIds, requested.sessionIds) &&
-    arraySubset(available.hiveRootSessionIds, requested.hiveRootSessionIds)
-  )
-}
-
-function policySubset(
-  envelope: LocalSessionProfileManagementEnvelope,
-  command: Extract<LocalSessionProfileManagementCommand, { operation: 'create' | 'update' }>,
-) {
-  return (
-    includesAll(envelope.capabilities, command.capabilities) &&
-    scopeSubset(envelope.scope, command.scope) &&
-    (envelope.authorizationCeiling === 'yolo' ||
-      command.authorizationCeiling === 'ask-for-approval')
-  )
-}
-
-function rejectsNamedAdministration(
-  caller: LocalSessionCallerIdentity,
-  command: LocalSessionProfileManagementCommand,
-) {
-  const authority = caller.profileAuthority
-  if (!authority) return undefined
-  const ownsTarget = 'profileName' in command && command.profileName === authority.profileName
-  if (command.operation === 'rotate' || command.operation === 'revoke') {
-    return ownsTarget ? undefined : 'profile_credential_control_requires_local_user'
-  }
-  if (!authority.capabilities.includes('access:profiles')) return 'missing_access_profiles'
-  if (command.operation === 'list') return undefined
-  if (ownsTarget) return 'cannot_edit_own_policy'
-  if (!authority.managementEnvelope) return 'management_envelope_missing'
-  if (command.capabilities.includes('access:profiles') || command.managementEnvelope) {
-    return 'profile_redelegation_requires_local_user'
-  }
-  return policySubset(authority.managementEnvelope, command)
-    ? undefined
-    : 'management_envelope_exceeded'
-}
-
-function rejection(
-  request: LocalSessionProfileManagementRequest,
-  code: string,
-  profileName?: string,
-) {
-  const outcome: LocalSessionProfileManagementOutcome = {
-    operation: request.command.operation,
-    effect: 'rejected',
-    code,
-    ...(profileName ? { profileName } : {}),
-  }
-  return {
-    contractVersion: LOCAL_SESSION_PROFILE_MANAGEMENT_CONTRACT_VERSION,
-    requestId: request.requestId,
-    idempotencyKey: request.idempotencyKey,
-    replayed: false,
-    outcome,
-  }
-}
-
-function profileName(command: LocalSessionProfileManagementCommand) {
-  return command.operation === 'create'
-    ? command.name
-    : 'profileName' in command
-      ? command.profileName
-      : undefined
-}
-
-function prepareCredential(input: {
-  readonly callerId: string
-  readonly idempotencyKey: string
-  readonly command: LocalSessionProfileManagementCommand
-}) {
-  const command = input.command
-  if (command.operation !== 'create' && command.operation !== 'rotate')
-    return Effect.succeed(undefined)
-  const fingerprint = createHash('sha256').update(command.credential).digest('base64url')
-  const targetName = (command.operation === 'create' ? command.name : command.profileName).trim()
-  const operationKey = JSON.stringify([
-    command.operation,
-    targetName,
-    fingerprint,
-    input.idempotencyKey,
-  ])
-  return Effect.tryPromise({
-    try: () =>
-      profileCredentialGenerationBudget
-        .run({
-          callerId: input.callerId,
-          operationKey,
-          task: () => createProfileCredentialVerifier(command.credential),
-        })
-        .then((verifier) => ({
-          verifier,
-          fingerprint,
-        })),
-    catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
-  })
-}
-
-function canonicalizeProfileScope(scope: LocalSessionProfileScope) {
-  return Effect.tryPromise({
-    try: async () => ({
-      ...scope,
-      ...(scope.projectPaths
-        ? {
-            projectPaths: await canonicalizeExistingDirectoryRoots(
-              scope.projectPaths,
-              'Profile project root',
-            ),
-          }
-        : {}),
-      ...(scope.workspaceRoots
-        ? {
-            workspaceRoots: await canonicalizeExistingDirectoryRoots(
-              scope.workspaceRoots,
-              'Profile workspace root',
-            ),
-          }
-        : {}),
-      ...(scope.exportRoots
-        ? {
-            exportRoots: await canonicalizeExistingDirectoryRoots(
-              scope.exportRoots,
-              'Profile export root',
-            ),
-          }
-        : {}),
-      ...(scope.attachmentRoots
-        ? {
-            attachmentRoots: await canonicalizeExistingDirectoryRoots(
-              scope.attachmentRoots,
-              'Profile attachment root',
-            ),
-          }
-        : {}),
-    }),
-    catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
-  })
-}
-
-function canonicalizeProfilePolicyCommand(command: LocalSessionProfileManagementCommand) {
-  if (command.operation !== 'create' && command.operation !== 'update') {
-    return Effect.succeed(command)
-  }
-  return Effect.gen(function* () {
-    const scope = yield* canonicalizeProfileScope(command.scope)
-    const managementEnvelope = command.managementEnvelope
-      ? {
-          ...command.managementEnvelope,
-          scope: yield* canonicalizeProfileScope(command.managementEnvelope.scope),
-        }
-      : undefined
-    return {
-      ...command,
-      scope,
-      ...(managementEnvelope ? { managementEnvelope } : {}),
-    } satisfies LocalSessionProfileManagementCommand
-  })
-}
+export { canManageLocalSessionProfiles } from './local-session-profile-management-policy'
 
 function interruptRevokedRuns(outcome: LocalSessionProfileManagementOutcome, replayed: boolean) {
   if (replayed || outcome.effect !== 'profile-revoked') return Effect.void
@@ -214,36 +35,88 @@ function interruptRevokedRuns(outcome: LocalSessionProfileManagementOutcome, rep
   })
 }
 
+function refreshProfileAdmissionAfterManagement(
+  outcome: LocalSessionProfileManagementOutcome,
+  fencedProfileName: string | undefined,
+) {
+  return matchBy(outcome, 'effect')
+    .with('profile-updated', (updated) =>
+      Effect.promise(() =>
+        refreshLocalSessionProfileAdmissions(updated.profile.id, {
+          consumeExistingFence: true,
+        }),
+      ),
+    )
+    .with('rejected', () =>
+      fencedProfileName
+        ? Effect.promise(() =>
+            refreshLocalSessionProfileAdmissions(undefined, { consumeExistingFence: true }),
+          )
+        : Effect.void,
+    )
+    .with(
+      'profiles-listed',
+      'profile-created',
+      'profile-rotated',
+      'profile-revoked',
+      () => Effect.void,
+    )
+    .exhaustive()
+}
+
 export function manageLocalSessionProfiles(input: {
   readonly caller: LocalSessionCallerIdentity
   readonly request: LocalSessionProfileManagementRequest
   readonly now: number
 }) {
   return Effect.gen(function* () {
-    const command = yield* canonicalizeProfilePolicyCommand(input.request.command)
+    const command = yield* canonicalizeLocalSessionProfilePolicyCommand(input.request.command)
     const request = { ...input.request, command }
-    const reason = rejectsNamedAdministration(input.caller, command)
-    if (reason) return rejection(request, reason, profileName(command))
+    const reason = profileManagementRejectionReason(input.caller, command)
+    if (reason) {
+      return profileManagementRejection(request, reason, profileManagementTargetName(command))
+    }
     const repository = yield* LocalSessionProfileRepository
-    const preparedCredential = yield* prepareCredential({
+    const preparedCredential = yield* prepareLocalSessionProfileCredential({
       callerId: input.caller.callerId,
       idempotencyKey: request.idempotencyKey,
       command,
     })
-    const response = yield* repository.executeManagement({
-      actorCallerId: input.caller.callerId,
-      request,
-      ...(preparedCredential ? { preparedCredential } : {}),
-      now: input.now,
+    const fencedProfileName =
+      command.operation === 'update' ||
+      command.operation === 'rotate' ||
+      command.operation === 'revoke'
+        ? command.profileName.trim()
+        : undefined
+    const execute = Effect.gen(function* () {
+      if (fencedProfileName) {
+        yield* Effect.promise(() => fenceLocalSessionProfileAdmissions(fencedProfileName))
+      }
+      const response = yield* repository
+        .executeManagement({
+          actorCallerId: input.caller.callerId,
+          request,
+          ...(preparedCredential ? { preparedCredential } : {}),
+          now: input.now,
+        })
+        .pipe(
+          Effect.tapError(() =>
+            fencedProfileName
+              ? Effect.promise(() =>
+                  refreshLocalSessionProfileAdmissions(undefined, {
+                    consumeExistingFence: true,
+                  }),
+                )
+              : Effect.void,
+          ),
+        )
+      yield* refreshProfileAdmissionAfterManagement(response.outcome, fencedProfileName)
+      yield* interruptRevokedRuns(response.outcome, response.replayed)
+      return response
     })
-    yield* interruptRevokedRuns(response.outcome, response.replayed)
-    return response
+    const execution = fencedProfileName
+      ? withLocalSessionProfileMutationLock(fencedProfileName, execute)
+      : execute
+    return yield* execution
   })
-}
-
-export function canManageLocalSessionProfiles(
-  caller: LocalSessionCallerIdentity,
-  required: readonly SessionCapability[] = ['access:profiles'],
-) {
-  return isLocalUser(caller) || includesAll(caller.profileAuthority?.capabilities ?? [], required)
 }

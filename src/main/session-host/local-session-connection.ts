@@ -1,13 +1,12 @@
-import { randomUUID } from 'node:crypto'
 import type { Socket } from 'node:net'
 import { decodeLocalSessionClientFrame } from '@shared/schemas/local-session-protocol'
 import type {
   LocalSessionClientFrame,
   LocalSessionServerFrame,
 } from '@shared/types/local-session-protocol'
-import type { SessionHostEventCursor } from '@shared/types/session-host-event'
+import { LocalSessionAdmissionGate } from './local-session-admission-gate'
 import { executeLocalSessionCommandFrame } from './local-session-command-frame'
-import { createLocalSessionEventAdmissionFilter } from './local-session-event-admission'
+import { LocalSessionConnectionSubscriptions } from './local-session-connection-subscriptions'
 import { establishLocalSessionHandshake } from './local-session-handshake'
 import {
   LocalSessionInboundCapacityError,
@@ -15,31 +14,26 @@ import {
 } from './local-session-inbound-retention'
 import type { LocalSessionOutboundByteBudget } from './local-session-outbound-budget'
 import { LocalSessionOutboundWriter } from './local-session-outbound-writer'
+import type { LocalSessionProfileAdmissionRefreshOptions } from './local-session-profile-invalidation'
 import {
   type LocalSessionAuthenticationBudget,
   type LocalSessionInboundByteBudget,
   MAX_DECODED_FRAMES_PER_CHUNK,
-  subscriptionLimitReached,
 } from './local-session-resource-policy'
 import type {
   AuthenticatedLocalSessionCaller,
   LocalSessionServerDependencies,
 } from './local-session-server'
 import { describeLocalSessionServerError } from './local-session-server-frame'
-import {
-  type ActiveLocalSessionSubscription,
-  localSessionEventIsDenied,
-  pumpLocalSessionSubscription,
-} from './local-session-subscription-pump'
 
 const DEFAULT_HANDSHAKE_TIMEOUT_MS = 5000
 
 export class LocalSessionConnection {
   private readonly inbound: LocalSessionInboundRetention
-  private readonly subscriptions = new Map<string, ActiveLocalSessionSubscription>()
+  private readonly admission = new LocalSessionAdmissionGate()
+  private readonly subscriptions: LocalSessionConnectionSubscriptions
   private readonly commandControllers = new Map<string, AbortController>()
   private readTail = Promise.resolve()
-  private profileRefreshTail = Promise.resolve()
   private caller: AuthenticatedLocalSessionCaller | null = null
   private negotiatedRevision: number | null = null
   private serverAuthenticated: boolean
@@ -63,6 +57,14 @@ export class LocalSessionConnection {
       this.authenticationController.signal,
       dependencies.maxPendingOutboundFramesPerConnection,
     )
+    this.subscriptions = new LocalSessionConnectionSubscriptions({
+      dependencies,
+      admission: this.admission,
+      caller: () => this.caller,
+      closed: () => this.closed,
+      send: (frame) => this.send(frame),
+      connectionFailed: () => this.socket.destroy(),
+    })
     this.serverAuthenticated = dependencies.authenticateServer === undefined
     const timeout = dependencies.handshakeTimeoutMs ?? DEFAULT_HANDSHAKE_TIMEOUT_MS
     this.handshakeTimer = setTimeout(() => {
@@ -102,24 +104,40 @@ export class LocalSessionConnection {
   }
 
   disconnectRevokedProfile(profileId: string): void {
-    if (this.caller?.profileAuthority?.profileId === profileId) this.socket.end()
+    if (this.caller?.profileAuthority?.profileId !== profileId) return
+    if (!this.admission.isFenced()) void this.admission.fence()
+    this.socket.end()
   }
 
-  refreshProfileAdmission(profileId?: string): Promise<void> {
+  fenceProfileAdmission(profileName: string): Promise<void> {
+    if (this.caller?.profileAuthority?.profileName !== profileName) return Promise.resolve()
+    return this.admission.fence()
+  }
+
+  refreshProfileAdmission(
+    profileId?: string,
+    options?: LocalSessionProfileAdmissionRefreshOptions,
+  ): Promise<void> {
+    const authority = this.caller?.profileAuthority
+    if (!authority || (profileId && authority.profileId !== profileId)) return Promise.resolve()
+    const consumesExistingFence =
+      options?.consumeExistingFence === true && this.admission.hasFence()
+    const drained = consumesExistingFence ? this.admission.waitForReaders() : this.admission.fence()
     const refresh = async () => {
+      await drained
       const caller = this.caller
-      const authority = caller?.profileAuthority
-      if (!caller || !authority) return
-      if (profileId && authority.profileId !== profileId) return
-      if (!this.dependencies.refreshCaller) return
+      if (!caller || !this.dependencies.refreshCaller) {
+        this.admission.releaseFence()
+        return
+      }
       try {
         this.caller = await this.dependencies.refreshCaller(caller)
+        this.admission.releaseFence()
       } catch {
         this.socket.end()
       }
     }
-    this.profileRefreshTail = this.profileRefreshTail.then(refresh, refresh)
-    return this.profileRefreshTail
+    return this.admission.enqueueRefresh(refresh)
   }
 
   shutdown(): void {
@@ -172,8 +190,9 @@ export class LocalSessionConnection {
 
   private async handleClientFrame(frame: LocalSessionClientFrame): Promise<void> {
     if (frame.kind === 'command') return this.handleCommand(frame)
-    if (frame.kind === 'subscribe') return this.handleSubscribe(frame.requestId, frame.after)
-    return this.handleUnsubscribe(frame.requestId, frame.subscriptionId)
+    if (frame.kind === 'subscribe')
+      return this.subscriptions.subscribe(frame.requestId, frame.after)
+    return this.subscriptions.unsubscribe(frame.requestId, frame.subscriptionId)
   }
 
   private async handleCommand(frame: Extract<LocalSessionClientFrame, { kind: 'command' }>) {
@@ -194,94 +213,6 @@ export class LocalSessionConnection {
     }
   }
 
-  private async handleSubscribe(requestId: string, cursor?: SessionHostEventCursor) {
-    const caller = this.caller
-    if (!caller) return
-    if (subscriptionLimitReached(this.dependencies, this.subscriptions.size)) {
-      await this.send({
-        kind: 'error',
-        requestId,
-        code: 'subscription_limit_exceeded',
-        message: 'The Local Session subscription limit was reached.',
-        retryable: true,
-      })
-      return
-    }
-    const activeRunSnapshot = cursor ? undefined : (this.dependencies.snapshotActiveRuns?.() ?? [])
-    const snapshotCursor = cursor ?? this.dependencies.eventHub.cursor()
-    const result = this.dependencies.eventHub.subscribeAfter(
-      snapshotCursor,
-      createLocalSessionEventAdmissionFilter(() => this.caller),
-      { advanceFilteredCursor: true },
-    )
-    if (result.status === 'resync-required') {
-      await this.send({
-        kind: 'resync-required',
-        requestId,
-        reason: result.reason,
-        cursor: result.cursor,
-      })
-      return
-    }
-    const subscriptionId = randomUUID()
-    const active = {
-      subscription: result.subscription,
-      releaseLiveness: this.dependencies.liveness.acquire('subscription'),
-    } satisfies ActiveLocalSessionSubscription
-    this.subscriptions.set(subscriptionId, active)
-    const activeRuns = activeRunSnapshot
-      ? (
-          await Promise.all(
-            activeRunSnapshot.map(async (snapshot) => ({
-              snapshot,
-              authorized: (await this.dependencies.authorizeActiveRun?.(caller, snapshot)) ?? true,
-            })),
-          )
-        )
-          .filter((entry) => entry.authorized)
-          .map((entry) => entry.snapshot)
-      : undefined
-    await this.send({
-      kind: 'subscribed',
-      requestId,
-      subscriptionId,
-      cursor: snapshotCursor,
-      ...(activeRuns ? { activeRuns } : {}),
-    })
-    void this.pumpSubscription(subscriptionId, active)
-  }
-
-  private async pumpSubscription(subscriptionId: string, active: ActiveLocalSessionSubscription) {
-    try {
-      await pumpLocalSessionSubscription({
-        subscription: active.subscription,
-        active: () => this.subscriptions.get(subscriptionId) === active,
-        closed: () => this.closed,
-        eventIsDenied: (event) =>
-          localSessionEventIsDenied(this.caller, this.dependencies.authorizeEvent, event),
-        send: (frame) => this.send({ ...frame, subscriptionId }),
-      })
-    } catch {
-      this.socket.destroy()
-    } finally {
-      if (this.subscriptions.get(subscriptionId) === active) {
-        this.subscriptions.delete(subscriptionId)
-      }
-      active.subscription.close()
-      active.releaseLiveness()
-    }
-  }
-
-  private async handleUnsubscribe(requestId: string, subscriptionId: string) {
-    const active = this.subscriptions.get(subscriptionId)
-    if (active) {
-      this.subscriptions.delete(subscriptionId)
-      active.subscription.close()
-      active.releaseLiveness()
-    }
-    await this.send({ kind: 'unsubscribed', requestId, subscriptionId })
-  }
-
   private async fail(requestId: string | undefined, code: string, message: string) {
     if (this.closed) return
     try {
@@ -300,6 +231,7 @@ export class LocalSessionConnection {
   private close(): void {
     if (this.closed) return
     this.closed = true
+    this.admission.close()
     this.authenticationController.abort()
     this.inbound.releasePendingFrame()
     clearTimeout(this.handshakeTimer)
@@ -307,11 +239,7 @@ export class LocalSessionConnection {
       controller.abort(new Error('Local Session client disconnected.'))
     }
     this.commandControllers.clear()
-    for (const active of this.subscriptions.values()) {
-      active.subscription.close()
-      active.releaseLiveness()
-    }
-    this.subscriptions.clear()
+    this.subscriptions.close()
     this.releaseClientLiveness?.()
     this.releaseClientLiveness = null
   }

@@ -49,8 +49,6 @@ export interface LocalSessionCallerIdentity {
   }[]
   /** Original named-profile scope before derived child targets are projected into it. */
   readonly baseProfileScope?: LocalSessionProfileScope
-  /** Persisted scope before workspace expansion, used to detect live policy changes safely. */
-  readonly durableProfileScope?: LocalSessionProfileScope
-  /** Live Session ids admitted synchronously into this caller's event subscription buffer. */
+  /** Live Session ids admitted by the base profile scope; derived grants remain capability-bound. */
   readonly eventAdmissionSessionIds?: readonly string[]
 }

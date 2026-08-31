@@ -51,4 +51,27 @@ describe('Local Session event admission', () => {
 
     expect(admit(TRANSPORT_EVENT)).toBe(false)
   })
+
+  it('does not combine base read capability with a discovery-only derived target', () => {
+    const admit = createLocalSessionEventAdmissionFilter(() => ({
+      callerId: 'profile:queen',
+      profileAuthority: {
+        profileId: 'queen',
+        profileName: 'queen',
+        capabilities: ['sessions:read'],
+        scope: { sessionIds: ['queen-session'] },
+        authorizationCeiling: 'ask-for-approval',
+      },
+      eventAdmissionSessionIds: ['queen-session'],
+      derivedSessionAuthorities: [
+        {
+          sessionId: 'worker-session',
+          capabilities: ['sessions:discover'],
+          authorizationCeiling: 'ask-for-approval',
+        },
+      ],
+    }))
+
+    expect(admit(TRANSPORT_EVENT)).toBe(false)
+  })
 })

@@ -196,4 +196,90 @@ describe('Local Session scoped event admission', () => {
     expect(authorizeEvent).toHaveBeenCalledOnce()
     expect(authorizeEvent).toHaveBeenCalledWith(expect.any(Object), visible)
   })
+
+  it('does not combine base read capability with an over-capacity discovery-only child stream', async () => {
+    const endpoint = path.join(temporaryRoot, 'derived-capability.sock')
+    const eventHub = new SessionHostEventHub({
+      hostInstanceId: 'host-current',
+      subscriberCapacity: 1,
+    })
+    const liveness = new SessionHostLiveness({
+      idleGracePeriodMs: 60_000,
+      requestShutdown: vi.fn(),
+    })
+    const authorizeEvent = vi.fn(async () => true)
+    handle = await listenLocalSessionServer(endpoint, {
+      hostInstanceId: 'host-current',
+      eventHub,
+      liveness,
+      authenticate: async () => ({
+        callerId: 'profile:queen',
+        profileAuthority: {
+          profileId: 'queen',
+          profileName: 'queen',
+          capabilities: ['sessions:read'],
+          scope: { sessionIds: ['queen-session'] },
+          authorizationCeiling: 'ask-for-approval',
+        },
+        eventAdmissionSessionIds: ['queen-session'],
+        derivedSessionAuthorities: [
+          {
+            sessionId: 'worker-session',
+            capabilities: ['sessions:discover'],
+            authorizationCeiling: 'ask-for-approval',
+          },
+        ],
+      }),
+      authorizeEvent,
+      dispatch: async () => ({ accepted: true }),
+    })
+    client = await connectLocalSessionTestClient(endpoint)
+    const reader = new TestFrameReader(client)
+    client.write(
+      encodeLocalSessionFrame({
+        protocol: 'openwaggle-local-session',
+        supportedRevisions: [2],
+        clientKind: 'cli',
+        clientVersion: 'test',
+      }),
+    )
+    await expect(reader.next()).resolves.toMatchObject({ accepted: true })
+    client.write(
+      encodeLocalSessionFrame({
+        kind: 'subscribe',
+        requestId: 'request-subscribe',
+        after: eventHub.cursor(),
+      }),
+    )
+    await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
+
+    const firstDenied = eventHub.publish({
+      kind: 'session-transport',
+      sessionId: 'worker-session',
+      event: { type: 'agent_start', runId: 'run-1', timestamp: 1 },
+    })
+    let lastDenied = firstDenied
+    for (let sequence = 2; sequence <= 300; sequence += 1) {
+      lastDenied = eventHub.publish({
+        kind: 'session-transport',
+        sessionId: 'worker-session',
+        event: { type: 'agent_start', runId: `run-${sequence}`, timestamp: sequence },
+      })
+    }
+    const visible = eventHub.publish({
+      kind: 'session-transport',
+      sessionId: 'queen-session',
+      event: { type: 'agent_start', runId: 'run-visible', timestamp: 301 },
+    })
+
+    await expect(reader.next()).resolves.toMatchObject({ cursor: firstDenied.cursor })
+    await expect(reader.next()).resolves.toMatchObject({ cursor: lastDenied.cursor })
+    await expect(reader.next()).resolves.toEqual({
+      kind: 'event',
+      subscriptionId: expect.any(String),
+      event: visible,
+    })
+    expect(authorizeEvent).toHaveBeenCalledOnce()
+    expect(authorizeEvent).toHaveBeenCalledWith(expect.any(Object), visible)
+  })
 })

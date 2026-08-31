@@ -29,12 +29,66 @@ import {
   verifyLiveHiveGui,
   waitForLiveGui,
 } from './live-session-orchestration-gui'
+import { shutdownSessionHostForQa } from './session-host-shutdown'
 
 const DEFAULT_MODEL = 'openai-codex/gpt-5.6-sol'
 const DEFAULT_TIMEOUT_MS = 300_000
+const QA_PROFILE_REMOVAL_MAX_RETRIES = 10
+const QA_PROFILE_REMOVAL_RETRY_DELAY_MS = 100
 const LIST_LIMIT = 20
 const DISABLED_QA_SKILL = 'herdr-orchestration'
 const DETACHED_HOST_SURVIVAL_DELAY_MS = 10_000
+
+async function completeLiveQaCleanup(input: {
+  readonly gui: ReturnType<typeof launchGui>
+  readonly guiLogs: readonly (() => string)[]
+  readonly passed: boolean
+  readonly primaryFailure: { readonly error: unknown } | null
+  readonly userDataRoot: string
+}) {
+  const cleanupErrors: unknown[] = []
+  let closeSucceeded = true
+  try {
+    await stopChild(input.gui.child)
+  } catch (error) {
+    closeSucceeded = false
+    cleanupErrors.push(error)
+  }
+  try {
+    await shutdownSessionHostForQa(
+      input.userDataRoot,
+      input.passed && closeSucceeded
+        ? () =>
+            fs.rm(input.userDataRoot, {
+              recursive: true,
+              force: true,
+              maxRetries: QA_PROFILE_REMOVAL_MAX_RETRIES,
+              retryDelay: QA_PROFILE_REMOVAL_RETRY_DELAY_MS,
+            })
+        : async () => undefined,
+    )
+  } catch (error) {
+    cleanupErrors.push(error)
+    closeSucceeded = false
+  }
+
+  if (!input.passed || !closeSucceeded) {
+    console.error(
+      `Live QA data retained at ${input.userDataRoot}\n${input.guiLogs.map((read) => read()).join('\n')}`,
+    )
+  }
+  if (input.primaryFailure && cleanupErrors.length > 0) {
+    throw new AggregateError(
+      [input.primaryFailure.error, ...cleanupErrors],
+      'Live Session orchestration QA and its cleanup both failed.',
+    )
+  }
+  if (input.primaryFailure) throw input.primaryFailure.error
+  if (cleanupErrors.length === 1) throw cleanupErrors[0]
+  if (cleanupErrors.length > 1) {
+    throw new AggregateError(cleanupErrors, 'Live Session orchestration QA cleanup failed.')
+  }
+}
 
 async function disableProjectSkillForQa(input: {
   readonly userDataRoot: string
@@ -112,6 +166,7 @@ async function main() {
   let gui = launchGui(executable, env, [`--remote-debugging-port=${String(debugPort)}`])
   const guiLogs = [gui.logs]
   let passed = false
+  let primaryFailure: { readonly error: unknown } | null = null
 
   try {
     await waitForHost(cliExecutable, env)
@@ -200,11 +255,10 @@ async function main() {
         screenshotPath,
       }),
     )
-  } finally {
-    await stopChild(gui.child)
-    if (passed) await fs.rm(userDataRoot, { recursive: true, force: true })
-    else console.error(`Live QA data retained at ${userDataRoot}\n${guiLogs.map((read) => read()).join('\n')}`)
+  } catch (error) {
+    primaryFailure = { error }
   }
+  await completeLiveQaCleanup({ gui, guiLogs, passed, primaryFailure, userDataRoot })
 }
 
 void main().catch((error: unknown) => {

@@ -17,6 +17,7 @@ import {
 } from './local-session-endpoint'
 import { LocalSessionOutboundByteBudget } from './local-session-outbound-budget'
 import {
+  installLocalSessionProfileAdmissionFencer,
   installLocalSessionProfileAdmissionRefresher,
   installLocalSessionProfileInvalidator,
 } from './local-session-profile-invalidation'
@@ -157,9 +158,18 @@ export async function listenLocalSessionServer(
   }
   const releaseProfileInvalidator = installLocalSessionProfileInvalidator(invalidateProfile)
   const releaseProfileAdmissionRefresher = installLocalSessionProfileAdmissionRefresher(
-    async (profileId) => {
+    async (profileId, options) => {
       await Promise.all(
-        [...connections].map((connection) => connection.refreshProfileAdmission(profileId)),
+        [...connections].map((connection) =>
+          connection.refreshProfileAdmission(profileId, options),
+        ),
+      )
+    },
+  )
+  const releaseProfileAdmissionFencer = installLocalSessionProfileAdmissionFencer(
+    async (profileName) => {
+      await Promise.all(
+        [...connections].map((connection) => connection.fenceProfileAdmission(profileName)),
       )
     },
   )
@@ -204,6 +214,7 @@ export async function listenLocalSessionServer(
   } catch (error) {
     releaseProfileInvalidator()
     releaseProfileAdmissionRefresher()
+    releaseProfileAdmissionFencer()
     for (const socket of quarantinedSockets) socket.destroy()
     await close(server).catch(() => undefined)
     throw error
@@ -214,6 +225,7 @@ export async function listenLocalSessionServer(
     close: async (removeEndpointAfterClose = true) => {
       releaseProfileInvalidator()
       releaseProfileAdmissionRefresher()
+      releaseProfileAdmissionFencer()
       const closing = close(server)
       for (const connection of connections) connection.shutdown()
       await closing

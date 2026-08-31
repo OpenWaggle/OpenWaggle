@@ -192,6 +192,7 @@ test('six primary surfaces match their visual baselines', { tag: '@visual' }, as
     await expect(sidebarPinButtons.first()).toHaveCSS('opacity', '0')
     await expect(sidebarPinButtons.last()).toHaveCSS('opacity', '0')
     await waitForVisualReadiness(page)
+    await composer.getByRole('textbox', { name: 'Message input' }).blur()
 
     await expect(composer).toHaveScreenshot('composer.png', SCREENSHOT_OPTIONS)
     await expect(sidebar).toHaveScreenshot('sidebar.png', SCREENSHOT_OPTIONS)

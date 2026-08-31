@@ -51,6 +51,7 @@ function authorizationLayer(caller: LocalSessionCallerIdentity) {
 function restrictedCaller(capabilities: readonly ('sessions:discover' | 'sessions:read')[]) {
   return {
     callerId: 'profile:reader',
+    eventAdmissionSessionIds: ['allowed'],
     profileAuthority: {
       profileId: 'reader',
       profileName: 'reader',
@@ -86,6 +87,38 @@ describe('local Session active Run authorization', () => {
           Effect.provide(authorizationLayer(reader)),
         ),
       ),
+    ).resolves.toBe(true)
+  })
+
+  it('keeps exact derived Run authority coupled to the derived read capability', async () => {
+    const baseReader = restrictedCaller(['sessions:read'])
+    const derivedDiscoverOnly = {
+      ...baseReader,
+      derivedSessionAuthorities: [
+        {
+          sessionId: 'worker',
+          capabilities: ['sessions:discover'] as const,
+          authorizationCeiling: 'ask-for-approval' as const,
+        },
+      ],
+    }
+    const baseDiscoverOnly = restrictedCaller(['sessions:discover'])
+    const derivedReader = {
+      ...baseDiscoverOnly,
+      derivedSessionAuthorities: [
+        {
+          sessionId: 'worker',
+          capabilities: ['sessions:read'] as const,
+          authorizationCeiling: 'ask-for-approval' as const,
+        },
+      ],
+    }
+
+    await expect(
+      Effect.runPromise(authorizeLocalSessionActiveRun(derivedDiscoverOnly, 'worker')),
+    ).resolves.toBe(false)
+    await expect(
+      Effect.runPromise(authorizeLocalSessionActiveRun(derivedReader, 'worker')),
     ).resolves.toBe(true)
   })
 })

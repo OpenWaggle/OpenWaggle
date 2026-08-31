@@ -69,13 +69,15 @@ function eventLayer(
 function restrictedCaller(
   overrides: Partial<NonNullable<LocalSessionCallerIdentity['profileAuthority']>> = {},
 ): LocalSessionCallerIdentity {
+  const scope = overrides.scope ?? { projectPaths: [ALLOWED_PROJECT] }
   return {
     callerId: 'profile:worker-client',
+    eventAdmissionSessionIds: scope.sessionIds ?? ['session-worker'],
     profileAuthority: {
       profileId: 'worker-client',
       profileName: 'worker-client',
       capabilities: ['sessions:start'],
-      scope: { projectPaths: [ALLOWED_PROJECT] },
+      scope,
       authorizationCeiling: 'ask-for-approval',
       ...overrides,
     },
@@ -107,6 +109,7 @@ describe('local Session event authorization', () => {
       capabilities: ['sessions:read'],
       scope: { projectPaths: ['/'] },
     })
+    const wrongScopeSnapshot = { ...wrongScope, eventAdmissionSessionIds: [] }
 
     await expect(
       Effect.runPromise(
@@ -124,7 +127,7 @@ describe('local Session event authorization', () => {
     ).resolves.toBe(false)
     await expect(
       Effect.runPromise(
-        authorizeLocalSessionEvent(wrongScope, transportEvent).pipe(
+        authorizeLocalSessionEvent(wrongScopeSnapshot, transportEvent).pipe(
           Effect.provide(eventLayer(wrongScope)),
         ),
       ),
@@ -178,26 +181,6 @@ describe('local Session event authorization', () => {
     },
   )
 
-  it('stops events after an already-connected profile is revoked', async () => {
-    const caller = restrictedCaller({ capabilities: ['sessions:discover'] })
-    const event = {
-      cursor: { hostInstanceId: 'host', sequence: 1 },
-      timestamp: 1,
-      payload: {
-        kind: 'session-state-changed' as const,
-        sessionId: 'session-worker',
-        stateRevision: 2,
-        operation: 'interrupt',
-      },
-    }
-
-    await expect(
-      Effect.runPromise(
-        authorizeLocalSessionEvent(caller, event).pipe(Effect.provide(eventLayer(caller, 2))),
-      ),
-    ).resolves.toBe(false)
-  })
-
   it('does not publish global semantic readiness to restricted callers', async () => {
     const caller = restrictedCaller({ capabilities: ['sessions:discover'] })
     const event: SessionHostEventEnvelope = {
@@ -239,6 +222,7 @@ describe('local Session event authorization', () => {
     const refreshed = {
       ...caller,
       baseProfileScope: caller.profileAuthority?.scope,
+      eventAdmissionSessionIds: ['session-parent'],
       derivedSessionAuthorities: [
         {
           sessionId: 'session-worker',
@@ -256,8 +240,8 @@ describe('local Session event authorization', () => {
     })
     await expect(
       Effect.runPromise(
-        authorizeLocalSessionEvent(caller, event).pipe(
-          Effect.provide(eventLayer(caller, null, refreshed.derivedSessionAuthorities)),
+        authorizeLocalSessionEvent(refreshed, event).pipe(
+          Effect.provide(eventLayer(refreshed, null, refreshed.derivedSessionAuthorities)),
         ),
       ),
     ).resolves.toBe(false)

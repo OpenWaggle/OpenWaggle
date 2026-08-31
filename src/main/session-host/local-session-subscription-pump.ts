@@ -10,6 +10,16 @@ export interface ActiveLocalSessionSubscription {
   readonly releaseLiveness: () => void
 }
 
+export type LocalSessionSubscriptionPumpFrame =
+  | { readonly kind: 'cursor-advanced'; readonly cursor: SessionHostEventEnvelope['cursor'] }
+  | { readonly kind: 'event'; readonly event: SessionHostEventEnvelope }
+  | {
+      readonly kind: 'resync-required'
+      readonly reason: 'slow-consumer'
+      readonly cursor: SessionHostEventEnvelope['cursor']
+    }
+  | { readonly kind: 'subscription-closed' }
+
 export async function localSessionEventIsDenied(
   caller: AuthenticatedLocalSessionCaller | null,
   authorizeEvent: LocalSessionServerDependencies['authorizeEvent'],
@@ -23,7 +33,7 @@ export async function pumpLocalSessionSubscription(input: {
   readonly active: () => boolean
   readonly closed: () => boolean
   readonly eventIsDenied: (event: SessionHostEventEnvelope) => Promise<boolean>
-  readonly send: (frame: Readonly<Record<string, unknown>>) => Promise<void>
+  readonly send: (frame: LocalSessionSubscriptionPumpFrame) => Promise<void>
 }) {
   while (!input.closed() && input.active()) {
     const delivery = await input.subscription.next()

@@ -8,6 +8,7 @@ import electronExecutablePath from 'electron'
 import { shouldUseHiddenElectron } from '../../scripts/electron-launch-mode'
 import { applicationCliStdout } from '../../scripts/electron-cli-stdout'
 import { launchOpenWaggleElectron } from '../../scripts/playwright-electron-launcher'
+import { shutdownSessionHostForQa } from '../../scripts/qa/session-host-shutdown'
 import { buildSafeElectronEnvironment } from '../../scripts/safe-electron-environment'
 import { MainWindowPage } from '../page-models/main-window.page'
 
@@ -16,6 +17,8 @@ let evidenceDirectoryPromise: Promise<string> | null = null
 let evidenceSequence = 0
 const QA_DIAGNOSTIC_TEXT_LIMIT = 1_000
 const QA_SCREENSHOT_SETTLE_MS = 250
+const QA_PROFILE_REMOVAL_MAX_RETRIES = 10
+const QA_PROFILE_REMOVAL_RETRY_DELAY_MS = 100
 const CLI_MAX_OUTPUT_BYTES = 10 * 1024 * 1024
 const CLI_TIMEOUT_MS = 30_000
 
@@ -75,6 +78,24 @@ function evidenceName(prefix: string) {
   return `${String(evidenceSequence).padStart(3, '0')}-${safePrefix || 'electron-qa'}.png`
 }
 
+function cleanupFailure(errors: readonly unknown[], message: string) {
+  if (errors.length === 0) return undefined
+  return new AggregateError(errors, message)
+}
+
+function reportRetainedProfile(userDataDir: string) {
+  console.error(`[electron-qa] retained profile: ${userDataDir}`)
+}
+
+function removeQaProfile(userDataDir: string) {
+  return fs.rm(userDataDir, {
+    recursive: true,
+    force: true,
+    maxRetries: QA_PROFILE_REMOVAL_MAX_RETRIES,
+    retryDelay: QA_PROFILE_REMOVAL_RETRY_DELAY_MS,
+  })
+}
+
 export class OpenWaggleApp {
   private constructor(
     readonly userDataDir: string,
@@ -96,28 +117,60 @@ export class OpenWaggleApp {
       await instance.mainWindow().waitUntilReady()
       return instance
     } catch (error) {
+      const secondaryErrors: unknown[] = []
       if (window !== null) {
-        const directory = await evidenceDirectory()
-        const screenshotPath = path.join(directory, evidenceName(`${prefix}-launch-failure`))
         try {
+          const directory = await evidenceDirectory()
+          const screenshotPath = path.join(directory, evidenceName(`${prefix}-launch-failure`))
           await window.screenshot({ path: screenshotPath })
           console.error(`[electron-qa] screenshot: ${screenshotPath}`)
         } catch (screenshotError) {
           console.error('[electron-qa] launch screenshot capture failed', screenshotError)
+          secondaryErrors.push(screenshotError)
         }
-        const diagnostics = await window
-          .evaluate((textLimit) => ({
+        try {
+          const diagnostics = await window.evaluate((textLimit) => ({
             bodyText: document.body.innerText.slice(0, textLimit),
             title: document.title,
             url: location.href,
           }), QA_DIAGNOSTIC_TEXT_LIMIT)
-          .catch(() => null)
-        console.error('[electron-qa] launch diagnostics', diagnostics)
+          console.error('[electron-qa] launch diagnostics', diagnostics)
+        } catch (diagnosticsError) {
+          console.error('[electron-qa] launch diagnostics failed', diagnosticsError)
+          secondaryErrors.push(diagnosticsError)
+        }
       } else {
         console.error('[electron-qa] launch failed before Electron created a page')
       }
-      await app?.close().catch(() => undefined)
-      await fs.rm(userDataDir, { recursive: true, force: true })
+      let closeSucceeded = true
+      try {
+        await app?.close()
+      } catch (closeError) {
+        closeSucceeded = false
+        secondaryErrors.push(closeError)
+      }
+      try {
+        await shutdownSessionHostForQa(
+          userDataDir,
+          closeSucceeded
+            ? () => removeQaProfile(userDataDir)
+            : async () => undefined,
+        )
+      } catch (shutdownError) {
+        secondaryErrors.push(shutdownError)
+        closeSucceeded = false
+      }
+      if (!closeSucceeded) reportRetainedProfile(userDataDir)
+      const cleanupError = cleanupFailure(
+        secondaryErrors,
+        'OpenWaggle launch failed and QA cleanup also failed.',
+      )
+      if (cleanupError !== undefined) {
+        throw new AggregateError(
+          [error, cleanupError],
+          'OpenWaggle launch failed and QA cleanup also failed.',
+        )
+      }
       throw error
     }
   }
@@ -171,7 +224,7 @@ export class OpenWaggleApp {
   }
 
   async cleanup(): Promise<void> {
-    let evidenceError: unknown
+    const errors: unknown[] = []
     try {
       const directory = await evidenceDirectory()
       const screenshotPath = path.join(directory, evidenceName(this.evidencePrefix))
@@ -179,14 +232,31 @@ export class OpenWaggleApp {
       await this.currentWindow.screenshot({ path: screenshotPath })
       console.info(`[electron-qa] screenshot: ${screenshotPath}`)
     } catch (error) {
-      evidenceError = error
-    } finally {
-      await this.close().catch(() => undefined)
-      await fs.rm(this.userDataDir, { recursive: true, force: true })
+      errors.push(error)
     }
-    if (evidenceError !== undefined) {
-      console.error('[electron-qa] final screenshot capture failed', evidenceError)
-      expect.soft(evidenceError, 'Electron QA must capture its final screenshot').toBeUndefined()
+    let closeSucceeded = true
+    try {
+      await this.close()
+    } catch (error) {
+      closeSucceeded = false
+      errors.push(error)
+    }
+    try {
+      await shutdownSessionHostForQa(
+        this.userDataDir,
+        closeSucceeded
+          ? () => removeQaProfile(this.userDataDir)
+          : async () => undefined,
+      )
+    } catch (error) {
+      closeSucceeded = false
+      errors.push(error)
+    }
+    if (!closeSucceeded) reportRetainedProfile(this.userDataDir)
+    const error = cleanupFailure(errors, 'Electron QA cleanup failed in multiple stages.')
+    if (error !== undefined) {
+      console.error('[electron-qa] cleanup failed', error)
+      expect.soft(error, 'Electron QA must capture evidence and clean up safely').toBeUndefined()
     }
   }
 

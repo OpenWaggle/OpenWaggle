@@ -1,5 +1,8 @@
 import { matchBy } from '@diegogbrisa/ts-match'
-import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
+import type {
+  LocalSessionCallerIdentity,
+  LocalSessionProfileAuthority,
+} from '@shared/types/local-session-profile'
 import type { SessionCapability } from '@shared/types/session-capability'
 import type { SessionControlMutationRequest } from '@shared/types/session-control'
 import type { SessionLifecycleRequest } from '@shared/types/session-lifecycle'
@@ -123,4 +126,25 @@ export function authorizeSessionTarget(
   return matchesProject || matchesSession || matchesHive
     ? ({ authorized: true } as const)
     : ({ authorized: false, code: 'target_scope_denied' as const } as const)
+}
+
+export function snapshotAuthorizesSessionCapabilities(
+  caller: LocalSessionCallerIdentity,
+  sessionId: string,
+  required: readonly SessionCapability[],
+) {
+  const authority = caller.profileAuthority
+  if (!authority) return true
+  const baseScope = caller.baseProfileScope ?? authority.scope
+  const baseSessionIds = caller.eventAdmissionSessionIds ?? baseScope.sessionIds ?? []
+  const baseAuthorized =
+    required.every((capability) => authority.capabilities.includes(capability)) &&
+    (baseScope.all === true || baseSessionIds.includes(sessionId))
+  if (baseAuthorized) return true
+  const derived = caller.derivedSessionAuthorities?.find(
+    (candidate) => candidate.sessionId === sessionId,
+  )
+  return Boolean(
+    derived && required.every((capability) => derived.capabilities.includes(capability)),
+  )
 }

@@ -104,6 +104,75 @@ describe('Local Session snapshot boundary', () => {
     expect(events).toHaveLength(1)
   })
 
+  it.each([
+    {
+      label: 'start',
+      event: { type: 'agent_start' as const, runId: 'run-boundary', timestamp: 2 },
+      activeRuns: [],
+    },
+    {
+      label: 'end',
+      event: {
+        type: 'agent_end' as const,
+        runId: 'run-boundary',
+        reason: 'stop' as const,
+        timestamp: 2,
+      },
+      activeRuns: [
+        {
+          sessionId: SessionId('session-boundary'),
+          model: SupportedModelId('provider/model'),
+          mode: 'classic' as const,
+          startedAt: 1,
+          messageId: 'message-boundary',
+          parts: [{ type: 'text' as const, text: 'running' }],
+        },
+      ],
+    },
+  ])(
+    'replays an agent $label transition published inside active-run snapshot capture',
+    async ({ event, activeRuns }) => {
+      const { paths, credential } = await pathsAndCredential()
+      runtime = await startLocalSessionHost({
+        endpoint: paths.endpoint,
+        databasePath: paths.databasePath,
+        idleGracePeriodMs: 60_000,
+        authenticate: createLocalSessionAuthenticator({ localUserCredential: credential }),
+        dispatch: async () => ({ accepted: true }),
+        snapshotActiveRuns: () => {
+          runtime?.eventHub.publish({
+            kind: 'session-transport',
+            sessionId: 'session-boundary',
+            event,
+          })
+          return activeRuns
+        },
+      })
+      const abortController = new AbortController()
+      const events: unknown[] = []
+      const result = await watchLocalSessionEvents({
+        paths,
+        clientVersion: 'test',
+        signal: abortController.signal,
+        onSnapshot: () => undefined,
+        onEvent: (received) => {
+          events.push(received)
+          abortController.abort()
+        },
+      })
+
+      expect(result).toEqual({ status: 'closed' })
+      expect(events).toEqual([
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            kind: 'session-transport',
+            event: expect.objectContaining({ type: event.type }),
+          }),
+        }),
+      ])
+    },
+  )
+
   it('replays from a supplied cursor without replacing state with a later snapshot', async () => {
     const { paths, credential } = await pathsAndCredential()
     const snapshotActiveRuns = vi.fn(() => [])
