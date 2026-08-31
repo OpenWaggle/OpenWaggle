@@ -188,6 +188,21 @@ describe('ChangeRequestComposer', () => {
     )
   })
 
+  it('does not create an empty feature branch when local changes are excluded', () => {
+    renderComposer({
+      vcs: { ...vcsStatus('github', true), aheadCount: 0 },
+    })
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /Commit and push local changes/ }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Commit the local changes before creating a pull request from a new branch.',
+    )
+    expect(screen.getByRole('button', { name: 'Create draft PR' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Create PR' })).toBeDisabled()
+    expect(runStackedGitAction).not.toHaveBeenCalled()
+  })
+
   it('does not create a second branch when the default ref is unknown', async () => {
     renderComposer({
       gitStatus: null,

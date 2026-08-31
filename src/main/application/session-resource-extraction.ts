@@ -1,6 +1,9 @@
 import { isRecord } from '@shared/utils/validation'
+import remarkParse from 'remark-parse'
+import { unified } from 'unified'
 
-const MARKDOWN_LINK_OPENER_PATTERN = /!?\[[^\]]*\]\((https?:\/\/)/giu
+const HTTP_URL_PATTERN = /^https?:\/\//iu
+const markdownParser = unified().use(remarkParse)
 
 export const SESSION_RESOURCE_EXTRACTION_LIMITS = {
   maxImages: 128,
@@ -21,38 +24,61 @@ export interface CapturedLink {
   readonly image: boolean
 }
 
-function markdownDestination(text: string, start: number) {
-  let depth = 0
-  for (let index = start; index < text.length; index += 1) {
-    const character = text[index]
-    if (character === '\\') {
-      index += 1
-      continue
+function enqueueMarkdownChildren(candidate: Readonly<Record<string, unknown>>, pending: unknown[]) {
+  const children = candidate.children
+  if (!Array.isArray(children)) return
+  for (let index = children.length - 1; index >= 0; index -= 1) pending.push(children[index])
+}
+
+function markdownDefinitions(root: unknown) {
+  const definitions = new Map<string, string>()
+  const pending = [root]
+  while (pending.length > 0) {
+    const candidate = pending.pop()
+    if (!isRecord(candidate)) continue
+    if (
+      candidate.type === 'definition' &&
+      typeof candidate.identifier === 'string' &&
+      typeof candidate.url === 'string' &&
+      HTTP_URL_PATTERN.test(candidate.url)
+    ) {
+      definitions.set(candidate.identifier, candidate.url)
     }
-    if (character === '(') {
-      depth += 1
-      continue
-    }
-    if (character !== ')') {
-      if (character && /\s/u.test(character)) return null
-      continue
-    }
-    if (depth === 0) return text.slice(start, index)
-    depth -= 1
+    enqueueMarkdownChildren(candidate, pending)
   }
-  return null
+  return definitions
+}
+
+function capturedMarkdownLink(
+  candidate: Readonly<Record<string, unknown>>,
+  definitions: ReadonlyMap<string, string>,
+): CapturedLink | null {
+  const direct = candidate.type === 'link' || candidate.type === 'image'
+  const reference = candidate.type === 'linkReference' || candidate.type === 'imageReference'
+  const url = direct
+    ? candidate.url
+    : reference && typeof candidate.identifier === 'string'
+      ? definitions.get(candidate.identifier)
+      : null
+  if (typeof url !== 'string' || !HTTP_URL_PATTERN.test(url)) return null
+  return {
+    url,
+    title: url,
+    image: candidate.type === 'image' || candidate.type === 'imageReference',
+  }
 }
 
 function collectMarkdownLinks(text: string, links: CapturedLink[]) {
   if (links.length >= SESSION_RESOURCE_EXTRACTION_LIMITS.maxLinks) return
-  const boundedText = text.slice(0, SESSION_RESOURCE_EXTRACTION_LIMITS.maxTextCharacters)
-  for (const match of boundedText.matchAll(MARKDOWN_LINK_OPENER_PATTERN)) {
-    const prefix = match[1]
-    const url = prefix
-      ? markdownDestination(boundedText, (match.index ?? 0) + match[0].length - prefix.length)
-      : null
-    if (url) links.push({ url, title: url, image: match[0].startsWith('!') })
-    if (links.length >= SESSION_RESOURCE_EXTRACTION_LIMITS.maxLinks) break
+  const root = markdownParser.parse(text)
+  const definitions = markdownDefinitions(root)
+  const pending: unknown[] = [root]
+  while (pending.length > 0 && links.length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxLinks) {
+    const candidate = pending.pop()
+    if (!isRecord(candidate)) continue
+    const link = capturedMarkdownLink(candidate, definitions)
+    if (link) links.push(link)
+    enqueueMarkdownChildren(candidate, pending)
   }
 }
 
@@ -119,11 +145,14 @@ export function collectExplicitResources(value: unknown) {
   const seen = new WeakSet<object>()
   const pending: unknown[] = [value]
   let scheduled = 1
+  let remainingTextCharacters = SESSION_RESOURCE_EXTRACTION_LIMITS.maxTextCharacters
 
   while (pending.length > 0) {
     const candidate = pending.pop()
     if (typeof candidate === 'string') {
-      collectMarkdownLinks(candidate, links)
+      const consumed = Math.min(candidate.length, remainingTextCharacters)
+      if (consumed > 0) collectMarkdownLinks(candidate.slice(0, consumed), links)
+      remainingTextCharacters -= consumed
       continue
     }
     if (Array.isArray(candidate) && !seen.has(candidate)) {

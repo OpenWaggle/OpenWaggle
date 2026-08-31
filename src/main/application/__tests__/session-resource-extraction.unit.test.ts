@@ -59,4 +59,38 @@ describe('session resource extraction limits', () => {
       },
     ])
   })
+
+  it('shares the text-character budget across every string in one payload', () => {
+    const extracted = collectExplicitResources({
+      first: 'x'.repeat(SESSION_RESOURCE_EXTRACTION_LIMITS.maxTextCharacters),
+      second: '[Outside the budget](https://example.test/not-collected)',
+    })
+
+    expect(extracted.links).toEqual([])
+  })
+
+  it('collects rendered Markdown links but ignores code and escaped examples', () => {
+    const extracted = collectExplicitResources(`
+[Rendered docs](https://example.test/rendered)
+\`[Inline example](https://example.test/inline-code)\`
+\\[Escaped example](https://example.test/escaped)
+\`\`\`md
+[Fenced example](https://example.test/fenced-code)
+\`\`\`
+[Rendered image](https://example.test/rendered-image)
+`)
+
+    expect(extracted.links).toEqual([
+      {
+        url: 'https://example.test/rendered',
+        title: 'https://example.test/rendered',
+        image: false,
+      },
+      {
+        url: 'https://example.test/rendered-image',
+        title: 'https://example.test/rendered-image',
+        image: false,
+      },
+    ])
+  })
 })

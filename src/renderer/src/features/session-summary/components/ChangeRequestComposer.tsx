@@ -13,7 +13,10 @@ import { ModalDialog } from '@/shared/ui/ModalDialog'
 import { Textarea } from '@/shared/ui/Textarea'
 import { useUIStore } from '@/shell/ui-store'
 import { sessionResourcesQueryKey } from '../hooks/useSessionResources'
-import { changeRequestActionInput } from './change-request-composer-model'
+import {
+  changeRequestActionInput,
+  emptyFeatureBranchValidationMessage,
+} from './change-request-composer-model'
 
 const DESCRIPTION_ROWS = 6
 
@@ -165,9 +168,14 @@ function useChangeRequestComposer(
   const [fallbackUrl, setFallbackUrl] = useState<string | null>(null)
   const showToast = useUIStore((state) => state.showToast)
   const queryClient = useQueryClient()
+  const validationError = emptyFeatureBranchValidationMessage(
+    { commitAndPush, createFeatureBranch, gitStatus: props.gitStatus, vcsStatus: props.vcsStatus },
+    terminology.singular,
+  )
 
   async function create(draft: boolean) {
-    if (running || (createFeatureBranch && branchName.trim().length === 0)) return
+    if (running || validationError || (createFeatureBranch && branchName.trim().length === 0))
+      return
     setRunning(true)
     setError(null)
     setFallbackUrl(null)
@@ -227,7 +235,8 @@ function useChangeRequestComposer(
     branchName,
     setBranchName,
     running,
-    error,
+    error: validationError ?? error,
+    creationBlocked: validationError !== null,
     fallbackUrl,
     create,
   }
@@ -286,7 +295,10 @@ export function ChangeRequestComposer(props: ChangeRequestComposerProps) {
       <ChangeRequestActions
         terminology={terminology}
         running={composer.running}
-        branchMissing={composer.createFeatureBranch && composer.branchName.trim().length === 0}
+        branchMissing={
+          composer.creationBlocked ||
+          (composer.createFeatureBranch && composer.branchName.trim().length === 0)
+        }
         onCreate={(draft) => void composer.create(draft)}
         browserUrl={browserUrl}
         onOpenBrowser={() => {
