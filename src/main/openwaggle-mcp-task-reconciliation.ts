@@ -1,5 +1,5 @@
 import { SessionId } from '@shared/types/brand'
-import { recoverStaleTask } from './openwaggle-mcp-task-leases'
+import { isActiveTaskStatus, recoverStaleTask } from './openwaggle-mcp-task-leases'
 import { projectTaskDelegationState, terminalDelegationState } from './openwaggle-mcp-task-lineage'
 import type { OpenWaggleServerTaskServices } from './openwaggle-mcp-task-runtime'
 import {
@@ -40,6 +40,28 @@ function authoritativeTasksBySession(tasks: readonly ServerTaskRecord[]) {
   return authoritative.values()
 }
 
+function delegationStateForTask(task: ServerTaskRecord) {
+  return isActiveTaskStatus(task.status) ? 'working' : terminalDelegationState(task.status)
+}
+
+async function projectIfStillAuthoritative(
+  input: ReconcileProfileTasksInput,
+  task: {
+    readonly taskId: string
+    readonly sessionId: SessionId
+    readonly state: ReturnType<typeof terminalDelegationState>
+  },
+) {
+  const before = authoritativeTaskForSession(await input.store.readTasks(), task.sessionId)
+  if (before?.id !== task.taskId) return false
+  const succeeded = await projectTaskDelegationState(input.services, task.sessionId, task.state)
+  if (!succeeded) return false
+  const after = authoritativeTaskForSession(await input.store.readTasks(), task.sessionId)
+  if (!after || after.id === task.taskId) return true
+  await projectTaskDelegationState(input.services, task.sessionId, delegationStateForTask(after))
+  return false
+}
+
 export async function reconcileOpenWaggleProfileTasks(input: ReconcileProfileTasksInput) {
   const reconciliation = await input.store.update((tasks) => {
     const reconciled = tasks.map((task) => {
@@ -65,7 +87,7 @@ export async function reconcileOpenWaggleProfileTasks(input: ReconcileProfileTas
     await Promise.all(
       reconciliation.pending.map(async (task) => ({
         ...task,
-        succeeded: await projectTaskDelegationState(input.services, task.sessionId, task.state),
+        succeeded: await projectIfStillAuthoritative(input, task),
       })),
     )
   ).filter(({ succeeded }) => succeeded)

@@ -176,7 +176,11 @@ function useViewerSource(
 ) {
   const queryClient = useQueryClient()
   const content = useQuery({
-    ...sessionResourceContentQueryOptions(sessionId ?? 'none', resource?.id ?? 'none'),
+    ...sessionResourceContentQueryOptions(
+      sessionId ?? 'none',
+      resource?.id ?? 'none',
+      resource?.updatedAt ?? 0,
+    ),
     enabled: sessionIsActive && resource?.kind === 'image',
   })
   const remoteLocator = resource?.locator?.startsWith('https://') === true

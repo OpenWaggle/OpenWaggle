@@ -10,7 +10,7 @@ import type { OpenWaggleQueryOptions } from '@/queries/query-options'
 import { api } from '@/shared/lib/ipc'
 
 type SessionResourcesQueryKey = readonly ['session-resources', string]
-type SessionResourceContentQueryKey = readonly ['session-resource-content', string, string]
+type SessionResourceContentQueryKey = readonly ['session-resource-content', string, string, number]
 type SessionResourceThumbnailQueryKey = readonly [
   'session-resource-thumbnail',
   string,
@@ -62,6 +62,7 @@ export function sessionResourcesQueryOptions(
 export function sessionResourceContentQueryOptions(
   sessionId: string,
   resourceId: string,
+  resourceRevision: number,
 ): OpenWaggleQueryOptions<
   SessionResourceContent | null,
   Error,
@@ -69,7 +70,7 @@ export function sessionResourceContentQueryOptions(
   SessionResourceContentQueryKey
 > {
   return queryOptions({
-    queryKey: ['session-resource-content', sessionId, resourceId] as const,
+    queryKey: ['session-resource-content', sessionId, resourceId, resourceRevision] as const,
     queryFn: () => api.readSessionResource(SessionId(sessionId), resourceId),
     gcTime: 0,
     staleTime: Number.POSITIVE_INFINITY,

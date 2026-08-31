@@ -178,6 +178,25 @@ describe('ExtensionSessionSummarySections', () => {
     expect(useUIStore.getState().resourceViewer).toBeNull()
   })
 
+  it('opens unavailable extension images in resources instead of an empty viewer', () => {
+    const onOpenResources = vi.fn()
+    render(
+      <ExtensionSessionSummarySections
+        registry={registry([summaryEntry()])}
+        projectPaths={[PROJECT_PATH]}
+        sessionId="session-one"
+        messageCount={1}
+        placement="details"
+        resources={[{ ...sessionResource('image'), available: false }]}
+        onOpenResources={onOpenResources}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    expect(onOpenResources).toHaveBeenCalledOnce()
+    expect(useUIStore.getState().resourceViewer).toBeNull()
+  })
+
   it('does not activate an action that is not declared by the same extension package', () => {
     const openSidePanel = vi.fn()
     const foreignPanel = {

@@ -1,3 +1,4 @@
+import { match } from '@diegogbrisa/ts-match'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
   ExtensionContributionRegistryEntry,
@@ -12,8 +13,28 @@ import { refreshPreferencesAfterExtensionInvoke } from '@/features/extensions'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { useUIStore } from '@/shell/ui-store'
+import { isViewableSessionImage } from '../model/session-resource-viewability'
 
 const logger = createRendererLogger('extension-session-summary')
+
+function activateResourceRow(input: {
+  readonly resource: SessionResource | undefined
+  readonly resourceId: string
+  readonly sessionId: string
+  readonly openResourceViewer: (sessionId: string, resourceId: string) => void
+  readonly onOpenResources: () => void
+}) {
+  return match(input.resource)
+    .when(
+      (resource) => resource !== undefined && isViewableSessionImage(resource),
+      () => input.openResourceViewer(input.sessionId, input.resourceId),
+    )
+    .when(
+      (resource) => resource?.kind === 'image' && resource.locator?.startsWith('http') === true,
+      (resource) => api.openExternal(resource?.locator ?? ''),
+    )
+    .otherwise(() => input.onOpenResources())
+}
 
 export interface SessionSummaryExtensionSidePanelTarget {
   readonly extensionId: string
@@ -78,8 +99,13 @@ export function useSessionSummaryExtensionActions(input: {
   ) {
     if (row.resourceId) {
       const resource = input.resources.find(({ id }) => id === row.resourceId)
-      if (resource?.kind === 'image') openResourceViewer(input.sessionId, row.resourceId)
-      else input.onOpenResources()
+      await activateResourceRow({
+        resource,
+        resourceId: row.resourceId,
+        sessionId: input.sessionId,
+        openResourceViewer,
+        onOpenResources: input.onOpenResources,
+      })
       return
     }
     const entry = matchingSessionSummaryAction({ registry: input.registry, section, row })

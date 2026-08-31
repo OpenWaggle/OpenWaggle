@@ -125,7 +125,7 @@ describe('SessionResourceViewer', () => {
     ).toBeInTheDocument()
     await waitFor(() => {
       expect(
-        view.queryClient.getQueryData(['session-resource-content', 'session-1', 'image-1']),
+        view.queryClient.getQueryData(['session-resource-content', 'session-1', 'image-1', 1000]),
       ).toBeUndefined()
     })
 
@@ -201,6 +201,26 @@ describe('SessionResourceViewer', () => {
       expect(readSessionResource).toHaveBeenCalledWith(SessionId('session-1'), 'remote-image'),
     )
     await waitFor(() => expect(listSessionResources).toHaveBeenCalledTimes(2))
+  })
+
+  it('retries a null content read when the resource revision changes', async () => {
+    readSessionResource.mockReset().mockResolvedValueOnce(null).mockResolvedValue({
+      resourceId: 'image-1',
+      fileName: 'image-1.png',
+      mimeType: 'image/png',
+      dataBase64: 'aW1hZ2UtMQ==',
+    })
+    useUIStore.getState().openResourceViewer('session-1', 'image-1')
+    const view = renderViewer('session-1')
+    await screen.findByRole('dialog', { name: 'Image viewer: first.png' })
+    await waitFor(() => expect(readSessionResource).toHaveBeenCalledOnce())
+
+    view.queryClient.setQueryData(['session-resources', 'session-1'], {
+      resources: [{ ...image('image-1', 'first.png'), updatedAt: 2000 }],
+      backfillComplete: true,
+    })
+
+    await waitFor(() => expect(readSessionResource).toHaveBeenCalledTimes(2))
   })
 
   it('supports Codex-style zoom choices and downloading managed images', async () => {
