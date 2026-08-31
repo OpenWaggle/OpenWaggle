@@ -7,10 +7,11 @@ import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
-import { RangeInput } from '@/shared/ui/RangeInput'
+import { TextInput } from '@/shared/ui/TextInput'
 import { AgentAccessSection } from './AgentAccessSection'
 
 const logger = createRendererLogger('settings')
+const MIN_COMPACTION_THRESHOLD_PERCENT = 1
 
 function useAppVersion() {
   const [version, setVersion] = useState('…')
@@ -91,16 +92,86 @@ function getStatusRow(status: UpdateStatus) {
     .exhaustive()
 }
 
-export function GeneralSection() {
-  const version = useAppVersion()
-  const status = useUpdateStatus()
-  const statusRow = getStatusRow(status)
+function CompactionThresholdSetting() {
   const compactionThresholdPercent = usePreferencesStore(
     (state) => state.settings.compactionThresholdPercent,
   )
   const setCompactionThresholdPercent = usePreferencesStore(
     (state) => state.setCompactionThresholdPercent,
   )
+  const [compactionThresholdDraft, setCompactionThresholdDraft] = useState(
+    String(compactionThresholdPercent),
+  )
+
+  useEffect(() => {
+    setCompactionThresholdDraft(String(compactionThresholdPercent))
+  }, [compactionThresholdPercent])
+
+  const commitCompactionThreshold = () => {
+    const percent = Number(compactionThresholdDraft)
+    const isValid =
+      Number.isInteger(percent) &&
+      percent >= MIN_COMPACTION_THRESHOLD_PERCENT &&
+      percent <= PERCENT_BASE
+
+    if (!isValid) {
+      setCompactionThresholdDraft(String(compactionThresholdPercent))
+      return
+    }
+
+    setCompactionThresholdDraft(String(percent))
+    if (percent === compactionThresholdPercent) return
+    void setCompactionThresholdPercent(percent).catch(() => {
+      setCompactionThresholdDraft(String(compactionThresholdPercent))
+    })
+  }
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-base font-semibold text-text-primary">Context compaction</h3>
+      <div className="overflow-hidden rounded-lg border border-border bg-bg">
+        <div className="flex min-h-14 items-center justify-between gap-4 px-5 py-3">
+          <div className="flex flex-col gap-0.5">
+            <label
+              htmlFor="compaction-threshold-percent"
+              className="text-xs font-medium text-text-primary"
+            >
+              Automatic compaction threshold
+            </label>
+            <span id="compaction-threshold-description" className="text-xs text-text-tertiary">
+              Compact before the next model request when context reaches this percentage.
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <TextInput
+              id="compaction-threshold-percent"
+              aria-describedby="compaction-threshold-description"
+              type="number"
+              inputMode="numeric"
+              min={MIN_COMPACTION_THRESHOLD_PERCENT}
+              max={PERCENT_BASE}
+              step={1}
+              value={compactionThresholdDraft}
+              onChange={(event) => setCompactionThresholdDraft(event.currentTarget.value)}
+              onBlur={commitCompactionThreshold}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') event.currentTarget.blur()
+              }}
+              inputSize="sm"
+              className="w-16 text-right tabular-nums"
+            />
+            <span className="text-xs text-text-secondary">%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function GeneralSection() {
+  const version = useAppVersion()
+  const status = useUpdateStatus()
+  const statusRow = getStatusRow(status)
 
   const canCheck =
     status.type === 'idle' || status.type === 'not-available' || status.type === 'error'
@@ -111,34 +182,7 @@ export function GeneralSection() {
     <div className="space-y-6">
       <AgentAccessSection />
 
-      <div className="space-y-3">
-        <h3 className="text-base font-semibold text-text-primary">Context compaction</h3>
-        <div className="overflow-hidden rounded-lg border border-border bg-bg">
-          <div className="flex min-h-14 items-center justify-between gap-4 px-5 py-3">
-            <div className="flex flex-col gap-0.5">
-              <span className="text-xs font-medium text-text-primary">
-                Automatic compaction threshold
-              </span>
-              <span className="text-xs text-text-tertiary">
-                Compact before the next model request when context reaches this percentage.
-              </span>
-            </div>
-            <div className="flex items-center gap-3">
-              <RangeInput
-                aria-label="Automatic compaction threshold"
-                min={1}
-                max={PERCENT_BASE}
-                value={compactionThresholdPercent}
-                onChange={(event) => void setCompactionThresholdPercent(Number(event.target.value))}
-                className="w-32 accent-accent"
-              />
-              <span className="w-9 text-right text-xs text-text-secondary">
-                {compactionThresholdPercent}%
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <CompactionThresholdSetting />
 
       {/* About & Updates — title outside the card */}
       <div className="space-y-3">

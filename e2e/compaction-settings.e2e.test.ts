@@ -14,12 +14,13 @@ test('global automatic compaction threshold defaults to 80 percent and persists'
 
   try {
     let page = await openGeneralSettings(app)
-    let threshold = page.getByRole('slider', { name: 'Automatic compaction threshold' })
+    let threshold = page.getByRole('spinbutton', { name: 'Automatic compaction threshold' })
     await expect(threshold).toHaveValue('80')
-    await expect(page.getByText('80%', { exact: true })).toBeVisible()
+    await expect(page.getByText('%', { exact: true })).toBeVisible()
 
     await threshold.fill('73')
-    await expect(page.getByText('73%', { exact: true })).toBeVisible()
+    await threshold.press('Enter')
+    await expect(threshold).toHaveValue('73')
     await expect
       .poll(() =>
         page.evaluate(async () => (await window.api.getSettings()).compactionThresholdPercent),
@@ -28,9 +29,8 @@ test('global automatic compaction threshold defaults to 80 percent and persists'
 
     await app.restart()
     page = await openGeneralSettings(app)
-    threshold = page.getByRole('slider', { name: 'Automatic compaction threshold' })
+    threshold = page.getByRole('spinbutton', { name: 'Automatic compaction threshold' })
     await expect(threshold).toHaveValue('73')
-    await expect(page.getByText('73%', { exact: true })).toBeVisible()
   } finally {
     await app.cleanup()
   }

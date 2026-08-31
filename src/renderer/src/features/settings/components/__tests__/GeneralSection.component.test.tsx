@@ -41,6 +41,7 @@ describe('GeneralSection', () => {
     checkForUpdatesMock.mockReset()
     installUpdateMock.mockReset()
     setCompactionThresholdPercentMock.mockReset()
+    setCompactionThresholdPercentMock.mockResolvedValue(undefined)
     usePreferencesStore.setState({
       settings: DEFAULT_SETTINGS,
       setCompactionThresholdPercent: setCompactionThresholdPercentMock,
@@ -64,15 +65,33 @@ describe('GeneralSection', () => {
   it('updates the global automatic compaction threshold', () => {
     render(<GeneralSection />)
 
-    const threshold = screen.getByRole('slider', { name: 'Automatic compaction threshold' })
+    const threshold = screen.getByRole('spinbutton', { name: 'Automatic compaction threshold' })
+    expect(screen.queryByRole('slider')).not.toBeInTheDocument()
     expect(threshold).toHaveAttribute('min', '1')
     expect(threshold).toHaveAttribute('max', '100')
+    expect(threshold).toHaveAttribute('step', '1')
 
     fireEvent.change(threshold, {
       target: { value: '75' },
     })
+    expect(setCompactionThresholdPercentMock).not.toHaveBeenCalled()
+
+    fireEvent.blur(threshold)
 
     expect(setCompactionThresholdPercentMock).toHaveBeenCalledWith(75)
+  })
+
+  it('restores the saved compaction threshold when the number is invalid', () => {
+    render(<GeneralSection />)
+
+    const threshold = screen.getByRole('spinbutton', {
+      name: 'Automatic compaction threshold',
+    })
+    fireEvent.change(threshold, { target: { value: '101' } })
+    fireEvent.blur(threshold)
+
+    expect(threshold).toHaveValue(80)
+    expect(setCompactionThresholdPercentMock).not.toHaveBeenCalled()
   })
 
   it('renders the "About & Updates" section heading', () => {
