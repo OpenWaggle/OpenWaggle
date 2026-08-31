@@ -134,6 +134,16 @@ async function beginSourceSurfaceMeasurement(page: Page, label: string) {
         )
         if (!target?.hasAttribute('data-syntax-status')) return false
         Reflect.set(window, '__openwaggleE2eSourceSurfaceMs', performance.now() - startedAt)
+        Reflect.set(
+          window,
+          '__openwaggleE2eFirstSyntaxStatus',
+          target.getAttribute('data-syntax-status'),
+        )
+        Reflect.set(
+          window,
+          '__openwaggleE2eFirstSyntaxSkeleton',
+          target.querySelector('[data-syntax-skeleton]') !== null,
+        )
         return true
       }
       const observer = new MutationObserver(() => {
@@ -360,13 +370,11 @@ test('a 1 MiB source file paints a skeleton before tokenization and keeps bounde
     )
     expect(sourceSurfaceMs).toBeLessThan(sourceSurfaceBudget(200))
     expect(await sourceView.locator('[data-line-number]').count()).toBeLessThanOrEqual(130)
-    await expect(sourceView).toHaveAttribute('data-syntax-status', 'loading', {
-      timeout: 1_000,
-    })
-    await expect(sourceView.locator('[data-syntax-skeleton]').first()).toBeVisible()
-    await expect(
-      sourceView.locator('span[aria-hidden="true"]').filter({ hasText: 'Highlighting source…' }),
-    ).toBeVisible()
+    const firstSyntaxPaint = await page.evaluate(() => ({
+      status: Reflect.get(window, '__openwaggleE2eFirstSyntaxStatus'),
+      hasSkeleton: Reflect.get(window, '__openwaggleE2eFirstSyntaxSkeleton'),
+    }))
+    expect(firstSyntaxPaint).toEqual({ status: 'loading', hasSkeleton: true })
     await expect(sourceView).toHaveAttribute('data-syntax-status', 'highlighted', {
       timeout: 5_000,
     })

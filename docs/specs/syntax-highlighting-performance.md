@@ -68,7 +68,7 @@ The permanent suite covers:
 
 ## Measurement and regression policy
 
-`pnpm benchmark:syntax` owns deterministic microbenchmarks and checks the platform's absolute performance budget. Bundle-shape tests, component tests, and Electron traces cover properties that a worker microbenchmark cannot establish. A future branch-vs-base CI comparison must run both revisions on the same controlled runner before it can be used as a relative merge gate. Absolute timing claims come only from controlled desktop traces.
+`pnpm benchmark:syntax` owns deterministic microbenchmarks and checks the controlled desktop profile by default. GitHub's three-core shared macOS runner uses a separate, deliberately looser regression profile: it catches severe slowdowns without presenting shared-runner timing as a workstation claim. Bundle-shape tests, component tests, and Electron traces cover properties that a worker microbenchmark cannot establish. A future branch-vs-base CI comparison must run both revisions on the same controlled runner before it can be used as a relative merge gate. Absolute timing claims come only from controlled desktop traces.
 
 Every completed renderer or IPC delivery also runs real hidden Electron QA. QA opens small and boundary-size files, edits and saves a temporary fixture, verifies the exact worktree file changed, confirms a concurrent-change conflict, checks console errors, captures representative screenshots outside the repository, and verifies that agent controls remain responsive while syntax work is active.
 

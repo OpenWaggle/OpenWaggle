@@ -156,6 +156,8 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm benchmark:syntax
+        env:
+          SYNTAX_BENCHMARK_PROFILE: performance/syntax-budgets/macos-arm64-github-hosted.json
       - run: pnpm test:e2e
 
       - name: Upload Electron E2E failure artifacts

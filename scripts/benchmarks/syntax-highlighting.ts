@@ -27,7 +27,7 @@ const KIBIBYTE = 1024
 const SMALL_FIXTURE_BYTES = 16 * KIBIBYTE
 const MEDIUM_FIXTURE_BYTES = 128 * KIBIBYTE
 const LARGE_DOCUMENT_BYTES = KIBIBYTE * KIBIBYTE
-const PROFILE_PATH = path.resolve('performance/syntax-budgets/macos-arm64.json')
+const DEFAULT_PROFILE_PATH = path.resolve('performance/syntax-budgets/macos-arm64.json')
 const MEDIAN_PERCENTILE = 0.5
 const P95_PERCENTILE = 0.95
 const DECIMAL_PLACES = 3
@@ -118,9 +118,14 @@ function isProfile(value: unknown): value is SyntaxBenchmarkProfile {
   )
 }
 
-async function loadProfile() {
-  const parsed: unknown = JSON.parse(await fs.readFile(PROFILE_PATH, 'utf8'))
-  if (!isProfile(parsed)) throw new Error(`Invalid syntax benchmark profile: ${PROFILE_PATH}`)
+function benchmarkProfilePath() {
+  const configuredPath = process.env.SYNTAX_BENCHMARK_PROFILE
+  return configuredPath ? path.resolve(configuredPath) : DEFAULT_PROFILE_PATH
+}
+
+async function loadProfile(profilePath: string) {
+  const parsed: unknown = JSON.parse(await fs.readFile(profilePath, 'utf8'))
+  if (!isProfile(parsed)) throw new Error(`Invalid syntax benchmark profile: ${profilePath}`)
   return parsed
 }
 
@@ -182,7 +187,8 @@ async function main() {
   process.stdout.write(`${JSON.stringify(report, null, JSON_INDENT_SPACES)}\n`)
 
   if (!process.argv.includes('--check')) return
-  const profile = await loadProfile()
+  const profilePath = benchmarkProfilePath()
+  const profile = await loadProfile(profilePath)
   const failures = Object.entries(profile.metricBudgetsMs).flatMap(([name, budget]) => {
     const metric = Object.entries(metrics).find(([metricName]) => metricName === name)?.[1]
     if (!metric) return [`${name} is configured but was not measured`]
@@ -190,7 +196,11 @@ async function main() {
       ? [`${name} p95 ${metric.p95Ms.toFixed(DECIMAL_PLACES)} ms exceeded ${String(budget)} ms`]
       : []
   })
-  if (failures.length > 0) throw new Error(`Syntax benchmark failed:\n${failures.join('\n')}`)
+  if (failures.length > 0) {
+    throw new Error(
+      `Syntax benchmark failed against ${path.relative(process.cwd(), profilePath)}:\n${failures.join('\n')}`,
+    )
+  }
 }
 
 void main().catch((error: unknown) => {

@@ -61,7 +61,9 @@ const NODE_SETUP_STEP = `      - uses: ${ACTION_SETUP_NODE}
           node-version: 24.14.0
           cache: pnpm`
 const INSTALL_STEP = '      - run: pnpm install --frozen-lockfile'
-const SYNTAX_BENCHMARK_STEP = '      - run: pnpm benchmark:syntax'
+const SYNTAX_BENCHMARK_STEP = `      - run: pnpm benchmark:syntax
+        env:
+          SYNTAX_BENCHMARK_PROFILE: performance/syntax-budgets/macos-arm64-github-hosted.json`
 const e2eFailureArtifactStep = (platform: 'linux' | 'macos' | 'windows') =>
   `      - name: Upload Electron E2E failure artifacts
         if: failure()
