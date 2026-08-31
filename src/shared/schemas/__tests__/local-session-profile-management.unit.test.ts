@@ -1,4 +1,9 @@
+import {
+  LOCAL_SESSION_PROFILE_SCOPE_ENTRY_LIMIT,
+  LOCAL_SESSION_PROFILE_SCOPE_VALUE_MAX_LENGTH,
+} from '@shared/types/local-session-profile'
 import { LOCAL_SESSION_PROFILE_MANAGEMENT_CONTRACT_VERSION } from '@shared/types/local-session-profile-management'
+import { SESSION_CAPABILITIES } from '@shared/types/session-capability'
 import { describe, expect, it } from 'vitest'
 import { decodeLocalSessionProfileManagementRequest } from '../local-session-profile-management'
 
@@ -71,4 +76,68 @@ describe('Local Session profile management schema', () => {
       ).toThrow()
     },
   )
+
+  it('bounds profile scope arrays and values at the management boundary', () => {
+    const boundaryPaths = Array.from(
+      { length: LOCAL_SESSION_PROFILE_SCOPE_ENTRY_LIMIT },
+      () => '/workspace',
+    )
+    expect(() =>
+      decodeLocalSessionProfileManagementRequest(
+        request({
+          operation: 'update',
+          profileName: 'worker',
+          ...policy,
+          scope: { projectPaths: boundaryPaths },
+        }),
+      ),
+    ).not.toThrow()
+    expect(() =>
+      decodeLocalSessionProfileManagementRequest(
+        request({
+          operation: 'update',
+          profileName: 'worker',
+          ...policy,
+          scope: { projectPaths: [...boundaryPaths, '/overflow'] },
+        }),
+      ),
+    ).toThrow()
+    expect(() =>
+      decodeLocalSessionProfileManagementRequest(
+        request({
+          operation: 'update',
+          profileName: 'worker',
+          ...policy,
+          scope: { projectPaths: ['p'.repeat(LOCAL_SESSION_PROFILE_SCOPE_VALUE_MAX_LENGTH + 1)] },
+        }),
+      ),
+    ).toThrow()
+  })
+
+  it('bounds repeated capabilities at the management boundary', () => {
+    const boundaryCapabilities = Array.from(
+      { length: SESSION_CAPABILITIES.length },
+      () => SESSION_CAPABILITIES[0],
+    )
+    expect(() =>
+      decodeLocalSessionProfileManagementRequest(
+        request({
+          operation: 'update',
+          profileName: 'worker',
+          ...policy,
+          capabilities: boundaryCapabilities,
+        }),
+      ),
+    ).not.toThrow()
+    expect(() =>
+      decodeLocalSessionProfileManagementRequest(
+        request({
+          operation: 'update',
+          profileName: 'worker',
+          ...policy,
+          capabilities: [...boundaryCapabilities, SESSION_CAPABILITIES[0]],
+        }),
+      ),
+    ).toThrow()
+  })
 })

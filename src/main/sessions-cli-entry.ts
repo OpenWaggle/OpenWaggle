@@ -1,10 +1,9 @@
 import { app } from 'electron'
 import { flushCliOutput } from './cli-output-flush'
 import { env } from './env'
+import { sessionCliExitCodeForError } from './session-cli-exit-status'
 import { configureAppStoragePaths } from './session-data'
 import { writeSessionsCliError } from './sessions-cli-output'
-
-const FAILURE_EXIT_CODE = 1
 
 export function startSessionsCliIfRequested(argv: readonly string[]) {
   if (argv[0] !== 'sessions') return false
@@ -18,9 +17,9 @@ export function startSessionsCliIfRequested(argv: readonly string[]) {
       app.exit(exitCode)
     })
     .catch(async (error: unknown) => {
-      writeSessionsCliError(error, argv.includes('--json') || argv.includes('--jsonl'))
+      const kind = writeSessionsCliError(error, argv.includes('--json') || argv.includes('--jsonl'))
       await flushCliOutput().catch(() => undefined)
-      app.exit(FAILURE_EXIT_CODE)
+      app.exit(sessionCliExitCodeForError(kind))
     })
   return true
 }

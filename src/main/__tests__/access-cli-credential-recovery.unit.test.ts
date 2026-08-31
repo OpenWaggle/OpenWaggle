@@ -1,13 +1,30 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { commitMock, createClientInputMock, discardMock, executeCommandMock, stageCredentialMock } =
-  vi.hoisted(() => ({
+const {
+  ProfileCredentialCommitError,
+  commitMock,
+  createClientInputMock,
+  discardMock,
+  executeCommandMock,
+  stageCredentialMock,
+} = vi.hoisted(() => {
+  class ProfileCredentialCommitError extends Error {
+    constructor(
+      message: string,
+      readonly recoveryLocation: string,
+    ) {
+      super(message)
+    }
+  }
+  return {
+    ProfileCredentialCommitError,
     commitMock: vi.fn(),
     createClientInputMock: vi.fn(),
     discardMock: vi.fn(),
     executeCommandMock: vi.fn(),
     stageCredentialMock: vi.fn(),
-  }))
+  }
+})
 
 vi.mock('electron', () => ({ app: { getPath: vi.fn(() => '/tmp/openwaggle-access-test') } }))
 vi.mock('../local-session-cli-client', () => ({
@@ -20,6 +37,7 @@ vi.mock('../session-host/profile-credential', () => ({
   generateProfileCredential: vi.fn(() => 'generated-credential'),
 }))
 vi.mock('../session-host/profile-credential-destination', () => ({
+  ProfileCredentialCommitError,
   removeStoredProfileCredential: vi.fn(),
   stageProfileCredential: stageCredentialMock,
 }))
@@ -63,6 +81,27 @@ const CREATE_ARGUMENTS = [
   '--idempotency-key',
   'stable-key',
 ] as const
+const CREATE_ARGUMENTS_WITHOUT_KEY = CREATE_ARGUMENTS.slice(0, -2)
+const ROTATE_ARGUMENTS_WITHOUT_KEY = [
+  'profiles',
+  'rotate',
+  'reviewer',
+  '--credential-file',
+  '/tmp/reviewer.secret',
+] as const
+
+const ROTATE_PROFILE_RESPONSE = {
+  contract: 'local-access-v1',
+  response: {
+    ...PROFILE_RESPONSE.response,
+    requestId: 'profile-rotate',
+    outcome: {
+      operation: 'rotate',
+      effect: 'profile-rotated',
+      profile: PROFILE_RESPONSE.response.outcome.profile,
+    },
+  },
+} as const
 
 describe('Access CLI credential recovery', () => {
   beforeEach(() => {
@@ -121,5 +160,45 @@ describe('Access CLI credential recovery', () => {
     expect(commitMock).not.toHaveBeenCalled()
     expect(discardMock).not.toHaveBeenCalled()
     expect(stderr).toHaveBeenCalledWith(expect.stringContaining('--idempotency-key stable-key'))
+  })
+
+  it('reports generated create recovery identity after an accepted credential commit failure', async () => {
+    const recoveryLocation = '/tmp/protected/create.pending'
+    executeCommandMock.mockResolvedValue(PROFILE_RESPONSE)
+    commitMock.mockRejectedValue(
+      new ProfileCredentialCommitError('credential installation failed', recoveryLocation),
+    )
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+
+    await expect(runAccessCli(CREATE_ARGUMENTS_WITHOUT_KEY)).resolves.toBe(1)
+
+    const generatedKey = executeCommandMock.mock.calls[0]?.[0].payload.request.idempotencyKey
+    const output = stderr.mock.calls.map((call) => String(call[0])).join('')
+    expect(generatedKey).toMatch(/^[0-9a-f-]{36}$/)
+    expect(output).toContain('Profile "reviewer" (profile-1) was created')
+    expect(output).toContain(`--idempotency-key ${String(generatedKey)}`)
+    expect(output).toContain(recoveryLocation)
+    expect(output).not.toContain('generated-credential')
+    expect(discardMock).not.toHaveBeenCalled()
+  })
+
+  it('reports generated rotate recovery identity after an accepted credential commit failure', async () => {
+    const recoveryLocation = '/tmp/protected/rotate.pending'
+    executeCommandMock.mockResolvedValue(ROTATE_PROFILE_RESPONSE)
+    commitMock.mockRejectedValue(
+      new ProfileCredentialCommitError('credential installation failed', recoveryLocation),
+    )
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+
+    await expect(runAccessCli(ROTATE_ARGUMENTS_WITHOUT_KEY)).resolves.toBe(1)
+
+    const generatedKey = executeCommandMock.mock.calls[0]?.[0].payload.request.idempotencyKey
+    const output = stderr.mock.calls.map((call) => String(call[0])).join('')
+    expect(generatedKey).toMatch(/^[0-9a-f-]{36}$/)
+    expect(output).toContain('Profile "reviewer" (profile-1) was rotated')
+    expect(output).toContain(`--idempotency-key ${String(generatedKey)}`)
+    expect(output).toContain(recoveryLocation)
+    expect(output).not.toContain('generated-credential')
+    expect(discardMock).not.toHaveBeenCalled()
   })
 })

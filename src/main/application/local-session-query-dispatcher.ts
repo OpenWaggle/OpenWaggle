@@ -11,7 +11,7 @@ import * as Option from 'effect/Option'
 import * as Runtime from 'effect/Runtime'
 import { requiredSessionQueryCapabilities } from '../domain/session-control/session-capability-authorization'
 import type { LocalSessionProfileRepository } from '../ports/local-session-profile-repository'
-import type { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
+import { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
 import { SessionQueryRepository } from '../ports/session-query-repository'
 import { SessionWaitService } from '../ports/session-wait-service'
 import type { SettingsService } from '../services/settings-service'
@@ -21,13 +21,21 @@ import {
   profileAuthorityForCapabilities,
   refreshNamedProfileCaller,
 } from './local-session-command-authorization'
+import { authorizeTargetForCaller } from './local-session-derived-authority'
 
 function authorizeSessionQueryObservation(
   caller: LocalSessionCallerIdentity,
   payload: Extract<LocalSessionCommandPayload, { contract: 'session-query-v2' }>,
+  resolveLiveCaller?: () => Promise<LocalSessionCallerIdentity>,
 ) {
   return Effect.gen(function* () {
-    const refreshedCaller = yield* refreshNamedProfileCaller(caller)
+    const liveCaller = resolveLiveCaller
+      ? yield* Effect.tryPromise({
+          try: resolveLiveCaller,
+          catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
+        })
+      : caller
+    const refreshedCaller = yield* refreshNamedProfileCaller(liveCaller)
     yield* authorizeLocalSessionCommand({ caller: refreshedCaller, payload })
     return profileAuthorityForCapabilities(
       refreshedCaller,
@@ -84,6 +92,7 @@ export function dispatchSessionWaitQuery(
   caller: LocalSessionCallerIdentity,
   payload: Extract<LocalSessionCommandPayload, { contract: 'session-query-v2' }>,
   signal?: AbortSignal,
+  resolveLiveCaller?: () => Promise<LocalSessionCallerIdentity>,
 ) {
   return Effect.gen(function* () {
     const query = payload.request.query
@@ -96,7 +105,7 @@ export function dispatchSessionWaitQuery(
     >()
     const runAuthorization = Runtime.runPromiseExit(runtime)
     const resolveObservationAuthority = () =>
-      runAuthorization(authorizeSessionQueryObservation(caller, payload)).then(
+      runAuthorization(authorizeSessionQueryObservation(caller, payload, resolveLiveCaller)).then(
         observationAuthorityFromExit,
       )
     const response =
@@ -115,17 +124,19 @@ export function dispatchSessionWaitQuery(
   })
 }
 
-function canListInteraction(caller: LocalSessionCallerIdentity, interaction: AgentLoopInteraction) {
-  const capabilities = caller.profileAuthority?.capabilities
-  if (!capabilities) return true
+function canListInteraction(
+  caller: LocalSessionCallerIdentity,
+  target: Parameters<typeof authorizeTargetForCaller>[1],
+  interaction: AgentLoopInteraction,
+) {
   const required =
     interaction.kind === 'confirm' && interaction.purpose === 'authorization'
       ? 'sessions:approve'
       : 'sessions:respond'
-  return capabilities.includes(required)
+  return authorizeTargetForCaller(caller, target, [required]).authorized
 }
 
-function listRequests(
+export function dispatchSessionRequestsListQuery(
   caller: LocalSessionCallerIdentity,
   payload: Extract<LocalSessionCommandPayload, { contract: 'session-query-v2' }>,
 ) {
@@ -133,21 +144,26 @@ function listRequests(
   if (query.operation !== 'requests-list') {
     throw new Error('Expected a requests-list Session query.')
   }
-  return Effect.succeed({
-    contract: 'session-query-v2',
-    response: {
-      contractVersion: payload.request.contractVersion,
-      requestId: payload.request.requestId,
-      outcome: {
-        operation: 'requests-list',
-        sessionId: query.sessionId,
-        requests: listPendingAgentLoopInteractions().filter(
-          (interaction) =>
-            interaction.sessionId === query.sessionId && canListInteraction(caller, interaction),
-        ),
+  return Effect.gen(function* () {
+    const repository = yield* SessionAuthorizationTargetRepository
+    const target = yield* repository.resolve(query.sessionId)
+    return {
+      contract: 'session-query-v2',
+      response: {
+        contractVersion: payload.request.contractVersion,
+        requestId: payload.request.requestId,
+        outcome: {
+          operation: 'requests-list',
+          sessionId: query.sessionId,
+          requests: listPendingAgentLoopInteractions().filter(
+            (interaction) =>
+              interaction.sessionId === query.sessionId &&
+              canListInteraction(caller, target, interaction),
+          ),
+        },
       },
-    },
-  } as const)
+    } as const
+  })
 }
 
 export function dispatchSessionRepositoryQuery(
@@ -188,13 +204,16 @@ export function dispatchSessionQuery(
   caller: LocalSessionCallerIdentity,
   payload: Extract<LocalSessionCommandPayload, { contract: 'session-query-v2' }>,
   signal?: AbortSignal,
+  resolveLiveCaller?: () => Promise<LocalSessionCallerIdentity>,
 ) {
-  if (payload.request.query.operation === 'requests-list') return listRequests(caller, payload)
+  if (payload.request.query.operation === 'requests-list') {
+    return dispatchSessionRequestsListQuery(caller, payload)
+  }
   if (
     payload.request.query.operation === 'wait' ||
     payload.request.query.operation === 'exports-wait'
   ) {
-    return dispatchSessionWaitQuery(caller, payload, signal)
+    return dispatchSessionWaitQuery(caller, payload, signal, resolveLiveCaller)
   }
   return dispatchSessionRepositoryQuery(caller, payload, signal)
 }

@@ -109,7 +109,11 @@ export async function launchGui(
   env: Record<string, string>,
   args: readonly string[] = [],
 ) {
-  const child = spawn(executable, [...args], { env, stdio: ['ignore', 'pipe', 'pipe'] })
+  const child = spawn(executable, [...args], {
+    detached: process.platform !== 'win32',
+    env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
   let logs = ''
   child.stdout?.on('data', (chunk) => {
     logs = appendBoundedLog(logs, chunk)

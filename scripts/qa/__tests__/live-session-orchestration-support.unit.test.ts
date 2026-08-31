@@ -7,12 +7,22 @@ import {
   launchGui,
   runProcess,
   selectPackagedExecutable,
+  stopChild,
   waitForHost,
 } from '../live-session-orchestration-support'
 import {
   transcriptInvokedSessionsSpawn,
   transcriptInvokedSkill,
 } from '../live-session-transcript-evidence'
+import {
+  forceStopProcessTree,
+  type ProcessIdentity,
+  processExists,
+  processGroupExists,
+  processTreeScript,
+  waitForExit,
+  waitForProcessIdentity,
+} from './process-tree-test-support'
 
 describe('live Session orchestration support', () => {
   let workingDirectory: string | undefined
@@ -59,29 +69,66 @@ describe('live Session orchestration support', () => {
     await expect(launchGui(missingExecutable, {})).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
-  it('bounds a hanging CLI probe and terminates its descendant process', async () => {
-    workingDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-live-qa-timeout-'))
-    const descendantMarker = path.join(workingDirectory, 'descendant-survived')
-    const descendantScript = [
-      `const fs = require('node:fs')`,
-      `setTimeout(() => fs.writeFileSync(${JSON.stringify(descendantMarker)}, 'alive'), 1200)`,
-      `setInterval(() => undefined, 1000)`,
-    ].join(';')
-    const parentScript = [
-      `const { spawn } = require('node:child_process')`,
-      `spawn(${JSON.stringify(process.execPath)}, ['-e', ${JSON.stringify(descendantScript)}], { stdio: 'ignore' })`,
-      `setInterval(() => undefined, 1000)`,
-    ].join(';')
-    const startedAt = Date.now()
+  it.skipIf(process.platform === 'win32')(
+    'stops an isolated POSIX GUI process group after its root already exited',
+    async () => {
+      workingDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-live-qa-gui-tree-'))
+      const readinessPath = path.join(workingDirectory, 'process-identity.json')
+      let identity: ProcessIdentity | undefined
+      let cleanupProven = false
+      try {
+        const gui = await launchGui(
+          process.execPath,
+          {},
+          ['-e', processTreeScript(readinessPath, true)],
+        )
+        identity = await waitForProcessIdentity(readinessPath)
+        await waitForExit(gui.child)
 
-    await expect(
-      runProcess(process.execPath, ['-e', parentScript], {}, { timeoutMs: 500 }),
-    ).rejects.toThrow('timed out after 500ms')
+        expect(processExists(identity.descendantPid)).toBe(true)
+        expect(processGroupExists(identity.processGroupId)).toBe(true)
 
-    expect(Date.now() - startedAt).toBeLessThan(2_500)
-    await new Promise((resolve) => setTimeout(resolve, 1_000))
-    await expect(fs.access(descendantMarker)).rejects.toThrow()
-  })
+        await stopChild(gui.child)
+
+        expect(processExists(identity.descendantPid)).toBe(false)
+        expect(processGroupExists(identity.processGroupId)).toBe(false)
+        cleanupProven = true
+      } finally {
+        if (!cleanupProven) forceStopProcessTree(identity)
+      }
+    },
+  )
+
+  it.skipIf(process.platform === 'win32')(
+    'bounds a hanging CLI probe and proves its process group exited',
+    async () => {
+      workingDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-live-qa-timeout-'))
+      const readinessPath = path.join(workingDirectory, 'process-identity.json')
+      const processResult = runProcess(
+        process.execPath,
+        ['-e', processTreeScript(readinessPath, false)],
+        {},
+        { timeoutMs: 1_000 },
+      )
+      const rejection = expect(processResult).rejects.toThrow('timed out after 1000ms')
+      let identity: ProcessIdentity | undefined
+      let cleanupProven = false
+      try {
+        identity = await waitForProcessIdentity(readinessPath)
+        expect(processExists(identity.descendantPid)).toBe(true)
+        expect(processGroupExists(identity.processGroupId)).toBe(true)
+
+        await rejection
+
+        expect(processExists(identity.descendantPid)).toBe(false)
+        expect(processGroupExists(identity.processGroupId)).toBe(false)
+        cleanupProven = true
+      } finally {
+        await processResult.catch(() => undefined)
+        if (!cleanupProven) forceStopProcessTree(identity)
+      }
+    },
+  )
 
   it('bounds each Host-readiness probe by the remaining startup deadline', async () => {
     let now = 1_000

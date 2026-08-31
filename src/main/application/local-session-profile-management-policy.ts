@@ -53,6 +53,26 @@ export function profileManagementRejectionReason(
   caller: LocalSessionCallerIdentity,
   command: LocalSessionProfileManagementCommand,
 ) {
+  const eligibilityReason = profileManagementEligibilityRejectionReason(caller, command)
+  if (eligibilityReason) return eligibilityReason
+  const authority = caller.profileAuthority
+  if (
+    !authority ||
+    command.operation === 'list' ||
+    command.operation === 'rotate' ||
+    command.operation === 'revoke'
+  ) {
+    return undefined
+  }
+  const envelope = authority.managementEnvelope
+  if (!envelope) return 'management_envelope_missing'
+  return policySubset(envelope, command) ? undefined : 'management_envelope_exceeded'
+}
+
+export function profileManagementEligibilityRejectionReason(
+  caller: LocalSessionCallerIdentity,
+  command: LocalSessionProfileManagementCommand,
+) {
   const authority = caller.profileAuthority
   if (!authority) return undefined
   const ownsTarget = 'profileName' in command && command.profileName === authority.profileName
@@ -66,9 +86,7 @@ export function profileManagementRejectionReason(
   if (command.capabilities.includes('access:profiles') || command.managementEnvelope) {
     return 'profile_redelegation_requires_local_user'
   }
-  return policySubset(authority.managementEnvelope, command)
-    ? undefined
-    : 'management_envelope_exceeded'
+  return undefined
 }
 
 export function profileManagementRejection(

@@ -6,6 +6,11 @@ export interface LocalSessionMutationAdmission {
   readonly release: () => void
 }
 
+export interface LocalSessionObservationAdmission extends LocalSessionMutationAdmission {
+  readonly refreshCaller: () => Promise<LocalSessionCallerIdentity>
+  readonly signal?: AbortSignal
+}
+
 export function acquireLocalSessionMutationAdmission(
   input: {
     readonly mutationAdmission?: () => Promise<LocalSessionMutationAdmission>
@@ -18,4 +23,22 @@ export function acquireLocalSessionMutationAdmission(
         catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
       })
     : Effect.succeed({ caller, release: () => undefined })
+}
+
+export function acquireLocalSessionObservationAdmission(
+  input: {
+    readonly observationAdmission?: () => Promise<LocalSessionObservationAdmission>
+  },
+  caller: LocalSessionCallerIdentity,
+): Effect.Effect<LocalSessionObservationAdmission, Error> {
+  return input.observationAdmission
+    ? Effect.tryPromise({
+        try: input.observationAdmission,
+        catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
+      })
+    : Effect.succeed({
+        caller,
+        refreshCaller: () => Promise.resolve(caller),
+        release: () => undefined,
+      })
 }

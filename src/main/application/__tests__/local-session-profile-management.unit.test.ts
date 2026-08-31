@@ -1,6 +1,8 @@
+import fs from 'node:fs/promises'
+import { LOCAL_SESSION_PROFILE_SCOPE_ENTRY_LIMIT } from '@shared/types/local-session-profile'
 import { LOCAL_SESSION_PROFILE_MANAGEMENT_CONTRACT_VERSION } from '@shared/types/local-session-profile-management'
 import * as Effect from 'effect/Effect'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { verifyProfileCredential } from '../../session-host/profile-credential'
 import { manageLocalSessionProfiles } from '../local-session-profile-management'
 import {
@@ -38,6 +40,44 @@ const WORKER_PROFILE = {
 }
 
 describe('Local Session profile management', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('rejects ineligible oversized repeated roots without filesystem work', async () => {
+    const realpath = vi.spyOn(fs, 'realpath')
+    const executeManagement = vi.fn()
+    const paths = Array.from(
+      { length: LOCAL_SESSION_PROFILE_SCOPE_ENTRY_LIMIT + 1 },
+      () => '/attacker-controlled-root',
+    )
+    const response = await Effect.runPromise(
+      manageLocalSessionProfiles({
+        caller: {
+          callerId: 'profile:reader',
+          profileAuthority: {
+            profileId: 'reader',
+            profileName: 'reader',
+            capabilities: ['sessions:read'],
+            scope: { all: true },
+            authorizationCeiling: 'ask-for-approval',
+          },
+        },
+        request: profileManagementRequest({
+          operation: 'create',
+          name: 'worker',
+          credential: 'A'.repeat(43),
+          capabilities: ['sessions:read'],
+          scope: { projectPaths: paths },
+          authorizationCeiling: 'ask-for-approval',
+        }),
+        now: 1,
+      }).pipe(Effect.provide(localSessionProfileManagementTestLayer(executeManagement))),
+    )
+
+    expect(response.outcome).toMatchObject({ effect: 'rejected', code: 'missing_access_profiles' })
+    expect(realpath).not.toHaveBeenCalled()
+    expect(executeManagement).not.toHaveBeenCalled()
+  })
+
   it('isolates concurrent verifier work for distinct targets sharing an idempotency key', async () => {
     const prepared = new Map<string, string>()
     const executeManagement = vi.fn(async (input) => {

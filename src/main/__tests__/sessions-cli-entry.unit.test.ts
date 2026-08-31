@@ -46,7 +46,7 @@ describe('Sessions CLI Electron entrypoint errors', () => {
     const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
 
     expect(startSessionsCliIfRequested(args)).toBe(true)
-    await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(1))
+    await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(8))
 
     expect(stderr).toHaveBeenCalledWith(expected)
     stderr.mockRestore()

@@ -23,9 +23,6 @@ interface StopChildDependencies {
   readonly waitForExit?: (child: StoppableChild, timeoutMs: number) => Promise<boolean>
   readonly terminateWindowsTree?: (pid: number, force: boolean) => Promise<void>
   readonly verifyWindowsTreeExit?: (pid: number) => Promise<boolean>
-}
-
-interface StopProcessTreeDependencies extends StopChildDependencies {
   readonly signalPosixTree?: (pid: number, signal: NodeJS.Signals) => void
   readonly waitForPosixTreeExit?: (pid: number, timeoutMs: number) => Promise<boolean>
 }
@@ -186,34 +183,46 @@ async function stopWindowsChild(
   )
 }
 
+async function stopPosixProcessTree(
+  child: StoppableChild,
+  signalTree: (pid: number, signal: NodeJS.Signals) => void,
+  waitForTreeExit: (pid: number, timeoutMs: number) => Promise<boolean>,
+) {
+  if (child.pid === undefined) {
+    throw new Error('Cannot terminate POSIX process tree without a PID.')
+  }
+  signalTree(child.pid, 'SIGTERM')
+  if (await waitForTreeExit(child.pid, STOP_TIMEOUT_MS)) return
+  signalTree(child.pid, 'SIGKILL')
+  if (await waitForTreeExit(child.pid, STOP_TIMEOUT_MS)) return
+  throw new Error(`Could not prove process tree ${String(child.pid)} exited.`)
+}
+
 export async function stopChild(
   child: StoppableChild,
   dependencies: StopChildDependencies = {},
 ) {
-  const waitForExit = dependencies.waitForExit ?? waitForChildExit
   const platform = dependencies.platform ?? process.platform
 
   if (platform === 'win32') {
     await stopWindowsChild(
       child,
-      waitForExit,
+      dependencies.waitForExit ?? waitForChildExit,
       dependencies.terminateWindowsTree ?? terminateWindowsProcessTree,
       dependencies.verifyWindowsTreeExit ?? verifyWindowsProcessTreeExit,
     )
     return
   }
-  if (childExited(child)) return
-
-  child.kill('SIGTERM')
-  if (await waitForExit(child, STOP_TIMEOUT_MS)) return
-  child.kill('SIGKILL')
-  if (await waitForExit(child, STOP_TIMEOUT_MS)) return
-  throw new Error(`Could not prove GUI process ${String(child.pid ?? 'unknown')} exited.`)
+  await stopPosixProcessTree(
+    child,
+    dependencies.signalPosixTree ?? signalPosixProcessTree,
+    dependencies.waitForPosixTreeExit ?? waitForPosixProcessTreeExit,
+  )
 }
 
 export async function stopProcessTree(
   child: StoppableChild,
-  dependencies: StopProcessTreeDependencies = {},
+  dependencies: StopChildDependencies = {},
 ) {
   const platform = dependencies.platform ?? process.platform
   if (platform === 'win32') {
@@ -225,14 +234,9 @@ export async function stopProcessTree(
     )
     return
   }
-  if (child.pid === undefined) {
-    throw new Error('Cannot terminate POSIX process tree without a PID.')
-  }
-  const signalTree = dependencies.signalPosixTree ?? signalPosixProcessTree
-  const waitForTreeExit = dependencies.waitForPosixTreeExit ?? waitForPosixProcessTreeExit
-  signalTree(child.pid, 'SIGTERM')
-  if (await waitForTreeExit(child.pid, STOP_TIMEOUT_MS)) return
-  signalTree(child.pid, 'SIGKILL')
-  if (await waitForTreeExit(child.pid, STOP_TIMEOUT_MS)) return
-  throw new Error(`Could not prove process tree ${String(child.pid)} exited.`)
+  await stopPosixProcessTree(
+    child,
+    dependencies.signalPosixTree ?? signalPosixProcessTree,
+    dependencies.waitForPosixTreeExit ?? waitForPosixProcessTreeExit,
+  )
 }

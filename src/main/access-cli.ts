@@ -5,6 +5,7 @@ import {
   type LocalSessionProfileManagementCommand,
 } from '@shared/types/local-session-profile-management'
 import { app } from 'electron'
+import { commitAcceptedProfileCredential } from './access-cli-credential-settlement'
 import { validateAccessCliOptions } from './access-cli-option-contract'
 import { parseProfilePolicy } from './access-cli-policy'
 import { writeCliStdout } from './cli-stdout'
@@ -173,13 +174,19 @@ async function finalizeProfileResponse(input: {
   readonly staged?: StagedProfileCredential
   readonly stateRoot: string
   readonly json: boolean
+  readonly idempotencyKey: string
 }) {
   if (input.response.outcome.effect === 'rejected') {
     await input.staged?.discard()
     await writeOutput(input.response, input.json)
     return EXIT.FAILURE
   }
-  await input.staged?.commit()
+  const staged = input.staged
+  await commitAcceptedProfileCredential({
+    response: input.response,
+    commit: staged ? () => staged.commit() : undefined,
+    idempotencyKey: input.idempotencyKey,
+  })
   if (input.response.outcome.effect === 'profile-revoked') {
     await removeStoredProfileCredential({
       stateRoot: input.stateRoot,
@@ -219,11 +226,12 @@ async function executeProfileOperation(input: {
       staged,
     })
     accepted = true
-    return finalizeProfileResponse({
+    return await finalizeProfileResponse({
       response,
       staged,
       stateRoot: paths.stateRoot,
       json: hasFlag(arguments_, 'json'),
+      idempotencyKey,
     })
   } catch (error) {
     if (

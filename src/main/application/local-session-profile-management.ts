@@ -16,6 +16,7 @@ import {
   releaseLocalSessionProfileBackgroundWorkFence,
 } from './local-session-profile-background-work'
 import {
+  profileManagementEligibilityRejectionReason,
   profileManagementRejection,
   profileManagementRejectionReason,
   profileManagementTargetName,
@@ -74,6 +75,17 @@ export function manageLocalSessionProfiles(input: {
   readonly now: number
 }) {
   return Effect.gen(function* () {
+    const eligibilityReason = profileManagementEligibilityRejectionReason(
+      input.caller,
+      input.request.command,
+    )
+    if (eligibilityReason) {
+      return profileManagementRejection(
+        input.request,
+        eligibilityReason,
+        profileManagementTargetName(input.request.command),
+      )
+    }
     const command = yield* canonicalizeLocalSessionProfilePolicyCommand(input.request.command)
     const request = { ...input.request, command }
     const reason = profileManagementRejectionReason(input.caller, command)

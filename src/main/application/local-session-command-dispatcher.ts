@@ -25,14 +25,16 @@ import {
 import { authorizeTargetForCaller } from './local-session-derived-authority'
 import {
   acquireLocalSessionMutationAdmission,
+  acquireLocalSessionObservationAdmission,
   type LocalSessionMutationAdmission,
+  type LocalSessionObservationAdmission,
 } from './local-session-mutation-admission'
 import {
   dispatchOwnerLocalSessionCommand,
   isLocallyHandledCommand,
 } from './local-session-owned-command'
 import { manageLocalSessionProfiles } from './local-session-profile-management'
-import { dispatchSessionQuery } from './local-session-query-dispatcher'
+import { dispatchSessionQuery, dispatchSessionWaitQuery } from './local-session-query-dispatcher'
 import {
   executeLocalUiSessionCommand,
   prepareLocalGuiAttachments,
@@ -134,6 +136,7 @@ export function dispatchNonHostUiLocalSessionCommand(input: {
   readonly payload: NonHostUiLocalSessionCommandPayload
   readonly signal?: AbortSignal
   readonly mutationAdmission?: () => Promise<LocalSessionMutationAdmission>
+  readonly observationAdmission?: () => Promise<LocalSessionObservationAdmission>
 }) {
   const commandPayload = input.payload
   const ownerLocal = dispatchOwnerLocalSessionCommand(input)
@@ -171,7 +174,17 @@ export function dispatchNonHostUiLocalSessionCommand(input: {
     }
 
     if (payload.contract === 'session-query-v2') {
-      return yield* dispatchSessionQuery(caller, payload, input.signal)
+      const query = payload.request.query
+      if (query.operation !== 'wait' && query.operation !== 'exports-wait') {
+        return yield* dispatchSessionQuery(caller, payload, input.signal)
+      }
+      const admission = yield* acquireLocalSessionObservationAdmission(input, caller)
+      return yield* dispatchSessionWaitQuery(
+        admission.caller,
+        payload,
+        admission.signal ?? input.signal,
+        admission.refreshCaller,
+      ).pipe(Effect.ensuring(Effect.sync(admission.release)))
     }
 
     const admission = yield* acquireLocalSessionMutationAdmission(input, caller)

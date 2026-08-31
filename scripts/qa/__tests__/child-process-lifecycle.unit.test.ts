@@ -90,11 +90,16 @@ describe('QA child-process lifecycle', () => {
   })
 
   it('fails closed when forced termination cannot prove process exit', async () => {
+    const signalPosixTree = vi.fn()
     await expect(
       stopChild(new FakeChild(43), {
         platform: 'linux',
-        waitForExit: async () => false,
+        signalPosixTree,
+        waitForPosixTreeExit: async () => false,
       }),
-    ).rejects.toThrow('Could not prove GUI process 43 exited')
+    ).rejects.toThrow('Could not prove process tree 43 exited')
+
+    expect(signalPosixTree).toHaveBeenNthCalledWith(1, 43, 'SIGTERM')
+    expect(signalPosixTree).toHaveBeenNthCalledWith(2, 43, 'SIGKILL')
   })
 })
