@@ -1,8 +1,10 @@
 import { SessionId, WorkingPath } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import type { SessionResource } from '@shared/types/session-resource'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { Button } from '@/shared/ui/Button'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 import { useSessionSummaryUIStore } from '../../state/session-summary-ui-store'
 import { SessionSummaryHub } from '../SessionSummaryHub'
@@ -90,30 +92,41 @@ function resource(overrides: Partial<SessionResource>): SessionResource {
   }
 }
 
-function renderHub(
-  props: {
-    readonly activeSession?: SessionDetail | null
-    readonly messageCount?: number
-    readonly autoHidden?: boolean
-    readonly rightSidebarOpen?: boolean
-  } = {},
-) {
-  return renderWithQueryClient(
-    <SessionSummaryHub
-      key={props.activeSession?.id ?? 'none'}
-      input={{
-        session: props.activeSession === undefined ? session() : props.activeSession,
-        messageCount: props.messageCount ?? 1,
-        autoHidden: props.autoHidden ?? false,
-        rightSidebarOpen: props.rightSidebarOpen ?? false,
-        onOpenDiff: vi.fn(),
-        onOpenResources: vi.fn(),
-        onNavigateSession: vi.fn(),
-        extensionRegistry: null,
-        extensionProjectPaths: ['/project'],
-      }}
-    />,
+type HubProps = {
+  readonly activeSession?: SessionDetail | null
+  readonly messageCount?: number
+  readonly autoHidden?: boolean
+  readonly rightSidebarOpen?: boolean
+}
+
+function hubElement(props: HubProps = {}, includeHeaderToggle = false) {
+  return (
+    <>
+      {includeHeaderToggle ? (
+        <Button id="session-summary-session-1-toggle" type="button">
+          Session Summary toggle
+        </Button>
+      ) : null}
+      <SessionSummaryHub
+        key={props.activeSession?.id ?? 'none'}
+        input={{
+          session: props.activeSession === undefined ? session() : props.activeSession,
+          messageCount: props.messageCount ?? 1,
+          autoHidden: props.autoHidden ?? false,
+          rightSidebarOpen: props.rightSidebarOpen ?? false,
+          onOpenDiff: vi.fn(),
+          onOpenResources: vi.fn(),
+          onNavigateSession: vi.fn(),
+          extensionRegistry: null,
+          extensionProjectPaths: ['/project'],
+        }}
+      />
+    </>
   )
+}
+
+function renderHub(props: HubProps = {}, includeHeaderToggle = false) {
+  return renderWithQueryClient(hubElement(props, includeHeaderToggle))
 }
 
 describe('SessionSummaryHub', () => {
@@ -166,6 +179,21 @@ describe('SessionSummaryHub', () => {
     renderHub({ rightSidebarOpen: true })
 
     expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
+  })
+
+  it('restores focus to the header toggle when suppression hides the focused panel', async () => {
+    const view = renderHub({}, true)
+    const changes = screen.getByRole('button', { name: /Changes/ })
+    changes.focus()
+    expect(changes).toHaveFocus()
+
+    view.rerender(
+      <QueryClientProvider client={view.client}>
+        {hubElement({ rightSidebarOpen: true }, true)}
+      </QueryClientProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByText('Session Summary toggle')).toHaveFocus())
   })
 
   it('shows only resources returned for the opened session', async () => {

@@ -2,7 +2,7 @@ import { match } from '@diegogbrisa/ts-match'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { GitStackedAction } from '@shared/types/git'
 import type { SessionDetail } from '@shared/types/session'
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   CommitMessageDialog,
   resolveQuickAction,
@@ -101,13 +101,45 @@ function panelIsVisible(
   sessionId: string,
 ) {
   if (!panel) {
-    return readExpanded(sessionId, 'panel', true) && !input.autoHidden && !input.rightSidebarOpen
+    return (
+      input.messageCount > 0 &&
+      readExpanded(sessionId, 'panel', true) &&
+      !input.autoHidden &&
+      !input.rightSidebarOpen
+    )
   }
   return isSessionSummaryPanelVisible(panel, {
     available: input.messageCount > 0,
     autoHidden: input.autoHidden,
     rightSidebarOpen: input.rightSidebarOpen,
   })
+}
+
+function useRestoreFocusWhenPanelHides(panelId: string, panelVisible: boolean) {
+  const panelHadFocus = useRef(false)
+
+  useLayoutEffect(() => {
+    if (!panelVisible) return
+    const panel = document.getElementById(panelId)
+    if (!panel) return
+
+    panelHadFocus.current = panel.contains(document.activeElement)
+    const rememberPanelFocus = () => {
+      panelHadFocus.current = true
+    }
+    panel.addEventListener('focusin', rememberPanelFocus)
+
+    return () => {
+      panel.removeEventListener('focusin', rememberPanelFocus)
+      const activeElement = document.activeElement
+      const focusNeedsRestoring =
+        panelHadFocus.current &&
+        (!activeElement || activeElement === document.body || panel.contains(activeElement))
+      panelHadFocus.current = false
+      if (!focusNeedsRestoring) return
+      queueMicrotask(() => document.getElementById(`${panelId}-toggle`)?.focus())
+    }
+  }, [panelId, panelVisible])
 }
 
 export function SessionSummaryHub({ input }: { readonly input: SessionSummaryHubInput }) {
@@ -146,10 +178,10 @@ export function SessionSummaryHub({ input }: { readonly input: SessionSummaryHub
   })
   const quickAction = resolveQuickAction(combined.status, stackedActions.isRunning)
   const resources = useSessionResources(session ? sessionId : null)
+  const panelVisible = panelIsVisible(input, panelState, sessionId)
+  useRestoreFocusWhenPanelHides(panelId, panelVisible)
 
   if (!session || messageCount === 0) return null
-
-  const panelVisible = panelIsVisible(input, panelState, sessionId)
 
   const closePanelAndRestoreFocus = () => {
     closePanel(sessionId)

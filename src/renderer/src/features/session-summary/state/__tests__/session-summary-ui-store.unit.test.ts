@@ -93,6 +93,25 @@ describe('session-summary-ui-store', () => {
     ).toBe(false)
   })
 
+  it('restores a narrow-width open request after sidebar suppression ends', () => {
+    const store = useSessionSummaryUIStore.getState()
+    const narrowContext = { ...WIDE_CONTEXT, autoHidden: true }
+    store.syncPanel('session-a', narrowContext)
+    store.closePanel('session-a')
+    store.syncPanel('session-a', { ...narrowContext, rightSidebarOpen: true })
+
+    store.togglePanel('session-a')
+
+    expect(useSessionSummaryUIStore.getState().panels['session-a']).toMatchObject({
+      expanded: true,
+      forcedOpen: true,
+    })
+    store.syncPanel('session-a', narrowContext)
+    expect(
+      isSessionSummaryPanelVisible(useSessionSummaryUIStore.getState().panels['session-a']),
+    ).toBe(true)
+  })
+
   it('keeps controls usable when localStorage access fails', () => {
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
       throw new Error('storage unavailable')

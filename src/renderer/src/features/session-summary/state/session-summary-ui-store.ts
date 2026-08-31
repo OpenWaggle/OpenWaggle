@@ -126,7 +126,7 @@ export const useSessionSummaryUIStore = create<SessionSummaryUIState>((set, get)
         [sessionId]: {
           ...current,
           expanded: true,
-          forcedOpen: current.autoHidden && !current.rightSidebarOpen,
+          forcedOpen: current.autoHidden,
         },
       },
     }))

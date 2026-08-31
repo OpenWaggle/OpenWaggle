@@ -102,12 +102,34 @@ test('Session Summary follows first-message, dock, and sidebar behavior', async 
     await focusedSummaryToggle.click()
     await expect(summary).toBeVisible()
 
-    await page.getByRole('button', { name: 'Toggle diff panel' }).click()
+    const changesAction = summary.getByRole('button', { name: /Changes/ })
+    await changesAction.focus()
+    await changesAction.press('Enter')
     await expect(summary).toHaveCount(0)
-    await expect(
-      page.locator('header').getByRole('button', { name: 'Hide Session Summary' }),
-    ).toBeVisible()
-    await page.locator('header').getByRole('button', { name: 'Hide Session Summary' }).click()
+    const suppressedSummaryToggle = page
+      .locator('header')
+      .getByRole('button', { name: 'Hide Session Summary' })
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const activeElement = document.activeElement
+          const summaryToggle = document.querySelector(
+            '[data-qa="header-actions"] button[aria-label$="Session Summary"]',
+          )
+          const rightSidebar = document.querySelector(
+            '[data-right-sidebar-shell="true"]',
+          )
+
+          return Boolean(
+            activeElement &&
+              activeElement !== document.body &&
+              (activeElement === summaryToggle ||
+                rightSidebar?.contains(activeElement)),
+          )
+        }),
+      )
+      .toBe(true)
+    await suppressedSummaryToggle.click()
     await page.getByRole('button', { name: 'Close diff sidebar' }).click()
     await expect(summary).toHaveCount(0)
     await expect
@@ -120,8 +142,12 @@ test('Session Summary follows first-message, dock, and sidebar behavior', async 
     await page.locator('header').getByRole('button', { name: 'Open Session Summary' }).click()
     await expect(summary).toBeVisible()
 
+    await summary.getByRole('button', { name: 'Collapse Session Summary' }).focus()
     await app.resizeMainWindow(720, 700)
     await expect(summary).toHaveCount(0)
+    await expect(
+      page.locator('header').getByRole('button', { name: 'Open Session Summary' }),
+    ).toBeFocused()
     const narrowTranscriptWidth = await transcript.evaluate(
       (element) => element.getBoundingClientRect().width,
     )
@@ -131,6 +157,11 @@ test('Session Summary follows first-message, dock, and sidebar behavior', async 
       (element) => element.getBoundingClientRect().width,
     )
     expect(Math.abs(narrowTranscriptWidth - narrowOverlayTranscriptWidth)).toBeLessThan(1)
+
+    await summary.getByRole('button', { name: /Changes/ }).click()
+    await expect(summary).toHaveCount(0)
+    await page.getByRole('button', { name: 'Close diff sidebar' }).click()
+    await expect(summary).toBeVisible()
   } finally {
     await app.cleanup()
   }
