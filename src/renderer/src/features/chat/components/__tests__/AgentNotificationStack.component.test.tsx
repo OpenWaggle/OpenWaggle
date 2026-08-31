@@ -164,6 +164,37 @@ describe('AgentNotificationStack', () => {
     expect(screen.queryByText(/^n1$/)).not.toBeInTheDocument()
   })
 
+  it('keeps the overflow control focused so a keyboard user can collapse the stack', () => {
+    render(
+      <AgentNotificationStack
+        events={[
+          notice({ id: 'e1', level: 'error', timestamp: 4 }),
+          notice({ id: 'e2', level: 'error', timestamp: 3 }),
+          notice({ id: 'e3', level: 'error', timestamp: 2 }),
+          notice({ id: 'e4', level: 'error', timestamp: 1 }),
+        ]}
+      />,
+    )
+    const stack = screen.getByLabelText('Agent notifications')
+    const expand = within(stack).getByRole('button', { name: '1 more behind' })
+    expand.focus()
+
+    fireEvent.click(expand, { detail: 0 })
+
+    const collapse = within(stack).getByRole('button', { name: 'Show fewer notices' })
+    expect(collapse).toHaveAttribute('aria-expanded', 'true')
+    expect(collapse).toHaveFocus()
+    expect(within(stack).getByText(/^e4$/)).toBeInTheDocument()
+
+    fireEvent.click(collapse, { detail: 0 })
+
+    expect(within(stack).getByRole('button', { name: '1 more behind' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+    expect(within(stack).queryByText(/^e4$/)).not.toBeInTheDocument()
+  })
+
   it('fronts an error even when informational notices arrived later', () => {
     render(
       <AgentNotificationStack

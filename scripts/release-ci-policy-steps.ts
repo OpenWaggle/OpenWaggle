@@ -61,6 +61,7 @@ const NODE_SETUP_STEP = `      - uses: ${ACTION_SETUP_NODE}
           node-version: 24.14.0
           cache: pnpm`
 const INSTALL_STEP = '      - run: pnpm install --frozen-lockfile'
+const SYNTAX_BENCHMARK_STEP = '      - run: pnpm benchmark:syntax'
 const e2eFailureArtifactStep = (platform: 'linux' | 'macos' | 'windows') =>
   `      - name: Upload Electron E2E failure artifacts
         if: failure()
@@ -132,6 +133,7 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
       PNPM_SETUP_STEP,
       NODE_SETUP_STEP,
       INSTALL_STEP,
+      SYNTAX_BENCHMARK_STEP,
       '      - run: pnpm test:e2e',
       e2eFailureArtifactStep('macos'),
     ],

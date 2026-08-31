@@ -2,17 +2,88 @@ import { WORKSPACE_FILES } from '@shared/constants/resource-limits'
 import { useQuery } from '@tanstack/react-query'
 import { Search, TextSearch } from 'lucide-react'
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
-import { usePreferencesStore } from '@/features/settings/state'
+import { useActiveWorkingPath } from '@/features/git/hooks'
 import { workspaceContentQueryOptions } from '@/queries/workspace-files'
 import { projectName } from '@/shared/lib/format'
 import { api } from '@/shared/lib/ipc'
+import { languageFromPath } from '@/shared/lib/syntax/language-registry'
 import { Button } from '@/shared/ui/Button'
 import { CommandDialog } from '@/shared/ui/CommandDialog'
+import { SyntaxBlock } from '@/shared/ui/SyntaxBlock'
 import { TextInput } from '@/shared/ui/TextInput'
 import { useUIStore } from '@/shell/ui-store'
 import { useOpenWorkspaceFile } from '../hooks'
+import { workspaceLanguageAssociation } from '../lib/workspace-language-associations'
 
 const CONTENT_SEARCH_DEBOUNCE_MS = 200
+const CONTENT_SEARCH_FOOTER = (
+  <>
+    <span>↑↓ navigate</span>
+    <span>↵ open line</span>
+    <span>esc close</span>
+  </>
+)
+
+function SearchSyntaxSnippet({
+  path,
+  lineText,
+  matchStart,
+  matchLength,
+  projectIdentity,
+}: {
+  readonly path: string
+  readonly lineText: string
+  readonly matchStart: number
+  readonly matchLength: number
+  readonly projectIdentity: string
+}) {
+  const containerRef = useRef<HTMLSpanElement | null>(null)
+  const [nearViewport, setNearViewport] = useState(false)
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    if (typeof IntersectionObserver === 'undefined') {
+      setNearViewport(true)
+      return
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setNearViewport(true)
+          observer.disconnect()
+        }
+      },
+      { rootMargin: '200px 0px' },
+    )
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [])
+  return (
+    <span ref={containerRef} className="relative mt-0.5 block min-w-0 overflow-hidden">
+      {nearViewport ? (
+        <SyntaxBlock
+          source={lineText}
+          language={
+            workspaceLanguageAssociation(window.localStorage, projectIdentity, path) ??
+            languageFromPath(path)
+          }
+          priority="near-viewport"
+          ariaLabel={`Matching source from ${path}`}
+          className="overflow-hidden rounded-none bg-transparent p-0 text-xs leading-5 text-text-tertiary"
+        />
+      ) : (
+        <span className="block truncate font-mono text-xs leading-5 text-text-tertiary">
+          {lineText}
+        </span>
+      )}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute top-0 h-5 rounded-sm bg-accent/25 ring-1 ring-accent/35"
+        style={{ left: `${String(matchStart)}ch`, width: `${String(Math.max(1, matchLength))}ch` }}
+      />
+    </span>
+  )
+}
 
 function useDebouncedContentQuery(query: string) {
   const [settledQuery, setSettledQuery] = useState(query)
@@ -37,8 +108,18 @@ function useCancelProjectContentSearch(projectPath: string | null, query: string
   }, [projectPath])
 }
 
+function chooseContentMatch(
+  close: () => void,
+  openWorkspaceFile: (path: string, line: number) => void,
+  path: string,
+  line: number,
+) {
+  close()
+  openWorkspaceFile(path, line)
+}
+
 export function ProjectContentSearch() {
-  const projectPath = usePreferencesStore((state) => state.settings.projectPath)
+  const projectPath = useActiveWorkingPath()
   const close = useUIStore((state) => state.closeCommandSurface)
   const openWorkspaceFile = useOpenWorkspaceFile()
   const [query, setQuery] = useState('')
@@ -57,11 +138,6 @@ export function ProjectContentSearch() {
     if (boundedSelectedIndex < 0) return
     selectedRowRef.current?.scrollIntoView({ block: 'nearest' })
   }, [boundedSelectedIndex])
-
-  function choose(path: string, line: number) {
-    close()
-    openWorkspaceFile(path, line)
-  }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === 'Escape') {
@@ -84,7 +160,9 @@ export function ProjectContentSearch() {
     if (event.key === 'Enter') {
       event.preventDefault()
       const selected = matches[boundedSelectedIndex]
-      if (selected) choose(selected.path, selected.lineNumber)
+      if (selected) {
+        chooseContentMatch(close, openWorkspaceFile, selected.path, selected.lineNumber)
+      }
     }
   }
 
@@ -93,13 +171,7 @@ export function ProjectContentSearch() {
       title="Search project contents"
       description={projectPath ? projectName(projectPath) : 'No active project'}
       onClose={close}
-      footer={
-        <>
-          <span>↑↓ navigate</span>
-          <span>↵ open line</span>
-          <span>esc close</span>
-        </>
-      }
+      footer={CONTENT_SEARCH_FOOTER}
     >
       <div className="flex items-center gap-2 border-b border-border px-3">
         <Search className="size-4 shrink-0 text-text-muted" />
@@ -135,7 +207,9 @@ export function ProjectContentSearch() {
               ref={index === boundedSelectedIndex ? selectedRowRef : undefined}
               variant="unstyled"
               onMouseMove={() => setSelectedIndex(index)}
-              onClick={() => choose(match.path, match.lineNumber)}
+              onClick={() =>
+                chooseContentMatch(close, openWorkspaceFile, match.path, match.lineNumber)
+              }
               className={`flex w-full items-start gap-3 rounded-md px-3 py-2 text-left ${
                 index === boundedSelectedIndex ? 'bg-bg-hover' : 'hover:bg-bg-hover/70'
               }`}
@@ -148,9 +222,15 @@ export function ProjectContentSearch() {
                   </span>
                   <span className="font-mono text-xs text-accent">:{match.lineNumber}</span>
                 </span>
-                <span className="mt-0.5 block truncate font-mono text-xs text-text-tertiary">
-                  {match.lineText}
-                </span>
+                {projectPath ? (
+                  <SearchSyntaxSnippet
+                    path={match.path}
+                    lineText={match.lineText}
+                    matchStart={match.matchStart}
+                    matchLength={match.matchLength}
+                    projectIdentity={projectPath}
+                  />
+                ) : null}
               </span>
             </Button>
           ))

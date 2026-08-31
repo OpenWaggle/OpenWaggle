@@ -49,15 +49,19 @@ function collectSourceCssVariableNames(): string[] {
 }
 
 describe('createOpenWaggleExtensionTheme', () => {
-  it('supports dark and light colour schemes', () => {
+  it('supports the four standard colour-scheme variants', () => {
     const theme = createOpenWaggleExtensionTheme()
     expect(theme.colorScheme).toBe('dark')
 
-    expect(
-      isOpenWaggleExtensionTheme(
-        fromAny<unknown, { colorScheme: 'light' }>({ ...theme, colorScheme: 'light' }),
-      ),
-    ).toBe(true)
+    for (const colorScheme of [
+      'light',
+      'dark',
+      'high-contrast-light',
+      'high-contrast-dark',
+    ] as const) {
+      expect(isOpenWaggleExtensionTheme({ ...theme, colorScheme })).toBe(true)
+      expect(createOpenWaggleExtensionTheme({ colorScheme }).colorScheme).toBe(colorScheme)
+    }
     expect(
       isOpenWaggleExtensionTheme(
         fromAny<unknown, { colorScheme: 'sepia' }>({ ...theme, colorScheme: 'sepia' }),
@@ -261,6 +265,8 @@ describe('createOpenWaggleExtensionUiStylesheet', () => {
     expect(stylesheet).toContain('border-radius: var(--ow-radius-md);')
     expect(stylesheet).toContain('box-shadow: var(--ow-shadow-sm);')
     expect(stylesheet).toContain('.ow-extension-button:disabled,')
+    expect(stylesheet).toContain('.ow-extension-root .ow-syntax-block {')
+    expect(stylesheet).toContain('font-family: var(--ow-font-family-mono);')
     expect(stylesheet).toContain('color: var(--ow-color-danger-text);')
     expect(stylesheet).toContain('color: var(--ow-color-info-text);')
     expect(stylesheet).not.toContain('--ow-space-')

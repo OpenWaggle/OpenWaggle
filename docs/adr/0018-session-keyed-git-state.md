@@ -85,6 +85,12 @@ Deferred: the remaining gaps are narrow, and the existing turn-boundary refresh 
 - The store shape changes from one slot to a map; `statusProjectPath` (an existing stale-guard) generalises into the map key.
 - Sessions in `local` mode share one working tree, so they share fate: an agent that switches branch there moves the ground under every other local-mode session on that project. Nothing here prevents that; it is inherent to sharing a checkout, and the mitigation is preferring worktree mode.
 
+## Amendment: Workspace Editing Uses The Same Working Path
+
+ADR 0028 extends this identity rule beyond git. Workspace file browsing, Quick Open, content search, the active file, saves, recovery journals, and file watchers target the active session's canonical **working path**. Repository-wide branch/remotes/worktree metadata remains keyed to the repository path. Two worktrees may contain the same relative filename but never share a document session, cache entry, or draft. If a recorded worktree is missing, the workspace file surface follows this ADR's existing refusal rule and does not expose or mutate the primary checkout as a fallback.
+
+Explorer create, rename, move, duplicate, trash, and reveal actions use that same working-path identity. They invalidate git state only for the affected working tree; no explorer action silently crosses from a Session worktree to the primary checkout.
+
 ## Terminology impact
 
 CONTEXT.md defined a **Session worktree** as "a dedicated git worktree *plus its temporary git branch*" with a base ref "*frozen* once the worktree exists". OpenWaggle owns the worktree and records the branch it sets; a branch changed underneath it is simply not tracked (see Known limitation). "Frozen" applies to the **Worktree base ref** as birth provenance, not as a claim about which branch is checked out now. **Working path** names the per-session distinction the codebase previously lacked a word for.

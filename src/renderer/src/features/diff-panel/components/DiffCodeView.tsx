@@ -1,5 +1,5 @@
 import type { CodeViewItem, CodeViewLineSelection } from '@pierre/diffs'
-import { CodeView, type CodeViewHandle } from '@pierre/diffs/react'
+import { CodeView, type CodeViewHandle, WorkerPoolContextProvider } from '@pierre/diffs/react'
 import type { GitFileDiff } from '@shared/types/git'
 import { type Ref, useCallback, useMemo, useState } from 'react'
 import {
@@ -9,6 +9,7 @@ import {
 } from '@/features/diff-panel/lib/code-view-items'
 import type { ReviewCommentWithSnippet } from '@/features/diff-panel/lib/review-comment-payload'
 import type { ReviewCommentLocation } from '@/features/diff-panel/state/review-store'
+import { registerPendingPierreSyntaxResources } from '@/shared/lib/syntax/pierre-syntax-runtime'
 import { Spinner } from '@/shared/ui/Spinner'
 import { DiffLoadError } from './DiffLoadError'
 import { InlineComment } from './InlineComment'
@@ -44,6 +45,11 @@ interface DiffCodeViewProps {
 }
 
 const CODE_VIEW_LAYOUT = { paddingTop: 10, paddingBottom: 10, gap: 10 } as const
+const DIFF_AST_CACHE_ENTRIES = 64
+
+function createPierreWorker() {
+  return new Worker(new URL('@pierre/diffs/worker/worker.js', import.meta.url), { type: 'module' })
+}
 
 /**
  * Which non-diff state to show, if any.
@@ -143,6 +149,14 @@ function filePathOfItem(item: CodeViewItem<ReviewAnnotationMetadata>) {
   return item.type === 'diff' ? item.fileDiff.name : item.file.name
 }
 
+/**
+ * Match the item id exactly. A suffix test resolves `diff:docs/README.md` to `README.md` whenever
+ * both exist, moving review comments and their snippets onto a file the reviewer never selected.
+ */
+function selectedFilePath(paths: Iterable<string>, itemId: string) {
+  return [...paths].find((path) => codeViewItemId(path) === itemId)
+}
+
 export function DiffCodeView({
   viewerRef,
   files,
@@ -229,13 +243,7 @@ export function DiffCodeView({
         onSetActiveComment(null)
         return
       }
-      /*
-       * Match the item id exactly. A suffix test resolved `diff:docs/README.md` to `README.md`
-       * whenever both were in the diff, so the comment - and the filePath sent to the agent, and
-       * the snippet pulled from the patch - named a file the reviewer never looked at.
-       * Same-basename files at different depths are routine (index.ts, README.md, package.json).
-       */
-      const filePath = [...patchByPath.keys()].find((path) => codeViewItemId(path) === next.id)
+      const filePath = selectedFilePath(patchByPath.keys(), next.id)
       if (filePath === undefined) return
       const start = Math.min(next.range.start, next.range.end)
       const end = Math.max(next.range.start, next.range.end)
@@ -256,15 +264,25 @@ export function DiffCodeView({
     )
   }
 
+  registerPendingPierreSyntaxResources()
   return (
-    <CodeView<ReviewAnnotationMetadata>
-      ref={viewerRef}
-      className="diff-chrome diff-scroll min-h-0 min-w-0 flex-1 overflow-auto"
-      items={items}
-      options={options}
-      selectedLines={selection}
-      onSelectedLinesChange={handleSelectionChange}
-      renderAnnotation={renderAnnotation}
-    />
+    <WorkerPoolContextProvider
+      poolOptions={{
+        workerFactory: createPierreWorker,
+        poolSize: 1,
+        totalASTLRUCacheSize: DIFF_AST_CACHE_ENTRIES,
+      }}
+      highlighterOptions={{ theme: viewOptions.syntaxTheme }}
+    >
+      <CodeView<ReviewAnnotationMetadata>
+        ref={viewerRef}
+        className="diff-chrome diff-scroll min-h-0 min-w-0 flex-1 overflow-auto"
+        items={items}
+        options={options}
+        selectedLines={selection}
+        onSelectedLinesChange={handleSelectionChange}
+        renderAnnotation={renderAnnotation}
+      />
+    </WorkerPoolContextProvider>
   )
 }

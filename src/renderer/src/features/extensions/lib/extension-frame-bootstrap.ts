@@ -4,6 +4,11 @@ import {
   OPENWAGGLE_EXTENSION_FRAME_ROOT_ID,
 } from '@shared/constants/extension-frame'
 import { createOpenWaggleExtensionSharedModules } from '@shared/extension-context'
+import type {
+  OpenWaggleExtensionSyntaxHighlightInput,
+  OpenWaggleExtensionSyntaxHighlightResult,
+} from '@shared/extension-sdk'
+import { createPlainExtensionSyntaxResult } from '@shared/extension-sdk'
 import type { ExtensionSdkInvokeRequest } from '@shared/extension-sdk-core'
 import { extensionThemeCssVariableEntries } from '@shared/extension-theme'
 import type { ExtensionInvokeResult } from '@shared/types/extension-broker'
@@ -27,6 +32,11 @@ type ExtensionFrameChildMessage =
   | { readonly type: 'open-external'; readonly url: string }
   | { readonly type: 'resize'; readonly height: number }
   | { readonly type: 'surface-action'; readonly actionId: string; readonly payload?: JsonValue }
+  | {
+      readonly type: 'syntax-highlight'
+      readonly requestId: string
+      readonly input: OpenWaggleExtensionSyntaxHighlightInput
+    }
 
 let activeConfig: ExtensionFrameConfig | null = null
 let cleanup: (() => void) | null = null
@@ -36,6 +46,13 @@ let resizeAnimationFrame = 0
 let resizeObserver: ResizeObserver | null = null
 
 const pendingInvocations = new Map<string, (result: ExtensionInvokeResult) => void>()
+const pendingSyntaxHighlights = new Map<
+  string,
+  {
+    readonly input: OpenWaggleExtensionSyntaxHighlightInput
+    readonly resolve: (result: OpenWaggleExtensionSyntaxHighlightResult) => void
+  }
+>()
 const frameId = frameIdFromLocation()
 
 function describeError(error: unknown) {
@@ -116,6 +133,15 @@ function stopResizeObserver() {
 
 function runCleanup() {
   stopResizeObserver()
+  for (const pending of pendingSyntaxHighlights.values()) {
+    pending.resolve(
+      createPlainExtensionSyntaxResult({
+        ...pending.input,
+        diagnostic: 'Extension frame was disposed.',
+      }),
+    )
+  }
+  pendingSyntaxHighlights.clear()
   if (cleanup === null) {
     return
   }
@@ -137,6 +163,14 @@ function invoke(input: ExtensionSdkInvokeRequest) {
   })
 }
 
+function highlightSyntax(input: OpenWaggleExtensionSyntaxHighlightInput) {
+  const requestId = `syntax-${String(++invokeSequence)}`
+  post({ type: 'syntax-highlight', requestId, input })
+  return new Promise<OpenWaggleExtensionSyntaxHighlightResult>((resolve) => {
+    pendingSyntaxHighlights.set(requestId, { input, resolve })
+  })
+}
+
 function mountContext(input: {
   readonly config: ExtensionFrameConfig
   readonly root: HTMLElement
@@ -144,7 +178,7 @@ function mountContext(input: {
   return {
     ...input.config.context,
     root: input.root,
-    sdk: createFrameExtensionSdk({ invokeBroker: invoke, post }),
+    sdk: createFrameExtensionSdk({ invokeBroker: invoke, highlightSyntax, post }),
     modules: createOpenWaggleExtensionSharedModules(input.config.context.theme),
   }
 }
@@ -182,11 +216,16 @@ function handleParentMessage(root: HTMLElement, event: MessageEvent<unknown>) {
     return
   }
 
-  const resolve = pendingInvocations.get(message.requestId)
-  if (!resolve) {
+  if (message.type === 'syntax-highlight-result') {
+    const pending = pendingSyntaxHighlights.get(message.requestId)
+    if (!pending) return
+    pendingSyntaxHighlights.delete(message.requestId)
+    pending.resolve(message.result)
     return
   }
 
+  const resolve = pendingInvocations.get(message.requestId)
+  if (!resolve) return
   pendingInvocations.delete(message.requestId)
   resolve(message.result)
 }

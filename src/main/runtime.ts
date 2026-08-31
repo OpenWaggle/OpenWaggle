@@ -27,6 +27,7 @@ import { SqliteExtensionStorageRepositoryLive } from './adapters/sqlite-extensio
 import { SqliteSessionProjectionRepositoryLive } from './adapters/sqlite-session-projection-repository'
 import { SqliteSessionRepositoryLive } from './adapters/sqlite-session-repository'
 import { FilesystemStandardsLive } from './adapters/standards-adapter'
+import { WorkspaceProjectAuthorizationLive } from './adapters/workspace-project-authorization'
 import { ActiveProjectChangeServiceLive } from './application/active-project-change-service'
 import { AppDatabaseLive } from './services/database-service'
 import { AppLogger } from './services/logger-service'
@@ -99,6 +100,7 @@ const AppLayer = Layer.mergeAll(
   PiSessionTreePreferencesLive,
   SettingsWagglePresetsRepositoryLive,
   FilesystemWorkspaceFileLive,
+  WorkspaceProjectAuthorizationLive,
 )
 
 function makeAppRuntime() {

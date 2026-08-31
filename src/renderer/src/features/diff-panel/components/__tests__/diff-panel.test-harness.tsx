@@ -16,6 +16,10 @@ export interface StubAnnotation {
   readonly metadata?: { readonly kind: string; readonly commentId?: string }
 }
 
+export function StubWorkerPoolContextProvider({ children }: { readonly children: ReactNode }) {
+  return children
+}
+
 interface StubCodeViewProps {
   items: readonly {
     id: string

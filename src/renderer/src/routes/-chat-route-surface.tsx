@@ -221,6 +221,7 @@ export function ChatRouteSurface({
                 <LazySessionTreePanel onClose={() => handleSessionTreeOpenChange(false)} />
               ) : renderedRightSidebarPanel === 'file' && rightSidebar.workspaceFile ? (
                 <WorkspaceFilePanel
+                  key={sections.diff.workingPath ?? 'no-project'}
                   projectPath={sections.diff.workingPath}
                   relativePath={rightSidebar.workspaceFile.path}
                   line={rightSidebar.workspaceFile.line}

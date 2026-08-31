@@ -1,9 +1,11 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
+import { APPEARANCE_MOTION_PREFERENCES } from '@shared/types/appearance-preferences'
 import { SupportedModelId } from '@shared/types/brand'
+import { SESSION_ENVIRONMENT_MODES } from '@shared/types/git'
 import type { SessionTreeFilterMode } from '@shared/types/session'
-import { THINKING_LEVELS } from '@shared/types/settings'
+import { DIFF_SYNTAX_THEMES, DIFF_VIEWS, THINKING_LEVELS } from '@shared/types/settings'
 import {
   isMandatoryShortcutCommand,
   SHORTCUT_COMMANDS,
@@ -138,6 +140,37 @@ const settingsUpdateSchema = Schema.Struct({
     ),
   ),
   defaultAuthorizationMode: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
+  defaultSessionEnvironmentMode: Schema.optional(Schema.Literal(...SESSION_ENVIRONMENT_MODES)),
+  diffSyntaxTheme: Schema.optional(Schema.Literal(...DIFF_SYNTAX_THEMES)),
+  syntaxThemeSelections: Schema.optional(
+    Schema.Struct({
+      light: Schema.String,
+      dark: Schema.String,
+      'high-contrast-light': Schema.String,
+      'high-contrast-dark': Schema.String,
+    }),
+  ),
+  diffView: Schema.optional(Schema.Literal(...DIFF_VIEWS)),
+  diffWrapLines: Schema.optional(Schema.Boolean),
+  appearancePreferences: Schema.optional(
+    Schema.Struct({
+      typography: Schema.Struct({
+        interfaceFontFamily: Schema.String,
+        documentFontFamily: Schema.String,
+        codeFontFamily: Schema.String,
+        terminalFontFamily: Schema.String,
+        terminalUsesCodeFont: Schema.Boolean,
+        interfaceScale: Schema.Number,
+        documentFontSize: Schema.Number,
+        documentLineHeight: Schema.Number,
+        codeFontSize: Schema.Number,
+        codeLineHeight: Schema.Number,
+        terminalFontSize: Schema.Number,
+        codeLigatures: Schema.Boolean,
+      }),
+      motion: Schema.Literal(...APPEARANCE_MOTION_PREFERENCES),
+    }),
+  ),
   shortcutBindings: Schema.optional(
     Schema.mutable(
       Schema.Record({

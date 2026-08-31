@@ -125,7 +125,7 @@ test('sidebar filtering: chips, pips, search and Escape', async () => {
     })
 
     await test.step('Escape clears the filter and returns every row', async () => {
-      await page.keyboard.press('Escape')
+      await searchInput.press('Escape')
 
       await expect(searchInput).toHaveValue('')
       await expect(rows).toHaveCount(3)

@@ -232,7 +232,7 @@ export function AgentNotificationStack({
   }, [])
 
   const visible = expanded ? notifications : notifications.slice(0, MAX_VISIBLE_NOTIFICATIONS)
-  const hiddenCount = notifications.length - visible.length
+  const overflowCount = Math.max(0, notifications.length - MAX_VISIBLE_NOTIFICATIONS)
   const latestDisplayMessage = useChatDisplayText(notifications[0]?.message ?? '')
 
   return (
@@ -251,7 +251,10 @@ export function AgentNotificationStack({
 
       {/* Always mounted, so the newest notice is actually announced. A live region added in the same
           commit as its text is not announced. */}
-      <PoliteAnnouncer message={latestDisplayMessage || null} />
+      <PoliteAnnouncer
+        message={latestDisplayMessage || null}
+        label="Agent notification announcements"
+      />
 
       {notifications.length === 0 ? null : (
         <output
@@ -286,7 +289,7 @@ export function AgentNotificationStack({
               <NotificationCard notification={notification} onDismiss={dismiss} />
             </div>
           ))}
-          {hiddenCount > 0 ? (
+          {overflowCount > 0 ? (
             // A button, not inert text: with four or more notices a keyboard-only user could see
             // that more existed and had no way to reach them except dismissing the front ones one
             // at a time. Errors persist, so errors are exactly what queues up here.
@@ -298,7 +301,7 @@ export function AgentNotificationStack({
                 size="xs"
                 variant="ghost"
               >
-                {expanded ? 'Show fewer notices' : `${String(hiddenCount)} more behind`}
+                {expanded ? 'Show fewer notices' : `${String(overflowCount)} more behind`}
               </Button>
             </div>
           ) : null}

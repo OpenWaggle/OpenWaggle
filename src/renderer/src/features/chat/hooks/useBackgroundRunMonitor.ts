@@ -1,5 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useLayoutEffect } from 'react'
 import { isTerminalTransportEvent } from '@/features/chat/lib/agent-stream-utils'
+import { useAgentLoopEventStore } from '@/features/chat/state/agent-loop-event-store'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useChatStore } from '@/features/chat/state/chat-store'
 import { api } from '@/shared/lib/ipc'
@@ -14,6 +15,7 @@ import { api } from '@/shared/lib/ipc'
  * metadata in the sidebar (timestamp) instead of reloading the full list.
  */
 export function useBackgroundRunMonitor(): void {
+  const applyAgentLoopEvent = useAgentLoopEventStore((s) => s.applyEvent)
   const addActiveRun = useBackgroundRunStore((s) => s.addActiveRun)
   const applyRunRenderEvent = useBackgroundRunStore((s) => s.applyRunRenderEvent)
   const clearRunRenderSnapshot = useBackgroundRunStore((s) => s.clearRunRenderSnapshot)
@@ -26,8 +28,9 @@ export function useBackgroundRunMonitor(): void {
   }, [initialize])
 
   // Track stream lifecycle globally
-  useEffect(() => {
+  useLayoutEffect(() => {
     const unsubEvent = api.onAgentEvent((payload) => {
+      applyAgentLoopEvent(payload.sessionId, payload.event)
       if (payload.event.type === 'agent_start') {
         addActiveRun(payload.sessionId)
       }
@@ -48,5 +51,12 @@ export function useBackgroundRunMonitor(): void {
       unsubEvent()
       unsubCompleted()
     }
-  }, [addActiveRun, applyRunRenderEvent, clearRunRenderSnapshot, refreshSession, removeActiveRun])
+  }, [
+    addActiveRun,
+    applyAgentLoopEvent,
+    applyRunRenderEvent,
+    clearRunRenderSnapshot,
+    refreshSession,
+    removeActiveRun,
+  ])
 }

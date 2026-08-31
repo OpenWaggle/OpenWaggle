@@ -2,7 +2,7 @@ import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { IpcEventPayload } from '@shared/types/ipc'
 import type { SessionDetail } from '@shared/types/session'
-import { useEffect } from 'react'
+import { useEffect, useLayoutEffect } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { sessionToUIMessages } from '../lib/useAgentChat.utils'
 import { hydrateSessionMessages, resetMissingSessionHydration } from './useAgentChat.hydration'
@@ -144,7 +144,9 @@ export function useSessionHydrationEffects(params: UseSessionHydrationEffectsPar
 export function useAgentEventEffects(params: UseAgentEventEffectsParams) {
   const { sessionId, streamEventContext, runCompletionContext } = params
 
-  useEffect(() => {
+  // Subscribe in the commit phase. A passive effect leaves a one-frame window where the active
+  // chat is already visible but a main-process event can still be dropped during session changes.
+  useLayoutEffect(() => {
     if (!sessionId) {
       return
     }

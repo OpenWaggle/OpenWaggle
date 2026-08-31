@@ -8,6 +8,8 @@ import { DiffPanel } from '../DiffPanel'
 
 vi.mock('@pierre/diffs/react', async () => ({
   CodeView: (await import('./diff-panel.test-harness')).StubCodeView,
+  WorkerPoolContextProvider: (await import('./diff-panel.test-harness'))
+    .StubWorkerPoolContextProvider,
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({

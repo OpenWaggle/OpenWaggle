@@ -155,6 +155,7 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+      - run: pnpm benchmark:syntax
       - run: pnpm test:e2e
 
       - name: Upload Electron E2E failure artifacts

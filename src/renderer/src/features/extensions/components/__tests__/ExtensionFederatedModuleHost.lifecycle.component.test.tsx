@@ -1,8 +1,10 @@
 import { EXTENSION_FRAME_MESSAGE_CHANNEL } from '@shared/constants/extension-frame'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import { DEFAULT_APPEARANCE_PREFERENCES } from '@shared/types/appearance-preferences'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { setRuntimeAppearancePreferences } from '@/shared/lib/appearance-preferences-runtime'
 import { mountExtensionFrame } from '../../lib/extension-federated-frame-mount'
 import { ExtensionFederatedModuleHost } from '../ExtensionFederatedModuleHost'
 
@@ -106,6 +108,7 @@ describe('ExtensionFederatedModuleHost lifecycle performance', () => {
     )
     apiMock.unregisterExtensionFrame.mockResolvedValue(undefined)
     document.documentElement.setAttribute('data-theme', 'dark')
+    setRuntimeAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES)
   })
 
   it('does not remount when an equivalent registry entry object is recreated', async () => {
@@ -130,6 +133,27 @@ describe('ExtensionFederatedModuleHost lifecycle performance', () => {
     })
 
     document.documentElement.setAttribute('data-theme', 'debug')
+
+    await waitFor(() => {
+      expect(apiMock.unregisterExtensionFrame).toHaveBeenCalledTimes(1)
+      expect(apiMock.registerExtensionFrame).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  it('remounts with a fresh theme context when typography changes', async () => {
+    render(<ExtensionFederatedModuleHost entry={ENTRY} />)
+    const frame = extensionFrame()
+    await waitFor(() => {
+      expect(frame).toHaveAttribute('src', frameUrl(extensionFrameId(frame)))
+    })
+
+    setRuntimeAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      typography: {
+        ...DEFAULT_APPEARANCE_PREFERENCES.typography,
+        codeFontSize: DEFAULT_APPEARANCE_PREFERENCES.typography.codeFontSize + 1,
+      },
+    })
 
     await waitFor(() => {
       expect(apiMock.unregisterExtensionFrame).toHaveBeenCalledTimes(1)

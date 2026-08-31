@@ -40,8 +40,8 @@ export function codeViewItemId(filePath: string) {
  * patch yields no file (empty diff, or a mode-only change git reports with no
  * hunks) so callers can skip the item rather than render an empty section.
  */
-function parseFileDiff(file: GitFileDiff): FileDiffMetadata | null {
-  const patches = parsePatchFiles(file.diff, `${file.path}-${hashPatch(file.diff)}`)
+function parseFileDiff(file: GitFileDiff, patchHash: string): FileDiffMetadata | null {
+  const patches = parsePatchFiles(file.diff, `${file.path}-${patchHash}`)
   for (const patch of patches) {
     const [first] = patch.files
     if (first !== undefined) return first
@@ -64,7 +64,12 @@ export function buildCodeViewItems(
 ) {
   const items: ReviewCodeViewItem[] = []
   for (const file of files) {
-    const fileDiff = parseFileDiff(file)
+    // Large diffs can contain megabytes of patch text. Hash that text once per
+    // file and reuse the digest for both Pierre's cache key and our version.
+    // Re-scanning every patch for the version delayed the first diff paint on
+    // the renderer thread without adding any cache-safety information.
+    const patchHash = hashPatch(file.diff)
+    const fileDiff = parseFileDiff(file, patchHash)
     if (fileDiff === null) continue
     const annotations = annotationsByPath.get(file.path) ?? []
     items.push({
@@ -72,17 +77,17 @@ export function buildCodeViewItems(
       type: 'diff',
       fileDiff,
       annotations: [...annotations],
-      version: versionFor(file.diff, annotations),
+      version: versionFor(patchHash, annotations),
     })
   }
   return items
 }
 
-function versionFor(patch: string, annotations: readonly ReviewAnnotation[]) {
+function versionFor(patchHash: string, annotations: readonly ReviewAnnotation[]) {
   const annotationSignature = annotations
     .map(
       (a) => `${a.side}:${String(a.lineNumber)}:${a.metadata.kind}:${a.metadata.commentId ?? ''}`,
     )
     .join('|')
-  return Number.parseInt(hashPatch(`${patch}##${annotationSignature}`), HASH_RADIX)
+  return Number.parseInt(hashPatch(`${patchHash}##${annotationSignature}`), HASH_RADIX)
 }

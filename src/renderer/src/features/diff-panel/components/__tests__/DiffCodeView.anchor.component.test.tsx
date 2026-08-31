@@ -1,15 +1,55 @@
 import { render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { DiffCodeView } from '../DiffCodeView'
 import { fileDiff } from './diff-panel.test-harness'
 
+const pierreMocks = vi.hoisted(() => ({ workerProvider: vi.fn() }))
+
 vi.mock('@pierre/diffs/react', async () => ({
   CodeView: (await import('./diff-panel.test-harness')).StubCodeView,
+  WorkerPoolContextProvider: ({
+    children,
+    poolOptions,
+    highlighterOptions,
+  }: {
+    children: ReactNode
+    poolOptions: unknown
+    highlighterOptions: unknown
+  }) => {
+    pierreMocks.workerProvider({ poolOptions, highlighterOptions })
+    return children
+  },
 }))
 
 const VIEW_OPTIONS = { syntaxTheme: 'github-dark', diffView: 'unified', wrapLines: false } as const
 
 describe('review comment anchoring', () => {
+  it('routes diff rendering through a bounded worker pool', () => {
+    render(
+      <DiffCodeView
+        files={[fileDiff()]}
+        isLoading={false}
+        loadError={null}
+        onRetryLoad={vi.fn()}
+        viewOptions={VIEW_OPTIONS}
+        review={{
+          comments: [],
+          activeCommentLocation: null,
+          onSetActiveComment: vi.fn(),
+          onAddSingleComment: vi.fn(),
+          onAddToReview: vi.fn(),
+          onRemoveComment: vi.fn(),
+        }}
+      />,
+    )
+
+    expect(pierreMocks.workerProvider).toHaveBeenCalledWith({
+      poolOptions: expect.objectContaining({ poolSize: 1 }),
+      highlighterOptions: { theme: 'github-dark' },
+    })
+  })
+
   it('anchors a selection to the exact file, not one whose path is a suffix of it', () => {
     /*
      * The file was recovered with `id.endsWith(path)`. Item ids are `diff:<path>`, so for a diff

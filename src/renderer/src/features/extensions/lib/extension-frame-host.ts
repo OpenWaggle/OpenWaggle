@@ -1,6 +1,7 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { EXTENSION_FRAME_MESSAGE_CHANNEL } from '@shared/constants/extension-frame'
 import { createOpenWaggleExtensionSurfaceContext } from '@shared/extension-context'
+import type { OpenWaggleExtensionSyntaxHighlightResult } from '@shared/extension-sdk'
 import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
 import { extensionInvokeScopeSchema } from '@shared/schemas/extension-broker'
 import { extensionFrameConfigSchema } from '@shared/schemas/extension-frame'
@@ -56,6 +57,18 @@ const extensionFrameSurfaceActionMessageSchema = Schema.Struct({
   actionId: Schema.String,
   payload: Schema.optional(jsonValueSchema),
 })
+const extensionFrameSyntaxHighlightMessageSchema = Schema.Struct({
+  channel: Schema.Literal(EXTENSION_FRAME_MESSAGE_CHANNEL),
+  frameId: Schema.String,
+  type: Schema.Literal('syntax-highlight'),
+  requestId: Schema.String,
+  input: Schema.Struct({
+    source: Schema.String,
+    language: Schema.optional(Schema.String),
+    path: Schema.optional(Schema.String),
+    priority: Schema.optional(Schema.Literal('visible', 'near-viewport', 'background')),
+  }),
+})
 const extensionFrameMessageSchema = Schema.Union(
   extensionFrameReadyMessageSchema,
   extensionFrameMountedMessageSchema,
@@ -64,6 +77,7 @@ const extensionFrameMessageSchema = Schema.Union(
   extensionFrameOpenExternalMessageSchema,
   extensionFrameResizeMessageSchema,
   extensionFrameSurfaceActionMessageSchema,
+  extensionFrameSyntaxHighlightMessageSchema,
 )
 const extensionMountInvokeInputSchema = Schema.Struct({
   capability: extensionContributionIdSchema,
@@ -138,6 +152,11 @@ export function postFrameMessage(
         readonly type: 'invoke-result'
         readonly requestId: string
         readonly result: ExtensionInvokeResult
+      }
+    | {
+        readonly type: 'syntax-highlight-result'
+        readonly requestId: string
+        readonly result: OpenWaggleExtensionSyntaxHighlightResult
       },
 ) {
   if (message.type === 'configure') {
