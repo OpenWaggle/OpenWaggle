@@ -11,6 +11,7 @@ import {
 
 const SYNCHRONOUS_FILE_LIMIT = 4
 const FILES_PER_BUILD_SLICE = 4
+const FILES_IN_FIRST_BUILD_SLICE = 1
 // JavaScript parsers consume UTF-16 strings. Bounding code units avoids allocating another encoded
 // copy merely to count bytes while still constraining the actual input the parser scans.
 const MAIN_THREAD_PATCH_UNIT_BUDGET = 64 * 1024
@@ -36,7 +37,8 @@ function shouldParseInWorker(files: readonly GitFileDiff[]) {
 function nextSliceEnd(files: readonly GitFileDiff[], start: number) {
   let end = start
   let units = 0
-  while (end < files.length && end - start < FILES_PER_BUILD_SLICE) {
+  const fileLimit = start === 0 ? FILES_IN_FIRST_BUILD_SLICE : FILES_PER_BUILD_SLICE
+  while (end < files.length && end - start < fileLimit) {
     const nextUnits = files[end]?.diff.length ?? 0
     if (end > start && units + nextUnits > MAIN_THREAD_PATCH_UNIT_BUDGET) break
     units += nextUnits

@@ -72,13 +72,6 @@ function parseFileDiff(file: GitFileDiff, patchHash: string): FileDiffMetadata |
  * decides whether to re-render an item from its id plus version, so the version
  * must move when the patch or its annotations move.
  */
-export function buildCodeViewItems(
-  files: readonly GitFileDiff[],
-  annotationsByPath: ReadonlyMap<string, readonly ReviewAnnotation[]>,
-) {
-  return decorateCodeViewItems(parseCodeViewItems(files), annotationsByPath)
-}
-
 export function parseCodeViewItems(files: readonly GitFileDiff[]) {
   const items: ParsedReviewCodeViewItem[] = []
   for (const file of files) {
