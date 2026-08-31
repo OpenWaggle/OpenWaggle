@@ -16,6 +16,8 @@ interface ReconcileProfileTasksInput {
   readonly store: OpenWaggleMcpTaskStore
 }
 
+const TASK_PROJECTION_CORRECTION_MAX_ATTEMPTS = 3
+
 function isNewerTask(candidate: ServerTaskRecord, current: ServerTaskRecord) {
   if (candidate.createdAt !== current.createdAt) return candidate.createdAt > current.createdAt
   if (candidate.updatedAt !== current.updatedAt) return candidate.updatedAt > current.updatedAt
@@ -45,6 +47,23 @@ function delegationStateForTask(task: ServerTaskRecord) {
   return isActiveTaskStatus(task.status) ? 'working' : terminalDelegationState(task.status)
 }
 
+async function restoreAuthoritativeTaskProjection(
+  input: Pick<ReconcileProfileTasksInput, 'services' | 'store'>,
+  sessionId: SessionId,
+) {
+  for (let attempt = 0; attempt < TASK_PROJECTION_CORRECTION_MAX_ATTEMPTS; attempt += 1) {
+    const authoritative = authoritativeTaskForSession(await input.store.readTasks(), sessionId)
+    if (!authoritative) return false
+    const succeeded = await projectTaskDelegationState(
+      input.services,
+      sessionId,
+      delegationStateForTask(authoritative),
+    )
+    if (succeeded) return true
+  }
+  return false
+}
+
 export async function projectTaskStateIfAuthoritative(
   input: Pick<ReconcileProfileTasksInput, 'services' | 'store'>,
   taskId: string,
@@ -56,8 +75,9 @@ export async function projectTaskStateIfAuthoritative(
   const succeeded = await projectTaskDelegationState(input.services, sessionId, state)
   if (!succeeded) return false
   const after = authoritativeTaskForSession(await input.store.readTasks(), sessionId)
-  if (!after || after.id === taskId) return true
-  await projectTaskDelegationState(input.services, sessionId, delegationStateForTask(after))
+  if (!after) return true
+  if (after.id === taskId && delegationStateForTask(after) === state) return true
+  await restoreAuthoritativeTaskProjection(input, sessionId)
   return false
 }
 
