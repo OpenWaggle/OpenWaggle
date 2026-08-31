@@ -3,7 +3,12 @@ import path from 'node:path'
 import type { SyntaxAppearanceVariant } from '@shared/types/syntax'
 import type { SyntaxAppearanceResource, SyntaxResourceScope } from '@shared/types/syntax-resources'
 import { normalizedLanguage } from './syntax-language-normalization'
-import { isRecord, syntaxResourceSlug, toJsonObject } from './syntax-resource-import-utils'
+import {
+  isRecord,
+  SYNTAX_IMPORT_RESOURCE_KIND_LIMIT,
+  syntaxResourceSlug,
+  toJsonObject,
+} from './syntax-resource-import-utils'
 import { normalizedTheme } from './syntax-theme-normalization'
 
 const REQUIRED_APPEARANCE_GROUPS = [
@@ -73,10 +78,20 @@ export function nativeSyntaxResources(
   ) {
     return null
   }
+  const themeCandidates = Array.isArray(raw.themes) ? raw.themes : []
+  const languageCandidates = Array.isArray(raw.languages) ? raw.languages : []
+  const appearanceCandidates = Array.isArray(raw.appearances) ? raw.appearances : []
+  if (
+    themeCandidates.length > SYNTAX_IMPORT_RESOURCE_KIND_LIMIT ||
+    languageCandidates.length > SYNTAX_IMPORT_RESOURCE_KIND_LIMIT ||
+    appearanceCandidates.length > SYNTAX_IMPORT_RESOURCE_KIND_LIMIT
+  ) {
+    throw new Error('A native syntax package declares too many resources of one kind.')
+  }
   const publisher = typeof raw.publisher === 'string' ? raw.publisher : 'local'
   const packageName = typeof raw.name === 'string' ? raw.name : path.basename(sourcePath)
   const packageId = `${publisher}.${packageName}`
-  const themes = (Array.isArray(raw.themes) ? raw.themes : []).map((candidate, index) => {
+  const themes = themeCandidates.map((candidate, index) => {
     if (!isRecord(candidate) || !isRecord(candidate.theme)) {
       throw new Error(`Native theme entry ${String(index + 1)} is malformed.`)
     }
@@ -96,7 +111,7 @@ export function nativeSyntaxResources(
       forcedVariant: candidate.variant,
     })
   })
-  const languages = (Array.isArray(raw.languages) ? raw.languages : []).map((candidate, index) => {
+  const languages = languageCandidates.map((candidate, index) => {
     if (!isRecord(candidate) || !isRecord(candidate.grammar)) {
       throw new Error(`Native language entry ${String(index + 1)} is malformed.`)
     }
@@ -111,9 +126,8 @@ export function nativeSyntaxResources(
       configuration: candidate.configuration,
     })
   })
-  const appearances = (Array.isArray(raw.appearances) ? raw.appearances : []).map(
-    (candidate, index) =>
-      nativeAppearance(candidate, index, packageId, packageName, sourcePath, scope),
+  const appearances = appearanceCandidates.map((candidate, index) =>
+    nativeAppearance(candidate, index, packageId, packageName, sourcePath, scope),
   )
   return { themes, languages, appearances }
 }

@@ -158,6 +158,42 @@ describe('syntax theme catalog store', () => {
     })
   })
 
+  it('does not restore a stale catalog after the active project changes', async () => {
+    const oldCatalog = deferred<SyntaxResourceCatalog>()
+    const newCatalog = {
+      ...EMPTY_CATALOG,
+      appearances: [
+        {
+          id: 'project:new',
+          packageId: 'project:package',
+          revision: 'new-revision',
+          label: 'New project appearance',
+          variant: 'dark',
+          scope: 'project',
+          format: 'openwaggle',
+          sourcePath: '/new/.openwaggle/appearance.json',
+          tokens: {},
+          original: {},
+        },
+      ],
+    } satisfies SyntaxResourceCatalog
+    listSyntaxThemesMock.mockImplementation((projectPath: string | null | undefined) =>
+      projectPath === '/old' ? oldCatalog.promise : Promise.resolve(newCatalog),
+    )
+
+    const loadOld = useSyntaxThemeCatalogStore.getState().load('/old')
+    await vi.waitFor(() => expect(listSyntaxThemesMock).toHaveBeenCalledWith('/old'))
+    await useSyntaxThemeCatalogStore.getState().load('/new')
+    oldCatalog.resolve(EMPTY_CATALOG)
+    await loadOld
+
+    expect(useSyntaxThemeCatalogStore.getState()).toMatchObject({
+      loadedProjectPath: '/new',
+      appearances: newCatalog.appearances,
+      loading: false,
+    })
+  })
+
   it('does not restore a removed-theme refresh after the active project changes', async () => {
     const oldCatalog = deferred<SyntaxResourceCatalog>()
     listSyntaxThemesMock.mockImplementation((projectPath: string | null | undefined) =>

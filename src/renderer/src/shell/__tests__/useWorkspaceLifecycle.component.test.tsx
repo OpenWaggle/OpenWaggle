@@ -4,7 +4,7 @@ import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { type ShortcutBinding, shortcutBindingKey } from '@shared/types/shortcuts'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { usePreferencesStore } from '@/features/settings/state'
+import { usePreferencesStore, useSyntaxThemeCatalogStore } from '@/features/settings'
 import { useUIStore } from '../ui-store'
 import { useWorkspaceLifecycle } from '../useWorkspaceLifecycle'
 
@@ -32,6 +32,7 @@ const lifecycleMocks = vi.hoisted(() => {
     refreshSessionTree: vi.fn().mockResolvedValue(undefined),
     refreshGitStatus: vi.fn().mockResolvedValue(undefined),
     refreshGitBranches: vi.fn().mockResolvedValue(undefined),
+    loadSyntaxResources: vi.fn().mockResolvedValue(undefined),
     navigate: vi.fn(),
     toggleDiff: vi.fn(),
     toggleSessionTree: vi.fn(),
@@ -137,6 +138,7 @@ describe('useWorkspaceLifecycle', () => {
     lifecycleMocks.loadSessionTrees.mockClear()
     lifecycleMocks.refreshGitStatus.mockClear()
     lifecycleMocks.refreshGitBranches.mockClear()
+    lifecycleMocks.loadSyntaxResources.mockClear()
     lifecycleMocks.refreshSessionTree.mockClear()
     lifecycleMocks.updateSessionTitle.mockClear()
     lifecycleMocks.navigate.mockClear()
@@ -147,6 +149,10 @@ describe('useWorkspaceLifecycle', () => {
     lifecycleMocks.onSessionTitleUpdated.mockClear()
     lifecycleMocks.titleUnsubscribe.mockClear()
     lifecycleMocks.hotkeys.length = 0
+    lifecycleMocks.projectPath = '/repo'
+    lifecycleMocks.workingPath = '/repo/.worktrees/session-1'
+    lifecycleMocks.activeSessionId = 'session-1'
+    useSyntaxThemeCatalogStore.setState({ load: lifecycleMocks.loadSyntaxResources })
   })
 
   it('loads app data, subscribes to title updates, refreshes project state, and registers hotkeys', async () => {
@@ -157,6 +163,7 @@ describe('useWorkspaceLifecycle', () => {
     // Status must target the session's worktree, not the opened checkout (ADR 0018).
     expect(lifecycleMocks.refreshGitStatus).toHaveBeenCalledWith('/repo/.worktrees/session-1')
     expect(lifecycleMocks.refreshGitBranches).toHaveBeenCalledWith('/repo')
+    expect(lifecycleMocks.loadSyntaxResources).toHaveBeenCalledWith('/repo/.worktrees/session-1')
     expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledWith(SessionId('session-1'))
     expect(lifecycleMocks.useGitRefresh).toHaveBeenCalledWith({
       workingPath: '/repo/.worktrees/session-1',
@@ -196,5 +203,20 @@ describe('useWorkspaceLifecycle', () => {
 
     unmount()
     expect(lifecycleMocks.titleUnsubscribe).toHaveBeenCalledOnce()
+  })
+
+  it('loads project syntax resources when direct review changes working trees', async () => {
+    const { rerender } = renderHook(() => useWorkspaceLifecycle())
+
+    await waitFor(() =>
+      expect(lifecycleMocks.loadSyntaxResources).toHaveBeenCalledWith('/repo/.worktrees/session-1'),
+    )
+
+    lifecycleMocks.workingPath = '/repo/.worktrees/session-2'
+    rerender()
+
+    await waitFor(() =>
+      expect(lifecycleMocks.loadSyntaxResources).toHaveBeenCalledWith('/repo/.worktrees/session-2'),
+    )
   })
 })
