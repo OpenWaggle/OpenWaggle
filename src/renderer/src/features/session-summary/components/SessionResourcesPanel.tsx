@@ -61,6 +61,10 @@ function ResourceRow({
       await api.openPath(originalPath)
       return
     }
+    if (resource.kind === 'image' && resource.locator?.startsWith('http://')) {
+      await api.openExternal(resource.locator)
+      return
+    }
     if (resource.kind === 'image') {
       openViewer(sessionId, resource.id)
       return

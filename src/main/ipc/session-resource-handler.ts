@@ -5,6 +5,7 @@ import {
   sessionResourceSessionIdSchema,
 } from '@shared/schemas/session-resource'
 import { SessionId } from '@shared/types/brand'
+import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import { captureProjectedSessionResources } from '../application/session-resource-backfill'
 import {
@@ -12,11 +13,43 @@ import {
   readSessionResourceThumbnail,
 } from '../application/session-resource-content'
 import { recordSessionChangeRequest } from '../application/session-resource-recording'
-import { SessionRepository } from '../ports/session-repository'
-import { SessionResourceRepository } from '../ports/session-resource-repository'
+import { SessionRepository, type SessionRepositoryShape } from '../ports/session-repository'
+import {
+  SessionResourceRepository,
+  type SessionResourceRepositoryShape,
+} from '../ports/session-resource-repository'
 import { typedHandle } from './typed-ipc'
 
 export const SESSION_RESOURCE_BACKFILL_PAGE_SIZE = 64
+
+function managedResourceNodeIds(resources: readonly SessionResource[]) {
+  const nodeIds = new Set<string>()
+  for (const resource of resources) {
+    if (!resource.available || !resource.locator?.startsWith('session-resource://')) continue
+    for (const occurrence of resource.occurrences) {
+      if (occurrence.nodeId) nodeIds.add(occurrence.nodeId)
+    }
+  }
+  return nodeIds
+}
+
+function recheckCompletedManagedResources(
+  sessionId: SessionId,
+  repository: SessionResourceRepositoryShape,
+  sessions: SessionRepositoryShape,
+) {
+  return Effect.gen(function* () {
+    const nodeIds = managedResourceNodeIds(yield* repository.list(sessionId))
+    if (nodeIds.size === 0) return
+    const tree = yield* sessions.getTree(sessionId)
+    if (!tree) return
+    const nodes = tree.nodes.filter(({ id }) => nodeIds.has(String(id)))
+    if (nodes.length === 0) return
+    yield* captureProjectedSessionResources({ sessionId, nodes }).pipe(
+      Effect.catchAll(() => Effect.void),
+    )
+  })
+}
 
 function advanceSessionResourceBackfillPage(sessionId: SessionId) {
   return Effect.gen(function* () {
@@ -28,21 +61,19 @@ function advanceSessionResourceBackfillPage(sessionId: SessionId) {
       cursor,
       SESSION_RESOURCE_BACKFILL_PAGE_SIZE,
     )
-    let backfillComplete = true
-    if (page.throughCreatedOrder !== null) {
-      const result = yield* captureProjectedSessionResources({
-        sessionId,
-        nodes: page.nodes,
-      }).pipe(Effect.option)
-      if (result._tag === 'Some') {
-        if (result.value.fullyProjected) {
-          yield* repository.advanceBackfillCursor(sessionId, page.throughCreatedOrder)
-          backfillComplete = !page.hasMore
-        } else {
-          backfillComplete = false
-        }
-      } else {
-        backfillComplete = false
+    if (page.throughCreatedOrder === null) {
+      yield* recheckCompletedManagedResources(sessionId, repository, sessions)
+      return { backfillComplete: true }
+    }
+    let backfillComplete = false
+    const result = yield* captureProjectedSessionResources({
+      sessionId,
+      nodes: page.nodes,
+    }).pipe(Effect.option)
+    if (result._tag === 'Some') {
+      if (result.value.fullyProjected) {
+        yield* repository.advanceBackfillCursor(sessionId, page.throughCreatedOrder)
+        backfillComplete = !page.hasMore
       }
     }
     return { backfillComplete }

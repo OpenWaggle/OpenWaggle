@@ -169,16 +169,16 @@ export class OpenWaggleServerTaskManager {
         await establishTaskLineage(this.services, task, sessionId)
       }
       if (abort.signal.aborted) throw new Error('The hosted task was cancelled before execution.')
-      const working = await this.mutateOwned(task.id, (current) =>
-        current.cancellationRequestedAt === undefined
+      const working = await this.mutateOwned(task.id, (current) => {
+        const linkedCurrent = { ...current, sessionId }
+        return current.cancellationRequestedAt === undefined
           ? {
-              ...current,
-              sessionId,
+              ...linkedCurrent,
               status: 'working',
               updatedAt: this.leases.now(),
             }
-          : cancelledTaskRecord(current, this.leases.now()),
-      )
+          : cancelledTaskRecord(linkedCurrent, this.leases.now())
+      })
       if (working?.status !== 'working') {
         abort.abort()
         await projectTaskDelegationState(this.services, sessionId, 'cancelled')
@@ -195,11 +195,12 @@ export class OpenWaggleServerTaskManager {
         model: task.model,
         signal: abort.signal,
       })
-      const terminal = await this.mutateOwned(task.id, (current) =>
-        abort.signal.aborted
-          ? cancelledTaskRecord(current, this.leases.now())
-          : terminalTaskRecord(current, result, this.leases.now()),
-      )
+      const terminal = await this.mutateOwned(task.id, (current) => {
+        const linkedCurrent = { ...current, sessionId }
+        return abort.signal.aborted
+          ? cancelledTaskRecord(linkedCurrent, this.leases.now())
+          : terminalTaskRecord(linkedCurrent, result, this.leases.now())
+      })
       if (terminal) {
         await projectTaskDelegationState(
           this.services,
@@ -208,19 +209,20 @@ export class OpenWaggleServerTaskManager {
         )
       }
     } catch (error) {
-      const failed = await this.mutateOwned(task.id, (current) =>
-        abort.signal.aborted
-          ? cancelledTaskRecord(current, this.leases.now())
+      const failed = await this.mutateOwned(task.id, (current) => {
+        const linkedCurrent = linkedSessionId ? { ...current, sessionId: linkedSessionId } : current
+        return abort.signal.aborted
+          ? cancelledTaskRecord(linkedCurrent, this.leases.now())
           : {
-              ...current,
+              ...linkedCurrent,
               status: 'failed',
               lease: null,
               error: error instanceof Error ? error.message : String(error),
               action:
                 'Inspect the linked session and OpenWaggle logs, correct the problem, then retry.',
               updatedAt: this.leases.now(),
-            },
-      ).catch(() => undefined)
+            }
+      }).catch(() => undefined)
       if (linkedSessionId && failed) {
         await projectTaskDelegationState(
           this.services,

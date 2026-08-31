@@ -147,6 +147,26 @@ describe('SessionResourcesPanel', () => {
     })
   })
 
+  it('opens non-materializable HTTP images externally', async () => {
+    apiMocks.list.mockResolvedValue([
+      resource('http-image', {
+        kind: 'image',
+        title: 'insecure-image.png',
+        isSource: true,
+        isOutput: false,
+        locator: 'http://example.com/insecure-image.png',
+      }),
+    ])
+    renderWithQueryClient(<SessionResourcesPanel sessionId="session-one" onClose={vi.fn()} />)
+
+    fireEvent.click(await screen.findByText('insecure-image.png'))
+
+    await waitFor(() =>
+      expect(apiMocks.openExternal).toHaveBeenCalledWith('http://example.com/insecure-image.png'),
+    )
+    expect(useUIStore.getState().resourceViewer).toBeNull()
+  })
+
   it('opens the original path for an unavailable attachment', async () => {
     apiMocks.list.mockResolvedValue([
       resource('missing-image', {
