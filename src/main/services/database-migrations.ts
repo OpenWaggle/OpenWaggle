@@ -15,8 +15,8 @@ export interface AppMigration {
   readonly id: number
   readonly name: string
   readonly statements: readonly string[]
-  /** Skip a renumbered column migration when an earlier alpha already installed the column. */
-  readonly skipIfColumn?: { readonly table: string; readonly column: string }
+  /** Skip a migration when an earlier alpha or cutover already installed every listed column. */
+  readonly skipIfColumns?: { readonly table: string; readonly columns: readonly string[] }
 }
 
 export const APP_MIGRATIONS: readonly AppMigration[] = [
@@ -170,7 +170,7 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
     name: 'normalize-pi-native-session-schema',
     // A later schema proves this destructive normalization already ran. Replaying it after the
     // Session Host migration would temporarily remove session_nodes beneath newer foreign keys.
-    skipIfColumn: { table: 'session_tree_ui_state', column: 'expanded_node_ids_touched' },
+    skipIfColumns: { table: 'session_tree_ui_state', columns: ['expanded_node_ids_touched'] },
     statements: [
       `DROP TABLE IF EXISTS session_active_runs`,
       `DROP TABLE IF EXISTS session_tree_ui_state`,
@@ -219,6 +219,7 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
   {
     id: 19,
     name: 'session-worktree-environment',
+    skipIfColumns: { table: 'sessions', columns: ['environment_mode', 'worktree_path'] },
     statements: [
       `ALTER TABLE sessions ADD COLUMN environment_mode TEXT NOT NULL DEFAULT 'local'`,
       `ALTER TABLE sessions ADD COLUMN worktree_path TEXT`,
@@ -258,6 +259,10 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
   {
     id: 22,
     name: 'session-worktree-birth-plan',
+    skipIfColumns: {
+      table: 'sessions',
+      columns: ['worktree_base_ref', 'worktree_start_from_origin'],
+    },
     statements: [
       `ALTER TABLE sessions ADD COLUMN worktree_base_ref TEXT`,
       `ALTER TABLE sessions ADD COLUMN worktree_start_from_origin INTEGER NOT NULL DEFAULT 0`,
@@ -288,7 +293,7 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
   {
     id: 25,
     name: 'session-authorization-mode-override',
-    skipIfColumn: { table: 'sessions', column: 'authorization_mode_override' },
+    skipIfColumns: { table: 'sessions', columns: ['authorization_mode_override'] },
     statements: [...SESSION_AUTHORIZATION_MODE_OVERRIDE_MIGRATION_STATEMENTS],
   },
   SESSION_HOST_DATABASE_MIGRATION,

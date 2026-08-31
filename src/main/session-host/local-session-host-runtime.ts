@@ -14,6 +14,14 @@ const SESSION_HOST_CLIENT_HANDOFF_GRACE_PERIOD_MS = 1_000
 const SESSION_HOST_SETTINGS_REFRESH_INTERVAL_MS = 1_000
 const logger = createLogger('session-host/runtime')
 
+async function collectStopError(errors: unknown[], cleanup: () => void | Promise<void>) {
+  try {
+    await cleanup()
+  } catch (error) {
+    errors.push(error)
+  }
+}
+
 export interface StartLocalSessionHostInput {
   readonly endpoint: string
   readonly databasePath: string
@@ -71,27 +79,25 @@ export class LocalSessionHostRuntime {
   }
 
   private async stopOnce() {
-    let closeError: unknown
+    const errors: unknown[] = []
     try {
-      await this.server.close(false)
-    } catch (error) {
-      closeError = error
-    }
-    await this.stopOwnedServices()
-    this.releaseSettingsObserver()
-    this.releaseEventPublisher()
-    this.eventHub.close()
-    this.liveness.close()
-    try {
-      await this.server.removeEndpoint()
-    } finally {
-      try {
-        if (this.releaseOwnershipOnStop) await this.ownership.release()
-      } finally {
-        this.resolveStopped()
+      await collectStopError(errors, () => this.server.close(false))
+      await collectStopError(errors, this.stopOwnedServices)
+      await collectStopError(errors, this.releaseSettingsObserver)
+      await collectStopError(errors, this.releaseEventPublisher)
+      await collectStopError(errors, () => this.eventHub.close())
+      await collectStopError(errors, () => this.liveness.close())
+      await collectStopError(errors, () => this.server.removeEndpoint())
+      if (this.releaseOwnershipOnStop) {
+        await collectStopError(errors, () => this.ownership.release())
       }
+    } finally {
+      this.resolveStopped()
     }
-    if (closeError) throw closeError
+    if (errors.length === 1) throw errors[0]
+    if (errors.length > 1) {
+      throw new AggregateError(errors, 'Session Host shutdown failed in multiple cleanup stages.')
+    }
   }
 }
 

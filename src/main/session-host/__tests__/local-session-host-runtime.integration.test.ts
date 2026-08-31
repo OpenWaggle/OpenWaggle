@@ -209,6 +209,52 @@ describe('Local Session Host runtime', () => {
     ])
   })
 
+  it('finishes every cleanup stage when a Host-owned service fails to stop', async () => {
+    const order: string[] = []
+    const stopFailure = new Error('owned service stop failed')
+    const failingRuntime = new LocalSessionHostRuntime(
+      new SessionHostEventHub({ hostInstanceId: 'host-failing-stop' }),
+      new SessionHostLiveness({
+        idleGracePeriodMs: 60_000,
+        requestShutdown: () => undefined,
+      }),
+      {
+        endpoint: path.join(temporaryRoot, 'failing-stop.sock'),
+        server: net.createServer(),
+        close: async () => {
+          order.push('close')
+        },
+        removeEndpoint: async () => {
+          order.push('remove-endpoint')
+        },
+      },
+      {
+        targetPath: path.join(temporaryRoot, 'failing-stop.sqlite'),
+        release: async () => {
+          order.push('release-ownership')
+        },
+      },
+      true,
+      () => order.push('release-events'),
+      () => order.push('release-settings'),
+      async () => {
+        order.push('stop-owned-services')
+        throw stopFailure
+      },
+    )
+
+    await expect(failingRuntime.stop()).rejects.toBe(stopFailure)
+    await expect(failingRuntime.waitUntilStopped()).resolves.toBeUndefined()
+    expect(order).toEqual([
+      'close',
+      'stop-owned-services',
+      'release-settings',
+      'release-events',
+      'remove-endpoint',
+      'release-ownership',
+    ])
+  })
+
   it('keeps ownership fenced until Host-owned services have stopped', async () => {
     const databasePath = path.join(temporaryRoot, 'ordered-session-host.sqlite')
     let finishServices: (() => void) | undefined

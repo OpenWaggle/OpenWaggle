@@ -1,8 +1,25 @@
 const ANSI_ESCAPE = '\u001B'
-const ANSI_SGR_INTRODUCER = `${ANSI_ESCAPE}[`
+const ANSI_CSI_INTRODUCER = `${ANSI_ESCAPE}[`
+const ANSI_PARAMETER_MIN = 0x20
+const ANSI_PARAMETER_MAX = 0x3f
+const ANSI_FINAL_MIN = 0x40
+const ANSI_FINAL_MAX = 0x7e
 const EMPTY_ARRAY_PAYLOAD = '[]'
 const EMPTY_OBJECT_PAYLOAD = '{}'
 const WHITESPACE = /\s/u
+
+function ansiSequenceEnd(stdout: string, start: number) {
+  if (!stdout.startsWith(ANSI_CSI_INTRODUCER, start)) return null
+
+  let cursor = start + ANSI_CSI_INTRODUCER.length
+  while (cursor < stdout.length) {
+    const codePoint = stdout.charCodeAt(cursor)
+    if (codePoint >= ANSI_FINAL_MIN && codePoint <= ANSI_FINAL_MAX) return cursor + 1
+    if (codePoint < ANSI_PARAMETER_MIN || codePoint > ANSI_PARAMETER_MAX) return null
+    cursor += 1
+  }
+  return null
+}
 
 function formattingEnd(stdout: string, start: number) {
   let cursor = start
@@ -13,22 +30,9 @@ function formattingEnd(stdout: string, start: number) {
       continue
     }
 
-    if (!stdout.startsWith(ANSI_SGR_INTRODUCER, cursor)) break
-
-    let sgrCursor = cursor + ANSI_SGR_INTRODUCER.length
-    while (sgrCursor < stdout.length) {
-      const character = stdout[sgrCursor]
-      if (character === 'm') {
-        cursor = sgrCursor + 1
-        break
-      }
-      if (character !== ';' && (character === undefined || character < '0' || character > '9')) {
-        return cursor
-      }
-      sgrCursor += 1
-    }
-
-    if (sgrCursor >= stdout.length) break
+    const ansiEnd = ansiSequenceEnd(stdout, cursor)
+    if (ansiEnd === null) break
+    cursor = ansiEnd
   }
 
   return cursor
@@ -36,6 +40,48 @@ function formattingEnd(stdout: string, start: number) {
 
 function isJsonObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function jsonObjectEnd(stdout: string, start: number) {
+  let depth = 0
+  let escaped = false
+  let inString = false
+
+  for (let cursor = start; cursor < stdout.length; cursor += 1) {
+    const character = stdout[cursor]
+    if (inString) {
+      if (escaped) {
+        escaped = false
+        continue
+      }
+      if (character === '\\') {
+        escaped = true
+        continue
+      }
+      if (character === '"') inString = false
+      continue
+    }
+
+    if (character === '"') {
+      inString = true
+      continue
+    }
+    if (character === '{' || character === '[') {
+      depth += 1
+      continue
+    }
+    if (character !== '}' && character !== ']') continue
+    depth -= 1
+    if (depth === 0) return cursor + 1
+    if (depth < 0) return null
+  }
+  return null
+}
+
+function emptyPayloadEnd(stdout: string, start: number) {
+  if (stdout.startsWith(EMPTY_ARRAY_PAYLOAD, start)) return start + EMPTY_ARRAY_PAYLOAD.length
+  if (stdout.startsWith(EMPTY_OBJECT_PAYLOAD, start)) return start + EMPTY_OBJECT_PAYLOAD.length
+  return null
 }
 
 export function applicationCliStdout(
@@ -47,20 +93,37 @@ export function applicationCliStdout(
   let cursor = formattingEnd(stdout, 0)
   let foundEmptyPayload = false
 
-  while (
-    stdout.startsWith(EMPTY_ARRAY_PAYLOAD, cursor) ||
-    stdout.startsWith(EMPTY_OBJECT_PAYLOAD, cursor)
-  ) {
+  for (let payloadEnd = emptyPayloadEnd(stdout, cursor); payloadEnd !== null; ) {
     foundEmptyPayload = true
-    cursor = formattingEnd(stdout, cursor + EMPTY_ARRAY_PAYLOAD.length)
+    cursor = formattingEnd(stdout, payloadEnd)
+    payloadEnd = emptyPayloadEnd(stdout, cursor)
   }
 
   if (!foundEmptyPayload || stdout[cursor] !== '{') return stdout
 
-  const applicationResponse = stdout.slice(cursor)
+  const responseEnd = jsonObjectEnd(stdout, cursor)
+  if (responseEnd === null) return stdout
+
+  const applicationResponse = stdout.slice(cursor, responseEnd)
   try {
-    return isJsonObject(JSON.parse(applicationResponse)) ? applicationResponse : stdout
+    if (!isJsonObject(JSON.parse(applicationResponse))) return stdout
   } catch {
     return stdout
   }
+
+  let whitespaceEnd = responseEnd
+  while (WHITESPACE.test(stdout[whitespaceEnd] ?? '')) whitespaceEnd += 1
+
+  let trailingCursor = formattingEnd(stdout, responseEnd)
+  let foundTrailingPayload = false
+  for (let payloadEnd = emptyPayloadEnd(stdout, trailingCursor); payloadEnd !== null; ) {
+    foundTrailingPayload = true
+    trailingCursor = formattingEnd(stdout, payloadEnd)
+    payloadEnd = emptyPayloadEnd(stdout, trailingCursor)
+  }
+  if (trailingCursor !== stdout.length) return stdout
+  if (!foundTrailingPayload && stdout.slice(responseEnd).trim().length === 0) {
+    return stdout.slice(cursor)
+  }
+  return `${applicationResponse}${stdout.slice(responseEnd, whitespaceEnd)}`
 }

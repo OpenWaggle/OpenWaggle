@@ -15,6 +15,13 @@ describe('Electron CLI stdout normalization', () => {
     expect(applicationCliStdout(stdout, 'linux')).toBe(response)
   })
 
+  it('removes empty payloads wrapped in non-SGR ANSI control sequences', () => {
+    const response = '{"result":{"response":{}}}\n'
+    const stdout = `\u001B[?25l[]\u001B[?25h\u001B[2K${response}`
+
+    expect(applicationCliStdout(stdout, 'linux')).toBe(response)
+  })
+
   it('preserves non-empty Linux stdout contamination so the JSON contract fails closed', () => {
     const stdout = '["unexpected"]\n{"result":{}}\n'
 
@@ -47,6 +54,19 @@ describe('Electron CLI stdout normalization', () => {
 
   it('preserves an empty-token prefix before an invalid object-shaped diagnostic', () => {
     const stdout = '[]\n{}\n{diagnostic}'
+
+    expect(applicationCliStdout(stdout, 'linux')).toBe(stdout)
+  })
+
+  it('removes known trailing empty Electron payloads after the application response', () => {
+    const response = '{"result":{"message":"a } and ] inside a string"}}\n'
+    const stdout = `[]\n${response}\u001B[90m{}\u001B[39m\n[]`
+
+    expect(applicationCliStdout(stdout, 'linux')).toBe(response)
+  })
+
+  it('preserves unknown contamination after the application response', () => {
+    const stdout = '[]\n{"result":{}}\ndiagnostic'
 
     expect(applicationCliStdout(stdout, 'linux')).toBe(stdout)
   })

@@ -90,11 +90,19 @@ if [ "$1" = "signal" ]; then
   while :; do sleep 0.05; done
 fi
 if [ "$1" = "colored" ]; then
-  printf '\\033[90m[]\\033[39m\\n\\033[90m{}\\033[39m\\n{"schemaVersion":1,"type":"record"}\\n'
+  printf '\\033[90m[]\\033[39m\\n\\033[90m{}\\033[39m\\n{"schemaVersion":1,"type":"record"}\\n\\033[90m[]\\033[39m\\n'
   exit 0
 fi
 if [ "$1" = "colored-empty" ]; then
   printf '\\033[90m[]\\033[39m\\n'
+  exit 0
+fi
+if [ "$1" = "concatenated" ]; then
+  printf '\\033[?25l[]\\033[?25h{}\\033[2K{"schemaVersion":1,"type":"record"}[]'
+  exit 0
+fi
+if [ "$1" = "diagnostic" ]; then
+  printf '[]diagnostic\\n{"schemaVersion":1,"type":"record"}\\n'
   exit 0
 fi
 printf '[]\\n{}\\n{"schemaVersion":1,"type":"record"}\\n'
@@ -120,6 +128,12 @@ if [ "$1" = "fail" ]; then exit 7; fi
       })
       await expect(execFileAsync(commandPath, ['colored-empty'])).resolves.toMatchObject({
         stdout: '\u001B[90m[]\u001B[39m\n',
+      })
+      await expect(execFileAsync(commandPath, ['concatenated'])).resolves.toMatchObject({
+        stdout: '{"schemaVersion":1,"type":"record"}\n',
+      })
+      await expect(execFileAsync(commandPath, ['diagnostic'])).resolves.toMatchObject({
+        stdout: '[]diagnostic\n{"schemaVersion":1,"type":"record"}\n',
       })
       await expect(execFileAsync(commandPath, ['empty'])).resolves.toMatchObject({ stdout: '[]\n' })
       await expect(execFileAsync(commandPath, ['fail'])).rejects.toMatchObject({ code: 7 })

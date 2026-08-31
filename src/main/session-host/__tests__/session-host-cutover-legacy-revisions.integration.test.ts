@@ -2,8 +2,13 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
+import { SqliteClient } from '@effect/sql-sqlite-node'
+import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { SessionEmbeddingModel } from '../../adapters/multilingual-e5-session-embedding-model'
+import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
+import { APP_MIGRATIONS } from '../../services/database-migrations'
+import { runAppDatabaseMigrations } from '../../services/database-service'
 import { runSessionHostCutover } from '../session-host-cutover'
 
 const fakeEmbeddingModel: SessionEmbeddingModel = {
@@ -12,7 +17,7 @@ const fakeEmbeddingModel: SessionEmbeddingModel = {
   embedPassages: async (texts) => texts.map(() => new Float32Array([1, 0, 0])),
 }
 
-function seedLegacyDatabase(databasePath: string, revision: number) {
+function seedLegacyDatabase(databasePath: string, revision: number, completeLedger = false) {
   const database = new DatabaseSync(databasePath)
   try {
     database.exec(`
@@ -77,9 +82,15 @@ function seedLegacyDatabase(databasePath: string, revision: number) {
         content_json, metadata_json, path_depth, created_order
       ) VALUES ('node-1', 'session-root', 'message', 'message', 'user', 11, '{}', '{}', 0, 0);
     `)
-    database
-      .prepare('INSERT INTO _migrations VALUES (?, ?, ?)')
-      .run(revision, `legacy-revision-${String(revision)}`, 'now')
+    const insertMigration = database.prepare('INSERT INTO _migrations VALUES (?, ?, ?)')
+    if (completeLedger) {
+      for (const migration of APP_MIGRATIONS) {
+        if (migration.id > revision) continue
+        insertMigration.run(migration.id, migration.name, 'now')
+      }
+    } else {
+      insertMigration.run(revision, `legacy-revision-${String(revision)}`, 'now')
+    }
     if (revision < 25) database.exec('ALTER TABLE sessions DROP COLUMN authorization_mode_override')
     if (revision < 22) {
       database.exec('ALTER TABLE sessions DROP COLUMN worktree_start_from_origin')
@@ -149,4 +160,35 @@ describe('Session Host cutover from older legacy revisions', () => {
       }
     },
   )
+
+  it('opens a normalized pre-worktree target through the normal runtime migrations', async () => {
+    const revision = 18
+    const sourceDatabasePath = path.join(temporaryRoot, 'openwaggle-runtime.db')
+    const targetDatabasePath = path.join(temporaryRoot, 'session-host', 'session-host.sqlite')
+    const recoveryDatabasePath = path.join(temporaryRoot, 'pre-cutover-openwaggle.sqlite')
+    seedLegacyDatabase(sourceDatabasePath, revision, true)
+
+    await runSessionHostCutover(
+      { sourceDatabasePath, targetDatabasePath, recoveryDatabasePath },
+      1_000,
+      fakeEmbeddingModel,
+    )
+
+    const runtimeDatabase = SqliteClient.layer({
+      filename: targetDatabasePath,
+      prepareCacheSize: SQLITE_PREPARE_CACHE_SIZE,
+    })
+    await expect(
+      Effect.runPromise(runAppDatabaseMigrations.pipe(Effect.provide(runtimeDatabase))),
+    ).resolves.toBeUndefined()
+
+    const target = new DatabaseSync(targetDatabasePath, { readOnly: true })
+    try {
+      expect(
+        target.prepare('SELECT id FROM _migrations WHERE id IN (19, 22, 25, 26) ORDER BY id').all(),
+      ).toEqual([{ id: 19 }, { id: 22 }, { id: 25 }, { id: 26 }])
+    } finally {
+      target.close()
+    }
+  })
 })

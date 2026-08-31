@@ -33,18 +33,59 @@ trap 'openwaggle_forward_signal INT' INT
 trap 'openwaggle_forward_signal TERM' TERM
 mkfifo "$openwaggle_stdout_pipe" || exit 1
 awk '
+function without_ansi(line) {
+  gsub(ansi_escape "\\\\[[0-?]*[ -/]*[@-~]", "", line)
+  return line
+}
+function consume_empty_payloads(line, previous) {
+  consumed_payload = 0
+  while (line ~ /^[[:space:]]*(\\[\\]|\\{\\})/) {
+    previous = line
+    sub(/^[[:space:]]*(\\[\\]|\\{\\})/, "", line)
+    if (line == previous) break
+    consumed_payload = 1
+  }
+  consumed_line = line
+}
 function is_empty_startup_line(line) {
-  gsub(ansi_escape "\\\\[[0-9;]*m", "", line)
-  return line ~ /^[[:space:]]*(\\[\\]|\\{\\})?[[:space:]]*$/
+  line = without_ansi(line)
+  if (line ~ /^[[:space:]]*$/) return 1
+  consume_empty_payloads(line)
+  return consumed_payload && consumed_line ~ /^[[:space:]]*$/
 }
-BEGIN { leading = 1; buffered = ""; ansi_escape = sprintf("%c", 27) }
-leading && is_empty_startup_line($0) {
-  buffered = buffered $0 ORS
-  next
+function normalize_application_line(line) {
+  line = without_ansi(line)
+  consume_empty_payloads(line)
+  if (!consumed_payload || consumed_line !~ /^[[:space:]]*\\{/) return 0
+  line = consumed_line
+  while (line ~ /(\\[\\]|\\{\\})[[:space:]]*$/) {
+    sub(/(\\[\\]|\\{\\})[[:space:]]*$/, "", line)
+  }
+  normalized_application = line
+  return 1
 }
+BEGIN { leading = 1; buffered = ""; trailing = ""; ansi_escape = sprintf("%c", 27) }
 {
-  leading = 0
-  buffered = ""
+  if (leading && normalize_application_line($0)) {
+    leading = 0
+    buffered = ""
+    print normalized_application
+    fflush()
+    next
+  }
+  if (is_empty_startup_line($0)) {
+    if (leading) buffered = buffered $0 ORS
+    else trailing = trailing $0 ORS
+    next
+  }
+  if (leading) {
+    leading = 0
+    buffered = ""
+  }
+  if (trailing != "") {
+    printf "%s", trailing
+    trailing = ""
+  }
   print
   fflush()
 }
