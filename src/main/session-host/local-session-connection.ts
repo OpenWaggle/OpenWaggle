@@ -11,19 +11,20 @@ import {
   LocalSessionProfileAdmissionChangedError,
 } from './local-session-command-admission'
 import { executeLocalSessionCommandFrame } from './local-session-command-frame'
+import { bindLocalSessionConnectionInput } from './local-session-connection-input'
 import { LocalSessionConnectionSubscriptions } from './local-session-connection-subscriptions'
 import { establishLocalSessionHandshake } from './local-session-handshake'
-import {
-  LocalSessionInboundCapacityError,
-  LocalSessionInboundRetention,
-} from './local-session-inbound-retention'
+import { LocalSessionInboundRetention } from './local-session-inbound-retention'
 import type { LocalSessionOutboundByteBudget } from './local-session-outbound-budget'
 import { LocalSessionOutboundWriter } from './local-session-outbound-writer'
-import type { LocalSessionProfileAdmissionRefreshOptions } from './local-session-profile-invalidation'
 import {
-  type LocalSessionAuthenticationBudget,
-  type LocalSessionInboundByteBudget,
-  MAX_DECODED_FRAMES_PER_CHUNK,
+  drainLocalSessionProfileAdmission,
+  LocalSessionInvalidationCloser,
+} from './local-session-profile-connection-lifecycle'
+import type { LocalSessionProfileAdmissionRefreshOptions } from './local-session-profile-invalidation'
+import type {
+  LocalSessionAuthenticationBudget,
+  LocalSessionInboundByteBudget,
 } from './local-session-resource-policy'
 import type {
   AuthenticatedLocalSessionCaller,
@@ -32,14 +33,12 @@ import type {
 import { describeLocalSessionServerError } from './local-session-server-frame'
 
 const DEFAULT_HANDSHAKE_TIMEOUT_MS = 5000
-const DEFAULT_PROFILE_ADMISSION_DRAIN_TIMEOUT_MS = 1000
 
 export class LocalSessionConnection {
   private readonly inbound: LocalSessionInboundRetention
   private readonly admission = new LocalSessionAdmissionGate()
   private readonly subscriptions: LocalSessionConnectionSubscriptions
   private readonly commandControllers = new Map<string, ActiveLocalSessionCommand>()
-  private readTail = Promise.resolve()
   private caller: AuthenticatedLocalSessionCaller | null = null
   private negotiatedRevision: number | null = null
   private serverAuthenticated: boolean
@@ -48,6 +47,7 @@ export class LocalSessionConnection {
   private readonly handshakeTimer: ReturnType<typeof setTimeout>
   private readonly authenticationController = new AbortController()
   private readonly outbound: LocalSessionOutboundWriter
+  private readonly invalidationCloser = new LocalSessionInvalidationCloser()
 
   constructor(
     private readonly socket: Socket,
@@ -80,31 +80,12 @@ export class LocalSessionConnection {
   }
 
   start(): void {
-    this.socket.on('data', (chunk) => {
-      this.socket.pause()
-      try {
-        const batch = this.inbound.push(chunk, MAX_DECODED_FRAMES_PER_CHUNK)
-        this.readTail = this.readTail
-          .then(async () => {
-            for (const value of batch.values) {
-              if (this.closed) break
-              await this.handleValue(value)
-            }
-          })
-          .catch((error) =>
-            this.fail(undefined, 'protocol_error', describeLocalSessionServerError(error)),
-          )
-          .finally(() => {
-            batch.release()
-            if (!this.closed) this.socket.resume()
-          })
-      } catch (error) {
-        const code =
-          error instanceof LocalSessionInboundCapacityError
-            ? 'inbound_backpressure_exceeded'
-            : 'invalid_frame'
-        void this.fail(undefined, code, describeLocalSessionServerError(error))
-      }
+    bindLocalSessionConnectionInput({
+      socket: this.socket,
+      inbound: this.inbound,
+      closed: () => this.closed,
+      handleValue: (value) => this.handleValue(value),
+      failed: (code, message) => this.fail(undefined, code, message),
     })
     this.socket.once('close', () => this.close())
     this.socket.once('error', () => this.close())
@@ -113,7 +94,10 @@ export class LocalSessionConnection {
   disconnectRevokedProfile(profileId: string): void {
     if (this.caller?.profileAuthority?.profileId !== profileId) return
     if (!this.admission.isFenced()) void this.admission.fence()
-    this.socket.end()
+    this.invalidationCloser.disconnect(
+      this.socket,
+      this.dependencies.profileInvalidationCloseTimeoutMs,
+    )
   }
 
   fenceProfileAdmission(profileName: string): Promise<void> {
@@ -159,22 +143,14 @@ export class LocalSessionConnection {
   }
 
   private async drainProfileAdmission(drained: Promise<void>): Promise<void> {
-    let timeout: ReturnType<typeof setTimeout> | undefined
-    const timeoutMs =
-      this.dependencies.profileAdmissionDrainTimeoutMs ?? DEFAULT_PROFILE_ADMISSION_DRAIN_TIMEOUT_MS
-    const result = await Promise.race([
-      drained.then(() => 'drained' as const),
-      new Promise<'timed-out'>((resolve) => {
-        timeout = setTimeout(() => resolve('timed-out'), timeoutMs)
-        timeout.unref?.()
-      }),
-    ])
-    if (timeout) clearTimeout(timeout)
-    if (result === 'drained') return
-
-    this.close()
-    this.socket.destroy()
-    await drained
+    await drainLocalSessionProfileAdmission(
+      drained,
+      this.dependencies.profileAdmissionDrainTimeoutMs,
+      () => {
+        this.close()
+        this.socket.destroy()
+      },
+    )
   }
 
   private send(frame: LocalSessionServerFrame | unknown): Promise<void> {
@@ -300,6 +276,7 @@ export class LocalSessionConnection {
     this.authenticationController.abort()
     this.inbound.releasePendingFrame()
     clearTimeout(this.handshakeTimer)
+    this.invalidationCloser.close()
     for (const command of this.commandControllers.values()) {
       command.controller.abort(new Error('Local Session client disconnected.'))
     }

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { assertSessionExportBranchSelection } from '@shared/session-export-selection'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
 import {
   SESSION_QUERY_CONTRACT_VERSION,
@@ -13,8 +14,10 @@ function exportSelection(input: ExportInput) {
   const branchId = input.branchId ?? manifest?.selectedBranchId ?? undefined
   const includeQueueBodies =
     input.includeQueueBodies ?? (manifest?.queue.bodyScope === 'included' ? true : undefined)
+  const branchScope = input.branchScope ?? manifest?.branchScope ?? ('active-branch' as const)
+  assertSessionExportBranchSelection({ branchScope, ...(branchId ? { branchId } : {}) })
   return {
-    branchScope: input.branchScope ?? manifest?.branchScope ?? ('active-branch' as const),
+    branchScope,
     ...(branchId ? { branchId } : {}),
     ...(includeQueueBodies ? { includeQueueBodies: true } : {}),
   }

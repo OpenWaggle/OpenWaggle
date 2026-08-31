@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
+import { assertSessionExportBranchSelection } from '@shared/session-export-selection'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import {
@@ -47,6 +48,8 @@ function createPayload(arguments_: ParsedArguments): LocalSessionCommandPayload 
   if (scope !== 'active-branch' && scope !== 'tree') {
     throw new Error('Unsupported export scope. Expected active-branch or tree.')
   }
+  const branchId = option(arguments_, 'branch')
+  assertSessionExportBranchSelection({ branchScope: scope, ...(branchId ? { branchId } : {}) })
   return {
     contract: 'session-control-v2',
     request: {
@@ -59,7 +62,7 @@ function createPayload(arguments_: ParsedArguments): LocalSessionCommandPayload 
           required(arguments_.positionals[EXPORT_TARGET_POSITION], 'Destination path'),
         ),
         branchScope: scope,
-        ...(option(arguments_, 'branch') ? { branchId: option(arguments_, 'branch') } : {}),
+        ...(branchId ? { branchId } : {}),
         ...(hasFlag(arguments_, 'overwrite') ? { overwriteExisting: true } : {}),
         ...(hasFlag(arguments_, 'include-queue-bodies') ? { includeQueueBodies: true } : {}),
         ...(arguments_.options.get('resource')?.length

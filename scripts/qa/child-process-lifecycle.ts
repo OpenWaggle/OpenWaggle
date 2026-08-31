@@ -20,7 +20,7 @@ export interface StoppableChild {
 interface StopChildDependencies {
   readonly platform?: NodeJS.Platform
   readonly waitForExit?: (child: StoppableChild, timeoutMs: number) => Promise<boolean>
-  readonly terminateWindowsTree?: (pid: number) => Promise<void>
+  readonly terminateWindowsTree?: (pid: number, force: boolean) => Promise<void>
 }
 
 function childExited(child: StoppableChild) {
@@ -42,34 +42,52 @@ async function waitForChildExit(child: StoppableChild, timeoutMs: number) {
   })
 }
 
-async function terminateWindowsProcessTree(pid: number) {
+async function terminateWindowsProcessTree(pid: number, force: boolean) {
+  const arguments_ = ['/PID', String(pid), '/T']
+  if (force) arguments_.push('/F')
   await new Promise<void>((resolve, reject) => {
     execFile(
       'taskkill.exe',
-      ['/PID', String(pid), '/T', '/F'],
+      arguments_,
       { timeout: STOP_TIMEOUT_MS, windowsHide: true },
       (error) => (error ? reject(error) : resolve()),
     )
   })
 }
 
-async function forceStopWindowsChild(
+async function stopWindowsChild(
   child: StoppableChild,
   waitForExit: (child: StoppableChild, timeoutMs: number) => Promise<boolean>,
-  terminateTree: (pid: number) => Promise<void>,
+  terminateTree: (pid: number, force: boolean) => Promise<void>,
 ) {
-  if (child.pid === undefined) throw new Error('Cannot terminate Windows GUI process tree without a PID.')
-  let terminationFailure: unknown
-  try {
-    await terminateTree(child.pid)
-  } catch (error) {
-    terminationFailure = error
+  if (child.pid === undefined) {
+    throw new Error('Cannot terminate Windows GUI process tree without a PID.')
   }
-  if (await waitForExit(child, STOP_TIMEOUT_MS)) return
+  let gracefulTerminationFailure: unknown
+  try {
+    await terminateTree(child.pid, false)
+  } catch (error) {
+    gracefulTerminationFailure = error
+  }
+  const gracefullyExited = await waitForExit(child, STOP_TIMEOUT_MS)
+  if (gracefulTerminationFailure === undefined && gracefullyExited) return
+
+  let forcedTerminationFailure: unknown
+  try {
+    await terminateTree(child.pid, true)
+  } catch (error) {
+    forcedTerminationFailure = error
+  }
+  const forciblyExited = await waitForExit(child, STOP_TIMEOUT_MS)
+  if (forcedTerminationFailure === undefined && forciblyExited) return
+
   const proofFailure = new Error(`Could not prove GUI process ${String(child.pid)} exited.`)
-  if (terminationFailure === undefined) throw proofFailure
+  const failures = [gracefulTerminationFailure, forcedTerminationFailure, proofFailure].filter(
+    (failure) => failure !== undefined,
+  )
+  if (failures.length === 1) throw proofFailure
   throw new AggregateError(
-    [terminationFailure, proofFailure],
+    failures,
     'Windows GUI process-tree termination failed without proof of exit.',
   )
 }
@@ -80,11 +98,10 @@ export async function stopChild(
 ) {
   if (childExited(child)) return
   const waitForExit = dependencies.waitForExit ?? waitForChildExit
-  child.kill('SIGTERM')
-  if (await waitForExit(child, STOP_TIMEOUT_MS)) return
+  const platform = dependencies.platform ?? process.platform
 
-  if ((dependencies.platform ?? process.platform) === 'win32') {
-    await forceStopWindowsChild(
+  if (platform === 'win32') {
+    await stopWindowsChild(
       child,
       waitForExit,
       dependencies.terminateWindowsTree ?? terminateWindowsProcessTree,
@@ -92,6 +109,8 @@ export async function stopChild(
     return
   }
 
+  child.kill('SIGTERM')
+  if (await waitForExit(child, STOP_TIMEOUT_MS)) return
   child.kill('SIGKILL')
   if (await waitForExit(child, STOP_TIMEOUT_MS)) return
   throw new Error(`Could not prove GUI process ${String(child.pid ?? 'unknown')} exited.`)

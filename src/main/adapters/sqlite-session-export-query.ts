@@ -1,4 +1,5 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import { sessionExportBranchSelectionIsValid } from '@shared/session-export-selection'
 import {
   SESSION_QUERY_MAX_RESPONSE_BYTES,
   type SessionQueryRequest,
@@ -175,6 +176,11 @@ function exportSelection(
   const query = request.query
   return Effect.gen(function* () {
     const branchScope = query.branchScope ?? 'active-branch'
+    if (!sessionExportBranchSelectionIsValid({ branchScope, branchId: query.branchId })) {
+      return yield* Effect.fail(
+        new Error('A Session branch can be selected only for an active-branch export.'),
+      )
+    }
     if (!continuationMatchesSnapshot(query, branchScope)) {
       return yield* Effect.fail(new Error('EXPORT_SNAPSHOT_MISMATCH'))
     }

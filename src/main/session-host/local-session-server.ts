@@ -69,6 +69,7 @@ export interface LocalSessionServerDependencies {
   readonly maxPendingOutboundBytesGlobal?: number
   readonly maxPendingOutboundFramesPerConnection?: number
   readonly profileAdmissionDrainTimeoutMs?: number
+  readonly profileInvalidationCloseTimeoutMs?: number
   readonly writeFrame?: LocalSessionSocketFrameWriter
   readonly maxConcurrentAuthentications?: number
   readonly maxFailedAuthenticationAttempts?: number

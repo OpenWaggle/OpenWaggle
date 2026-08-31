@@ -128,6 +128,35 @@ export function authorizeSessionTarget(
     : ({ authorized: false, code: 'target_scope_denied' as const } as const)
 }
 
+export function authorizeSessionTargetForCaller(
+  caller: LocalSessionCallerIdentity,
+  target: {
+    readonly projectPath?: string
+    readonly sessionId?: string
+    readonly hiveRootSessionId?: string
+  },
+  required: readonly SessionCapability[],
+) {
+  const authority = caller.profileAuthority
+  const baseAuthority =
+    authority && caller.baseProfileScope
+      ? { ...authority, scope: caller.baseProfileScope }
+      : authority
+  const baseCapabilities = authorizeSessionCapabilities(baseAuthority, required)
+  const baseScope = authorizeSessionTarget(baseAuthority, target)
+  if (baseCapabilities.authorized && baseScope.authorized) return baseScope
+  const derived = target.sessionId
+    ? caller.derivedSessionAuthorities?.find(
+        (candidate) => candidate.sessionId === target.sessionId,
+      )
+    : undefined
+  if (!derived) return baseCapabilities.authorized ? baseScope : baseCapabilities
+  const missing = required.filter((capability) => !derived.capabilities.includes(capability))
+  return missing.length === 0
+    ? ({ authorized: true, derived } as const)
+    : ({ authorized: false, code: 'capability_denied' as const, missing } as const)
+}
+
 export function snapshotAuthorizesSessionCapabilities(
   caller: LocalSessionCallerIdentity,
   sessionId: string,

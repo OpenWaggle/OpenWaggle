@@ -120,4 +120,21 @@ describe('Sessions CLI query contract', () => {
       },
     })
   })
+
+  it('rejects branch selectors for tree query and durable exports', () => {
+    const query = command(['export', 'session-1', '--scope', 'tree', '--branch', 'branch-main'])
+    const durable = command([
+      'export',
+      'create',
+      'session-1',
+      '/tmp/session.jsonl',
+      '--scope',
+      'tree',
+      '--branch',
+      'branch-main',
+    ])
+
+    expect(() => buildSessionsCliPayload(query.name, query.arguments)).toThrow('active-branch')
+    expect(() => buildSessionsCliPayload(durable.name, durable.arguments)).toThrow('active-branch')
+  })
 })

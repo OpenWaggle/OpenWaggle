@@ -444,7 +444,7 @@ jobs:
     name: Build macOS
     needs: version
     if: needs.version.outputs.should_release == 'true'
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -622,8 +622,15 @@ jobs:
           - os: ubuntu-latest
             platform: linux
             artifact_name: linux-artifacts
-          - os: macos-latest
+          - os: macos-15-intel
             platform: macos
+            architecture: x64
+            expected_uname: x86_64
+            artifact_name: macos-artifacts
+          - os: macos-15
+            platform: macos
+            architecture: arm64
+            expected_uname: arm64
             artifact_name: macos-artifacts
           - os: windows-latest
             platform: windows
@@ -705,30 +712,22 @@ jobs:
           set -euo pipefail
           VERSION='${{ needs.version.outputs.new_version }}'
           ARTIFACT_DIR="$RUNNER_TEMP/release/macos"
-          ARM64_DMG="openwaggle-${VERSION}-arm64.dmg"
-          X64_DMG="openwaggle-${VERSION}-x64.dmg"
-          ARM64_ZIP="openwaggle-${VERSION}-arm64.zip"
-          X64_ZIP="openwaggle-${VERSION}-x64.zip"
-          test -f "$ARTIFACT_DIR/$ARM64_DMG"
-          test -f "$ARTIFACT_DIR/$X64_DMG"
-          test -f "$ARTIFACT_DIR/$ARM64_ZIP"
-          test -f "$ARTIFACT_DIR/$X64_ZIP"
+          test "$(uname -m)" = "${{ matrix.expected_uname }}"
+          DMG_NAME="openwaggle-${VERSION}-${{ matrix.architecture }}.dmg"
+          ZIP_NAME="openwaggle-${VERSION}-${{ matrix.architecture }}.zip"
+          test -f "$ARTIFACT_DIR/$DMG_NAME"
+          test -f "$ARTIFACT_DIR/$ZIP_NAME"
 
-          case "$(uname -m)" in
-            arm64) NATIVE_DMG="$ARM64_DMG" ;;
-            x86_64) NATIVE_DMG="$X64_DMG" ;;
-            *) echo "Unsupported macOS runner architecture: $(uname -m)" >&2; exit 1 ;;
-          esac
           MOCK_RELEASE_DIR="$RUNNER_TEMP/mock-release"
           mkdir -p "$MOCK_RELEASE_DIR"
-          cp "$ARTIFACT_DIR/$NATIVE_DMG" "$MOCK_RELEASE_DIR/$NATIVE_DMG"
+          cp "$ARTIFACT_DIR/$DMG_NAME" "$MOCK_RELEASE_DIR/$DMG_NAME"
           (
             cd "$MOCK_RELEASE_DIR"
-            shasum -a 256 "$NATIVE_DMG" > SHA256SUMS.txt
+            shasum -a 256 "$DMG_NAME" > SHA256SUMS.txt
           )
 
           RELEASE_JSON_PATH="$MOCK_RELEASE_DIR/release.json"
-          DMG_URL="file://$MOCK_RELEASE_DIR/$NATIVE_DMG"
+          DMG_URL="file://$MOCK_RELEASE_DIR/$DMG_NAME"
           SHA_URL="file://$MOCK_RELEASE_DIR/SHA256SUMS.txt"
           cat > "$RELEASE_JSON_PATH" <<JSON
           {

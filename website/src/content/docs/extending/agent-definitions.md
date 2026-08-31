@@ -84,9 +84,16 @@ reference is unknown, duplicated, or cannot be checked because a project catalog
 `create`, `update`, import, and refresh use the same validation before writing, so an invalid role is
 not installed through the CLI or settings UI.
 
-Pass `--json` when another tool consumes the command. Successful commands emit
-`{"schemaVersion":1,"result":...}`. Failures emit
-`{"schemaVersion":1,"error":{"message":"..."}}` on stderr and retain their non-zero exit code.
+Pass `--json` when another tool consumes the command. Successful commands emit a
+`{"schemaVersion":1,"result":...}` envelope on stdout and exit with code 0. `validate` and `explain`
+also use the result envelope when the command runs but finds invalid semantics. In that case,
+`validate` reports `{"schemaVersion":1,"result":{"valid":false,"diagnostics":[...]}}`, `explain`
+includes the failed `semanticValidation` in its result, and either command exits with code 1.
+
+Usage, transport, and command failures emit
+`{"schemaVersion":1,"error":{"message":"..."}}` on stderr. Usage errors exit with code 2; other
+failures exit with code 1. Consumers should read the envelope from the documented stream before
+interpreting the exit code.
 
 Import uses an explicit source adapter for OpenWaggle, Codex, Claude Code, Cursor, Gemini CLI,
 GitHub Copilot, or OpenCode. A dry run returns the schema-versioned conversion plan, diagnostics,

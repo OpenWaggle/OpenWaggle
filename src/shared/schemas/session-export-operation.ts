@@ -1,4 +1,5 @@
 import { Schema } from '@shared/schema'
+import { sessionExportBranchSelectionIsValid } from '@shared/session-export-selection'
 import type {
   SessionExportBundleManifest,
   SessionExportManifest,
@@ -90,7 +91,13 @@ export const exportCreateCommandSchema = Schema.Struct({
   branchId: Schema.optional(Schema.String),
   includeQueueBodies: Schema.optional(Schema.Boolean),
   resources: Schema.optional(exportResourcesSchema),
-})
+}).pipe(
+  Schema.filter(
+    (command) =>
+      sessionExportBranchSelectionIsValid(command) ||
+      'A Session branch can be selected only for an active-branch export.',
+  ),
+)
 
 export const exportCancelCommandSchema = Schema.Struct({
   operation: Schema.Literal('export-cancel'),

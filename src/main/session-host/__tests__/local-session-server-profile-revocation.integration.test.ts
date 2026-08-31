@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises'
+import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,6 +16,14 @@ function within<T>(promise: Promise<T>, stage: string) {
       setTimeout(() => reject(new Error(`Timed out while ${stage}.`)), 1_000),
     ),
   ])
+}
+
+function connectHalfOpen(endpoint: string) {
+  return new Promise<net.Socket>((resolve, reject) => {
+    const socket = net.createConnection({ path: endpoint, allowHalfOpen: true })
+    socket.once('connect', () => resolve(socket))
+    socket.once('error', reject)
+  })
 }
 
 describe('Local Session server profile revocation', () => {
@@ -57,9 +66,10 @@ describe('Local Session server profile revocation', () => {
           outcome: { effect: 'profile-revoked', profile: { id: 'worker', name: 'worker' } },
         },
       }),
+      profileInvalidationCloseTimeoutMs: 25,
     })
     const first = await connectLocalSessionTestClient(endpoint)
-    const second = await connectLocalSessionTestClient(endpoint)
+    const second = await connectHalfOpen(endpoint)
     const firstReader = new TestFrameReader(first)
     const secondReader = new TestFrameReader(second)
     const hello = encodeLocalSessionFrame({
@@ -75,7 +85,7 @@ describe('Local Session server profile revocation', () => {
       'authenticating old sockets',
     )
     const firstClosed = new Promise<void>((resolve) => first.once('close', () => resolve()))
-    const secondClosed = new Promise<void>((resolve) => second.once('close', () => resolve()))
+    const secondEnded = new Promise<void>((resolve) => second.once('end', () => resolve()))
 
     first.write(
       encodeLocalSessionFrame({
@@ -91,11 +101,12 @@ describe('Local Session server profile revocation', () => {
       kind: 'response',
       requestId: 'revoke-profile',
     })
-    await within(Promise.all([firstClosed, secondClosed]), 'closing rotated sockets')
-    for (let attempt = 0; attempt < 20 && liveness.ownerCount() > 0; attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 1))
+    await within(Promise.all([firstClosed, secondEnded]), 'closing rotated sockets')
+    for (let attempt = 0; attempt < 100 && liveness.ownerCount() > 0; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 5))
     }
     expect(liveness.ownerCount()).toBe(0)
+    second.destroy()
   })
 
   it('disconnects old authenticated sockets after rotation and accepts only the new secret', async () => {

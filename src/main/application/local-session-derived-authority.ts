@@ -1,10 +1,7 @@
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import type { SessionCapability } from '@shared/types/session-capability'
 import * as Effect from 'effect/Effect'
-import {
-  authorizeSessionCapabilities,
-  authorizeSessionTarget,
-} from '../domain/session-control/session-capability-authorization'
+import { authorizeSessionTargetForCaller } from '../domain/session-control/session-capability-authorization'
 import {
   LocalSessionCommandAuthorizationError,
   type LocalSessionProfileRepositoryError,
@@ -167,17 +164,5 @@ export function authorizeTargetForCaller(
   target: LocalSessionAuthorizationTarget,
   required: readonly SessionCapability[],
 ) {
-  const baseAuthority =
-    caller.profileAuthority && caller.baseProfileScope
-      ? { ...caller.profileAuthority, scope: caller.baseProfileScope }
-      : caller.profileAuthority
-  const baseCapabilities = authorizeSessionCapabilities(baseAuthority, required)
-  const baseScope = authorizeSessionTarget(baseAuthority, target)
-  if (baseCapabilities.authorized && baseScope.authorized) return baseScope
-  const derived = derivedAuthorityForTarget(caller, target)
-  if (!derived) return baseCapabilities.authorized ? baseScope : baseCapabilities
-  const missing = required.filter((capability) => !derived.capabilities.includes(capability))
-  return missing.length === 0
-    ? ({ authorized: true, derived } as const)
-    : ({ authorized: false, code: 'capability_denied' as const, missing } as const)
+  return authorizeSessionTargetForCaller(caller, target, required)
 }

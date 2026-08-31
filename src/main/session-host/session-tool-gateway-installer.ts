@@ -37,6 +37,10 @@ import type { SessionWorkspaceHandoffService } from '../ports/session-workspace-
 import type { SettingsService } from '../services/settings-service'
 import { resolveSessionToolAgentCaller } from './session-tool-agent-caller'
 import { installSessionToolGateway } from './session-tool-gateway'
+import {
+  runSessionToolCallerResolution,
+  throwIfSessionToolAborted,
+} from './session-tool-gateway-cancellation'
 
 export { resolveSessionToolAgentCaller } from './session-tool-agent-caller'
 
@@ -84,13 +88,15 @@ export const installAppSessionToolGateway = Effect.gen(function* () {
       throw new Error('The agent Session tool cannot invoke Host UI operations.')
     }
     const payload = input.payload
-    const caller = await Effect.runPromise(
+    const caller = await runSessionToolCallerResolution(
       resolveSessionToolAgentCaller(sql, {
         sessionId: input.sourceSessionId,
         runId: input.sourceRunId,
         workingDirectory: input.workingDirectory,
       }),
+      input.signal,
     )
+    throwIfSessionToolAborted(input.signal)
     const command = Effect.suspend(
       (): Effect.Effect<LocalSessionCommandResult, unknown, SessionToolDependencies> =>
         dispatchNonHostUiLocalSessionCommand({

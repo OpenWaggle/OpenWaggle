@@ -55,4 +55,15 @@ describe('Sessions tool export payload', () => {
       },
     })
   })
+
+  it('rejects a branch selector for a tree export', () => {
+    expect(() =>
+      buildSessionsToolExportPayload({
+        action: 'export',
+        sessionId: 'worker',
+        branchScope: 'tree',
+        branchId: 'branch-main',
+      }),
+    ).toThrow('active-branch')
+  })
 })

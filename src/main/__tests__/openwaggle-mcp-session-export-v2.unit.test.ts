@@ -67,6 +67,26 @@ describe('OpenWaggle MCP Session export v2 adapter', () => {
     })
   })
 
+  it('rejects branch selectors for tree query and durable exports', () => {
+    expect(() =>
+      buildMcpSessionPayloadV2({
+        operation: 'export',
+        sessionId: 'worker',
+        branchScope: 'tree',
+        branchId: 'branch-main',
+      }),
+    ).toThrow('active-branch')
+    expect(() =>
+      buildMcpSessionPayloadV2({
+        operation: 'export-create',
+        sessionId: 'worker',
+        destinationPath: '/allowed/worker.jsonl',
+        branchScope: 'tree',
+        branchId: 'branch-main',
+      }),
+    ).toThrow('active-branch')
+  })
+
   it('injects the canonical granted root into the async Host export operation', async () => {
     const root = await fs.realpath(
       await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-mcp-export-scope-')),

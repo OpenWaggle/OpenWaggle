@@ -150,6 +150,29 @@ describe('desktop app release workflow', () => {
     expect(WORKFLOW).not.toContain('scripts/verify-installed-cli.ts "$APP_BINARY"')
   })
 
+  it('verifies each exact macOS installer on a matching supported architecture', () => {
+    expect(WORKFLOW).toContain(
+      "build-macos:\n    name: Build macOS\n    needs: version\n    if: needs.version.outputs.should_release == 'true'\n    runs-on: macos-15",
+    )
+    expect(WORKFLOW).not.toContain('macos-14')
+    expect(WORKFLOW).toContain(
+      'os: macos-15-intel\n            platform: macos\n            architecture: x64\n            expected_uname: x86_64',
+    )
+    expect(WORKFLOW).toContain(
+      'os: macos-15\n            platform: macos\n            architecture: arm64\n            expected_uname: arm64',
+    )
+    expect(WORKFLOW).toContain(
+      'DMG_NAME="openwaggle-${VERSION}-${{ matrix.architecture }}.dmg"',
+    )
+    expect(WORKFLOW).toContain(
+      'ZIP_NAME="openwaggle-${VERSION}-${{ matrix.architecture }}.zip"',
+    )
+    expect(
+      WORKFLOW.match(/test "\$\(uname -m\)" = "\$\{\{ matrix\.expected_uname \}\}"/gu),
+    ).toHaveLength(2)
+    expect(WORKFLOW).not.toContain('case "$(uname -m)" in')
+  })
+
   it('runs packaged first-start and legacy-cutover smoke on every platform build', () => {
     expect(
       WORKFLOW.match(/pnpm qa:packaged-session-host-startup --/gu),

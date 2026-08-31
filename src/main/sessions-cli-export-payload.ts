@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { assertSessionExportBranchSelection } from '@shared/session-export-selection'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
 import {
   SESSION_QUERY_CONTRACT_VERSION,
@@ -14,6 +15,8 @@ export function buildSessionsCliExportPayload(
   if (branchScope !== 'active-branch' && branchScope !== 'tree') {
     throw new Error('Unsupported export scope. Expected active-branch or tree.')
   }
+  const branchId = option(arguments_, 'branch')
+  assertSessionExportBranchSelection({ branchScope, ...(branchId ? { branchId } : {}) })
   return {
     contract: 'session-query-v2',
     request: {
@@ -26,7 +29,7 @@ export function buildSessionsCliExportPayload(
           ? positiveInteger(option(arguments_, 'limit'), '--limit')
           : SESSION_QUERY_TRANSCRIPT_LIMIT,
         branchScope,
-        ...(option(arguments_, 'branch') ? { branchId: option(arguments_, 'branch') } : {}),
+        ...(branchId ? { branchId } : {}),
         ...(hasFlag(arguments_, 'include-queue-bodies') ? { includeQueueBodies: true } : {}),
       },
     },

@@ -8,10 +8,7 @@ import {
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import * as Effect from 'effect/Effect'
 import { liveSessionAuthorityBlockReason } from '../adapters/sqlite-session-live-authority'
-import {
-  authorizeSessionCapabilities,
-  requiredSessionControlCapabilities,
-} from '../domain/session-control/session-capability-authorization'
+import { requiredSessionControlCapabilities } from '../domain/session-control/session-capability-authorization'
 import type { SessionExportOperationRecord } from '../ports/session-export-operation-repository'
 import { resolveSessionToolAgentCaller } from '../session-host/session-tool-agent-caller'
 import { assertCanonicalDirectoryRoots } from '../utils/canonical-directory-roots'
@@ -122,10 +119,6 @@ function assertProfileAuthority(
   caller: LocalSessionCallerIdentity,
 ) {
   const required = exportRequiredCapabilities(operation)
-  const capabilitiesAuthorized = authorizeSessionCapabilities(
-    caller.profileAuthority,
-    required,
-  ).authorized
   const targetAuthorized = authorizeTargetForCaller(
     caller,
     {
@@ -135,7 +128,7 @@ function assertProfileAuthority(
     },
     required,
   ).authorized
-  if (!capabilitiesAuthorized || !targetAuthorized) {
+  if (!targetAuthorized) {
     throw new Error('Export profile authority changed.')
   }
 }

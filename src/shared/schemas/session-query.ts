@@ -1,4 +1,5 @@
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
+import { sessionExportBranchSelectionIsValid } from '@shared/session-export-selection'
 import {
   DELEGATION_CONFLICT_KINDS,
   DELEGATION_CONFLICT_STATUSES,
@@ -41,6 +42,27 @@ const delegationStateSchema = Schema.Literal(
   'revision_requested',
   'accepted',
   'cancelled',
+)
+
+const sessionExportQuerySchema = Schema.Struct({
+  operation: Schema.Literal('export'),
+  sessionId: Schema.String,
+  limit: transcriptLimit,
+  branchScope: Schema.optional(Schema.Literal('active-branch', 'tree')),
+  branchId: Schema.optional(Schema.String),
+  includeQueueBodies: Schema.optional(Schema.Boolean),
+  afterCreatedOrder: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
+  throughCreatedOrder: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
+  snapshotStateRevision: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
+  snapshotHeadNodeId: Schema.optional(Schema.String),
+  capturedAt: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
+  snapshotManifest: Schema.optional(sessionExportManifestSchema),
+}).pipe(
+  Schema.filter(
+    (query) =>
+      sessionExportBranchSelectionIsValid(query) ||
+      'A Session branch can be selected only for an active-branch export.',
+  ),
 )
 
 const sessionQuerySchema = Schema.Union(
@@ -87,20 +109,7 @@ const sessionQuerySchema = Schema.Union(
   }),
   Schema.Struct({ operation: Schema.Literal('status'), sessionId: Schema.String }),
   Schema.Struct({ operation: Schema.Literal('requests-list'), sessionId: Schema.String }),
-  Schema.Struct({
-    operation: Schema.Literal('export'),
-    sessionId: Schema.String,
-    limit: transcriptLimit,
-    branchScope: Schema.optional(Schema.Literal('active-branch', 'tree')),
-    branchId: Schema.optional(Schema.String),
-    includeQueueBodies: Schema.optional(Schema.Boolean),
-    afterCreatedOrder: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
-    throughCreatedOrder: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
-    snapshotStateRevision: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
-    snapshotHeadNodeId: Schema.optional(Schema.String),
-    capturedAt: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
-    snapshotManifest: Schema.optional(sessionExportManifestSchema),
-  }),
+  sessionExportQuerySchema,
   exportListQuerySchema,
   exportReadQuerySchema,
   exportWaitQuerySchema,

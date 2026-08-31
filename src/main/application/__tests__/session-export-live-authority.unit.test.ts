@@ -187,6 +187,31 @@ describe('live Session export authority', () => {
     await expect(check('profile:origin')).rejects.toThrow('authority changed')
   })
 
+  it('preserves exact derived capabilities that are absent from the base profile', async () => {
+    await mutate(
+      (sql) => sql`
+      UPDATE session_client_profiles
+      SET capabilities_json = ${JSON.stringify([])},
+        scope_json = ${JSON.stringify({ sessionIds: ['queen'], exportRoots: [root] })}
+      WHERE id = ${'origin'}
+    `,
+    )
+    await mutate(
+      (sql) => sql`
+      INSERT INTO derived_child_management_grants (
+        id, child_session_id, source_caller_id, capabilities_json,
+        authorization_ceiling, revoked_at
+      ) VALUES (
+        ${'grant'}, ${'worker'}, ${'profile:origin'},
+        ${JSON.stringify(['sessions:export', 'sessions:read'])},
+        ${'ask-for-approval'}, ${null}
+      )
+    `,
+    )
+
+    await expect(check('profile:origin')).resolves.toBeUndefined()
+  })
+
   it('revalidates the current origin-profile capability policy for Session agents', async () => {
     await expect(check('session-agent:queen:run-1')).resolves.toBeUndefined()
     await mutate(

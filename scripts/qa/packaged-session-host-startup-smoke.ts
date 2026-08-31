@@ -6,7 +6,11 @@ import { DatabaseSync } from 'node:sqlite'
 import { pathToFileURL } from 'node:url'
 import { resolveLocalSessionHostPaths } from '../../src/main/session-host/local-session-paths'
 import { buildSafeElectronEnvironment } from '../safe-electron-environment'
-import { completeLiveQaCleanup } from './live-session-orchestration-lifecycle'
+import {
+  type CompleteLiveQaCleanupInput,
+  type LiveQaLifecycleState,
+  runLiveQaProfileLifecycle,
+} from './live-session-orchestration-lifecycle'
 import { prepareLiveQaCliExecutable } from './live-session-cli-executable'
 import {
   cliOutcome,
@@ -22,6 +26,20 @@ const SECOND_INSTANCE_EXIT_TIMEOUT_MS = 10_000
 const LEGACY_SESSION_ID = 'packaged-cutover-session'
 const LEGACY_SESSION_CREATED_AT = 10
 const LEGACY_SESSION_UPDATED_AT = 20
+
+type PackagedStartupScenario = 'fresh' | 'legacy'
+
+interface PackagedStartupScenarioInput {
+  readonly executable: string
+  readonly scenario: PackagedStartupScenario
+  readonly userDataRoot: string
+}
+
+interface PackagedStartupScenarioDependencies {
+  readonly cleanup?: (input: CompleteLiveQaCleanupInput) => Promise<void>
+  readonly prepareCliExecutable?: typeof prepareLiveQaCliExecutable
+  readonly seedLegacyDatabase?: (databasePath: string) => void
+}
 
 function seedLegacyDatabase(databasePath: string) {
   const database = new DatabaseSync(databasePath)
@@ -144,49 +162,64 @@ async function assertLegacySessionMigrated(executable: string, environment: Reco
   }
 }
 
-async function runScenario(executable: string, scenario: 'fresh' | 'legacy') {
+export async function runPackagedSessionHostStartupScenario(
+  input: PackagedStartupScenarioInput,
+  dependencies: PackagedStartupScenarioDependencies = {},
+) {
+  const state: LiveQaLifecycleState = {
+    gui: null,
+    guiLogs: [],
+    passed: false,
+  }
+  await runLiveQaProfileLifecycle({
+    userDataRoot: input.userDataRoot,
+    state,
+    cleanup: dependencies.cleanup,
+    run: async () => {
+      const paths = resolveLocalSessionHostPaths({ userDataRoot: input.userDataRoot })
+      if (input.scenario === 'legacy') {
+        const seedDatabase = dependencies.seedLegacyDatabase ?? seedLegacyDatabase
+        seedDatabase(paths.legacyDatabasePath)
+      }
+      const environment = buildSafeElectronEnvironment({
+        OPENWAGGLE_AUTOMATION: '1',
+        OPENWAGGLE_USER_DATA_DIR: input.userDataRoot,
+      })
+      const cliExecutable = await (
+        dependencies.prepareCliExecutable ?? prepareLiveQaCliExecutable
+      )({
+        executable: input.executable,
+        workingDirectory: input.userDataRoot,
+      })
+      state.gui = await launchGui(input.executable, environment, packagedGuiArguments())
+      state.guiLogs.push(state.gui.logs)
+      await waitForHost(cliExecutable, environment)
+      const secondGui = await launchGui(input.executable, environment, packagedGuiArguments())
+      state.guiLogs.push(secondGui.logs)
+      try {
+        await waitForExit(secondGui.child)
+      } finally {
+        await stopChild(secondGui.child)
+      }
+      if (state.gui.child.exitCode !== null || state.gui.child.signalCode !== null) {
+        throw new Error('The primary packaged GUI exited after the second-instance probe.')
+      }
+      await waitForHost(cliExecutable, environment)
+      await fs.access(paths.databasePath)
+      if (input.scenario === 'legacy') {
+        await fs.access(paths.recoveryDatabasePath)
+        await assertLegacySessionMigrated(cliExecutable, environment)
+      }
+      state.passed = true
+    },
+  })
+}
+
+async function runScenario(executable: string, scenario: PackagedStartupScenario) {
   const userDataRoot = await fs.mkdtemp(
     path.join(os.tmpdir(), `openwaggle-packaged-${scenario}-startup-`),
   )
-  const paths = resolveLocalSessionHostPaths({ userDataRoot })
-  if (scenario === 'legacy') seedLegacyDatabase(paths.legacyDatabasePath)
-  const environment = buildSafeElectronEnvironment({
-    OPENWAGGLE_AUTOMATION: '1',
-    OPENWAGGLE_USER_DATA_DIR: userDataRoot,
-  })
-  const cliExecutable = await prepareLiveQaCliExecutable({
-    executable,
-    workingDirectory: userDataRoot,
-  })
-  let gui: Awaited<ReturnType<typeof launchGui>> | null = null
-  const guiLogs: Array<() => string> = []
-  let passed = false
-  let primaryFailure: { readonly error: unknown } | null = null
-  try {
-    gui = await launchGui(executable, environment, packagedGuiArguments())
-    guiLogs.push(gui.logs)
-    await waitForHost(cliExecutable, environment)
-    const secondGui = await launchGui(executable, environment, packagedGuiArguments())
-    guiLogs.push(secondGui.logs)
-    try {
-      await waitForExit(secondGui.child)
-    } finally {
-      await stopChild(secondGui.child)
-    }
-    if (gui.child.exitCode !== null || gui.child.signalCode !== null) {
-      throw new Error('The primary packaged GUI exited after the second-instance probe.')
-    }
-    await waitForHost(cliExecutable, environment)
-    await fs.access(paths.databasePath)
-    if (scenario === 'legacy') {
-      await fs.access(paths.recoveryDatabasePath)
-      await assertLegacySessionMigrated(cliExecutable, environment)
-    }
-    passed = true
-  } catch (error) {
-    primaryFailure = { error }
-  }
-  await completeLiveQaCleanup({ gui, guiLogs, passed, primaryFailure, userDataRoot })
+  await runPackagedSessionHostStartupScenario({ executable, scenario, userDataRoot })
 }
 
 export async function verifyPackagedSessionHostStartup(executable: string) {

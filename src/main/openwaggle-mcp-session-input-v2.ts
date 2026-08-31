@@ -1,3 +1,4 @@
+import { assertSessionExportBranchSelection } from '@shared/session-export-selection'
 import { z } from 'zod'
 import { validateDelegationsCliOptions } from './delegations-cli-option-contract'
 import { buildDelegationsCliPayload } from './delegations-cli-payload'
@@ -40,6 +41,14 @@ function validateResourceFields(input: SessionToolInputV2) {
   }
 }
 
+function validateExportBranchFields(input: SessionToolInputV2) {
+  if (input.operation !== 'export' && input.operation !== 'export-create') return
+  assertSessionExportBranchSelection({
+    branchScope: input.branchScope,
+    ...(input.branchId ? { branchId: input.branchId } : {}),
+  })
+}
+
 function validateWorkspaceFields(input: SessionToolInputV2) {
   if (
     (input.baseRef !== undefined || input.startFromOrigin !== undefined) &&
@@ -59,6 +68,7 @@ function isDelegationQuery(operation: SessionToolInputV2['operation']) {
 
 function validateParsedInput(input: SessionToolInputV2, parsed: ReturnType<typeof parsedInput>) {
   validateResourceFields(input)
+  validateExportBranchFields(input)
   validateWorkspaceFields(input)
   if (isDelegationQuery(input.operation)) {
     validateDelegationsCliOptions(input.operation.slice('delegations-'.length), parsed.arguments)

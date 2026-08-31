@@ -79,9 +79,36 @@ describe('live Session orchestration support', () => {
 
     await stopChild(child, { platform: 'win32', terminateWindowsTree, waitForExit })
 
-    expect(child.kill).toHaveBeenCalledWith('SIGTERM')
-    expect(terminateWindowsTree).toHaveBeenCalledWith(42)
+    expect(child.kill).not.toHaveBeenCalled()
+    expect(terminateWindowsTree).toHaveBeenNthCalledWith(1, 42, false)
+    expect(terminateWindowsTree).toHaveBeenNthCalledWith(2, 42, true)
     expect(waitForExit).toHaveBeenCalledTimes(2)
+  })
+
+  it('targets the Windows process tree before accepting a fast root exit', async () => {
+    class FakeChild implements StoppableChild {
+      readonly pid = 44
+      readonly exitCode = null
+      readonly signalCode = null
+      readonly kill = vi.fn(() => true)
+      once() {
+        return this
+      }
+      off() {
+        return this
+      }
+    }
+    const child = new FakeChild()
+    const waitForExit = vi.fn(async () => true)
+    const terminateWindowsTree = vi.fn(async () => undefined)
+
+    await stopChild(child, { platform: 'win32', terminateWindowsTree, waitForExit })
+
+    expect(terminateWindowsTree).toHaveBeenCalledWith(44, false)
+    expect(terminateWindowsTree.mock.invocationCallOrder[0]).toBeLessThan(
+      waitForExit.mock.invocationCallOrder[0],
+    )
+    expect(child.kill).not.toHaveBeenCalled()
   })
 
   it('fails closed when forced termination cannot prove process exit', async () => {

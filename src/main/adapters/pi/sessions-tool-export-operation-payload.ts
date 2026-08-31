@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
+import { assertSessionExportBranchSelection } from '@shared/session-export-selection'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import { SESSION_EXPORT_OPERATION_QUERY_LIMIT } from '@shared/types/session-export-operation'
@@ -46,6 +47,11 @@ function exportControlPayload(
       },
     }
   }
+  const branchScope = input.branchScope ?? 'active-branch'
+  assertSessionExportBranchSelection({
+    branchScope,
+    ...(input.branchId ? { branchId: input.branchId } : {}),
+  })
   return {
     contract: 'session-control-v2',
     request: {
@@ -55,7 +61,7 @@ function exportControlPayload(
         sessionId: input.sessionId,
         format: input.format ?? 'jsonl',
         destinationPath: destinationPath(input.destinationPath, source),
-        branchScope: input.branchScope ?? 'active-branch',
+        branchScope,
         ...(input.branchId ? { branchId: input.branchId } : {}),
         ...(input.includeQueueBodies ? { includeQueueBodies: true } : {}),
         ...(input.overwriteExisting ? { overwriteExisting: true } : {}),
