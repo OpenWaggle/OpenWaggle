@@ -16,12 +16,7 @@ import {
 } from '../../ports/agent-steering-service'
 import { SessionControlAttachmentService } from '../../ports/session-control-attachment-service'
 import { SessionControlOperationJournal } from '../../ports/session-control-operation-journal'
-import { SessionDescendantRunRepository } from '../../ports/session-descendant-run-repository'
-import {
-  interruptSessionDescendants,
-  interruptSessionRun,
-  steerSessionRun,
-} from '../session-control-external-service'
+import { interruptSessionRun, steerSessionRun } from '../session-control-external-service'
 
 const request = {
   contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
@@ -225,91 +220,5 @@ describe('Session Control external command service', () => {
 
     expect(response.outcome).toMatchObject({ effect: 'rejected', code: 'run_not_live' })
     expect(setup.state()).toMatchObject({ revision: 6, run: { state: 'idle' } })
-  })
-
-  it('interrupts deepest active descendants explicitly without interrupting the parent', async () => {
-    const states = new Map<string, SessionControlSessionState>([
-      [
-        'queen',
-        {
-          sessionId: SessionId('queen'),
-          revision: 3,
-          run: { state: 'active', runId: RunId('run-queen') },
-          followUpQueue: { state: 'running', revision: 0, items: [] },
-        },
-      ],
-      [
-        'worker',
-        {
-          sessionId: SessionId('worker'),
-          revision: 4,
-          run: { state: 'active', runId: RunId('run-worker') },
-          followUpQueue: { state: 'running', revision: 0, items: [] },
-        },
-      ],
-      [
-        'grandchild',
-        {
-          sessionId: SessionId('grandchild'),
-          revision: 5,
-          run: { state: 'active', runId: RunId('run-grandchild') },
-          followUpQueue: { state: 'running', revision: 0, items: [] },
-        },
-      ],
-    ])
-    const interrupt = vi.fn((_input: AgentRunInterruptionInput) => ({ accepted: true as const }))
-    const layer = Layer.mergeAll(
-      Layer.succeed(SessionDescendantRunRepository, {
-        listActive: () =>
-          Effect.succeed([
-            { sessionId: 'grandchild', runId: 'run-grandchild', depth: 2 },
-            { sessionId: 'worker', runId: 'run-worker', depth: 1 },
-          ]),
-      }),
-      Layer.succeed(AgentRunInterruptionService, {
-        interrupt: (input) => Effect.succeed(interrupt(input)),
-      }),
-      Layer.succeed(SessionControlOperationJournal, {
-        claim: (input) =>
-          Effect.sync(() => {
-            const state = states.get(input.request.command.sessionId)
-            if (!state) throw new Error('Missing test state.')
-            const decision = input.decide(state)
-            if (!decision.accepted) {
-              return { status: 'completed', replayed: false, outcome: decision.outcome } as const
-            }
-            const next = decision.state ?? state
-            states.set(input.request.command.sessionId, next)
-            return { status: 'claimed', stateRevision: next.revision } as const
-          }),
-        complete: () => Effect.void,
-      }),
-    )
-
-    const response = await Effect.runPromise(
-      interruptSessionDescendants({
-        callerId: 'queen-agent',
-        request: {
-          contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
-          requestId: 'stop-hive',
-          idempotencyKey: 'stop-hive-once',
-          command: { operation: 'interrupt-descendants', sessionId: 'queen' },
-        },
-      }).pipe(Effect.provide(layer)),
-    )
-
-    expect(interrupt.mock.calls).toEqual([
-      [{ sessionId: 'grandchild', runId: 'run-grandchild' }],
-      [{ sessionId: 'worker', runId: 'run-worker' }],
-    ])
-    expect(states.get('queen')?.run).toEqual({ state: 'active', runId: RunId('run-queen') })
-    expect(response.outcome).toMatchObject({
-      operation: 'interrupt-descendants',
-      effect: 'descendant-interruptions-requested',
-      interrupted: [
-        { sessionId: 'grandchild', runId: 'run-grandchild', stateRevision: 6 },
-        { sessionId: 'worker', runId: 'run-worker', stateRevision: 5 },
-      ],
-    })
   })
 })

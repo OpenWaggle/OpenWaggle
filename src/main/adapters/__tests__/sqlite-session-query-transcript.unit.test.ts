@@ -192,6 +192,25 @@ describe('SQLite Session transcript queries', () => {
     })
     expect(JSON.stringify(second)).not.toContain('fork-only')
 
+    const missingBranch = await executeQuery(runtime, {
+      operation: 'items',
+      sessionId: 'worker',
+      branchScope: 'active-branch',
+      branchId: 'worker:branch:missing',
+      snapshotHeadNodeId: 'node-worker-2',
+      limit: 10,
+    })
+    const mismatchedHead = await executeQuery(runtime, {
+      operation: 'items',
+      sessionId: 'worker',
+      branchScope: 'active-branch',
+      branchId: 'worker:branch:main',
+      snapshotHeadNodeId: 'node-worker-fork',
+      limit: 10,
+    })
+    expect(missingBranch.outcome).toMatchObject({ error: { code: 'branch_not_found' } })
+    expect(mismatchedHead.outcome).toMatchObject({ error: { code: 'branch_not_found' } })
+
     const tree = await executeQuery(runtime, {
       operation: 'items',
       sessionId: 'worker',

@@ -16,6 +16,8 @@ import {
   derivedAuthorityForTarget,
   type LocalSessionAuthorizationTarget,
 } from './local-session-derived-authority'
+import { authorizeInterruptDescendantTargets } from './local-session-descendant-authorization'
+import { isUnscopedSessionDiscovery } from './local-session-unscoped-discovery'
 
 export {
   profileAuthorityForCapabilities,
@@ -213,10 +215,7 @@ function resolveAuthorizationTarget(payload: AuthorizedLocalSessionCommandPayloa
   return Effect.gen(function* () {
     const repository = yield* SessionAuthorizationTargetRepository
     if (payload.contract === 'session-control-v2') {
-      const target = yield* repository.resolve(payload.request.command.sessionId)
-      if (payload.request.command.operation !== 'interrupt-descendants') return target
-      const { sessionId: _, ...hiveTarget } = target
-      return hiveTarget
+      return yield* repository.resolve(payload.request.command.sessionId)
     }
     if (payload.request.command.operation === 'fork') {
       return yield* repository.resolve(payload.request.command.sourceSessionId)
@@ -253,17 +252,6 @@ function authorizeWaitTargets(
   })
 }
 
-function isUnscopedDiscovery(payload: AuthorizedLocalSessionCommandPayload) {
-  if (payload.contract !== 'session-query-v2') return false
-  const query = payload.request.query
-  return (
-    (query.operation === 'list' ||
-      query.operation === 'search' ||
-      query.operation === 'delegations-list') &&
-    query.projectPath === undefined
-  )
-}
-
 export function authorizeLocalSessionCommand(input: {
   readonly caller: LocalSessionCallerIdentity
   readonly payload: LocalSessionCommandPayload
@@ -290,7 +278,21 @@ export function authorizeLocalSessionCommand(input: {
       (yield* authorizeWaitTargets(input.caller, payload))
     )
       return
-    if (isUnscopedDiscovery(payload)) return
+    if (isUnscopedSessionDiscovery(payload)) return
+    if (
+      payload.contract === 'session-control-v2' &&
+      payload.request.command.operation === 'interrupt-descendants'
+    ) {
+      const repository = yield* SessionAuthorizationTargetRepository
+      const ancestor = yield* repository.resolve(payload.request.command.sessionId)
+      yield* authorizeCeiling(input.caller, payload, ancestor)
+      yield* authorizeInterruptDescendantTargets({
+        caller: input.caller,
+        ancestor,
+        required: requiredSessionControlCapabilities(payload.request.command),
+      })
+      return
+    }
     const target = yield* resolveAuthorizationTarget(payload)
     yield* authorizeCeiling(input.caller, payload, target)
     const authorization = authorizeTargetForCaller(

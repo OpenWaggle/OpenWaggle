@@ -1,5 +1,6 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import { RunId } from '@shared/types/brand'
+import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import type {
   SessionControlInterruptDescendantsMutationRequest,
   SessionControlInterruptMutationRequest,
@@ -19,6 +20,7 @@ import { AgentSteeringService } from '../ports/agent-steering-service'
 import { SessionControlAttachmentService } from '../ports/session-control-attachment-service'
 import { SessionControlOperationJournal } from '../ports/session-control-operation-journal'
 import { SessionDescendantRunRepository } from '../ports/session-descendant-run-repository'
+import { authorizeDescendantInterruptionSnapshot } from './session-control-descendant-authorization'
 
 export interface SteerSessionRunInput {
   readonly callerId: string
@@ -49,9 +51,20 @@ function response(
 
 export function interruptSessionDescendants(input: {
   readonly callerId: string
+  readonly caller?: LocalSessionCallerIdentity
   readonly request: SessionControlInterruptDescendantsMutationRequest
 }) {
   return Effect.gen(function* () {
+    const descendants = yield* SessionDescendantRunRepository.pipe(
+      Effect.flatMap((repository) =>
+        repository.listActive({ ancestorSessionId: input.request.command.sessionId }),
+      ),
+    )
+    yield* authorizeDescendantInterruptionSnapshot({
+      ...(input.caller ? { caller: input.caller } : {}),
+      ancestorSessionId: input.request.command.sessionId,
+      descendants,
+    })
     const journal = yield* SessionControlOperationJournal
     const claim = yield* journal.claim({
       callerId: input.callerId,
@@ -71,11 +84,6 @@ export function interruptSessionDescendants(input: {
       )
     }
 
-    const descendants = yield* SessionDescendantRunRepository.pipe(
-      Effect.flatMap((repository) =>
-        repository.listActive({ ancestorSessionId: input.request.command.sessionId }),
-      ),
-    )
     const interrupted: Array<{
       readonly sessionId: string
       readonly runId: string

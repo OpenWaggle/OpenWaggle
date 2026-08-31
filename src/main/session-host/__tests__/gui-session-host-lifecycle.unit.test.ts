@@ -43,6 +43,13 @@ vi.mock('../local-session-paths', () => ({
     endpointCapabilityPath: null,
   }),
 }))
+vi.mock('../session-host-cutover', () => ({
+  runSessionHostCutover: vi.fn(async () => undefined),
+  sessionHostTargetExists: vi.fn(async () => true),
+}))
+vi.mock('../legacy-session-writer-fence', () => ({
+  withLegacySessionWriterFence: (operation: () => Promise<unknown>) => operation(),
+}))
 vi.mock('../session-host-bootstrap', () => ({ startAppSessionHost: startAppSessionHostMock }))
 vi.mock('../session-host-renderer-bridge', () => ({
   startRemoteSessionHostRendererBridge: startRemoteSessionHostRendererBridgeMock,

@@ -474,6 +474,12 @@ jobs:
           test -d dist/mac/OpenWaggle.app
           pnpm packaged-app:smoke -- dist/mac-arm64/OpenWaggle.app
           pnpm packaged-app:smoke -- dist/mac/OpenWaggle.app
+          case "$(uname -m)" in
+            arm64) NATIVE_APP="dist/mac-arm64/OpenWaggle.app" ;;
+            x86_64) NATIVE_APP="dist/mac/OpenWaggle.app" ;;
+            *) echo "Unsupported macOS runner architecture: $(uname -m)" >&2; exit 1 ;;
+          esac
+          pnpm qa:packaged-session-host-startup -- "$NATIVE_APP/Contents/MacOS/OpenWaggle"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -505,11 +511,16 @@ jobs:
 
       - run: pnpm build
 
+      - name: Install Linux Electron dependencies
+        run: pnpm exec playwright install-deps chromium
+
       - name: Build Linux AppImage
         run: pnpm exec electron-builder --linux --publish never
 
       - name: Verify unpacked Linux application
-        run: pnpm packaged-app:smoke -- dist/linux-unpacked
+        run: |
+          pnpm packaged-app:smoke -- dist/linux-unpacked
+          xvfb-run -a pnpm qa:packaged-session-host-startup -- dist/linux-unpacked/openwaggle
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -544,7 +555,9 @@ jobs:
         run: pnpm exec electron-builder --win --publish never
 
       - name: Verify unpacked Windows application
-        run: pnpm packaged-app:smoke -- dist\win-unpacked
+        run: |
+          pnpm packaged-app:smoke -- dist\win-unpacked
+          pnpm qa:packaged-session-host-startup -- dist\win-unpacked\OpenWaggle.exe
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -662,13 +675,37 @@ jobs:
             x86_64) NATIVE_DMG="$X64_DMG" ;;
             *) echo "Unsupported macOS runner architecture: $(uname -m)" >&2; exit 1 ;;
           esac
-          MOUNT_POINT="$(hdiutil attach -nobrowse -readonly "$ARTIFACT_DIR/$NATIVE_DMG" | awk -F'\t' '/\/Volumes\// { print $NF; exit }')"
-          trap 'hdiutil detach "$MOUNT_POINT" -quiet >/dev/null 2>&1 || true' EXIT
-          APP_PATH=$(find "$MOUNT_POINT" -maxdepth 1 -name '*.app' | head -n 1)
-          test -d "$APP_PATH"
-          APP_BINARY="$APP_PATH/Contents/MacOS/OpenWaggle"
-          test -x "$APP_BINARY"
-          pnpm exec tsx scripts/verify-installed-cli.ts "$APP_BINARY"
+          MOCK_RELEASE_DIR="$RUNNER_TEMP/mock-release"
+          mkdir -p "$MOCK_RELEASE_DIR"
+          cp "$ARTIFACT_DIR/$NATIVE_DMG" "$MOCK_RELEASE_DIR/$NATIVE_DMG"
+          (
+            cd "$MOCK_RELEASE_DIR"
+            shasum -a 256 "$NATIVE_DMG" > SHA256SUMS.txt
+          )
+
+          RELEASE_JSON_PATH="$MOCK_RELEASE_DIR/release.json"
+          DMG_URL="file://$MOCK_RELEASE_DIR/$NATIVE_DMG"
+          SHA_URL="file://$MOCK_RELEASE_DIR/SHA256SUMS.txt"
+          cat > "$RELEASE_JSON_PATH" <<JSON
+          {
+            "tag_name": "v${VERSION}",
+            "assets": [
+              { "browser_download_url": "${DMG_URL}" },
+              { "browser_download_url": "${SHA_URL}" }
+            ]
+          }
+          JSON
+
+          export HOME="$RUNNER_TEMP/home"
+          export OPENWAGGLE_APPLICATIONS_DIR="$RUNNER_TEMP/Applications"
+          export OPENWAGGLE_RELEASE_API_URL="file://$RELEASE_JSON_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
+          mkdir -p "$HOME"
+          bash scripts/install.sh
+
+          test -d "$OPENWAGGLE_APPLICATIONS_DIR/OpenWaggle.app"
+          test -x "$HOME/.local/bin/openwaggle"
+          pnpm exec tsx scripts/verify-installed-cli.ts "$HOME/.local/bin/openwaggle"
 
       - name: Verify Windows installer
         if: matrix.platform == 'windows'

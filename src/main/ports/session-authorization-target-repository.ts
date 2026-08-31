@@ -13,6 +13,12 @@ export interface SessionAuthorizationTarget {
 }
 
 export interface SessionAuthorizationTargetRepositoryShape {
+  readonly listActiveDescendantTargets?: (
+    ancestorSessionId: string,
+  ) => Effect.Effect<
+    readonly SessionAuthorizationTarget[],
+    SessionAuthorizationTargetRepositoryError
+  >
   readonly listAuthorizedSessionIds?: (
     scope: LocalSessionProfileScope,
   ) => Effect.Effect<readonly string[], SessionAuthorizationTargetRepositoryError>

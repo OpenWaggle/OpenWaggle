@@ -50,6 +50,8 @@ Use exactly one of `--text`, `--stdin`, `--input-file`, or `--request-json` for 
 
 Use `message` when adaptive start-or-queue behavior is wanted. Use `follow-up` when the message must remain pending for the next Run, or `steer` when it must enter the current Run. Run-targeted mutations require `--expected-run`; stale callers fail instead of steering or interrupting the wrong Run.
 
+Profiles that use `replace` need both `sessions:message` and `sessions:interrupt`. A `sessions:start` grant does not substitute for message authority during Run replacement.
+
 ## Queue, requests, and coordination
 
 ```sh

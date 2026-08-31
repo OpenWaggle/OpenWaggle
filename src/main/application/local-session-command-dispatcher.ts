@@ -217,6 +217,7 @@ export function dispatchNonHostUiLocalSessionCommand(input: {
           )
           const response = yield* executeSessionControlMutation({
             callerId: caller.callerId,
+            caller,
             hostRunCeiling: snapshot.sessionHostRunCeiling,
             ...(authority ? { authority } : {}),
             request: payload.request,

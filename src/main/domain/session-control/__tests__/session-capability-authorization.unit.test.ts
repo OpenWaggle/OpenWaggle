@@ -39,8 +39,8 @@ describe('Session capability authorization', () => {
       'sessions:steer',
     ])
     expect(requiredSessionControlCapabilities(replace)).toEqual([
+      'sessions:message',
       'sessions:interrupt',
-      'sessions:start',
     ])
     expect(
       authorizeSessionCapabilities(authority, requiredSessionControlCapabilities(promote)),
@@ -50,7 +50,7 @@ describe('Session capability authorization', () => {
     ).toEqual({
       authorized: false,
       code: 'capability_denied',
-      missing: ['sessions:interrupt', 'sessions:start'],
+      missing: ['sessions:interrupt'],
     })
   })
 

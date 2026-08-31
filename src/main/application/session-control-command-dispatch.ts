@@ -1,6 +1,9 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type * as SqlClient from '@effect/sql/SqlClient'
-import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
+import type {
+  LocalSessionCallerIdentity,
+  LocalSessionProfileAuthority,
+} from '@shared/types/local-session-profile'
 import type {
   SessionAuthorizationSetMutationRequest,
   SessionControlFollowUpMutationRequest,
@@ -55,6 +58,7 @@ import { respondToSessionInteraction } from './session-interaction-service'
 
 interface ExecuteCommandInput {
   readonly callerId: string
+  readonly caller?: LocalSessionCallerIdentity
   readonly request: SessionControlMutationRequest
   readonly authority?: LocalSessionProfileAuthority
   readonly hostRunCeiling?: number
@@ -180,6 +184,7 @@ function executeActiveRunCommand(
     .with('interrupt-descendants', (command) =>
       interruptSessionDescendants({
         callerId,
+        ...(input.caller ? { caller: input.caller } : {}),
         request: {
           ...request,
           command,

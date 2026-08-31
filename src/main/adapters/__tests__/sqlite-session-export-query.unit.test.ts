@@ -85,6 +85,49 @@ describe('SQLite Session export query', () => {
     expect(JSON.stringify(first.outcome)).not.toContain('"text":"next"')
   })
 
+  it('rejects supplied snapshot heads outside the selected existing branch', async () => {
+    const runtime = makeRuntime(path.join(temporaryRoot, 'export-branch-binding.sqlite'))
+    runtimes.push(runtime)
+    await runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          INSERT INTO session_nodes (
+            id, session_id, parent_id, kind, role, timestamp_ms,
+            content_json, metadata_json, branch_hint_id, created_order
+          ) VALUES (
+            ${'node-worker-fork'}, ${'worker'}, ${'node-worker-1'}, ${'message'}, ${'assistant'},
+            ${3}, ${'{"text":"fork-only"}'}, ${'{}'}, ${'worker:branch:fork'}, ${2}
+          )
+        `
+        yield* sql`
+          INSERT INTO session_branches (id, session_id, head_node_id)
+          VALUES (${'worker:branch:fork'}, ${'worker'}, ${'node-worker-fork'})
+        `
+      }),
+    )
+
+    const missingBranch = await executeQuery(runtime, {
+      operation: 'export',
+      sessionId: 'worker',
+      branchScope: 'active-branch',
+      branchId: 'worker:branch:missing',
+      snapshotHeadNodeId: 'node-worker-2',
+      limit: 10,
+    })
+    const mismatchedHead = await executeQuery(runtime, {
+      operation: 'export',
+      sessionId: 'worker',
+      branchScope: 'active-branch',
+      branchId: 'worker:branch:main',
+      snapshotHeadNodeId: 'node-worker-fork',
+      limit: 10,
+    })
+
+    expect(missingBranch.outcome).toMatchObject({ error: { code: 'branch_not_found' } })
+    expect(mismatchedHead.outcome).toMatchObject({ error: { code: 'branch_not_found' } })
+  })
+
   it('lists and reads durable export operation progress', async () => {
     const runtime = makeRuntime(path.join(temporaryRoot, 'operations.sqlite'))
     runtimes.push(runtime)

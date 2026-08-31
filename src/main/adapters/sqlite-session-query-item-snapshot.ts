@@ -1,5 +1,6 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
+import { resolveSelectedBranchSnapshotHead } from './sqlite-session-branch-snapshot'
 
 interface ItemSnapshotRow {
   readonly session_exists: number
@@ -23,35 +24,18 @@ export function resolveItemSnapshotHead(
     readonly suppliedHeadNodeId?: string
   },
 ) {
-  const suppliedHeadNodeId = input.suppliedHeadNodeId
-  if (suppliedHeadNodeId) {
-    return sql<{ readonly found: number }>`
-      SELECT EXISTS(
-        SELECT 1 FROM session_nodes
-        WHERE id = ${suppliedHeadNodeId} AND session_id = ${input.sessionId}
-      ) AS found
-    `.pipe(
-      Effect.map((rows) =>
-        rows[0]?.found === 1
-          ? ({ status: 'ready', headNodeId: suppliedHeadNodeId } as const)
-          : ({ status: 'not-found' } as const),
-      ),
+  if (!input.selectedBranchId) {
+    return Effect.succeed(
+      input.suppliedHeadNodeId
+        ? ({ status: 'not-found' } as const)
+        : ({ status: 'ready', headNodeId: null } as const),
     )
   }
-  if (!input.selectedBranchId) {
-    return Effect.succeed({ status: 'ready', headNodeId: null } as const)
-  }
-  return sql<{ readonly head_node_id: string | null }>`
-    SELECT head_node_id FROM session_branches
-    WHERE id = ${input.selectedBranchId} AND session_id = ${input.sessionId}
-    LIMIT 1
-  `.pipe(
-    Effect.map((rows) =>
-      rows[0]
-        ? ({ status: 'ready', headNodeId: rows[0].head_node_id } as const)
-        : ({ status: 'not-found' } as const),
-    ),
-  )
+  return resolveSelectedBranchSnapshotHead(sql, {
+    sessionId: input.sessionId,
+    selectedBranchId: input.selectedBranchId,
+    ...(input.suppliedHeadNodeId ? { suppliedHeadNodeId: input.suppliedHeadNodeId } : {}),
+  })
 }
 
 export function resolveItemSnapshot(sql: SqlClient.SqlClient, query: ItemSnapshotQuery) {

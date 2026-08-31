@@ -9,7 +9,11 @@ import {
   rotateLocalSessionHostEndpoint,
 } from './session-host/local-session-paths'
 import { startAppSessionHost } from './session-host/session-host-bootstrap'
-import { runSessionHostCutover, sessionHostTargetExists } from './session-host/session-host-cutover'
+import {
+  runSessionHostCutover,
+  sessionHostSourceExists,
+  sessionHostTargetExists,
+} from './session-host/session-host-cutover'
 import { acquireSessionHostOwnership } from './session-host/session-host-ownership'
 
 const FAILURE_EXIT_CODE = 1
@@ -33,8 +37,14 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
           recoveryDatabasePath: paths.recoveryDatabasePath,
         }
         const cutover = () => runSessionHostCutover(cutoverPaths)
-        if (await sessionHostTargetExists(cutoverPaths)) await cutover()
-        else await withLegacySessionWriterFence(cutover)
+        if (
+          (await sessionHostTargetExists(cutoverPaths)) ||
+          !(await sessionHostSourceExists(cutoverPaths))
+        ) {
+          await cutover()
+        } else {
+          await withLegacySessionWriterFence(cutover)
+        }
         const runtime = await import('./runtime')
         const settings = await import('./store/settings')
         try {

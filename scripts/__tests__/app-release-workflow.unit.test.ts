@@ -139,4 +139,23 @@ describe('desktop app release workflow', () => {
     expect(WORKFLOW).toContain("INSTALLER_PATH: ${{ runner.temp }}\\release\\windows\\openwaggle-")
     expect(WORKFLOW).not.toContain('Installed executable not found after silent install')
   })
+
+  it('installs and executes the documented macOS CLI shim under an isolated home', () => {
+    expect(WORKFLOW).toContain('export OPENWAGGLE_APPLICATIONS_DIR="$RUNNER_TEMP/Applications"')
+    expect(WORKFLOW).toContain('bash scripts/install.sh')
+    expect(WORKFLOW).toContain('test -x "$HOME/.local/bin/openwaggle"')
+    expect(WORKFLOW).toContain(
+      'pnpm exec tsx scripts/verify-installed-cli.ts "$HOME/.local/bin/openwaggle"',
+    )
+    expect(WORKFLOW).not.toContain('scripts/verify-installed-cli.ts "$APP_BINARY"')
+  })
+
+  it('runs packaged first-start and legacy-cutover smoke on every platform build', () => {
+    expect(
+      WORKFLOW.match(/pnpm qa:packaged-session-host-startup --/gu),
+    ).toHaveLength(3)
+    expect(WORKFLOW).toContain('dist/linux-unpacked/openwaggle')
+    expect(WORKFLOW).toContain('dist\\win-unpacked\\OpenWaggle.exe')
+    expect(WORKFLOW).toContain('$NATIVE_APP/Contents/MacOS/OpenWaggle')
+  })
 })

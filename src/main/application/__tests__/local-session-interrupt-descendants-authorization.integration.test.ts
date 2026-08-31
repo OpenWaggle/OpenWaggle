@@ -44,7 +44,16 @@ function testLayer(filename: string) {
       }
       yield* sql`
         INSERT INTO session_runs (id, session_id, status, created_at, updated_at)
-        VALUES (${'run-queen'}, ${'queen'}, ${'active'}, ${1}, ${1})
+        VALUES
+          (${'run-queen'}, ${'queen'}, ${'active'}, ${1}, ${1}),
+          (${'run-worker'}, ${'worker'}, ${'active'}, ${1}, ${1})
+      `
+      yield* sql`
+        INSERT INTO session_control_states (
+          session_id, state_revision, queue_state, queue_revision, active_run_id, updated_at
+        ) VALUES
+          (${'queen'}, ${1}, ${'running'}, ${0}, ${'run-queen'}, ${1}),
+          (${'worker'}, ${1}, ${'running'}, ${0}, ${'run-worker'}, ${1})
       `
       yield* sql`
         INSERT INTO session_spawn_lineage (
@@ -92,7 +101,7 @@ describe('interrupt-descendants restricted profile authorization', () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   })
 
-  it('rejects exact-parent scope and accepts explicit Hive-root scope', async () => {
+  it('requires every active descendant exact target or one broad Hive/project grant', async () => {
     const layer = testLayer(path.join(temporaryRoot, 'authorization.sqlite'))
     const payload = controlPayload({ operation: 'interrupt-descendants', sessionId: 'queen' })
     const exactError = await Effect.runPromise(
@@ -102,7 +111,15 @@ describe('interrupt-descendants restricted profile authorization', () => {
           payload,
         }).pipe(Effect.flip)
         yield* authorizeLocalSessionCommand({
+          caller: caller({ sessionIds: ['worker'] }),
+          payload,
+        })
+        yield* authorizeLocalSessionCommand({
           caller: caller({ hiveRootSessionIds: ['queen'] }),
+          payload,
+        })
+        yield* authorizeLocalSessionCommand({
+          caller: caller({ projectPaths: ['/project'] }),
           payload,
         })
         return denied

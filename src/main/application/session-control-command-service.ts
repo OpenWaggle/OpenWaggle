@@ -1,6 +1,9 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import { RunId, SessionId } from '@shared/types/brand'
-import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
+import type {
+  LocalSessionCallerIdentity,
+  LocalSessionProfileAuthority,
+} from '@shared/types/local-session-profile'
 import type {
   SessionControlMutationRequest,
   SessionControlMutationResponse,
@@ -124,6 +127,7 @@ type SessionControlDispatchDependencies =
 
 export function executeSessionControlMutation(input: {
   readonly callerId: string
+  readonly caller?: LocalSessionCallerIdentity
   readonly authority?: LocalSessionProfileAuthority
   readonly hostRunCeiling?: number
   readonly request: SessionControlMutationRequest

@@ -1,13 +1,15 @@
 import type { Socket } from 'node:net'
-import {
-  decodeLocalSessionClientFrame,
-  decodeLocalSessionCommandPayloadForRevision,
-} from '@shared/schemas/local-session-protocol'
+import { decodeLocalSessionClientFrame } from '@shared/schemas/local-session-protocol'
 import type {
   LocalSessionClientFrame,
   LocalSessionServerFrame,
 } from '@shared/types/local-session-protocol'
 import { LocalSessionAdmissionGate } from './local-session-admission-gate'
+import {
+  type ActiveLocalSessionCommand,
+  isSelfProfileCredentialMutation,
+  LocalSessionProfileAdmissionChangedError,
+} from './local-session-command-admission'
 import { executeLocalSessionCommandFrame } from './local-session-command-frame'
 import { LocalSessionConnectionSubscriptions } from './local-session-connection-subscriptions'
 import { establishLocalSessionHandshake } from './local-session-handshake'
@@ -31,34 +33,11 @@ import { describeLocalSessionServerError } from './local-session-server-frame'
 
 const DEFAULT_HANDSHAKE_TIMEOUT_MS = 5000
 
-function isSelfProfileCredentialMutation(input: {
-  readonly caller: AuthenticatedLocalSessionCaller
-  readonly frame: Extract<LocalSessionClientFrame, { kind: 'command' }>
-  readonly negotiatedRevision: number
-}) {
-  const profileName = input.caller.profileAuthority?.profileName
-  if (!profileName) return false
-  try {
-    const payload = decodeLocalSessionCommandPayloadForRevision(
-      input.frame.payload,
-      input.negotiatedRevision,
-    )
-    if (payload.contract !== 'local-access-v1') return false
-    const command = payload.request.command
-    return (
-      (command.operation === 'rotate' || command.operation === 'revoke') &&
-      command.profileName === profileName
-    )
-  } catch {
-    return false
-  }
-}
-
 export class LocalSessionConnection {
   private readonly inbound: LocalSessionInboundRetention
   private readonly admission = new LocalSessionAdmissionGate()
   private readonly subscriptions: LocalSessionConnectionSubscriptions
-  private readonly commandControllers = new Map<string, AbortController>()
+  private readonly commandControllers = new Map<string, ActiveLocalSessionCommand>()
   private readTail = Promise.resolve()
   private caller: AuthenticatedLocalSessionCaller | null = null
   private negotiatedRevision: number | null = null
@@ -137,7 +116,13 @@ export class LocalSessionConnection {
 
   fenceProfileAdmission(profileName: string): Promise<void> {
     if (this.caller?.profileAuthority?.profileName !== profileName) return Promise.resolve()
-    return this.admission.fence()
+    const drained = this.admission.fence()
+    for (const command of this.commandControllers.values()) {
+      if (command.abortOnProfileFence) {
+        command.controller.abort(new LocalSessionProfileAdmissionChangedError())
+      }
+    }
+    return drained
   }
 
   refreshProfileAdmission(
@@ -224,12 +209,18 @@ export class LocalSessionConnection {
   private async handleCommand(frame: Extract<LocalSessionClientFrame, { kind: 'command' }>) {
     if (!this.caller || this.negotiatedRevision === null) return
     const controller = new AbortController()
-    this.commandControllers.set(frame.requestId, controller)
+    const activeCommand = { controller, abortOnProfileFence: false }
+    this.commandControllers.set(frame.requestId, activeCommand)
     try {
       while (!this.closed) {
         await this.admission.waitUntilReady()
-        const releaseAdmissionReader = this.admission.acquireReader(this.closed)
-        if (!releaseAdmissionReader) continue
+        const releaseGateReader = this.admission.acquireReader(this.closed)
+        if (!releaseGateReader) continue
+        activeCommand.abortOnProfileFence = true
+        const releaseAdmissionReader = () => {
+          activeCommand.abortOnProfileFence = false
+          releaseGateReader()
+        }
         const caller = this.caller
         const negotiatedRevision = this.negotiatedRevision
         if (!caller || negotiatedRevision === null) {
@@ -241,7 +232,10 @@ export class LocalSessionConnection {
           frame,
           negotiatedRevision,
         })
-        if (selfCredentialMutation) releaseAdmissionReader()
+        if (selfCredentialMutation) {
+          activeCommand.abortOnProfileFence = false
+          releaseAdmissionReader()
+        }
         try {
           await executeLocalSessionCommandFrame({
             frame,
@@ -284,8 +278,8 @@ export class LocalSessionConnection {
     this.authenticationController.abort()
     this.inbound.releasePendingFrame()
     clearTimeout(this.handshakeTimer)
-    for (const controller of this.commandControllers.values()) {
-      controller.abort(new Error('Local Session client disconnected.'))
+    for (const command of this.commandControllers.values()) {
+      command.controller.abort(new Error('Local Session client disconnected.'))
     }
     this.commandControllers.clear()
     this.subscriptions.close()

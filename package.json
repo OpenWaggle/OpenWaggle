@@ -34,6 +34,7 @@
     "extension:qa:install": "tsx scripts/install-extension-qa-fixture.ts",
     "qa:seed-conversations": "tsx scripts/qa/seed-dev-conversations.ts",
     "qa:session-orchestration:live": "tsx scripts/qa/live-session-orchestration-smoke.ts",
+    "qa:packaged-session-host-startup": "tsx scripts/qa/packaged-session-host-startup-smoke.ts",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc -b tsconfig.web.json --emitDeclarationOnly",
     "typecheck": "pnpm typecheck:node && pnpm typecheck:web",

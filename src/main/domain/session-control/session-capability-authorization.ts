@@ -47,7 +47,7 @@ export function requiredSessionControlCapabilities(
       () => ['delegations:review'],
     )
     .with('promote', () => ['sessions:queue', 'sessions:steer'])
-    .with('replace', () => ['sessions:interrupt', 'sessions:start'])
+    .with('replace', () => ['sessions:message', 'sessions:interrupt'])
     .with(
       'queue-withdraw',
       'queue-reorder',

@@ -139,11 +139,67 @@ function listAuthorizedSessionIds(sql: SqlClient.SqlClient, scope: LocalSessionP
   )
 }
 
+function listActiveDescendantTargets(sql: SqlClient.SqlClient, ancestorSessionId: string) {
+  return sql<TargetRow>`
+    WITH RECURSIVE descendants(session_id, depth) AS (
+      SELECT child_session_id, 1
+      FROM session_spawn_lineage
+      WHERE parent_session_id = ${ancestorSessionId}
+      UNION ALL
+      SELECT lineage.child_session_id, descendants.depth + 1
+      FROM session_spawn_lineage AS lineage
+      JOIN descendants ON lineage.parent_session_id = descendants.session_id
+    )
+    SELECT sessions.id AS session_id, sessions.project_path, workspace.working_path,
+      lineage.hive_root_session_id, session_execution_profiles.authorization_ceiling
+    FROM descendants
+    JOIN sessions ON sessions.id = descendants.session_id
+    JOIN session_control_states AS states ON states.session_id = descendants.session_id
+    JOIN session_runs AS runs
+      ON runs.id = states.active_run_id AND runs.session_id = descendants.session_id
+    LEFT JOIN session_spawn_lineage AS lineage ON lineage.child_session_id = sessions.id
+    LEFT JOIN session_workspace_bindings AS binding ON binding.session_id = sessions.id
+    LEFT JOIN workspace_resources AS workspace ON workspace.id = binding.workspace_id
+    JOIN session_execution_profiles ON session_execution_profiles.session_id = sessions.id
+    WHERE runs.status IN ('starting', 'active')
+    ORDER BY descendants.depth DESC, descendants.session_id ASC
+  `.pipe(
+    Effect.flatMap((rows) =>
+      Effect.forEach(rows, (row) =>
+        row.project_path
+          ? Effect.succeed({
+              sessionId: row.session_id,
+              projectPath: row.project_path,
+              ...(row.working_path ? { workingPath: row.working_path } : {}),
+              hiveRootSessionId: row.hive_root_session_id ?? row.session_id,
+              authorizationCeiling: row.authorization_ceiling,
+            })
+          : Effect.fail(
+              new SessionAuthorizationTargetRepositoryError({
+                operation: 'session-project-missing',
+                cause: { sessionId: row.session_id },
+              }),
+            ),
+      ),
+    ),
+    Effect.mapError((cause) =>
+      cause instanceof SessionAuthorizationTargetRepositoryError
+        ? cause
+        : new SessionAuthorizationTargetRepositoryError({
+            operation: 'list-active-descendant-targets',
+            cause,
+          }),
+    ),
+  )
+}
+
 export const SqliteSessionAuthorizationTargetRepositoryLive = Layer.effect(
   SessionAuthorizationTargetRepository,
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     return SessionAuthorizationTargetRepository.of({
+      listActiveDescendantTargets: (ancestorSessionId) =>
+        listActiveDescendantTargets(sql, ancestorSessionId),
       listAuthorizedSessionIds: (scope) => listAuthorizedSessionIds(sql, scope),
       resolveWorkspaceProjectPaths: (workspaceRoots) =>
         Effect.gen(function* () {

@@ -108,6 +108,7 @@ export function createMainWindow(input: {
 }
 
 export function focusExistingWindow() {
+  if (isAutomationMode()) return
   const existingWindow = getAllBrowserWindows()[0]
   if (existingWindow) focusWindow(existingWindow)
 }

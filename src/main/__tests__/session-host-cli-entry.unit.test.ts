@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => {
     initializeSettings: vi.fn(async () => {
       order.push('initialize-settings')
     }),
+    legacyFence: vi.fn((operation: () => Promise<unknown>) => operation()),
+    sourceExists: vi.fn(async () => false),
     startHost: vi.fn(async () => {
       order.push('start-host')
       return {
@@ -41,7 +43,7 @@ vi.mock('electron', () => ({
 vi.mock('../env', () => ({ env: {} }))
 vi.mock('../session-data', () => ({ configureAppStoragePaths: vi.fn() }))
 vi.mock('../session-host/legacy-session-writer-fence', () => ({
-  withLegacySessionWriterFence: vi.fn((operation: () => Promise<unknown>) => operation()),
+  withLegacySessionWriterFence: mocks.legacyFence,
 }))
 vi.mock('../session-host/local-session-paths', () => ({
   prepareLocalSessionHostPaths: vi.fn(async (paths: object) => paths),
@@ -62,6 +64,7 @@ vi.mock('../session-host/session-host-cutover', () => ({
     mocks.order.push('inspect-database')
     return true
   }),
+  sessionHostSourceExists: mocks.sourceExists,
   runSessionHostCutover: vi.fn(async () => {
     mocks.order.push('prepare-database')
   }),
@@ -99,6 +102,8 @@ describe('detached Session Host startup', () => {
     mocks.initializeRuntime.mockClear()
     mocks.disposeRuntime.mockClear()
     mocks.initializeSettings.mockClear()
+    mocks.legacyFence.mockClear()
+    mocks.sourceExists.mockReset().mockResolvedValue(false)
     mocks.startHost.mockClear()
   })
 
@@ -144,5 +149,16 @@ describe('detached Session Host startup', () => {
       'dispose-runtime',
       'release-ownership',
     ])
+  })
+
+  it('initializes a fresh profile without acquiring the legacy desktop writer fence', async () => {
+    const cutover = await import('../session-host/session-host-cutover')
+    vi.mocked(cutover.sessionHostTargetExists).mockResolvedValueOnce(false)
+
+    expect(startSessionHostCliIfRequested(['session-host-internal'])).toBe(true)
+    await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(0))
+
+    expect(mocks.sourceExists).toHaveBeenCalledOnce()
+    expect(mocks.legacyFence).not.toHaveBeenCalled()
   })
 })

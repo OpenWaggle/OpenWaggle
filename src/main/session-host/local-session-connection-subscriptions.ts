@@ -160,7 +160,22 @@ export class LocalSessionConnectionSubscriptions {
       })
     }
     try {
-      await this.input.send({ ...frame, subscriptionId })
+      const denied =
+        this.input.admission.isFenced() ||
+        (await localSessionEventIsDenied(
+          this.input.caller(),
+          this.input.dependencies.authorizeEvent,
+          frame.event,
+        ))
+      await this.input.send(
+        denied
+          ? {
+              kind: 'cursor-advanced',
+              subscriptionId,
+              cursor: frame.event.cursor,
+            }
+          : { ...frame, subscriptionId },
+      )
     } finally {
       releaseAdmissionReader()
     }
@@ -172,14 +187,7 @@ export class LocalSessionConnectionSubscriptions {
         subscription: active.subscription,
         active: () => this.subscriptions.get(subscriptionId) === active,
         closed: this.input.closed,
-        eventIsDenied: (event) =>
-          this.input.admission.isFenced()
-            ? Promise.resolve(true)
-            : localSessionEventIsDenied(
-                this.input.caller(),
-                this.input.dependencies.authorizeEvent,
-                event,
-              ),
+        eventIsDenied: () => Promise.resolve(false),
         send: (frame) => this.sendFrame(subscriptionId, frame),
       })
     } catch {

@@ -110,7 +110,18 @@ describe('Sessions tool capability schema', () => {
     )
     const complete = exposedActions(
       sessionsToolSchemaForCapabilities({
-        capabilities: ['sessions:start', 'sessions:interrupt', 'sessions:queue', 'sessions:steer'],
+        capabilities: [
+          'sessions:message',
+          'sessions:interrupt',
+          'sessions:queue',
+          'sessions:steer',
+        ],
+        modelMultiAgentEnabled: true,
+      }),
+    )
+    const startAndInterrupt = exposedActions(
+      sessionsToolSchemaForCapabilities({
+        capabilities: ['sessions:start', 'sessions:interrupt'],
         modelMultiAgentEnabled: true,
       }),
     )
@@ -118,6 +129,7 @@ describe('Sessions tool capability schema', () => {
     expect(partial).toContain('start')
     expect(partial).not.toContain('replace')
     expect(partial).not.toContain('promote')
+    expect(startAndInterrupt).not.toContain('replace')
     expect(complete).toContain('replace')
     expect(complete).toContain('promote')
   })

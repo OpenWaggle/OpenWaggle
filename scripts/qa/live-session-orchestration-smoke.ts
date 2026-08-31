@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { executeLocalSessionCommand } from '../../src/main/session-host/local-session-client'
 import { resolveLocalSessionHostPaths } from '../../src/main/session-host/local-session-paths'
 import { HOST_UI_CONTRACT_VERSION } from '../../src/shared/types/host-ui-protocol'
@@ -29,7 +30,10 @@ import {
   verifyLiveHiveGui,
   waitForLiveGui,
 } from './live-session-orchestration-gui'
-import { prepareQaProfileRemoval, shutdownSessionHostForQa } from './session-host-shutdown'
+import {
+  type LiveQaLifecycleState,
+  runLiveQaProfileLifecycle,
+} from './live-session-orchestration-lifecycle'
 
 const DEFAULT_MODEL = 'openai-codex/gpt-5.6-sol'
 const DEFAULT_TIMEOUT_MS = 300_000
@@ -49,51 +53,6 @@ async function launchLiveGui(
     [`--remote-debugging-port=${String(debugPort)}`],
   )
   return { automationIdentity, debugPort, gui }
-}
-
-async function completeLiveQaCleanup(input: {
-  readonly gui: ReturnType<typeof launchGui>
-  readonly guiLogs: readonly (() => string)[]
-  readonly passed: boolean
-  readonly primaryFailure: { readonly error: unknown } | null
-  readonly userDataRoot: string
-}) {
-  const cleanupErrors: unknown[] = []
-  let closeSucceeded = true
-  try {
-    await stopChild(input.gui.child)
-  } catch (error) {
-    closeSucceeded = false
-    cleanupErrors.push(error)
-  }
-  try {
-    await shutdownSessionHostForQa(
-      input.userDataRoot,
-      input.passed && closeSucceeded
-        ? (ownership) => prepareQaProfileRemoval(input.userDataRoot, ownership)
-        : async () => undefined,
-    )
-  } catch (error) {
-    cleanupErrors.push(error)
-    closeSucceeded = false
-  }
-
-  if (!input.passed || !closeSucceeded) {
-    console.error(
-      `Live QA data retained at ${input.userDataRoot}\n${input.guiLogs.map((read) => read()).join('\n')}`,
-    )
-  }
-  if (input.primaryFailure && cleanupErrors.length > 0) {
-    throw new AggregateError(
-      [input.primaryFailure.error, ...cleanupErrors],
-      'Live Session orchestration QA and its cleanup both failed.',
-    )
-  }
-  if (input.primaryFailure) throw input.primaryFailure.error
-  if (cleanupErrors.length === 1) throw cleanupErrors[0]
-  if (cleanupErrors.length > 1) {
-    throw new AggregateError(cleanupErrors, 'Live Session orchestration QA cleanup failed.')
-  }
 }
 
 async function disableProjectSkillForQa(input: {
@@ -148,33 +107,33 @@ async function readPackageIdentity(projectPath: string) {
   return { name: parsed.name, version: parsed.version }
 }
 
-async function main() {
-  const executable = await findPackagedExecutable()
-  const userDataRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-live-orchestration-'))
-  const env = childEnvironment(userDataRoot)
-  const cliExecutable = await prepareLiveQaCliExecutable({
-    executable,
-    workingDirectory: userDataRoot,
-  })
-  const projectPath = process.cwd()
-  const model = process.env.OPENWAGGLE_LIVE_MODEL?.trim() || DEFAULT_MODEL
-  const timeoutMs = Number(process.env.OPENWAGGLE_LIVE_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS)
-  const expectedPackage = await readPackageIdentity(projectPath)
-  await waitForHost(cliExecutable, env)
-  await new Promise((resolve) => setTimeout(resolve, DETACHED_HOST_SURVIVAL_DELAY_MS))
-  await waitForHost(cliExecutable, env)
-  await disableProjectSkillForQa({
-    userDataRoot,
-    projectPath,
-    skillId: DISABLED_QA_SKILL,
-  })
-  let guiLaunch = await launchLiveGui(executable, env)
-  let { automationIdentity, debugPort, gui } = guiLaunch
-  const guiLogs = [gui.logs]
-  let passed = false
-  let primaryFailure: { readonly error: unknown } | null = null
-
-  try {
+async function runLiveQaScenario(input: {
+  readonly executable: string
+  readonly userDataRoot: string
+  readonly state: LiveQaLifecycleState
+}) {
+      const { executable, state, userDataRoot } = input
+      const env = childEnvironment(userDataRoot)
+      const cliExecutable = await prepareLiveQaCliExecutable({
+        executable,
+        workingDirectory: userDataRoot,
+      })
+      const projectPath = process.cwd()
+      const model = process.env.OPENWAGGLE_LIVE_MODEL?.trim() || DEFAULT_MODEL
+      const timeoutMs = Number(process.env.OPENWAGGLE_LIVE_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS)
+      const expectedPackage = await readPackageIdentity(projectPath)
+      await waitForHost(cliExecutable, env)
+      await new Promise((resolve) => setTimeout(resolve, DETACHED_HOST_SURVIVAL_DELAY_MS))
+      await waitForHost(cliExecutable, env)
+      await disableProjectSkillForQa({
+        userDataRoot,
+        projectPath,
+        skillId: DISABLED_QA_SKILL,
+      })
+      let guiLaunch = await launchLiveGui(executable, env)
+      let { automationIdentity, debugPort, gui } = guiLaunch
+      state.gui = gui
+      state.guiLogs.push(gui.logs)
     await waitForHost(cliExecutable, env)
     await waitForLiveGui(debugPort, timeoutMs, automationIdentity)
     const launch = await runJsonCli(cliExecutable, env, [
@@ -244,17 +203,18 @@ async function main() {
     automationIdentity = guiLaunch.automationIdentity
     debugPort = guiLaunch.debugPort
     gui = guiLaunch.gui
-    guiLogs.push(gui.logs)
+    state.gui = gui
+    state.guiLogs.push(gui.logs)
     const screenshotPath = await verifyLiveHiveGui({
       debugPort,
       queenTitle: 'Packaged live Queen Worker QA',
       timeoutMs,
       automationIdentity,
     })
-    passed = true
+    state.passed = true
     console.log(
       JSON.stringify({
-        passed,
+        passed: state.passed,
         queenSessionId,
         workerSessionId,
         model,
@@ -264,13 +224,22 @@ async function main() {
         screenshotPath,
       }),
     )
-  } catch (error) {
-    primaryFailure = { error }
-  }
-  await completeLiveQaCleanup({ gui, guiLogs, passed, primaryFailure, userDataRoot })
 }
 
-void main().catch((error: unknown) => {
-  console.error(error)
-  process.exitCode = 1
-})
+async function main() {
+  const executable = await findPackagedExecutable()
+  const userDataRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-live-orchestration-'))
+  const state: LiveQaLifecycleState = { gui: null, guiLogs: [], passed: false }
+  await runLiveQaProfileLifecycle({
+    userDataRoot,
+    state,
+    run: () => runLiveQaScenario({ executable, state, userDataRoot }),
+  })
+}
+
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  void main().catch((error: unknown) => {
+    console.error(error)
+    process.exitCode = 1
+  })
+}

@@ -15,6 +15,10 @@ vi.mock('../local-session-paths', () => ({
     endpointCapabilityPath: null,
   }),
 }))
+vi.mock('../session-host-cutover', () => ({
+  runSessionHostCutover: vi.fn(async () => undefined),
+  sessionHostTargetExists: vi.fn(async () => true),
+}))
 
 import { prepareGuiSessionHostStartup } from '../gui-session-host-startup'
 

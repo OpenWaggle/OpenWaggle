@@ -132,20 +132,22 @@ fi
 
 # --- Install ---
 if [ "${PLATFORM}" = "mac" ]; then
-  info "Mounting DMG and copying to /Applications…"
+  APPLICATIONS_DIR="${OPENWAGGLE_APPLICATIONS_DIR:-/Applications}"
+  info "Mounting DMG and copying to ${APPLICATIONS_DIR}…"
   MOUNT_POINT="$(hdiutil attach -nobrowse -readonly "${DOWNLOAD_PATH}" 2>/dev/null | tail -1 | awk -F'\t' '{print $NF}')"
   APP_PATH="$(find "${MOUNT_POINT}" -maxdepth 1 -name '*.app' | head -1)"
   [ -z "${APP_PATH}" ] && error "No .app bundle found in DMG"
-  rm -rf "/Applications/$(basename "${APP_PATH}")"
-  cp -R "${APP_PATH}" /Applications/
+  mkdir -p "${APPLICATIONS_DIR}"
+  rm -rf "${APPLICATIONS_DIR}/$(basename "${APP_PATH}")"
+  cp -R "${APP_PATH}" "${APPLICATIONS_DIR}/"
   hdiutil detach "${MOUNT_POINT}" -quiet 2>/dev/null || true
   # Remove quarantine for unsigned app
-  xattr -rd com.apple.quarantine "/Applications/$(basename "${APP_PATH}")" 2>/dev/null || true
-  info "Installed to /Applications/$(basename "${APP_PATH}")"
+  xattr -rd com.apple.quarantine "${APPLICATIONS_DIR}/$(basename "${APP_PATH}")" 2>/dev/null || true
+  info "Installed to ${APPLICATIONS_DIR}/$(basename "${APP_PATH}")"
 
   INSTALL_DIR="${HOME}/.local/bin"
   mkdir -p "${INSTALL_DIR}"
-  APP_EXECUTABLE="/Applications/$(basename "${APP_PATH}")/Contents/MacOS/OpenWaggle"
+  APP_EXECUTABLE="${APPLICATIONS_DIR}/$(basename "${APP_PATH}")/Contents/MacOS/OpenWaggle"
   INSTALL_PATH="${INSTALL_DIR}/openwaggle"
   ESCAPED_APP_EXECUTABLE="$(printf '%s' "${APP_EXECUTABLE}" | sed "s/'/'\"'\"'/g")"
   SHIM_TEMP_PATH="$(mktemp "${INSTALL_DIR}/.openwaggle-cli.XXXXXX")"

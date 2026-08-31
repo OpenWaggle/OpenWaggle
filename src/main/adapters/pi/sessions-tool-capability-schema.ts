@@ -11,7 +11,7 @@ const REQUIRED_CAPABILITIES = new Map<string, readonly SessionCapability[]>([
   ['start', ['sessions:start']],
   ['follow_up', ['sessions:message']],
   ['steer', ['sessions:steer']],
-  ['replace', ['sessions:interrupt', 'sessions:start']],
+  ['replace', ['sessions:message', 'sessions:interrupt']],
   ['promote', ['sessions:queue', 'sessions:steer']],
   ['interrupt', ['sessions:interrupt']],
   ['interrupt_descendants', ['sessions:interrupt']],

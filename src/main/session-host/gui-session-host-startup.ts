@@ -1,8 +1,10 @@
+import { withLegacySessionWriterFence } from './legacy-session-writer-fence'
 import {
   type LocalSessionHostPaths,
   prepareLocalSessionHostPaths,
   resolveLocalSessionHostPaths,
 } from './local-session-paths'
+import { runSessionHostCutover, sessionHostTargetExists } from './session-host-cutover'
 import type { SessionHostOwnership } from './session-host-ownership'
 
 /**
@@ -37,6 +39,15 @@ export async function prepareGuiSessionHostStartup(input: {
     resolveLocalSessionHostPaths({ userDataRoot: input.userDataRoot }),
   )
   input.startupMark('session-host-paths-ready')
+  const cutoverPaths = {
+    sourceDatabasePath: paths.legacyDatabasePath,
+    targetDatabasePath: paths.databasePath,
+    recoveryDatabasePath: paths.recoveryDatabasePath,
+  }
+  if (!(await sessionHostTargetExists(cutoverPaths))) {
+    await withLegacySessionWriterFence(() => runSessionHostCutover(cutoverPaths))
+    input.startupMark('session-host-cutover-ready')
+  }
   return {
     paths,
     databaseAccess: 'client-isolated',

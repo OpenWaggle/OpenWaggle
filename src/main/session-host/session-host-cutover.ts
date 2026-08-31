@@ -57,6 +57,10 @@ export function sessionHostTargetExists(paths: SessionHostCutoverPaths) {
   return exists(paths.targetDatabasePath)
 }
 
+export function sessionHostSourceExists(paths: SessionHostCutoverPaths) {
+  return exists(paths.sourceDatabasePath)
+}
+
 function applyTargetSchema(database: DatabaseSync) {
   for (const statement of SESSION_HOST_TARGET_SCHEMA_STATEMENTS) database.exec(statement)
 }

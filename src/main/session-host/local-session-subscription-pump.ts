@@ -26,7 +26,8 @@ export async function localSessionEventIsDenied(
   authorizeEvent: LocalSessionServerDependencies['authorizeEvent'],
   event: SessionHostEventEnvelope,
 ) {
-  return Boolean(caller && authorizeEvent && !(await authorizeEvent(caller, event)))
+  if (!caller) return true
+  return Boolean(authorizeEvent && !(await authorizeEvent(caller, event)))
 }
 
 export async function pumpLocalSessionSubscription(input: {

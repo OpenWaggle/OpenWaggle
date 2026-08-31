@@ -14,6 +14,8 @@ describe('quick installer CLI layout', () => {
     expect(source).toContain('install_executable_atomically "${DOWNLOAD_PATH}" "${APPIMAGE_PATH}"')
     expect(source).not.toContain('cp "${DOWNLOAD_PATH}" "${APPIMAGE_PATH}"')
     expect(source.match(/mv -f "\$\{SHIM_TEMP_PATH\}" "\$\{INSTALL_PATH\}"/g)).toHaveLength(2)
+    expect(source).toContain('APPLICATIONS_DIR="${OPENWAGGLE_APPLICATIONS_DIR:-/Applications}"')
+    expect(source).toContain('APP_EXECUTABLE="${APPLICATIONS_DIR}/$(basename "${APP_PATH}")')
   })
 
   it('preserves an open old inode while an installed executable path is atomically replaced', async () => {

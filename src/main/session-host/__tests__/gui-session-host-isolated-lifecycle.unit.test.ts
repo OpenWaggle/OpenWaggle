@@ -3,11 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   acquire: vi.fn(),
   configureClient: vi.fn(),
+  cutover: vi.fn(async () => undefined),
   ensure: vi.fn(async () => undefined),
+  fence: vi.fn((operation: () => Promise<unknown>) => operation()),
   preparePaths: vi.fn(async (paths: object) => paths),
   probe: vi.fn(),
   remoteBridge: vi.fn(() => vi.fn()),
   startHost: vi.fn(),
+  targetExists: vi.fn(async () => true),
 }))
 
 vi.mock('../../application/local-session-command-dispatcher', () => ({
@@ -40,11 +43,11 @@ vi.mock('../session-host-ownership', () => ({
   acquireSessionHostOwnership: mocks.acquire,
 }))
 vi.mock('../session-host-cutover', () => ({
-  runSessionHostCutover: vi.fn(async () => undefined),
-  sessionHostTargetExists: vi.fn(async () => true),
+  runSessionHostCutover: mocks.cutover,
+  sessionHostTargetExists: mocks.targetExists,
 }))
 vi.mock('../legacy-session-writer-fence', () => ({
-  withLegacySessionWriterFence: (operation: () => Promise<unknown>) => operation(),
+  withLegacySessionWriterFence: mocks.fence,
 }))
 vi.mock('../session-host-bootstrap', () => ({ startAppSessionHost: mocks.startHost }))
 vi.mock('../session-host-renderer-bridge', () => ({
@@ -58,10 +61,13 @@ describe('isolated GUI Session Host lifecycle', () => {
   beforeEach(() => {
     const unavailable = Object.assign(new Error('missing socket'), { code: 'ENOENT' })
     mocks.acquire.mockReset()
+    mocks.cutover.mockReset().mockResolvedValue(undefined)
     mocks.ensure.mockReset().mockResolvedValue(undefined)
+    mocks.fence.mockClear()
     mocks.probe.mockReset().mockRejectedValueOnce(unavailable).mockResolvedValueOnce(undefined)
     mocks.remoteBridge.mockClear()
     mocks.startHost.mockReset()
+    mocks.targetExists.mockReset().mockResolvedValue(true)
   })
 
   it('launches a detached Host instead of promoting its isolated runtime to owner', async () => {
@@ -83,5 +89,22 @@ describe('isolated GUI Session Host lifecycle', () => {
     expect(mocks.acquire).not.toHaveBeenCalled()
     expect(mocks.startHost).not.toHaveBeenCalled()
     await lifecycle.stop()
+  })
+
+  it('performs first-profile cutover while the GUI owns the legacy writer fence', async () => {
+    mocks.targetExists.mockResolvedValue(false)
+
+    await prepareGuiSessionHostLifecycle({
+      userDataRoot: '/tmp/openwaggle-test',
+      clientVersion: 'test',
+      startupMark: vi.fn(),
+    })
+
+    expect(mocks.fence).toHaveBeenCalledOnce()
+    expect(mocks.cutover).toHaveBeenCalledWith({
+      sourceDatabasePath: '/tmp/legacy.db',
+      targetDatabasePath: '/tmp/session-host.db',
+      recoveryDatabasePath: '/tmp/recovery.db',
+    })
   })
 })

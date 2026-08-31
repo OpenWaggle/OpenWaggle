@@ -57,6 +57,7 @@ export async function executeLocalSessionCommandFrame(input: {
     const invalidated = invalidatedProfileId(payload)
     if (invalidated) disconnectLocalSessionProfile(invalidated)
   } catch (error) {
+    input.releaseAdmissionReader?.()
     const failure = commandFailure(error)
     await input.send({
       kind: 'error',
