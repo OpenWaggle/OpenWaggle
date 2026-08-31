@@ -15,6 +15,10 @@ export interface InstalledResourceReadBudget {
   remainingBytes: number
 }
 
+function isMissingFileError(error: unknown) {
+  return error instanceof Error && 'code' in error && error.code === 'ENOENT'
+}
+
 export function isSyntaxThemeResource(value: unknown): value is SyntaxThemeResource {
   return (
     isRecord(value) &&
@@ -98,7 +102,7 @@ export async function readPersistedResources<T>(
   try {
     names = await fs.readdir(directory)
   } catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return []
+    if (isMissingFileError(error)) return []
     throw error
   }
   const resourceNames = names.filter((entry) => entry.endsWith('.json'))
@@ -111,20 +115,29 @@ export async function readPersistedResources<T>(
     let size: number
     try {
       size = (await fs.stat(resourcePath)).size
-    } catch {
-      continue
+    } catch (error) {
+      if (isMissingFileError(error)) continue
+      throw error
     }
     if (size > budget.remainingBytes) {
       throw new Error('The installed syntax resource catalog exceeds its aggregate byte limit.')
     }
     budget.remainingBytes -= size
+    let source: string
     try {
-      const source = await fs.readFile(resourcePath, 'utf8')
-      const parsed: unknown = JSON.parse(source)
-      if (guard(parsed)) resources.push(parsed)
+      source = await fs.readFile(resourcePath, 'utf8')
+    } catch (error) {
+      if (isMissingFileError(error)) continue
+      throw error
+    }
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(source)
     } catch {
       // One malformed user resource does not hide the rest of the library.
+      continue
     }
+    if (guard(parsed)) resources.push(parsed)
   }
   return resources
 }
