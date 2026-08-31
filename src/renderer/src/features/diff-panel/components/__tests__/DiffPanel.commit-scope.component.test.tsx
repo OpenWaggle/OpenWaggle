@@ -12,6 +12,7 @@ vi.mock('@pierre/diffs/react', async () => ({
   CodeView: (await import('./diff-panel.test-harness')).StubCodeView,
   WorkerPoolContextProvider: (await import('./diff-panel.test-harness'))
     .StubWorkerPoolContextProvider,
+  useWorkerPool: () => undefined,
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({

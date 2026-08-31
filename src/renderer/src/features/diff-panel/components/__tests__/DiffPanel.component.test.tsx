@@ -14,12 +14,12 @@ import { fileDiff, gitStatus } from './diff-panel.test-harness'
  * wiring -- items, annotations, selection plumbing -- and verify the real renderer
  * in the Electron app instead.
  */
-// Async factory + dynamic import: vi.mock is hoisted above imports, so the stub
 // cannot be referenced from an ordinary top-level import here.
 vi.mock('@pierre/diffs/react', async () => ({
   CodeView: (await import('./diff-panel.test-harness')).StubCodeView,
   WorkerPoolContextProvider: (await import('./diff-panel.test-harness'))
     .StubWorkerPoolContextProvider,
+  useWorkerPool: () => undefined,
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
