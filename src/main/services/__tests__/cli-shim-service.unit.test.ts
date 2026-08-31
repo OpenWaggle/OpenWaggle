@@ -17,7 +17,7 @@ import { promisify } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getSafeChildEnv } from '../../env'
 import { managedCliShimContent } from '../cli-shim-content'
-import { createCliShimService } from '../cli-shim-service'
+import { createCliShimService, resolveCliShimExecutablePath } from '../cli-shim-service'
 
 const POSIX_TEST_PLATFORM: NodeJS.Platform = process.platform === 'darwin' ? 'darwin' : 'linux'
 const itPosix = process.platform === 'win32' ? it.skip : it
@@ -267,5 +267,32 @@ if [ "$1" = "fail" ]; then exit 7; fi
       commandPath: null,
     })
     await expect(cli.install()).resolves.toMatchObject({ ok: false })
+  })
+})
+
+describe('CLI shim executable resolution', () => {
+  const mountedExecutable = '/tmp/.mount_OpenWa/usr/bin/openwaggle'
+  const originalAppImage = '/opt/OpenWaggle/OpenWaggle.AppImage'
+
+  it('targets the original AppImage for a packaged Linux application', () => {
+    expect(
+      resolveCliShimExecutablePath({
+        platform: 'linux',
+        executablePath: mountedExecutable,
+        isPackaged: true,
+        appImagePath: originalAppImage,
+      }),
+    ).toBe(originalAppImage)
+  })
+
+  it.each([
+    { platform: 'linux' as const, isPackaged: false, appImagePath: originalAppImage },
+    { platform: 'darwin' as const, isPackaged: true, appImagePath: originalAppImage },
+    { platform: 'linux' as const, isPackaged: true, appImagePath: 'relative.AppImage' },
+    { platform: 'linux' as const, isPackaged: true, appImagePath: undefined },
+  ])('keeps the executable path outside a packaged AppImage runtime: %o', (input) => {
+    expect(resolveCliShimExecutablePath({ ...input, executablePath: mountedExecutable })).toBe(
+      mountedExecutable,
+    )
   })
 })

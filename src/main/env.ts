@@ -18,6 +18,7 @@ const optionalUrlSchema = Schema.optional(
 
 const envSchema = Schema.Struct({
   PATH: Schema.optional(Schema.String),
+  APPIMAGE: Schema.optional(Schema.String),
   ELECTRON_RENDERER_URL: optionalUrlSchema,
   OPENWAGGLE_AUTOMATION: Schema.optional(Schema.Literal('1')),
   OPENWAGGLE_AUTOMATION_LEASE_TOKEN: Schema.optional(Schema.String),

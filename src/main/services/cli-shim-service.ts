@@ -20,6 +20,23 @@ export interface CliShimServiceInput {
   readonly beforeManagedSpawn?: () => Promise<void>
 }
 
+export function resolveCliShimExecutablePath(input: {
+  readonly platform: NodeJS.Platform
+  readonly executablePath: string
+  readonly isPackaged: boolean
+  readonly appImagePath?: string
+}) {
+  if (
+    input.platform === 'linux' &&
+    input.isPackaged &&
+    input.appImagePath &&
+    path.isAbsolute(input.appImagePath)
+  ) {
+    return input.appImagePath
+  }
+  return input.executablePath
+}
+
 function isMissing(error: unknown) {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT'
 }
@@ -191,7 +208,12 @@ export function createAppCliShimService() {
   return createCliShimService({
     platform: process.platform,
     homeDirectory: os.homedir(),
-    executablePath: process.execPath,
+    executablePath: resolveCliShimExecutablePath({
+      platform: process.platform,
+      executablePath: process.execPath,
+      isPackaged: app.isPackaged,
+      ...(env.APPIMAGE ? { appImagePath: env.APPIMAGE } : {}),
+    }),
     ...(app.isPackaged ? {} : { appPath: app.getAppPath() }),
     environmentPath: env.PATH,
   })

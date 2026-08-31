@@ -1,6 +1,7 @@
 import * as Effect from 'effect/Effect'
 import { authorizeMcpServer } from '../adapters/mcp/oauth-provider'
 import { reconcileConfiguredMcpOwnerRuntime } from '../application/gui-session-command-router'
+import { withMcpManagementWrite } from '../application/mcp-management-operation-gate'
 import {
   addMcpServerOperation,
   applyMcpImportsOperation,
@@ -60,52 +61,54 @@ function registerMcpAuthorizationHandlers() {
       const server = yield* (yield* McpConfigService).getServerDefinition(input)
       const vault = yield* McpSecretVaultService
       const runtime = yield* McpRuntimeService
-      return yield* Effect.tryPromise({
-        try: async () => {
-          let vaultMutated = false
-          let result: Awaited<ReturnType<typeof authorizeMcpServer>> | undefined
-          let authorizationError: unknown
-          try {
-            result = await authorizeMcpServer({
-              ...server,
-              vault: {
-                resolve: (name) => Effect.runPromise(vault.resolve(name)),
-                set: async (name, value) => {
-                  const summaries = await Effect.runPromise(vault.set({ name, value }))
-                  vaultMutated = true
-                  return summaries
-                },
-                remove: async (name) => {
-                  const summaries = await Effect.runPromise(vault.remove({ name }))
-                  vaultMutated = true
-                  return summaries
-                },
-              },
-              openExternal,
-            })
-          } catch (error) {
-            authorizationError = error
-          }
-          if (result || vaultMutated) {
+      return yield* withMcpManagementWrite(
+        Effect.tryPromise({
+          try: async () => {
+            let vaultMutated = false
+            let result: Awaited<ReturnType<typeof authorizeMcpServer>> | undefined
+            let authorizationError: unknown
             try {
-              const handled = await reconcileConfiguredMcpOwnerRuntime(input.projectPath)
-              if (!handled) await Effect.runPromise(runtime.reconcileIdleConnections())
-            } catch (reconciliationError) {
-              if (!authorizationError) throw reconciliationError
-              logger.error('MCP owner reconciliation failed after OAuth changed the vault.', {
-                error:
-                  reconciliationError instanceof Error
-                    ? reconciliationError.message
-                    : String(reconciliationError),
+              result = await authorizeMcpServer({
+                ...server,
+                vault: {
+                  resolve: (name) => Effect.runPromise(vault.resolve(name)),
+                  set: async (name, value) => {
+                    const summaries = await Effect.runPromise(vault.set({ name, value }))
+                    vaultMutated = true
+                    return summaries
+                  },
+                  remove: async (name) => {
+                    const summaries = await Effect.runPromise(vault.remove({ name }))
+                    vaultMutated = true
+                    return summaries
+                  },
+                },
+                openExternal,
               })
+            } catch (error) {
+              authorizationError = error
             }
-          }
-          if (authorizationError) throw authorizationError
-          if (!result) throw new Error('MCP authorization completed without a result.')
-          return result
-        },
-        catch: (error) => (error instanceof Error ? error : new Error(String(error))),
-      })
+            if (result || vaultMutated) {
+              try {
+                const handled = await reconcileConfiguredMcpOwnerRuntime(input.projectPath)
+                if (!handled) await Effect.runPromise(runtime.reconcileIdleConnections())
+              } catch (reconciliationError) {
+                if (!authorizationError) throw reconciliationError
+                logger.error('MCP owner reconciliation failed after OAuth changed the vault.', {
+                  error:
+                    reconciliationError instanceof Error
+                      ? reconciliationError.message
+                      : String(reconciliationError),
+                })
+              }
+            }
+            if (authorizationError) throw authorizationError
+            if (!result) throw new Error('MCP authorization completed without a result.')
+            return result
+          },
+          catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+        }),
+      )
     }),
   )
 }

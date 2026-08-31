@@ -3,11 +3,12 @@ import { Deferred, Effect, SynchronizedRef } from 'effect'
 import { resolveMcpRuntimeNamespace } from '../../../domain/mcp/runtime-namespace'
 import { type McpRuntimeFailure, toMcpRuntimeError } from '../../../ports/mcp-errors'
 import type { McpRuntimeConnectionStatus } from '../../../ports/mcp-runtime-service'
+import {
+  mcpConnectedStatus,
+  mcpConnectingStatus,
+  mcpConnectionKey,
+} from './runtime-connection-status'
 import type { McpClientConnection, McpConnectionFactory } from './types'
-
-function connectionKey(snapshot: McpTurnSnapshot, server: McpTurnSnapshotServer) {
-  return `${resolveMcpRuntimeNamespace(snapshot)}:${snapshot.revision}:${server.instanceId}`
-}
 
 /**
  * A pending or resolved connection, deduplicated per key via a Deferred. The
@@ -19,11 +20,19 @@ interface ConnectionCell {
   readonly status: McpRuntimeConnectionStatus
 }
 
+type ConnectionSlot =
+  | { readonly type: 'active'; readonly cell: ConnectionCell }
+  | {
+      readonly type: 'closing'
+      readonly cell: ConnectionCell
+      readonly done: Deferred.Deferred<void>
+    }
+
 interface ConnectionsCtx {
   readonly connect: McpConnectionFactory
   readonly onClose: (key: string) => Effect.Effect<void>
   readonly onConnected: (runtimeNamespace: string, serverInstanceId: string) => Effect.Effect<void>
-  readonly cells: SynchronizedRef.SynchronizedRef<Map<string, ConnectionCell>>
+  readonly cells: SynchronizedRef.SynchronizedRef<Map<string, ConnectionSlot>>
 }
 
 export interface McpRuntimeConnectionsService {
@@ -42,38 +51,10 @@ export interface McpRuntimeConnectionsService {
   getStatuses(): Effect.Effect<readonly McpRuntimeConnectionStatus[]>
 }
 
-function connectingStatus(
-  snapshot: McpTurnSnapshot,
-  server: McpTurnSnapshotServer,
-): McpRuntimeConnectionStatus {
-  return {
-    runtimeNamespace: resolveMcpRuntimeNamespace(snapshot),
-    sessionId: snapshot.sessionId,
-    projectPath: snapshot.projectPath,
-    snapshotRevision: snapshot.revision,
-    serverInstanceId: server.instanceId,
-    connectionState: 'connecting',
-    capabilities: [],
-  }
-}
-
-function connectedStatus(
-  snapshot: McpTurnSnapshot,
-  server: McpTurnSnapshotServer,
-  connection: McpClientConnection,
-): McpRuntimeConnectionStatus {
-  return {
-    ...connectingStatus(snapshot, server),
-    connectionState: 'connected',
-    ...(connection.negotiatedProtocolVersion
-      ? { negotiatedProtocolVersion: connection.negotiatedProtocolVersion }
-      : {}),
-    capabilities: connection.capabilities,
-  }
-}
-
-function removeCell(ctx: ConnectionsCtx, key: string) {
+function removeCell(ctx: ConnectionsCtx, key: string, deferred: ConnectionCell['deferred']) {
   return SynchronizedRef.update(ctx.cells, (current) => {
+    const existing = current.get(key)
+    if (existing?.type !== 'active' || existing.cell.deferred !== deferred) return current
     const next = new Map(current)
     next.delete(key)
     return next
@@ -85,7 +66,7 @@ function runConnect(
   key: string,
   snapshot: McpTurnSnapshot,
   server: McpTurnSnapshotServer,
-  deferred: Deferred.Deferred<McpClientConnection, McpRuntimeFailure>,
+  cell: ConnectionCell,
 ) {
   return Effect.tryPromise({
     try: () => ctx.connect({ snapshot, server }),
@@ -98,25 +79,40 @@ function runConnect(
         // happen in one modify, so a concurrent close cannot leave a ghost status.
         SynchronizedRef.modify(ctx.cells, (current) => {
           const existing = current.get(key)
-          if (!existing) return [false, current] as const
+          if (existing?.type !== 'active' || existing.cell.deferred !== cell.deferred) {
+            return [false, current] as const
+          }
           return [
             true,
             new Map(current).set(key, {
-              ...existing,
-              status: connectedStatus(snapshot, server, connection),
+              type: 'active',
+              cell: {
+                ...existing.cell,
+                status: mcpConnectedStatus(snapshot, server, connection),
+              },
             }),
           ] as const
         }).pipe(
-          Effect.flatMap((current) =>
-            current
-              ? ctx.onConnected(resolveMcpRuntimeNamespace(snapshot), server.instanceId)
-              : Effect.void,
-          ),
-          Effect.zipRight(Deferred.succeed(deferred, connection)),
+          Effect.flatMap((current) => {
+            if (current) {
+              return ctx
+                .onConnected(resolveMcpRuntimeNamespace(snapshot), server.instanceId)
+                .pipe(Effect.zipRight(Deferred.succeed(cell.deferred, connection)))
+            }
+            const retired = toMcpRuntimeError(
+              'connect',
+              new Error('MCP connection was retired before it became ready.'),
+            )
+            return Effect.promise(() => connection.close().catch(() => undefined)).pipe(
+              Effect.zipRight(Deferred.fail(cell.deferred, retired)),
+            )
+          }),
         ),
       onFailure: (cause) =>
-        // Drop the failed cell so a later turn can reconnect, then fail waiters.
-        removeCell(ctx, key).pipe(Effect.zipRight(Deferred.failCause(deferred, cause))),
+        // Drop only this failed cell; an older connector must never delete a replacement.
+        removeCell(ctx, key, cell.deferred).pipe(
+          Effect.zipRight(Deferred.failCause(cell.deferred, cause)),
+        ),
     }),
   )
 }
@@ -125,58 +121,102 @@ function getConnection(
   ctx: ConnectionsCtx,
   snapshot: McpTurnSnapshot,
   server: McpTurnSnapshotServer,
-) {
+): Effect.Effect<McpClientConnection, McpRuntimeFailure> {
   return Effect.gen(function* () {
-    const key = connectionKey(snapshot, server)
-    type Decision = {
-      readonly deferred: Deferred.Deferred<McpClientConnection, McpRuntimeFailure>
-      readonly fresh: boolean
-    }
+    const key = mcpConnectionKey(snapshot, server)
+    type Decision =
+      | { readonly type: 'active'; readonly cell: ConnectionCell; readonly fresh: boolean }
+      | { readonly type: 'closing'; readonly done: Deferred.Deferred<void> }
     const decision = yield* SynchronizedRef.modifyEffect(
       ctx.cells,
-      (current): Effect.Effect<readonly [Decision, Map<string, ConnectionCell>]> => {
+      (current): Effect.Effect<readonly [Decision, Map<string, ConnectionSlot>]> => {
         const existing = current.get(key)
-        if (existing)
-          return Effect.succeed([{ deferred: existing.deferred, fresh: false }, current] as const)
+        if (existing?.type === 'active') {
+          return Effect.succeed([
+            { type: 'active', cell: existing.cell, fresh: false },
+            current,
+          ] as const)
+        }
+        if (existing?.type === 'closing') {
+          return Effect.succeed([{ type: 'closing', done: existing.done }, current] as const)
+        }
         return Deferred.make<McpClientConnection, McpRuntimeFailure>().pipe(
-          Effect.map(
-            (deferred) =>
-              [
-                { deferred, fresh: true },
-                new Map(current).set(key, { deferred, status: connectingStatus(snapshot, server) }),
-              ] as const,
-          ),
+          Effect.map((deferred) => {
+            const cell = { deferred, status: mcpConnectingStatus(snapshot, server) }
+            return [
+              { type: 'active', cell, fresh: true },
+              new Map(current).set(key, { type: 'active', cell }),
+            ] as const
+          }),
         )
       },
     )
+    if (decision.type === 'closing') {
+      yield* Deferred.await(decision.done)
+      return yield* getConnection(ctx, snapshot, server)
+    }
     if (decision.fresh) {
       // Fork as a daemon so the Deferred is ALWAYS resolved (success or failure)
       // even if this calling fiber is interrupted (e.g. turn cancellation) before
       // runConnect completes. Otherwise the cell's Deferred would orphan and wedge
       // every later getConnection/closeKey (and Layer teardown) on this key.
-      yield* Effect.forkDaemon(runConnect(ctx, key, snapshot, server, decision.deferred))
+      yield* Effect.forkDaemon(runConnect(ctx, key, snapshot, server, decision.cell))
     }
-    return yield* Deferred.await(decision.deferred)
+    return yield* Deferred.await(decision.cell.deferred)
   })
 }
 
 function closeKey(ctx: ConnectionsCtx, key: string) {
   return Effect.gen(function* () {
-    // Atomically claim + remove the cell so a concurrent getConnection cannot
-    // observe a cell this close is tearing down.
-    const cell = yield* SynchronizedRef.modifyEffect(ctx.cells, (current) => {
+    type CloseDecision =
+      | { readonly type: 'missing' }
+      | { readonly type: 'waiting'; readonly done: Deferred.Deferred<void> }
+      | {
+          readonly type: 'owner'
+          readonly cell: ConnectionCell
+          readonly done: Deferred.Deferred<void>
+        }
+    const decision = yield* SynchronizedRef.modifyEffect(
+      ctx.cells,
+      (current): Effect.Effect<readonly [CloseDecision, Map<string, ConnectionSlot>]> => {
+        const existing = current.get(key)
+        if (!existing) return Effect.succeed([{ type: 'missing' }, current] as const)
+        if (existing.type === 'closing') {
+          return Effect.succeed([{ type: 'waiting', done: existing.done }, current] as const)
+        }
+        return Deferred.make<void>().pipe(
+          Effect.map(
+            (done) =>
+              [
+                { type: 'owner', cell: existing.cell, done },
+                new Map(current).set(key, { type: 'closing', cell: existing.cell, done }),
+              ] as const,
+          ),
+        )
+      },
+    )
+    if (decision.type === 'missing') return
+    if (decision.type === 'waiting') return yield* Deferred.await(decision.done)
+
+    const finish = SynchronizedRef.update(ctx.cells, (current) => {
+      const existing = current.get(key)
+      if (existing?.type !== 'closing' || existing.done !== decision.done) return current
       const next = new Map(current)
-      const existing = next.get(key)
       next.delete(key)
-      return Effect.succeed([existing, next] as const)
-    })
-    if (!cell) return
-    yield* ctx.onClose(key)
-    yield* Deferred.await(cell.deferred).pipe(
-      Effect.matchCauseEffect({
-        onSuccess: (connection) => Effect.promise(() => connection.close().catch(() => undefined)),
-        onFailure: () => Effect.void,
-      }),
+      return next
+    }).pipe(Effect.zipRight(Deferred.succeed(decision.done, undefined)), Effect.asVoid)
+
+    yield* ctx.onClose(key).pipe(
+      Effect.zipRight(
+        Deferred.await(decision.cell.deferred).pipe(
+          Effect.matchCauseEffect({
+            onSuccess: (connection) =>
+              Effect.promise(() => connection.close().catch(() => undefined)),
+            onFailure: () => Effect.void,
+          }),
+        ),
+      ),
+      Effect.ensuring(finish),
     )
   })
 }
@@ -187,7 +227,9 @@ function matchingKeys(
 ) {
   return SynchronizedRef.get(ctx.cells).pipe(
     Effect.map((current) =>
-      [...current.entries()].flatMap(([key, cell]) => (predicate(cell.status, key) ? [key] : [])),
+      [...current.entries()].flatMap(([key, slot]) =>
+        predicate(slot.cell.status, key) ? [key] : [],
+      ),
     ),
   )
 }
@@ -204,8 +246,10 @@ function closeIdle(
   return Effect.gen(function* () {
     const current = yield* SynchronizedRef.get(ctx.cells)
     const idleNamespaces = new Set<string>()
-    for (const cell of current.values()) {
-      if (!isActive(cell.status.runtimeNamespace)) idleNamespaces.add(cell.status.runtimeNamespace)
+    for (const slot of current.values()) {
+      if (!isActive(slot.cell.status.runtimeNamespace)) {
+        idleNamespaces.add(slot.cell.status.runtimeNamespace)
+      }
     }
     for (const runtimeNamespace of additionalNamespaces) {
       if (!isActive(runtimeNamespace)) idleNamespaces.add(runtimeNamespace)
@@ -229,10 +273,10 @@ export function makeMcpRuntimeConnections(input: {
   readonly onConnected: (runtimeNamespace: string, serverInstanceId: string) => Effect.Effect<void>
 }): Effect.Effect<McpRuntimeConnectionsService> {
   return Effect.gen(function* () {
-    const cells = yield* SynchronizedRef.make(new Map<string, ConnectionCell>())
+    const cells = yield* SynchronizedRef.make(new Map<string, ConnectionSlot>())
     const ctx: ConnectionsCtx = { ...input, cells }
     return {
-      key: connectionKey,
+      key: mcpConnectionKey,
       get: (snapshot, server) => getConnection(ctx, snapshot, server),
       closeSuperseded: (runtimeNamespace, snapshotRevision) =>
         matchingKeys(
@@ -252,7 +296,11 @@ export function makeMcpRuntimeConnections(input: {
         ),
       getStatuses: () =>
         SynchronizedRef.get(cells).pipe(
-          Effect.map((current) => [...current.values()].map((cell) => cell.status)),
+          Effect.map((current) =>
+            [...current.values()].flatMap((slot) =>
+              slot.type === 'active' ? [slot.cell.status] : [],
+            ),
+          ),
         ),
     }
   })

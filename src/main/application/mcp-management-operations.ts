@@ -4,6 +4,7 @@ import { McpConfigService } from '../ports/mcp-config-service'
 import { McpRuntimeService } from '../ports/mcp-runtime-service'
 import { McpSecretVaultService } from '../ports/mcp-secret-vault-service'
 import { validateRequiredProjectPath } from '../utils/project-path-validation'
+import { withMcpManagementRead, withMcpManagementWrite } from './mcp-management-operation-gate'
 import {
   decodeMcpOperationInput,
   mcpAddServerSchema,
@@ -27,10 +28,11 @@ export function getMcpSettingsOperation(raw: unknown = {}) {
     const decoded = yield* decodeMcpOperationInput(mcpGetSettingsSchema, raw, 'settings read')
     const input = yield* validateMcpProjectInput(decoded)
     const service = yield* McpConfigService
-    const view = yield* service.getView(input)
     return yield* input.reconcileRuntime
-      ? reconcileMcpRuntimeSettings(view)
-      : withMcpRuntimeSettings(view)
+      ? withMcpManagementWrite(
+          service.getView(input).pipe(Effect.flatMap(reconcileMcpRuntimeSettings)),
+        )
+      : withMcpManagementRead(service.getView(input).pipe(Effect.flatMap(withMcpRuntimeSettings)))
   })
 }
 
@@ -40,7 +42,9 @@ export function setMcpScopeStateOperation(raw: unknown) {
     const input = yield* validateMcpProjectInput(decoded)
     const service = yield* McpConfigService
     return yield* Effect.uninterruptible(
-      service.setScopeState(input).pipe(Effect.flatMap(reconcileMcpRuntimeSettings)),
+      withMcpManagementWrite(
+        service.setScopeState(input).pipe(Effect.flatMap(reconcileMcpRuntimeSettings)),
+      ),
     )
   })
 }
@@ -51,7 +55,9 @@ export function setMcpServerEnabledOperation(raw: unknown) {
     const input = yield* validateMcpProjectInput(decoded)
     const service = yield* McpConfigService
     return yield* Effect.uninterruptible(
-      service.setServerEnabled(input).pipe(Effect.flatMap(reconcileMcpRuntimeSettings)),
+      withMcpManagementWrite(
+        service.setServerEnabled(input).pipe(Effect.flatMap(reconcileMcpRuntimeSettings)),
+      ),
     )
   })
 }
@@ -66,9 +72,11 @@ export function setMcpProjectServerEnabledOperation(raw: unknown) {
     const projectPath = yield* validateRequiredProjectPath(decoded.projectPath)
     const service = yield* McpConfigService
     return yield* Effect.uninterruptible(
-      service
-        .setProjectServerEnabled({ ...decoded, projectPath })
-        .pipe(Effect.flatMap(reconcileMcpRuntimeSettings)),
+      withMcpManagementWrite(
+        service
+          .setProjectServerEnabled({ ...decoded, projectPath })
+          .pipe(Effect.flatMap(reconcileMcpRuntimeSettings)),
+      ),
     )
   })
 }
@@ -79,7 +87,9 @@ export function setMcpServerTrustOperation(raw: unknown) {
     const input = yield* validateMcpProjectInput(decoded)
     const service = yield* McpConfigService
     return yield* Effect.uninterruptible(
-      service.setServerTrust(input).pipe(Effect.flatMap(reconcileMcpRuntimeSettings)),
+      withMcpManagementWrite(
+        service.setServerTrust(input).pipe(Effect.flatMap(reconcileMcpRuntimeSettings)),
+      ),
     )
   })
 }
@@ -90,7 +100,9 @@ export function writeMcpSourceConfigOperation(raw: unknown) {
     const input = yield* validateMcpProjectInput(decoded)
     const service = yield* McpConfigService
     return yield* Effect.uninterruptible(
-      service.writeSourceConfig(input).pipe(Effect.flatMap(reconcileMcpRuntimeSettings)),
+      withMcpManagementWrite(
+        service.writeSourceConfig(input).pipe(Effect.flatMap(reconcileMcpRuntimeSettings)),
+      ),
     )
   })
 }
@@ -101,7 +113,9 @@ export function removeMcpServerOperation(raw: unknown) {
     const input = yield* validateMcpProjectInput(decoded)
     const service = yield* McpConfigService
     return yield* Effect.uninterruptible(
-      service.removeServer(input).pipe(Effect.flatMap(reconcileMcpRuntimeSettings)),
+      withMcpManagementWrite(
+        service.removeServer(input).pipe(Effect.flatMap(reconcileMcpRuntimeSettings)),
+      ),
     )
   })
 }
@@ -112,7 +126,9 @@ export function addMcpServerOperation(raw: unknown) {
     const input = yield* validateMcpProjectInput(decoded)
     const service = yield* McpConfigService
     return yield* Effect.uninterruptible(
-      service.addServer(input).pipe(Effect.flatMap(reconcileMcpRuntimeSettings)),
+      withMcpManagementWrite(
+        service.addServer(input).pipe(Effect.flatMap(reconcileMcpRuntimeSettings)),
+      ),
     )
   })
 }
@@ -121,7 +137,7 @@ export function previewMcpImportsOperation(raw: unknown) {
   return Effect.gen(function* () {
     const decoded = yield* decodeMcpOperationInput(mcpImportPreviewSchema, raw, 'import preview')
     const input = yield* validateMcpProjectInput(decoded)
-    return yield* (yield* McpConfigService).previewImports(input)
+    return yield* withMcpManagementRead((yield* McpConfigService).previewImports(input))
   })
 }
 
@@ -131,11 +147,13 @@ export function applyMcpImportsOperation(raw: unknown) {
     const input = yield* validateMcpProjectInput(decoded)
     const service = yield* McpConfigService
     return yield* Effect.uninterruptible(
-      Effect.gen(function* () {
-        const result = yield* service.applyImports(input)
-        const view = yield* reconcileMcpRuntimeSettings(result.view)
-        return { ...result, view }
-      }),
+      withMcpManagementWrite(
+        Effect.gen(function* () {
+          const result = yield* service.applyImports(input)
+          const view = yield* reconcileMcpRuntimeSettings(result.view)
+          return { ...result, view }
+        }),
+      ),
     )
   })
 }
@@ -150,7 +168,7 @@ export function doctorMcpOperation(raw: unknown = {}) {
 
 export function listMcpSecretsOperation() {
   return Effect.gen(function* () {
-    return yield* (yield* McpSecretVaultService).list()
+    return yield* withMcpManagementRead((yield* McpSecretVaultService).list())
   })
 }
 
@@ -160,11 +178,13 @@ export function setMcpSecretOperation(raw: unknown) {
     const vault = yield* McpSecretVaultService
     const runtime = yield* McpRuntimeService
     return yield* Effect.uninterruptible(
-      Effect.gen(function* () {
-        const summaries = yield* vault.set(input)
-        yield* runtime.reconcileIdleConnections()
-        return summaries
-      }),
+      withMcpManagementWrite(
+        Effect.gen(function* () {
+          const summaries = yield* vault.set(input)
+          yield* runtime.reconcileIdleConnections()
+          return summaries
+        }),
+      ),
     )
   })
 }
@@ -175,11 +195,13 @@ export function removeMcpSecretOperation(raw: unknown) {
     const vault = yield* McpSecretVaultService
     const runtime = yield* McpRuntimeService
     return yield* Effect.uninterruptible(
-      Effect.gen(function* () {
-        const summaries = yield* vault.remove(input)
-        yield* runtime.reconcileIdleConnections()
-        return summaries
-      }),
+      withMcpManagementWrite(
+        Effect.gen(function* () {
+          const summaries = yield* vault.remove(input)
+          yield* runtime.reconcileIdleConnections()
+          return summaries
+        }),
+      ),
     )
   })
 }
@@ -188,15 +210,18 @@ export function logoutMcpServerOperation(raw: unknown) {
   return Effect.gen(function* () {
     const decoded = yield* decodeMcpOperationInput(mcpRemoveServerSchema, raw, 'server logout')
     const input = yield* validateMcpProjectInput(decoded)
-    const server = yield* (yield* McpConfigService).getServerDefinition(input)
+    const config = yield* McpConfigService
     const vault = yield* McpSecretVaultService
     const runtime = yield* McpRuntimeService
     return yield* Effect.uninterruptible(
-      Effect.gen(function* () {
-        yield* vault.remove({ name: mcpOAuthVaultKey(server.instanceId) })
-        yield* runtime.reconcileIdleConnections()
-        return { loggedOut: true as const }
-      }),
+      withMcpManagementWrite(
+        Effect.gen(function* () {
+          const server = yield* config.getServerDefinition(input)
+          yield* vault.remove({ name: mcpOAuthVaultKey(server.instanceId) })
+          yield* runtime.reconcileIdleConnections()
+          return { loggedOut: true as const }
+        }),
+      ),
     )
   })
 }

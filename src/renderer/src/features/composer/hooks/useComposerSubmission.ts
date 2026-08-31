@@ -33,6 +33,18 @@ interface SubmitBlockInput {
   readonly selectedModel: string
 }
 
+interface ComposerDraftSnapshot {
+  readonly activeDraftContextKey: string | null
+  readonly input: string
+  readonly attachmentIds: readonly string[]
+  readonly wagglePresetId: string | null
+}
+
+type DispatchResult =
+  | { readonly type: 'blocked' }
+  | { readonly type: 'sent' }
+  | { readonly type: 'queued'; readonly completion: Promise<void> }
+
 export function useComposerSubmission({
   onSend,
   onEnqueue,
@@ -55,7 +67,8 @@ export function useComposerSubmission({
   const selectedModel = useComposerModel().model
   const { effectiveThinkingLevel } = useSelectedModelThinkingLevel(selectedModel)
 
-  function clearComposerInput() {
+  function clearComposerInput(snapshot?: ComposerDraftSnapshot) {
+    if (snapshot && !isCurrentComposerDraft(snapshot)) return
     reset()
     if (editorRef.current) {
       clearEditor(editorRef.current)
@@ -64,24 +77,46 @@ export function useComposerSubmission({
 
   function dispatchPayload(payload: AgentSendPayload) {
     const block = getSubmitBlock({ payload, disabled, requiresText, projectPath, selectedModel })
-    if (!block) {
-      consumeSendResult(isLoading && allowEnqueue ? onEnqueue(payload) : onSend(payload))
-      return true
+    if (block) {
+      if (block.type === 'toast') onToast?.(block.message)
+      return { type: 'blocked' } satisfies DispatchResult
     }
-    if (block.type === 'toast') onToast?.(block.message)
-    return false
+    if (isLoading && allowEnqueue) {
+      const completion = callAsPromise(() => onEnqueue(payload))
+      consumeSendResult(completion)
+      return { type: 'queued', completion } satisfies DispatchResult
+    }
+    consumeSendResult(onSend(payload))
+    return { type: 'sent' } satisfies DispatchResult
   }
 
   function submitPayload(payload: AgentSendPayload) {
-    const sent = dispatchPayload(payload)
-    if (!sent) return false
+    const draftSnapshot = captureCurrentComposerDraft()
+    const dispatch = dispatchPayload(payload)
+    if (dispatch.type === 'blocked') return false
+    if (dispatch.type === 'sent') {
+      finishSuccessfulSubmission(payload)
+      return true
+    }
+    return dispatch.completion.then(
+      () => {
+        finishSuccessfulSubmission(payload, draftSnapshot)
+        return true
+      },
+      () => false,
+    )
+  }
+
+  function finishSuccessfulSubmission(
+    payload: AgentSendPayload,
+    draftSnapshot?: ComposerDraftSnapshot,
+  ) {
     if (recordHistory && payload.text) pushHistory(payload.text)
-    if (clearOnSubmit) clearComposerInput()
-    return true
+    if (clearOnSubmit) clearComposerInput(draftSnapshot)
   }
 
   function handleSubmit(text?: string) {
-    submitPayload({
+    return submitPayload({
       text: (text ?? input).trim(),
       thinkingLevel: effectiveThinkingLevel,
       attachments,
@@ -151,6 +186,35 @@ export function useComposerSubmission({
     handleSubmit,
     sendComposed,
     submitCurrentDraft,
+  }
+}
+
+function captureCurrentComposerDraft(): ComposerDraftSnapshot {
+  const state = useComposerStore.getState()
+  return {
+    activeDraftContextKey: state.activeDraftContextKey,
+    input: state.input,
+    attachmentIds: state.attachments.map((attachment) => attachment.id),
+    wagglePresetId: state.selectedWagglePreset?.id ?? null,
+  }
+}
+
+function isCurrentComposerDraft(snapshot: ComposerDraftSnapshot) {
+  const state = useComposerStore.getState()
+  return (
+    state.activeDraftContextKey === snapshot.activeDraftContextKey &&
+    state.input === snapshot.input &&
+    state.selectedWagglePreset?.id === (snapshot.wagglePresetId ?? undefined) &&
+    state.attachments.length === snapshot.attachmentIds.length &&
+    state.attachments.every((attachment, index) => attachment.id === snapshot.attachmentIds[index])
+  )
+}
+
+function callAsPromise(action: () => Promise<void> | void): Promise<void> {
+  try {
+    return Promise.resolve(action())
+  } catch (error) {
+    return Promise.reject(error)
   }
 }
 

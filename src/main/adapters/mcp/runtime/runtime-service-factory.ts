@@ -1,6 +1,7 @@
 import { Effect, Ref } from 'effect'
 import type { McpRuntimeServiceShape } from '../../../ports/mcp-runtime-service'
 import type { McpTurnStateServiceShape } from '../../../ports/mcp-turn-state-service'
+import { makeEffectReadWriteGate } from '../../../utils/effect-read-write-gate'
 import { makeMcpTurnState } from '../mcp-turn-state-service'
 import { callMcpAppTool } from './app-tool-caller'
 import { browseMcpCapabilities } from './capability-browser'
@@ -33,7 +34,7 @@ export function makeMcpRuntimeService(input: {
     const turnState = input.turnState ?? (yield* makeMcpTurnState())
     const state = yield* makeMcpRuntimeState(input)
     const pendingInvalidations = yield* Ref.make(new Set<string>())
-    const lifecycleGate = yield* Effect.makeSemaphore(1)
+    const lifecycleGate = yield* makeEffectReadWriteGate()
 
     const clearPendingInvalidation = (sessionId: string) =>
       Ref.update(pendingInvalidations, (current) => {
@@ -53,7 +54,7 @@ export function makeMcpRuntimeService(input: {
 
     return {
       prepareTurn: ({ sessionId, snapshot }) =>
-        lifecycleGate.withPermits(1)(
+        lifecycleGate.write(
           Effect.gen(function* () {
             yield* turnState.begin(sessionId, snapshot?.revision ?? null)
             if (!snapshot) return yield* state.disposeSession(sessionId)
@@ -71,7 +72,7 @@ export function makeMcpRuntimeService(input: {
           ),
         ),
       completeTurn: ({ sessionId, nextSnapshot }) =>
-        lifecycleGate.withPermits(1)(
+        lifecycleGate.write(
           Effect.gen(function* () {
             yield* turnState.complete(sessionId)
             if (yield* takePendingInvalidation(sessionId)) {
@@ -82,26 +83,30 @@ export function makeMcpRuntimeService(input: {
           }),
         ),
       executeGateway: (input2) =>
-        executeMcpGateway(
-          state,
-          input2.snapshot,
-          input2.request,
-          input2.signal,
-          input2.interactions,
+        lifecycleGate.read(
+          executeMcpGateway(
+            state,
+            input2.snapshot,
+            input2.request,
+            input2.signal,
+            input2.interactions,
+          ),
         ),
-      listDirectTools: (snapshot) => listMcpDirectTools(state, snapshot),
+      listDirectTools: (snapshot) => lifecycleGate.read(listMcpDirectTools(state, snapshot)),
       browseCapabilities: (input2) =>
-        browseMcpCapabilities(state, input2.snapshot, input2.serverInstanceId),
-      getPrompt: (input2) => getMcpPrompt({ ...input2, state }),
-      readResource: (input2) => readMcpResource({ ...input2, state }),
-      reviewRemoteSkill: (input2) => reviewMcpRemoteSkill({ ...input2, state }),
-      callAppTool: (input2) => callMcpAppTool({ ...input2, state }),
-      operateTask: (input2) => operateMcpTask(state, input2.snapshot, input2.request),
-      setEventSubscription: (input2) => state.setEventSubscription(input2),
-      getEvents: (sessionId) => state.getEvents(sessionId),
-      getEventSubscriptions: (sessionId) => state.getEventSubscriptions(sessionId),
+        lifecycleGate.read(browseMcpCapabilities(state, input2.snapshot, input2.serverInstanceId)),
+      getPrompt: (input2) => lifecycleGate.read(getMcpPrompt({ ...input2, state })),
+      readResource: (input2) => lifecycleGate.read(readMcpResource({ ...input2, state })),
+      reviewRemoteSkill: (input2) => lifecycleGate.read(reviewMcpRemoteSkill({ ...input2, state })),
+      callAppTool: (input2) => lifecycleGate.read(callMcpAppTool({ ...input2, state })),
+      operateTask: (input2) =>
+        lifecycleGate.read(operateMcpTask(state, input2.snapshot, input2.request)),
+      setEventSubscription: (input2) => lifecycleGate.read(state.setEventSubscription(input2)),
+      getEvents: (sessionId) => lifecycleGate.read(state.getEvents(sessionId)),
+      getEventSubscriptions: (sessionId) =>
+        lifecycleGate.read(state.getEventSubscriptions(sessionId)),
       disposeSession: (sessionId) =>
-        lifecycleGate.withPermits(1)(
+        lifecycleGate.write(
           turnState
             .complete(sessionId)
             .pipe(
@@ -110,7 +115,7 @@ export function makeMcpRuntimeService(input: {
             ),
         ),
       reconcileIdleConnections: () =>
-        lifecycleGate.withPermits(1)(
+        lifecycleGate.write(
           Effect.gen(function* () {
             const active = yield* turnState.activeSessions()
             yield* Ref.update(pendingInvalidations, (current) => new Set([...current, ...active]))
@@ -118,7 +123,7 @@ export function makeMcpRuntimeService(input: {
           }),
         ),
       disposeAll: () =>
-        lifecycleGate.withPermits(1)(
+        lifecycleGate.write(
           turnState
             .clear()
             .pipe(
@@ -126,8 +131,8 @@ export function makeMcpRuntimeService(input: {
               Effect.zipRight(state.disposeAll()),
             ),
         ),
-      getConnectionStatuses: () => state.getConnectionStatuses(),
-      getNotices: (sessionId) => state.getNotices(sessionId),
+      getConnectionStatuses: () => lifecycleGate.read(state.getConnectionStatuses()),
+      getNotices: (sessionId) => lifecycleGate.read(state.getNotices(sessionId)),
       doctor: () => runMcpRuntimeDoctor(),
     } satisfies McpRuntimeServiceShape
   })

@@ -7,7 +7,7 @@ import { useVoiceCapture } from './useVoiceCapture'
 
 interface UseComposerVoiceControlsInput {
   readonly editorRef: RefObject<LexicalEditor | null>
-  readonly sendComposed: (text: string) => boolean
+  readonly sendComposed: (text: string) => boolean | Promise<boolean>
   readonly submitCurrentDraft: () => void
 }
 

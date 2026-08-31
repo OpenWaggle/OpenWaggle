@@ -20,7 +20,7 @@ export type VoiceVisualizerControls = ReturnType<typeof useVoiceVisualizer>
 
 interface UseVoiceCaptureOptions {
   insertText: (text: string) => void
-  sendComposed: (text: string) => boolean
+  sendComposed: (text: string) => boolean | Promise<boolean>
 }
 
 export interface VoiceCaptureController {
@@ -124,7 +124,7 @@ export function useVoiceCapture({
       if (action === 'send') {
         const store = useComposerStore.getState()
         const composedText = [store.input.trim(), transcript].filter(Boolean).join(' ')
-        const submitted = sendComposed(composedText)
+        const submitted = await sendComposed(composedText)
         if (!submitted) {
           insertTranscriptAtCursor(transcript)
         }
