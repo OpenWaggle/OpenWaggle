@@ -120,4 +120,72 @@ describe('useComposerSubmission Follow-up lifecycle', () => {
 
     expect(useComposerStore.getState().input).toBe('a newer draft')
   })
+
+  it('deduplicates repeated submission while the same Follow-up is pending', async () => {
+    const request = deferred()
+    const onEnqueue = vi.fn(() => request.promise)
+    const { result } = renderSubmission(onEnqueue)
+
+    let first!: Promise<boolean>
+    let second!: Promise<boolean>
+    act(() => {
+      first = Promise.resolve(result.current.handleSubmit())
+      second = Promise.resolve(result.current.handleSubmit())
+    })
+
+    expect(onEnqueue).toHaveBeenCalledOnce()
+    await act(async () => {
+      request.resolve()
+      await Promise.all([first, second])
+    })
+    expect(useComposerStore.getState().promptHistory).toEqual(['keep this draft'])
+  })
+
+  it('unlocks a rejected draft for an explicit retry', async () => {
+    const firstRequest = deferred()
+    const onEnqueue = vi
+      .fn<() => Promise<void>>()
+      .mockImplementationOnce(() => firstRequest.promise)
+      .mockResolvedValueOnce(undefined)
+    const { result } = renderSubmission(onEnqueue)
+
+    let first!: Promise<boolean>
+    act(() => {
+      first = Promise.resolve(result.current.handleSubmit())
+    })
+    await act(async () => {
+      firstRequest.reject(new Error('Host unavailable'))
+      await first
+    })
+    await act(async () => {
+      await result.current.handleSubmit()
+    })
+
+    expect(onEnqueue).toHaveBeenCalledTimes(2)
+    expect(useComposerStore.getState().input).toBe('')
+  })
+
+  it('clears an accepted originating draft after navigation without touching the active draft', async () => {
+    const request = deferred()
+    const { result } = renderSubmission(() => request.promise)
+
+    let submission!: Promise<boolean>
+    act(() => {
+      submission = Promise.resolve(result.current.handleSubmit())
+      useComposerStore.getState().switchScopedDraftContext('session:session-b')
+      useComposerStore.getState().setInput('session B draft')
+    })
+    await act(async () => {
+      request.resolve()
+      await submission
+    })
+
+    expect(useComposerStore.getState().input).toBe('session B draft')
+    expect(useComposerStore.getState().getScopedDraft('session:session-a')).toBeNull()
+    act(() => {
+      useComposerStore.getState().switchScopedDraftContext('session:session-a')
+    })
+    expect(useComposerStore.getState().input).toBe('')
+    expect(useComposerStore.getState().attachments).toEqual([])
+  })
 })

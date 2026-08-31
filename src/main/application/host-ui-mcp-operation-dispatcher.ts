@@ -5,6 +5,7 @@ import {
   type HostBackedMcpGuiChannel,
 } from '@shared/types/host-ui-protocol'
 import * as Effect from 'effect/Effect'
+import { authorizeMcpServerOperation } from './mcp-authorization-operation'
 import {
   callMcpAppToolOperation,
   getMcpPromptOperation,
@@ -77,6 +78,7 @@ export function dispatchMcpHostUiOperation(
     .with('mcp:set-server-trust', () => oneInput(args, setMcpServerTrustOperation))
     .with('mcp:remove-server', () => oneInput(args, removeMcpServerOperation))
     .with('mcp:logout-server', () => oneInput(args, logoutMcpServerOperation))
+    .with('mcp:authorize-server', () => oneInput(args, authorizeMcpServerOperation))
     .with('mcp:add-server', () => oneInput(args, addMcpServerOperation))
     .with('mcp:preview-imports', () => oneInput(args, previewMcpImportsOperation))
     .with('mcp:apply-imports', () => oneInput(args, applyMcpImportsOperation))

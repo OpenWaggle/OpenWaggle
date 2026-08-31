@@ -11,6 +11,7 @@ export const HOST_BACKED_MCP_GUI_CHANNELS = [
   'mcp:set-server-trust',
   'mcp:remove-server',
   'mcp:logout-server',
+  'mcp:authorize-server',
   'mcp:add-server',
   'mcp:preview-imports',
   'mcp:apply-imports',

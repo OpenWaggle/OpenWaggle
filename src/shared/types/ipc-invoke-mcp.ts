@@ -57,7 +57,16 @@ export interface IpcMcpInvokeChannelMap {
     args: [input: McpAuthorizeServerInput]
     return: McpAuthorizeServerResult
   }
-  'mcp:logout-server': { args: [input: McpAuthorizeServerInput]; return: { loggedOut: true } }
+  'mcp:logout-server': {
+    args: [input: McpAuthorizeServerInput]
+    return: {
+      removedSecrets: readonly string[]
+      retainedSharedSecrets: readonly string[]
+      retainedUnverifiedSecrets: readonly string[]
+      unreadableSources: readonly string[]
+      oauthRemoved: boolean
+    }
+  }
   'mcp:add-server': { args: [input: McpAddServerInput]; return: McpSettingsView }
   'mcp:preview-imports': { args: [input: McpImportPreviewInput]; return: McpImportPreview }
   'mcp:apply-imports': { args: [input: McpImportApplyInput]; return: McpImportApplyResult }

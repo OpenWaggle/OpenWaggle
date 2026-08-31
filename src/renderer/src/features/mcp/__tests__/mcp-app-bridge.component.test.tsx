@@ -46,6 +46,7 @@ const BRIDGE_INPUT = {
   descriptor: {
     serverInstanceId: 'server-1',
     serverLabel: 'untrusted-weather',
+    serverConfigHash: 'config-1',
     toolHandle: 'tool-handle',
     toolName: 'show_weather',
     toolTitle: 'Show weather',

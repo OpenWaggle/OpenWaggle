@@ -167,58 +167,65 @@ function getConnection(
 }
 
 function closeKey(ctx: ConnectionsCtx, key: string) {
-  return Effect.gen(function* () {
-    type CloseDecision =
-      | { readonly type: 'missing' }
-      | { readonly type: 'waiting'; readonly done: Deferred.Deferred<void> }
-      | {
-          readonly type: 'owner'
-          readonly cell: ConnectionCell
-          readonly done: Deferred.Deferred<void>
-        }
-    const decision = yield* SynchronizedRef.modifyEffect(
-      ctx.cells,
-      (current): Effect.Effect<readonly [CloseDecision, Map<string, ConnectionSlot>]> => {
+  return Effect.uninterruptibleMask((restore) =>
+    Effect.gen(function* () {
+      type CloseDecision =
+        | { readonly type: 'missing' }
+        | { readonly type: 'waiting'; readonly done: Deferred.Deferred<void> }
+        | {
+            readonly type: 'owner'
+            readonly cell: ConnectionCell
+            readonly done: Deferred.Deferred<void>
+          }
+      const decision = yield* SynchronizedRef.modifyEffect(
+        ctx.cells,
+        (current): Effect.Effect<readonly [CloseDecision, Map<string, ConnectionSlot>]> => {
+          const existing = current.get(key)
+          if (!existing) return Effect.succeed([{ type: 'missing' }, current] as const)
+          if (existing.type === 'closing') {
+            return Effect.succeed([{ type: 'waiting', done: existing.done }, current] as const)
+          }
+          return Deferred.make<void>().pipe(
+            Effect.map(
+              (done) =>
+                [
+                  { type: 'owner', cell: existing.cell, done },
+                  new Map(current).set(key, { type: 'closing', cell: existing.cell, done }),
+                ] as const,
+            ),
+          )
+        },
+      )
+      if (decision.type === 'missing') return
+      if (decision.type === 'waiting') return yield* restore(Deferred.await(decision.done))
+
+      const finish = SynchronizedRef.update(ctx.cells, (current) => {
         const existing = current.get(key)
-        if (!existing) return Effect.succeed([{ type: 'missing' }, current] as const)
-        if (existing.type === 'closing') {
-          return Effect.succeed([{ type: 'waiting', done: existing.done }, current] as const)
-        }
-        return Deferred.make<void>().pipe(
-          Effect.map(
-            (done) =>
-              [
-                { type: 'owner', cell: existing.cell, done },
-                new Map(current).set(key, { type: 'closing', cell: existing.cell, done }),
-              ] as const,
+        if (existing?.type !== 'closing' || existing.done !== decision.done) return current
+        const next = new Map(current)
+        next.delete(key)
+        return next
+      }).pipe(Effect.zipRight(Deferred.succeed(decision.done, undefined)), Effect.asVoid)
+
+      const cleanup = ctx.onClose(key).pipe(
+        Effect.zipRight(
+          Deferred.await(decision.cell.deferred).pipe(
+            Effect.matchCauseEffect({
+              onSuccess: (connection) =>
+                Effect.promise(() => connection.close().catch(() => undefined)),
+              onFailure: () => Effect.void,
+            }),
           ),
-        )
-      },
-    )
-    if (decision.type === 'missing') return
-    if (decision.type === 'waiting') return yield* Deferred.await(decision.done)
-
-    const finish = SynchronizedRef.update(ctx.cells, (current) => {
-      const existing = current.get(key)
-      if (existing?.type !== 'closing' || existing.done !== decision.done) return current
-      const next = new Map(current)
-      next.delete(key)
-      return next
-    }).pipe(Effect.zipRight(Deferred.succeed(decision.done, undefined)), Effect.asVoid)
-
-    yield* ctx.onClose(key).pipe(
-      Effect.zipRight(
-        Deferred.await(decision.cell.deferred).pipe(
-          Effect.matchCauseEffect({
-            onSuccess: (connection) =>
-              Effect.promise(() => connection.close().catch(() => undefined)),
-            onFailure: () => Effect.void,
-          }),
         ),
-      ),
-      Effect.ensuring(finish),
-    )
-  })
+        Effect.ensuring(finish),
+      )
+      // The tombstone owner must outlive the caller. In particular, cancellation
+      // of a Host request cannot admit a replacement while the old MCP client is
+      // still live or its close hook is still running.
+      yield* Effect.forkDaemon(cleanup)
+      yield* restore(Deferred.await(decision.done))
+    }),
+  )
 }
 
 function matchingKeys(

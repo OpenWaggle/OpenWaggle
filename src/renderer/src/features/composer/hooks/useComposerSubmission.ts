@@ -1,6 +1,6 @@
 import type { AgentSendPayload, PreparedAttachment } from '@shared/types/agent'
 import type { LexicalEditor } from 'lexical'
-import type { RefObject } from 'react'
+import { type RefObject, useRef } from 'react'
 import { useSelectedModelThinkingLevel } from '@/features/providers/hooks'
 import { clearEditor } from '../lib/lexical-utils'
 import { consumeSendResult } from '../lib/send-result'
@@ -64,11 +64,15 @@ export function useComposerSubmission({
   const selectedWagglePreset = useComposerStore((s) => s.selectedWagglePreset)
   const reset = useComposerStore((s) => s.reset)
   const pushHistory = useComposerStore((s) => s.pushHistory)
+  const pendingQueuedSubmissions = useRef(new Map<string, Promise<boolean>>())
   const selectedModel = useComposerModel().model
   const { effectiveThinkingLevel } = useSelectedModelThinkingLevel(selectedModel)
 
   function clearComposerInput(snapshot?: ComposerDraftSnapshot) {
-    if (snapshot && !isCurrentComposerDraft(snapshot)) return
+    if (snapshot && !isCurrentComposerDraft(snapshot)) {
+      clearInactiveComposerDraft(snapshot)
+      return
+    }
     reset()
     if (editorRef.current) {
       clearEditor(editorRef.current)
@@ -92,19 +96,29 @@ export function useComposerSubmission({
 
   function submitPayload(payload: AgentSendPayload) {
     const draftSnapshot = captureCurrentComposerDraft()
+    const pendingKey = queuedSubmissionKey(draftSnapshot, payload)
+    const pending = pendingQueuedSubmissions.current.get(pendingKey)
+    if (pending) return pending
     const dispatch = dispatchPayload(payload)
     if (dispatch.type === 'blocked') return false
     if (dispatch.type === 'sent') {
       finishSuccessfulSubmission(payload)
       return true
     }
-    return dispatch.completion.then(
+    const result = dispatch.completion.then(
       () => {
         finishSuccessfulSubmission(payload, draftSnapshot)
         return true
       },
       () => false,
     )
+    pendingQueuedSubmissions.current.set(pendingKey, result)
+    void result.then(() => {
+      if (pendingQueuedSubmissions.current.get(pendingKey) === result) {
+        pendingQueuedSubmissions.current.delete(pendingKey)
+      }
+    })
+    return result
   }
 
   function finishSuccessfulSubmission(
@@ -208,6 +222,33 @@ function isCurrentComposerDraft(snapshot: ComposerDraftSnapshot) {
     state.attachments.length === snapshot.attachmentIds.length &&
     state.attachments.every((attachment, index) => attachment.id === snapshot.attachmentIds[index])
   )
+}
+
+function clearInactiveComposerDraft(snapshot: ComposerDraftSnapshot) {
+  if (!snapshot.activeDraftContextKey) return
+  const state = useComposerStore.getState()
+  const draft = state.scopedDrafts[snapshot.activeDraftContextKey]
+  if (
+    !draft ||
+    draft.input !== snapshot.input ||
+    draft.wagglePreset?.id !== (snapshot.wagglePresetId ?? undefined) ||
+    draft.attachments.length !== snapshot.attachmentIds.length ||
+    !draft.attachments.every((attachment, index) => attachment.id === snapshot.attachmentIds[index])
+  ) {
+    return
+  }
+  state.clearScopedDraft(snapshot.activeDraftContextKey)
+}
+
+function queuedSubmissionKey(snapshot: ComposerDraftSnapshot, payload: AgentSendPayload) {
+  return JSON.stringify({
+    context: snapshot.activeDraftContextKey,
+    input: snapshot.input,
+    attachments: snapshot.attachmentIds,
+    wagglePresetId: snapshot.wagglePresetId,
+    submittedText: payload.text,
+    thinkingLevel: payload.thinkingLevel,
+  })
 }
 
 function callAsPromise(action: () => Promise<void> | void): Promise<void> {

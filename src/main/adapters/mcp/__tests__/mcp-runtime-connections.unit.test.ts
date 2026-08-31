@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import { Effect, Fiber } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 import { makeMcpRuntimeConnections } from '../runtime/runtime-connections'
 import type { McpClientConnection } from '../runtime/types'
@@ -76,6 +76,43 @@ describe('MCP runtime connection ownership', () => {
     await closing
     await expect(second).resolves.toBe(replacement)
     await expect(Effect.runPromise(service.getStatuses())).resolves.toHaveLength(1)
+    await Effect.runPromise(service.closeAll())
+  })
+
+  it('retains the closing tombstone when the owning caller is interrupted', async () => {
+    let releaseClose!: () => void
+    let reportCloseStarted!: () => void
+    const closeStarted = new Promise<void>((resolve) => {
+      reportCloseStarted = resolve
+    })
+    const closeRelease = new Promise<void>((resolve) => {
+      releaseClose = resolve
+    })
+    const closeFirst = vi.fn(async () => {
+      reportCloseStarted()
+      await closeRelease
+    })
+    const replacement = connection()
+    const connect = vi
+      .fn<() => Promise<McpClientConnection>>()
+      .mockResolvedValueOnce(connection({ close: closeFirst }))
+      .mockResolvedValueOnce(replacement)
+    const { service } = createConnections(connect)
+    const turn = snapshot()
+    const selected = server()
+
+    await Effect.runPromise(service.get(turn, selected))
+    const closingFiber = Effect.runFork(service.closeRuntimeNamespace(turn.sessionId))
+    await closeStarted
+    await Effect.runPromise(Fiber.interrupt(closingFiber))
+    const second = Effect.runPromise(service.get(turn, selected))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(connect).toHaveBeenCalledOnce()
+    releaseClose()
+    await expect(second).resolves.toBe(replacement)
+    expect(closeFirst).toHaveBeenCalledOnce()
+    expect(connect).toHaveBeenCalledTimes(2)
     await Effect.runPromise(service.closeAll())
   })
 })

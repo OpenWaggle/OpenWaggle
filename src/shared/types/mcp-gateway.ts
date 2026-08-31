@@ -31,6 +31,7 @@ export interface McpDirectToolDescriptor {
 export interface McpAppDescriptor {
   readonly serverInstanceId: string
   readonly serverLabel: string
+  readonly serverConfigHash: string
   readonly toolHandle: string
   readonly toolName: string
   readonly toolTitle: string

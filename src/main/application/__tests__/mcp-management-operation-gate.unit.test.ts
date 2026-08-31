@@ -3,14 +3,18 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { describe, expect, it, vi } from 'vitest'
-import { snapshot } from '../../adapters/mcp/__tests__/mcp-runtime-test-utils'
+import { server, snapshot } from '../../adapters/mcp/__tests__/mcp-runtime-test-utils'
 import { McpConfigService, type McpConfigServiceShape } from '../../ports/mcp-config-service'
 import { McpRuntimeService, type McpRuntimeServiceShape } from '../../ports/mcp-runtime-service'
 import {
   McpSecretVaultService,
   type McpSecretVaultServiceShape,
 } from '../../ports/mcp-secret-vault-service'
-import { listMcpCapabilitiesOperation } from '../mcp-capability-operations'
+import {
+  callMcpAppToolOperation,
+  listMcpCapabilitiesOperation,
+  readMcpResourceOperation,
+} from '../mcp-capability-operations'
 import { setMcpSecretOperation } from '../mcp-management-operations'
 
 const EMPTY_CATALOG: McpCapabilityCatalog = {
@@ -79,5 +83,59 @@ describe('MCP management operation gate', () => {
 
     expect(setSecret).toHaveBeenCalledWith({ name: 'TOKEN', value: 'rotated' })
     expect(reconcileIdleConnections).toHaveBeenCalledOnce()
+  })
+
+  it('rejects MCP App operations after the approved server configuration changes', async () => {
+    const browseCapabilities = vi.fn<McpRuntimeServiceShape['browseCapabilities']>()
+    const readResource = vi.fn<McpRuntimeServiceShape['readResource']>()
+    const callAppTool = vi.fn<McpRuntimeServiceShape['callAppTool']>()
+    const config = fromPartial<McpConfigServiceShape>({
+      createTurnSnapshot: ({
+        projectPath,
+        sessionId,
+      }: Parameters<McpConfigServiceShape['createTurnSnapshot']>[0]) =>
+        Effect.succeed(
+          snapshot({
+            projectPath,
+            sessionId,
+            servers: [server({ configHash: 'replacement-config' })],
+          }),
+        ),
+    })
+    const runtime = fromPartial<McpRuntimeServiceShape>({
+      browseCapabilities,
+      readResource,
+      callAppTool,
+    })
+    const layer = Layer.mergeAll(
+      Layer.succeed(McpConfigService, config),
+      Layer.succeed(McpRuntimeService, runtime),
+    )
+    const context = {
+      projectPath: process.cwd(),
+      serverInstanceId: 'server-1',
+      serverConfigHash: 'approved-config',
+    }
+
+    await expect(
+      Effect.runPromise(Effect.provide(listMcpCapabilitiesOperation(context), layer)),
+    ).rejects.toThrow('server configuration has changed')
+    await expect(
+      Effect.runPromise(
+        Effect.provide(readMcpResourceOperation({ ...context, uri: 'ui://app' }), layer),
+      ),
+    ).rejects.toThrow('server configuration has changed')
+    await expect(
+      Effect.runPromise(
+        Effect.provide(
+          callMcpAppToolOperation({ ...context, toolName: 'write', arguments: {} }),
+          layer,
+        ),
+      ),
+    ).rejects.toThrow('server configuration has changed')
+
+    expect(browseCapabilities).not.toHaveBeenCalled()
+    expect(readResource).not.toHaveBeenCalled()
+    expect(callAppTool).not.toHaveBeenCalled()
   })
 })

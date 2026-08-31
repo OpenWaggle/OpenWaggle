@@ -110,6 +110,7 @@ function registerServerHandlers(bridge: AppBridge, input: McpAppBridgeInput) {
       await api.callMcpAppTool({
         ...context,
         serverInstanceId: input.descriptor.serverInstanceId,
+        serverConfigHash: input.descriptor.serverConfigHash,
         toolName: name,
         arguments: argumentsValue,
       }),
@@ -119,6 +120,7 @@ function registerServerHandlers(bridge: AppBridge, input: McpAppBridgeInput) {
     const result = await api.readMcpResource({
       ...context,
       serverInstanceId: input.descriptor.serverInstanceId,
+      serverConfigHash: input.descriptor.serverConfigHash,
       uri,
     })
     return ReadResourceResultSchema.parse({ contents: result.contents })
@@ -127,6 +129,7 @@ function registerServerHandlers(bridge: AppBridge, input: McpAppBridgeInput) {
     const catalog = await api.listMcpCapabilities({
       ...context,
       serverInstanceId: input.descriptor.serverInstanceId,
+      serverConfigHash: input.descriptor.serverConfigHash,
     })
     return ListResourcesResultSchema.parse({ resources: catalog.resources })
   }
@@ -134,6 +137,7 @@ function registerServerHandlers(bridge: AppBridge, input: McpAppBridgeInput) {
     const catalog = await api.listMcpCapabilities({
       ...context,
       serverInstanceId: input.descriptor.serverInstanceId,
+      serverConfigHash: input.descriptor.serverConfigHash,
     })
     return ListPromptsResultSchema.parse({ prompts: catalog.prompts })
   }

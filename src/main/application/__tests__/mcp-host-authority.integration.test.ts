@@ -1,9 +1,20 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { toHostUiJsonValue } from '@shared/host-ui-json'
+import { decodeLocalSessionCommandPayloadForRevision } from '@shared/schemas/local-session-protocol'
 import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
+import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { snapshot } from '../../adapters/mcp/__tests__/mcp-runtime-test-utils'
+import { McpConfigService, type McpConfigServiceShape } from '../../ports/mcp-config-service'
+import { McpRuntimeService, type McpRuntimeServiceShape } from '../../ports/mcp-runtime-service'
+import {
+  McpSecretVaultService,
+  type McpSecretVaultServiceShape,
+} from '../../ports/mcp-secret-vault-service'
 import { createLocalSessionAuthenticator } from '../../session-host/local-session-authenticator'
 import {
   type LocalSessionHostRuntime,
@@ -14,10 +25,13 @@ import {
   resolveLocalSessionHostPaths,
 } from '../../session-host/local-session-paths'
 import { ensureLocalUserCredential } from '../../session-host/local-user-credential'
+import { executeHostUi } from '../configured-host-ui-client'
 import {
   configureGuiSessionCommandClient,
   dispatchConfiguredGuiSessionCommand,
 } from '../local-session-command-dispatcher'
+import { listMcpCapabilitiesOperation } from '../mcp-capability-operations'
+import { setMcpSecretOperation } from '../mcp-management-operations'
 
 describe('MCP Host authority', () => {
   let temporaryRoot = ''
@@ -92,5 +106,102 @@ describe('MCP Host authority', () => {
         }),
       }),
     )
+  })
+
+  it('holds owner-process MCP mutations behind an in-flight request from another client', async () => {
+    const paths = resolveLocalSessionHostPaths({ userDataRoot: temporaryRoot })
+    endpointDirectory = paths.endpointDirectory === paths.stateRoot ? null : paths.endpointDirectory
+    await prepareLocalSessionHostPaths(paths)
+    const credential = await ensureLocalUserCredential(paths.credentialPath)
+    let releaseBrowse!: () => void
+    let reportBrowseStarted!: () => void
+    const browseStarted = new Promise<void>((resolve) => {
+      reportBrowseStarted = resolve
+    })
+    const browseRelease = new Promise<void>((resolve) => {
+      releaseBrowse = resolve
+    })
+    let persistedSecret: string | null = null
+    const config = fromPartial<McpConfigServiceShape>({
+      createTurnSnapshot: (input: Parameters<McpConfigServiceShape['createTurnSnapshot']>[0]) =>
+        Effect.succeed(snapshot({ projectPath: input.projectPath, sessionId: input.sessionId })),
+    })
+    const mcpRuntime = fromPartial<McpRuntimeServiceShape>({
+      browseCapabilities: () =>
+        Effect.promise(async () => {
+          reportBrowseStarted()
+          await browseRelease
+          return {
+            instructions: [],
+            prompts: [],
+            resources: [],
+            resourceTemplates: [],
+            apps: [],
+            tasks: [],
+            skills: [],
+          }
+        }),
+      reconcileIdleConnections: () => Effect.void,
+    })
+    const vault = fromPartial<McpSecretVaultServiceShape>({
+      set: (input: Parameters<McpSecretVaultServiceShape['set']>[0]) =>
+        Effect.sync(() => {
+          persistedSecret = input.value
+          return []
+        }),
+    })
+    const layer = Layer.mergeAll(
+      Layer.succeed(McpConfigService, config),
+      Layer.succeed(McpRuntimeService, mcpRuntime),
+      Layer.succeed(McpSecretVaultService, vault),
+    )
+    runtime = await startLocalSessionHost({
+      endpoint: paths.endpoint,
+      databasePath: paths.databasePath,
+      idleGracePeriodMs: 60_000,
+      authenticate: createLocalSessionAuthenticator({ localUserCredential: credential }),
+      dispatch: ({ payload, negotiatedRevision }) => {
+        const command = decodeLocalSessionCommandPayloadForRevision(payload, negotiatedRevision)
+        if (command.contract !== 'host-ui-v1') throw new Error('Expected a Host UI request.')
+        const argument = command.request.args[0]
+        const input = argument?.kind === 'value' ? argument.value : undefined
+        const operation: Promise<unknown> =
+          command.request.channel === 'mcp:list-capabilities'
+            ? Effect.runPromise(Effect.provide(listMcpCapabilitiesOperation(input), layer))
+            : command.request.channel === 'mcp:set-secret'
+              ? Effect.runPromise(Effect.provide(setMcpSecretOperation(input), layer))
+              : Promise.reject(new Error('Unexpected MCP Host UI channel.'))
+        return operation.then((result) => ({
+          contract: 'host-ui-v1' as const,
+          response: {
+            contractVersion: command.request.contractVersion,
+            requestId: command.request.requestId,
+            channel: command.request.channel,
+            result: { kind: 'value' as const, value: toHostUiJsonValue(result) },
+          },
+        }))
+      },
+    })
+    const client = { paths, clientKind: 'cli' as const, clientVersion: 'test' }
+
+    const browsing = executeHostUi({
+      client,
+      channel: 'mcp:list-capabilities',
+      args: [{ projectPath: process.cwd() }],
+    })
+    await browseStarted
+    const mutationSettled = vi.fn()
+    const mutating = executeHostUi({
+      client,
+      channel: 'mcp:set-secret',
+      args: [{ name: 'TOKEN', value: 'rotated' }],
+    }).then(mutationSettled)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(persistedSecret).toBeNull()
+    expect(mutationSettled).not.toHaveBeenCalled()
+    releaseBrowse()
+    await Promise.all([browsing, mutating])
+    expect(persistedSecret).toBe('rotated')
   })
 })

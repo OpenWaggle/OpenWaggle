@@ -17,6 +17,7 @@ export function useMcpAppResource(
         projectPath,
         sessionId,
         serverInstanceId: descriptor.serverInstanceId,
+        serverConfigHash: descriptor.serverConfigHash,
         uri: descriptor.resourceUri,
       })
       .then((result) => {

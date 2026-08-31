@@ -1,7 +1,6 @@
 import { homedir } from 'node:os'
 import type { McpSettingsView } from '@shared/types/mcp'
 import { Effect } from 'effect'
-import { authorizeMcpServer, logoutMcpOAuth } from './adapters/mcp/oauth-provider'
 import {
   createRegistryDraft,
   getMcpRegistryServer,
@@ -9,7 +8,6 @@ import {
   searchMcpRegistry,
 } from './adapters/mcp/registry-client'
 import { runMcpRuntimeDoctor } from './adapters/mcp/runtime/runtime-doctor'
-import { openExternal } from './desktop-ui'
 import {
   addDefinition,
   definitionFor,
@@ -26,34 +24,15 @@ import {
   type McpCliVault as CliVault,
   type McpCliConfigService as ConfigService,
   createMcpCliManagementRuntime,
-  reconcileOwningMcpHost,
+  type McpCliManagementRuntime,
 } from './mcp-cli-management-runtime'
-import {
-  partitionServerLogoutSecretReferences,
-  secretReferences,
-} from './mcp-cli-secret-references'
+import { secretReferences } from './mcp-cli-secret-references'
 export interface McpCliManagementDependencies {
-  readonly reconcileOwnerRuntime: (args: ParsedArguments, projectPath: string) => Promise<void>
+  readonly createRuntime: (args: ParsedArguments) => Promise<McpCliManagementRuntime>
 }
 
 const defaultMcpCliManagementDependencies: McpCliManagementDependencies = {
-  reconcileOwnerRuntime: reconcileOwningMcpHost,
-}
-
-const MUTATING_NAMED_SERVER_COMMANDS = new Set([
-  'auth',
-  'disable',
-  'enable',
-  'logout',
-  'remove',
-  'trust',
-])
-
-function mcpManagementCommandMutates(command: string, args: ParsedArguments) {
-  if (command === 'add') return true
-  if (command === 'import') return hasFlag(args, 'apply')
-  if (command === 'registry') return (args.positionals[0] ?? 'search') === 'add'
-  return MUTATING_NAMED_SERVER_COMMANDS.has(command)
+  createRuntime: createMcpCliManagementRuntime,
 }
 
 async function runRegistryCommand(
@@ -125,46 +104,30 @@ async function runDoctorCommand(service: ConfigService, context: { projectPath: 
   return { ...doctor, notices: view.notices, integration: view.integration }
 }
 
-async function removeSecretReferences(
-  vault: CliVault,
-  references: readonly string[],
-  index = 0,
-): Promise<void> {
-  const name = references[index]
-  if (!name) return
-  await vault.remove(name)
-  return removeSecretReferences(vault, references, index + 1)
-}
-
 async function runCredentialCommand(input: {
   readonly command: string
   readonly args: ParsedArguments
   readonly view: McpSettingsView
   readonly server: McpSettingsView['servers'][number]
   readonly vault: CliVault
-  readonly reconcileOwnerRuntime: () => Promise<void>
+  readonly authorizeServer: McpCliManagementRuntime['authorizeServer']
+  readonly logoutServer: McpCliManagementRuntime['logoutServer']
 }) {
   const { vault } = input
   const definition = definitionFor(input.view, input.server)
-  const references = secretReferences(definition)
   if (input.command === 'auth') {
     if (definition.auth?.type === 'oauth' && !hasFlag(input.args, 'secret-stdin')) {
-      const result = await authorizeMcpServer({
+      return input.authorizeServer({
+        projectPath: input.view.projectPath,
         instanceId: input.server.instanceId,
-        definition,
-        vault,
-        openExternal,
       })
-      // A prior attempt may have persisted valid tokens before owner notification failed.
-      // Reconcile even when this attempt discovers authorization without another vault write.
-      await input.reconcileOwnerRuntime()
-      return result
     }
     if (!hasFlag(input.args, 'secret-stdin')) {
       throw new Error(
         'This server has no OAuth flow. Use --secret-stdin and pipe a configured credential value on stdin.',
       )
     }
+    const references = secretReferences(definition)
     const selected =
       option(input.args, 'secret') ?? (references.length === 1 ? references[0] : undefined)
     if (!selected)
@@ -175,22 +138,10 @@ async function runCredentialCommand(input: {
   }
   if (input.command !== 'logout')
     throw new Error(`Unknown MCP command ${JSON.stringify(input.command)}.`)
-  if (definition.auth?.type === 'oauth') {
-    await logoutMcpOAuth({ instanceId: input.server.instanceId, vault })
-  }
-  const partition = partitionServerLogoutSecretReferences({
-    references,
-    sources: input.view.sources,
-    target: input.server,
+  return input.logoutServer({
+    projectPath: input.view.projectPath,
+    instanceId: input.server.instanceId,
   })
-  await removeSecretReferences(vault, partition.removable)
-  return {
-    removedSecrets: partition.removable,
-    retainedSharedSecrets: partition.retained,
-    retainedUnverifiedSecrets: partition.retainedUnverified,
-    unreadableSources: partition.unreadableSources,
-    oauthRemoved: definition.auth?.type === 'oauth',
-  }
 }
 
 async function runNamedServerCommand(
@@ -199,7 +150,7 @@ async function runNamedServerCommand(
   service: ConfigService,
   context: { projectPath: string },
   vault: CliVault,
-  reconcileOwnerRuntime: () => Promise<void>,
+  runtime: Pick<McpCliManagementRuntime, 'authorizeServer' | 'logoutServer'>,
 ) {
   const view = await service.getView(context)
   const server = findServer(view, args.positionals[0])
@@ -222,7 +173,7 @@ async function runNamedServerCommand(
   }
   if (command === 'remove')
     return service.removeServer({ ...context, instanceId: server.instanceId })
-  return runCredentialCommand({ command, args, view, server, vault, reconcileOwnerRuntime })
+  return runCredentialCommand({ command, args, view, server, vault, ...runtime })
 }
 
 export async function runMcpManagementCommand(
@@ -232,9 +183,7 @@ export async function runMcpManagementCommand(
 ) {
   const dependencies = { ...defaultMcpCliManagementDependencies, ...dependencyOverrides }
   const context = { projectPath: projectPath(args) }
-  const reconcileOwnerRuntime = () => dependencies.reconcileOwnerRuntime(args, context.projectPath)
-  if (mcpManagementCommandMutates(command, args)) await reconcileOwnerRuntime()
-  const runtime = createMcpCliManagementRuntime(reconcileOwnerRuntime)
+  const runtime = await dependencies.createRuntime(args)
   try {
     const { service, vault } = runtime
     const handlers: Readonly<Record<string, () => Promise<unknown>>> = {
@@ -257,7 +206,7 @@ export async function runMcpManagementCommand(
     const handler = handlers[command]
     return handler
       ? await handler()
-      : await runNamedServerCommand(command, args, service, context, vault, reconcileOwnerRuntime)
+      : await runNamedServerCommand(command, args, service, context, vault, runtime)
   } finally {
     await runtime.dispose()
   }

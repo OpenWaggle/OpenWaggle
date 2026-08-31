@@ -1,7 +1,4 @@
-import * as Effect from 'effect/Effect'
-import { authorizeMcpServer } from '../adapters/mcp/oauth-provider'
-import { reconcileConfiguredMcpOwnerRuntime } from '../application/gui-session-command-router'
-import { withMcpManagementWrite } from '../application/mcp-management-operation-gate'
+import { authorizeMcpServerOperation } from '../application/mcp-authorization-operation'
 import {
   addMcpServerOperation,
   applyMcpImportsOperation,
@@ -19,20 +16,8 @@ import {
   setMcpServerTrustOperation,
   writeMcpSourceConfigOperation,
 } from '../application/mcp-management-operations'
-import {
-  decodeMcpOperationInput,
-  mcpRemoveServerSchema,
-  validateMcpProjectInput,
-} from '../application/mcp-operation-validation'
-import { openExternal } from '../desktop-ui'
-import { createLogger } from '../logger'
-import { McpConfigService } from '../ports/mcp-config-service'
-import { McpRuntimeService } from '../ports/mcp-runtime-service'
-import { McpSecretVaultService } from '../ports/mcp-secret-vault-service'
 import { registerMcpCapabilityHandlers } from './mcp-capability-handler'
-import { hostHandle, typedHandle } from './typed-ipc'
-
-const logger = createLogger('ipc-mcp')
+import { hostHandle } from './typed-ipc'
 
 function registerMcpConfigHandlers() {
   hostHandle('mcp:get-settings', (_event, raw = {}) => getMcpSettingsOperation(raw))
@@ -50,67 +35,7 @@ function registerMcpConfigHandlers() {
 }
 
 function registerMcpAuthorizationHandlers() {
-  typedHandle('mcp:authorize-server', (_event, raw: unknown) =>
-    Effect.gen(function* () {
-      const decoded = yield* decodeMcpOperationInput(
-        mcpRemoveServerSchema,
-        raw,
-        'server authorization',
-      )
-      const input = yield* validateMcpProjectInput(decoded)
-      const server = yield* (yield* McpConfigService).getServerDefinition(input)
-      const vault = yield* McpSecretVaultService
-      const runtime = yield* McpRuntimeService
-      return yield* withMcpManagementWrite(
-        Effect.tryPromise({
-          try: async () => {
-            let vaultMutated = false
-            let result: Awaited<ReturnType<typeof authorizeMcpServer>> | undefined
-            let authorizationError: unknown
-            try {
-              result = await authorizeMcpServer({
-                ...server,
-                vault: {
-                  resolve: (name) => Effect.runPromise(vault.resolve(name)),
-                  set: async (name, value) => {
-                    const summaries = await Effect.runPromise(vault.set({ name, value }))
-                    vaultMutated = true
-                    return summaries
-                  },
-                  remove: async (name) => {
-                    const summaries = await Effect.runPromise(vault.remove({ name }))
-                    vaultMutated = true
-                    return summaries
-                  },
-                },
-                openExternal,
-              })
-            } catch (error) {
-              authorizationError = error
-            }
-            if (result || vaultMutated) {
-              try {
-                const handled = await reconcileConfiguredMcpOwnerRuntime(input.projectPath)
-                if (!handled) await Effect.runPromise(runtime.reconcileIdleConnections())
-              } catch (reconciliationError) {
-                if (!authorizationError) throw reconciliationError
-                logger.error('MCP owner reconciliation failed after OAuth changed the vault.', {
-                  error:
-                    reconciliationError instanceof Error
-                      ? reconciliationError.message
-                      : String(reconciliationError),
-                })
-              }
-            }
-            if (authorizationError) throw authorizationError
-            if (!result) throw new Error('MCP authorization completed without a result.')
-            return result
-          },
-          catch: (error) => (error instanceof Error ? error : new Error(String(error))),
-        }),
-      )
-    }),
-  )
+  hostHandle('mcp:authorize-server', (_event, raw: unknown) => authorizeMcpServerOperation(raw))
 }
 
 function registerMcpDiscoveryHandlers() {

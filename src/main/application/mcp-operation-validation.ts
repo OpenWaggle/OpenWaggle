@@ -99,11 +99,13 @@ export const mcpRemoveSecretSchema = Schema.Struct({ name: Schema.String })
 export const mcpListCapabilitiesSchema = Schema.Struct({
   ...mcpProjectAndSessionFields,
   serverInstanceId: Schema.optional(Schema.String),
+  serverConfigHash: Schema.optional(Schema.String),
 })
 
 export const mcpGetPromptSchema = Schema.Struct({
   ...mcpProjectAndSessionFields,
   serverInstanceId: Schema.String,
+  serverConfigHash: Schema.optional(Schema.String),
   name: Schema.String,
   arguments: Schema.optional(
     Schema.mutable(Schema.Record({ key: Schema.String, value: Schema.String })),
@@ -113,6 +115,7 @@ export const mcpGetPromptSchema = Schema.Struct({
 export const mcpReadResourceSchema = Schema.Struct({
   ...mcpProjectAndSessionFields,
   serverInstanceId: Schema.String,
+  serverConfigHash: Schema.optional(Schema.String),
   uri: Schema.String,
 })
 
@@ -128,6 +131,7 @@ export const mcpTaskOperationSchema = Schema.Struct({
 export const mcpAppToolCallSchema = Schema.Struct({
   ...mcpProjectAndSessionFields,
   serverInstanceId: Schema.String,
+  serverConfigHash: Schema.optional(Schema.String),
   toolName: Schema.String,
   arguments: Schema.mutable(Schema.Record({ key: Schema.String, value: mcpConfigValueSchema })),
 })

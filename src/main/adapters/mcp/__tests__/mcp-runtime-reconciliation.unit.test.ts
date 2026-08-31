@@ -1,6 +1,7 @@
-import { Effect } from 'effect'
+import { Effect, Fiber } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 import type { McpTurnStateServiceShape } from '../../../ports/mcp-turn-state-service'
+import { makeMcpRuntimeService } from '../runtime/runtime-service-factory'
 import {
   connection,
   createMcpRuntimeServiceForTests as createMcpRuntimeService,
@@ -8,6 +9,57 @@ import {
 } from './mcp-runtime-test-utils'
 
 describe('MCP runtime reconciliation ordering', () => {
+  it('rejects an older Session snapshot after the lifecycle advances', async () => {
+    const connect = vi.fn(async () => connection())
+    const service = createMcpRuntimeService({ connect })
+    const first = snapshot({ id: 'snapshot-a', revision: 'revision-a' })
+    const next = snapshot({ id: 'snapshot-b', revision: 'revision-b' })
+
+    await service.prepareTurn({ sessionId: first.sessionId, snapshot: first })
+    await service.executeGateway(first, { operation: 'list' })
+    await service.completeTurn({ sessionId: first.sessionId, nextSnapshot: next })
+
+    await expect(service.executeGateway(first, { operation: 'list' })).rejects.toThrow(
+      'no longer authoritative',
+    )
+    expect(connect).toHaveBeenCalledOnce()
+    await service.executeGateway(next, { operation: 'list' })
+    expect(connect).toHaveBeenCalledTimes(2)
+    await service.disposeAll()
+  })
+
+  it('uses snapshot identity as well as revision for Session authority', async () => {
+    const service = createMcpRuntimeService({ connect: async () => connection() })
+    const first = snapshot({ id: 'snapshot-a', revision: 'shared-revision' })
+    const next = snapshot({ id: 'snapshot-b', revision: 'shared-revision' })
+
+    await service.prepareTurn({ sessionId: first.sessionId, snapshot: first })
+    await service.completeTurn({ sessionId: first.sessionId, nextSnapshot: next })
+
+    await expect(service.executeGateway(first, { operation: 'list' })).rejects.toThrow(
+      'no longer authoritative',
+    )
+    await expect(service.executeGateway(next, { operation: 'list' })).resolves.toMatchObject({
+      operation: 'list',
+    })
+    await service.disposeAll()
+  })
+
+  it('keeps disposed Session snapshots tombstoned', async () => {
+    const connect = vi.fn(async () => connection())
+    const service = createMcpRuntimeService({ connect })
+    const turn = snapshot({ id: 'disposed-snapshot' })
+
+    await service.prepareTurn({ sessionId: turn.sessionId, snapshot: turn })
+    await service.disposeSession(turn.sessionId)
+
+    await expect(service.executeGateway(turn, { operation: 'list' })).rejects.toThrow(
+      'no longer authoritative',
+    )
+    expect(connect).not.toHaveBeenCalled()
+    await service.disposeAll()
+  })
+
   it('keeps independent capability readers concurrent', async () => {
     const started = vi.fn()
     let releaseReaders: (() => void) | undefined
@@ -37,6 +89,51 @@ describe('MCP runtime reconciliation ordering', () => {
     releaseReaders?.()
     await Promise.all([first, second])
     await service.disposeAll()
+  })
+
+  it('retains a read lease until an interrupted external MCP call settles', async () => {
+    let releaseCall!: () => void
+    let reportCallStarted!: () => void
+    const callStarted = new Promise<void>((resolve) => {
+      reportCallStarted = resolve
+    })
+    const callRelease = new Promise<void>((resolve) => {
+      releaseCall = resolve
+    })
+    const rawService = Effect.runSync(
+      makeMcpRuntimeService({
+        connect: async () =>
+          connection({
+            callTool: async () => {
+              reportCallStarted()
+              await callRelease
+              return { content: [{ type: 'text', text: 'done' }], isError: false }
+            },
+          }),
+      }),
+    )
+    const management = snapshot({ runtimeNamespace: 'mcp-management:interrupt-barrier' })
+    const callFiber = Effect.runFork(
+      rawService.callAppTool({
+        snapshot: management,
+        serverInstanceId: 'server-1',
+        toolName: 'search_private_docs',
+        arguments: {},
+      }),
+    )
+    await callStarted
+    const interrupting = Effect.runPromise(Fiber.interrupt(callFiber))
+    const reconciliationSettled = vi.fn()
+    const reconciling = Effect.runPromise(rawService.reconcileIdleConnections()).then(
+      reconciliationSettled,
+    )
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(reconciliationSettled).not.toHaveBeenCalled()
+    releaseCall()
+    await Promise.all([interrupting, reconciling])
+    expect(reconciliationSettled).toHaveBeenCalledOnce()
+    await Effect.runPromise(rawService.disposeAll())
   })
 
   it('waits for an in-flight management capability before closing its connection', async () => {

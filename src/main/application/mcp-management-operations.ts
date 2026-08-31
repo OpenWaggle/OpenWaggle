@@ -1,5 +1,9 @@
 import * as Effect from 'effect/Effect'
 import { mcpOAuthVaultKey } from '../domain/mcp/oauth-vault-key'
+import {
+  partitionServerLogoutSecretReferences,
+  secretReferences,
+} from '../mcp-cli-secret-references'
 import { McpConfigService } from '../ports/mcp-config-service'
 import { McpRuntimeService } from '../ports/mcp-runtime-service'
 import { McpSecretVaultService } from '../ports/mcp-secret-vault-service'
@@ -217,9 +221,28 @@ export function logoutMcpServerOperation(raw: unknown) {
       withMcpManagementWrite(
         Effect.gen(function* () {
           const server = yield* config.getServerDefinition(input)
-          yield* vault.remove({ name: mcpOAuthVaultKey(server.instanceId) })
+          const view = yield* config.getView(input)
+          const target = view.servers.find(
+            (candidate) => candidate.instanceId === server.instanceId,
+          )
+          if (!target) throw new Error(`MCP server ${server.instanceId} was not found.`)
+          const partition = partitionServerLogoutSecretReferences({
+            references: secretReferences(server.definition),
+            sources: view.sources,
+            target,
+          })
+          if (server.definition.auth?.type === 'oauth') {
+            yield* vault.remove({ name: mcpOAuthVaultKey(server.instanceId) })
+          }
+          for (const name of partition.removable) yield* vault.remove({ name })
           yield* runtime.reconcileIdleConnections()
-          return { loggedOut: true as const }
+          return {
+            removedSecrets: partition.removable,
+            retainedSharedSecrets: partition.retained,
+            retainedUnverifiedSecrets: partition.retainedUnverified,
+            unreadableSources: partition.unreadableSources,
+            oauthRemoved: server.definition.auth?.type === 'oauth',
+          }
         }),
       ),
     )

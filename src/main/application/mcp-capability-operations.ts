@@ -1,4 +1,5 @@
 import { Schema } from '@shared/schema'
+import type { McpTurnSnapshot } from '@shared/types/mcp'
 import * as Effect from 'effect/Effect'
 import { createMcpManagementRuntimeNamespace } from '../domain/mcp/runtime-namespace'
 import { McpConfigService } from '../ports/mcp-config-service'
@@ -56,6 +57,19 @@ function loadTaskSnapshot(input: {
   })
 }
 
+function assertServerConfig(
+  snapshot: McpTurnSnapshot,
+  serverInstanceId: string | undefined,
+  expectedConfigHash: string | undefined,
+) {
+  if (!expectedConfigHash) return Effect.void
+  const server = snapshot.servers.find((candidate) => candidate.instanceId === serverInstanceId)
+  if (server?.configHash === expectedConfigHash) return Effect.void
+  return Effect.fail(
+    new Error('This MCP App is stale because its server configuration has changed.'),
+  )
+}
+
 export function listMcpCapabilitiesOperation(raw: unknown) {
   return withMcpManagementRead(
     Effect.gen(function* () {
@@ -66,6 +80,7 @@ export function listMcpCapabilitiesOperation(raw: unknown) {
       )
       const input = yield* validateMcpProjectInput(decoded)
       const snapshot = yield* loadManagementSnapshot(input)
+      yield* assertServerConfig(snapshot, input.serverInstanceId, input.serverConfigHash)
       return yield* (yield* McpRuntimeService).browseCapabilities({
         snapshot,
         ...(input.serverInstanceId ? { serverInstanceId: input.serverInstanceId } : {}),
@@ -80,6 +95,7 @@ export function getMcpPromptOperation(raw: unknown) {
       const decoded = yield* decodeMcpOperationInput(mcpGetPromptSchema, raw, 'prompt read')
       const input = yield* validateMcpProjectInput(decoded)
       const snapshot = yield* loadManagementSnapshot(input)
+      yield* assertServerConfig(snapshot, input.serverInstanceId, input.serverConfigHash)
       return yield* (yield* McpRuntimeService).getPrompt({
         snapshot,
         serverInstanceId: input.serverInstanceId,
@@ -96,6 +112,7 @@ export function readMcpResourceOperation(raw: unknown) {
       const decoded = yield* decodeMcpOperationInput(mcpReadResourceSchema, raw, 'resource read')
       const input = yield* validateMcpProjectInput(decoded)
       const snapshot = yield* loadManagementSnapshot(input)
+      yield* assertServerConfig(snapshot, input.serverInstanceId, input.serverConfigHash)
       return yield* (yield* McpRuntimeService).readResource({
         snapshot,
         serverInstanceId: input.serverInstanceId,
@@ -115,6 +132,7 @@ export function reviewMcpRemoteSkillOperation(raw: unknown) {
       )
       const input = yield* validateMcpProjectInput(decoded)
       const snapshot = yield* loadManagementSnapshot(input)
+      yield* assertServerConfig(snapshot, input.serverInstanceId, input.serverConfigHash)
       return yield* (yield* McpRuntimeService).reviewRemoteSkill({
         snapshot,
         serverInstanceId: input.serverInstanceId,
@@ -141,6 +159,7 @@ export function callMcpAppToolOperation(raw: unknown) {
       const decoded = yield* decodeMcpOperationInput(mcpAppToolCallSchema, raw, 'App tool call')
       const input = yield* validateMcpProjectInput(decoded)
       const snapshot = yield* loadManagementSnapshot(input)
+      yield* assertServerConfig(snapshot, input.serverInstanceId, input.serverConfigHash)
       return yield* (yield* McpRuntimeService).callAppTool({
         snapshot,
         serverInstanceId: input.serverInstanceId,

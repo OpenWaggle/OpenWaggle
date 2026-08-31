@@ -15,25 +15,15 @@ import {
   type McpSecretVaultServiceShape,
 } from '../../ports/mcp-secret-vault-service'
 
-const {
-  authorizeMcpServerMock,
-  hostHandleMock,
-  reconcileConfiguredMcpOwnerRuntimeMock,
-  typedHandleMock,
-} = vi.hoisted(() => ({
+const { authorizeMcpServerMock, hostHandleMock, typedHandleMock } = vi.hoisted(() => ({
   authorizeMcpServerMock: vi.fn(),
   hostHandleMock: vi.fn(),
-  reconcileConfiguredMcpOwnerRuntimeMock: vi.fn(),
   typedHandleMock: vi.fn(),
 }))
 
 vi.mock('../../adapters/mcp/oauth-provider', () => ({
   authorizeMcpServer: authorizeMcpServerMock,
 }))
-vi.mock('../../application/gui-session-command-router', () => ({
-  reconcileConfiguredMcpOwnerRuntime: reconcileConfiguredMcpOwnerRuntimeMock,
-}))
-
 vi.mock('electron', () => ({ shell: { openExternal: vi.fn() } }))
 vi.mock('../typed-ipc', () => ({ hostHandle: hostHandleMock, typedHandle: typedHandleMock }))
 
@@ -187,17 +177,15 @@ describe('MCP IPC runtime settings lifecycle', () => {
         return { authorized: true, browserOpened: false }
       },
     )
-    reconcileConfiguredMcpOwnerRuntimeMock.mockReset()
-    reconcileConfiguredMcpOwnerRuntimeMock.mockResolvedValue(true)
     registerMcpHandlers()
   })
 
-  it('routes runtime MCP handlers through the Host while keeping browser OAuth local', () => {
+  it('routes every MCP handler, including OAuth, through the Host owner', () => {
     const hostChannels = hostHandleMock.mock.calls.map((call) => call[0])
     const localChannels = typedHandleMock.mock.calls.map((call) => call[0])
 
     expect(new Set(hostChannels)).toEqual(new Set(HOST_BACKED_MCP_GUI_CHANNELS))
-    expect(localChannels).toEqual(['mcp:authorize-server'])
+    expect(localChannels).toEqual([])
   })
 
   it('returns live connection, capability, and runtime notice state', async () => {
@@ -229,14 +217,13 @@ describe('MCP IPC runtime settings lifecycle', () => {
     expect(test.reconcileIdleConnections).toHaveBeenCalledOnce()
   })
 
-  it('notifies the owning Host after browser OAuth changes the shared vault', async () => {
+  it('reconciles the owning runtime after browser OAuth changes the shared vault', async () => {
     const test = makeTestLayer()
     const handler = getRegisteredHandler('mcp:authorize-server', test.layer)
 
     await handler?.({}, { projectPath: PROJECT_PATH, instanceId: 'server-1' })
 
-    expect(reconcileConfiguredMcpOwnerRuntimeMock).toHaveBeenCalledWith(PROJECT_PATH)
-    expect(test.reconcileIdleConnections).not.toHaveBeenCalled()
+    expect(test.reconcileIdleConnections).toHaveBeenCalledOnce()
   })
 
   it('notifies the owner when browser OAuth mutates the vault before failing', async () => {
@@ -253,7 +240,7 @@ describe('MCP IPC runtime settings lifecycle', () => {
       handler?.({}, { projectPath: PROJECT_PATH, instanceId: 'server-1' }),
     ).rejects.toThrow('OAuth callback cancelled')
 
-    expect(reconcileConfiguredMcpOwnerRuntimeMock).toHaveBeenCalledWith(PROJECT_PATH)
+    expect(test.reconcileIdleConnections).toHaveBeenCalledOnce()
   })
 
   it('retries owner reconciliation when OAuth already persisted authorization', async () => {
@@ -267,9 +254,9 @@ describe('MCP IPC runtime settings lifecycle', () => {
         },
       )
       .mockResolvedValueOnce({ authorized: true, browserOpened: false })
-    reconcileConfiguredMcpOwnerRuntimeMock
-      .mockRejectedValueOnce(new Error('owner connection reset'))
-      .mockResolvedValueOnce(true)
+    test.reconcileIdleConnections
+      .mockImplementationOnce(() => Effect.die(new Error('owner connection reset')))
+      .mockImplementation(() => Effect.void)
 
     await expect(
       handler?.({}, { projectPath: PROJECT_PATH, instanceId: 'server-1' }),
@@ -278,7 +265,7 @@ describe('MCP IPC runtime settings lifecycle', () => {
       handler?.({}, { projectPath: PROJECT_PATH, instanceId: 'server-1' }),
     ).resolves.toEqual({ authorized: true, browserOpened: false })
 
-    expect(reconcileConfiguredMcpOwnerRuntimeMock).toHaveBeenCalledTimes(2)
+    expect(test.reconcileIdleConnections).toHaveBeenCalledTimes(2)
   })
 
   it('browses capabilities in a management namespace distinct from the logical session', async () => {
