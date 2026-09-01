@@ -1,35 +1,51 @@
 import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import { PI_WAGGLE_TURN_CUSTOM_TYPE } from '@openwaggle/pi-waggle/protocol'
+import { isRecord } from '@shared/utils/validation'
 import { PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE } from './pi-runtime-input'
 
-const VISUALIZATION_CONTEXT_START = '[OpenWaggle inline visualization context]'
-const VISUALIZATION_CONTEXT_END = '[/OpenWaggle inline visualization context]'
+const WAGGLE_VISUALIZATION_CONTEXT_DETAIL = 'openWaggleVisualizationContext'
 
 export type PiContextMessage = Parameters<
   NonNullable<AgentSession['agent']['transformContext']>
 >[0][number]
 
-function stripVisualizationContext(text: string) {
-  const start = text.lastIndexOf(VISUALIZATION_CONTEXT_START)
-  if (start === -1) return text
-  const end = text.indexOf(VISUALIZATION_CONTEXT_END, start)
-  if (end === -1) return text
-  return `${text.slice(0, start)}${text.slice(end + VISUALIZATION_CONTEXT_END.length)}`.trim()
+function readWaggleVisualizationContext(message: PiContextMessage) {
+  if (
+    message.role !== 'custom' ||
+    message.customType !== PI_WAGGLE_TURN_CUSTOM_TYPE ||
+    !isRecord(message.details)
+  ) {
+    return null
+  }
+  const context = message.details[WAGGLE_VISUALIZATION_CONTEXT_DETAIL]
+  return typeof context === 'string' && context.length > 0 ? context : null
+}
+
+function transientWaggleVisualizationAside(message: PiContextMessage): PiContextMessage | null {
+  const context = readWaggleVisualizationContext(message)
+  if (!context) return null
+  return {
+    role: 'custom',
+    customType: PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE,
+    content: context,
+    display: false,
+    details: { source: 'openwaggle', kind: 'inline-visualization-context' },
+    timestamp: message.timestamp,
+  }
 }
 
 function stripWaggleVisualizationContext(message: PiContextMessage): PiContextMessage {
   if (message.role !== 'custom' || message.customType !== PI_WAGGLE_TURN_CUSTOM_TYPE) {
     return message
   }
-  if (typeof message.content === 'string') {
-    return { ...message, content: stripVisualizationContext(message.content) }
-  }
-  return {
-    ...message,
-    content: message.content.map((part) =>
-      part.type === 'text' ? { ...part, text: stripVisualizationContext(part.text) } : part,
-    ),
-  }
+  const details = isRecord(message.details)
+    ? Object.fromEntries(
+        Object.entries(message.details).filter(
+          ([key]) => key !== WAGGLE_VISUALIZATION_CONTEXT_DETAIL,
+        ),
+      )
+    : message.details
+  return { ...message, details }
 }
 
 /**
@@ -58,7 +74,10 @@ export async function filterConsumedVisualizationContext(
     if (message.role === 'custom' && message.customType === PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE) {
       return index === latestVisualizationAsideIndex && index > latestPromptIndex ? [message] : []
     }
-    return [index < latestPromptIndex ? stripWaggleVisualizationContext(message) : message]
+    const cleanMessage = stripWaggleVisualizationContext(message)
+    const activeWaggleAside =
+      index === latestPromptIndex ? transientWaggleVisualizationAside(message) : null
+    return activeWaggleAside ? [cleanMessage, activeWaggleAside] : [cleanMessage]
   })
 }
 

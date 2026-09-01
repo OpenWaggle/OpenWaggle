@@ -54,23 +54,33 @@ describe('Pi visualization context filtering', () => {
   })
 
   it('strips visualization data from older Waggle turns while keeping the active turn', async () => {
-    const marker = '[OpenWaggle inline visualization context]'
     const oldTurn: PiContextMessage = {
       role: 'custom',
       customType: PI_WAGGLE_TURN_CUSTOM_TYPE,
-      content: `First turn\n\n${marker}\nold selection\n[/OpenWaggle inline visualization context]`,
+      content:
+        'First turn keeps literal [OpenWaggle inline visualization context] user content intact',
       display: false,
+      details: {
+        openWaggleVisualizationContext:
+          '[OpenWaggle inline visualization context]\nold selection including [OpenWaggle inline visualization context]\n[/OpenWaggle inline visualization context]',
+      },
       timestamp: 1,
     }
     const activeTurn: PiContextMessage = {
       ...oldTurn,
-      content: `Second turn\n\n${marker}\ncurrent selection\n[/OpenWaggle inline visualization context]`,
+      content: 'Second turn',
+      details: {
+        openWaggleVisualizationContext:
+          '[OpenWaggle inline visualization context]\ncurrent selection\n[/OpenWaggle inline visualization context]',
+      },
       timestamp: 2,
     }
 
     const filtered = await filterConsumedVisualizationContext([oldTurn, activeTurn])
 
-    expect(JSON.stringify(filtered[0])).not.toContain('old selection')
-    expect(JSON.stringify(filtered[1])).toContain('current selection')
+    expect(JSON.stringify(filtered)).not.toContain('old selection')
+    expect(filtered).toHaveLength(3)
+    expect(JSON.stringify(filtered[0])).toContain('user content intact')
+    expect(JSON.stringify(filtered[2])).toContain('current selection')
   })
 })

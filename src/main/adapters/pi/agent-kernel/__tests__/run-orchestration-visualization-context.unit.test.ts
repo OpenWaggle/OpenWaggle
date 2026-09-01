@@ -1,3 +1,4 @@
+import { isRecord } from '@shared/utils/validation'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { runPiSession } from '../classic-run'
 import { runPiWaggle } from '../waggle-run'
@@ -120,6 +121,10 @@ describe('Pi visualization context orchestration', () => {
 
     const sendCustomMessage = vi.mocked(session.sendCustomMessage)
     expect(JSON.stringify(sendCustomMessage.mock.calls[0]?.[0])).not.toContain('selectedService')
-    expect(JSON.stringify(sendCustomMessage.mock.calls[1]?.[0])).toContain('selectedService')
+    const hiddenTurn = sendCustomMessage.mock.calls[1]?.[0]
+    expect(isRecord(hiddenTurn)).toBe(true)
+    if (!isRecord(hiddenTurn)) return
+    expect(JSON.stringify(hiddenTurn.content)).not.toContain('selectedService')
+    expect(JSON.stringify(hiddenTurn.details)).toContain('selectedService')
   })
 })
