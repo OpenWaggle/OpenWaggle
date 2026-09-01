@@ -141,10 +141,13 @@ export class OpenWaggleApp {
     } catch (error) {
       evidenceError = error
     } finally {
+      let canRemoveUserData = true
       if (options.forceProcessTermination) {
-        this.forceCloseForCleanup()
+        canRemoveUserData = await this.forceCloseForCleanup()
       } else {
         await this.closeForCleanup()
+      }
+      if (canRemoveUserData) {
         await fs.rm(this.userDataDir, {
           recursive: true,
           force: true,
@@ -168,11 +171,26 @@ export class OpenWaggleApp {
     await completesWithin(closeOperation, QA_FORCED_CLOSE_WAIT_MS)
   }
 
-  private forceCloseForCleanup(): void {
+  private async forceCloseForCleanup(): Promise<boolean> {
+    console.warn('[electron-qa] exiting the temporary test app without running quit handlers')
+    const closeEvent = this.app
+      .waitForEvent('close', { timeout: QA_FORCED_CLOSE_WAIT_MS })
+      .then(() => true)
+      .catch(() => false)
+    try {
+      await this.app.evaluate(({ app }) => {
+        setTimeout(() => app.exit(0), 0)
+      })
+    } catch {
+      // The main process can exit before the evaluate response reaches Playwright.
+    }
+    if (await closeEvent) return true
+
     console.warn(
-      `[electron-qa] force-terminating the temporary test app; retaining disposable profile ${this.userDataDir}`,
+      `[electron-qa] immediate app exit timed out; retaining disposable profile ${this.userDataDir}`,
     )
     this.terminateProcessTree()
+    return false
   }
 
   private terminateProcessTree(): void {
