@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { SessionId, SupportedModelId } from '@shared/types/brand'
+import type { IpcEventChannelMap } from '@shared/types/ipc-events'
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import {
@@ -11,6 +12,7 @@ import {
 } from './useAgentChat.test-utils'
 
 const SESSION_ID = SessionId('session-1')
+type AgentTransportEvent = IpcEventChannelMap['agent:event']['payload']['event']
 
 function renderAgentChat() {
   return renderHook(() =>
@@ -18,7 +20,7 @@ function renderAgentChat() {
   )
 }
 
-function emit(event: Record<string, unknown>) {
+function emit(event: AgentTransportEvent) {
   emitAgentEvent({ sessionId: SESSION_ID, event })
 }
 
@@ -30,7 +32,7 @@ function end(timestamp: number, options: { aborted?: boolean; errorMessage?: str
   emit({
     type: 'compaction_end',
     reason: 'threshold',
-    result: options.aborted || options.errorMessage ? undefined : {},
+    result: options.aborted || options.errorMessage ? null : {},
     aborted: options.aborted ?? false,
     willRetry: false,
     errorMessage: options.errorMessage,
