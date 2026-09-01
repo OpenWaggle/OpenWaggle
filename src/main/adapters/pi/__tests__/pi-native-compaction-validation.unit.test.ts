@@ -149,6 +149,29 @@ describe('Pi native compaction response validation', () => {
     })
   })
 
+  it('strips response-only fields before persisting a compaction item for request replay', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        makeCompactResponse([
+          {
+            ...VALID_COMPACTION_ITEM,
+            created_by: 'openai',
+          },
+        ]),
+      ),
+    )
+
+    const result = await compactNative()
+
+    expect(result.details).toEqual({
+      schemaVersion: 1,
+      mechanism: 'native',
+      identity: expect.any(Object),
+      items: [VALID_COMPACTION_ITEM],
+    })
+  })
+
   it('rejects an empty replacement window', async () => {
     vi.stubGlobal(
       'fetch',

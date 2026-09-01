@@ -990,7 +990,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..44b90396f317a38f427513685123585b
  // ============================================================================
  // Main compaction function
  // ============================================================================
-@@ -598,6 +662,65 @@ Summarize the prefix to provide context for the retained suffix:
+@@ -598,6 +662,72 @@ Summarize the prefix to provide context for the retained suffix:
  - [Information needed to understand the retained recent work]
  
  Be concise. Focus on what's needed to understand the kept suffix.`;
@@ -1044,6 +1044,13 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..44b90396f317a38f427513685123585b
 +        typeof item.encrypted_content === "string" &&
 +        hasOptionalString(item, "created_by"));
 +}
++function toNativeCompactionRequestItem(item) {
++    return {
++        type: "compaction",
++        id: item.id,
++        encrypted_content: item.encrypted_content,
++    };
++}
 +function isNativeReplacementItem(item) {
 +    return isRecord(item) && (isNativeCompactionItem(item) || isNativeReplacementMessage(item));
 +}
@@ -1056,7 +1063,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..44b90396f317a38f427513685123585b
  /**
   * Generate summaries for compaction using prepared data.
   * Returns CompactionResult - SessionManager adds uuid/parentUuid when saving.
-@@ -606,8 +729,56 @@ Be concise. Focus on what's needed to understand the kept suffix.`;
+@@ -606,8 +736,58 @@ Be concise. Focus on what's needed to understand the kept suffix.`;
   * @param customInstructions - Optional custom focus for the summary
   * @param sessionId - Optional routing session ID forwarded without enabling prompt caching
   */
@@ -1100,7 +1107,9 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..44b90396f317a38f427513685123585b
 +                    schemaVersion: 1,
 +                    mechanism: "native",
 +                    identity: nativeCompactionIdentity(model, apiKey, headers),
-+                    items: response.output,
++                    items: response.output.map((item) => isNativeCompactionItem(item)
++                        ? toNativeCompactionRequestItem(item)
++                        : item),
 +                },
 +            };
 +        }
@@ -1115,7 +1124,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..44b90396f317a38f427513685123585b
      // Generate summaries and merge into one
      let summary;
      let summaryUsage;
-@@ -641,7 +812,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
+@@ -641,7 +821,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
          firstKeptEntryId,
          tokensBefore,
          usage: summaryUsage,
