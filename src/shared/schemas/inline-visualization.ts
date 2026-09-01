@@ -2,7 +2,6 @@ import { Schema } from '@shared/schema'
 import type {
   InlineVisualizationDownloadInput,
   InlineVisualizationFrameRegisterInput,
-  InlineVisualizationFrameTerminateInput,
   InlineVisualizationFrameUnregisterInput,
 } from '@shared/types/inline-visualization'
 
@@ -25,6 +24,3 @@ export const inlineVisualizationFrameUnregisterInputSchema: Schema.Schema<Inline
     frameId: Schema.String,
     registrationId: Schema.String,
   })
-
-export const inlineVisualizationFrameTerminateInputSchema: Schema.Schema<InlineVisualizationFrameTerminateInput> =
-  inlineVisualizationFrameUnregisterInputSchema

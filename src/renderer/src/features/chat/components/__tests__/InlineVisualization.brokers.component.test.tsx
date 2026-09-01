@@ -9,7 +9,6 @@ const apiMock = vi.hoisted(() => ({
   openExternal: vi.fn(),
   registerInlineVisualizationFrame: vi.fn(),
   unregisterInlineVisualizationFrame: vi.fn(),
-  terminateInlineVisualizationFrame: vi.fn(),
   saveInlineVisualizationDownload: vi.fn(),
 }))
 
@@ -79,7 +78,6 @@ describe('InlineVisualization brokers', () => {
       }),
     )
     apiMock.unregisterInlineVisualizationFrame.mockResolvedValue(undefined)
-    apiMock.terminateInlineVisualizationFrame.mockResolvedValue(true)
     apiMock.saveInlineVisualizationDownload.mockResolvedValue(true)
   })
 

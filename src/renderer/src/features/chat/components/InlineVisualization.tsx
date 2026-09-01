@@ -103,11 +103,11 @@ export function InlineVisualization({
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const [expanded, setExpanded] = useState(false)
   const dismiss = useCallback(() => setExpanded(false), [])
-  const { frameId, registration, registrationError, retryRegistration } =
-    useInlineVisualizationRegistration({ sectionRef, sessionId, sourcePath: reference.path })
+  const { registration, registrationError, retryRegistration } = useInlineVisualizationRegistration(
+    { sectionRef, sessionId, sourcePath: reference.path },
+  )
   const { frameRef, height, errorReason, handleLoad, reset } = useInlineVisualizationFrame({
     sessionId,
-    frameId,
     frameUrl: registration?.frameUrl ?? null,
     registrationId: registration?.registrationId ?? null,
     onDismiss: dismiss,

@@ -113,13 +113,6 @@ export function unregisterInlineVisualizationFrame(input: InlineVisualizationFra
   }
 }
 
-export function isRegisteredInlineVisualizationFrame(
-  input: InlineVisualizationFrameUnregisterInput,
-) {
-  const frameHost = `${INLINE_VISUALIZATION_PROTOCOL.FRAME_HOST_PREFIX}${input.frameId}`
-  return registeredFrames.get(frameHost)?.registrationId === input.registrationId
-}
-
 function parseVisualizationRequest(requestUrl: string) {
   const url = new URL(requestUrl)
   if (

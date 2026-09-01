@@ -9,7 +9,6 @@ const apiMock = vi.hoisted(() => ({
   openExternal: vi.fn(),
   registerInlineVisualizationFrame: vi.fn(),
   unregisterInlineVisualizationFrame: vi.fn(),
-  terminateInlineVisualizationFrame: vi.fn(),
   saveInlineVisualizationDownload: vi.fn(),
 }))
 
@@ -84,7 +83,6 @@ describe('InlineVisualization', () => {
       }),
     )
     apiMock.unregisterInlineVisualizationFrame.mockResolvedValue(undefined)
-    apiMock.terminateInlineVisualizationFrame.mockResolvedValue(true)
     apiMock.saveInlineVisualizationDownload.mockResolvedValue(true)
   })
   afterEach(() => {
@@ -95,7 +93,6 @@ describe('InlineVisualization', () => {
     apiMock.openExternal.mockReset()
     apiMock.registerInlineVisualizationFrame.mockReset()
     apiMock.unregisterInlineVisualizationFrame.mockReset()
-    apiMock.terminateInlineVisualizationFrame.mockReset()
     apiMock.saveInlineVisualizationDownload.mockReset()
     useMessageQueueStore.setState({ queues: new Map() })
   })

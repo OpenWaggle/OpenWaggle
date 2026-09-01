@@ -115,7 +115,6 @@ export const api: OpenWaggleApi = {
   unregisterExtensionFrame: invoke('extensions:unregister-frame'),
   registerInlineVisualizationFrame: invoke('visualizations:register-frame'),
   unregisterInlineVisualizationFrame: invoke('visualizations:unregister-frame'),
-  terminateInlineVisualizationFrame: invoke('visualizations:terminate-frame'),
   saveInlineVisualizationDownload: invoke('visualizations:save-download'),
   setExtensionTrusted: invoke('extensions:set-trusted'),
   setExtensionEnabled: invoke('extensions:set-enabled'),

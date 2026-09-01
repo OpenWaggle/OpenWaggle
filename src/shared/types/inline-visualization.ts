@@ -20,8 +20,6 @@ export interface InlineVisualizationFrameUnregisterInput {
   readonly registrationId: string
 }
 
-export type InlineVisualizationFrameTerminateInput = InlineVisualizationFrameUnregisterInput
-
 export interface InlineVisualizationDownloadInput {
   readonly suggestedName: string
   readonly mimeType: string

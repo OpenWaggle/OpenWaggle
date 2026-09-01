@@ -3,15 +3,12 @@ import { safeDecodeUnknown } from '@shared/schema'
 import {
   inlineVisualizationDownloadInputSchema,
   inlineVisualizationFrameRegisterInputSchema,
-  inlineVisualizationFrameTerminateInputSchema,
   inlineVisualizationFrameUnregisterInputSchema,
 } from '@shared/schemas/inline-visualization'
 import * as Effect from 'effect/Effect'
 import { decodeInlineVisualizationDownload } from '../application/inline-visualization-download'
 import { browserWindowFromWebContents, showSaveDialog } from '../desktop-ui'
-import { terminateInlineVisualizationFrameProcess } from '../inline-visualization-process-termination'
 import {
-  isRegisteredInlineVisualizationFrame,
   registerInlineVisualizationFrame,
   unregisterInlineVisualizationFrame,
 } from '../inline-visualization-protocol'
@@ -36,18 +33,6 @@ export function registerInlineVisualizationFrameHandlers() {
       const decoded = safeDecodeUnknown(inlineVisualizationFrameUnregisterInputSchema, input)
       if (!decoded.success) return yield* Effect.fail(new Error(decoded.issues.join('; ')))
       unregisterInlineVisualizationFrame(decoded.data)
-    }),
-  )
-  typedHandle('visualizations:terminate-frame', (event, input: unknown) =>
-    Effect.gen(function* () {
-      const decoded = safeDecodeUnknown(inlineVisualizationFrameTerminateInputSchema, input)
-      if (!decoded.success) return yield* Effect.fail(new Error(decoded.issues.join('; ')))
-      return terminateInlineVisualizationFrameProcess({
-        ...decoded.data,
-        mainFrame: event.sender.mainFrame,
-        framesInSubtree: event.sender.mainFrame.framesInSubtree,
-        isRegistered: isRegisteredInlineVisualizationFrame,
-      })
     }),
   )
   typedHandle('visualizations:save-download', (event, input: unknown) =>

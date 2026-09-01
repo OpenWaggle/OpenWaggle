@@ -1,6 +1,5 @@
 import type { SessionId } from '@shared/types/brand'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api } from '@/shared/lib/ipc'
 import {
   subscribeInlineVisualizationFrame,
   subscribeInlineVisualizationTheme,
@@ -19,7 +18,6 @@ function customProtocolOrigin(frameUrl: string) {
 
 export function useInlineVisualizationFrame(input: {
   readonly sessionId: SessionId
-  readonly frameId: string
   readonly frameUrl: string | null
   readonly registrationId: string | null
   readonly onDismiss: () => void
@@ -65,18 +63,11 @@ export function useInlineVisualizationFrame(input: {
   const armHealthCheckTimeout = useCallback(() => {
     clearHealthCheckTimeout()
     if (!input.registrationId) return
-    const registrationId = input.registrationId
     healthCheckTimeoutRef.current = window.setTimeout(() => {
       healthCheckTimeoutRef.current = null
-      void api
-        .terminateInlineVisualizationFrame({
-          frameId: input.frameId,
-          registrationId,
-        })
-        .catch(() => false)
       setErrorReason('unresponsive')
     }, FRAME_HEALTH_CHECK_TIMEOUT_MS)
-  }, [clearHealthCheckTimeout, input.frameId, input.registrationId])
+  }, [clearHealthCheckTimeout, input.registrationId])
 
   const frameRef = useCallback(
     (frame: HTMLIFrameElement | null) => {

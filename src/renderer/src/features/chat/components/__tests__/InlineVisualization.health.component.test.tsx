@@ -8,7 +8,6 @@ const FRAME_HEALTH_INTERVAL_MS = 5_000
 const apiMock = vi.hoisted(() => ({
   registerInlineVisualizationFrame: vi.fn(),
   unregisterInlineVisualizationFrame: vi.fn(),
-  terminateInlineVisualizationFrame: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({ api: apiMock }))
@@ -46,7 +45,6 @@ describe('InlineVisualization health checks', () => {
       }),
     )
     apiMock.unregisterInlineVisualizationFrame.mockResolvedValue(undefined)
-    apiMock.terminateInlineVisualizationFrame.mockResolvedValue(true)
     vi.useFakeTimers()
   })
 
@@ -55,7 +53,7 @@ describe('InlineVisualization health checks', () => {
     for (const mock of Object.values(apiMock)) mock.mockReset()
   })
 
-  it('terminates and replaces a frame that blocks before its load event', async () => {
+  it('removes and replaces a frame that blocks before its load event', async () => {
     render(
       <InlineVisualization
         sessionId={SessionId('session-visualization-1')}
@@ -63,20 +61,14 @@ describe('InlineVisualization health checks', () => {
       />,
     )
     await act(async () => undefined)
-    const frame = currentVisualizationFrame('Unresponsive map')
-    const frameId = new URL(frame.src).host.replace('frame-', '')
-
+    currentVisualizationFrame('Unresponsive map')
     act(() => vi.advanceTimersByTime(FRAME_HEALTH_TIMEOUT_MS))
 
-    expect(apiMock.terminateInlineVisualizationFrame).toHaveBeenCalledWith({
-      frameId,
-      registrationId: `registration-${frameId}`,
-    })
     expect(screen.getByRole('alert')).toHaveTextContent('visualization could not be loaded')
     expect(screen.queryByTitle('Unresponsive map')).toBeNull()
   })
 
-  it('terminates a loaded frame that stops answering periodic health checks', async () => {
+  it('removes a loaded frame that stops answering periodic health checks', async () => {
     render(
       <InlineVisualization
         sessionId={SessionId('session-visualization-1')}
@@ -85,16 +77,11 @@ describe('InlineVisualization health checks', () => {
     )
     await act(async () => undefined)
     const frame = currentVisualizationFrame('Silent map')
-    const frameId = new URL(frame.src).host.replace('frame-', '')
     act(() => {
       dispatchReady(frame)
       vi.advanceTimersByTime(FRAME_HEALTH_INTERVAL_MS + FRAME_HEALTH_TIMEOUT_MS)
     })
 
-    expect(apiMock.terminateInlineVisualizationFrame).toHaveBeenCalledWith({
-      frameId,
-      registrationId: `registration-${frameId}`,
-    })
     expect(screen.getByRole('alert')).toHaveTextContent('visualization could not be loaded')
   })
 })
