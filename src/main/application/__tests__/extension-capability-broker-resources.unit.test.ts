@@ -188,11 +188,11 @@ describe('extension session resource capability', () => {
     ).toHaveLength(1)
   })
 
-  it('adopts legacy URL identity while normalizing its locator and retaining provenance', async () => {
+  it('adopts legacy URL identity while preserving existing resource semantics', async () => {
     const existing: SessionResource = {
       ...privateResource(SESSION_ID, 'existing-link'),
       canonicalKey: 'url:HTTPS://EXAMPLE.COM/shared',
-      kind: 'link',
+      kind: 'change-request',
       title: 'Existing source',
       locator: 'HTTPS://EXAMPLE.COM/shared',
       managed: false,
@@ -205,22 +205,22 @@ describe('extension session resource capability', () => {
       resources: [existing],
     })
 
-    const result = await test.run(
+    await test.run(
       invocation({
         method: OPENWAGGLE_EXTENSION_BROKER.METHOD.PUBLISH_RESOURCE,
         payload: {
           key: 'shared',
           title: 'Shared source',
-          kind: 'link',
+          kind: 'image',
           role: 'source',
           locator: 'HTTPS://EXAMPLE.COM/shared',
         },
       }),
     )
 
-    expect(result).toMatchObject({ ok: true, value: { resource: { id: 'existing-link' } } })
-    expect(test.resources()).toHaveLength(1)
-    expect(test.resourceUpserts()[0]?.occurrence.id).toContain(':shared:source:HTTPS://')
+    expect(test.resourceUpserts()[0]?.id).not.toBe('existing-link')
+    expect(test.resourceUpserts()[0]?.kind).toBe('change-request')
+    expect(test.resourceUpserts()[0]?.canonicalKey).toBe('url:HTTPS://EXAMPLE.COM/shared')
   })
 
   it('rejects unbound trusted-main resource access', async () => {

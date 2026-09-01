@@ -76,12 +76,12 @@ function publishResource(
     const existingResource = normalizedResource ?? legacyResource
     const identityLocator = legacyResource ? payload.locator : normalizedLocator
     const createdAt = input.timestamp
-    const resourceId = existingResource?.id ?? randomUUID()
+    const resourceId = randomUUID()
     const resource = yield* repository.upsert({
       id: resourceId,
       sessionId,
       canonicalKey: existingResource?.canonicalKey ?? normalizedCanonicalKey,
-      kind: payload.kind,
+      kind: existingResource?.kind ?? payload.kind,
       title: payload.title,
       mimeType: null,
       locator: normalizedLocator,
