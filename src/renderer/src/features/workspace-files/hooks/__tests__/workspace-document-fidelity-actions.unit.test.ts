@@ -9,6 +9,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { draftStorageKey } from '../../lib/workspace-draft-journal'
 import {
+  normalizeWorkspaceLineEndings,
   reopenWorkspaceDocumentWithEncoding,
   saveWorkspaceDocumentWithEncoding,
 } from '../workspace-document-fidelity-actions'
@@ -177,5 +178,82 @@ describe('workspace document fidelity actions', () => {
     )
     expect(context.revision.current).toBe('edited-revision')
     expect(context.pending.current).toEqual([])
+  })
+
+  it('serializes concurrent line-ending normalization requests', async () => {
+    const firstNormalization = Promise.withResolvers<WorkspaceDocumentApplyResult>()
+    const file = fromPartial<WorkspaceTextFileReadResult>({
+      path: 'src/file.ts',
+      basename: 'file.ts',
+      content: 'first\nsecond\n',
+      documentVersion: 2,
+      revision: 'saved-revision',
+      fidelity: { encoding: 'utf-8', lineEnding: 'lf' },
+    })
+    const context = fromPartial<WorkspaceSaveQueueContext>({
+      projectPath: '/project',
+      file,
+      queryClient: fromPartial({ setQueryData: vi.fn() }),
+      revision: { current: file.revision },
+      persistedVersion: { current: file.documentVersion },
+      nextVersion: { current: file.documentVersion + 1 },
+      latestContent: { current: file.content },
+      latestSnapshot: { current: null },
+      savedContent: { current: file.content },
+      saving: { current: false },
+      inFlight: { current: null },
+      pending: { current: [] },
+      conflict: { current: false },
+      mounted: { current: true },
+      setContent: vi.fn(),
+      setEditorRevision: vi.fn(),
+      setSavedContent: vi.fn(),
+      setStatus: vi.fn(),
+      setErrorMessage: vi.fn(),
+      setConflictDiskContent: vi.fn(),
+      setNormalizationRequired: vi.fn(),
+      setEncoding: vi.fn(),
+      setLineEnding: vi.fn(),
+    })
+    applyWorkspaceDocumentEdits
+      .mockReturnValueOnce(firstNormalization.promise)
+      .mockResolvedValueOnce({
+        status: 'saved',
+        version: 4,
+        size: file.content.length,
+        modifiedAt: 4,
+        revision: 'crlf-revision',
+        encoding: 'utf-8',
+        lineEnding: 'crlf',
+      })
+
+    const normalizingToLf = normalizeWorkspaceLineEndings(context, 'lf')
+    await vi.waitFor(() => expect(applyWorkspaceDocumentEdits).toHaveBeenCalledOnce())
+    const normalizingToCrlf = normalizeWorkspaceLineEndings(context, 'crlf')
+    expect(applyWorkspaceDocumentEdits).toHaveBeenCalledOnce()
+
+    firstNormalization.resolve({
+      status: 'saved',
+      version: 3,
+      size: file.content.length,
+      modifiedAt: 3,
+      revision: 'lf-revision',
+      encoding: 'utf-8',
+      lineEnding: 'lf',
+    })
+    await normalizingToLf
+    await normalizingToCrlf
+
+    expect(applyWorkspaceDocumentEdits).toHaveBeenCalledTimes(2)
+    expect(applyWorkspaceDocumentEdits).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        expectedRevision: 'lf-revision',
+        baseVersion: 3,
+        normalizeLineEnding: 'crlf',
+        batches: [expect.objectContaining({ version: 4 })],
+      }),
+    )
+    expect(context.revision.current).toBe('crlf-revision')
   })
 })

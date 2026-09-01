@@ -2,8 +2,10 @@ import type {
   WorkspaceDocumentChange,
   WorkspaceDocumentEditBatch,
 } from '@shared/types/workspace-files'
+import { createRendererLogger } from '@/shared/lib/logger'
 
 const DRAFT_STORAGE_PREFIX = 'openwaggle:document-draft:v1:'
+const logger = createRendererLogger('workspace-draft-journal')
 
 function workspaceDraftKey(projectPath: string, path: string) {
   return `${projectPath}\u0000${path}`
@@ -79,10 +81,14 @@ export function readDraftJournal(
       typeof parsed.baseVersion !== 'number' ||
       typeof parsed.content !== 'string'
     ) {
+      logger.warn('Ignored an invalid workspace draft journal', { projectPath, path })
       return null
     }
     const batches = parseDocumentBatches(parsed.batches)
-    if (batches === null) return null
+    if (batches === null) {
+      logger.warn('Ignored an invalid workspace draft journal', { projectPath, path })
+      return null
+    }
     return {
       baselineRevision: parsed.baselineRevision,
       baseVersion: parsed.baseVersion,
@@ -90,7 +96,12 @@ export function readDraftJournal(
       batches,
       conflicted: parsed.conflicted === true,
     }
-  } catch {
+  } catch (error) {
+    logger.warn('Could not read a workspace draft journal', {
+      projectPath,
+      path,
+      error: error instanceof Error ? error.message : String(error),
+    })
     return null
   }
 }

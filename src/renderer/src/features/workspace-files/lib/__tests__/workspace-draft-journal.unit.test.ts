@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   draftStorageKey,
+  readDraftJournal,
   removeWorkspaceDraftJournals,
   retargetWorkspaceDraftJournals,
 } from '../workspace-draft-journal'
@@ -36,7 +37,10 @@ class MemoryStorage implements Storage {
 describe('workspace draft journal path changes', () => {
   const storage = new MemoryStorage()
 
-  afterEach(() => storage.clear())
+  afterEach(() => {
+    storage.clear()
+    vi.restoreAllMocks()
+  })
 
   it('retargets one file without touching an identical path in another worktree', () => {
     storage.setItem(draftStorageKey('/worktree-a', 'src/a.ts'), 'a')
@@ -61,5 +65,16 @@ describe('workspace draft journal path changes', () => {
     removeWorkspaceDraftJournals(storage, '/project', 'packages/app')
     expect(storage.getItem(draftStorageKey('/project', 'packages/app/src/a.ts'))).toBeNull()
     expect(storage.getItem(draftStorageKey('/project', 'tests/a.ts'))).toBe('test')
+  })
+
+  it('logs the affected file when a stored journal is malformed', () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    storage.setItem(draftStorageKey('/project', 'src/file.ts'), '{')
+
+    expect(readDraftJournal(storage, '/project', 'src/file.ts')).toBeNull()
+    expect(warning).toHaveBeenCalledWith(
+      '[workspace-draft-journal] Could not read a workspace draft journal',
+      expect.objectContaining({ projectPath: '/project', path: 'src/file.ts' }),
+    )
   })
 })

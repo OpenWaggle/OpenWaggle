@@ -7,10 +7,12 @@ import type {
   SyntaxLanguageResource,
   SyntaxThemeResource,
 } from '@shared/types/syntax-resources'
+import { createLogger } from '../logger'
 import { isRecord } from './syntax-resource-import-utils'
 
 export const INSTALLED_RESOURCE_FILE_LIMIT = 20
 export const INSTALLED_RESOURCE_CATALOG_MAX_BYTES = 8 * 1024 * 1024
+const logger = createLogger('syntax-resource-persistence')
 
 export interface InstalledResourceReadBudget {
   remainingBytes: number
@@ -167,11 +169,19 @@ export async function readPersistedResources<T>(
     let parsed: unknown
     try {
       parsed = JSON.parse(source)
-    } catch {
+    } catch (error) {
       // One malformed user resource does not hide the rest of the library.
+      logger.warn('Ignored malformed installed syntax resource JSON', {
+        resourcePath,
+        error: error instanceof Error ? error.message : String(error),
+      })
       continue
     }
-    if (guard(parsed)) resources.push(parsed)
+    if (guard(parsed)) {
+      resources.push(parsed)
+    } else {
+      logger.warn('Ignored invalid installed syntax resource', { resourcePath })
+    }
   }
   return resources
 }

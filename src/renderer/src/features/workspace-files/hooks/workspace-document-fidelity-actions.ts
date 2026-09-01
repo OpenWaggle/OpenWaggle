@@ -5,6 +5,7 @@ import { api } from '@/shared/lib/ipc'
 import { applyEditorConfigContentPolicy } from '../lib/editorconfig-policy'
 import { removeDraftJournal } from '../lib/workspace-draft-journal'
 import { acceptDiskDocument } from './workspace-document-recovery-actions'
+import { runWorkspaceQueueOperation } from './workspace-operation-queue'
 import {
   captureWorkspaceDocumentSnapshot,
   flushWorkspaceEdits,
@@ -20,6 +21,15 @@ export async function normalizeWorkspaceLineEndings(
 ) {
   await flushWorkspaceEdits(context)
   if (context.conflict.current || context.pending.current.length > 0) return
+  await runWorkspaceQueueOperation(context, () =>
+    applyWorkspaceLineEndingNormalization(context, lineEnding),
+  )
+}
+
+async function applyWorkspaceLineEndingNormalization(
+  context: WorkspaceSaveQueueContext,
+  lineEnding: 'lf' | 'crlf',
+) {
   const currentContent = captureWorkspaceDocumentSnapshot(context)
   const normalized = currentContent.replace(/\r\n?|\n/gu, '\n')
   const version = context.persistedVersion.current + 1
@@ -145,13 +155,7 @@ export async function saveWorkspaceDocumentWithEncoding(
 ) {
   await flushWorkspaceEdits(context)
   if (context.conflict.current || context.pending.current.length > 0) return
-  const operation = applyWorkspaceDocumentEncoding(context, encoding)
-  context.inFlight.current = operation
-  try {
-    await operation
-  } finally {
-    if (context.inFlight.current === operation) context.inFlight.current = null
-  }
+  await runWorkspaceQueueOperation(context, () => applyWorkspaceDocumentEncoding(context, encoding))
   if (!context.conflict.current && context.pending.current.length > 0) {
     await flushWorkspaceEdits(context)
   }

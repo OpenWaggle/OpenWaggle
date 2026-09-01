@@ -117,6 +117,7 @@ describe('installed syntax resource reads', () => {
   })
 
   it('ignores malformed JSON and resources that fail validation', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     await Promise.all([
       fs.writeFile(path.join(temporaryRoot, 'valid.json'), JSON.stringify({ name: 'valid' })),
       fs.writeFile(path.join(temporaryRoot, 'malformed.json'), '{'),
@@ -126,6 +127,14 @@ describe('installed syntax resource reads', () => {
     await expect(readPersistedResources(temporaryRoot, isNamedResource)).resolves.toEqual([
       { name: 'valid' },
     ])
+    expect(warning).toHaveBeenCalledWith(
+      expect.stringContaining('[syntax-resource-persistence] Ignored malformed'),
+      expect.objectContaining({ resourcePath: path.join(temporaryRoot, 'malformed.json') }),
+    )
+    expect(warning).toHaveBeenCalledWith(
+      expect.stringContaining('[syntax-resource-persistence] Ignored invalid'),
+      { resourcePath: path.join(temporaryRoot, 'invalid.json') },
+    )
   })
 
   it('accepts complete persisted theme resources', () => {

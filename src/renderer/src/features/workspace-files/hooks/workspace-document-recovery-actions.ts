@@ -3,6 +3,7 @@ import type { WorkspaceTextFileReadResult } from '@shared/types/workspace-files'
 import { queryKeys } from '@/queries/query-keys'
 import { api } from '@/shared/lib/ipc'
 import { removeDraftJournal } from '../lib/workspace-draft-journal'
+import { runWorkspaceQueueOperation } from './workspace-operation-queue'
 import {
   captureWorkspaceDocumentSnapshot,
   persistPendingJournal,
@@ -40,7 +41,7 @@ export function acceptDiskDocument(
   )
 }
 
-export async function reloadWorkspaceDocument(context: WorkspaceSaveQueueContext) {
+async function reloadWorkspaceDocumentNow(context: WorkspaceSaveQueueContext) {
   const contentBeforeReload = captureWorkspaceDocumentSnapshot(context)
   const next = await api.readWorkspaceFile(context.projectPath, context.file.path)
   if (!('content' in next)) return
@@ -51,12 +52,16 @@ export async function reloadWorkspaceDocument(context: WorkspaceSaveQueueContext
   acceptDiskDocument(context, next)
 }
 
+export function reloadWorkspaceDocument(context: WorkspaceSaveQueueContext) {
+  return runWorkspaceQueueOperation(context, () => reloadWorkspaceDocumentNow(context))
+}
+
 export async function compareWorkspaceDocumentWithDisk(context: WorkspaceSaveQueueContext) {
   const disk = await api.readWorkspaceFile(context.projectPath, context.file.path)
   if ('content' in disk) context.setConflictDiskContent(disk.content)
 }
 
-export async function restoreWorkspaceDraftOverDisk(context: WorkspaceSaveQueueContext) {
+async function restoreWorkspaceDraftOverDiskNow(context: WorkspaceSaveQueueContext) {
   const draft = captureWorkspaceDocumentSnapshot(context)
   const disk = await api.readWorkspaceFile(context.projectPath, context.file.path)
   if (!('content' in disk)) return
@@ -128,4 +133,8 @@ export async function restoreWorkspaceDraftOverDisk(context: WorkspaceSaveQueueC
     .with('out-of-sync', (failure) => preserveFailedDraft(context, failure.message, 'error'))
     .with('too-large', (failure) => preserveFailedDraft(context, failure.message, 'error'))
     .exhaustive()
+}
+
+export function restoreWorkspaceDraftOverDisk(context: WorkspaceSaveQueueContext) {
+  return runWorkspaceQueueOperation(context, () => restoreWorkspaceDraftOverDiskNow(context))
 }
