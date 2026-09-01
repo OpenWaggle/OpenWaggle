@@ -13,6 +13,30 @@ interface UseStackedGitActionsOptions {
   readonly onCompleted?: () => void
 }
 
+function stackedActionToast(result: Awaited<ReturnType<typeof api.runStackedGitAction>>) {
+  if (!result.ok) {
+    const outputMessage = result.commitOutput?.ok === false ? result.commitOutput.message : null
+    return {
+      message: outputMessage ? `${result.message} ${outputMessage}` : result.message,
+      variant: 'error' as const,
+    }
+  }
+  const outputFailure =
+    result.changeRequestOutput?.ok === false
+      ? result.changeRequestOutput
+      : result.commitOutput?.ok === false
+        ? result.commitOutput
+        : null
+  return outputFailure
+    ? { message: outputFailure.message, variant: 'error' as const }
+    : {
+        message: result.changeRequest
+          ? `Opened ${result.changeRequest.url}`
+          : 'Git action completed.',
+        variant: 'success' as const,
+      }
+}
+
 /**
  * Dispatches a stacked git action through the main-process workflow service and
  * surfaces the outcome as a toast. Decision logic lives in resolveQuickAction;
@@ -31,14 +55,8 @@ export function useStackedGitActions({
     setIsRunning(true)
     try {
       const result = await api.runStackedGitAction(workingPath, { action, sessionId, ...options })
-      if (result.ok) {
-        showToast(
-          result.changeRequest ? `Opened ${result.changeRequest.url}` : 'Git action completed.',
-          'success',
-        )
-      } else {
-        showToast(result.message, 'error')
-      }
+      const toast = stackedActionToast(result)
+      showToast(toast.message, toast.variant)
       onCompleted?.()
     } catch (error) {
       logger.warn('Stacked git action failed', { error: String(error) })

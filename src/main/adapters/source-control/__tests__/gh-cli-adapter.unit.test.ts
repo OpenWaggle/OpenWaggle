@@ -174,6 +174,35 @@ describe('github adapter typed failures (never throws)', () => {
     })
   })
 
+  it.each([
+    ['CLOSED', 'main', 'feature/current'],
+    ['OPEN', 'release', 'feature/current'],
+    ['OPEN', 'main', 'feature/other'],
+  ])('does not adopt an unrelated or inactive PR (%s)', async (state, baseRefName, headRefName) => {
+    runCliMock
+      .mockResolvedValueOnce(cli({ code: 1, stderr: 'connection reset' }))
+      .mockResolvedValueOnce(
+        cli({
+          stdout: JSON.stringify({
+            title: 'Old request',
+            url: 'https://github.com/o/r/pull/old',
+            baseRefName,
+            headRefName,
+            state,
+            isDraft: false,
+          }),
+        }),
+      )
+
+    await expect(
+      getSourceControlProvider('github')?.openChangeRequest('/repo', {
+        headRef: 'feature/current',
+        baseRef: 'main',
+        title: 'T',
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'unknown' })
+  })
+
   it('preserves a successful create URL when the metadata lookup is transiently unavailable', async () => {
     runCliMock
       .mockResolvedValueOnce(cli({ stdout: 'https://github.com/o/r/pull/3\n' }))
@@ -257,4 +286,36 @@ describe('gitlab adapter defaults', () => {
       changeRequest: { url: 'https://gitlab.com/o/r/-/merge_requests/2' },
     })
   })
+
+  it.each([
+    ['closed', 'main', 'feature/current'],
+    ['opened', 'release', 'feature/current'],
+    ['opened', 'main', 'feature/other'],
+  ])(
+    'does not adopt an unrelated or inactive MR (%s)',
+    async (state, targetBranch, sourceBranch) => {
+      runCliMock
+        .mockResolvedValueOnce(cli({ code: 1, stderr: 'connection reset' }))
+        .mockResolvedValueOnce(
+          cli({
+            stdout: JSON.stringify({
+              title: 'Old request',
+              web_url: 'https://gitlab.com/o/r/-/merge_requests/old',
+              target_branch: targetBranch,
+              source_branch: sourceBranch,
+              state,
+              draft: false,
+            }),
+          }),
+        )
+
+      await expect(
+        getSourceControlProvider('gitlab')?.openChangeRequest('/repo', {
+          headRef: 'feature/current',
+          baseRef: 'main',
+          title: 'T',
+        }),
+      ).resolves.toMatchObject({ ok: false, code: 'unknown' })
+    },
+  )
 })

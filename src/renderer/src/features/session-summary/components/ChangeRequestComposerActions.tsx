@@ -11,6 +11,7 @@ interface ChangeRequestComposerActionsProps {
     readonly branchMissing: boolean
     readonly onCreate: (draft: boolean) => void
     readonly pendingResourceRecord: boolean
+    readonly requestCreated: boolean
     readonly onRetryResourceRecord: () => void
     readonly retryButtonRef: Ref<HTMLButtonElement>
     readonly browserUrl: string | null
@@ -25,6 +26,7 @@ export function ChangeRequestComposerActions({
     branchMissing,
     onCreate,
     pendingResourceRecord,
+    requestCreated,
     onRetryResourceRecord,
     retryButtonRef,
     browserUrl,
@@ -46,7 +48,7 @@ export function ChangeRequestComposerActions({
           <GitPullRequest className="size-4" />
           Retry adding {terminology.shortLabel} to Outputs
         </Button>
-      ) : (
+      ) : requestCreated ? null : (
         <>
           <Button
             variant="ghost"

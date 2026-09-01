@@ -229,13 +229,15 @@ export interface GitRunStackedActionSuccess {
     readonly commitHash: string
     readonly summary: string
   } | null
-  /** Output projection outcome. Failed projections are queued for retry when Summary refreshes. */
-  readonly commitOutput?: { readonly ok: true } | { readonly ok: false; readonly message: string }
+  /** Output projection outcome; failed projections say whether durable retry was authorized. */
+  readonly commitOutput?:
+    | { readonly ok: true }
+    | { readonly ok: false; readonly message: string; readonly retryPersisted: boolean }
   readonly changeRequest: VcsChangeRequest | null
   /** Main-process projection outcome for the created request, when a Session initiated it. */
   readonly changeRequestOutput?:
     | { readonly ok: true }
-    | { readonly ok: false; readonly message: string }
+    | { readonly ok: false; readonly message: string; readonly retryPersisted: boolean }
 }
 
 export interface GitRunStackedActionFailure {

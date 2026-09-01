@@ -69,9 +69,23 @@ async function resolveCreatedMergeRequest(
   result: CliResult,
 ) {
   const resolved = await viewMergeRequest(projectPath, payload.headRef)
-  if (resolved.ok) return resolved
+  if (
+    resolved.ok &&
+    (resolved.changeRequest.state === 'open' || resolved.changeRequest.state === 'draft') &&
+    resolved.changeRequest.headRef === payload.headRef &&
+    (payload.baseRef === undefined || resolved.changeRequest.baseRef === payload.baseRef)
+  ) {
+    return resolved
+  }
   if (result.code !== 0) return classifyFailure(result)
-  return createdMergeRequestFromOutput(result, payload) ?? resolved
+  return (
+    createdMergeRequestFromOutput(result, payload) ?? {
+      ok: false,
+      code: 'unknown',
+      message:
+        'The merge request command succeeded, but the created request could not be verified.',
+    }
+  )
 }
 
 export const gitlabProvider: SourceControlProvider = {

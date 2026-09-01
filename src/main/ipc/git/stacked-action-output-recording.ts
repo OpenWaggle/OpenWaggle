@@ -33,6 +33,7 @@ function recordCommitOutput(result: GitRunStackedActionResult, sessionId: Sessio
         ...result,
         commitOutput: {
           ok: false as const,
+          retryPersisted: queued._tag === 'Right',
           message:
             queued._tag === 'Right'
               ? 'The commit succeeded, but it could not be added to this session Outputs yet. Summary will retry it automatically.'
@@ -76,6 +77,7 @@ function recordChangeRequestOutput(result: GitRunStackedActionResult, sessionId:
         ...result,
         changeRequestOutput: {
           ok: false as const,
+          retryPersisted: queued._tag === 'Right',
           message:
             queued._tag === 'Right'
               ? 'The change request was created, but it could not be added to this session Outputs yet. Summary will retry it automatically.'

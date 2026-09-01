@@ -82,9 +82,22 @@ async function resolveCreatedPullRequest(
   result: CliResult,
 ) {
   const resolved = await viewPullRequest(projectPath, payload.headRef)
-  if (resolved.ok) return resolved
+  if (
+    resolved.ok &&
+    (resolved.changeRequest.state === 'open' || resolved.changeRequest.state === 'draft') &&
+    resolved.changeRequest.headRef === payload.headRef &&
+    (payload.baseRef === undefined || resolved.changeRequest.baseRef === payload.baseRef)
+  ) {
+    return resolved
+  }
   if (result.code !== 0) return classifyFailure(result)
-  return createdPullRequestFromOutput(result, payload) ?? resolved
+  return (
+    createdPullRequestFromOutput(result, payload) ?? {
+      ok: false,
+      code: 'unknown',
+      message: 'The pull request command succeeded, but the created request could not be verified.',
+    }
+  )
 }
 
 export const githubProvider: SourceControlProvider = {

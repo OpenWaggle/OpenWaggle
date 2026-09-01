@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -146,7 +146,7 @@ export class OpenWaggleApp {
       if (options.forceProcessTermination) {
         canRemoveUserData = await this.forceCloseForCleanup()
       } else {
-        await this.closeForCleanup()
+        canRemoveUserData = await this.closeForCleanup()
       }
       if (canRemoveUserData) {
         await fs.rm(this.userDataDir, {
@@ -163,33 +163,37 @@ export class OpenWaggleApp {
     }
   }
 
-  private async closeForCleanup(): Promise<void> {
+  private async closeForCleanup(): Promise<boolean> {
     const closeOperation = this.close().catch(() => undefined)
-    if (await completesWithin(closeOperation, QA_GRACEFUL_CLOSE_MS)) return
+    if (await completesWithin(closeOperation, QA_GRACEFUL_CLOSE_MS)) return true
 
     console.warn('[electron-qa] graceful close timed out; terminating the temporary test app')
     this.terminateProcessTree()
-    await completesWithin(closeOperation, QA_FORCED_CLOSE_WAIT_MS)
+    const forcedClosed = await completesWithin(closeOperation, QA_FORCED_CLOSE_WAIT_MS)
+    if (!forcedClosed) {
+      console.warn(`[electron-qa] retaining disposable profile ${this.userDataDir}`)
+    }
+    return forcedClosed
   }
 
   private async forceCloseForCleanup(): Promise<boolean> {
     console.warn('[electron-qa] exiting the temporary test app without running quit handlers')
     const childProcess = this.app.process()
-    const processClosed = new Promise<void>((resolve) =>
-      childProcess.once('close', () => resolve()),
-    )
+    const processExited =
+      childProcess.exitCode !== null || childProcess.signalCode !== null
+        ? Promise.resolve()
+        : new Promise<void>((resolve) => childProcess.once('exit', () => resolve()))
     await this.app
       .evaluate(() => {
         setImmediate(() => process.exit(0))
       })
       .catch(() => undefined)
     this.disconnectNodeInspector()
-    if (await completesWithin(processClosed, QA_FORCED_CLOSE_WAIT_MS)) return true
+    if (await completesWithin(processExited, QA_FORCED_CLOSE_WAIT_MS)) return true
 
     console.warn('[electron-qa] immediate app exit timed out; forcing shell closure')
     this.terminateProcessTree(childProcess)
-    this.destroyProcessPipes(childProcess)
-    const forcedClosed = await completesWithin(processClosed, QA_FORCED_CLOSE_WAIT_MS)
+    const forcedClosed = await completesWithin(processExited, QA_FORCED_CLOSE_WAIT_MS)
     if (!forcedClosed) {
       console.warn(`[electron-qa] retaining disposable profile ${this.userDataDir}`)
     }
@@ -247,13 +251,6 @@ export class OpenWaggleApp {
     } catch {
       // The process may have exited while cleanup was capturing evidence.
     }
-  }
-
-  private destroyProcessPipes(childProcess: ChildProcess): void {
-    // ChildProcess emits "close" only after the process exits and every stdio
-    // pipe closes. Releasing these pipes lets Playwright remove its retained
-    // graceful-close callback even if a Windows shell fails to propagate EOF.
-    for (const stream of childProcess.stdio) stream?.destroy()
   }
 
   async desktopState() {

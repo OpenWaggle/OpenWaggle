@@ -4,7 +4,7 @@ import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { validatedImageBuffer } from '../../domain/session-resource-image'
-import { SessionResourceStoreError } from '../../errors'
+import { SessionResourceRepositoryError, SessionResourceStoreError } from '../../errors'
 import { SessionResourceImageFetcher } from '../../ports/session-resource-image-fetcher'
 import { SessionResourceImageValidator } from '../../ports/session-resource-image-validator'
 import type { UpsertSessionResourceInput } from '../../ports/session-resource-repository'
@@ -33,6 +33,7 @@ export function sessionResourceTestLayer(
     readonly listedResources?: readonly SessionResource[]
     readonly hasOccurrence?: boolean
     readonly rekeyedCanonicalKeys?: string[]
+    readonly upsertFails?: boolean
   } = {},
 ) {
   return Layer.mergeAll(
@@ -61,6 +62,14 @@ export function sessionResourceTestLayer(
       SessionResourceRepository.of({
         upsert: (input) => {
           upserts.push(input)
+          if (options.upsertFails) {
+            return Effect.fail(
+              new SessionResourceRepositoryError({
+                operation: 'upsert',
+                cause: new Error('Resource database unavailable'),
+              }),
+            )
+          }
           return Effect.succeed({
             ...input,
             ...(options.duplicateLocator

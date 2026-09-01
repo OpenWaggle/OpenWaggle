@@ -17,6 +17,15 @@ import {
   changeRequestActionInput,
   emptyFeatureBranchValidationMessage,
 } from './change-request-composer-model'
+import {
+  type CreatedRequest,
+  createdToast,
+  creationError,
+  outputRecordingError,
+  resolveBrowserUrl,
+  resolveChangeRequestComposerOutcome,
+  startsOnDefaultRef,
+} from './change-request-composer-outcome'
 
 interface ChangeRequestComposerProps {
   readonly session: SessionDetail
@@ -27,13 +36,13 @@ interface ChangeRequestComposerProps {
   readonly onCompleted: () => void
 }
 
-interface CreatedRequest {
-  readonly title: string
-  readonly url: string
-}
-
-function startsOnDefaultRef(status: VcsStatus | null) {
-  return status?.defaultRef != null && status.refName === status.defaultRef
+function showCreatedToast(
+  showToast: ReturnType<typeof useUIStore.getState>['showToast'],
+  shortLabel: string,
+  commitOutputMessage: string | null,
+) {
+  const toast = createdToast(shortLabel, commitOutputMessage)
+  showToast(toast.message, toast.variant)
 }
 
 function runComposerAction(
@@ -51,10 +60,6 @@ function runComposerAction(
     props.workingPath,
     changeRequestActionInput({ ...props, ...input }),
   )
-}
-
-function outputRecordingError(shortLabel: string) {
-  return `${shortLabel} was created, but it could not be added to this session's Outputs. Retry adding it without creating another ${shortLabel}.`
 }
 
 async function addCreatedRequestToOutputs(
@@ -84,16 +89,17 @@ function useChangeRequestComposer(
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fallbackUrl, setFallbackUrl] = useState<string | null>(null)
-  const [pendingResourceRecord, setPendingResourceRecord] = useState<CreatedRequest | null>(null)
+  const [createdRequest, setCreatedRequest] = useState<CreatedRequest | null>(null)
+  const [retryAuthorized, setRetryAuthorized] = useState(false)
+  const pendingResourceRecord = retryAuthorized ? createdRequest : null
   const showToast = useUIStore((state) => state.showToast)
   const queryClient = useQueryClient()
   const validationError = emptyFeatureBranchValidationMessage(
     { commitAndPush, createFeatureBranch, gitStatus: props.gitStatus, vcsStatus: props.vcsStatus },
     terminology.singular,
   )
-
   function updateField<T>(setter: (value: T) => void, value: T) {
-    if (pendingResourceRecord) return
+    if (createdRequest) return
     setFallbackUrl(null)
     setter(value)
   }
@@ -104,18 +110,18 @@ function useChangeRequestComposer(
     try {
       await addCreatedRequestToOutputs(props, request, queryClient)
     } catch {
-      setPendingResourceRecord(request)
+      setCreatedRequest(request)
+      setRetryAuthorized(true)
       setFallbackUrl(request.url)
       setError(outputRecordingError(terminology.shortLabel))
     } finally {
       setRunning(false)
     }
   }
-
   async function create(draft: boolean) {
     if (
       running ||
-      pendingResourceRecord ||
+      createdRequest ||
       validationError ||
       (createFeatureBranch && branchName.trim().length === 0)
     )
@@ -132,38 +138,37 @@ function useChangeRequestComposer(
         createFeatureBranch,
         draft,
       })
-      if (!result.ok) {
-        if (result.branch?.name) setBranchName(result.branch.name)
-        setFallbackUrl(result.fallbackUrl ?? null)
-        setError(result.message)
+      const outcome = resolveChangeRequestComposerOutcome(result)
+      if (outcome.kind === 'failed') {
+        if (outcome.branchName) setBranchName(outcome.branchName)
+        setFallbackUrl(outcome.fallbackUrl)
+        setError(outcome.message)
         return
       }
-      showToast(`${terminology.shortLabel} created.`, 'success')
-      if (result.changeRequest) {
-        const request = {
-          title: result.changeRequest.title,
-          url: result.changeRequest.url,
-        }
-        setFallbackUrl(request.url)
+      if (outcome.kind === 'request-output-failed') {
+        setFallbackUrl(outcome.request.url)
         props.onCompleted()
-        if (result.changeRequestOutput?.ok === false) {
-          setPendingResourceRecord(request)
-          setError(outputRecordingError(terminology.shortLabel))
-          return
-        }
+        setCreatedRequest(outcome.request)
+        setRetryAuthorized(outcome.retryPersisted)
+        setError(outcome.message)
+        return
+      }
+      if (outcome.kind === 'created-request') {
+        setFallbackUrl(outcome.request.url)
+        props.onCompleted()
         await queryClient.invalidateQueries({
           queryKey: sessionResourcesQueryKey(String(props.session.id)),
         })
-        void api.openExternal(request.url)
+        showCreatedToast(showToast, terminology.shortLabel, outcome.commitOutputMessage)
+        void api.openExternal(outcome.request.url)
         props.onClose()
         return
       }
+      showCreatedToast(showToast, terminology.shortLabel, outcome.commitOutputMessage)
       props.onCompleted()
       props.onClose()
     } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : `Could not create ${terminology.shortLabel}.`,
-      )
+      setError(creationError(cause, terminology.shortLabel))
     } finally {
       setRunning(false)
     }
@@ -181,18 +186,16 @@ function useChangeRequestComposer(
     setBranchName: (value: string) => updateField(setBranchName, value),
     running,
     error: validationError ?? error,
-    creationBlocked: validationError !== null || pendingResourceRecord !== null,
+    creationBlocked: validationError !== null || createdRequest !== null,
     fallbackUrl,
     pendingResourceRecord,
+    requestCreated: createdRequest !== null,
     create,
-    retryResourceRecord: () => {
-      if (pendingResourceRecord && !running) void recordCreatedRequest(pendingResourceRecord)
-    },
+    retryResourceRecord: () =>
+      pendingResourceRecord && !running
+        ? void recordCreatedRequest(pendingResourceRecord)
+        : undefined,
   }
-}
-
-function resolveBrowserUrl(fallbackUrl: string | null, vcsStatus: VcsStatus | null) {
-  return fallbackUrl ?? vcsStatus?.changeRequest?.url ?? null
 }
 
 export function ChangeRequestComposer(props: ChangeRequestComposerProps) {
@@ -267,7 +270,7 @@ export function ChangeRequestComposer(props: ChangeRequestComposerProps) {
             commitAndPush: composer.commitAndPush,
             gitStatus: props.gitStatus,
             error: composer.error,
-            disabled: composer.pendingResourceRecord !== null,
+            disabled: composer.requestCreated,
             onBranchNameChange: composer.setBranchName,
             onTitleChange: composer.setTitle,
             onDescriptionChange: composer.setDescription,
@@ -290,6 +293,7 @@ export function ChangeRequestComposer(props: ChangeRequestComposerProps) {
               (composer.createFeatureBranch && composer.branchName.trim().length === 0),
             onCreate: (draft) => void composer.create(draft),
             pendingResourceRecord: composer.pendingResourceRecord !== null,
+            requestCreated: composer.requestCreated,
             onRetryResourceRecord: composer.retryResourceRecord,
             retryButtonRef,
             browserUrl,

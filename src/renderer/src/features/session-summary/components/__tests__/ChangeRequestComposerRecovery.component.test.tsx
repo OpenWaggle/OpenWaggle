@@ -3,6 +3,7 @@ import type { VcsStatus } from '@shared/types/git'
 import type { SessionDetail } from '@shared/types/session'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useUIStore } from '@/shell/ui-store'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 import { ChangeRequestComposer } from '../ChangeRequestComposer'
 
@@ -59,6 +60,7 @@ function renderComposer() {
 
 describe('ChangeRequestComposer recovery', () => {
   beforeEach(() => {
+    useUIStore.setState({ toastMessage: null, toastData: null })
     runStackedGitAction.mockReset().mockResolvedValue({
       ok: true,
       action: 'create_pr',
@@ -72,6 +74,7 @@ describe('ChangeRequestComposer recovery', () => {
       },
       changeRequestOutput: {
         ok: false,
+        retryPersisted: true,
         message: 'The change request was created, but Outputs could not be updated.',
       },
     })
@@ -103,7 +106,7 @@ describe('ChangeRequestComposer recovery', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create PR' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      "PR was created, but it could not be added to this session's Outputs.",
+      'The change request was created, but Outputs could not be updated.',
     )
     expect(screen.queryByRole('button', { name: 'Create PR' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Open PR in browser' })).toBeEnabled()
@@ -119,6 +122,92 @@ describe('ChangeRequestComposer recovery', () => {
     expect(runStackedGitAction).toHaveBeenCalledOnce()
     expect(callbacks.onCompleted).toHaveBeenCalledOnce()
     expect(callbacks.onClose).toHaveBeenCalledOnce()
+  })
+
+  it('does not offer an unauthorized retry or duplicate creation when retry persistence failed', async () => {
+    runStackedGitAction.mockResolvedValue({
+      ok: true,
+      action: 'create_pr',
+      branch: { status: 'unchanged', name: null },
+      changeRequest: {
+        title: SESSION.title,
+        url: 'https://github.com/openwaggle/openwaggle/pull/1',
+        baseRef: 'main',
+        headRef: 'codex/existing-branch',
+        state: 'open',
+      },
+      changeRequestOutput: {
+        ok: false,
+        retryPersisted: false,
+        message:
+          'The change request was created, but its Output and durable retry could not be recorded.',
+      },
+    })
+    renderComposer()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create PR' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'durable retry could not be recorded',
+    )
+    expect(screen.queryByRole('button', { name: 'Retry adding PR to Outputs' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Create PR' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Open PR in browser' })).toBeEnabled()
+    expect(runStackedGitAction).toHaveBeenCalledOnce()
+  })
+
+  it('surfaces a failed commit Output projection after the pull request succeeds', async () => {
+    runStackedGitAction.mockResolvedValue({
+      ok: true,
+      action: 'commit_push_pr',
+      branch: { status: 'created', name: 'codex/existing-branch' },
+      commit: { commitHash: 'abc123', summary: SESSION.title },
+      commitOutput: {
+        ok: false,
+        retryPersisted: false,
+        message: 'The commit succeeded, but its Output and durable retry could not be recorded.',
+      },
+      changeRequest: {
+        title: SESSION.title,
+        url: 'https://github.com/openwaggle/openwaggle/pull/1',
+        baseRef: 'main',
+        headRef: 'codex/existing-branch',
+        state: 'open',
+      },
+      changeRequestOutput: { ok: true },
+    })
+    const callbacks = renderComposer()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create PR' }))
+
+    await waitFor(() => expect(callbacks.onClose).toHaveBeenCalledOnce())
+    expect(useUIStore.getState().toastData).toEqual({
+      message: 'The commit succeeded, but its Output and durable retry could not be recorded.',
+      variant: 'error',
+    })
+    expect(openExternal).toHaveBeenCalledWith('https://github.com/openwaggle/openwaggle/pull/1')
+  })
+
+  it('reports both a later PR failure and the earlier commit Output failure', async () => {
+    runStackedGitAction.mockResolvedValue({
+      ok: false,
+      phase: 'pr',
+      code: 'change-request-failed',
+      message: 'GitHub authentication is required.',
+      commit: { commitHash: 'abc123', summary: SESSION.title },
+      commitOutput: {
+        ok: false,
+        retryPersisted: true,
+        message: 'The commit Output will be retried automatically.',
+      },
+    })
+    renderComposer()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create PR' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'GitHub authentication is required. The commit Output will be retried automatically.',
+    )
   })
 
   it('keeps the create control focused and announces progress while creating', async () => {
