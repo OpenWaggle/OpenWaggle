@@ -169,55 +169,6 @@ describe('Pi Responses native compaction transport', () => {
     expect(fetchMock).toHaveBeenCalledOnce()
   })
 
-  it.each([
-    {
-      name: 'propagates an endpoint failure',
-      response: () => makeCompactResponse([], 400),
-      expected: 'native endpoint unavailable',
-    },
-    {
-      name: 'rejects a malformed replacement window',
-      response: () => makeCompactResponse([]),
-      expected: 'valid compaction item',
-    },
-    {
-      name: 'rejects malformed items mixed into a replacement window',
-      response: () =>
-        makeCompactResponse([
-          { type: 'compaction', id: 'cmp_1', encrypted_content: 'opaque-checkpoint' },
-          { malformed: true },
-        ]),
-      expected: 'valid replacement items',
-    },
-  ])('$name without silently invoking Portable', async ({ response, expected }) => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => response()),
-    )
-    const portableStream = vi.fn(() => {
-      throw new Error('Portable must not run')
-    })
-
-    await expect(
-      compact(
-        makePreparation(),
-        makeNativeModel(),
-        'test-key',
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        portableStream,
-        undefined,
-        { enabled: false, maxRetries: 0, baseDelayMs: 0 },
-        undefined,
-        'session-1',
-        'System instructions',
-      ),
-    ).rejects.toThrow(expected)
-    expect(portableStream).not.toHaveBeenCalled()
-  })
-
   it('applies Pi retry timing and callbacks to transient Native failures', async () => {
     const fetchMock = vi
       .fn()

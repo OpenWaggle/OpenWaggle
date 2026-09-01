@@ -235,7 +235,7 @@ index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..6ef5600927bafe257ab9ee5f92019f9d
  //# sourceMappingURL=compaction.d.ts.map
 \ No newline at end of file
 diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
-index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..8ef98832fe8a702e1fde675b7eae7fd4ffe893b5 100644
+index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..c669b7fb4df2f575aad5586202a05c3f92fc5d50 100644
 --- a/dist/core/compaction/compaction.js
 +++ b/dist/core/compaction/compaction.js
 @@ -4,7 +4,8 @@
@@ -485,7 +485,67 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..8ef98832fe8a702e1fde675b7eae7fd4
          turnPrefixMessages,
          isSplitTurn: cutPoint.isSplitTurn,
          tokensBefore,
-@@ -606,7 +625,44 @@ Be concise. Focus on what's needed to understand the kept suffix.`;
+@@ -598,6 +617,59 @@ Summarize the prefix to provide context for the retained suffix:
+ - [Information needed to understand the retained recent work]
+ 
+ Be concise. Focus on what's needed to understand the kept suffix.`;
++const NATIVE_REPLACEMENT_IMAGE_DETAILS = new Set(["low", "high", "auto", "original"]);
++const NATIVE_REPLACEMENT_FILE_DETAILS = new Set(["auto", "low", "high"]);
++const NATIVE_REPLACEMENT_STATUSES = new Set(["in_progress", "completed", "incomplete"]);
++function isRecord(value) {
++    return value !== null && typeof value === "object" && !Array.isArray(value);
++}
++function hasOptionalString(record, key, nullable = false) {
++    return (record[key] === undefined ||
++        (nullable && record[key] === null) ||
++        typeof record[key] === "string");
++}
++function isNativeReplacementContent(content) {
++    if (!isRecord(content) || typeof content.type !== "string")
++        return false;
++    switch (content.type) {
++        case "input_text":
++            return typeof content.text === "string";
++        case "input_image":
++            return (NATIVE_REPLACEMENT_IMAGE_DETAILS.has(content.detail) &&
++                hasOptionalString(content, "file_id", true) &&
++                hasOptionalString(content, "image_url", true) &&
++                (typeof content.file_id === "string" || typeof content.image_url === "string"));
++        case "input_file":
++            return ((content.detail === undefined || NATIVE_REPLACEMENT_FILE_DETAILS.has(content.detail)) &&
++                hasOptionalString(content, "file_data") &&
++                hasOptionalString(content, "file_id", true) &&
++                hasOptionalString(content, "file_url") &&
++                hasOptionalString(content, "filename") &&
++                (typeof content.file_data === "string" ||
++                    typeof content.file_id === "string" ||
++                    typeof content.file_url === "string"));
++        default:
++            return false;
++    }
++}
++function isNativeReplacementMessage(item) {
++    return (item.type === "message" &&
++        typeof item.id === "string" &&
++        item.role === "user" &&
++        (item.status === undefined || NATIVE_REPLACEMENT_STATUSES.has(item.status)) &&
++        Array.isArray(item.content) &&
++        item.content.length > 0 &&
++        item.content.every(isNativeReplacementContent));
++}
++function isNativeCompactionItem(item) {
++    return (item.type === "compaction" &&
++        typeof item.id === "string" &&
++        typeof item.encrypted_content === "string" &&
++        hasOptionalString(item, "created_by"));
++}
++function isNativeReplacementItem(item) {
++    return isRecord(item) && (isNativeCompactionItem(item) || isNativeReplacementMessage(item));
++}
+ /**
+  * Generate summaries for compaction using prepared data.
+  * Returns CompactionResult - SessionManager adds uuid/parentUuid when saving.
+@@ -606,7 +678,46 @@ Be concise. Focus on what's needed to understand the kept suffix.`;
   * @param customInstructions - Optional custom focus for the summary
   * @param sessionId - Optional routing session ID forwarded without enabling prompt caching
   */
@@ -508,11 +568,13 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..8ef98832fe8a702e1fde675b7eae7fd4
 +            retryCallbacks: callbacks,
 +        });
 +        if (!Array.isArray(response.output) ||
-+            !response.output.some((item) => item && typeof item === "object" && item.type === "compaction" &&
-+                typeof item.encrypted_content === "string")) {
++            !response.output.some((item) => isRecord(item) && isNativeCompactionItem(item))) {
 +            throw new Error("Native compaction response did not contain a valid compaction item");
 +        }
-+        if (!response.output.every((item) => item && typeof item === "object" && typeof item.type === "string")) {
++        const compactionItemCount = response.output.filter((item) => isRecord(item) && isNativeCompactionItem(item)).length;
++        if (!response.output.every(isNativeReplacementItem) ||
++            compactionItemCount !== 1 ||
++            !isNativeCompactionItem(response.output.at(-1))) {
 +            throw new Error("Native compaction response did not contain only valid replacement items");
 +        }
 +        return {
@@ -531,7 +593,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..8ef98832fe8a702e1fde675b7eae7fd4
      const { firstKeptEntryId, messagesToSummarize, turnPrefixMessages, isSplitTurn, tokensBefore, previousSummary, fileOps, settings, } = preparation;
      // Generate summaries and merge into one
      let summary;
-@@ -641,7 +697,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
+@@ -641,7 +752,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
          firstKeptEntryId,
          tokensBefore,
          usage: summaryUsage,
@@ -618,7 +680,7 @@ index 69923d6ba8d48ab2508c49d14fa054f28d5b4a2e..5a9982b7832119bc180e538dc085c155
                      role: "user",
                      content: [
 diff --git a/dist/core/sdk.js b/dist/core/sdk.js
-index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..8a61e059131e756282545e1248befc0d28c78e41 100644
+index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..70be6132405d52464a0a6a64a2bfce28e86fd844 100644
 --- a/dist/core/sdk.js
 +++ b/dist/core/sdk.js
 @@ -11,7 +11,7 @@ import { findInitialModel } from "./model-resolver.js";
@@ -687,7 +749,7 @@ index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..8a61e059131e756282545e1248befc0d
              sessionManager.appendThinkingLevelChange(thinkingLevel);
          }
 diff --git a/dist/core/session-manager.d.ts b/dist/core/session-manager.d.ts
-index 8cdfbdec42f696b8cd6b762a92180a81ec142433..99ae44db12abe7faee77e1f6188fc83eb7d8acce 100644
+index 8cdfbdec42f696b8cd6b762a92180a81ec142433..4a37c6fd95873491fccbe456d3a7dcab2e32b644 100644
 --- a/dist/core/session-manager.d.ts
 +++ b/dist/core/session-manager.d.ts
 @@ -1,5 +1,5 @@
@@ -751,7 +813,7 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..99ae44db12abe7faee77e1f6188fc83e
       * Get session header.
       */
 diff --git a/dist/core/session-manager.js b/dist/core/session-manager.js
-index f887c04976596f8956bc04c16ca59c4030e09f92..f992c8d1aedf07dadf4ea612f34e185fce070f17 100644
+index f887c04976596f8956bc04c16ca59c4030e09f92..05f75a5773c5001a0c6b0ecbb8cb5621e22f01bd 100644
 --- a/dist/core/session-manager.js
 +++ b/dist/core/session-manager.js
 @@ -183,7 +183,7 @@ export function sessionEntryToContextMessages(entry) {
