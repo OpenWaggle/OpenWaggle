@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -13,6 +12,10 @@ const QA_DIAGNOSTIC_TEXT_LIMIT = 1_000
 const QA_SCREENSHOT_SETTLE_MS = 250
 const QA_GRACEFUL_CLOSE_MS = 10_000
 const QA_FORCED_CLOSE_WAIT_MS = 5_000
+
+interface CleanupOptions {
+  readonly forceProcessTermination?: boolean
+}
 
 async function completesWithin(operation: Promise<unknown>, timeoutMs: number) {
   let timeout: ReturnType<typeof setTimeout> | undefined
@@ -127,7 +130,7 @@ export class OpenWaggleApp {
     }, response)
   }
 
-  async cleanup(): Promise<void> {
+  async cleanup(options: CleanupOptions = {}): Promise<void> {
     let evidenceError: unknown
     try {
       const directory = await evidenceDirectory()
@@ -138,7 +141,11 @@ export class OpenWaggleApp {
     } catch (error) {
       evidenceError = error
     } finally {
-      await this.closeForCleanup()
+      if (options.forceProcessTermination) {
+        await this.forceCloseForCleanup()
+      } else {
+        await this.closeForCleanup()
+      }
       await fs.rm(this.userDataDir, {
         recursive: true,
         force: true,
@@ -161,26 +168,18 @@ export class OpenWaggleApp {
     await completesWithin(closeOperation, QA_FORCED_CLOSE_WAIT_MS)
   }
 
+  private async forceCloseForCleanup(): Promise<void> {
+    console.warn('[electron-qa] force-terminating the temporary test app before closing Playwright')
+    await this.terminateProcessTree()
+    await completesWithin(this.close().catch(() => undefined), QA_FORCED_CLOSE_WAIT_MS)
+  }
+
   private async terminateProcessTree(): Promise<void> {
     const childProcess = this.app.process()
-    if (process.platform === 'win32' && childProcess.pid) {
-      try {
-        // A synchronous, bounded call cannot leave an execFile callback or pipe handle
-        // keeping the Playwright worker alive after the temporary app is gone.
-        execFileSync('taskkill.exe', ['/PID', String(childProcess.pid), '/T', '/F'], {
-          stdio: 'ignore',
-          timeout: QA_FORCED_CLOSE_WAIT_MS,
-          windowsHide: true,
-        })
-        return
-      } catch {
-        // Fall through to the wrapper-process kill when taskkill cannot complete.
-      }
-    }
     try {
       childProcess.kill()
     } catch {
-      // The process may have exited between the bounded taskkill and this fallback.
+      // The process may have exited while cleanup was capturing evidence.
     }
   }
 

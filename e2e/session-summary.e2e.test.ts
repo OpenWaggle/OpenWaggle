@@ -579,7 +579,7 @@ test('Session Summary exposes complete GitHub PR and GitLab MR composition', asy
         .getByRole('button', { name: GITLAB_CHANGE_REQUEST_TITLE, exact: true }),
     ).toBeVisible()
   } finally {
-    await app.cleanup()
+    await app.cleanup({ forceProcessTermination: process.platform === 'win32' })
     await fs.rm(cliBinPath, { recursive: true, force: true })
   }
 })
