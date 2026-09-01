@@ -222,7 +222,10 @@ function registerAgentCompactionHandlers() {
 
         const abortController = new AbortController()
         activeCompactions.register(sessionId, abortController, { model })
-        let delayedSuccessfulCompactionEnd: AgentTransportEvent | null = null
+        let delayedSuccessfulCompactionEnd: Extract<
+          AgentTransportEvent,
+          { type: 'compaction_end' }
+        > | null = null
 
         return yield* compactAgentSession({
           sessionId,
@@ -237,6 +240,19 @@ function registerAgentCompactionHandlers() {
             emitTransportEvent(sessionId, event)
           },
         }).pipe(
+          Effect.tapError((error) =>
+            Effect.sync(() => {
+              if (!delayedSuccessfulCompactionEnd) return
+              emitTransportEvent(sessionId, {
+                ...delayedSuccessfulCompactionEnd,
+                aborted: true,
+                willRetry: false,
+                errorMessage: error instanceof Error ? error.message : String(error),
+                timestamp: Date.now(),
+              })
+              delayedSuccessfulCompactionEnd = null
+            }),
+          ),
           Effect.tap(() =>
             Effect.sync(() => {
               if (delayedSuccessfulCompactionEnd) {
