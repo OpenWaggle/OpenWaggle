@@ -100,6 +100,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Incompatible native-checkpoint reconstruction must be fitted again at the provider-call boundary with the active system prompt, serialized tool schemas, pending messages, and output allowance reserved. A fixed percentage alone can overflow the first request after switching to a smaller model.
 - Compaction progress belongs in the transcript, not in a composer dock. Match Codex's running and completed copy, retain manual-versus-automatic reason through Pi session projection, and use motion only on the active label with a reduced-motion fallback.
 - Keep the message queue generic during compaction. A normal send remains queued; only an explicit Steer moves that item into the transcript as a pending preview, and Pi's live run control delivers it with `sendUserMessage(..., { deliverAs: 'steer' })` after compaction finishes without cancelling or replacing the active turn.
+- Standalone manual compactions are main-owned active activities even though they have no agent stream buffer. Include them in active-activity restoration, rebuild their running transcript state after renderer remounts, and emit the normal run-completed settlement after the compaction registry entry is released.
 - These changes require Pi core/provider patches, not an extension. On each Pi upgrade, regenerate both pnpm patches and re-audit generated model capability metadata, cold resume, repeated native replay, malformed native output, portable tail fit, and tool-loop scheduling.
 
 ## Renderer And Session Memory

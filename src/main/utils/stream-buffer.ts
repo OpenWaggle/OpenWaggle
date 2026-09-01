@@ -251,6 +251,7 @@ export function getStreamBuffer(sessionId: SessionId): BackgroundRunSnapshot | n
   const buffer = activeBuffers.get(sessionId)
   if (!buffer) return null
   return {
+    activity: 'agent-run',
     sessionId,
     model: buffer.model,
     mode: buffer.mode,
@@ -265,6 +266,7 @@ export function listStreamBuffers(): ActiveRunInfo[] {
   const result: ActiveRunInfo[] = []
   for (const [sessionId, buffer] of activeBuffers) {
     result.push({
+      activity: 'agent-run',
       sessionId,
       model: buffer.model,
       mode: buffer.mode,

@@ -49,6 +49,7 @@ import {
   cancelAllSessionRuns,
   cancelSessionRuns,
   hasAnyActiveRun,
+  listActiveCompactions,
 } from './active-agent-runs'
 import { describeSendOutcome, handleRunResult } from './agent-run-result'
 import { registerAgentSteeringHandler } from './agent-steering-handler'
@@ -217,7 +218,9 @@ function registerAgentStateHandlers() {
     Effect.sync(() => getStreamBuffer(sessionId)),
   )
 
-  typedHandle('agent:list-active-runs', () => Effect.sync(() => listStreamBuffers()))
+  typedHandle('agent:list-active-runs', () =>
+    Effect.sync(() => [...listStreamBuffers(), ...listActiveCompactions()]),
+  )
 
   typedHandle('agent:get-context-usage', (_event, sessionId: SessionId, model: SupportedModelId) =>
     getAgentContextUsage({ sessionId, model }),
@@ -236,7 +239,11 @@ function registerAgentCompactionHandlers() {
         }
 
         const abortController = new AbortController()
-        activeCompactions.register(sessionId, abortController, { model })
+        activeCompactions.register(sessionId, abortController, {
+          model,
+          reason: 'manual',
+          startedAt: Date.now(),
+        })
         let delayedSuccessfulCompactionEnd: Extract<
           AgentTransportEvent,
           { type: 'compaction_end' }
@@ -277,7 +284,9 @@ function registerAgentCompactionHandlers() {
           ),
           Effect.ensuring(
             Effect.sync(() => {
-              activeCompactions.deleteIfCurrent(sessionId, abortController)
+              if (activeCompactions.deleteIfCurrent(sessionId, abortController)) {
+                emitRunCompleted(sessionId)
+              }
             }),
           ),
         )

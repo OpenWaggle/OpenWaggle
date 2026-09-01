@@ -22,6 +22,7 @@ describe('useAgentChat reconnect', () => {
   it('keeps an optimistic user message when reconnecting after a route remount', async () => {
     hasActiveRunMock.mockReturnValue(true)
     apiMock.getBackgroundRun.mockResolvedValue({
+      activity: 'agent-run',
       sessionId: SessionId('session-1'),
       model: SupportedModelId('claude-sonnet-4-5'),
       mode: 'classic',

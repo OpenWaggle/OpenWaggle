@@ -10,6 +10,11 @@ import { applyAgentTransportEvent } from '@/features/chat/lib/chat-stream-state'
 import type { AgentCompactionStatus } from '@/features/chat/lib/compaction-lifecycle'
 import { api } from '@/shared/lib/ipc'
 import { addActiveRunToState, removeActiveRunFromState } from './background-run-active-state'
+import {
+  isActiveCompaction,
+  isAgentRun,
+  restoreCompactionSnapshots,
+} from './background-run-activity-restore'
 import { applyCompactionSnapshotEvent } from './background-run-compaction'
 import {
   interruptedFirstSendLaunch,
@@ -159,6 +164,16 @@ function initialBackgroundRunState() {
   }
 }
 
+async function loadActiveActivityState() {
+  const activities = await api.listActiveRuns()
+  const runs = activities.filter(isAgentRun)
+  return {
+    ids: new Set<SessionId>(activities.map((activity) => activity.sessionId)),
+    compactions: activities.filter(isActiveCompaction),
+    snapshots: await Promise.all(runs.map((run) => api.getBackgroundRun(run.sessionId))),
+  }
+}
+
 export const useBackgroundRunStore = create<BackgroundRunState>((set, get) => ({
   ...initialBackgroundRunState(),
 
@@ -280,16 +295,17 @@ export const useBackgroundRunStore = create<BackgroundRunState>((set, get) => ({
   },
 
   async initialize() {
-    const runs = await api.listActiveRuns()
-    const ids = new Set<SessionId>(runs.map((r) => r.sessionId))
-    const snapshots = await Promise.all(runs.map((run) => api.getBackgroundRun(run.sessionId)))
+    const { ids, compactions, snapshots } = await loadActiveActivityState()
     const persisted = loadRecoverableBackgroundRuns()
     const launches = mergeLatestLaunches(launchesFromSnapshots(snapshots), persisted.launches)
     const reconciled = await reconcilePersistedFirstSends(ids, launches, persisted.recoveries)
     set((state) => {
       const next = mergeInitializedRecoveryState(state, ids, reconciled)
       persistRecoveryState(next.worktreeLaunchBySessionId, next.firstSendRecoveryBySessionId)
-      return next
+      return {
+        ...next,
+        renderSnapshotsBySessionId: restoreCompactionSnapshots(state, compactions),
+      }
     })
   },
 }))

@@ -43,16 +43,28 @@ export interface WorktreeLaunchEventPayload {
   readonly launch: WorktreeLaunchSnapshot | null
 }
 
-/** Lightweight info about an active background run (no message content). */
-export interface ActiveRunInfo {
+/** Lightweight info about an active agent run (no message content). */
+export interface ActiveAgentRunInfo {
+  readonly activity: 'agent-run'
   readonly sessionId: SessionId
   readonly model: SupportedModelId
   readonly mode: RunMode
   readonly startedAt: number
 }
 
+/** Lightweight info about a standalone manual compaction. */
+export interface ActiveCompactionInfo {
+  readonly activity: 'compaction'
+  readonly sessionId: SessionId
+  readonly model: SupportedModelId
+  readonly reason: 'manual'
+  readonly startedAt: number
+}
+
+export type ActiveRunInfo = ActiveAgentRunInfo | ActiveCompactionInfo
+
 /** Full snapshot including accumulated message parts for reconnection. */
-export interface BackgroundRunSnapshot extends ActiveRunInfo {
+export interface BackgroundRunSnapshot extends ActiveAgentRunInfo {
   readonly messageId?: string
   readonly parts: readonly MessagePart[]
   readonly worktreeLaunch?: WorktreeLaunchSnapshot

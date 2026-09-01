@@ -44,6 +44,14 @@ function compactHandler() {
   return handler
 }
 
+function listActiveRunsHandler() {
+  const handler = mocks.typedHandle.mock.calls.find(
+    (call) => call[0] === 'agent:list-active-runs',
+  )?.[1]
+  if (typeof handler !== 'function') throw new Error('Expected list-active-runs handler')
+  return handler
+}
+
 describe('agent manual compaction IPC lifecycle', () => {
   beforeEach(() => {
     cancelAllSessionRuns()
@@ -82,6 +90,33 @@ describe('agent manual compaction IPC lifecycle', () => {
         errorMessage: 'snapshot persistence failed',
       }),
     )
+    expect(activeCompactions.has(SESSION_ID)).toBe(false)
+  })
+
+  it('lists a manual compaction as active until it settles', async () => {
+    let finishCompaction: (() => void) | undefined
+    mocks.compactAgentSession.mockImplementation((input) =>
+      Effect.async<void>((resume) => {
+        input.onEvent({ type: 'compaction_start', reason: 'manual', timestamp: 7 })
+        finishCompaction = () => resume(Effect.void)
+      }),
+    )
+    const compact = compactHandler()
+    const compactPromise = Effect.runPromise(compact({}, SESSION_ID, MODEL))
+    await vi.waitFor(() => expect(activeCompactions.has(SESSION_ID)).toBe(true))
+
+    const activities = Effect.runSync(listActiveRunsHandler()())
+
+    expect(activities).toContainEqual({
+      activity: 'compaction',
+      sessionId: SESSION_ID,
+      model: MODEL,
+      reason: 'manual',
+      startedAt: expect.any(Number),
+    })
+
+    finishCompaction?.()
+    await compactPromise
     expect(activeCompactions.has(SESSION_ID)).toBe(false)
   })
 })

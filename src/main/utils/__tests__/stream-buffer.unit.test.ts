@@ -36,9 +36,16 @@ describe('stream-buffer', () => {
     startStreamBuffer(SESSION_ID, MODEL, 'classic')
 
     expect(listStreamBuffers()).toEqual([
-      { sessionId: SESSION_ID, model: MODEL, mode: 'classic', startedAt: STARTED_AT.getTime() },
+      {
+        activity: 'agent-run',
+        sessionId: SESSION_ID,
+        model: MODEL,
+        mode: 'classic',
+        startedAt: STARTED_AT.getTime(),
+      },
     ])
     expect(getStreamBuffer(SESSION_ID)).toEqual({
+      activity: 'agent-run',
       sessionId: SESSION_ID,
       model: MODEL,
       mode: 'classic',

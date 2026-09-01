@@ -1,4 +1,4 @@
-import { SessionId } from '@shared/types/brand'
+import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { IpcEventChannelMap } from '@shared/types/ipc-events'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,15 +10,20 @@ type AgentEventHandler = (payload: AgentEventPayload) => void
 
 const apiMock = vi.hoisted(() => {
   let agentEventHandler: AgentEventHandler | null = null
+  let runCompletedHandler: ((payload: { sessionId: typeof SESSION_ID }) => void) | null = null
   return {
     getAgentEventHandler: () => agentEventHandler,
+    getRunCompletedHandler: () => runCompletedHandler,
     getBackgroundRun: vi.fn().mockResolvedValue(null),
     listActiveRuns: vi.fn(),
     onAgentEvent: vi.fn((handler: AgentEventHandler) => {
       agentEventHandler = handler
       return vi.fn()
     }),
-    onRunCompleted: vi.fn(() => vi.fn()),
+    onRunCompleted: vi.fn((handler: (payload: { sessionId: typeof SESSION_ID }) => void) => {
+      runCompletedHandler = handler
+      return vi.fn()
+    }),
   }
 })
 
@@ -73,6 +78,36 @@ describe('useBackgroundRunMonitor compaction lifecycle', () => {
     })
 
     expect(useBackgroundRunStore.getState().hasActiveRun(SESSION_ID)).toBe(true)
+    unmount()
+  })
+
+  it('restores a manual compaction across remount and settles it on completion', async () => {
+    apiMock.listActiveRuns.mockResolvedValue([
+      {
+        activity: 'compaction',
+        sessionId: SESSION_ID,
+        model: SupportedModelId('openai/gpt-5.4'),
+        reason: 'manual',
+        startedAt: 7,
+      },
+    ])
+
+    const { unmount } = renderHook(() => useBackgroundRunMonitor())
+
+    await vi.waitFor(() => {
+      expect(useBackgroundRunStore.getState().hasActiveRun(SESSION_ID)).toBe(true)
+      expect(
+        useBackgroundRunStore.getState().getRunRenderSnapshot(SESSION_ID)?.compactionStatus,
+      ).toMatchObject({
+        type: 'compacting',
+        reason: 'manual',
+        timeline: [{ id: '7:0', phase: 'running' }],
+      })
+    })
+
+    act(() => apiMock.getRunCompletedHandler()?.({ sessionId: SESSION_ID }))
+
+    expect(useBackgroundRunStore.getState().hasActiveRun(SESSION_ID)).toBe(false)
     unmount()
   })
 })
