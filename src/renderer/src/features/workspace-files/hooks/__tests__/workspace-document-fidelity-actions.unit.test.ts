@@ -182,6 +182,7 @@ describe('workspace document fidelity actions', () => {
 
   it('serializes concurrent line-ending normalization requests', async () => {
     const firstNormalization = Promise.withResolvers<WorkspaceDocumentApplyResult>()
+    const secondNormalization = Promise.withResolvers<WorkspaceDocumentApplyResult>()
     const file = fromPartial<WorkspaceTextFileReadResult>({
       path: 'src/file.ts',
       basename: 'file.ts',
@@ -190,6 +191,7 @@ describe('workspace document fidelity actions', () => {
       revision: 'saved-revision',
       fidelity: { encoding: 'utf-8', lineEnding: 'lf' },
     })
+    let liveContent = file.content
     const context = fromPartial<WorkspaceSaveQueueContext>({
       projectPath: '/project',
       file,
@@ -198,7 +200,7 @@ describe('workspace document fidelity actions', () => {
       persistedVersion: { current: file.documentVersion },
       nextVersion: { current: file.documentVersion + 1 },
       latestContent: { current: file.content },
-      latestSnapshot: { current: null },
+      latestSnapshot: { current: () => liveContent },
       savedContent: { current: file.content },
       saving: { current: false },
       inFlight: { current: null },
@@ -214,18 +216,11 @@ describe('workspace document fidelity actions', () => {
       setNormalizationRequired: vi.fn(),
       setEncoding: vi.fn(),
       setLineEnding: vi.fn(),
+      setChangeSequence: vi.fn(),
     })
     applyWorkspaceDocumentEdits
       .mockReturnValueOnce(firstNormalization.promise)
-      .mockResolvedValueOnce({
-        status: 'saved',
-        version: 4,
-        size: file.content.length,
-        modifiedAt: 4,
-        revision: 'crlf-revision',
-        encoding: 'utf-8',
-        lineEnding: 'crlf',
-      })
+      .mockReturnValueOnce(secondNormalization.promise)
 
     const normalizingToLf = normalizeWorkspaceLineEndings(context, 'lf')
     await vi.waitFor(() => expect(applyWorkspaceDocumentEdits).toHaveBeenCalledOnce())
@@ -242,6 +237,22 @@ describe('workspace document fidelity actions', () => {
       lineEnding: 'lf',
     })
     await normalizingToLf
+    await vi.waitFor(() => expect(applyWorkspaceDocumentEdits).toHaveBeenCalledTimes(2))
+    liveContent = `${file.content}typed while normalizing`
+    recordWorkspaceDocumentChange(
+      context,
+      [{ rangeOffset: file.content.length, rangeLength: 0, text: 'typed while normalizing' }],
+      () => liveContent,
+    )
+    secondNormalization.resolve({
+      status: 'saved',
+      version: 4,
+      size: file.content.length,
+      modifiedAt: 4,
+      revision: 'crlf-revision',
+      encoding: 'utf-8',
+      lineEnding: 'crlf',
+    })
     await normalizingToCrlf
 
     expect(applyWorkspaceDocumentEdits).toHaveBeenCalledTimes(2)
@@ -255,5 +266,19 @@ describe('workspace document fidelity actions', () => {
       }),
     )
     expect(context.revision.current).toBe('crlf-revision')
+    expect(context.latestContent.current).toBe(liveContent)
+    expect(context.savedContent.current).toBe(file.content)
+    expect(context.pending.current).toEqual([
+      {
+        version: 5,
+        changes: [
+          {
+            rangeOffset: 0,
+            rangeLength: file.content.length,
+            text: liveContent,
+          },
+        ],
+      },
+    ])
   })
 })

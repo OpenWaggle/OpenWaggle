@@ -15,6 +15,8 @@ import {
   type WorkspaceSaveQueueContext,
 } from './workspace-save-queue'
 
+const POST_NORMALIZATION_NEXT_VERSION_OFFSET = 2
+
 export async function normalizeWorkspaceLineEndings(
   context: WorkspaceSaveQueueContext,
   lineEnding: 'lf' | 'crlf',
@@ -55,20 +57,41 @@ async function applyWorkspaceLineEndingNormalization(
   })
   matchBy(result, 'status')
     .with('saved', (saved) => {
+      const latestContent = captureWorkspaceDocumentSnapshot(context)
+      const hasPostNormalizationEdits = latestContent !== currentContent
       context.revision.current = saved.revision
       context.persistedVersion.current = saved.version
-      context.nextVersion.current = saved.version + 1
-      context.pending.current = []
-      context.latestContent.current = normalized
+      context.nextVersion.current =
+        saved.version + (hasPostNormalizationEdits ? POST_NORMALIZATION_NEXT_VERSION_OFFSET : 1)
+      context.pending.current = hasPostNormalizationEdits
+        ? [
+            {
+              version: saved.version + 1,
+              changes: [
+                {
+                  rangeOffset: 0,
+                  rangeLength: normalized.length,
+                  text: latestContent,
+                },
+              ],
+            },
+          ]
+        : []
+      context.latestContent.current = hasPostNormalizationEdits ? latestContent : normalized
       context.savedContent.current = normalized
       context.setEditorRevision(saved.revision)
       context.conflict.current = false
-      context.setContent(normalized)
+      context.setContent(hasPostNormalizationEdits ? latestContent : normalized)
       context.setSavedContent(normalized)
-      context.setStatus('saved')
+      context.setStatus(hasPostNormalizationEdits ? 'dirty' : 'saved')
       context.setErrorMessage(null)
       context.setNormalizationRequired(false)
-      removeDraftJournal(window.localStorage, context.projectPath, context.file.path)
+      if (hasPostNormalizationEdits) {
+        persistPendingJournal(context)
+        context.setChangeSequence((current) => current + 1)
+      } else {
+        removeDraftJournal(window.localStorage, context.projectPath, context.file.path)
+      }
       context.queryClient.setQueryData(
         queryKeys.workspaceFile(context.projectPath, context.file.path),
         {

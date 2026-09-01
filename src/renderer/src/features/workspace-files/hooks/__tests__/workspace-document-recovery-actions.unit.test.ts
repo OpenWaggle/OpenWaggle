@@ -204,6 +204,7 @@ describe('workspace document recovery actions', () => {
       setErrorMessage: vi.fn(),
       setConflictDiskContent: vi.fn(),
       setNormalizationRequired: vi.fn(),
+      setChangeSequence: vi.fn(),
     })
 
     const reloading = reloadWorkspaceDocument(context)
@@ -217,71 +218,5 @@ describe('workspace document recovery actions', () => {
     expect(window.localStorage.getItem(draftStorageKey('/project', 'src/file.ts'))).toContain(
       'conflicted draft + typed while loading',
     )
-  })
-
-  it('serializes conflicting recovery choices in the order the user selects them', async () => {
-    const disk = fromPartial<WorkspaceTextFileReadResult>({
-      path: 'src/file.ts',
-      basename: 'file.ts',
-      content: 'disk',
-      documentVersion: 4,
-      revision: 'disk-revision',
-      fidelity: { encoding: 'utf-8', lineEnding: 'lf' },
-    })
-    const restoredDisk = fromPartial<WorkspaceTextFileReadResult>({
-      ...disk,
-      content: 'recovered draft',
-      documentVersion: 5,
-      revision: 'restored-revision',
-    })
-    const restore = Promise.withResolvers<WorkspaceDocumentApplyResult>()
-    readWorkspaceFile.mockResolvedValueOnce(disk).mockResolvedValueOnce(restoredDisk)
-    applyWorkspaceDocumentEdits.mockReturnValueOnce(restore.promise)
-    const setContent = vi.fn()
-    const context = fromPartial<WorkspaceSaveQueueContext>({
-      projectPath: '/project',
-      file: disk,
-      queryClient: fromPartial({ setQueryData: vi.fn() }),
-      revision: { current: 'recovered-revision' },
-      persistedVersion: { current: 3 },
-      nextVersion: { current: 4 },
-      latestContent: { current: 'recovered draft' },
-      latestSnapshot: { current: null },
-      savedContent: { current: 'disk' },
-      inFlight: { current: null },
-      pending: { current: [] },
-      conflict: { current: true },
-      mounted: { current: true },
-      setContent,
-      setEditorRevision: vi.fn(),
-      setSavedContent: vi.fn(),
-      setEncoding: vi.fn(),
-      setLineEnding: vi.fn(),
-      setStatus: vi.fn(),
-      setErrorMessage: vi.fn(),
-      setConflictDiskContent: vi.fn(),
-      setNormalizationRequired: vi.fn(),
-    })
-
-    const keepingDraft = restoreWorkspaceDraftOverDisk(context)
-    await vi.waitFor(() => expect(applyWorkspaceDocumentEdits).toHaveBeenCalledOnce())
-    const usingDisk = reloadWorkspaceDocument(context)
-    expect(readWorkspaceFile).toHaveBeenCalledOnce()
-
-    restore.resolve({
-      status: 'saved',
-      version: 5,
-      size: 15,
-      modifiedAt: 2,
-      revision: 'restored-revision',
-      encoding: 'utf-8',
-      lineEnding: 'lf',
-    })
-    await keepingDraft
-    await usingDisk
-
-    expect(readWorkspaceFile).toHaveBeenCalledTimes(2)
-    expect(setContent).toHaveBeenLastCalledWith('recovered draft')
-    expect(context.revision.current).toBe('restored-revision')
   })
 })

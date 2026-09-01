@@ -61,8 +61,10 @@ export async function compareWorkspaceDocumentWithDisk(context: WorkspaceSaveQue
   if ('content' in disk) context.setConflictDiskContent(disk.content)
 }
 
-async function restoreWorkspaceDraftOverDiskNow(context: WorkspaceSaveQueueContext) {
-  const draft = captureWorkspaceDocumentSnapshot(context)
+async function restoreWorkspaceDraftOverDiskNow(context: WorkspaceSaveQueueContext, draft: string) {
+  context.latestContent.current = draft
+  context.latestSnapshot.current = null
+  if (context.mounted.current) context.setContent(draft)
   const disk = await api.readWorkspaceFile(context.projectPath, context.file.path)
   if (!('content' in disk)) return
   const version = disk.documentVersion + 1
@@ -136,5 +138,8 @@ async function restoreWorkspaceDraftOverDiskNow(context: WorkspaceSaveQueueConte
 }
 
 export function restoreWorkspaceDraftOverDisk(context: WorkspaceSaveQueueContext) {
-  return runWorkspaceQueueOperation(context, () => restoreWorkspaceDraftOverDiskNow(context))
+  const selectedDraft = captureWorkspaceDocumentSnapshot(context)
+  return runWorkspaceQueueOperation(context, () =>
+    restoreWorkspaceDraftOverDiskNow(context, selectedDraft),
+  )
 }
