@@ -83,6 +83,11 @@ async function createGitProject(projectPath: string, provider?: 'github' | 'gitl
 
 async function createFakeSourceControlCliBin() {
   const binPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-source-control-cli-'))
+  if (process.platform === 'win32') {
+    await createWindowsSourceControlCliFixtures(binPath)
+    return binPath
+  }
+
   const gh = `#!/bin/sh
 if [ "$1" = "auth" ]; then echo "Logged in to github.com account openwaggle-e2e"; exit 0; fi
 if [ "$1" = "pr" ] && [ "$2" = "create" ]; then echo "https://github.com/openwaggle/e2e/pull/42"; exit 0; fi
@@ -101,7 +106,6 @@ exit 1
     fs.writeFile(path.join(binPath, 'gh'), gh, { mode: 0o755 }),
     fs.writeFile(path.join(binPath, 'glab'), glab, { mode: 0o755 }),
   ])
-  if (process.platform === 'win32') await createWindowsSourceControlCliFixtures(binPath)
   return binPath
 }
 

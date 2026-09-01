@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { expect, type Page, test } from '@playwright/test'
+import { expect, type Locator, type Page, test } from '@playwright/test'
 import {
   GITHUB_ISSUES_EXTENSION_ID,
   GITHUB_ISSUES_EXTENSION_NAME,
@@ -66,8 +66,7 @@ function lifecycleButton(page: Page, action: string) {
   })
 }
 
-async function dispatchLifecycleClick(page: Page, action: string) {
-  const button = lifecycleButton(page, action)
+async function dispatchButtonClick(button: Locator) {
   await expect(button).toBeEnabled()
   const dispatched = await button.evaluate((element) => {
     if (!(element instanceof HTMLButtonElement) || element.disabled) return false
@@ -75,6 +74,10 @@ async function dispatchLifecycleClick(page: Page, action: string) {
     return true
   })
   expect(dispatched).toBe(true)
+}
+
+async function dispatchLifecycleClick(page: Page, action: string) {
+  await dispatchButtonClick(lifecycleButton(page, action))
 }
 
 test('project extension can be trusted, enabled, rendered, disabled, and removed through settings', async () => {
@@ -217,7 +220,7 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
     await page.getByRole('button', { name: 'Close extension side panel' }).click()
 
     const summary = page.getByRole('complementary', { name: 'Session Summary' })
-    await summary.getByRole('button', { name: /Outputs/ }).click()
+    await dispatchButtonClick(summary.getByRole('button', { name: /Outputs/ }))
     await expect(summary.getByText('GitHub session report')).toBeVisible()
     const [baseUrl] = page.url().split('#')
     await page.goto(`${baseUrl}#/sessions/${otherSessionId}`)
