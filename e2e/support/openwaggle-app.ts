@@ -196,7 +196,6 @@ export class OpenWaggleApp {
     const forcedClosed = await forcedCloseEvent
     if (!forcedClosed) {
       console.warn(`[electron-qa] retaining disposable profile ${this.userDataDir}`)
-      this.releaseProcessHandles()
     }
     return forcedClosed
   }
@@ -252,16 +251,6 @@ export class OpenWaggleApp {
       childProcess.kill('SIGKILL')
     } catch {
       // The process may have exited while cleanup was capturing evidence.
-    }
-  }
-
-  private releaseProcessHandles(): void {
-    const childProcess = this.app.process()
-    childProcess.unref()
-    for (const stream of childProcess.stdio) {
-      if (stream === null) continue
-      const unref = Reflect.get(stream, 'unref')
-      if (typeof unref === 'function') Reflect.apply(unref, stream, [])
     }
   }
 
