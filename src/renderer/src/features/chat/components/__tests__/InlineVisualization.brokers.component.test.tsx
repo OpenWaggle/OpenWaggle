@@ -245,6 +245,7 @@ describe('InlineVisualization brokers', () => {
     const frame = await visualizationFrame('Follow-up map')
 
     await activateFrame(frame)
+    const postMessage = vi.spyOn(visualizationFrameWindow(frame), 'postMessage')
     act(() => {
       dispatchFrameMessage(frame, {
         type: 'openwaggle:inline-visualization:follow-up',
@@ -262,6 +263,15 @@ describe('InlineVisualization brokers', () => {
       expect(useMessageQueueStore.getState().queues.get(sessionId)?.[0]?.payload.text).toBe(
         'Investigate the selected service.',
       )
+      expect(postMessage).toHaveBeenCalledWith(
+        {
+          type: 'openwaggle:inline-visualization:follow-up-result',
+          requestId: 'follow-up-request-1',
+          accepted: true,
+        },
+        frameOrigin(frame),
+      )
     })
+    postMessage.mockRestore()
   })
 })

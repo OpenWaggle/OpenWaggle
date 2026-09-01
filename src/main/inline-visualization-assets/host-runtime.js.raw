@@ -68,7 +68,6 @@
     if (
       data &&
       data.type === 'openwaggle:inline-visualization:follow-up-result' &&
-      data.capability === capability &&
       typeof data.requestId === 'string'
     ) {
       const resolve = pendingFollowUps.get(data.requestId);

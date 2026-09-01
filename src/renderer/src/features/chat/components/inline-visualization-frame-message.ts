@@ -70,7 +70,6 @@ export function handleInlineVisualizationFrameMessage(
         .then((accepted) => {
           context.postToFrame({
             type: 'openwaggle:inline-visualization:follow-up-result',
-            capability: context.capability.current,
             requestId: value.requestId,
             accepted,
           })

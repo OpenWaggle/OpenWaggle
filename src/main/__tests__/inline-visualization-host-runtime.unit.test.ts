@@ -74,7 +74,6 @@ describe('inline visualization host runtime', () => {
     expect(request).toBeDefined()
     dispatchHostMessage({
       type: 'openwaggle:inline-visualization:follow-up-result',
-      capability: request?.capability,
       requestId: request?.requestId,
       accepted: true,
     })
