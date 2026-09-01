@@ -3,7 +3,7 @@ import { type SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionTree, SessionWorkspace } from '@shared/types/session'
 import type { useNavigate } from '@tanstack/react-router'
 import { useChatStore } from '@/features/chat/state'
-import { buildComposerDraftContextKey, setEditorText } from '@/features/composer/lib'
+import { buildComposerDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
 import { api } from '@/shared/lib/ipc'
 import { clearComposerDraftForSession, errorMessage } from './sidebar-action-utils'
@@ -41,7 +41,14 @@ function setComposerTextValue(text: string) {
   const composer = useComposerStore.getState()
   composer.setInput(text)
   composer.setCursorIndex(text.length)
-  if (composer.lexicalEditor) setEditorText(composer.lexicalEditor, text)
+  const editor = composer.lexicalEditor
+  if (!editor) return
+  void import('@/features/composer/lib').then(({ setEditorText }) => {
+    const current = useComposerStore.getState()
+    if (current.lexicalEditor === editor && current.input === text) {
+      setEditorText(editor, text)
+    }
+  })
 }
 
 function activateClonedSession(

@@ -16,6 +16,9 @@ import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
 import { reserveSessionTreeMutation } from './active-session-runs'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
+import { attributeCopiedVisualizationSources } from './inline-visualization-ownership'
+
+export { attributeCopiedVisualizationSources } from './inline-visualization-ownership'
 
 const logger = createLogger('agent-session-service')
 
@@ -152,6 +155,11 @@ function copyAgentSessionToNewSession(input: AgentSessionCopyInput) {
       }
 
       const agentKernel = yield* AgentKernelService
+      const sessionRepo = yield* SessionRepository
+      const sourceTree = yield* sessionRepo.getTree(input.sessionId)
+      if (!sourceTree) {
+        return yield* Effect.fail(new Error('Session tree not found'))
+      }
       const result = yield* agentKernel.forkSession({
         session,
         model: input.model,
@@ -186,7 +194,13 @@ function copyAgentSessionToNewSession(input: AgentSessionCopyInput) {
         authorizationMode: session.authorizationMode,
       })
 
-      yield* persistKernelSnapshot(SessionId(String(createdProjection.id)), result)
+      yield* persistKernelSnapshot(SessionId(String(createdProjection.id)), {
+        ...result,
+        sessionSnapshot: attributeCopiedVisualizationSources(result.sessionSnapshot, {
+          id: session.id,
+          nodes: sourceTree.nodes,
+        }),
+      })
 
       const persistedSession = yield* sessionProjectionRepo.get(
         SessionId(String(createdProjection.id)),

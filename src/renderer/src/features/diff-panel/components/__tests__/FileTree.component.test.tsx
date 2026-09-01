@@ -1,6 +1,6 @@
 import type { GitFileDiff } from '@shared/types/git'
-import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 import { FileTree } from '../FileTree'
 
 function fileDiff(path: string, additions = 1, deletions = 1, diff = '@@ -1 +1 @@\n-a\n+b') {
@@ -8,15 +8,15 @@ function fileDiff(path: string, additions = 1, deletions = 1, diff = '@@ -1 +1 @
 }
 
 describe('Changed-file navigator', () => {
-  beforeEach(() => {
-    window.localStorage.clear()
-  })
-
   it('exposes ARIA tree semantics from the tree library', () => {
     render(<FileTree files={[fileDiff('src/app.ts')]} onFileClick={vi.fn()} />)
 
     expect(screen.getByRole('tree')).toBeInTheDocument()
     expect(screen.getAllByRole('treeitem').length).toBeGreaterThan(0)
+    expect(screen.getByRole('treeitem', { name: /app\.ts/ })).toHaveStyle({
+      contentVisibility: 'auto',
+      containIntrinsicSize: 'auto 1.375rem',
+    })
   })
 
   // Regression: the panel mounts before a diff has loaded, and in Branch/Turn
@@ -74,6 +74,25 @@ describe('Changed-file navigator', () => {
     expect(screen.getByText('app.ts')).toBeInTheDocument()
   })
 
+  it('starts arrow navigation from a folder selected by click', async () => {
+    render(
+      <FileTree
+        files={[fileDiff('docs/readme.md'), fileDiff('src/app.ts')]}
+        onFileClick={vi.fn()}
+      />,
+    )
+
+    // Restore the folder to expanded after clicking it so ArrowDown has a child
+    // to enter. Both clicks must update Headless Tree focus without double-toggling.
+    fireEvent.click(screen.getByText('src'))
+    fireEvent.click(screen.getByText('src'))
+    const tree = screen.getByRole('tree')
+    Object.defineProperty(tree, 'scrollTo', { configurable: true, value: vi.fn() })
+    fireEvent.keyDown(tree, { key: 'ArrowDown' })
+
+    await waitFor(() => expect(screen.getByText('app.ts').closest('button')).toHaveFocus())
+  })
+
   it('shows per-file status and change counts', () => {
     render(
       <FileTree
@@ -101,33 +120,41 @@ describe('Changed-file navigator', () => {
     expect(screen.getByText('-5')).toBeInTheDocument()
   })
 
-  it('resizes with the keyboard and persists the width', () => {
-    const { unmount } = render(<FileTree files={[fileDiff('a.ts')]} onFileClick={vi.fn()} />)
+  it('windows a large changed-file list and reveals later rows on scroll', () => {
+    const files = Array.from({ length: 80 }, (_, index) =>
+      fileDiff(`src/file-${String(index).padStart(3, '0')}.ts`),
+    )
+    render(<FileTree files={files} onFileClick={vi.fn()} />)
 
-    const rail = screen.getByRole('button', { name: /Resize changed file list/ })
-    // Left widens, because the navigator is docked on the right.
-    fireEvent.keyDown(rail, { key: 'ArrowLeft' })
+    expect(screen.getAllByRole('treeitem').length).toBeLessThan(40)
+    expect(screen.queryByText('file-079.ts')).not.toBeInTheDocument()
+    const focusedRow = screen.getByText('src').closest('button')
+    expect(focusedRow).not.toBeNull()
+    focusedRow?.focus()
 
-    const widened = screen.getByRole('button', { name: /Resize changed file list/ })
-    expect(widened.getAttribute('aria-label')).toMatch(/236 pixels/)
+    const tree = screen.getByRole('tree')
+    Object.defineProperty(tree, 'scrollTop', { configurable: true, value: 1_760 })
+    fireEvent.scroll(tree)
 
-    unmount()
-    render(<FileTree files={[fileDiff('a.ts')]} onFileClick={vi.fn()} />)
-    expect(
-      screen.getByRole('button', { name: /Resize changed file list/ }).getAttribute('aria-label'),
-    ).toMatch(/236 pixels/)
+    expect(screen.getByText('file-079.ts')).toBeInTheDocument()
+    expect(screen.getByText('src').closest('button')).toBe(focusedRow)
+    expect(focusedRow).toHaveFocus()
+    expect(screen.getAllByRole('treeitem').length).toBeLessThan(40)
   })
 
-  it('clamps the width at its minimum', () => {
-    render(<FileTree files={[fileDiff('a.ts')]} onFileClick={vi.fn()} />)
-    const rail = screen.getByRole('button', { name: /Resize changed file list/ })
+  it('keeps virtual geometry aligned when the interface scale changes', async () => {
+    const root = document.documentElement
+    const previousFontSize = root.style.fontSize
+    try {
+      render(<FileTree files={[fileDiff('src/app.ts')]} onFileClick={vi.fn()} />)
+      const virtualSpace = document.querySelector('[data-navigator-virtual-space="true"]')
+      expect(virtualSpace).toHaveStyle({ height: '44px' })
 
-    for (let press = 0; press < 12; press += 1) {
-      fireEvent.keyDown(rail, { key: 'ArrowRight' })
+      root.style.fontSize = '20px'
+
+      await waitFor(() => expect(virtualSpace).toHaveStyle({ height: '55px' }))
+    } finally {
+      root.style.fontSize = previousFontSize
     }
-
-    expect(
-      screen.getByRole('button', { name: /Resize changed file list/ }).getAttribute('aria-label'),
-    ).toMatch(/140 pixels/)
   })
 })

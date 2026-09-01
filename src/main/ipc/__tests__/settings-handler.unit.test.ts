@@ -17,6 +17,13 @@ import {
   updateSettingsMock,
 } from './settings-handler.test-harness'
 
+function getRegisteredSettingsUpdateHandler(registerSettingsHandlers: () => void) {
+  registerSettingsHandlers()
+  const handler = getTypedEffectInvokeHandler('settings:update')
+  expect(handler).toBeDefined()
+  return handler
+}
+
 describe('registerSettingsHandlers', () => {
   let registerSettingsHandlers: Awaited<
     ReturnType<typeof loadSettingsHandlers>
@@ -79,10 +86,7 @@ describe('registerSettingsHandlers', () => {
 
   describe('settings:update', () => {
     it('validates and applies a valid settings update', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      expect(handler).toBeDefined()
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
 
       const result = await handler?.({}, { thinkingLevel: 'high' })
       expect(result).toEqual({ ok: true })
@@ -93,9 +97,7 @@ describe('registerSettingsHandlers', () => {
     })
 
     it('validates and applies every Session Host policy setting', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
       const patch = {
         sessionHostParentConcurrencyLimit: 8,
         sessionHostParentConcurrencyLimitsByProject: { '/project': 12 },
@@ -110,9 +112,7 @@ describe('registerSettingsHandlers', () => {
     })
 
     it('rejects invalid Session Host policy settings', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
       await expect(handler?.({}, { sessionHostParentConcurrencyLimit: 0 })).resolves.toEqual({
         ok: false,
         error: expect.any(String),
@@ -139,10 +139,7 @@ describe('registerSettingsHandlers', () => {
     })
 
     it('rejects an invalid settings payload and returns error', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      expect(handler).toBeDefined()
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
 
       const result = await handler?.({}, { thinkingLevel: 'invalid-mode' })
       expect(result).toEqual({ ok: false, error: expect.any(String) })
@@ -150,10 +147,7 @@ describe('registerSettingsHandlers', () => {
     })
 
     it('converts selectedModel canonical ref to SupportedModelId', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      expect(handler).toBeDefined()
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
 
       await handler?.({}, { selectedModel: 'openai/gpt-4.1-mini' })
 
@@ -163,10 +157,7 @@ describe('registerSettingsHandlers', () => {
     })
 
     it('passes empty selectedModel through so the settings store can clear stale selections', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      expect(handler).toBeDefined()
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
 
       await handler?.({}, { selectedModel: '' })
 
@@ -176,10 +167,7 @@ describe('registerSettingsHandlers', () => {
     })
 
     it('converts favoriteModels canonical refs to SupportedModelId array', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      expect(handler).toBeDefined()
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
 
       await handler?.(
         {},
@@ -194,10 +182,7 @@ describe('registerSettingsHandlers', () => {
     })
 
     it('accepts projectPath as null', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      expect(handler).toBeDefined()
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
 
       const result = await handler?.({}, { projectPath: null })
       expect(result).toEqual({ ok: true })
@@ -211,10 +196,7 @@ describe('registerSettingsHandlers', () => {
       const projectPath = await mkdtemp(join(tmpdir(), 'openwaggle-settings-project-'))
       const canonicalProjectPath = await realpath(projectPath)
       tempProjectPaths.push(canonicalProjectPath)
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      expect(handler).toBeDefined()
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
 
       const result = await handler?.({}, { projectPath })
 
@@ -223,10 +205,7 @@ describe('registerSettingsHandlers', () => {
     })
 
     it('does not reconcile trusted main extensions for unrelated settings updates', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      expect(handler).toBeDefined()
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
 
       const result = await handler?.({}, { thinkingLevel: 'high' })
 
@@ -235,10 +214,7 @@ describe('registerSettingsHandlers', () => {
     })
 
     it('accepts skillTogglesByProject update', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      expect(handler).toBeDefined()
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
 
       const result = await handler?.(
         {},
@@ -252,6 +228,52 @@ describe('registerSettingsHandlers', () => {
       expect(updateSettingsMock).toHaveBeenCalledOnce()
     })
 
+    it('validates and applies appearance and session-default settings', async () => {
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
+
+      const update = {
+        defaultSessionEnvironmentMode: 'worktree',
+        diffSyntaxTheme: 'pierre-dark-vibrant',
+        syntaxThemeSelections: {
+          light: 'bundled:github-light',
+          dark: 'bundled:github-dark',
+          'high-contrast-light': 'bundled:github-light-high-contrast',
+          'high-contrast-dark': 'bundled:github-dark-high-contrast',
+        },
+        diffView: 'split',
+        diffWrapLines: true,
+        appearancePreferences: {
+          typography: {
+            ...DEFAULT_SETTINGS.appearancePreferences.typography,
+            interfaceFontFamily: 'Inter, system-ui, sans-serif',
+            codeFontSize: 14,
+          },
+          motion: 'reduced',
+        },
+      } as const
+
+      const result = await handler?.({}, update)
+
+      expect(result).toEqual({ ok: true })
+      expect(updateSettingsMock).toHaveBeenCalledWith(expect.objectContaining(update))
+    })
+
+    it('rejects incomplete syntax theme selections', async () => {
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
+      const result = await handler?.(
+        {},
+        {
+          syntaxThemeSelections: {
+            light: 'bundled:github-light',
+            dark: 'bundled:github-dark',
+          },
+        },
+      )
+
+      expect(result).toEqual({ ok: false, error: expect.any(String) })
+      expect(updateSettingsMock).not.toHaveBeenCalled()
+    })
+
     it('rejects duplicate shortcut bindings without replacing existing customizations', async () => {
       const currentSettings = {
         ...DEFAULT_SETTINGS,
@@ -263,9 +285,7 @@ describe('registerSettingsHandlers', () => {
         },
       }
       getSettingsMock.mockReturnValue(currentSettings)
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
       const result = await handler?.(
         {},
         {

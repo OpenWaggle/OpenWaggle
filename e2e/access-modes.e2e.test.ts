@@ -77,6 +77,10 @@ async function openSeededSession(app: OpenWaggleApp) {
   await app.restart()
   const mainWindow = app.mainWindow()
   await mainWindow.openThread(SESSION_TITLE)
+  // The composer exists before the persisted transcript has necessarily hydrated on slower
+  // runners. Transient main-process events must be injected only after this concrete session is
+  // active, otherwise the test is exercising route setup rather than the notification surface.
+  await expect(mainWindow.page.getByText('Check the open GitHub issues.')).toBeVisible()
   return { mainWindow, sessionId }
 }
 
@@ -261,17 +265,19 @@ test('notifications float clear of the composer, most severe first', async () =>
     const { mainWindow, sessionId } = await openSeededSession(app)
     const page = mainWindow.page
 
-    await app.emitAgentEvent(notification(sessionId, 'error', 'Could not reach api.github.com'))
-    await app.emitAgentEvent(notification(sessionId, 'info', 'Ponytail loaded: full'))
+    // The region must pre-exist the notification; inserting a live region and its text together is
+    // not announced consistently by assistive technology.
+    const announcer = page.getByRole('status', { name: 'Agent notification announcements' })
+    await expect(announcer).toHaveText('')
 
+    await app.emitAgentEvent(notification(sessionId, 'error', 'Could not reach api.github.com'))
     const stack = page.getByLabel('Agent notifications')
     await expect(stack).toBeVisible()
     await expect(stack.getByText('Could not reach api.github.com')).toBeVisible()
-
-    // The announcement comes from a region that already existed, which is what makes it audible. A
-    // live region added with its content is not announced.
-    const announcer = page.locator('[role="status"][aria-live="polite"]').first()
     await expect(announcer).toHaveText('Could not reach api.github.com')
+
+    await app.emitAgentEvent(notification(sessionId, 'info', 'Ponytail loaded: full'))
+    await expect(stack.getByText('Ponytail loaded: full')).toBeVisible()
 
     // The error outranks the later informational notice, so it is the frontmost card.
     const labels = await stack.locator('[data-notification-level]').evaluateAll((cards) =>

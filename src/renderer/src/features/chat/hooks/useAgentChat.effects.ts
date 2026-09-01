@@ -3,7 +3,8 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import type { IpcEventPayload } from '@shared/types/ipc'
 import type { SessionDetail } from '@shared/types/session'
 import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
-import { useEffect } from 'react'
+import { useEffect, useLayoutEffect } from 'react'
+import { useAgentLoopEventStore } from '@/features/chat/state/agent-loop-event-store'
 import { api } from '@/shared/lib/ipc'
 import { sessionToUIMessages } from '../lib/useAgentChat.utils'
 import { hydrateSessionMessages, resetMissingSessionHydration } from './useAgentChat.hydration'
@@ -145,7 +146,9 @@ export function useSessionHydrationEffects(params: UseSessionHydrationEffectsPar
 export function useAgentEventEffects(params: UseAgentEventEffectsParams) {
   const { sessionId, streamEventContext, runCompletionContext } = params
 
-  useEffect(() => {
+  // Subscribe in the commit phase. A passive effect leaves a one-frame window where the active
+  // chat is already visible but a main-process event can still be dropped during session changes.
+  useLayoutEffect(() => {
     if (!sessionId) {
       return
     }
@@ -169,7 +172,7 @@ export function useAgentEventEffects(params: UseAgentEventEffectsParams) {
     let cancelled = false
     const hydratePendingInteractions = async () => {
       while (!cancelled) {
-        const beforeQuery = streamEventContext.agentInteractionsBySessionIdRef.current
+        const beforeQuery = useAgentLoopEventStore.getState().sessionsById.get(sessionId)
         const response = await api.querySessionControl({
           contractVersion: SESSION_QUERY_CONTRACT_VERSION,
           requestId: crypto.randomUUID(),
@@ -177,11 +180,35 @@ export function useAgentEventEffects(params: UseAgentEventEffectsParams) {
         })
         if (cancelled) return
         if (response.outcome.operation !== 'requests-list' || 'error' in response.outcome) return
-        if (streamEventContext.agentInteractionsBySessionIdRef.current !== beforeQuery) continue
-        const next = new Map(beforeQuery)
-        next.set(sessionId, response.outcome.requests)
-        streamEventContext.agentInteractionsBySessionIdRef.current = next
-        streamEventContext.setAgentInteractionsBySessionId(next)
+        const store = useAgentLoopEventStore.getState()
+        if (store.sessionsById.get(sessionId) !== beforeQuery) continue
+        const pendingIds = new Set(
+          response.outcome.requests.map((interaction) => interaction.interactionId),
+        )
+        const currentIds = new Set(
+          beforeQuery?.interactions.map((interaction) => interaction.interactionId) ?? [],
+        )
+        for (const interaction of beforeQuery?.interactions ?? []) {
+          if (!pendingIds.has(interaction.interactionId)) {
+            store.applyEvent(sessionId, {
+              type: 'agent_interaction_resolved',
+              runId: interaction.runId,
+              interactionId: interaction.interactionId,
+              kind: interaction.kind,
+              status: 'resolved',
+              timestamp: Date.now(),
+            })
+          }
+        }
+        for (const interaction of response.outcome.requests) {
+          if (!currentIds.has(interaction.interactionId)) {
+            store.applyEvent(sessionId, {
+              type: 'agent_interaction_request',
+              interaction,
+              timestamp: interaction.createdAt,
+            })
+          }
+        }
         return
       }
     }
@@ -189,7 +216,7 @@ export function useAgentEventEffects(params: UseAgentEventEffectsParams) {
     return () => {
       cancelled = true
     }
-  }, [sessionId, streamEventContext])
+  }, [sessionId])
 
   useEffect(() => {
     if (!sessionId) {

@@ -1,181 +1,24 @@
 import { SessionId } from '@shared/types/brand'
-import type { IpcEventChannelMap } from '@shared/types/ipc-events'
-import type { SessionHostEventEnvelope } from '@shared/types/session-host-event'
-import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import { type ShortcutBinding, shortcutBindingKey } from '@shared/types/shortcuts'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { usePreferencesStore } from '@/features/settings/state'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { useUIStore } from '../ui-store'
-import { useWorkspaceLifecycle } from '../useWorkspaceLifecycle'
+import {
+  getWorkspaceLifecycleMocks,
+  loadUseWorkspaceLifecycle,
+  resetWorkspaceLifecycleMocks,
+  runWorkspaceHotkey,
+} from './useWorkspaceLifecycle.test-harness'
 
-type TitleUpdatedPayload = IpcEventChannelMap['sessions:title-updated']['payload']
-type TitleUpdatedHandler = (payload: TitleUpdatedPayload) => void
-type SessionHostEventHandler = (event: SessionHostEventEnvelope) => void
-type SessionHostResyncHandler = (payload: { readonly reason: 'slow-consumer' }) => void
-interface HotkeyBinding {
-  readonly hotkey: ShortcutBinding
-  readonly callback: () => void
-}
-
-const lifecycleMocks = vi.hoisted(() => {
-  let titleUpdatedHandler: TitleUpdatedHandler | null = null
-  let sessionHostEventHandler: SessionHostEventHandler | null = null
-  let sessionHostResyncHandler: SessionHostResyncHandler | null = null
-  const titleUnsubscribe = vi.fn()
-  const hotkeys: HotkeyBinding[] = []
-  const singleHotkeys: { readonly hotkey: unknown; readonly callback: () => void }[] = []
-  return {
-    projectPath: '/repo',
-    workingPath: '/repo/.worktrees/session-1',
-    activeSessionId: 'session-1',
-    loadChatSessions: vi.fn().mockResolvedValue(undefined),
-    startDraftSession: vi.fn(),
-    refreshSession: vi.fn().mockResolvedValue(undefined),
-    updateSessionTitle: vi.fn(),
-    loadSessionTrees: vi.fn().mockResolvedValue(undefined),
-    refreshSessionTree: vi.fn().mockResolvedValue(undefined),
-    refreshGitStatus: vi.fn().mockResolvedValue(undefined),
-    refreshGitBranches: vi.fn().mockResolvedValue(undefined),
-    navigate: vi.fn(),
-    toggleDiff: vi.fn(),
-    toggleSessionTree: vi.fn(),
-    useGitRefresh: vi.fn(),
-    useSessionStatusMonitor: vi.fn(),
-    titleUnsubscribe,
-    hotkeys,
-    singleHotkeys,
-    getTitleUpdatedHandler: () => titleUpdatedHandler,
-    getSessionHostEventHandler: () => sessionHostEventHandler,
-    getSessionHostResyncHandler: () => sessionHostResyncHandler,
-    onSessionTitleUpdated: vi.fn((handler: TitleUpdatedHandler) => {
-      titleUpdatedHandler = handler
-      return titleUnsubscribe
-    }),
-    onSessionHostEvent: vi.fn((handler: SessionHostEventHandler) => {
-      sessionHostEventHandler = handler
-      return vi.fn()
-    }),
-    onSessionHostResyncRequired: vi.fn((handler: SessionHostResyncHandler) => {
-      sessionHostResyncHandler = handler
-      return vi.fn()
-    }),
-    invalidateQueries: vi.fn().mockResolvedValue(undefined),
-  }
-})
-
-vi.mock('@tanstack/react-query', () => ({
-  useQueryClient: () => ({ invalidateQueries: lifecycleMocks.invalidateQueries }),
-}))
-
-vi.mock('@tanstack/react-hotkeys', () => ({
-  useHotkeys: (bindings: readonly HotkeyBinding[]) => {
-    lifecycleMocks.hotkeys.length = 0
-    lifecycleMocks.singleHotkeys.length = 0
-    lifecycleMocks.hotkeys.push(...bindings)
-  },
-  /*
-   * Single registrations are collected separately.
-   *
-   * The sidebar's Mod+F and the shared Escape hook register one at a time, and folding them into
-   * the same array would have them cleared by the workspace's own useHotkeys call, or clear it.
-   */
-  useHotkey: (hotkey: unknown, callback: () => void) => {
-    lifecycleMocks.singleHotkeys.push({ hotkey, callback })
-  },
-}))
-
-vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => lifecycleMocks.navigate,
-  // The sidebar's filter shortcut reads the route to know whether the sidebar can take focus.
-  useLocation: () => ({ pathname: '/' }),
-}))
-
-vi.mock('@/features/chat/hooks', () => ({
-  sessionFollowUpQueueOptions: (sessionId: string | null) => ({
-    queryKey: ['sessions', 'follow-up-queue', sessionId],
-  }),
-  useChat: () => ({
-    activeSessionId: lifecycleMocks.activeSessionId,
-    startDraftSession: lifecycleMocks.startDraftSession,
-    loadSessions: lifecycleMocks.loadChatSessions,
-    refreshSession: lifecycleMocks.refreshSession,
-    updateSessionTitle: lifecycleMocks.updateSessionTitle,
-  }),
-}))
-
-vi.mock('@/features/diff-panel/hooks', () => ({
-  useDiffRouteNavigation: () => ({
-    toggleDiff: lifecycleMocks.toggleDiff,
-    toggleSessionTree: lifecycleMocks.toggleSessionTree,
-  }),
-}))
-
-vi.mock('@/features/git/hooks', () => ({
-  useGit: () => ({
-    refreshStatus: lifecycleMocks.refreshGitStatus,
-    refreshBranches: lifecycleMocks.refreshGitBranches,
-    // Status follows the session's working tree; the branch list is repository-level.
-    workingPath: lifecycleMocks.workingPath,
-    repositoryPath: lifecycleMocks.projectPath,
-  }),
-  useGitRefresh: lifecycleMocks.useGitRefresh,
-}))
-
-vi.mock('@/features/sessions/hooks', () => ({
-  useProject: () => ({ projectPath: lifecycleMocks.projectPath }),
-  useSessions: () => ({
-    loadSessions: lifecycleMocks.loadSessionTrees,
-    refreshSessionTree: lifecycleMocks.refreshSessionTree,
-    // Pinned shortcuts map positions over the session list (issue #97).
-    sessions: [],
-  }),
-  useSessionStatusMonitor: lifecycleMocks.useSessionStatusMonitor,
-}))
-
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
-    onSessionTitleUpdated: lifecycleMocks.onSessionTitleUpdated,
-    onSessionHostEvent: lifecycleMocks.onSessionHostEvent,
-    onSessionHostResyncRequired: lifecycleMocks.onSessionHostResyncRequired,
-  },
-}))
-
-function runHotkey(hotkey: string) {
-  const binding = lifecycleMocks.hotkeys.find(
-    (candidate) => shortcutBindingKey(candidate.hotkey) === hotkey,
-  )
-  if (!binding) throw new Error(`Expected hotkey ${hotkey}`)
-  binding.callback()
-}
+const lifecycleMocks = getWorkspaceLifecycleMocks()
 
 describe('useWorkspaceLifecycle', () => {
-  beforeEach(() => {
-    useUIStore.setState({ sidebarOpen: true, terminalOpen: false, slashCommandMenuOpen: false })
-    usePreferencesStore.setState({
-      settings: { ...DEFAULT_SETTINGS, projectPath: '/repo' },
-      isLoaded: true,
-      loadError: null,
-    })
-    lifecycleMocks.loadChatSessions.mockClear()
-    lifecycleMocks.startDraftSession.mockClear()
-    lifecycleMocks.loadSessionTrees.mockClear()
-    lifecycleMocks.refreshSession.mockClear()
-    lifecycleMocks.refreshGitStatus.mockClear()
-    lifecycleMocks.refreshGitBranches.mockClear()
-    lifecycleMocks.refreshSessionTree.mockClear()
-    lifecycleMocks.updateSessionTitle.mockClear()
-    lifecycleMocks.navigate.mockClear()
-    lifecycleMocks.toggleDiff.mockClear()
-    lifecycleMocks.toggleSessionTree.mockClear()
-    lifecycleMocks.useGitRefresh.mockClear()
-    lifecycleMocks.useSessionStatusMonitor.mockClear()
-    lifecycleMocks.onSessionTitleUpdated.mockClear()
-    lifecycleMocks.onSessionHostEvent.mockClear()
-    lifecycleMocks.onSessionHostResyncRequired.mockClear()
-    lifecycleMocks.invalidateQueries.mockClear()
-    lifecycleMocks.titleUnsubscribe.mockClear()
-    lifecycleMocks.hotkeys.length = 0
+  let useWorkspaceLifecycle: Awaited<
+    ReturnType<typeof loadUseWorkspaceLifecycle>
+  >['useWorkspaceLifecycle']
+
+  beforeEach(async () => {
+    resetWorkspaceLifecycleMocks()
+    ;({ useWorkspaceLifecycle } = await loadUseWorkspaceLifecycle())
   })
 
   it('loads app data, subscribes to title updates, refreshes project state, and registers hotkeys', async () => {
@@ -186,6 +29,7 @@ describe('useWorkspaceLifecycle', () => {
     // Status must target the session's worktree, not the opened checkout (ADR 0018).
     expect(lifecycleMocks.refreshGitStatus).toHaveBeenCalledWith('/repo/.worktrees/session-1')
     expect(lifecycleMocks.refreshGitBranches).toHaveBeenCalledWith('/repo')
+    expect(lifecycleMocks.loadSyntaxResources).toHaveBeenCalledWith('/repo/.worktrees/session-1')
     expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledWith(SessionId('session-1'))
     expect(lifecycleMocks.useGitRefresh).toHaveBeenCalledWith({
       workingPath: '/repo/.worktrees/session-1',
@@ -205,15 +49,15 @@ describe('useWorkspaceLifecycle', () => {
       'New title',
     )
 
-    act(() => runHotkey('Mod+J'))
-    act(() => runHotkey('Mod+B'))
-    act(() => runHotkey('Mod+D'))
-    act(() => runHotkey('Mod+Shift+Y'))
-    act(() => runHotkey('Mod+K'))
+    act(() => runWorkspaceHotkey('Mod+J'))
+    act(() => runWorkspaceHotkey('Mod+B'))
+    act(() => runWorkspaceHotkey('Mod+D'))
+    act(() => runWorkspaceHotkey('Mod+Shift+Y'))
+    act(() => runWorkspaceHotkey('Mod+K'))
     expect(useUIStore.getState().commandSurface).toBe('commands')
-    act(() => runHotkey('Mod+P'))
+    act(() => runWorkspaceHotkey('Mod+P'))
     expect(useUIStore.getState().commandSurface).toBe('files')
-    act(() => runHotkey('Mod+N'))
+    act(() => runWorkspaceHotkey('Mod+N'))
     expect(useUIStore.getState().commandSurface).toBeNull()
 
     expect(useUIStore.getState().terminalOpen).toBe(true)
@@ -304,5 +148,20 @@ describe('useWorkspaceLifecycle', () => {
     expect(lifecycleMocks.refreshSession).toHaveBeenCalledWith('session-1')
     expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledWith(SessionId('session-1'))
     expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledTimes(2)
+  })
+
+  it('loads project syntax resources when direct review changes working trees', async () => {
+    const { rerender } = renderHook(() => useWorkspaceLifecycle())
+
+    await waitFor(() =>
+      expect(lifecycleMocks.loadSyntaxResources).toHaveBeenCalledWith('/repo/.worktrees/session-1'),
+    )
+
+    lifecycleMocks.workingPath = '/repo/.worktrees/session-2'
+    rerender()
+
+    await waitFor(() =>
+      expect(lifecycleMocks.loadSyntaxResources).toHaveBeenCalledWith('/repo/.worktrees/session-2'),
+    )
   })
 })

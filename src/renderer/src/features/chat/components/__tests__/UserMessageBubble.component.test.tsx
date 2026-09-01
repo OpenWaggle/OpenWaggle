@@ -118,6 +118,7 @@ describe('UserMessageBubble', () => {
   it('renders a fenced code block via markdown', () => {
     const message = createUserMessage('u1', [{ type: 'text', content: '```js\nconst x = 1;\n```' }])
     const { container } = render(<UserMessageBubble message={message} />)
+    expect(container.querySelector('.markdown-code-block')).toBeInTheDocument()
     const pre = container.querySelector('pre')
     expect(pre).toBeInTheDocument()
     const code = container.querySelector('code')

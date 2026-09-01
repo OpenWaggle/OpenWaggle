@@ -31,6 +31,14 @@ export const WORKSPACE_FILES = {
   CONTENT_RESULT_LIMIT: 200,
   /** Maximum indexed files returned to the side-panel explorer */
   EXPLORER_RESULT_LIMIT: 5_000,
+  /** Maximum ordered document edit batches accepted by one IPC request */
+  DOCUMENT_EDIT_BATCH_LIMIT: 64,
+  /** Maximum deltas accepted inside one ordered edit batch. */
+  DOCUMENT_EDIT_CHANGES_PER_BATCH_LIMIT: 256,
+  /** Aggregate deltas accepted in one save request before the renderer must compact. */
+  DOCUMENT_EDIT_CHANGE_LIMIT: 2_048,
+  /** Aggregate inserted UTF-16 code units accepted in one save request. */
+  DOCUMENT_EDIT_INSERT_CODE_UNIT_LIMIT: 2 * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE,
 } as const
 
 /** Terminal limits */

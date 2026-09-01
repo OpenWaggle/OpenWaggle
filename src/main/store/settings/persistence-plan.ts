@@ -1,5 +1,6 @@
 import type { Settings } from '@shared/types/settings'
 import {
+  SETTINGS_KEY_APPEARANCE_PREFERENCES,
   SETTINGS_KEY_DEFAULT_AUTHORIZATION_MODE,
   SETTINGS_KEY_DEFAULT_MODEL,
   SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE,
@@ -19,6 +20,7 @@ import {
   SETTINGS_KEY_SESSION_HOST_RUN_CEILING,
   SETTINGS_KEY_SHORTCUT_BINDINGS,
   SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT,
+  SETTINGS_KEY_SYNTAX_THEME_SELECTIONS,
   SETTINGS_KEY_THINKING_LEVEL,
 } from './keys'
 import { isValidThinkingLevel } from './sanitizers'
@@ -54,9 +56,11 @@ export function getInvalidThinkingLevel(partial: Partial<Settings>) {
   return partial.thinkingLevel
 }
 
-export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Settings) {
-  const writes: SettingsPatchWrite[] = []
-
+function appendGeneralSettingsWrites(
+  writes: SettingsPatchWrite[],
+  partial: Partial<Settings>,
+  next: Settings,
+) {
   appendChangedSetting(
     writes,
     partial.selectedModel !== undefined,
@@ -118,11 +122,24 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
     SETTINGS_KEY_DEFAULT_AUTHORIZATION_MODE,
     next.defaultAuthorizationMode,
   )
+}
+
+function appendDiffSettingsWrites(
+  writes: SettingsPatchWrite[],
+  partial: Partial<Settings>,
+  next: Settings,
+) {
   appendChangedSetting(
     writes,
     partial.diffSyntaxTheme !== undefined,
     SETTINGS_KEY_DIFF_SYNTAX_THEME,
     next.diffSyntaxTheme,
+  )
+  appendChangedSetting(
+    writes,
+    partial.syntaxThemeSelections !== undefined,
+    SETTINGS_KEY_SYNTAX_THEME_SELECTIONS,
+    next.syntaxThemeSelections,
   )
   appendChangedSetting(
     writes,
@@ -136,6 +153,13 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
     SETTINGS_KEY_DIFF_WRAP_LINES,
     next.diffWrapLines,
   )
+}
+
+function appendSessionHostSettingsWrites(
+  writes: SettingsPatchWrite[],
+  partial: Partial<Settings>,
+  next: Settings,
+) {
   appendChangedSetting(
     writes,
     partial.sessionHostParentConcurrencyLimit !== undefined,
@@ -171,6 +195,20 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
     partial.multiAgentEnabledByProject !== undefined,
     SETTINGS_KEY_MULTI_AGENT_ENABLED_BY_PROJECT,
     next.multiAgentEnabledByProject,
+  )
+}
+
+export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Settings) {
+  const writes: SettingsPatchWrite[] = []
+
+  appendGeneralSettingsWrites(writes, partial, next)
+  appendDiffSettingsWrites(writes, partial, next)
+  appendSessionHostSettingsWrites(writes, partial, next)
+  appendChangedSetting(
+    writes,
+    partial.appearancePreferences !== undefined,
+    SETTINGS_KEY_APPEARANCE_PREFERENCES,
+    next.appearancePreferences,
   )
 
   return writes

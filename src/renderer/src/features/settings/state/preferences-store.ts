@@ -5,6 +5,7 @@ import type { PreferencesState } from './preferences-store-types'
 
 export const usePreferencesStore = create<PreferencesState>((set, get) => ({
   settings: DEFAULT_SETTINGS,
+  persistedAppearancePreferences: DEFAULT_SETTINGS.appearancePreferences,
   isLoaded: false,
   loadError: null,
   ...createPreferencesActions(set, get),

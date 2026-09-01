@@ -64,4 +64,31 @@ describe('extension frame bootstrap validation', () => {
       ),
     ).toBeNull()
   })
+
+  it('accepts complete syntax results and rejects malformed tokens', () => {
+    const valid = {
+      channel: EXTENSION_FRAME_MESSAGE_CHANNEL,
+      frameId: 'frame-1',
+      type: 'syntax-highlight-result',
+      requestId: 'syntax-1',
+      result: {
+        status: 'highlighted',
+        language: 'typescript',
+        lines: [[{ content: 'const', color: 'var(--color-text-primary)', fontStyle: 2 }]],
+      },
+    }
+    expect(decodedParentMessage(valid, 'frame-1')).toMatchObject({
+      type: 'syntax-highlight-result',
+      requestId: 'syntax-1',
+    })
+    expect(
+      decodedParentMessage(
+        {
+          ...valid,
+          result: { ...valid.result, lines: [[{ content: 42 }]] },
+        },
+        'frame-1',
+      ),
+    ).toBeNull()
+  })
 })

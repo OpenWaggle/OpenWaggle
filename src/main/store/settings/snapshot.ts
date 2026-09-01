@@ -1,5 +1,7 @@
 import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
+import { resolveAppearancePreferences } from './appearance-preferences-sanitizer'
 import {
+  SETTINGS_KEY_APPEARANCE_PREFERENCES,
   SETTINGS_KEY_DEFAULT_AUTHORIZATION_MODE,
   SETTINGS_KEY_DEFAULT_MODEL,
   SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE,
@@ -19,6 +21,7 @@ import {
   SETTINGS_KEY_SESSION_HOST_RUN_CEILING,
   SETTINGS_KEY_SHORTCUT_BINDINGS,
   SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT,
+  SETTINGS_KEY_SYNTAX_THEME_SELECTIONS,
   SETTINGS_KEY_THINKING_LEVEL,
 } from './keys'
 import {
@@ -41,6 +44,7 @@ import {
   resolveSessionHostParentConcurrencyLimit,
   resolveSessionHostRunCeiling,
   resolveSkillTogglesByProject,
+  resolveSyntaxThemeSelections,
   resolveThinkingLevel,
   sanitizeBooleanByProject,
   sanitizeEnabledModels,
@@ -99,6 +103,9 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
   const diffSyntaxTheme = resolveDiffSyntaxTheme(
     getStoredValue(storedSettings, SETTINGS_KEY_DIFF_SYNTAX_THEME),
   )
+  const syntaxThemeSelections = resolveSyntaxThemeSelections(
+    getStoredValue(storedSettings, SETTINGS_KEY_SYNTAX_THEME_SELECTIONS),
+  )
   const diffView = resolveDiffView(getStoredValue(storedSettings, SETTINGS_KEY_DIFF_VIEW))
   const diffWrapLines = resolveDiffWrapLines(
     getStoredValue(storedSettings, SETTINGS_KEY_DIFF_WRAP_LINES),
@@ -121,6 +128,9 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
   const multiAgentEnabledByProject = sanitizeBooleanByProject(
     getStoredValue(storedSettings, SETTINGS_KEY_MULTI_AGENT_ENABLED_BY_PROJECT),
   )
+  const appearancePreferences = resolveAppearancePreferences(
+    getStoredValue(storedSettings, SETTINGS_KEY_APPEARANCE_PREFERENCES),
+  )
 
   return {
     settings: {
@@ -136,6 +146,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       defaultSessionEnvironmentMode,
       defaultAuthorizationMode,
       diffSyntaxTheme,
+      syntaxThemeSelections,
       diffView,
       diffWrapLines,
       sessionHostParentConcurrencyLimit,
@@ -144,6 +155,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       sessionHostIdleGracePeriodMs,
       multiAgentEnabled,
       multiAgentEnabledByProject,
+      appearancePreferences,
     } satisfies Settings,
   }
 }
@@ -155,12 +167,25 @@ function resolveNextDiffSettings(current: Settings, partial: Partial<Settings>) 
       partial.diffSyntaxTheme !== undefined && isValidDiffSyntaxTheme(partial.diffSyntaxTheme)
         ? partial.diffSyntaxTheme
         : current.diffSyntaxTheme,
+    syntaxThemeSelections:
+      partial.syntaxThemeSelections !== undefined
+        ? resolveSyntaxThemeSelections(partial.syntaxThemeSelections)
+        : current.syntaxThemeSelections,
     diffView:
       partial.diffView !== undefined && isValidDiffView(partial.diffView)
         ? partial.diffView
         : current.diffView,
     diffWrapLines:
       typeof partial.diffWrapLines === 'boolean' ? partial.diffWrapLines : current.diffWrapLines,
+  }
+}
+
+function resolveNextAppearanceSettings(current: Settings, partial: Partial<Settings>) {
+  return {
+    appearancePreferences:
+      partial.appearancePreferences !== undefined
+        ? resolveAppearancePreferences(partial.appearancePreferences)
+        : current.appearancePreferences,
   }
 }
 
@@ -172,6 +197,7 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
     ...coreSettings,
     ...hostSettings,
     ...resolveNextDiffSettings(current, partial),
+    ...resolveNextAppearanceSettings(current, partial),
   } satisfies Settings
 }
 

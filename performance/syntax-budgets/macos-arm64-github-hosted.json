@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "macos-arm64-github-hosted-3-core",
+  "description": "Shared GitHub-hosted macOS regression guard; not an absolute workstation claim.",
+  "metricMedianBudgetsMs": {
+    "javascriptCold16KiB": 100,
+    "javascriptWarm16KiB": 60
+  },
+  "metricBudgetsMs": {
+    "javascriptCold16KiB": 240,
+    "javascriptWarm16KiB": 120,
+    "javascriptWarm128KiB": 600,
+    "javascriptWarm1MiB": 4500,
+    "onigurumaCold16KiB": 260,
+    "admissionScan1MiB": 12,
+    "sourceWindow1MiB": 20,
+    "sourceFingerprint1MiB": 12
+  }
+}

@@ -14,6 +14,7 @@ describe('useUIStore unit', () => {
       toastData: null,
       slashCommandMenuOpen: false,
       feedbackModalOpen: false,
+      workspaceTreeOpen: true,
     })
   })
 
@@ -65,6 +66,18 @@ describe('useUIStore unit', () => {
       useUIStore.getState().clearToast()
 
       expect(useUIStore.getState().toastMessage).toBeNull()
+    })
+  })
+
+  describe('workspace navigator', () => {
+    it('shares one collapsible state between code surfaces', () => {
+      expect(useUIStore.getState().workspaceTreeOpen).toBe(true)
+
+      useUIStore.getState().toggleWorkspaceTree()
+      expect(useUIStore.getState().workspaceTreeOpen).toBe(false)
+
+      useUIStore.getState().toggleWorkspaceTree()
+      expect(useUIStore.getState().workspaceTreeOpen).toBe(true)
     })
   })
 })

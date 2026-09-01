@@ -1,4 +1,20 @@
-export type OpenWaggleAppearanceName = 'dark' | 'debug'
+export type OpenWaggleStandardAppearanceName =
+  | 'dark'
+  | 'light'
+  | 'high-contrast-dark'
+  | 'high-contrast-light'
+export type OpenWaggleAppearanceName = OpenWaggleStandardAppearanceName | 'debug'
+
+export function isOpenWaggleStandardAppearanceName(
+  value: string | null,
+): value is OpenWaggleStandardAppearanceName {
+  return (
+    value === 'dark' ||
+    value === 'light' ||
+    value === 'high-contrast-dark' ||
+    value === 'high-contrast-light'
+  )
+}
 
 const APPEARANCE_DATA_ATTRIBUTE = 'data-theme'
 const DEBUG_APPEARANCE_NAME = 'debug'
@@ -14,6 +30,7 @@ function isDebugAppearanceAllowed() {
     return true
   }
 
+  if (typeof window === 'undefined') return false
   return Reflect.get(window, DEBUG_APPEARANCE_TEST_FLAG) === true
 }
 
@@ -26,6 +43,7 @@ export function setAppearance(name: OpenWaggleAppearanceName) {
 }
 
 function installTestHook() {
+  if (typeof window === 'undefined') return
   Object.defineProperty(window, SET_APPEARANCE_TEST_HOOK, {
     configurable: true,
     value: setAppearance,

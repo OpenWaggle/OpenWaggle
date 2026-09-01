@@ -31,6 +31,7 @@ export interface PiProjectRuntimeIsolationOptions {
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly skillAllowlist?: readonly string[]
   readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly visualizationDirectory?: string
 }
 
 export interface IsolatedPiProjectModelRuntime {
@@ -123,6 +124,9 @@ export async function createPiProjectModelRuntimeWithoutOpenWaggleExtensions(
     ...(options.skillToggles ? { skillToggles: options.skillToggles } : {}),
     ...(options.skillAllowlist ? { skillAllowlist: options.skillAllowlist } : {}),
     ...(options.extensionFactories ? { extensionFactories: options.extensionFactories } : {}),
+    ...(options.visualizationDirectory
+      ? { visualizationDirectory: options.visualizationDirectory }
+      : {}),
   })
 }
 
@@ -153,6 +157,9 @@ export async function createIsolatedPiProjectRuntime(input: {
           : {}),
         ...(input.options.extensionFactories
           ? { extensionFactories: input.options.extensionFactories }
+          : {}),
+        ...(input.options.visualizationDirectory
+          ? { visualizationDirectory: input.options.visualizationDirectory }
           : {}),
       })
       return {

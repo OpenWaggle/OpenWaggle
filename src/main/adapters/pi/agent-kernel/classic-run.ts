@@ -30,6 +30,7 @@ export async function runPiSession(
   input: AgentKernelRunInput &
     PiRuntimeExtensionIsolationInput & {
       readonly workingPath: string
+      readonly visualizationDirectory?: string
       readonly mcpExtensionFactory?: ExtensionFactory
       readonly sessionsExtensionFactory?: ExtensionFactory
     },
@@ -55,8 +56,8 @@ export async function runPiSession(
     peerReports.factory,
     orchestrationUpdates.factory,
     specificationUpdates.factory,
-    ...(input.sessionsExtensionFactory ? [input.sessionsExtensionFactory] : []),
-    ...(input.mcpExtensionFactory ? [input.mcpExtensionFactory] : []),
+    input.sessionsExtensionFactory,
+    input.mcpExtensionFactory,
     ...(input.sessionIdentityContext
       ? [
           createAgentRunContextExtension({
@@ -66,7 +67,7 @@ export async function runPiSession(
           }),
         ]
       : []),
-  ]
+  ].filter((factory): factory is ExtensionFactory => factory !== undefined)
   const { model, session } = await createPiRunSessionRuntime({
     session: input.session,
     projectPath,
@@ -83,6 +84,9 @@ export async function runPiSession(
     skillAllowlist: input.skillAllowlist,
     enabledOpenWaggleExtensionPackages: input.enabledOpenWaggleExtensionPackages,
     enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths,
+    ...(input.visualizationDirectory
+      ? { visualizationDirectory: input.visualizationDirectory }
+      : {}),
     recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure,
     ...(extensionFactories.length > 0 ? { extensionFactories } : {}),
   })

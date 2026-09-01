@@ -3,6 +3,8 @@ import type { ChatToolCallPart } from '@shared/types/chat-ui'
 import { AlertTriangle, CheckCircle2, CircleDashed, MessagesSquare, Wrench } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Button } from '@/shared/ui/Button'
+import { StructuredPayload } from '@/shared/ui/StructuredPayload'
+import { SyntaxBlock } from '@/shared/ui/SyntaxBlock'
 import type {
   ExtensionAgentLoopSurfaceInput,
   ExtensionCustomMessageView,
@@ -13,12 +15,6 @@ import type {
   ExtensionTranscriptView,
 } from '../lib/extension-agent-loop-surface-model'
 import { CUSTOM_INTERACTION_UNAVAILABLE_ACTION_ID } from '../lib/extension-agent-loop-surface-model'
-
-const JSON_INDENT = 2
-
-function prettyJson(value: ExtensionCustomMessageView['value']) {
-  return JSON.stringify(value, null, JSON_INDENT)
-}
 
 function renderToolFallback({
   toolCall,
@@ -36,9 +32,11 @@ function renderToolFallback({
           {toolCall.state}
         </span>
       </div>
-      <pre className="max-h-40 overflow-auto rounded-lg border border-border/80 bg-bg p-3 text-xs leading-5 text-text-tertiary">
-        {toolCall.arguments || '{}'}
-      </pre>
+      <SyntaxBlock
+        source={toolCall.arguments || '{}'}
+        language="json"
+        className="max-h-40 rounded-lg border border-border/80 bg-bg"
+      />
       {toolResult ? (
         <div className="rounded-lg border border-border/80 bg-bg-secondary/50 p-3">
           <div className="mb-1 text-xs tracking-wide text-text-muted uppercase">
@@ -60,9 +58,10 @@ function renderCustomMessageFallback(message: ExtensionCustomMessageView) {
         <MessagesSquare className="size-4 text-accent" />
         <span>{message.name}</span>
       </div>
-      <pre className="max-h-48 overflow-auto rounded-lg border border-border/80 bg-bg p-3 text-xs leading-5 text-text-tertiary">
-        {prettyJson(message.value)}
-      </pre>
+      <StructuredPayload
+        value={message.value}
+        className="max-h-48 rounded-lg border border-border/80 bg-bg"
+      />
     </div>
   )
 }

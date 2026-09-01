@@ -169,7 +169,7 @@ export function AgentInteractionComposerPrompt({
   // alongside the ribbon it describes.
   return (
     <>
-      <PoliteAnnouncer message={announcement || null} />
+      <PoliteAnnouncer message={announcement || null} label="Agent request announcements" />
       {interaction === null ? null : isAuthorizationRequest(interaction) ? (
         <AgentAuthorizationRibbonContainer
           interaction={interaction}

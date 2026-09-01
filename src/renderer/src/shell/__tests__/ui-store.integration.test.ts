@@ -12,6 +12,7 @@ describe('useUIStore integration', () => {
       toastMessage: null,
       toastData: null,
       slashCommandMenuOpen: false,
+      workspaceTreeOpen: true,
     })
   })
 

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   loadSettingsMock,
+  loadSyntaxThemeCatalogMock,
   loadProviderModelsMock,
   loadAllAuthAccountsMock,
   onOAuthStatusMock,
@@ -10,6 +11,7 @@ const {
   unsubscribeMock,
 } = vi.hoisted(() => ({
   loadSettingsMock: vi.fn(),
+  loadSyntaxThemeCatalogMock: vi.fn(),
   loadProviderModelsMock: vi.fn(),
   loadAllAuthAccountsMock: vi.fn(),
   onOAuthStatusMock: vi.fn(),
@@ -19,6 +21,12 @@ const {
 
 function selectPreferences<T>(selector: (state: { loadSettings: typeof loadSettingsMock }) => T) {
   return selector({ loadSettings: loadSettingsMock })
+}
+
+function selectSyntaxThemeCatalog<T>(
+  selector: (state: { load: typeof loadSyntaxThemeCatalogMock }) => T,
+) {
+  return selector({ load: loadSyntaxThemeCatalogMock })
 }
 
 function selectProviders<T>(
@@ -75,6 +83,10 @@ vi.mock('@/features/settings/state/preferences-store', () => ({
   }),
 }))
 
+vi.mock('@/features/settings/state/syntax-theme-store', () => ({
+  useSyntaxThemeCatalogStore: selectSyntaxThemeCatalog,
+}))
+
 vi.mock('@/features/providers/state/provider-store', () => ({
   useProviderStore: Object.assign(selectProviders, {
     getState: getProviderState,
@@ -90,10 +102,31 @@ import { useSettingsSetup } from '../useSettings'
 describe('useSettingsSetup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    loadSyntaxThemeCatalogMock.mockResolvedValue(undefined)
     loadSettingsMock.mockResolvedValue(undefined)
     loadProviderModelsMock.mockResolvedValue(undefined)
     loadAllAuthAccountsMock.mockResolvedValue(undefined)
     onOAuthStatusMock.mockReturnValue(unsubscribeMock)
+  })
+
+  it('registers imported syntax resources before loading saved appearance settings', async () => {
+    let resolveSyntaxCatalog = () => {}
+    loadSyntaxThemeCatalogMock.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveSyntaxCatalog = resolve
+      }),
+    )
+
+    renderHook(() => useSettingsSetup())
+
+    expect(loadSyntaxThemeCatalogMock).toHaveBeenCalledWith(null)
+    expect(loadSettingsMock).not.toHaveBeenCalled()
+
+    resolveSyntaxCatalog()
+
+    await waitFor(() => {
+      expect(loadSettingsMock).toHaveBeenCalledOnce()
+    })
   })
 
   it('waits for settings before loading provider models and auth accounts', async () => {
@@ -106,7 +139,9 @@ describe('useSettingsSetup', () => {
 
     renderHook(() => useSettingsSetup())
 
-    expect(loadSettingsMock).toHaveBeenCalledOnce()
+    await waitFor(() => {
+      expect(loadSettingsMock).toHaveBeenCalledOnce()
+    })
     expect(loadProviderModelsMock).not.toHaveBeenCalled()
     expect(loadAllAuthAccountsMock).not.toHaveBeenCalled()
 

@@ -93,7 +93,10 @@ function hasThemeTokenGroups(value: unknown) {
 export function isOpenWaggleExtensionTheme(value: unknown): value is OpenWaggleExtensionTheme {
   return (
     isRecord(value) &&
-    (value.colorScheme === 'dark' || value.colorScheme === 'light') &&
+    (value.colorScheme === 'dark' ||
+      value.colorScheme === 'light' ||
+      value.colorScheme === 'high-contrast-dark' ||
+      value.colorScheme === 'high-contrast-light') &&
     hasThemeTokenGroups(value.tokens) &&
     hasThemeTokenGroups(value.cssVariables)
   )

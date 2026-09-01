@@ -8,6 +8,7 @@
  */
 
 import { Effect, Layer } from 'effect'
+import { sessionTreeReferencesWorktreeVisualization } from '../application/worktree-visualization-retention'
 import { SessionProjectionRepositoryError } from '../errors'
 import {
   SessionProjectionRepository,
@@ -65,6 +66,22 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
     restoreCheckpointRefs: restoreSessionTurnCheckpointRefs,
   }
 
+  async function archiveWorkspaceUnlessVisualizationRetained(
+    id: Parameters<typeof store.getSessionDetail>[0],
+  ) {
+    const session = await store.getSessionDetail(id)
+    if (!session) return
+    if (session.worktreePath) {
+      const tree = await import('../store/sessions/session-tree').then(({ getSessionTree }) =>
+        getSessionTree(id),
+      )
+      if (tree && sessionTreeReferencesWorktreeVisualization(tree, session.worktreePath)) {
+        return
+      }
+    }
+    await archiveSessionWorkspace(deletion, id)
+  }
+
   return Layer.succeed(
     SessionProjectionRepository,
     SessionProjectionRepository.of({
@@ -99,7 +116,7 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
       archive: (id) =>
         repoOp('archive', async () => {
           // Reversible, so the session's Turn history has to survive it.
-          await archiveSessionWorkspace(deletion, id)
+          await archiveWorkspaceUnlessVisualizationRetained(id)
           return store.archiveSession(id)
         }),
 

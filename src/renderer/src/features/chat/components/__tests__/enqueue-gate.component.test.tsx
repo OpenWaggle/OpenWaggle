@@ -1,6 +1,10 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import { SessionId } from '@shared/types/brand'
 import { describe, expect, it, vi } from 'vitest'
+import {
+  clearInlineVisualizationStatesForTests,
+  reportInlineVisualizationState,
+} from '../../state/inline-visualization-state'
 import { enqueueIfAllowed } from '../ChatComposerStack'
 
 const PAYLOAD: AgentSendPayload = { text: 'do the thing', thinkingLevel: 'off', attachments: [] }
@@ -29,16 +33,32 @@ describe('enqueueIfAllowed', () => {
 
   it('queues against the active session when nothing blocks the send', async () => {
     const enqueue = vi.fn(async () => undefined)
+    const sessionId = SessionId('session-a')
+    reportInlineVisualizationState({
+      instanceId: 'frame-a',
+      sessionId,
+      sourcePath: '/repo/map.html',
+      title: 'Map',
+      state: { selected: 'api' },
+    })
 
     await enqueueIfAllowed({
       payload: PAYLOAD,
-      activeSessionId: SessionId('session-a'),
+      activeSessionId: sessionId,
       sendBlockedReason: null,
       enqueue,
       onToast: vi.fn(),
     })
 
-    expect(enqueue).toHaveBeenCalledWith(PAYLOAD)
+    expect(enqueue).toHaveBeenCalledWith({
+      ...PAYLOAD,
+      visualizationContext: {
+        title: 'Map',
+        sourcePath: '/repo/map.html',
+        state: { selected: 'api' },
+      },
+    })
+    clearInlineVisualizationStatesForTests()
   })
 
   it('does nothing without an active session', async () => {

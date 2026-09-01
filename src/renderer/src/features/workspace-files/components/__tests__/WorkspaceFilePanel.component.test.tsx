@@ -8,8 +8,13 @@ import { useUIStore } from '@/shell/ui-store'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 
 const mocks = vi.hoisted(() => ({
+  listWorkspaceExternalEditors: vi.fn(),
+  onWorkspaceFilesChanged: vi.fn(() => vi.fn()),
   openWorkspaceFileExternal: vi.fn(),
+  searchWorkspaceFiles: vi.fn(),
   readWorkspaceFile: vi.fn(),
+  unwatchWorkspaceFiles: vi.fn().mockResolvedValue(undefined),
+  watchWorkspaceFiles: vi.fn().mockResolvedValue(undefined),
   writeWorkspaceFile: vi.fn(),
   createObjectURL: vi.fn(() => 'blob:workspace-preview'),
   revokeObjectURL: vi.fn(),
@@ -31,6 +36,15 @@ const FILE: WorkspaceTextFileReadResult = {
   previewKind: 'text',
   content: 'export const x = 1',
   language: 'typescript',
+  documentVersion: 0,
+  fidelity: {
+    encoding: 'utf-8',
+    lineEnding: 'none',
+    finalNewline: false,
+    indentStyle: 'space',
+    indentSize: 2,
+    editorConfigApplied: false,
+  },
 }
 
 const IMAGE_FILE: WorkspaceBinaryFileReadResult = {
@@ -47,12 +61,22 @@ const IMAGE_FILE: WorkspaceBinaryFileReadResult = {
 describe('WorkspaceFilePanel external open', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    window.localStorage.clear()
     Object.defineProperties(URL, {
       createObjectURL: { configurable: true, value: mocks.createObjectURL },
       revokeObjectURL: { configurable: true, value: mocks.revokeObjectURL },
     })
     useUIStore.getState().clearToast()
     mocks.readWorkspaceFile.mockResolvedValue(FILE)
+    mocks.listWorkspaceExternalEditors.mockResolvedValue([
+      { id: 'vscode', label: 'Visual Studio Code' },
+      { id: 'zed', label: 'Zed' },
+    ])
+    mocks.searchWorkspaceFiles.mockResolvedValue([
+      { path: 'src/example.ts', basename: 'example.ts' },
+      { path: 'src/other.ts', basename: 'other.ts' },
+    ])
+    useUIStore.setState({ workspaceTreeOpen: true })
   })
 
   afterEach(() => {
@@ -70,9 +94,10 @@ describe('WorkspaceFilePanel external open', () => {
         onOpenFile={vi.fn()}
       />,
     )
-    const openButton = await screen.findByRole('button', { name: 'Open file in default editor' })
+    const openButton = await screen.findByRole('button', { name: 'Open file in external editor' })
 
     fireEvent.click(openButton)
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: 'Visual Studio Code' }))
 
     await vi.waitFor(() =>
       expect(useUIStore.getState().toastData).toEqual({
@@ -80,6 +105,45 @@ describe('WorkspaceFilePanel external open', () => {
         variant: 'error',
       }),
     )
+  })
+
+  it('opens the selected editor and remembers it for the primary action', async () => {
+    mocks.openWorkspaceFileExternal.mockResolvedValue(undefined)
+    renderWithQueryClient(
+      <WorkspaceFilePanel
+        projectPath="/project"
+        relativePath="src/example.ts"
+        line={12}
+        onClose={vi.fn()}
+        onOpenFile={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose external editor' }))
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: 'Zed' }))
+
+    await vi.waitFor(() =>
+      expect(mocks.openWorkspaceFileExternal).toHaveBeenCalledWith({
+        projectPath: '/project',
+        path: 'src/example.ts',
+        editor: 'zed',
+        line: 12,
+      }),
+    )
+    expect(window.localStorage.getItem('openwaggle:preferred-external-editor')).toBe('zed')
+
+    const primaryButton = await screen.findByRole('button', {
+      name: 'Open file in external editor',
+    })
+    await vi.waitFor(() => expect(primaryButton).toHaveAttribute('title', 'Open in Zed'))
+    fireEvent.click(primaryButton)
+    await vi.waitFor(() => expect(mocks.openWorkspaceFileExternal).toHaveBeenCalledTimes(2))
+    expect(mocks.openWorkspaceFileExternal).toHaveBeenLastCalledWith({
+      projectPath: '/project',
+      path: 'src/example.ts',
+      editor: 'zed',
+      line: 12,
+    })
   })
 
   it('releases a binary preview URL when the preview unmounts', async () => {
@@ -100,5 +164,30 @@ describe('WorkspaceFilePanel external open', () => {
     view.unmount()
 
     expect(mocks.revokeObjectURL).toHaveBeenCalledWith('blob:workspace-preview')
+  })
+
+  it('places the shared workspace navigator after the file content and collapses it', async () => {
+    renderWithQueryClient(
+      <WorkspaceFilePanel
+        projectPath="/project"
+        relativePath="src/example.ts"
+        line={null}
+        onClose={vi.fn()}
+        onOpenFile={vi.fn()}
+      />,
+    )
+
+    const navigator = await screen.findByRole('complementary', { name: 'Workspace navigator' })
+    const body = navigator.parentElement
+    expect(body?.firstElementChild).not.toBe(navigator)
+    expect(body?.lastElementChild).toBe(navigator)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle workspace navigator' }))
+    expect(screen.queryByRole('complementary', { name: 'Workspace navigator' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle workspace navigator' }))
+    expect(
+      await screen.findByRole('complementary', { name: 'Workspace navigator' }),
+    ).toBeInTheDocument()
   })
 })

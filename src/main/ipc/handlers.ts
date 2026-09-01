@@ -9,6 +9,7 @@ import { registerExtensionFrameHandlers } from './extension-frame-handler'
 import { registerExtensionsHandlers } from './extensions-handler'
 import { registerFeedbackHandlers } from './feedback-handler'
 import { registerGitHandlers } from './git'
+import { registerInlineVisualizationFrameHandlers } from './inline-visualization-frame-handler'
 import { registerMcpHandlers } from './mcp-handler'
 import { registerProfileAccessHandlers } from './profile-access-handler'
 import { registerProjectHandlers } from './project-handler'
@@ -19,6 +20,7 @@ import { registerSessionsHandlers } from './sessions-handler'
 import { registerSettingsHandlers } from './settings-handler'
 import { registerShellHandlers } from './shell-handler'
 import { registerSkillsHandlers } from './skills-handler'
+import { registerSyntaxThemeHandlers } from './syntax-themes-handler'
 import { registerTerminalHandlers } from './terminal-handler'
 import { registerUpdaterHandlers } from './updater-handler'
 import { registerVoiceHandlers } from './voice-handler'
@@ -35,6 +37,7 @@ export function registerAllIpcHandlers(): void {
   registerAgentHandlers()
   registerSessionControlHandlers()
   registerSettingsHandlers()
+  registerSyntaxThemeHandlers()
   registerSessionsHandlers()
   registerSessionDetailsHandlers()
   registerAttachmentHandlers()
@@ -42,6 +45,7 @@ export function registerAllIpcHandlers(): void {
   registerExtensionsHandlers()
   registerExtensionBrokerHandlers()
   registerExtensionFrameHandlers()
+  registerInlineVisualizationFrameHandlers()
   registerMcpHandlers()
   registerProjectHandlers()
   registerProvidersHandlers()

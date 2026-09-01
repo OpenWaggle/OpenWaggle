@@ -1,6 +1,7 @@
 import type { ExtensionBrokerSdk } from './broker.js'
 import { OPENWAGGLE_EXTENSION } from './constants.js'
 import type { JsonValue } from './json.js'
+import { createPlainExtensionSyntaxResult, type OpenWaggleExtensionSyntaxSdk } from './syntax.js'
 import {
   createOpenWaggleExtensionTheme,
   extensionThemeCssVariableEntries,
@@ -38,6 +39,7 @@ export interface OpenWaggleExtensionSurfaceContext {
 export interface OpenWaggleExtensionSurfaceSdk {
   readonly sendAction: (actionId: string, payload?: JsonValue) => Promise<void>
   readonly respondInteraction: (value: JsonValue | null) => Promise<void>
+  readonly syntax: OpenWaggleExtensionSyntaxSdk
 }
 
 export type OpenWaggleExtensionSdk = ExtensionBrokerSdk & {
@@ -86,6 +88,13 @@ export function createNoopExtensionSurfaceSdk(): OpenWaggleExtensionSurfaceSdk {
   return {
     sendAction: async () => undefined,
     respondInteraction: async () => undefined,
+    syntax: {
+      highlight: async (input) =>
+        createPlainExtensionSyntaxResult({
+          ...input,
+          diagnostic: 'Host syntax highlighting is unavailable.',
+        }),
+    },
   }
 }
 

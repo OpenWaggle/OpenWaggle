@@ -8,6 +8,7 @@ import { focusPendingRequest } from '@/features/chat/lib'
 import { useDiffRouteNavigation } from '@/features/diff-panel/hooks'
 import { useGit, useGitRefresh } from '@/features/git/hooks'
 import { useProject, useSessionStatusMonitor, useSessions } from '@/features/sessions/hooks'
+import { useSyntaxThemeCatalogStore } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { usePinnedSessionShortcuts, useSidebarSearchShortcut } from '@/features/sidebar/hooks'
 import { api } from '@/shared/lib/ipc'
@@ -185,6 +186,7 @@ export function useWorkspaceLifecycle(): void {
   const closeCommandSurface = useUIStore((s) => s.closeCommandSurface)
   const commandSurface = useUIStore((s) => s.commandSurface)
   const shortcutBindings = usePreferencesStore((s) => s.settings.shortcutBindings)
+  const loadSyntaxResources = useSyntaxThemeCatalogStore((state) => state.load)
   const { toggleDiff, toggleSessionTree } = useDiffRouteNavigation()
 
   function startDraftSessionRoute() {
@@ -214,6 +216,9 @@ export function useWorkspaceLifecycle(): void {
     void refreshGitBranches(repositoryPath)
   }, [workingPath, repositoryPath, refreshGitStatus, refreshGitBranches])
 
+  useEffect(() => {
+    void loadSyntaxResources(workingPath)
+  }, [loadSyntaxResources, workingPath])
   useGitRefresh({
     workingPath,
     repositoryPath,

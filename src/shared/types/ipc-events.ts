@@ -6,6 +6,7 @@ import type { SessionHostEventEnvelope } from './session-host-event'
 import type { AgentTransportEvent } from './stream'
 import type { UpdateStatus } from './updater'
 import type { WaggleStreamMetadata, WaggleTurnEvent } from './waggle'
+import type { WorkspaceFilesChangedEvent } from './workspace-files'
 
 export interface IpcSendChannelMap {
   'agent:cancel-waggle': {
@@ -86,6 +87,9 @@ export interface IpcEventChannelMap {
    */
   'git:working-tree-changed': {
     payload: { workingPath: string }
+  }
+  'workspace-files:changed': {
+    payload: WorkspaceFilesChangedEvent
   }
   'updater:status-changed': {
     payload: UpdateStatus

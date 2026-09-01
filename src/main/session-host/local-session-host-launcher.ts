@@ -1,7 +1,7 @@
-import { spawn } from 'node:child_process'
 import net from 'node:net'
 import path from 'node:path'
 import { app } from 'electron'
+import { launchHeadlessBackgroundProcess } from '../desktop-ui'
 import { env, getSessionHostChildEnv } from '../env'
 import { probeLocalSessionHost } from './local-session-client'
 import {
@@ -65,7 +65,7 @@ export interface LocalSessionHostLauncherDependencies {
   readonly canConnect: (endpoint: string) => Promise<boolean>
   readonly probe: typeof probeLocalSessionHost
   readonly tryAcquireOwnership: (databasePath: string) => Promise<SessionHostOwnership | null>
-  readonly launch: () => void
+  readonly launch: () => void | Promise<void>
   readonly now: () => number
   readonly wait: (milliseconds: number) => Promise<void>
   readonly refreshPaths: (paths: LocalSessionHostPaths) => Promise<LocalSessionHostPaths>
@@ -127,15 +127,13 @@ const defaultDependencies: LocalSessionHostLauncherDependencies = {
       appPath: app.getAppPath(),
       ...(env.APPIMAGE ? { appImagePath: env.APPIMAGE } : {}),
     })
-    const child = spawn(launch.command, launch.args, {
-      detached: true,
-      stdio: 'ignore',
-      env: sessionHostChildEnvironment({
+    return launchHeadlessBackgroundProcess({
+      ...launch,
+      environment: sessionHostChildEnvironment({
         userDataRoot: app.getPath('userData'),
         ...(env.OPENWAGGLE_LOG_LEVEL ? { logLevel: env.OPENWAGGLE_LOG_LEVEL } : {}),
       }),
     })
-    child.unref()
   },
   now: Date.now,
   wait: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
@@ -232,7 +230,7 @@ export async function ensureLocalSessionHost(
   const authority = await waitForLocalSessionHostAuthority(input, takeoverTimeoutMs, dependencies)
   if (authority.status === 'connected') return authority.negotiation
 
-  dependencies.launch()
+  await dependencies.launch()
   await waitForCompatibleHost(input, takeoverTimeoutMs, dependencies)
   return dependencies.probe({
     ...input,

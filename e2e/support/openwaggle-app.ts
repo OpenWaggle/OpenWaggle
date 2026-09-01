@@ -14,6 +14,7 @@ import {
 } from '../../scripts/qa/session-host-shutdown'
 import { buildSafeElectronEnvironment } from '../../scripts/safe-electron-environment'
 import { MainWindowPage } from '../page-models/main-window.page'
+import { closeElectronApplication } from './electron-process-tree'
 
 const execFileAsync = promisify(execFile)
 let evidenceDirectoryPromise: Promise<string> | null = null
@@ -136,7 +137,7 @@ export class OpenWaggleApp {
       }
       let closeSucceeded = true
       try {
-        await app?.close()
+        if (app !== null) await closeElectronApplication(app)
       } catch (closeError) {
         closeSucceeded = false
         secondaryErrors.push(closeError)
@@ -168,7 +169,7 @@ export class OpenWaggleApp {
   }
 
   async restart(): Promise<void> {
-    await this.app.close()
+    await closeElectronApplication(this.app)
     this.app = await launchOpenWaggleElectron({
       userDataDir: this.userDataDir,
       hidden: this.hidden,
@@ -178,7 +179,7 @@ export class OpenWaggleApp {
   }
 
   async close(): Promise<void> {
-    await this.app.close()
+    await closeElectronApplication(this.app)
   }
 
   async runCli(args: readonly string[]): Promise<{ readonly stdout: string; readonly stderr: string }> {
@@ -218,11 +219,7 @@ export class OpenWaggleApp {
   async cleanup(): Promise<void> {
     const errors: unknown[] = []
     try {
-      const directory = await evidenceDirectory()
-      const screenshotPath = path.join(directory, evidenceName(this.evidencePrefix))
-      await this.currentWindow.waitForTimeout(QA_SCREENSHOT_SETTLE_MS)
-      await this.currentWindow.screenshot({ path: screenshotPath })
-      console.info(`[electron-qa] screenshot: ${screenshotPath}`)
+      await this.captureEvidence(this.evidencePrefix)
     } catch (error) {
       errors.push(error)
     }
@@ -250,6 +247,15 @@ export class OpenWaggleApp {
       console.error('[electron-qa] cleanup failed', error)
       expect.soft(error, 'Electron QA must capture evidence and clean up safely').toBeUndefined()
     }
+  }
+
+  async captureEvidence(prefix: string): Promise<string> {
+    const directory = await evidenceDirectory()
+    const screenshotPath = path.join(directory, evidenceName(prefix))
+    await this.currentWindow.waitForTimeout(QA_SCREENSHOT_SETTLE_MS)
+    await this.currentWindow.screenshot({ path: screenshotPath })
+    console.info(`[electron-qa] screenshot: ${screenshotPath}`)
+    return screenshotPath
   }
 
   async desktopState() {
@@ -342,6 +348,70 @@ export class OpenWaggleApp {
         window.webContents.send('agent:worktree-launch', launchPayload)
       }
     }, payload)
+  }
+
+  /**
+   * Replaces the next classic agent dispatch with a real main-process IPC probe.
+   * The renderer still crosses contextBridge and IPC exactly as production does; only the
+   * provider run is stubbed so E2E can inspect the payload without network credentials.
+   * Restarting the app restores the production handler.
+   */
+  async installAgentSendProbe(): Promise<void> {
+    await this.app.evaluate(({ BrowserWindow, ipcMain }) => {
+      const probeGlobal = globalThis as typeof globalThis & {
+        __openWaggleAgentSendProbe?: unknown
+      }
+      probeGlobal.__openWaggleAgentSendProbe = null
+      ipcMain.removeHandler('agent:send-message')
+      ipcMain.handle('agent:send-message', (_event, sessionId, payload, model) => {
+        probeGlobal.__openWaggleAgentSendProbe = { sessionId, payload, model }
+        setTimeout(() => {
+          for (const window of BrowserWindow.getAllWindows()) {
+            window.webContents.send('agent:run-completed', { sessionId })
+          }
+        }, 25)
+        return { outcome: 'delivered' }
+      })
+      ipcMain.removeHandler('providers:get-models')
+      ipcMain.handle('providers:get-models', () => [
+        {
+          provider: 'e2e-probe',
+          displayName: 'E2E Probe',
+          auth: { type: 'none' },
+          models: [
+            {
+              id: 'e2e-probe/visualization-context',
+              modelId: 'visualization-context',
+              name: 'Visualization Context Probe',
+              provider: 'e2e-probe',
+              available: true,
+              availableThinkingLevels: ['off'],
+              contextWindow: 32_768,
+            },
+          ],
+        },
+      ])
+    })
+    const settingsResult = await this.currentWindow.evaluate(() =>
+      window.api.updateSettings({
+        enabledModels: ['e2e-probe/visualization-context'],
+        selectedModel: 'e2e-probe/visualization-context',
+      }),
+    )
+    if (!settingsResult.ok) {
+      throw new Error(`Failed to configure the agent send probe: ${settingsResult.error}`)
+    }
+    await this.currentWindow.reload()
+    await this.mainWindow().waitUntilReady()
+  }
+
+  async readAgentSendProbe(): Promise<unknown> {
+    return this.app.evaluate(() => {
+      const probeGlobal = globalThis as typeof globalThis & {
+        __openWaggleAgentSendProbe?: unknown
+      }
+      return probeGlobal.__openWaggleAgentSendProbe ?? null
+    })
   }
 
   mainWindow(): MainWindowPage {

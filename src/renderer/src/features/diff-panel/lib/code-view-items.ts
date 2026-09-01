@@ -13,6 +13,20 @@ export interface ReviewAnnotationMetadata {
 export type ReviewAnnotation = DiffLineAnnotation<ReviewAnnotationMetadata>
 export type ReviewCodeViewItem = CodeViewItem<ReviewAnnotationMetadata>
 
+export interface ParsedReviewCodeViewItem {
+  readonly filePath: string
+  readonly patchHash: string
+  readonly fileDiff: FileDiffMetadata
+}
+
+export interface DiffParserWorkerRequest {
+  readonly files: readonly GitFileDiff[]
+}
+
+export type DiffParserWorkerResponse =
+  | { readonly ok: true; readonly items: readonly ParsedReviewCodeViewItem[] }
+  | { readonly ok: false; readonly error: string }
+
 const FNV_OFFSET_BASIS_32 = 0x811c9dc5
 const FNV_PRIME_32 = 0x01000193
 const HASH_RADIX = 36
@@ -40,8 +54,8 @@ export function codeViewItemId(filePath: string) {
  * patch yields no file (empty diff, or a mode-only change git reports with no
  * hunks) so callers can skip the item rather than render an empty section.
  */
-function parseFileDiff(file: GitFileDiff): FileDiffMetadata | null {
-  const patches = parsePatchFiles(file.diff, `${file.path}-${hashPatch(file.diff)}`)
+function parseFileDiff(file: GitFileDiff, patchHash: string): FileDiffMetadata | null {
+  const patches = parsePatchFiles(file.diff, `${file.path}-${patchHash}`)
   for (const patch of patches) {
     const [first] = patch.files
     if (first !== undefined) return first
@@ -58,31 +72,46 @@ function parseFileDiff(file: GitFileDiff): FileDiffMetadata | null {
  * decides whether to re-render an item from its id plus version, so the version
  * must move when the patch or its annotations move.
  */
-export function buildCodeViewItems(
-  files: readonly GitFileDiff[],
-  annotationsByPath: ReadonlyMap<string, readonly ReviewAnnotation[]>,
-) {
-  const items: ReviewCodeViewItem[] = []
+export function parseCodeViewItems(files: readonly GitFileDiff[]) {
+  const items: ParsedReviewCodeViewItem[] = []
   for (const file of files) {
-    const fileDiff = parseFileDiff(file)
+    // Large diffs can contain megabytes of patch text. Hash that text once per
+    // file and reuse the digest for both Pierre's cache key and our version.
+    // Re-scanning every patch for the version delayed the first diff paint on
+    // the renderer thread without adding any cache-safety information.
+    const patchHash = hashPatch(file.diff)
+    const fileDiff = parseFileDiff(file, patchHash)
     if (fileDiff === null) continue
-    const annotations = annotationsByPath.get(file.path) ?? []
     items.push({
-      id: codeViewItemId(file.path),
-      type: 'diff',
+      filePath: file.path,
+      patchHash,
       fileDiff,
-      annotations: [...annotations],
-      version: versionFor(file.diff, annotations),
     })
   }
   return items
 }
 
-function versionFor(patch: string, annotations: readonly ReviewAnnotation[]) {
+export function decorateCodeViewItems(
+  parsedItems: readonly ParsedReviewCodeViewItem[],
+  annotationsByPath: ReadonlyMap<string, readonly ReviewAnnotation[]>,
+) {
+  return parsedItems.map(({ filePath, patchHash, fileDiff }): ReviewCodeViewItem => {
+    const annotations = annotationsByPath.get(filePath) ?? []
+    return {
+      id: codeViewItemId(filePath),
+      type: 'diff',
+      fileDiff,
+      annotations: [...annotations],
+      version: versionFor(patchHash, annotations),
+    }
+  })
+}
+
+function versionFor(patchHash: string, annotations: readonly ReviewAnnotation[]) {
   const annotationSignature = annotations
     .map(
       (a) => `${a.side}:${String(a.lineNumber)}:${a.metadata.kind}:${a.metadata.commentId ?? ''}`,
     )
     .join('|')
-  return Number.parseInt(hashPatch(`${patch}##${annotationSignature}`), HASH_RADIX)
+  return Number.parseInt(hashPatch(`${patchHash}##${annotationSignature}`), HASH_RADIX)
 }

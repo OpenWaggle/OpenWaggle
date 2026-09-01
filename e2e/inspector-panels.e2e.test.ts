@@ -45,8 +45,11 @@ test.describe('diff route sidebar', () => {
 
       await expect(page).toHaveURL(/\?panel=diff/)
       // The same route renders as a docked panel or a responsive sheet depending on available
-      // viewport width. Its complementary landmark is the stable contract across both modes.
-      const diffAside = page.getByRole('complementary')
+      // viewport width. Target the outer inspector landmark: the diff can contain its own nested
+      // workspace navigator, which is also correctly exposed as a complementary landmark.
+      const diffAside = page
+        .getByRole('complementary')
+        .filter({ has: page.getByRole('button', { name: 'Close diff sidebar' }) })
       await expect(diffAside).toBeVisible()
 
       await page.getByRole('button', { name: 'Close diff sidebar' }).click()

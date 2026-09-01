@@ -1,8 +1,10 @@
 import type { AgentLoopNotifyLevel } from '@shared/types/agent-loop-interaction'
 import { SessionId } from '@shared/types/brand'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { useCallback } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentInteractionEvent } from '../../lib/types-chat-row'
+import { useAgentLoopEventStore } from '../../state/agent-loop-event-store'
 import { AgentNotificationStack } from '../AgentNotificationStack'
 
 const SESSION_ID = SessionId('session-1')
@@ -34,10 +36,23 @@ function focusWindow(focused: boolean) {
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue(focused ? 'visible' : 'hidden')
 }
 
+function StoredNotificationStack() {
+  const events = useAgentLoopEventStore(
+    (state) => state.sessionsById.get(SESSION_ID)?.interactionEvents ?? [],
+  )
+  const dismissNotification = useAgentLoopEventStore((state) => state.dismissNotification)
+  const onDismiss = useCallback(
+    (interactionId: string) => dismissNotification(SESSION_ID, interactionId),
+    [dismissNotification],
+  )
+  return <AgentNotificationStack events={events} onDismiss={onDismiss} />
+}
+
 describe('AgentNotificationStack', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     focusWindow(true)
+    useAgentLoopEventStore.setState({ sessionsById: new Map() })
   })
 
   afterEach(() => {
@@ -79,6 +94,18 @@ describe('AgentNotificationStack', () => {
     })
 
     expect(screen.getByText('Error notification')).toBeInTheDocument()
+  })
+
+  it('does not resurrect a dismissed error after the stack remounts', () => {
+    useAgentLoopEventStore.getState().applyEvent(SESSION_ID, notice({ id: 'e1', level: 'error' }))
+    const view = render(<StoredNotificationStack />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss error notification' }))
+    expect(screen.queryByText('Error notification')).not.toBeInTheDocument()
+    view.unmount()
+    render(<StoredNotificationStack />)
+
+    expect(screen.queryByText('Error notification')).not.toBeInTheDocument()
   })
 
   it('does not run the clock while the window is unfocused', () => {
@@ -162,6 +189,37 @@ describe('AgentNotificationStack', () => {
 
     expect(screen.queryByText(/^n4$/)).not.toBeInTheDocument()
     expect(screen.queryByText(/^n1$/)).not.toBeInTheDocument()
+  })
+
+  it('keeps the overflow control focused so a keyboard user can collapse the stack', () => {
+    render(
+      <AgentNotificationStack
+        events={[
+          notice({ id: 'e1', level: 'error', timestamp: 4 }),
+          notice({ id: 'e2', level: 'error', timestamp: 3 }),
+          notice({ id: 'e3', level: 'error', timestamp: 2 }),
+          notice({ id: 'e4', level: 'error', timestamp: 1 }),
+        ]}
+      />,
+    )
+    const stack = screen.getByLabelText('Agent notifications')
+    const expand = within(stack).getByRole('button', { name: '1 more behind' })
+    expand.focus()
+
+    fireEvent.click(expand, { detail: 0 })
+
+    const collapse = within(stack).getByRole('button', { name: 'Show fewer notices' })
+    expect(collapse).toHaveAttribute('aria-expanded', 'true')
+    expect(collapse).toHaveFocus()
+    expect(within(stack).getByText(/^e4$/)).toBeInTheDocument()
+
+    fireEvent.click(collapse, { detail: 0 })
+
+    expect(within(stack).getByRole('button', { name: '1 more behind' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+    expect(within(stack).queryByText(/^e4$/)).not.toBeInTheDocument()
   })
 
   it('fronts an error even when informational notices arrived later', () => {

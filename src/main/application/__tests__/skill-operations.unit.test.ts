@@ -58,7 +58,12 @@ describe('skill operations', () => {
       },
     })
 
-    const catalog = await Effect.runPromise(Effect.provide(listSkillsOperation(projectPath), layer))
+    const catalog = await Effect.runPromise(
+      Effect.provide(
+        listSkillsOperation(projectPath, async () => null),
+        layer,
+      ),
+    )
     const preview = await Effect.runPromise(
       Effect.provide(getSkillPreviewOperation(projectPath, 'code-review'), layer),
     )
@@ -94,10 +99,37 @@ describe('skill operations', () => {
     })
   })
 
+  it('prepends the built-in visualization diagnostic to the Host-backed catalog', async () => {
+    const projectPath = await makeProjectWithSkill()
+    const catalog = await Effect.runPromise(
+      Effect.provide(
+        listSkillsOperation(projectPath, async () => ({
+          id: 'visualize',
+          name: 'Visualize',
+          description: 'Built-in visualization authoring is unavailable',
+          folderPath: '/built-in/visualize',
+          skillPath: '/built-in/visualize/SKILL.md',
+          hasScripts: true,
+          enabled: false,
+          loadStatus: 'error',
+          loadError: 'resource preparation failed',
+        })),
+        settingsLayer(),
+      ),
+    )
+
+    expect(catalog.skills.map((skill) => skill.id)).toEqual(['visualize', 'code-review'])
+  })
+
   it('rejects empty project paths and skill ids before reading settings', async () => {
     const layer = settingsLayer()
     await expect(
-      Effect.runPromise(Effect.provide(listSkillsOperation(''), layer)),
+      Effect.runPromise(
+        Effect.provide(
+          listSkillsOperation('', async () => null),
+          layer,
+        ),
+      ),
     ).rejects.toThrow()
     await expect(
       Effect.runPromise(Effect.provide(getSkillPreviewOperation('/project', ''), layer)),

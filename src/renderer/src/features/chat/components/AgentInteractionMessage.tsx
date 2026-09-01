@@ -1,6 +1,7 @@
 import { ChevronDown } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/shared/ui/Button'
+import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
 import { useChatDisplayText } from './ChatDisplayPathContext'
 
 /**
@@ -35,9 +36,12 @@ export function InteractionMessage({ message }: { readonly message: string }) {
         Details
       </Button>
       {open ? (
-        <pre className="mt-1 max-h-40 max-w-full min-w-0 overflow-auto rounded-lg border border-border/65 bg-bg/70 p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap text-text-secondary [overflow-wrap:anywhere]">
+        <PlainTextBlock
+          reason="prose"
+          className="mt-1 max-h-40 max-w-full min-w-0 border border-border/65 bg-bg/70"
+        >
           {displayMessage}
-        </pre>
+        </PlainTextBlock>
       ) : null}
     </div>
   )

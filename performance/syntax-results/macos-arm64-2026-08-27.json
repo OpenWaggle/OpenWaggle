@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-28T11:22:52.496Z",
+  "runtime": {
+    "node": "v24.12.0",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "hardware": {
+    "cpus": 14,
+    "totalMemoryBytes": 38654705664
+  },
+  "fixtures": {
+    "smallBytes": 16384,
+    "mediumBytes": 131072,
+    "largeDocumentBytes": 1048576,
+    "admissionCodeUnits": 1048576
+  },
+  "metrics": {
+    "javascriptCold16KiB": {
+      "medianMs": 35.548,
+      "p95Ms": 116.206,
+      "samples": 3
+    },
+    "javascriptWarm16KiB": {
+      "medianMs": 15.895,
+      "p95Ms": 16.589,
+      "samples": 15
+    },
+    "javascriptWarm128KiB": {
+      "medianMs": 126.74,
+      "p95Ms": 134.215,
+      "samples": 15
+    },
+    "javascriptWarm1MiB": {
+      "medianMs": 994.793,
+      "p95Ms": 1010.241,
+      "samples": 5
+    },
+    "onigurumaCold16KiB": {
+      "medianMs": 51.909,
+      "p95Ms": 85.337,
+      "samples": 3
+    },
+    "admissionScan1MiB": {
+      "medianMs": 1.985,
+      "p95Ms": 2.708,
+      "samples": 15
+    },
+    "sourceWindow1MiB": {
+      "medianMs": 0.243,
+      "p95Ms": 0.342,
+      "samples": 15
+    }
+  }
+}

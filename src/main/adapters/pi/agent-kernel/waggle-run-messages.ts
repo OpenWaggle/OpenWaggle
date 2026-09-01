@@ -13,11 +13,12 @@ import { buildPiPromptInput, type PiPromptInput } from '../pi-runtime-input'
 import type { PiCustomContent } from './message-parts'
 
 function piPromptInputToCustomContent(input: PiPromptInput): PiCustomContent {
+  const text = input.text
   if (input.images.length === 0) {
-    return input.text
+    return text
   }
 
-  return input.text ? [{ type: 'text', text: input.text }, ...input.images] : [...input.images]
+  return text ? [{ type: 'text', text }, ...input.images] : [...input.images]
 }
 
 function buildWaggleTurnPayload(
@@ -57,15 +58,21 @@ export function buildWaggleTurnMetadata(input: {
 function buildTurnDetails(input: {
   readonly meta: WaggleStreamMetadata
   readonly fallbackRunId: string
+  readonly visualizationContext?: string | null
 }) {
-  return createPiWaggleTurnDetails({
-    runId: input.meta.sessionId ?? input.fallbackRunId,
-    turnNumber: input.meta.turnNumber,
-    agentIndex: input.meta.agentIndex,
-    agentLabel: input.meta.agentLabel,
-    agentModel: input.meta.agentModel,
-    agentColor: input.meta.agentColor,
-  })
+  return {
+    ...createPiWaggleTurnDetails({
+      runId: input.meta.sessionId ?? input.fallbackRunId,
+      turnNumber: input.meta.turnNumber,
+      agentIndex: input.meta.agentIndex,
+      agentLabel: input.meta.agentLabel,
+      agentModel: input.meta.agentModel,
+      agentColor: input.meta.agentColor,
+    }),
+    ...(input.visualizationContext
+      ? { openWaggleVisualizationContext: input.visualizationContext }
+      : {}),
+  }
 }
 
 export async function sendInitialWaggleMessages(input: {
@@ -98,20 +105,23 @@ export async function sendInitialWaggleMessages(input: {
     { triggerTurn: false },
   )
 
+  const initialTurnInput = buildPiPromptInput(
+    input.model,
+    buildWaggleTurnPayload(input.payload, {
+      config: input.runtimeConfig,
+      turnNumber: 0,
+    }),
+  )
   await input.session.sendCustomMessage(
     {
       customType: PI_WAGGLE_TURN_CUSTOM_TYPE,
-      content: piPromptInputToCustomContent(
-        buildPiPromptInput(
-          input.model,
-          buildWaggleTurnPayload(input.payload, {
-            config: input.runtimeConfig,
-            turnNumber: 0,
-          }),
-        ),
-      ),
+      content: piPromptInputToCustomContent(initialTurnInput),
       display: false,
-      details: buildTurnDetails({ meta: input.meta, fallbackRunId: input.runId }),
+      details: buildTurnDetails({
+        meta: input.meta,
+        fallbackRunId: input.runId,
+        visualizationContext: initialTurnInput.visualizationContext,
+      }),
     },
     { triggerTurn: true },
   )
@@ -128,13 +138,18 @@ export function buildWaggleTurnCustomMessage(input: {
     config: input.config,
     turnNumber: input.meta.turnNumber,
   })
+  const turnInput = buildPiPromptInput(input.model, turnPayload)
 
   return {
     customType: PI_WAGGLE_TURN_CUSTOM_TYPE,
-    content: piPromptInputToCustomContent(buildPiPromptInput(input.model, turnPayload)),
+    content: piPromptInputToCustomContent(turnInput),
     display: false,
     details: {
-      ...buildTurnDetails({ meta: input.meta, fallbackRunId: input.runId }),
+      ...buildTurnDetails({
+        meta: input.meta,
+        fallbackRunId: input.runId,
+        visualizationContext: turnInput.visualizationContext,
+      }),
     },
   }
 }

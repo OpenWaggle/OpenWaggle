@@ -3,19 +3,22 @@ import * as Effect from 'effect/Effect'
 import type { PersistSessionSnapshotInput } from '../../ports/session-repository'
 import { runStoreEffect } from '../store-runtime'
 import { deriveBranchHints, deriveSessionBranchesForSnapshot } from './branch-derivation'
-import {
-  loadSnapshotPersistenceState,
-  replaceSnapshotProjection,
-} from './persist-snapshot-projection'
+import { replaceSnapshotProjection } from './persist-snapshot-projection'
+import { loadSnapshotPersistenceState } from './snapshot-persistence-state'
+import { preserveVisualizationOwnership } from './visualization-ownership-projection'
 
 export function persistSessionSnapshotWithSql(
   sql: SqlClient.SqlClient,
   input: PersistSessionSnapshotInput,
   now: number,
 ) {
-  const nodes = [...input.nodes].sort((left, right) => left.createdOrder - right.createdOrder)
+  const sortedNodes = [...input.nodes].sort((left, right) => left.createdOrder - right.createdOrder)
   return Effect.gen(function* () {
     const state = yield* loadSnapshotPersistenceState(sql, input)
+    const nodes = preserveVisualizationOwnership(
+      sortedNodes,
+      new Map(state.existingVisualizationMetadata.map((row) => [row.id, row.metadata_json])),
+    )
     const derived = deriveSessionBranchesForSnapshot({
       sessionId: String(input.sessionId),
       nodes,

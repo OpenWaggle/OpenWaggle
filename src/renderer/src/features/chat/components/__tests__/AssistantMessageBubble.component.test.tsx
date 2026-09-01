@@ -36,6 +36,12 @@ vi.mock('../StreamingText', () => ({
   StreamingText: ({ text }: { text: string }) => <div data-testid="streaming-text">{text}</div>,
 }))
 
+vi.mock('@/shared/ui/StructuredPayload', () => ({
+  StructuredPayload: ({ value }: { value: unknown }) => (
+    <div data-testid="structured-payload">{JSON.stringify(value)}</div>
+  ),
+}))
+
 vi.mock('../ToolCallRouter', () => ({
   ToolCallRouter: ({ part }: { part: { name: string } }) => (
     <div data-testid="tool-call-router">{part.name}</div>
@@ -86,11 +92,11 @@ function toolCallPart(name: string, id = 'tc-1'): ChatToolCallPart {
   return { type: 'tool-call', id, name, arguments: '{}', state: 'output-available' }
 }
 
-function toolResultPart(toolCallId: string): ChatToolResultPart {
+function toolResultPart(toolCallId: string, content: unknown = 'ok'): ChatToolResultPart {
   return {
     type: 'tool-result',
     toolCallId,
-    content: 'ok',
+    content,
     state: 'output-available',
   }
 }
@@ -205,6 +211,14 @@ describe('AssistantMessageBubble', () => {
     expect(container.querySelectorAll('[data-testid="streaming-text"]')).toHaveLength(3)
     expect(screen.getByText('internal reasoning')).toBeInTheDocument()
     expect(screen.getByText('Tool result · output-available')).toBeInTheDocument()
+  })
+
+  it('routes a standalone structured tool result through the structured payload adapter', () => {
+    const message = createMessage('m1', [toolResultPart('tc-1', { answer: 42 })])
+    renderAssistantMessage({ message })
+
+    expect(screen.getByTestId('structured-payload')).toHaveTextContent('{"answer":42}')
+    expect(screen.queryByTestId('streaming-text')).not.toBeInTheDocument()
   })
 
   it('renders all parts when canCollapseDetails=false', () => {

@@ -26,11 +26,11 @@ const shellMocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('@/features/chat/hooks', () => ({
+vi.mock('@/features/chat/hooks/useBackgroundRunMonitor', () => ({
   useBackgroundRunMonitor: () => shellMocks.backgroundRunMonitor(),
 }))
 
-vi.mock('@/features/feedback/components', () => ({
+vi.mock('@/features/feedback/components/FeedbackModal', () => ({
   FeedbackModal: () => <div>Feedback modal</div>,
 }))
 
@@ -38,7 +38,7 @@ vi.mock('@/features/sessions/hooks', () => ({
   useProject: () => ({ projectPath: shellMocks.projectPath }),
 }))
 
-vi.mock('@/features/sidebar/components', () => ({
+vi.mock('@/features/sidebar/components/Sidebar', () => ({
   Sidebar: () => <aside>Sidebar</aside>,
 }))
 
@@ -94,7 +94,7 @@ describe('shell surfaces', () => {
     expect(onOpen).toHaveBeenCalledWith()
   })
 
-  it('mounts workspace chrome, lifecycle hooks, terminal, and feedback modal from store state', () => {
+  it('mounts workspace chrome, lifecycle hooks, terminal, and feedback modal from store state', async () => {
     useUIStore.setState({ feedbackModalOpen: true, terminalOpen: true })
 
     render(
@@ -106,18 +106,18 @@ describe('shell surfaces', () => {
     expect(screen.getByText('Sidebar')).toBeInTheDocument()
     expect(screen.getByText('Header')).toBeInTheDocument()
     expect(screen.getByText('Route content')).toBeInTheDocument()
-    expect(screen.getByText('Terminal for /repo')).toBeInTheDocument()
-    expect(screen.getByText('Feedback modal')).toBeInTheDocument()
+    expect(await screen.findByText('Terminal for /repo')).toBeInTheDocument()
+    expect(await screen.findByText('Feedback modal')).toBeInTheDocument()
     expect(shellMocks.workspaceLifecycle).toHaveBeenCalledOnce()
     expect(shellMocks.backgroundRunMonitor).toHaveBeenCalledOnce()
     expect(shellMocks.autoUpdater).toHaveBeenCalledOnce()
   })
 
-  it('closes the workspace terminal through the terminal panel close action', () => {
+  it('closes the workspace terminal through the terminal panel close action', async () => {
     useUIStore.setState({ terminalOpen: true })
 
     render(<WorkspaceTerminal />)
-    fireEvent.click(screen.getByRole('button', { name: 'Close terminal' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Close terminal' }))
 
     expect(useUIStore.getState().terminalOpen).toBe(false)
   })

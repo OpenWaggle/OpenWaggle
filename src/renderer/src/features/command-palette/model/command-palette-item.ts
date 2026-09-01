@@ -17,6 +17,7 @@ export interface CommandPaletteItem {
   readonly section?: string
   readonly trailing?: string
   readonly trailingBadge?: string
+  readonly disabled?: boolean
   readonly action: () => void
 }
 

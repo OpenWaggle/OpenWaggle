@@ -1,7 +1,9 @@
 import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
+import { APPEARANCE_MOTION_PREFERENCES } from '@shared/types/appearance-preferences'
 import { SupportedModelId } from '@shared/types/brand'
-import { THINKING_LEVELS } from '@shared/types/settings'
+import { SESSION_ENVIRONMENT_MODES } from '@shared/types/git'
+import { DIFF_SYNTAX_THEMES, DIFF_VIEWS, THINKING_LEVELS } from '@shared/types/settings'
 import {
   isMandatoryShortcutCommand,
   SHORTCUT_COMMANDS,
@@ -109,6 +111,37 @@ const settingsUpdateSchema = Schema.Struct({
     Schema.mutable(Schema.Record({ key: Schema.String, value: Schema.String })),
   ),
   defaultAuthorizationMode: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
+  defaultSessionEnvironmentMode: Schema.optional(Schema.Literal(...SESSION_ENVIRONMENT_MODES)),
+  diffSyntaxTheme: Schema.optional(Schema.Literal(...DIFF_SYNTAX_THEMES)),
+  syntaxThemeSelections: Schema.optional(
+    Schema.Struct({
+      light: Schema.String,
+      dark: Schema.String,
+      'high-contrast-light': Schema.String,
+      'high-contrast-dark': Schema.String,
+    }),
+  ),
+  diffView: Schema.optional(Schema.Literal(...DIFF_VIEWS)),
+  diffWrapLines: Schema.optional(Schema.Boolean),
+  appearancePreferences: Schema.optional(
+    Schema.Struct({
+      typography: Schema.Struct({
+        interfaceFontFamily: Schema.String,
+        documentFontFamily: Schema.String,
+        codeFontFamily: Schema.String,
+        terminalFontFamily: Schema.String,
+        terminalUsesCodeFont: Schema.Boolean,
+        interfaceScale: Schema.Number,
+        documentFontSize: Schema.Number,
+        documentLineHeight: Schema.Number,
+        codeFontSize: Schema.Number,
+        codeLineHeight: Schema.Number,
+        terminalFontSize: Schema.Number,
+        codeLigatures: Schema.Boolean,
+      }),
+      motion: Schema.Literal(...APPEARANCE_MOTION_PREFERENCES),
+    }),
+  ),
   sessionHostParentConcurrencyLimit: Schema.optional(positiveIntegerSchema),
   sessionHostParentConcurrencyLimitsByProject: Schema.optional(
     Schema.mutable(Schema.Record({ key: Schema.String, value: positiveIntegerSchema })),

@@ -1,6 +1,6 @@
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   apiMocks,
   MCP_VIEW,
@@ -8,6 +8,23 @@ import {
   resetMcpSectionTestState,
   SESSION_ID,
 } from './mcp-section-test-utils'
+
+vi.mock('@/shared/ui/FocusedSourceEditor', () => ({
+  FocusedSourceEditor: (props: {
+    readonly source: string
+    readonly ariaLabel: string
+    readonly onChange: (changes: readonly never[], readSource: () => string) => void
+  }) => (
+    <textarea
+      aria-label={props.ariaLabel}
+      value={props.source}
+      onChange={(event) => {
+        const value = event.currentTarget.value
+        props.onChange([], () => value)
+      }}
+    />
+  ),
+}))
 
 const { McpSection } = await import('../sections/McpSection')
 const { usePreferencesStore } = await import('@/features/settings/state/preferences-store')

@@ -17,7 +17,7 @@ const SHARED_PROMPT = 'Draft a one-page summary of this app'
 const FIRST_SHARED_ASSISTANT = 'first shared prompt assistant response'
 const SECOND_SHARED_ASSISTANT = 'second shared prompt assistant response'
 
-test('switches threads immediately while hydrating transcripts on demand', async () => {
+test('switches threads immediately from the preloaded session read model', async () => {
   const app = await OpenWaggleApp.launch('openwaggle-thread-nav-e2e-')
 
   try {
@@ -57,15 +57,19 @@ test('switches threads immediately while hydrating transcripts on demand', async
       FIRST_THREAD_TITLE,
     )
     await expect(mainWindow.page.getByText(FIRST_THREAD_BODY)).toBeVisible()
-    await expect(mainWindow.page.getByText(SECOND_THREAD_BODY)).toBeHidden()
+    const firstBodyText = await mainWindow.page.locator('body').textContent()
+    expect(firstBodyText).toContain(FIRST_THREAD_BODY)
+    expect(firstBodyText).not.toContain(SECOND_THREAD_BODY)
 
     await mainWindow.openThread(SECOND_THREAD_TITLE)
     await expect(mainWindow.page.locator('[data-qa="header-session-title"]')).toHaveText(
       SECOND_THREAD_TITLE,
     )
     await expect(mainWindow.page.getByText(SECOND_THREAD_BODY)).toBeVisible()
-    await expect(mainWindow.page.getByText(FIRST_THREAD_BODY)).toBeHidden()
-    await expect(mainWindow.page.getByText("Let's build")).toBeHidden()
+    const secondBodyText = await mainWindow.page.locator('body').textContent()
+    expect(secondBodyText).toContain(SECOND_THREAD_BODY)
+    expect(secondBodyText).not.toContain(FIRST_THREAD_BODY)
+    expect(secondBodyText).not.toContain("Let's build")
   } finally {
     await app.cleanup()
   }

@@ -124,6 +124,13 @@ const config: DoctorConfig = {
         files: ['packages/pi-waggle/src/default-agent-editor.ts'],
         rules: ['react-doctor/server-sequential-independent-await'],
       },
+      {
+        // The iframe has a literal `sandbox="allow-scripts allow-same-origin"`
+        // attribute. The rule misses it because `src` is assigned in a layout
+        // effect after the watchdog is armed instead of being a JSX prop.
+        files: ['src/renderer/src/features/chat/components/InlineVisualization.tsx'],
+        rules: ['react-doctor/iframe-missing-sandbox'],
+      },
     ],
   },
 }

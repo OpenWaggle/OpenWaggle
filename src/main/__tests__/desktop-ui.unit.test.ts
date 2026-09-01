@@ -41,20 +41,29 @@ const electronMocks = vi.hoisted(() => {
       openExternal: vi.fn(),
       openPath: vi.fn(),
       showItemInFolder: vi.fn(),
+      trashItem: vi.fn(),
     },
   }
 })
 
 vi.mock('electron', () => electronMocks)
-vi.mock('../env', () => ({ env: { OPENWAGGLE_AUTOMATION: '1' } }))
+vi.mock('../env', () => ({
+  env: { OPENWAGGLE_AUTOMATION: '1' },
+  getSafeChildEnv: vi.fn(() => ({})),
+}))
 
 import {
   AutomationDesktopUiError,
+  assertExternalApplicationLaunchAllowed,
   createBaseWindow,
   createBrowserWindow,
   installAutomationDesktopUiBlockers,
+  launchExternalApplication,
   openExternal,
+  openPath,
+  showItemInFolder,
   showMessageBox,
+  trashItem,
 } from '../desktop-ui'
 
 describe('automation desktop UI policy', () => {
@@ -69,7 +78,14 @@ describe('automation desktop UI policy', () => {
     await expect(openExternal('https://example.com')).rejects.toBeInstanceOf(
       AutomationDesktopUiError,
     )
+    await expect(openPath('/tmp/openwaggle')).rejects.toBeInstanceOf(AutomationDesktopUiError)
+    expect(() => showItemInFolder('/tmp/openwaggle')).toThrow(AutomationDesktopUiError)
+    await expect(trashItem('/tmp/openwaggle')).rejects.toBeInstanceOf(AutomationDesktopUiError)
     await expect(showMessageBox(null, { message: 'Continue?' })).rejects.toBeInstanceOf(
+      AutomationDesktopUiError,
+    )
+    expect(() => assertExternalApplicationLaunchAllowed()).toThrow(AutomationDesktopUiError)
+    expect(() => launchExternalApplication('code', ['/tmp/openwaggle'])).toThrow(
       AutomationDesktopUiError,
     )
   })

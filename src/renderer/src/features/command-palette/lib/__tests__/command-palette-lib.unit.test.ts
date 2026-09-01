@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { CommandPaletteItem } from '../../model'
 import { buildCommandPaletteEntries } from '../command-palette-entries'
-import { createBaseCommands } from '../command-palette-items'
+import { createBaseCommands, createSkillItems } from '../command-palette-items'
 import { normalizeCommandQuery, truncateCommandDescription } from '../command-palette-text'
 
 const {
@@ -102,6 +102,54 @@ describe('createBaseCommands', () => {
     expect(commands.map((command) => command.id)).not.toContain('new-worktree')
     expect(commands.map((command) => command.id)).not.toContain('personality')
     expect(commands.some((command) => command.action === closeSlashCommandMenu)).toBe(false)
+  })
+})
+
+describe('createSkillItems', () => {
+  it('always exposes the bundled Visualize skill through /visualize discovery', () => {
+    const selectSkill = vi.fn()
+
+    const items = createSkillItems([], 'visualize', selectSkill)
+
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({
+      id: 'skill-visualize',
+      label: 'Visualize',
+      section: 'Skills',
+      trailing: '/visualize',
+    })
+
+    items[0]?.action()
+    expect(selectSkill).toHaveBeenCalledWith('visualize', 'Visualize')
+  })
+
+  it('shows a disabled diagnostic instead of selecting an unavailable bundled skill', () => {
+    const selectSkill = vi.fn()
+    const items = createSkillItems(
+      [
+        {
+          id: 'visualize',
+          name: 'Visualize',
+          description: 'Built-in visualization authoring is unavailable',
+          folderPath: '/agent/visualize',
+          skillPath: '/agent/visualize/SKILL.md',
+          hasScripts: true,
+          enabled: false,
+          loadStatus: 'error',
+          loadError: 'Read-only agent directory',
+        },
+      ],
+      'visualize',
+      selectSkill,
+    )
+
+    expect(items[0]).toMatchObject({
+      id: 'skill-visualize',
+      disabled: true,
+      description: 'Unavailable: Read-only agent directory',
+    })
+    items[0]?.action()
+    expect(selectSkill).not.toHaveBeenCalled()
   })
 })
 

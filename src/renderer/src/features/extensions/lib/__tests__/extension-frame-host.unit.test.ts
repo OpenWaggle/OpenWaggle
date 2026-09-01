@@ -2,6 +2,7 @@ import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { EXTENSION_FRAME_MESSAGE_CHANNEL } from '@shared/constants/extension-frame'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { createOpenWaggleExtensionTheme } from '@shared/extension-theme'
+import { MAX_SYNTAX_SOURCE_CODE_UNITS } from '@shared/syntax-highlighting-performance'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import { describe, expect, it, vi } from 'vitest'
 import {
@@ -87,6 +88,33 @@ describe('extension frame host helpers', () => {
     expect(
       decodeExtensionFrameMessage({ ...message, channel: 'other-channel' }, 'frame-1'),
     ).toBeNull()
+  })
+
+  it('rejects extension syntax requests that exceed the renderer admission budget', () => {
+    const message = {
+      channel: EXTENSION_FRAME_MESSAGE_CHANNEL,
+      frameId: 'frame-1',
+      type: 'syntax-highlight',
+      requestId: 'request-1',
+      input: {
+        source: 'x'.repeat(MAX_SYNTAX_SOURCE_CODE_UNITS + 1),
+        language: 'typescript',
+      },
+    }
+
+    expect(decodeExtensionFrameMessage(message, 'frame-1')).toBeNull()
+  })
+
+  it('decodes request-scoped syntax cancellation for the mounted frame only', () => {
+    const message = {
+      channel: EXTENSION_FRAME_MESSAGE_CHANNEL,
+      frameId: 'frame-1',
+      type: 'syntax-highlight-cancel',
+      requestId: 'request-1',
+    }
+
+    expect(decodeExtensionFrameMessage(message, 'frame-1')).toEqual(message)
+    expect(decodeExtensionFrameMessage(message, 'frame-2')).toBeNull()
   })
 
   it('posts typed configure messages to the frame window', () => {

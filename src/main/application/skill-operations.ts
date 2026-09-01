@@ -1,5 +1,6 @@
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import * as Effect from 'effect/Effect'
+import { getPiVisualizeSkillDiagnostic } from '../adapters/pi/pi-visualize-skill'
 import { SettingsService } from '../services/settings-service'
 import {
   loadSkillCatalog,
@@ -10,14 +11,21 @@ import {
 const projectPathSchema = Schema.String.pipe(Schema.minLength(1))
 const skillIdSchema = Schema.String.pipe(Schema.minLength(1))
 
-export function listSkillsOperation(rawProjectPath: string) {
+export function listSkillsOperation(
+  rawProjectPath: string,
+  loadVisualizeDiagnostic = getPiVisualizeSkillDiagnostic,
+) {
   return Effect.gen(function* () {
     const projectPath = decodeUnknownOrThrow(projectPathSchema, rawProjectPath)
     const settingsService = yield* SettingsService
     const settings = yield* settingsService.get()
     const toggles = settings.skillTogglesByProject[projectPath] ?? {}
     const catalog = yield* Effect.promise(() => loadSkillCatalog(projectPath, toggles))
-    return toSkillCatalogResult(catalog)
+    const result = toSkillCatalogResult(catalog)
+    const visualizeDiagnostic = yield* Effect.promise(() => loadVisualizeDiagnostic())
+    return visualizeDiagnostic
+      ? { ...result, skills: [visualizeDiagnostic, ...result.skills] }
+      : result
   })
 }
 

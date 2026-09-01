@@ -178,6 +178,7 @@ describe('useAgentChat streaming', () => {
             createdAt: 1,
             title: 'Continue?',
             message: 'Allow extension action?',
+            purpose: 'user-input',
           },
         },
       })
@@ -255,6 +256,7 @@ describe('useAgentChat streaming', () => {
             createdAt: 1,
             title: 'Continue?',
             message: 'Allow extension action?',
+            purpose: 'user-input',
           },
         },
       })

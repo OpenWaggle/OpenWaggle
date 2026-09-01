@@ -1,9 +1,5 @@
 import { createContext, type ReactNode, useContext } from 'react'
-import {
-  formatDisplayPath,
-  formatDisplayPathsInMarkdown,
-  formatDisplayPathsInText,
-} from '@/shared/lib/display-path'
+import { formatDisplayPathsInMarkdown, formatDisplayPathsInText } from '@/shared/lib/display-path'
 
 const ChatProjectPathContext = createContext<string | null>(null)
 const ChatWorktreePathContext = createContext<string | null>(null)
@@ -30,16 +26,17 @@ export function ChatDisplayPathProvider({
   )
 }
 
-export function useChatDisplayPath(path: string) {
-  return formatDisplayPath(path, useChatDisplayRoots())
-}
-
 export function useChatDisplayText(text: string) {
   return formatDisplayPathsInText(text, useChatDisplayRoots())
 }
 
 export function useChatDisplayMarkdown(markdown: string) {
   return formatDisplayPathsInMarkdown(markdown, useChatDisplayRoots())
+}
+
+export function useChatDisplayMarkdownFormatter() {
+  const roots = useChatDisplayRoots()
+  return (markdown: string) => formatDisplayPathsInMarkdown(markdown, roots)
 }
 
 export function useChatDisplayTextFormatter() {

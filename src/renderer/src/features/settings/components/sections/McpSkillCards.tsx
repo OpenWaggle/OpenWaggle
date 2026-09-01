@@ -12,6 +12,7 @@ import {
 } from '@/features/settings/lib/mcp-capability-formatters'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
+import { MarkdownDocument } from '@/shared/ui/MarkdownDocument'
 import { useUIStore } from '@/shell/ui-store'
 
 function errorMessage(error: unknown) {
@@ -56,9 +57,9 @@ export function ServerInstructionsCard({
         </Button>
       </div>
       {expanded && (
-        <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded bg-bg-secondary p-2 text-xs text-text-secondary">
+        <MarkdownDocument className="max-h-64 overflow-auto rounded bg-bg-secondary p-2 text-xs">
           {descriptor.instructions}
-        </pre>
+        </MarkdownDocument>
       )}
     </div>
   )
@@ -133,9 +134,9 @@ export function RemoteSkillCard({
               ? 'SKILL.md digest and frontmatter verified.'
               : 'Dynamic content: no digest manifest; approval cannot persist.'}
           </p>
-          <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded bg-bg-secondary p-2 text-xs text-text-secondary">
+          <MarkdownDocument className="max-h-64 overflow-auto rounded bg-bg-secondary p-2 text-xs">
             {review.markdown}
-          </pre>
+          </MarkdownDocument>
         </div>
       )}
     </div>

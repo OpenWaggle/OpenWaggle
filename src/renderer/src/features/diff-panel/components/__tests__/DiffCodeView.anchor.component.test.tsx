@@ -1,15 +1,276 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DiffCodeView } from '../DiffCodeView'
 import { fileDiff } from './diff-panel.test-harness'
 
-vi.mock('@pierre/diffs/react', async () => ({
-  CodeView: (await import('./diff-panel.test-harness')).StubCodeView,
+const pierreMocks = vi.hoisted(() => ({
+  codeReady: vi.fn(() => true),
+  shadowCodeReady: vi.fn(() => false),
+  setRenderOptions: vi.fn(async () => {}),
+  workerProvider: vi.fn(),
 }))
+
+vi.mock('@pierre/diffs/react', async () => {
+  const { StubCodeView } = await import('./diff-panel.test-harness')
+  type StubProps = Parameters<typeof StubCodeView>[0]
+  function ShadowCodeView() {
+    return (
+      <div
+        data-testid="code-view"
+        ref={(host) => {
+          if (!host || host.querySelector('diffs-container')) return
+          const container = document.createElement('diffs-container')
+          host.append(container)
+          const shadowRoot = container.shadowRoot
+          if (!shadowRoot) throw new Error('expected the test diffs container to expose its root')
+          shadowRoot.append(document.createElement('code'))
+        }}
+      />
+    )
+  }
+  return {
+    CodeView: (props: StubProps) =>
+      pierreMocks.codeReady() ? (
+        <StubCodeView {...props} />
+      ) : pierreMocks.shadowCodeReady() ? (
+        <ShadowCodeView />
+      ) : (
+        <div data-testid="code-view" />
+      ),
+    WorkerPoolContextProvider: ({
+      children,
+      poolOptions,
+      highlighterOptions,
+    }: {
+      children: ReactNode
+      poolOptions: unknown
+      highlighterOptions: unknown
+    }) => {
+      pierreMocks.workerProvider({ poolOptions, highlighterOptions })
+      return children
+    },
+    useWorkerPool: () => ({ setRenderOptions: pierreMocks.setRenderOptions }),
+  }
+})
 
 const VIEW_OPTIONS = { syntaxTheme: 'github-dark', diffView: 'unified', wrapLines: false } as const
 
 describe('review comment anchoring', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    pierreMocks.codeReady.mockReturnValue(true)
+    pierreMocks.shadowCodeReady.mockReturnValue(false)
+    pierreMocks.setRenderOptions.mockClear()
+  })
+
+  it('yields before mounting a multi-file diff worker', async () => {
+    pierreMocks.workerProvider.mockClear()
+    render(
+      <DiffCodeView
+        files={Array.from({ length: 8 }, (_, index) => fileDiff(`src/file-${String(index)}.ts`))}
+        isLoading={false}
+        loadError={null}
+        onRetryLoad={vi.fn()}
+        viewOptions={VIEW_OPTIONS}
+        review={{
+          comments: [],
+          activeCommentLocation: null,
+          onSetActiveComment: vi.fn(),
+          onAddSingleComment: vi.fn(),
+          onAddToReview: vi.fn(),
+          onRemoveComment: vi.fn(),
+        }}
+      />,
+    )
+
+    expect(screen.getByLabelText('Loading')).toBeVisible()
+    expect(pierreMocks.workerProvider).not.toHaveBeenCalled()
+    await waitFor(() => expect(pierreMocks.workerProvider).toHaveBeenCalledOnce())
+    await waitFor(() => expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /^select/ })).toHaveLength(8))
+  })
+
+  it('restores loading feedback for each refreshed diff generation', async () => {
+    const props = {
+      files: [fileDiff()],
+      isLoading: false,
+      loadError: null,
+      onRetryLoad: vi.fn(),
+      viewOptions: VIEW_OPTIONS,
+      review: {
+        comments: [],
+        activeCommentLocation: null,
+        onSetActiveComment: vi.fn(),
+        onAddSingleComment: vi.fn(),
+        onAddToReview: vi.fn(),
+        onRemoveComment: vi.fn(),
+      },
+    } as const
+    const { rerender } = render(<DiffCodeView {...props} />)
+
+    await waitFor(() => expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument())
+    rerender(<DiffCodeView {...props} isLoading />)
+    expect(screen.getByLabelText('Loading')).toBeVisible()
+
+    pierreMocks.codeReady.mockReturnValue(false)
+    rerender(<DiffCodeView {...props} files={[fileDiff('src/refreshed.ts')]} />)
+    expect(screen.getByLabelText('Loading')).toBeVisible()
+
+    pierreMocks.codeReady.mockReturnValue(true)
+    rerender(<DiffCodeView {...props} files={[fileDiff('src/refreshed.ts')]} />)
+    await waitFor(() => expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument())
+  })
+
+  it("recognises highlighted code inside Pierre's shadow root", async () => {
+    pierreMocks.codeReady.mockReturnValue(false)
+    pierreMocks.shadowCodeReady.mockReturnValue(true)
+
+    render(
+      <DiffCodeView
+        files={[fileDiff()]}
+        isLoading={false}
+        loadError={null}
+        onRetryLoad={vi.fn()}
+        viewOptions={VIEW_OPTIONS}
+        review={{
+          comments: [],
+          activeCommentLocation: null,
+          onSetActiveComment: vi.fn(),
+          onAddSingleComment: vi.fn(),
+          onAddToReview: vi.fn(),
+          onRemoveComment: vi.fn(),
+        }}
+      />,
+    )
+
+    await waitFor(() => expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument())
+  })
+
+  it('replays navigation once a late progressive item is prepared', async () => {
+    render(
+      <DiffCodeView
+        files={Array.from({ length: 8 }, (_, index) => fileDiff(`src/file-${String(index)}.ts`))}
+        fileNavigation={{ path: 'src/file-7.ts', requestId: 1 }}
+        isLoading={false}
+        loadError={null}
+        onRetryLoad={vi.fn()}
+        viewOptions={VIEW_OPTIONS}
+        review={{
+          comments: [],
+          activeCommentLocation: null,
+          onSetActiveComment: vi.fn(),
+          onAddSingleComment: vi.fn(),
+          onAddToReview: vi.fn(),
+          onRemoveComment: vi.fn(),
+        }}
+      />,
+    )
+
+    await waitFor(() =>
+      expect(screen.getByTestId('code-view')).toHaveAttribute(
+        'data-scrolled-item-id',
+        'diff:src/file-7.ts',
+      ),
+    )
+  })
+
+  it('offloads a single oversized patch before parsing it', async () => {
+    const posted: unknown[] = []
+    class ParserWorker {
+      onmessage: ((event: MessageEvent<unknown>) => void) | null = null
+      onerror: ((event: ErrorEvent) => void) | null = null
+      postMessage(message: unknown) {
+        posted.push(message)
+      }
+      terminate() {}
+    }
+    vi.stubGlobal('Worker', ParserWorker)
+    const oversized = fileDiff('src/large.ts')
+
+    render(
+      <DiffCodeView
+        files={[{ ...oversized, diff: `${oversized.diff}\n${'x'.repeat(70 * 1024)}` }]}
+        isLoading={false}
+        loadError={null}
+        onRetryLoad={vi.fn()}
+        viewOptions={VIEW_OPTIONS}
+        review={{
+          comments: [],
+          activeCommentLocation: null,
+          onSetActiveComment: vi.fn(),
+          onAddSingleComment: vi.fn(),
+          onAddToReview: vi.fn(),
+          onRemoveComment: vi.fn(),
+        }}
+      />,
+    )
+
+    expect(screen.getByLabelText('Loading')).toBeVisible()
+    await waitFor(() => expect(posted).toHaveLength(1))
+  })
+
+  it('routes diff rendering through a bounded worker pool', () => {
+    render(
+      <DiffCodeView
+        files={[fileDiff()]}
+        isLoading={false}
+        loadError={null}
+        onRetryLoad={vi.fn()}
+        viewOptions={VIEW_OPTIONS}
+        review={{
+          comments: [],
+          activeCommentLocation: null,
+          onSetActiveComment: vi.fn(),
+          onAddSingleComment: vi.fn(),
+          onAddToReview: vi.fn(),
+          onRemoveComment: vi.fn(),
+        }}
+      />,
+    )
+
+    expect(pierreMocks.workerProvider).toHaveBeenCalledWith({
+      poolOptions: expect.objectContaining({ poolSize: 1 }),
+      highlighterOptions: { theme: 'github-dark' },
+    })
+  })
+
+  it('updates the working pool when the live syntax theme changes', async () => {
+    const review = {
+      comments: [],
+      activeCommentLocation: null,
+      onSetActiveComment: vi.fn(),
+      onAddSingleComment: vi.fn(),
+      onAddToReview: vi.fn(),
+      onRemoveComment: vi.fn(),
+    } as const
+    const { rerender } = render(
+      <DiffCodeView
+        files={[fileDiff()]}
+        isLoading={false}
+        loadError={null}
+        onRetryLoad={vi.fn()}
+        viewOptions={VIEW_OPTIONS}
+        review={review}
+      />,
+    )
+
+    rerender(
+      <DiffCodeView
+        files={[fileDiff()]}
+        isLoading={false}
+        loadError={null}
+        onRetryLoad={vi.fn()}
+        viewOptions={{ ...VIEW_OPTIONS, syntaxTheme: 'github-light' }}
+        review={review}
+      />,
+    )
+
+    await waitFor(() =>
+      expect(pierreMocks.setRenderOptions).toHaveBeenLastCalledWith({ theme: 'github-light' }),
+    )
+  })
+
   it('anchors a selection to the exact file, not one whose path is a suffix of it', () => {
     /*
      * The file was recovered with `id.endsWith(path)`. Item ids are `diff:<path>`, so for a diff

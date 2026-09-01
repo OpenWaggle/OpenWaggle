@@ -21,6 +21,7 @@ import { projectName } from '@/shared/lib/format'
 import { useComposerSendGate } from '../hooks/useComposerSendGate'
 import { CHAT_CONTENT_FRAME_CLASS } from '../lib/chat-content-layout'
 import type { ChatComposerSectionState } from '../model'
+import { withInlineVisualizationContext } from '../state/inline-visualization-state'
 import { AgentCustomInteractionComposerFallback } from './AgentCustomInteractionComposerFallback'
 import { AgentInteractionComposerPrompt } from './AgentInteractionComposerPrompt'
 import { ChatComposerCommandPalette } from './ChatComposerCommandPalette'
@@ -153,7 +154,7 @@ export async function enqueueIfAllowed(input: {
   }
   if (!input.activeSessionId) return
   try {
-    await input.enqueue(input.payload)
+    await input.enqueue(withInlineVisualizationContext(input.activeSessionId, input.payload))
   } catch (error) {
     input.onToast(error instanceof Error ? error.message : String(error))
     throw error

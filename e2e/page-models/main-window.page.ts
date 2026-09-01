@@ -52,6 +52,11 @@ export class MainWindowPage {
         .filter({ hasText: title })
         .first(),
     ).toHaveAttribute('aria-current', 'true', { timeout: THREAD_VISIBILITY_TIMEOUT_MS })
+    // Clicking a client-side route can resolve before React commits the chat panel. Tests that
+    // immediately emit main-process events would then race the renderer's IPC subscription and
+    // lose the event on slower CI runners. The composer is the stable signal that the active
+    // session surface (and its subscriptions) has mounted.
+    await expect(this.messageInput()).toBeVisible({ timeout: THREAD_VISIBILITY_TIMEOUT_MS })
   }
 
   async pasteIntoComposer(text: string): Promise<void> {

@@ -9,6 +9,7 @@ import {
   createPiInteractionUiContext,
   type PiInteractionUiContextInput,
 } from './agent-kernel/interaction-ui-context'
+import { bindVisualizationContextFilter } from './pi-visualization-context'
 
 const logger = createLogger('pi-session-lifecycle')
 
@@ -36,6 +37,7 @@ export async function createOpenWaggleAgentSessionFromServices(
   const { openWaggleUi, ...piOptions } = options
   const result = await createAgentSessionFromServices(piOptions)
   try {
+    bindVisualizationContextFilter(result.session)
     await bindSessionExtensions(result.session, { openWaggleUi })
     return result
   } catch (error) {

@@ -11,6 +11,7 @@ import { ExtensionBuildRunnerLive } from './adapters/extension-build-runner'
 import { FilesystemDocsBundleLive } from './adapters/filesystem-docs-bundle-service'
 import { FilesystemExtensionManagerLive } from './adapters/filesystem-extension-manager-service'
 import { FilesystemExtensionPackageRepositoryLive } from './adapters/filesystem-extension-package-repository'
+import { FilesystemInlineVisualizationLive } from './adapters/filesystem-inline-visualization-service'
 import { FilesystemSessionExportArtifactWriterLive } from './adapters/filesystem-session-export-artifact-writer'
 import { FilesystemSessionExportResourceResolverLive } from './adapters/filesystem-session-export-resource-resolver'
 import { FilesystemWorkspaceFileLive } from './adapters/filesystem-workspace-file-service'
@@ -58,6 +59,7 @@ import { SqliteSessionReportRepositoryLive } from './adapters/sqlite-session-rep
 import { SqliteSessionRepositoryLive } from './adapters/sqlite-session-repository'
 import { SqliteSessionWorkspaceResourceRepositoryLive } from './adapters/sqlite-session-workspace-resource-repository'
 import { FilesystemStandardsLive } from './adapters/standards-adapter'
+import { WorkspaceProjectAuthorizationLive } from './adapters/workspace-project-authorization'
 import { ActiveProjectChangeServiceLive } from './application/active-project-change-service'
 import { activateTrustedMainExtensionsForActiveProjectSafely } from './application/extension-trusted-main-activation-service'
 import { SessionWaitServiceLive } from './application/session-wait-service'
@@ -95,7 +97,13 @@ const McpServicesLive = Layer.mergeAll(
   FirstPartyMcpRuntimeServiceLive.pipe(Layer.provide(EncryptedMcpSecretVaultServiceLive)),
 ).pipe(Layer.provide(McpTurnStateServiceLive))
 const PiAgentKernelWithExtensionSelectionLive = PiAgentKernelLive.pipe(
-  Layer.provide(Layer.mergeAll(ExtensionRuntimeSelectionLive, McpServicesLive)),
+  Layer.provide(
+    Layer.mergeAll(
+      ExtensionRuntimeSelectionLive,
+      McpServicesLive,
+      FilesystemInlineVisualizationLive,
+    ),
+  ),
 )
 const ActiveProjectChangeDependenciesLive = Layer.mergeAll(
   AppLogger.Live,
@@ -213,6 +221,8 @@ const AppLayer = Layer.mergeAll(
   SettingsWagglePresetsRepositoryLive,
   FilesystemWorkspaceFileLive,
   SessionControlServicesLive,
+  WorkspaceProjectAuthorizationLive,
+  FilesystemInlineVisualizationLive,
 )
 
 function makeAppRuntime() {

@@ -3,50 +3,54 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { SettingsService } from '../../services/settings-service'
 
-function defined<T>(value: T | undefined, fallback: T): T {
-  return value === undefined ? fallback : value
+function mergeGeneralSettings(current: Settings, partial: Partial<Settings>) {
+  return {
+    selectedModel: partial.selectedModel ?? current.selectedModel,
+    favoriteModels: partial.favoriteModels ?? current.favoriteModels,
+    enabledModels: partial.enabledModels ?? current.enabledModels,
+    projectPath: partial.projectPath !== undefined ? partial.projectPath : current.projectPath,
+    thinkingLevel: partial.thinkingLevel ?? current.thinkingLevel,
+    recentProjects: partial.recentProjects ?? current.recentProjects,
+    skillTogglesByProject: partial.skillTogglesByProject ?? current.skillTogglesByProject,
+    projectDisplayNames: partial.projectDisplayNames ?? current.projectDisplayNames,
+    defaultAuthorizationMode: partial.defaultAuthorizationMode ?? current.defaultAuthorizationMode,
+    shortcutBindings: partial.shortcutBindings ?? current.shortcutBindings,
+    defaultSessionEnvironmentMode:
+      partial.defaultSessionEnvironmentMode ?? current.defaultSessionEnvironmentMode,
+  }
+}
+
+function mergeSessionHostSettings(current: Settings, partial: Partial<Settings>) {
+  return {
+    sessionHostParentConcurrencyLimit:
+      partial.sessionHostParentConcurrencyLimit ?? current.sessionHostParentConcurrencyLimit,
+    sessionHostParentConcurrencyLimitsByProject:
+      partial.sessionHostParentConcurrencyLimitsByProject ??
+      current.sessionHostParentConcurrencyLimitsByProject,
+    sessionHostRunCeiling: partial.sessionHostRunCeiling ?? current.sessionHostRunCeiling,
+    sessionHostIdleGracePeriodMs:
+      partial.sessionHostIdleGracePeriodMs ?? current.sessionHostIdleGracePeriodMs,
+    multiAgentEnabled: partial.multiAgentEnabled ?? current.multiAgentEnabled,
+    multiAgentEnabledByProject:
+      partial.multiAgentEnabledByProject ?? current.multiAgentEnabledByProject,
+  }
+}
+
+function mergeAppearanceSettings(current: Settings, partial: Partial<Settings>) {
+  return {
+    diffSyntaxTheme: partial.diffSyntaxTheme ?? current.diffSyntaxTheme,
+    syntaxThemeSelections: partial.syntaxThemeSelections ?? current.syntaxThemeSelections,
+    diffView: partial.diffView ?? current.diffView,
+    diffWrapLines: partial.diffWrapLines ?? current.diffWrapLines,
+    appearancePreferences: partial.appearancePreferences ?? current.appearancePreferences,
+  }
 }
 
 function mergeSettings(current: Settings, partial: Partial<Settings>): Settings {
   return {
-    selectedModel: defined(partial.selectedModel, current.selectedModel),
-    favoriteModels: defined(partial.favoriteModels, current.favoriteModels),
-    enabledModels: defined(partial.enabledModels, current.enabledModels),
-    projectPath: defined(partial.projectPath, current.projectPath),
-    thinkingLevel: defined(partial.thinkingLevel, current.thinkingLevel),
-    recentProjects: defined(partial.recentProjects, current.recentProjects),
-    skillTogglesByProject: defined(partial.skillTogglesByProject, current.skillTogglesByProject),
-    projectDisplayNames: defined(partial.projectDisplayNames, current.projectDisplayNames),
-    defaultAuthorizationMode: defined(
-      partial.defaultAuthorizationMode,
-      current.defaultAuthorizationMode,
-    ),
-    shortcutBindings: defined(partial.shortcutBindings, current.shortcutBindings),
-    defaultSessionEnvironmentMode: defined(
-      partial.defaultSessionEnvironmentMode,
-      current.defaultSessionEnvironmentMode,
-    ),
-    diffSyntaxTheme: defined(partial.diffSyntaxTheme, current.diffSyntaxTheme),
-    diffView: defined(partial.diffView, current.diffView),
-    diffWrapLines: defined(partial.diffWrapLines, current.diffWrapLines),
-    sessionHostParentConcurrencyLimit: defined(
-      partial.sessionHostParentConcurrencyLimit,
-      current.sessionHostParentConcurrencyLimit,
-    ),
-    sessionHostParentConcurrencyLimitsByProject: defined(
-      partial.sessionHostParentConcurrencyLimitsByProject,
-      current.sessionHostParentConcurrencyLimitsByProject,
-    ),
-    sessionHostRunCeiling: defined(partial.sessionHostRunCeiling, current.sessionHostRunCeiling),
-    sessionHostIdleGracePeriodMs: defined(
-      partial.sessionHostIdleGracePeriodMs,
-      current.sessionHostIdleGracePeriodMs,
-    ),
-    multiAgentEnabled: defined(partial.multiAgentEnabled, current.multiAgentEnabled),
-    multiAgentEnabledByProject: defined(
-      partial.multiAgentEnabledByProject,
-      current.multiAgentEnabledByProject,
-    ),
+    ...mergeGeneralSettings(current, partial),
+    ...mergeSessionHostSettings(current, partial),
+    ...mergeAppearanceSettings(current, partial),
   }
 }
 
@@ -63,6 +67,11 @@ function cloneSettings(settings: Settings): Settings {
       ...settings.sessionHostParentConcurrencyLimitsByProject,
     },
     multiAgentEnabledByProject: { ...settings.multiAgentEnabledByProject },
+    syntaxThemeSelections: { ...settings.syntaxThemeSelections },
+    appearancePreferences: {
+      ...settings.appearancePreferences,
+      typography: { ...settings.appearancePreferences.typography },
+    },
   }
 }
 

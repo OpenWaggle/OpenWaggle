@@ -4,21 +4,8 @@ import {
   setLastAgentErrorInfo,
 } from '@/features/chat/lib/agent-error-store'
 import { applyAgentTransportEvent } from '@/features/chat/lib/chat-stream-state'
-import { capAgentInteractionEvents } from '@/features/chat/lib/notification-stack-model'
 import { updateMessagesForSession } from './useAgentChat.message-cache'
 import type { AgentEventPayload, AgentStreamEventContext } from './useAgentChat.types'
-
-type InteractionRequestEvent = Extract<
-  AgentEventPayload['event'],
-  { readonly type: 'agent_interaction_request' }
->
-type InteractionResolvedEvent = Extract<
-  AgentEventPayload['event'],
-  { readonly type: 'agent_interaction_resolved' }
->
-type CustomEvent = Extract<AgentEventPayload['event'], { readonly type: 'custom' }>
-
-const CUSTOM_MESSAGE_LIMIT = 20
 
 function signalStreamChange(context: AgentStreamEventContext) {
   context.streamSignalVersionRef.current += 1
@@ -90,88 +77,6 @@ function handleAgentEndEvent(
   context.setStatus('error')
 }
 
-function addAgentInteraction(
-  sessionId: AgentEventPayload['sessionId'],
-  event: InteractionRequestEvent,
-  context: AgentStreamEventContext,
-) {
-  if (event.interaction.kind === 'notify') {
-    return
-  }
-
-  const next = new Map(context.agentInteractionsBySessionIdRef.current)
-  const current = next.get(sessionId) ?? []
-  next.set(sessionId, [
-    ...current.filter(
-      (interaction) => interaction.interactionId !== event.interaction.interactionId,
-    ),
-    event.interaction,
-  ])
-  context.agentInteractionsBySessionIdRef.current = next
-  context.setAgentInteractionsBySessionId(next)
-}
-
-function removeAgentInteraction(
-  sessionId: AgentEventPayload['sessionId'],
-  event: InteractionResolvedEvent,
-  context: AgentStreamEventContext,
-) {
-  const next = new Map(context.agentInteractionsBySessionIdRef.current)
-  const current = next.get(sessionId) ?? []
-  next.set(
-    sessionId,
-    current.filter((interaction) => interaction.interactionId !== event.interactionId),
-  )
-  context.agentInteractionsBySessionIdRef.current = next
-  context.setAgentInteractionsBySessionId(next)
-}
-
-function addInteractionEvent(
-  sessionId: AgentEventPayload['sessionId'],
-  event: InteractionRequestEvent | InteractionResolvedEvent,
-  context: AgentStreamEventContext,
-) {
-  const next = new Map(context.agentInteractionEventsBySessionIdRef.current)
-  const current = next.get(sessionId) ?? []
-  next.set(sessionId, capAgentInteractionEvents([...current, event]))
-  context.agentInteractionEventsBySessionIdRef.current = next
-  context.setAgentInteractionEventsBySessionId(next)
-}
-
-function addCustomMessage(
-  sessionId: AgentEventPayload['sessionId'],
-  event: CustomEvent,
-  context: AgentStreamEventContext,
-) {
-  const next = new Map(context.agentCustomMessagesBySessionIdRef.current)
-  const current = next.get(sessionId) ?? []
-  next.set(sessionId, [...current, event].slice(-CUSTOM_MESSAGE_LIMIT))
-  context.agentCustomMessagesBySessionIdRef.current = next
-  context.setAgentCustomMessagesBySessionId(next)
-}
-
-function handleSessionScopedAgentLoopEvent(
-  payload: AgentEventPayload,
-  context: AgentStreamEventContext,
-) {
-  matchBy(payload.event, 'type')
-    .with('agent_interaction_request', (value) => {
-      signalStreamChange(context)
-      addAgentInteraction(payload.sessionId, value, context)
-      addInteractionEvent(payload.sessionId, value, context)
-    })
-    .with('agent_interaction_resolved', (value) => {
-      signalStreamChange(context)
-      removeAgentInteraction(payload.sessionId, value, context)
-      addInteractionEvent(payload.sessionId, value, context)
-    })
-    .with('custom', (value) => {
-      signalStreamChange(context)
-      addCustomMessage(payload.sessionId, value, context)
-    })
-    .otherwise(() => undefined)
-}
-
 function handleForegroundAgentStateEvent(
   event: AgentEventPayload['event'],
   context: AgentStreamEventContext,
@@ -236,8 +141,6 @@ export function handleAgentStreamPayload(
   if (!shouldHandleSessionScopedPayload(context)) {
     return
   }
-
-  handleSessionScopedAgentLoopEvent(payload, context)
 
   if (!shouldHandleForegroundStreamPayload(payload, context)) {
     return

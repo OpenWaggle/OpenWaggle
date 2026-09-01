@@ -35,6 +35,7 @@ export {
   listArchivedSessions,
   listSessionDetails,
   listSessionSummaries,
+  listSessionWorkspaceRoots,
 } from './session-details/session-queries'
 export {
   setSessionWorktree,

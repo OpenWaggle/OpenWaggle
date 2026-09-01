@@ -190,6 +190,19 @@ describe('Local Session Host launcher', () => {
     expect(launcher.probe).toHaveBeenCalledTimes(2)
   })
 
+  it('surfaces launch failures before polling for Host readiness', async () => {
+    const canConnect = vi.fn(async () => false)
+    const launcher = dependencies({ canConnect })
+    const launchError = new Error('spawn failed')
+    launcher.launch = vi.fn(async () => Promise.reject(launchError))
+
+    await expect(ensureLocalSessionHost(client, launcher)).rejects.toBe(launchError)
+
+    expect(launcher.launch).toHaveBeenCalledOnce()
+    expect(canConnect).toHaveBeenCalledOnce()
+    expect(launcher.wait).not.toHaveBeenCalled()
+  })
+
   it('rereads a rotated Windows endpoint after launching the owning Host', async () => {
     const rotatedPaths = { ...paths, endpoint: '\\\\.\\pipe\\openwaggle-rotated' }
     const refreshPaths = vi

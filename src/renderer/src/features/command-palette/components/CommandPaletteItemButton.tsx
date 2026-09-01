@@ -20,6 +20,8 @@ export function CommandPaletteItemButton({
       variant="unstyled"
       type="button"
       role="menuitem"
+      disabled={item.disabled}
+      aria-disabled={item.disabled}
       data-highlighted={highlighted}
       onClick={item.action}
       onMouseDown={(event) => event.preventDefault()}
@@ -29,6 +31,7 @@ export function CommandPaletteItemButton({
         highlighted
           ? 'bg-bg-tertiary text-text-primary'
           : 'text-text-secondary hover:bg-bg-tertiary/50',
+        item.disabled && 'cursor-not-allowed opacity-60 hover:bg-transparent',
       )}
     >
       <span className={cn('shrink-0', highlighted ? 'text-text-primary' : 'text-text-muted')}>

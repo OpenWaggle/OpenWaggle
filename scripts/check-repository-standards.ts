@@ -20,6 +20,7 @@ import {
   type RepositoryViolation,
 } from './repository-package-boundaries.js'
 import { collectSessionSummaryColumnViolations } from './standards/session-summary-columns'
+import { collectSyntaxRenderingViolations } from './standards/syntax-rendering'
 
 export { collectSessionSummaryColumnViolations } from './standards/session-summary-columns'
 
@@ -169,6 +170,7 @@ async function collectViolationsForFile(file: string) {
     ...collectUnguardedDesktopUiViolations(file, contents),
     ...collectScriptedElectronLaunchViolations(file, contents),
     ...collectSessionSummaryColumnViolations(file, contents),
+    ...collectSyntaxRenderingViolations(file, contents),
   ] satisfies readonly RepositoryViolation[]
 }
 

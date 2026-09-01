@@ -1,5 +1,6 @@
-import type { DiffSyntaxTheme, DiffView } from '@shared/types/settings'
+import type { DiffView } from '@shared/types/settings'
 import { usePreferencesStore } from '@/features/settings/state'
+import { useSyntaxTheme } from '@/shared/hooks/useSyntaxTheme'
 import type { DiffViewOptions } from '../components/DiffCodeView'
 
 /**
@@ -10,22 +11,20 @@ import type { DiffViewOptions } from '../components/DiffCodeView'
  * never disagree and a toggle cannot silently revert on reload.
  */
 export function useDiffViewOptions() {
-  const diffSyntaxTheme = usePreferencesStore((s) => s.settings.diffSyntaxTheme)
+  const { shikiTheme } = useSyntaxTheme()
   const diffView = usePreferencesStore((s) => s.settings.diffView)
   const diffWrapLines = usePreferencesStore((s) => s.settings.diffWrapLines)
-  const setDiffSyntaxTheme = usePreferencesStore((s) => s.setDiffSyntaxTheme)
   const setDiffView = usePreferencesStore((s) => s.setDiffView)
   const setDiffWrapLines = usePreferencesStore((s) => s.setDiffWrapLines)
 
   const viewOptions: DiffViewOptions = {
-    syntaxTheme: diffSyntaxTheme,
+    syntaxTheme: shikiTheme,
     diffView,
     wrapLines: diffWrapLines,
   }
 
   return {
     viewOptions,
-    setSyntaxTheme: (theme: DiffSyntaxTheme) => void setDiffSyntaxTheme(theme),
     setDiffView: (view: DiffView) => void setDiffView(view),
     toggleWrapLines: () => void setDiffWrapLines(!diffWrapLines),
   }

@@ -25,6 +25,7 @@ import { useComposerSection } from './useComposerSection'
 import { useSessionCopyWorkflow } from './useSessionCopyWorkflow'
 import { useSteerWorkflow } from './useSteerWorkflow'
 import { useTranscriptSection } from './useTranscriptSection'
+import { useVisualizationFollowUpDispatcher } from './useVisualizationFollowUpDispatcher'
 
 export function useChatPanelSections(): ChatPanelSections {
   const [userDidSend, setUserDidSend] = useState(false)
@@ -86,6 +87,13 @@ export function useChatPanelSections(): ChatPanelSections {
     createSession,
     sendMessage,
     sendWaggleMessage,
+  })
+
+  useVisualizationFollowUpDispatcher({
+    sessionId: activeSessionId,
+    status,
+    send: handleSend,
+    enqueue: followUpQueue.enqueue,
   })
 
   useWaggleChat(activeSessionId)

@@ -19,6 +19,14 @@ const BETA = 'chips-beta'
 const CALM_TITLE = 'Calm session in alpha'
 const STUCK_TITLE = 'Stuck session in alpha'
 const OTHER_STUCK_TITLE = 'Stuck session in beta'
+/*
+ * The search input is a controlled component: `fill` writes the DOM value and the store
+ * round-trips it through onChange before the next render commits it back. Under loaded CI
+ * runners that round-trip regularly exceeds the 5s default expect budget, so the value
+ * assertions below use an explicit ceiling. The ceiling is not a wait: assertions still
+ * resolve as soon as the value commits, and a value that never commits still fails.
+ */
+const SEARCH_COMMIT_TIMEOUT = 30_000
 
 function message(text: string) {
   return { id: `${text}-id`, role: 'user', createdAt: Date.now(), parts: [{ type: 'text', text }] }
@@ -62,8 +70,8 @@ test('sidebar filtering: chips, pips, search and Escape', async () => {
     const fillSearch = (value: string) =>
       expect(async () => {
         await searchInput.fill(value)
-        await expect(searchInput).toHaveValue(value)
-      }).toPass({ timeout: 5000 })
+        await expect(searchInput).toHaveValue(value, { timeout: SEARCH_COMMIT_TIMEOUT })
+      }).toPass({ timeout: SEARCH_COMMIT_TIMEOUT })
 
     await test.step('a chip appears for the state that is present, with its count', async () => {
       await expect(chipGroup).toBeVisible()
@@ -115,6 +123,7 @@ test('sidebar filtering: chips, pips, search and Escape', async () => {
     await test.step('text narrows by title', async () => {
       // `fill` models the final input event without asking an overloaded Electron renderer to
       // commit a controlled value between synthetic keystrokes sent much faster than a person.
+      await expect(searchInput).toBeFocused({ timeout: SEARCH_COMMIT_TIMEOUT })
       await fillSearch('Calm')
       await expect(rows.filter({ hasText: CALM_TITLE })).toHaveCount(1)
       await expect(rows.filter({ hasText: STUCK_TITLE })).toHaveCount(0)
@@ -123,14 +132,15 @@ test('sidebar filtering: chips, pips, search and Escape', async () => {
     await test.step('typing a project name keeps that project sessions', async () => {
       await fillSearch(BETA)
 
+      await expect(searchInput).toHaveValue(BETA, { timeout: SEARCH_COMMIT_TIMEOUT })
       await expect(rows.filter({ hasText: OTHER_STUCK_TITLE })).toHaveCount(1)
       await expect(rows.filter({ hasText: CALM_TITLE })).toHaveCount(0)
     })
 
     await test.step('Escape clears the filter and returns every row', async () => {
-      await page.keyboard.press('Escape')
+      await searchInput.press('Escape')
 
-      await expect(searchInput).toHaveValue('')
+      await expect(searchInput).toHaveValue('', { timeout: SEARCH_COMMIT_TIMEOUT })
       await expect(rows).toHaveCount(3)
     })
 
@@ -141,7 +151,7 @@ test('sidebar filtering: chips, pips, search and Escape', async () => {
 
       await searchInput.press('Escape')
 
-      await expect(searchInput).toHaveValue('')
+      await expect(searchInput).toHaveValue('', { timeout: SEARCH_COMMIT_TIMEOUT })
       await expect(interruptedChip).toHaveAttribute('aria-pressed', 'false')
       await expect(rows).toHaveCount(3)
     })

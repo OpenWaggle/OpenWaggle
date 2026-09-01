@@ -10,6 +10,7 @@ import {
 import { startAgentsCliIfRequested } from './agents-cli-entry'
 import { completeAppRuntimeShutdown } from './application/app-runtime-shutdown'
 import { invokeConfiguredHostUi } from './application/gui-session-command-router'
+import { readInlineVisualizationSource } from './application/inline-visualization-source-service'
 import { applicationCliArguments } from './application-cli-arguments'
 import { startDelegationsCliIfRequested } from './delegations-cli-entry'
 import { getAllBrowserWindows, isAutomationMode } from './desktop-ui'
@@ -18,11 +19,17 @@ import { env } from './env'
 import { describeError } from './error-description'
 import { registerExtensionFrameProtocolOnce } from './extension-frame-protocol'
 import { registerExtensionRuntimeProtocolOnce } from './extension-runtime-protocol'
+import { installInlineVisualizationNavigationGuard } from './inline-visualization-navigation'
+import { registerInlineVisualizationProtocolOnce } from './inline-visualization-protocol'
 import { createLogger, initFileLogger } from './logger'
 import { createMainWindow, focusExistingWindow } from './main-window'
 import { startMcpCliIfRequested } from './mcp-cli-entry'
 import { startRecoveryCliIfRequested } from './recovery-cli-entry'
-import { registerRendererProtocolOnce, registerRendererScheme } from './renderer-protocol'
+import {
+  configureInlineVisualizationProcessIsolation,
+  registerRendererProtocolOnce,
+  registerRendererScheme,
+} from './renderer-protocol'
 import { configureAppStoragePaths } from './session-data'
 import {
   type GuiSessionHostLifecycle,
@@ -50,6 +57,7 @@ type AgentHandlerModule = Awaited<ReturnType<typeof importAgentHandlerModule>>
 type IpcHandlersModule = Awaited<ReturnType<typeof importIpcHandlersModule>>
 type RuntimeModule = Awaited<ReturnType<typeof importRuntimeModule>>
 
+configureInlineVisualizationProcessIsolation()
 registerRendererScheme()
 
 if (app.isPackaged) {
@@ -218,12 +226,21 @@ async function bootstrapServicesAndWindow() {
   registerRendererProtocolOnce()
   registerExtensionFrameProtocolOnce()
   registerExtensionRuntimeProtocolOnce()
+  registerInlineVisualizationProtocolOnce({
+    readSource: (input) => runtimeModule.runAppEffect(readInlineVisualizationSource(input)),
+  })
   startupMark('protocol-handlers-registered')
 
-  createMainWindow({ appIconPath, startupMark })
+  createMainWindowWithVisualizationGuard()
   startupMark('main-window-created')
 
   if (!isAutomationMode()) void initializeAutoUpdaterAfterWindow()
+}
+
+function createMainWindowWithVisualizationGuard() {
+  createMainWindow({ appIconPath, startupMark })
+  const mainWindow = getAllBrowserWindows()[0]
+  if (mainWindow) installInlineVisualizationNavigationGuard(mainWindow.webContents)
 }
 
 function registerAppLifecycle() {
@@ -243,7 +260,7 @@ function registerAppLifecycle() {
 
       app.on('activate', () => {
         if (getAllBrowserWindows().length === 0) {
-          createMainWindow({ appIconPath, startupMark })
+          createMainWindowWithVisualizationGuard()
         }
       })
     })

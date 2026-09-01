@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useAuthStore, useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state/preferences-store'
+import { useSyntaxThemeCatalogStore } from '@/features/settings/state/syntax-theme-store'
 import { api } from '@/shared/lib/ipc'
 
 /**
@@ -8,6 +9,7 @@ import { api } from '@/shared/lib/ipc'
  */
 export function useSettingsSetup(): void {
   const loadSettings = usePreferencesStore((s) => s.loadSettings)
+  const loadSyntaxThemeCatalog = useSyntaxThemeCatalogStore((s) => s.load)
   const loadProviderModels = useProviderStore((s) => s.loadProviderModels)
   const loadAllAuthAccounts = useAuthStore((s) => s.loadAllAuthAccounts)
 
@@ -15,6 +17,9 @@ export function useSettingsSetup(): void {
     let active = true
 
     async function initialize() {
+      await loadSyntaxThemeCatalog(null)
+      if (!active) return
+
       await loadSettings()
       if (!active) return
 
@@ -38,7 +43,7 @@ export function useSettingsSetup(): void {
     return () => {
       active = false
     }
-  }, [loadSettings, loadProviderModels, loadAllAuthAccounts])
+  }, [loadSyntaxThemeCatalog, loadSettings, loadProviderModels, loadAllAuthAccounts])
 
   // Subscribe to OAuth status events from main process (per-provider)
   useEffect(() => {
