@@ -3,6 +3,27 @@
   const capability = crypto.randomUUID();
   const parentPostMessage = parent.postMessage.bind(parent);
   const pendingFollowUps = new Map();
+  const hasTrustedUserActivation = (() => {
+    const activation = navigator.userActivation;
+    const getPrototypeOf = Object.getPrototypeOf;
+    const getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+    const apply = Reflect.apply;
+    let owner = activation;
+    while (owner) {
+      const getter = getOwnPropertyDescriptor(owner, 'isActive')?.get;
+      if (typeof getter === 'function') {
+        return () => {
+          try {
+            return apply(getter, activation, []) === true;
+          } catch {
+            return false;
+          }
+        };
+      }
+      owner = getPrototypeOf(owner);
+    }
+    return () => false;
+  })();
   const post = (type, payload = {}) => {
     parentPostMessage({ type, capability, ...payload }, '*');
   };
@@ -150,7 +171,7 @@
     const rawHref = target.getAttribute('href');
     if (!rawHref || rawHref.startsWith('#')) return;
     event.preventDefault();
-    if (!event.isTrusted || !navigator.userActivation?.isActive) return;
+    if (!event.isTrusted || !hasTrustedUserActivation()) return;
     if (target.hasAttribute('download')) {
       void downloadAnchor(target);
       return;
@@ -163,7 +184,7 @@
     if (
       typeof prompt !== 'string' ||
       prompt.trim().length === 0 ||
-      !navigator.userActivation?.isActive
+      !hasTrustedUserActivation()
     ) {
       return Promise.resolve(false);
     }

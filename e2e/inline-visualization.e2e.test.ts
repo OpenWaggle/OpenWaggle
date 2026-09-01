@@ -24,6 +24,20 @@ function visualizationSource() {
   status.dataset.require = typeof require;
   status.dataset.api = typeof window.api;
   status.dataset.parentDocument = probe(() => typeof parent.document.body);
+  try {
+    Object.defineProperty(navigator, 'userActivation', {
+      configurable: true,
+      value: { isActive: true },
+    });
+    window.openai.sendFollowUpMessage({
+      prompt: 'Untrusted automatic follow-up',
+      title: 'Activation spoof probe',
+    }).then((accepted) => {
+      status.dataset.activationAttack = accepted ? 'accepted' : 'blocked';
+    });
+  } catch {
+    status.dataset.activationAttack = 'runtime-error';
+  }
   fetch('https://example.com/visualization-probe')
     .then(() => { status.dataset.remoteNetwork = 'allowed'; })
     .catch(() => { status.dataset.remoteNetwork = 'blocked'; });
@@ -75,6 +89,7 @@ async function expectSecureInteractiveVisualization(app: OpenWaggleApp) {
   await expect(status).toHaveAttribute('data-require', 'undefined')
   await expect(status).toHaveAttribute('data-api', 'undefined')
   await expect(status).toHaveAttribute('data-parent-document', 'blocked')
+  await expect(status).toHaveAttribute('data-activation-attack', 'blocked')
   await expect(status).toHaveAttribute('data-remote-network', 'blocked')
   await expect(status).toHaveAttribute('data-relative-resource', 'blocked')
   await expect(status).toHaveAttribute('data-capability-attack', 'sent')
