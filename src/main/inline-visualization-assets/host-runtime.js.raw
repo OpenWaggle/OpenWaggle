@@ -47,6 +47,12 @@
   const arrayShift = Array.prototype.shift;
   const numberIsFinite = Number.isFinite;
   const applyIntrinsic = Reflect.apply;
+  const entryListGetEntries = typeof PerformanceObserverEntryList === 'function'
+    ? PerformanceObserverEntryList.prototype.getEntries
+    : null;
+  const performanceEntryDurationGetter = typeof PerformanceEntry === 'function'
+    ? Object.getOwnPropertyDescriptor(PerformanceEntry.prototype, 'duration')?.get
+    : null;
   let resourceLimitReported = false;
   const reportResourceLimit = () => {
     if (resourceLimitReported) return;
@@ -56,6 +62,8 @@
   if (
     typeof PerformanceObserver !== 'function' ||
     !PerformanceObserver.supportedEntryTypes?.includes('longtask') ||
+    typeof entryListGetEntries !== 'function' ||
+    typeof performanceEntryDurationGetter !== 'function' ||
     typeof performance === 'undefined' ||
     typeof performance.now !== 'function'
   ) {
@@ -65,9 +73,9 @@
       const monotonicNow = performance.now.bind(performance);
       const observer = new PerformanceObserver((list) => {
         const now = monotonicNow();
-        const entries = list.getEntries();
+        const entries = applyIntrinsic(entryListGetEntries, list, []);
         for (let index = 0; index < entries.length; index += 1) {
-          const duration = entries[index].duration;
+          const duration = applyIntrinsic(performanceEntryDurationGetter, entries[index], []);
           if (numberIsFinite(duration) && duration > 0) {
             applyIntrinsic(arrayPush, longTaskSamples, [{ recordedAt: now, duration }]);
           }

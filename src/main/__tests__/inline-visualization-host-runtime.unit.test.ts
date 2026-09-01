@@ -35,6 +35,20 @@ function runtimeHarness(nativeActivationIsActive = false, supportsLongTaskAccoun
 
     observe() {}
   }
+  class RuntimePerformanceEntry {
+    constructor(private readonly durationValue: number) {}
+
+    get duration() {
+      return this.durationValue
+    }
+  }
+  class RuntimePerformanceObserverEntryList {
+    constructor(private readonly entries: RuntimePerformanceEntry[]) {}
+
+    getEntries() {
+      return this.entries
+    }
+  }
   const context = vm.createContext({
     crypto: { randomUUID: vi.fn(() => 'trusted-capability-1234567890') },
     parent,
@@ -63,6 +77,8 @@ function runtimeHarness(nativeActivationIsActive = false, supportsLongTaskAccoun
     clearTimeout,
     queueMicrotask,
     PerformanceObserver: supportsLongTaskAccounting ? RuntimePerformanceObserver : undefined,
+    PerformanceEntry: RuntimePerformanceEntry,
+    PerformanceObserverEntryList: RuntimePerformanceObserverEntryList,
     performance: { now: () => performanceNow },
   })
   vm.runInContext(hostRuntime, context)
@@ -82,7 +98,11 @@ function runtimeHarness(nativeActivationIsActive = false, supportsLongTaskAccoun
   }
   const dispatchLongTasks = (...durations: number[]) => {
     for (const callback of performanceObserverCallbacks) {
-      callback({ getEntries: () => durations.map((duration) => ({ duration })) })
+      callback(
+        new RuntimePerformanceObserverEntryList(
+          durations.map((duration) => new RuntimePerformanceEntry(duration)),
+        ),
+      )
     }
   }
   return {
@@ -226,7 +246,12 @@ describe('inline visualization host runtime', () => {
       `Array.prototype.push = () => 0;
        Array.prototype.shift = () => undefined;
        Array.prototype.reduce = () => 0;
-       Number.isFinite = () => false;`,
+       Number.isFinite = () => false;
+       PerformanceObserverEntryList.prototype.getEntries = () => [];
+       Object.defineProperty(PerformanceEntry.prototype, 'duration', {
+         configurable: true,
+         get: () => 0,
+       });`,
       context,
     )
 
