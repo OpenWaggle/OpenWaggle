@@ -80,6 +80,8 @@ describe('Pi Visualize skill', () => {
     expect(output).toContain('Latency &lt;Map&gt;')
     expect(output).toContain('&lt;button id=&quot;probe&quot;&gt;Probe&lt;/button&gt;')
     expect(output).toContain("default-src 'none'")
+    expect(output).toContain("worker-src 'none'")
+    expect(output).not.toContain('worker-src blob:')
     expect(output).not.toContain('allow-same-origin')
   })
 })

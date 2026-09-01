@@ -54,7 +54,7 @@ export const VISUALIZATION_CONTENT_SECURITY_POLICY = [
   `font-src ${CDN_SOURCES.join(' ')}`,
   `media-src data: blob: ${CDN_SOURCES.join(' ')}`,
   'connect-src blob: data:',
-  'worker-src blob:',
+  `worker-src 'none'`,
   `child-src 'none'`,
   `frame-src 'none'`,
   `object-src 'none'`,

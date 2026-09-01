@@ -26,6 +26,24 @@ function visualizationSource() {
   status.dataset.require = typeof require;
   status.dataset.api = typeof window.api;
   status.dataset.parentDocument = probe(() => typeof parent.document.body);
+  try {
+    const workerUrl = URL.createObjectURL(new Blob(["postMessage('started')"], { type: 'text/javascript' }));
+    const worker = new Worker(workerUrl);
+    const finishWorkerProbe = (result) => {
+      if (status.dataset.worker) return;
+      status.dataset.worker = result;
+      worker.terminate();
+      URL.revokeObjectURL(workerUrl);
+    };
+    worker.addEventListener('message', () => finishWorkerProbe('allowed'), { once: true });
+    worker.addEventListener('error', (event) => {
+      event.preventDefault();
+      finishWorkerProbe('blocked');
+    }, { once: true });
+    setTimeout(() => finishWorkerProbe('blocked'), 1_000);
+  } catch {
+    status.dataset.worker = 'blocked';
+  }
   const forgedEarlyCapability = 'fragment-first-capability';
   parent.postMessage({ type: 'openwaggle:inline-visualization:ready', capability: forgedEarlyCapability }, '*');
   parent.postMessage({ type: 'openwaggle:inline-visualization:resize', capability: forgedEarlyCapability, height: 9999 }, '*');
@@ -95,6 +113,7 @@ async function expectSecureInteractiveVisualization(app: OpenWaggleApp) {
   await expect(status).toHaveAttribute('data-require', 'undefined')
   await expect(status).toHaveAttribute('data-api', 'undefined')
   await expect(status).toHaveAttribute('data-parent-document', 'blocked')
+  await expect(status).toHaveAttribute('data-worker', 'blocked')
   await expect(status).toHaveAttribute('data-activation-attack', 'blocked')
   await expect(status).toHaveAttribute('data-remote-network', 'blocked')
   await expect(status).toHaveAttribute('data-relative-resource', 'blocked')

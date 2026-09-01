@@ -61,6 +61,8 @@ describe('inline visualization protocol', () => {
       expect(VISUALIZATION_CONTENT_SECURITY_POLICY).toContain(origin)
     }
     expect(VISUALIZATION_CONTENT_SECURITY_POLICY).not.toContain('https: *')
+    expect(VISUALIZATION_CONTENT_SECURITY_POLICY).toContain("worker-src 'none'")
+    expect(VISUALIZATION_CONTENT_SECURITY_POLICY).not.toContain('worker-src blob:')
     expect(response.headers.get('origin-agent-cluster')).toBeNull()
     expect(response.headers.get('x-dns-prefetch-control')).toBe('off')
     const document = await response.text()

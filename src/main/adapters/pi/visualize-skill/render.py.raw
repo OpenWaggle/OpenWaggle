@@ -20,7 +20,7 @@ FRAME_CSP = "; ".join((
     f"img-src {RESOURCE_SOURCES}",
     f"font-src {RESOURCE_SOURCES}",
     f"media-src {RESOURCE_SOURCES}",
-    "worker-src blob:", "connect-src blob: data:", "frame-src 'none'",
+    "worker-src 'none'", "connect-src blob: data:", "frame-src 'none'",
     "object-src 'none'", "base-uri 'none'", "form-action 'none'",
 ))
 SHELL_CSP = FRAME_CSP.replace("frame-src 'none'", "frame-src 'self'")
