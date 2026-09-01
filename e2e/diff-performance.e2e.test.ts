@@ -20,7 +20,9 @@ function longTaskBudget() {
   // Across exact-head retries, unchanged hosted builds moved 53–101 ms samples between the two
   // diff fixtures while every functional and worker-isolation assertion passed. Keep the 50 ms
   // product contract for local performance runs and bound hosted scheduler jitter separately.
-  return process.env.CI ? HOSTED_CI_LONG_TASK_BUDGET_MS : LONG_TASK_BUDGET_MS
+  const isGitHubHostedRunner =
+    process.env.GITHUB_ACTIONS === 'true' && process.env.RUNNER_ENVIRONMENT === 'github-hosted'
+  return isGitHubHostedRunner ? HOSTED_CI_LONG_TASK_BUDGET_MS : LONG_TASK_BUDGET_MS
 }
 
 function initializeRepository(projectPath: string) {
