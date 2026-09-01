@@ -10,6 +10,7 @@ interface AssociationCacheEntry {
 const associationCache = new Map<string, AssociationCacheEntry>()
 const GLOBSTAR_DIRECTORY_END_OFFSET = 2
 const MAX_ASSOCIATION_MATCH_STEPS = 256
+const MAX_VSCODE_SETTINGS_BYTES = 1024 * 1024
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -84,18 +85,26 @@ function parsedAssociations(source: string) {
   return associations
 }
 
+function isMissingSettingsFile(error: unknown) {
+  return error instanceof Error && 'code' in error && error.code === 'ENOENT'
+}
+
 async function vscodeAssociations(projectRoot: string) {
   const settingsPath = path.join(projectRoot, '.vscode', 'settings.json')
   try {
     const stats = await fs.stat(settingsPath)
+    if (stats.size > MAX_VSCODE_SETTINGS_BYTES) {
+      throw new Error('VS Code workspace settings are limited to 1 MiB.')
+    }
     const cached = associationCache.get(projectRoot)
     if (cached?.modifiedAt === stats.mtimeMs) return cached.associations
     const associations = parsedAssociations(await fs.readFile(settingsPath, 'utf8'))
     associationCache.set(projectRoot, { modifiedAt: stats.mtimeMs, associations })
     return associations
-  } catch {
+  } catch (error) {
     associationCache.delete(projectRoot)
-    return {}
+    if (isMissingSettingsFile(error)) return {}
+    throw error
   }
 }
 
