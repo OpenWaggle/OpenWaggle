@@ -14,6 +14,9 @@ interface WorktreePlanState {
   readonly takeOverride: (key: string) => WorktreePlanOverride | undefined
 }
 
+/** Store key for setup choices made before the user has selected a project. */
+export const PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY = 'draft:projectless'
+
 /** Store key for a not-yet-created session's plan, keyed by the opened project. */
 export function draftWorktreePlanKey(projectPath: string): string {
   return `draft:${projectPath}`

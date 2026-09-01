@@ -29,6 +29,7 @@ function stripState(overrides: Partial<SessionContextRowState> = {}): SessionCon
     switchToLocalMode: vi.fn(),
     startFromOrigin: false,
     branchNames: ['main', 'develop'],
+    branchStatus: 'ready',
     changeRequests: [],
     sendPlan: { kind: 'create-worktree', baseRef: 'main' },
     setEnvMode: vi.fn(),

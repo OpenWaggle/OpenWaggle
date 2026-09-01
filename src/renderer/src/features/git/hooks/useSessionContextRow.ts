@@ -12,11 +12,13 @@ import {
 } from '@/features/git/lib/worktree-send-plan'
 import {
   draftWorktreePlanKey,
+  PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY,
   useWorktreePlanStore,
   type WorktreePlanOverride,
 } from '@/features/git/state/worktree-plan-store'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
+import { type ProjectBranchStatus, useProjectBranches } from './useProjectBranches'
 
 const logger = createRendererLogger('composer-context-strip')
 
@@ -40,6 +42,7 @@ export interface SessionContextRowState {
   readonly worktreePath: string | null
   readonly startFromOrigin: boolean
   readonly branchNames: readonly string[]
+  readonly branchStatus: ProjectBranchStatus
   readonly changeRequests: readonly VcsChangeRequest[]
   readonly sendPlan: WorktreeSendPlan
   readonly setEnvMode: (mode: SessionEnvironmentMode) => void
@@ -52,13 +55,6 @@ export interface SessionContextRowState {
   /** Abandon the vanished worktree and run this session in the opened checkout. */
   readonly switchToLocalMode: () => void
 }
-
-interface BranchListState {
-  readonly currentBranch: string | null
-  readonly names: readonly string[]
-}
-
-const EMPTY_BRANCHES: BranchListState = { currentBranch: null, names: [] }
 
 function resolveEffectivePlan(
   override: WorktreePlanOverride | undefined,
@@ -91,12 +87,19 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
     ? String(sessionId)
     : projectPath
       ? draftWorktreePlanKey(projectPath)
-      : ''
+      : isFirstMessage
+        ? PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY
+        : ''
 
-  const override = useWorktreePlanStore((s) => (sessionKey ? s.bySessionId[sessionKey] : undefined))
+  const override = useWorktreePlanStore((state) => {
+    if (!sessionKey) return undefined
+    const scopedOverride = state.bySessionId[sessionKey]
+    if (scopedOverride || sessionId || !projectPath) return scopedOverride
+    return state.bySessionId[PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY]
+  })
   const setOverride = useWorktreePlanStore((s) => s.setOverride)
 
-  const [branches, setBranches] = useState<BranchListState>(EMPTY_BRANCHES)
+  const branches = useProjectBranches(projectPath)
   const [changeRequests, setChangeRequests] = useState<readonly VcsChangeRequest[]>([])
   // undefined = not yet checked, so a send is never blocked on an unknown.
   const [worktreeExists, setWorktreeExists] = useState<boolean | undefined>(undefined)
@@ -130,29 +133,6 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
       unsubscribe()
     }
   }, [recordedWorktreePath])
-
-  useEffect(() => {
-    if (!projectPath) {
-      setBranches(EMPTY_BRANCHES)
-      return
-    }
-    let cancelled = false
-    void (async () => {
-      try {
-        const result = await api.listGitBranches(RepositoryPath(projectPath))
-        if (cancelled) return
-        setBranches({
-          currentBranch: result.currentBranch,
-          names: result.branches.flatMap((b) => (b.isRemote ? [] : [b.name])),
-        })
-      } catch (error) {
-        logger.warn('Failed to list branches for context strip', { error: String(error) })
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [projectPath])
 
   const { envMode, baseRef, startFromOrigin } = resolveEffectivePlan(
     override,
@@ -307,6 +287,7 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
     worktreePath: recordedWorktreePath,
     startFromOrigin,
     branchNames: branches.names,
+    branchStatus: branches.status,
     changeRequests,
     sendPlan,
     setEnvMode,

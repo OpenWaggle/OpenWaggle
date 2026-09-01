@@ -2,7 +2,11 @@ import type { SessionId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
-import { draftWorktreePlanKey, useWorktreePlanStore } from './worktree-plan-store'
+import {
+  draftWorktreePlanKey,
+  PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY,
+  useWorktreePlanStore,
+} from './worktree-plan-store'
 
 const logger = createRendererLogger('worktree-plan-draft')
 
@@ -14,7 +18,9 @@ export function stashDraftWorktreePlan(
   projectPath: string,
   plan: { envMode: SessionEnvironmentMode; baseRef: string | null; startFromOrigin: boolean },
 ): void {
-  useWorktreePlanStore.getState().setOverride(draftWorktreePlanKey(projectPath), plan)
+  const store = useWorktreePlanStore.getState()
+  store.takeOverride(PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY)
+  store.setOverride(draftWorktreePlanKey(projectPath), plan)
 }
 
 /**
