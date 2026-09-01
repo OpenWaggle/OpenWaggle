@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
+import { buildSafeElectronEnvironment } from '../scripts/safe-electron-environment'
 import { OpenWaggleApp } from './support/openwaggle-app'
 import { seedSessionResources, seedSingleSession } from './support/session-fixtures'
 
@@ -81,8 +82,9 @@ async function createGitProject(projectPath: string, provider?: 'github' | 'gitl
 
 async function createFakeSourceControlCliBin() {
   const binPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-source-control-cli-'))
+  const realGitPath = resolveRealGitExecutable()
   if (process.platform === 'win32') {
-    await createWindowsSourceControlCliFixtures(binPath)
+    await createWindowsSourceControlCliFixtures(binPath, realGitPath)
     return binPath
   }
 
@@ -100,24 +102,48 @@ if [ "$1" = "mr" ] && [ "$2" = "list" ]; then echo "[]"; exit 0; fi
 echo "no merge request found" >&2
 exit 1
 `
+  const git = `#!/bin/sh
+if [ "$1" = "remote" ] && [ "$2" = "get-url" ] && [ "$3" = "--push" ] && [ "$4" = "--all" ]; then
+  exec ${JSON.stringify(realGitPath)} config --get "remote.$5.url"
+fi
+exec ${JSON.stringify(realGitPath)} "$@"
+`
   await Promise.all([
     fs.writeFile(path.join(binPath, 'gh'), gh, { mode: 0o755 }),
     fs.writeFile(path.join(binPath, 'glab'), glab, { mode: 0o755 }),
+    fs.writeFile(path.join(binPath, 'git'), git, { mode: 0o755 }),
   ])
   return binPath
 }
 
-async function createWindowsSourceControlCliFixtures(binPath: string) {
+function resolveRealGitExecutable() {
+  const finder = process.platform === 'win32' ? 'where.exe' : 'which'
+  const candidate = execFileSync(finder, ['git'], { encoding: 'utf8' })
+    .split(/\r?\n/u)
+    .find((value) => value.trim().length > 0)
+    ?.trim()
+  if (!candidate) throw new Error('The Session Summary E2E fixture requires git.')
+  return candidate
+}
+
+function csharpString(value: string) {
+  return `"${value.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`
+}
+
+async function createWindowsSourceControlCliFixtures(binPath: string, realGitPath: string) {
   const sourcePath = path.join(binPath, 'source-control-fixture.cs')
   const executablePath = path.join(binPath, 'source-control-fixture.exe')
   const source = `
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Text;
 
 public static class Program {
   public static int Main(string[] args) {
     var command = Path.GetFileNameWithoutExtension(Assembly.GetExecutingAssembly().Location);
+    if (command == "git") return RunGit(args);
     if (args.Length > 0 && args[0] == "auth") {
       Console.WriteLine(command == "gh" ? "Logged in to github.com account openwaggle-e2e" : "Logged in to gitlab.com as openwaggle-e2e");
       return 0;
@@ -137,6 +163,57 @@ public static class Program {
     Console.Error.WriteLine(command == "gh" ? "no pull requests found" : "no merge request found");
     return 1;
   }
+
+  private static int RunGit(string[] args) {
+    var actualArgs = args;
+    if (args.Length >= 5 && args[0] == "remote" && args[1] == "get-url" && args[2] == "--push" && args[3] == "--all") {
+      actualArgs = new[] { "config", "--get", "remote." + args[4] + ".url" };
+    }
+    var startInfo = new ProcessStartInfo {
+      FileName = ${csharpString(realGitPath)},
+      Arguments = String.Join(" ", Array.ConvertAll(actualArgs, QuoteArgument)),
+      UseShellExecute = false,
+      RedirectStandardOutput = true,
+      RedirectStandardError = true,
+    };
+    using (var process = Process.Start(startInfo)) {
+      var stdout = process.StandardOutput.ReadToEnd();
+      var stderr = process.StandardError.ReadToEnd();
+      process.WaitForExit();
+      Console.Out.Write(stdout);
+      Console.Error.Write(stderr);
+      return process.ExitCode;
+    }
+  }
+
+  private static string QuoteArgument(string value) {
+    var needsQuotes = value.Length == 0;
+    foreach (var character in value) {
+      if (Char.IsWhiteSpace(character) || character == '"') needsQuotes = true;
+    }
+    if (!needsQuotes) return value;
+    var builder = new StringBuilder();
+    builder.Append((char)34);
+    var backslashes = 0;
+    foreach (var character in value) {
+      if (character == '\\') {
+        backslashes += 1;
+        continue;
+      }
+      if (character == '"') {
+        builder.Append('\\', backslashes * 2 + 1);
+        builder.Append((char)34);
+        backslashes = 0;
+        continue;
+      }
+      builder.Append('\\', backslashes);
+      backslashes = 0;
+      builder.Append(character);
+    }
+    builder.Append('\\', backslashes * 2);
+    builder.Append((char)34);
+    return builder.ToString();
+  }
 }
 `
   await fs.writeFile(sourcePath, source)
@@ -154,6 +231,7 @@ public static class Program {
   await Promise.all([
     fs.copyFile(executablePath, path.join(binPath, 'gh.exe')),
     fs.copyFile(executablePath, path.join(binPath, 'glab.exe')),
+    fs.copyFile(executablePath, path.join(binPath, 'git.exe')),
   ])
 }
 
@@ -473,8 +551,9 @@ test('session resources stay scoped while inline images and the gallery navigate
 test('Session Summary exposes complete GitHub PR and GitLab MR composition', async () => {
   test.setTimeout(180_000)
   const cliBinPath = await createFakeSourceControlCliBin()
+  const inheritedPath = buildSafeElectronEnvironment({}).PATH ?? ''
   const app = await OpenWaggleApp.launch('openwaggle-session-summary-change-requests-', {
-    PATH: `${cliBinPath}${path.delimiter}${process.env.PATH ?? ''}`,
+    PATH: `${cliBinPath}${path.delimiter}${inheritedPath}`,
   })
   const githubProjectPath = path.join(app.userDataDir, 'github-change-request-project')
   const gitlabProjectPath = path.join(app.userDataDir, 'gitlab-change-request-project')

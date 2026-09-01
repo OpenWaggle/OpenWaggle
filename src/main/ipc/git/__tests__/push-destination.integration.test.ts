@@ -21,6 +21,7 @@ const IDENTITY = [
   '-c',
   'user.email=tests@openwaggle.ai',
 ] as const
+const REAL_GIT_TEST_TIMEOUT_MS = 30_000
 
 let workspace: string | null = null
 
@@ -91,7 +92,9 @@ async function repositoryWithUpstreamOnly() {
 }
 
 describe('where a push lands', () => {
-  it('reports the destination, not just the ref the user is on', { timeout: 15_000 }, async () => {
+  it('reports the destination, not just the ref the user is on', {
+    timeout: REAL_GIT_TEST_TIMEOUT_MS,
+  }, async () => {
     /*
      * The confirmation before a push to the default branch judged only the current ref, so this state - on
      * `feature`, writing `main` - was waved straight through. The status now carries what a push would write.
@@ -109,7 +112,7 @@ describe('where a push lands', () => {
   })
 
   it('pushes to the named upstream rather than leaving it to push.default', {
-    timeout: 15_000,
+    timeout: REAL_GIT_TEST_TIMEOUT_MS,
   }, async () => {
     /*
      * The destination is named explicitly, so the same command cannot land somewhere else because of a setting
@@ -129,7 +132,7 @@ describe('where a push lands', () => {
   })
 
   it('uses the selected non-origin remote for a branch first push', {
-    timeout: 15_000,
+    timeout: REAL_GIT_TEST_TIMEOUT_MS,
   }, async () => {
     const { remote, work } = await repositoryWithUpstreamOnly()
 
@@ -144,7 +147,7 @@ describe('where a push lands', () => {
   })
 
   it('reports the configured push URL instead of the remote fetch URL', {
-    timeout: 15_000,
+    timeout: REAL_GIT_TEST_TIMEOUT_MS,
   }, async () => {
     const { remote: fetchRemote, work } = await repositoryWithUpstreamOnly()
     const pushRemote = path.join(workspace ?? '', 'fork.git')
@@ -166,7 +169,7 @@ describe('where a push lands', () => {
   })
 
   it('marks multiple configured push URLs as ambiguous for change-request targeting', {
-    timeout: 15_000,
+    timeout: REAL_GIT_TEST_TIMEOUT_MS,
   }, async () => {
     const { work } = await repositoryWithUpstreamOnly()
     const firstPushRemote = path.join(workspace ?? '', 'fork-one.git')

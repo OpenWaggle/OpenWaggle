@@ -56,8 +56,10 @@ export async function buildOpenChangeRequestPayload(
   const headRef = await resolveHeadRef(deps, projectPath, branch, pushDestination)
   if (!headRef) return null
 
-  const baseRef = await resolveBaseRef(deps, projectPath, options)
-  const primaryRemoteUrl = await deps.resolvePrimaryRemoteUrl(projectPath)
+  const [baseRef, primaryRemoteUrl] = await Promise.all([
+    resolveBaseRef(deps, projectPath, options),
+    deps.resolvePrimaryRemoteUrl(projectPath),
+  ])
   const headOwner = pushDestination
     ? compatibleHeadOwner(primaryRemoteUrl, pushDestination)
     : undefined

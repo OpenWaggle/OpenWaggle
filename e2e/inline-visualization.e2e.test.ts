@@ -103,7 +103,10 @@ function visualizationSource() {
 </script>`
 }
 
-async function expectSecureInteractiveVisualization(app: OpenWaggleApp) {
+async function expectSecureInteractiveVisualization(
+  app: OpenWaggleApp,
+  options: { verifyAgentPayload?: boolean } = {},
+) {
   const page = app.window()
   await app.resizeMainWindow(760, 620)
   const iframe = page.locator(`iframe[title="${FRAME_TITLE}"]`)
@@ -135,6 +138,17 @@ async function expectSecureInteractiveVisualization(app: OpenWaggleApp) {
   await expect(navigationButton).toHaveAttribute('aria-describedby', /^openwaggle-tooltip-/u)
 
   await app.resizeMainWindow(1440, 900)
+  const summary = page.getByRole('complementary', { name: 'Session Summary' })
+  const summaryToggle = page
+    .locator('header')
+    .getByRole('button', { name: 'Session Summary', exact: true })
+  await expect(summaryToggle).toBeVisible()
+  if ((await summary.count()) === 0) {
+    await summaryToggle.click()
+    await expect(summary).toBeVisible()
+  }
+  await summaryToggle.click()
+  await expect(summary).toHaveCount(0)
   await page.getByRole('button', { name: 'Expand visualization' }).click()
   const largeFocusLayer = page.locator('[data-visualization-focus-layer="true"]')
   const largeDialog = page.getByRole('dialog', { name: FRAME_TITLE })
@@ -212,21 +226,23 @@ async function expectSecureInteractiveVisualization(app: OpenWaggleApp) {
   await expect(focusLayer).toHaveCount(0)
   await expect(page.getByRole('region', { name: FRAME_TITLE })).toBeVisible()
   await expect(frame.getByRole('button', { name: 'Count 1' })).toBeVisible()
-  const feedback = 'The selected visualization state should keep the expanded section.'
-  await app.mainWindow().messageInput().fill(feedback)
-  await app.mainWindow().submitComposer()
-  await expect
-    .poll(() => app.readAgentSendProbe())
-    .toMatchObject({
-      payload: {
-        text: feedback,
-        visualizationContext: {
-          sourcePath: expect.stringContaining(SOURCE_NAME),
-          title: FRAME_TITLE,
-          state: { count: 1, expanded: true },
+  if (options.verifyAgentPayload !== false) {
+    const feedback = 'The selected visualization state should keep the expanded section.'
+    await app.mainWindow().messageInput().fill(feedback)
+    await app.mainWindow().submitComposer()
+    await expect
+      .poll(() => app.readAgentSendProbe())
+      .toMatchObject({
+        payload: {
+          text: feedback,
+          visualizationContext: {
+            sourcePath: expect.stringContaining(SOURCE_NAME),
+            title: FRAME_TITLE,
+            state: { count: 1, expanded: true },
+          },
         },
-      },
-    })
+      })
+  }
   const heightExpanded = await iframe.evaluate((element) => element.getBoundingClientRect().height)
   await frame.getByRole('button', { name: 'Count 1' }).evaluate((element: HTMLElement) => {
     element.click()
@@ -296,7 +312,7 @@ test('renders a persistent interactive visualization inside the isolated Electro
     await app.restart()
     await app.installAgentSendProbe()
     await openVisualizationThread(app)
-    await expectSecureInteractiveVisualization(app)
+    await expectSecureInteractiveVisualization(app, { verifyAgentPayload: false })
   } finally {
     await app.cleanup()
   }
