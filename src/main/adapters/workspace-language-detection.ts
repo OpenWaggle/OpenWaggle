@@ -89,6 +89,17 @@ function isWithinProjectRoot(projectRoot: string, candidate: string) {
   return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative)
 }
 
+async function readBoundedSettings(handle: Awaited<ReturnType<typeof fs.open>>) {
+  const buffer = Buffer.alloc(MAX_VSCODE_SETTINGS_BYTES + 1)
+  let bytesRead = 0
+  while (bytesRead < buffer.length) {
+    const result = await handle.read(buffer, bytesRead, buffer.length - bytesRead, bytesRead)
+    if (result.bytesRead === 0) break
+    bytesRead += result.bytesRead
+  }
+  return buffer.subarray(0, bytesRead)
+}
+
 async function vscodeAssociations(projectRoot: string) {
   const settingsPath = path.join(projectRoot, '.vscode', 'settings.json')
   let cacheKey = projectRoot
@@ -119,12 +130,11 @@ async function vscodeAssociations(projectRoot: string) {
       }
       const cached = associationCache.get(canonicalRoot)
       if (cached?.modifiedAt === stats.mtimeMs) return cached.associations
-      const buffer = Buffer.alloc(MAX_VSCODE_SETTINGS_BYTES + 1)
-      const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0)
-      if (bytesRead > MAX_VSCODE_SETTINGS_BYTES) {
+      const source = await readBoundedSettings(handle)
+      if (source.length > MAX_VSCODE_SETTINGS_BYTES) {
         throw new Error('VS Code workspace settings are limited to 1 MiB.')
       }
-      const associations = parsedAssociations(buffer.subarray(0, bytesRead).toString('utf8'))
+      const associations = parsedAssociations(source.toString('utf8'))
       associationCache.set(canonicalRoot, { modifiedAt: stats.mtimeMs, associations })
       return associations
     } finally {

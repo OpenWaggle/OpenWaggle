@@ -163,4 +163,29 @@ describe('workspace language detection', () => {
       await expect(vscodeLanguageAssociation(projectPath, filename)).resolves.toBe('javascript')
     },
   )
+
+  it.each([
+    ['?.ts', '😀.ts'],
+    ['[😀].ts', '😀.ts'],
+  ])('matches %s against Unicode code points in %s', async (glob, filename) => {
+    await fs.writeFile(
+      path.join(projectPath, '.vscode', 'settings.json'),
+      JSON.stringify({ 'files.associations': { [glob]: 'typescript' } }),
+    )
+
+    await expect(vscodeLanguageAssociation(projectPath, filename)).resolves.toBe('typescript')
+  })
+
+  it('matches large character classes without scanning every member per candidate character', async () => {
+    const members = Array.from({ length: 1_300 }, (_, index) =>
+      String.fromCodePoint(0x1_000 + index * 2),
+    ).join('')
+    const filename = `${String.fromCodePoint(0x1_000 + 1_299 * 2)}.ts`
+    await fs.writeFile(
+      path.join(projectPath, '.vscode', 'settings.json'),
+      JSON.stringify({ 'files.associations': { [`[${members}].ts`]: 'typescript' } }),
+    )
+
+    await expect(vscodeLanguageAssociation(projectPath, filename)).resolves.toBe('typescript')
+  })
 })

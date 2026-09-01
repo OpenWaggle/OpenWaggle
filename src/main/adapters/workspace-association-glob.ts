@@ -3,6 +3,7 @@ import { matchBy } from '@diegogbrisa/ts-match'
 const CHARACTER_RANGE_END_OFFSET = 2
 const GLOBSTAR_DIRECTORY_END_OFFSET = 2
 const MAX_GLOB_PATTERN_CODE_UNITS = 4_096
+const SEARCH_PARTITION_COUNT = 2
 
 export interface GlobMatchOperationBudget {
   remaining: number
@@ -25,18 +26,37 @@ type GlobToken =
       readonly ranges: readonly CharacterRange[]
     }
 
-function characterClassToken(glob: string, opening: number) {
+function normalizedCharacterRanges(ranges: readonly CharacterRange[]) {
+  const sorted = ranges.toSorted((left, right) => left.start - right.start || left.end - right.end)
+  const normalized: CharacterRange[] = []
+  for (const range of sorted) {
+    const previous = normalized.at(-1)
+    if (!previous || range.start > previous.end + 1) {
+      normalized.push(range)
+      continue
+    }
+    normalized[normalized.length - 1] = {
+      start: previous.start,
+      end: Math.max(previous.end, range.end),
+    }
+  }
+  return normalized
+}
+
+function characterClassToken(glob: readonly string[], opening: number) {
   const closing = glob.indexOf(']', opening + 1)
   if (closing <= opening + 1) return null
   const rawClass = glob.slice(opening + 1, closing)
-  const negated = rawClass.startsWith('!')
+  const negated = rawClass[0] === '!'
   const members = negated ? rawClass.slice(1) : rawClass
-  if (!members) return null
+  if (members.length === 0) return null
   const ranges: CharacterRange[] = []
   for (let index = 0; index < members.length; index += 1) {
-    const start = members.charCodeAt(index)
+    const start = members[index]?.codePointAt(0)
+    if (start === undefined) return { invalid: true } as const
     if (members[index + 1] === '-' && index + CHARACTER_RANGE_END_OFFSET < members.length) {
-      const end = members.charCodeAt(index + CHARACTER_RANGE_END_OFFSET)
+      const end = members[index + CHARACTER_RANGE_END_OFFSET]?.codePointAt(0)
+      if (end === undefined) return { invalid: true } as const
       if (start > end) return { invalid: true } as const
       ranges.push({ start, end })
       index += CHARACTER_RANGE_END_OFFSET
@@ -46,18 +66,23 @@ function characterClassToken(glob: string, opening: number) {
   }
   return {
     end: closing,
-    token: { kind: 'character-class', negated, ranges } satisfies GlobToken,
+    token: {
+      kind: 'character-class',
+      negated,
+      ranges: normalizedCharacterRanges(ranges),
+    } satisfies GlobToken,
   }
 }
 
 function globTokens(glob: string): readonly GlobToken[] | null {
   if (glob.length > MAX_GLOB_PATTERN_CODE_UNITS) return null
+  const characters = Array.from(glob)
   const tokens: GlobToken[] = []
-  for (let index = 0; index < glob.length; index += 1) {
-    const character = glob[index]
+  for (let index = 0; index < characters.length; index += 1) {
+    const character = characters[index]
     if (character === '*') {
-      if (glob[index + 1] === '*') {
-        if (glob[index + GLOBSTAR_DIRECTORY_END_OFFSET] === '/') {
+      if (characters[index + 1] === '*') {
+        if (characters[index + GLOBSTAR_DIRECTORY_END_OFFSET] === '/') {
           tokens.push({ kind: 'globstar-directory' })
           index += GLOBSTAR_DIRECTORY_END_OFFSET
         } else {
@@ -74,7 +99,7 @@ function globTokens(glob: string): readonly GlobToken[] | null {
       continue
     }
     if (character === '[') {
-      const characterClass = characterClassToken(glob, index)
+      const characterClass = characterClassToken(characters, index)
       if (characterClass && 'invalid' in characterClass) return null
       if (characterClass) {
         tokens.push(characterClass.token)
@@ -91,8 +116,26 @@ function characterClassMatches(
   token: Extract<GlobToken, { kind: 'character-class' }>,
   value: string,
 ) {
-  const code = value.charCodeAt(0)
-  const member = token.ranges.some((range) => code >= range.start && code <= range.end)
+  const code = value.codePointAt(0)
+  if (code === undefined) return false
+  let lower = 0
+  let upper = token.ranges.length - 1
+  let member = false
+  while (lower <= upper) {
+    const middle = Math.floor((lower + upper) / SEARCH_PARTITION_COUNT)
+    const range = token.ranges[middle]
+    if (!range) break
+    if (code < range.start) {
+      upper = middle - 1
+      continue
+    }
+    if (code > range.end) {
+      lower = middle + 1
+      continue
+    }
+    member = true
+    break
+  }
   return token.negated ? !member : member
 }
 
@@ -104,7 +147,7 @@ function consumeMatchOperation(budget: GlobMatchOperationBudget) {
 
 function repeatingTokenRow(
   token: Extract<GlobToken, { kind: 'star' | 'globstar' }>,
-  candidate: string,
+  candidate: readonly string[],
   next: Uint8Array,
   budget: GlobMatchOperationBudget,
 ) {
@@ -119,7 +162,7 @@ function repeatingTokenRow(
 }
 
 function globstarDirectoryRow(
-  candidate: string,
+  candidate: readonly string[],
   next: Uint8Array,
   budget: GlobMatchOperationBudget,
 ) {
@@ -136,7 +179,7 @@ function globstarDirectoryRow(
 
 function singleCharacterRow(
   token: Extract<GlobToken, { kind: 'literal' | 'question' | 'character-class' }>,
-  candidate: string,
+  candidate: readonly string[],
   next: Uint8Array,
   budget: GlobMatchOperationBudget,
 ) {
@@ -159,7 +202,7 @@ function singleCharacterRow(
 
 function deterministicGlobMatch(
   tokens: readonly GlobToken[],
-  candidate: string,
+  candidate: readonly string[],
   budget: GlobMatchOperationBudget,
 ) {
   let next = new Uint8Array(candidate.length + 1)
@@ -188,5 +231,5 @@ export function matchesWorkspaceAssociationGlob(
   budget: GlobMatchOperationBudget,
 ) {
   const tokens = globTokens(glob)
-  return tokens ? deterministicGlobMatch(tokens, candidate, budget) : false
+  return tokens ? deterministicGlobMatch(tokens, Array.from(candidate), budget) : false
 }

@@ -34,8 +34,9 @@ describe('workspace language detection I/O boundaries', () => {
       read: readMock,
       stat: handleStatMock,
     })
-    readMock.mockReset().mockImplementation((buffer: Buffer) => {
-      buffer.write('{}')
+    readMock.mockReset().mockImplementation((buffer: Buffer, offset: number) => {
+      if (offset > 0) return Promise.resolve({ bytesRead: 0 })
+      buffer.write('{}', offset)
       return Promise.resolve({ bytesRead: 2 })
     })
     realpathMock.mockReset().mockImplementation((value: string) => Promise.resolve(value))
@@ -62,6 +63,22 @@ describe('workspace language detection I/O boundaries', () => {
       failure,
     )
     expect(closeMock).toHaveBeenCalledOnce()
+  })
+
+  it('continues bounded reads after a legal short read', async () => {
+    const source = JSON.stringify({ 'files.associations': { '*.templ': 'html' } })
+    handleStatMock.mockResolvedValueOnce({ isFile: () => true, mtimeMs: 1, size: source.length })
+    readMock.mockImplementation((buffer: Buffer, offset: number, length: number) => {
+      const chunk = source.slice(offset, offset + Math.min(length, 7))
+      if (!chunk) return Promise.resolve({ bytesRead: 0 })
+      buffer.write(chunk, offset)
+      return Promise.resolve({ bytesRead: Buffer.byteLength(chunk) })
+    })
+
+    await expect(vscodeLanguageAssociation('/short-read-project', 'page.templ')).resolves.toBe(
+      'html',
+    )
+    expect(readMock.mock.calls.length).toBeGreaterThan(1)
   })
 
   it('rejects oversized settings before reading their contents', async () => {
