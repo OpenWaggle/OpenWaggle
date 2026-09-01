@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -177,17 +178,52 @@ export class OpenWaggleApp {
       .waitForEvent('close', { timeout: QA_FORCED_CLOSE_WAIT_MS })
       .then(() => true)
       .catch(() => false)
-    void this.app.evaluate(({ app }) => app.exit(0)).catch(() => undefined)
+    void this.app.evaluate(() => process.exit(0)).catch(() => undefined)
     if (await closeEvent) return true
 
     console.warn('[electron-qa] immediate app exit timed out; forcing shell closure')
+    const forcedCloseEvent = this.app
+      .waitForEvent('close', { timeout: QA_GRACEFUL_CLOSE_MS })
+      .then(() => true)
+      .catch(() => false)
     this.terminateProcessTree()
-    console.warn(`[electron-qa] retaining disposable profile ${this.userDataDir}`)
-    return false
+    const forcedClosed = await forcedCloseEvent
+    if (!forcedClosed) {
+      console.warn(`[electron-qa] retaining disposable profile ${this.userDataDir}`)
+    }
+    return forcedClosed
   }
 
   private terminateProcessTree(): void {
     const childProcess = this.app.process()
+    if (process.platform === 'win32' && childProcess.pid) {
+      const targetProcessId = String(childProcess.pid)
+      const script = [
+        `$targetProcessId = ${targetProcessId}`,
+        '$allProcesses = @(Get-CimInstance Win32_Process)',
+        '$tree = [System.Collections.Generic.List[int]]::new()',
+        '$tree.Add($targetProcessId)',
+        'for ($index = 0; $index -lt $tree.Count; $index++) {',
+        '  $parentProcessId = $tree[$index]',
+        '  foreach ($candidate in $allProcesses) {',
+        '    $candidateId = [int]$candidate.ProcessId',
+        '    if ([int]$candidate.ParentProcessId -eq $parentProcessId -and -not $tree.Contains($candidateId)) {',
+        '      $tree.Add($candidateId)',
+        '    }',
+        '  }',
+        '}',
+        'for ($index = $tree.Count - 1; $index -ge 0; $index--) {',
+        '  Stop-Process -Id $tree[$index] -Force -ErrorAction SilentlyContinue',
+        '}',
+      ].join('; ')
+      const killer = spawn(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-Command', script],
+        { stdio: 'ignore', windowsHide: true },
+      )
+      killer.unref()
+      return
+    }
     try {
       childProcess.kill('SIGKILL')
     } catch {
