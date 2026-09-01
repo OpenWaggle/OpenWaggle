@@ -6,6 +6,7 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useOptimisticSteerStore } from '@/features/chat/state'
+import { buildClientUserMessage } from '../../lib/chat-attachment-preview'
 import { useOptimisticSteeredTurn } from '../useOptimisticSteeredTurn'
 
 const SESSION_ID = SessionId('session-1')
@@ -118,5 +119,46 @@ describe('useOptimisticSteeredTurn', () => {
     expect(result.current.visibleMessages.at(-1)?.metadata?.steerDelivery).toBe(
       'waiting-for-compaction',
     )
+  })
+
+  it('reconciles an attachment preview with the durable Pi prompt projection', () => {
+    const extractedText = 'attachment body '.repeat(30)
+    const payload: AgentSendPayload = {
+      ...FIRST_PAYLOAD,
+      attachments: [
+        {
+          id: 'attachment-1',
+          kind: 'text',
+          name: 'notes.txt',
+          path: '/tmp/notes.txt',
+          mimeType: 'text/plain',
+          sizeBytes: extractedText.length,
+          extractedText,
+        },
+      ],
+    }
+    const initialMessages = [userMessage('initial', 'start')]
+    const messagesRef = { current: initialMessages }
+    const { result, rerender } = renderHook(
+      ({ hydratedMessages }) =>
+        useOptimisticSteeredTurn(hydratedMessages, SESSION_ID, buildClientUserMessage, messagesRef),
+      { initialProps: { hydratedMessages: initialMessages } },
+    )
+
+    act(() => {
+      result.current.previewSteeredUserTurn(payload, 'waiting-for-compaction')
+    })
+
+    const durableMessages = [
+      ...initialMessages,
+      userMessage(
+        'durable-attachment',
+        `continue\n\n[Attachment: notes.txt]\n${extractedText.trim()}`,
+      ),
+    ]
+    messagesRef.current = durableMessages
+    rerender({ hydratedMessages: durableMessages })
+
+    expect(result.current.visibleMessages).toEqual(durableMessages)
   })
 })

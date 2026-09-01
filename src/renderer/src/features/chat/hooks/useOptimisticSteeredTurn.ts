@@ -1,6 +1,7 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage, UIMessageMetadata } from '@shared/types/chat-ui'
+import { buildAgentPromptText } from '@shared/utils/agent-prompt-text'
 import { useEffect } from 'react'
 import {
   type OptimisticSteerPreview,
@@ -73,6 +74,7 @@ export function useOptimisticSteeredTurn(
       useOptimisticSteerStore.getState().add(sessionId, {
         id: optimisticTurnId,
         content,
+        durableContent: buildAgentPromptText(payload),
         baselineLength: messagesRef.current.length,
         message: createOptimisticUserMessage(content, optimisticTurnId, deliveryState),
       })
@@ -115,14 +117,11 @@ function createOptimisticUserMessage(
   }
 }
 
-function getUIMessageText(message: UIMessage) {
-  return message.parts
-    .filter(
-      (part): part is Extract<(typeof message.parts)[number], { type: 'text' }> =>
-        part.type === 'text',
-    )
-    .map((part) => part.content)
-    .join('\n\n')
+function getUIMessagePrimaryText(message: UIMessage) {
+  return message.parts.find(
+    (part): part is Extract<(typeof message.parts)[number], { type: 'text' }> =>
+      part.type === 'text',
+  )?.content
 }
 
 function indexSteerCandidateMessages(messages: UIMessage[]) {
@@ -130,7 +129,8 @@ function indexSteerCandidateMessages(messages: UIMessage[]) {
   const userMessageIndexesByContent = new Map<string, number[]>()
   for (const [index, message] of messages.entries()) {
     if (message.role !== 'user') continue
-    const content = getUIMessageText(message)
+    const content = getUIMessagePrimaryText(message)
+    if (content === undefined) continue
     const indexes = userMessageIndexesByContent.get(content) ?? []
     indexes.push(index)
     userMessageIndexesByContent.set(content, indexes)
@@ -171,7 +171,7 @@ function matchSteeredUserTurns(
   for (const turn of optimisticSteeredUserTurns) {
     if (turn.durableMessageId) continue
     const matchingIndex = firstAvailableMessageIndex(
-      userMessageIndexesByContent.get(turn.content) ?? [],
+      userMessageIndexesByContent.get(turn.durableContent) ?? [],
       turn.baselineLength,
       consumedMessageIndexes,
     )

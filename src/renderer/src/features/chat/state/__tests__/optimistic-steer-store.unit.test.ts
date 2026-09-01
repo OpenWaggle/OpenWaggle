@@ -12,7 +12,7 @@ function preview(id: string): OptimisticSteerPreview {
     parts: [{ type: 'text', content: id }],
     createdAt: new Date(),
   }
-  return { id, content: id, baselineLength: 0, message }
+  return { id, content: id, durableContent: id, baselineLength: 0, message }
 }
 
 describe('optimistic steer store', () => {

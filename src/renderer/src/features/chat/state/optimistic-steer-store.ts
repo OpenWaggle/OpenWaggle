@@ -5,6 +5,7 @@ import { create } from 'zustand'
 export interface OptimisticSteerPreview {
   readonly id: string
   readonly content: string
+  readonly durableContent: string
   readonly baselineLength: number
   readonly message: UIMessage
   readonly durableMessageId?: string

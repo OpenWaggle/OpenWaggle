@@ -1,4 +1,5 @@
 import type { HydratedAgentSendPayload } from '@shared/types/agent'
+import { buildAgentPromptText } from '@shared/utils/agent-prompt-text'
 import type { PiModel } from './pi-provider-catalog'
 
 export interface PiImageContent {
@@ -25,13 +26,6 @@ function buildVisualizationContext(payload: HydratedAgentSendPayload) {
   ].join('\n')
 }
 
-function buildAttachmentSummary(attachment: HydratedAgentSendPayload['attachments'][number]) {
-  const extracted = attachment.extractedText.trim()
-  return extracted
-    ? `[Attachment: ${attachment.name}]\n${extracted}`
-    : `[Attachment: ${attachment.name}]`
-}
-
 function buildImageContent(
   attachment: HydratedAgentSendPayload['attachments'][number],
 ): PiImageContent | null {
@@ -56,25 +50,17 @@ export function buildPiPromptInput(
   model: PiInputCapabilities,
   payload: HydratedAgentSendPayload,
 ): PiPromptInput {
-  const textParts: string[] = []
   const images: PiImageContent[] = []
-
-  const trimmedText = payload.text.trim()
-  if (trimmedText.length > 0) {
-    textParts.push(trimmedText)
-  }
 
   for (const attachment of payload.attachments) {
     const image = buildImageContent(attachment)
     if (image && modelSupportsImage(model)) {
       images.push(image)
     }
-
-    textParts.push(buildAttachmentSummary(attachment))
   }
 
   return {
-    text: textParts.join('\n\n').trim(),
+    text: buildAgentPromptText(payload),
     images,
     visualizationContext: buildVisualizationContext(payload),
   }
