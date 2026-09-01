@@ -5,7 +5,9 @@ import type { SessionCapability } from '@shared/types/session-capability'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { LocalSessionProfileRepository } from '../../ports/local-session-profile-repository'
 import { SessionAuthorizationTargetRepository } from '../../ports/session-authorization-target-repository'
+import { SettingsService } from '../../services/settings-service'
 import {
   clearAgentLoopInteractionBrokerForTests,
   requestAgentLoopInteraction,
@@ -27,7 +29,7 @@ function caller(input: {
   readonly derivedCapabilities: readonly SessionCapability[]
 }): LocalSessionCallerIdentity {
   return {
-    callerId: 'profile:restricted',
+    callerId: 'session-agent:queen:run-1',
     baseProfileScope: { sessionIds: ['queen'] },
     profileAuthority: {
       profileId: 'restricted',
@@ -47,17 +49,39 @@ function caller(input: {
 }
 
 function targetLayer() {
-  return Layer.succeed(SessionAuthorizationTargetRepository, {
-    resolve: (sessionId) =>
-      Effect.succeed({
-        sessionId,
-        projectPath: '/project',
-        hiveRootSessionId: 'queen',
-        authorizationCeiling: 'ask-for-approval' as const,
-      }),
-    resolveDelegation: () => Effect.die('Delegations are not used in this test.'),
-    listLiveDerivedAuthorities: () => Effect.succeed([]),
-  })
+  return Layer.mergeAll(
+    Layer.succeed(LocalSessionProfileRepository, {
+      list: () => Effect.succeed([]),
+      findForAuthentication: () => Effect.succeed(null),
+      findById: () => Effect.succeed(null),
+      recordAuthentication: () => Effect.void,
+      executeManagement: () => Effect.die('Profile management is not used in this test.'),
+    }),
+    Layer.succeed(SessionAuthorizationTargetRepository, {
+      resolve: (sessionId) =>
+        Effect.succeed({
+          sessionId,
+          projectPath: '/project',
+          hiveRootSessionId: 'queen',
+          authorizationCeiling: 'ask-for-approval' as const,
+        }),
+      resolveDelegation: () => Effect.die('Delegations are not used in this test.'),
+      listLiveDerivedAuthorities: () =>
+        Effect.succeed([
+          {
+            sessionId: WORKER_ID,
+            capabilities: ['sessions:read', 'sessions:respond'],
+            authorizationCeiling: 'ask-for-approval' as const,
+          },
+        ]),
+    }),
+    Layer.succeed(SettingsService, {
+      get: () => Effect.die('Settings are not used in this test.'),
+      update: () => Effect.void,
+      initialize: () => Effect.void,
+      flushForTests: () => Effect.void,
+    }),
+  )
 }
 
 function listRequests(identity: LocalSessionCallerIdentity) {

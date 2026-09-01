@@ -7,11 +7,13 @@ import {
 import { app } from 'electron'
 import { commitAcceptedProfileCredential } from './access-cli-credential-settlement'
 import { validateAccessCliOptions } from './access-cli-option-contract'
+import { accessCliRejectedOutcomeKind, writeAccessCliError } from './access-cli-output'
 import { parseProfilePolicy } from './access-cli-policy'
 import { writeCliStdout } from './cli-stdout'
-import { isCommandCliUsageError, validateImplicitCliHelp } from './command-cli-option-contract'
+import { validateImplicitCliHelp } from './command-cli-option-contract'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
 import { hasFlag, option, parseMcpCliArguments } from './mcp-cli-arguments'
+import { SESSION_CLI_EXIT, sessionCliExitCodeForError } from './session-cli-exit-status'
 import { executeLocalSessionCommand } from './session-host/local-session-client'
 import { resolveLocalSessionHostPaths } from './session-host/local-session-paths'
 import { generateProfileCredential } from './session-host/profile-credential'
@@ -21,7 +23,6 @@ import {
   stageProfileCredential,
 } from './session-host/profile-credential-destination'
 
-const EXIT = { SUCCESS: 0, FAILURE: 1, USAGE: 2 } as const
 const JSON_INDENT_SPACES = 2
 const PROFILE_ARGUMENT_OFFSET = 2
 
@@ -105,6 +106,11 @@ type StagedProfileCredential = Awaited<ReturnType<typeof stageProfileCredential>
 
 class AmbiguousProfileOperationError extends Error {
   readonly preserveStagedCredential = true
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options)
+    this.name = 'AmbiguousProfileOperationError'
+  }
 }
 
 async function prepareProfileCredential(input: {
@@ -179,7 +185,7 @@ async function finalizeProfileResponse(input: {
   if (input.response.outcome.effect === 'rejected') {
     await input.staged?.discard()
     await writeOutput(input.response, input.json)
-    return EXIT.FAILURE
+    return sessionCliExitCodeForError(accessCliRejectedOutcomeKind(input.response.outcome))
   }
   const staged = input.staged
   await commitAcceptedProfileCredential({
@@ -199,7 +205,7 @@ async function finalizeProfileResponse(input: {
       : input.response,
     input.json,
   )
-  return EXIT.SUCCESS
+  return SESSION_CLI_EXIT.SUCCESS
 }
 
 async function executeProfileOperation(input: {
@@ -240,11 +246,8 @@ async function executeProfileOperation(input: {
     ) {
       await staged?.discard()
     }
-    process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`)
-    return isCommandCliUsageError(error) ||
-      (error instanceof Error && error.message.includes('required'))
-      ? EXIT.USAGE
-      : EXIT.FAILURE
+    const kind = writeAccessCliError(error, hasFlag(arguments_, 'json'))
+    return sessionCliExitCodeForError(kind)
   }
 }
 
@@ -266,10 +269,11 @@ export async function runAccessCli(args: readonly string[]) {
     try {
       validateImplicitCliHelp('OpenWaggle Access profiles', invocation.parsed)
       await writeCliStdout(`${accessCliUsage()}\n`)
-      return EXIT.SUCCESS
+      return SESSION_CLI_EXIT.SUCCESS
     } catch (error) {
-      process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`)
-      return EXIT.USAGE
+      return sessionCliExitCodeForError(
+        writeAccessCliError(error, hasFlag(invocation.parsed, 'json')),
+      )
     }
   }
   if (invocation.kind === 'usage') {
@@ -277,21 +281,31 @@ export async function runAccessCli(args: readonly string[]) {
       try {
         validateImplicitCliHelp('OpenWaggle Access profiles', invocation.parsed)
       } catch (error) {
-        process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`)
-        return EXIT.USAGE
+        return sessionCliExitCodeForError(
+          writeAccessCliError(error, hasFlag(invocation.parsed, 'json')),
+        )
       }
     }
+    if (invocation.parsed.positionals[0]) {
+      const error = new Error(
+        `Unsupported Access command: ${invocation.parsed.positionals[0]}. Expected profiles.`,
+      )
+      return sessionCliExitCodeForError(
+        writeAccessCliError(error, hasFlag(invocation.parsed, 'json')),
+      )
+    }
     await writeCliStdout(`${accessCliUsage()}\n`)
-    return invocation.parsed.positionals[0] ? EXIT.USAGE : EXIT.SUCCESS
+    return SESSION_CLI_EXIT.SUCCESS
   }
   if (invocation.operation === 'help') {
     try {
       validateAccessCliOptions(invocation.operation, invocation.arguments_)
       await writeCliStdout(`${accessCliUsage()}\n`)
-      return EXIT.SUCCESS
+      return SESSION_CLI_EXIT.SUCCESS
     } catch (error) {
-      process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`)
-      return isCommandCliUsageError(error) ? EXIT.USAGE : EXIT.FAILURE
+      return sessionCliExitCodeForError(
+        writeAccessCliError(error, hasFlag(invocation.arguments_, 'json')),
+      )
     }
   }
   return executeProfileOperation(invocation)

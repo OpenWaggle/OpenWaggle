@@ -73,6 +73,22 @@ describe('Sessions tool mutation admission', () => {
           ${'origin-profile'}, ${'["sessions:message"]'}, ${'{"all":true}'},
           ${'ask-for-approval'}, ${null})`
 
+        const requestCancellation = new AbortController()
+        const requestObservation = yield* Effect.promise(() =>
+          admitSessionToolObservation({
+            sql,
+            sessionId: 'worker',
+            runId: 'run-worker',
+            workingDirectory: temporaryRoot,
+            signal: requestCancellation.signal,
+          }),
+        )
+        const cancellation = new Error('request cancelled')
+        requestCancellation.abort(cancellation)
+        expect(requestObservation.signal?.aborted).toBe(true)
+        expect(requestObservation.signal?.reason).toBe(cancellation)
+        requestObservation.release()
+
         const observation = yield* Effect.promise(() =>
           admitSessionToolObservation({
             sql,

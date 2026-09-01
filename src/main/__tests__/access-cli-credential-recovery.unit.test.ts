@@ -89,6 +89,7 @@ const ROTATE_ARGUMENTS_WITHOUT_KEY = [
   '--credential-file',
   '/tmp/reviewer.secret',
 ] as const
+const LIST_JSON_ARGUMENTS = ['profiles', 'list', '--json'] as const
 
 const ROTATE_PROFILE_RESPONSE = {
   contract: 'local-access-v1',
@@ -153,7 +154,7 @@ describe('Access CLI credential recovery', () => {
     executeCommandMock.mockRejectedValue(new Error('Session Host unavailable'))
     const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
 
-    await expect(runAccessCli(CREATE_ARGUMENTS)).resolves.toBe(1)
+    await expect(runAccessCli(CREATE_ARGUMENTS)).resolves.toBe(8)
 
     expect(executeCommandMock).toHaveBeenCalledTimes(2)
     expect(createClientInputMock).toHaveBeenCalledOnce()
@@ -200,5 +201,75 @@ describe('Access CLI credential recovery', () => {
     expect(output).toContain(recoveryLocation)
     expect(output).not.toContain('generated-credential')
     expect(discardMock).not.toHaveBeenCalled()
+  })
+
+  it('returns a structured authorization response with the canonical exit code', async () => {
+    executeCommandMock.mockResolvedValue({
+      contract: 'local-access-v1',
+      response: {
+        contractVersion: 1,
+        requestId: 'profile-list',
+        idempotencyKey: 'list-key',
+        replayed: false,
+        outcome: {
+          operation: 'list',
+          effect: 'rejected',
+          code: 'missing_access_profiles',
+        },
+      },
+    })
+
+    await expect(runAccessCli(LIST_JSON_ARGUMENTS)).resolves.toBe(4)
+
+    const output = vi
+      .mocked(process.stdout.write)
+      .mock.calls.map((call) => String(call[0]))
+      .join('')
+    expect(JSON.parse(output)).toMatchObject({
+      contractVersion: 1,
+      outcome: { effect: 'rejected', code: 'missing_access_profiles' },
+    })
+  })
+
+  it('emits a structured Host-unavailable error with the canonical exit code', async () => {
+    executeCommandMock.mockRejectedValue(new Error('Session Host unavailable'))
+
+    await expect(runAccessCli(LIST_JSON_ARGUMENTS)).resolves.toBe(8)
+
+    const output = vi
+      .mocked(process.stderr.write)
+      .mock.calls.map((call) => String(call[0]))
+      .join('')
+    expect(JSON.parse(output)).toEqual({
+      schemaVersion: 1,
+      type: 'error',
+      error: { kind: 'host_unavailable', message: 'Session Host unavailable' },
+    })
+  })
+
+  it('preserves credential recovery instructions inside a structured internal error', async () => {
+    const recoveryLocation = '/tmp/protected/create.pending'
+    executeCommandMock.mockResolvedValue(PROFILE_RESPONSE)
+    commitMock.mockRejectedValue(
+      new ProfileCredentialCommitError('credential installation failed', recoveryLocation),
+    )
+
+    await expect(runAccessCli([...CREATE_ARGUMENTS_WITHOUT_KEY, '--json'])).resolves.toBe(1)
+
+    const output = vi
+      .mocked(process.stderr.write)
+      .mock.calls.map((call) => String(call[0]))
+      .join('')
+    expect(JSON.parse(output)).toMatchObject({
+      schemaVersion: 1,
+      type: 'error',
+      error: {
+        kind: 'internal',
+        message: expect.stringContaining(
+          `protected secret remains recoverable at ${recoveryLocation}`,
+        ),
+      },
+    })
+    expect(output).not.toContain('generated-credential')
   })
 })

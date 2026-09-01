@@ -1,9 +1,9 @@
 import { app } from 'electron'
+import { writeAccessCliError } from './access-cli-output'
 import { flushCliOutput } from './cli-output-flush'
 import { env } from './env'
+import { sessionCliExitCodeForError } from './session-cli-exit-status'
 import { configureAppStoragePaths } from './session-data'
-
-const FAILURE_EXIT_CODE = 1
 
 export function startAccessCliIfRequested(argv: readonly string[]) {
   if (argv[0] !== 'access') return false
@@ -17,9 +17,9 @@ export function startAccessCliIfRequested(argv: readonly string[]) {
       app.exit(exitCode)
     })
     .catch(async (error: unknown) => {
-      process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`)
+      const kind = writeAccessCliError(error, argv.includes('--json'))
       await flushCliOutput().catch(() => undefined)
-      app.exit(FAILURE_EXIT_CODE)
+      app.exit(sessionCliExitCodeForError(kind))
     })
   return true
 }

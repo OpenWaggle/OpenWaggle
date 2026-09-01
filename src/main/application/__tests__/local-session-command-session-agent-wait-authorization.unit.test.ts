@@ -47,7 +47,34 @@ function payload(operation: 'wait' | 'exports-wait') {
   } satisfies LocalSessionCommandPayload
 }
 
-function testLayer() {
+function testLayer(settleWithoutObservation = false) {
+  const observe = (operation: 'wait' | 'exports-wait') => {
+    if (!settleWithoutObservation) {
+      return Effect.tryPromise({
+        try: async () => {
+          throw new Error('Observation unexpectedly retained stale authority.')
+        },
+        catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
+      })
+    }
+    return Effect.succeed({
+      contractVersion: 2 as const,
+      requestId: `request-${operation}`,
+      outcome:
+        operation === 'wait'
+          ? {
+              operation,
+              timedOut: true,
+              matchedSessionIds: [],
+              cursor: { hostInstanceId: 'host', sequence: 0 },
+              states: [],
+            }
+          : {
+              operation,
+              error: { code: 'export_not_found' as const, message: 'irrelevant' },
+            },
+    })
+  }
   return Layer.mergeAll(
     Layer.succeed(LocalSessionProfileRepository, {
       list: () => Effect.succeed([]),
@@ -69,21 +96,25 @@ function testLayer() {
     }),
     Layer.succeed(SessionWaitService, {
       wait: ({ resolveObservationAuthority }) =>
-        Effect.tryPromise({
-          try: async () => {
-            await resolveObservationAuthority?.()
-            throw new Error('Observation unexpectedly retained stale authority.')
-          },
-          catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
-        }),
+        settleWithoutObservation
+          ? observe('wait')
+          : Effect.tryPromise({
+              try: async () => {
+                await resolveObservationAuthority?.()
+                throw new Error('Observation unexpectedly retained stale authority.')
+              },
+              catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
+            }),
       waitForExport: ({ resolveObservationAuthority }) =>
-        Effect.tryPromise({
-          try: async () => {
-            await resolveObservationAuthority?.()
-            throw new Error('Observation unexpectedly retained stale authority.')
-          },
-          catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
-        }),
+        settleWithoutObservation
+          ? observe('exports-wait')
+          : Effect.tryPromise({
+              try: async () => {
+                await resolveObservationAuthority?.()
+                throw new Error('Observation unexpectedly retained stale authority.')
+              },
+              catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
+            }),
     }),
     Layer.succeed(SessionQueryRepository, {
       execute: () => Effect.die('Direct queries are not used in this test.'),
@@ -121,6 +152,27 @@ describe('Session-agent wait authority', () => {
           Effect.provide(testLayer()),
           Effect.flip,
         ),
+      )
+
+      expect(error).toMatchObject({ code: 'capability_denied' })
+      expect(resolutions).toBe(1)
+    },
+  )
+
+  it.each(['wait', 'exports-wait'] as const)(
+    're-resolves native %s authority after a settled observation',
+    async (operation) => {
+      const command = payload(operation)
+      if (command.contract !== 'session-query-v2') throw new Error('Expected Session query.')
+      let resolutions = 0
+      const error = await Effect.runPromise(
+        dispatchSessionWaitQuery(sessionAgent, command, undefined, async () => {
+          resolutions += 1
+          return {
+            ...sessionAgent,
+            profileAuthority: { ...sessionAgentAuthority, capabilities: [] },
+          }
+        }).pipe(Effect.provide(testLayer(true)), Effect.flip),
       )
 
       expect(error).toMatchObject({ code: 'capability_denied' })

@@ -236,14 +236,16 @@ describe('Local Session semantic search authorization', () => {
       revokedAt: null,
     }
     let searchInterrupted = false
-    const execute: SessionQueryRepositoryShape['execute'] = () =>
-      Effect.never.pipe(Effect.onInterrupt(() => Effect.sync(() => (searchInterrupted = true))))
+    const execute = vi.fn<SessionQueryRepositoryShape['execute']>(() =>
+      Effect.never.pipe(Effect.onInterrupt(() => Effect.sync(() => (searchInterrupted = true)))),
+    )
     const running = Effect.runPromise(
       dispatchSessionRepositoryQuery(caller, payload, controller.signal).pipe(
         Effect.provide(testLayer(liveProfile, { execute })),
       ),
     )
 
+    await vi.waitFor(() => expect(execute).toHaveBeenCalledOnce())
     controller.abort(new Error('connection closed'))
 
     await expect(running).rejects.toThrow('connection closed')

@@ -1,7 +1,7 @@
 import type { LocalSessionProfileManagementResponse } from '@shared/types/local-session-profile-management'
 import { ProfileCredentialCommitError } from './session-host/profile-credential-destination'
 
-class AcceptedProfileCredentialRecoveryError extends Error {
+export class AcceptedProfileCredentialRecoveryError extends Error {
   readonly preserveStagedCredential = true
 
   constructor(input: {

@@ -21,7 +21,17 @@ describe('management CLI validation boundaries', () => {
     ).resolves.toBe(2)
 
     expect(stderr).toHaveBeenCalledWith(
-      'error: Unknown option for OpenWaggle Access profiles: --capabilty.\n',
+      'error [usage]: Unknown option for OpenWaggle Access profiles: --capabilty.\n',
+    )
+  })
+
+  it('keeps Access usage failures machine-readable in JSON mode', async () => {
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+
+    await expect(runAccessCli(['profiles', 'list', '--capabilty', '--json'])).resolves.toBe(2)
+
+    expect(stderr).toHaveBeenCalledWith(
+      '{"schemaVersion":1,"type":"error","error":{"kind":"usage","message":"Unknown option for OpenWaggle Access profiles: --capabilty."}}\n',
     )
   })
 
