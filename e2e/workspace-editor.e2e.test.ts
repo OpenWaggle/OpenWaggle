@@ -155,8 +155,9 @@ async function scrollSourceViewport(page: Page, scrollSurface: Locator) {
   })
   await scrollSurface.focus()
   const current = await scrollSurface.evaluate((element) => element.scrollTop)
-  await page.keyboard.press('PageDown')
-  await page.keyboard.press('PageDown')
+  for (let step = 0; step < 16; step += 1) {
+    await page.keyboard.press('ArrowDown')
+  }
   await expect
     .poll(() => scrollSurface.evaluate((element) => element.scrollTop))
     .toBeGreaterThan(current)
