@@ -22,6 +22,14 @@ vi.mock('@/shared/lib/ipc', () => ({
 
 import { usePreferencesStore } from '../preferences-store'
 
+function deferred<T>() {
+  let resolvePromise!: (value: T) => void
+  const promise = new Promise<T>((resolve) => {
+    resolvePromise = resolve
+  })
+  return { promise, resolve: resolvePromise }
+}
+
 describe('preferences-store integration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -106,6 +114,28 @@ describe('preferences-store integration', () => {
     expect(usePreferencesStore.getState().settings.appearancePreferences).toEqual(
       DEFAULT_SETTINGS.appearancePreferences,
     )
+  })
+
+  it('preserves an appearance update when an older settings write completes later', async () => {
+    const diffWrite = deferred<{ ok: true }>()
+    apiMock.updateSettings.mockImplementation((patch: { diffView?: unknown }) =>
+      patch.diffView ? diffWrite.promise : Promise.resolve({ ok: true }),
+    )
+
+    const pendingDiffWrite = usePreferencesStore.getState().setDiffView('split')
+    await vi.waitFor(() =>
+      expect(apiMock.updateSettings).toHaveBeenCalledWith({ diffView: 'split' }),
+    )
+    await usePreferencesStore.getState().setAppearanceTypography({ codeFontSize: 14 })
+    diffWrite.resolve({ ok: true })
+    await pendingDiffWrite
+
+    expect(usePreferencesStore.getState().settings).toMatchObject({
+      diffView: 'split',
+      appearancePreferences: {
+        typography: { codeFontSize: 14 },
+      },
+    })
   })
 
   it('does not change the syntax theme when persistence is rejected', async () => {

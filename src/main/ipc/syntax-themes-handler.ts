@@ -16,11 +16,13 @@ import { validateRequiredProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
 
 const IMPORT_PREVIEW_TTL_MS = 10 * 60 * 1_000
+const IMPORT_PREVIEW_LIMIT = 2
 const nonEmptyStringSchema = Schema.String.pipe(Schema.minLength(1))
 
 interface PendingPreview {
   readonly preview: SyntaxThemeImportPreview
   readonly expiresAt: number
+  readonly ownerId: number
 }
 
 const pendingPreviews = new Map<string, PendingPreview>()
@@ -34,6 +36,23 @@ function sweepExpiredPreviews() {
   for (const [token, pending] of pendingPreviews) {
     if (pending.expiresAt <= now) pendingPreviews.delete(token)
   }
+}
+
+function retainPendingPreview(preview: SyntaxThemeImportPreview, ownerId: number) {
+  sweepExpiredPreviews()
+  for (const [token, pending] of pendingPreviews) {
+    if (pending.ownerId === ownerId) pendingPreviews.delete(token)
+  }
+  while (pendingPreviews.size >= IMPORT_PREVIEW_LIMIT) {
+    const oldestToken = pendingPreviews.keys().next().value
+    if (!oldestToken) break
+    pendingPreviews.delete(oldestToken)
+  }
+  pendingPreviews.set(preview.token, {
+    preview,
+    ownerId,
+    expiresAt: Date.now() + IMPORT_PREVIEW_TTL_MS,
+  })
 }
 
 export function registerSyntaxThemeHandlers() {
@@ -106,18 +125,19 @@ export function registerSyntaxThemeHandlers() {
           ),
         ],
       }
-      sweepExpiredPreviews()
-      pendingPreviews.set(token, { preview, expiresAt: Date.now() + IMPORT_PREVIEW_TTL_MS })
+      retainPendingPreview(preview, event.sender.id)
       return preview
     }),
   )
 
-  typedHandle('syntax-themes:apply-import', (_event, rawToken) =>
+  typedHandle('syntax-themes:apply-import', (event, rawToken) =>
     Effect.tryPromise(async () => {
       const token = decodeUnknownOrThrow(nonEmptyStringSchema, rawToken)
       sweepExpiredPreviews()
       const pending = pendingPreviews.get(token)
-      if (!pending) throw new Error('Theme import preview expired. Preview the source again.')
+      if (!pending || pending.ownerId !== event.sender.id) {
+        throw new Error('Theme import preview expired. Preview the source again.')
+      }
       await applySyntaxThemePreview(resourcesDirectory(), pending.preview)
       pendingPreviews.delete(token)
       return listInstalledSyntaxThemes(resourcesDirectory())

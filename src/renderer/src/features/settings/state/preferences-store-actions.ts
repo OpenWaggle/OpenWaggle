@@ -26,6 +26,10 @@ const logger = createRendererLogger('preferences')
 const SLICE_ARG_2 = 100
 const SLICE_ARG_2_VALUE_10 = 10
 
+function mergeSettings(set: PreferencesSet, patch: Partial<Settings>) {
+  set((state) => ({ settings: { ...state.settings, ...patch } }))
+}
+
 function persistProjectPreference(
   projectPath: string | null,
   prefs: { model?: string; thinkingLevel?: string },
@@ -45,7 +49,12 @@ function appendRecentProject(paths: readonly string[], path: string) {
 
 async function refreshProviderModels(set: PreferencesSet, get: PreferencesGet) {
   const updatedSettings = await useProviderStore.getState().loadProviderModels(get().settings)
-  if (updatedSettings) set({ settings: updatedSettings })
+  if (updatedSettings) {
+    mergeSettings(set, {
+      enabledModels: updatedSettings.enabledModels,
+      selectedModel: updatedSettings.selectedModel,
+    })
+  }
 }
 
 async function loadSettings(set: PreferencesSet, get: PreferencesGet) {
@@ -73,7 +82,7 @@ async function setProjectPath(path: string | null, set: PreferencesSet, get: Pre
     ? appendRecentProject(settings.recentProjects, path)
     : settings.recentProjects
   await api.updateSettings({ projectPath: path, recentProjects })
-  set({ settings: { ...settings, projectPath: path, recentProjects } })
+  mergeSettings(set, { projectPath: path, recentProjects })
   if (path) {
     await get().loadProjectPreferences(path)
     await refreshProviderModels(set, get)
@@ -91,18 +100,13 @@ async function setEnabledModels(models: string[], set: PreferencesSet, get: Pref
     await api.updateSettings({ selectedModel })
     persistProjectPreference(settings.projectPath, { model: selectedModel })
   }
-  set({ settings: { ...settings, enabledModels, selectedModel } })
+  mergeSettings(set, { enabledModels, selectedModel })
 }
 
-async function loadProjectPreferences(
-  projectPath: string,
-  set: PreferencesSet,
-  get: PreferencesGet,
-) {
+async function loadProjectPreferences(projectPath: string, set: PreferencesSet) {
   const prefs = await api.getProjectPreferences(projectPath)
   if (!prefs) return
 
-  const { settings } = get()
   const model = prefs.model ? SupportedModelId(prefs.model) : undefined
   const thinkingLevel =
     prefs.thinkingLevel && includes(THINKING_LEVELS, prefs.thinkingLevel)
@@ -115,7 +119,7 @@ async function loadProjectPreferences(
     ...(thinkingLevel ? { thinkingLevel } : {}),
   }
   await api.updateSettings(patch)
-  set({ settings: { ...settings, ...patch } })
+  mergeSettings(set, patch)
 }
 
 async function persistShortcutBindings(shortcutBindings: ShortcutBindings, set: PreferencesSet) {
@@ -123,7 +127,7 @@ async function persistShortcutBindings(shortcutBindings: ShortcutBindings, set: 
   if (!result.ok) throw new Error(result.error)
 
   const persistedSettings = await api.getSettings()
-  set({ settings: persistedSettings })
+  mergeSettings(set, { shortcutBindings: persistedSettings.shortcutBindings })
 }
 
 /** Persists one scalar setting and mirrors it into the store. */
@@ -131,11 +135,9 @@ async function persistSetting<K extends keyof Settings>(
   key: K,
   value: Settings[K],
   set: PreferencesSet,
-  get: PreferencesGet,
 ) {
-  const { settings } = get()
   await api.updateSettings({ [key]: value })
-  set({ settings: { ...settings, [key]: value } })
+  mergeSettings(set, { [key]: value })
 }
 
 function assertSettingsUpdateSucceeded(result: Awaited<ReturnType<typeof api.updateSettings>>) {
@@ -156,7 +158,7 @@ export function createPreferencesActions(
     setSelectedModel: async (model) => {
       const { settings } = get()
       await api.updateSettings({ selectedModel: model })
-      set({ settings: { ...settings, selectedModel: model } })
+      mergeSettings(set, { selectedModel: model })
       persistProjectPreference(settings.projectPath, { model })
     },
     toggleFavoriteModel: async (model) => {
@@ -172,7 +174,7 @@ export function createPreferencesActions(
             ...settings.favoriteModels.filter((entry) => entry !== normalizedModel),
           ].slice(0, SLICE_ARG_2)
       await api.updateSettings({ favoriteModels })
-      set({ settings: { ...settings, favoriteModels } })
+      mergeSettings(set, { favoriteModels })
     },
     setProjectPath: (path) => setProjectPath(path, set, get),
     pushRecentProject: async (path) => {
@@ -181,26 +183,25 @@ export function createPreferencesActions(
       const { settings } = get()
       const recentProjects = appendRecentProject(settings.recentProjects, normalized)
       await api.updateSettings({ recentProjects })
-      set({ settings: { ...settings, recentProjects } })
+      mergeSettings(set, { recentProjects })
     },
     removeRecentProject: async (path) => {
       const { settings } = get()
       const recentProjects = settings.recentProjects.filter((project) => project !== path)
       await api.updateSettings({ recentProjects })
-      set({ settings: { ...settings, recentProjects } })
+      mergeSettings(set, { recentProjects })
     },
     setThinkingLevel: async (preset: ThinkingLevel) => {
       const { settings } = get()
       await api.updateSettings({ thinkingLevel: preset })
-      set({ settings: { ...settings, thinkingLevel: preset } })
+      mergeSettings(set, { thinkingLevel: preset })
       persistProjectPreference(settings.projectPath, { thinkingLevel: preset })
     },
     setDefaultAuthorizationMode: (mode: AgentAuthorizationMode) =>
-      persistSetting('defaultAuthorizationMode', mode, set, get),
+      persistSetting('defaultAuthorizationMode', mode, set),
     setDefaultSessionEnvironmentMode: (mode: SessionEnvironmentMode) =>
-      persistSetting('defaultSessionEnvironmentMode', mode, set, get),
-    setDiffSyntaxTheme: (theme: DiffSyntaxTheme) =>
-      persistSetting('diffSyntaxTheme', theme, set, get),
+      persistSetting('defaultSessionEnvironmentMode', mode, set),
+    setDiffSyntaxTheme: (theme: DiffSyntaxTheme) => persistSetting('diffSyntaxTheme', theme, set),
     setSyntaxTheme: async (variant, themeId) => {
       const { settings } = get()
       const syntaxThemeSelections = {
@@ -209,10 +210,10 @@ export function createPreferencesActions(
       }
       assertSettingsUpdateSucceeded(await api.updateSettings({ syntaxThemeSelections }))
       setRuntimeSyntaxThemeSelections(syntaxThemeSelections)
-      set({ settings: { ...settings, syntaxThemeSelections } })
+      mergeSettings(set, { syntaxThemeSelections })
     },
-    setDiffView: (view: DiffView) => persistSetting('diffView', view, set, get),
-    setDiffWrapLines: (wrap: boolean) => persistSetting('diffWrapLines', wrap, set, get),
+    setDiffView: (view: DiffView) => persistSetting('diffView', view, set),
+    setDiffWrapLines: (wrap: boolean) => persistSetting('diffWrapLines', wrap, set),
     setAppearanceTypography: (typography) => persistAppearanceTypography(typography, set, get),
     setAppearanceMotion: (motion) => persistAppearanceMotion(motion, set, get),
     setEnabledModels: (models) => setEnabledModels(models, set, get),
@@ -220,7 +221,7 @@ export function createPreferencesActions(
       const { settings } = get()
       const projectDisplayNames = { ...settings.projectDisplayNames, [path]: name }
       await api.updateSettings({ projectDisplayNames })
-      set({ settings: { ...settings, projectDisplayNames } })
+      mergeSettings(set, { projectDisplayNames })
     },
     setShortcutBinding: async (command: ShortcutCommand, binding: ShortcutBinding | null) => {
       const { settings } = get()
@@ -234,7 +235,7 @@ export function createPreferencesActions(
       const { settings } = get()
       const { [path]: _ignored, ...projectDisplayNames } = settings.projectDisplayNames
       await api.updateSettings({ projectDisplayNames })
-      set({ settings: { ...settings, projectDisplayNames } })
+      mergeSettings(set, { projectDisplayNames })
     },
     removeProjectReferences: async (path) => {
       const { settings } = get()
@@ -248,16 +249,13 @@ export function createPreferencesActions(
         projectDisplayNames,
         skillTogglesByProject,
       })
-      set({
-        settings: {
-          ...settings,
-          projectPath,
-          recentProjects,
-          projectDisplayNames,
-          skillTogglesByProject,
-        },
+      mergeSettings(set, {
+        projectPath,
+        recentProjects,
+        projectDisplayNames,
+        skillTogglesByProject,
       })
     },
-    loadProjectPreferences: (projectPath) => loadProjectPreferences(projectPath, set, get),
+    loadProjectPreferences: (projectPath) => loadProjectPreferences(projectPath, set),
   }
 }
