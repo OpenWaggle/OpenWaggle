@@ -27,7 +27,7 @@ index 8c7cfec6fc0ec004f17c08c52a58c354b28b3978..7ea7bdf161fea3e215f5d488128c3853
      settingsManager: SettingsManager;
      cwd: string;
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index fd82b71cf332715f185d07459429f04ed7491ce9..0ad762e9978609f8227fca52d0435171933116f7 100644
+index fd82b71cf332715f185d07459429f04ed7491ce9..147f88d5dc9fe7c7452812e6cd85b42f777e81ce 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
 @@ -126,6 +126,8 @@ export class AgentSession {
@@ -384,7 +384,7 @@ index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..6ef5600927bafe257ab9ee5f92019f9d
  //# sourceMappingURL=compaction.d.ts.map
 \ No newline at end of file
 diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
-index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..697b0a1dad8787d97a9f43622e194bf9dd2bdb53 100644
+index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..bc7089906584b891a3338acbd5d457e6fc8783bb 100644
 --- a/dist/core/compaction/compaction.js
 +++ b/dist/core/compaction/compaction.js
 @@ -4,7 +4,8 @@
@@ -641,7 +641,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..697b0a1dad8787d97a9f43622e194bf9
  
  Be concise. Focus on what's needed to understand the kept suffix.`;
 +const NATIVE_REPLACEMENT_IMAGE_DETAILS = new Set(["low", "high", "auto", "original"]);
-+const NATIVE_REPLACEMENT_FILE_DETAILS = new Set(["auto", "low", "high"]);
++const NATIVE_REPLACEMENT_FILE_DETAILS = new Set(["low", "high"]);
 +const NATIVE_REPLACEMENT_STATUSES = new Set(["in_progress", "completed", "incomplete"]);
 +function isRecord(value) {
 +    return value !== null && typeof value === "object" && !Array.isArray(value);

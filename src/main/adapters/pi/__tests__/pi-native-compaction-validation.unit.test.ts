@@ -88,6 +88,18 @@ const MALFORMED_REPLACEMENT_CASES = [
       VALID_COMPACTION_ITEM,
     ],
   },
+  {
+    name: 'rejects automatic input file detail unsupported by the request contract',
+    output: [
+      {
+        type: 'message',
+        id: 'msg_file_auto',
+        role: 'user',
+        content: [{ type: 'input_file', detail: 'auto', file_id: 'file_1' }],
+      },
+      VALID_COMPACTION_ITEM,
+    ],
+  },
 ]
 
 async function compactNative(portableStream?: Parameters<typeof compact>[7]) {
@@ -121,7 +133,7 @@ describe('Pi native compaction response validation', () => {
       status: 'completed',
       content: [
         { type: 'input_text', text: 'Keep this context' },
-        { type: 'input_file', detail: 'auto', file_id: 'file_1' },
+        { type: 'input_file', detail: 'low', file_id: 'file_1' },
       ],
     }
     vi.stubGlobal(
