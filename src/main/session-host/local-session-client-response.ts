@@ -12,6 +12,7 @@ import {
   type SessionQueryResponse,
 } from '@shared/types/session-query'
 import { isRecord } from './local-session-client-connection'
+import { localSessionClientProtocolError } from './local-session-client-protocol-error'
 
 function isPreparedAttachment(value: unknown) {
   return (
@@ -213,9 +214,7 @@ export function decodeLocalSessionCommandResponse(
     throw new Error('Local Session Host returned an invalid command frame.')
   }
   if (frame.kind === 'error') {
-    throw new Error(
-      typeof frame.message === 'string' ? frame.message : 'Local Session command failed.',
-    )
+    throw localSessionClientProtocolError(frame, 'Local Session command failed.')
   }
   if (frame.kind !== 'response' || frame.requestId !== requestId) {
     throw new Error('Local Session Host returned an unexpected command response.')

@@ -3,13 +3,19 @@ import type { LocalSessionCommandPayload } from '@shared/types/local-session-pro
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { LocalSessionProfileRepository } from '../../ports/local-session-profile-repository'
 import { SessionAuthorizationTargetRepository } from '../../ports/session-authorization-target-repository'
-import { SessionQueryRepository } from '../../ports/session-query-repository'
+import {
+  SessionQueryRepository,
+  type SessionQueryRepositoryShape,
+} from '../../ports/session-query-repository'
 import { SessionWaitService } from '../../ports/session-wait-service'
 import { SettingsService } from '../../services/settings-service'
-import { dispatchSessionWaitQuery } from '../local-session-query-dispatcher'
+import {
+  dispatchSessionRepositoryQuery,
+  dispatchSessionWaitQuery,
+} from '../local-session-query-dispatcher'
 
 const sessionAgentAuthority = {
   profileId: 'session-agent:queen',
@@ -47,7 +53,11 @@ function payload(operation: 'wait' | 'exports-wait') {
   } satisfies LocalSessionCommandPayload
 }
 
-function testLayer(settleWithoutObservation = false) {
+function testLayer(
+  settleWithoutObservation = false,
+  execute: SessionQueryRepositoryShape['execute'] = () =>
+    Effect.die('Direct queries are not used in this test.'),
+) {
   const observe = (operation: 'wait' | 'exports-wait') => {
     if (!settleWithoutObservation) {
       return Effect.tryPromise({
@@ -117,7 +127,7 @@ function testLayer(settleWithoutObservation = false) {
             }),
     }),
     Layer.succeed(SessionQueryRepository, {
-      execute: () => Effect.die('Direct queries are not used in this test.'),
+      execute,
     }),
     Layer.succeed(SettingsService, {
       get: () => Effect.succeed(DEFAULT_SETTINGS),
@@ -129,6 +139,52 @@ function testLayer(settleWithoutObservation = false) {
 }
 
 describe('Session-agent wait authority', () => {
+  it('reexecutes a fresh search under live Session-agent authority', async () => {
+    const searchAgent: LocalSessionCallerIdentity = {
+      callerId: 'session-agent:queen:run-1',
+      profileAuthority: {
+        ...sessionAgentAuthority,
+        capabilities: ['sessions:discover', 'sessions:read'],
+        scope: { all: true },
+      },
+    }
+    const command = {
+      contract: 'session-query-v2',
+      request: {
+        contractVersion: 2,
+        requestId: 'request-search',
+        query: {
+          operation: 'search',
+          query: 'live authority',
+          mode: 'semantic',
+          requireFresh: true,
+          waitTimeoutMs: 1_000,
+          limit: 10,
+        },
+      },
+    } as const satisfies LocalSessionCommandPayload
+    const execute = vi.fn<SessionQueryRepositoryShape['execute']>((input) =>
+      Effect.succeed({
+        contractVersion: 2,
+        requestId: input.request.requestId,
+        outcome: {
+          operation: 'search',
+          sessions: [],
+          requestedSearchMode: 'semantic',
+          searchBackend: 'semantic',
+        },
+      }),
+    )
+
+    await Effect.runPromise(
+      dispatchSessionRepositoryQuery(searchAgent, command, undefined, () =>
+        Promise.resolve(searchAgent),
+      ).pipe(Effect.provide(testLayer(false, execute))),
+    )
+
+    expect(execute).toHaveBeenCalledTimes(2)
+  })
+
   it.each(['wait', 'exports-wait'] as const)(
     're-resolves native %s authority before every observation',
     async (operation) => {

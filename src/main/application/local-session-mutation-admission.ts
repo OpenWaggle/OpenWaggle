@@ -7,7 +7,7 @@ export interface LocalSessionMutationAdmission {
 }
 
 export interface LocalSessionObservationAdmission extends LocalSessionMutationAdmission {
-  readonly refreshCaller: () => Promise<LocalSessionCallerIdentity>
+  readonly refreshCaller?: () => Promise<LocalSessionCallerIdentity>
   readonly signal?: AbortSignal
 }
 
@@ -38,7 +38,6 @@ export function acquireLocalSessionObservationAdmission(
       })
     : Effect.succeed({
         caller,
-        refreshCaller: () => Promise.resolve(caller),
         release: () => undefined,
       })
 }

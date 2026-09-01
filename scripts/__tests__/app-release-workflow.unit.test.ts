@@ -31,7 +31,7 @@ describe('desktop app release workflow', () => {
     )
   })
 
-  it('leaves the validated version PR open for a maintainer to merge', () => {
+  it('leaves the validated release PR open for a maintainer to merge', () => {
     expect(WORKFLOW).not.toContain('git push origin main')
     expect(WORKFLOW).not.toContain('--admin')
     expect(WORKFLOW).not.toContain('gh pr merge')
@@ -67,12 +67,20 @@ describe('desktop app release workflow', () => {
     expect(WORKFLOW).not.toContain('--follow-tags')
   })
 
-  it('resumes compatible durable state and retries stale-base validation', () => {
-    expect(WORKFLOW).toContain('gh pr list --state all --head "$RELEASE_BRANCH"')
+  it('regenerates one durable release branch from current main without merge commits', () => {
+    expect(WORKFLOW).toContain('RELEASE_BRANCH="app-release"')
+    expect(WORKFLOW).toContain('git switch --detach origin/main')
+    expect(WORKFLOW).toContain('RELEASE_DATE=$(git show -s --format=%as "$BASE_SHA")')
+    expect(WORKFLOW).toContain('gh pr list --state open --head "$RELEASE_BRANCH"')
     expect(WORKFLOW).toContain('scripts/app-release-state.ts filter-prs')
-    expect(WORKFLOW).toContain('if [ "$PR_STATE" = "MERGED" ]')
-    expect(WORKFLOW).toContain('if [ "$MERGE_STATE" = "BEHIND" ]')
-    expect(WORKFLOW).toContain('/update-branch')
+    expect(WORKFLOW).toContain('--force-with-lease="refs/heads/${RELEASE_BRANCH}:${REMOTE_RELEASE_SHA}"')
+    expect(WORKFLOW).toContain('= "$CANDIDATE_SHA"')
+    expect(WORKFLOW).toContain('pnpm exec tsx scripts/app-release-intent-cli.ts prepare')
+    expect(WORKFLOW).toContain('verify_generated_release_tree')
+    expect(WORKFLOW).not.toContain('/update-branch')
+    expect(WORKFLOW).toContain(
+      'Main advanced; its queued preparation run will regenerate the release candidate.',
+    )
     expect(WORKFLOW).toContain('for VALIDATION_ATTEMPT in $(seq 1 3)')
     expect(WORKFLOW).toContain('test "$(git rev-list -n 1 "$TAG")" = "$MERGE_SHA"')
     expect(WORKFLOW).toContain('its protected-merge run owns publication')
@@ -93,22 +101,19 @@ describe('desktop app release workflow', () => {
     expect(WORKFLOW).toContain('test -n "$PR_URL"')
   })
 
-  it('accepts no candidate package changes beyond the expected version', () => {
-    expect(WORKFLOW).toContain('verify_version_only_tree()')
-    expect(WORKFLOW).toContain('scripts/app-release-state.ts expected-manifest')
-    expect(WORKFLOW).toContain(
-      'cmp "$RUNNER_TEMP/expected-package.json" "$RUNNER_TEMP/candidate-package.json"',
-    )
-    expect(WORKFLOW).toContain('verify_version_only_tree "$parent_sha" "$commit_sha"')
-    expect(WORKFLOW).toContain(
-      'verify_version_only_tree "origin/main" "origin/${RELEASE_BRANCH}"',
-    )
+  it('accepts only the fully regenerated release tree and the validated PR tree', () => {
+    expect(WORKFLOW).toContain('git archive "$base_ref"')
+    expect(WORKFLOW).toContain('git archive "$candidate_ref"')
+    expect(WORKFLOW).toContain('diff -qr "$expected_root" "$candidate_root"')
+    expect(WORKFLOW).toContain('test -z "$(git ls-tree -r --name-only "$commit_sha" .release/changes)"')
+    expect(WORKFLOW).toContain('"${RELEASE_PR_HEAD_SHA}^{tree}"')
+    expect(WORKFLOW).toContain('"${MERGE_SHA}^{tree}"')
   })
 
   it('separates PR preparation from protected-merge publication', () => {
-    expect(WORKFLOW).toContain(
-      `if: "!startsWith(github.event.head_commit.message, 'chore(release):')"`,
-    )
+    expect(WORKFLOW).toContain('scripts/app-release-intent-cli.ts plan')
+    expect(WORKFLOW).not.toContain('Determine bump from conventional commits')
+    expect(WORKFLOW).not.toContain("git log --format='%s'")
     expect(WORKFLOW).toContain(
       'if [ "$RELEASE_SUBJECT_VERSION" = "$CURRENT_VERSION" ]',
     )
@@ -118,7 +123,8 @@ describe('desktop app release workflow', () => {
       "group: \"${{ startsWith(github.event.head_commit.message, 'chore(release): v') && format('release-{0}', github.sha) || 'release-prepare' }}\"",
     )
     expect(WORKFLOW).toContain('cancel-in-progress: false')
-    expect(WORKFLOW).toContain('NEW_VERSION="${BASE_VERSION}-${PRERELEASE_TAG}.$((PRERELEASE_NUM + 1))"')
+    expect(WORKFLOW).toContain('body_path: .release/release-notes.md')
+    expect(WORKFLOW).not.toContain('generate_release_notes: true')
   })
 
   it('pins every referenced action to an immutable commit', () => {

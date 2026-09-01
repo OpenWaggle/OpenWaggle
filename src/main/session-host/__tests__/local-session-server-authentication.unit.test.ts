@@ -180,7 +180,11 @@ describe('Local Session server authentication', () => {
         credential: CREDENTIAL,
         timeoutMs: 1_000,
       }),
-    ).rejects.toThrow('identity verification failed')
+    ).rejects.toMatchObject({
+      name: 'LocalSessionClientProtocolError',
+      code: 'authentication_failed',
+      message: expect.stringContaining('identity verification failed'),
+    })
     await new Promise((resolve) => setImmediate(resolve))
 
     expect(received).toHaveLength(1)

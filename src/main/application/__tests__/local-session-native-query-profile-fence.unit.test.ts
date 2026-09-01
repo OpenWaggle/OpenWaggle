@@ -1,10 +1,12 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import { LOCAL_SESSION_PROFILE_MANAGEMENT_CONTRACT_VERSION } from '@shared/types/local-session-profile-management'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SessionAuthorizationTargetRepository } from '../../ports/session-authorization-target-repository'
 import { SessionControlAttachmentService } from '../../ports/session-control-attachment-service'
 import { SessionQueryRepository } from '../../ports/session-query-repository'
@@ -81,6 +83,18 @@ const PAYLOADS = {
     },
   },
 } as const satisfies Record<string, SessionQueryPayload>
+
+const STALLED_PROJECT_PATH = path.join(PROJECT_PATH, 'openwaggle-stalled-project')
+
+function stalledSearchPayload(): SessionQueryPayload {
+  return {
+    ...PAYLOADS.search,
+    request: {
+      ...PAYLOADS.search.request,
+      query: { ...PAYLOADS.search.request.query, projectPath: STALLED_PROJECT_PATH },
+    },
+  }
+}
 
 function managementResponse(
   operation: 'update' | 'revoke',
@@ -213,7 +227,64 @@ async function runRace(input: {
   expect(persist).toHaveBeenCalledOnce()
 }
 
+async function runCanonicalizationRace(operation: 'update' | 'revoke') {
+  let markCanonicalizing!: () => void
+  const canonicalizing = new Promise<void>((resolve) => {
+    markCanonicalizing = resolve
+  })
+  const stalled = new Promise<string>(() => undefined)
+  vi.spyOn(fs, 'realpath').mockImplementation(async (candidate) => {
+    if (String(candidate) === STALLED_PROJECT_PATH) {
+      markCanonicalizing()
+      return stalled
+    }
+    return PROJECT_PATH
+  })
+
+  const persist = vi.fn(async (request) => managementResponse(operation, request))
+  const layer = Layer.mergeAll(
+    localSessionProfileManagementTestLayer(persist, undefined, PROFILE),
+    queryLayer({ admitted: () => true, blockTarget: false, blocked: () => undefined }),
+  )
+  const running = Effect.runPromise(
+    dispatchObservedLocalSessionQuery({
+      caller: SESSION_AGENT,
+      payload: stalledSearchPayload(),
+      observationAdmission: async () => {
+        const lease = acquireLocalSessionProfileBackgroundWork(PROFILE.id, {
+          cancelOnFence: true,
+        })
+        if (!lease) throw new Error('Profile authority is changing.')
+        return {
+          caller: SESSION_AGENT,
+          refreshCaller: () => Promise.resolve(SESSION_AGENT),
+          ...(lease.signal ? { signal: lease.signal } : {}),
+          release: lease.release,
+        }
+      },
+    }).pipe(Effect.provide(layer)),
+  )
+  await canonicalizing
+  const rejected = expect(running).rejects.toThrow('Profile authority changed')
+  const management = Effect.runPromise(
+    manageLocalSessionProfiles({
+      caller: { callerId: 'gui:local-user' },
+      request: updateRequest(operation),
+      now: 2,
+    }).pipe(Effect.provide(layer)),
+  )
+
+  await rejected
+  await management
+  expect(persist).toHaveBeenCalledOnce()
+  const nextLease = acquireLocalSessionProfileBackgroundWork(PROFILE.id, { cancelOnFence: true })
+  expect(nextLease).toBeDefined()
+  nextLease?.release()
+}
+
 describe('Pi-native Session query profile fencing', () => {
+  afterEach(() => vi.restoreAllMocks())
+
   it.each(['read', 'search', 'requests-list'] as const)(
     'aborts and drains a blocked %s observation before profile reduction persists',
     async (operation) => {
@@ -230,5 +301,10 @@ describe('Pi-native Session query profile fencing', () => {
     async (operation) => {
       await runRace({ payload: PAYLOADS.search, operation, blockTarget: false })
     },
+  )
+
+  it.each(['update', 'revoke'] as const)(
+    'cancels stalled project-path canonicalization before profile %s persists',
+    runCanonicalizationRace,
   )
 })

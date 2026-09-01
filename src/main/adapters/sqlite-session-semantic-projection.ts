@@ -67,7 +67,12 @@ function publishProjectionBatch(
   return sql.withTransaction(
     Effect.gen(function* () {
       const revisions = yield* sql<{ readonly revision: number }>`
-        SELECT COALESCE(MAX(snapshot_revision), 0) + 1 AS revision
+        SELECT MAX(
+          COALESCE(MAX(snapshot_revision), 0),
+          COALESCE((
+            SELECT snapshot_revision FROM session_semantic_discovery_state WHERE singleton = 1
+          ), 0)
+        ) + 1 AS revision
         FROM session_discovery_embeddings
       `
       const revision = revisions[0]?.revision ?? 1
@@ -202,8 +207,12 @@ export class SqliteSessionSemanticProjection {
         SELECT
           (SELECT COUNT(*) FROM session_discovery_embeddings) AS prepared,
           (SELECT COUNT(*) FROM session_discovery_embedding_queue) AS pending,
-          (SELECT COALESCE(MAX(snapshot_revision), 0)
-            FROM session_discovery_embeddings) AS revision
+          MAX(
+            COALESCE((SELECT MAX(snapshot_revision) FROM session_discovery_embeddings), 0),
+            COALESCE((
+              SELECT snapshot_revision FROM session_semantic_discovery_state WHERE singleton = 1
+            ), 0)
+          ) AS revision
       `
       const count = counts[0] ?? { prepared: 0, pending: 0, revision: 0 }
       yield* this.sql`
@@ -236,8 +245,12 @@ export class SqliteSessionSemanticProjection {
         SELECT
           (SELECT COUNT(*) FROM session_discovery_embeddings) AS prepared,
           (SELECT COUNT(*) FROM session_discovery_embedding_queue) AS pending,
-          (SELECT COALESCE(MAX(snapshot_revision), 0)
-            FROM session_discovery_embeddings) AS revision
+          MAX(
+            COALESCE((SELECT MAX(snapshot_revision) FROM session_discovery_embeddings), 0),
+            COALESCE((
+              SELECT snapshot_revision FROM session_semantic_discovery_state WHERE singleton = 1
+            ), 0)
+          ) AS revision
       `
       const count = counts[0] ?? { prepared: 0, pending: 0, revision: 0 }
       yield* this.sql`

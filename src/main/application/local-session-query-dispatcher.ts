@@ -84,7 +84,10 @@ function abortSignalEffect(signal: AbortSignal): Effect.Effect<never, Error> {
   })
 }
 
-function observeWithSignal<A, E, R>(effect: Effect.Effect<A, E, R>, signal?: AbortSignal) {
+export function observeSessionQueryWithSignal<A, E, R>(
+  effect: Effect.Effect<A, E, R>,
+  signal?: AbortSignal,
+) {
   return signal ? Effect.raceFirst(effect, abortSignalEffect(signal)) : effect
 }
 
@@ -98,6 +101,13 @@ function isFreshnessBlockingSearch(
     query.requireFresh === true &&
     (query.waitTimeoutMs ?? 0) > 0
   )
+}
+
+function requiresFreshSearchReexecution(
+  caller: LocalSessionCallerIdentity,
+  resolveLiveCaller: (() => Promise<LocalSessionCallerIdentity>) | undefined,
+) {
+  return resolveLiveCaller !== undefined || caller.callerId.startsWith('profile:')
 }
 
 export function dispatchSessionWaitQuery(
@@ -193,7 +203,7 @@ export function dispatchSessionRequestsListQuery(
       },
     } as const
   })
-  return observeWithSignal(operation, signal)
+  return observeSessionQueryWithSignal(operation, signal)
 }
 
 export function dispatchSessionRepositoryQuery(
@@ -216,7 +226,10 @@ export function dispatchSessionRepositoryQuery(
         request,
       })
     let response = yield* execute(payload.request)
-    if (isFreshnessBlockingSearch(payload)) {
+    if (
+      isFreshnessBlockingSearch(payload) &&
+      requiresFreshSearchReexecution(caller, resolveLiveCaller)
+    ) {
       liveCaller = yield* resolveAuthorizedSessionQueryCaller(caller, payload, resolveLiveCaller)
       authority = profileAuthorityForCapabilities(
         liveCaller,
@@ -234,7 +247,7 @@ export function dispatchSessionRepositoryQuery(
     yield* resolveAuthorizedSessionQueryCaller(caller, payload, resolveLiveCaller)
     return { contract: 'session-query-v2', response } as const
   })
-  return observeWithSignal(operation, signal)
+  return observeSessionQueryWithSignal(operation, signal)
 }
 
 export function dispatchSessionQuery(

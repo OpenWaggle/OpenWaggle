@@ -1,10 +1,8 @@
-import fs from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { Schema } from 'effect'
 
 const ARG_VALUE_OFFSET = 1
 const CLI_COMMAND_INDEX = 2
-const JSON_INDENT = 2
 const RELEASE_SUBJECT_PATTERN =
   /^chore\(release\): v([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)(?: \(#[0-9]+\))?$/u
 
@@ -22,9 +20,6 @@ const pullRequestSchema = Schema.Struct({
   url: Schema.String,
 })
 const pullRequestListJsonSchema = Schema.parseJson(Schema.Array(pullRequestSchema))
-const manifestJsonSchema = Schema.parseJson(
-  Schema.Record({ key: Schema.String, value: Schema.Unknown }),
-)
 
 export type AppReleasePullRequest = typeof pullRequestSchema.Type
 
@@ -45,11 +40,6 @@ export function selectOwnedReleasePullRequests(
       pullRequest.headRepository.name === identity.repository &&
       pullRequest.headRefName === identity.branch,
   )
-}
-
-export function expectedVersionOnlyManifest(baseManifestJson: string, version: string) {
-  const manifest = Schema.decodeUnknownSync(manifestJsonSchema)(baseManifestJson)
-  return `${JSON.stringify({ ...manifest, version }, null, JSON_INDENT)}\n`
 }
 
 export function releaseSubjectVersion(subject: string) {
@@ -86,15 +76,6 @@ async function runCli() {
       repository: argument('--repository'),
     })
     process.stdout.write(JSON.stringify(selected))
-    return
-  }
-
-  if (command === 'expected-manifest') {
-    const basePath = argument('--base')
-    const outputPath = argument('--output')
-    const version = argument('--version')
-    const expected = expectedVersionOnlyManifest(fs.readFileSync(basePath, 'utf8'), version)
-    fs.writeFileSync(outputPath, expected)
     return
   }
 

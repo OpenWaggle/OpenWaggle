@@ -10,6 +10,7 @@ import {
   dispatchSessionRepositoryQuery,
   dispatchSessionRequestsListQuery,
   dispatchSessionWaitQuery,
+  observeSessionQueryWithSignal,
 } from './local-session-query-dispatcher'
 
 type SessionQueryPayload = Extract<
@@ -31,8 +32,8 @@ export function dispatchObservedLocalSessionQuery(input: {
 }) {
   return Effect.gen(function* () {
     const admission = yield* acquireLocalSessionObservationAdmission(input, input.caller)
-    return yield* Effect.gen(function* () {
-      const signal = mergeAbortSignals(admission.signal, input.signal)
+    const signal = mergeAbortSignals(admission.signal, input.signal)
+    const observation = Effect.gen(function* () {
       const payload = yield* canonicalizeNamedProfileProjectPayload(admission.caller, input.payload)
       if (payload.contract !== 'session-query-v2') {
         return yield* Effect.die('Session query canonicalization changed its contract.')
@@ -60,6 +61,9 @@ export function dispatchObservedLocalSessionQuery(input: {
         signal,
         admission.refreshCaller,
       )
-    }).pipe(Effect.ensuring(Effect.sync(admission.release)))
+    })
+    return yield* observeSessionQueryWithSignal(observation, signal).pipe(
+      Effect.ensuring(Effect.sync(admission.release)),
+    )
   })
 }

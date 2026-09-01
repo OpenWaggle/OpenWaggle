@@ -90,6 +90,29 @@ describe('SQLite Session semantic projection', () => {
     })
   })
 
+  it('keeps snapshot revisions monotonic after the highest-revision vectors are deleted', async () => {
+    const runtime = makeRuntime(path.join(root, 'monotonic-projection.sqlite'))
+    runtimes.push(runtime)
+    const revisions = await runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        const projection = new SqliteSessionSemanticProjection(sql, fakeModel)
+        const first = yield* projection.prepareNextBatch(10)
+        yield* sql`UPDATE sessions SET title = ${'Updated queen'} WHERE id = ${'queen'}`
+        const second = yield* projection.prepareNextBatch(10)
+        yield* sql`DELETE FROM session_discovery_embeddings`
+        yield* sql`UPDATE sessions SET title = ${'Updated worker'} WHERE id = ${'worker'}`
+        const third = yield* projection.prepareNextBatch(10)
+        return { first, second, third, readiness: yield* projection.readiness() }
+      }),
+    )
+
+    expect(revisions.first).toMatchObject({ snapshotRevision: 1 })
+    expect(revisions.second).toMatchObject({ snapshotRevision: 2 })
+    expect(revisions.third).toMatchObject({ snapshotRevision: 3 })
+    expect(revisions.readiness).toMatchObject({ snapshotRevision: 3 })
+  })
+
   it('builds bounded discovery text from title, objective, and conversation previews', () => {
     expect(
       sessionDiscoveryDocument({

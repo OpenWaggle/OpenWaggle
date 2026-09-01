@@ -43,4 +43,25 @@ describe('Local Session client Host UI response decoding', () => {
       ),
     ).toThrow()
   })
+
+  it('preserves a Host protocol error code for machine-facing classification', () => {
+    expect(() =>
+      decodeLocalSessionCommandResponse(
+        {
+          kind: 'error',
+          requestId: 'wire-request',
+          code: 'authentication_failed',
+          message: '',
+          retryable: false,
+        },
+        'wire-request',
+      ),
+    ).toThrow(
+      expect.objectContaining({
+        name: 'LocalSessionClientProtocolError',
+        code: 'authentication_failed',
+        message: 'Local Session command failed.',
+      }),
+    )
+  })
 })

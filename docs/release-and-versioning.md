@@ -10,7 +10,11 @@ Husky is configured with a `pre-push` hook that runs only when pushing to `main`
 
 ## CI/CD
 
-Every push to `main` and every PR runs CI for typechecking, linting, and tests. The current release workflow is still Conventional Commit derived: when release-eligible commits land on `main`, CI determines the version bump and opens a generated version PR. GitHub creates that PR's CI in approval-required state because the PR uses `GITHUB_TOKEN`; the release workflow reruns that PR-associated run for the exact head, waits for all required checks, and leaves the green PR open as an explicit maintainer gate. Release PR creation uses bounded retries and checks for an exact same-repository PR after each failed mutation so a transient or ambiguous GitHub API error cannot strand a valid release branch. If `main` advances, the workflow updates the release branch and repeats exact-head CI. The workflow never merges its own version PR. A maintainer's protected merge starts a second release run, which verifies the exact version-only commit and its same-repository release PR, pushes only its tag, builds platform artifacts, and publishes a GitHub Release with checksums. Preparation runs share a coalescing concurrency group, while every protected-merge publication run is keyed by its immutable merge SHA so a later `main` push cannot replace a queued release. Reruns adopt compatible existing release branches, PRs, protected merge commits, and tags while rejecting conflicting state.
+Every push to `main` and every PR runs CI for typechecking, linting, tests, and validation of any desktop release-intent files present. Product or user-impacting pull requests add `.release/changes/*.md`; routine internal-only changes do not need an intent file. Desktop app versions are never inferred from commit subjects.
+
+When release-producing intent lands on `main`, the release workflow regenerates the fixed bot-owned `app-release` branch from current `main`. It consumes every pending entry, updates `package.json` and the durable root `CHANGELOG.md`, writes `.release/release-notes.md` from the same curated bodies, and removes the consumed files. The workflow force-updates only that bot-owned branch with an exact lease, reruns the pull request's exact-head CI, and leaves the green pull request open as the explicit maintainer gate. When `main` advances, a serialized preparation run regenerates the candidate from the new head instead of merging stale release state.
+
+The workflow never merges its own release pull request. A maintainer's protected merge starts publication only after the merged tree is proven identical to the exact CI-validated release-PR tree and its parent is proven identical. Publication pushes only the tag, builds platform artifacts, verifies installers, and publishes `.release/release-notes.md` verbatim with checksums. Preparation runs share a coalescing concurrency group, while every protected-merge publication run is keyed by its immutable merge SHA. Ambiguous pushes and pull-request creation calls adopt only exact same-repository state; incompatible state fails closed.
 
 Electron CI runs the shared functional E2E suite with hidden windows on macOS, Linux, and Windows. Linux supplies a virtual display through Xvfb because Electron still needs a display server even when its BrowserWindow stays hidden. The native visual-regression baselines remain macOS-only; copying Darwin pixels to other platforms would create a noisy rather than meaningful gate. All three platform job names are part of the managed required-check model.
 
@@ -18,30 +22,39 @@ The workflow currently publishes unsigned platform artifacts. Public distributio
 
 ## Versioning
 
-OpenWaggle uses semver with prerelease stages. The current release train is `0.3.0-alpha.N`.
+OpenWaggle uses semver with prerelease stages. The active release train is `0.3.0-alpha.N`; stage transitions remain manual.
 
 | Stage | Example Version | What Happens On Release |
 |-------|-----------------|-------------------------|
-| Alpha | `0.3.0-alpha.N` | Increments `alpha.N+1` on release-eligible changes. |
-| Beta | `0.3.0-beta.N` | Increments `beta.N+1` after the project moves to beta. |
-| Stable | `0.3.0` | `fix:` increments patch, `feat:` increments minor, breaking changes increment major. |
+| Alpha | `0.3.0-alpha.N` | Increments `alpha.N+1` when release-producing intent is pending. |
+| Beta | `0.3.0-beta.N` | Increments `beta.N+1` after a maintainer moves the project to beta. |
+| RC | `0.3.0-rc.N` | Increments `rc.N+1` after a maintainer moves the project to RC. |
+| Stable | `0.3.0` and later | Uses the highest pending `patch`, `minor`, or `major` impact. |
 
-To transition stages, manually set the version in `package.json` and commit as `chore(release): <message>`.
+Stage transitions remain explicit maintainer decisions. The release workflow owns only the numeric increment within the selected stage; release-intent `milestone` metadata is descriptive and cannot change the active train.
 
 ### Protected release recovery
 
-The failed `0.3.0-alpha.44` direct-push attempt created a remote tag whose commit never reached protected `main`. Recovery intentionally sets the root version on `main` to `0.3.0-alpha.44` in a `chore(release):` reconciliation commit. That subject skips both release-PR generation and tag publication. The existing orphan tag is preserved for auditability; the next release-eligible change increments the reconciled root version and publishes `0.3.0-alpha.45` only after a maintainer merges the version PR that passed exact-head CI. Do not delete, move, or reuse the orphan tag.
+The failed `0.3.0-alpha.44` direct-push attempt created a remote tag whose commit never reached protected `main`. The reconciliation commit and orphan tag remain preserved for auditability; do not delete, move, or reuse that tag. New releases advance from the version committed in `package.json`, never from this orphan tag.
 
-## Release Notes
+## Desktop App Release Intent
 
-Release intent metadata is planned but not implemented yet. Until committed release-intent files exist, product-impacting PRs should include reviewer-facing release notes in the PR body:
+One `.release/changes/<kebab-case>.md` file is one curated note:
 
-- User-visible feature or behavior changes.
-- Relevant docs updates.
-- Validation evidence.
-- Known remaining scope or follow-up work.
+```md
+---
+impact: patch | minor | major | none
+area: runtime | sessions | providers | ui | installer | updater | user-docs | internal
+audience: users | prerelease-users | developers
+milestone: v1 | post-v1
+---
 
-Do not rely on commit subjects alone for large product changes such as Session Tree, branch lifecycle, resource precedence, or provider/auth behavior.
+Human-facing release note.
+```
+
+Files must contain exactly those four frontmatter fields, a non-empty body, and a trailing newline. `impact: none` and `area: internal` entries are optional developer audit entries; ordinary internal work does not need an intent file. CI validates the queue on every normal check. A queue containing only `impact: none` entries waits for the next release-producing entry. The `milestone` field records product planning context and never changes the active version stage.
+
+The generated changelog groups every consumed body by area. Public GitHub Release notes use the same exact curated bodies but omit developer/internal entries by default. The release commit removes all consumed files, while `.release/release-notes.md` permanently records the exact public notes attached to that tag.
 
 ## Npm Package Publishing
 

@@ -1,6 +1,5 @@
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
-import type { SessionLifecycleResponse } from '@shared/types/session-lifecycle'
 import * as Effect from 'effect/Effect'
 import {
   requiredSessionControlCapabilities,
@@ -9,8 +8,6 @@ import {
 import { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
 import { SessionControlAttachmentService } from '../ports/session-control-attachment-service'
 import { SettingsService } from '../services/settings-service'
-import { refreshLocalSessionProfileAdmissions } from '../session-host/local-session-profile-invalidation'
-import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { dispatchConfiguredGuiSessionCommand } from './gui-session-command-router'
 import { dispatchHostUiRequest } from './host-ui-request-dispatcher'
 import {
@@ -44,6 +41,11 @@ import { bindSessionControlAttachments } from './session-control-command-attachm
 import { executeSessionControlMutation } from './session-control-command-service'
 import { publishControlResponse } from './session-control-event-projection'
 import { executeSessionLifecycleCommand } from './session-lifecycle-command-service'
+import {
+  publishLifecycleResponse,
+  refreshAdmissionBeforeIdleLifecycleProjection,
+  refreshAdmissionBeforeStartedLifecycleProjection,
+} from './session-lifecycle-event-projection'
 
 export {
   type ConfiguredHostUiInvocation,
@@ -61,44 +63,6 @@ export {
   authorizeLocalSessionEvent,
   profileAuthorityForCapabilities,
 } from './local-session-command-authorization'
-
-function publishLifecycleResponse(response: SessionLifecycleResponse) {
-  if (response.replayed || response.outcome.effect === 'rejected') return
-  publishSessionHostEvent({
-    kind: 'session-list-changed',
-    sessionId: response.outcome.sessionId,
-    change: 'created',
-  })
-  publishSessionHostEvent({
-    kind: 'session-state-changed',
-    sessionId: response.outcome.sessionId,
-    stateRevision:
-      response.outcome.effect === 'created-root' || response.outcome.effect === 'forked-session'
-        ? 0
-        : 1,
-    operation: response.outcome.operation,
-  })
-}
-
-function refreshAdmissionBeforeStartedLifecycleProjection(response: SessionLifecycleResponse) {
-  if (
-    response.replayed ||
-    (response.outcome.effect !== 'launched-root' && response.outcome.effect !== 'spawned-worker')
-  ) {
-    return Effect.void
-  }
-  return Effect.promise(() => refreshLocalSessionProfileAdmissions())
-}
-
-function refreshAdmissionBeforeIdleLifecycleProjection(response: SessionLifecycleResponse) {
-  if (
-    response.replayed ||
-    (response.outcome.effect !== 'created-root' && response.outcome.effect !== 'forked-session')
-  ) {
-    return Effect.void
-  }
-  return Effect.promise(() => refreshLocalSessionProfileAdmissions())
-}
 
 export function lifecycleCallerCapabilities(
   caller: LocalSessionCallerIdentity,
@@ -130,13 +94,21 @@ type NonHostUiLocalSessionCommandPayload = Exclude<
   { readonly contract: 'host-ui-v1' }
 >
 
-export function dispatchNonHostUiLocalSessionCommand(input: {
+interface NonHostUiLocalSessionCommandInput {
   readonly caller: LocalSessionCallerIdentity
   readonly payload: NonHostUiLocalSessionCommandPayload
   readonly signal?: AbortSignal
   readonly mutationAdmission?: () => Promise<LocalSessionMutationAdmission>
   readonly observationAdmission?: () => Promise<LocalSessionObservationAdmission>
-}) {
+}
+
+type NonHostUiLocalSessionQueryInput = NonHostUiLocalSessionCommandInput & {
+  readonly payload: Extract<LocalSessionCommandPayload, { readonly contract: 'session-query-v2' }>
+}
+
+function dispatchNonHostUiLocalSessionCommandImplementation(
+  input: NonHostUiLocalSessionCommandInput,
+) {
   const commandPayload = input.payload
   const ownerLocal = dispatchOwnerLocalSessionCommand(input)
   if (ownerLocal) return ownerLocal
@@ -250,6 +222,22 @@ export function dispatchNonHostUiLocalSessionCommand(input: {
       }).pipe(Effect.uninterruptible)
     }).pipe(Effect.ensuring(Effect.sync(admission.release)))
   })
+}
+
+type NonHostUiLocalSessionCommandEffect = ReturnType<
+  typeof dispatchNonHostUiLocalSessionCommandImplementation
+>
+
+export function dispatchNonHostUiLocalSessionCommand(
+  input: NonHostUiLocalSessionQueryInput,
+): ReturnType<typeof dispatchObservedLocalSessionQuery>
+export function dispatchNonHostUiLocalSessionCommand(
+  input: NonHostUiLocalSessionCommandInput,
+): NonHostUiLocalSessionCommandEffect
+export function dispatchNonHostUiLocalSessionCommand(
+  input: NonHostUiLocalSessionCommandInput,
+): NonHostUiLocalSessionCommandEffect {
+  return dispatchNonHostUiLocalSessionCommandImplementation(input)
 }
 
 export function dispatchLocalSessionCommand(input: {

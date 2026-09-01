@@ -10,6 +10,8 @@ Package versions are driven only by release-eligible Conventional Commits that t
 
 Desktop app release intent is separate. Do not use commit messages to choose a desktop app version; use the required app release classification instead.
 
+Product or user-impacting changes add one or more `.release/changes/<kebab-case>.md` entries using the documented schema. Routine internal-only changes do not need an intent file.
+
 ## Mixed PRs
 
 Squash this PR when one Conventional Commit accurately describes its complete intent. Preserve separate Conventional Commits when app, package, or multiple package changes have distinct release impacts, especially when the package path-scoped intent differs from the app change.

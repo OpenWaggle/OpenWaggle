@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  expectedVersionOnlyManifest,
   releaseSubjectVersion,
   selectOwnedReleasePullRequests,
   type AppReleasePullRequest,
@@ -11,7 +10,7 @@ function pullRequest(
 ): AppReleasePullRequest {
   return {
     baseRefName: 'main',
-    headRefName: 'app-release-v0.3.0-alpha.45',
+    headRefName: 'app-release',
     headRefOid: 'a'.repeat(40),
     headRepository: { name: 'OpenWaggle' },
     headRepositoryOwner: { login: 'OpenWaggle' },
@@ -36,21 +35,13 @@ describe('app release state model', () => {
         pullRequest({ headRefName: 'another-branch', number: 127 }),
       ],
       {
-        branch: 'app-release-v0.3.0-alpha.45',
+        branch: 'app-release',
         owner: 'OpenWaggle',
         repository: 'OpenWaggle',
       },
     )
 
     expect(selected.map(({ number }) => number)).toEqual([123])
-  })
-
-  it('creates an exact manifest with only the version changed', () => {
-    const base = '{\n  "name": "openwaggle",\n  "version": "0.3.0-alpha.44",\n  "private": true\n}\n'
-
-    expect(expectedVersionOnlyManifest(base, '0.3.0-alpha.45')).toBe(
-      '{\n  "name": "openwaggle",\n  "version": "0.3.0-alpha.45",\n  "private": true\n}\n',
-    )
   })
 
   it('accepts exact and GitHub squash release subjects only', () => {

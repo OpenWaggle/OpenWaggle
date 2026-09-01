@@ -1,5 +1,6 @@
 import type { LocalSessionProfileManagementOutcome } from '@shared/types/local-session-profile-management'
 import { AcceptedProfileCredentialRecoveryError } from './access-cli-credential-settlement'
+import { LocalSessionClientProtocolError } from './session-host/local-session-client-protocol-error'
 import {
   classifySessionsCliError,
   SESSIONS_CLI_OUTPUT_SCHEMA_VERSION,
@@ -10,6 +11,12 @@ export const ACCESS_CLI_OUTPUT_SCHEMA_VERSION = SESSIONS_CLI_OUTPUT_SCHEMA_VERSI
 
 export function classifyAccessCliError(error: unknown): SessionsCliErrorKind {
   if (error instanceof AcceptedProfileCredentialRecoveryError) return 'internal'
+  if (
+    error instanceof LocalSessionClientProtocolError &&
+    (error.code === 'authentication_failed' || error.code === 'credential_rejected')
+  ) {
+    return 'authentication'
+  }
   if (
     error instanceof Error &&
     error.name === 'AmbiguousProfileOperationError' &&

@@ -6,6 +6,7 @@ import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { SessionEmbeddingModel } from '../multilingual-e5-session-embedding-model'
 import { SqliteSessionSemanticProjection } from '../sqlite-session-semantic-projection'
+import { SessionSemanticIndexSnapshotCache } from '../sqlite-session-semantic-search'
 import {
   executeSessionQuery as executeQuery,
   makeSessionQueryRuntime as makeRuntime,
@@ -69,6 +70,69 @@ describe('SQLite Session semantic discovery', () => {
       sessionId: 'worker',
       discoveryEvidence: { matchKind: 'hybrid', rank: 1 },
     })
+  })
+
+  it('keeps a newer index snapshot when an older refresh request arrives out of order', async () => {
+    const cache = new SessionSemanticIndexSnapshotCache()
+    let markNewRefreshStarted: (() => void) | undefined
+    const newRefreshStarted = new Promise<void>((resolve) => {
+      markNewRefreshStarted = resolve
+    })
+    let releaseNewRefresh: (() => void) | undefined
+    const newRefreshBarrier = new Promise<void>((resolve) => {
+      releaseNewRefresh = resolve
+    })
+    let oldRefreshes = 0
+
+    const newer = Effect.runPromise(
+      cache.search({
+        minimumRevision: 2,
+        refresh: () =>
+          Effect.promise(async () => {
+            markNewRefreshStarted?.()
+            await newRefreshBarrier
+            return {
+              revision: 2,
+              rebuild: true,
+              records: [{ sessionId: 'new-session', vector: new Float32Array([1, 0]) }],
+              retainedSessionIds: new Set(['new-session']),
+            }
+          }),
+        query: new Float32Array([1, 0]),
+        limit: 1,
+        allowedSessionIds: new Set(['new-session']),
+      }),
+    )
+    await newRefreshStarted
+    const older = Effect.runPromise(
+      cache.search({
+        minimumRevision: 1,
+        refresh: () => {
+          oldRefreshes += 1
+          return Effect.succeed({
+            revision: 1,
+            rebuild: true,
+            records: [{ sessionId: 'old-session', vector: new Float32Array([1, 0]) }],
+            retainedSessionIds: new Set(['old-session']),
+          })
+        },
+        query: new Float32Array([1, 0]),
+        limit: 1,
+        allowedSessionIds: new Set(['new-session', 'old-session']),
+      }),
+    )
+    releaseNewRefresh?.()
+
+    await expect(newer).resolves.toMatchObject({
+      revision: 2,
+      matches: [{ sessionId: 'new-session' }],
+    })
+    await expect(older).resolves.toMatchObject({
+      revision: 2,
+      matches: [{ sessionId: 'new-session' }],
+    })
+    expect(oldRefreshes).toBe(0)
+    expect(cache.diagnostics()).toEqual({ loadedRevision: 2, recordCount: 1 })
   })
 
   it('sanitizes global semantic readiness for a restricted discovery authority', async () => {

@@ -6,6 +6,10 @@ import {
   LOCAL_SESSION_PROTOCOL_NAME,
   LOCAL_SESSION_SUPPORTED_REVISIONS,
 } from '@shared/types/local-session-protocol'
+import {
+  LocalSessionClientProtocolError,
+  localSessionClientProtocolError,
+} from './local-session-client-protocol-error'
 import { isWindowsPipe } from './local-session-endpoint'
 import { encodeLocalSessionFrame, LocalSessionFrameDecoder } from './local-session-framing'
 import type { LocalSessionHostPaths } from './local-session-paths'
@@ -169,11 +173,19 @@ export async function authenticateLocalSessionServer(input: {
   const request = createLocalSessionServerAuthenticationRequest(input.profile)
   await writeLocalSessionFrame(input.socket, request)
   const value = await input.reader.next(input.timeoutMs)
-  await verifyLocalSessionServerAuthenticationResponse({
-    value,
-    request,
-    credential: input.credential,
-  })
+  try {
+    await verifyLocalSessionServerAuthenticationResponse({
+      value,
+      request,
+      credential: input.credential,
+    })
+  } catch (cause) {
+    throw new LocalSessionClientProtocolError(
+      'authentication_failed',
+      cause instanceof Error ? cause.message : 'Local Session authentication failed.',
+      { cause },
+    )
+  }
 }
 
 export async function openLocalSessionConnection(input: LocalSessionClientConnectionInput) {
@@ -205,10 +217,9 @@ export async function openLocalSessionConnection(input: LocalSessionClientConnec
     })
     const negotiationFrame = await reader.next(timeoutMs)
     if (isRecord(negotiationFrame) && negotiationFrame.kind === 'error') {
-      throw new Error(
-        typeof negotiationFrame.message === 'string'
-          ? negotiationFrame.message
-          : 'Local Session authentication failed.',
+      throw localSessionClientProtocolError(
+        negotiationFrame,
+        'Local Session authentication failed.',
       )
     }
     const negotiation = decodeLocalSessionNegotiationResult(negotiationFrame)
