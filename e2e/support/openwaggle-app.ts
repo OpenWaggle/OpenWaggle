@@ -166,18 +166,21 @@ export class OpenWaggleApp {
   private async terminateProcessTree(): Promise<void> {
     const childProcess = this.app.process()
     if (process.platform === 'win32' && childProcess.pid) {
-      const terminated = await execFileAsync('taskkill.exe', [
-        '/PID',
-        String(childProcess.pid),
-        '/T',
-        '/F',
-      ], { windowsHide: true }).then(
+      const terminated = await execFileAsync(
+        'taskkill.exe',
+        ['/PID', String(childProcess.pid), '/T', '/F'],
+        { windowsHide: true, timeout: QA_FORCED_CLOSE_WAIT_MS },
+      ).then(
         () => true,
         () => false,
       )
       if (terminated) return
     }
-    childProcess.kill()
+    try {
+      childProcess.kill()
+    } catch {
+      // The process may have exited between the bounded taskkill and this fallback.
+    }
   }
 
   async desktopState() {
