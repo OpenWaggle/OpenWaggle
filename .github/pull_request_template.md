@@ -16,6 +16,8 @@ Squash this PR when one Conventional Commit accurately describes its complete in
 
 ## Validation
 
+- [ ] `pnpm verify` (pre-push baseline; the hook runs it automatically)
 - [ ] `pnpm check`
 - [ ] Relevant tests
 - [ ] Package checks when a publishable package changed
+- [ ] Regenerated `e2e/visual-regression.e2e.test.ts-snapshots/` and reviewed the diff when rendered pixels changed (CI macOS runners are the source of truth for baselines)
