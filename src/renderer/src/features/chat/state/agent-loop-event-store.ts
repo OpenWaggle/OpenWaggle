@@ -37,7 +37,12 @@ function boundedSessions(
   next.delete(sessionId)
   next.set(sessionId, sessionState)
   while (next.size > SESSION_STATE_LIMIT) {
-    const oldestSessionId = next.keys().next().value
+    let oldestSessionId: SessionId | undefined
+    for (const [candidateId, candidate] of next) {
+      if (candidate.interactions.length > 0) continue
+      oldestSessionId = candidateId
+      break
+    }
     if (oldestSessionId === undefined) break
     next.delete(oldestSessionId)
   }

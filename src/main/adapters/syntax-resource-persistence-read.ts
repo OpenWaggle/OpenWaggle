@@ -1,4 +1,5 @@
-import fs from 'node:fs/promises'
+import { constants as fsConstants } from 'node:fs'
+import fs, { type FileHandle } from 'node:fs/promises'
 import path from 'node:path'
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import { isSyntaxLanguageConfiguration } from '@shared/syntax-language-configuration'
@@ -13,6 +14,7 @@ import { isRecord } from './syntax-resource-import-utils'
 export const INSTALLED_RESOURCE_FILE_LIMIT = 20
 export const INSTALLED_RESOURCE_CATALOG_MAX_BYTES = 8 * 1024 * 1024
 const logger = createLogger('syntax-resource-persistence')
+const RESOURCE_READ_CHUNK_BYTES = 64 * 1024
 
 export interface InstalledResourceReadBudget {
   remainingBytes: number
@@ -20,6 +22,70 @@ export interface InstalledResourceReadBudget {
 
 function isMissingFileError(error: unknown) {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT'
+}
+
+function isSymlinkOpenError(error: unknown) {
+  return error instanceof Error && 'code' in error && error.code === 'ELOOP'
+}
+
+function invalidResourceFileError(resourcePath: string, cause?: unknown) {
+  return new Error(`Installed syntax resource must be a regular file: ${resourcePath}`, { cause })
+}
+
+async function readResourceWithinBudget(
+  handle: FileHandle,
+  resourcePath: string,
+  budget: InstalledResourceReadBudget,
+) {
+  const metadata = await handle.stat()
+  if (!metadata.isFile()) throw invalidResourceFileError(resourcePath)
+  if (metadata.size > budget.remainingBytes) {
+    throw new Error('The installed syntax resource catalog exceeds its aggregate byte limit.')
+  }
+
+  const chunks: Buffer[] = []
+  let totalBytes = 0
+  while (true) {
+    const remainingWithOverflowByte = budget.remainingBytes - totalBytes + 1
+    if (remainingWithOverflowByte <= 0) {
+      throw new Error('The installed syntax resource catalog exceeds its aggregate byte limit.')
+    }
+    const chunk = Buffer.allocUnsafe(Math.min(RESOURCE_READ_CHUNK_BYTES, remainingWithOverflowByte))
+    const { bytesRead } = await handle.read(chunk, 0, chunk.length, null)
+    if (bytesRead === 0) break
+    totalBytes += bytesRead
+    if (totalBytes > budget.remainingBytes) {
+      throw new Error('The installed syntax resource catalog exceeds its aggregate byte limit.')
+    }
+    chunks.push(chunk.subarray(0, bytesRead))
+  }
+  budget.remainingBytes -= totalBytes
+  return Buffer.concat(chunks, totalBytes).toString('utf8')
+}
+
+async function readRegularResourceFile(resourcePath: string, budget: InstalledResourceReadBudget) {
+  let metadata: Awaited<ReturnType<typeof fs.lstat>>
+  try {
+    metadata = await fs.lstat(resourcePath)
+  } catch (error) {
+    if (isMissingFileError(error)) return null
+    throw error
+  }
+  if (!metadata.isFile()) throw invalidResourceFileError(resourcePath)
+
+  let handle: FileHandle
+  try {
+    handle = await fs.open(resourcePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW)
+  } catch (error) {
+    if (isMissingFileError(error)) return null
+    if (isSymlinkOpenError(error)) throw invalidResourceFileError(resourcePath, error)
+    throw error
+  }
+  try {
+    return await readResourceWithinBudget(handle, resourcePath, budget)
+  } finally {
+    await handle.close()
+  }
 }
 
 const syntaxResourceScopePattern = P.union('bundled', 'user', 'project')
@@ -148,24 +214,8 @@ export async function readPersistedResources<T>(
   const resources: T[] = []
   for (const name of resourceNames) {
     const resourcePath = path.join(directory, name)
-    let size: number
-    try {
-      size = (await fs.stat(resourcePath)).size
-    } catch (error) {
-      if (isMissingFileError(error)) continue
-      throw error
-    }
-    if (size > budget.remainingBytes) {
-      throw new Error('The installed syntax resource catalog exceeds its aggregate byte limit.')
-    }
-    budget.remainingBytes -= size
-    let source: string
-    try {
-      source = await fs.readFile(resourcePath, 'utf8')
-    } catch (error) {
-      if (isMissingFileError(error)) continue
-      throw error
-    }
+    const source = await readRegularResourceFile(resourcePath, budget)
+    if (source === null) continue
     let parsed: unknown
     try {
       parsed = JSON.parse(source)

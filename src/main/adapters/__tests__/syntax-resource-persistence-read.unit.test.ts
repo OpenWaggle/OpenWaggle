@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import type { SyntaxThemeResource } from '@shared/types/syntax-resources'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   INSTALLED_RESOURCE_CATALOG_MAX_BYTES,
@@ -73,12 +74,12 @@ describe('installed syntax resource reads', () => {
   it.each([
     ['permission', 'EACCES'],
     ['transient I/O', 'EIO'],
-  ])('propagates per-resource %s read failures', async (_description, code) => {
+  ])('propagates per-resource %s open failures', async (_description, code) => {
     const resourcePath = path.join(temporaryRoot, 'resource.json')
     await fs.writeFile(resourcePath, JSON.stringify({ name: 'resource' }))
     const readError = new Error(`Resource read failed with ${code}`)
     Object.defineProperty(readError, 'code', { value: code })
-    vi.spyOn(fs, 'readFile').mockRejectedValueOnce(readError)
+    vi.spyOn(fs, 'open').mockRejectedValueOnce(readError)
 
     await expect(readPersistedResources(temporaryRoot, isNamedResource)).rejects.toBe(readError)
   })
@@ -86,14 +87,14 @@ describe('installed syntax resource reads', () => {
   it.each([
     ['permission', 'EACCES'],
     ['transient I/O', 'EIO'],
-  ])('propagates per-resource %s stat failures', async (_description, code) => {
+  ])('propagates per-resource %s metadata failures', async (_description, code) => {
     await fs.writeFile(
       path.join(temporaryRoot, 'resource.json'),
       JSON.stringify({ name: 'resource' }),
     )
     const statError = new Error(`Resource stat failed with ${code}`)
     Object.defineProperty(statError, 'code', { value: code })
-    vi.spyOn(fs, 'stat').mockRejectedValueOnce(statError)
+    vi.spyOn(fs, 'lstat').mockRejectedValueOnce(statError)
 
     await expect(readPersistedResources(temporaryRoot, isNamedResource)).rejects.toBe(statError)
   })
@@ -102,7 +103,7 @@ describe('installed syntax resource reads', () => {
     await fs.writeFile(path.join(temporaryRoot, 'missing.json'), '{}')
     const missingError = new Error('Resource disappeared')
     Object.defineProperty(missingError, 'code', { value: 'ENOENT' })
-    vi.spyOn(fs, 'stat').mockRejectedValueOnce(missingError)
+    vi.spyOn(fs, 'lstat').mockRejectedValueOnce(missingError)
 
     await expect(readPersistedResources(temporaryRoot, isNamedResource)).resolves.toEqual([])
   })
@@ -111,7 +112,7 @@ describe('installed syntax resource reads', () => {
     await fs.writeFile(path.join(temporaryRoot, 'missing.json'), '{}')
     const missingError = new Error('Resource disappeared')
     Object.defineProperty(missingError, 'code', { value: 'ENOENT' })
-    vi.spyOn(fs, 'readFile').mockRejectedValueOnce(missingError)
+    vi.spyOn(fs, 'open').mockRejectedValueOnce(missingError)
 
     await expect(readPersistedResources(temporaryRoot, isNamedResource)).resolves.toEqual([])
   })
@@ -178,5 +179,41 @@ describe('installed syntax resource reads', () => {
     await expect(readPersistedResources(temporaryRoot, isResource)).rejects.toThrow(
       'aggregate byte limit',
     )
+  })
+
+  it.skipIf(process.platform === 'win32')('rejects symlinked resource files', async () => {
+    const targetPath = path.join(temporaryRoot, 'target')
+    await fs.writeFile(targetPath, JSON.stringify({ name: 'resource' }))
+    await fs.symlink(targetPath, path.join(temporaryRoot, 'resource.json'))
+
+    await expect(readPersistedResources(temporaryRoot, isNamedResource)).rejects.toThrow(
+      'must be a regular file',
+    )
+  })
+
+  it('enforces the remaining budget when a file grows after metadata inspection', async () => {
+    await fs.writeFile(path.join(temporaryRoot, 'resource.json'), '{}')
+    const close = vi.fn()
+    const read = vi
+      .fn()
+      .mockResolvedValueOnce({ bytesRead: 2, buffer: Buffer.alloc(2) })
+      .mockResolvedValueOnce({ bytesRead: 1, buffer: Buffer.alloc(1) })
+    vi.spyOn(fs, 'open').mockResolvedValueOnce(
+      fromPartial({
+        close,
+        read,
+        stat: vi.fn().mockResolvedValue(
+          fromPartial({
+            isFile: () => true,
+            size: 0,
+          }),
+        ),
+      }),
+    )
+
+    await expect(
+      readPersistedResources(temporaryRoot, isResource, { remainingBytes: 2 }),
+    ).rejects.toThrow('aggregate byte limit')
+    expect(close).toHaveBeenCalledOnce()
   })
 })

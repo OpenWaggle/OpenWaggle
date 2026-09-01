@@ -73,6 +73,38 @@ describe('agent loop event store', () => {
     expect(sessions.has(SESSION_ID)).toBe(false)
   })
 
+  it('never evicts a session with an unresolved interaction', () => {
+    const store = useAgentLoopEventStore.getState()
+    store.applyEvent(SESSION_ID, {
+      type: 'agent_interaction_request',
+      timestamp: 1,
+      interaction: {
+        interactionId: 'confirm-1',
+        sessionId: SESSION_ID,
+        runId: 'run-1',
+        kind: 'confirm',
+        source: 'pi-ui',
+        createdAt: 1,
+        title: 'Continue?',
+        message: 'Allow extension action?',
+        purpose: 'user-input',
+      },
+    })
+
+    for (let index = 0; index < 55; index += 1) {
+      store.applyEvent(SessionId(`evictable-${String(index)}`), {
+        type: 'custom',
+        name: 'bounded',
+        timestamp: index + 2,
+      })
+    }
+
+    const sessions = useAgentLoopEventStore.getState().sessionsById
+    expect(sessions.size).toBe(50)
+    expect(sessions.get(SESSION_ID)?.interactions).toHaveLength(1)
+    expect(sessions.has(SessionId('evictable-0'))).toBe(false)
+  })
+
   it('removes a dismissed notification from workspace-lifetime history', () => {
     const store = useAgentLoopEventStore.getState()
     store.applyEvent(SESSION_ID, {
