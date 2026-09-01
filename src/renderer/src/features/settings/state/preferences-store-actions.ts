@@ -25,6 +25,7 @@ import type { PreferencesActions, PreferencesGet, PreferencesSet } from './prefe
 const logger = createRendererLogger('preferences')
 const SLICE_ARG_2 = 100
 const SLICE_ARG_2_VALUE_10 = 10
+let syntaxThemeWriteQueue = Promise.resolve()
 
 function mergeSettings(set: PreferencesSet, patch: Partial<Settings>) {
   set((state) => ({ settings: { ...state.settings, ...patch } }))
@@ -144,6 +145,27 @@ function assertSettingsUpdateSucceeded(result: Awaited<ReturnType<typeof api.upd
   if (!result.ok) throw new Error(result.error)
 }
 
+function persistSyntaxThemeSelection(
+  variant: Parameters<PreferencesActions['setSyntaxTheme']>[0],
+  themeId: Parameters<PreferencesActions['setSyntaxTheme']>[1],
+  set: PreferencesSet,
+  get: PreferencesGet,
+) {
+  const write = syntaxThemeWriteQueue
+    .catch(() => undefined)
+    .then(async () => {
+      const syntaxThemeSelections = {
+        ...get().settings.syntaxThemeSelections,
+        [variant]: themeId,
+      }
+      assertSettingsUpdateSucceeded(await api.updateSettings({ syntaxThemeSelections }))
+      setRuntimeSyntaxThemeSelections(syntaxThemeSelections)
+      mergeSettings(set, { syntaxThemeSelections })
+    })
+  syntaxThemeWriteQueue = write
+  return write
+}
+
 export function createPreferencesActions(
   set: PreferencesSet,
   get: PreferencesGet,
@@ -202,16 +224,7 @@ export function createPreferencesActions(
     setDefaultSessionEnvironmentMode: (mode: SessionEnvironmentMode) =>
       persistSetting('defaultSessionEnvironmentMode', mode, set),
     setDiffSyntaxTheme: (theme: DiffSyntaxTheme) => persistSetting('diffSyntaxTheme', theme, set),
-    setSyntaxTheme: async (variant, themeId) => {
-      const { settings } = get()
-      const syntaxThemeSelections = {
-        ...settings.syntaxThemeSelections,
-        [variant]: themeId,
-      }
-      assertSettingsUpdateSucceeded(await api.updateSettings({ syntaxThemeSelections }))
-      setRuntimeSyntaxThemeSelections(syntaxThemeSelections)
-      mergeSettings(set, { syntaxThemeSelections })
-    },
+    setSyntaxTheme: (variant, themeId) => persistSyntaxThemeSelection(variant, themeId, set, get),
     setDiffView: (view: DiffView) => persistSetting('diffView', view, set),
     setDiffWrapLines: (wrap: boolean) => persistSetting('diffWrapLines', wrap, set),
     setAppearanceTypography: (typography) => persistAppearanceTypography(typography, set, get),

@@ -41,8 +41,14 @@ export function acceptDiskDocument(
 }
 
 export async function reloadWorkspaceDocument(context: WorkspaceSaveQueueContext) {
+  const contentBeforeReload = captureWorkspaceDocumentSnapshot(context)
   const next = await api.readWorkspaceFile(context.projectPath, context.file.path)
-  if ('content' in next) acceptDiskDocument(context, next)
+  if (!('content' in next)) return
+  if (captureWorkspaceDocumentSnapshot(context) !== contentBeforeReload) {
+    persistPendingJournal(context)
+    throw new Error('The file changed while loading disk content. Your newer edits were kept.')
+  }
+  acceptDiskDocument(context, next)
 }
 
 export async function compareWorkspaceDocumentWithDisk(context: WorkspaceSaveQueueContext) {

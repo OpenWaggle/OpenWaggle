@@ -8,7 +8,10 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { queryKeys } from '@/queries/query-keys'
 import { draftStorageKey } from '../../lib/workspace-draft-journal'
-import { restoreWorkspaceDraftOverDisk } from '../workspace-document-recovery-actions'
+import {
+  reloadWorkspaceDocument,
+  restoreWorkspaceDraftOverDisk,
+} from '../workspace-document-recovery-actions'
 import type { WorkspaceSaveQueueContext } from '../workspace-save-queue'
 
 const { applyWorkspaceDocumentEdits, readWorkspaceFile } = vi.hoisted(() => ({
@@ -161,6 +164,55 @@ describe('workspace document recovery actions', () => {
     expect(context.setChangeSequence).toHaveBeenCalledOnce()
     expect(window.localStorage.getItem(draftStorageKey('/project', 'src/file.ts'))).toContain(
       'recovered draft + typed while saving',
+    )
+  })
+
+  it('preserves edits made while disk content is loading', async () => {
+    const diskRead = Promise.withResolvers<WorkspaceTextFileReadResult>()
+    const disk = fromPartial<WorkspaceTextFileReadResult>({
+      path: 'src/file.ts',
+      basename: 'file.ts',
+      content: 'disk',
+      documentVersion: 4,
+      revision: 'disk-revision',
+      fidelity: { encoding: 'utf-8', lineEnding: 'lf' },
+    })
+    let liveContent = 'conflicted draft'
+    readWorkspaceFile.mockReturnValueOnce(diskRead.promise)
+    const context = fromPartial<WorkspaceSaveQueueContext>({
+      projectPath: '/project',
+      file: disk,
+      queryClient: fromPartial({ setQueryData: vi.fn() }),
+      revision: { current: 'draft-revision' },
+      persistedVersion: { current: 3 },
+      nextVersion: { current: 4 },
+      latestContent: { current: liveContent },
+      latestSnapshot: { current: () => liveContent },
+      savedContent: { current: 'disk' },
+      pending: { current: [] },
+      conflict: { current: true },
+      mounted: { current: true },
+      setContent: vi.fn(),
+      setEditorRevision: vi.fn(),
+      setSavedContent: vi.fn(),
+      setEncoding: vi.fn(),
+      setLineEnding: vi.fn(),
+      setStatus: vi.fn(),
+      setErrorMessage: vi.fn(),
+      setConflictDiskContent: vi.fn(),
+      setNormalizationRequired: vi.fn(),
+    })
+
+    const reloading = reloadWorkspaceDocument(context)
+    await vi.waitFor(() => expect(readWorkspaceFile).toHaveBeenCalledOnce())
+    liveContent = 'conflicted draft + typed while loading'
+    diskRead.resolve(disk)
+
+    await expect(reloading).rejects.toThrow('Your newer edits were kept')
+    expect(context.revision.current).toBe('draft-revision')
+    expect(context.setContent).not.toHaveBeenCalledWith('disk')
+    expect(window.localStorage.getItem(draftStorageKey('/project', 'src/file.ts'))).toContain(
+      'conflicted draft + typed while loading',
     )
   })
 })

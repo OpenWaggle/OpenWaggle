@@ -97,12 +97,10 @@ export async function reopenWorkspaceDocumentWithEncoding(
   acceptDiskDocument(context, next)
 }
 
-export async function saveWorkspaceDocumentWithEncoding(
+async function applyWorkspaceDocumentEncoding(
   context: WorkspaceSaveQueueContext,
   encoding: WorkspaceTextEncoding,
 ) {
-  await flushWorkspaceEdits(context)
-  if (context.conflict.current || context.pending.current.length > 0) return
   const result = await api.applyWorkspaceDocumentEdits({
     projectPath: context.projectPath,
     path: context.file.path,
@@ -139,6 +137,24 @@ export async function saveWorkspaceDocumentWithEncoding(
     .with('out-of-sync', (failure) => preserveFailedDraft(context, failure.message, 'error'))
     .with('too-large', (failure) => preserveFailedDraft(context, failure.message, 'error'))
     .exhaustive()
+}
+
+export async function saveWorkspaceDocumentWithEncoding(
+  context: WorkspaceSaveQueueContext,
+  encoding: WorkspaceTextEncoding,
+) {
+  await flushWorkspaceEdits(context)
+  if (context.conflict.current || context.pending.current.length > 0) return
+  const operation = applyWorkspaceDocumentEncoding(context, encoding)
+  context.inFlight.current = operation
+  try {
+    await operation
+  } finally {
+    if (context.inFlight.current === operation) context.inFlight.current = null
+  }
+  if (!context.conflict.current && context.pending.current.length > 0) {
+    await flushWorkspaceEdits(context)
+  }
 }
 
 export async function saveWorkspaceDocumentSnapshot(

@@ -150,6 +150,35 @@ describe('preferences-store integration', () => {
     )
   })
 
+  it('serializes syntax theme selections without losing another profile update', async () => {
+    const firstWrite = deferred<{ ok: true }>()
+    apiMock.updateSettings
+      .mockReturnValueOnce(firstWrite.promise)
+      .mockResolvedValueOnce({ ok: true })
+
+    const darkWrite = usePreferencesStore.getState().setSyntaxTheme('dark', 'bundled:nord')
+    await vi.waitFor(() => expect(apiMock.updateSettings).toHaveBeenCalledOnce())
+    const lightWrite = usePreferencesStore
+      .getState()
+      .setSyntaxTheme('light', 'bundled:github-light')
+    expect(apiMock.updateSettings).toHaveBeenCalledOnce()
+    firstWrite.resolve({ ok: true })
+    await Promise.all([darkWrite, lightWrite])
+
+    expect(apiMock.updateSettings).toHaveBeenNthCalledWith(2, {
+      syntaxThemeSelections: {
+        ...DEFAULT_SETTINGS.syntaxThemeSelections,
+        dark: 'bundled:nord',
+        light: 'bundled:github-light',
+      },
+    })
+    expect(usePreferencesStore.getState().settings.syntaxThemeSelections).toEqual({
+      ...DEFAULT_SETTINGS.syntaxThemeSelections,
+      dark: 'bundled:nord',
+      light: 'bundled:github-light',
+    })
+  })
+
   it('tracks recent projects in first-added order with dedupe and max size', async () => {
     const entries = [
       '/tmp/repo-1',
