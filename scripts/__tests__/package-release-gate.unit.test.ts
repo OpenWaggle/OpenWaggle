@@ -21,6 +21,19 @@ describe('Package Release Gate', () => {
     expect(() => validatePackageReleaseGate({ results: ALL_SUCCESS, tier: 'full' })).not.toThrow()
   })
 
+  it('passes the full tier when path-scoped rehearsals were skipped by an app-only merge result', () => {
+    expect(() =>
+      validatePackageReleaseGate({
+        results: {
+          ...ALL_SUCCESS,
+          rehearsalPackageResult: 'skipped',
+          rehearsalWebsiteResult: 'skipped',
+        },
+        tier: 'full',
+      }),
+    ).not.toThrow()
+  })
+
   it('passes the fast tier when queue-only jobs were skipped', () => {
     expect(() =>
       validatePackageReleaseGate({
@@ -74,8 +87,9 @@ describe('Package Release Gate', () => {
   })
 
   it.each([
-    ['full', 'rehearsalPackageResult', 'skipped', 'package consumer rehearsal'],
     ['full', 'e2eWindowsResult', 'failure', 'Electron E2E (Windows)'],
+    ['full', 'rehearsalPackageResult', 'failure', 'package consumer rehearsal'],
+    ['full', 'rehearsalWebsiteResult', 'cancelled', 'website and docs rehearsal'],
     ['fast', 'e2eMacosResult', 'skipped', 'Electron E2E (macOS)'],
     ['fast', 'candidateResult', 'failure', 'package release candidate'],
     ['fast-no-e2e', 'testUnitResult', 'cancelled', 'unit tests'],

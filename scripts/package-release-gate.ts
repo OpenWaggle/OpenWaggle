@@ -30,6 +30,12 @@ export type PackageReleaseGateResults = Readonly<
 const REQUIRED_JOB_NAMES_BY_TIER: Readonly<
   Record<PackageReleaseGateTier, readonly (keyof PackageReleaseGateResults)[]>
 > = {
+  /*
+   * The rehearsals stay conditional even in the full tier: they are path-scoped, so a
+   * merge result that touches no package or website/docs surfaces legitimately skips
+   * them. A rehearsal that RUNS and fails still fails the gate through the generic
+   * rejected-conclusion check below.
+   */
   full: [
     'commitPolicyResult',
     'checkResult',
@@ -39,8 +45,6 @@ const REQUIRED_JOB_NAMES_BY_TIER: Readonly<
     'e2eMacosResult',
     'e2eLinuxResult',
     'e2eWindowsResult',
-    'rehearsalPackageResult',
-    'rehearsalWebsiteResult',
     'candidateResult',
   ],
   fast: [
