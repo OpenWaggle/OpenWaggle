@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
 import { OpenWaggleApp } from './support/openwaggle-app'
+import { rendererLongTaskBudget } from './support/performance-budgets'
 import { seedSingleSession } from './support/session-fixtures'
 
 const SESSION_TITLE = 'Large diff performance fixture'
@@ -10,20 +11,8 @@ const FILE_COUNT = 80
 const LINES_PER_FILE = 200
 const FIRST_FRAME_BUDGET_MS = 100
 const FIRST_DIFF_BUDGET_MS = 1_500
-const LONG_TASK_BUDGET_MS = 50
-const HOSTED_CI_LONG_TASK_BUDGET_MS = 125
 const OVERSIZED_FILE_LINES = 2_000
 const HIGHLIGHT_TIMEOUT_MS = process.platform === 'win32' ? 60_000 : 30_000
-
-function longTaskBudget() {
-  // PerformanceObserver durations include time when the hidden Electron process is descheduled.
-  // Across exact-head retries, unchanged hosted builds moved 53–101 ms samples between the two
-  // diff fixtures while every functional and worker-isolation assertion passed. Keep the 50 ms
-  // product contract for local performance runs and bound hosted scheduler jitter separately.
-  const isGitHubHostedRunner =
-    process.env.GITHUB_ACTIONS === 'true' && process.env.RUNNER_ENVIRONMENT === 'github-hosted'
-  return isGitHubHostedRunner ? HOSTED_CI_LONG_TASK_BUDGET_MS : LONG_TASK_BUDGET_MS
-}
 
 function initializeRepository(projectPath: string) {
   execFileSync('git', ['init', '-b', 'main'], { cwd: projectPath, stdio: 'ignore' })
@@ -204,7 +193,7 @@ test('a large diff gives immediate feedback and keeps rendering off the main thr
       expect(measurements.readyMs).toBeLessThan(FIRST_DIFF_BUDGET_MS)
     }
     expect(Math.max(0, ...measurements.longTasks)).toBeLessThanOrEqual(
-      longTaskBudget(),
+      rendererLongTaskBudget(),
     )
     expect(measurements.workers).toHaveLength(1)
     expect(measurements.workers[0]).toContain('/assets/worker-')
@@ -277,7 +266,7 @@ test('a single oversized patch is parsed off the renderer thread', async () => {
       ? measurements.workers.filter((url): url is string => typeof url === 'string')
       : []
 
-    expect(Math.max(0, ...longTasks)).toBeLessThanOrEqual(longTaskBudget())
+    expect(Math.max(0, ...longTasks)).toBeLessThanOrEqual(rendererLongTaskBudget())
     expect(workers.some((url) => url.includes('/assets/diff-parser.worker-'))).toBe(true)
     expect(workers.some((url) => url.includes('/assets/worker-'))).toBe(true)
     expect(rendererErrors).toEqual([])

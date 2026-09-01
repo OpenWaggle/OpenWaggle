@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { expect, type Page, test } from '@playwright/test'
 import { OpenWaggleApp } from './support/openwaggle-app'
+import { rendererLongTaskBudget } from './support/performance-budgets'
 import { seedSingleSession } from './support/session-fixtures'
 
 const SESSION_TITLE = 'Workspace review and focused edit fixture'
@@ -21,8 +22,8 @@ function observeRendererErrors(page: Page) {
 
 function sourceSurfaceBudget(localBudgetMs: number) {
   // Hosted runners can deschedule the Electron process for over a second while
-  // parallel jobs compete for CPU. Keep local budgets strict; in CI the 50 ms
-  // long-task assertion below remains the main-thread responsiveness contract.
+  // parallel jobs compete for CPU. Keep local budgets strict; the separately
+  // calibrated long-task assertion below remains the responsiveness contract.
   return process.env.CI ? CI_SOURCE_SURFACE_BUDGET_MS : localBudgetMs
 }
 
@@ -309,7 +310,9 @@ test('workspace files stay review-first, edit reliably on demand, and remain res
       Math.floor(heartbeatSamples.length / 2)
     ]
     expect(medianHeartbeatMs).toBeLessThan(RENDERER_HEARTBEAT_BUDGET_MS)
-    expect(Math.max(0, ...(await observedLongTasks(page)))).toBeLessThanOrEqual(50)
+    expect(Math.max(0, ...(await observedLongTasks(page)))).toBeLessThanOrEqual(
+      rendererLongTaskBudget(),
+    )
 
     await page.getByRole('button', { name: 'Done', exact: true }).click()
     await expect(source).toBeVisible()
@@ -408,7 +411,7 @@ test('a 1 MiB source file paints a skeleton before tokenization and keeps bounde
     expect(sourceTransfers.filter((size) => size === 0).length).toBeGreaterThanOrEqual(4)
 
     const longTasks = await observedLongTasks(page)
-    expect(Math.max(0, ...longTasks)).toBeLessThanOrEqual(50)
+    expect(Math.max(0, ...longTasks)).toBeLessThanOrEqual(rendererLongTaskBudget())
     await expect(page.locator(`[aria-label="Edit ${relativePath}"]`)).toHaveCount(0)
     expect(rendererErrors).toEqual([])
   } finally {
