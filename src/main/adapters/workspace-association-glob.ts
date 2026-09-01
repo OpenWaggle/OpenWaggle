@@ -2,7 +2,7 @@ import { matchBy } from '@diegogbrisa/ts-match'
 
 const CHARACTER_RANGE_END_OFFSET = 2
 const GLOBSTAR_DIRECTORY_END_OFFSET = 2
-const MAX_GLOB_PATTERN_CODE_UNITS = 4_096
+export const MAX_WORKSPACE_ASSOCIATION_GLOB_CODE_UNITS = 4_096
 const SEARCH_PARTITION_COUNT = 2
 
 export interface GlobMatchOperationBudget {
@@ -75,7 +75,7 @@ function characterClassToken(glob: readonly string[], opening: number) {
 }
 
 function globTokens(glob: string): readonly GlobToken[] | null {
-  if (glob.length > MAX_GLOB_PATTERN_CODE_UNITS) return null
+  if (glob.length > MAX_WORKSPACE_ASSOCIATION_GLOB_CODE_UNITS) return null
   const characters = Array.from(glob)
   const tokens: GlobToken[] = []
   for (let index = 0; index < characters.length; index += 1) {

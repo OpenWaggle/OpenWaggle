@@ -51,4 +51,31 @@ describe('workspace entry mutations', () => {
       )
     },
   )
+
+  it.runIf(process.platform !== 'win32').each([
+    ['move', moveWorkspaceEntry],
+    ['duplicate', duplicateWorkspaceEntry],
+  ] as const)(
+    'rejects an overwrite %s into a canonical descendant reached through a symlink',
+    async (operation, mutate) => {
+      await fs.mkdir(path.join(projectPath, 'src', 'child'))
+      await fs.writeFile(path.join(projectPath, 'src', 'child', 'sentinel.txt'), 'preserved')
+      await fs.symlink('src', path.join(projectPath, 'alias'), 'dir')
+
+      await expect(
+        mutate({
+          projectPath,
+          path: 'src',
+          targetPath: 'alias/child',
+          overwrite: true,
+        }),
+      ).rejects.toThrow(
+        `A directory cannot be ${operation === 'move' ? 'moved' : 'duplicated'} inside itself.`,
+      )
+
+      await expect(
+        fs.readFile(path.join(projectPath, 'src', 'child', 'sentinel.txt'), 'utf8'),
+      ).resolves.toBe('preserved')
+    },
+  )
 })

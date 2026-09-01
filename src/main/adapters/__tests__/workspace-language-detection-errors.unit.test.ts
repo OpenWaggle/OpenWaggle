@@ -27,7 +27,14 @@ function filesystemError(code: string) {
 describe('workspace language detection I/O boundaries', () => {
   beforeEach(() => {
     closeMock.mockReset().mockResolvedValue(undefined)
-    handleStatMock.mockReset().mockResolvedValue({ isFile: () => true, mtimeMs: 1, size: 2 })
+    handleStatMock.mockReset().mockResolvedValue({
+      ctimeMs: 1,
+      dev: 1,
+      ino: 1,
+      isFile: () => true,
+      mtimeMs: 1,
+      size: 2,
+    })
     lstatMock.mockReset().mockResolvedValue({ isFile: () => true, isSymbolicLink: () => false })
     openMock.mockReset().mockResolvedValue({
       close: closeMock,
@@ -67,7 +74,14 @@ describe('workspace language detection I/O boundaries', () => {
 
   it('continues bounded reads after a legal short read', async () => {
     const source = JSON.stringify({ 'files.associations': { '*.templ': 'html' } })
-    handleStatMock.mockResolvedValueOnce({ isFile: () => true, mtimeMs: 1, size: source.length })
+    handleStatMock.mockResolvedValueOnce({
+      ctimeMs: 1,
+      dev: 1,
+      ino: 1,
+      isFile: () => true,
+      mtimeMs: 1,
+      size: source.length,
+    })
     readMock.mockImplementation((buffer: Buffer, offset: number, length: number) => {
       const chunk = source.slice(offset, offset + Math.min(length, 7))
       if (!chunk) return Promise.resolve({ bytesRead: 0 })
@@ -81,8 +95,44 @@ describe('workspace language detection I/O boundaries', () => {
     expect(readMock.mock.calls.length).toBeGreaterThan(1)
   })
 
+  it('reloads associations when file identity changes without an mtime change', async () => {
+    const firstSource = JSON.stringify({ 'files.associations': { '*.templ': 'html' } })
+    const secondSource = JSON.stringify({ 'files.associations': { '*.templ': 'json' } })
+    let activeSource = firstSource
+    handleStatMock
+      .mockResolvedValueOnce({
+        ctimeMs: 1,
+        dev: 1,
+        ino: 1,
+        isFile: () => true,
+        mtimeMs: 1,
+        size: firstSource.length,
+      })
+      .mockResolvedValueOnce({
+        ctimeMs: 2,
+        dev: 1,
+        ino: 1,
+        isFile: () => true,
+        mtimeMs: 1,
+        size: secondSource.length,
+      })
+    readMock.mockImplementation((buffer: Buffer, offset: number, length: number) => {
+      const chunk = activeSource.slice(offset, offset + length)
+      if (!chunk) return Promise.resolve({ bytesRead: 0 })
+      buffer.write(chunk, offset)
+      return Promise.resolve({ bytesRead: Buffer.byteLength(chunk) })
+    })
+
+    await expect(vscodeLanguageAssociation('/identity-project', 'page.templ')).resolves.toBe('html')
+    activeSource = secondSource
+    await expect(vscodeLanguageAssociation('/identity-project', 'page.templ')).resolves.toBe('json')
+  })
+
   it('rejects oversized settings before reading their contents', async () => {
     handleStatMock.mockResolvedValueOnce({
+      ctimeMs: 1,
+      dev: 1,
+      ino: 1,
       isFile: () => true,
       mtimeMs: 1,
       size: 1024 * 1024 + 1,
@@ -104,7 +154,14 @@ describe('workspace language detection I/O boundaries', () => {
   })
 
   it('rejects non-regular settings handles before reading', async () => {
-    handleStatMock.mockResolvedValueOnce({ isFile: () => false, mtimeMs: 1, size: 0 })
+    handleStatMock.mockResolvedValueOnce({
+      ctimeMs: 1,
+      dev: 1,
+      ino: 1,
+      isFile: () => false,
+      mtimeMs: 1,
+      size: 0,
+    })
 
     await expect(vscodeLanguageAssociation('/device-project', 'page.templ')).rejects.toThrow(
       'regular non-symlink file',

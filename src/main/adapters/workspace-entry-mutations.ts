@@ -79,6 +79,21 @@ function validateDistinctDestination(input: {
   }
 }
 
+function validateCanonicalDirectoryDestination(input: {
+  readonly operation: 'moved' | 'duplicated'
+  readonly sourcePath: string
+  readonly targetPath: string
+  readonly sourceIsDirectory: boolean
+}) {
+  if (
+    input.sourceIsDirectory &&
+    input.sourcePath !== input.targetPath &&
+    isPathInsideDirectory(input.sourcePath, input.targetPath)
+  ) {
+    throw new Error(`A directory cannot be ${input.operation} inside itself.`)
+  }
+}
+
 export async function createWorkspaceEntry(
   input: WorkspaceEntryCreateInput,
 ): Promise<WorkspaceEntryMutationResult & { readonly projectRoot: string }> {
@@ -110,6 +125,12 @@ export async function moveWorkspaceEntry(
       operation: 'moved',
       sourcePath: source.relativePath,
       targetPath: target.relativePath,
+      sourceIsDirectory: source.stats.isDirectory(),
+    })
+    validateCanonicalDirectoryDestination({
+      operation: 'moved',
+      sourcePath: source.realPath,
+      targetPath: target.targetPath,
       sourceIsDirectory: source.stats.isDirectory(),
     })
     if (await destinationRefersToSource(target.targetPath, source)) {
@@ -161,6 +182,12 @@ export async function duplicateWorkspaceEntry(
       operation: 'duplicated',
       sourcePath: source.relativePath,
       targetPath: target.relativePath,
+      sourceIsDirectory: source.stats.isDirectory(),
+    })
+    validateCanonicalDirectoryDestination({
+      operation: 'duplicated',
+      sourcePath: source.realPath,
+      targetPath: target.targetPath,
       sourceIsDirectory: source.stats.isDirectory(),
     })
     if (await destinationRefersToSource(target.targetPath, source)) {

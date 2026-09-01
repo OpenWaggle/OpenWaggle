@@ -36,6 +36,21 @@ describe('workspace language detection', () => {
     await expect(vscodeLanguageAssociation(projectPath, 'page.templ')).resolves.toBe('html')
   })
 
+  it('rejects oversized raw globs before scanning brace alternatives', async () => {
+    const oversizedPattern = `${'x'.repeat(5_000)}${'{a,b}'.repeat(REPEATED_BRACE_GROUPS)}.never`
+    await fs.writeFile(
+      path.join(projectPath, '.vscode', 'settings.json'),
+      JSON.stringify({
+        'files.associations': {
+          [oversizedPattern]: 'plaintext',
+          '*.templ': 'html',
+        },
+      }),
+    )
+
+    await expect(vscodeLanguageAssociation(projectPath, 'page.templ')).resolves.toBe('html')
+  })
+
   it('shares the brace expansion budget across the complete association scan', async () => {
     const expensiveAssociations = Object.fromEntries(
       Array.from({ length: ASSOCIATION_STRESS_COUNT }, (_, index) => [

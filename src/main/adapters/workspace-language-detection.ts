@@ -4,11 +4,16 @@ import path from 'node:path'
 import { parse } from 'jsonc-parser'
 import {
   type GlobMatchOperationBudget,
+  MAX_WORKSPACE_ASSOCIATION_GLOB_CODE_UNITS,
   matchesWorkspaceAssociationGlob,
 } from './workspace-association-glob'
 
 interface AssociationCacheEntry {
+  readonly changedAt: number
+  readonly device: number
+  readonly inode: number
   readonly modifiedAt: number
+  readonly size: number
   readonly associations: Readonly<Record<string, string>>
 }
 
@@ -49,6 +54,7 @@ function matchesAssociationPattern(
   budget: AssociationMatchBudget,
   expanded = false,
 ): boolean {
+  if (glob.length > MAX_WORKSPACE_ASSOCIATION_GLOB_CODE_UNITS) return false
   const opening = glob.indexOf('{')
   if (opening < 0) return matchesRegularAssociationPattern(glob, candidate, budget, expanded)
   const closing = glob.indexOf('}', opening + 1)
@@ -129,13 +135,28 @@ async function vscodeAssociations(projectRoot: string) {
         throw new Error('VS Code workspace settings are limited to 1 MiB.')
       }
       const cached = associationCache.get(canonicalRoot)
-      if (cached?.modifiedAt === stats.mtimeMs) return cached.associations
+      if (
+        cached?.changedAt === stats.ctimeMs &&
+        cached.device === stats.dev &&
+        cached.inode === stats.ino &&
+        cached.modifiedAt === stats.mtimeMs &&
+        cached.size === stats.size
+      ) {
+        return cached.associations
+      }
       const source = await readBoundedSettings(handle)
       if (source.length > MAX_VSCODE_SETTINGS_BYTES) {
         throw new Error('VS Code workspace settings are limited to 1 MiB.')
       }
       const associations = parsedAssociations(source.toString('utf8'))
-      associationCache.set(canonicalRoot, { modifiedAt: stats.mtimeMs, associations })
+      associationCache.set(canonicalRoot, {
+        associations,
+        changedAt: stats.ctimeMs,
+        device: stats.dev,
+        inode: stats.ino,
+        modifiedAt: stats.mtimeMs,
+        size: stats.size,
+      })
       return associations
     } finally {
       await handle.close()
