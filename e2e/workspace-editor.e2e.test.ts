@@ -415,7 +415,7 @@ test('a 1 MiB source file paints a skeleton before tokenization and keeps bounde
       )
       await scrollSurface.evaluate((element, ratio) => {
         element.scrollTop = element.scrollHeight * ratio
-        element.dispatchEvent(new Event('scroll'))
+        element.dispatchEvent(new Event('scroll', { bubbles: true }))
       }, position)
       await expect
         .poll(async () => (await syntaxSourceTransfers(page)).length)

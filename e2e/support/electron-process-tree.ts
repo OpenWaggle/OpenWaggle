@@ -219,8 +219,10 @@ export async function closeElectronApplication(app: ElectronApplication): Promis
   }
   await reportSurvivorTree(rootPid, descendants, enumerationError)
   await killProcessTree(rootPid, descendants)
-  await closePromise
   await waitForTreeExit(rootPid)
+  // Playwright's close promise can remain pending after an externally terminated Windows
+  // process has already disappeared. The rejection handler above keeps it observed; process-tree
+  // exit is the authoritative teardown boundary after the bounded graceful-close attempt.
 }
 
 /*
