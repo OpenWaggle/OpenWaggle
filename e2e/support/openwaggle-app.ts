@@ -1,6 +1,8 @@
+import { execFile } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { promisify } from 'node:util'
 import { expect, type ElectronApplication, type Page, test } from '@playwright/test'
 import { shouldUseHiddenElectron } from '../../scripts/electron-launch-mode'
 import { launchOpenWaggleElectron } from '../../scripts/playwright-electron-launcher'
@@ -12,6 +14,7 @@ const QA_DIAGNOSTIC_TEXT_LIMIT = 1_000
 const QA_SCREENSHOT_SETTLE_MS = 250
 const QA_GRACEFUL_CLOSE_MS = 10_000
 const QA_FORCED_CLOSE_WAIT_MS = 5_000
+const execFileAsync = promisify(execFile)
 
 async function completesWithin(operation: Promise<unknown>, timeoutMs: number) {
   let timeout: ReturnType<typeof setTimeout> | undefined
@@ -138,7 +141,12 @@ export class OpenWaggleApp {
       evidenceError = error
     } finally {
       await this.closeForCleanup()
-      await fs.rm(this.userDataDir, { recursive: true, force: true })
+      await fs.rm(this.userDataDir, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 250,
+      })
     }
     if (evidenceError !== undefined) {
       console.error('[electron-qa] final screenshot capture failed', evidenceError)
@@ -151,8 +159,25 @@ export class OpenWaggleApp {
     if (await completesWithin(closeOperation, QA_GRACEFUL_CLOSE_MS)) return
 
     console.warn('[electron-qa] graceful close timed out; terminating the temporary test app')
-    this.app.process().kill()
+    await this.terminateProcessTree()
     await completesWithin(closeOperation, QA_FORCED_CLOSE_WAIT_MS)
+  }
+
+  private async terminateProcessTree(): Promise<void> {
+    const childProcess = this.app.process()
+    if (process.platform === 'win32' && childProcess.pid) {
+      const terminated = await execFileAsync('taskkill.exe', [
+        '/PID',
+        String(childProcess.pid),
+        '/T',
+        '/F',
+      ]).then(
+        () => true,
+        () => false,
+      )
+      if (terminated) return
+    }
+    childProcess.kill()
   }
 
   async desktopState() {
