@@ -404,6 +404,9 @@
     border-radius: 0;
     color: inherit;
   }
+  .prose .markdown-code-block {
+    margin-block: 0.85em;
+  }
 
   /* Lists */
   .prose ul {
@@ -578,6 +581,9 @@
     margin: 0.5em 0;
     padding: 0.75em;
     border-radius: 8px;
+  }
+  .prose-user .markdown-code-block {
+    margin-block: 0.5em;
   }
   .prose-user h1,
   .prose-user h2,

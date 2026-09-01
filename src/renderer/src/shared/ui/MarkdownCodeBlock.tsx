@@ -45,7 +45,10 @@ export function MarkdownCodeBlock({
 
   return (
     <div
-      className={cn('group relative rounded-lg border border-border bg-bg-secondary/60', className)}
+      className={cn(
+        'markdown-code-block group relative rounded-lg border border-border bg-bg-secondary/60',
+        className,
+      )}
     >
       <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
         <span className="font-mono text-xs text-text-muted">{language ?? 'text'}</span>
