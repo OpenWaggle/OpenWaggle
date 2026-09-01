@@ -2050,8 +2050,11 @@ export interface OpenWaggleExtensionSyntaxHighlightResult {
     readonly lines: readonly (readonly OpenWaggleExtensionSyntaxToken[])[];
     readonly diagnostic?: string;
 }
+export interface OpenWaggleExtensionSyntaxHighlightOptions {
+    readonly signal?: AbortSignal;
+}
 export interface OpenWaggleExtensionSyntaxSdk {
-    readonly highlight: (input: OpenWaggleExtensionSyntaxHighlightInput) => Promise<OpenWaggleExtensionSyntaxHighlightResult>;
+    readonly highlight: (input: OpenWaggleExtensionSyntaxHighlightInput, options?: OpenWaggleExtensionSyntaxHighlightOptions) => Promise<OpenWaggleExtensionSyntaxHighlightResult>;
 }
 export declare function createPlainExtensionSyntaxResult(input: {
     readonly source: string;
@@ -6553,8 +6556,11 @@ export interface OpenWaggleExtensionSyntaxHighlightResult {
     readonly lines: readonly (readonly OpenWaggleExtensionSyntaxToken[])[];
     readonly diagnostic?: string;
 }
+export interface OpenWaggleExtensionSyntaxHighlightOptions {
+    readonly signal?: AbortSignal;
+}
 export interface OpenWaggleExtensionSyntaxSdk {
-    readonly highlight: (input: OpenWaggleExtensionSyntaxHighlightInput) => Promise<OpenWaggleExtensionSyntaxHighlightResult>;
+    readonly highlight: (input: OpenWaggleExtensionSyntaxHighlightInput, options?: OpenWaggleExtensionSyntaxHighlightOptions) => Promise<OpenWaggleExtensionSyntaxHighlightResult>;
 }
 export declare function createPlainExtensionSyntaxResult(input: {
     readonly source: string;
@@ -9853,8 +9859,11 @@ export interface OpenWaggleExtensionSyntaxHighlightResult {
     readonly lines: readonly (readonly OpenWaggleExtensionSyntaxToken[])[];
     readonly diagnostic?: string;
 }
+export interface OpenWaggleExtensionSyntaxHighlightOptions {
+    readonly signal?: AbortSignal;
+}
 export interface OpenWaggleExtensionSyntaxSdk {
-    readonly highlight: (input: OpenWaggleExtensionSyntaxHighlightInput) => Promise<OpenWaggleExtensionSyntaxHighlightResult>;
+    readonly highlight: (input: OpenWaggleExtensionSyntaxHighlightInput, options?: OpenWaggleExtensionSyntaxHighlightOptions) => Promise<OpenWaggleExtensionSyntaxHighlightResult>;
 }
 export declare function createPlainExtensionSyntaxResult(input: {
     readonly source: string;
