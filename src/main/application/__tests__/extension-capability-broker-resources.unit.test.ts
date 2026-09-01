@@ -163,7 +163,7 @@ describe('extension session resource capability', () => {
         title: 'Release notes',
         kind: 'link',
         role: 'output',
-        locator: 'https://example.com/releases/1',
+        locator: 'HTTPS://EXAMPLE.COM/releases/1',
       },
     })
 
@@ -179,7 +179,10 @@ describe('extension session resource capability', () => {
     })
     expect(second).toMatchObject({ ok: true, value: { sessionId: SESSION_ID } })
     const publications = test.resourceUpserts().filter(({ title }) => title === 'Release notes')
-    expect(publications).toHaveLength(2)
+    expect(publications.map(({ locator }) => locator)).toEqual([
+      'https://example.com/releases/1',
+      'https://example.com/releases/1',
+    ])
     expect(new Set(publications.map(({ occurrence }) => occurrence.id)).size).toBe(1)
     expect(publications.every(({ sessionId }) => sessionId === SessionId(SESSION_ID))).toBe(true)
     expect(publications.every(({ occurrence }) => occurrence.actor === 'extension')).toBe(true)

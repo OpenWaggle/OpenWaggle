@@ -60,6 +60,31 @@ describe('session resource extraction limits', () => {
     ])
   })
 
+  it('normalizes accepted mixed-case HTTP schemes from Markdown and resource links', () => {
+    const extracted = collectExplicitResources([
+      '[Rendered](HTTPS://EXAMPLE.TEST/rendered)',
+      {
+        type: 'resource_link',
+        uri: 'HTTPS://EXAMPLE.TEST/image.png',
+        title: 'Generated image',
+        mimeType: 'image/png',
+      },
+    ])
+
+    expect(extracted.links).toEqual([
+      {
+        url: 'https://example.test/rendered',
+        title: 'https://example.test/rendered',
+        image: false,
+      },
+      {
+        url: 'https://example.test/image.png',
+        title: 'Generated image',
+        image: true,
+      },
+    ])
+  })
+
   it('shares the text-character budget across every string in one payload', () => {
     const extracted = collectExplicitResources({
       first: 'x'.repeat(SESSION_RESOURCE_EXTRACTION_LIMITS.maxTextCharacters),

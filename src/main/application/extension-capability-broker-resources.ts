@@ -62,20 +62,21 @@ function publishResource(
     const repository = yield* SessionResourceRepository
     const sessions = yield* SessionRepository
     const workspace = yield* sessions.getWorkspace(sessionId)
+    const normalizedLocator = new URL(payload.locator).href
     const createdAt = input.timestamp
     const resourceId = randomUUID()
     const resource = yield* repository.upsert({
       id: resourceId,
       sessionId,
-      canonicalKey: `url:${payload.locator}`,
+      canonicalKey: `url:${normalizedLocator}`,
       kind: payload.kind,
       title: payload.title,
       mimeType: null,
-      locator: payload.locator,
+      locator: normalizedLocator,
       managedPath: null,
       available: true,
       occurrence: {
-        id: `extension:${sessionId}:${input.invocation.extensionId}:${input.invocation.contributionId}:${payload.key}:${payload.role}:${payload.locator}`,
+        id: `extension:${sessionId}:${input.invocation.extensionId}:${input.invocation.contributionId}:${payload.key}:${payload.role}:${normalizedLocator}`,
         nodeId: workspace?.activeNodeId ? String(workspace.activeNodeId) : null,
         branchId: workspace?.activeBranchId ? String(workspace.activeBranchId) : null,
         actor: 'extension',

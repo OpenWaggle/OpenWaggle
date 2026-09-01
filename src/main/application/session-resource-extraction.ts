@@ -25,7 +25,7 @@ function supportedHttpUrl(value: string) {
   try {
     const url = new URL(value)
     return (url.protocol === 'http:' || url.protocol === 'https:') && !url.username && !url.password
-      ? value
+      ? url.href
       : null
   } catch {
     return null
@@ -50,14 +50,16 @@ function markdownDefinitions(root: unknown) {
   while (pending.length > 0) {
     const candidate = pending.pop()
     if (!isRecord(candidate)) continue
+    const normalizedUrl =
+      typeof candidate.url === 'string' && HTTP_URL_PATTERN.test(candidate.url)
+        ? supportedHttpUrl(candidate.url)
+        : null
     if (
       candidate.type === 'definition' &&
       typeof candidate.identifier === 'string' &&
-      typeof candidate.url === 'string' &&
-      HTTP_URL_PATTERN.test(candidate.url) &&
-      supportedHttpUrl(candidate.url)
+      normalizedUrl
     ) {
-      definitions.set(candidate.identifier, candidate.url)
+      definitions.set(candidate.identifier, normalizedUrl)
     }
     enqueueMarkdownChildren(candidate, pending)
   }
@@ -75,10 +77,12 @@ function capturedMarkdownLink(
     : reference && typeof candidate.identifier === 'string'
       ? definitions.get(candidate.identifier)
       : null
-  if (typeof url !== 'string' || !HTTP_URL_PATTERN.test(url) || !supportedHttpUrl(url)) return null
+  if (typeof url !== 'string' || !HTTP_URL_PATTERN.test(url)) return null
+  const normalizedUrl = supportedHttpUrl(url)
+  if (!normalizedUrl) return null
   return {
-    url,
-    title: url,
+    url: normalizedUrl,
+    title: normalizedUrl,
     image: candidate.type === 'image' || candidate.type === 'imageReference',
   }
 }
