@@ -4,6 +4,7 @@ import type {
   BrowserWindowConstructorOptions,
   MessageBoxOptions,
   OpenDialogOptions,
+  SaveDialogOptions,
   WebContents,
 } from 'electron'
 import * as Electron from 'electron'
@@ -139,4 +140,10 @@ export function showOpenDialog(ownerWindow: BaseWindow | null, options: OpenDial
   return ownerWindow
     ? Electron.dialog.showOpenDialog(ownerWindow, options)
     : Electron.dialog.showOpenDialog(options)
+}
+
+export function showSaveDialog(ownerWindow: BaseWindow | null, options: SaveDialogOptions) {
+  return ownerWindow
+    ? Electron.dialog.showSaveDialog(ownerWindow, options)
+    : Electron.dialog.showSaveDialog(options)
 }

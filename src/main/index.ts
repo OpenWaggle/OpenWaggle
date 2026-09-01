@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import { electronApp, is } from '@electron-toolkit/utils'
 import { app } from 'electron'
 import { completeAppRuntimeShutdown } from './application/app-runtime-shutdown'
+import { readInlineVisualizationSource } from './application/inline-visualization-source-service'
 import { installDevToolsShortcut } from './application-menu'
 import { createBrowserWindow, getAllBrowserWindows, isAutomationMode } from './desktop-ui'
 import {
@@ -15,9 +16,12 @@ import { describeError } from './error-description'
 import { registerExtensionFrameProtocolOnce } from './extension-frame-protocol'
 import { registerExtensionRuntimeProtocolOnce } from './extension-runtime-protocol'
 import { openExternalFromRenderer } from './external-navigation'
+import { installInlineVisualizationNavigationGuard } from './inline-visualization-navigation'
+import { registerInlineVisualizationProtocolOnce } from './inline-visualization-protocol'
 import { createLogger, initFileLogger } from './logger'
 import { startMcpCliIfRequested } from './mcp-cli-entry'
 import {
+  configureInlineVisualizationProcessIsolation,
   devRendererUrl,
   INDEX_HTML,
   isTrustedRendererRequest,
@@ -54,6 +58,7 @@ type AgentHandlerModule = Awaited<ReturnType<typeof importAgentHandlerModule>>
 type IpcHandlersModule = Awaited<ReturnType<typeof importIpcHandlersModule>>
 type RuntimeModule = Awaited<ReturnType<typeof importRuntimeModule>>
 
+configureInlineVisualizationProcessIsolation()
 registerRendererScheme()
 
 const appIconPath = is.dev
@@ -166,6 +171,9 @@ async function bootstrapServicesAndWindow() {
   registerRendererProtocolOnce()
   registerExtensionFrameProtocolOnce()
   registerExtensionRuntimeProtocolOnce()
+  registerInlineVisualizationProtocolOnce({
+    readSource: (input) => runtimeModule.runAppEffect(readInlineVisualizationSource(input)),
+  })
   startupMark('protocol-handlers-registered')
 
   createWindow()
@@ -227,6 +235,7 @@ function createWindow() {
       openExternalFromRenderer(url)
     }
   })
+  installInlineVisualizationNavigationGuard(mainWindow.webContents)
 
   const mediaPermissions = new Set(['media', 'microphone'])
   mainWindow.webContents.session.setPermissionCheckHandler(

@@ -7,7 +7,95 @@ import {
   CONTENT_SECURITY_POLICY,
   installCspHeaders,
   SECURE_WEB_PREFERENCES,
+  shouldBlockInlineVisualizationDocumentRequest,
+  shouldBlockInlineVisualizationFrameNavigation,
 } from '../electron-security'
+
+describe('shouldBlockInlineVisualizationFrameNavigation', () => {
+  it('blocks self-navigation initiated by an inline visualization frame', () => {
+    expect(
+      shouldBlockInlineVisualizationFrameNavigation({
+        isMainFrame: false,
+        initiatorUrl:
+          'openwaggle-visualization://frame-a/document?sessionId=s1&path=%2Frepo%2Fmap.html',
+      }),
+    ).toBe(true)
+  })
+
+  it('blocks navigation from a frame previously committed as a visualization', () => {
+    expect(
+      shouldBlockInlineVisualizationFrameNavigation({
+        isMainFrame: false,
+        frameIsVisualization: true,
+      }),
+    ).toBe(true)
+  })
+
+  it('blocks a committed visualization frame from leaving its document URL', () => {
+    expect(
+      shouldBlockInlineVisualizationFrameNavigation({
+        isMainFrame: false,
+        destinationUrl: 'https://example.com/escape',
+        frameUrl: 'openwaggle-visualization://frame-a/document',
+      }),
+    ).toBe(true)
+  })
+
+  it('does not interfere with main-frame or unrelated extension navigation', () => {
+    expect(
+      shouldBlockInlineVisualizationFrameNavigation({
+        isMainFrame: true,
+        initiatorUrl: 'openwaggle-visualization://frame-a/document',
+      }),
+    ).toBe(false)
+    expect(
+      shouldBlockInlineVisualizationFrameNavigation({
+        isMainFrame: false,
+        initiatorUrl: 'openwaggle-extension-frame://frame/index.html',
+      }),
+    ).toBe(false)
+  })
+
+  it('allows initial host navigation into a visualization frame', () => {
+    expect(
+      shouldBlockInlineVisualizationFrameNavigation({
+        isMainFrame: false,
+        destinationUrl: 'openwaggle-visualization://frame-a/document',
+        frameUrl: 'openwaggle-visualization://frame-a/document',
+        initiatorUrl: 'openwaggle://app/index.html',
+      }),
+    ).toBe(false)
+  })
+})
+
+describe('shouldBlockInlineVisualizationDocumentRequest', () => {
+  it('blocks a visualization subframe from replacing itself with another document', () => {
+    expect(
+      shouldBlockInlineVisualizationDocumentRequest({
+        resourceType: 'subFrame',
+        requestUrl: 'https://example.com/escape',
+        frameUrl: 'openwaggle-visualization://frame-a/document',
+      }),
+    ).toBe(true)
+  })
+
+  it('allows the initial visualization request and non-document resources', () => {
+    expect(
+      shouldBlockInlineVisualizationDocumentRequest({
+        resourceType: 'subFrame',
+        requestUrl: 'openwaggle-visualization://frame-a/document',
+        frameUrl: '',
+      }),
+    ).toBe(false)
+    expect(
+      shouldBlockInlineVisualizationDocumentRequest({
+        resourceType: 'script',
+        requestUrl: 'openwaggle-visualization://frame-a/lucide.js',
+        frameUrl: 'openwaggle-visualization://frame-a/document',
+      }),
+    ).toBe(false)
+  })
+})
 
 function createSecurePreferences() {
   return {
@@ -179,5 +267,27 @@ describe('installCspHeaders', () => {
     )
 
     expect(callback).toHaveBeenCalledWith({ responseHeaders: frameHeaders })
+  })
+
+  it('preserves the stricter inline visualization protocol CSP response', () => {
+    const onHeadersReceived = vi.fn()
+    const callback = vi.fn()
+    const visualizationHeaders = {
+      'Content-Security-Policy': ["default-src 'none'; connect-src blob: data:"],
+    }
+    const session = { webRequest: { onHeadersReceived } }
+
+    installCspHeaders(session)
+    const handler = onHeadersReceived.mock.calls[0]?.[0]
+    if (typeof handler !== 'function') throw new Error('Expected CSP headers handler.')
+    handler(
+      {
+        url: 'openwaggle-visualization://sandbox/document?sessionId=session-1',
+        responseHeaders: visualizationHeaders,
+      },
+      callback,
+    )
+
+    expect(callback).toHaveBeenCalledWith({ responseHeaders: visualizationHeaders })
   })
 })
