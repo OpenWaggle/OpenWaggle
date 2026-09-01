@@ -60,6 +60,9 @@ function validateDistinctDestination(input: {
   readonly sourceIsDirectory: boolean
 }) {
   if (input.sourcePath === input.targetPath) throw new Error('Choose a different destination path.')
+  if (input.sourcePath.startsWith(`${input.targetPath}/`)) {
+    throw new Error('The destination cannot contain the source entry.')
+  }
   if (input.sourceIsDirectory && input.targetPath.startsWith(`${input.sourcePath}/`)) {
     throw new Error(`A directory cannot be ${input.operation} inside itself.`)
   }

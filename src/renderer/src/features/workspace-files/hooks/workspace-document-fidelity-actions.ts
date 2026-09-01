@@ -28,6 +28,7 @@ export async function normalizeWorkspaceLineEndings(
     expectedRevision: context.revision.current,
     baseVersion: context.persistedVersion.current,
     normalizeLineEnding: lineEnding,
+    targetEncoding: context.file.fidelity.encoding,
     batches: [
       {
         version,

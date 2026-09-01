@@ -8,6 +8,7 @@ interface AssociationCacheEntry {
 }
 
 const associationCache = new Map<string, AssociationCacheEntry>()
+const GLOBSTAR_DIRECTORY_END_OFFSET = 2
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -23,8 +24,13 @@ function globRegularExpression(glob: string) {
     const character = glob[index]
     if (character === '*') {
       if (glob[index + 1] === '*') {
-        pattern += '.*'
-        index += 1
+        if (glob[index + GLOBSTAR_DIRECTORY_END_OFFSET] === '/') {
+          pattern += '(?:.*/)?'
+          index += GLOBSTAR_DIRECTORY_END_OFFSET
+        } else {
+          pattern += '.*'
+          index += 1
+        }
       } else {
         pattern += '[^/]*'
       }

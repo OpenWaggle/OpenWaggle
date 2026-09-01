@@ -83,4 +83,42 @@ describe('WorkspaceFileEditor line-ending normalization', () => {
       }),
     )
   })
+
+  it('preserves the detected encoding when normalizing line endings', async () => {
+    applyWorkspaceDocumentEditsMock.mockResolvedValueOnce({
+      status: 'saved',
+      version: 1,
+      size: 44,
+      modifiedAt: 2,
+      revision: 'revision-2',
+      encoding: 'utf-16le',
+      lineEnding: 'lf',
+    })
+    renderWithQueryClient(
+      <WorkspaceFileEditor
+        projectPath="/project"
+        file={{
+          ...mixedLineEndingsFile,
+          fidelity: {
+            ...mixedLineEndingsFile.fidelity,
+            encoding: 'utf-16le',
+            editorConfigPolicy: { encoding: 'utf-8' },
+          },
+        }}
+        targetLine={null}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Normalize to LF' }))
+
+    await waitFor(() =>
+      expect(applyWorkspaceDocumentEditsMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          normalizeLineEnding: 'lf',
+          targetEncoding: 'utf-16le',
+        }),
+      ),
+    )
+  })
 })

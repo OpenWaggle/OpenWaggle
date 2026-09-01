@@ -136,6 +136,7 @@ describe('FilesystemWorkspaceFileLive', () => {
         // Keep the standard users already configured in VS Code.
         "files.associations": {
           "*.theme": "typescript",
+          "**/*.templ": "html",
           "config/*.conf": "toml",
           "*.{spec,test}": "javascript"
         }
@@ -144,6 +145,8 @@ describe('FilesystemWorkspaceFileLive', () => {
     await fs.mkdir(path.join(projectPath, 'config'), { recursive: true })
     await fs.writeFile(path.join(projectPath, 'src', 'ocean.theme'), 'export const blue = true\n')
     await fs.writeFile(path.join(projectPath, 'src', 'math.spec'), 'export const sum = 2\n')
+    await fs.writeFile(path.join(projectPath, 'page.templ'), '<main>Root</main>\n')
+    await fs.writeFile(path.join(projectPath, 'src', 'page.templ'), '<main>Nested</main>\n')
     await fs.writeFile(path.join(projectPath, 'config', 'app.conf'), 'enabled = true\n')
 
     const theme = await runWithWorkspaceFiles((service) =>
@@ -155,10 +158,18 @@ describe('FilesystemWorkspaceFileLive', () => {
     const testFile = await runWithWorkspaceFiles((service) =>
       service.readFile({ projectPath, path: 'src/math.spec' }),
     )
+    const rootTemplate = await runWithWorkspaceFiles((service) =>
+      service.readFile({ projectPath, path: 'page.templ' }),
+    )
+    const nestedTemplate = await runWithWorkspaceFiles((service) =>
+      service.readFile({ projectPath, path: 'src/page.templ' }),
+    )
 
     expect(theme).toMatchObject({ previewKind: 'text', language: 'typescript' })
     expect(config).toMatchObject({ previewKind: 'text', language: 'toml' })
     expect(testFile).toMatchObject({ previewKind: 'text', language: 'javascript' })
+    expect(rootTemplate).toMatchObject({ previewKind: 'text', language: 'html' })
+    expect(nestedTemplate).toMatchObject({ previewKind: 'text', language: 'html' })
   })
 
   it('infers extensionless scripts from their shebang', async () => {
