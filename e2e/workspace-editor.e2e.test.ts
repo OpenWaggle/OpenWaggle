@@ -353,6 +353,7 @@ test('a 1 MiB source file paints a skeleton before tokenization and keeps bounde
       messages: [],
     })
     await app.restart()
+    await app.setRendererBackgroundThrottling(false)
 
     const { page } = app.mainWindow()
     const rendererErrors = observeRendererErrors(page)
