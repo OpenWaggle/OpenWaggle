@@ -64,7 +64,7 @@ function exposePiRunControl(
   model: PiModel,
   session: AgentSession,
 ) {
-  input.onControlAvailable?.(createPiRunControl(session, model))
+  input.onControlAvailable?.(createPiRunControl(session, input.signal))
   return { model, session }
 }
 

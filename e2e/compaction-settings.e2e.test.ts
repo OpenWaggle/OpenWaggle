@@ -138,6 +138,7 @@ test('automatic compaction stays in the transcript and defers explicit steering 
     ])
     await app.restart()
     await app.installAgentSendProbe()
+    await app.installAgentSteerProbe()
     await app.mainWindow().openThread(COMPACTION_TIMELINE_THREAD_TITLE)
 
     const runtime = await app.mainWindow().page.evaluate(async (title) => {
@@ -182,6 +183,30 @@ test('automatic compaction stays in the transcript and defers explicit steering 
     await expect(page.getByRole('log').getByText('continue', { exact: true })).toBeVisible()
     await expect(page.getByText('Will send after compaction')).toBeVisible()
     await expect(page.getByText('Queued', { exact: true })).toHaveCount(0)
+    await expect.poll(() => app.readAgentSteerProbe()).toMatchObject({
+      received: [{ sessionId: runtime.sessionId, payload: { text: 'continue' } }],
+      delivered: [],
+    })
+
+    await app.emitAgentEvent({
+      sessionId: runtime.sessionId,
+      event: {
+        type: 'compaction_end',
+        reason: 'threshold',
+        result: { summary: 'Kept the active task context.', tokensBefore: 1000 },
+        aborted: false,
+        willRetry: false,
+        timestamp: Date.now(),
+        model: runtime.model,
+      },
+    })
+    await app.releaseAgentSteerProbe()
+
+    await expect.poll(() => app.readAgentSteerProbe()).toMatchObject({
+      received: [{ sessionId: runtime.sessionId, payload: { text: 'continue' } }],
+      delivered: [{ sessionId: runtime.sessionId, payload: { text: 'continue' } }],
+    })
+    await expect(page.getByText('Will send after compaction')).toHaveCount(0)
   } finally {
     await app.cleanup()
   }

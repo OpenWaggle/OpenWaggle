@@ -1,21 +1,18 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage, UIMessageMetadata } from '@shared/types/chat-ui'
-import { useState } from 'react'
+import { useEffect } from 'react'
+import {
+  type OptimisticSteerPreview,
+  selectOptimisticSteerPreviews,
+  useOptimisticSteerStore,
+} from '@/features/chat/state'
 
 export type SteerDeliveryState = NonNullable<UIMessageMetadata['steerDelivery']>
 
 export interface OptimisticSteerPreviewController {
   readonly clear: () => void
   readonly setDeliveryState: (state: SteerDeliveryState) => void
-}
-
-interface OptimisticSteeredUserTurn {
-  readonly id: string
-  readonly content: string
-  readonly baselineLength: number
-  readonly message: UIMessage
-  readonly durableMessageId?: string
 }
 
 interface OptimisticSteeredTurnReturn {
@@ -37,19 +34,9 @@ export function useOptimisticSteeredTurn(
   buildClientUserMessage: (payload: AgentSendPayload) => string,
   messagesRef: React.RefObject<UIMessage[]>,
 ): OptimisticSteeredTurnReturn {
-  const [optimisticSteeredUserTurns, setOptimisticSteeredUserTurns] = useState<
-    OptimisticSteeredUserTurn[]
-  >([])
-
-  // Both clears below adjust state during render (the React-recommended
-  // prev-value comparison) rather than in an effect. Routing them through an
-  // effect commits one render showing the stale optimistic turn first
-  // (react-doctor/no-adjust-state-on-prop-change).
-  const [previousSessionId, setPreviousSessionId] = useState(sessionId)
-  if (previousSessionId !== sessionId) {
-    setPreviousSessionId(sessionId)
-    setOptimisticSteeredUserTurns([])
-  }
+  const optimisticSteeredUserTurns = useOptimisticSteerStore(
+    selectOptimisticSteerPreviews(sessionId),
+  )
 
   // Clear optimistic turns as their real steered user messages arrive during
   // the active turn. Native steering does not wait for the session to become idle.
@@ -58,9 +45,19 @@ export function useOptimisticSteeredTurn(
     const match = matchedOptimisticTurns.get(turn.id)
     return match && !turn.durableMessageId ? { ...turn, durableMessageId: match.messageId } : turn
   })
-  if (reconciledOptimisticTurns.some((turn, index) => turn !== optimisticSteeredUserTurns[index])) {
-    setOptimisticSteeredUserTurns(reconciledOptimisticTurns)
-  }
+  const allOptimisticTurnsAreDurable =
+    reconciledOptimisticTurns.length > 0 &&
+    reconciledOptimisticTurns.every((turn) => turn.durableMessageId !== undefined)
+  const hasNewDurableMatch = reconciledOptimisticTurns.some(
+    (turn, index) => turn !== optimisticSteeredUserTurns[index],
+  )
+  useEffect(() => {
+    if (!sessionId) return
+    if (!allOptimisticTurnsAreDurable && !hasNewDurableMatch) return
+    useOptimisticSteerStore
+      .getState()
+      .reconcile(sessionId, reconciledOptimisticTurns, allOptimisticTurnsAreDurable)
+  }, [allOptimisticTurnsAreDurable, hasNewDurableMatch, reconciledOptimisticTurns, sessionId])
 
   const visibleMessages = insertOptimisticSteeredUserTurn(
     hydratedMessages,
@@ -72,32 +69,22 @@ export function useOptimisticSteeredTurn(
     previewSteeredUserTurn: (payload: AgentSendPayload, deliveryState: SteerDeliveryState) => {
       const content = buildClientUserMessage(payload)
       const optimisticTurnId = createOptimisticTurnId()
-      setOptimisticSteeredUserTurns((current) => [
-        ...current,
-        {
-          id: optimisticTurnId,
-          content,
-          baselineLength: messagesRef.current.length,
-          message: createOptimisticUserMessage(content, optimisticTurnId, deliveryState),
-        },
-      ])
+      if (!sessionId) return { clear: () => undefined, setDeliveryState: () => undefined }
+      useOptimisticSteerStore.getState().add(sessionId, {
+        id: optimisticTurnId,
+        content,
+        baselineLength: messagesRef.current.length,
+        message: createOptimisticUserMessage(content, optimisticTurnId, deliveryState),
+      })
       return {
         clear: () => {
-          setOptimisticSteeredUserTurns((current) =>
-            current.filter((turn) => turn.id !== optimisticTurnId),
-          )
+          useOptimisticSteerStore.getState().remove(sessionId, optimisticTurnId)
         },
         setDeliveryState: (state: SteerDeliveryState) => {
-          setOptimisticSteeredUserTurns((current) =>
-            current.map((turn) =>
-              turn.id === optimisticTurnId
-                ? {
-                    ...turn,
-                    message: { ...turn.message, metadata: { steerDelivery: state } },
-                  }
-                : turn,
-            ),
-          )
+          useOptimisticSteerStore.getState().update(sessionId, optimisticTurnId, (turn) => ({
+            ...turn,
+            message: { ...turn.message, metadata: { steerDelivery: state } },
+          }))
         },
       }
     },
@@ -138,16 +125,42 @@ function getUIMessageText(message: UIMessage) {
     .join('\n\n')
 }
 
+function indexSteerCandidateMessages(messages: UIMessage[]) {
+  const messageIndexById = new Map(messages.map((message, index) => [message.id, index]))
+  const userMessageIndexesByContent = new Map<string, number[]>()
+  for (const [index, message] of messages.entries()) {
+    if (message.role !== 'user') continue
+    const content = getUIMessageText(message)
+    const indexes = userMessageIndexesByContent.get(content) ?? []
+    indexes.push(index)
+    userMessageIndexesByContent.set(content, indexes)
+  }
+  return { messageIndexById, userMessageIndexesByContent }
+}
+
+function firstAvailableMessageIndex(
+  candidates: readonly number[],
+  baselineLength: number,
+  consumedMessageIndexes: ReadonlySet<number>,
+) {
+  return candidates.find(
+    (candidateIndex) =>
+      candidateIndex >= baselineLength && !consumedMessageIndexes.has(candidateIndex),
+  )
+}
+
 function matchSteeredUserTurns(
   messages: UIMessage[],
-  optimisticSteeredUserTurns: readonly OptimisticSteeredUserTurn[],
+  optimisticSteeredUserTurns: readonly OptimisticSteerPreview[],
 ): ReadonlyMap<string, { readonly index: number | null; readonly messageId: string }> {
   const matches = new Map<string, { readonly index: number | null; readonly messageId: string }>()
+  if (optimisticSteeredUserTurns.length === 0) return matches
   const consumedMessageIndexes = new Set<number>()
+  const { messageIndexById, userMessageIndexesByContent } = indexSteerCandidateMessages(messages)
 
   for (const turn of optimisticSteeredUserTurns) {
     if (!turn.durableMessageId) continue
-    const durableIndex = messages.findIndex((message) => message.id === turn.durableMessageId)
+    const durableIndex = messageIndexById.get(turn.durableMessageId) ?? -1
     if (durableIndex >= 0) consumedMessageIndexes.add(durableIndex)
     matches.set(turn.id, {
       index: durableIndex >= 0 ? durableIndex : null,
@@ -157,14 +170,12 @@ function matchSteeredUserTurns(
 
   for (const turn of optimisticSteeredUserTurns) {
     if (turn.durableMessageId) continue
-    const matchingIndex = messages.findIndex(
-      (message, index) =>
-        index >= turn.baselineLength &&
-        !consumedMessageIndexes.has(index) &&
-        message.role === 'user' &&
-        getUIMessageText(message) === turn.content,
+    const matchingIndex = firstAvailableMessageIndex(
+      userMessageIndexesByContent.get(turn.content) ?? [],
+      turn.baselineLength,
+      consumedMessageIndexes,
     )
-    if (matchingIndex < 0) continue
+    if (matchingIndex === undefined) continue
     const matchingMessage = messages[matchingIndex]
     if (!matchingMessage) continue
     matches.set(turn.id, { index: matchingIndex, messageId: matchingMessage.id })
@@ -176,7 +187,7 @@ function matchSteeredUserTurns(
 
 function insertOptimisticSteeredUserTurn(
   messages: UIMessage[],
-  optimisticSteeredUserTurns: readonly OptimisticSteeredUserTurn[],
+  optimisticSteeredUserTurns: readonly OptimisticSteerPreview[],
 ): UIMessage[] {
   if (optimisticSteeredUserTurns.length === 0) {
     return messages

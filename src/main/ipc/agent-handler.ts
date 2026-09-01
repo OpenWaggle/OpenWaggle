@@ -26,7 +26,6 @@ import {
   cancelAgentLoopInteractionsForRun,
   submitAgentLoopInteractionResponse,
 } from '../application/agent-loop-interaction-broker'
-import { hydrateAgentRunPayload } from '../application/agent-run/kernel'
 import { executeAgentRun } from '../application/agent-run-service'
 import { compactAgentSession, getAgentContextUsage } from '../application/agent-session-service'
 import { findWaggleHandoffRequest } from '../application/waggle-handoff'
@@ -52,6 +51,7 @@ import {
   hasAnyActiveRun,
 } from './active-agent-runs'
 import { describeSendOutcome, handleRunResult } from './agent-run-result'
+import { registerAgentSteeringHandler } from './agent-steering-handler'
 import { runAgentRequestedWaggle } from './agent-waggle-handoff'
 import { emitErrorAndFinish } from './run-handler-utils'
 import { typedHandle } from './typed-ipc'
@@ -92,9 +92,11 @@ function registerAgentRunHandlers() {
         const abortController = new AbortController()
         const runId = randomUUID()
         const controlRef: { current: AgentKernelRunControl | null } = { current: null }
+        const steerTailRef: { current: Promise<void> } = { current: Promise.resolve() }
         activeRuns.register(sessionId, abortController, {
           model,
           controlRef,
+          steerTailRef,
         })
 
         startStreamBuffer(sessionId, model, 'classic')
@@ -127,13 +129,17 @@ function registerAgentRunHandlers() {
           const handoff =
             result.outcome === 'success' ? findWaggleHandoffRequest(result.newMessages) : null
           if (handoff && !abortController.signal.aborted) {
-            activeWaggleRuns.register(sessionId, abortController, {})
+            controlRef.current = null
+            activeWaggleRuns.register(sessionId, abortController, { controlRef, steerTailRef })
             yield* runAgentRequestedWaggle({
               sessionId,
               handoff,
               model,
               thinkingLevel: validatedPayload.thinkingLevel,
               abortController,
+              onControlAvailable: (control) => {
+                if (activeRuns.isCurrent(sessionId, abortController)) controlRef.current = control
+              },
             }).pipe(
               Effect.tapError((error) =>
                 Effect.sync(() => {
@@ -279,29 +285,12 @@ function registerAgentCompactionHandlers() {
   )
 }
 
-function registerAgentSteeringHandlers() {
-  typedHandle('agent:steer', (_event, sessionId: SessionId, payload: AgentSendPayload) =>
-    Effect.gen(function* () {
-      const validatedPayload = toAgentSendPayload(
-        decodeUnknownOrThrow(agentSendPayloadSchema, payload),
-      )
-      const control = activeRuns.get(sessionId)?.metadata.controlRef?.current
-      if (!control) {
-        return yield* Effect.fail(new Error('The active agent run is not ready for steering.'))
-      }
-      const hydratedPayload = yield* hydrateAgentRunPayload(validatedPayload)
-      yield* Effect.promise(() => control.steer(hydratedPayload))
-      return { preserved: true }
-    }),
-  )
-}
-
 export function registerAgentHandlers(): void {
   registerAgentRunHandlers()
   registerAgentInteractionHandlers()
   registerAgentStateHandlers()
   registerAgentCompactionHandlers()
-  registerAgentSteeringHandlers()
+  registerAgentSteeringHandler()
 }
 
 /** Exposed for tests: the reporting rule decides whether a caller keeps a submitted review. */

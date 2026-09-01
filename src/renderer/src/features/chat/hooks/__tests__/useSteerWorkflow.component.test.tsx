@@ -35,16 +35,26 @@ function createDeps(isCompacting: boolean) {
   }
 }
 
+function deferredPromise() {
+  let resolve!: () => void
+  const promise = new Promise<void>((settle) => {
+    resolve = settle
+  })
+  return { promise, resolve }
+}
+
 describe('useSteerWorkflow', () => {
   beforeEach(() => {
     useMessageQueueStore.setState({ queues: new Map() })
   })
 
-  it('previews an explicit steer during compaction and delivers it only after compaction', async () => {
+  it('hands an explicit steer to main during compaction and keeps its preview pending', async () => {
     useMessageQueueStore.getState().enqueue(SESSION_ID, PAYLOAD)
     const queued = useMessageQueueStore.getState().queues.get(SESSION_ID)?.[0]
     if (!queued) throw new Error('Expected queued message')
     const setup = createDeps(true)
+    const delivery = deferredPromise()
+    setup.deps.steer.mockReturnValueOnce(delivery.promise)
     const { result, rerender } = renderHook(
       ({ isCompacting }) =>
         useSteerWorkflow({
@@ -54,8 +64,9 @@ describe('useSteerWorkflow', () => {
       { initialProps: { isCompacting: true } },
     )
 
-    await act(async () => {
-      await result.current.handleSteer(queued.id)
+    let steerPromise!: Promise<void>
+    act(() => {
+      steerPromise = result.current.handleSteer(queued.id)
     })
 
     expect(useMessageQueueStore.getState().queues.get(SESSION_ID) ?? []).toHaveLength(0)
@@ -63,12 +74,40 @@ describe('useSteerWorkflow', () => {
       PAYLOAD,
       'waiting-for-compaction',
     )
-    expect(setup.deps.steer).not.toHaveBeenCalled()
+    expect(setup.deps.steer).toHaveBeenCalledWith(PAYLOAD)
+    expect(result.current.isSteering).toBe(true)
 
     rerender({ isCompacting: false })
 
-    await waitFor(() => expect(setup.deps.steer).toHaveBeenCalledWith(PAYLOAD))
-    expect(setup.preview.setDeliveryState).toHaveBeenCalledWith('sending')
+    await act(async () => {
+      delivery.resolve()
+      await steerPromise
+    })
+    await waitFor(() => expect(setup.preview.setDeliveryState).toHaveBeenCalledWith('sending'))
+    expect(result.current.isSteering).toBe(false)
+  })
+
+  it('does not lose an in-flight steer when the chat surface unmounts', async () => {
+    useMessageQueueStore.getState().enqueue(SESSION_ID, PAYLOAD)
+    const queued = useMessageQueueStore.getState().queues.get(SESSION_ID)?.[0]
+    if (!queued) throw new Error('Expected queued message')
+    const setup = createDeps(true)
+    const delivery = deferredPromise()
+    setup.deps.steer.mockReturnValueOnce(delivery.promise)
+    const { result, unmount } = renderHook(() => useSteerWorkflow(setup.deps))
+
+    let steerPromise!: Promise<void>
+    act(() => {
+      steerPromise = result.current.handleSteer(queued.id)
+    })
+    unmount()
+
+    expect(setup.deps.steer).toHaveBeenCalledWith(PAYLOAD)
+    await act(async () => {
+      delivery.resolve()
+      await steerPromise
+    })
+    expect(useMessageQueueStore.getState().queues.get(SESSION_ID) ?? []).toHaveLength(0)
   })
 
   it('delivers an explicit steer immediately when compaction is not running', async () => {
@@ -86,9 +125,14 @@ describe('useSteerWorkflow', () => {
     expect(setup.deps.steer).toHaveBeenCalledWith(PAYLOAD)
   })
 
-  it('restores the queued message and clears its preview when native steer fails', async () => {
+  it('restores the exact queued message at its original position when native steer fails', async () => {
+    const before = { ...PAYLOAD, text: 'before' }
+    const after = { ...PAYLOAD, text: 'after' }
+    useMessageQueueStore.getState().enqueue(SESSION_ID, before)
     useMessageQueueStore.getState().enqueue(SESSION_ID, PAYLOAD)
-    const queued = useMessageQueueStore.getState().queues.get(SESSION_ID)?.[0]
+    useMessageQueueStore.getState().enqueue(SESSION_ID, after)
+    const original = useMessageQueueStore.getState().queues.get(SESSION_ID)
+    const queued = original?.[1]
     if (!queued) throw new Error('Expected queued message')
     const setup = createDeps(false)
     setup.deps.steer.mockRejectedValueOnce(new Error('steer unavailable'))
@@ -99,7 +143,7 @@ describe('useSteerWorkflow', () => {
     })
 
     expect(setup.preview.clear).toHaveBeenCalledOnce()
-    expect(useMessageQueueStore.getState().queues.get(SESSION_ID)?.[0]?.payload).toEqual(PAYLOAD)
+    expect(useMessageQueueStore.getState().queues.get(SESSION_ID)).toEqual(original)
     expect(setup.deps.showToast).toHaveBeenCalled()
   })
 })

@@ -3,14 +3,20 @@ import type { SupportedModelId } from '@shared/types/llm'
 import type { AgentKernelRunControl } from '../ports/agent-kernel-service'
 import { ActiveRunManager } from './active-run-manager'
 
-interface AgentRunMetadata {
-  readonly model: SupportedModelId
-  readonly controlRef?: { current: AgentKernelRunControl | null }
+export interface AgentRunControlMetadata {
+  readonly controlRef: { current: AgentKernelRunControl | null }
+  readonly steerTailRef: { current: Promise<void> }
 }
 
+interface AgentModelMetadata {
+  readonly model: SupportedModelId
+}
+
+interface AgentRunMetadata extends AgentModelMetadata, AgentRunControlMetadata {}
+
 const activeRuns = new ActiveRunManager<SessionId, AgentRunMetadata>()
-const activeCompactions = new ActiveRunManager<SessionId, AgentRunMetadata>()
-const activeWaggleRuns = new ActiveRunManager<SessionId, Record<string, never>>()
+const activeCompactions = new ActiveRunManager<SessionId, AgentModelMetadata>()
+const activeWaggleRuns = new ActiveRunManager<SessionId, AgentRunControlMetadata>()
 const ACTIVE_RUN_POLL_INTERVAL_MS = 50
 
 export { activeCompactions, activeRuns, activeWaggleRuns }

@@ -4,7 +4,8 @@ import type { AgentSendPayload } from '@shared/types/agent'
 import { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { act, renderHook } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { useOptimisticSteerStore } from '@/features/chat/state'
 import { useOptimisticSteeredTurn } from '../useOptimisticSteeredTurn'
 
 const SESSION_ID = SessionId('session-1')
@@ -34,6 +35,10 @@ function messageText(message: UIMessage) {
 }
 
 describe('useOptimisticSteeredTurn', () => {
+  beforeEach(() => {
+    useOptimisticSteerStore.setState({ previews: new Map() })
+  })
+
   it('preserves preview order and reconciles duplicate text one durable message at a time', () => {
     const initialMessages = [userMessage('initial', 'start')]
     const messagesRef = { current: initialMessages }
@@ -77,5 +82,41 @@ describe('useOptimisticSteeredTurn', () => {
         (message) => message.metadata?.steerDelivery === 'waiting-for-compaction',
       ),
     ).toHaveLength(1)
+
+    const bothDurableSteers = [...oneDurableSteer, userMessage('durable-second', 'continue')]
+    messagesRef.current = bothDurableSteers
+    rerender({ hydratedMessages: bothDurableSteers })
+
+    expect(result.current.visibleMessages).toEqual(bothDurableSteers)
+  })
+
+  it('keeps a pending preview scoped to its session while the user navigates away', () => {
+    const initialMessages = [userMessage('initial', 'start')]
+    const messagesRef = { current: initialMessages }
+    const otherSessionId = SessionId('session-2')
+    const { result, rerender } = renderHook(
+      ({ sessionId }) =>
+        useOptimisticSteeredTurn(
+          initialMessages,
+          sessionId,
+          (payload) => payload.text,
+          messagesRef,
+        ),
+      { initialProps: { sessionId: SESSION_ID } },
+    )
+
+    act(() => {
+      result.current.previewSteeredUserTurn(FIRST_PAYLOAD, 'waiting-for-compaction')
+    })
+    expect(result.current.visibleMessages.map(messageText)).toEqual(['start', 'continue'])
+
+    rerender({ sessionId: otherSessionId })
+    expect(result.current.visibleMessages.map(messageText)).toEqual(['start'])
+
+    rerender({ sessionId: SESSION_ID })
+    expect(result.current.visibleMessages.map(messageText)).toEqual(['start', 'continue'])
+    expect(result.current.visibleMessages.at(-1)?.metadata?.steerDelivery).toBe(
+      'waiting-for-compaction',
+    )
   })
 })

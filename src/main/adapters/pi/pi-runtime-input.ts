@@ -46,12 +46,14 @@ function buildImageContent(
   }
 }
 
-function modelSupportsImage(model: Pick<PiModel, 'input'>) {
+type PiInputCapabilities = { readonly input: readonly PiModel['input'][number][] }
+
+function modelSupportsImage(model: PiInputCapabilities) {
   return model.input.includes('image')
 }
 
 export function buildPiPromptInput(
-  model: Pick<PiModel, 'input'>,
+  model: PiInputCapabilities,
   payload: HydratedAgentSendPayload,
 ): PiPromptInput {
   const textParts: string[] = []
