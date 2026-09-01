@@ -1,6 +1,5 @@
 import type { SessionResource } from '@shared/types/session-resource'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { type PointerEvent as ReactPointerEvent, useRef, useState } from 'react'
+import { type PointerEvent as ReactPointerEvent, type RefObject, useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
 
@@ -26,8 +25,7 @@ function imageStyle(
       }
 }
 
-function useCanvasDrag(pannable: boolean) {
-  const canvasRef = useRef<HTMLElement>(null)
+function useCanvasDrag(pannable: boolean, canvasRef: RefObject<HTMLElement | null>) {
   const dragRef = useRef<{
     readonly pointerId: number
     readonly clientX: number
@@ -67,23 +65,19 @@ function useCanvasDrag(pannable: boolean) {
     dragRef.current = null
     setDragging(false)
   }
-  return { canvasRef, dragging, onPointerDown, onPointerMove, onPointerUp, onPointerCancel }
+  return { dragging, onPointerDown, onPointerMove, onPointerUp, onPointerCancel }
 }
 
 export function SessionResourceViewerCanvas({
   resource,
   source,
   zoom,
-  index,
-  count,
-  onNavigate,
+  canvasRef,
 }: {
   readonly resource: SessionResource
   readonly source: string | null
   readonly zoom: ImageViewerZoom
-  readonly index: number
-  readonly count: number
-  readonly onNavigate: (index: number) => void
+  readonly canvasRef: RefObject<HTMLElement | null>
 }) {
   const [intrinsicSize, setIntrinsicSize] = useState<{
     readonly resourceId: string
@@ -92,11 +86,11 @@ export function SessionResourceViewerCanvas({
   } | null>(null)
   const imageSize = intrinsicSize?.resourceId === resource.id ? intrinsicSize : null
   const pannable = source !== null && zoom !== 'fit'
-  const drag = useCanvasDrag(pannable)
+  const drag = useCanvasDrag(pannable, canvasRef)
 
   return (
     <section
-      ref={drag.canvasRef}
+      ref={canvasRef}
       aria-label="Image canvas"
       className={`relative min-h-0 flex-1 overflow-auto bg-bg-tertiary p-8 ${
         pannable ? (drag.dragging ? 'cursor-grabbing' : 'cursor-grab') : ''
@@ -106,16 +100,6 @@ export function SessionResourceViewerCanvas({
       onPointerUp={drag.onPointerUp}
       onPointerCancel={drag.onPointerCancel}
     >
-      <Button
-        variant="secondary"
-        size="icon-sm"
-        aria-label="Previous image"
-        disabled={index <= 0}
-        className="fixed left-5 top-1/2 z-10"
-        onClick={() => onNavigate(index - 1)}
-      >
-        <ChevronLeft className="size-5" />
-      </Button>
       {source ? (
         <div className="grid h-max min-h-full w-max min-w-full place-items-center">
           <img
@@ -148,16 +132,6 @@ export function SessionResourceViewerCanvas({
           ) : null}
         </div>
       )}
-      <Button
-        variant="secondary"
-        size="icon-sm"
-        aria-label="Next image"
-        disabled={index >= count - 1}
-        className="fixed right-5 top-1/2 z-10"
-        onClick={() => onNavigate(index + 1)}
-      >
-        <ChevronRight className="size-5" />
-      </Button>
     </section>
   )
 }

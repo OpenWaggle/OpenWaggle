@@ -222,6 +222,46 @@ describe('SessionSummaryHub', () => {
     expect(screen.queryByText('session-one.png')).toBeNull()
   })
 
+  it('renders every Output in its own bounded, scrollable list', async () => {
+    listSessionResources.mockResolvedValue([
+      resource({ id: 'output-1', title: 'first-output.txt', isSource: false, isOutput: true }),
+      resource({ id: 'output-2', title: 'second-output.txt', isSource: false, isOutput: true }),
+      resource({ id: 'output-3', title: 'third-output.txt', isSource: false, isOutput: true }),
+      resource({ id: 'output-4', title: 'fourth-output.txt', isSource: false, isOutput: true }),
+      resource({ id: 'output-5', title: 'fifth-output.txt', isSource: false, isOutput: true }),
+    ])
+    renderHub()
+
+    fireEvent.click(await screen.findByRole('button', { name: /Outputs/ }))
+
+    expect(screen.getByRole('button', { name: 'first-output.txt' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'fourth-output.txt' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'fifth-output.txt' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Session Outputs' })).toHaveClass(
+      'max-h-40',
+      'overflow-y-auto',
+      'overscroll-contain',
+    )
+    expect(screen.queryByRole('button', { name: 'Show all' })).toBeNull()
+  })
+
+  it('keeps Sources as a compact preview with a Show all action', async () => {
+    listSessionResources.mockResolvedValue([
+      resource({ id: 'source-1', title: 'first-source.txt' }),
+      resource({ id: 'source-2', title: 'second-source.txt' }),
+      resource({ id: 'source-3', title: 'third-source.txt' }),
+      resource({ id: 'source-4', title: 'fourth-source.txt' }),
+    ])
+    renderHub()
+
+    fireEvent.click(await screen.findByRole('button', { name: /Sources/ }))
+
+    expect(screen.getByRole('button', { name: 'first-source.txt' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'third-source.txt' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'fourth-source.txt' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Show all' })).toBeInTheDocument()
+  })
+
   it('opens the resource browser filtered to the selected summary section', async () => {
     const onOpenResources = vi.fn()
     listSessionResources.mockResolvedValue([resource({})])

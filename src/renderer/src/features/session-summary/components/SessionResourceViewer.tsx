@@ -17,6 +17,8 @@ import {
   type ImageViewerZoom as Zoom,
 } from './SessionResourceViewerCanvas'
 import { SessionResourceViewerHeader } from './SessionResourceViewerHeader'
+import { SessionResourceViewerNavigation } from './SessionResourceViewerNavigation'
+import { useCenteredImageZoom } from './useCenteredImageZoom'
 
 const EMPTY_MESSAGE_IDS: ReadonlySet<string> = new Set()
 
@@ -211,6 +213,10 @@ function selectedZoom(
   return resource && zoomState?.resourceId === resource.id ? zoomState.zoom : 'fit'
 }
 
+function selectedResourceId(resource: SessionResource | null) {
+  return resource?.id ?? null
+}
+
 export function SessionResourceViewer({
   activeSessionId,
   activeMessageIds = EMPTY_MESSAGE_IDS,
@@ -232,6 +238,7 @@ export function SessionResourceViewer({
     viewerSessionId !== null && viewerSessionId === activeSessionId,
   )
   const zoom = selectedZoom(resource, zoomState)
+  const centeredZoom = useCenteredImageZoom(selectedResourceId(resource), zoom)
 
   useCloseViewerOnSessionChange(viewerSessionId, activeSessionId, close)
   useViewerKeyboardNavigation(viewerSessionId, images, index, open)
@@ -256,8 +263,16 @@ export function SessionResourceViewer({
           count={images.length}
           zoom={zoom}
           source={viewerSource.source}
-          onZoomChange={(next) => setZoomState({ resourceId: resource.id, zoom: next })}
+          onZoomChange={(next) => {
+            centeredZoom.captureCenter(next)
+            setZoomState({ resourceId: resource.id, zoom: next })
+          }}
           onClose={close}
+        />
+        <SessionResourceViewerNavigation
+          index={index}
+          count={images.length}
+          onNavigate={navigate}
         />
         {viewerSource.loading ? (
           <output className="flex min-h-0 flex-1 items-center justify-center p-6 text-sm text-text-secondary">
@@ -285,9 +300,7 @@ export function SessionResourceViewer({
             resource={resource}
             source={viewerSource.source}
             zoom={zoom}
-            index={index}
-            count={images.length}
-            onNavigate={navigate}
+            canvasRef={centeredZoom.viewportRef}
           />
         )}
       </div>

@@ -21,7 +21,7 @@ function message(id: string, role: 'user' | 'assistant', text: string, createdAt
 
 async function pngData() {
   const fixture = await fs.readFile(
-    path.join(process.cwd(), 'e2e/visual-regression.e2e.test.ts-snapshots/composer-darwin.png'),
+    path.join(process.cwd(), 'e2e/visual-regression.e2e.test.ts-snapshots/settings-darwin.png'),
   )
   return fixture.toString('base64')
 }
@@ -391,6 +391,20 @@ test('session resources stay scoped while inline images and the gallery navigate
     await viewer.getByLabel('Image zoom').selectOption('150')
     await expect(viewer.getByLabel('Image zoom')).toHaveValue('150')
     const imageCanvas = viewer.getByLabel('Image canvas')
+    await expect
+      .poll(() =>
+        imageCanvas.evaluate((element) => {
+          const maximumLeft = element.scrollWidth - element.clientWidth
+          const maximumTop = element.scrollHeight - element.clientHeight
+          return {
+            horizontallyCentered:
+              maximumLeft > 0 && Math.abs(element.scrollLeft - maximumLeft / 2) <= 2,
+            verticallyCentered:
+              maximumTop > 0 && Math.abs(element.scrollTop - maximumTop / 2) <= 2,
+          }
+        }),
+      )
+      .toEqual({ horizontallyCentered: true, verticallyCentered: true })
     const scrollReachability = await imageCanvas.evaluate((element) => {
       element.scrollLeft = element.scrollWidth
       element.scrollTop = element.scrollHeight

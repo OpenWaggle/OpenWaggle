@@ -182,12 +182,30 @@ export function ResourceSummarySection({
   readonly onOpenImage: (resourceId: string) => void
 }) {
   if (resources.length === 0) return null
+  const visibleResources =
+    title === 'Outputs' ? resources : resources.slice(0, SUMMARY_RESOURCE_LIMIT)
   const openResource = (resource: SessionResource) => {
     if (resource.kind !== 'image') return onOpenResources()
     if (isViewableSessionImage(resource)) return onOpenImage(resource.id)
     if (resource.locator?.startsWith('http://')) return void api.openExternal(resource.locator)
     return onOpenResources()
   }
+  const resourceRows = visibleResources.map((resource) => (
+    <SummaryRow
+      key={resource.id}
+      icon={
+        resource.kind === 'image' ? (
+          <Images className="size-4" />
+        ) : title === 'Outputs' ? (
+          <FileOutput className="size-4" />
+        ) : (
+          <FolderOpen className="size-4" />
+        )
+      }
+      label={resource.title}
+      onClick={() => openResource(resource)}
+    />
+  ))
   return (
     <SummarySection
       title={title}
@@ -195,23 +213,17 @@ export function ResourceSummarySection({
       expanded={expanded}
       onExpandedChange={onExpandedChange}
     >
-      {resources.slice(0, SUMMARY_RESOURCE_LIMIT).map((resource) => (
-        <SummaryRow
-          key={resource.id}
-          icon={
-            resource.kind === 'image' ? (
-              <Images className="size-4" />
-            ) : title === 'Outputs' ? (
-              <FileOutput className="size-4" />
-            ) : (
-              <FolderOpen className="size-4" />
-            )
-          }
-          label={resource.title}
-          onClick={() => openResource(resource)}
-        />
-      ))}
-      {title === 'Sources' || resources.length > SUMMARY_RESOURCE_LIMIT ? (
+      {title === 'Outputs' ? (
+        <section
+          aria-label="Session Outputs"
+          className="max-h-40 space-y-1 overflow-y-auto overscroll-contain"
+        >
+          {resourceRows}
+        </section>
+      ) : (
+        resourceRows
+      )}
+      {title === 'Sources' ? (
         <SummaryRow
           icon={<ChevronRight className="size-4" />}
           label="Show all"
