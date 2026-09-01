@@ -1,5 +1,11 @@
 import { Editor, type EditorChangeEvent, type EditorOptions } from '@pierre/diffs/edit'
-import { EditProvider, File, Virtualizer, WorkerPoolContextProvider } from '@pierre/diffs/react'
+import {
+  EditProvider,
+  File,
+  useWorkerPool,
+  Virtualizer,
+  WorkerPoolContextProvider,
+} from '@pierre/diffs/react'
 import type { WorkspaceDocumentChange } from '@shared/types/workspace-files'
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { useSyntaxTheme } from '@/shared/hooks/useSyntaxTheme'
@@ -21,6 +27,14 @@ function workspaceChanges(event: EditorChangeEvent<undefined>): readonly Workspa
     rangeLength: change.end - change.start,
     text: change.text,
   }))
+}
+
+function FocusedEditorWorkerTheme({ theme }: { readonly theme: string }) {
+  const workerPool = useWorkerPool()
+  useEffect(() => {
+    void workerPool?.setRenderOptions({ theme })
+  }, [theme, workerPool])
+  return null
 }
 
 export function FocusedSourceEditor({
@@ -94,6 +108,7 @@ export function FocusedSourceEditor({
         }}
         highlighterOptions={{ langs: [editorLanguage], theme: shikiTheme }}
       >
+        <FocusedEditorWorkerTheme theme={shikiTheme} />
         <EditProvider createEditor={createEditor}>
           <Virtualizer
             className="h-full overflow-auto"

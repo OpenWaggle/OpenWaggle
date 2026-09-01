@@ -10,6 +10,7 @@ vi.mock('@pierre/diffs/react', () => ({
       <pre data-testid="patch-diff">{patch}</pre>
     </div>
   ),
+  useWorkerPool: () => undefined,
   WorkerPoolContextProvider: ({ children }: { readonly children: ReactNode }) => children,
 }))
 

@@ -1,7 +1,7 @@
-import { PatchDiff, WorkerPoolContextProvider } from '@pierre/diffs/react'
+import { PatchDiff, useWorkerPool, WorkerPoolContextProvider } from '@pierre/diffs/react'
 import { shouldVirtualizeSyntaxSource } from '@shared/syntax-highlighting-performance'
 import type { DiffView } from '@shared/types/settings'
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { registerPendingPierreSyntaxResources } from '@/shared/lib/syntax/pierre-syntax-runtime'
 import { SourceView } from './SourceView'
@@ -19,6 +19,14 @@ function diffOverflow(wrap: boolean): 'wrap' | 'scroll' {
 function completeUnifiedPatch(patch: string) {
   if (/^---\s/mu.test(patch) && /^\+\+\+\s/mu.test(patch)) return patch
   return `--- a/file\n+++ b/file\n${patch}`
+}
+
+function DiffBlockWorkerTheme({ theme }: { readonly theme: string }) {
+  const workerPool = useWorkerPool()
+  useEffect(() => {
+    void workerPool?.setRenderOptions({ theme })
+  }, [theme, workerPool])
+  return null
 }
 
 export function DiffBlock({
@@ -64,6 +72,7 @@ export function DiffBlock({
       }}
       highlighterOptions={{ theme }}
     >
+      <DiffBlockWorkerTheme theme={theme} />
       <div className={cn('diff-chrome overflow-auto', className)}>
         <PatchDiff patch={completeUnifiedPatch(patch)} options={options} />
       </div>
