@@ -1,14 +1,15 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
+import * as Effect from 'effect/Effect'
+import { refreshSessionTranscriptSearch } from '../services/session-transcript-search-projection'
 import { SESSION_DISCOVERY_WINDOW_LIMIT } from './session-discovery-window-store'
 import type { DiscoverySearchRequest, DiscoverySearchRow } from './sqlite-session-discovery-window'
 import { authorizedSessionScope } from './sqlite-session-query-support'
 
 const QUOTED_QUERY_DELIMITER_COUNT = 2
-// Full-transcript FTS can match millions of individual messages for a common term. Discovery is
-// intentionally a bounded Session window, so cap the raw message sample before grouping/ranking.
-// FTS natural order lets SQLite stop after the cap instead of sorting every matching row first.
-export const SESSION_TRANSCRIPT_LEXICAL_MATCH_SCAN_LIMIT = 65_536
+// The Session-level FTS preserves complete candidate recall. This separate bound applies only to
+// locating an optional representative node for evidence after the matching Sessions are known.
+export const SESSION_TRANSCRIPT_LEXICAL_MATCH_SCAN_LIMIT = 8_192
 
 /**
  * Plain multiword input uses tokenized AND semantics. Wrapping the complete input in quotes is the
@@ -37,15 +38,73 @@ function lexicalSearchParameters(request: DiscoverySearchRequest) {
   }
 }
 
+function lexicalCandidateRows(
+  sql: SqlClient.SqlClient,
+  parameters: ReturnType<typeof lexicalSearchParameters>,
+) {
+  const { exactQuery, ftsQuery, fullTranscript } = parameters
+  return sql`
+    SELECT session_id, score, matched_field, snippet, exact_match
+    FROM (
+      SELECT session_id, bm25(session_title_search, 0.0, 6.0) AS score,
+        ${'title'} AS matched_field,
+        snippet(session_title_search, 1, '', '', ' … ', 12) AS snippet, 0 AS exact_match
+      FROM session_title_search
+      WHERE session_id IN (SELECT session_id FROM authorized_sessions)
+        AND session_title_search MATCH ${ftsQuery}
+      UNION ALL
+      SELECT session_id, bm25(session_delegation_search, 0.0, 0.0, 5.0) AS score,
+        ${'objective'} AS matched_field,
+        snippet(session_delegation_search, 2, '', '', ' … ', 12) AS snippet, 0 AS exact_match
+      FROM session_delegation_search
+      WHERE session_id IN (SELECT session_id FROM authorized_sessions)
+        AND session_delegation_search MATCH ${ftsQuery}
+      UNION ALL
+      SELECT session_node_discovery_search.session_id,
+        bm25(session_node_discovery_search, 0.0, 0.0, 3.0),
+        CASE WHEN session_nodes.id = (
+          SELECT initial_node.id FROM session_nodes AS initial_node
+          WHERE initial_node.session_id = session_nodes.session_id AND initial_node.role = 'user'
+          ORDER BY initial_node.created_order, initial_node.id LIMIT 1
+        ) THEN ${'initial-objective'} ELSE ${'current-preview'} END,
+        snippet(session_node_discovery_search, 2, '', '', ' … ', 12), 0
+      FROM session_node_discovery_search
+      JOIN session_nodes ON session_nodes.id = session_node_discovery_search.node_id
+      WHERE session_node_discovery_search.session_id IN (SELECT session_id FROM authorized_sessions)
+        AND ${fullTranscript} = 0
+        AND session_node_discovery_search MATCH ${ftsQuery}
+        AND session_nodes.role IN ('user', 'assistant')
+        AND (session_nodes.id = (
+          SELECT initial_node.id FROM session_nodes AS initial_node
+          WHERE initial_node.session_id = session_nodes.session_id AND initial_node.role = 'user'
+          ORDER BY initial_node.created_order, initial_node.id LIMIT 1
+        ) OR session_nodes.id = (
+          SELECT preview_node.id FROM session_nodes AS preview_node
+          WHERE preview_node.session_id = session_nodes.session_id
+            AND preview_node.role IN ('user', 'assistant')
+          ORDER BY preview_node.created_order DESC, preview_node.id DESC LIMIT 1
+        ))
+      UNION ALL
+      SELECT sessions.id, -1000.0, ${'title'}, sessions.title, 1
+      FROM sessions JOIN authorized_sessions ON authorized_sessions.session_id = sessions.id
+      WHERE lower(sessions.id) = lower(${exactQuery}) OR lower(sessions.title) = lower(${exactQuery})
+    )
+  `
+}
+
 export function loadLexicalDiscoveryRows(
   sql: SqlClient.SqlClient,
   authority: LocalSessionProfileAuthority | undefined,
   request: DiscoverySearchRequest,
 ) {
   const allowed = authorizedSessionScope(authority)
-  const { exactQuery, ftsQuery, fullTranscript, includeArchived } = lexicalSearchParameters(request)
-  return sql<DiscoverySearchRow>`
-    WITH authorized_sessions AS MATERIALIZED (
+  const parameters = lexicalSearchParameters(request)
+  const { ftsQuery, fullTranscript, includeArchived } = parameters
+  const candidates = lexicalCandidateRows(sql, parameters)
+  return Effect.gen(function* () {
+    if (fullTranscript === 1) yield* refreshSessionTranscriptSearch(sql)
+    return yield* sql<DiscoverySearchRow>`
+      WITH authorized_sessions AS MATERIALIZED (
       SELECT sessions.id AS session_id
       FROM sessions
       LEFT JOIN session_spawn_lineage ON session_spawn_lineage.child_session_id = sessions.id
@@ -53,73 +112,35 @@ export function loadLexicalDiscoveryRows(
         OR sessions.id IN ${sql.in(allowed.sessionIds)}
         OR COALESCE(session_spawn_lineage.hive_root_session_id, sessions.id)
           IN ${sql.in(allowed.hiveRootSessionIds)})
+    ), transcript_sessions AS MATERIALIZED (
+      SELECT session_transcript_search.session_id,
+        bm25(session_transcript_search, 0.0, 1.0) AS score,
+        snippet(session_transcript_search, 1, '', '', ' … ', 12) AS snippet
+      FROM session_transcript_search
+      WHERE session_transcript_search.session_id IN (SELECT session_id FROM authorized_sessions)
+        AND ${fullTranscript} = 1 AND session_transcript_search MATCH ${ftsQuery}
+      ORDER BY score, session_transcript_search.session_id
+      LIMIT ${SESSION_DISCOVERY_WINDOW_LIMIT + 1}
     ), transcript_candidates AS MATERIALIZED (
       SELECT session_node_search.rowid AS search_rowid,
         session_node_search.session_id
       FROM session_node_search
-      WHERE session_node_search.session_id IN (SELECT session_id FROM authorized_sessions)
+      WHERE session_node_search.session_id IN (SELECT session_id FROM transcript_sessions)
         AND ${fullTranscript} = 1 AND session_node_search MATCH ${ftsQuery}
       LIMIT ${SESSION_TRANSCRIPT_LEXICAL_MATCH_SCAN_LIMIT}
     ), candidates AS (
-      SELECT session_id, score, matched_field, snippet, exact_match,
-        NULL AS node_id, NULL AS run_id, NULL AS created_order, NULL AS search_rowid
-      FROM (
-        SELECT session_id, bm25(session_title_search, 0.0, 6.0) AS score,
-          ${'title'} AS matched_field,
-          snippet(session_title_search, 1, '', '', ' … ', 12) AS snippet, 0 AS exact_match
-        FROM session_title_search
-        WHERE session_id IN (SELECT session_id FROM authorized_sessions)
-          AND session_title_search MATCH ${ftsQuery}
-        UNION ALL
-        SELECT session_id, bm25(session_delegation_search, 0.0, 0.0, 5.0) AS score,
-          ${'objective'} AS matched_field,
-          snippet(session_delegation_search, 2, '', '', ' … ', 12) AS snippet, 0 AS exact_match
-        FROM session_delegation_search
-        WHERE session_id IN (SELECT session_id FROM authorized_sessions)
-          AND session_delegation_search MATCH ${ftsQuery}
-        UNION ALL
-        SELECT session_node_discovery_search.session_id,
-          bm25(session_node_discovery_search, 0.0, 0.0, 3.0),
-          CASE WHEN session_nodes.id = (
-            SELECT initial_node.id FROM session_nodes AS initial_node
-            WHERE initial_node.session_id = session_nodes.session_id AND initial_node.role = 'user'
-            ORDER BY initial_node.created_order, initial_node.id LIMIT 1
-          ) THEN ${'initial-objective'} ELSE ${'current-preview'} END,
-          snippet(session_node_discovery_search, 2, '', '', ' … ', 12), 0
-        FROM session_node_discovery_search
-        JOIN session_nodes ON session_nodes.id = session_node_discovery_search.node_id
-        WHERE session_node_discovery_search.session_id
-            IN (SELECT session_id FROM authorized_sessions)
-          AND ${fullTranscript} = 0
-          AND session_node_discovery_search MATCH ${ftsQuery}
-          AND session_nodes.role IN ('user', 'assistant')
-          AND (session_nodes.id = (
-            SELECT initial_node.id FROM session_nodes AS initial_node
-            WHERE initial_node.session_id = session_nodes.session_id AND initial_node.role = 'user'
-            ORDER BY initial_node.created_order, initial_node.id LIMIT 1
-          ) OR session_nodes.id = (
-            SELECT preview_node.id FROM session_nodes AS preview_node
-            WHERE preview_node.session_id = session_nodes.session_id
-              AND preview_node.role IN ('user', 'assistant')
-            ORDER BY preview_node.created_order DESC, preview_node.id DESC LIMIT 1
-          ))
-        UNION ALL
-        SELECT sessions.id, -1000.0, ${'title'}, sessions.title, 1
-        FROM sessions JOIN authorized_sessions ON authorized_sessions.session_id = sessions.id
-        WHERE lower(sessions.id) = lower(${exactQuery}) OR lower(sessions.title) = lower(${exactQuery})
-      )
+      ${candidates}
       UNION ALL
-      SELECT session_id, 0.0, ${'transcript'}, NULL, 0,
-        NULL, NULL, NULL, MIN(search_rowid)
-      FROM transcript_candidates GROUP BY session_id
+      SELECT session_id, score, ${'transcript'}, snippet, 0
+      FROM transcript_sessions
     ), matches AS (
       SELECT session_id, MIN(score) AS score,
         GROUP_CONCAT(DISTINCT matched_field) AS matched_fields,
         MAX(snippet) AS snippet, MAX(exact_match) AS exact_match
       FROM candidates GROUP BY session_id
     ), transcript_matches AS (
-      SELECT session_id, search_rowid
-      FROM candidates WHERE matched_field = ${'transcript'}
+      SELECT session_id, MIN(search_rowid) AS search_rowid
+      FROM transcript_candidates GROUP BY session_id
     )
     SELECT sessions.id AS session_id, sessions.title, sessions.project_path, sessions.archived,
       sessions.created_at, sessions.updated_at, matches.score,
@@ -154,6 +175,7 @@ export function loadLexicalDiscoveryRows(
         OR sessions.id IN ${sql.in(allowed.sessionIds)}
         OR COALESCE(session_spawn_lineage.hive_root_session_id, sessions.id) IN ${sql.in(allowed.hiveRootSessionIds)})
     ORDER BY matches.score ASC, sessions.id ASC
-    LIMIT ${SESSION_DISCOVERY_WINDOW_LIMIT + 1}
-  `
+      LIMIT ${SESSION_DISCOVERY_WINDOW_LIMIT + 1}
+    `
+  })
 }

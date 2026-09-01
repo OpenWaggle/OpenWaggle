@@ -101,6 +101,17 @@ function isReviewInput(input: DelegationInput): input is ReviewInput {
   ].includes(input.action)
 }
 
+function ensureUniqueDependencyIds(
+  input: Extract<DelegationInput, { action: 'delegation_propose_amendment' | 'delegation_amend' }>,
+) {
+  const dependencyIds = input.specification.dependencies.map(
+    (dependency) => dependency.delegationId,
+  )
+  if (new Set(dependencyIds).size !== dependencyIds.length) {
+    throw new Error('Delegation dependency IDs must be unique.')
+  }
+}
+
 function reviewCommand(
   input: ReviewInput,
   source: SessionsToolSource,
@@ -147,6 +158,9 @@ function delegationPayload(
   input: DelegationInput,
   source: SessionsToolSource,
 ): LocalSessionCommandPayload {
+  if (input.action === 'delegation_propose_amendment' || input.action === 'delegation_amend') {
+    ensureUniqueDependencyIds(input)
+  }
   const command: SessionControlMutationCommand = isReviewInput(input)
     ? reviewCommand(input, source)
     : input.action === 'delegation_submit'

@@ -15,11 +15,24 @@ import {
 } from '../store/session-details/constants'
 import { persistSessionSnapshotWithSql } from '../store/session-details/persist-snapshot'
 import type { LifecycleWorkspaceRow } from './sqlite-session-lifecycle-support'
+import { persistSessionReportReferences } from './sqlite-session-report-reference-catalog'
 
 type ExecuteInput = Parameters<SessionLifecycleRepositoryShape['execute']>[0]
 
 function repositoryError(operation: string, cause: unknown) {
   return new SessionLifecycleRepositoryError({ operation, cause })
+}
+
+function agentDefinitionName(profile: unknown) {
+  if (
+    typeof profile === 'object' &&
+    profile !== null &&
+    'agentDefinitionName' in profile &&
+    typeof profile.agentDefinitionName === 'string'
+  ) {
+    return profile.agentDefinitionName
+  }
+  return undefined
 }
 
 function initialRunIntent(input: ExecuteInput) {
@@ -129,6 +142,12 @@ function persistSessionMetadata(
         ${input.executionSnapshot.authorizationCeiling}, ${input.now}, ${input.now}
       )
     `
+    const selectedAgentDefinitionName = agentDefinitionName(input.executionSnapshot.profile)
+    yield* persistSessionReportReferences(sql, {
+      sessionId: input.session.sessionId,
+      title,
+      ...(selectedAgentDefinitionName ? { agentDefinitionName: selectedAgentDefinitionName } : {}),
+    })
   })
 }
 

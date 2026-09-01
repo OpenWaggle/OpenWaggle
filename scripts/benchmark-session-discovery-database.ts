@@ -55,7 +55,6 @@ function populate(database: DatabaseSync, sessionCount: number, messageCount: nu
         value, value FROM sequence
     `)
     .run(sessionCount)
-  database.exec('INSERT INTO session_title_search SELECT id, title FROM sessions')
   database
     .prepare(`
       WITH RECURSIVE sequence(value) AS (
@@ -114,15 +113,11 @@ function populate(database: DatabaseSync, sessionCount: number, messageCount: nu
         )
     `)
     .run(messageCount, sessionCount)
-  database.exec('INSERT INTO session_node_search SELECT session_id, id, content_json FROM session_nodes')
   database.exec(`
-    INSERT INTO session_node_discovery_search
-    SELECT nodes.session_id, nodes.id, nodes.content_json
-    FROM session_nodes AS nodes
-    WHERE nodes.created_order = 0 OR nodes.created_order = (
-      SELECT MAX(preview.created_order) FROM session_nodes AS preview
-      WHERE preview.session_id = nodes.session_id
-    )
+    INSERT INTO session_transcript_search (session_id, content)
+    SELECT session_id, GROUP_CONCAT(content, char(10))
+    FROM session_node_search GROUP BY session_id;
+    DELETE FROM session_transcript_search_dirty;
   `)
   database.exec('COMMIT; PRAGMA optimize;')
 }

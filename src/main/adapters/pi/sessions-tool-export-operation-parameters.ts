@@ -1,15 +1,19 @@
 import {
   SESSION_EXPORT_OPERATION_QUERY_LIMIT,
   SESSION_EXPORT_OPERATION_STATUSES,
+  SESSION_EXPORT_RESOURCE_LIMIT,
 } from '@shared/types/session-export-operation'
-import { SESSION_QUERY_MAX_WAIT_MS } from '@shared/types/session-query'
+import {
+  SESSION_QUERY_MAX_PATH_LENGTH,
+  SESSION_QUERY_MAX_WAIT_MS,
+} from '@shared/types/session-query'
 import { Type } from 'typebox'
 
 export const sessionsToolExportOperationParameters = [
   Type.Object({
     action: Type.Literal('export_create'),
     sessionId: Type.String(),
-    destinationPath: Type.String({ minLength: 1 }),
+    destinationPath: Type.String({ minLength: 1, maxLength: SESSION_QUERY_MAX_PATH_LENGTH }),
     format: Type.Optional(
       Type.Union([Type.Literal('jsonl'), Type.Literal('markdown'), Type.Literal('bundle')]),
     ),
@@ -17,7 +21,11 @@ export const sessionsToolExportOperationParameters = [
     branchId: Type.Optional(Type.String()),
     includeQueueBodies: Type.Optional(Type.Boolean()),
     overwriteExisting: Type.Optional(Type.Boolean()),
-    resources: Type.Optional(Type.Array(Type.String({ minLength: 1 }))),
+    resources: Type.Optional(
+      Type.Array(Type.String({ minLength: 1, maxLength: SESSION_QUERY_MAX_PATH_LENGTH }), {
+        maxItems: SESSION_EXPORT_RESOURCE_LIMIT,
+      }),
+    ),
     idempotencyKey: Type.Optional(Type.String({ minLength: 1 })),
   }),
   Type.Object({

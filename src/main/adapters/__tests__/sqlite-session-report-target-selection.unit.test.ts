@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SessionLifecycleRepository } from '../../ports/session-lifecycle-repository'
 import type { ExecuteSessionReportInput } from '../../ports/session-report-repository'
 import { SessionReportRepository } from '../../ports/session-report-repository'
+import { persistSessionReportReferences } from '../sqlite-session-report-reference-catalog'
 import { loadAuthorizedReportCandidates } from '../sqlite-session-report-targets'
 import {
   makeSessionLifecycleTestLayer,
@@ -55,33 +56,50 @@ function reportInput(
 }
 
 function insertLargeUnrelatedCatalog(sql: SqlClient.SqlClient, title = 'Unrelated') {
-  return sql`
-    WITH RECURSIVE sequence(value) AS (
-      SELECT 1
-      UNION ALL
-      SELECT value + 1 FROM sequence WHERE value < 500
-    )
-    INSERT INTO sessions (
-      id, pi_session_id, project_path, title, archived, created_at, updated_at
-    )
-    SELECT
-      printf('unrelated-%04d', value), printf('pi-unrelated-%04d', value),
-      ${'/unauthorized'}, ${title}, 0, value, value
-    FROM sequence
-  `
+  return Effect.gen(function* () {
+    yield* sql`
+      WITH RECURSIVE sequence(value) AS (
+        SELECT 1
+        UNION ALL
+        SELECT value + 1 FROM sequence WHERE value < 500
+      )
+      INSERT INTO sessions (
+        id, pi_session_id, project_path, title, archived, created_at, updated_at
+      )
+      SELECT
+        printf('unrelated-%04d', value), printf('pi-unrelated-%04d', value),
+        ${'/unauthorized'}, ${title}, 0, value, value
+      FROM sequence
+    `
+    yield* sql`
+      INSERT INTO session_report_references (session_id, kind, normalized_reference)
+      SELECT id, ${'session-id'}, id FROM sessions WHERE id LIKE ${'unrelated-%'}
+    `
+    yield* sql`
+      INSERT INTO session_report_references (session_id, kind, normalized_reference)
+      SELECT id, ${'title'}, ${title.trim().toLowerCase()}
+      FROM sessions WHERE id LIKE ${'unrelated-%'}
+    `
+  })
 }
 
 function insertSession(
   sql: SqlClient.SqlClient,
   input: { readonly id: string; readonly projectPath: string; readonly title: string },
 ) {
-  return sql`
-    INSERT INTO sessions (
-      id, pi_session_id, project_path, title, archived, created_at, updated_at
-    ) VALUES (
-      ${input.id}, ${`pi-${input.id}`}, ${input.projectPath}, ${input.title}, ${0}, ${2}, ${2}
-    )
-  `
+  return Effect.gen(function* () {
+    yield* sql`
+      INSERT INTO sessions (
+        id, pi_session_id, project_path, title, archived, created_at, updated_at
+      ) VALUES (
+        ${input.id}, ${`pi-${input.id}`}, ${input.projectPath}, ${input.title}, ${0}, ${2}, ${2}
+      )
+    `
+    yield* persistSessionReportReferences(sql, {
+      sessionId: input.id,
+      title: input.title,
+    })
+  })
 }
 
 describe('SQLite Session report target selection', () => {

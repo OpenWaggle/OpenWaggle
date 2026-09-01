@@ -6,7 +6,6 @@ import { DatabaseSync } from 'node:sqlite'
 import { pathToFileURL } from 'node:url'
 import { resolveLocalSessionHostPaths } from '../../src/main/session-host/local-session-paths'
 import { buildSafeElectronEnvironment } from '../safe-electron-environment'
-import type { StoppableChild } from './child-process-lifecycle'
 import {
   type CompleteLiveQaCleanupInput,
   type LiveQaLifecycleState,
@@ -17,6 +16,7 @@ import {
   assertSingleInstanceLockDeniedMarker,
   singleInstanceLockDeniedArguments,
   singleInstanceLockDeniedMarkerPath,
+  waitForNormalSecondInstanceExit,
 } from './single-instance-lock-proof'
 import {
   cliOutcome,
@@ -29,7 +29,6 @@ import { launchInWindowsJobObject } from './windows-job-object'
 
 const ARGUMENT_SEPARATOR = '--'
 const FIRST_USER_ARGUMENT_INDEX = 2
-const SECOND_INSTANCE_EXIT_TIMEOUT_MS = 10_000
 const SEMANTIC_SEARCH_TIMEOUT_MS = 30_000
 const SEMANTIC_SEARCH_PROCESS_TIMEOUT_MS = 35_000
 const LEGACY_SESSION_ID = 'packaged-cutover-session'
@@ -130,21 +129,16 @@ function seedLegacyDatabase(databasePath: string) {
   }
 }
 
-function waitForExit(child: StoppableChild) {
-  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve()
-  return new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error('A second packaged GUI acquired the single-instance lock.'))
-    }, SECOND_INSTANCE_EXIT_TIMEOUT_MS)
-    child.once('exit', () => {
-      clearTimeout(timer)
-      resolve()
-    })
-  })
+function packagedGuiArguments(platform: NodeJS.Platform = process.platform) {
+  return platform === 'linux' ? ['--no-sandbox'] : []
 }
 
-function packagedGuiArguments() {
-  return process.platform === 'linux' ? ['--no-sandbox'] : []
+export function packagedSecondInstanceArguments(
+  userDataRoot: string,
+  platform: NodeJS.Platform = process.platform,
+) {
+  const markerPath = singleInstanceLockDeniedMarkerPath(userDataRoot)
+  return [...packagedGuiArguments(platform), ...singleInstanceLockDeniedArguments(markerPath)]
 }
 
 async function assertLegacySessionMigrated(executable: string, environment: Record<string, string>) {
@@ -249,12 +243,13 @@ export async function runPackagedSessionHostStartupScenario(
       state.gui = await launchGui(input.executable, environment, packagedGuiArguments())
       state.guiLogs.push(state.gui.logs)
       await waitForHost(cliExecutable, environment)
+      const lockDeniedMarkerPath = singleInstanceLockDeniedMarkerPath(input.userDataRoot)
+      const secondInstanceArguments = packagedSecondInstanceArguments(input.userDataRoot)
       if (process.platform === 'win32') {
-        const lockDeniedMarkerPath = singleInstanceLockDeniedMarkerPath(input.userDataRoot)
         const secondGui = await launchInWindowsJobObject(
           input.executable,
           environment,
-          [...packagedGuiArguments(), ...singleInstanceLockDeniedArguments(lockDeniedMarkerPath)],
+          secondInstanceArguments,
         )
         state.guiLogs.push(secondGui.logs)
         try {
@@ -264,10 +259,11 @@ export async function runPackagedSessionHostStartupScenario(
           await secondGui.terminateAndWait()
         }
       } else {
-        const secondGui = await launchGui(input.executable, environment, packagedGuiArguments())
+        const secondGui = await launchGui(input.executable, environment, secondInstanceArguments)
         state.guiLogs.push(secondGui.logs)
         try {
-          await waitForExit(secondGui.child)
+          await waitForNormalSecondInstanceExit(secondGui.child)
+          await assertSingleInstanceLockDeniedMarker(lockDeniedMarkerPath)
         } finally {
           await stopChild(secondGui.child)
         }

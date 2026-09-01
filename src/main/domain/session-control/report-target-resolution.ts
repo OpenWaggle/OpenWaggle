@@ -1,4 +1,5 @@
 import { matchBy } from '@diegogbrisa/ts-match'
+import { normalizeSessionReportReference } from '@shared/session-report-reference'
 import type { SessionId } from '@shared/types/brand'
 
 export type ReportTargetSelector =
@@ -65,18 +66,14 @@ function resolveExplicitTargets(
   return { resolved: true, targetSessionIds: uniqueSessionIds }
 }
 
-function normalizedReference(value: string) {
-  return value.trim().toLocaleLowerCase()
-}
-
 function resolveWorkerReference(
   sourceSessionId: SessionId,
   reference: string,
   candidates: readonly AuthorizedReportCandidate[],
 ): ReportTargetResolution {
-  const normalized = normalizedReference(reference)
+  const normalized = normalizeSessionReportReference(reference)
   const matches = candidates.filter((candidate) =>
-    candidate.referenceNames.some((name) => normalizedReference(name) === normalized),
+    candidate.referenceNames.some((name) => normalizeSessionReportReference(name) === normalized),
   )
   if (matches.length === 0) return { resolved: false, code: 'target_not_found' }
   if (matches.length > 1) {

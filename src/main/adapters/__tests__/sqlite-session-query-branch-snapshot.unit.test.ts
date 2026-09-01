@@ -36,4 +36,23 @@ describe('SQLite Session query branch snapshots', () => {
       expect(result.outcome).toMatchObject({ error: { code: 'branch_not_found' } })
     },
   )
+
+  it('keeps an explicit older snapshot head bounded while its branch remains active', async () => {
+    const runtime = makeRuntime(path.join(temporaryRoot, 'older-active-head.sqlite'))
+    runtimes.push(runtime)
+    const result = await executeQuery(runtime, {
+      operation: 'items',
+      sessionId: 'worker',
+      branchScope: 'active-branch',
+      branchId: 'worker:branch:main',
+      snapshotHeadNodeId: 'node-worker-1',
+      limit: 10,
+    })
+    expect(result.outcome).toMatchObject({
+      operation: 'items',
+      snapshotHeadNodeId: 'node-worker-1',
+      items: [{ nodeId: 'node-worker-1' }],
+    })
+    expect(JSON.stringify(result)).not.toContain('node-worker-2')
+  })
 })

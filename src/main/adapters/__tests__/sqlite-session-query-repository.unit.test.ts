@@ -267,6 +267,40 @@ describe('SQLite Session query repository', () => {
     })
   })
 
+  it('deduplicates full-transcript matches by Session before applying the discovery window', async () => {
+    const runtime = makeRuntime(path.join(temporaryRoot, 'complete-transcript-search.sqlite'))
+    runtimes.push(runtime)
+    await runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql.unsafe(`
+          WITH RECURSIVE sequence(value) AS (
+            SELECT 0 UNION ALL SELECT value + 1 FROM sequence WHERE value < 2047
+          )
+          INSERT INTO session_node_search (session_id, node_id, content)
+          SELECT 'queen', printf('monopoly-%05d', value), 'shared monopoly marker' FROM sequence
+        `)
+        yield* sql.unsafe(`INSERT INTO session_node_search (session_id, node_id, content)
+          VALUES ('worker', 'later-match', 'shared monopoly marker')`)
+        yield* sql.unsafe(`
+          INSERT INTO session_transcript_search_dirty (session_id)
+          VALUES ('queen'), ('worker') ON CONFLICT(session_id) DO NOTHING
+        `)
+      }),
+    )
+
+    const result = await executeQuery(runtime, {
+      operation: 'search',
+      query: 'shared monopoly marker',
+      searchScope: 'full-transcript',
+      limit: 10,
+    })
+    expect(result.outcome).toMatchObject({ operation: 'search' })
+    if (result.outcome.operation !== 'search' || !('sessions' in result.outcome)) return
+    const sessionIds = result.outcome.sessions.map((session) => session.sessionId)
+    expect(sessionIds).toEqual(expect.arrayContaining(['queen', 'worker']))
+  })
+
   it('keeps discovery search hybrid by default', async () => {
     const runtime = makeRuntime(path.join(temporaryRoot, 'default-search-mode.sqlite'))
     runtimes.push(runtime)

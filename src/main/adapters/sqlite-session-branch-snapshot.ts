@@ -57,6 +57,7 @@ export function resolveSelectedBranchSnapshotHead(
       return {
         status: 'ready',
         headNodeId: input.suppliedHeadNodeId ?? row.head_node_id,
+        branchHeadNodeId: row.head_node_id,
       } as const
     }),
   )

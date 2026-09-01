@@ -8,9 +8,7 @@ The pull request title must use an allowed Conventional Commit subject (for exam
 
 Package versions are driven only by release-eligible Conventional Commits that touch the relevant `packages/<name>/**` path. `feat` produces a package minor, `fix` a patch, and `!` or a `BREAKING CHANGE:` footer marks a breaking package change. Changes limited to the desktop app, website, general docs, fixtures, or workflows do not directly release an npm package.
 
-Desktop app release intent is separate. Do not use commit messages to choose a desktop app version; use the required app release classification instead.
-
-Product or user-impacting changes add one or more `.release/changes/<kebab-case>.md` entries using the documented schema. Routine internal-only changes do not need an intent file.
+Desktop app releases currently use release-eligible Conventional Commit subjects to open a human-gated version PR, then publish GitHub-generated release notes after that PR is merged. Release-intent files and a generated root changelog are planned but not implemented. Until they are, describe user-facing changes, validation, and remaining scope in this PR body.
 
 ## Mixed PRs
 

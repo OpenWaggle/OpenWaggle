@@ -47,8 +47,16 @@ describe('SQLite Session organization repository', () => {
           },
         })
         const sql = yield* SqlClient.SqlClient
-        const rows = yield* sql<{ readonly title: string; readonly archived: number }>`
-          SELECT title, archived FROM sessions WHERE id = ${'session-target'}
+        const rows = yield* sql<{
+          readonly title: string
+          readonly archived: number
+          readonly normalized_reference: string
+        }>`
+          SELECT sessions.title, sessions.archived, report_references.normalized_reference
+          FROM sessions
+          JOIN session_report_references AS report_references
+            ON report_references.session_id = sessions.id AND report_references.kind = ${'title'}
+          WHERE sessions.id = ${'session-target'}
         `
         return { rename, replay, archive, row: rows[0] }
       }).pipe(Effect.provide(layer)),
@@ -57,7 +65,11 @@ describe('SQLite Session organization repository', () => {
     expect(result.rename.outcome).toMatchObject({ effect: 'session-renamed', title: 'New title' })
     expect(result.replay).toEqual({ ...result.rename, replayed: true })
     expect(result.archive.outcome).toMatchObject({ effect: 'session-archived' })
-    expect(result.row).toEqual({ title: 'New title', archived: 1 })
+    expect(result.row).toEqual({
+      title: 'New title',
+      archived: 1,
+      normalized_reference: 'new title',
+    })
   })
 
   it('hands an idle Session to a new pending worktree and rejects an active Session', async () => {

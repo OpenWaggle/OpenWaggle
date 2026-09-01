@@ -104,6 +104,18 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
   )
   `,
   `
+  CREATE VIRTUAL TABLE session_transcript_search USING fts5(
+    session_id UNINDEXED,
+    content,
+    tokenize = 'unicode61 remove_diacritics 2'
+  )
+  `,
+  `
+  CREATE TABLE session_transcript_search_dirty (
+    session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE
+  )
+  `,
+  `
   CREATE VIRTUAL TABLE session_node_discovery_search USING fts5(
     session_id UNINDEXED,
     node_id UNINDEXED,
@@ -139,12 +151,15 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
   `
   CREATE TRIGGER session_title_search_delete AFTER DELETE ON sessions BEGIN
     DELETE FROM session_title_search WHERE session_id = old.id;
+    DELETE FROM session_transcript_search WHERE session_id = old.id;
   END
   `,
   `
   CREATE TRIGGER session_node_search_insert AFTER INSERT ON session_nodes BEGIN
     INSERT INTO session_node_search (session_id, node_id, content)
     VALUES (new.session_id, new.id, ${NEW_TRANSCRIPT_SEARCH_CONTENT});
+    INSERT INTO session_transcript_search_dirty (session_id) VALUES (new.session_id)
+    ON CONFLICT(session_id) DO NOTHING;
     INSERT INTO session_node_discovery_search (session_id, node_id, content)
     VALUES (new.session_id, new.id, COALESCE(
       (SELECT GROUP_CONCAT(
@@ -188,6 +203,8 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
     DELETE FROM session_transcript_embeddings WHERE node_id = old.id;
     INSERT INTO session_node_search (session_id, node_id, content)
     VALUES (new.session_id, new.id, ${NEW_TRANSCRIPT_SEARCH_CONTENT});
+    INSERT INTO session_transcript_search_dirty (session_id) VALUES (new.session_id)
+    ON CONFLICT(session_id) DO NOTHING;
     INSERT INTO session_node_discovery_search (session_id, node_id, content)
     VALUES (new.session_id, new.id, COALESCE(
       (SELECT GROUP_CONCAT(
@@ -226,6 +243,9 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
   `
   CREATE TRIGGER session_node_search_delete AFTER DELETE ON session_nodes BEGIN
     DELETE FROM session_node_search WHERE node_id = old.id;
+    INSERT INTO session_transcript_search_dirty (session_id)
+    SELECT old.session_id WHERE EXISTS (SELECT 1 FROM sessions WHERE id = old.session_id)
+    ON CONFLICT(session_id) DO NOTHING;
     DELETE FROM session_node_discovery_search WHERE node_id = old.id;
     DELETE FROM session_transcript_embedding_queue WHERE node_id = old.id;
     DELETE FROM session_transcript_embeddings WHERE node_id = old.id;

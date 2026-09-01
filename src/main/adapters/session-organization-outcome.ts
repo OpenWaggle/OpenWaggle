@@ -1,5 +1,7 @@
 import type { SessionControlMutationOutcome } from '@shared/types/session-control'
 import type { SessionOrganizationCommand } from '@shared/types/session-organization'
+import * as Effect from 'effect/Effect'
+import { persistSessionReportTitleReference } from './sqlite-session-report-reference-catalog'
 
 export function organizationOutcome(
   command: Exclude<SessionOrganizationCommand, { operation: 'handoff' }>,
@@ -32,8 +34,12 @@ export function persistOrganizationMutation(
   now: number,
 ) {
   if (command.operation === 'rename') {
-    return sql`UPDATE sessions SET title = ${command.title.trim()}, updated_at = ${now}
-      WHERE id = ${command.sessionId}`
+    const title = command.title.trim()
+    return Effect.gen(function* () {
+      yield* sql`UPDATE sessions SET title = ${title}, updated_at = ${now}
+        WHERE id = ${command.sessionId}`
+      yield* persistSessionReportTitleReference(sql, command.sessionId, title)
+    })
   }
   return sql`UPDATE sessions SET archived = ${command.operation === 'archive' ? 1 : 0},
     updated_at = ${now} WHERE id = ${command.sessionId}`

@@ -1,4 +1,5 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import { normalizeSessionReportReference } from '@shared/session-report-reference'
 import { SessionId } from '@shared/types/brand'
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import type { SessionControlReportTarget } from '@shared/types/session-collaboration'
@@ -100,26 +101,20 @@ function loadReferenceCandidates(
   authority: LocalSessionProfileAuthority | undefined,
 ) {
   const allowed = authorizedSessionScope(authority)
-  const normalizedReference = target.reference.trim().toLocaleLowerCase()
+  const normalizedReference = normalizeSessionReportReference(target.reference)
   return sql<ReportCandidateRow>`
-    SELECT sessions.id AS session_id, sessions.title,
+    SELECT DISTINCT sessions.id AS session_id, sessions.title,
       CASE WHEN json_valid(session_execution_profiles.profile_json)
         THEN json_extract(session_execution_profiles.profile_json, '$.agentDefinitionName')
         ELSE NULL
       END AS agent_name
-    FROM sessions
+    FROM session_report_references AS report_references
+    JOIN sessions ON sessions.id = report_references.session_id
     LEFT JOIN session_spawn_lineage AS lineage ON lineage.child_session_id = sessions.id
     LEFT JOIN session_execution_profiles
       ON session_execution_profiles.session_id = sessions.id
-    WHERE sessions.id <> ${source.session_id}
-      AND (
-        lower(trim(sessions.id)) = ${normalizedReference}
-        OR lower(trim(sessions.title)) = ${normalizedReference}
-        OR lower(trim(CASE WHEN json_valid(session_execution_profiles.profile_json)
-          THEN json_extract(session_execution_profiles.profile_json, '$.agentDefinitionName')
-          ELSE NULL
-        END)) = ${normalizedReference}
-      )
+    WHERE report_references.normalized_reference = ${normalizedReference}
+      AND sessions.id <> ${source.session_id}
       AND (
         sessions.id = ${source.parent_session_id}
         OR sessions.id = ${source.hive_root_session_id}

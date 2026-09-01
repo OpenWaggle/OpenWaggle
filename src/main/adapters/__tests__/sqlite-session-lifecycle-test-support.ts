@@ -5,6 +5,7 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
 import { CURRENT_SESSION_SCHEMA_STATEMENTS } from '../../services/database-schema'
+import { SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS } from '../../services/session-host-search-schema'
 import { SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS } from '../../services/session-host-target-schema'
 import { SqliteSessionDelegationRepositoryLive } from '../sqlite-session-delegation-repository'
 import { SqliteSessionLifecycleRepositoryLive } from '../sqlite-session-lifecycle-repository'
@@ -34,6 +35,9 @@ export function makeSessionLifecycleTestLayer(filename: string) {
         yield* sql.unsafe(statement)
       }
       for (const statement of SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS) {
+        yield* sql.unsafe(statement)
+      }
+      for (const statement of SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS) {
         yield* sql.unsafe(statement)
       }
       yield* sql`

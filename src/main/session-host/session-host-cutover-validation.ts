@@ -2,6 +2,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { SESSION_TRANSCRIPT_SEMANTIC_STORAGE_POLICY as TRANSCRIPT_POLICY } from '../domain/session-transcript-semantic-storage-policy'
 import { SESSION_HOST_SCHEMA_REVISION } from '../services/session-host-schema-identity'
 import { queryCutoverRecord, readCutoverCount } from './session-host-cutover-database'
+import { validateSessionReportReferenceCatalog } from './session-host-report-reference-catalog'
 
 export { SESSION_HOST_SCHEMA_REVISION }
 
@@ -11,6 +12,8 @@ interface TargetCounts {
   readonly bindings: number
   readonly indexedTitles: number
   readonly indexedNodes: number
+  readonly indexedTranscripts: number
+  readonly transcriptSessions: number
   readonly indexedDiscoveryNodes: number
   readonly indexedDelegationObjectives: number
   readonly delegationSpecifications: number
@@ -46,6 +49,14 @@ function targetCounts(database: DatabaseSync): TargetCounts {
     bindings: readCutoverCount(database, 'session_workspace_bindings'),
     indexedTitles: readCutoverCount(database, 'session_title_search'),
     indexedNodes: readCutoverCount(database, 'session_node_search'),
+    indexedTranscripts: readCutoverCount(database, 'session_transcript_search'),
+    transcriptSessions:
+      Number(
+        queryCutoverRecord(
+          database,
+          'SELECT COUNT(DISTINCT session_id) AS count FROM session_nodes',
+        )?.count,
+      ) || 0,
     indexedDiscoveryNodes: readCutoverCount(database, 'session_node_discovery_search'),
     indexedDelegationObjectives: readCutoverCount(database, 'session_delegation_search'),
     delegationSpecifications: readCutoverCount(database, 'delegation_specifications'),
@@ -65,6 +76,7 @@ function validateCanonicalCoverage(counts: TargetCounts, invalidProfiles: unknow
   if (
     counts.indexedTitles !== counts.sessions ||
     counts.indexedNodes !== counts.nodes ||
+    counts.indexedTranscripts !== counts.transcriptSessions ||
     counts.indexedDiscoveryNodes !== counts.nodes
   ) {
     throw new Error('Session Host lexical search coverage does not match canonical data.')
@@ -277,6 +289,7 @@ export function validateSessionHostTarget(
       FROM session_semantic_discovery_state WHERE singleton = 1`,
   )
   validateCanonicalCoverage(counts, invalidExecutionProfileCount(database))
+  validateSessionReportReferenceCatalog(database)
   validateSemanticCoverage({
     counts,
     state: semanticState,

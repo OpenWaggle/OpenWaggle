@@ -218,7 +218,9 @@ export function readItems(sql: SqlClient.SqlClient, request: SessionQueryRequest
     // A pinned branch that is no longer active must retain the recursive fallback because shared
     // ancestors are re-attributed when the active branch changes.
     const indexedBranchId =
-      snapshot.selectedBranchId !== null && snapshot.selectedBranchId === snapshot.activeBranchId
+      snapshot.selectedBranchId !== null &&
+      snapshot.selectedBranchId === snapshot.activeBranchId &&
+      snapshot.headNodeId === snapshot.branchHeadNodeId
         ? snapshot.selectedBranchId
         : null
     const sizeRows = yield* itemSizes(

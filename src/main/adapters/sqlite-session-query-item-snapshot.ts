@@ -28,7 +28,7 @@ export function resolveItemSnapshotHead(
     return Effect.succeed(
       input.suppliedHeadNodeId
         ? ({ status: 'not-found' } as const)
-        : ({ status: 'ready', headNodeId: null } as const),
+        : ({ status: 'ready', headNodeId: null, branchHeadNodeId: null } as const),
     )
   }
   return resolveSelectedBranchSnapshotHead(sql, {
@@ -58,7 +58,7 @@ export function resolveItemSnapshot(sql: SqlClient.SqlClient, query: ItemSnapsho
       branchScope === 'tree' ? null : (query.branchId ?? snapshot.last_active_branch_id)
     const head =
       branchScope === 'tree'
-        ? ({ status: 'ready', headNodeId: null } as const)
+        ? ({ status: 'ready', headNodeId: null, branchHeadNodeId: null } as const)
         : yield* resolveItemSnapshotHead(sql, {
             sessionId: query.sessionId,
             selectedBranchId,
@@ -71,6 +71,7 @@ export function resolveItemSnapshot(sql: SqlClient.SqlClient, query: ItemSnapsho
       activeBranchId: snapshot.last_active_branch_id,
       selectedBranchId,
       headNodeId: head.headNodeId,
+      branchHeadNodeId: head.branchHeadNodeId,
       highWaterMark: query.throughCreatedOrder ?? snapshot.high_water_mark,
     } as const
   })

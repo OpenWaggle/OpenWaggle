@@ -14,6 +14,7 @@ import {
   cutoverTableExists,
   queryCutoverRecord,
 } from './session-host-cutover-database'
+import { populateSessionReportReferenceCatalog } from './session-host-report-reference-catalog'
 
 const RESOURCE_ID_DIGEST_CHARACTERS = 32
 const CUTOVER_TRANSCRIPT_SEARCH_CONTENT = sessionTranscriptSearchContentSql('session_nodes')
@@ -279,10 +280,15 @@ export function populateSessionHostTarget(database: DatabaseSync, now: number) {
       now,
     )
   }
+  populateSessionReportReferenceCatalog(database)
   database.exec(`
     INSERT INTO session_title_search (session_id, title) SELECT id, title FROM sessions;
     INSERT INTO session_node_search (session_id, node_id, content)
     SELECT session_id, id, ${CUTOVER_TRANSCRIPT_SEARCH_CONTENT} FROM session_nodes;
+    INSERT INTO session_transcript_search (session_id, content)
+    SELECT session_id, GROUP_CONCAT(content, char(10))
+    FROM session_node_search GROUP BY session_id;
+    DELETE FROM session_transcript_search_dirty;
     INSERT INTO session_node_discovery_search (session_id, node_id, content)
     SELECT session_id, id, COALESCE(
       (SELECT GROUP_CONCAT(

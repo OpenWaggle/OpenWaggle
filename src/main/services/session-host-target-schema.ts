@@ -4,6 +4,7 @@ import { SESSION_EXPORT_TARGET_SCHEMA_STATEMENTS } from './session-host-export-s
 import { SESSION_LIFECYCLE_RESOURCE_SCHEMA_STATEMENTS } from './session-host-lifecycle-resource-schema'
 import { SESSION_ORCHESTRATION_TARGET_SCHEMA_STATEMENTS } from './session-host-orchestration-schema'
 import { SESSION_PROFILE_TARGET_SCHEMA_STATEMENTS } from './session-host-profile-schema'
+import { SESSION_REPORT_REFERENCE_SCHEMA_STATEMENTS } from './session-host-reference-schema'
 import { SESSION_REPORT_TARGET_SCHEMA_STATEMENTS } from './session-host-report-schema'
 import {
   SESSION_HOST_FRESH_REVISION,
@@ -95,6 +96,7 @@ export const SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS = [
     updated_at INTEGER NOT NULL
   )
   `,
+  ...SESSION_REPORT_REFERENCE_SCHEMA_STATEMENTS,
   ...SESSION_LIFECYCLE_RESOURCE_SCHEMA_STATEMENTS,
   `
   CREATE TABLE session_runs (
@@ -280,8 +282,6 @@ export const SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS = [
   `,
   ...SESSION_ATTACHMENT_TARGET_SCHEMA_STATEMENTS,
 ] as const
-
-export { SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS } from './session-host-search-schema'
 
 import { SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS } from './session-host-search-schema'
 

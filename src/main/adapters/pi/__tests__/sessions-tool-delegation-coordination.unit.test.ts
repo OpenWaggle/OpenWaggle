@@ -116,6 +116,27 @@ describe('Pi-native Sessions Delegation coordination', () => {
     ).toMatchObject({ request: { command: { operation: 'delegation-amend' } } })
   })
 
+  it('rejects duplicate dependency IDs even when required states differ', () => {
+    expect(() =>
+      buildSessionsToolPayload(
+        {
+          action: 'delegation_amend',
+          delegationId: 'delegation-1',
+          expectedSpecificationRevision: 1,
+          specification: {
+            ...specification,
+            dependencies: [
+              { delegationId: 'dependency-1', requiredState: 'ready_for_review' },
+              { delegationId: 'dependency-1', requiredState: 'accepted' },
+            ],
+          },
+          reason: 'Invalid duplicate dependencies.',
+        },
+        { sessionId: 'parent', runId: 'run-parent' },
+      ),
+    ).toThrow('Delegation dependency IDs must be unique.')
+  })
+
   it('maps conflict discovery through the native Sessions tool', () => {
     expect(
       buildSessionsToolPayload(
