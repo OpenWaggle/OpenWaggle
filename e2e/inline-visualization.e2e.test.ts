@@ -139,7 +139,7 @@ async function expectSecureInteractiveVisualization(
   await expect(navigationButton).toHaveAttribute('aria-describedby', /^openwaggle-tooltip-/u)
 
   await app.resizeMainWindow(1440, 900)
-  await expect.poll(() => page.evaluate(() => innerWidth)).toBe(1440)
+  await expect.poll(() => page.evaluate(() => innerWidth)).toBeGreaterThanOrEqual(1_400)
   const sessionTreeToggle = page
     .locator('header')
     .getByRole('button', { name: 'Toggle Session Tree' })

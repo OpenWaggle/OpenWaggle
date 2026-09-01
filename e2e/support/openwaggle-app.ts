@@ -179,6 +179,7 @@ export class OpenWaggleApp {
         prefix,
         environmentOverrides,
       )
+      await instance.disableRendererBackgroundThrottling()
       await instance.mainWindow().waitUntilReady()
       return instance
     } catch (error) {
@@ -216,7 +217,15 @@ export class OpenWaggleApp {
       environmentOverrides: this.environmentOverrides,
     })
     this.currentWindow = await this.app.firstWindow()
+    await this.disableRendererBackgroundThrottling()
     await this.mainWindow().waitUntilReady()
+  }
+
+  private async disableRendererBackgroundThrottling(): Promise<void> {
+    if (!this.hidden) return
+    await this.app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0]?.webContents.setBackgroundThrottling(false)
+    })
   }
 
   async close(): Promise<void> {

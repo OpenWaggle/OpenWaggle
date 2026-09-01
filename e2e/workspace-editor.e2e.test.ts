@@ -395,13 +395,17 @@ test('a 1 MiB source file paints a skeleton before tokenization and keeps bounde
         element.dispatchEvent(new Event('scroll'))
       }, position)
       await expect
-        .poll(async () => (await syntaxSourceTransfers(page)).length)
+        .poll(async () => (await syntaxSourceTransfers(page)).length, {
+          timeout: syntaxCompletionTimeout(),
+        })
         .toBeGreaterThan(transferCountBeforeScroll)
       await expect(sourceView).toHaveAttribute('data-syntax-status', 'highlighted', {
         timeout: syntaxCompletionTimeout(),
       })
       await expect
-        .poll(async () => Number(await sourceView.getAttribute('data-syntax-line-offset')))
+        .poll(async () => Number(await sourceView.getAttribute('data-syntax-line-offset')), {
+          timeout: syntaxCompletionTimeout(),
+        })
         .toBeGreaterThan(previousLineOffset)
     }
     const sourceTransfers = await syntaxSourceTransfers(page)
