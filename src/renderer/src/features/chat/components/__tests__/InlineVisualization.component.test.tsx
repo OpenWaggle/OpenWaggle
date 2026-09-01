@@ -104,6 +104,7 @@ describe('InlineVisualization', () => {
     render(
       <InlineVisualization
         sessionId={sessionId}
+        interactionSessionId={sessionId}
         reference={{ path: sourcePath, title: 'Latency map', mode: 'wide' }}
       />,
     )
@@ -130,6 +131,7 @@ describe('InlineVisualization', () => {
     render(
       <InlineVisualization
         sessionId={SessionId('session-visualization-1')}
+        interactionSessionId={SessionId('session-visualization-1')}
         reference={{ path: '/repo/height-map.html', title: 'Height map' }}
       />,
     )
@@ -159,6 +161,7 @@ describe('InlineVisualization', () => {
     render(
       <InlineVisualization
         sessionId={SessionId('session-visualization-1')}
+        interactionSessionId={SessionId('session-visualization-1')}
         reference={{ path: '/repo/security-map.html', title: 'Security map' }}
       />,
     )
@@ -191,10 +194,12 @@ describe('InlineVisualization', () => {
       <>
         <InlineVisualization
           sessionId={SessionId('session-visualization-1')}
+          interactionSessionId={SessionId('session-visualization-1')}
           reference={{ path: '/repo/first-map.html', title: 'First map' }}
         />
         <InlineVisualization
           sessionId={SessionId('session-visualization-1')}
+          interactionSessionId={SessionId('session-visualization-1')}
           reference={{ path: '/repo/second-map.html', title: 'Second map' }}
         />
       </>,
@@ -211,6 +216,7 @@ describe('InlineVisualization', () => {
     render(
       <InlineVisualization
         sessionId={SessionId('session-visualization-1')}
+        interactionSessionId={SessionId('session-visualization-1')}
         reference={{ path: '/repo/theme-map.html', title: 'Theme map' }}
       />,
     )
@@ -235,6 +241,7 @@ describe('InlineVisualization', () => {
     render(
       <InlineVisualization
         sessionId={SessionId('session-visualization-1')}
+        interactionSessionId={SessionId('session-visualization-1')}
         reference={{ path: '/repo/missing-map.html', title: 'Missing map' }}
       />,
     )
@@ -260,6 +267,7 @@ describe('InlineVisualization', () => {
     render(
       <InlineVisualization
         sessionId={SessionId('session-visualization-1')}
+        interactionSessionId={SessionId('session-visualization-1')}
         reference={{ path: '/repo/wide-map.html', title: 'Wide map', mode: 'wide' }}
       />,
     )

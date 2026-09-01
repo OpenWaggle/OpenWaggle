@@ -39,6 +39,54 @@
   const post = (type, payload = {}) => {
     parentPostMessage({ type, capability, ...payload }, '*');
   };
+  post('openwaggle:inline-visualization:bootstrap');
+  const RESOURCE_BUDGET_WINDOW_MS = 5000;
+  const MAX_LONG_TASK_BUDGET_MS = 1000;
+  const longTaskSamples = [];
+  const arrayPush = Array.prototype.push;
+  const arrayShift = Array.prototype.shift;
+  const numberIsFinite = Number.isFinite;
+  const applyIntrinsic = Reflect.apply;
+  let resourceLimitReported = false;
+  const reportResourceLimit = () => {
+    if (resourceLimitReported) return;
+    resourceLimitReported = true;
+    post('openwaggle:inline-visualization:resource-limit');
+  };
+  if (
+    typeof PerformanceObserver !== 'function' ||
+    !PerformanceObserver.supportedEntryTypes?.includes('longtask') ||
+    typeof performance === 'undefined' ||
+    typeof performance.now !== 'function'
+  ) {
+    reportResourceLimit();
+  } else {
+    try {
+      const monotonicNow = performance.now.bind(performance);
+      const observer = new PerformanceObserver((list) => {
+        const now = monotonicNow();
+        const entries = list.getEntries();
+        for (let index = 0; index < entries.length; index += 1) {
+          const duration = entries[index].duration;
+          if (numberIsFinite(duration) && duration > 0) {
+            applyIntrinsic(arrayPush, longTaskSamples, [{ recordedAt: now, duration }]);
+          }
+        }
+        const cutoff = now - RESOURCE_BUDGET_WINDOW_MS;
+        while (longTaskSamples[0]?.recordedAt < cutoff) {
+          applyIntrinsic(arrayShift, longTaskSamples, []);
+        }
+        let blockedTime = 0;
+        for (let index = 0; index < longTaskSamples.length; index += 1) {
+          blockedTime += longTaskSamples[index].duration;
+        }
+        if (blockedTime > MAX_LONG_TASK_BUDGET_MS) reportResourceLimit();
+      });
+      observer.observe({ type: 'longtask', buffered: true });
+    } catch {
+      reportResourceLimit();
+    }
+  }
   const reportSize = () => {
     const body = document.body;
     if (!body) return;
@@ -269,5 +317,4 @@
     }
   }, { once: true });
   addEventListener('load', reportSize, { once: true });
-  post('openwaggle:inline-visualization:bootstrap');
 })();

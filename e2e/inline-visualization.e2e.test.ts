@@ -9,6 +9,8 @@ const FRAME_TITLE = 'Interactive security probe'
 const SOURCE_NAME = 'interactive-security-probe.html'
 const BLOCKING_FRAME_TITLE = 'Blocking security probe'
 const BLOCKING_SOURCE_NAME = 'blocking-security-probe.html'
+const RESOURCE_FRAME_TITLE = 'Resource budget security probe'
+const RESOURCE_SOURCE_NAME = 'resource-budget-security-probe.html'
 
 function visualizationSource() {
   return `
@@ -226,6 +228,55 @@ test('terminates a visualization that blocks parsing without freezing OpenWaggle
       timeout: 10_000,
     })
     await expect(page.locator(`iframe[title="${BLOCKING_FRAME_TITLE}"]`)).toHaveCount(0)
+    await expect(page).toHaveURL(/^openwaggle:\/\/app\//u)
+    await expect(app.mainWindow().threadItem(THREAD_TITLE)).toBeVisible()
+  } finally {
+    await app.cleanup()
+  }
+})
+
+test('removes a responsive visualization that exceeds its main-thread budget', async () => {
+  const app = await OpenWaggleApp.launch('openwaggle-resource-budget-visualization-e2e-')
+
+  try {
+    const sourcePath = path.join(app.userDataDir, RESOURCE_SOURCE_NAME)
+    await fs.writeFile(
+      sourcePath,
+      `<main>Resource budget probe</main><script>
+        let runs = 0;
+        const burn = () => {
+          const startedAt = performance.now();
+          while (performance.now() - startedAt < 650) {}
+          runs += 1;
+          if (runs < 3) setTimeout(burn, 0);
+        };
+        burn();
+      </script>`,
+      'utf8',
+    )
+    const reference = `visualize${JSON.stringify({ path: sourcePath, title: RESOURCE_FRAME_TITLE })}`
+    await seedSingleSession(app.userDataDir, {
+      title: THREAD_TITLE,
+      projectPath: app.userDataDir,
+      updatedAt: Date.now(),
+      messages: [
+        {
+          id: 'resource-budget-visualization-assistant-message',
+          role: 'assistant',
+          createdAt: Date.now(),
+          parts: [{ type: 'text', text: reference }],
+        },
+      ],
+    })
+
+    await app.restart()
+    await openVisualizationThread(app)
+
+    const page = app.window()
+    await expect(page.getByRole('alert')).toContainText('visualization could not be loaded', {
+      timeout: 10_000,
+    })
+    await expect(page.locator(`iframe[title="${RESOURCE_FRAME_TITLE}"]`)).toHaveCount(0)
     await expect(page).toHaveURL(/^openwaggle:\/\/app\//u)
     await expect(app.mainWindow().threadItem(THREAD_TITLE)).toBeVisible()
   } finally {

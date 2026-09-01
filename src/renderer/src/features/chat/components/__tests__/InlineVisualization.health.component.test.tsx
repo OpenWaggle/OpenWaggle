@@ -38,6 +38,20 @@ function dispatchReady(frame: HTMLIFrameElement) {
   }
 }
 
+function dispatchResourceLimit(frame: HTMLIFrameElement) {
+  const url = new URL(frame.src)
+  window.dispatchEvent(
+    new MessageEvent('message', {
+      source: frame.contentWindow,
+      origin: `${url.protocol}//${url.host}`,
+      data: {
+        type: 'openwaggle:inline-visualization:resource-limit',
+        capability: 'test-capability-1234567890',
+      },
+    }),
+  )
+}
+
 describe('InlineVisualization health checks', () => {
   beforeEach(() => {
     apiMock.registerInlineVisualizationFrame.mockImplementation(
@@ -59,6 +73,7 @@ describe('InlineVisualization health checks', () => {
     render(
       <InlineVisualization
         sessionId={SessionId('session-visualization-1')}
+        interactionSessionId={SessionId('session-visualization-1')}
         reference={{ path: '/repo/unresponsive-map.html', title: 'Unresponsive map' }}
       />,
     )
@@ -74,6 +89,7 @@ describe('InlineVisualization health checks', () => {
     render(
       <InlineVisualization
         sessionId={SessionId('session-visualization-1')}
+        interactionSessionId={SessionId('session-visualization-1')}
         reference={{ path: '/repo/silent-map.html', title: 'Silent map' }}
       />,
     )
@@ -85,5 +101,24 @@ describe('InlineVisualization health checks', () => {
     })
 
     expect(screen.getByRole('alert')).toHaveTextContent('visualization could not be loaded')
+  })
+
+  it('removes a responsive frame when the trusted runtime reports exhausted resources', async () => {
+    render(
+      <InlineVisualization
+        sessionId={SessionId('session-visualization-1')}
+        interactionSessionId={SessionId('session-visualization-1')}
+        reference={{ path: '/repo/resource-heavy-map.html', title: 'Resource-heavy map' }}
+      />,
+    )
+    await act(async () => undefined)
+    const frame = currentVisualizationFrame('Resource-heavy map')
+    act(() => {
+      dispatchReady(frame)
+      dispatchResourceLimit(frame)
+    })
+
+    expect(screen.getByRole('alert')).toHaveTextContent('visualization could not be loaded')
+    expect(screen.queryByTitle('Resource-heavy map')).toBeNull()
   })
 })

@@ -93,9 +93,11 @@ function VisualizationContent({
 
 export function InlineVisualization({
   sessionId,
+  interactionSessionId,
   reference,
 }: {
   readonly sessionId: SessionId
+  readonly interactionSessionId: SessionId | null
   readonly reference: InlineVisualizationReference
 }) {
   const title = reference.title ?? 'Interactive visualization'
@@ -107,7 +109,7 @@ export function InlineVisualization({
     { sectionRef, sessionId, sourcePath: reference.path },
   )
   const { frameRef, height, errorReason, handleLoad, reset } = useInlineVisualizationFrame({
-    sessionId,
+    interactionSessionId,
     frameUrl: registration?.frameUrl ?? null,
     registrationId: registration?.registrationId ?? null,
     onDismiss: dismiss,

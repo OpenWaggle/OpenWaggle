@@ -235,6 +235,7 @@ export function AssistantMessageBubble({
                         visualizationSessionId={
                           message.metadata?.visualizationSessionId ?? runtime.sessionId
                         }
+                        visualizationInteractionSessionId={runtime.sessionId}
                       />
                     ) : null,
                   )

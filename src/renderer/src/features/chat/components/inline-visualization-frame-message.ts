@@ -17,7 +17,7 @@ function boundedVisualizationHeight(value: unknown) {
 }
 
 interface FrameMessageContext {
-  readonly sessionId: SessionId
+  readonly interactionSessionId: SessionId | null
   readonly capability: { current: string | null }
   readonly brokerPending: { current: boolean }
   readonly clearHealthCheckTimeout: () => void
@@ -60,6 +60,7 @@ export function handleInlineVisualizationFrameMessage(
     })
     .with('openwaggle:inline-visualization:follow-up', () => {
       if (
+        context.interactionSessionId === null ||
         typeof value.prompt !== 'string' ||
         typeof value.requestId !== 'string' ||
         context.brokerPending.current
@@ -69,7 +70,7 @@ export function handleInlineVisualizationFrameMessage(
       if (value.title !== undefined && typeof value.title !== 'string') return
       context.brokerPending.current = true
       void sendBrokeredVisualizationFollowUp({
-        sessionId: context.sessionId,
+        sessionId: context.interactionSessionId,
         prompt: value.prompt,
         ...(typeof value.title === 'string' ? { title: value.title } : {}),
       })
@@ -104,6 +105,9 @@ export function handleInlineVisualizationFrameMessage(
     })
     .with('openwaggle:inline-visualization:error', () => {
       if (typeof value.reason === 'string') context.setErrorReason(value.reason)
+    })
+    .with('openwaggle:inline-visualization:resource-limit', () => {
+      context.setErrorReason('resource-limit')
     })
     .with('openwaggle:inline-visualization:resize', () => {
       const height = boundedVisualizationHeight(value.height)

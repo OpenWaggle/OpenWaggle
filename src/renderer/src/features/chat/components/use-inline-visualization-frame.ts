@@ -17,7 +17,7 @@ function customProtocolOrigin(frameUrl: string) {
 }
 
 export function useInlineVisualizationFrame(input: {
-  readonly sessionId: SessionId
+  readonly interactionSessionId: SessionId | null
   readonly frameUrl: string | null
   readonly registrationId: string | null
   readonly onDismiss: () => void
@@ -84,7 +84,7 @@ export function useInlineVisualizationFrame(input: {
     const origin = customProtocolOrigin(input.frameUrl)
     const unsubscribeFrame = subscribeInlineVisualizationFrame(frameWindow, origin, (event) => {
       handleInlineVisualizationFrameMessage(event.data, {
-        sessionId: input.sessionId,
+        interactionSessionId: input.interactionSessionId,
         capability: capabilityRef,
         brokerPending: brokerPendingRef,
         clearHealthCheckTimeout,
@@ -115,7 +115,7 @@ export function useInlineVisualizationFrame(input: {
     input.frameUrl,
     input.onDismiss,
     input.registrationId,
-    input.sessionId,
+    input.interactionSessionId,
     postToFrame,
     sendTheme,
   ])

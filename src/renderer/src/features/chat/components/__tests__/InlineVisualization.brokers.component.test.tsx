@@ -92,6 +92,7 @@ describe('InlineVisualization brokers', () => {
     render(
       <InlineVisualization
         sessionId={SessionId('session-visualization-1')}
+        interactionSessionId={SessionId('session-visualization-1')}
         reference={{ path: '/repo/link-map.html', title: 'Link map' }}
       />,
     )
@@ -119,6 +120,7 @@ describe('InlineVisualization brokers', () => {
     render(
       <InlineVisualization
         sessionId={SessionId('session-visualization-1')}
+        interactionSessionId={SessionId('session-visualization-1')}
         reference={{ path: '/repo/capability-map.html', title: 'Capability map' }}
       />,
     )
@@ -163,6 +165,7 @@ describe('InlineVisualization brokers', () => {
     render(
       <InlineVisualization
         sessionId={SessionId('session-visualization-1')}
+        interactionSessionId={SessionId('session-visualization-1')}
         reference={{ path: '/repo/link-map.html', title: 'Single-flight map' }}
       />,
     )
@@ -186,6 +189,7 @@ describe('InlineVisualization brokers', () => {
     render(
       <InlineVisualization
         sessionId={SessionId('session-visualization-1')}
+        interactionSessionId={SessionId('session-visualization-1')}
         reference={{ path: '/repo/download-map.html', title: 'Download map' }}
       />,
     )
@@ -218,6 +222,7 @@ describe('InlineVisualization brokers', () => {
     render(
       <InlineVisualization
         sessionId={SessionId('session-visualization-1')}
+        interactionSessionId={SessionId('session-visualization-1')}
         reference={{ path: '/repo/link-map.html', title: 'Link map' }}
       />,
     )
@@ -236,16 +241,21 @@ describe('InlineVisualization brokers', () => {
     expect(apiMock.openExternal).not.toHaveBeenCalled()
   })
 
-  it('queues a follow-up for the owning session only after user confirmation', async () => {
-    const sessionId = SessionId('session-visualization-1')
+  it('reads from the owning session but queues a confirmed follow-up for the active session', async () => {
+    const sourceSessionId = SessionId('source-session')
+    const activeSessionId = SessionId('active-session')
     apiMock.showConfirm.mockResolvedValue(true)
     render(
       <InlineVisualization
-        sessionId={sessionId}
+        sessionId={sourceSessionId}
+        interactionSessionId={activeSessionId}
         reference={{ path: '/repo/follow-up-map.html', title: 'Follow-up map' }}
       />,
     )
     const frame = await visualizationFrame('Follow-up map')
+    expect(apiMock.registerInlineVisualizationFrame).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: sourceSessionId }),
+    )
 
     await activateFrame(frame)
     const postMessage = vi.spyOn(visualizationFrameWindow(frame), 'postMessage')
@@ -263,9 +273,10 @@ describe('InlineVisualization brokers', () => {
         'Investigate selection?',
         'Investigate the selected service.',
       )
-      expect(useMessageQueueStore.getState().queues.get(sessionId)?.[0]?.payload.text).toBe(
+      expect(useMessageQueueStore.getState().queues.get(activeSessionId)?.[0]?.payload.text).toBe(
         'Investigate the selected service.',
       )
+      expect(useMessageQueueStore.getState().queues.has(sourceSessionId)).toBe(false)
       expect(postMessage).toHaveBeenCalledWith(
         {
           type: 'openwaggle:inline-visualization:follow-up-result',

@@ -36,11 +36,17 @@ vi.mock('../StreamingText', () => ({
   StreamingText: ({
     text,
     visualizationSessionId,
+    visualizationInteractionSessionId,
   }: {
     text: string
     visualizationSessionId?: string
+    visualizationInteractionSessionId?: string
   }) => (
-    <div data-testid="streaming-text" data-visualization-session={visualizationSessionId}>
+    <div
+      data-testid="streaming-text"
+      data-visualization-session={visualizationSessionId}
+      data-visualization-interaction-session={visualizationInteractionSessionId}
+    >
       {text}
     </div>
   ),
@@ -206,6 +212,10 @@ describe('AssistantMessageBubble', () => {
     expect(screen.getByTestId('streaming-text')).toHaveAttribute(
       'data-visualization-session',
       'source-session',
+    )
+    expect(screen.getByTestId('streaming-text')).toHaveAttribute(
+      'data-visualization-interaction-session',
+      defaultSessionId,
     )
   })
 

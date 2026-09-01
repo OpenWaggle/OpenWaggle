@@ -53,6 +53,7 @@ interface StreamingTextProps {
   isStreaming?: boolean
   className?: string
   visualizationSessionId?: SessionId | null
+  visualizationInteractionSessionId?: SessionId | null
 }
 
 type StreamingContentSegment =
@@ -169,6 +170,7 @@ export function StreamingText({
   isStreaming = false,
   className,
   visualizationSessionId,
+  visualizationInteractionSessionId,
 }: StreamingTextProps) {
   const highlighter = useShikiHighlighter()
   const formatDisplayMarkdown = useChatDisplayMarkdownFormatter()
@@ -188,6 +190,7 @@ export function StreamingText({
         <InlineVisualization
           key={`visualization-${String(segment.sourceOffset)}`}
           sessionId={visualizationSessionId}
+          interactionSessionId={visualizationInteractionSessionId ?? null}
           reference={segment.reference}
         />
       )

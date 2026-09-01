@@ -8,7 +8,7 @@ interface RuntimeWindow {
   }
 }
 
-function runtimeHarness(nativeActivationIsActive = false) {
+function runtimeHarness(nativeActivationIsActive = false, supportsLongTaskAccounting = true) {
   const postedMessages: unknown[] = []
   const listeners = new Map<string, Array<(event: { source?: unknown; data?: unknown }) => void>>()
   const documentListeners = new Map<string, Array<(event: { isTrusted?: boolean }) => void>>()
@@ -22,6 +22,19 @@ function runtimeHarness(nativeActivationIsActive = false) {
     userActivation: new NativeUserActivation(),
   }
   const runtimeWindow: RuntimeWindow = {}
+  let performanceNow = 0
+  const performanceObserverCallbacks: Array<
+    (list: { getEntries: () => Array<{ duration: number }> }) => void
+  > = []
+  class RuntimePerformanceObserver {
+    static supportedEntryTypes = ['longtask']
+
+    constructor(callback: (list: { getEntries: () => Array<{ duration: number }> }) => void) {
+      performanceObserverCallbacks.push(callback)
+    }
+
+    observe() {}
+  }
   const context = vm.createContext({
     crypto: { randomUUID: vi.fn(() => 'trusted-capability-1234567890') },
     parent,
@@ -49,6 +62,8 @@ function runtimeHarness(nativeActivationIsActive = false) {
     setTimeout,
     clearTimeout,
     queueMicrotask,
+    PerformanceObserver: supportsLongTaskAccounting ? RuntimePerformanceObserver : undefined,
+    performance: { now: () => performanceNow },
   })
   vm.runInContext(hostRuntime, context)
   const dispatchHostMessage = (data: unknown) => {
@@ -65,10 +80,19 @@ function runtimeHarness(nativeActivationIsActive = false) {
     for (const listener of documentListeners.get(type) ?? []) listener({ isTrusted: false })
     fragmentHandler()
   }
+  const dispatchLongTasks = (...durations: number[]) => {
+    for (const callback of performanceObserverCallbacks) {
+      callback({ getEntries: () => durations.map((duration) => ({ duration })) })
+    }
+  }
   return {
+    advanceRuntimeTime: (milliseconds: number) => {
+      performanceNow += milliseconds
+    },
     context,
     dispatchWindowEvent,
     dispatchHostMessage,
+    dispatchLongTasks,
     dispatchSyntheticDocumentEvent,
     dispatchTrustedDocumentEvent,
     navigator,
@@ -163,5 +187,53 @@ describe('inline visualization host runtime', () => {
     dispatchTrustedDocumentEvent('click', () => undefined)
     await Promise.resolve()
     await expect(openai.sendFollowUpMessage('Delayed event attack')).resolves.toBe(false)
+  })
+
+  it('reports a resource limit when long tasks exceed the trusted runtime budget', () => {
+    const { dispatchLongTasks, postedMessages } = runtimeHarness()
+
+    dispatchLongTasks(600, 600)
+
+    expect(postedMessages).toContainEqual(
+      expect.objectContaining({ type: 'openwaggle:inline-visualization:resource-limit' }),
+    )
+  })
+
+  it('fails closed when browser long-task accounting is unavailable', () => {
+    const { postedMessages } = runtimeHarness(false, false)
+
+    expect(postedMessages.slice(0, 2)).toEqual([
+      expect.objectContaining({ type: 'openwaggle:inline-visualization:bootstrap' }),
+      expect.objectContaining({ type: 'openwaggle:inline-visualization:resource-limit' }),
+    ])
+  })
+
+  it('measures the resource budget over a rolling window', () => {
+    const { advanceRuntimeTime, dispatchLongTasks, postedMessages } = runtimeHarness()
+
+    dispatchLongTasks(600)
+    advanceRuntimeTime(5_001)
+    dispatchLongTasks(600)
+
+    expect(postedMessages).not.toContainEqual(
+      expect.objectContaining({ type: 'openwaggle:inline-visualization:resource-limit' }),
+    )
+  })
+
+  it('keeps resource accounting independent from fragment-patched intrinsics', () => {
+    const { context, dispatchLongTasks, postedMessages } = runtimeHarness()
+    vm.runInContext(
+      `Array.prototype.push = () => 0;
+       Array.prototype.shift = () => undefined;
+       Array.prototype.reduce = () => 0;
+       Number.isFinite = () => false;`,
+      context,
+    )
+
+    dispatchLongTasks(600, 600)
+
+    expect(postedMessages).toContainEqual(
+      expect.objectContaining({ type: 'openwaggle:inline-visualization:resource-limit' }),
+    )
   })
 })
