@@ -30,21 +30,19 @@ async function createGitProject(projectPath: string, provider?: 'github' | 'gitl
   await fs.mkdir(projectPath, { recursive: true })
   await fs.writeFile(path.join(projectPath, 'README.md'), '# Session Summary E2E\n')
   execFileSync('git', ['init', '-b', 'main'], { cwd: projectPath, stdio: 'ignore' })
+  execFileSync('git', ['config', 'user.name', 'OpenWaggle E2E'], {
+    cwd: projectPath,
+    stdio: 'ignore',
+  })
+  execFileSync('git', ['config', 'user.email', 'e2e@openwaggle.dev'], {
+    cwd: projectPath,
+    stdio: 'ignore',
+  })
   execFileSync('git', ['add', 'README.md'], { cwd: projectPath, stdio: 'ignore' })
-  execFileSync(
-    'git',
-    [
-      '-c',
-      'user.name=OpenWaggle E2E',
-      '-c',
-      'user.email=e2e@openwaggle.dev',
-      'commit',
-      '--no-gpg-sign',
-      '-m',
-      'Seed Session Summary fixture',
-    ],
-    { cwd: projectPath, stdio: 'ignore' },
-  )
+  execFileSync('git', ['commit', '--no-gpg-sign', '-m', 'Seed Session Summary fixture'], {
+    cwd: projectPath,
+    stdio: 'ignore',
+  })
   if (provider) {
     const remotePath = `${projectPath}-remote.git`
     await fs.mkdir(remotePath, { recursive: true })
