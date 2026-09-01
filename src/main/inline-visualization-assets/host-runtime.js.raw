@@ -24,6 +24,18 @@
     }
     return () => false;
   })();
+  const enqueueMicrotask = queueMicrotask;
+  let trustedFrameInputActive = false;
+  const markTrustedFrameInput = (event) => {
+    if (!event.isTrusted) return;
+    trustedFrameInputActive = true;
+    enqueueMicrotask(() => {
+      trustedFrameInputActive = false;
+    });
+  };
+  for (const type of ['click', 'keydown', 'pointerdown', 'pointerup']) {
+    document.addEventListener(type, markTrustedFrameInput, true);
+  }
   const post = (type, payload = {}) => {
     parentPostMessage({ type, capability, ...payload }, '*');
   };
@@ -183,6 +195,7 @@
     if (
       typeof prompt !== 'string' ||
       prompt.trim().length === 0 ||
+      !trustedFrameInputActive ||
       !hasTrustedUserActivation()
     ) {
       return Promise.resolve(false);

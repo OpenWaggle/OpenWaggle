@@ -11,6 +11,7 @@ interface RuntimeWindow {
 function runtimeHarness(nativeActivationIsActive = false) {
   const postedMessages: unknown[] = []
   const listeners = new Map<string, Array<(event: { source?: unknown; data?: unknown }) => void>>()
+  const documentListeners = new Map<string, Array<(event: { isTrusted?: boolean }) => void>>()
   const parent = { postMessage: (message: unknown) => postedMessages.push(message) }
   class NativeUserActivation {
     get isActive() {
@@ -24,9 +25,18 @@ function runtimeHarness(nativeActivationIsActive = false) {
   const context = vm.createContext({
     crypto: { randomUUID: vi.fn(() => 'trusted-capability-1234567890') },
     parent,
-    document: { addEventListener: vi.fn() },
+    document: {
+      addEventListener: vi.fn(
+        (type: string, listener: (event: { isTrusted?: boolean }) => void) => {
+          documentListeners.set(type, [...(documentListeners.get(type) ?? []), listener])
+        },
+      ),
+    },
     navigator,
     window: runtimeWindow,
+    Element: class Element {},
+    HTMLAnchorElement: class HTMLAnchorElement {},
+    matchMedia: vi.fn(() => ({ matches: false })),
     addEventListener: vi.fn(
       (type: string, listener: (event: { source?: unknown; data?: unknown }) => void) => {
         listeners.set(type, [...(listeners.get(type) ?? []), listener])
@@ -34,12 +44,29 @@ function runtimeHarness(nativeActivationIsActive = false) {
     ),
     setTimeout,
     clearTimeout,
+    queueMicrotask,
   })
   vm.runInContext(hostRuntime, context)
   const dispatchHostMessage = (data: unknown) => {
     for (const listener of listeners.get('message') ?? []) listener({ source: parent, data })
   }
-  return { context, dispatchHostMessage, navigator, postedMessages, runtimeWindow }
+  const dispatchTrustedDocumentEvent = (type: string, fragmentHandler: () => void) => {
+    for (const listener of documentListeners.get(type) ?? []) listener({ isTrusted: true })
+    fragmentHandler()
+  }
+  const dispatchSyntheticDocumentEvent = (type: string, fragmentHandler: () => void) => {
+    for (const listener of documentListeners.get(type) ?? []) listener({ isTrusted: false })
+    fragmentHandler()
+  }
+  return {
+    context,
+    dispatchHostMessage,
+    dispatchSyntheticDocumentEvent,
+    dispatchTrustedDocumentEvent,
+    navigator,
+    postedMessages,
+    runtimeWindow,
+  }
 }
 
 describe('inline visualization host runtime', () => {
@@ -59,11 +86,16 @@ describe('inline visualization host runtime', () => {
   })
 
   it('allows a follow-up during genuine native user activation', async () => {
-    const { dispatchHostMessage, postedMessages, runtimeWindow } = runtimeHarness(true)
+    const { dispatchHostMessage, dispatchTrustedDocumentEvent, postedMessages, runtimeWindow } =
+      runtimeHarness(true)
     const openai = runtimeWindow.openai
     if (!openai) throw new Error('Expected the trusted runtime API.')
 
-    const result = openai.sendFollowUpMessage('Trusted interactive follow-up')
+    let result: Promise<boolean> | undefined
+    dispatchTrustedDocumentEvent('click', () => {
+      result = openai.sendFollowUpMessage('Trusted interactive follow-up')
+    })
+    if (!result) throw new Error('Expected a follow-up result promise.')
     const request = postedMessages.find(
       (message): message is { capability: string; requestId: string; type: string } =>
         typeof message === 'object' &&
@@ -79,5 +111,34 @@ describe('inline visualization host runtime', () => {
     })
 
     await expect(result).resolves.toBe(true)
+  })
+
+  it('rejects inherited native activation without a trusted event inside the frame', async () => {
+    const { postedMessages, runtimeWindow } = runtimeHarness(true)
+    const openai = runtimeWindow.openai
+    if (!openai) throw new Error('Expected the trusted runtime API.')
+
+    await expect(openai.sendFollowUpMessage('Inherited activation attack')).resolves.toBe(false)
+    expect(postedMessages).not.toContainEqual(
+      expect.objectContaining({ type: 'openwaggle:inline-visualization:follow-up' }),
+    )
+  })
+
+  it('rejects synthetic and delayed calls outside trusted frame-event dispatch', async () => {
+    const { dispatchSyntheticDocumentEvent, dispatchTrustedDocumentEvent, runtimeWindow } =
+      runtimeHarness(true)
+    const openai = runtimeWindow.openai
+    if (!openai) throw new Error('Expected the trusted runtime API.')
+
+    let syntheticResult: Promise<boolean> | undefined
+    dispatchSyntheticDocumentEvent('click', () => {
+      syntheticResult = openai.sendFollowUpMessage('Synthetic event attack')
+    })
+    if (!syntheticResult) throw new Error('Expected a synthetic-event result promise.')
+    await expect(syntheticResult).resolves.toBe(false)
+
+    dispatchTrustedDocumentEvent('click', () => undefined)
+    await Promise.resolve()
+    await expect(openai.sendFollowUpMessage('Delayed event attack')).resolves.toBe(false)
   })
 })
