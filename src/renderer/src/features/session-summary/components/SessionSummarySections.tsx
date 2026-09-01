@@ -16,6 +16,7 @@ import {
 import type { GitQuickAction } from '@/features/git'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
+import { isViewableSessionImage } from '../model/session-resource-viewability'
 
 const SUMMARY_RESOURCE_LIMIT = 3
 
@@ -181,6 +182,12 @@ export function ResourceSummarySection({
   readonly onOpenImage: (resourceId: string) => void
 }) {
   if (resources.length === 0) return null
+  const openResource = (resource: SessionResource) => {
+    if (resource.kind !== 'image') return onOpenResources()
+    if (isViewableSessionImage(resource)) return onOpenImage(resource.id)
+    if (resource.locator?.startsWith('http://')) return void api.openExternal(resource.locator)
+    return onOpenResources()
+  }
   return (
     <SummarySection
       title={title}
@@ -201,7 +208,7 @@ export function ResourceSummarySection({
             )
           }
           label={resource.title}
-          onClick={() => (resource.kind === 'image' ? onOpenImage(resource.id) : onOpenResources())}
+          onClick={() => openResource(resource)}
         />
       ))}
       {title === 'Sources' || resources.length > SUMMARY_RESOURCE_LIMIT ? (

@@ -193,6 +193,11 @@ export function registerSessionResourceHandlers(): void {
             output.url === input.url,
         )
         if (!pending) {
+          const repository = yield* SessionResourceRepository
+          const existing = (yield* repository.list(sessionId)).find(
+            (resource) => resource.kind === 'change-request' && resource.locator === input.url,
+          )
+          if (existing) return existing
           return yield* Effect.fail(
             new Error('No matching created change request is pending Output recording.'),
           )

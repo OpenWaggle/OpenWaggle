@@ -171,7 +171,7 @@ export class OpenWaggleApp {
         String(childProcess.pid),
         '/T',
         '/F',
-      ]).then(
+      ], { windowsHide: true }).then(
         () => true,
         () => false,
       )

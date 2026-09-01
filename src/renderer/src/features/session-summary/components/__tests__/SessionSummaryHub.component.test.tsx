@@ -12,12 +12,13 @@ import { SessionSummaryHub } from '../SessionSummaryHub'
 
 const listSessionResources = vi.hoisted(() => vi.fn())
 const listArchivedSessions = vi.hoisted(() => vi.fn())
+const openExternal = vi.hoisted(() => vi.fn())
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     listSessionResources,
     listArchivedSessions,
-    openExternal: vi.fn(),
+    openExternal,
   },
 }))
 
@@ -139,6 +140,7 @@ describe('SessionSummaryHub', () => {
     useUIStore.setState({ resourceViewer: null })
     listSessionResources.mockReset().mockResolvedValue([])
     listArchivedSessions.mockReset().mockResolvedValue([])
+    openExternal.mockReset().mockResolvedValue(undefined)
   })
 
   it('does not render before the opened session has its first message', () => {
@@ -243,6 +245,33 @@ describe('SessionSummaryHub', () => {
       sessionId: 'session-1',
       resourceId: 'summary-image',
     })
+  })
+
+  it('routes an unavailable summary image to the session resource browser', async () => {
+    const onOpenResources = vi.fn()
+    listSessionResources.mockResolvedValue([
+      resource({ available: false, locator: null, managed: false }),
+    ])
+    renderHub({ onOpenResources })
+
+    fireEvent.click(await screen.findByRole('button', { name: /Sources/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'reference.png' }))
+
+    expect(onOpenResources).toHaveBeenCalledWith('sources')
+    expect(useUIStore.getState().resourceViewer).toBeNull()
+  })
+
+  it('opens an HTTP-only summary image in the external browser', async () => {
+    listSessionResources.mockResolvedValue([
+      resource({ locator: 'http://example.test/reference.png', managed: false }),
+    ])
+    renderHub()
+
+    fireEvent.click(await screen.findByRole('button', { name: /Sources/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'reference.png' }))
+
+    expect(openExternal).toHaveBeenCalledWith('http://example.test/reference.png')
+    expect(useUIStore.getState().resourceViewer).toBeNull()
   })
 
   it('persists collapsed state per session', () => {

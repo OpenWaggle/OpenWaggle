@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { expect, type Locator, test } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import { OpenWaggleApp } from './support/openwaggle-app'
 import { seedSessionResources, seedSingleSession } from './support/session-fixtures'
 
@@ -155,16 +155,6 @@ public static class Program {
     fs.copyFile(executablePath, path.join(binPath, 'gh.exe')),
     fs.copyFile(executablePath, path.join(binPath, 'glab.exe')),
   ])
-}
-
-async function dispatchButtonClick(button: Locator) {
-  await expect(button).toBeEnabled()
-  const dispatched = await button.evaluate((element) => {
-    if (!(element instanceof HTMLButtonElement) || element.disabled) return false
-    element.click()
-    return true
-  })
-  expect(dispatched).toBe(true)
 }
 
 test('Session Summary follows first-message, dock, and sidebar behavior', async () => {
@@ -525,7 +515,7 @@ test('Session Summary exposes complete GitHub PR and GitLab MR composition', asy
     await expect(
       pullRequestComposer.getByRole('button', { name: 'Open PR in browser' }),
     ).toBeDisabled()
-    await dispatchButtonClick(pullRequestComposer.getByRole('button', { name: 'Create PR' }))
+    await pullRequestComposer.getByRole('button', { name: 'Create PR' }).click()
     await expect(pullRequestComposer).toHaveCount(0, { timeout: 60_000 })
     await expect
       .poll(() =>
@@ -568,9 +558,7 @@ test('Session Summary exposes complete GitHub PR and GitLab MR composition', asy
     await expect(
       mergeRequestComposer.getByRole('button', { name: 'Open MR in browser' }),
     ).toBeDisabled()
-    await dispatchButtonClick(
-      mergeRequestComposer.getByRole('button', { name: 'Create draft MR' }),
-    )
+    await mergeRequestComposer.getByRole('button', { name: 'Create draft MR' }).click()
     await expect(mergeRequestComposer).toHaveCount(0, { timeout: 60_000 })
     await expect
       .poll(() =>

@@ -43,6 +43,37 @@ describe('session resource IPC handlers', () => {
     ).rejects.toThrow('No matching created change request')
   })
 
+  it('treats an already-recorded session change request as a successful Output retry', async () => {
+    const sessionId = SessionId('session-one')
+    const existing = {
+      id: 'recorded-pr',
+      sessionId,
+      canonicalKey: 'url:https://github.com/openwaggle/openwaggle/pull/42',
+      kind: 'change-request' as const,
+      title: 'Complete resource hub',
+      mimeType: null,
+      locator: 'https://github.com/openwaggle/openwaggle/pull/42',
+      managed: false,
+      available: true,
+      isSource: false,
+      isOutput: true,
+      occurrences: [],
+      createdAt: 1,
+      updatedAt: 1,
+    }
+    handlerMocks.list.mockReturnValue([existing])
+
+    await expect(
+      invoke('sessions:resources:record-change-request', sessionId, {
+        title: existing.title,
+        url: existing.locator,
+      }),
+    ).resolves.toEqual(existing)
+
+    expect(handlerMocks.list).toHaveBeenCalledWith(sessionId)
+    expect(handlerMocks.upsert).not.toHaveBeenCalled()
+  })
+
   it('retries a pending commit Output when its originating Session Summary refreshes', async () => {
     const sessionId = SessionId('session-one')
     const commit = { commitHash: 'abc123', summary: 'Complete resource hub' }
