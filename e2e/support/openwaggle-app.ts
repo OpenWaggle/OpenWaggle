@@ -219,18 +219,6 @@ export class OpenWaggleApp {
     await this.mainWindow().waitUntilReady()
   }
 
-  async setRendererBackgroundThrottling(allowed: boolean): Promise<void> {
-    if (!this.hidden) return
-    await this.app.evaluate(
-      ({ BrowserWindow }, backgroundThrottlingAllowed) => {
-        BrowserWindow.getAllWindows()[0]?.webContents.setBackgroundThrottling(
-          backgroundThrottlingAllowed,
-        )
-      },
-      allowed,
-    )
-  }
-
   async close(): Promise<void> {
     await this.app.close()
   }

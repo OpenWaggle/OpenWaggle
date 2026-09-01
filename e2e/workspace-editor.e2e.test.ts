@@ -100,6 +100,28 @@ async function installWorkerCounter(page: Page) {
   })
 }
 
+async function installUnthrottledAnimationFrames(page: Page) {
+  await page.evaluate(() => {
+    let nextFrameId = 1
+    const callbacks = new Map<number, FrameRequestCallback>()
+    const channel = new MessageChannel()
+    channel.port1.onmessage = (event: MessageEvent<number>) => {
+      const callback = callbacks.get(event.data)
+      if (!callback) return
+      callbacks.delete(event.data)
+      callback(performance.now())
+    }
+    window.requestAnimationFrame = (callback) => {
+      const frameId = nextFrameId
+      nextFrameId += 1
+      callbacks.set(frameId, callback)
+      channel.port2.postMessage(frameId)
+      return frameId
+    }
+    window.cancelAnimationFrame = (frameId) => callbacks.delete(frameId)
+  })
+}
+
 function createdWorkerCount(page: Page) {
   return page.evaluate(() => {
     const value = Reflect.get(window, '__openwaggleE2eCreatedWorkers')
@@ -353,9 +375,9 @@ test('a 1 MiB source file paints a skeleton before tokenization and keeps bounde
       messages: [],
     })
     await app.restart()
-    await app.setRendererBackgroundThrottling(false)
 
     const { page } = app.mainWindow()
+    await installUnthrottledAnimationFrames(page)
     const rendererErrors = observeRendererErrors(page)
     await app.mainWindow().openThread(SESSION_TITLE)
     await installWorkerCounter(page)
@@ -396,17 +418,13 @@ test('a 1 MiB source file paints a skeleton before tokenization and keeps bounde
         element.dispatchEvent(new Event('scroll'))
       }, position)
       await expect
-        .poll(async () => (await syntaxSourceTransfers(page)).length, {
-          timeout: syntaxCompletionTimeout(),
-        })
+        .poll(async () => (await syntaxSourceTransfers(page)).length)
         .toBeGreaterThan(transferCountBeforeScroll)
       await expect(sourceView).toHaveAttribute('data-syntax-status', 'highlighted', {
         timeout: syntaxCompletionTimeout(),
       })
       await expect
-        .poll(async () => Number(await sourceView.getAttribute('data-syntax-line-offset')), {
-          timeout: syntaxCompletionTimeout(),
-        })
+        .poll(async () => Number(await sourceView.getAttribute('data-syntax-line-offset')))
         .toBeGreaterThan(previousLineOffset)
     }
     const sourceTransfers = await syntaxSourceTransfers(page)
