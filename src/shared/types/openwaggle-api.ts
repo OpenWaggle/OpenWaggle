@@ -47,12 +47,19 @@ import type {
   RemoteVcsStatusResult,
   SessionWorktreeCheck,
 } from './git'
+import type {
+  InlineVisualizationDownloadInput,
+  InlineVisualizationFrameRegisterInput,
+  InlineVisualizationFrameRegisterResult,
+  InlineVisualizationFrameUnregisterInput,
+} from './inline-visualization'
 import type { IpcEventPayload } from './ipc'
 import type { ChangeRequestAdoption } from './ipc-invoke-git'
 import type { ProviderInfo, SupportedModelId } from './llm'
 import type { OpenWaggleAuthorizationGrantApi } from './openwaggle-api-authorization-grants'
 import type { OpenWaggleFeedbackApi } from './openwaggle-api-feedback'
 import type { OpenWaggleProjectConfigApi } from './openwaggle-api-project'
+import type { OpenWaggleSessionResourceApi } from './openwaggle-api-session-resources'
 import type { OpenWaggleUpdaterApi } from './openwaggle-api-updater'
 import type { OpenWaggleWaggleApi } from './openwaggle-api-waggle'
 import type { OpenWaggleExtensionApi } from './openwaggle-extension-api'
@@ -73,13 +80,6 @@ import type {
   SessionWorkspaceSelection,
   SessionWorktreePlan,
 } from './session'
-import type {
-  RecordSessionChangeRequestInput,
-  SessionResource,
-  SessionResourceBackfillStatus,
-  SessionResourceContent,
-  SessionResourceList,
-} from './session-resource'
 import type { Settings } from './settings'
 import type {
   AgentsInstructionStatus,
@@ -90,9 +90,6 @@ import type { TurnCheckpointSummary, TurnDiff } from './turn-diff'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 
 type SessionTitleUpdatedHandler = (payload: IpcEventPayload<'sessions:title-updated'>) => void
-type SessionResourceReader = (
-  ...args: [SessionId, string]
-) => Promise<SessionResourceContent | null>
 
 export interface OpenWaggleApi
   extends OpenWaggleAuthorizationGrantApi,
@@ -101,6 +98,7 @@ export interface OpenWaggleApi
     OpenWaggleUpdaterApi,
     OpenWaggleExtensionApi,
     OpenWaggleMcpApi,
+    OpenWaggleSessionResourceApi,
     OpenWaggleWaggleApi,
     OpenWaggleWorkspaceFilesApi {
   // Agent
@@ -130,9 +128,6 @@ export interface OpenWaggleApi
     customInstructions?: string,
   ): Promise<ContextCompactionResult>
   onRunCompleted(callback: (payload: IpcEventPayload<'agent:run-completed'>) => void): () => void
-  onSessionResourcesInvalidated(
-    callback: (payload: IpcEventPayload<'sessions:resources-invalidated'>) => void,
-  ): () => void
   onAgentPhase(callback: (payload: IpcEventPayload<'agent:phase'>) => void): () => void
   onWorktreeLaunch(callback: (payload: WorktreeLaunchEventPayload) => void): () => void
 
@@ -154,19 +149,16 @@ export interface OpenWaggleApi
   // Providers
   getProviderModels(projectPath?: string | null): Promise<ProviderInfo[]>
 
+  registerInlineVisualizationFrame(
+    input: InlineVisualizationFrameRegisterInput,
+  ): Promise<InlineVisualizationFrameRegisterResult>
+  unregisterInlineVisualizationFrame(input: InlineVisualizationFrameUnregisterInput): Promise<void>
+  saveInlineVisualizationDownload(input: InlineVisualizationDownloadInput): Promise<boolean>
+
   // Sessions
   listSessions(limit?: number): Promise<SessionSummary[]>
   listSessionDetails(limit?: number): Promise<SessionDetail[]>
   getSessionDetail(id: SessionId): Promise<SessionDetail | null>
-  listSessionResources(sessionId: SessionId): Promise<SessionResourceList>
-  advanceSessionResourceBackfill(sessionId: SessionId): Promise<SessionResourceBackfillStatus>
-  readSessionResource: SessionResourceReader
-  readSessionResourceThumbnail: SessionResourceReader
-  retrySessionResource(sessionId: SessionId, resourceId: string): Promise<void>
-  recordSessionChangeRequest(
-    sessionId: SessionId,
-    input: RecordSessionChangeRequestInput,
-  ): Promise<SessionResource>
   listTurnCheckpoints(id: SessionId): Promise<TurnCheckpointSummary[]>
   getTurnDiff(id: SessionId, turnId: string): Promise<TurnDiff | null>
   /** Every Pinned session in Manual order, archived ones included (issue #97). */

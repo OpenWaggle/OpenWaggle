@@ -9,6 +9,7 @@
 
 import { SessionId } from '@shared/types/brand'
 import { Effect, Layer } from 'effect'
+import { sessionTreeReferencesWorktreeVisualization } from '../application/worktree-visualization-retention'
 import { SessionProjectionRepositoryError } from '../errors'
 import {
   SessionProjectionRepository,
@@ -61,6 +62,14 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
   ) {
     const session = await store.getSessionDetail(id)
     if (!session) return
+    if (reason === 'archive' && session.worktreePath) {
+      const tree = await import('../store/sessions/session-tree').then(({ getSessionTree }) =>
+        getSessionTree(id),
+      )
+      if (tree && sessionTreeReferencesWorktreeVisualization(tree, session.worktreePath)) {
+        return
+      }
+    }
     await pruneSessionWorktree(
       {
         sessionId: String(id),

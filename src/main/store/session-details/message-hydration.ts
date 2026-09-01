@@ -2,7 +2,7 @@ import { matchBy } from '@diegogbrisa/ts-match'
 import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
 import { waggleInvocationMetadataSchema, waggleMetadataSchema } from '@shared/schemas/waggle'
 import type { Message } from '@shared/types/agent'
-import { MessageId, SupportedModelId, ToolCallId } from '@shared/types/brand'
+import { MessageId, SessionId, SupportedModelId, ToolCallId } from '@shared/types/brand'
 import { isRecord } from '@shared/utils/validation'
 import { createLogger } from '../../logger'
 import { buildPiWorkingContextPath } from '../session-working-context'
@@ -58,6 +58,7 @@ const messagePartSchema = Schema.Union(
 )
 
 const messageMetadataSchema = Schema.Struct({
+  visualizationSessionId: Schema.optional(Schema.String),
   waggle: Schema.optional(waggleMetadataSchema),
   waggleInvocation: Schema.optional(waggleInvocationMetadataSchema),
 })
@@ -107,6 +108,9 @@ function hydrateMessageMetadata(raw: string) {
 
   return {
     ...parsedMetadata.data,
+    visualizationSessionId: parsedMetadata.data.visualizationSessionId
+      ? SessionId(parsedMetadata.data.visualizationSessionId)
+      : undefined,
     waggle: parsedMetadata.data.waggle
       ? {
           ...parsedMetadata.data.waggle,
