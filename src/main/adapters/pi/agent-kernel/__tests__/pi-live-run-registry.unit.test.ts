@@ -10,7 +10,7 @@ describe('Pi live Run registry', () => {
   afterEach(() => unregister?.())
 
   it('delivers steering to the exact registered Pi Run', async () => {
-    const steer = vi.fn(async () => undefined)
+    const steer = vi.fn(async (_text: string) => undefined)
     const session = fromPartial<AgentSession>({ isStreaming: true, steer })
     const model = fromPartial<PiModel>({ input: ['text'] })
     unregister = registerPiLiveRun({ runId: 'run-active', session, model })
@@ -23,5 +23,29 @@ describe('Pi live Run registry', () => {
 
     expect(result).toEqual({ accepted: true })
     expect(steer).toHaveBeenCalledWith('Use the corrected migration order.', undefined)
+  })
+
+  it('wraps untrusted visualization state into the exact steering message', async () => {
+    const steer = vi.fn(async (_text: string) => undefined)
+    const session = fromPartial<AgentSession>({ isStreaming: true, steer })
+    const model = fromPartial<PiModel>({ input: ['text'] })
+    unregister = registerPiLiveRun({ runId: 'run-visualization', session, model })
+
+    await steerPiLiveRun({
+      runId: 'run-visualization',
+      text: 'Explain this selection.',
+      attachments: [],
+      visualizationContext: {
+        title: 'Service map',
+        sourcePath: '/repo/service-map.html',
+        state: { selectedService: 'api' },
+      },
+    })
+
+    const steeringText = steer.mock.calls[0]?.[0]
+    expect(steeringText).toContain('[OpenWaggle inline visualization context]')
+    expect(steeringText).toContain('untrusted data')
+    expect(steeringText).toContain('"selectedService":"api"')
+    expect(steeringText).toContain('Explain this selection.')
   })
 })

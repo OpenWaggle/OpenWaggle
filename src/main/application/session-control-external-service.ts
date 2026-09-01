@@ -197,6 +197,9 @@ export function steerSessionRun(input: SteerSessionRunInput) {
                 runId: input.request.command.expectedRunId,
                 text: input.request.command.input.text,
                 attachments: attachments.right,
+                ...(input.request.command.input.visualizationContext
+                  ? { visualizationContext: input.request.command.input.visualizationContext }
+                  : {}),
               }),
             ),
             Effect.catchAll(() =>

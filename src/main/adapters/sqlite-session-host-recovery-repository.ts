@@ -13,6 +13,10 @@ interface AuthorizationRequestRow {
   readonly id: string
 }
 
+interface PendingQueueRow {
+  readonly session_id: string
+}
+
 interface PendingWorktreeRemovalRow {
   readonly id: string
   readonly working_path: string
@@ -46,6 +50,35 @@ function hostLostOutcome(operation: PendingOperationRow) {
       }
 }
 
+function findRunningPendingQueues(sql: SqlClient.SqlClient) {
+  return sql<PendingQueueRow>`
+    SELECT states.session_id
+    FROM session_control_states AS states
+    WHERE states.queue_state = ${'running'}
+      AND EXISTS (
+        SELECT 1 FROM session_follow_ups AS follow_ups
+        WHERE follow_ups.session_id = states.session_id
+      )
+    ORDER BY states.session_id
+  `
+}
+
+function pauseRemainingPendingQueues(sql: SqlClient.SqlClient, now: number) {
+  return sql`
+    UPDATE session_control_states
+    SET
+      queue_state = ${'paused'},
+      state_revision = state_revision + 1,
+      queue_revision = queue_revision + 1,
+      updated_at = ${now}
+    WHERE queue_state = ${'running'}
+      AND EXISTS (
+        SELECT 1 FROM session_follow_ups AS follow_ups
+        WHERE follow_ups.session_id = session_control_states.session_id
+      )
+  `
+}
+
 function recoverAfterHostLoss(sql: SqlClient.SqlClient, now: number) {
   return sql
     .withTransaction(
@@ -57,6 +90,7 @@ function recoverAfterHostLoss(sql: SqlClient.SqlClient, now: number) {
           ORDER BY created_at, id
         `
         const runIds = runs.map((run) => run.id)
+        const pendingQueues = yield* findRunningPendingQueues(sql)
         const authorizationRequests =
           runIds.length > 0
             ? yield* sql<AuthorizationRequestRow>`
@@ -93,6 +127,7 @@ function recoverAfterHostLoss(sql: SqlClient.SqlClient, now: number) {
             WHERE id IN ${sql.in(runIds)}
           `
         }
+        yield* pauseRemainingPendingQueues(sql, now)
         const pendingOperations = yield* sql<PendingOperationRow>`
           SELECT id, caller_id, operation, target_scope, idempotency_key, request_json, status
           FROM session_operations
@@ -130,7 +165,12 @@ function recoverAfterHostLoss(sql: SqlClient.SqlClient, now: number) {
         )
         return {
           interruptedRunIds: runIds,
-          affectedSessionIds: [...new Set(runs.map((run) => run.session_id))],
+          affectedSessionIds: [
+            ...new Set([
+              ...runs.map((run) => run.session_id),
+              ...pendingQueues.map((queue) => queue.session_id),
+            ]),
+          ],
           deniedAuthorizationRequestIds: authorizationRequests.map((request) => request.id),
           recoveredOperationIds: recoverableOperations.map((operation) => String(operation.id)),
           pendingHandoffs: pendingHandoffs.map((operation) => ({

@@ -2,6 +2,7 @@ import { matchBy } from '@diegogbrisa/ts-match'
 import type * as SqlClient from '@effect/sql/SqlClient'
 import { MAX_NODE_TIMER_DELAY_MS } from '@shared/constants/time'
 import { decodeUnknownExactOrThrow, parseJsonUnknown, Schema } from '@shared/schema'
+import { inlineVisualizationContextSchema } from '@shared/schemas/validation'
 import { toWaggleInvocation, waggleInvocationSchema } from '@shared/schemas/waggle'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import { FollowUpId, RunId, SessionId } from '@shared/types/brand'
@@ -44,6 +45,7 @@ const intentSnapshotSchema = Schema.Struct({
   attachmentIds: Schema.Array(Schema.String),
   thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
   waggle: Schema.optional(waggleInvocationSchema),
+  visualizationContext: Schema.optional(inlineVisualizationContextSchema),
   runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
   interactionTimeoutMs: Schema.optional(
     Schema.Number.pipe(Schema.int(), Schema.between(0, MAX_NODE_TIMER_DELAY_MS)),

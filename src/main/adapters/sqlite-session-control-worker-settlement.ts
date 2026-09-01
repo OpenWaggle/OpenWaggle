@@ -54,6 +54,7 @@ function settleUnsuccessfulWorker(
   input: {
     readonly contract: WorkerDelegationRow
     readonly settlement: Parameters<SessionControlRunLifecycleRepositoryShape['settle']>[0]
+    readonly summary?: string
     readonly now: number
   },
 ) {
@@ -65,13 +66,16 @@ function settleUnsuccessfulWorker(
       UPDATE delegation_contracts SET state = ${'needs_attention'}, updated_at = ${input.now}
       WHERE id = ${input.contract.id}
     `
+    const summary =
+      input.summary ??
+      `Worker Run ${input.settlement.runId} ${input.settlement.terminalStatus} and needs attention.`
     const updateId = `orchestration:${input.contract.id}:${input.settlement.runId}:needs-attention`
     yield* insertOrchestrationUpdate(sql, {
       updateId,
       contract: input.contract,
       settlement: input.settlement,
       state: 'needs_attention',
-      summary: `Worker Run ${input.settlement.runId} ${input.settlement.terminalStatus} and needs attention.`,
+      summary,
       now: input.now,
     })
     return {
@@ -176,6 +180,14 @@ export function settleWorkerDelegation(
       return yield* settleUnsuccessfulWorker(sql, { contract, settlement, now })
     }
     if (hasScheduledFollowUp) return undefined
+    if (!settlement.finalResponse?.trim()) {
+      return yield* settleUnsuccessfulWorker(sql, {
+        contract,
+        settlement,
+        summary: `Worker Run ${settlement.runId} completed without a textual final response.`,
+        now,
+      })
+    }
     return yield* settleCompletedWorker(sql, { contract, settlement, now })
   })
 }

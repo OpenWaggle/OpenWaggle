@@ -92,6 +92,11 @@ describe('HiveSessionNavigator', () => {
     useSessionStore.setState({
       sessions: [queen(), worker(), doneWorker()],
       archivedSessions: [archivedWorker()],
+      hiveSessions: [],
+      hiveContextSessionId: QUEEN_ID,
+      loadHiveSessions: vi.fn(async (sessionId: SessionId) => {
+        useSessionStore.setState({ hiveContextSessionId: sessionId })
+      }),
     })
     useSessionStatusStore.setState({
       statuses: new Map([[WORKER_ID, 'working']]),
@@ -99,6 +104,21 @@ describe('HiveSessionNavigator', () => {
       completedAt: new Map(),
       lastVisitedAt: new Map(),
     })
+  })
+
+  it('loads focused context for a Worker whose parent is outside the catalog page', () => {
+    const loadHiveSessions = vi.fn(async () => undefined)
+    useSessionStore.setState({
+      sessions: [worker()],
+      archivedSessions: [],
+      hiveSessions: [],
+      hiveContextSessionId: null,
+      loadHiveSessions,
+    })
+
+    render(<HiveSessionNavigator sessionId={WORKER_ID} onNavigateSession={vi.fn()} />)
+
+    expect(loadHiveSessions).toHaveBeenCalledWith(WORKER_ID)
   })
 
   it('shows a Queen its direct Workers and limits disclosure hover to the collapse button', () => {

@@ -46,18 +46,33 @@ export function initializeSessionDiscoveryBenchmarkSource(database: DatabaseSync
   for (const statement of CURRENT_SESSION_SCHEMA_STATEMENTS) database.exec(statement)
 }
 
+function benchmarkCount(database: DatabaseSync, query: string) {
+  const row = database.prepare(query).get()
+  return typeof row === 'object' && row !== null && 'count' in row ? Number(row.count) : 0
+}
+
 export function sessionDiscoveryBenchmarkCounts(database: DatabaseSync) {
-  const sessions = database.prepare('SELECT COUNT(*) AS count FROM sessions').get()
-  const messages = database.prepare('SELECT COUNT(*) AS count FROM session_nodes').get()
   return {
-    sessions:
-      typeof sessions === 'object' && sessions !== null && 'count' in sessions
-        ? Number(sessions.count)
-        : 0,
-    messages:
-      typeof messages === 'object' && messages !== null && 'count' in messages
-        ? Number(messages.count)
-        : 0,
+    sessions: benchmarkCount(database, 'SELECT COUNT(*) AS count FROM sessions'),
+    messages: benchmarkCount(database, 'SELECT COUNT(*) AS count FROM session_nodes'),
+    discoveryRows: benchmarkCount(
+      database,
+      'SELECT COUNT(*) AS count FROM session_node_discovery_search',
+    ),
+    activeBranchMessages: benchmarkCount(
+      database,
+      `WITH RECURSIVE selected_path(id) AS (
+        SELECT branches.head_node_id
+        FROM sessions
+        JOIN session_branches AS branches ON branches.id = sessions.last_active_branch_id
+        WHERE sessions.id = 'session-000000'
+        UNION ALL
+        SELECT nodes.parent_id
+        FROM session_nodes AS nodes
+        JOIN selected_path ON selected_path.id = nodes.id
+        WHERE nodes.parent_id IS NOT NULL
+      ) SELECT COUNT(*) AS count FROM selected_path`,
+    ),
   }
 }
 
@@ -159,13 +174,13 @@ export async function benchmarkSessionDiscoveryQueries(
         }),
       ),
     )
-  const lexical = () =>
+  const lexical = (query: string, requestId: string) =>
     runtime.run(
       Effect.flatMap(SqlClient.SqlClient, (sql) =>
         loadLexicalDiscoveryRows(sql, undefined, {
           contractVersion: SESSION_QUERY_CONTRACT_VERSION,
-          requestId: 'benchmark-lexical',
-          query: { operation: 'search', query: 'benchmarktoken', limit: PAGE_SIZE, mode: 'lexical' },
+          requestId,
+          query: { operation: 'search', query, limit: PAGE_SIZE, mode: 'lexical' },
         }),
       ),
     )
@@ -188,7 +203,8 @@ export async function benchmarkSessionDiscoveryQueries(
       list: await measure(() => list()),
       sparseWorkingPathList: await measure(() => list(sparseWorkingPath)),
       missingWorkingPathList: await measure(() => list('/benchmark/missing')),
-      lexical: await measure(lexical),
+      lexical: await measure(() => lexical('benchmarktoken', 'benchmark-lexical')),
+      commonLexical: await measure(() => lexical('commonterm', 'benchmark-common-lexical')),
       transcript: await measure(transcript),
     }
   } finally {

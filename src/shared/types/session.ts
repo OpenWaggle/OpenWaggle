@@ -61,6 +61,19 @@ export interface SessionSummary {
   readonly derivation?: SessionDerivationSummary
 }
 
+/** Opaque keyset page used by the GUI Session catalog. */
+export interface SessionCatalogPage {
+  readonly sessions: readonly SessionSummary[]
+  readonly nextCursor?: string
+}
+
+/** A focused Session, its parent, and one keyset page of its direct Workers. */
+export interface HiveSessionCatalogPage {
+  readonly context: readonly SessionSummary[]
+  readonly workers: readonly SessionSummary[]
+  readonly nextCursor?: string
+}
+
 export interface SessionInterruptedRun {
   readonly runId: string
   readonly sessionId: SessionId

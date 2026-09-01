@@ -4,16 +4,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionStore } from '../session-store'
 
 const mockApi = {
-  listSessions: vi.fn(),
-  listArchivedSessions: vi.fn(),
+  listSessionCatalogPage: vi.fn(),
+  listHiveSessionCatalogPage: vi.fn(),
+  listPinnedSessions: vi.fn(),
+  listSessionsByIds: vi.fn(),
   getSessionTree: vi.fn(),
   getSessionWorkspace: vi.fn(),
 }
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
-    listSessions: (...args: unknown[]) => mockApi.listSessions(...args),
-    listArchivedSessions: (...args: unknown[]) => mockApi.listArchivedSessions(...args),
+    listSessionCatalogPage: (...args: unknown[]) => mockApi.listSessionCatalogPage(...args),
+    listHiveSessionCatalogPage: (...args: unknown[]) => mockApi.listHiveSessionCatalogPage(...args),
+    listPinnedSessions: (...args: unknown[]) => mockApi.listPinnedSessions(...args),
+    listSessionsByIds: (...args: unknown[]) => mockApi.listSessionsByIds(...args),
     getSessionTree: (...args: unknown[]) => mockApi.getSessionTree(...args),
     getSessionWorkspace: (...args: unknown[]) => mockApi.getSessionWorkspace(...args),
   },
@@ -23,6 +27,12 @@ function resetStore() {
   useSessionStore.setState({
     sessions: [],
     archivedSessions: [],
+    hiveSessions: [],
+    hiveContextSessionId: null,
+    sessionsNextCursor: null,
+    archivedSessionsNextCursor: null,
+    hiveWorkersNextCursor: null,
+    sessionsLoadingMore: false,
     activeSessionTree: null,
     activeWorkspace: null,
     draftBranch: null,
@@ -90,7 +100,10 @@ function makeWorkspace(id: string): SessionWorkspace {
 describe('useSessionStore unit', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockApi.listArchivedSessions.mockResolvedValue([])
+    mockApi.listSessionCatalogPage.mockResolvedValue({ sessions: [] })
+    mockApi.listHiveSessionCatalogPage.mockResolvedValue({ context: [], workers: [] })
+    mockApi.listPinnedSessions.mockResolvedValue([])
+    mockApi.listSessionsByIds.mockResolvedValue([])
     resetStore()
   })
 
@@ -99,8 +112,11 @@ describe('useSessionStore unit', () => {
   })
 
   it('loads sessions from IPC', async () => {
-    mockApi.listSessions.mockResolvedValue([makeSession('s1'), makeSession('s2')])
-    mockApi.listArchivedSessions.mockResolvedValue([{ ...makeSession('s3'), archived: true }])
+    mockApi.listSessionCatalogPage.mockImplementation(async (archived: boolean) => ({
+      sessions: archived
+        ? [{ ...makeSession('s3'), archived: true }]
+        : [makeSession('s1'), makeSession('s2')],
+    }))
 
     await useSessionStore.getState().loadSessions()
 
@@ -113,8 +129,15 @@ describe('useSessionStore unit', () => {
     const olderRequest = new Promise<readonly SessionSummary[]>((resolve) => {
       resolveOlder = resolve
     })
-    mockApi.listSessions.mockImplementationOnce(() => olderRequest)
-    mockApi.listSessions.mockResolvedValueOnce([makeSession('newer')])
+    mockApi.listSessionCatalogPage
+      .mockImplementationOnce((archived: boolean) =>
+        archived
+          ? Promise.resolve({ sessions: [] })
+          : olderRequest.then((sessions) => ({ sessions })),
+      )
+      .mockResolvedValueOnce({ sessions: [] })
+      .mockResolvedValueOnce({ sessions: [makeSession('newer')] })
+      .mockResolvedValueOnce({ sessions: [] })
 
     const first = useSessionStore.getState().loadSessions()
     const second = useSessionStore.getState().loadSessions()
@@ -123,6 +146,41 @@ describe('useSessionStore unit', () => {
     await first
 
     expect(useSessionStore.getState().sessions.map((session) => session.id)).toEqual(['newer'])
+  })
+
+  it('appends keyset pages without duplicating Sessions', async () => {
+    mockApi.listSessionCatalogPage.mockImplementation(
+      async (archived: boolean, _limit: number, cursor?: string) => {
+        if (archived) return { sessions: [] }
+        if (cursor) return { sessions: [makeSession('s2'), makeSession('s3')] }
+        return { sessions: [makeSession('s1'), makeSession('s2')], nextCursor: 'next' }
+      },
+    )
+
+    await useSessionStore.getState().loadSessions()
+    await useSessionStore.getState().loadMoreSessions()
+
+    expect(useSessionStore.getState().sessions.map((session) => session.id)).toEqual([
+      's1',
+      's2',
+      's3',
+    ])
+  })
+
+  it('loads focused Hive context independently from the global page', async () => {
+    mockApi.listHiveSessionCatalogPage.mockResolvedValue({
+      context: [makeSession('queen')],
+      workers: [makeSession('worker')],
+      nextCursor: 'more-workers',
+    })
+
+    await useSessionStore.getState().loadHiveSessions(SessionId('queen'))
+
+    expect(useSessionStore.getState().hiveSessions.map((session) => session.id)).toEqual([
+      'queen',
+      'worker',
+    ])
+    expect(useSessionStore.getState().hiveWorkersNextCursor).toBe('more-workers')
   })
 
   it('refreshes the active tree for the selected session', async () => {

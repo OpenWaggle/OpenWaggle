@@ -28,6 +28,7 @@ import {
 import { sessionControlMutationOutcomeSchema } from './session-control-outcomes'
 import { exportCancelCommandSchema, exportCreateCommandSchema } from './session-export-operation'
 import { sessionOrganizationCommandSchemas } from './session-organization'
+import { inlineVisualizationContextSchema } from './validation'
 import { waggleInvocationSchema } from './waggle'
 
 export { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
@@ -36,6 +37,7 @@ export { sessionControlMutationOutcomeSchema } from './session-control-outcomes'
 const steeringInputSchema = Schema.Struct({
   text: Schema.String,
   attachmentIds: sessionAttachmentIdsSchema,
+  visualizationContext: Schema.optional(inlineVisualizationContextSchema),
 })
 
 const uniqueFollowUpIdsSchema = Schema.Array(Schema.String).pipe(

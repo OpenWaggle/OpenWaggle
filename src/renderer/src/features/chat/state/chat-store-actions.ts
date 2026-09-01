@@ -6,11 +6,6 @@ import { useDiffScopeStore } from '@/features/diff-panel'
 import { useSessionStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
 import {
-  reconcileLoadedSummaries,
-  reconcileMissingSessions,
-  visibleSummaries,
-} from './chat-session-loading'
-import {
   handleStoreError,
   isSameSessionId,
   mergeSummary,
@@ -41,49 +36,29 @@ function setError(set: ChatSet) {
   return (error: string) => set({ error })
 }
 
-function changedSince(id: SessionId, mutationVersions: ReadonlyMap<SessionId, number>) {
-  return sessionMutationVersion(id) !== (mutationVersions.get(id) ?? 0)
-}
-
 async function loadSessions(set: ChatSet, get: ChatGet) {
   latestSessionLoad += 1
   const loadRequestId = latestSessionLoad
-  const mutationVersions = new Map(latestSessionMutation)
   try {
-    // The sidebar only needs summaries. Loading every transcript here made an attached GUI
-    // serialize the complete history of every Session into one Host response.
-    const [all, archived] = await Promise.all([api.listSessions(), api.listArchivedSessions()])
+    const sessionStore = useSessionStore.getState()
+    await sessionStore.loadSessions()
     if (loadRequestId !== latestSessionLoad) return
     const current = get()
-    const changed = (id: SessionId) => changedSince(id, mutationVersions)
-    const reconciled = reconcileLoadedSummaries(all, current, changed)
-    const knownSummaries = [...all, ...archived]
-    const knownIds = new Set(knownSummaries.map((session) => session.id))
-    const sessionById = new Map(
-      [...current.sessionById].filter(
-        ([sessionId]) =>
-          knownIds.has(sessionId) ||
-          (changedSince(sessionId, mutationVersions) && !current.missingSessionIds.has(sessionId)),
-      ),
-    )
-    const sessions = visibleSummaries(reconciled)
+    const sessions = useSessionStore.getState().sessions
     const activeSessionId = current.activeSessionId
-    const activeSession = activeSessionId ? (sessionById.get(activeSessionId) ?? null) : null
-    const missingSessionIds = reconcileMissingSessions(knownSummaries, current, changed)
-    if (activeSessionId && !knownIds.has(activeSessionId)) {
-      missingSessionIds.add(activeSessionId)
-    }
+    const activeSession = activeSessionId
+      ? (current.sessionById.get(activeSessionId) ?? current.activeSession)
+      : null
 
     set({
-      sessions,
-      sessionById,
-      missingSessionIds,
-      draftSession: activeSessionId && knownIds.has(activeSessionId) ? null : current.draftSession,
-      activeSessionId: activeSessionId && knownIds.has(activeSessionId) ? activeSessionId : null,
+      sessions: [...sessions],
+      draftSession: activeSessionId ? null : current.draftSession,
       activeSession,
       error: null,
     })
-    void useSessionStore.getState().loadSessions()
+    if (activeSessionId && !activeSession && !current.missingSessionIds.has(activeSessionId)) {
+      void get().refreshSession(activeSessionId)
+    }
   } catch (err) {
     if (loadRequestId !== latestSessionLoad) return
     handleStoreError(err, 'load sessions', setError(set))
@@ -217,7 +192,9 @@ function upsertSession(session: SessionDetail, set: ChatSet) {
     return {
       sessionById,
       missingSessionIds,
-      sessions: mergeSummary(state.sessions, toSummary(session)),
+      sessions: session.archived
+        ? removeSummary(state.sessions, session.id)
+        : mergeSummary(state.sessions, toSummary(session)),
       draftSession: state.activeSessionId === session.id ? null : state.draftSession,
       activeSession: state.activeSessionId === session.id ? session : state.activeSession,
       error: null,

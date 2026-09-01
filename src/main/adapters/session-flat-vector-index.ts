@@ -116,12 +116,18 @@ export class SessionFlatVectorIndex {
     }
   }
 
-  search(query: Float32Array, limit: number, allowedIds?: ReadonlySet<string>) {
+  search(
+    query: Float32Array,
+    limit: number,
+    allowedIds?: ReadonlySet<string>,
+    excludedIds?: ReadonlySet<string>,
+  ) {
     if (limit <= 0) return []
     const queryMagnitude = vectorMagnitude(query)
     const matches: SessionVectorMatch[] = []
     for (const [sessionId, vector] of this.#records) {
       if (allowedIds && !allowedIds.has(sessionId)) continue
+      if (excludedIds?.has(sessionId)) continue
       const similarity = cosineSimilarity(query, queryMagnitude, vector)
       if (Number.isFinite(similarity)) retainBest(matches, { sessionId, similarity }, limit)
     }

@@ -2,6 +2,8 @@ import type { AgentAuthorizationMode } from './agent-authorization'
 import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
 import type { SupportedModelId } from './llm'
 import type {
+  HiveSessionCatalogPage,
+  SessionCatalogPage,
   SessionCopyToNewResult,
   SessionDetail,
   SessionNavigateTreeOptions,
@@ -43,6 +45,15 @@ export interface IpcSessionInvokeChannelMap {
     return: undefined
   }
   'sessions:list': { args: [limit?: number]; return: SessionSummary[] }
+  'sessions:list-by-ids': { args: [sessionIds: SessionId[]]; return: SessionSummary[] }
+  'sessions:list-page': {
+    args: [archived: boolean, limit: number, cursor?: string]
+    return: SessionCatalogPage
+  }
+  'sessions:list-hive-page': {
+    args: [sessionId: SessionId, limit: number, cursor?: string]
+    return: HiveSessionCatalogPage
+  }
   'sessions:list-archived-branches': { args: [limit?: number]; return: SessionSummary[] }
   'sessions:get-tree': { args: [sessionId: SessionId]; return: SessionTree | null }
   'sessions:get-workspace': {

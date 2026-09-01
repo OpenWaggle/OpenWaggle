@@ -1,5 +1,5 @@
 import type { AgentSession } from '@earendil-works/pi-coding-agent'
-import type { HydratedAttachment } from '@shared/types/agent'
+import type { HydratedAttachment, InlineVisualizationContext } from '@shared/types/agent'
 import type { AgentSteeringResult } from '../../../ports/agent-steering-service'
 import type { PiModel } from '../pi-provider-catalog'
 import { buildPiPromptInput } from '../pi-runtime-input'
@@ -14,6 +14,7 @@ export interface PiLiveRunSteeringInput {
   readonly runId: string
   readonly text: string
   readonly attachments: readonly HydratedAttachment[]
+  readonly visualizationContext?: InlineVisualizationContext
 }
 
 const liveRuns = new Map<string, PiLiveRun>()
@@ -35,9 +36,11 @@ export async function steerPiLiveRun(input: PiLiveRunSteeringInput): Promise<Age
     text: input.text,
     thinkingLevel: 'off',
     attachments: input.attachments,
+    ...(input.visualizationContext ? { visualizationContext: input.visualizationContext } : {}),
   })
+  const steeringText = [prompt.visualizationContext, prompt.text].filter(Boolean).join('\n\n')
   await liveRun.session.steer(
-    prompt.text,
+    steeringText,
     prompt.images.length > 0 ? [...prompt.images] : undefined,
   )
   return { accepted: true }

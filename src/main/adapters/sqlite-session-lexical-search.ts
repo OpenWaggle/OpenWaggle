@@ -78,30 +78,24 @@ function lexicalCandidateRows(
         AND session_delegation_search MATCH ${ftsQuery}
       UNION ALL
       SELECT session_node_discovery_search.session_id,
-        bm25(session_node_discovery_search, 0.0, 0.0, 3.0),
-        CASE WHEN session_nodes.id = (
-          SELECT initial_node.id FROM session_nodes AS initial_node
-          WHERE initial_node.session_id = session_nodes.session_id AND initial_node.role = 'user'
-          ORDER BY initial_node.created_order, initial_node.id LIMIT 1
-        ) THEN ${'initial-objective'} ELSE ${'current-preview'} END,
-        snippet(session_node_discovery_search, 2, '', '', ' … ', 12), 0
+        bm25(session_node_discovery_search, 0.0, 3.0, 0.0),
+        ${'initial-objective'},
+        snippet(session_node_discovery_search, 1, '', '', ' … ', 12), 0
       FROM session_node_discovery_search
-      JOIN session_nodes ON session_nodes.id = session_node_discovery_search.node_id
       WHERE (${allSessionsAuthorized ? 1 : 0} = 1
           OR session_node_discovery_search.session_id IN (SELECT session_id FROM authorized_sessions))
         AND ${fullTranscript} = 0
-        AND session_node_discovery_search MATCH ${ftsQuery}
-        AND session_nodes.role IN ('user', 'assistant')
-        AND (session_nodes.id = (
-          SELECT initial_node.id FROM session_nodes AS initial_node
-          WHERE initial_node.session_id = session_nodes.session_id AND initial_node.role = 'user'
-          ORDER BY initial_node.created_order, initial_node.id LIMIT 1
-        ) OR session_nodes.id = (
-          SELECT preview_node.id FROM session_nodes AS preview_node
-          WHERE preview_node.session_id = session_nodes.session_id
-            AND preview_node.role IN ('user', 'assistant')
-          ORDER BY preview_node.created_order DESC, preview_node.id DESC LIMIT 1
-        ))
+        AND initial_objective MATCH ${ftsQuery}
+      UNION ALL
+      SELECT session_node_discovery_search.session_id,
+        bm25(session_node_discovery_search, 0.0, 0.0, 3.0),
+        ${'current-preview'},
+        snippet(session_node_discovery_search, 2, '', '', ' … ', 12), 0
+      FROM session_node_discovery_search
+      WHERE (${allSessionsAuthorized ? 1 : 0} = 1
+          OR session_node_discovery_search.session_id IN (SELECT session_id FROM authorized_sessions))
+        AND ${fullTranscript} = 0
+        AND current_preview MATCH ${ftsQuery}
       UNION ALL
       SELECT sessions.id, -1000.0, ${'title'}, sessions.title, 1
       FROM sessions

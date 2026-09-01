@@ -106,6 +106,9 @@ function runQueuedWaggle(
         thinkingLevel: input.request.intent.thinkingLevel ?? input.execution.thinkingLevel,
         attachments: context.preparedAttachments,
         waggle,
+        ...(input.request.intent.visualizationContext
+          ? { visualizationContext: input.request.intent.visualizationContext }
+          : {}),
       },
       model: input.execution.model,
       config: waggle.config,
@@ -126,6 +129,9 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
         text: input.request.intent.text,
         thinkingLevel: input.request.intent.thinkingLevel ?? input.execution.thinkingLevel,
         attachments: context.preparedAttachments,
+        ...(input.request.intent.visualizationContext
+          ? { visualizationContext: input.request.intent.visualizationContext }
+          : {}),
       },
       hydratedAttachments: context.resolvedAttachments,
       ...executionContext(input, context),

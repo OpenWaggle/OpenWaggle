@@ -98,6 +98,10 @@ function publishProjectionBatch(
             updated_at = excluded.updated_at
         `
         yield* sql`
+          DELETE FROM session_discovery_embedding_deletions
+          WHERE session_id = ${row.session_id}
+        `
+        yield* sql`
           DELETE FROM session_discovery_embedding_queue
           WHERE session_id = ${row.session_id} AND queued_at = ${row.queued_at}
         `

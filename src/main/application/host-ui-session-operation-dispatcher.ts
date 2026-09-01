@@ -7,6 +7,11 @@ import { SessionProjectionRepository } from '../ports/session-projection-reposit
 import { SessionRepository } from '../ports/session-repository'
 import type { SettingsService } from '../services/settings-service'
 import {
+  listHiveSessionCatalogPage,
+  listSessionCatalogPage,
+  listSessionsByIds,
+} from './host-ui-session-catalog-operations'
+import {
   createSession,
   deleteSession,
   dismissInterruptedRun,
@@ -56,6 +61,9 @@ function dispatchSessionOperation(channel: HostBackedSessionGuiChannel, args: re
     .with('sessions:list', 'sessions:list-archived-branches', (matchedChannel) =>
       listRepositorySessions(matchedChannel, args),
     )
+    .with('sessions:list-by-ids', () => listSessionsByIds(args))
+    .with('sessions:list-page', () => listSessionCatalogPage(args))
+    .with('sessions:list-hive-page', () => listHiveSessionCatalogPage(args))
     .with('sessions:get-tree', () => getSessionTree(args))
     .with('sessions:get-workspace', () => getSessionWorkspace(args))
     .with('sessions:navigate-tree', () => navigateSessionTree(args))

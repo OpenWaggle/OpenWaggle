@@ -44,6 +44,48 @@ function projectPath(projectIndex: number) {
   return `/benchmark/project-${String(projectIndex).padStart(PROJECT_ID_WIDTH, '0')}`
 }
 
+function populateSkewedMessages(
+  database: DatabaseSync,
+  input: BenchmarkInput,
+  baseMessageCount: number,
+) {
+  database
+    .prepare(`
+      WITH RECURSIVE sequence(value) AS (
+        SELECT 0 UNION ALL SELECT value + 1 FROM sequence WHERE value + 1 < ?
+      )
+      INSERT INTO session_nodes (
+        id, session_id, parent_id, pi_entry_type, kind, role, timestamp_ms, content_json,
+        metadata_json, branch_hint_id, path_depth, created_order
+      )
+      SELECT printf('skew-node-%08d', value), 'session-000000',
+        CASE WHEN value = 0 THEN printf('node-%08d', ? - ?)
+          ELSE printf('skew-node-%08d', value - 1) END,
+        'message', 'message', CASE WHEN value % 5 = 0 THEN 'user' ELSE 'assistant' END, ? + value,
+        json_object('parts', json_array(
+          json_object('type', 'text', 'text', CASE WHEN value = ? - 1
+            THEN printf('commonterm skewed long session terminal marker-%08d', value)
+            ELSE printf(
+              'commonterm continue long branch step-%08d in module-%05d with observed output',
+              value, value % 10000
+            )
+          END),
+          json_object('type', 'tool-result', 'toolResult',
+            json_object('name', printf('long_branch_check_%03d', value % 983)))
+        )), '{}', 'session-000000:main', ? + value, ? + value
+      FROM sequence
+    `)
+    .run(
+      input.skewedSessionMessageCount,
+      input.messageCount,
+      input.sessionCount,
+      input.messageCount,
+      input.skewedSessionMessageCount,
+      baseMessageCount,
+      baseMessageCount,
+    )
+}
+
 function populate(database: DatabaseSync, input: BenchmarkInput) {
   database.exec('BEGIN IMMEDIATE')
   database
@@ -74,12 +116,25 @@ function populate(database: DatabaseSync, input: BenchmarkInput) {
         'message', 'message',
         CASE WHEN CAST(value / ? AS INTEGER) % 2 = 0 THEN 'user' ELSE 'assistant' END,
         value,
-        json_object('text', CASE
-          WHEN CAST(value / ? AS INTEGER) = CAST((? - 1) / ? AS INTEGER)
-            AND value % 100 = 0
-          THEN 'rare benchmarktoken final result'
-          ELSE 'ordinary project implementation message'
-        END),
+        json_object('parts', json_array(
+          json_object('type', 'text', 'text', CASE
+            WHEN CAST(value / ? AS INTEGER) = CAST((? - 1) / ? AS INTEGER)
+              AND value % 100 = 0
+            THEN printf('rare benchmarktoken final result for artifact-%08d', value)
+            ELSE printf(
+              'commonterm implement project-%04d module-%05d request-%08d with validation tests',
+              value % 1000, value % 10000, value
+            )
+          END),
+          CASE value % 3
+            WHEN 0 THEN json_object('type', 'attachment', 'attachment',
+              json_object('name', printf('design-%05d.md', value % 10000)))
+            WHEN 1 THEN json_object('type', 'tool-call', 'toolCall',
+              json_object('name', printf('inspect_module_%03d', value % 997)))
+            ELSE json_object('type', 'tool-result', 'toolResult',
+              json_object('name', printf('verify_module_%03d', value % 991)))
+          END
+        )),
         '{}', printf('session-%06d:main', value % ?),
         CAST(value / ? AS INTEGER), CAST(value / ? AS INTEGER)
       FROM sequence
@@ -98,30 +153,7 @@ function populate(database: DatabaseSync, input: BenchmarkInput) {
       input.sessionCount,
     )
   const baseMessageCount = Math.ceil(input.messageCount / input.sessionCount)
-  database
-    .prepare(`
-      WITH RECURSIVE sequence(value) AS (
-        SELECT 0 UNION ALL SELECT value + 1 FROM sequence WHERE value + 1 < ?
-      )
-      INSERT INTO session_nodes (
-        id, session_id, parent_id, pi_entry_type, kind, role, timestamp_ms, content_json,
-        metadata_json, branch_hint_id, path_depth, created_order
-      )
-      SELECT printf('skew-node-%08d', value), 'session-000000', NULL,
-        'message', 'message', 'assistant', ? + value,
-        json_object('text', CASE WHEN value = ? - 1
-          THEN 'skewed long session terminal marker'
-          ELSE 'ordinary project implementation message'
-        END), '{}', NULL, ? + value, ? + value
-      FROM sequence
-    `)
-    .run(
-      input.skewedSessionMessageCount,
-      input.messageCount,
-      input.skewedSessionMessageCount,
-      baseMessageCount,
-      baseMessageCount,
-    )
+  populateSkewedMessages(database, input, baseMessageCount)
   database
     .prepare(`
       INSERT INTO session_branches (
@@ -143,6 +175,21 @@ function populate(database: DatabaseSync, input: BenchmarkInput) {
         )
     `)
     .run(input.messageCount, input.sessionCount)
+  database
+    .prepare(`
+      UPDATE session_branches SET
+        head_node_id = printf('skew-node-%08d', ? - 1), updated_at = ?
+      WHERE id = 'session-000000:main'
+    `)
+    .run(input.skewedSessionMessageCount, input.messageCount + input.skewedSessionMessageCount)
+  database
+    .prepare(`
+      UPDATE sessions SET
+        last_active_node_id = printf('skew-node-%08d', ? - 1),
+        updated_at = ?
+      WHERE id = 'session-000000'
+    `)
+    .run(input.skewedSessionMessageCount, input.messageCount + input.skewedSessionMessageCount)
   database.exec('COMMIT; PRAGMA optimize;')
 }
 
@@ -182,9 +229,13 @@ async function main() {
       Math.ceil(mode.messageCount / mode.sessionCount) + mode.skewedSessionMessageCount,
       SESSION_TRANSCRIPT_SEMANTIC_STORAGE_POLICY.perSessionNodeLimit,
     )
+    const expectedActiveBranchMessages =
+      Math.ceil(mode.messageCount / mode.sessionCount) + mode.skewedSessionMessageCount
     const passed = [
       corpus.sessions === mode.sessionCount &&
-        corpus.messages === mode.messageCount + mode.skewedSessionMessageCount,
+        corpus.messages === mode.messageCount + mode.skewedSessionMessageCount &&
+        corpus.discoveryRows === mode.sessionCount &&
+        corpus.activeBranchMessages === expectedActiveBranchMessages,
       cutoverMs < mode.cutoverLimitMs &&
         backfills.discovery.elapsedMs < mode.discoveryBackfillLimitMs,
       backfills.discovery.prepared === mode.sessionCount,
@@ -197,6 +248,7 @@ async function main() {
       queries.sparseWorkingPathList.p95Ms < WARM_P95_LIMIT_MS,
       queries.missingWorkingPathList.p95Ms < WARM_P95_LIMIT_MS,
       queries.lexical.p95Ms < WARM_P95_LIMIT_MS,
+      queries.commonLexical.p95Ms < WARM_P95_LIMIT_MS,
       queries.transcript.p95Ms < WARM_P95_LIMIT_MS,
     ].every(Boolean)
     process.stdout.write(
@@ -217,6 +269,7 @@ async function main() {
             sparseWorkingPathListP95Ms: queries.sparseWorkingPathList.p95Ms,
             missingWorkingPathListP95Ms: queries.missingWorkingPathList.p95Ms,
             lexicalP95Ms: queries.lexical.p95Ms,
+            commonLexicalP95Ms: queries.commonLexical.p95Ms,
             transcriptP95Ms: queries.transcript.p95Ms,
           },
           limits: {

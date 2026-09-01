@@ -122,6 +122,11 @@ describe('Session Control queued Waggle delivery', () => {
               config,
             },
             runAuthorizationOverride: 'yolo',
+            visualizationContext: {
+              title: 'Service map',
+              sourcePath: '/repo/service-map.html',
+              state: { selectedService: 'api' },
+            },
             callerId: 'profile:cli',
             acceptedAt: 1,
             idempotencyKey: 'queued-waggle',
@@ -160,6 +165,13 @@ describe('Session Control queued Waggle delivery', () => {
         mcpServerAllowlist: ['github'],
         sessionCapabilities: [],
         modelMultiAgentEnabled: false,
+        payload: expect.objectContaining({
+          visualizationContext: {
+            title: 'Service map',
+            sourcePath: '/repo/service-map.html',
+            state: { selectedService: 'api' },
+          },
+        }),
       }),
     )
   })

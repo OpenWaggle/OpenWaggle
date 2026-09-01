@@ -19,6 +19,8 @@ import { populateSessionTranscriptTermCatalog } from './session-transcript-term-
 
 const RESOURCE_ID_DIGEST_CHARACTERS = 32
 const CUTOVER_TRANSCRIPT_SEARCH_CONTENT = sessionTranscriptSearchContentSql('session_nodes')
+const CUTOVER_INITIAL_DISCOVERY_CONTENT = sessionTranscriptSearchContentSql('initial_node')
+const CUTOVER_PREVIEW_DISCOVERY_CONTENT = sessionTranscriptSearchContentSql('preview_node')
 
 interface LegacySessionRow {
   readonly id: string
@@ -287,25 +289,26 @@ export function populateSessionHostTarget(database: DatabaseSync, now: number) {
     SELECT session_id, id, ${CUTOVER_TRANSCRIPT_SEARCH_CONTENT} FROM session_nodes;
     INSERT INTO session_node_search_rows (node_id, session_id, search_rowid)
     SELECT node_id, session_id, rowid FROM session_node_search;
-    INSERT INTO session_node_discovery_search (session_id, node_id, content)
-    SELECT session_id, id, COALESCE(
-      (SELECT GROUP_CONCAT(
-        CASE json_extract(part.value, '$.type')
-          WHEN 'text' THEN json_extract(part.value, '$.text')
-          WHEN 'attachment' THEN json_extract(part.value, '$.attachment.name')
-          WHEN 'tool-call' THEN json_extract(part.value, '$.toolCall.name')
-          WHEN 'tool-result' THEN json_extract(part.value, '$.toolResult.name')
-          ELSE NULL
-        END,
-        ' '
-      ) FROM json_each(session_nodes.content_json, '$.parts') AS part),
-      json_extract(session_nodes.content_json, '$.text'),
-      ''
-    ) FROM session_nodes;
-    UPDATE session_node_search_rows AS search_rows
-    SET discovery_search_rowid = discovery.rowid
-    FROM session_node_discovery_search AS discovery
-    WHERE discovery.node_id = search_rows.node_id;
+    INSERT INTO session_node_discovery_search (
+      session_id, initial_objective, current_preview
+    )
+    SELECT sessions.id,
+      COALESCE((
+        SELECT ${CUTOVER_INITIAL_DISCOVERY_CONTENT}
+        FROM session_nodes AS initial_node
+        WHERE initial_node.session_id = sessions.id AND initial_node.role = 'user'
+        ORDER BY initial_node.created_order, initial_node.id LIMIT 1
+      ), ''),
+      COALESCE((
+        SELECT ${CUTOVER_PREVIEW_DISCOVERY_CONTENT}
+        FROM session_nodes AS preview_node
+        WHERE preview_node.session_id = sessions.id
+          AND preview_node.role IN ('user', 'assistant')
+        ORDER BY preview_node.created_order DESC, preview_node.id DESC LIMIT 1
+      ), '')
+    FROM sessions;
+    INSERT INTO session_discovery_search_rows (session_id, search_rowid)
+    SELECT session_id, rowid FROM session_node_discovery_search;
   `)
   populateSessionTranscriptTermCatalog(database)
 }

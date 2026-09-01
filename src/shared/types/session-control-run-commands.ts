@@ -1,3 +1,4 @@
+import type { InlineVisualizationContext } from './agent'
 import type { AgentAuthorizationMode } from './agent-authorization'
 import type { ThinkingLevel } from './settings'
 import type { WaggleInvocationInput } from './waggle'
@@ -7,11 +8,13 @@ export interface SessionControlMessageInput {
   readonly attachmentIds: readonly string[]
   readonly thinkingLevel?: ThinkingLevel
   readonly waggle?: WaggleInvocationInput
+  readonly visualizationContext?: InlineVisualizationContext
 }
 
 export interface SessionControlSteeringInput {
   readonly text: string
   readonly attachmentIds: readonly string[]
+  readonly visualizationContext?: InlineVisualizationContext
 }
 
 export interface SessionControlMessageCommand {

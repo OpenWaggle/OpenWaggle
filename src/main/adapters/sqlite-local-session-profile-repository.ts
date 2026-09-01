@@ -9,12 +9,6 @@ import {
   LocalSessionProfileRepository,
   type LocalSessionProfileRepositoryShape,
 } from '../ports/local-session-profile-repository'
-
-interface OperationRow {
-  readonly request_json: string
-  readonly outcome_json: string | null
-}
-
 import { executeMutableProfileManagement } from './sqlite-local-session-profile-mutations'
 import {
   decodeProfile,
@@ -24,6 +18,13 @@ import {
   profileRepositoryError as repositoryError,
   selectProfiles,
 } from './sqlite-local-session-profile-support'
+
+interface OperationRow {
+  readonly request_json: string
+  readonly outcome_json: string | null
+}
+
+export const PROFILE_AUTHENTICATION_AUDIT_RECORD_LIMIT = 256
 
 function selectProfileById(sql: SqlClient.SqlClient, id: string) {
   return sql<ProfileRow>`SELECT * FROM session_client_profiles WHERE id = ${id} LIMIT 1`
@@ -104,12 +105,22 @@ function recordAuthentication(
           ) VALUES (
             ${input.profileId},
             ${input.accepted ? 'authenticated' : 'authentication_failed'},
-            ${`profile:${input.profileId}`},
+            ${input.accepted ? `profile:${input.profileId}` : 'unauthenticated'},
             ${JSON.stringify({
               clientKind: input.clientKind,
               clientVersion: input.clientVersion,
             })},
             ${input.now}
+          )
+        `
+        yield* sql`
+          DELETE FROM session_client_profile_audit
+          WHERE id IN (
+            SELECT id FROM session_client_profile_audit
+            WHERE profile_id = ${input.profileId}
+              AND action IN (${'authenticated'}, ${'authentication_failed'})
+            ORDER BY created_at DESC, id DESC
+            LIMIT -1 OFFSET ${PROFILE_AUTHENTICATION_AUDIT_RECORD_LIMIT}
           )
         `
       }),

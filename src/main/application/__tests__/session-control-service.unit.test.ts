@@ -52,6 +52,11 @@ describe('Session Control application service', () => {
               text: 'Implement the target schema.',
               attachmentIds: [],
               thinkingLevel: 'high',
+              visualizationContext: {
+                title: 'Service map',
+                sourcePath: '/repo/service-map.html',
+                state: { selectedService: 'api' },
+              },
             },
           },
         },
@@ -78,6 +83,11 @@ describe('Session Control application service', () => {
         text: 'Implement the target schema.',
         attachmentIds: [],
         thinkingLevel: 'high',
+        visualizationContext: {
+          title: 'Service map',
+          sourcePath: '/repo/service-map.html',
+          state: { selectedService: 'api' },
+        },
         callerId: 'local-user',
         acceptedAt: 1234,
         idempotencyKey: 'idempotency-message',
@@ -175,7 +185,15 @@ describe('Session Control application service', () => {
             operation: 'follow-up',
             sessionId,
             runAuthorizationOverride: 'ask-for-approval',
-            input: { text: 'Run verification next.', attachmentIds: [] },
+            input: {
+              text: 'Run verification next.',
+              attachmentIds: [],
+              visualizationContext: {
+                title: 'Service map',
+                sourcePath: '/repo/service-map.html',
+                state: { selectedService: 'api' },
+              },
+            },
           },
         },
       }).pipe(Effect.provide(Layer.merge(repositoryLayer, identityLayer))),
@@ -190,6 +208,11 @@ describe('Session Control application service', () => {
       stateRevision: 9,
     })
     expect(state.run).toEqual({ state: 'active', runId: activeRunId })
+    expect(state.followUpQueue.items[0]?.intent.visualizationContext).toEqual({
+      title: 'Service map',
+      sourcePath: '/repo/service-map.html',
+      state: { selectedService: 'api' },
+    })
   })
 
   it('preserves a queued Waggle invocation in the durable Follow-up intent', async () => {

@@ -10,6 +10,11 @@ export {
   renameSessionBranch,
   restoreSessionBranch,
 } from './sessions/branch-operations'
+export {
+  listHiveSessionCatalogPage,
+  listSessionCatalogPage,
+  listSessionsByIds,
+} from './sessions/session-catalog'
 export { listArchivedSessionBranches, listSessions } from './sessions/session-list'
 export { getSessionTree } from './sessions/session-tree'
 export { getSessionWorkspace } from './sessions/session-workspace'

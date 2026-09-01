@@ -166,6 +166,9 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
         thinkingLevel: payload.thinkingLevel,
         ...(payload.waggle ? { waggle: payload.waggle } : {}),
         attachmentIds: payload.attachments.map((attachment) => attachment.id),
+        ...(payload.visualizationContext
+          ? { visualizationContext: payload.visualizationContext }
+          : {}),
       },
     })
     await refresh()

@@ -147,6 +147,9 @@ export const api: OpenWaggleApi = {
 
   // Sessions
   listSessions: invoke('sessions:list'),
+  listSessionsByIds: invoke('sessions:list-by-ids'),
+  listSessionCatalogPage: invoke('sessions:list-page'),
+  listHiveSessionCatalogPage: invoke('sessions:list-hive-page'),
   listSessionDetails: invoke('sessions:list-details'),
   getSessionDetail: invoke('sessions:get-detail'),
   listTurnCheckpoints: invoke('sessions:turn-checkpoints:list'),

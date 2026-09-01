@@ -6,7 +6,10 @@ import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { SessionEmbeddingModel } from '../multilingual-e5-session-embedding-model'
 import { SqliteSessionSemanticProjection } from '../sqlite-session-semantic-projection'
-import { SessionSemanticIndexSnapshotCache } from '../sqlite-session-semantic-search'
+import {
+  SessionSemanticIndexSnapshotCache,
+  SqliteSessionSemanticSearch,
+} from '../sqlite-session-semantic-search'
 import {
   executeSessionQuery as executeQuery,
   makeSessionQueryRuntime as makeRuntime,
@@ -95,7 +98,7 @@ describe('SQLite Session semantic discovery', () => {
               revision: 2,
               rebuild: true,
               records: [{ sessionId: 'new-session', vector: new Float32Array([1, 0]) }],
-              retainedSessionIds: new Set(['new-session']),
+              deletedSessionIds: [],
             }
           }),
         query: new Float32Array([1, 0]),
@@ -113,7 +116,7 @@ describe('SQLite Session semantic discovery', () => {
             revision: 1,
             rebuild: true,
             records: [{ sessionId: 'old-session', vector: new Float32Array([1, 0]) }],
-            retainedSessionIds: new Set(['old-session']),
+            deletedSessionIds: [],
           })
         },
         query: new Float32Array([1, 0]),
@@ -133,6 +136,40 @@ describe('SQLite Session semantic discovery', () => {
     })
     expect(oldRefreshes).toBe(0)
     expect(cache.diagnostics()).toEqual({ loadedRevision: 2, recordCount: 1 })
+  })
+
+  it('evicts a deleted Session from an already-loaded semantic index snapshot', async () => {
+    const runtime = makeRuntime(path.join(root, 'semantic-deletion.sqlite'), fakeModel)
+    runtimes.push(runtime)
+
+    await runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* new SqliteSessionSemanticProjection(sql, fakeModel).prepareNextBatch(10)
+        const semantic = new SqliteSessionSemanticSearch(sql, fakeModel)
+        const request = {
+          contractVersion: 2 as const,
+          requestId: 'semantic-deletion',
+          query: {
+            operation: 'search' as const,
+            query: 'session',
+            mode: 'semantic' as const,
+            limit: 3,
+          },
+        }
+        const initialReadiness = yield* semantic.readiness()
+        yield* semantic.search('session', undefined, request, initialReadiness, 3)
+
+        expect(semantic.diagnostics()).toEqual({ loadedRevision: 1, recordCount: 3 })
+
+        yield* sql`DELETE FROM sessions WHERE id = ${'other'}`
+        const deletionReadiness = yield* semantic.readiness()
+        yield* semantic.search('session', undefined, request, deletionReadiness, 3)
+
+        expect(deletionReadiness).toMatchObject({ snapshotRevision: 2 })
+        expect(semantic.diagnostics()).toEqual({ loadedRevision: 2, recordCount: 2 })
+      }),
+    )
   })
 
   it('sanitizes global semantic readiness for a restricted discovery authority', async () => {

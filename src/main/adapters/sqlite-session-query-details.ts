@@ -154,54 +154,56 @@ export function readStatus(sql: SqlClient.SqlClient, request: SessionQueryReques
 export function readQueue(sql: SqlClient.SqlClient, request: SessionQueryRequest) {
   if (request.query.operation !== 'queue-list') throw new Error('Expected queue-list query.')
   const query = request.query
-  return Effect.gen(function* () {
-    const states = yield* sql<{
-      queue_state: 'running' | 'paused'
-      queue_revision: number
-      active_run_id: string | null
-    }>`
-      SELECT queue_state, queue_revision, active_run_id FROM session_control_states
-      WHERE session_id = ${query.sessionId} LIMIT 1
-    `
-    const state = states[0]
-    if (!state) {
+  return sql.withTransaction(
+    Effect.gen(function* () {
+      const states = yield* sql<{
+        queue_state: 'running' | 'paused'
+        queue_revision: number
+        active_run_id: string | null
+      }>`
+        SELECT queue_state, queue_revision, active_run_id FROM session_control_states
+        WHERE session_id = ${query.sessionId} LIMIT 1
+      `
+      const state = states[0]
+      if (!state) {
+        return sessionQueryResponse(request, {
+          operation: 'queue-list',
+          error: { code: 'session_not_found', message: 'Session not found.' },
+        })
+      }
+      const rows = yield* sql<{
+        id: string
+        position: number
+        delivery_state: 'pending' | 'needs_attention'
+        attention_reason:
+          | 'authorization_ceiling_changed'
+          | 'profile_revoked'
+          | 'authority_changed'
+          | null
+        intent_json: string
+        created_at: number
+      }>`
+        SELECT id, position, delivery_state, attention_reason, intent_json, created_at
+        FROM session_follow_ups
+        WHERE session_id = ${query.sessionId}
+        ORDER BY position, id
+      `
       return sessionQueryResponse(request, {
         operation: 'queue-list',
-        error: { code: 'session_not_found', message: 'Session not found.' },
+        sessionId: query.sessionId,
+        queueState: state.queue_state,
+        queueRevision: state.queue_revision,
+        activeRunId: state.active_run_id,
+        items: rows.map((row) => ({
+          followUpId: row.id,
+          position: row.position,
+          createdAt: row.created_at,
+          deliveryState: row.delivery_state,
+          ...(row.attention_reason ? { attentionReason: row.attention_reason } : {}),
+          ...(query.includeBodies ? { intent: parseSessionJson(row.intent_json) } : {}),
+        })),
+        omittedBodyCount: query.includeBodies ? 0 : rows.length,
       })
-    }
-    const rows = yield* sql<{
-      id: string
-      position: number
-      delivery_state: 'pending' | 'needs_attention'
-      attention_reason:
-        | 'authorization_ceiling_changed'
-        | 'profile_revoked'
-        | 'authority_changed'
-        | null
-      intent_json: string
-      created_at: number
-    }>`
-      SELECT id, position, delivery_state, attention_reason, intent_json, created_at
-      FROM session_follow_ups
-      WHERE session_id = ${query.sessionId}
-      ORDER BY position, id
-    `
-    return sessionQueryResponse(request, {
-      operation: 'queue-list',
-      sessionId: query.sessionId,
-      queueState: state.queue_state,
-      queueRevision: state.queue_revision,
-      activeRunId: state.active_run_id,
-      items: rows.map((row) => ({
-        followUpId: row.id,
-        position: row.position,
-        createdAt: row.created_at,
-        deliveryState: row.delivery_state,
-        ...(row.attention_reason ? { attentionReason: row.attention_reason } : {}),
-        ...(query.includeBodies ? { intent: parseSessionJson(row.intent_json) } : {}),
-      })),
-      omittedBodyCount: query.includeBodies ? 0 : rows.length,
-    })
-  })
+    }),
+  )
 }

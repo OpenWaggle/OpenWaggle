@@ -115,6 +115,27 @@ export async function listSessions(limit?: number): Promise<SessionSummary[]> {
   )
 }
 
+export function hydrateSessionNavigationRows(
+  sql: SqlClient.SqlClient,
+  rows: readonly SessionSummaryRow[],
+) {
+  return Effect.gen(function* () {
+    const hydrated = hydrateSessionRows(rows)
+    if (!hydrated) return []
+    const sessions = attachSessionLineage(
+      hydrated,
+      yield* loadSessionLineageRows(sql, sessionIdsForQuery(hydrated)),
+    )
+    const sessionIds = sessionIdsForQuery(sessions)
+    return attachSessionNavigationState(
+      sessions,
+      yield* loadVisibleBranchRows(sql, sessionIds),
+      yield* loadUiStateRows(sql, sessionIds),
+      yield* loadInterruptedRunRows(sql, sessionIds),
+    )
+  })
+}
+
 export function loadSessionLineageRows(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
   return sql<SessionLineageRow>`
     SELECT

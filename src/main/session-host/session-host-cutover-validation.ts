@@ -15,7 +15,8 @@ interface TargetCounts {
   readonly indexedNodes: number
   readonly indexedNodeRows: number
   readonly indexedTermDocuments: number
-  readonly indexedDiscoveryNodes: number
+  readonly indexedDiscoverySessions: number
+  readonly indexedDiscoverySessionRows: number
   readonly indexedDelegationObjectives: number
   readonly delegationSpecifications: number
   readonly semanticEmbeddings: number
@@ -50,7 +51,8 @@ function targetCounts(database: DatabaseSync): TargetCounts {
     indexedNodes: readCutoverCount(database, 'session_node_search'),
     indexedNodeRows: readCutoverCount(database, 'session_node_search_rows'),
     indexedTermDocuments: readCutoverCount(database, 'session_transcript_term_documents'),
-    indexedDiscoveryNodes: readCutoverCount(database, 'session_node_discovery_search'),
+    indexedDiscoverySessions: readCutoverCount(database, 'session_node_discovery_search'),
+    indexedDiscoverySessionRows: readCutoverCount(database, 'session_discovery_search_rows'),
     indexedDelegationObjectives: readCutoverCount(database, 'session_delegation_search'),
     delegationSpecifications: readCutoverCount(database, 'delegation_specifications'),
     semanticEmbeddings: readCutoverCount(database, 'session_discovery_embeddings'),
@@ -71,7 +73,8 @@ function validateCanonicalCoverage(counts: TargetCounts, invalidProfiles: unknow
     counts.indexedNodes !== counts.nodes ||
     counts.indexedNodeRows !== counts.nodes ||
     counts.indexedTermDocuments !== counts.sessions ||
-    counts.indexedDiscoveryNodes !== counts.nodes
+    counts.indexedDiscoverySessions !== counts.sessions ||
+    counts.indexedDiscoverySessionRows !== counts.sessions
   ) {
     throw new Error('Session Host lexical search coverage does not match canonical data.')
   }

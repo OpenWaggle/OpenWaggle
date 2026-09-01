@@ -98,6 +98,11 @@ describe('Session Control promotion and replacement', () => {
             intent: {
               text: 'Steer this now.',
               attachmentIds: [],
+              visualizationContext: {
+                title: 'Service map',
+                sourcePath: '/repo/service-map.html',
+                state: { selectedService: 'api' },
+              },
               callerId: 'local-user',
               acceptedAt: 1000,
               idempotencyKey: 'follow-up',
@@ -128,6 +133,11 @@ describe('Session Control promotion and replacement', () => {
       runId: RunId('run-active'),
       text: 'Steer this now.',
       attachments: [],
+      visualizationContext: {
+        title: 'Service map',
+        sourcePath: '/repo/service-map.html',
+        state: { selectedService: 'api' },
+      },
     })
     expect(setup.state().followUpQueue.items).toEqual([])
     expect(response.outcome).toMatchObject({

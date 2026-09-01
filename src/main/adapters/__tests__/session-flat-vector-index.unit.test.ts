@@ -21,6 +21,10 @@ describe('Session flat vector index', () => {
     expect(index.search(new Float32Array([1, 0]), 2, new Set(['c']))).toEqual([
       { sessionId: 'c', similarity: 0 },
     ])
+    expect(index.search(new Float32Array([1, 0]), 2, undefined, new Set(['a']))).toEqual([
+      { sessionId: 'b', similarity: 1 },
+      { sessionId: 'c', similarity: 0 },
+    ])
   })
 
   it('round-trips vectors through the SQLite BLOB representation', () => {

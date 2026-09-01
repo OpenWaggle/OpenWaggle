@@ -7,8 +7,9 @@ import { useChatStore } from '../chat-store'
 // ── Mocks ────────────────────────────────────────────────────
 
 const mockApi = {
-  listSessionDetails: vi.fn(),
-  listSessions: vi.fn(async (..._args: unknown[]) => []),
+  listSessionCatalogPage: vi.fn(async (..._args: unknown[]) => ({ sessions: [] })),
+  listPinnedSessions: vi.fn(async () => []),
+  listSessionsByIds: vi.fn(async () => []),
   getSessionTree: vi.fn(async (..._args: unknown[]) => null),
   getSessionDetail: vi.fn(),
   createSession: vi.fn(),
@@ -17,8 +18,9 @@ const mockApi = {
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
-    listSessionDetails: (...args: unknown[]) => mockApi.listSessionDetails(...args),
-    listSessions: (...args: unknown[]) => mockApi.listSessions(...args),
+    listSessionCatalogPage: (...args: unknown[]) => mockApi.listSessionCatalogPage(...args),
+    listPinnedSessions: (...args: unknown[]) => mockApi.listPinnedSessions(...args),
+    listSessionsByIds: (...args: unknown[]) => mockApi.listSessionsByIds(...args),
     getSessionTree: (...args: unknown[]) => mockApi.getSessionTree(...args),
     getSessionDetail: (...args: unknown[]) => mockApi.getSessionDetail(...args),
     createSession: (...args: unknown[]) => mockApi.createSession(...args),
@@ -195,7 +197,7 @@ describe('useChatStore unit', () => {
       useChatStore.getState().updateSessionTitle(inactiveId, 'Inactive renamed')
       await new Promise((resolve) => setTimeout(resolve, 0))
 
-      expect(mockApi.listSessions).toHaveBeenCalled()
+      expect(mockApi.listSessionCatalogPage).toHaveBeenCalled()
       expect(mockApi.getSessionTree).not.toHaveBeenCalledWith(inactiveId)
     })
 

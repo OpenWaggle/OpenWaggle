@@ -1,10 +1,11 @@
-import type { HydratedAttachment } from '@shared/types/agent'
+import type { HydratedAttachment, InlineVisualizationContext } from '@shared/types/agent'
 import { Context, type Effect } from 'effect'
 
 export interface AgentSteeringInput {
   readonly runId: string
   readonly text: string
   readonly attachments: readonly HydratedAttachment[]
+  readonly visualizationContext?: InlineVisualizationContext
 }
 
 export type AgentSteeringResult =

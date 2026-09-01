@@ -5,6 +5,7 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { LocalSessionProfileRepository } from '../../ports/local-session-profile-repository'
+import { PROFILE_AUTHENTICATION_AUDIT_RECORD_LIMIT } from '../sqlite-local-session-profile-repository'
 import { makeLocalSessionProfileTestLayer } from './sqlite-local-session-profile-test-layer'
 
 describe('SQLite Local Session profile repository', () => {
@@ -41,9 +42,10 @@ describe('SQLite Local Session profile repository', () => {
         const sql = yield* SqlClient.SqlClient
         const audit = yield* sql<{
           readonly action: string
+          readonly actor_caller_id: string
           readonly detail_json: string
         }>`
-          SELECT action, detail_json
+          SELECT action, actor_caller_id, detail_json
           FROM session_client_profile_audit
           WHERE profile_id = ${'profile-review'}
           ORDER BY id
@@ -69,15 +71,67 @@ describe('SQLite Local Session profile repository', () => {
     expect(result.audit).toEqual([
       {
         action: 'authenticated',
+        actor_caller_id: 'profile:profile-review',
         detail_json: JSON.stringify({ clientKind: 'mcp', clientVersion: 'test' }),
       },
       {
         action: 'authentication_failed',
+        actor_caller_id: 'unauthenticated',
         detail_json: JSON.stringify({ clientKind: 'cli', clientVersion: 'test-2' }),
       },
     ])
     expect(result.lastAuthenticatedAt).toBe(2000)
     expect(JSON.stringify(result.audit)).not.toContain('verifier')
+  })
+
+  it('bounds authentication telemetry without pruning management audit events', async () => {
+    const layer = makeLocalSessionProfileTestLayer(
+      path.join(temporaryRoot, 'bounded-authentication-audit.sqlite'),
+    )
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* LocalSessionProfileRepository
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          INSERT INTO session_client_profile_audit (
+            profile_id, action, actor_caller_id, detail_json, created_at
+          ) VALUES (
+            ${'profile-review'}, ${'updated'}, ${'local-user'}, ${'{}'}, ${1}
+          )
+        `
+        for (let index = 0; index < PROFILE_AUTHENTICATION_AUDIT_RECORD_LIMIT + 20; index += 1) {
+          yield* repository.recordAuthentication({
+            profileId: 'profile-review',
+            accepted: index % 2 === 0,
+            clientKind: 'mcp',
+            clientVersion: 'load-test',
+            now: index + 10,
+          })
+        }
+        const counts = yield* sql<{
+          readonly authentication_count: number
+          readonly management_count: number
+          readonly misattributed_failure_count: number
+        }>`
+          SELECT
+            SUM(CASE WHEN action IN ('authenticated', 'authentication_failed') THEN 1 ELSE 0 END)
+              AS authentication_count,
+            SUM(CASE WHEN action = 'updated' THEN 1 ELSE 0 END) AS management_count,
+            SUM(CASE WHEN action = 'authentication_failed'
+              AND actor_caller_id LIKE 'profile:%' THEN 1 ELSE 0 END)
+              AS misattributed_failure_count
+          FROM session_client_profile_audit
+          WHERE profile_id = ${'profile-review'}
+        `
+        return counts[0]
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result).toEqual({
+      authentication_count: PROFILE_AUTHENTICATION_AUDIT_RECORD_LIMIT,
+      management_count: 1,
+      misattributed_failure_count: 0,
+    })
   })
 
   it('creates, replays, rotates, and revokes profiles without journaling bearer material', async () => {

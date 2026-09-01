@@ -73,18 +73,18 @@ const inlineVisualizationStateSchema = jsonValueSchema.pipe(
   }),
 )
 
+export const inlineVisualizationContextSchema = Schema.Struct({
+  title: Schema.String.pipe(Schema.maxLength(MAX_INLINE_VISUALIZATION_TITLE_LENGTH)),
+  sourcePath: Schema.String.pipe(Schema.maxLength(MAX_INLINE_VISUALIZATION_PATH_LENGTH)),
+  state: inlineVisualizationStateSchema,
+})
+
 export const agentSendPayloadSchema = Schema.Struct({
   text: Schema.String,
   thinkingLevel: Schema.Literal(...THINKING_LEVELS),
   attachments: Schema.mutable(Schema.Array(preparedAttachmentSchema)),
   waggle: Schema.optional(waggleInvocationSchema),
-  visualizationContext: Schema.optional(
-    Schema.Struct({
-      title: Schema.String.pipe(Schema.maxLength(MAX_INLINE_VISUALIZATION_TITLE_LENGTH)),
-      sourcePath: Schema.String.pipe(Schema.maxLength(MAX_INLINE_VISUALIZATION_PATH_LENGTH)),
-      state: inlineVisualizationStateSchema,
-    }),
-  ),
+  visualizationContext: Schema.optional(inlineVisualizationContextSchema),
 })
 
 export function toAgentSendPayload(

@@ -1,3 +1,7 @@
+import {
+  refreshSessionLexicalDiscoverySql,
+  SESSION_DISCOVERY_SEARCH_ROW_SCHEMA_STATEMENTS,
+} from './session-host-discovery-search-schema'
 import { SESSION_NODE_SEARCH_ROW_SCHEMA_STATEMENTS } from './session-host-node-search-row-schema'
 import {
   NEW_NODE_IS_TRANSCRIPT_ELIGIBLE,
@@ -48,6 +52,16 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
   ON session_discovery_embeddings (model_revision, snapshot_revision, session_id)
   `,
   `
+  CREATE TABLE session_discovery_embedding_deletions (
+    session_id TEXT PRIMARY KEY,
+    snapshot_revision INTEGER NOT NULL CHECK (snapshot_revision > 0)
+  )
+  `,
+  `
+  CREATE INDEX idx_session_discovery_embedding_deletions_snapshot
+  ON session_discovery_embedding_deletions (snapshot_revision, session_id)
+  `,
+  `
   CREATE TABLE session_discovery_embedding_queue (
     session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
     queued_at INTEGER NOT NULL
@@ -78,11 +92,12 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
   `
   CREATE VIRTUAL TABLE session_node_discovery_search USING fts5(
     session_id UNINDEXED,
-    node_id UNINDEXED,
-    content,
+    initial_objective,
+    current_preview,
     tokenize = 'unicode61 remove_diacritics 2'
   )
   `,
+  ...SESSION_DISCOVERY_SEARCH_ROW_SCHEMA_STATEMENTS,
   `
   CREATE VIRTUAL TABLE session_delegation_search USING fts5(
     session_id UNINDEXED,
@@ -94,6 +109,11 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
   `
   CREATE TRIGGER session_title_search_insert AFTER INSERT ON sessions BEGIN
     INSERT INTO session_title_search (session_id, title) VALUES (new.id, new.title);
+    INSERT INTO session_node_discovery_search (
+      session_id, initial_objective, current_preview
+    ) VALUES (new.id, '', '');
+    INSERT INTO session_discovery_search_rows (session_id, search_rowid)
+    VALUES (new.id, last_insert_rowid());
     INSERT INTO session_discovery_embedding_queue (session_id, queued_at)
     VALUES (new.id, unixepoch('subsec') * 1000)
     ON CONFLICT(session_id) DO UPDATE SET queued_at = excluded.queued_at;
@@ -111,6 +131,18 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
   `
   CREATE TRIGGER session_title_search_delete AFTER DELETE ON sessions BEGIN
     DELETE FROM session_title_search WHERE session_id = old.id;
+    UPDATE session_semantic_discovery_state
+    SET snapshot_revision = snapshot_revision + 1,
+      prepared_count = (SELECT COUNT(*) FROM session_discovery_embeddings),
+      pending_count = (SELECT COUNT(*) FROM session_discovery_embedding_queue),
+      updated_at = unixepoch('subsec') * 1000
+    WHERE singleton = 1;
+    INSERT INTO session_discovery_embedding_deletions (session_id, snapshot_revision)
+    SELECT old.id, snapshot_revision
+    FROM session_semantic_discovery_state
+    WHERE singleton = 1
+    ON CONFLICT(session_id) DO UPDATE SET
+      snapshot_revision = excluded.snapshot_revision;
   END
   `,
   `
@@ -119,24 +151,7 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
     VALUES (new.session_id, new.id, ${NEW_TRANSCRIPT_SEARCH_CONTENT});
     INSERT INTO session_node_search_rows (node_id, session_id, search_rowid)
     VALUES (new.id, new.session_id, last_insert_rowid());
-    INSERT INTO session_node_discovery_search (session_id, node_id, content)
-    VALUES (new.session_id, new.id, COALESCE(
-      (SELECT GROUP_CONCAT(
-        CASE json_extract(part.value, '$.type')
-          WHEN 'text' THEN json_extract(part.value, '$.text')
-          WHEN 'attachment' THEN json_extract(part.value, '$.attachment.name')
-          WHEN 'tool-call' THEN json_extract(part.value, '$.toolCall.name')
-          WHEN 'tool-result' THEN json_extract(part.value, '$.toolResult.name')
-          ELSE NULL
-        END,
-        ' '
-      ) FROM json_each(new.content_json, '$.parts') AS part),
-      json_extract(new.content_json, '$.text'),
-      ''
-    ));
-    UPDATE session_node_search_rows
-    SET discovery_search_rowid = last_insert_rowid()
-    WHERE node_id = new.id;
+    ${refreshSessionLexicalDiscoverySql('new.session_id')}
     INSERT INTO session_discovery_embedding_queue (session_id, queued_at)
     VALUES (new.session_id, unixepoch('subsec') * 1000)
     ON CONFLICT(session_id) DO UPDATE SET queued_at = excluded.queued_at;
@@ -158,13 +173,10 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
   END
   `,
   `
-  CREATE TRIGGER session_node_search_update AFTER UPDATE OF content_json ON session_nodes BEGIN
+  CREATE TRIGGER session_node_search_update
+  AFTER UPDATE OF content_json, role, created_order ON session_nodes BEGIN
     DELETE FROM session_node_search
     WHERE rowid = (SELECT search_rowid FROM session_node_search_rows WHERE node_id = old.id);
-    DELETE FROM session_node_discovery_search
-    WHERE rowid = (
-      SELECT discovery_search_rowid FROM session_node_search_rows WHERE node_id = old.id
-    );
     DELETE FROM session_node_search_rows WHERE node_id = old.id;
     DELETE FROM session_transcript_embedding_queue WHERE node_id = old.id;
     DELETE FROM session_transcript_embeddings WHERE node_id = old.id;
@@ -172,24 +184,7 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
     VALUES (new.session_id, new.id, ${NEW_TRANSCRIPT_SEARCH_CONTENT});
     INSERT INTO session_node_search_rows (node_id, session_id, search_rowid)
     VALUES (new.id, new.session_id, last_insert_rowid());
-    INSERT INTO session_node_discovery_search (session_id, node_id, content)
-    VALUES (new.session_id, new.id, COALESCE(
-      (SELECT GROUP_CONCAT(
-        CASE json_extract(part.value, '$.type')
-          WHEN 'text' THEN json_extract(part.value, '$.text')
-          WHEN 'attachment' THEN json_extract(part.value, '$.attachment.name')
-          WHEN 'tool-call' THEN json_extract(part.value, '$.toolCall.name')
-          WHEN 'tool-result' THEN json_extract(part.value, '$.toolResult.name')
-          ELSE NULL
-        END,
-        ' '
-      ) FROM json_each(new.content_json, '$.parts') AS part),
-      json_extract(new.content_json, '$.text'),
-      ''
-    ));
-    UPDATE session_node_search_rows
-    SET discovery_search_rowid = last_insert_rowid()
-    WHERE node_id = new.id;
+    ${refreshSessionLexicalDiscoverySql('new.session_id')}
     INSERT INTO session_discovery_embedding_queue (session_id, queued_at)
     VALUES (new.session_id, unixepoch('subsec') * 1000)
     ON CONFLICT(session_id) DO UPDATE SET queued_at = excluded.queued_at;
@@ -214,10 +209,6 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
   CREATE TRIGGER session_node_search_delete BEFORE DELETE ON session_nodes BEGIN
     DELETE FROM session_node_search
     WHERE rowid = (SELECT search_rowid FROM session_node_search_rows WHERE node_id = old.id);
-    DELETE FROM session_node_discovery_search
-    WHERE rowid = (
-      SELECT discovery_search_rowid FROM session_node_search_rows WHERE node_id = old.id
-    );
     DELETE FROM session_node_search_rows WHERE node_id = old.id;
     DELETE FROM session_transcript_embedding_queue WHERE node_id = old.id;
     DELETE FROM session_transcript_embeddings WHERE node_id = old.id;
@@ -225,6 +216,11 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
     VALUES (old.session_id, unixepoch('subsec') * 1000)
     ON CONFLICT(session_id) DO UPDATE SET queued_at = excluded.queued_at;
     ${refreshTranscriptScopeCoverageSql('old.session_id')}
+  END
+  `,
+  `
+  CREATE TRIGGER session_node_discovery_search_delete AFTER DELETE ON session_nodes BEGIN
+    ${refreshSessionLexicalDiscoverySql('old.session_id')}
   END
   `,
   `

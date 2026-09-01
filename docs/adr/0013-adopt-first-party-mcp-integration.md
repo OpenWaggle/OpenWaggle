@@ -144,7 +144,7 @@ The initial hard limits are 64,000 source bytes, 120,000 ms wall time, 10,000 in
 ## Session Control
 
 - Cross-session orchestration is a first-party OpenWaggle domain service, not an MCP-owned session store and not a loopback call through OpenWaggle's own MCP server.
-- The service runtime is owned by the local Session Host described in ADR 0025; Electron, CLI, and MCP are clients or adapters rather than competing owners of live session state.
+- The service runtime is owned by the local Session Host described in ADR 0030; Electron, CLI, and MCP are clients or adapters rather than competing owners of live session state.
 - The compact agent-facing `sessions` surface supports listing/status, paginated reading, creation, worktree creation, forking, messaging/steering, waiting, interruption, handoff, rename, pin, and archive.
 - Internal desktop agents may discover same-workspace non-archived session metadata by default. Reading across projects, sending messages, interrupting, or reorganizing sessions requires an applicable permission grant.
 - External server profiles may grant `sessions:discover`, `sessions:read`, `sessions:create`, `sessions:message`, `sessions:steer`, `sessions:interrupt`, `sessions:queue`, `sessions:export`, `sessions:respond`, `sessions:approve`, and `sessions:organize`, constrained by workspace, ancestry, or explicit session ids. Server startup requires at least one explicit workspace or session scope; an empty scope never implies access to every session.

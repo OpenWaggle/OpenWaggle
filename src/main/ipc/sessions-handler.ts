@@ -1,7 +1,9 @@
 import { dispatchHostBackedSessionGuiOperation } from '../application/host-ui-session-operation-dispatcher'
+import { registerSessionCatalogHandlers } from './session-catalog-handler'
 import { hostHandle as typedHandle } from './typed-ipc'
 
 export function registerSessionsHandlers(): void {
+  registerSessionCatalogHandlers()
   typedHandle('sessions:list', (_event, ...args) =>
     dispatchHostBackedSessionGuiOperation('sessions:list', args),
   )

@@ -120,4 +120,51 @@ describe('SQLite Session Control Worker settlement', () => {
       submissionCount: 0,
     })
   })
+
+  it('marks a completed Worker without a textual result as needing attention', async () => {
+    const layer = makeSessionControlRunLifecycleTestLayer(
+      path.join(temporaryRoot, 'worker-completed-without-result.sqlite'),
+    )
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* prepareWorkerDelegation(sql)
+        yield* startWorkerRun
+        const lifecycle = yield* SessionControlRunLifecycleRepository
+        yield* lifecycle.activate({ sessionId: SessionId('worker'), runId: RunId('run-next') })
+        const settlement = yield* lifecycle.settle({
+          sessionId: SessionId('worker'),
+          runId: RunId('run-next'),
+          nextRunId: RunId('run-after'),
+          terminalStatus: 'completed',
+          finalResponse: '   ',
+        })
+        const [contract] = yield* sql<{ readonly state: string }>`
+          SELECT state FROM delegation_contracts WHERE id = ${'delegation-worker'}
+        `
+        const [submissions] = yield* sql<{ readonly count: number }>`
+          SELECT COUNT(*) AS count FROM delegation_submissions
+          WHERE delegation_id = ${'delegation-worker'}
+        `
+        const [update] = yield* sql<{ readonly state: string; readonly summary: string }>`
+          SELECT state, summary FROM session_orchestration_updates
+          WHERE delegation_id = ${'delegation-worker'}
+        `
+        return { settlement, contract, submissionCount: submissions?.count, update }
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result).toMatchObject({
+      settlement: {
+        delegationUpdate: { state: 'needs_attention' },
+        orchestrationUpdate: { state: 'needs_attention' },
+      },
+      contract: { state: 'needs_attention' },
+      submissionCount: 0,
+      update: {
+        state: 'needs_attention',
+        summary: 'Worker Run run-next completed without a textual final response.',
+      },
+    })
+  })
 })

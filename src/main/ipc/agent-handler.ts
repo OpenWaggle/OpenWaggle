@@ -128,6 +128,9 @@ function registerAgentRunHandlers() {
                   text: validatedPayload.text,
                   thinkingLevel: validatedPayload.thinkingLevel,
                   attachmentIds: validatedPayload.attachments.map((attachment) => attachment.id),
+                  ...(validatedPayload.visualizationContext
+                    ? { visualizationContext: validatedPayload.visualizationContext }
+                    : {}),
                 },
               },
             },

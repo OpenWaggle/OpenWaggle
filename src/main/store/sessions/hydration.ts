@@ -226,6 +226,7 @@ function parseWaggleConfig(raw: string | null): WaggleConfig | undefined {
  *
  * Lives here rather than in `types.ts` so the type module stays free of a SQL dependency.
  */
-export function sessionSummaryColumns(sql: SqlClient.SqlClient) {
-  return sql.literal(SESSION_SUMMARY_COLUMN_NAMES.join(', '))
+export function sessionSummaryColumns(sql: SqlClient.SqlClient, qualifier?: string) {
+  const prefix = qualifier ? `${qualifier}.` : ''
+  return sql.literal(SESSION_SUMMARY_COLUMN_NAMES.map((column) => `${prefix}${column}`).join(', '))
 }

@@ -27,11 +27,19 @@ export function planRunSettlement(
   input: SettleInput,
   deferForParentLimit: boolean,
 ) {
-  if (!input.suppressFollowUpScheduling && !deferForParentLimit) {
+  if (
+    input.terminalStatus === 'completed' &&
+    !input.suppressFollowUpScheduling &&
+    !deferForParentLimit
+  ) {
     return settleAndScheduleNextFollowUp(state, input.runId, input.nextRunId)
   }
   const settled = settleSessionRun(state, input.runId)
-  if (!settled.accepted || !deferForParentLimit) {
+  const shouldPauseQueue =
+    settled.accepted &&
+    !input.suppressFollowUpScheduling &&
+    (input.terminalStatus !== 'completed' || deferForParentLimit)
+  if (!shouldPauseQueue) {
     return { ...settled, scheduled: undefined }
   }
   if (settled.state.followUpQueue.state !== 'running') {

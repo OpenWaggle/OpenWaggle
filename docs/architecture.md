@@ -37,7 +37,14 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 - `docs/adr/0021-status-colours-are-semantic-roles.md`
 - `docs/adr/0022-transcript-opens-from-its-newest-end.md`
 - `docs/adr/0023-agent-access-modes-and-declared-authorization.md`
-- `docs/adr/0025-adopt-visualize-compatible-inline-visualizations.md`
+- `docs/adr/0024-design-token-contract-adopts-tailwind-standards.md`
+- `docs/adr/0025-adopt-monaco-and-shiki-for-workspace-editing.md`
+- `docs/adr/0026-unified-worker-backed-syntax-service.md`
+- `docs/adr/0027-standards-first-language-grammar-import.md`
+- `docs/adr/0028-prefer-review-first-workspace-files.md`
+- `docs/adr/0029-tier-ci-gates-behind-a-merge-queue.md`
+- `docs/adr/0030-adopt-single-local-session-host.md`
+- `docs/adr/0031-adopt-visualize-compatible-inline-visualizations.md`
 
 ## Testing
 

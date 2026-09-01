@@ -27,7 +27,12 @@ interface SemanticIndexRefresh {
   readonly revision: number
   readonly rebuild: boolean
   readonly records: readonly SessionVectorRecord[]
-  readonly retainedSessionIds: ReadonlySet<string>
+  readonly deletedSessionIds: readonly string[]
+}
+
+interface SemanticSessionFilter {
+  readonly allowedSessionIds?: ReadonlySet<string>
+  readonly excludedSessionIds?: ReadonlySet<string>
 }
 
 const FRESHNESS_POLL_INTERVAL_MS = 50
@@ -44,7 +49,8 @@ export class SessionSemanticIndexSnapshotCache {
     ) => Effect.Effect<SemanticIndexRefresh, Error, Requirements>
     readonly query: Float32Array
     readonly limit: number
-    readonly allowedSessionIds: ReadonlySet<string>
+    readonly allowedSessionIds?: ReadonlySet<string>
+    readonly excludedSessionIds?: ReadonlySet<string>
   }): Effect.Effect<
     { readonly revision: number; readonly matches: ReturnType<SessionFlatVectorIndex['search']> },
     Error,
@@ -58,14 +64,19 @@ export class SessionSemanticIndexSnapshotCache {
             if (refresh.rebuild) this.#index.replace(refresh.records)
             else {
               for (const record of refresh.records) this.#index.upsert(record)
-              this.#index.retainOnly(refresh.retainedSessionIds)
+              for (const sessionId of refresh.deletedSessionIds) this.#index.remove(sessionId)
             }
             this.#loadedRevision = refresh.revision
           }
         }
         return {
           revision: this.#loadedRevision,
-          matches: this.#index.search(input.query, input.limit, input.allowedSessionIds),
+          matches: this.#index.search(
+            input.query,
+            input.limit,
+            input.allowedSessionIds,
+            input.excludedSessionIds,
+          ),
         }
       }),
     )
@@ -83,6 +94,19 @@ function loadEligibleSemanticSessionIds(
 ) {
   const allowed = authorizedSessionScope(authority)
   const includeArchived = request.query.includeArchived ? 1 : 0
+  const hasCatalogFilter = Boolean(request.query.projectPath || request.query.workingPath)
+  if (allowed.all === 1 && !hasCatalogFilter) {
+    if (includeArchived === 1) return Effect.succeed<SemanticSessionFilter>({})
+    return sql<{ readonly session_id: string }>`
+      SELECT session_id FROM session_discovery_embeddings
+      JOIN sessions ON sessions.id = session_discovery_embeddings.session_id
+      WHERE sessions.archived = 1
+    `.pipe(
+      Effect.map((rows) => ({
+        excludedSessionIds: new Set(rows.map((row) => row.session_id)),
+      })),
+    )
+  }
   return sql<{ readonly session_id: string }>`
     SELECT sessions.id AS session_id
     FROM sessions
@@ -101,7 +125,11 @@ function loadEligibleSemanticSessionIds(
         OR sessions.id IN ${sql.in(allowed.sessionIds)}
         OR COALESCE(session_spawn_lineage.hive_root_session_id, sessions.id)
           IN ${sql.in(allowed.hiveRootSessionIds)})
-  `
+  `.pipe(
+    Effect.map((rows) => ({
+      allowedSessionIds: new Set(rows.map((row) => row.session_id)),
+    })),
+  )
 }
 
 function loadSemanticSessionRows(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
@@ -137,6 +165,10 @@ export class SqliteSessionSemanticSearch {
     return this.projection.readiness()
   }
 
+  diagnostics() {
+    return this.#snapshots.diagnostics()
+  }
+
   usable(readiness: SemanticDiscoveryReadiness) {
     return (
       (readiness.snapshotRevision ?? 0) > 0 &&
@@ -166,7 +198,7 @@ export class SqliteSessionSemanticSearch {
     limit: number,
   ) {
     return Effect.gen(this, function* () {
-      const eligibleRows = yield* loadEligibleSemanticSessionIds(this.sql, authority, request)
+      const sessionFilter = yield* loadEligibleSemanticSessionIds(this.sql, authority, request)
       const vectors = yield* Effect.tryPromise({
         try: (signal) =>
           sessionSemanticQueryInferenceGate.run(() => this.model.embedQueries([query]), signal),
@@ -174,13 +206,12 @@ export class SqliteSessionSemanticSearch {
       })
       const vector = vectors[0]
       if (!vector) return []
-      const allowedSessionIds = new Set(eligibleRows.map((row) => row.session_id))
       const snapshot = yield* this.#snapshots.search({
         minimumRevision: readiness.snapshotRevision ?? 0,
         refresh: (afterRevision) => this.#loadIndexRefresh(afterRevision),
         query: vector,
         limit,
-        allowedSessionIds,
+        ...sessionFilter,
       })
       const matches = snapshot.matches
       const rows = yield* loadSemanticSessionRows(
@@ -214,10 +245,18 @@ export class SqliteSessionSemanticSearch {
     return this.sql.withTransaction(
       Effect.gen(this, function* () {
         const revisions = yield* this.sql<{ readonly revision: number }>`
-          SELECT COALESCE(MAX(snapshot_revision), 0) AS revision
-          FROM session_discovery_embeddings
-          WHERE model_id = ${this.model.metadata.id}
-            AND model_revision = ${this.model.metadata.revision}
+          SELECT MAX(
+            COALESCE((
+              SELECT MAX(snapshot_revision) FROM session_discovery_embeddings
+              WHERE model_id = ${this.model.metadata.id}
+                AND model_revision = ${this.model.metadata.revision}
+            ), 0),
+            COALESCE((
+              SELECT snapshot_revision FROM session_semantic_discovery_state
+              WHERE singleton = 1 AND model_id = ${this.model.metadata.id}
+                AND model_revision = ${this.model.metadata.revision}
+            ), 0)
+          ) AS revision
         `
         const revision = revisions[0]?.revision ?? 0
         const rebuild = afterRevision < 0
@@ -226,7 +265,7 @@ export class SqliteSessionSemanticSearch {
             revision,
             rebuild: false,
             records: [],
-            retainedSessionIds: new Set<string>(),
+            deletedSessionIds: [],
           } satisfies SemanticIndexRefresh
         }
         const rows = rebuild
@@ -241,11 +280,13 @@ export class SqliteSessionSemanticSearch {
                 AND model_revision = ${this.model.metadata.revision}
                 AND snapshot_revision > ${afterRevision}
             `
-        const retained = yield* this.sql<{ readonly session_id: string }>`
-          SELECT session_id FROM session_discovery_embeddings
-          WHERE model_id = ${this.model.metadata.id}
-            AND model_revision = ${this.model.metadata.revision}
-        `
+        const deleted = rebuild
+          ? []
+          : yield* this.sql<{ readonly session_id: string }>`
+              SELECT session_id FROM session_discovery_embedding_deletions
+              WHERE snapshot_revision > ${afterRevision}
+              ORDER BY snapshot_revision, session_id
+            `
         return {
           revision,
           rebuild,
@@ -253,7 +294,7 @@ export class SqliteSessionSemanticSearch {
             sessionId: row.session_id,
             vector: decodeFloat32Vector(row.vector, row.dimensions),
           })),
-          retainedSessionIds: new Set(retained.map((row) => row.session_id)),
+          deletedSessionIds: deleted.map((row) => row.session_id),
         } satisfies SemanticIndexRefresh
       }),
     )

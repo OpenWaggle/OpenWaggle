@@ -19,7 +19,7 @@ describe('Session lifecycle v2 boundary', () => {
           acceptanceCriteria: ['Rejects corrupt targets'],
           dependencies: [{ delegationId: 'delegation-schema', requiredState: 'ready_for_review' }],
           handoffContext: 'The schema is already locked.',
-          resourceReferences: ['docs/adr/0025-adopt-single-local-session-host.md'],
+          resourceReferences: ['docs/adr/0030-adopt-single-local-session-host.md'],
         },
       },
     }

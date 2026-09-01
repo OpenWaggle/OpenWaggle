@@ -1,5 +1,5 @@
 import type { SessionId } from '@shared/types/brand'
-import { useSessionStatusStore } from '@/features/sessions/state'
+import { useSessionStatusStore, useSessionStore } from '@/features/sessions/state'
 import { cn } from '@/shared/lib/cn'
 import { SIDEBAR_LAYOUT } from '../constants/sidebar-layout'
 import { useSessionGitIndicators } from '../hooks/useSessionGitIndicators'
@@ -15,8 +15,11 @@ import { SidebarProjectList } from './SidebarProjectList'
 import { SidebarSearchBox } from './SidebarSearchBox'
 import { SidebarStatusChips } from './SidebarStatusIndicators'
 
+const SESSION_LOAD_MORE_THRESHOLD_PX = 240
+
 export function Sidebar() {
   const controller = useSidebarController()
+  const loadMoreSessions = useSessionStore((state) => state.loadMoreSessions)
   // Each row shows its own working tree, so load status for every listed session's
   // working path (de-duplicated: local-mode sessions in one project share a tree).
   useSessionGitIndicators([
@@ -73,7 +76,15 @@ export function Sidebar() {
            * project list scrolling, so nine Pinned rows pushed the projects out of reach in
            * a windowed sidebar: the list below could not be scrolled to.
            */}
-          <div data-qa="sidebar-scroll" className="no-drag sidebar-scroll flex-1 pb-3">
+          <div
+            data-qa="sidebar-scroll"
+            className="no-drag sidebar-scroll flex-1 pb-3"
+            onScroll={(event) => {
+              const element = event.currentTarget
+              const remaining = element.scrollHeight - element.scrollTop - element.clientHeight
+              if (remaining < SESSION_LOAD_MORE_THRESHOLD_PX) void loadMoreSessions()
+            }}
+          >
             <SidebarPinnedSection
               rows={controller.pinnedRows}
               activeSessionId={

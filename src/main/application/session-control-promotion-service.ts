@@ -12,7 +12,7 @@ import {
 } from '../domain/session-control/follow-up-promotion'
 import type { SessionControlIntentSnapshot } from '../domain/session-control/message-aggregate'
 import { SessionControlOperationPendingError } from '../errors'
-import { AgentSteeringService } from '../ports/agent-steering-service'
+import { type AgentSteeringInput, AgentSteeringService } from '../ports/agent-steering-service'
 import { SessionControlAttachmentService } from '../ports/session-control-attachment-service'
 import { SessionControlOperationJournal } from '../ports/session-control-operation-journal'
 
@@ -27,6 +27,19 @@ function releasePromotedAttachments(input: {
   readonly ownerCallerId: string
 }) {
   return SessionControlAttachmentService.pipe(Effect.flatMap((service) => service.release(input)))
+}
+
+function promotedSteeringInput(
+  runId: string,
+  intent: SessionControlIntentSnapshot,
+  attachments: AgentSteeringInput['attachments'],
+): AgentSteeringInput {
+  return {
+    runId,
+    text: intent.text,
+    attachments,
+    ...(intent.visualizationContext ? { visualizationContext: intent.visualizationContext } : {}),
+  }
 }
 
 function response(
@@ -89,7 +102,6 @@ export function promoteSessionFollowUp(input: PromoteSessionFollowUpInput) {
         return { accepted: true }
       },
     })
-
     if (claim.status === 'completed') return response(input, claim.replayed, claim.outcome)
     if (claim.status === 'pending') {
       return yield* Effect.fail(
@@ -102,7 +114,6 @@ export function promoteSessionFollowUp(input: PromoteSessionFollowUpInput) {
     }
     if (!intent) return yield* Effect.fail(new Error('Claimed Follow-up has no durable intent.'))
     const promotedIntent = intent
-
     const attachments = yield* SessionControlAttachmentService.pipe(
       Effect.flatMap((service) =>
         service.resolve({
@@ -118,11 +129,9 @@ export function promoteSessionFollowUp(input: PromoteSessionFollowUpInput) {
         ? ({ accepted: false, code: 'attachment_resolution_failed' } as const)
         : yield* AgentSteeringService.pipe(
             Effect.flatMap((service) =>
-              service.steer({
-                runId: expectedRunId,
-                text: promotedIntent.text,
-                attachments: attachments.right,
-              }),
+              service.steer(
+                promotedSteeringInput(expectedRunId, promotedIntent, attachments.right),
+              ),
             ),
             Effect.catchAll(() =>
               Effect.succeed({ accepted: false, code: 'steering_failed' } as const),

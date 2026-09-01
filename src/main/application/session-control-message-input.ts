@@ -7,5 +7,6 @@ export function toSessionControlIntentMessage(input: SessionControlMessageInput)
     attachmentIds: input.attachmentIds,
     ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
     ...(input.waggle ? { waggle: toWaggleInvocation(input.waggle) } : {}),
+    ...(input.visualizationContext ? { visualizationContext: input.visualizationContext } : {}),
   }
 }

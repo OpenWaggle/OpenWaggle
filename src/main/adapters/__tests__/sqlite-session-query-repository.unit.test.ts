@@ -288,7 +288,12 @@ describe('SQLite Session query repository', () => {
     })
     expect(currentPreview.outcome).toMatchObject({
       operation: 'search',
-      sessions: [{ sessionId: 'worker' }],
+      sessions: [
+        {
+          sessionId: 'worker',
+          discoveryEvidence: { matchedFields: ['current-preview'] },
+        },
+      ],
     })
   })
 

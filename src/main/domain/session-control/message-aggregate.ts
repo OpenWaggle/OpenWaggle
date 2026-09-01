@@ -1,4 +1,5 @@
 import { matchBy } from '@diegogbrisa/ts-match'
+import type { InlineVisualizationContext } from '@shared/types/agent'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { FollowUpId, RunId, SessionId } from '@shared/types/brand'
 import type { ThinkingLevel } from '@shared/types/settings'
@@ -13,6 +14,7 @@ export interface SessionControlIntentSnapshot {
   readonly attachmentIds: readonly string[]
   readonly thinkingLevel?: ThinkingLevel
   readonly waggle?: WaggleInvocation
+  readonly visualizationContext?: InlineVisualizationContext
   readonly runAuthorizationOverride?: AgentAuthorizationMode
   readonly interactionTimeoutMs?: number
   readonly callerId: string

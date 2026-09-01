@@ -39,7 +39,7 @@ export const CONCURRENCY_CANCEL_LINE =
   'cancel-in-progress: ${{ github.event_name != \'merge_group\' }}'
 /*
  * Byte-exact job-level conditions for the queue-only jobs. These jobs are skipped on
- * ordinary pull-request pushes by design (ADR 0025): the merge queue and dispatched full
+ * ordinary pull-request pushes by design (ADR 0029): the merge queue and dispatched full
  * runs are their enforcement points, so the condition text is part of the contract.
  */
 export const QUEUE_ONLY_JOB_CONDITIONS: ReadonlyMap<string, readonly string[]> = new Map([

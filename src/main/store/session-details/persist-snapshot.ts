@@ -41,6 +41,7 @@ export function persistSessionSnapshotWithSql(
         state.existingBranchStates.map((branchState) => [branchState.branch_id, branchState]),
       ),
       existingActiveRuns: state.existingActiveRuns,
+      existingNodes: state.existingNodes,
       input,
       nodes,
       now,

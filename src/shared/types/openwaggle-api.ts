@@ -59,6 +59,7 @@ import type { ProviderInfo, SupportedModelId } from './llm'
 import type { OpenWaggleAuthorizationGrantApi } from './openwaggle-api-authorization-grants'
 import type { OpenWaggleFeedbackApi } from './openwaggle-api-feedback'
 import type { OpenWaggleProjectConfigApi } from './openwaggle-api-project'
+import type { OpenWaggleSessionCatalogApi } from './openwaggle-api-session-catalog'
 import type { OpenWaggleSessionControlApi } from './openwaggle-api-session-control'
 import type { OpenWaggleUpdaterApi } from './openwaggle-api-updater'
 import type { OpenWaggleWaggleApi } from './openwaggle-api-waggle'
@@ -97,6 +98,7 @@ export interface OpenWaggleApi
     OpenWaggleExtensionApi,
     OpenWaggleMcpApi,
     OpenWaggleWaggleApi,
+    OpenWaggleSessionCatalogApi,
     OpenWaggleSessionControlApi,
     OpenWaggleWorkspaceFilesApi {
   // Agent
