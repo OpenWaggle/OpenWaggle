@@ -6,29 +6,13 @@ import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
+import { NumberStepper } from '@/shared/ui/NumberStepper'
 import { AgentAccessSection } from './AgentAccessSection'
-import type { SettingsChoice } from './SettingsChoiceGroup'
-import { SettingsChoiceGroup } from './SettingsChoiceGroup'
 
 const logger = createRendererLogger('settings')
 
-const COMPACTION_THRESHOLD_CHOICES: readonly SettingsChoice<number>[] = [
-  {
-    value: 70,
-    label: '70%',
-    description: 'Compact earlier to leave more room for long turns and tool output.',
-  },
-  {
-    value: 80,
-    label: '80%',
-    description: 'Balanced context retention and room for the next model request.',
-  },
-  {
-    value: 90,
-    label: '90%',
-    description: 'Keep more context, with less room available for the next request.',
-  },
-]
+const COMPACTION_THRESHOLD_MINIMUM = 1
+const COMPACTION_THRESHOLD_MAXIMUM = 100
 
 function useAppVersion() {
   const [version, setVersion] = useState('…')
@@ -119,7 +103,7 @@ function CompactionThresholdSetting() {
   const [isPersistingCompactionThreshold, setIsPersistingCompactionThreshold] = useState(false)
   const isPersistingCompactionThresholdRef = useRef(false)
 
-  const selectCompactionThreshold = (percent: number) => {
+  const updateCompactionThreshold = (percent: number) => {
     if (isPersistingCompactionThresholdRef.current) return
     if (percent === compactionThresholdPercent) return
 
@@ -136,15 +120,28 @@ function CompactionThresholdSetting() {
   return (
     <div className="space-y-3">
       <h3 className="text-base font-semibold text-text-primary">Context compaction</h3>
-      <p className="text-xs text-text-tertiary">
-        Compact before the next model request when context reaches the selected percentage.
-      </p>
-      <SettingsChoiceGroup
-        choices={COMPACTION_THRESHOLD_CHOICES}
-        value={compactionThresholdPercent}
-        disabled={isPersistingCompactionThreshold}
-        onSelect={selectCompactionThreshold}
-      />
+      <div className="overflow-hidden rounded-lg border border-border bg-bg">
+        <div className="flex min-h-14 items-center justify-between gap-3 px-5 py-3">
+          <label htmlFor="automatic-compaction-threshold">
+            <span className="block text-xs font-medium text-text-primary">
+              Automatic compaction threshold
+            </span>
+            <span className="mt-0.5 block text-xs text-text-tertiary">
+              Compact before the next model request when context reaches this percentage.
+            </span>
+          </label>
+          <NumberStepper
+            id="automatic-compaction-threshold"
+            label="Automatic compaction threshold"
+            value={compactionThresholdPercent}
+            minimum={COMPACTION_THRESHOLD_MINIMUM}
+            maximum={COMPACTION_THRESHOLD_MAXIMUM}
+            suffix="%"
+            disabled={isPersistingCompactionThreshold}
+            onValueChange={updateCompactionThreshold}
+          />
+        </div>
+      </div>
     </div>
   )
 }

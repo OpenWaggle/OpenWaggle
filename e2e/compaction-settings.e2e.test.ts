@@ -19,29 +19,27 @@ test('global automatic compaction threshold defaults to 80 percent and persists'
 
   try {
     let page = await openGeneralSettings(app)
-    const early = page.getByRole('button', { name: /70%/u })
-    const balanced = page.getByRole('button', { name: /80%/u })
-    const late = page.getByRole('button', { name: /90%/u })
-    await expect(page.getByRole('spinbutton')).toHaveCount(0)
+    const threshold = page.getByRole('spinbutton', {
+      name: 'Automatic compaction threshold',
+    })
     await expect(page.getByRole('slider')).toHaveCount(0)
-    await expect(early).toHaveAttribute('aria-pressed', 'false')
-    await expect(balanced).toHaveAttribute('aria-pressed', 'true')
-    await expect(late).toHaveAttribute('aria-pressed', 'false')
+    await expect(threshold).toHaveValue('80')
+    await expect(threshold).toHaveAttribute('aria-valuemin', '1')
+    await expect(threshold).toHaveAttribute('aria-valuemax', '100')
 
-    await early.click()
-    await expect(early).toHaveAttribute('aria-pressed', 'true')
+    await threshold.fill('73')
+    await threshold.blur()
     await expect
       .poll(() =>
         page.evaluate(async () => (await window.api.getSettings()).compactionThresholdPercent),
       )
-      .toBe(70)
+      .toBe(73)
 
     await app.restart()
     page = await openGeneralSettings(app)
-    await expect(page.getByRole('button', { name: /70%/u })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    await expect(
+      page.getByRole('spinbutton', { name: 'Automatic compaction threshold' }),
+    ).toHaveValue('73')
   } finally {
     await app.cleanup()
   }

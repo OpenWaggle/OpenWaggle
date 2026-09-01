@@ -72,22 +72,22 @@ describe('GeneralSection', () => {
     })
   })
 
-  it('offers the global automatic compaction threshold as appearance-style choices', () => {
+  it('offers the global automatic compaction threshold as a compact number stepper', () => {
     render(<GeneralSection />)
 
-    const early = screen.getByRole('button', { name: /70%/i })
-    const balanced = screen.getByRole('button', { name: /80%/i })
-    const late = screen.getByRole('button', { name: /90%/i })
-
-    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
+    const threshold = screen.getByRole('spinbutton', {
+      name: 'Automatic compaction threshold',
+    })
     expect(screen.queryByRole('slider')).not.toBeInTheDocument()
-    expect(early).toHaveAttribute('aria-pressed', 'false')
-    expect(balanced).toHaveAttribute('aria-pressed', 'true')
-    expect(late).toHaveAttribute('aria-pressed', 'false')
+    expect(threshold).toHaveValue('80')
+    expect(threshold).toHaveAttribute('aria-valuemin', '1')
+    expect(threshold).toHaveAttribute('aria-valuemax', '100')
+    expect(threshold).toHaveAttribute('aria-valuetext', '80%')
 
-    fireEvent.click(early)
+    fireEvent.change(threshold, { target: { value: '73' } })
+    fireEvent.blur(threshold)
 
-    expect(setCompactionThresholdPercentMock).toHaveBeenCalledWith(70)
+    expect(setCompactionThresholdPercentMock).toHaveBeenCalledWith(73)
   })
 
   it('serializes threshold writes so an in-flight failure cannot race a newer value', async () => {
@@ -95,13 +95,17 @@ describe('GeneralSection', () => {
     setCompactionThresholdPercentMock.mockReturnValueOnce(firstWrite.promise)
     render(<GeneralSection />)
 
-    const early = screen.getByRole('button', { name: /70%/i })
-    const late = screen.getByRole('button', { name: /90%/i })
-    fireEvent.click(early)
+    const decrease = screen.getByRole('button', {
+      name: 'Decrease Automatic compaction threshold',
+    })
+    const increase = screen.getByRole('button', {
+      name: 'Increase Automatic compaction threshold',
+    })
+    fireEvent.click(decrease)
 
-    expect(early).toBeDisabled()
-    expect(late).toBeDisabled()
-    fireEvent.click(late)
+    expect(decrease).toBeDisabled()
+    expect(increase).toBeDisabled()
+    fireEvent.click(increase)
     expect(setCompactionThresholdPercentMock).toHaveBeenCalledTimes(1)
 
     await act(async () => {
@@ -109,10 +113,10 @@ describe('GeneralSection', () => {
       await firstWrite.promise.catch(() => undefined)
     })
 
-    expect(early).not.toBeDisabled()
-    expect(late).not.toBeDisabled()
-    fireEvent.click(late)
-    expect(setCompactionThresholdPercentMock).toHaveBeenNthCalledWith(2, 90)
+    expect(decrease).not.toBeDisabled()
+    expect(increase).not.toBeDisabled()
+    fireEvent.click(increase)
+    expect(setCompactionThresholdPercentMock).toHaveBeenNthCalledWith(2, 81)
   })
 
   it('renders the "About & Updates" section heading', () => {
