@@ -33,7 +33,6 @@ const logger = createRendererLogger('chat-panel')
 
 export function useChatPanelSections(): ChatPanelSections {
   const [userDidSend, setUserDidSend] = useState(false)
-  const onUserDidSendConsumed = () => setUserDidSend(false)
 
   const env = useChatPanelEnvironment()
   const {
@@ -255,7 +254,7 @@ export function useChatPanelSections(): ChatPanelSections {
     handleViewTurnDiff,
     turnAnchorMessageIds,
     userDidSend,
-    onUserDidSendConsumed,
+    onUserDidSendConsumed: () => setUserDidSend(false),
     streamSignalVersion,
     compactionStatus,
   })
