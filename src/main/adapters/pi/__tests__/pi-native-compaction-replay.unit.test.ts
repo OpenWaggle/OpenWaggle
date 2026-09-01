@@ -57,6 +57,39 @@ describe('Pi native compaction replay', () => {
     expect(reconstructed.messages.map((message) => message.role)).toEqual(['user', 'assistant'])
   })
 
+  it('reconstructs raw history when the effective compaction endpoint changes', () => {
+    const sessionManager = SessionManager.inMemory('/repo')
+    sessionManager.appendMessage({ role: 'user', content: 'Raw user context', timestamp: 1 })
+    sessionManager.appendMessage(makeAssistant('Raw assistant context', 2))
+    const compactionId = sessionManager.appendCompaction(
+      'Native compaction checkpoint',
+      'native-replacement',
+      80_000,
+      {
+        ...NATIVE_DETAILS,
+        identity: {
+          ...NATIVE_DETAILS.identity,
+          compactionBaseUrl: 'https://compact-a.example.test/v1',
+        },
+      },
+    )
+    const target = makeNativeModel({
+      compat: {
+        supportsCompaction: true,
+        compactionBaseUrl: 'https://compact-b.example.test/v1',
+      },
+    })
+
+    const reconstructed = buildSessionContext(
+      sessionManager.getBranch(),
+      compactionId,
+      undefined,
+      target,
+    )
+
+    expect(reconstructed.messages.map((message) => message.role)).toEqual(['user', 'assistant'])
+  })
+
   it('fits raw reconstruction by dropping complete oldest turns', () => {
     const sessionManager = SessionManager.inMemory('/repo')
     sessionManager.appendMessage({
@@ -98,6 +131,7 @@ describe('Pi native compaction replay', () => {
         api: 'openai-responses',
         provider: 'target-provider',
         baseUrl: 'https://target.test/v1',
+        compactionBaseUrl: 'https://target.test/v1',
         modelId: 'target-model',
       },
     })

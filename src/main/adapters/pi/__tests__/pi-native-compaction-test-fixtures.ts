@@ -90,6 +90,7 @@ export const NATIVE_DETAILS = {
     api: 'openai-responses',
     provider: 'native-provider',
     baseUrl: 'https://example.test/v1',
+    compactionBaseUrl: 'https://example.test/v1',
     modelId: 'native-model',
   },
   items: [{ type: 'compaction', id: 'cmp_1', encrypted_content: 'opaque-checkpoint' }],
