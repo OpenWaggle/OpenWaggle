@@ -30,7 +30,7 @@ The Codex desktop implementation is the behavioral reference. Its observable beh
 - The preferred physical location is the session-scoped visualization directory. A source in the producing session's workspace or another explicitly writable runtime root is also valid, matching the Visualize fallback contract.
 - Every read is authorized in the main process. It normalizes the path, confines it to an allowed root, rejects parent traversal and symbolic links in the path, validates the filename, and reads through the owning execution host. Renderer possession of a path is not filesystem authority.
 - Renderer caching is only a presentation optimization. Reload, remount, or later replay may read the live source again.
-- Inline visualization sources survive application restart, session switching, and archive. The session-scoped visualization directory is removed when the session is deleted. A fork or handoff retains explicit source-session attribution rather than silently adopting the active session's authority.
+- Inline visualization sources survive application restart, session switching, and archive. Session deletion stages the source directory and removes it only after the session deletion commits. If a crash leaves the outcome unknown, OpenWaggle preserves the tombstone and restores it when the surviving session is prepared; unrelated session activity never guesses that deletion committed. Orphan cleanup therefore requires reconciliation with session ownership. A fork or handoff retains explicit source-session attribution rather than silently adopting the active session's authority.
 
 ### Sandbox and network policy
 

@@ -1,8 +1,6 @@
-import { randomUUID } from 'node:crypto'
 import { constants as fsConstants } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import type { SessionId } from '@shared/types/brand'
 import type { InlineVisualizationReadResult } from '@shared/types/inline-visualization'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
@@ -12,26 +10,20 @@ import {
   type InlineVisualizationServiceShape,
 } from '../ports/inline-visualization-service'
 import { isPathInsideDirectory } from '../utils/project-path-validation'
+import {
+  commitDeletionTombstone,
+  InvalidVisualizationPathError,
+  prepareVisualizationSession,
+  recoverVisualizationSessionForSource,
+  rollbackDeletionTombstone,
+  sessionDirectory,
+  stageVisualizationSessionDeletion,
+} from './filesystem-inline-visualization-deletion'
 
-const VISUALIZATIONS_DIRECTORY = 'visualizations'
 const VISUALIZATION_FILENAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*\.html$/
-const SESSION_DIRECTORY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/
 const MAX_VISUALIZATION_SOURCE_BYTES = 5 * 1024 * 1024
 const INITIAL_VISUALIZATION_READ_BYTES = 64 * 1024
 const READ_BUFFER_GROWTH_FACTOR = 2
-const DELETION_TOMBSTONE_MARKER = '.deleting-'
-const activeDeletionTombstones = new Set<string>()
-const activeDeletionDirectories = new Set<string>()
-const sessionDirectoryLocks = new Map<string, Promise<void>>()
-
-class InvalidVisualizationPathError extends Error {}
-
-function sessionDirectory(userDataPath: string, sessionId: SessionId) {
-  if (!SESSION_DIRECTORY_PATTERN.test(String(sessionId))) {
-    throw new InvalidVisualizationPathError('Invalid visualization session identifier')
-  }
-  return path.join(userDataPath, VISUALIZATIONS_DIRECTORY, String(sessionId))
-}
 
 async function resolveAuthorizedSource(
   sourcePath: string,
@@ -68,49 +60,6 @@ async function resolveAuthorizedSource(
   return { realSourcePath, device: sourceLstat.dev, inode: sourceLstat.ino }
 }
 
-async function reapDeletionTombstones(visualizationsDirectory: string) {
-  const entries = await fs.readdir(visualizationsDirectory, { withFileTypes: true })
-  await Promise.all(
-    entries
-      .filter((entry) => entry.name.includes(DELETION_TOMBSTONE_MARKER))
-      .map((entry) => path.join(visualizationsDirectory, entry.name))
-      .filter((tombstone) => !activeDeletionTombstones.has(tombstone))
-      .map((tombstone) => fs.rm(tombstone, { recursive: true, force: true })),
-  )
-}
-
-async function withSessionDirectoryLock<T>(directory: string, operation: () => Promise<T>) {
-  const previous = sessionDirectoryLocks.get(directory) ?? Promise.resolve()
-  const gate = Promise.withResolvers<void>()
-  sessionDirectoryLocks.set(directory, gate.promise)
-  await previous
-  try {
-    return await operation()
-  } finally {
-    gate.resolve()
-    if (sessionDirectoryLocks.get(directory) === gate.promise) {
-      sessionDirectoryLocks.delete(directory)
-    }
-  }
-}
-
-async function commitDeletionTombstone(tombstone: string, directory: string, staged: boolean) {
-  if (!staged) return
-  try {
-    await fs.rm(tombstone, { recursive: true, force: true })
-  } finally {
-    activeDeletionTombstones.delete(tombstone)
-    activeDeletionDirectories.delete(directory)
-  }
-}
-
-async function rollbackDeletionTombstone(tombstone: string, directory: string, staged: boolean) {
-  if (!staged) return
-  await fs.rename(tombstone, directory)
-  activeDeletionTombstones.delete(tombstone)
-  activeDeletionDirectories.delete(directory)
-}
-
 async function readVisualizationSource(sourceHandle: fs.FileHandle, initialSize: number) {
   const maximumReadBytes = MAX_VISUALIZATION_SOURCE_BYTES + 1
   let buffer = Buffer.allocUnsafe(
@@ -137,54 +86,6 @@ async function readVisualizationSource(sourceHandle: fs.FileHandle, initialSize:
   }
   if (totalBytesRead > MAX_VISUALIZATION_SOURCE_BYTES) return null
   return buffer.subarray(0, totalBytesRead).toString('utf8')
-}
-
-async function prepareVisualizationSession(userDataPath: string, sessionId: SessionId) {
-  const directory = sessionDirectory(userDataPath, sessionId)
-  return withSessionDirectoryLock(directory, async () => {
-    const visualizationsDirectory = path.dirname(directory)
-    await fs.mkdir(visualizationsDirectory, { recursive: true })
-    const rootStats = await fs.lstat(visualizationsDirectory)
-    if (rootStats.isSymbolicLink() || !rootStats.isDirectory()) {
-      throw new InvalidVisualizationPathError('Invalid visualization storage root')
-    }
-    await reapDeletionTombstones(visualizationsDirectory)
-    if (activeDeletionDirectories.has(directory)) {
-      throw new InvalidVisualizationPathError('Visualization session deletion is in progress')
-    }
-    await fs.mkdir(directory, { recursive: true })
-    const sessionStats = await fs.lstat(directory)
-    if (sessionStats.isSymbolicLink() || !sessionStats.isDirectory()) {
-      throw new InvalidVisualizationPathError('Invalid visualization session directory')
-    }
-    return directory
-  })
-}
-
-async function stageVisualizationSessionDeletion(userDataPath: string, sessionId: SessionId) {
-  const directory = sessionDirectory(userDataPath, sessionId)
-  const stagedDeletion = await withSessionDirectoryLock(directory, async () => {
-    if (activeDeletionDirectories.has(directory)) {
-      throw new InvalidVisualizationPathError(
-        'Visualization session deletion is already in progress',
-      )
-    }
-    const tombstone = path.join(
-      path.dirname(directory),
-      `.${path.basename(directory)}${DELETION_TOMBSTONE_MARKER}${randomUUID()}`,
-    )
-    activeDeletionDirectories.add(directory)
-    try {
-      await fs.rename(directory, tombstone)
-      activeDeletionTombstones.add(tombstone)
-      return { staged: true, tombstone }
-    } catch (cause) {
-      activeDeletionDirectories.delete(directory)
-      if (!(cause instanceof Error && 'code' in cause && cause.code === 'ENOENT')) throw cause
-      return { staged: false, tombstone }
-    }
-  })
-  return { ...stagedDeletion, directory }
 }
 
 export function makeFilesystemInlineVisualizationService(
@@ -234,6 +135,7 @@ export function makeFilesystemInlineVisualizationService(
           if (!VISUALIZATION_FILENAME_PATTERN.test(filename)) {
             return { status: 'unavailable', reason: 'invalid-path' }
           }
+          await recoverVisualizationSessionForSource(userDataPath, sessionId, sourcePath)
           const resolved = await resolveAuthorizedSource(sourcePath, [
             sessionDirectory(userDataPath, sessionId),
             ...workspaceRoots,

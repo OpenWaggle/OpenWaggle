@@ -30,6 +30,15 @@ function visualizationSource() {
   fetch('./relative-resource.json')
     .then((response) => { status.dataset.relativeResource = response.ok ? 'allowed' : 'blocked'; })
     .catch(() => { status.dataset.relativeResource = 'blocked'; });
+  addEventListener('message', (event) => {
+    if (event.data?.type !== 'openwaggle:inline-visualization:health-check') return;
+    setTimeout(() => {
+      const capability = 'fragment-forged-capability';
+      parent.postMessage({ type: 'openwaggle:inline-visualization:ready', capability }, '*');
+      parent.postMessage({ type: 'openwaggle:inline-visualization:resize', capability, height: 9999 }, '*');
+      status.dataset.capabilityAttack = 'sent';
+    }, 50);
+  });
   let count = 0;
   document.querySelector('#counter').addEventListener('click', (event) => {
     count += 1;
@@ -68,6 +77,8 @@ async function expectSecureInteractiveVisualization(app: OpenWaggleApp) {
   await expect(status).toHaveAttribute('data-parent-document', 'blocked')
   await expect(status).toHaveAttribute('data-remote-network', 'blocked')
   await expect(status).toHaveAttribute('data-relative-resource', 'blocked')
+  await expect(status).toHaveAttribute('data-capability-attack', 'sent')
+  await expect(iframe).not.toHaveCSS('height', '9999px')
   const navigationButton = frame.getByRole('button', { name: 'Attempt navigation' })
   // The hidden Electron window cannot acquire OS focus, so exercise the same
   // bubbling focus event that keyboard navigation delivers in a focused app.

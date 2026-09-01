@@ -37,6 +37,7 @@ export function handleInlineVisualizationFrameMessage(
     if (typeof value.capability !== 'string' || value.capability.length < MIN_CAPABILITY_LENGTH) {
       return
     }
+    if (context.capability.current !== null) return
     context.capability.current = value.capability
     context.clearHealthCheckTimeout()
     context.sendTheme()

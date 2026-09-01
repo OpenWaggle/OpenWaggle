@@ -222,7 +222,7 @@ describe('FilesystemInlineVisualizationService', () => {
     await expect(fs.readFile(sourcePath, 'utf8')).resolves.toBe('<p>Saved</p>')
   })
 
-  it('reaps an abandoned tombstone that no deletion transaction owns', async () => {
+  it('preserves an unknown tombstone until session ownership can be reconciled', async () => {
     const userDataPath = await makeTemporaryRoot()
     const visualizationsRoot = path.join(userDataPath, 'visualizations')
     const abandonedTombstone = path.join(
@@ -234,6 +234,34 @@ describe('FilesystemInlineVisualizationService', () => {
 
     await Effect.runPromise(service.prepareSession(SessionId('new-session')))
 
-    await expect(fs.stat(abandonedTombstone)).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(fs.stat(abandonedTombstone)).resolves.toMatchObject({
+      isDirectory: expect.any(Function),
+    })
+  })
+
+  it('restores a crash-interrupted deletion when its surviving session replays the source', async () => {
+    const userDataPath = await makeTemporaryRoot()
+    const visualizationsRoot = path.join(userDataPath, 'visualizations')
+    const sessionId = SessionId('session-after-crash')
+    const sessionRoot = path.join(visualizationsRoot, String(sessionId))
+    const crashTombstone = path.join(
+      visualizationsRoot,
+      `.${String(sessionId)}.deleting-00000000-0000-4000-8000-000000000000`,
+    )
+    const sourceFilename = 'persistent-map.html'
+    await fs.mkdir(crashTombstone, { recursive: true })
+    await fs.writeFile(path.join(crashTombstone, sourceFilename), '<p>Saved</p>', 'utf8')
+    const service = makeFilesystemInlineVisualizationService(userDataPath)
+
+    await expect(
+      Effect.runPromise(
+        service.readSource({
+          sessionId,
+          sourcePath: path.join(sessionRoot, sourceFilename),
+          workspaceRoots: [],
+        }),
+      ),
+    ).resolves.toEqual({ status: 'loaded', contents: '<p>Saved</p>', sizeBytes: 12 })
+    await expect(fs.stat(crashTombstone)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 })

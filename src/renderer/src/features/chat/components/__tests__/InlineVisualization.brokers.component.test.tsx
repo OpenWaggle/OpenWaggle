@@ -112,6 +112,49 @@ describe('InlineVisualization brokers', () => {
     })
   })
 
+  it('latches the first frame capability and rejects a later forged ready message', async () => {
+    apiMock.showConfirm.mockResolvedValue(true)
+    render(
+      <InlineVisualization
+        sessionId={SessionId('session-visualization-1')}
+        reference={{ path: '/repo/capability-map.html', title: 'Capability map' }}
+      />,
+    )
+    const frame = await visualizationFrame('Capability map')
+
+    await activateFrame(frame)
+    act(() => {
+      dispatchFrameMessage(
+        frame,
+        { type: 'openwaggle:inline-visualization:ready' },
+        'forged-capability-1234567890',
+      )
+      dispatchFrameMessage(
+        frame,
+        {
+          type: 'openwaggle:inline-visualization:open-link',
+          url: 'https://example.com/forged',
+        },
+        'forged-capability-1234567890',
+      )
+    })
+
+    expect(apiMock.showConfirm).not.toHaveBeenCalled()
+
+    act(() => {
+      dispatchFrameMessage(frame, {
+        type: 'openwaggle:inline-visualization:open-link',
+        url: 'https://example.com/legitimate',
+      })
+    })
+    await waitFor(() => {
+      expect(apiMock.showConfirm).toHaveBeenCalledWith(
+        'Open external link?',
+        'https://example.com/legitimate',
+      )
+    })
+  })
+
   it('permits only one pending broker request per frame', async () => {
     apiMock.showConfirm.mockImplementation(() => new Promise<boolean>(() => undefined))
     render(
