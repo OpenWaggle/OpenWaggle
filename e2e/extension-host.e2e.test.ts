@@ -12,6 +12,7 @@ import {
   setActiveProjectForExtensionQa,
 } from './support/extension-fixtures'
 import { OpenWaggleApp } from './support/openwaggle-app'
+import { expectRightSidebarClosed } from './support/right-sidebar'
 import { seedSingleSession } from './support/session-fixtures'
 
 const SEEDED_SESSION_TITLE = 'Extension host proof session'
@@ -229,7 +230,10 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
     expect(publishStarted).toBe(true)
     await expect(resourcesFrame.getByText('Published to Outputs.')).toBeVisible({ timeout: 30_000 })
     await expect(publishReport).toBeEnabled({ timeout: 30_000 })
-    await page.getByRole('button', { name: 'Close extension side panel' }).click()
+    const closeExtensionPanel = page.getByRole('button', { name: 'Close extension side panel' })
+    await closeExtensionPanel.click()
+    await expect(page).not.toHaveURL(/panel=extension-side-panel/u)
+    await expectRightSidebarClosed(page)
 
     const summary = await openSessionSummary(page)
     await dispatchButtonClick(summary.getByRole('button', { name: /Outputs/ }))

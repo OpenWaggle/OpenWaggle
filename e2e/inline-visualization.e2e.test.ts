@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
 import { OpenWaggleApp } from './support/openwaggle-app'
+import { expectRightSidebarClosed } from './support/right-sidebar'
 import { seedSingleSession } from './support/session-fixtures'
 
 const THREAD_TITLE = 'Inline Visualization Security'
@@ -138,6 +139,21 @@ async function expectSecureInteractiveVisualization(
   await expect(navigationButton).toHaveAttribute('aria-describedby', /^openwaggle-tooltip-/u)
 
   await app.resizeMainWindow(1440, 900)
+  await expect.poll(() => page.evaluate(() => innerWidth)).toBe(1440)
+  const sessionTreeToggle = page
+    .locator('header')
+    .getByRole('button', { name: 'Toggle Session Tree' })
+  if ((await sessionTreeToggle.getAttribute('aria-expanded')) === 'true') {
+    await sessionTreeToggle.click()
+    await expect(sessionTreeToggle).toHaveAttribute('aria-expanded', 'false')
+  }
+  await expectRightSidebarClosed(page)
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      }),
+  )
   const summary = page.getByRole('complementary', { name: 'Session Summary' })
   const summaryToggle = page
     .locator('header')
