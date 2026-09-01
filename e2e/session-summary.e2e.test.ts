@@ -133,7 +133,7 @@ function csharpString(value: string) {
 async function createWindowsSourceControlCliFixtures(binPath: string, realGitPath: string) {
   const sourcePath = path.join(binPath, 'source-control-fixture.cs')
   const executablePath = path.join(binPath, 'source-control-fixture.exe')
-  const source = `
+  const source = String.raw`
 using System;
 using System.Diagnostics;
 using System.IO;

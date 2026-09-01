@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { expect, type Page, test } from '@playwright/test'
 import { OpenWaggleApp } from './support/openwaggle-app'
-import { rendererLongTaskBudget } from './support/performance-budgets'
+import { rendererLongTaskBudget, syntaxCompletionTimeout } from './support/performance-budgets'
 import { seedSingleSession } from './support/session-fixtures'
 
 const SESSION_TITLE = 'Workspace review and focused edit fixture'
@@ -379,7 +379,7 @@ test('a 1 MiB source file paints a skeleton before tokenization and keeps bounde
     }))
     expect(firstSyntaxPaint).toEqual({ status: 'loading', hasSkeleton: true })
     await expect(sourceView).toHaveAttribute('data-syntax-status', 'highlighted', {
-      timeout: 5_000,
+      timeout: syntaxCompletionTimeout(),
     })
     await expect(sourceView).toContainText('export const value')
 
@@ -397,7 +397,7 @@ test('a 1 MiB source file paints a skeleton before tokenization and keeps bounde
         .poll(async () => (await syntaxSourceTransfers(page)).length)
         .toBeGreaterThan(transferCountBeforeScroll)
       await expect(sourceView).toHaveAttribute('data-syntax-status', 'highlighted', {
-        timeout: 5_000,
+        timeout: syntaxCompletionTimeout(),
       })
       await expect
         .poll(async () => Number(await sourceView.getAttribute('data-syntax-line-offset')))
