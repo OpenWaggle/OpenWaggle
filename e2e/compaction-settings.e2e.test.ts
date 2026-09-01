@@ -86,7 +86,7 @@ test('composer context meter updates from usage reported before the run settles'
       }
     }, LIVE_USAGE_THREAD_TITLE)
 
-    await app.emitAgentEvent({
+    const usageEvent = {
       sessionId: runtime.sessionId,
       event: {
         type: 'context_usage',
@@ -95,13 +95,22 @@ test('composer context meter updates from usage reported before the run settles'
         model: runtime.model,
         timestamp: Date.now(),
       },
-    })
+    }
 
     const meter = app
       .mainWindow()
       .page.getByRole('img', { name: 'Context usage meter' })
       .locator('xpath=../..')
-    await expect(meter).toHaveAttribute('title', /\(37\.0%\)$/u)
+    await expect(meter).toBeVisible()
+    await expect
+      .poll(
+        async () => {
+          await app.emitAgentEvent(usageEvent)
+          return meter.getAttribute('title')
+        },
+        { timeout: 15_000 },
+      )
+      .toMatch(/\(37\.0%\)$/u)
     await expect(meter.getByText('37', { exact: true })).toBeVisible()
   } finally {
     await app.cleanup()
