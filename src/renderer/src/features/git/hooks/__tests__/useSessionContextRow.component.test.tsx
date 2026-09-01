@@ -114,5 +114,9 @@ describe('useSessionContextRow project-first setup', () => {
     )
     expect(result.current.branchStatus).toBe('ready')
     expect(result.current.branchNames).toEqual([])
+
+    act(() => useGitStore.setState({ branchesError: 'refresh failed' }))
+    expect(result.current.branchStatus).toBe('error')
+    expect(result.current.branchNames).toEqual([])
   })
 })

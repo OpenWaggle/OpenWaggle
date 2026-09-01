@@ -23,10 +23,10 @@ function resolveProjectBranchState(input: {
   if (input.repositoryPath !== input.projectPath) {
     return { names: [], currentBranch: null, status: 'loading' }
   }
+  if (input.error) return { names: [], currentBranch: null, status: 'error' }
   if (!input.branches && input.isLoading) {
     return { names: [], currentBranch: null, status: 'loading' }
   }
-  if (!input.branches && input.error) return { names: [], currentBranch: null, status: 'error' }
 
   const names =
     input.branches?.branches.flatMap((branch) => (branch.isRemote ? [] : [branch.name])) ?? []
