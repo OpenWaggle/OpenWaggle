@@ -13,6 +13,7 @@ import {
   createRuntimeSessionMock,
   createSessionMock,
   deleteSessionMock,
+  deleteVisualizationSessionMock,
   emitRunCompletedMock,
   forkRuntimeSessionMock,
   getInvokeHandler,
@@ -20,6 +21,7 @@ import {
   listSessionDetailsMock,
   loadSessionDetailsHandlers,
   resetSessionDetailsHandlerMocks,
+  rollbackVisualizationSessionDeletionMock,
   setAuthorizationModeMock,
   typedHandleMock,
 } from './session-details-handler.test-harness'
@@ -233,6 +235,7 @@ describe('registerSessionDetailsHandlers', () => {
     expect(cleanupSessionRunMock).toHaveBeenCalledWith(SessionId('session-delete'))
     expect(emitRunCompletedMock).toHaveBeenCalledWith(SessionId('session-delete'))
     expect(deleteSessionMock).toHaveBeenCalledWith(SessionId('session-delete'))
+    expect(deleteVisualizationSessionMock).toHaveBeenCalledWith(SessionId('session-delete'))
   })
 
   it('cleans up the active run before archiving a session', async () => {
@@ -249,6 +252,20 @@ describe('registerSessionDetailsHandlers', () => {
     expect(cleanupSessionRunMock).toHaveBeenCalledWith(SessionId('session-archive'))
     expect(emitRunCompletedMock).not.toHaveBeenCalled()
     expect(archiveSessionMock).toHaveBeenCalledWith(SessionId('session-archive'))
+    expect(deleteVisualizationSessionMock).not.toHaveBeenCalled()
+  })
+
+  it('restores staged visualization files when database deletion fails', async () => {
+    deleteSessionMock.mockRejectedValue(new Error('database unavailable'))
+    registerSessionDetailsHandlers()
+    const handler = getInvokeHandler('sessions:delete')
+
+    await expect(handler?.({}, SessionId('session-delete'))).rejects.toThrow()
+
+    expect(rollbackVisualizationSessionDeletionMock).toHaveBeenCalledWith(
+      SessionId('session-delete'),
+    )
+    expect(deleteVisualizationSessionMock).not.toHaveBeenCalled()
   })
 
   it('updates a session authorization mode through the projection repository', async () => {

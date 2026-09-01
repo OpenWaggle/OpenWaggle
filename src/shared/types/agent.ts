@@ -1,4 +1,4 @@
-import type { MessageId } from './brand'
+import type { MessageId, SessionId } from './brand'
 import type { SupportedModelId } from './llm'
 import type { ThinkingLevel } from './settings'
 import type { ToolCallRequest, ToolCallResult } from './tools'
@@ -86,6 +86,7 @@ export interface BranchSummaryMetadata {
 }
 
 export interface MessageMetadata {
+  readonly visualizationSessionId?: SessionId
   readonly waggle?: WaggleMessageMetadata
   readonly waggleInvocation?: WaggleInvocationMetadata
   readonly branchSummary?: BranchSummaryMetadata

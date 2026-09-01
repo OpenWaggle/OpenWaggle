@@ -196,6 +196,26 @@ _Avoid_: read-only attachment preview, renderer filesystem access
 The durable chat-transcript surface for rendering Pi tool progress, tool results, approvals, and custom agent-loop messages.
 _Avoid_: ephemeral-only tool UI
 
+**Inline visualization**:
+The complete in-conversation capability in which an agent following the Visualize authoring contract emits a structured `visualize` content reference to an agent-authored HTML fragment and OpenWaggle presents it as interactive sandboxed transcript content. The capability spans authoring, content reference handling, storage and replay, host-provided runtime services, failure fallback, and explicit export; it is not merely an HTML renderer.
+_Avoid_: HTML attachment, workspace-file preview, extension frame, MCP App, hosted site
+
+**Visualize compatibility**:
+Compatibility with the documented Visualize authoring and host contract, including its HTML-fragment rules, structured `visualize` content reference, supported attributes, CDN allowlist, theme and icon environment, and documented host interactions. OpenWaggle owns the internal storage and renderer; Codex-private directives, sandbox APIs, and implementation details are outside this compatibility promise.
+_Avoid_: Codex renderer clone, private directive compatibility
+
+**Inline visualization source**:
+The durable, source-session-owned HTML fragment named by an Inline visualization's structured content reference. It remains the live source when the transcript is revisited: updating the same file updates the visualization, while a missing or rejected source produces a stable fallback. OpenWaggle does not automatically freeze a separate copy for each reference.
+_Avoid_: per-message visualization snapshot, temporary preview file
+
+**Inline visualization producer**:
+The authenticated agent turn whose transcript output contains an Inline visualization's structured content reference. Any agent runtime may produce one when its session can emit the documented reference and write to a host-authorized source root; Pi is the first adapter, not part of the visualization contract. An OpenWaggle extension may supply skills, tools, or runtime resources that help the agent author the source, but renderer and extension-frame code cannot inject Inline visualizations directly into transcript history.
+_Avoid_: extension-injected transcript content, renderer-authored visualization
+
+**Inline visualization environment**:
+The versioned, OpenWaggle-owned sandbox and host runtime shared by every Inline visualization. Installed extensions cannot add globals, resource origins, styles, IPC methods, or permissions to this environment, so replay and authority do not depend on which extensions are installed.
+_Avoid_: extension-augmented visualization sandbox, per-extension CSP
+
 **Blocking agent-loop interaction**:
 An Interactive agent-loop contribution that pauses agent progress until the user responds.
 _Avoid_: hidden prompt

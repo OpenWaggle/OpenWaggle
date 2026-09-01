@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { OPENWAGGLE_EXTENSION_FRAME_PROTOCOL } from '@shared/constants/extension-frame'
+import { INLINE_VISUALIZATION_PROTOCOL } from '@shared/constants/inline-visualization'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const HTTP_OK_STATUS = 200
@@ -141,6 +142,15 @@ describe('renderer protocol', () => {
           corsEnabled: true,
         },
       },
+      {
+        scheme: INLINE_VISUALIZATION_PROTOCOL.SCHEME,
+        privileges: {
+          standard: true,
+          secure: true,
+          supportFetchAPI: true,
+          corsEnabled: false,
+        },
+      },
     ])
   })
 
@@ -216,16 +226,19 @@ describe('renderer protocol', () => {
   it(
     'does not register protocol handlers more than once',
     async () => {
-      const { registerRendererProtocolOnce } = await loadRendererProtocol()
-      const { registerExtensionRuntimeProtocolOnce } = await loadExtensionRuntimeProtocol()
-      const { registerExtensionFrameProtocolOnce } = await loadExtensionFrameProtocol()
+      const [rendererProtocol, extensionRuntimeProtocol, extensionFrameProtocol] =
+        await Promise.all([
+          loadRendererProtocol(),
+          loadExtensionRuntimeProtocol(),
+          loadExtensionFrameProtocol(),
+        ])
 
-      registerRendererProtocolOnce()
-      registerRendererProtocolOnce()
-      registerExtensionRuntimeProtocolOnce()
-      registerExtensionRuntimeProtocolOnce()
-      registerExtensionFrameProtocolOnce()
-      registerExtensionFrameProtocolOnce()
+      rendererProtocol.registerRendererProtocolOnce()
+      rendererProtocol.registerRendererProtocolOnce()
+      extensionRuntimeProtocol.registerExtensionRuntimeProtocolOnce()
+      extensionRuntimeProtocol.registerExtensionRuntimeProtocolOnce()
+      extensionFrameProtocol.registerExtensionFrameProtocolOnce()
+      extensionFrameProtocol.registerExtensionFrameProtocolOnce()
 
       expect(protocolMocks.handle).toHaveBeenCalledTimes(3)
     },

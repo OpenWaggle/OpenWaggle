@@ -4,6 +4,93 @@ import { ChatDisplayPathProvider } from '../ChatDisplayPathContext'
 import { StreamingText } from '../StreamingText'
 
 describe('StreamingText', () => {
+  it('renders a complete visualize reference between surrounding markdown', () => {
+    const path = '/Users/diego/.codex/visualizations/thread-1/latency-map.html'
+
+    render(
+      <StreamingText
+        visualizationSessionId={SessionId('thread-1')}
+        text={[
+          'Before the visualization.',
+          '',
+          `visualize{"path":"${path}","title":"Latency map"}`,
+          '',
+          'After the visualization.',
+        ].join('\n')}
+      />,
+    )
+
+    expect(screen.getByText('Before the visualization.')).toBeInTheDocument()
+    expect(screen.getByText('After the visualization.')).toBeInTheDocument()
+    expect(screen.queryByText(/visualize/)).toBeNull()
+    expect(screen.getByRole('region', { name: 'Latency map' })).toHaveAttribute(
+      'data-visualization-path',
+      path,
+    )
+  })
+
+  it('withholds an incomplete visualize reference until streaming completes it', () => {
+    const path = '/Users/diego/.codex/visualizations/thread-1/stream-map.html'
+    const { rerender } = render(
+      <StreamingText
+        visualizationSessionId={SessionId('thread-1')}
+        text={'Visible before.\n\nvisualize{"path":"/Users/diego/.codex/visualizations'}
+        isStreaming
+      />,
+    )
+
+    expect(screen.getByText('Visible before.')).toBeInTheDocument()
+    expect(screen.queryByText(/visualize/)).toBeNull()
+    expect(screen.queryByRole('region')).toBeNull()
+
+    rerender(
+      <StreamingText
+        visualizationSessionId={SessionId('thread-1')}
+        text={`Visible before.\n\nvisualize{"path":"${path}"}`}
+        isStreaming
+      />,
+    )
+
+    expect(screen.getByRole('region', { name: 'Interactive visualization' })).toHaveAttribute(
+      'data-visualization-path',
+      path,
+    )
+  })
+
+  it.each(['', 'vis', 'visualize', 'visualize'])(
+    'withholds a split visualize opening marker ending in %s',
+    (partialMarker) => {
+      render(
+        <StreamingText
+          text={`Visible before. ${partialMarker}`}
+          isStreaming
+          visualizationSessionId={SessionId('session-visualization-1')}
+        />,
+      )
+
+      expect(screen.getByText('Visible before.')).toBeInTheDocument()
+      expect(screen.queryByText(/visualize/u)).toBeNull()
+    },
+  )
+
+  it('does not activate a visualize reference without an owning assistant session', () => {
+    render(<StreamingText text={'visualize{"path":"/tmp/extension-injection.html"}'} />)
+
+    expect(screen.queryByRole('region')).toBeNull()
+    expect(screen.getByText(/visualize/)).toBeInTheDocument()
+  })
+
+  it.each([
+    ['relative path', 'visualize{"path":"relative-map.html"}'],
+    ['unknown capability', 'visualize{"path":"/repo/map.html","allowFileAccess":true}'],
+    ['unsupported mode', 'visualize{"path":"/repo/map.html","mode":"fullscreen"}'],
+  ])('fails closed for a completed reference with %s', (_label, reference) => {
+    render(<StreamingText visualizationSessionId={SessionId('thread-1')} text={reference} />)
+
+    expect(screen.queryByRole('region')).toBeNull()
+    expect(screen.getByText(/visualize/)).toBeInTheDocument()
+  })
+
   it('renders allowed markdown links with safe attributes', () => {
     render(
       <StreamingText
@@ -151,3 +238,5 @@ describe('StreamingText', () => {
     ).toBe(true)
   })
 })
+
+import { SessionId } from '@shared/types/brand'

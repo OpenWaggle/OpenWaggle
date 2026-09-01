@@ -5,6 +5,7 @@ import { is } from '@electron-toolkit/utils'
 import { AUTOMATION_IDENTITY_QUERY_PARAM } from '@shared/constants/electron-automation'
 import { OPENWAGGLE_EXTENSION_FRAME_PROTOCOL } from '@shared/constants/extension-frame'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import { INLINE_VISUALIZATION_PROTOCOL } from '@shared/constants/inline-visualization'
 import { net, protocol } from 'electron'
 import { env } from './env'
 
@@ -46,6 +47,15 @@ export function registerRendererScheme() {
         secure: true,
         supportFetchAPI: true,
         corsEnabled: true,
+      },
+    },
+    {
+      scheme: INLINE_VISUALIZATION_PROTOCOL.SCHEME,
+      privileges: {
+        standard: true,
+        secure: true,
+        supportFetchAPI: true,
+        corsEnabled: false,
       },
     },
   ])

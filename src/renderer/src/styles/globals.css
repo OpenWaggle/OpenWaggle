@@ -613,6 +613,19 @@
 }
 
 @layer components {
+  .inline-visualization-surface {
+    width: min(46rem, calc(100cqw - 2.5rem));
+  }
+
+  .inline-visualization-wide {
+    width: min(64rem, calc(100cqw - 2.5rem));
+  }
+
+  .inline-visualization-expanded {
+    width: min(64rem, calc(100vw - 2rem));
+    max-width: 64rem;
+  }
+
   @keyframes session-tree-row-enter {
     from {
       opacity: 0;

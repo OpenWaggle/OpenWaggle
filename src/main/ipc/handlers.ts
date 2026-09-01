@@ -8,6 +8,7 @@ import { registerExtensionFrameHandlers } from './extension-frame-handler'
 import { registerExtensionsHandlers } from './extensions-handler'
 import { registerFeedbackHandlers } from './feedback-handler'
 import { registerGitHandlers } from './git'
+import { registerInlineVisualizationFrameHandlers } from './inline-visualization-frame-handler'
 import { registerMcpHandlers } from './mcp-handler'
 import { registerProjectHandlers } from './project-handler'
 import { registerProvidersHandlers } from './providers-handler'
@@ -36,6 +37,7 @@ export function registerAllIpcHandlers(): void {
   registerExtensionsHandlers()
   registerExtensionBrokerHandlers()
   registerExtensionFrameHandlers()
+  registerInlineVisualizationFrameHandlers()
   registerMcpHandlers()
   registerProjectHandlers()
   registerProvidersHandlers()

@@ -53,6 +53,7 @@ interface CreatePiRunSessionRuntimeInput extends PiRuntimeExtensionIsolationInpu
   readonly onEvent: AgentKernelRunInput['onEvent']
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly visualizationDirectory?: string
 }
 
 function resolvePiRuntimeThinkingLevel(model: PiModel, requestedThinkingLevel: ThinkingLevel) {
@@ -97,6 +98,9 @@ export async function createPiRunSessionRuntime(
     modelReference: input.modelReference,
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
     ...(input.extensionFactories ? { extensionFactories: [...input.extensionFactories] } : {}),
+    ...(input.visualizationDirectory
+      ? { visualizationDirectory: input.visualizationDirectory }
+      : {}),
   } satisfies PiProjectRuntimeIsolationOptions
   const selectedRuntime = await createIsolatedPiProjectRuntime({
     operation: 'Pi run session initialization',

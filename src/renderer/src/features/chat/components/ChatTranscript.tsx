@@ -171,7 +171,7 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden">
       <div ref={scrollerRef} {...scrollerProps}>
-        <div ref={contentRef} className="flex min-h-full flex-col">
+        <div ref={contentRef} className="@container/transcript flex min-h-full flex-col">
           {/*
            * Keyed by session so the window resets to the newest rows on a switch. The scroller
            * above keeps its identity, because its scroll position and refs must survive.

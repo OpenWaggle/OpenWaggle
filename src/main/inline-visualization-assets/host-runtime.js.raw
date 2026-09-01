@@ -1,0 +1,239 @@
+(() => {
+  'use strict';
+  const capability = crypto.randomUUID();
+  const parentPostMessage = parent.postMessage.bind(parent);
+  const pendingFollowUps = new Map();
+  const post = (type, payload = {}) => {
+    parentPostMessage({ type, capability, ...payload }, '*');
+  };
+  const reportSize = () => {
+    const body = document.body;
+    if (!body) return;
+    const bodyRect = body.getBoundingClientRect();
+    let bottom = bodyRect.bottom;
+    for (const child of body.children) {
+      bottom = Math.max(bottom, child.getBoundingClientRect().bottom);
+    }
+    const height = Math.min(10000, Math.max(0, bottom - bodyRect.top));
+    post('openwaggle:inline-visualization:resize', { height: Math.ceil(height) });
+  };
+
+  const applyTheme = (theme) => {
+    if (!theme || typeof theme !== 'object') return;
+    const root = document.documentElement;
+    if (theme.colorScheme === 'dark' || theme.colorScheme === 'light') {
+      root.style.colorScheme = theme.colorScheme;
+      root.dataset.theme = theme.colorScheme;
+    }
+    if (!theme.variables || typeof theme.variables !== 'object') return;
+    for (const [name, value] of Object.entries(theme.variables)) {
+      if (/^--[a-z0-9-]+$/.test(name) && typeof value === 'string') {
+        root.style.setProperty(name, value);
+      }
+    }
+  };
+
+  addEventListener('message', (event) => {
+    if (event.source !== parent) return;
+    const data = event.data;
+    if (data && data.type === 'openwaggle:inline-visualization:health-check') {
+      post('openwaggle:inline-visualization:ready');
+      return;
+    }
+    if (data && data.type === 'openwaggle:inline-visualization:theme') {
+      applyTheme(data.theme);
+      return;
+    }
+    if (
+      data &&
+      data.type === 'openwaggle:inline-visualization:follow-up-result' &&
+      data.capability === capability &&
+      typeof data.requestId === 'string'
+    ) {
+      const resolve = pendingFollowUps.get(data.requestId);
+      if (resolve) {
+        pendingFollowUps.delete(data.requestId);
+        resolve(data.accepted === true);
+      }
+    }
+  });
+
+  let tooltip = null;
+  let tooltipTarget = null;
+  const hideTooltip = () => {
+    tooltip?.remove();
+    tooltip = null;
+    if (tooltipTarget) tooltipTarget.removeAttribute('aria-describedby');
+    tooltipTarget = null;
+  };
+  const showTooltip = (target) => {
+    const label = target.getAttribute('data-tooltip');
+    if (!label) return;
+    hideTooltip();
+    const id = 'openwaggle-tooltip-' + crypto.randomUUID();
+    tooltip = document.createElement('div');
+    tooltip.id = id;
+    tooltip.className = 'tooltip';
+    tooltip.setAttribute('role', 'tooltip');
+    tooltip.textContent = label;
+    document.body.append(tooltip);
+    target.setAttribute('aria-describedby', id);
+    tooltipTarget = target;
+    const targetRect = target.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const requested = target.getAttribute('data-tooltip-placement') || 'top';
+    let left = targetRect.left + (targetRect.width - tooltipRect.width) / 2;
+    let top = targetRect.top - tooltipRect.height - 6;
+    if (requested === 'bottom') top = targetRect.bottom + 6;
+    if (requested === 'left') {
+      left = targetRect.left - tooltipRect.width - 6;
+      top = targetRect.top + (targetRect.height - tooltipRect.height) / 2;
+    }
+    if (requested === 'right') {
+      left = targetRect.right + 6;
+      top = targetRect.top + (targetRect.height - tooltipRect.height) / 2;
+    }
+    tooltip.style.left = Math.max(5, Math.min(innerWidth - tooltipRect.width - 5, left)) + 'px';
+    tooltip.style.top = Math.max(5, Math.min(innerHeight - tooltipRect.height - 5, top)) + 'px';
+  };
+  document.addEventListener('pointerover', (event) => {
+    const target = event.target instanceof Element ? event.target.closest('[data-tooltip]') : null;
+    if (target) showTooltip(target);
+  });
+  document.addEventListener('pointerout', (event) => {
+    if (
+      tooltipTarget &&
+      (!(event.relatedTarget instanceof Node) || !tooltipTarget.contains(event.relatedTarget))
+    ) hideTooltip();
+  });
+  document.addEventListener('focusin', (event) => {
+    const target = event.target instanceof Element ? event.target.closest('[data-tooltip]') : null;
+    if (target) showTooltip(target);
+  });
+  document.addEventListener('focusout', hideTooltip);
+  document.addEventListener('click', (event) => {
+    if (!matchMedia('(pointer: coarse)').matches) return;
+    const target = event.target instanceof Element ? event.target.closest('[data-tooltip]') : null;
+    if (!target) {
+      hideTooltip();
+      return;
+    }
+    if (tooltipTarget === target) hideTooltip();
+    else showTooltip(target);
+  });
+
+  const downloadAnchor = async (anchor) => {
+    try {
+      const url = new URL(anchor.href);
+      if (url.protocol !== 'blob:' && url.protocol !== 'data:') return;
+      const response = await fetch(url);
+      const blob = await response.blob();
+      if (blob.size > 5 * 1024 * 1024) return;
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      let binary = '';
+      for (let offset = 0; offset < bytes.length; offset += 32768) {
+        binary += String.fromCharCode(...bytes.subarray(offset, offset + 32768));
+      }
+      post('openwaggle:inline-visualization:download', {
+        suggestedName: anchor.download || 'visualization-download',
+        mimeType: blob.type || 'application/octet-stream',
+        base64Data: btoa(binary),
+      });
+    } catch {
+      // Unsupported and invalid downloads fail closed.
+    }
+  };
+
+  document.addEventListener('click', (event) => {
+    const target = event.target instanceof Element ? event.target.closest('a[href]') : null;
+    if (!(target instanceof HTMLAnchorElement)) return;
+    const rawHref = target.getAttribute('href');
+    if (!rawHref || rawHref.startsWith('#')) return;
+    event.preventDefault();
+    if (!event.isTrusted || !navigator.userActivation?.isActive) return;
+    if (target.hasAttribute('download')) {
+      void downloadAnchor(target);
+      return;
+    }
+    post('openwaggle:inline-visualization:open-link', { url: target.href });
+  });
+
+  const sendFollowUpMessage = (message) => {
+    const prompt = typeof message === 'string' ? message : message && message.prompt;
+    if (
+      typeof prompt !== 'string' ||
+      prompt.trim().length === 0 ||
+      !navigator.userActivation?.isActive
+    ) {
+      return Promise.resolve(false);
+    }
+    if (pendingFollowUps.size > 0) return Promise.resolve(false);
+    const title = typeof message === 'object' && message && typeof message.title === 'string'
+      ? message.title
+      : undefined;
+    const requestId = crypto.randomUUID();
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        pendingFollowUps.delete(requestId);
+        resolve(false);
+      }, 120000);
+      pendingFollowUps.set(requestId, (accepted) => {
+        clearTimeout(timeout);
+        resolve(accepted);
+      });
+      post('openwaggle:inline-visualization:follow-up', {
+        requestId,
+        prompt,
+        ...(title ? { title } : {}),
+      });
+    });
+  };
+  Object.defineProperty(window, 'openai', {
+    configurable: false,
+    enumerable: true,
+    writable: false,
+    value: Object.freeze({ sendFollowUpMessage }),
+  });
+
+  addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    hideTooltip();
+    post('openwaggle:inline-visualization:dismiss');
+  });
+  addEventListener('error', (event) => {
+    post('openwaggle:inline-visualization:error', {
+      reason: 'crashed',
+      message: typeof event.message === 'string' ? event.message.slice(0, 500) : '',
+    });
+  });
+  addEventListener('unhandledrejection', () => {
+    post('openwaggle:inline-visualization:error', { reason: 'crashed' });
+  });
+  addEventListener('openwaggle:visualization-error', (event) => {
+    post('openwaggle:inline-visualization:error', {
+      reason: event.detail && typeof event.detail.reason === 'string'
+        ? event.detail.reason
+        : 'read-failed',
+    });
+  });
+
+  addEventListener('DOMContentLoaded', () => {
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+      window.lucide.createIcons();
+    }
+    reportSize();
+    if (typeof ResizeObserver === 'function') {
+      new ResizeObserver(reportSize).observe(document.body);
+    }
+    if (typeof MutationObserver === 'function') {
+      new MutationObserver(reportSize).observe(document.body, {
+        attributes: true,
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+    }
+  }, { once: true });
+  addEventListener('load', reportSize, { once: true });
+  post('openwaggle:inline-visualization:ready');
+})();
