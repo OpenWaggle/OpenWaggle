@@ -7,21 +7,6 @@ import { buildSessionNodes } from './hydration'
 
 const RESOURCE_NODE_QUERY_CHUNK_SIZE = 400
 
-const resourceNodeColumns = `
-  id,
-  session_id,
-  parent_id,
-  pi_entry_type,
-  kind,
-  role,
-  timestamp_ms,
-  content_json,
-  metadata_json,
-  branch_hint_id,
-  path_depth,
-  created_order
-`
-
 export async function getSessionResourceProjectionNodes(
   sessionId: SessionId,
   nodeIds: readonly string[],
@@ -34,8 +19,10 @@ export async function getSessionResourceProjectionNodes(
       for (let index = 0; index < nodeIds.length; index += RESOURCE_NODE_QUERY_CHUNK_SIZE) {
         const chunk = nodeIds.slice(index, index + RESOURCE_NODE_QUERY_CHUNK_SIZE)
         const chunkRows = yield* sql<SessionNodeRow>`
-          SELECT
-            ${sql.unsafe(resourceNodeColumns)}
+            SELECT
+              id, session_id, parent_id, pi_entry_type, kind, role,
+              timestamp_ms, content_json, metadata_json, branch_hint_id,
+              path_depth, created_order
           FROM session_nodes
           WHERE session_id = ${sessionId}
             AND id IN ${sql.in(chunk)}
@@ -58,7 +45,9 @@ export async function listSessionResourceProjectionPage(
       const sql = yield* SqlClient.SqlClient
       const rows = yield* sql<SessionNodeRow>`
         SELECT
-          ${sql.unsafe(resourceNodeColumns)}
+          id, session_id, parent_id, pi_entry_type, kind, role,
+          timestamp_ms, content_json, metadata_json, branch_hint_id,
+          path_depth, created_order
         FROM session_nodes
         WHERE session_id = ${sessionId}
           AND created_order > ${afterCreatedOrder}

@@ -1,5 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { Button } from '../Button'
 import { RightSidebarLayout, sidebarWidthValue } from '../RightSidebarLayout'
 import type { WidthAcceptanceContext } from '../right-sidebar-layout-types'
 
@@ -48,7 +49,7 @@ function layoutProps(open: boolean, onOpenChange = vi.fn()) {
       sheetBreakpointPx: SHEET_BREAKPOINT_PX,
       storageKey: STORAGE_KEY,
     },
-    sidebar: <div>Diff content</div>,
+    sidebar: <Button>Diff content</Button>,
     onOpenChange,
   }
 }
@@ -177,9 +178,28 @@ describe('RightSidebarLayout', () => {
     renderLayout(true, onOpenChange)
 
     expect(document.querySelector('[data-right-sidebar-shell="true"]')).toBeVisible()
+    expect(screen.getByText('Main content').parentElement).toHaveAttribute('inert')
     fireEvent.click(screen.getByRole('button', { name: 'Close right sidebar' }))
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('moves focus into a docked sidebar when it opens', async () => {
+    const view = renderLayout(false)
+    view.rerender(
+      <RightSidebarLayout {...layoutProps(true)}>
+        <div>Main content</div>
+      </RightSidebarLayout>,
+    )
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Diff content' })).toHaveFocus())
+  })
+
+  it('moves focus into a sidebar sheet when it opens', async () => {
+    installMatchMedia(true)
+    renderLayout(true)
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Diff content' })).toHaveFocus())
   })
 
   it('grows left, clamps before acceptance, previews accepted widths, and persists on release', () => {

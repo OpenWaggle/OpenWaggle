@@ -5,6 +5,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Button } from '@/shared/ui/Button'
+import { useUIStore } from '@/shell/ui-store'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 import { useSessionSummaryUIStore } from '../../state/session-summary-ui-store'
 import { SessionSummaryHub } from '../SessionSummaryHub'
@@ -82,6 +83,7 @@ function resource(overrides: Partial<SessionResource>): SessionResource {
     title: 'reference.png',
     mimeType: 'image/png',
     locator: 'session-resource://resource-1',
+    managed: true,
     available: true,
     isSource: true,
     isOutput: false,
@@ -97,6 +99,7 @@ type HubProps = {
   readonly messageCount?: number
   readonly autoHidden?: boolean
   readonly rightSidebarOpen?: boolean
+  readonly onOpenResources?: (filter?: 'all' | 'sources' | 'outputs' | 'images') => void
 }
 
 function hubElement(props: HubProps = {}, includeHeaderToggle = false) {
@@ -115,7 +118,7 @@ function hubElement(props: HubProps = {}, includeHeaderToggle = false) {
           autoHidden: props.autoHidden ?? false,
           rightSidebarOpen: props.rightSidebarOpen ?? false,
           onOpenDiff: vi.fn(),
-          onOpenResources: vi.fn(),
+          onOpenResources: props.onOpenResources ?? vi.fn(),
           onNavigateSession: vi.fn(),
           extensionRegistry: null,
           extensionProjectPaths: ['/project'],
@@ -133,6 +136,7 @@ describe('SessionSummaryHub', () => {
   beforeEach(() => {
     localStorage.clear()
     useSessionSummaryUIStore.setState({ panels: {} })
+    useUIStore.setState({ resourceViewer: null })
     listSessionResources.mockReset().mockResolvedValue([])
     listArchivedSessions.mockReset().mockResolvedValue([])
   })
@@ -181,7 +185,7 @@ describe('SessionSummaryHub', () => {
     expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
   })
 
-  it('restores focus to the header toggle when suppression hides the focused panel', async () => {
+  it('restores focus to the header toggle when a narrow layout hides the focused panel', async () => {
     const view = renderHub({}, true)
     const changes = screen.getByRole('button', { name: /Changes/ })
     changes.focus()
@@ -189,7 +193,7 @@ describe('SessionSummaryHub', () => {
 
     view.rerender(
       <QueryClientProvider client={view.client}>
-        {hubElement({ rightSidebarOpen: true }, true)}
+        {hubElement({ autoHidden: true }, true)}
       </QueryClientProvider>,
     )
 
@@ -206,6 +210,7 @@ describe('SessionSummaryHub', () => {
     const first = renderHub()
     fireEvent.click(await screen.findByRole('button', { name: /Sources/ }))
     expect(await screen.findByText('session-one.png')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show all' })).toBeInTheDocument()
     expect(screen.queryByText('session-two.png')).toBeNull()
 
     first.unmount()
@@ -213,6 +218,31 @@ describe('SessionSummaryHub', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Sources/ }))
     expect(await screen.findByText('session-two.png')).toBeInTheDocument()
     expect(screen.queryByText('session-one.png')).toBeNull()
+  })
+
+  it('opens the resource browser filtered to the selected summary section', async () => {
+    const onOpenResources = vi.fn()
+    listSessionResources.mockResolvedValue([resource({})])
+    renderHub({ onOpenResources }, true)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Sources/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show all' }))
+
+    expect(onOpenResources).toHaveBeenCalledWith('sources')
+    expect(screen.getByText('Session Summary toggle')).toHaveFocus()
+  })
+
+  it('opens an image row directly in the session-scoped gallery', async () => {
+    listSessionResources.mockResolvedValue([resource({ id: 'summary-image' })])
+    renderHub()
+
+    fireEvent.click(await screen.findByRole('button', { name: /Sources/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'reference.png' }))
+
+    expect(useUIStore.getState().resourceViewer).toEqual({
+      sessionId: 'session-1',
+      resourceId: 'summary-image',
+    })
   })
 
   it('persists collapsed state per session', () => {

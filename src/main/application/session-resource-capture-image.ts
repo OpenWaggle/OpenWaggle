@@ -5,6 +5,7 @@ import {
   type ValidatedSessionResourceImage,
   validatedImageBytes,
 } from '../domain/session-resource-image'
+import { SessionResourceImageValidator } from '../ports/session-resource-image-validator'
 import { SessionResourceRepository } from '../ports/session-resource-repository'
 import { SessionResourceStore } from '../ports/session-resource-store'
 import {
@@ -31,12 +32,15 @@ export function captureGeneratedImage(input: {
     const validated =
       input.validatedImage ?? validatedImageBytes(input.image.data, input.image.mimeType)
     if (!validated) return
+    const validator = yield* SessionResourceImageValidator
+    const decoded = yield* validator.validate(validated.bytes, validated.mimeType)
+    if (!decoded) return
     const repository = yield* SessionResourceRepository
-    const digestHex = sha256(validated.bytes)
+    const digestHex = sha256(decoded.bytes)
     const id = `${generatedImageOccurrencePrefix(input)}${digestHex}`
     const store = yield* SessionResourceStore
     const canonicalKey = `sha256:${digestHex}`
-    const fileName = imageFileName(input.image.title, validated.mimeType)
+    const fileName = imageFileName(input.image.title, decoded.mimeType)
     const existing = yield* repository.findByCanonicalKey(input.sessionId, canonicalKey)
     const existingCopy = existing
       ? yield* inspectManagedCopy(repository, store, input.sessionId, existing.id)
@@ -48,7 +52,7 @@ export function captureGeneratedImage(input: {
         canonicalKey,
         kind: 'image',
         title: existing.title,
-        mimeType: existing.mimeType ?? validated.mimeType,
+        mimeType: existing.mimeType ?? decoded.mimeType,
         locator: existing.locator,
         managedPath: null,
         available: existing.available,
@@ -70,7 +74,7 @@ export function captureGeneratedImage(input: {
       sessionId: input.sessionId,
       resourceId,
       fileName,
-      bytes: validated.bytes,
+      bytes: decoded.bytes,
     })
     const locator = `session-resource://${resourceId}`
     const resource = yield* repository
@@ -80,7 +84,7 @@ export function captureGeneratedImage(input: {
         canonicalKey,
         kind: 'image',
         title: fileName,
-        mimeType: validated.mimeType,
+        mimeType: decoded.mimeType,
         locator,
         managedPath: stored.path,
         available: true,

@@ -1,115 +1,17 @@
 import { SessionId } from '@shared/types/brand'
-import { fromPartial } from '@total-typescript/shoehorn'
-import * as Effect from 'effect/Effect'
-import * as Layer from 'effect/Layer'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { SessionResourceRepositoryError } from '../../errors'
-import { SessionRepository, type SessionRepositoryShape } from '../../ports/session-repository'
+import { beforeEach, describe, expect, it } from 'vitest'
 import {
-  SessionResourceImageFetcher,
-  type SessionResourceImageFetcherShape,
-} from '../../ports/session-resource-image-fetcher'
+  listPendingCommitOutputs,
+  registerPendingCommitOutput,
+} from '../../application/session-change-request-output-retry'
 import {
-  SessionResourceRepository,
-  type SessionResourceRepositoryShape,
-  type UpsertSessionResourceInput,
-} from '../../ports/session-resource-repository'
-import {
-  SessionResourceStore,
-  type SessionResourceStoreShape,
-} from '../../ports/session-resource-store'
-import {
-  SessionResourceThumbnailer,
-  type SessionResourceThumbnailerShape,
-} from '../../ports/session-resource-thumbnailer'
-import {
-  registerSessionResourceHandlers,
-  SESSION_RESOURCE_BACKFILL_PAGE_SIZE,
-} from '../session-resource-handler'
+  getSessionResourceHandlerMocks,
+  invokeSessionResourceHandler as invoke,
+  resetSessionResourceHandlerHarness,
+  sessionResourceBackfillPageSize,
+} from './session-resource-handler.test-harness'
 
-const handlerMocks = vi.hoisted(() => ({
-  typedHandle: vi.fn(),
-  list: vi.fn(),
-  getContentLocation: vi.fn(),
-  read: vi.fn(),
-  thumbnail: vi.fn(),
-  listResourceProjectionPage: vi.fn(),
-  getResourceProjectionNodes: vi.fn(),
-  getBackfillCursor: vi.fn(),
-  advanceBackfillCursor: vi.fn(),
-}))
-
-vi.mock('../typed-ipc', () => ({ typedHandle: handlerMocks.typedHandle }))
-
-const TestLayer = Layer.mergeAll(
-  Layer.succeed(
-    SessionRepository,
-    SessionRepository.of(
-      fromPartial<SessionRepositoryShape>({
-        listResourceProjectionPage: (sessionId: SessionId, cursor: number, limit: number) =>
-          Effect.sync(() => handlerMocks.listResourceProjectionPage(sessionId, cursor, limit)),
-        getResourceProjectionNodes: (sessionId: SessionId, nodeIds: readonly string[]) =>
-          Effect.sync(() => handlerMocks.getResourceProjectionNodes(sessionId, nodeIds)),
-      }),
-    ),
-  ),
-  Layer.succeed(
-    SessionResourceRepository,
-    SessionResourceRepository.of(
-      fromPartial<SessionResourceRepositoryShape>({
-        list: (sessionId: SessionId) =>
-          Effect.try({
-            try: () => handlerMocks.list(sessionId),
-            catch: (cause) => new SessionResourceRepositoryError({ operation: 'list', cause }),
-          }),
-        getContentLocation: (sessionId: SessionId, resourceId: string) =>
-          Effect.sync(() => handlerMocks.getContentLocation(sessionId, resourceId)),
-        getBackfillCursor: (sessionId: SessionId) =>
-          Effect.sync(() => handlerMocks.getBackfillCursor(sessionId)),
-        advanceBackfillCursor: (sessionId: SessionId, throughCreatedOrder: number) =>
-          Effect.sync(() => handlerMocks.advanceBackfillCursor(sessionId, throughCreatedOrder)),
-        upsert: (input: UpsertSessionResourceInput) =>
-          Effect.succeed({
-            ...input,
-            occurrences: [input.occurrence],
-            isSource:
-              input.occurrence.activity === 'provided' || input.occurrence.activity === 'read',
-            isOutput:
-              input.occurrence.activity === 'created' || input.occurrence.activity === 'updated',
-          }),
-        hasOccurrence: () => Effect.succeed(false),
-        findByCanonicalKey: () => Effect.succeed(null),
-      }),
-    ),
-  ),
-  Layer.succeed(
-    SessionResourceStore,
-    SessionResourceStore.of(
-      fromPartial<SessionResourceStoreShape>({
-        read: (managedPath: string) => Effect.sync(() => handlerMocks.read(managedPath)),
-      }),
-    ),
-  ),
-  Layer.succeed(
-    SessionResourceImageFetcher,
-    SessionResourceImageFetcher.of(fromPartial<SessionResourceImageFetcherShape>({})),
-  ),
-  Layer.succeed(
-    SessionResourceThumbnailer,
-    SessionResourceThumbnailer.of(
-      fromPartial<SessionResourceThumbnailerShape>({
-        create: (bytes: Uint8Array, mimeType: string) =>
-          Effect.sync(() => handlerMocks.thumbnail(bytes, mimeType)),
-      }),
-    ),
-  ),
-)
-
-function invoke(channel: string, ...args: readonly unknown[]) {
-  const handler = handlerMocks.typedHandle.mock.calls.find((call) => call[0] === channel)?.[1]
-  if (typeof handler !== 'function') throw new Error(`Missing handler for ${channel}`)
-  return Effect.runPromise(Effect.provide(handler({}, ...args), TestLayer))
-}
+const handlerMocks = getSessionResourceHandlerMocks()
 
 function emptyProjectionPage(hasMore: boolean) {
   return { nodes: [], throughCreatedOrder: 41, hasMore }
@@ -117,20 +19,7 @@ function emptyProjectionPage(hasMore: boolean) {
 
 describe('session resource IPC handlers', () => {
   beforeEach(() => {
-    handlerMocks.typedHandle.mockClear()
-    handlerMocks.list.mockReset().mockReturnValue([])
-    handlerMocks.getContentLocation.mockReset().mockReturnValue(null)
-    handlerMocks.read.mockReset().mockReturnValue(Buffer.from('full-image'))
-    handlerMocks.thumbnail
-      .mockReset()
-      .mockReturnValue({ bytes: Buffer.from('thumbnail'), mimeType: 'image/webp' })
-    handlerMocks.listResourceProjectionPage
-      .mockReset()
-      .mockReturnValue({ nodes: [], throughCreatedOrder: null, hasMore: false })
-    handlerMocks.getResourceProjectionNodes.mockReset().mockReturnValue([])
-    handlerMocks.getBackfillCursor.mockReset().mockReturnValue(-1)
-    handlerMocks.advanceBackfillCursor.mockReset()
-    registerSessionResourceHandlers()
+    resetSessionResourceHandlerHarness()
   })
 
   it('rejects malformed and traversal-like session/resource identifiers at the IPC boundary', async () => {
@@ -148,13 +37,35 @@ describe('session resource IPC handlers', () => {
     expect(handlerMocks.getContentLocation).not.toHaveBeenCalled()
   })
 
+  it('rejects arbitrary change-request Output recording without a main-process retry grant', async () => {
+    await expect(
+      invoke('sessions:resources:record-change-request', SessionId('session-one'), {
+        title: 'Unbound request',
+        url: 'https://github.com/openwaggle/openwaggle/pull/999',
+      }),
+    ).rejects.toThrow('No matching created change request')
+  })
+
+  it('retries a pending commit Output when its originating Session Summary refreshes', async () => {
+    const sessionId = SessionId('session-one')
+    const commit = { commitHash: 'abc123', summary: 'Complete resource hub' }
+    registerPendingCommitOutput(sessionId, commit)
+
+    await invoke('sessions:resources:list', sessionId)
+
+    expect(handlerMocks.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId, kind: 'commit', canonicalKey: 'commit:abc123' }),
+    )
+    expect(listPendingCommitOutputs(sessionId)).toEqual([])
+  })
+
   it('rejects invalid change-request metadata at the IPC boundary', async () => {
-    expect(() =>
+    await expect(
       invoke('sessions:resources:record-change-request', SessionId('session-one'), {
         title: ' ',
         url: 'javascript:alert(1)',
       }),
-    ).toThrow()
+    ).rejects.toBeDefined()
   })
 
   it('passes validated identifiers to the session-scoped repository lookup', async () => {
@@ -180,7 +91,7 @@ describe('session resource IPC handlers', () => {
     expect(handlerMocks.listResourceProjectionPage).toHaveBeenCalledWith(
       SessionId('session-one'),
       23,
-      SESSION_RESOURCE_BACKFILL_PAGE_SIZE,
+      sessionResourceBackfillPageSize(),
     )
     expect(handlerMocks.advanceBackfillCursor).toHaveBeenCalledWith(SessionId('session-one'), 41)
   })

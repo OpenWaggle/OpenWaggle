@@ -23,6 +23,7 @@ function sessionNode(
   role: 'user' | 'assistant',
   content: string,
   createdOrder: number,
+  messageId = id,
 ): SessionNode {
   return {
     id: SessionNodeId(id),
@@ -36,7 +37,7 @@ function sessionNode(
     pathDepth: createdOrder,
     branchId: MAIN_BRANCH_ID,
     message: {
-      id: MessageId(id),
+      id: MessageId(messageId),
       role,
       parts: [{ type: 'text', text: content }],
       createdAt: createdOrder + 1,
@@ -99,6 +100,17 @@ function activeNodeIdCreatedOrder(nodes: readonly SessionNode[], activeNodeId: S
 }
 
 describe('resolveTranscriptMessages', () => {
+  it('carries the persisted node identity when it differs from the message id', () => {
+    const node = sessionNode('persisted-node', null, 'user', 'Reference', 0, 'pi-message')
+    const resolved = resolveTranscriptMessages({
+      activeSessionId: SESSION_DETAIL_ID,
+      activeWorkspace: workspaceWithPath([node], node.id, node.id),
+      messages: [uiMessage('pi-message', 'user', 'Reference')],
+    })
+
+    expect(resolved[0]?.id).toBe('pi-message')
+    expect(resolved[0]?.metadata?.sessionNodeId).toBe('persisted-node')
+  })
   it('uses the selected workspace transcript path instead of later main-branch messages', () => {
     const beforeBranch = sessionNode('user-before-branch', null, 'user', 'Before branch', 0)
     const answerBeforeBranch = sessionNode(

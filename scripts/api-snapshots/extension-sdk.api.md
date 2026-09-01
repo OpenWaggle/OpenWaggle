@@ -375,7 +375,7 @@ export declare function createExtensionBrokerSdk(transport: ExtensionBrokerTrans
 
 ```ts
 import type { JsonValue } from './json.js';
-import type { ExtensionActionSelectProjectResult, ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, ExtensionInvokeFailure, ExtensionInvokeInput, ExtensionInvokeResult, ExtensionInvokeScope, ExtensionInvokeSuccess, ExtensionModelPreferencesSettingsPatch, ExtensionRuntimeRegisterContributionPayload, ExtensionRuntimeRegisterContributionResult, ExtensionRuntimeUnregisterContributionPayload, ExtensionRuntimeUnregisterContributionResult, ExtensionSettingsGetResult, ExtensionSettingsGetSettingResult, ExtensionSettingsUpdatePayload, ExtensionSettingsUpdateResult, ExtensionSettingsUpdateSettingResult, ExtensionStateCurrentBranchReadResult, ExtensionStateCurrentProjectReadResult, ExtensionStateCurrentSessionReadResult, ExtensionStateModelPreferencesReadResult, ExtensionStateReadResult, ExtensionStateRecentProjectsReadResult, ExtensionStorageDeleteResult, ExtensionStorageGetResult, ExtensionStorageListResult, ExtensionStorageSetResult } from './types.js';
+import type { ExtensionActionSelectProjectResult, ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, ExtensionInvokeFailure, ExtensionInvokeInput, ExtensionInvokeResult, ExtensionInvokeScope, ExtensionInvokeSuccess, ExtensionModelPreferencesSettingsPatch, ExtensionRuntimeRegisterContributionPayload, ExtensionRuntimeRegisterContributionResult, ExtensionRuntimeUnregisterContributionPayload, ExtensionRuntimeUnregisterContributionResult, ExtensionSessionResourcePublishPayload, ExtensionSessionResourcePublishResult, ExtensionSessionResourcesListResult, ExtensionSettingsGetResult, ExtensionSettingsGetSettingResult, ExtensionSettingsUpdatePayload, ExtensionSettingsUpdateResult, ExtensionSettingsUpdateSettingResult, ExtensionStateCurrentBranchReadResult, ExtensionStateCurrentProjectReadResult, ExtensionStateCurrentSessionReadResult, ExtensionStateModelPreferencesReadResult, ExtensionStateReadResult, ExtensionStateRecentProjectsReadResult, ExtensionStorageDeleteResult, ExtensionStorageGetResult, ExtensionStorageListResult, ExtensionStorageSetResult } from './types.js';
 export type ExtensionOperationSuccess<TValue> = ExtensionInvokeSuccess<TValue>;
 export type ExtensionStorageGetOperationResult = ExtensionOperationSuccess<ExtensionStorageGetResult> | ExtensionInvokeFailure;
 export type ExtensionStorageSetOperationResult = ExtensionOperationSuccess<ExtensionStorageSetResult> | ExtensionInvokeFailure;
@@ -396,6 +396,8 @@ export type ExtensionSettingsGetOperationResult = ExtensionOperationSuccess<Exte
 export type ExtensionSettingsGetSettingOperationResult = ExtensionOperationSuccess<ExtensionSettingsGetSettingResult> | ExtensionInvokeFailure;
 export type ExtensionSettingsUpdateOperationResult = ExtensionOperationSuccess<ExtensionSettingsUpdateResult> | ExtensionInvokeFailure;
 export type ExtensionSettingsUpdateSettingOperationResult = ExtensionOperationSuccess<ExtensionSettingsUpdateSettingResult> | ExtensionInvokeFailure;
+export type ExtensionSessionResourcesListOperationResult = ExtensionOperationSuccess<ExtensionSessionResourcesListResult> | ExtensionInvokeFailure;
+export type ExtensionSessionResourcePublishOperationResult = ExtensionOperationSuccess<ExtensionSessionResourcePublishResult> | ExtensionInvokeFailure;
 export interface ExtensionSdkIdentity {
     readonly extensionId: string;
     readonly contributionId: string;
@@ -448,6 +450,10 @@ export interface ExtensionOpenWaggleSdk {
     readonly docs: {
         readonly discover: (scope: ExtensionInvokeScope, input?: ExtensionDocsDiscoverPayload) => Promise<ExtensionInvokeResult<ExtensionDocsDiscoverResult>>;
         readonly resolveTopic: (scope: ExtensionInvokeScope, input: ExtensionDocsResolveTopicPayload) => Promise<ExtensionInvokeResult<ExtensionDocsResolveTopicResult>>;
+    };
+    readonly resources: {
+        readonly list: (scope: ExtensionInvokeScope) => Promise<ExtensionInvokeResult<ExtensionSessionResourcesListResult>>;
+        readonly publish: (scope: ExtensionInvokeScope, resource: ExtensionSessionResourcePublishPayload) => Promise<ExtensionInvokeResult<ExtensionSessionResourcePublishResult>>;
     };
 }
 export interface ExtensionRuntimeContributionSdk {
@@ -517,8 +523,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly SETTINGS: 'openwaggle.settings';
         readonly DOCS: 'openwaggle.docs';
         readonly RUNTIME: 'openwaggle.runtime';
+        readonly RESOURCES: 'openwaggle.resources';
     };
-    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
+    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.resources" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
     readonly CAPABILITY_METHODS: readonly [{
         readonly capability: "openwaggle.host.context";
         readonly methods: readonly ["get-scope"];
@@ -540,6 +547,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
     }, {
         readonly capability: "openwaggle.runtime";
         readonly methods: readonly ["register-contribution", "unregister-contribution"];
+    }, {
+        readonly capability: "openwaggle.resources";
+        readonly methods: readonly ["list-resources", "publish-resource"];
     }];
     readonly METHOD: {
         readonly GET_SCOPE: 'get-scope';
@@ -558,8 +568,10 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly RESOLVE_DOCS_TOPIC: 'resolve-docs-topic';
         readonly REGISTER_CONTRIBUTION: 'register-contribution';
         readonly UNREGISTER_CONTRIBUTION: 'unregister-contribution';
+        readonly LIST_RESOURCES: 'list-resources';
+        readonly PUBLISH_RESOURCE: 'publish-resource';
     };
-    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
+    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-resources" | "publish-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
     readonly FAILURE_CODE: {
         readonly INVALID_INPUT: 'invalid-input';
         readonly INVALID_PAYLOAD: 'invalid-payload';
@@ -1685,6 +1697,41 @@ export interface ExtensionActionSelectProjectResult {
     readonly projectPath: string;
     readonly recentProjects: readonly string[];
 }
+export type ExtensionSessionResourceKind = 'image' | 'file' | 'link' | 'tool' | 'web-search' | 'site' | 'commit' | 'change-request';
+export type ExtensionSessionResourceRole = 'source' | 'output';
+export interface ExtensionSessionResourceView {
+    readonly id: string;
+    readonly title: string;
+    readonly kind: ExtensionSessionResourceKind;
+    readonly mimeType: string | null;
+    readonly available: boolean;
+    readonly isSource: boolean;
+    readonly isOutput: boolean;
+}
+export interface ExtensionSessionResourcePublishPayload {
+    readonly key: string;
+    readonly title: string;
+    readonly kind: 'image' | 'link';
+    readonly role: ExtensionSessionResourceRole;
+    /** A credential-free HTTPS locator is required and retained only by the host. */
+    readonly locator: string;
+}
+export interface ExtensionSessionResourcesListResult {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES;
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES;
+    readonly sessionId: string;
+    readonly resources: readonly ExtensionSessionResourceView[];
+}
+export interface ExtensionSessionResourcePublishResult {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES;
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.PUBLISH_RESOURCE;
+    readonly sessionId: string;
+    readonly resource: ExtensionSessionResourceView;
+}
 export interface ExtensionSettingsView {
     readonly modelPreferences: ExtensionModelPrefs;
     readonly projectDisplayNames: Readonly<Record<string, string>>;
@@ -2121,6 +2168,8 @@ export interface OpenWaggleExtensionSurfaceContext {
     };
     readonly packagePath: string;
     readonly projectPaths: readonly string[];
+    /** Present when the host resolved this surface for a specific Session. */
+    readonly sessionId?: string;
     readonly theme: OpenWaggleExtensionTheme;
 }
 export interface OpenWaggleExtensionSurfaceSdk {
@@ -2979,7 +3028,7 @@ export declare function createExtensionBrokerSdk(transport: ExtensionBrokerTrans
 
 ```ts
 import type { JsonValue } from './json.js';
-import type { ExtensionActionSelectProjectResult, ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, ExtensionInvokeFailure, ExtensionInvokeInput, ExtensionInvokeResult, ExtensionInvokeScope, ExtensionInvokeSuccess, ExtensionModelPreferencesSettingsPatch, ExtensionRuntimeRegisterContributionPayload, ExtensionRuntimeRegisterContributionResult, ExtensionRuntimeUnregisterContributionPayload, ExtensionRuntimeUnregisterContributionResult, ExtensionSettingsGetResult, ExtensionSettingsGetSettingResult, ExtensionSettingsUpdatePayload, ExtensionSettingsUpdateResult, ExtensionSettingsUpdateSettingResult, ExtensionStateCurrentBranchReadResult, ExtensionStateCurrentProjectReadResult, ExtensionStateCurrentSessionReadResult, ExtensionStateModelPreferencesReadResult, ExtensionStateReadResult, ExtensionStateRecentProjectsReadResult, ExtensionStorageDeleteResult, ExtensionStorageGetResult, ExtensionStorageListResult, ExtensionStorageSetResult } from './types.js';
+import type { ExtensionActionSelectProjectResult, ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, ExtensionInvokeFailure, ExtensionInvokeInput, ExtensionInvokeResult, ExtensionInvokeScope, ExtensionInvokeSuccess, ExtensionModelPreferencesSettingsPatch, ExtensionRuntimeRegisterContributionPayload, ExtensionRuntimeRegisterContributionResult, ExtensionRuntimeUnregisterContributionPayload, ExtensionRuntimeUnregisterContributionResult, ExtensionSessionResourcePublishPayload, ExtensionSessionResourcePublishResult, ExtensionSessionResourcesListResult, ExtensionSettingsGetResult, ExtensionSettingsGetSettingResult, ExtensionSettingsUpdatePayload, ExtensionSettingsUpdateResult, ExtensionSettingsUpdateSettingResult, ExtensionStateCurrentBranchReadResult, ExtensionStateCurrentProjectReadResult, ExtensionStateCurrentSessionReadResult, ExtensionStateModelPreferencesReadResult, ExtensionStateReadResult, ExtensionStateRecentProjectsReadResult, ExtensionStorageDeleteResult, ExtensionStorageGetResult, ExtensionStorageListResult, ExtensionStorageSetResult } from './types.js';
 export type ExtensionOperationSuccess<TValue> = ExtensionInvokeSuccess<TValue>;
 export type ExtensionStorageGetOperationResult = ExtensionOperationSuccess<ExtensionStorageGetResult> | ExtensionInvokeFailure;
 export type ExtensionStorageSetOperationResult = ExtensionOperationSuccess<ExtensionStorageSetResult> | ExtensionInvokeFailure;
@@ -3000,6 +3049,8 @@ export type ExtensionSettingsGetOperationResult = ExtensionOperationSuccess<Exte
 export type ExtensionSettingsGetSettingOperationResult = ExtensionOperationSuccess<ExtensionSettingsGetSettingResult> | ExtensionInvokeFailure;
 export type ExtensionSettingsUpdateOperationResult = ExtensionOperationSuccess<ExtensionSettingsUpdateResult> | ExtensionInvokeFailure;
 export type ExtensionSettingsUpdateSettingOperationResult = ExtensionOperationSuccess<ExtensionSettingsUpdateSettingResult> | ExtensionInvokeFailure;
+export type ExtensionSessionResourcesListOperationResult = ExtensionOperationSuccess<ExtensionSessionResourcesListResult> | ExtensionInvokeFailure;
+export type ExtensionSessionResourcePublishOperationResult = ExtensionOperationSuccess<ExtensionSessionResourcePublishResult> | ExtensionInvokeFailure;
 export interface ExtensionSdkIdentity {
     readonly extensionId: string;
     readonly contributionId: string;
@@ -3052,6 +3103,10 @@ export interface ExtensionOpenWaggleSdk {
     readonly docs: {
         readonly discover: (scope: ExtensionInvokeScope, input?: ExtensionDocsDiscoverPayload) => Promise<ExtensionInvokeResult<ExtensionDocsDiscoverResult>>;
         readonly resolveTopic: (scope: ExtensionInvokeScope, input: ExtensionDocsResolveTopicPayload) => Promise<ExtensionInvokeResult<ExtensionDocsResolveTopicResult>>;
+    };
+    readonly resources: {
+        readonly list: (scope: ExtensionInvokeScope) => Promise<ExtensionInvokeResult<ExtensionSessionResourcesListResult>>;
+        readonly publish: (scope: ExtensionInvokeScope, resource: ExtensionSessionResourcePublishPayload) => Promise<ExtensionInvokeResult<ExtensionSessionResourcePublishResult>>;
     };
 }
 export interface ExtensionRuntimeContributionSdk {
@@ -3135,8 +3190,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly SETTINGS: 'openwaggle.settings';
         readonly DOCS: 'openwaggle.docs';
         readonly RUNTIME: 'openwaggle.runtime';
+        readonly RESOURCES: 'openwaggle.resources';
     };
-    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
+    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.resources" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
     readonly CAPABILITY_METHODS: readonly [{
         readonly capability: "openwaggle.host.context";
         readonly methods: readonly ["get-scope"];
@@ -3158,6 +3214,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
     }, {
         readonly capability: "openwaggle.runtime";
         readonly methods: readonly ["register-contribution", "unregister-contribution"];
+    }, {
+        readonly capability: "openwaggle.resources";
+        readonly methods: readonly ["list-resources", "publish-resource"];
     }];
     readonly METHOD: {
         readonly GET_SCOPE: 'get-scope';
@@ -3176,8 +3235,10 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly RESOLVE_DOCS_TOPIC: 'resolve-docs-topic';
         readonly REGISTER_CONTRIBUTION: 'register-contribution';
         readonly UNREGISTER_CONTRIBUTION: 'unregister-contribution';
+        readonly LIST_RESOURCES: 'list-resources';
+        readonly PUBLISH_RESOURCE: 'publish-resource';
     };
-    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
+    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-resources" | "publish-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
     readonly FAILURE_CODE: {
         readonly INVALID_INPUT: 'invalid-input';
         readonly INVALID_PAYLOAD: 'invalid-payload';
@@ -4302,6 +4363,41 @@ export interface ExtensionActionSelectProjectResult {
     readonly previousProjectPath: string | null;
     readonly projectPath: string;
     readonly recentProjects: readonly string[];
+}
+export type ExtensionSessionResourceKind = 'image' | 'file' | 'link' | 'tool' | 'web-search' | 'site' | 'commit' | 'change-request';
+export type ExtensionSessionResourceRole = 'source' | 'output';
+export interface ExtensionSessionResourceView {
+    readonly id: string;
+    readonly title: string;
+    readonly kind: ExtensionSessionResourceKind;
+    readonly mimeType: string | null;
+    readonly available: boolean;
+    readonly isSource: boolean;
+    readonly isOutput: boolean;
+}
+export interface ExtensionSessionResourcePublishPayload {
+    readonly key: string;
+    readonly title: string;
+    readonly kind: 'image' | 'link';
+    readonly role: ExtensionSessionResourceRole;
+    /** A credential-free HTTPS locator is required and retained only by the host. */
+    readonly locator: string;
+}
+export interface ExtensionSessionResourcesListResult {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES;
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES;
+    readonly sessionId: string;
+    readonly resources: readonly ExtensionSessionResourceView[];
+}
+export interface ExtensionSessionResourcePublishResult {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES;
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.PUBLISH_RESOURCE;
+    readonly sessionId: string;
+    readonly resource: ExtensionSessionResourceView;
 }
 export interface ExtensionSettingsView {
     readonly modelPreferences: ExtensionModelPrefs;
@@ -4729,8 +4825,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly SETTINGS: 'openwaggle.settings';
         readonly DOCS: 'openwaggle.docs';
         readonly RUNTIME: 'openwaggle.runtime';
+        readonly RESOURCES: 'openwaggle.resources';
     };
-    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
+    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.resources" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
     readonly CAPABILITY_METHODS: readonly [{
         readonly capability: "openwaggle.host.context";
         readonly methods: readonly ["get-scope"];
@@ -4752,6 +4849,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
     }, {
         readonly capability: "openwaggle.runtime";
         readonly methods: readonly ["register-contribution", "unregister-contribution"];
+    }, {
+        readonly capability: "openwaggle.resources";
+        readonly methods: readonly ["list-resources", "publish-resource"];
     }];
     readonly METHOD: {
         readonly GET_SCOPE: 'get-scope';
@@ -4770,8 +4870,10 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly RESOLVE_DOCS_TOPIC: 'resolve-docs-topic';
         readonly REGISTER_CONTRIBUTION: 'register-contribution';
         readonly UNREGISTER_CONTRIBUTION: 'unregister-contribution';
+        readonly LIST_RESOURCES: 'list-resources';
+        readonly PUBLISH_RESOURCE: 'publish-resource';
     };
-    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
+    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-resources" | "publish-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
     readonly FAILURE_CODE: {
         readonly INVALID_INPUT: 'invalid-input';
         readonly INVALID_PAYLOAD: 'invalid-payload';
@@ -4936,6 +5038,8 @@ export interface OpenWaggleExtensionSurfaceContext {
     };
     readonly packagePath: string;
     readonly projectPaths: readonly string[];
+    /** Present when the host resolved this surface for a specific Session. */
+    readonly sessionId?: string;
     readonly theme: OpenWaggleExtensionTheme;
 }
 export interface OpenWaggleExtensionSurfaceSdk {
@@ -5183,7 +5287,7 @@ export declare function createExtensionBrokerSdk(transport: ExtensionBrokerTrans
 
 ```ts
 import type { JsonValue } from './json.js';
-import type { ExtensionActionSelectProjectResult, ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, ExtensionInvokeFailure, ExtensionInvokeInput, ExtensionInvokeResult, ExtensionInvokeScope, ExtensionInvokeSuccess, ExtensionModelPreferencesSettingsPatch, ExtensionRuntimeRegisterContributionPayload, ExtensionRuntimeRegisterContributionResult, ExtensionRuntimeUnregisterContributionPayload, ExtensionRuntimeUnregisterContributionResult, ExtensionSettingsGetResult, ExtensionSettingsGetSettingResult, ExtensionSettingsUpdatePayload, ExtensionSettingsUpdateResult, ExtensionSettingsUpdateSettingResult, ExtensionStateCurrentBranchReadResult, ExtensionStateCurrentProjectReadResult, ExtensionStateCurrentSessionReadResult, ExtensionStateModelPreferencesReadResult, ExtensionStateReadResult, ExtensionStateRecentProjectsReadResult, ExtensionStorageDeleteResult, ExtensionStorageGetResult, ExtensionStorageListResult, ExtensionStorageSetResult } from './types.js';
+import type { ExtensionActionSelectProjectResult, ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, ExtensionInvokeFailure, ExtensionInvokeInput, ExtensionInvokeResult, ExtensionInvokeScope, ExtensionInvokeSuccess, ExtensionModelPreferencesSettingsPatch, ExtensionRuntimeRegisterContributionPayload, ExtensionRuntimeRegisterContributionResult, ExtensionRuntimeUnregisterContributionPayload, ExtensionRuntimeUnregisterContributionResult, ExtensionSessionResourcePublishPayload, ExtensionSessionResourcePublishResult, ExtensionSessionResourcesListResult, ExtensionSettingsGetResult, ExtensionSettingsGetSettingResult, ExtensionSettingsUpdatePayload, ExtensionSettingsUpdateResult, ExtensionSettingsUpdateSettingResult, ExtensionStateCurrentBranchReadResult, ExtensionStateCurrentProjectReadResult, ExtensionStateCurrentSessionReadResult, ExtensionStateModelPreferencesReadResult, ExtensionStateReadResult, ExtensionStateRecentProjectsReadResult, ExtensionStorageDeleteResult, ExtensionStorageGetResult, ExtensionStorageListResult, ExtensionStorageSetResult } from './types.js';
 export type ExtensionOperationSuccess<TValue> = ExtensionInvokeSuccess<TValue>;
 export type ExtensionStorageGetOperationResult = ExtensionOperationSuccess<ExtensionStorageGetResult> | ExtensionInvokeFailure;
 export type ExtensionStorageSetOperationResult = ExtensionOperationSuccess<ExtensionStorageSetResult> | ExtensionInvokeFailure;
@@ -5204,6 +5308,8 @@ export type ExtensionSettingsGetOperationResult = ExtensionOperationSuccess<Exte
 export type ExtensionSettingsGetSettingOperationResult = ExtensionOperationSuccess<ExtensionSettingsGetSettingResult> | ExtensionInvokeFailure;
 export type ExtensionSettingsUpdateOperationResult = ExtensionOperationSuccess<ExtensionSettingsUpdateResult> | ExtensionInvokeFailure;
 export type ExtensionSettingsUpdateSettingOperationResult = ExtensionOperationSuccess<ExtensionSettingsUpdateSettingResult> | ExtensionInvokeFailure;
+export type ExtensionSessionResourcesListOperationResult = ExtensionOperationSuccess<ExtensionSessionResourcesListResult> | ExtensionInvokeFailure;
+export type ExtensionSessionResourcePublishOperationResult = ExtensionOperationSuccess<ExtensionSessionResourcePublishResult> | ExtensionInvokeFailure;
 export interface ExtensionSdkIdentity {
     readonly extensionId: string;
     readonly contributionId: string;
@@ -5256,6 +5362,10 @@ export interface ExtensionOpenWaggleSdk {
     readonly docs: {
         readonly discover: (scope: ExtensionInvokeScope, input?: ExtensionDocsDiscoverPayload) => Promise<ExtensionInvokeResult<ExtensionDocsDiscoverResult>>;
         readonly resolveTopic: (scope: ExtensionInvokeScope, input: ExtensionDocsResolveTopicPayload) => Promise<ExtensionInvokeResult<ExtensionDocsResolveTopicResult>>;
+    };
+    readonly resources: {
+        readonly list: (scope: ExtensionInvokeScope) => Promise<ExtensionInvokeResult<ExtensionSessionResourcesListResult>>;
+        readonly publish: (scope: ExtensionInvokeScope, resource: ExtensionSessionResourcePublishPayload) => Promise<ExtensionInvokeResult<ExtensionSessionResourcePublishResult>>;
     };
 }
 export interface ExtensionRuntimeContributionSdk {
@@ -5339,8 +5449,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly SETTINGS: 'openwaggle.settings';
         readonly DOCS: 'openwaggle.docs';
         readonly RUNTIME: 'openwaggle.runtime';
+        readonly RESOURCES: 'openwaggle.resources';
     };
-    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
+    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.resources" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
     readonly CAPABILITY_METHODS: readonly [{
         readonly capability: "openwaggle.host.context";
         readonly methods: readonly ["get-scope"];
@@ -5362,6 +5473,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
     }, {
         readonly capability: "openwaggle.runtime";
         readonly methods: readonly ["register-contribution", "unregister-contribution"];
+    }, {
+        readonly capability: "openwaggle.resources";
+        readonly methods: readonly ["list-resources", "publish-resource"];
     }];
     readonly METHOD: {
         readonly GET_SCOPE: 'get-scope';
@@ -5380,8 +5494,10 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly RESOLVE_DOCS_TOPIC: 'resolve-docs-topic';
         readonly REGISTER_CONTRIBUTION: 'register-contribution';
         readonly UNREGISTER_CONTRIBUTION: 'unregister-contribution';
+        readonly LIST_RESOURCES: 'list-resources';
+        readonly PUBLISH_RESOURCE: 'publish-resource';
     };
-    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
+    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-resources" | "publish-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
     readonly FAILURE_CODE: {
         readonly INVALID_INPUT: 'invalid-input';
         readonly INVALID_PAYLOAD: 'invalid-payload';
@@ -6506,6 +6622,41 @@ export interface ExtensionActionSelectProjectResult {
     readonly previousProjectPath: string | null;
     readonly projectPath: string;
     readonly recentProjects: readonly string[];
+}
+export type ExtensionSessionResourceKind = 'image' | 'file' | 'link' | 'tool' | 'web-search' | 'site' | 'commit' | 'change-request';
+export type ExtensionSessionResourceRole = 'source' | 'output';
+export interface ExtensionSessionResourceView {
+    readonly id: string;
+    readonly title: string;
+    readonly kind: ExtensionSessionResourceKind;
+    readonly mimeType: string | null;
+    readonly available: boolean;
+    readonly isSource: boolean;
+    readonly isOutput: boolean;
+}
+export interface ExtensionSessionResourcePublishPayload {
+    readonly key: string;
+    readonly title: string;
+    readonly kind: 'image' | 'link';
+    readonly role: ExtensionSessionResourceRole;
+    /** A credential-free HTTPS locator is required and retained only by the host. */
+    readonly locator: string;
+}
+export interface ExtensionSessionResourcesListResult {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES;
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES;
+    readonly sessionId: string;
+    readonly resources: readonly ExtensionSessionResourceView[];
+}
+export interface ExtensionSessionResourcePublishResult {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES;
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.PUBLISH_RESOURCE;
+    readonly sessionId: string;
+    readonly resource: ExtensionSessionResourceView;
 }
 export interface ExtensionSettingsView {
     readonly modelPreferences: ExtensionModelPrefs;
@@ -7960,8 +8111,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly SETTINGS: 'openwaggle.settings';
         readonly DOCS: 'openwaggle.docs';
         readonly RUNTIME: 'openwaggle.runtime';
+        readonly RESOURCES: 'openwaggle.resources';
     };
-    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
+    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.resources" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
     readonly CAPABILITY_METHODS: readonly [{
         readonly capability: "openwaggle.host.context";
         readonly methods: readonly ["get-scope"];
@@ -7983,6 +8135,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
     }, {
         readonly capability: "openwaggle.runtime";
         readonly methods: readonly ["register-contribution", "unregister-contribution"];
+    }, {
+        readonly capability: "openwaggle.resources";
+        readonly methods: readonly ["list-resources", "publish-resource"];
     }];
     readonly METHOD: {
         readonly GET_SCOPE: 'get-scope';
@@ -8001,8 +8156,10 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly RESOLVE_DOCS_TOPIC: 'resolve-docs-topic';
         readonly REGISTER_CONTRIBUTION: 'register-contribution';
         readonly UNREGISTER_CONTRIBUTION: 'unregister-contribution';
+        readonly LIST_RESOURCES: 'list-resources';
+        readonly PUBLISH_RESOURCE: 'publish-resource';
     };
-    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
+    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-resources" | "publish-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
     readonly FAILURE_CODE: {
         readonly INVALID_INPUT: 'invalid-input';
         readonly INVALID_PAYLOAD: 'invalid-payload';
@@ -9043,8 +9200,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly SETTINGS: 'openwaggle.settings';
         readonly DOCS: 'openwaggle.docs';
         readonly RUNTIME: 'openwaggle.runtime';
+        readonly RESOURCES: 'openwaggle.resources';
     };
-    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
+    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.resources" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
     readonly CAPABILITY_METHODS: readonly [{
         readonly capability: "openwaggle.host.context";
         readonly methods: readonly ["get-scope"];
@@ -9066,6 +9224,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
     }, {
         readonly capability: "openwaggle.runtime";
         readonly methods: readonly ["register-contribution", "unregister-contribution"];
+    }, {
+        readonly capability: "openwaggle.resources";
+        readonly methods: readonly ["list-resources", "publish-resource"];
     }];
     readonly METHOD: {
         readonly GET_SCOPE: 'get-scope';
@@ -9084,8 +9245,10 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly RESOLVE_DOCS_TOPIC: 'resolve-docs-topic';
         readonly REGISTER_CONTRIBUTION: 'register-contribution';
         readonly UNREGISTER_CONTRIBUTION: 'unregister-contribution';
+        readonly LIST_RESOURCES: 'list-resources';
+        readonly PUBLISH_RESOURCE: 'publish-resource';
     };
-    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
+    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-resources" | "publish-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
     readonly FAILURE_CODE: {
         readonly INVALID_INPUT: 'invalid-input';
         readonly INVALID_PAYLOAD: 'invalid-payload';
@@ -9765,7 +9928,7 @@ export declare function createRuntimeContributionSdk(invoke: ExtensionSdkInvoke)
 
 ```ts
 import type { JsonValue } from './json.js';
-import type { ExtensionActionSelectProjectResult, ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, ExtensionInvokeFailure, ExtensionInvokeInput, ExtensionInvokeResult, ExtensionInvokeScope, ExtensionInvokeSuccess, ExtensionModelPreferencesSettingsPatch, ExtensionRuntimeRegisterContributionPayload, ExtensionRuntimeRegisterContributionResult, ExtensionRuntimeUnregisterContributionPayload, ExtensionRuntimeUnregisterContributionResult, ExtensionSettingsGetResult, ExtensionSettingsGetSettingResult, ExtensionSettingsUpdatePayload, ExtensionSettingsUpdateResult, ExtensionSettingsUpdateSettingResult, ExtensionStateCurrentBranchReadResult, ExtensionStateCurrentProjectReadResult, ExtensionStateCurrentSessionReadResult, ExtensionStateModelPreferencesReadResult, ExtensionStateReadResult, ExtensionStateRecentProjectsReadResult, ExtensionStorageDeleteResult, ExtensionStorageGetResult, ExtensionStorageListResult, ExtensionStorageSetResult } from './types.js';
+import type { ExtensionActionSelectProjectResult, ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, ExtensionInvokeFailure, ExtensionInvokeInput, ExtensionInvokeResult, ExtensionInvokeScope, ExtensionInvokeSuccess, ExtensionModelPreferencesSettingsPatch, ExtensionRuntimeRegisterContributionPayload, ExtensionRuntimeRegisterContributionResult, ExtensionRuntimeUnregisterContributionPayload, ExtensionRuntimeUnregisterContributionResult, ExtensionSessionResourcePublishPayload, ExtensionSessionResourcePublishResult, ExtensionSessionResourcesListResult, ExtensionSettingsGetResult, ExtensionSettingsGetSettingResult, ExtensionSettingsUpdatePayload, ExtensionSettingsUpdateResult, ExtensionSettingsUpdateSettingResult, ExtensionStateCurrentBranchReadResult, ExtensionStateCurrentProjectReadResult, ExtensionStateCurrentSessionReadResult, ExtensionStateModelPreferencesReadResult, ExtensionStateReadResult, ExtensionStateRecentProjectsReadResult, ExtensionStorageDeleteResult, ExtensionStorageGetResult, ExtensionStorageListResult, ExtensionStorageSetResult } from './types.js';
 export type ExtensionOperationSuccess<TValue> = ExtensionInvokeSuccess<TValue>;
 export type ExtensionStorageGetOperationResult = ExtensionOperationSuccess<ExtensionStorageGetResult> | ExtensionInvokeFailure;
 export type ExtensionStorageSetOperationResult = ExtensionOperationSuccess<ExtensionStorageSetResult> | ExtensionInvokeFailure;
@@ -9786,6 +9949,8 @@ export type ExtensionSettingsGetOperationResult = ExtensionOperationSuccess<Exte
 export type ExtensionSettingsGetSettingOperationResult = ExtensionOperationSuccess<ExtensionSettingsGetSettingResult> | ExtensionInvokeFailure;
 export type ExtensionSettingsUpdateOperationResult = ExtensionOperationSuccess<ExtensionSettingsUpdateResult> | ExtensionInvokeFailure;
 export type ExtensionSettingsUpdateSettingOperationResult = ExtensionOperationSuccess<ExtensionSettingsUpdateSettingResult> | ExtensionInvokeFailure;
+export type ExtensionSessionResourcesListOperationResult = ExtensionOperationSuccess<ExtensionSessionResourcesListResult> | ExtensionInvokeFailure;
+export type ExtensionSessionResourcePublishOperationResult = ExtensionOperationSuccess<ExtensionSessionResourcePublishResult> | ExtensionInvokeFailure;
 export interface ExtensionSdkIdentity {
     readonly extensionId: string;
     readonly contributionId: string;
@@ -9838,6 +10003,10 @@ export interface ExtensionOpenWaggleSdk {
     readonly docs: {
         readonly discover: (scope: ExtensionInvokeScope, input?: ExtensionDocsDiscoverPayload) => Promise<ExtensionInvokeResult<ExtensionDocsDiscoverResult>>;
         readonly resolveTopic: (scope: ExtensionInvokeScope, input: ExtensionDocsResolveTopicPayload) => Promise<ExtensionInvokeResult<ExtensionDocsResolveTopicResult>>;
+    };
+    readonly resources: {
+        readonly list: (scope: ExtensionInvokeScope) => Promise<ExtensionInvokeResult<ExtensionSessionResourcesListResult>>;
+        readonly publish: (scope: ExtensionInvokeScope, resource: ExtensionSessionResourcePublishPayload) => Promise<ExtensionInvokeResult<ExtensionSessionResourcePublishResult>>;
     };
 }
 export interface ExtensionRuntimeContributionSdk {
@@ -10036,6 +10205,41 @@ export interface ExtensionActionSelectProjectResult {
     readonly previousProjectPath: string | null;
     readonly projectPath: string;
     readonly recentProjects: readonly string[];
+}
+export type ExtensionSessionResourceKind = 'image' | 'file' | 'link' | 'tool' | 'web-search' | 'site' | 'commit' | 'change-request';
+export type ExtensionSessionResourceRole = 'source' | 'output';
+export interface ExtensionSessionResourceView {
+    readonly id: string;
+    readonly title: string;
+    readonly kind: ExtensionSessionResourceKind;
+    readonly mimeType: string | null;
+    readonly available: boolean;
+    readonly isSource: boolean;
+    readonly isOutput: boolean;
+}
+export interface ExtensionSessionResourcePublishPayload {
+    readonly key: string;
+    readonly title: string;
+    readonly kind: 'image' | 'link';
+    readonly role: ExtensionSessionResourceRole;
+    /** A credential-free HTTPS locator is required and retained only by the host. */
+    readonly locator: string;
+}
+export interface ExtensionSessionResourcesListResult {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES;
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES;
+    readonly sessionId: string;
+    readonly resources: readonly ExtensionSessionResourceView[];
+}
+export interface ExtensionSessionResourcePublishResult {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES;
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.PUBLISH_RESOURCE;
+    readonly sessionId: string;
+    readonly resource: ExtensionSessionResourceView;
 }
 export interface ExtensionSettingsView {
     readonly modelPreferences: ExtensionModelPrefs;
@@ -10873,8 +11077,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly SETTINGS: 'openwaggle.settings';
         readonly DOCS: 'openwaggle.docs';
         readonly RUNTIME: 'openwaggle.runtime';
+        readonly RESOURCES: 'openwaggle.resources';
     };
-    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
+    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.resources" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
     readonly CAPABILITY_METHODS: readonly [{
         readonly capability: "openwaggle.host.context";
         readonly methods: readonly ["get-scope"];
@@ -10896,6 +11101,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
     }, {
         readonly capability: "openwaggle.runtime";
         readonly methods: readonly ["register-contribution", "unregister-contribution"];
+    }, {
+        readonly capability: "openwaggle.resources";
+        readonly methods: readonly ["list-resources", "publish-resource"];
     }];
     readonly METHOD: {
         readonly GET_SCOPE: 'get-scope';
@@ -10914,8 +11122,10 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly RESOLVE_DOCS_TOPIC: 'resolve-docs-topic';
         readonly REGISTER_CONTRIBUTION: 'register-contribution';
         readonly UNREGISTER_CONTRIBUTION: 'unregister-contribution';
+        readonly LIST_RESOURCES: 'list-resources';
+        readonly PUBLISH_RESOURCE: 'publish-resource';
     };
-    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
+    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-resources" | "publish-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
     readonly FAILURE_CODE: {
         readonly INVALID_INPUT: 'invalid-input';
         readonly INVALID_PAYLOAD: 'invalid-payload';
@@ -12040,6 +12250,41 @@ export interface ExtensionActionSelectProjectResult {
     readonly previousProjectPath: string | null;
     readonly projectPath: string;
     readonly recentProjects: readonly string[];
+}
+export type ExtensionSessionResourceKind = 'image' | 'file' | 'link' | 'tool' | 'web-search' | 'site' | 'commit' | 'change-request';
+export type ExtensionSessionResourceRole = 'source' | 'output';
+export interface ExtensionSessionResourceView {
+    readonly id: string;
+    readonly title: string;
+    readonly kind: ExtensionSessionResourceKind;
+    readonly mimeType: string | null;
+    readonly available: boolean;
+    readonly isSource: boolean;
+    readonly isOutput: boolean;
+}
+export interface ExtensionSessionResourcePublishPayload {
+    readonly key: string;
+    readonly title: string;
+    readonly kind: 'image' | 'link';
+    readonly role: ExtensionSessionResourceRole;
+    /** A credential-free HTTPS locator is required and retained only by the host. */
+    readonly locator: string;
+}
+export interface ExtensionSessionResourcesListResult {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES;
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES;
+    readonly sessionId: string;
+    readonly resources: readonly ExtensionSessionResourceView[];
+}
+export interface ExtensionSessionResourcePublishResult {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES;
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.PUBLISH_RESOURCE;
+    readonly sessionId: string;
+    readonly resource: ExtensionSessionResourceView;
 }
 export interface ExtensionSettingsView {
     readonly modelPreferences: ExtensionModelPrefs;

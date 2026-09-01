@@ -35,6 +35,9 @@ export interface IpcEventChannelMap {
   'agent:run-completed': {
     payload: { sessionId: SessionId }
   }
+  'sessions:resources-invalidated': {
+    payload: { sessionId: SessionId }
+  }
   'agent:worktree-launch': {
     payload: WorktreeLaunchEventPayload
   }

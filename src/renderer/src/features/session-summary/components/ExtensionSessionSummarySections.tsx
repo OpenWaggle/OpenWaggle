@@ -94,6 +94,7 @@ export function ExtensionSessionSummarySections({
     (entry) =>
       entry.family === OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SESSION_SUMMARY_SECTIONS &&
       entry.sessionSummary?.placement === placement &&
+      (entry.sessionSummary?.rows.length ?? 0) > 0 &&
       isEligibleSessionSummaryEntry(entry),
   )
   if (contributions.length === 0) return null

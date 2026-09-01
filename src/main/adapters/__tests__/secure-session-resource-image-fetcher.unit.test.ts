@@ -4,9 +4,10 @@ import { MAX_REMOTE_IMAGE_BYTES } from '../../domain/session-resource-image'
 import type { SecureMcpFetch } from '../mcp/runtime/secure-fetch'
 import { createSecureSessionResourceImageFetcher } from '../secure-session-resource-image-fetcher'
 
-const PNG_BYTES = Buffer.from([
-  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x00,
-])
+const PNG_BYTES = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64',
+)
 
 function fakeSecureFetch(response: Response): SecureMcpFetch {
   return Object.assign(

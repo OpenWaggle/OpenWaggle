@@ -45,6 +45,35 @@ async function viewMergeRequest(projectPath: string, ref: string): Promise<Chang
   return { ok: true, changeRequest }
 }
 
+function createdMergeRequestFromOutput(
+  result: CliResult,
+  payload: OpenChangeRequestPayload,
+): ChangeRequestResult | null {
+  const url = result.stdout.match(/https?:\/\/\S+/u)?.[0]
+  if (!url) return null
+  return {
+    ok: true,
+    changeRequest: {
+      title: payload.title,
+      url,
+      baseRef: payload.baseRef ?? '',
+      headRef: payload.headRef,
+      state: payload.draft ? 'draft' : 'open',
+    },
+  }
+}
+
+async function resolveCreatedMergeRequest(
+  projectPath: string,
+  payload: OpenChangeRequestPayload,
+  result: CliResult,
+) {
+  const resolved = await viewMergeRequest(projectPath, payload.headRef)
+  if (resolved.ok) return resolved
+  if (result.code !== 0) return classifyFailure(result)
+  return createdMergeRequestFromOutput(result, payload) ?? resolved
+}
+
 export const gitlabProvider: SourceControlProvider = {
   id: 'gitlab',
   authStatus: async (projectPath: string): Promise<SourceControlAuthResult> => {
@@ -62,12 +91,12 @@ export const gitlabProvider: SourceControlProvider = {
       payload.title,
       '--description',
       payload.body ?? '',
+      '--yes',
     ]
     if (payload.baseRef) args.push('--target-branch', payload.baseRef)
     if (payload.draft) args.push('--draft')
     const result = await runCli('glab', args, projectPath)
-    if (result.code !== 0) return classifyFailure(result)
-    return viewMergeRequest(projectPath, payload.headRef)
+    return resolveCreatedMergeRequest(projectPath, payload, result)
   },
   resolveChangeRequestForRef: (projectPath: string, headRef: string) =>
     viewMergeRequest(projectPath, headRef),

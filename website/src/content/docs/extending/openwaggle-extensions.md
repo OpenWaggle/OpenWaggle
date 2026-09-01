@@ -350,6 +350,33 @@ The trust review should make these privileges visible:
 - External runtime requirements: `runtimeRequirements` declares required binaries or commands. Missing requirements block trust or runtime eligibility until fixed.
 - Brokered capabilities: `capabilities` declares SDK capabilities, methods, and scopes such as `openwaggle.storage` with `get`, `set`, and `list` for `project` scope.
 
+### Session Summary resources
+
+An extension can add credential-free HTTPS links or images to the current Session Summary by declaring `openwaggle.resources` with the `list` and/or `publish` methods for `session` scope. The host binds frame calls to the Session for which the surface was mounted; a contribution cannot read or publish into another Session by supplying its id. Published resources are idempotent by the extension's key, role, and locator, and never expose managed file bytes to extensions.
+
+Session-bound surfaces receive `context.sessionId`. Include both that id and the mounted project path in the explicit scope:
+
+```ts
+const projectPath = context.projectPaths[0]
+if (!context.sessionId || !projectPath) return
+
+const scope = {
+  kind: 'session' as const,
+  projectPath,
+  sessionId: context.sessionId,
+}
+
+await context.sdk.openWaggle.resources.publish(scope, {
+  key: 'analysis-report',
+  title: 'Analysis report',
+  kind: 'link',
+  role: 'output',
+  locator: 'https://example.com/reports/analysis',
+})
+```
+
+Use `role: "source"` for material the extension read and `role: "output"` for material it created. Only HTTPS locators without embedded credentials are accepted.
+
 Trust pins the current package content hash. Editing manifest files, source files, built artifacts, or the build plan changes the hash and creates an explicit update path. Extension updates are user-approved; they are not silent runtime swaps.
 
 Current v1 enforcement is capability-specific:
@@ -385,6 +412,7 @@ The state model is:
 - OpenWaggle state is read-only through typed capabilities such as `openWaggle.state.get(scope)`.
 - OpenWaggle mutations use typed action capabilities such as `openWaggle.actions.selectProject(scope, projectPath)`.
 - Settings access uses typed settings capabilities such as `openWaggle.settings.get(scope)` and `openWaggle.settings.update(scope, settings)`.
+- Session resource access uses `openWaggle.resources.list(scope)` and `openWaggle.resources.publish(scope, resource)` for the mounted Session only.
 - Extension package state is extension-owned and can be shared by every contribution from the same package.
 - `storage.packageState.global` and `storage.packageState.project` are for persistent package state.
 - `storage.packageConfig.global` and `storage.packageConfig.project` are for persistent package configuration.

@@ -58,6 +58,35 @@ async function viewPullRequest(projectPath: string, ref: string): Promise<Change
   return { ok: true, changeRequest }
 }
 
+function createdPullRequestFromOutput(
+  result: CliResult,
+  payload: OpenChangeRequestPayload,
+): ChangeRequestResult | null {
+  const url = result.stdout.match(/https?:\/\/\S+/u)?.[0]
+  if (!url) return null
+  return {
+    ok: true,
+    changeRequest: {
+      title: payload.title,
+      url,
+      baseRef: payload.baseRef ?? '',
+      headRef: payload.headRef,
+      state: payload.draft ? 'draft' : 'open',
+    },
+  }
+}
+
+async function resolveCreatedPullRequest(
+  projectPath: string,
+  payload: OpenChangeRequestPayload,
+  result: CliResult,
+) {
+  const resolved = await viewPullRequest(projectPath, payload.headRef)
+  if (resolved.ok) return resolved
+  if (result.code !== 0) return classifyFailure(result)
+  return createdPullRequestFromOutput(result, payload) ?? resolved
+}
+
 export const githubProvider: SourceControlProvider = {
   id: 'github',
   authStatus,
@@ -75,9 +104,12 @@ export const githubProvider: SourceControlProvider = {
     if (payload.baseRef) args.push('--base', payload.baseRef)
     if (payload.draft) args.push('--draft')
     const result = await runCli('gh', args, projectPath)
-    if (result.code !== 0) return classifyFailure(result)
-    // gh prints the created PR URL; fetch full metadata for the head ref.
-    return viewPullRequest(projectPath, payload.headRef)
+    // Creation can succeed remotely even when the CLI exits non-zero (for example, a
+    // connection drops while printing the response). Resolve the exact head before
+    // reporting failure so a retry cannot create a duplicate request.
+    // gh prints the created PR URL. Preserve that successful outcome when the
+    // metadata lookup is transiently unavailable.
+    return resolveCreatedPullRequest(projectPath, payload, result)
   },
   resolveChangeRequestForRef: (projectPath: string, headRef: string) =>
     viewPullRequest(projectPath, headRef),

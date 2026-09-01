@@ -3,22 +3,20 @@ import type { GitStatusSummary, VcsStatus } from '@shared/types/git'
 import type { SessionDetail } from '@shared/types/session'
 import { sanitizeFeatureBranchName } from '@shared/utils/git-stacked-action'
 import { getChangeRequestTerminology } from '@shared/utils/source-control-presentation'
-import { useQueryClient } from '@tanstack/react-query'
-import { ExternalLink, GitPullRequest, X } from 'lucide-react'
-import { useId, useState } from 'react'
+import { type QueryClient, useQueryClient } from '@tanstack/react-query'
+import { X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
-import { Checkbox } from '@/shared/ui/Checkbox'
 import { ModalDialog } from '@/shared/ui/ModalDialog'
-import { Textarea } from '@/shared/ui/Textarea'
 import { useUIStore } from '@/shell/ui-store'
 import { sessionResourcesQueryKey } from '../hooks/useSessionResources'
+import { ChangeRequestComposerActions } from './ChangeRequestComposerActions'
+import { ChangeRequestFields } from './ChangeRequestFields'
 import {
   changeRequestActionInput,
   emptyFeatureBranchValidationMessage,
 } from './change-request-composer-model'
-
-const DESCRIPTION_ROWS = 6
 
 interface ChangeRequestComposerProps {
   readonly session: SessionDetail
@@ -29,125 +27,47 @@ interface ChangeRequestComposerProps {
   readonly onCompleted: () => void
 }
 
-interface ChangeRequestFieldsModel {
-  readonly createFeatureBranch: boolean
-  readonly branchName: string
+interface CreatedRequest {
   readonly title: string
-  readonly description: string
-  readonly commitAndPush: boolean
-  readonly gitStatus: GitStatusSummary | null
-  readonly error: string | null
-  readonly onBranchNameChange: (value: string) => void
-  readonly onTitleChange: (value: string) => void
-  readonly onDescriptionChange: (value: string) => void
-  readonly onCommitAndPushChange: (value: boolean) => void
+  readonly url: string
 }
 
-function ChangeRequestFields({ model }: { readonly model: ChangeRequestFieldsModel }) {
-  const descriptionId = useId()
-  return (
-    <div className="space-y-4 p-4">
-      {model.createFeatureBranch ? (
-        <label className="block">
-          <span className="mb-1.5 block text-sm font-semibold text-text-secondary">Branch</span>
-          <input
-            aria-label="New branch name"
-            className="h-9 w-full rounded-md border border-border bg-bg px-3 font-mono text-sm outline-none"
-            value={model.branchName}
-            onChange={(event) => model.onBranchNameChange(event.target.value)}
-          />
-        </label>
-      ) : null}
-      <label className="block">
-        <span className="mb-1.5 block text-sm font-semibold text-text-secondary">Title</span>
-        <input
-          className="h-9 w-full rounded-md border border-border bg-bg px-3 text-sm outline-none"
-          value={model.title}
-          onChange={(event) => model.onTitleChange(event.target.value)}
-        />
-      </label>
-      <div>
-        <label htmlFor={descriptionId} className="mb-1.5 block text-sm text-text-tertiary">
-          Description (leave empty to generate)
-        </label>
-        <Textarea
-          id={descriptionId}
-          rows={DESCRIPTION_ROWS}
-          resize="none"
-          value={model.description}
-          onChange={(event) => model.onDescriptionChange(event.target.value)}
-        />
-      </div>
-      {model.gitStatus && model.gitStatus.filesChanged > 0 ? (
-        <Checkbox
-          checked={model.commitAndPush}
-          onChange={(event) => model.onCommitAndPushChange(event.target.checked)}
-          label={
-            <span className="flex w-full items-center justify-between gap-3">
-              <span>Commit and push local changes</span>
-              <span className="text-xs">
-                <span className="text-success">+{model.gitStatus.additions}</span>{' '}
-                <span className="text-error">-{model.gitStatus.deletions}</span>
-              </span>
-            </span>
-          }
-        />
-      ) : null}
-      {model.error ? (
-        <p role="alert" className="text-sm text-error">
-          {model.error}
-        </p>
-      ) : null}
-    </div>
+function startsOnDefaultRef(status: VcsStatus | null) {
+  return status?.defaultRef != null && status.refName === status.defaultRef
+}
+
+function runComposerAction(
+  props: ChangeRequestComposerProps,
+  input: {
+    readonly title: string
+    readonly description: string
+    readonly branchName: string
+    readonly commitAndPush: boolean
+    readonly createFeatureBranch: boolean
+    readonly draft: boolean
+  },
+) {
+  return api.runStackedGitAction(
+    props.workingPath,
+    changeRequestActionInput({ ...props, ...input }),
   )
 }
 
-function ChangeRequestActions({
-  terminology,
-  running,
-  branchMissing,
-  onCreate,
-  browserUrl,
-  onOpenBrowser,
-}: {
-  readonly terminology: ReturnType<typeof getChangeRequestTerminology>
-  readonly running: boolean
-  readonly branchMissing: boolean
-  readonly onCreate: (draft: boolean) => void
-  readonly browserUrl: string | null
-  readonly onOpenBrowser: () => void
-}) {
-  return (
-    <footer className="space-y-1 border-t border-border p-2">
-      <Button
-        variant="ghost"
-        className="w-full justify-start"
-        disabled={running || branchMissing}
-        onClick={() => onCreate(true)}
-      >
-        <GitPullRequest className="size-4" />
-        Create draft {terminology.shortLabel}
-      </Button>
-      <Button
-        variant="subtle"
-        className="w-full justify-start"
-        disabled={running || branchMissing}
-        onClick={() => onCreate(false)}
-      >
-        <GitPullRequest className="size-4" />
-        Create {terminology.shortLabel}
-      </Button>
-      <Button
-        variant="ghost"
-        className="w-full justify-start"
-        disabled={!browserUrl || running}
-        onClick={onOpenBrowser}
-      >
-        <ExternalLink className="size-4" />
-        Open {terminology.shortLabel} in browser
-      </Button>
-    </footer>
-  )
+function outputRecordingError(shortLabel: string) {
+  return `${shortLabel} was created, but it could not be added to this session's Outputs. Retry adding it without creating another ${shortLabel}.`
+}
+
+async function addCreatedRequestToOutputs(
+  props: ChangeRequestComposerProps,
+  request: CreatedRequest,
+  queryClient: QueryClient,
+) {
+  await api.recordSessionChangeRequest(props.session.id, request)
+  await queryClient.invalidateQueries({
+    queryKey: sessionResourcesQueryKey(String(props.session.id)),
+  })
+  void api.openExternal(request.url)
+  props.onClose()
 }
 
 function useChangeRequestComposer(
@@ -157,15 +77,14 @@ function useChangeRequestComposer(
   const [title, setTitle] = useState(props.session.title)
   const [description, setDescription] = useState('')
   const [commitAndPush, setCommitAndPush] = useState((props.gitStatus?.filesChanged ?? 0) > 0)
-  const [createFeatureBranch] = useState(
-    props.vcsStatus?.defaultRef != null && props.vcsStatus.refName === props.vcsStatus.defaultRef,
-  )
+  const [createFeatureBranch] = useState(() => startsOnDefaultRef(props.vcsStatus))
   const [branchName, setBranchName] = useState(() =>
     sanitizeFeatureBranchName(`codex/${props.session.title}`),
   )
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fallbackUrl, setFallbackUrl] = useState<string | null>(null)
+  const [pendingResourceRecord, setPendingResourceRecord] = useState<CreatedRequest | null>(null)
   const showToast = useUIStore((state) => state.showToast)
   const queryClient = useQueryClient()
   const validationError = emptyFeatureBranchValidationMessage(
@@ -173,25 +92,46 @@ function useChangeRequestComposer(
     terminology.singular,
   )
 
+  function updateField<T>(setter: (value: T) => void, value: T) {
+    if (pendingResourceRecord) return
+    setFallbackUrl(null)
+    setter(value)
+  }
+
+  async function recordCreatedRequest(request: CreatedRequest) {
+    setRunning(true)
+    setError(null)
+    try {
+      await addCreatedRequestToOutputs(props, request, queryClient)
+    } catch {
+      setPendingResourceRecord(request)
+      setFallbackUrl(request.url)
+      setError(outputRecordingError(terminology.shortLabel))
+    } finally {
+      setRunning(false)
+    }
+  }
+
   async function create(draft: boolean) {
-    if (running || validationError || (createFeatureBranch && branchName.trim().length === 0))
+    if (
+      running ||
+      pendingResourceRecord ||
+      validationError ||
+      (createFeatureBranch && branchName.trim().length === 0)
+    )
       return
     setRunning(true)
     setError(null)
     setFallbackUrl(null)
     try {
-      const result = await api.runStackedGitAction(
-        props.workingPath,
-        changeRequestActionInput({
-          ...props,
-          title,
-          description,
-          branchName,
-          commitAndPush,
-          createFeatureBranch,
-          draft,
-        }),
-      )
+      const result = await runComposerAction(props, {
+        title,
+        description,
+        branchName,
+        commitAndPush,
+        createFeatureBranch,
+        draft,
+      })
       if (!result.ok) {
         if (result.branch?.name) setBranchName(result.branch.name)
         setFallbackUrl(result.fallbackUrl ?? null)
@@ -200,18 +140,23 @@ function useChangeRequestComposer(
       }
       showToast(`${terminology.shortLabel} created.`, 'success')
       if (result.changeRequest) {
-        await api
-          .recordSessionChangeRequest(props.session.id, {
-            title: result.changeRequest.title,
-            url: result.changeRequest.url,
-          })
-          .then(() =>
-            queryClient.invalidateQueries({
-              queryKey: sessionResourcesQueryKey(String(props.session.id)),
-            }),
-          )
-          .catch(() => undefined)
-        void api.openExternal(result.changeRequest.url)
+        const request = {
+          title: result.changeRequest.title,
+          url: result.changeRequest.url,
+        }
+        setFallbackUrl(request.url)
+        props.onCompleted()
+        if (result.changeRequestOutput?.ok === false) {
+          setPendingResourceRecord(request)
+          setError(outputRecordingError(terminology.shortLabel))
+          return
+        }
+        await queryClient.invalidateQueries({
+          queryKey: sessionResourcesQueryKey(String(props.session.id)),
+        })
+        void api.openExternal(request.url)
+        props.onClose()
+        return
       }
       props.onCompleted()
       props.onClose()
@@ -226,19 +171,23 @@ function useChangeRequestComposer(
 
   return {
     title,
-    setTitle,
+    setTitle: (value: string) => updateField(setTitle, value),
     description,
-    setDescription,
+    setDescription: (value: string) => updateField(setDescription, value),
     commitAndPush,
-    setCommitAndPush,
+    setCommitAndPush: (value: boolean) => updateField(setCommitAndPush, value),
     createFeatureBranch,
     branchName,
-    setBranchName,
+    setBranchName: (value: string) => updateField(setBranchName, value),
     running,
     error: validationError ?? error,
-    creationBlocked: validationError !== null,
+    creationBlocked: validationError !== null || pendingResourceRecord !== null,
     fallbackUrl,
+    pendingResourceRecord,
     create,
+    retryResourceRecord: () => {
+      if (pendingResourceRecord && !running) void recordCreatedRequest(pendingResourceRecord)
+    },
   }
 }
 
@@ -250,61 +199,106 @@ export function ChangeRequestComposer(props: ChangeRequestComposerProps) {
   const terminology = getChangeRequestTerminology(props.vcsStatus?.sourceControlProvider?.id)
   const composer = useChangeRequestComposer(props, terminology)
   const browserUrl = resolveBrowserUrl(composer.fallbackUrl, props.vcsStatus)
+  const retryButtonRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (composer.pendingResourceRecord && !composer.running && composer.error) {
+      retryButtonRef.current?.focus()
+    }
+  }, [composer.error, composer.pendingResourceRecord, composer.running])
+  const close = () => {
+    if (!composer.running) props.onClose()
+  }
 
   return (
-    <ModalDialog label={`Create ${terminology.singular}`} onClose={props.onClose}>
-      <header className="flex items-center justify-between border-b border-border px-4 py-3">
-        <div className="min-w-0">
-          <p className="text-sm text-text-tertiary">
-            {composer.createFeatureBranch
-              ? 'New branch'
-              : (props.vcsStatus?.refName ?? 'Current ref')}{' '}
-            →{' '}
-            {props.vcsStatus?.changeRequest?.baseRef ??
-              props.vcsStatus?.defaultRef ??
-              'default branch'}
-          </p>
-          <h2 className="truncate text-sm font-semibold text-text-primary">
-            Create {terminology.singular}
-          </h2>
-        </div>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Close change request composer"
-          onClick={props.onClose}
-        >
-          <X className="size-4" />
-        </Button>
-      </header>
-      <ChangeRequestFields
-        model={{
-          createFeatureBranch: composer.createFeatureBranch,
-          branchName: composer.branchName,
-          title: composer.title,
-          description: composer.description,
-          commitAndPush: composer.commitAndPush,
-          gitStatus: props.gitStatus,
-          error: composer.error,
-          onBranchNameChange: composer.setBranchName,
-          onTitleChange: composer.setTitle,
-          onDescriptionChange: composer.setDescription,
-          onCommitAndPushChange: composer.setCommitAndPush,
+    <ModalDialog
+      label={`Create ${terminology.singular}`}
+      onClose={close}
+      dismissible={!composer.running}
+    >
+      <form
+        aria-busy={composer.running}
+        onSubmit={(event) => event.preventDefault()}
+        onKeyDown={(event) => {
+          if (
+            event.key !== 'Enter' ||
+            (!event.metaKey && !event.ctrlKey) ||
+            event.nativeEvent.isComposing ||
+            composer.running ||
+            composer.creationBlocked ||
+            (composer.createFeatureBranch && composer.branchName.trim().length === 0)
+          ) {
+            return
+          }
+          event.preventDefault()
+          void composer.create(false)
         }}
-      />
-      <ChangeRequestActions
-        terminology={terminology}
-        running={composer.running}
-        branchMissing={
-          composer.creationBlocked ||
-          (composer.createFeatureBranch && composer.branchName.trim().length === 0)
-        }
-        onCreate={(draft) => void composer.create(draft)}
-        browserUrl={browserUrl}
-        onOpenBrowser={() => {
-          if (browserUrl) void api.openExternal(browserUrl)
-        }}
-      />
+      >
+        <header className="flex items-center justify-between border-b border-border px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm text-text-tertiary">
+              {composer.createFeatureBranch
+                ? 'New branch'
+                : (props.vcsStatus?.refName ?? 'Current ref')}{' '}
+              →{' '}
+              {props.vcsStatus?.changeRequest?.baseRef ??
+                props.vcsStatus?.defaultRef ??
+                'default branch'}
+            </p>
+            <h2 className="truncate text-sm font-semibold text-text-primary">
+              Create {terminology.singular}
+            </h2>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Close change request composer"
+            disabled={composer.running}
+            onClick={close}
+          >
+            <X className="size-4" />
+          </Button>
+        </header>
+        <ChangeRequestFields
+          model={{
+            createFeatureBranch: composer.createFeatureBranch,
+            branchName: composer.branchName,
+            title: composer.title,
+            description: composer.description,
+            commitAndPush: composer.commitAndPush,
+            gitStatus: props.gitStatus,
+            error: composer.error,
+            disabled: composer.pendingResourceRecord !== null,
+            onBranchNameChange: composer.setBranchName,
+            onTitleChange: composer.setTitle,
+            onDescriptionChange: composer.setDescription,
+            onCommitAndPushChange: composer.setCommitAndPush,
+          }}
+        />
+        <p className="sr-only" role="status" aria-live="polite">
+          {composer.running
+            ? composer.pendingResourceRecord
+              ? `Adding ${terminology.shortLabel} to Outputs…`
+              : `Creating ${terminology.shortLabel}…`
+            : ''}
+        </p>
+        <ChangeRequestComposerActions
+          model={{
+            terminology,
+            running: composer.running,
+            branchMissing:
+              composer.creationBlocked ||
+              (composer.createFeatureBranch && composer.branchName.trim().length === 0),
+            onCreate: (draft) => void composer.create(draft),
+            pendingResourceRecord: composer.pendingResourceRecord !== null,
+            onRetryResourceRecord: composer.retryResourceRecord,
+            retryButtonRef,
+            browserUrl,
+            onOpenBrowser: () => {
+              if (browserUrl) void api.openExternal(browserUrl)
+            },
+          }}
+        />
+      </form>
     </ModalDialog>
   )
 }

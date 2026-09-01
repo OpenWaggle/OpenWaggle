@@ -25,9 +25,13 @@ function workspacePathToMessages(workspace: SessionWorkspace, messages: UIMessag
     }
 
     const messageId = String(message.id)
+    const nodeId = String(entry.node.id)
     const existingMessage = messagesById.get(messageId)
     if (existingMessage) {
-      workspaceMessages.push(existingMessage)
+      workspaceMessages.push({
+        ...existingMessage,
+        metadata: { ...existingMessage.metadata, sessionNodeId: nodeId },
+      })
       continue
     }
 
@@ -43,11 +47,12 @@ function workspacePathToMessages(workspace: SessionWorkspace, messages: UIMessag
       ...(branchSummary || compactionSummary
         ? {
             metadata: {
+              sessionNodeId: nodeId,
               ...(branchSummary ? { branchSummary } : {}),
               ...(compactionSummary ? { compactionSummary } : {}),
             },
           }
-        : {}),
+        : { metadata: { sessionNodeId: nodeId } }),
     })
   }
 

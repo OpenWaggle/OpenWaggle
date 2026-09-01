@@ -1,13 +1,14 @@
 import path from 'node:path'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import { MAX_REMOTE_IMAGE_BYTES, validatedImageBuffer } from '../domain/session-resource-image'
+import { MAX_REMOTE_IMAGE_BYTES } from '../domain/session-resource-image'
 import { SessionResourceImageFetchError } from '../errors'
 import {
   SessionResourceImageFetcher,
   type SessionResourceImageFetcherShape,
 } from '../ports/session-resource-image-fetcher'
 import { createSecureMcpFetch, type SecureMcpFetch } from './mcp/runtime/secure-fetch'
+import { decodeSessionResourceImage } from './sharp-session-resource-image-validator'
 
 const FETCH_TIMEOUT_MS = 15_000
 
@@ -63,7 +64,10 @@ function fetchRemoteImage(rawUrl: string, createFetch?: (url: URL) => SecureMcpF
         })
         if (!response.ok) throw new Error(`Remote image returned HTTP ${String(response.status)}.`)
         const bytes = await readBoundedBody(response)
-        const validated = validatedImageBuffer(bytes, response.headers.get('content-type') ?? '')
+        const validated = await decodeSessionResourceImage(
+          bytes,
+          response.headers.get('content-type') ?? '',
+        )
         if (!validated) throw new Error('Remote response is not a supported image.')
         return {
           bytes: validated.bytes,

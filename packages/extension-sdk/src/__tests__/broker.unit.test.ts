@@ -10,6 +10,11 @@ import {
 
 const APP_SCOPE = { kind: 'app' } as const
 const PROJECT_SCOPE = { kind: 'project', projectPath: '/tmp/project' } as const
+const SESSION_SCOPE = {
+  kind: 'session',
+  projectPath: '/tmp/project',
+  sessionId: 'session-1',
+} as const
 const TIMESTAMP = 1234
 
 function auditFor(input: ExtensionInvokeInput): ExtensionCapabilityAuditEntry {
@@ -25,6 +30,99 @@ function auditFor(input: ExtensionInvokeInput): ExtensionCapabilityAuditEntry {
 }
 
 describe('createExtensionBrokerSdk', () => {
+  it('dispatches typed session resource list and publish operations', async () => {
+    const transport = vi.fn<ExtensionBrokerTransport>(async (input) => ({
+      ok: true,
+      value:
+        input.method === OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES
+          ? {
+              extensionId: input.extensionId,
+              contributionId: input.contributionId,
+              capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES,
+              method: OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES,
+              sessionId: SESSION_SCOPE.sessionId,
+              resources: [],
+            }
+          : {
+              extensionId: input.extensionId,
+              contributionId: input.contributionId,
+              capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES,
+              method: OPENWAGGLE_EXTENSION_BROKER.METHOD.PUBLISH_RESOURCE,
+              sessionId: SESSION_SCOPE.sessionId,
+              resource: {
+                id: 'resource-1',
+                title: 'Reference',
+                kind: 'link',
+                mimeType: null,
+                available: true,
+                isSource: true,
+                isOutput: false,
+              },
+            },
+      audit: auditFor(input),
+    }))
+    const sdk = createExtensionBrokerSdk(transport, {
+      extensionId: 'sample-extension',
+      contributionId: 'sample.resources',
+    })
+
+    await sdk.openWaggle.resources.list(SESSION_SCOPE)
+    const published = await sdk.openWaggle.resources.publish(SESSION_SCOPE, {
+      key: 'reference',
+      title: 'Reference',
+      kind: 'link',
+      role: 'source',
+      locator: 'https://example.com/reference',
+    })
+
+    expect(transport).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES,
+        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES,
+        scope: SESSION_SCOPE,
+        payload: {},
+      }),
+    )
+    expect(transport).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.PUBLISH_RESOURCE,
+        payload: expect.objectContaining({ key: 'reference' }),
+      }),
+    )
+    expect(published).toMatchObject({ ok: true, value: { resource: { id: 'resource-1' } } })
+  })
+
+  it('rejects malformed session resource broker results', async () => {
+    const transport = vi.fn<ExtensionBrokerTransport>(async (input) => ({
+      ok: true,
+      value: {
+        extensionId: input.extensionId,
+        contributionId: input.contributionId,
+        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES,
+        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES,
+        sessionId: SESSION_SCOPE.sessionId,
+        resources: [{ locator: '/private/path' }],
+      },
+      audit: auditFor(input),
+    }))
+    const sdk = createExtensionBrokerSdk(transport, {
+      extensionId: 'sample-extension',
+      contributionId: 'sample.resources',
+    })
+
+    const result = await sdk.openWaggle.resources.list(SESSION_SCOPE)
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.INVALID_PAYLOAD,
+        message: 'Extension broker returned an invalid session resource result.',
+      },
+    })
+  })
+
   it('rejects storage success payloads that do not match the requested operation', async () => {
     const transport = vi.fn<ExtensionBrokerTransport>(async (input) => ({
       ok: true,

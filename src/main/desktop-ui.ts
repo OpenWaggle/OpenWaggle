@@ -129,6 +129,10 @@ export function openPath(targetPath: string) {
   return Electron.shell.openPath(targetPath)
 }
 
+export function revealPath(targetPath: string) {
+  Electron.shell.showItemInFolder(targetPath)
+}
+
 export function showMessageBox(ownerWindow: BaseWindow | null, options: MessageBoxOptions) {
   return ownerWindow
     ? Electron.dialog.showMessageBox(ownerWindow, options)

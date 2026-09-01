@@ -1,101 +1,25 @@
 import { SessionId } from '@shared/types/brand'
-import type { SessionResource } from '@shared/types/session-resource'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@/shell/ui-store'
-import { SessionResourceViewer } from '../SessionResourceViewer'
+import { httpImage, image, remoteImage, renderViewer } from './session-resource-viewer.test-harness'
 
 const listSessionResources = vi.hoisted(() => vi.fn())
 const readSessionResource = vi.hoisted(() => vi.fn())
+const retrySessionResource = vi.hoisted(() => vi.fn())
+const openPath = vi.hoisted(() => vi.fn())
+const revealPath = vi.hoisted(() => vi.fn())
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     listSessionResources,
     readSessionResource,
     openExternal: vi.fn(),
+    openPath,
+    revealPath,
+    retrySessionResource,
   },
 }))
-
-function image(
-  id: string,
-  title: string,
-  nodeId: string | null = null,
-  updatedAt = 1000,
-): SessionResource {
-  return {
-    id,
-    sessionId: SessionId('session-1'),
-    canonicalKey: `sha256:${id}`,
-    kind: 'image',
-    title,
-    mimeType: 'image/png',
-    locator: `session-resource://${id}`,
-    available: true,
-    isSource: true,
-    isOutput: false,
-    occurrences: nodeId
-      ? [
-          {
-            id: `occurrence-${id}`,
-            nodeId,
-            branchId: null,
-            actor: 'agent',
-            activity: 'created',
-            label: null,
-            createdAt: 1000,
-          },
-        ]
-      : [],
-    createdAt: 1000,
-    updatedAt,
-  }
-}
-
-function remoteImage(id: string, title: string): SessionResource {
-  return {
-    ...image(id, title),
-    canonicalKey: `url:https://images.example/${id}.png`,
-    mimeType: null,
-    locator: `https://images.example/${id}.png`,
-  }
-}
-
-function httpImage(id: string, title: string): SessionResource {
-  return {
-    ...image(id, title),
-    canonicalKey: `url:http://images.example/${id}.png`,
-    mimeType: null,
-    locator: `http://images.example/${id}.png`,
-  }
-}
-
-function renderViewer(
-  activeSessionId: string | null,
-  activeMessageIds: ReadonlySet<string> = new Set(),
-) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false, staleTime: Number.POSITIVE_INFINITY } },
-  })
-  const view = render(
-    <QueryClientProvider client={queryClient}>
-      <SessionResourceViewer
-        activeSessionId={activeSessionId}
-        activeMessageIds={activeMessageIds}
-      />
-    </QueryClientProvider>,
-  )
-  return {
-    ...view,
-    queryClient,
-    rerenderSession: (sessionId: string | null) =>
-      view.rerender(
-        <QueryClientProvider client={queryClient}>
-          <SessionResourceViewer activeSessionId={sessionId} activeMessageIds={activeMessageIds} />
-        </QueryClientProvider>,
-      ),
-  }
-}
 
 describe('SessionResourceViewer', () => {
   beforeEach(() => {
@@ -109,6 +33,9 @@ describe('SessionResourceViewer', () => {
       mimeType: 'image/png',
       dataBase64: resourceId === 'image-1' ? 'aW1hZ2UtMQ==' : 'aW1hZ2UtMg==',
     }))
+    retrySessionResource.mockReset().mockResolvedValue(undefined)
+    openPath.mockReset().mockResolvedValue(undefined)
+    revealPath.mockReset().mockResolvedValue(undefined)
   })
 
   it('enlarges a session image and navigates the session gallery', async () => {
@@ -119,7 +46,7 @@ describe('SessionResourceViewer', () => {
       await screen.findByRole('dialog', { name: 'Image viewer: first.png' }),
     ).toBeInTheDocument()
     expect(screen.getByText('1 of 2')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Next image' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Next image' }))
     expect(
       await screen.findByRole('dialog', { name: 'Image viewer: second.png' }),
     ).toBeInTheDocument()
@@ -145,7 +72,7 @@ describe('SessionResourceViewer', () => {
 
     expect(await screen.findByRole('dialog', { name: 'Image viewer: old.png' })).toBeInTheDocument()
     expect(screen.getByText('1 of 2')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Next image' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Next image' }))
     expect(await screen.findByRole('dialog', { name: 'Image viewer: new.png' })).toBeInTheDocument()
   })
 
@@ -162,7 +89,7 @@ describe('SessionResourceViewer', () => {
       await screen.findByRole('dialog', { name: 'Image viewer: first.png' }),
     ).toBeInTheDocument()
     expect(screen.getByText('1 of 2')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Next image' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Next image' }))
     expect(
       await screen.findByRole('dialog', { name: 'Image viewer: second.png' }),
     ).toBeInTheDocument()
@@ -181,7 +108,7 @@ describe('SessionResourceViewer', () => {
       await screen.findByRole('dialog', { name: 'Image viewer: first.png' }),
     ).toBeInTheDocument()
     expect(screen.getByText('1 of 2')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Next image' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Next image' }))
     expect(
       await screen.findByRole('dialog', { name: 'Image viewer: second.png' }),
     ).toBeInTheDocument()
@@ -214,6 +141,7 @@ describe('SessionResourceViewer', () => {
     const view = renderViewer('session-1')
     await screen.findByRole('dialog', { name: 'Image viewer: first.png' })
     await waitFor(() => expect(readSessionResource).toHaveBeenCalledOnce())
+    expect(screen.getByRole('button', { name: 'Retry image' })).toBeVisible()
 
     view.queryClient.setQueryData(['session-resources', 'session-1'], {
       resources: [{ ...image('image-1', 'first.png'), updatedAt: 2000 }],
@@ -221,6 +149,15 @@ describe('SessionResourceViewer', () => {
     })
 
     await waitFor(() => expect(readSessionResource).toHaveBeenCalledTimes(2))
+  })
+
+  it('shows an explicit loading state while managed image content is pending', async () => {
+    readSessionResource.mockReturnValue(new Promise(() => {}))
+    useUIStore.getState().openResourceViewer('session-1', 'image-1')
+    renderViewer('session-1')
+
+    expect(await screen.findByText('Loading image…')).toBeVisible()
+    expect(screen.queryByText('This image is available at its source.')).toBeNull()
   })
 
   it('supports Codex-style zoom choices and downloading managed images', async () => {
@@ -236,6 +173,39 @@ describe('SessionResourceViewer', () => {
     })
     expect(renderedImage).toHaveStyle({ width: '1200px', height: '900px' })
     expect(screen.getByRole('button', { name: 'Download image' })).toBeInTheDocument()
+  })
+
+  it('does not navigate while arrow keys operate the zoom control', async () => {
+    useUIStore.getState().openResourceViewer('session-1', 'image-1')
+    renderViewer('session-1')
+    await screen.findByRole('dialog', { name: 'Image viewer: first.png' })
+    const zoom = screen.getByRole('combobox', { name: 'Image zoom' })
+
+    zoom.focus()
+    fireEvent.keyDown(zoom, { key: 'ArrowRight' })
+
+    expect(screen.getByRole('dialog', { name: 'Image viewer: first.png' })).toBeInTheDocument()
+  })
+
+  it('announces retry failure and suppresses concurrent image retries', async () => {
+    readSessionResource.mockReset().mockRejectedValue(new Error('Managed copy unavailable'))
+    let rejectRetry: (cause: Error) => void = () => {}
+    retrySessionResource.mockReturnValue(
+      new Promise((_resolve, reject) => {
+        rejectRetry = reject
+      }),
+    )
+    useUIStore.getState().openResourceViewer('session-1', 'image-1')
+    renderViewer('session-1')
+    const retry = await screen.findByRole('button', { name: 'Retry image' })
+
+    fireEvent.click(retry)
+    fireEvent.click(retry)
+    await waitFor(() => expect(retrySessionResource).toHaveBeenCalledOnce())
+    expect(screen.getByRole('button', { name: 'Retrying image…' })).toBeDisabled()
+    rejectRetry(new Error('Still unavailable'))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Still unavailable')
   })
 
   it('supports drag-to-pan for a zoomed image without changing the selected resource', async () => {
@@ -276,6 +246,33 @@ describe('SessionResourceViewer', () => {
       await screen.findByRole('dialog', { name: 'Image viewer: active-branch.png' }),
     ).toBeInTheDocument()
     expect(screen.getByText('1 of 2')).toBeInTheDocument()
+  })
+
+  it('shows provenance and preserves local original actions beside the managed image', async () => {
+    const local = {
+      ...image('image-local', 'local.png', 'node-local'),
+      locator: '/input/local.png',
+      occurrences: [
+        {
+          id: 'local-occurrence',
+          nodeId: 'node-local',
+          branchId: 'branch-review',
+          actor: 'user' as const,
+          activity: 'provided' as const,
+          label: null,
+          createdAt: 1000,
+        },
+      ],
+    }
+    listSessionResources.mockResolvedValue([local])
+    useUIStore.getState().openResourceViewer('session-1', local.id)
+    renderViewer('session-1')
+
+    expect(await screen.findByText(/Source · user provided · branch branch-review/)).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Open original local.png' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reveal original local.png' }))
+    expect(openPath).toHaveBeenCalledWith('/input/local.png')
+    expect(revealPath).toHaveBeenCalledWith('/input/local.png')
   })
 
   it('closes immediately when the user opens a different session', async () => {

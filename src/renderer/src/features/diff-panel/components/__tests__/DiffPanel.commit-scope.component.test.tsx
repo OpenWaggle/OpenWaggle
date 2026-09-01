@@ -5,7 +5,7 @@ import { useGitStore } from '@/features/git'
 import { api } from '@/shared/lib/ipc'
 import { useDiffScopeStore } from '../../state/diff-scope-store'
 import { useReviewStore } from '../../state/review-store'
-import { DiffPanel } from '../DiffPanel'
+import { DiffPanel, requestStackedAction } from '../DiffPanel'
 import { fileDiff, gitStatus } from './diff-panel.test-harness'
 
 vi.mock('@pierre/diffs/react', async () => ({
@@ -103,6 +103,7 @@ describe('commit scope', () => {
       action: 'commit',
       branch: { status: 'unchanged', name: 'main' },
       changeRequest: null,
+      commit: { commitHash: 'abc123', summary: 'Test commit' },
     })
   })
 
@@ -178,4 +179,30 @@ describe('commit scope', () => {
       await screen.findByText('1 changed file in the working tree will be committed.'),
     ).toBeInTheDocument()
   })
+})
+
+describe('change-request quick actions', () => {
+  it.each(['create_pr', 'commit_push_pr'] as const)(
+    'routes %s through the reviewed composer instead of direct mutation',
+    (action) => {
+      const run = vi.fn()
+      const onCreateChangeRequest = vi.fn()
+      requestStackedAction({
+        action,
+        commitPaths: {
+          paths: [WORKING_TREE_FILE],
+          changedFileCount: 1,
+          isLoading: false,
+          error: null,
+        },
+        run,
+        showToast: vi.fn(),
+        onNeedsMessage: vi.fn(),
+        onCreateChangeRequest,
+      })
+
+      expect(onCreateChangeRequest).toHaveBeenCalledOnce()
+      expect(run).not.toHaveBeenCalled()
+    },
+  )
 })

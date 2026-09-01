@@ -145,6 +145,58 @@ describe('github adapter typed failures (never throws)', () => {
       '/repo',
     )
   })
+
+  it('adopts a PR that exists after the create command reports failure', async () => {
+    runCliMock
+      .mockResolvedValueOnce(cli({ code: 1, stderr: 'connection reset' }))
+      .mockResolvedValueOnce(
+        cli({
+          stdout: JSON.stringify({
+            title: 'T',
+            url: 'https://github.com/o/r/pull/2',
+            baseRefName: 'main',
+            headRefName: 'feature/current',
+            state: 'OPEN',
+            isDraft: false,
+          }),
+        }),
+      )
+
+    await expect(
+      getSourceControlProvider('github')?.openChangeRequest('/repo', {
+        headRef: 'feature/current',
+        baseRef: 'main',
+        title: 'T',
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      changeRequest: { url: 'https://github.com/o/r/pull/2' },
+    })
+  })
+
+  it('preserves a successful create URL when the metadata lookup is transiently unavailable', async () => {
+    runCliMock
+      .mockResolvedValueOnce(cli({ stdout: 'https://github.com/o/r/pull/3\n' }))
+      .mockResolvedValueOnce(cli({ code: 1, stderr: 'connection reset' }))
+
+    await expect(
+      getSourceControlProvider('github')?.openChangeRequest('/repo', {
+        headRef: 'feature/current',
+        baseRef: 'main',
+        title: 'T',
+        draft: true,
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      changeRequest: {
+        title: 'T',
+        url: 'https://github.com/o/r/pull/3',
+        baseRef: 'main',
+        headRef: 'feature/current',
+        state: 'draft',
+      },
+    })
+  })
 })
 
 describe('gitlab adapter defaults', () => {
@@ -175,5 +227,34 @@ describe('gitlab adapter defaults', () => {
       expect.not.arrayContaining(['--target-branch']),
       '/repo',
     )
+    expect(runCliMock.mock.calls[0]?.[1]).toContain('--yes')
+  })
+
+  it('adopts an MR that exists after the create command reports failure', async () => {
+    runCliMock
+      .mockResolvedValueOnce(cli({ code: 1, stderr: 'connection reset' }))
+      .mockResolvedValueOnce(
+        cli({
+          stdout: JSON.stringify({
+            title: 'T',
+            web_url: 'https://gitlab.com/o/r/-/merge_requests/2',
+            target_branch: 'main',
+            source_branch: 'feature/current',
+            state: 'opened',
+            draft: false,
+          }),
+        }),
+      )
+
+    await expect(
+      getSourceControlProvider('gitlab')?.openChangeRequest('/repo', {
+        headRef: 'feature/current',
+        baseRef: 'main',
+        title: 'T',
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      changeRequest: { url: 'https://gitlab.com/o/r/-/merge_requests/2' },
+    })
   })
 })

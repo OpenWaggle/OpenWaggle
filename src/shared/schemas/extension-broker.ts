@@ -17,6 +17,10 @@ import {
   extensionStateSelectedReadResultSchema,
 } from './extension-broker-openwaggle'
 import {
+  extensionSessionResourcePublishResultSchema,
+  extensionSessionResourcesListResultSchema,
+} from './extension-broker-resources'
+import {
   extensionContributionFamilySchema,
   extensionContributionIdSchema,
   extensionContributionRegistrationSchema,
@@ -26,6 +30,7 @@ import {
 
 export * from './extension-broker-core'
 export * from './extension-broker-openwaggle'
+export * from './extension-broker-resources'
 
 const extensionStorageKeySchema = Schema.String.pipe(
   Schema.filter((value) => value.trim().length > 0 || 'Must not be empty.'),
@@ -197,6 +202,8 @@ export const extensionInvokeSuccessValueSchema = Schema.Union(
   extensionDocsResolveTopicResultSchema,
   extensionRuntimeRegisterContributionResultSchema,
   extensionRuntimeUnregisterContributionResultSchema,
+  extensionSessionResourcesListResultSchema,
+  extensionSessionResourcePublishResultSchema,
 )
 
 export const extensionInvokeSuccessSchema = Schema.Struct({

@@ -5,6 +5,7 @@ interface PlaywrightElectronLaunchInput {
   readonly userDataDir: string
   readonly hidden: boolean
   readonly cwd?: string
+  readonly environmentOverrides?: Readonly<Record<string, string>>
 }
 
 export function buildPlaywrightElectronEnvironment(input: {
@@ -24,6 +25,9 @@ export function launchOpenWaggleElectron(
   return electron.launch({
     args: ['.'],
     ...(input.cwd === undefined ? {} : { cwd: input.cwd }),
-    env: buildPlaywrightElectronEnvironment(input),
+    env: {
+      ...buildPlaywrightElectronEnvironment(input),
+      ...input.environmentOverrides,
+    },
   })
 }

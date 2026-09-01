@@ -10,6 +10,7 @@ import {
   type SessionSummaryExtensionSidePanelTarget,
 } from './ExtensionSessionSummarySections'
 import { HiveSummarySection } from './HiveSummarySection'
+import type { SessionResourceFilter } from './SessionResourcesPanel'
 import { EnvironmentSummarySection, ResourceSummarySection } from './SessionSummarySections'
 
 export interface SessionSummaryExpandedPanelInput {
@@ -33,7 +34,8 @@ export interface SessionSummaryExpandedPanelInput {
   readonly onOutputsExpandedChange: (expanded: boolean) => void
   readonly onSourcesExpandedChange: (expanded: boolean) => void
   readonly onOpenDiff: () => void
-  readonly onOpenResources: () => void
+  readonly onOpenResources: (filter?: SessionResourceFilter) => void
+  readonly onOpenImage: (resourceId: string) => void
   readonly onNavigateSession: (sessionId: string) => void
   readonly onCreateChangeRequest: () => void
   readonly onQuickAction: () => void
@@ -110,14 +112,16 @@ export function SessionSummaryExpandedPanel({
             resources={input.outputs}
             expanded={input.outputsExpanded}
             onExpandedChange={input.onOutputsExpandedChange}
-            onOpenResources={input.onOpenResources}
+            onOpenResources={() => input.onOpenResources('outputs')}
+            onOpenImage={input.onOpenImage}
           />
           <ResourceSummarySection
             title="Sources"
             resources={input.sources}
             expanded={input.sourcesExpanded}
             onExpandedChange={input.onSourcesExpandedChange}
-            onOpenResources={input.onOpenResources}
+            onOpenResources={() => input.onOpenResources('sources')}
+            onOpenImage={input.onOpenImage}
           />
           <ExtensionSections input={input} placement="details" />
         </div>

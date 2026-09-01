@@ -23,6 +23,7 @@ import { ProviderServiceLive } from './adapters/pi/pi-provider-service'
 import { PiSessionTreePreferencesLive } from './adapters/pi/pi-session-tree-preferences-service'
 import { SecureSessionResourceImageFetcherLive } from './adapters/secure-session-resource-image-fetcher'
 import { SettingsWagglePresetsRepositoryLive } from './adapters/settings-waggle-presets-repository'
+import { SharpSessionResourceImageValidatorLive } from './adapters/sharp-session-resource-image-validator'
 import { SharpSessionResourceThumbnailerLive } from './adapters/sharp-session-resource-thumbnailer'
 import { SqliteExtensionLifecycleRepositoryLive } from './adapters/sqlite-extension-lifecycle-repository'
 import { SqliteExtensionProjectOverridesRepositoryLive } from './adapters/sqlite-extension-project-overrides-repository'
@@ -83,6 +84,7 @@ const ActiveProjectChangeDependenciesLive = Layer.mergeAll(
   SessionResourceRepositoryLive,
   FilesystemSessionResourceStoreLive,
   SecureSessionResourceImageFetcherLive,
+  SharpSessionResourceImageValidatorLive,
   SqliteSessionProjectionRepositoryLive,
   SqliteSessionRepositoryLive,
 )
@@ -105,6 +107,7 @@ const AppLayer = Layer.mergeAll(
   SessionResourceCleanupRepositoryLive,
   FilesystemSessionResourceStoreLive,
   SecureSessionResourceImageFetcherLive,
+  SharpSessionResourceImageValidatorLive,
   SharpSessionResourceThumbnailerLive,
   SqliteSessionProjectionRepositoryLive,
   SqliteSessionRepositoryLive,

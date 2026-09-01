@@ -68,6 +68,7 @@ export const api: OpenWaggleApi = {
   getContextUsage: invoke('agent:get-context-usage'),
   compactSession: invoke('agent:compact-session'),
   onRunCompleted: on('agent:run-completed'),
+  onSessionResourcesInvalidated: on('sessions:resources-invalidated'),
   onAgentPhase: on('agent:phase'),
   onWorktreeLaunch: on('agent:worktree-launch'),
 
@@ -222,6 +223,7 @@ export const api: OpenWaggleApi = {
   openLogsDir: invoke('app:open-logs-dir'),
   getLogsPath: invoke('app:get-logs-path'),
   openPath: invoke('shell:open-path'),
+  revealPath: invoke('shell:reveal-path'),
 
   // Dialog
   showConfirm: invoke('dialog:confirm'),

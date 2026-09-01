@@ -11,6 +11,7 @@ import {
 } from '@/features/git'
 import { useGit } from '@/features/git/hooks'
 import { api } from '@/shared/lib/ipc'
+import { useUIStore } from '@/shell/ui-store'
 import { useSessionResources } from '../hooks/useSessionResources'
 import {
   isSessionSummaryPanelVisible,
@@ -19,6 +20,7 @@ import {
 } from '../state/session-summary-ui-store'
 import { ChangeRequestComposer } from './ChangeRequestComposer'
 import type { SessionSummaryExtensionSidePanelTarget } from './ExtensionSessionSummarySections'
+import type { SessionResourceFilter } from './SessionResourcesPanel'
 import { SessionSummaryExpandedPanel } from './SessionSummaryExpandedPanel'
 
 function readExpanded(sessionId: string, key: string, fallback: boolean) {
@@ -75,7 +77,7 @@ export interface SessionSummaryHubInput {
   readonly autoHidden: boolean
   readonly rightSidebarOpen: boolean
   readonly onOpenDiff: () => void
-  readonly onOpenResources: () => void
+  readonly onOpenResources: (filter?: SessionResourceFilter) => void
   readonly onNavigateSession: (sessionId: string) => void
   readonly onOpenExtensionSidePanel?: (target: SessionSummaryExtensionSidePanelTarget) => void
   readonly extensionRegistry: ExtensionContributionRegistryView | null
@@ -137,26 +139,35 @@ function useRestoreFocusWhenPanelHides(panelId: string, panelVisible: boolean) {
         (!activeElement || activeElement === document.body || panel.contains(activeElement))
       panelHadFocus.current = false
       if (!focusNeedsRestoring) return
-      queueMicrotask(() => document.getElementById(`${panelId}-toggle`)?.focus())
+      queueMicrotask(() => {
+        const sidebar = document.querySelector<HTMLElement>('[data-right-sidebar-shell="true"]')
+        if (sidebar && !sidebar.closest('[inert]')) return
+        document.getElementById(`${panelId}-toggle`)?.focus()
+      })
     }
   }, [panelId, panelVisible])
 }
 
+function focusSummaryToggle(panelId: string, preventScroll = false) {
+  document.getElementById(`${panelId}-toggle`)?.focus({ preventScroll })
+}
+
+function closeAndRestore(
+  closePanel: (sessionId: string) => void,
+  sessionId: string,
+  panelId: string,
+) {
+  closePanel(sessionId)
+  queueMicrotask(() => focusSummaryToggle(panelId))
+}
+
 export function SessionSummaryHub({ input }: { readonly input: SessionSummaryHubInput }) {
-  const {
-    session,
-    messageCount,
-    onOpenDiff,
-    onOpenResources,
-    onNavigateSession,
-    onOpenExtensionSidePanel,
-    extensionRegistry,
-    extensionProjectPaths,
-  } = input
+  const { session, messageCount } = input
   const sessionId = session ? String(session.id) : 'none'
   const panelId = `session-summary-${sessionId}`
   const panelState = useSessionSummaryUIStore((state) => state.panels[sessionId])
   const closePanel = useSessionSummaryUIStore((state) => state.closePanel)
+  const openResourceViewer = useUIStore((state) => state.openResourceViewer)
   useSyncSessionSummaryPanel(input, sessionId)
   const [environmentExpanded, setEnvironmentExpanded] = usePersistedExpanded(
     sessionId,
@@ -171,6 +182,7 @@ export function SessionSummaryHub({ input }: { readonly input: SessionSummaryHub
   const combined = useCombinedVcsStatus(git.workingPath, messageCount)
   const stackedActions = useStackedGitActions({
     workingPath: git.workingPath,
+    sessionId: session?.id,
     onCompleted: () => {
       void combined.refresh()
       if (git.workingPath) void git.refreshStatus(git.workingPath)
@@ -183,10 +195,8 @@ export function SessionSummaryHub({ input }: { readonly input: SessionSummaryHub
 
   if (!session || messageCount === 0) return null
 
-  const closePanelAndRestoreFocus = () => {
-    closePanel(sessionId)
-    queueMicrotask(() => document.getElementById(`${panelId}-toggle`)?.focus())
-  }
+  const closePanelAndRestoreFocus = () => closeAndRestore(closePanel, sessionId, panelId)
+  const prepareForSidebarOpen = () => focusSummaryToggle(panelId, true)
 
   const allResources = resources.data ?? []
   const outputs = allResources.filter((resource) => resource.isOutput)
@@ -218,18 +228,30 @@ export function SessionSummaryHub({ input }: { readonly input: SessionSummaryHub
             outputs,
             sources,
             resources: allResources,
-            extensionRegistry,
-            extensionProjectPaths,
+            extensionRegistry: input.extensionRegistry,
+            extensionProjectPaths: input.extensionProjectPaths,
             onCollapse: closePanelAndRestoreFocus,
             onEnvironmentExpandedChange: setEnvironmentExpanded,
             onOutputsExpandedChange: setOutputsExpanded,
             onSourcesExpandedChange: setSourcesExpanded,
-            onOpenDiff,
-            onOpenResources,
-            onNavigateSession,
+            onOpenDiff: () => {
+              prepareForSidebarOpen()
+              input.onOpenDiff()
+            },
+            onOpenResources: (filter) => {
+              prepareForSidebarOpen()
+              input.onOpenResources(filter)
+            },
+            onOpenImage: (resourceId) => openResourceViewer(sessionId, resourceId),
+            onNavigateSession: input.onNavigateSession,
             onCreateChangeRequest: () => setComposerOpen(true),
             onQuickAction: runQuickAction,
-            onOpenExtensionSidePanel,
+            onOpenExtensionSidePanel: input.onOpenExtensionSidePanel
+              ? (target) => {
+                  prepareForSidebarOpen()
+                  input.onOpenExtensionSidePanel?.(target)
+                }
+              : undefined,
           }}
         />
       ) : null}

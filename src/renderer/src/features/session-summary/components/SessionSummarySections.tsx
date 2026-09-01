@@ -171,12 +171,14 @@ export function ResourceSummarySection({
   expanded,
   onExpandedChange,
   onOpenResources,
+  onOpenImage,
 }: {
   readonly title: 'Outputs' | 'Sources'
   readonly resources: readonly SessionResource[]
   readonly expanded: boolean
   readonly onExpandedChange: (expanded: boolean) => void
   readonly onOpenResources: () => void
+  readonly onOpenImage: (resourceId: string) => void
 }) {
   if (resources.length === 0) return null
   return (
@@ -199,10 +201,10 @@ export function ResourceSummarySection({
             )
           }
           label={resource.title}
-          onClick={onOpenResources}
+          onClick={() => (resource.kind === 'image' ? onOpenImage(resource.id) : onOpenResources())}
         />
       ))}
-      {resources.length > SUMMARY_RESOURCE_LIMIT ? (
+      {title === 'Sources' || resources.length > SUMMARY_RESOURCE_LIMIT ? (
         <SummaryRow
           icon={<ChevronRight className="size-4" />}
           label="Show all"

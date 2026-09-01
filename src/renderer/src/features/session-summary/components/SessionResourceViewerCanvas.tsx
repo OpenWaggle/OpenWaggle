@@ -117,7 +117,7 @@ export function SessionResourceViewerCanvas({
         <ChevronLeft className="size-5" />
       </Button>
       {source ? (
-        <div className="flex min-h-full min-w-full items-center justify-center">
+        <div className="grid h-max min-h-full w-max min-w-full place-items-center">
           <img
             alt={resource.title}
             src={source}

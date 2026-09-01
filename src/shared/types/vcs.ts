@@ -1,6 +1,8 @@
 // VCS status, source control, and stacked git action types (WS2-WS4, ADR 0012).
 // Split out of git.ts to keep each module focused.
 
+import type { SessionId } from './brand'
+
 // --- VCS status: Local/Remote split (WS2, ADR 0012) ---
 
 export type SourceControlProviderId = 'github' | 'gitlab'
@@ -175,6 +177,8 @@ export interface GitActionProgressEvent {
 
 export interface GitRunStackedActionOptions {
   readonly action: GitStackedAction
+  /** Session that initiated the action, used only to project created outputs. */
+  readonly sessionId?: SessionId
   readonly commitMessage?: string
   readonly createFeatureBranch?: boolean
   readonly featureBranchName?: string
@@ -221,7 +225,17 @@ export interface GitRunStackedActionSuccess {
   readonly ok: true
   readonly action: GitStackedAction
   readonly branch: GitStackedActionBranchOutcome
+  readonly commit: {
+    readonly commitHash: string
+    readonly summary: string
+  } | null
+  /** Output projection outcome. Failed projections are queued for retry when Summary refreshes. */
+  readonly commitOutput?: { readonly ok: true } | { readonly ok: false; readonly message: string }
   readonly changeRequest: VcsChangeRequest | null
+  /** Main-process projection outcome for the created request, when a Session initiated it. */
+  readonly changeRequestOutput?:
+    | { readonly ok: true }
+    | { readonly ok: false; readonly message: string }
 }
 
 export interface GitRunStackedActionFailure {
@@ -231,6 +245,10 @@ export interface GitRunStackedActionFailure {
   readonly message: string
   /** Prepared branch retained after a later phase failed, so retry can resume it safely. */
   readonly branch?: GitStackedActionBranchOutcome
+  /** Commit retained when a later push or change-request phase failed. */
+  readonly commit?: GitRunStackedActionSuccess['commit']
+  /** Output projection outcome when the commit succeeded before a later phase failed. */
+  readonly commitOutput?: GitRunStackedActionSuccess['commitOutput']
   /** Provider web composer used when the native CLI is unavailable or unauthenticated. */
   readonly fallbackUrl?: string
 }

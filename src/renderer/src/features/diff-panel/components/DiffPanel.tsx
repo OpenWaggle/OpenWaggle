@@ -1,6 +1,7 @@
 import type { CodeViewHandle } from '@pierre/diffs/react'
 import type { RepositoryPath, SessionId, WorkingPath } from '@shared/types/brand'
-import type { GitStackedAction } from '@shared/types/git'
+import type { GitStackedAction, GitStatusSummary, VcsStatus } from '@shared/types/git'
+import type { SessionDetail } from '@shared/types/session'
 import type { TurnCheckpointSummary } from '@shared/types/turn-diff'
 import { useRef, useState } from 'react'
 import { useDiffPanelGitActions } from '@/features/diff-panel/hooks/useDiffPanelGitActions'
@@ -11,6 +12,8 @@ import {
   useDiffScopeStore,
 } from '@/features/diff-panel/state/diff-scope-store'
 import { CommitMessageDialog, useCombinedVcsStatus, useStackedGitActions } from '@/features/git'
+import { useGit } from '@/features/git/hooks'
+import { ChangeRequestComposer } from '@/features/session-summary'
 import { useUIStore } from '@/shell/ui-store'
 import { useBaseRefChoices } from '../hooks/useBaseRefChoices'
 import { type CommitPaths, useCommitPaths } from '../hooks/useCommitPaths'
@@ -23,6 +26,7 @@ import { DiffPanelHeader } from './DiffPanelHeader'
 import { DiffReviewBody } from './DiffReviewBody'
 
 interface DiffPanelProps {
+  session?: SessionDetail | null
   workingPath: WorkingPath | null
   repositoryPath: RepositoryPath | null
   sessionId?: SessionId | null
@@ -64,13 +68,18 @@ const STILL_READING_MESSAGE = 'Still reading this working tree - try again in a 
  * failure whose message blamed the user for not selecting files, with no dialog shown - an enabled
  * button that silently did nothing.
  */
-function requestStackedAction(input: {
+export function requestStackedAction(input: {
   readonly action: GitStackedAction
   readonly commitPaths: CommitPaths
   readonly run: (action: GitStackedAction, options?: { paths: readonly string[] }) => void
   readonly showToast: (message: string, variant: 'error') => void
   readonly onNeedsMessage: (action: GitStackedAction) => void
+  readonly onCreateChangeRequest: () => void
 }) {
+  if (input.action === 'create_pr' || input.action === 'commit_push_pr') {
+    input.onCreateChangeRequest()
+    return
+  }
   if (!input.action.startsWith('commit')) {
     input.run(input.action, { paths: input.commitPaths.paths })
     return
@@ -93,7 +102,96 @@ function openChangeRequestUrl(url: string | undefined) {
   if (url) window.open(url, '_blank', 'noopener')
 }
 
+interface DiffPanelDialogsInput {
+  readonly session: SessionDetail | null
+  readonly workingPath: WorkingPath | null
+  readonly gitStatus: GitStatusSummary | null
+  readonly vcsStatus: VcsStatus | null
+  readonly commitPaths: CommitPaths
+  readonly pendingCommitAction: GitStackedAction | null
+  readonly changeRequestOpen: boolean
+  readonly setPendingCommitAction: (action: GitStackedAction | null) => void
+  readonly setChangeRequestOpen: (open: boolean) => void
+  readonly run: (
+    action: GitStackedAction,
+    options?: { readonly paths?: readonly string[]; readonly commitMessage?: string },
+  ) => void
+  readonly onCompleted: () => void
+}
+
+function DiffPanelDialogs({ input }: { readonly input: DiffPanelDialogsInput }) {
+  return (
+    <>
+      <CommitMessageDialog
+        open={input.pendingCommitAction !== null}
+        fileCount={input.commitPaths.changedFileCount}
+        onCancel={() => input.setPendingCommitAction(null)}
+        onConfirm={(commitMessage) => {
+          const action = input.pendingCommitAction
+          input.setPendingCommitAction(null)
+          if (action) input.run(action, { paths: input.commitPaths.paths, commitMessage })
+        }}
+      />
+      {input.changeRequestOpen && input.session && input.workingPath ? (
+        <ChangeRequestComposer
+          session={input.session}
+          workingPath={input.workingPath}
+          gitStatus={input.gitStatus}
+          vcsStatus={input.vcsStatus}
+          onClose={() => input.setChangeRequestOpen(false)}
+          onCompleted={input.onCompleted}
+        />
+      ) : null}
+    </>
+  )
+}
+
+function useDiffGitWorkflow(input: {
+  readonly session: SessionDetail | null
+  readonly sessionId: SessionId | null
+  readonly workingPath: WorkingPath | null
+  readonly refreshToken: number
+  readonly refreshDiff: (workingPath: WorkingPath) => Promise<void>
+  readonly showToast: (message: string, variant: 'error') => void
+}) {
+  const { status: vcsStatus, refresh: refreshVcsStatus } = useCombinedVcsStatus(
+    input.workingPath,
+    input.refreshToken,
+  )
+  const refreshAfterAction = () => {
+    if (input.workingPath) void input.refreshDiff(input.workingPath)
+    void refreshVcsStatus()
+  }
+  const stackedActions = useStackedGitActions({
+    workingPath: input.workingPath,
+    ...(input.sessionId ? { sessionId: input.sessionId } : {}),
+    onCompleted: refreshAfterAction,
+  })
+  const git = useGit()
+  const [pendingCommitAction, setPendingCommitAction] = useState<GitStackedAction | null>(null)
+  const [changeRequestOpen, setChangeRequestOpen] = useState(false)
+  const openChangeRequest = () => {
+    if (!input.session || input.session.id !== input.sessionId || !input.workingPath) {
+      input.showToast('Open this session before creating its change request.', 'error')
+      return
+    }
+    setChangeRequestOpen(true)
+  }
+  return {
+    vcsStatus,
+    stackedActions,
+    git,
+    pendingCommitAction,
+    setPendingCommitAction,
+    changeRequestOpen,
+    setChangeRequestOpen,
+    openChangeRequest,
+    refreshAfterAction,
+  }
+}
+
 export function DiffPanel({
+  session = null,
   workingPath,
   repositoryPath,
   sessionId = null,
@@ -126,19 +224,14 @@ export function DiffPanel({
     refreshDiff,
   })
 
-  const { status: vcsStatus, refresh: refreshVcsStatus } = useCombinedVcsStatus(
+  const workflow = useDiffGitWorkflow({
+    session,
+    sessionId,
     workingPath,
     refreshToken,
-  )
-  const stackedActions = useStackedGitActions({
-    workingPath,
-    onCompleted: () => {
-      if (workingPath) void refreshDiff(workingPath)
-      void refreshVcsStatus()
-    },
+    refreshDiff,
+    showToast,
   })
-
-  const [pendingCommitAction, setPendingCommitAction] = useState<GitStackedAction | null>(null)
 
   /**
    * Commit-bearing actions must collect an explicit message first (review B2);
@@ -183,29 +276,35 @@ export function DiffPanel({
         canStageAll={gitActions.canStageAll}
         isActionRunning={gitActions.isActionRunning}
         quickAction={{
-          status: vcsStatus,
-          isBusy: stackedActions.isRunning,
+          status: workflow.vcsStatus,
+          isBusy: workflow.stackedActions.isRunning,
           onRunAction: (action) =>
             requestStackedAction({
               action,
               commitPaths,
-              run: stackedActions.run,
+              run: workflow.stackedActions.run,
               showToast,
-              onNeedsMessage: setPendingCommitAction,
+              onNeedsMessage: workflow.setPendingCommitAction,
+              onCreateChangeRequest: workflow.openChangeRequest,
             }),
-          onPull: () => stackedActions.run('pull'),
-          onOpenChangeRequest: () => openChangeRequestUrl(vcsStatus?.changeRequest?.url),
-          onPublish: () => stackedActions.run('push'),
+          onPull: () => workflow.stackedActions.run('pull'),
+          onOpenChangeRequest: () => openChangeRequestUrl(workflow.vcsStatus?.changeRequest?.url),
+          onPublish: () => workflow.stackedActions.run('push'),
         }}
       />
-      <CommitMessageDialog
-        open={pendingCommitAction !== null}
-        fileCount={commitPaths.changedFileCount}
-        onCancel={() => setPendingCommitAction(null)}
-        onConfirm={(commitMessage) => {
-          const action = pendingCommitAction
-          setPendingCommitAction(null)
-          if (action) void stackedActions.run(action, { paths: commitPaths.paths, commitMessage })
+      <DiffPanelDialogs
+        input={{
+          session,
+          workingPath,
+          gitStatus: workflow.git.status,
+          vcsStatus: workflow.vcsStatus,
+          commitPaths,
+          pendingCommitAction: workflow.pendingCommitAction,
+          changeRequestOpen: workflow.changeRequestOpen,
+          setPendingCommitAction: workflow.setPendingCommitAction,
+          setChangeRequestOpen: workflow.setChangeRequestOpen,
+          run: workflow.stackedActions.run,
+          onCompleted: workflow.refreshAfterAction,
         }}
       />
     </div>

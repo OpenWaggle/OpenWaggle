@@ -15,6 +15,7 @@ import { OpenWaggleApp } from './support/openwaggle-app'
 import { seedSingleSession } from './support/session-fixtures'
 
 const SEEDED_SESSION_TITLE = 'Extension host proof session'
+const OTHER_SESSION_TITLE = 'Extension host isolation session'
 const SEEDED_MESSAGE_TEXT = 'extension-host-proof-project'
 const EXTENSION_FRAME_TITLE = `Extension module: ${GITHUB_ISSUES_SETTINGS_TITLE}`
 const SAVED_REPOSITORY_OWNER = 'OpenWaggle-e2e'
@@ -67,18 +68,32 @@ function lifecycleButton(page: Page, action: string) {
 
 test('project extension can be trusted, enabled, rendered, disabled, and removed through settings', async () => {
   const app = await OpenWaggleApp.launch('openwaggle-extension-host-e2e-')
-  const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-extension-project-'))
+  const projectPath = await fs.realpath(
+    await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-extension-project-')),
+  )
 
   try {
     await installProjectExtensionFixture({
       projectPath,
       extensionId: GITHUB_ISSUES_EXTENSION_ID,
     })
-    await seedSingleSession(app.userDataDir, {
+    const seededSessionId = await seedSingleSession(app.userDataDir, {
       title: SEEDED_SESSION_TITLE,
       updatedAt: Date.now(),
       projectPath,
       messages: [seededProjectMessage()],
+    })
+    const otherSessionId = await seedSingleSession(app.userDataDir, {
+      title: OTHER_SESSION_TITLE,
+      updatedAt: Date.now() - 1,
+      projectPath,
+      messages: [
+        {
+          ...seededProjectMessage(),
+          id: 'extension-host-isolation-message',
+          parts: [{ type: 'text', text: 'extension-host-isolation-project' }],
+        },
+      ],
     })
     await setActiveProjectForExtensionQa(app.window(), projectPath)
     await app.restart()
@@ -88,7 +103,10 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
     const pageErrors: string[] = []
     page.on('console', (message) => {
       if (message.type() === 'error') {
-        consoleErrors.push(message.text())
+        const location = message.location()
+        consoleErrors.push(
+          location.url.length > 0 ? `${message.text()} (${location.url})` : message.text(),
+        )
       }
     })
     page.on('pageerror', (error) => {
@@ -143,8 +161,59 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
         labels: ['enhancement', 'ready-for-agent'],
       })
 
+    const extensionPanelUrl = new URL(page.url())
+    extensionPanelUrl.hash = `#/sessions/${seededSessionId}?panel=extension-side-panel&sidePanelExtensionId=${GITHUB_ISSUES_EXTENSION_ID}&sidePanelId=github.resources`
+    await page.goto(extensionPanelUrl.toString())
+    const resourceContribution = await page.evaluate(
+      async ({ extensionId, projectPath: requestedProjectPath, sessionId }) => {
+        const registry = await window.api.listExtensionContributions({
+          projectPaths: [requestedProjectPath],
+          sessionId,
+        })
+        return registry.entries.find(
+          (entry) =>
+            entry.extensionId === extensionId && entry.contributionId === 'github.resources',
+        )
+      },
+      {
+        extensionId: GITHUB_ISSUES_EXTENSION_ID,
+        projectPath,
+        sessionId: seededSessionId,
+      },
+    )
+    expect(resourceContribution).toMatchObject({
+      projectPaths: [projectPath],
+      sessionId: seededSessionId,
+      eligibility: {
+        enabled: true,
+        trusted: true,
+        runtimeEnabled: true,
+      },
+    })
+    const resourcesFrame = page.frameLocator(
+      'iframe[title="Extension module: GitHub Session Resources"]',
+    )
+    const publishReport = resourcesFrame.getByRole('button', { name: 'Publish session report' })
+    await expect(resourcesFrame.getByText('Ready to publish to this session.')).toBeVisible()
+    await publishReport.click()
+    await expect(resourcesFrame.getByText('Published to Outputs.')).toBeVisible()
+    await expect(publishReport).toBeEnabled()
+    await page.getByRole('button', { name: 'Close extension side panel' }).click()
+
+    const summary = page.getByRole('complementary', { name: 'Session Summary' })
+    await summary.getByRole('button', { name: /Outputs/ }).click()
+    await expect(summary.getByText('GitHub session report')).toBeVisible()
+    const [baseUrl] = page.url().split('#')
+    await page.goto(`${baseUrl}#/sessions/${otherSessionId}`)
+    await expect(page.getByText(OTHER_SESSION_TITLE).first()).toBeVisible()
+    await expect(
+      page.getByRole('complementary', { name: 'Session Summary' }).getByText('GitHub session report'),
+    ).toHaveCount(0)
+
+    await openExtensionsSettings(page)
+
     await lifecycleButton(page, 'Disable').click()
-    await expect(lifecycleButton(page, 'Enable')).toBeVisible()
+    await expect(lifecycleButton(page, 'Enable')).toBeVisible({ timeout: 30_000 })
     await expect(
       page.getByRole('heading', { name: GITHUB_ISSUES_SETTINGS_TITLE }),
     ).toHaveCount(0)

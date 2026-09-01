@@ -32,6 +32,8 @@ export interface OpenWaggleExtensionSurfaceContext {
   }
   readonly packagePath: string
   readonly projectPaths: readonly string[]
+  /** Present when the host resolved this surface for a specific Session. */
+  readonly sessionId?: string
   readonly theme: OpenWaggleExtensionTheme
 }
 
@@ -131,6 +133,7 @@ export function createOpenWaggleExtensionSurfaceContext(
     },
     packagePath: input.entry.packagePath,
     projectPaths: input.entry.projectPaths,
+    ...(input.entry.sessionId !== undefined ? { sessionId: input.entry.sessionId } : {}),
     theme: input.theme ?? createOpenWaggleExtensionTheme(),
   }
 }

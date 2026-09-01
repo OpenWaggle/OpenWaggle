@@ -1,21 +1,28 @@
+import fs from 'node:fs/promises'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { SessionId } from '@shared/types/brand'
 import type {
   GitRunStackedActionOptions,
   GitRunStackedActionResult,
   OpenChangeRequestPayload,
 } from '@shared/types/git'
 import { GIT_STACKED_ACTIONS } from '@shared/types/git'
+import type { LocalVcsStatus } from '@shared/types/vcs'
 import {
   type DefaultBranchActionDialogCopy,
+  type DefaultBranchConfirmableAction,
   defaultBranchActionLabel,
   requiresDefaultBranchConfirmation,
   resolveDefaultBranchActionDialogCopy,
+  sanitizeFeatureBranchName,
   targetsDefaultRef,
 } from '@shared/utils/git-stacked-action'
+import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import * as Effect from 'effect/Effect'
 import type { IpcMainInvokeEvent, MessageBoxOptions } from 'electron'
 import { getSourceControlProvider } from '../../adapters/source-control'
 import { browserWindowFromWebContents, showMessageBox } from '../../desktop-ui'
+import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { typedHandle } from '../typed-ipc'
 import { listGitBranches } from './branch-list'
 import { createGitBranch } from './branch-mutations'
@@ -25,6 +32,7 @@ import { resolvePrimaryRemote, resolvePrimaryRemoteUrl } from './primary-remote'
 import { pullCurrentBranch, pushCurrentBranch } from './push-service'
 import { repositoryWebUrl } from './repository-web-url'
 import { projectPathSchema, runGit } from './shared'
+import { recordStackedActionOutputs } from './stacked-action-output-recording'
 import { runStackedGitAction, type StackedActionDeps } from './stacked-action-service'
 import { invalidateGitStatusCache } from './status-cache'
 import { GIT_RAW_PATHS } from './status-constants'
@@ -34,6 +42,7 @@ import { resolveRepositoryRoot } from './working-tree-service'
 
 const stackedActionOptionsSchema = Schema.Struct({
   action: Schema.Literal(...GIT_STACKED_ACTIONS),
+  sessionId: Schema.optional(Schema.String),
   commitMessage: Schema.optional(Schema.String),
   createFeatureBranch: Schema.optional(Schema.Boolean),
   featureBranchName: Schema.optional(Schema.String),
@@ -100,16 +109,7 @@ function createStackedActionDeps(): StackedActionDeps {
       return { ok: result.ok, message: result.message }
     },
     commit: async (projectPath, message, paths) => {
-      /*
-       * Stage exactly what the caller selected, and nothing when the selection is empty.
-       *
-       * This used to fall back to `git add --all`, which has no pathspec and therefore covers
-       * the whole repository - not just the opened directory. In `local` environment mode that
-       * swept every unrelated in-flight edit in the user's own checkout into the commit, and
-       * `commit_push*` then pushed it. The fallback was reached exactly when nothing was on
-       * display, which is the case where committing everything is least defensible, so an
-       * empty selection now reports that there is nothing to commit.
-       */
+      // Never let an empty visible selection fall back to repository-wide `git add --all`.
       const selected = paths?.filter((entry) => entry.trim().length > 0) ?? []
       if (selected.length === 0) {
         return {
@@ -118,20 +118,9 @@ function createStackedActionDeps(): StackedActionDeps {
           message: 'Select the files to commit: nothing was staged for this action.',
         }
       }
-      /*
-       * Staged and committed from the repository root, because the paths are repository-relative -
-       * that is what `git status --porcelain` reports, and what the renderer passes through. Running
-       * them from an opened subdirectory resolved them relative to that subdirectory instead:
-       * verified that `git add -- packages/app/x.txt` from `packages/app` fails with
-       * "pathspec ... did not match any files". `git add --all` hid this because it takes no
-       * pathspec. Revert all is already re-based onto the root; commit now agrees with it.
-       */
+      // Porcelain paths are repository-relative, so stage and commit from the root.
       const repositoryRoot = (await resolveRepositoryRoot(projectPath)) ?? projectPath
-      /*
-       * Staging is left to `commitGit`, which handles the awkward cases: a path gone from disk needs `-A`,
-       * and an already-staged rename's source matches nothing for `add` while still needing to be in the
-       * commit pathspec. Adding here as well duplicated that logic badly - it batched, which is fatal.
-       */
+      // `commitGit` owns deleted-path and staged-rename handling.
       return commitGit(repositoryRoot, { message, amend: false, paths: [...selected] })
     },
     push: async (projectPath) => {
@@ -158,6 +147,53 @@ function createStackedActionDeps(): StackedActionDeps {
     },
     buildChangeRequestFallbackUrl,
   }
+}
+
+function shouldConfirmDefaultBranchAction(
+  status: LocalVcsStatus,
+  options: GitRunStackedActionOptions,
+): options is GitRunStackedActionOptions & { readonly action: DefaultBranchConfirmableAction } {
+  const requestedFeatureRef = options.featureBranchName?.trim()
+  const plannedFeatureRef = requestedFeatureRef
+    ? sanitizeFeatureBranchName(requestedFeatureRef)
+    : null
+  const definitelyCreatesSeparateRef =
+    options.createFeatureBranch === true &&
+    plannedFeatureRef !== null &&
+    plannedFeatureRef !== status.refName &&
+    plannedFeatureRef !== status.pushTargetRef &&
+    plannedFeatureRef !== status.defaultRef
+  if (definitelyCreatesSeparateRef) return false
+  const plannedFeatureRefCollides =
+    options.createFeatureBranch === true &&
+    plannedFeatureRef !== null &&
+    (plannedFeatureRef === status.refName ||
+      plannedFeatureRef === status.pushTargetRef ||
+      plannedFeatureRef === status.defaultRef)
+  return requiresDefaultBranchConfirmation(
+    options.action,
+    targetsDefaultRef(status) || plannedFeatureRefCollides,
+  )
+}
+
+function verifySessionWorkingPath(sessionId: SessionId, requestedWorkingPath: string) {
+  return Effect.gen(function* () {
+    const sessions = yield* SessionProjectionRepository
+    const session = yield* sessions.getOptional(sessionId)
+    if (!session) return false
+    const expectedWorkingPath = resolveSessionWorkingDir(session, session.projectPath)
+    if (!expectedWorkingPath) return false
+    const [requestedRoot, expectedRoot] = yield* Effect.promise(() =>
+      Promise.all([
+        resolveRepositoryRoot(requestedWorkingPath).then((root) => root ?? requestedWorkingPath),
+        resolveRepositoryRoot(expectedWorkingPath).then((root) => root ?? expectedWorkingPath),
+      ]),
+    )
+    const [realRequestedRoot, realExpectedRoot] = yield* Effect.promise(() =>
+      Promise.all([fs.realpath(requestedRoot), fs.realpath(expectedRoot)]),
+    )
+    return realRequestedRoot === realExpectedRoot
+  }).pipe(Effect.catchAll(() => Effect.succeed(false)))
 }
 
 /**
@@ -191,10 +227,7 @@ function confirmDefaultBranchAction(
      * `feature -> main`. Judging only the current ref waved that straight through, which is precisely the push
      * this gate exists to catch.
      */
-    if (
-      options.createFeatureBranch === true ||
-      !requiresDefaultBranchConfirmation(options.action, targetsDefaultRef(local.status))
-    ) {
+    if (!shouldConfirmDefaultBranchAction(local.status, options)) {
       return true
     }
     const copy = resolveDefaultBranchActionDialogCopy({
@@ -233,10 +266,19 @@ export function registerGitStackedActionHandlers(): void {
   typedHandle('git:stacked-action:run', (event, rawPath: unknown, rawOptions: unknown) =>
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-      const options = decodeUnknownOrThrow(
-        stackedActionOptionsSchema,
-        rawOptions,
-      ) satisfies GitRunStackedActionOptions
+      const decodedOptions = decodeUnknownOrThrow(stackedActionOptionsSchema, rawOptions)
+      const options = {
+        ...decodedOptions,
+        sessionId: decodedOptions.sessionId ? SessionId(decodedOptions.sessionId) : undefined,
+      } satisfies GitRunStackedActionOptions
+      if (options.sessionId && !(yield* verifySessionWorkingPath(options.sessionId, projectPath))) {
+        return {
+          ok: false,
+          phase: 'commit',
+          code: 'unknown',
+          message: 'The requested working tree does not belong to the originating session.',
+        } satisfies GitRunStackedActionResult
+      }
       const confirmed = yield* confirmDefaultBranchAction(event, projectPath, options)
       if (!confirmed) {
         return {
@@ -250,7 +292,9 @@ export function registerGitStackedActionHandlers(): void {
       // Stacked actions commit and push, so the working tree's status changed too.
       invalidateGitStatusCache(projectPath)
       invalidateVcsStatus(projectPath)
-      return result
+      return options.sessionId
+        ? yield* recordStackedActionOutputs(result, options.sessionId)
+        : result
     }),
   )
 }

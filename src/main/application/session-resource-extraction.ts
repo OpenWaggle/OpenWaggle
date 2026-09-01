@@ -8,6 +8,8 @@ const markdownParser = unified().use(remarkParse)
 export const SESSION_RESOURCE_EXTRACTION_LIMITS = {
   maxImages: 128,
   maxLinks: 128,
+  maxTitleCharacters: 512,
+  maxUrlCharacters: 4096,
   maxTextCharacters: 256 * 1024,
   maxVisitedNodes: 256,
 } as const
@@ -16,6 +18,18 @@ export interface CapturedImage {
   readonly data: string
   readonly mimeType: string
   readonly title: string
+}
+
+function supportedHttpUrl(value: string) {
+  if (value.length > SESSION_RESOURCE_EXTRACTION_LIMITS.maxUrlCharacters) return null
+  try {
+    const url = new URL(value)
+    return (url.protocol === 'http:' || url.protocol === 'https:') && !url.username && !url.password
+      ? value
+      : null
+  } catch {
+    return null
+  }
 }
 
 export interface CapturedLink {
@@ -40,7 +54,8 @@ function markdownDefinitions(root: unknown) {
       candidate.type === 'definition' &&
       typeof candidate.identifier === 'string' &&
       typeof candidate.url === 'string' &&
-      HTTP_URL_PATTERN.test(candidate.url)
+      HTTP_URL_PATTERN.test(candidate.url) &&
+      supportedHttpUrl(candidate.url)
     ) {
       definitions.set(candidate.identifier, candidate.url)
     }
@@ -60,7 +75,7 @@ function capturedMarkdownLink(
     : reference && typeof candidate.identifier === 'string'
       ? definitions.get(candidate.identifier)
       : null
-  if (typeof url !== 'string' || !HTTP_URL_PATTERN.test(url)) return null
+  if (typeof url !== 'string' || !HTTP_URL_PATTERN.test(url) || !supportedHttpUrl(url)) return null
   return {
     url,
     title: url,
@@ -82,34 +97,68 @@ function collectMarkdownLinks(text: string, links: CapturedLink[]) {
   }
 }
 
+function collectGeneratedImageRecord(
+  candidate: Readonly<Record<string, unknown>>,
+  images: CapturedImage[],
+  remainingTextCharacters: number,
+) {
+  if (
+    candidate.type !== 'image' ||
+    typeof candidate.data !== 'string' ||
+    typeof candidate.mimeType !== 'string'
+  )
+    return null
+  const title = typeof candidate.name === 'string' ? candidate.name.trim() : 'Generated image'
+  const boundedTitle = title.slice(0, SESSION_RESOURCE_EXTRACTION_LIMITS.maxTitleCharacters)
+  const consumed = Math.min(title.length, remainingTextCharacters)
+  if (
+    consumed === title.length &&
+    boundedTitle.length > 0 &&
+    images.length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxImages
+  ) {
+    images.push({ data: candidate.data, mimeType: candidate.mimeType, title: boundedTitle })
+  }
+  return { consumed, handled: true }
+}
+
+function collectResourceLinkRecord(
+  candidate: Readonly<Record<string, unknown>>,
+  links: CapturedLink[],
+  remainingTextCharacters: number,
+) {
+  if (candidate.type !== 'resource_link' || typeof candidate.uri !== 'string') return null
+  const url = supportedHttpUrl(candidate.uri)
+  const rawTitle = typeof candidate.title === 'string' ? candidate.title.trim() : candidate.uri
+  const title = rawTitle.slice(0, SESSION_RESOURCE_EXTRACTION_LIMITS.maxTitleCharacters)
+  const consumed = Math.min(candidate.uri.length + rawTitle.length, remainingTextCharacters)
+  if (
+    url &&
+    title.length > 0 &&
+    consumed === candidate.uri.length + rawTitle.length &&
+    links.length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxLinks
+  ) {
+    links.push({
+      url,
+      title,
+      image: typeof candidate.mimeType === 'string' && candidate.mimeType.startsWith('image/'),
+    })
+  }
+  return { consumed, handled: true }
+}
+
 function collectRecord(
   candidate: Readonly<Record<string, unknown>>,
   images: CapturedImage[],
   links: CapturedLink[],
+  remainingTextCharacters: number,
 ) {
-  if (
-    candidate.type === 'image' &&
-    typeof candidate.data === 'string' &&
-    typeof candidate.mimeType === 'string'
-  ) {
-    if (images.length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxImages) {
-      images.push({
-        data: candidate.data,
-        mimeType: candidate.mimeType,
-        title: typeof candidate.name === 'string' ? candidate.name : 'Generated image',
-      })
+  return (
+    collectGeneratedImageRecord(candidate, images, remainingTextCharacters) ??
+    collectResourceLinkRecord(candidate, links, remainingTextCharacters) ?? {
+      consumed: 0,
+      handled: false,
     }
-    return true
-  }
-  if (candidate.type !== 'resource_link' || typeof candidate.uri !== 'string') return false
-  if (links.length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxLinks) {
-    links.push({
-      url: candidate.uri,
-      title: typeof candidate.title === 'string' ? candidate.title : candidate.uri,
-      image: typeof candidate.mimeType === 'string' && candidate.mimeType.startsWith('image/'),
-    })
-  }
-  return true
+  )
 }
 
 function enqueueArray(candidate: readonly unknown[], pending: unknown[], scheduled: number) {
@@ -162,7 +211,9 @@ export function collectExplicitResources(value: unknown) {
     }
     if (!isRecord(candidate) || seen.has(candidate)) continue
     seen.add(candidate)
-    if (!collectRecord(candidate, images, links)) {
+    const collected = collectRecord(candidate, images, links, remainingTextCharacters)
+    remainingTextCharacters -= collected.consumed
+    if (!collected.handled) {
       scheduled = enqueueRecord(candidate, pending, scheduled)
     }
   }

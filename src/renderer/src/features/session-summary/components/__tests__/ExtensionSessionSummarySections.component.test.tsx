@@ -79,6 +79,7 @@ function sessionResource(kind: SessionResource['kind']): SessionResource {
     title: 'Resource one',
     mimeType: null,
     locator: 'session-resource://resource-one',
+    managed: true,
     available: true,
     isSource: false,
     isOutput: true,

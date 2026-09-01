@@ -256,6 +256,10 @@ export interface IpcIntegrationInvokeChannelMap extends IpcWorkspaceFileInvokeCh
     args: [path: string]
     return: undefined
   }
+  'shell:reveal-path': {
+    args: [path: string]
+    return: undefined
+  }
   // Composer
   'composer:file-suggest': {
     args: [projectPath: string, query: string]

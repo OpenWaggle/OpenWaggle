@@ -187,7 +187,10 @@ export function UserMessageBubble({
           'border border-border-light bg-bg-hover px-3.5 py-2.5',
         )}
       >
-        <SessionMessageImages sessionId={sessionId} messageId={message.id} />
+        <SessionMessageImages
+          sessionId={sessionId}
+          messageId={message.metadata?.sessionNodeId ?? message.id}
+        />
         {attachmentParts.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5 first:mt-0">
             {attachmentParts.map((p, i) => (

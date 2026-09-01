@@ -3,6 +3,8 @@ import { OPENWAGGLE_EXTENSION_BROKER } from './constants.js'
 import { isDocsDiscoverResult, isDocsResolveTopicResult } from './docs-validation.js'
 import {
   isActionSelectProjectResult,
+  isSessionResourcePublishResult,
+  isSessionResourcesListResult,
   isSettingsGetResult,
   isSettingsGetSettingResult,
   isSettingsUpdateResult,
@@ -26,6 +28,7 @@ const ACTION_RESULT_ERROR = 'Extension broker returned an invalid OpenWaggle act
 const DOCS_RESULT_ERROR = 'Extension broker returned an invalid OpenWaggle docs result.'
 const SETTINGS_RESULT_ERROR = 'Extension broker returned an invalid OpenWaggle settings result.'
 const STATE_RESULT_ERROR = 'Extension broker returned an invalid OpenWaggle state result.'
+const RESOURCE_RESULT_ERROR = 'Extension broker returned an invalid session resource result.'
 
 const unsupportedOpenExternal = async () => {
   throw new Error('OpenWaggle external URL action is not available in this extension host context.')
@@ -223,6 +226,30 @@ export function createOpenWaggleSdk(
           }),
           isDocsResolveTopicResult,
           DOCS_RESULT_ERROR,
+        ),
+    },
+    resources: {
+      list: async (scope) =>
+        toDecodedOperationResult(
+          await invoke({
+            capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES,
+            method: OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES,
+            scope,
+            payload: {},
+          }),
+          isSessionResourcesListResult,
+          RESOURCE_RESULT_ERROR,
+        ),
+      publish: async (scope, resource) =>
+        toDecodedOperationResult(
+          await invoke({
+            capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES,
+            method: OPENWAGGLE_EXTENSION_BROKER.METHOD.PUBLISH_RESOURCE,
+            scope,
+            payload: resource,
+          }),
+          isSessionResourcePublishResult,
+          RESOURCE_RESULT_ERROR,
         ),
     },
   }

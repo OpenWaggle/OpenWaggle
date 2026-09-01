@@ -130,6 +130,9 @@ export interface OpenWaggleApi
     customInstructions?: string,
   ): Promise<ContextCompactionResult>
   onRunCompleted(callback: (payload: IpcEventPayload<'agent:run-completed'>) => void): () => void
+  onSessionResourcesInvalidated(
+    callback: (payload: IpcEventPayload<'sessions:resources-invalidated'>) => void,
+  ): () => void
   onAgentPhase(callback: (payload: IpcEventPayload<'agent:phase'>) => void): () => void
   onWorktreeLaunch(callback: (payload: WorktreeLaunchEventPayload) => void): () => void
 
@@ -279,7 +282,6 @@ export interface OpenWaggleApi
   // Voice
   transcribeVoiceLocal(payload: VoiceTranscriptionRequest): Promise<VoiceTranscriptionResult>
 
-  // Standards and Skills
   getStandardsStatus(
     projectPath: string,
   ): Promise<{ agents: AgentsInstructionStatus; agentsPath: string; error?: string }>
@@ -288,16 +290,14 @@ export interface OpenWaggleApi
   setSkillEnabled(projectPath: string, skillId: string, enabled: boolean): Promise<void>
   getSkillPreview(projectPath: string, skillId: string): Promise<{ markdown: string }>
 
-  // Dialog
   showConfirm(message: string, detail?: string): Promise<boolean>
 
-  // Shell / App
   copyToClipboard(text: string): void
   openLogsDir(): Promise<void>
   getLogsPath(): Promise<string>
   openPath(path: string): Promise<void>
+  revealPath(path: string): Promise<void>
 
-  // Auth
   startOAuth(provider: OAuthProvider): Promise<void>
   submitAuthCode(provider: OAuthProvider, code: string): Promise<void>
   cancelOAuth(provider: OAuthProvider): Promise<void>

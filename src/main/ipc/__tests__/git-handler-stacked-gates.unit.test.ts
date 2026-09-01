@@ -86,6 +86,39 @@ describe('stacked action safety gates', () => {
     expect(showMessageBoxMock).not.toHaveBeenCalled()
   })
 
+  it('asks when a requested feature branch normalizes to the default ref', async () => {
+    const unexpected: string[] = []
+    respondWith(
+      new Map([
+        ['rev-parse --is-inside-work-tree', 'true\n'],
+        ['symbolic-ref --quiet --short HEAD', 'feature/main\n'],
+        ['remote get-url origin', 'https://github.com/example/repo.git\n'],
+        ['symbolic-ref --quiet --short refs/remotes/origin/HEAD', 'origin/feature/main\n'],
+        ['-c core.quotePath=false status --porcelain=v1', ''],
+        ['-c core.quotePath=false diff --numstat', ''],
+        ['-c core.quotePath=false diff --cached --numstat', ''],
+        ['rev-parse --abbrev-ref @{upstream}', 'origin/feature/main\n'],
+      ]),
+      (args) => unexpected.push(args),
+    )
+    registerGitHandlers()
+    const handler = registeredHandler('git:stacked-action:run')
+
+    const result = await handler?.({ sender: {} }, '/tmp/repo-normalized-feature', {
+      action: 'create_pr',
+      createFeatureBranch: true,
+      featureBranchName: 'main',
+      changeRequestTitle: 'Session Summary',
+      changeRequestBody: 'Summary body',
+      baseRef: 'feature/main',
+      draft: false,
+    })
+
+    expect(unexpected).toEqual([])
+    expect(showMessageBoxMock).toHaveBeenCalledOnce()
+    expect(result).toMatchObject({ ok: false, code: 'cancelled' })
+  })
+
   it('refuses to commit when no paths were selected, rather than staging the repository', async () => {
     /*
      * The commit phase used to fall back to `git add --all`, which has no pathspec and so

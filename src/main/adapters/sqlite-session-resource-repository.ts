@@ -57,6 +57,7 @@ function upsertResource(sql: SqlClient.SqlClient, input: UpsertSessionResourceIn
           )
           ON CONFLICT(session_id, canonical_key) DO UPDATE SET
             kind = CASE
+              WHEN excluded.id = session_resources.id THEN excluded.kind
               WHEN session_resources.kind = 'image' OR excluded.kind <> 'image'
                 THEN session_resources.kind
               ELSE excluded.kind

@@ -80,7 +80,6 @@ function materializeRemoteImage(
       fileName: fetched.fileName,
       bytes: fetched.bytes,
     })
-    const locator = `session-resource://${resource.id}`
     yield* SessionResourceRepository.pipe(
       Effect.flatMap((repository) =>
         repository.upsert({
@@ -90,7 +89,7 @@ function materializeRemoteImage(
           kind: 'image',
           title: resource.title === url ? fetched.fileName : resource.title,
           mimeType: fetched.mimeType,
-          locator,
+          locator: url,
           managedPath: stored.path,
           available: true,
           occurrence,
@@ -119,7 +118,28 @@ export function readSessionResourceContent(sessionId: SessionId, resourceId: str
       if (resource?.kind !== 'image') return null
       const url = remoteImageUrl(resource)
       if (!url) return null
-      return yield* materializeRemoteImage(sessionId, resource, location, url)
+      const occurrence = resource.occurrences[0]
+      if (!occurrence) return null
+      return yield* materializeRemoteImage(sessionId, resource, location, url).pipe(
+        Effect.tapError(() =>
+          repository
+            .upsert({
+              id: resource.id,
+              sessionId,
+              canonicalKey: resource.canonicalKey,
+              kind: resource.kind,
+              title: resource.title,
+              mimeType: resource.mimeType,
+              locator: url,
+              managedPath: null,
+              available: false,
+              occurrence,
+              createdAt: resource.createdAt,
+              updatedAt: Date.now(),
+            })
+            .pipe(Effect.catchAll(() => Effect.void)),
+        ),
+      )
     }),
   )
 }

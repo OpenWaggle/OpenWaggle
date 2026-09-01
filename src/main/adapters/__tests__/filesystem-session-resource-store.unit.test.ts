@@ -10,9 +10,15 @@ import { makeFilesystemSessionResourceStoreLayer } from '../filesystem-session-r
 
 let tmpRoot = ''
 
+function sessionDirectory(sessionId: string) {
+  return path.join(tmpRoot, createHash('sha256').update(sessionId).digest('hex'))
+}
+
 describe('FilesystemSessionResourceStore', () => {
   beforeEach(async () => {
-    tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-resource-store-'))
+    tmpRoot = await fs.realpath(
+      await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-resource-store-')),
+    )
   })
 
   afterEach(async () => {
@@ -35,7 +41,9 @@ describe('FilesystemSessionResourceStore', () => {
       }).pipe(Effect.provide(makeFilesystemSessionResourceStoreLayer(tmpRoot))),
     )
 
-    expect(result.stored.path).toBe(path.join(tmpRoot, 'session-1', 'resource-1-unsafe-image.png'))
+    expect(result.stored.path).toBe(
+      path.join(sessionDirectory('session-1'), 'resource-1-unsafe-image.png'),
+    )
     expect(result.stored.sha256).toHaveLength(64)
     expect([...result.read]).toEqual([...bytes])
   })
@@ -90,7 +98,10 @@ describe('FilesystemSessionResourceStore', () => {
   })
 
   it('removes its temporary byte file when finalization fails', async () => {
-    const sessionDirectory = path.join(tmpRoot, 'session-1')
+    const sessionDirectory = path.join(
+      tmpRoot,
+      createHash('sha256').update('session-1').digest('hex'),
+    )
     const targetName = 'resource-1-image.png'
     await fs.mkdir(path.join(sessionDirectory, targetName), { recursive: true })
 
@@ -114,7 +125,10 @@ describe('FilesystemSessionResourceStore', () => {
   })
 
   it('recovers byte writes from a stale deterministic temporary file', async () => {
-    const sessionDirectory = path.join(tmpRoot, 'session-1')
+    const sessionDirectory = path.join(
+      tmpRoot,
+      createHash('sha256').update('session-1').digest('hex'),
+    )
     const target = path.join(sessionDirectory, 'resource-1-image.png')
     await fs.mkdir(sessionDirectory, { recursive: true })
     await fs.writeFile(`${target}.tmp`, 'interrupted write')
@@ -162,7 +176,10 @@ describe('FilesystemSessionResourceStore', () => {
   it('recovers file copies from a stale deterministic temporary file', async () => {
     const bytes = Buffer.from('recovered attachment')
     const sourcePath = path.join(tmpRoot, 'source-recovered.txt')
-    const sessionDirectory = path.join(tmpRoot, 'session-1')
+    const sessionDirectory = path.join(
+      tmpRoot,
+      createHash('sha256').update('session-1').digest('hex'),
+    )
     const target = path.join(sessionDirectory, 'resource-1-attachment.txt')
     await fs.writeFile(sourcePath, bytes)
     await fs.mkdir(sessionDirectory, { recursive: true })
@@ -208,7 +225,7 @@ describe('FilesystemSessionResourceStore', () => {
       _tag: 'Left',
       left: { _tag: 'SessionResourceStoreError', operation: 'storeFile' },
     })
-    await expect(fs.readdir(path.join(tmpRoot, 'session-1'))).resolves.toEqual([])
+    await expect(fs.readdir(sessionDirectory('session-1'))).resolves.toEqual([])
   })
 
   it('rejects same-size source contents that differ from the prepared digest', async () => {
@@ -237,7 +254,7 @@ describe('FilesystemSessionResourceStore', () => {
       _tag: 'Left',
       left: { _tag: 'SessionResourceStoreError', operation: 'storeFile' },
     })
-    await expect(fs.readdir(path.join(tmpRoot, 'session-1'))).resolves.toEqual([])
+    await expect(fs.readdir(sessionDirectory('session-1'))).resolves.toEqual([])
   })
 
   it('rejects a source file whose expected size exceeds the copy limit', async () => {
@@ -262,7 +279,7 @@ describe('FilesystemSessionResourceStore', () => {
       _tag: 'Left',
       left: { _tag: 'SessionResourceStoreError', operation: 'storeFile' },
     })
-    await expect(fs.readdir(path.join(tmpRoot, 'session-1'))).resolves.toEqual([])
+    await expect(fs.readdir(sessionDirectory('session-1'))).resolves.toEqual([])
   })
 
   it('rejects reads that resolve outside the managed resource root', async () => {
@@ -300,7 +317,7 @@ describe('FilesystemSessionResourceStore', () => {
       }).pipe(Effect.provide(makeFilesystemSessionResourceStoreLayer(tmpRoot))),
     )
 
-    await expect(fs.stat(path.join(tmpRoot, 'session-1'))).rejects.toMatchObject({ code: 'ENOENT' })
-    await expect(fs.stat(path.join(tmpRoot, 'session-2'))).resolves.toBeDefined()
+    await expect(fs.stat(sessionDirectory('session-1'))).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(fs.stat(sessionDirectory('session-2'))).resolves.toBeDefined()
   })
 })

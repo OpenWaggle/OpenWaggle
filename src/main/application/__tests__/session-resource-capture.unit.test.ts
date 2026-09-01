@@ -102,7 +102,7 @@ describe('captureSuccessfulRunResources', () => {
     expect(upserts).toContainEqual(
       expect.objectContaining({
         canonicalKey: 'file:/input/missing.png',
-        kind: 'image',
+        kind: 'file',
         title: 'missing.png',
         mimeType: 'image/png',
         locator: '/input/missing.png',
@@ -122,6 +122,7 @@ describe('captureSuccessfulRunResources', () => {
       title: 'missing.png',
       mimeType: 'image/png',
       locator: '/input/missing.png',
+      managed: false,
       available: false,
       isSource: true,
       isOutput: false,
@@ -163,7 +164,7 @@ describe('captureSuccessfulRunResources', () => {
       expect.objectContaining({
         id: 'missing-resource',
         canonicalKey: 'sha256:attachment-digest',
-        locator: 'session-resource://missing-resource',
+        locator: '/input/missing.png',
         managedPath: '/managed/missing-resource-missing.png',
         available: true,
       }),

@@ -106,13 +106,22 @@ export function useSessionResources(sessionId: string | null) {
   })
 }
 
-export function useSessionResourceRunCompletion(sessionId: string | null) {
+export function useSessionResourceRunCompletion(_sessionId: string | null) {
   const queryClient = useQueryClient()
   useEffect(() => {
-    if (!sessionId || typeof api.onRunCompleted !== 'function') return
-    return api.onRunCompleted((payload) => {
-      if (String(payload.sessionId) !== sessionId) return
-      void queryClient.invalidateQueries({ queryKey: sessionResourcesQueryKey(sessionId) })
-    })
-  }, [queryClient, sessionId])
+    const invalidate = (payload: { readonly sessionId: SessionId }) => {
+      void queryClient.invalidateQueries({
+        queryKey: sessionResourcesQueryKey(String(payload.sessionId)),
+      })
+    }
+    const cleanups = [
+      typeof api.onRunCompleted === 'function' ? api.onRunCompleted(invalidate) : undefined,
+      typeof api.onSessionResourcesInvalidated === 'function'
+        ? api.onSessionResourcesInvalidated(invalidate)
+        : undefined,
+    ]
+    return () => {
+      for (const cleanup of cleanups) cleanup?.()
+    }
+  }, [queryClient])
 }

@@ -4,6 +4,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { describe, expect, it, vi } from 'vitest'
+import { SessionResourceImageFetchError } from '../../errors'
 import {
   SessionResourceImageFetcher,
   type SessionResourceImageFetcherShape,
@@ -36,6 +37,7 @@ const REMOTE_RESOURCE: SessionResource = {
   title: 'Architecture',
   mimeType: null,
   locator: 'https://images.example/architecture.png',
+  managed: false,
   available: true,
   isSource: true,
   isOutput: false,
@@ -155,7 +157,7 @@ describe('readSessionResourceContent', () => {
     expect(test.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         id: REMOTE_RESOURCE.id,
-        locator: `session-resource://${REMOTE_RESOURCE.id}`,
+        locator: 'https://images.example/architecture.png',
         managedPath: '/managed/remote-image-architecture.png',
       }),
     )
@@ -219,5 +221,33 @@ describe('readSessionResourceContent', () => {
     ).resolves.toBeNull()
     expect(test.fetch).not.toHaveBeenCalled()
     expect(test.thumbnail).not.toHaveBeenCalled()
+  })
+
+  it('persists a failed remote fetch as unavailable while retaining its original URL', async () => {
+    const test = contentLayer({
+      fetch: vi.fn(() =>
+        Effect.fail(
+          new SessionResourceImageFetchError({
+            url: REMOTE_RESOURCE.locator ?? '',
+            cause: new Error('offline'),
+          }),
+        ),
+      ),
+    })
+
+    await expect(
+      Effect.runPromise(
+        readSessionResourceContent(SESSION_ID, REMOTE_RESOURCE.id).pipe(Effect.provide(test.layer)),
+      ),
+    ).rejects.toBeDefined()
+
+    expect(test.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: REMOTE_RESOURCE.id,
+        locator: REMOTE_RESOURCE.locator,
+        managedPath: null,
+        available: false,
+      }),
+    )
   })
 })

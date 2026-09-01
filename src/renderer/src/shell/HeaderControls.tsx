@@ -189,7 +189,7 @@ export function SessionSummaryButton({ open, panelId, onToggle }: SessionSummary
       radius="sm"
       id={`${panelId}-toggle`}
       aria-pressed={open}
-      aria-label={label}
+      aria-label="Session Summary"
       onClick={onToggle}
       className="no-drag h-7 border-button-border px-2"
       title={label}

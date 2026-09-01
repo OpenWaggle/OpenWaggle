@@ -93,4 +93,29 @@ describe('session resource extraction limits', () => {
       },
     ])
   })
+
+  it('bounds direct resource fields and rejects unsupported or credentialed URIs', () => {
+    const extracted = collectExplicitResources([
+      {
+        type: 'resource_link',
+        uri: `https://example.test/${'x'.repeat(SESSION_RESOURCE_EXTRACTION_LIMITS.maxUrlCharacters)}`,
+        title: 'Oversized URL',
+      },
+      { type: 'resource_link', uri: 'file:///private/secret', title: 'Local secret' },
+      { type: 'resource_link', uri: 'https://user:secret@example.test/private' },
+      {
+        type: 'resource_link',
+        uri: 'https://example.test/safe',
+        title: 'T'.repeat(SESSION_RESOURCE_EXTRACTION_LIMITS.maxTitleCharacters + 20),
+      },
+    ])
+
+    expect(extracted.links).toEqual([
+      {
+        url: 'https://example.test/safe',
+        title: 'T'.repeat(SESSION_RESOURCE_EXTRACTION_LIMITS.maxTitleCharacters),
+        image: false,
+      },
+    ])
+  })
 })

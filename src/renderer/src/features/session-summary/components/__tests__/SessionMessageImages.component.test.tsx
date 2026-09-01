@@ -23,6 +23,7 @@ function image(id: string, nodeId: string): SessionResource {
     title: `${id}.png`,
     mimeType: 'image/png',
     locator: `session-resource://${id}`,
+    managed: true,
     available: true,
     isSource: true,
     isOutput: false,
@@ -48,6 +49,7 @@ function remoteImage(id: string, nodeId: string): SessionResource {
     canonicalKey: `url:https://images.example/${id}.png`,
     mimeType: null,
     locator: `https://images.example/${id}.png`,
+    managed: false,
   }
 }
 

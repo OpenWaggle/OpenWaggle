@@ -2,6 +2,7 @@ import * as Schema from 'effect/Schema'
 import { describe, expect, it } from 'vitest'
 import { openWaggleAgentLoopSurfaceInputSchema } from '../agent-loop'
 import { extensionInvokeInputSchema } from '../broker'
+import { OPENWAGGLE_EXTENSION_BROKER } from '../constants'
 import { extensionDocsDiscoverPayloadSchema } from '../docs'
 import {
   defineExtensionManifest,
@@ -79,6 +80,7 @@ describe('extension SDK public schemas', () => {
   })
 
   it('exports direct schemas for broker, docs, runtime, and agent-loop boundaries', () => {
+    expect(OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES).toBe('openwaggle.resources')
     expect(() =>
       Schema.decodeUnknownSync(extensionInvokeInputSchema)({
         extensionId: 'schema-smoke',

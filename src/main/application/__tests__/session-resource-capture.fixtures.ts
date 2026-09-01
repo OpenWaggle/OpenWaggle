@@ -3,14 +3,16 @@ import { MessageId, SessionId, ToolCallId } from '@shared/types/brand'
 import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import { validatedImageBuffer } from '../../domain/session-resource-image'
 import { SessionResourceStoreError } from '../../errors'
 import { SessionResourceImageFetcher } from '../../ports/session-resource-image-fetcher'
+import { SessionResourceImageValidator } from '../../ports/session-resource-image-validator'
 import type { UpsertSessionResourceInput } from '../../ports/session-resource-repository'
 import { SessionResourceRepository } from '../../ports/session-resource-repository'
 import { SessionResourceStore } from '../../ports/session-resource-store'
 
 export const PNG_BASE64 =
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nKsAAAAASUVORK5CYII='
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVQImWP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg=='
 
 export function sessionResourceTestLayer(
   upserts: UpsertSessionResourceInput[],
@@ -21,6 +23,7 @@ export function sessionResourceTestLayer(
     readonly storedByteFiles?: string[]
     readonly storedAttachmentFiles?: string[]
     readonly storedAttachmentSha256?: Array<string | undefined>
+    readonly storedAttachmentBytes?: Uint8Array
     readonly fetchedUrls?: string[]
     readonly existingManagedPath?: string
     readonly managedReadFails?: boolean
@@ -33,6 +36,12 @@ export function sessionResourceTestLayer(
   } = {},
 ) {
   return Layer.mergeAll(
+    Layer.succeed(
+      SessionResourceImageValidator,
+      SessionResourceImageValidator.of({
+        validate: (bytes, mimeType) => Effect.succeed(validatedImageBuffer(bytes, mimeType)),
+      }),
+    ),
     Layer.succeed(
       SessionResourceImageFetcher,
       SessionResourceImageFetcher.of({
@@ -57,6 +66,7 @@ export function sessionResourceTestLayer(
             ...(options.duplicateLocator
               ? { id: 'existing-resource', locator: options.duplicateLocator }
               : {}),
+            managed: input.managedPath !== null,
             occurrences: [input.occurrence],
             isSource:
               input.occurrence.activity === 'provided' || input.occurrence.activity === 'read',
@@ -149,7 +159,9 @@ export function sessionResourceTestLayer(
                       cause: new Error('Managed resource is missing'),
                     }),
                   )
-                : Effect.succeed(new Uint8Array()),
+                : Effect.succeed(
+                    options.storedAttachmentBytes ?? Buffer.from(PNG_BASE64, 'base64'),
+                  ),
             ),
           ),
         remove: (managedPath) =>

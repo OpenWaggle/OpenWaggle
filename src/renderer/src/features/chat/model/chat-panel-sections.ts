@@ -80,6 +80,7 @@ export interface ChatComposerSectionState {
 }
 
 export interface ChatDiffSectionState {
+  readonly session: SessionDetail | null
   /** The working tree this panel reads and mutates (a Session worktree in worktree mode). */
   readonly workingPath: WorkingPath | null
   /** The repository the session belongs to, for telling a worktree apart from the checkout. */

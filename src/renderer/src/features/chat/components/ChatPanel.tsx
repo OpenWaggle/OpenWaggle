@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
+  type SessionResourceFilter,
   SessionResourceViewer,
   type SessionSummaryExtensionSidePanelTarget,
   SessionSummaryHub,
@@ -19,7 +20,7 @@ interface ChatPanelContentProps {
   readonly sections: ChatPanelSections
   readonly onOpenSessionTree?: () => void
   readonly onOpenDiff?: () => void
-  readonly onOpenResources?: () => void
+  readonly onOpenResources?: (filter?: SessionResourceFilter) => void
   readonly onNavigateSession?: (sessionId: string) => void
   readonly onOpenExtensionSidePanel?: (target: SessionSummaryExtensionSidePanelTarget) => void
   readonly rightSidebarOpen?: boolean

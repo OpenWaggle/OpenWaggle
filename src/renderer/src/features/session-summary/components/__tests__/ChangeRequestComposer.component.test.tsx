@@ -102,6 +102,7 @@ describe('ChangeRequestComposer', () => {
         headRef: 'codex/explore-image-hub-parity',
         state: 'open',
       },
+      changeRequestOutput: { ok: true },
     })
     openExternal.mockReset().mockResolvedValue(undefined)
     recordSessionChangeRequest.mockReset().mockResolvedValue({})
@@ -132,13 +133,41 @@ describe('ChangeRequestComposer', () => {
     expect(callbacks.onCompleted).toHaveBeenCalledOnce()
     expect(callbacks.onClose).toHaveBeenCalledOnce()
     expect(openExternal).toHaveBeenCalledWith('https://github.com/openwaggle/openwaggle/pull/1')
-    expect(recordSessionChangeRequest).toHaveBeenCalledWith(SessionId('session-1'), {
-      title: SESSION.title,
-      url: 'https://github.com/openwaggle/openwaggle/pull/1',
-    })
+    expect(recordSessionChangeRequest).not.toHaveBeenCalled()
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: ['session-resources', 'session-1'],
     })
+  })
+
+  it('creates the normal request with the Codex modifier-enter shortcut', async () => {
+    renderComposer({ gitStatus: null, isDefaultRef: false })
+
+    fireEvent.keyDown(screen.getByDisplayValue(SESSION.title), {
+      key: 'Enter',
+      ctrlKey: true,
+    })
+
+    await waitFor(() =>
+      expect(runStackedGitAction).toHaveBeenCalledWith(
+        WorkingPath('/project'),
+        expect.objectContaining({ action: 'create_pr', draft: false }),
+      ),
+    )
+  })
+
+  it('does not dismiss on Escape while request creation is running', async () => {
+    runStackedGitAction.mockReturnValue(new Promise(() => {}))
+    const callbacks = renderComposer({ isDefaultRef: false })
+    fireEvent.click(screen.getByRole('button', { name: 'Create PR' }))
+    await waitFor(() => expect(runStackedGitAction).toHaveBeenCalledOnce())
+
+    const dialog = screen.getByRole('dialog', { name: 'Create pull request' })
+    const cancelEvent = new Event('cancel', { bubbles: false, cancelable: true })
+    fireEvent(dialog, cancelEvent)
+
+    expect(cancelEvent.defaultPrevented).toBe(true)
+    expect(dialog).toHaveAttribute('open')
+    expect(callbacks.onClose).not.toHaveBeenCalled()
   })
 
   it('uses GitLab MR terminology and creates a draft without a new branch off default', async () => {
@@ -201,6 +230,21 @@ describe('ChangeRequestComposer', () => {
     expect(screen.getByRole('button', { name: 'Create draft PR' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Create PR' })).toBeDisabled()
     expect(runStackedGitAction).not.toHaveBeenCalled()
+  })
+
+  it('does not describe working changes when they are excluded from the request', async () => {
+    renderComposer({
+      vcs: { ...vcsStatus('github', true), aheadCount: 1 },
+    })
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /Commit and push local changes/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create PR' }))
+
+    await waitFor(() => expect(runStackedGitAction).toHaveBeenCalledOnce())
+    const options = runStackedGitAction.mock.calls[0]?.[1]
+    expect(options.changeRequestBody).toContain(`- ${SESSION.title}`)
+    expect(options.changeRequestBody).not.toContain('changed files')
+    expect(options.changeRequestBody).not.toContain('+30 / -0')
   })
 
   it('does not create a second branch when the default ref is unknown', async () => {

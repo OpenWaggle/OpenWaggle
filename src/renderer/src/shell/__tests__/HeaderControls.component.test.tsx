@@ -81,7 +81,7 @@ describe('HeaderControls', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Hide terminal' }))
-    const summaryButton = screen.getByRole('button', { name: 'Hide Session Summary' })
+    const summaryButton = screen.getByRole('button', { name: 'Session Summary' })
     fireEvent.click(summaryButton)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Session Tree' }))
     fireEvent.click(screen.getByRole('button', { name: 'Toggle diff panel' }))

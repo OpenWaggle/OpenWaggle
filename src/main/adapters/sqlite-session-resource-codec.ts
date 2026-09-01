@@ -92,6 +92,7 @@ export function rowToResource(
     title: row.title,
     mimeType: row.mime_type,
     locator: row.locator,
+    managed: row.managed_path !== null,
     available: row.available === 1,
     isSource: occurrences.some(
       (occurrence) => occurrence.activity === 'provided' || occurrence.activity === 'read',

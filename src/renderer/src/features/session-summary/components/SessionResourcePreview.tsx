@@ -41,7 +41,7 @@ export function SessionResourcePreview({
       nearViewport &&
       resource.available &&
       resource.kind === 'image' &&
-      resource.locator?.startsWith('https://') !== true,
+      (resource.managed || resource.locator?.startsWith('https://') !== true),
   })
   const source = content.data
     ? resourceDataUrl(content.data.mimeType, content.data.dataBase64)

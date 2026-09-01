@@ -20,6 +20,7 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'getContextUsage',
   'compactSession',
   'onRunCompleted',
+  'onSessionResourcesInvalidated',
   'onAgentPhase',
   'onWorktreeLaunch',
   // Settings
@@ -144,6 +145,7 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'openLogsDir',
   'getLogsPath',
   'openPath',
+  'revealPath',
   // Dialog
   'showConfirm',
   // Waggle

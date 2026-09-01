@@ -154,7 +154,7 @@ describe('Header', () => {
     expect(screen.getByText('openwaggle')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Open terminal' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Hide Session Summary' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Session Summary' }))
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Session Tree' }))
     fireEvent.click(screen.getByRole('button', { name: 'Toggle diff panel' }))
     fireEvent.click(screen.getByRole('button', { name: 'Report a bug' }))

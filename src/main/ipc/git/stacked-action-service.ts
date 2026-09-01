@@ -86,6 +86,13 @@ function withPreparedBranch(
   return branch.name ? { ...result, branch } : result
 }
 
+function withCommit(
+  result: GitRunStackedActionFailure,
+  commit: { readonly commitHash: string; readonly summary: string } | null,
+): GitRunStackedActionFailure {
+  return commit ? { ...result, commit } : result
+}
+
 /**
  * Orchestrate a stacked git action server-side. Steps run in order and stop at
  * the first failure (centralized partial-failure handling); progress events are
@@ -113,7 +120,7 @@ export async function runStackedGitAction(
     report('push', 'Pulling...')
     const pull = await deps.pull(projectPath)
     return pull.ok
-      ? { ok: true, action: 'pull', branch: unchangedBranch(), changeRequest: null }
+      ? { ok: true, action: 'pull', branch: unchangedBranch(), commit: null, changeRequest: null }
       : failure('push', 'pull-failed', pull.message)
   }
 
@@ -124,16 +131,24 @@ export async function runStackedGitAction(
 
   const phases = planStackedActionPhases(options.action)
 
-  const commitFailure = await maybeCommit(deps, projectPath, options, phases, hasChanges, report)
-  if (commitFailure) return withPreparedBranch(commitFailure, branch)
+  const commitOutcome = await maybeCommit(deps, projectPath, options, phases, hasChanges, report)
+  if (!commitOutcome.ok) return withPreparedBranch(commitOutcome.failure, branch)
 
   const pushFailure = await maybePush(deps, projectPath, phases, report)
-  if (pushFailure) return withPreparedBranch(pushFailure, branch)
+  if (pushFailure) return withCommit(withPreparedBranch(pushFailure, branch), commitOutcome.commit)
 
   const prOutcome = await maybeOpenChangeRequest(deps, projectPath, options, phases, branch, report)
-  if (!prOutcome.ok) return withPreparedBranch(prOutcome.failure, branch)
+  if (!prOutcome.ok) {
+    return withCommit(withPreparedBranch(prOutcome.failure, branch), commitOutcome.commit)
+  }
 
-  return { ok: true, action: options.action, branch, changeRequest: prOutcome.changeRequest }
+  return {
+    ok: true,
+    action: options.action,
+    branch,
+    commit: commitOutcome.commit,
+    changeRequest: prOutcome.changeRequest,
+  }
 }
 
 function createReporter(
@@ -162,22 +177,27 @@ async function maybeCommit(
   hasChanges: boolean,
   report: (phase: GitActionPhase, label: string) => void,
 ) {
-  if (!phases.includes('commit') || (options.action !== 'commit' && !hasChanges)) return null
+  if (!phases.includes('commit') || (options.action !== 'commit' && !hasChanges)) {
+    return { ok: true, commit: null } as const
+  }
   // Never invent a commit message: an unreviewed blanket "Update" commit is not an
   // acceptable default for a one-click action (review B2).
   const message = options.commitMessage?.trim()
   if (!message) {
-    return failure(
-      'commit',
-      'commit-message-required',
-      'A commit message is required for this action.',
-    )
+    return {
+      ok: false,
+      failure: failure(
+        'commit',
+        'commit-message-required',
+        'A commit message is required for this action.',
+      ),
+    } as const
   }
   report('commit', 'Committing...')
   const commit = await deps.commit(projectPath, message, options.paths)
-  if (commit.ok) return null
+  if (commit.ok) return { ok: true, commit } as const
   const code = commit.code === 'nothing-to-commit' ? 'nothing-to-commit' : 'unknown'
-  return failure('commit', code, commit.message)
+  return { ok: false, failure: failure('commit', code, commit.message) } as const
 }
 
 async function maybePush(

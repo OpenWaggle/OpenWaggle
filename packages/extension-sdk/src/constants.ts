@@ -28,6 +28,7 @@ const EXTENSION_BROKER_CAPABILITY = {
   SETTINGS: 'openwaggle.settings',
   DOCS: 'openwaggle.docs',
   RUNTIME: 'openwaggle.runtime',
+  RESOURCES: 'openwaggle.resources',
 } as const
 
 const EXTENSION_BROKER_METHOD = {
@@ -47,6 +48,8 @@ const EXTENSION_BROKER_METHOD = {
   RESOLVE_DOCS_TOPIC: 'resolve-docs-topic',
   REGISTER_CONTRIBUTION: 'register-contribution',
   UNREGISTER_CONTRIBUTION: 'unregister-contribution',
+  LIST_RESOURCES: 'list-resources',
+  PUBLISH_RESOURCE: 'publish-resource',
 } as const
 
 const EXTENSION_BROKER_STATE_SELECTOR = {
@@ -103,6 +106,10 @@ const EXTENSION_BROKER_CAPABILITY_METHODS = [
       EXTENSION_BROKER_METHOD.REGISTER_CONTRIBUTION,
       EXTENSION_BROKER_METHOD.UNREGISTER_CONTRIBUTION,
     ],
+  },
+  {
+    capability: EXTENSION_BROKER_CAPABILITY.RESOURCES,
+    methods: [EXTENSION_BROKER_METHOD.LIST_RESOURCES, EXTENSION_BROKER_METHOD.PUBLISH_RESOURCE],
   },
 ] as const
 

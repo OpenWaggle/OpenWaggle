@@ -3,6 +3,8 @@ import { isNonEmptyString, isRecord, isStringArray } from './internal-validation
 import type {
   ExtensionActionSelectProjectResult,
   ExtensionModelPrefs,
+  ExtensionSessionResourcePublishResult,
+  ExtensionSessionResourcesListResult,
   ExtensionSettingsGetResult,
   ExtensionSettingsGetSettingResult,
   ExtensionSettingsSelectedValue,
@@ -18,6 +20,49 @@ import type {
 
 function isStringOrNull(value: unknown): value is string | null {
   return value === null || typeof value === 'string'
+}
+
+function isSessionResourceView(value: unknown) {
+  return (
+    isRecord(value) &&
+    isNonEmptyString(value.id) &&
+    isNonEmptyString(value.title) &&
+    ['image', 'file', 'link', 'tool', 'web-search', 'site', 'commit', 'change-request'].includes(
+      String(value.kind),
+    ) &&
+    isStringOrNull(value.mimeType) &&
+    typeof value.available === 'boolean' &&
+    typeof value.isSource === 'boolean' &&
+    typeof value.isOutput === 'boolean'
+  )
+}
+
+function isSessionResourceResultBase(value: Readonly<Record<string, unknown>>, method: string) {
+  return (
+    hasOpenWaggleResultBase(value, OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES, method) &&
+    isNonEmptyString(value.sessionId)
+  )
+}
+
+export function isSessionResourcesListResult(
+  value: unknown,
+): value is ExtensionSessionResourcesListResult {
+  return (
+    isRecord(value) &&
+    isSessionResourceResultBase(value, OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES) &&
+    Array.isArray(value.resources) &&
+    value.resources.every(isSessionResourceView)
+  )
+}
+
+export function isSessionResourcePublishResult(
+  value: unknown,
+): value is ExtensionSessionResourcePublishResult {
+  return (
+    isRecord(value) &&
+    isSessionResourceResultBase(value, OPENWAGGLE_EXTENSION_BROKER.METHOD.PUBLISH_RESOURCE) &&
+    isSessionResourceView(value.resource)
+  )
 }
 
 function isInvokeScope(value: unknown) {

@@ -1,12 +1,10 @@
-import { isMatching, P } from '@diegogbrisa/ts-match'
+import { SessionId } from '@shared/types/brand'
 import type { SessionResource } from '@shared/types/session-resource'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Download, ExternalLink, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
 import { ModalDialog } from '@/shared/ui/ModalDialog'
-import { Select } from '@/shared/ui/Select'
 import { useUIStore } from '@/shell/ui-store'
 import {
   sessionResourceContentQueryOptions,
@@ -18,6 +16,7 @@ import {
   SessionResourceViewerCanvas,
   type ImageViewerZoom as Zoom,
 } from './SessionResourceViewerCanvas'
+import { SessionResourceViewerHeader } from './SessionResourceViewerHeader'
 
 const EMPTY_MESSAGE_IDS: ReadonlySet<string> = new Set()
 
@@ -25,98 +24,9 @@ function contentUrl(content: { readonly mimeType: string; readonly dataBase64: s
   return `data:${content.mimeType};base64,${content.dataBase64}`
 }
 
-function downloadResource(resource: SessionResource, url: string) {
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = resource.title
-  anchor.click()
-}
-
 function belongsToActivePath(resource: SessionResource, activeMessageIds: ReadonlySet<string>) {
   return resource.occurrences.some(
     (occurrence) => occurrence.nodeId !== null && activeMessageIds.has(occurrence.nodeId),
-  )
-}
-
-function ViewerHeader({
-  resource,
-  index,
-  count,
-  zoom,
-  source,
-  onZoomChange,
-  onClose,
-}: {
-  readonly resource: SessionResource
-  readonly index: number
-  readonly count: number
-  readonly zoom: Zoom
-  readonly source: string | null
-  readonly onZoomChange: (zoom: Zoom) => void
-  readonly onClose: () => void
-}) {
-  return (
-    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-3">
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-text-primary">{resource.title}</p>
-        <p className="text-xs text-text-tertiary">
-          {index + 1} of {count}
-        </p>
-      </div>
-      <Select
-        aria-label="Image zoom"
-        selectSize="xs"
-        value={zoom}
-        onChange={(event) => {
-          if (isMatching(P.union('fit', '25', '50', '100', '150', '200'), event.target.value)) {
-            onZoomChange(event.target.value)
-          }
-        }}
-      >
-        <option value="fit">Fit</option>
-        <option value="25">25%</option>
-        <option value="50">50%</option>
-        <option value="100">100%</option>
-        <option value="150">150%</option>
-        <option value="200">200%</option>
-      </Select>
-      <ViewerResourceAction resource={resource} source={source} />
-      <Button variant="ghost" size="icon-sm" aria-label="Close image viewer" onClick={onClose}>
-        <X className="size-4" />
-      </Button>
-    </header>
-  )
-}
-
-function ViewerResourceAction({
-  resource,
-  source,
-}: {
-  readonly resource: SessionResource
-  readonly source: string | null
-}) {
-  if (source) {
-    return (
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Download image"
-        onClick={() => downloadResource(resource, source)}
-      >
-        <Download className="size-4" />
-      </Button>
-    )
-  }
-  if (!resource.locator?.startsWith('http')) return null
-  return (
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      aria-label="Open image source"
-      onClick={() => void api.openExternal(resource.locator ?? '')}
-    >
-      <ExternalLink className="size-4" />
-    </Button>
   )
 }
 
@@ -140,9 +50,19 @@ function useViewerKeyboardNavigation(
     if (!viewerSessionId) return
     const sessionId = viewerSessionId
     function handleKeyDown(event: KeyboardEvent) {
+      const target = event.target
+      if (
+        target instanceof HTMLElement &&
+        (target.matches('input, select, textarea') || target.isContentEditable)
+      ) {
+        return
+      }
       const offset = event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : 0
       const next = offset === 0 ? undefined : images[index + offset]
-      if (next) open(sessionId, next.id)
+      if (next) {
+        event.preventDefault()
+        open(sessionId, next.id)
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
@@ -169,26 +89,119 @@ function selectedImage(resourceId: string | null, images: readonly SessionResour
   return { index, resource: index >= 0 ? (images[index] ?? null) : null }
 }
 
+function useSessionResourceRetry(
+  sessionId: string | null,
+  resource: SessionResource | null,
+  retryKey: string,
+  refetch: () => Promise<unknown>,
+) {
+  const queryClient = useQueryClient()
+  const retryingRef = useRef(false)
+  const [retryState, setRetryState] = useState<{
+    readonly key: string
+    readonly retrying: boolean
+    readonly error: string | null
+  }>({ key: retryKey, retrying: false, error: null })
+  const current =
+    retryState.key === retryKey ? retryState : { key: retryKey, retrying: false, error: null }
+  return {
+    ...current,
+    retry: async () => {
+      if (!sessionId || !resource || retryingRef.current) return
+      retryingRef.current = true
+      setRetryState({ key: retryKey, retrying: true, error: null })
+      try {
+        await api.retrySessionResource(SessionId(sessionId), resource.id)
+        await queryClient.invalidateQueries({ queryKey: sessionResourcesQueryKey(sessionId) })
+        await refetch()
+      } catch (cause) {
+        setRetryState({
+          key: retryKey,
+          retrying: false,
+          error: cause instanceof Error ? cause.message : 'Could not retry this image.',
+        })
+      } finally {
+        retryingRef.current = false
+        setRetryState((state) => (state.key === retryKey ? { ...state, retrying: false } : state))
+      }
+    },
+  }
+}
+
+function viewerContentIdentity(sessionId: string | null, resource: SessionResource | null) {
+  return {
+    sessionId: sessionId ?? 'none',
+    resourceId: resource?.id ?? 'none',
+    updatedAt: resource?.updatedAt ?? 0,
+  }
+}
+
+function viewerResourceFlags(resource: SessionResource | null, sessionIsActive: boolean) {
+  const locator = resource?.locator ?? ''
+  return {
+    enabled: sessionIsActive && resource?.kind === 'image',
+    remote: locator.startsWith('https://'),
+    managed: resource?.managed === true || locator.startsWith('session-resource://'),
+  }
+}
+
+function useRemoteResourceProjectionRefresh(
+  sessionId: string | null,
+  remote: boolean,
+  hasContentOrError: boolean,
+) {
+  const queryClient = useQueryClient()
+  useEffect(() => {
+    if (!hasContentOrError || !sessionId || !remote) return
+    void queryClient.invalidateQueries({ queryKey: sessionResourcesQueryKey(sessionId) })
+  }, [hasContentOrError, queryClient, remote, sessionId])
+}
+
+function viewerSourceState(
+  data: { readonly mimeType: string; readonly dataBase64: string } | null | undefined,
+  state: { readonly pending: boolean; readonly error: boolean; readonly success: boolean },
+  managed: boolean,
+) {
+  return {
+    source: data ? contentUrl(data) : null,
+    loading: state.pending,
+    failed: state.error || (managed && state.success && data === null),
+  }
+}
+
 function useViewerSource(
   sessionId: string | null,
   resource: SessionResource | null,
   sessionIsActive: boolean,
 ) {
-  const queryClient = useQueryClient()
+  const identity = viewerContentIdentity(sessionId, resource)
+  const flags = viewerResourceFlags(resource, sessionIsActive)
+  const retryKey = `${identity.sessionId}:${identity.resourceId}`
   const content = useQuery({
     ...sessionResourceContentQueryOptions(
-      sessionId ?? 'none',
-      resource?.id ?? 'none',
-      resource?.updatedAt ?? 0,
+      identity.sessionId,
+      identity.resourceId,
+      identity.updatedAt,
     ),
-    enabled: sessionIsActive && resource?.kind === 'image',
+    enabled: flags.enabled,
   })
-  const remoteLocator = resource?.locator?.startsWith('https://') === true
-  useEffect(() => {
-    if (!content.data || !sessionId || !remoteLocator) return
-    void queryClient.invalidateQueries({ queryKey: sessionResourcesQueryKey(sessionId) })
-  }, [content.data, queryClient, remoteLocator, sessionId])
-  return content.data ? contentUrl(content.data) : null
+  useRemoteResourceProjectionRefresh(
+    sessionId,
+    flags.remote,
+    Boolean(content.data || content.isError),
+  )
+  const retry = useSessionResourceRetry(sessionId, resource, retryKey, content.refetch)
+  const source = viewerSourceState(
+    content.data,
+    { pending: content.isPending, error: content.isError, success: content.isSuccess },
+    flags.managed,
+  )
+  return {
+    ...source,
+    retrying: retry.retrying,
+    retryError: retry.error,
+    retry: retry.retry,
+  }
 }
 
 function selectedZoom(
@@ -213,7 +226,7 @@ export function SessionResourceViewer({
   const resourcesQuery = useSessionResources(viewerSessionId)
   const images = orderedImages(resourcesQuery.data, activeMessageIds)
   const { index, resource } = selectedImage(viewer?.resourceId ?? null, images)
-  const source = useViewerSource(
+  const viewerSource = useViewerSource(
     viewerSessionId,
     resource,
     viewerSessionId !== null && viewerSessionId === activeSessionId,
@@ -237,23 +250,46 @@ export function SessionResourceViewer({
       className="size-full max-h-none max-w-none overflow-hidden rounded-none border-0 bg-bg p-0"
     >
       <div className="flex h-full min-h-0 flex-col">
-        <ViewerHeader
+        <SessionResourceViewerHeader
           resource={resource}
           index={index}
           count={images.length}
           zoom={zoom}
-          source={source}
+          source={viewerSource.source}
           onZoomChange={(next) => setZoomState({ resourceId: resource.id, zoom: next })}
           onClose={close}
         />
-        <SessionResourceViewerCanvas
-          resource={resource}
-          source={source}
-          zoom={zoom}
-          index={index}
-          count={images.length}
-          onNavigate={navigate}
-        />
+        {viewerSource.loading ? (
+          <output className="flex min-h-0 flex-1 items-center justify-center p-6 text-sm text-text-secondary">
+            Loading image…
+          </output>
+        ) : viewerSource.failed ? (
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+            <p className="text-sm text-text-secondary">This image is currently unavailable.</p>
+            {viewerSource.retryError ? (
+              <p className="text-sm text-error" role="alert">
+                {viewerSource.retryError}
+              </p>
+            ) : null}
+            <Button
+              variant="secondary"
+              disabled={viewerSource.retrying}
+              aria-disabled={viewerSource.retrying}
+              onClick={() => void viewerSource.retry()}
+            >
+              {viewerSource.retrying ? 'Retrying image…' : 'Retry image'}
+            </Button>
+          </div>
+        ) : (
+          <SessionResourceViewerCanvas
+            resource={resource}
+            source={viewerSource.source}
+            zoom={zoom}
+            index={index}
+            count={images.length}
+            onNavigate={navigate}
+          />
+        )}
       </div>
     </ModalDialog>
   )

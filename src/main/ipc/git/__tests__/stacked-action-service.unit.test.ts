@@ -54,6 +54,7 @@ describe('runStackedGitAction', () => {
     expect(events.map((e) => e.phase)).toEqual(['branch', 'commit', 'push', 'pr'])
     if (result.ok) {
       expect(result.branch).toEqual({ status: 'created', name: 'feature/update' })
+      expect(result.commit).toEqual({ ok: true, commitHash: 'abc', summary: 'done' })
       expect(result.changeRequest?.state).toBe('open')
     }
   })
@@ -67,7 +68,13 @@ describe('runStackedGitAction', () => {
       commitMessage: 'msg',
     })
 
-    expect(result).toEqual({ ok: false, phase: 'push', code: 'push-failed', message: 'boom' })
+    expect(result).toEqual({
+      ok: false,
+      phase: 'push',
+      code: 'push-failed',
+      message: 'boom',
+      commit: { ok: true, commitHash: 'abc', summary: 'done' },
+    })
     expect(deps.commit).toHaveBeenCalled()
     expect(deps.openChangeRequest).not.toHaveBeenCalled()
   })
@@ -231,6 +238,7 @@ describe('runStackedGitAction', () => {
     const deps = makeDeps()
     const result = await runStackedGitAction(deps, '/repo', { action: 'pull' })
     expect(result.ok).toBe(true)
+    if (result.ok) expect(result.commit).toBeNull()
     expect(deps.pull).toHaveBeenCalled()
     expect(deps.commit).not.toHaveBeenCalled()
     expect(deps.push).not.toHaveBeenCalled()

@@ -1,5 +1,7 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { SessionId } from '@shared/types/brand'
+import { fromPartial } from '@total-typescript/shoehorn'
+import type { IpcRendererEvent } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
@@ -72,6 +74,26 @@ describe('preload api surface contract', () => {
       'sessions:resources:retry',
       SessionId('session-1'),
       'resource-1',
+    )
+  })
+
+  it('subscribes to resource invalidation for the affected session and cleans up', () => {
+    const listener = vi.fn()
+    const unsubscribe = api.onSessionResourcesInvalidated(listener)
+    const registered = vi
+      .mocked(ipcRenderer.on)
+      .mock.calls.find(([channel]) => channel === 'sessions:resources-invalidated')
+
+    expect(registered).toBeDefined()
+    registered?.[1](fromPartial<IpcRendererEvent>({}), {
+      sessionId: SessionId('session-background'),
+    })
+    expect(listener).toHaveBeenCalledWith({ sessionId: SessionId('session-background') })
+
+    unsubscribe()
+    expect(ipcRenderer.removeListener).toHaveBeenCalledWith(
+      'sessions:resources-invalidated',
+      registered?.[1],
     )
   })
 

@@ -7,12 +7,21 @@ import {
 import { SessionId } from '@shared/types/brand'
 import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
+import {
+  clearPendingChangeRequestOutput,
+  clearPendingCommitOutput,
+  isPendingChangeRequestOutput,
+  listPendingCommitOutputs,
+} from '../application/session-change-request-output-retry'
 import { captureProjectedSessionResources } from '../application/session-resource-backfill'
 import {
   readSessionResourceContent,
   readSessionResourceThumbnail,
 } from '../application/session-resource-content'
-import { recordSessionChangeRequest } from '../application/session-resource-recording'
+import {
+  recordSessionChangeRequest,
+  recordSessionCommit,
+} from '../application/session-resource-recording'
 import { SessionRepository, type SessionRepositoryShape } from '../ports/session-repository'
 import {
   SessionResourceRepository,
@@ -22,10 +31,19 @@ import { typedHandle } from './typed-ipc'
 
 export const SESSION_RESOURCE_BACKFILL_PAGE_SIZE = 64
 
+function retryPendingCommitOutputs(sessionId: SessionId) {
+  return Effect.forEach(listPendingCommitOutputs(sessionId), (commit) =>
+    recordSessionCommit(sessionId, commit).pipe(
+      Effect.tap(() => Effect.sync(() => clearPendingCommitOutput(sessionId, commit.commitHash))),
+      Effect.catchAll(() => Effect.void),
+    ),
+  ).pipe(Effect.asVoid)
+}
+
 function managedResourceNodeIds(resources: readonly SessionResource[]) {
   const nodeIds = new Set<string>()
   for (const resource of resources) {
-    if (!resource.available || !resource.locator?.startsWith('session-resource://')) continue
+    if (!resource.available || !resource.managed) continue
     for (const occurrence of resource.occurrences) {
       if (occurrence.nodeId) nodeIds.add(occurrence.nodeId)
     }
@@ -84,6 +102,7 @@ export function registerSessionResourceHandlers(): void {
       const sessionId = SessionId(
         decodeUnknownOrThrow(sessionResourceSessionIdSchema, rawSessionId),
       )
+      yield* retryPendingCommitOutputs(sessionId)
       const repository = yield* SessionResourceRepository
       const status = yield* advanceSessionResourceBackfillPage(sessionId)
       return { resources: [...(yield* repository.list(sessionId))], ...status }
@@ -126,7 +145,16 @@ export function registerSessionResourceHandlers(): void {
       const resourceId = decodeUnknownOrThrow(sessionResourceIdSchema, rawResourceId)
       const repository = yield* SessionResourceRepository
       const resource = (yield* repository.list(sessionId)).find(({ id }) => id === resourceId)
-      if (!resource || resource.available) return undefined
+      if (!resource) return undefined
+      if (
+        !resource.available &&
+        resource.kind === 'image' &&
+        resource.locator?.startsWith('https://')
+      ) {
+        yield* readSessionResourceContent(sessionId, resourceId)
+        return undefined
+      }
+      if (resource.available && !resource.managed) return undefined
       const nodeIds = new Set(
         resource.occurrences.flatMap(({ nodeId }) => (nodeId ? [nodeId] : [])),
       )
@@ -145,9 +173,19 @@ export function registerSessionResourceHandlers(): void {
   typedHandle(
     'sessions:resources:record-change-request',
     (_event, rawSessionId: unknown, rawInput) =>
-      recordSessionChangeRequest(
-        SessionId(decodeUnknownOrThrow(sessionResourceSessionIdSchema, rawSessionId)),
-        decodeUnknownOrThrow(recordSessionChangeRequestInputSchema, rawInput),
-      ),
+      Effect.gen(function* () {
+        const sessionId = SessionId(
+          decodeUnknownOrThrow(sessionResourceSessionIdSchema, rawSessionId),
+        )
+        const input = decodeUnknownOrThrow(recordSessionChangeRequestInputSchema, rawInput)
+        if (!isPendingChangeRequestOutput(sessionId, input)) {
+          return yield* Effect.fail(
+            new Error('No matching created change request is pending Output recording.'),
+          )
+        }
+        const recorded = yield* recordSessionChangeRequest(sessionId, input)
+        clearPendingChangeRequestOutput(sessionId, input)
+        return recorded
+      }),
   )
 }

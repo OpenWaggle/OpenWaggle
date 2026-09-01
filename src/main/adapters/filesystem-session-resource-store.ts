@@ -87,6 +87,28 @@ function digest(bytes: Uint8Array) {
   return createHash('sha256').update(bytes).digest('hex')
 }
 
+function sessionDirectoryName(sessionId: string) {
+  return createHash('sha256').update(sessionId).digest('hex')
+}
+
+async function sessionDirectoryFor(root: string, sessionId: string) {
+  await fs.mkdir(root, { recursive: true })
+  const realRoot = await fs.realpath(root)
+  const target = path.join(realRoot, sessionDirectoryName(sessionId))
+  await fs.mkdir(target).catch(async (cause: NodeJS.ErrnoException) => {
+    if (cause.code !== 'EEXIST') throw cause
+    const stats = await fs.lstat(target)
+    if (stats.isSymbolicLink() || !stats.isDirectory()) {
+      throw new Error('Session resource directory is not a managed directory.')
+    }
+  })
+  const realTarget = await fs.realpath(target)
+  if (!isWithinRoot(realRoot, realTarget)) {
+    throw new Error('Session resource directory escapes the managed resource root.')
+  }
+  return realTarget
+}
+
 function validateFileCopyLimits(input: {
   readonly expectedSizeBytes: number
   readonly expectedSha256?: string
@@ -187,8 +209,7 @@ function makeStore(root: string): SessionResourceStoreShape {
   function storeBytes(input: StoreSessionResourceBytesInput) {
     return Effect.tryPromise({
       try: async () => {
-        const sessionDirectory = path.join(root, String(input.sessionId))
-        await fs.mkdir(sessionDirectory, { recursive: true })
+        const sessionDirectory = await sessionDirectoryFor(root, String(input.sessionId))
         const target = path.join(
           sessionDirectory,
           managedFileName(input.resourceId, input.fileName),
@@ -210,8 +231,7 @@ function makeStore(root: string): SessionResourceStoreShape {
     storeFile: (input) =>
       Effect.tryPromise({
         try: async () => {
-          const sessionDirectory = path.join(root, String(input.sessionId))
-          await fs.mkdir(sessionDirectory, { recursive: true })
+          const sessionDirectory = await sessionDirectoryFor(root, String(input.sessionId))
           const target = path.join(
             sessionDirectory,
             managedFileName(input.resourceId, input.fileName),
@@ -259,8 +279,9 @@ function makeStore(root: string): SessionResourceStoreShape {
     removeSession: (sessionId) =>
       Effect.tryPromise({
         try: async () => {
-          const target = path.join(root, String(sessionId))
-          if (!isWithinRoot(root, target)) {
+          const realRoot = await fs.realpath(root)
+          const target = path.join(realRoot, sessionDirectoryName(String(sessionId)))
+          if (!isWithinRoot(realRoot, target)) {
             throw new Error('Session resource cleanup target is invalid.')
           }
           await fs.rm(target, { recursive: true, force: true })

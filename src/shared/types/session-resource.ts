@@ -32,6 +32,8 @@ export interface SessionResource {
   readonly title: string
   readonly mimeType: string | null
   readonly locator: string | null
+  /** Whether OpenWaggle has an immutable managed copy in addition to the original locator. */
+  readonly managed: boolean
   readonly available: boolean
   readonly isSource: boolean
   readonly isOutput: boolean
