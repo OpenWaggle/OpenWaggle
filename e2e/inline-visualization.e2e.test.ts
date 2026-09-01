@@ -134,6 +134,40 @@ async function expectSecureInteractiveVisualization(app: OpenWaggleApp) {
   await expect(frame.getByRole('tooltip')).toHaveText('Sandbox navigation probe')
   await expect(navigationButton).toHaveAttribute('aria-describedby', /^openwaggle-tooltip-/u)
 
+  await app.resizeMainWindow(1440, 900)
+  await page.getByRole('button', { name: 'Expand visualization' }).click()
+  const largeFocusLayer = page.locator('[data-visualization-focus-layer="true"]')
+  const largeDialog = page.getByRole('dialog', { name: FRAME_TITLE })
+  await expect(largeFocusLayer).toBeVisible()
+  await expect(largeDialog).toBeVisible()
+  const largeViewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }))
+  const largeDialogBounds = await largeDialog.boundingBox()
+  expect(largeDialogBounds).not.toBeNull()
+  expect(largeDialogBounds?.width).toBeLessThan(largeViewport.width - 200)
+  expect(
+    Math.abs(
+      (largeDialogBounds?.x ?? 0) * 2 +
+        (largeDialogBounds?.width ?? 0) -
+        largeViewport.width,
+    ),
+  ).toBeLessThanOrEqual(2)
+  expect(
+    Math.abs(
+      (largeDialogBounds?.y ?? 0) * 2 +
+        (largeDialogBounds?.height ?? 0) -
+        largeViewport.height,
+    ),
+  ).toBeLessThanOrEqual(2)
+  await app.captureEvidence('openwaggle-inline-visualization-centered-dialog')
+
+  const closeButton = page.getByRole('button', { name: 'Close expanded visualization' })
+  const closeBounds = await closeButton.boundingBox()
+  expect(closeBounds?.width).toBeGreaterThanOrEqual(44)
+  expect(closeBounds?.height).toBeGreaterThanOrEqual(44)
+  await page.mouse.click((closeBounds?.x ?? 0) + 4, (closeBounds?.y ?? 0) + 4)
+  await expect(largeFocusLayer).toHaveCount(0)
+
+  await app.resizeMainWindow(760, 620)
   const heightBefore = await iframe.evaluate((element) => element.getBoundingClientRect().height)
   await frame.getByRole('button', { name: 'Count 0' }).evaluate((element: HTMLElement) => {
     element.click()
@@ -153,8 +187,8 @@ async function expectSecureInteractiveVisualization(app: OpenWaggleApp) {
   await expect(frame.getByRole('button', { name: 'Count 1' })).toBeVisible()
   const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }))
   const dialogBounds = await dialog.boundingBox()
-  expect(dialogBounds?.x).toBeLessThan(24)
-  expect(dialogBounds?.width).toBeGreaterThan(viewport.width - 48)
+  expect(dialogBounds?.x).toBeLessThanOrEqual(24)
+  expect(dialogBounds?.width).toBeGreaterThanOrEqual(viewport.width - 48)
   await app.captureEvidence('openwaggle-inline-visualization-expanded')
   expect(
     await page.getByRole('button', { name: 'New session' }).first().evaluate((element) => {

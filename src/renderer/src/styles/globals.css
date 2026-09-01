@@ -621,6 +621,26 @@
     width: min(64rem, calc(100cqw - 2.5rem));
   }
 
+  .inline-visualization-dialog {
+    max-height: calc(100dvh - 1.5rem);
+    width: min(46rem, calc(100vw - 1.5rem));
+  }
+
+  .inline-visualization-dialog-wide {
+    width: min(64rem, calc(100vw - 1.5rem));
+  }
+
+  @media (min-width: 640px) {
+    .inline-visualization-dialog {
+      max-height: calc(100dvh - 3rem);
+      width: min(46rem, calc(100vw - 3rem));
+    }
+
+    .inline-visualization-dialog-wide {
+      width: min(64rem, calc(100vw - 3rem));
+    }
+  }
+
   .inline-visualization-expanded::backdrop {
     background: color-mix(in srgb, var(--color-bg) 60%, transparent);
     backdrop-filter: blur(2px);
