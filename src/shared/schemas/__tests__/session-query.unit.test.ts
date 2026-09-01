@@ -148,12 +148,14 @@ describe('Session query v2 boundary', () => {
           operation: 'exports-read',
           sessionId: 'session-1',
           exportOperationId: 'export-1',
+          includeQueueBodies: true,
         },
       }).query,
     ).toEqual({
       operation: 'exports-read',
       sessionId: 'session-1',
       exportOperationId: 'export-1',
+      includeQueueBodies: true,
     })
   })
 

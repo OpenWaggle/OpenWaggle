@@ -61,7 +61,11 @@ function exportOperationPage(
   rows: readonly SessionExportOperationRow[],
   hasAdditionalCandidates: boolean,
 ) {
-  const candidates = rows.map(sessionExportOperationRecord).map(sessionExportOperationSummary)
+  const candidates = rows.map(sessionExportOperationRecord).map((record) =>
+    sessionExportOperationSummary(record, {
+      includeQueueBodies: request.query.includeQueueBodies === true,
+    }),
+  )
   const baseOutcome = {
     operation: 'exports-list',
     sessionId: request.query.sessionId,
@@ -163,7 +167,9 @@ export function readSessionExportOperation(sql: SqlClient.SqlClient, request: Re
     }
     return sessionQueryResponse(request, {
       operation: 'exports-read',
-      export: sessionExportOperationSummary(sessionExportOperationRecord(row)),
+      export: sessionExportOperationSummary(sessionExportOperationRecord(row), {
+        includeQueueBodies: request.query.includeQueueBodies === true,
+      }),
     })
   })
 }

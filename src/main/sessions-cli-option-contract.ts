@@ -170,9 +170,9 @@ const GROUPED_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
     ...IDEMPOTENCY,
   ],
   'export:cancel': [...IDEMPOTENCY],
-  'export:list': ['status', 'limit', 'cursor'],
-  'export:read': [],
-  'export:wait': ['timeout-ms', 'after-host', 'after-sequence'],
+  'export:list': ['status', 'limit', 'cursor', 'include-queue-bodies'],
+  'export:read': ['include-queue-bodies'],
+  'export:wait': ['timeout-ms', 'after-host', 'after-sequence', 'include-queue-bodies'],
   'export:watch': ['after-host', 'after-sequence'],
 }
 

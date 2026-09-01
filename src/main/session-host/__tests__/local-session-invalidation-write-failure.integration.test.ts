@@ -58,6 +58,8 @@ describe('Local Session invalidation response failures', () => {
     ['revoke', 'write failure'],
     ['rotate', 'outbound capacity'],
     ['revoke', 'outbound capacity'],
+    ['rotate', 'stalled backpressure'],
+    ['revoke', 'stalled backpressure'],
   ] as const)(
     'disconnects all matching sockets after %s when its response hits %s',
     async (operation, failure) => {
@@ -102,6 +104,7 @@ describe('Local Session invalidation response failures', () => {
             Reflect.get(input.value, 'requestId') === requestId
           ) {
             if (failure === 'outbound capacity') input.socket.destroy()
+            if (failure === 'stalled backpressure') return new Promise<void>(() => undefined)
             throw failure === 'outbound capacity'
               ? new LocalSessionOutboundCapacityError()
               : new Error('Forced response write failure.')

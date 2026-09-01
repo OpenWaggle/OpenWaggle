@@ -1,5 +1,13 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { assertInstalledCliResponse, verifyInstalledCli } from '../verify-installed-cli'
+import {
+  assertInstalledCliResponse,
+  runInstalledCli,
+  verifyInstalledCli,
+} from '../verify-installed-cli'
+import { buildSafeElectronEnvironment } from '../safe-electron-environment'
 
 const VALID_RESPONSE = JSON.stringify({
   schemaVersion: 1,
@@ -9,6 +17,34 @@ const VALID_RESPONSE = JSON.stringify({
 })
 
 describe('installed CLI verification', () => {
+  it('bounds a hanging wrapper and its surviving child with process-tree cleanup', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-cli-tree-'))
+    const script = path.join(root, 'hanging-wrapper.cjs')
+    await fs.writeFile(
+      script,
+      [
+        "const { spawn } = require('node:child_process')",
+        "spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'inherit' })",
+        'setInterval(() => {}, 1000)',
+      ].join('\n'),
+    )
+
+    try {
+      const scriptArgument = process.platform === 'win32' ? `"${script}"` : script
+      await expect(
+        runInstalledCli(
+          process.execPath,
+          [scriptArgument],
+          buildSafeElectronEnvironment({}),
+          process.platform,
+          { timeoutMs: 250 },
+        ),
+      ).rejects.toThrow('timed out after 250ms')
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
   it.each(['linux', 'darwin', 'win32'] satisfies NodeJS.Platform[])(
     'runs the installed command with an isolated profile and cleans its Host on %s',
     async (platform) => {

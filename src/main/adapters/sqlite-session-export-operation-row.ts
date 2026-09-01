@@ -104,7 +104,27 @@ export function sessionExportOperationRecord(
 
 export function sessionExportOperationSummary(
   record: SessionExportOperationRecord,
+  options: { readonly includeQueueBodies: boolean },
 ): SessionExportOperationSummary {
+  const manifest = record.manifest
+    ? {
+        ...record.manifest,
+        queue: options.includeQueueBodies
+          ? record.manifest.queue
+          : {
+              ...record.manifest.queue,
+              bodyScope: 'omitted-by-choice' as const,
+              omittedBodyCount:
+                record.manifest.queue.omittedBodyCount +
+                record.manifest.queue.items.filter((item) => item.intent !== undefined).length,
+              items: record.manifest.queue.items.map((item) => {
+                const { intent, ...metadata } = item
+                void intent
+                return metadata
+              }),
+            },
+      }
+    : undefined
   return {
     exportOperationId: record.exportOperationId,
     sessionId: record.sessionId,
@@ -116,7 +136,7 @@ export function sessionExportOperationSummary(
     includeQueueBodies: record.includeQueueBodies,
     resources: record.resources,
     progress: record.progress,
-    ...(record.manifest ? { manifest: record.manifest } : {}),
+    ...(manifest ? { manifest } : {}),
     ...(record.error ? { error: record.error } : {}),
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,

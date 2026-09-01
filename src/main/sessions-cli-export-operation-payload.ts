@@ -118,6 +118,7 @@ function queryPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
             : SESSION_EXPORT_OPERATION_QUERY_LIMIT,
           ...(option(arguments_, 'cursor') ? { cursor: option(arguments_, 'cursor') } : {}),
           ...(statuses.length ? { statuses } : {}),
+          ...(hasFlag(arguments_, 'include-queue-bodies') ? { includeQueueBodies: true } : {}),
         },
       },
     }
@@ -131,7 +132,12 @@ function queryPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
       ...base,
       request: {
         ...base.request,
-        query: { operation: 'exports-read', sessionId, exportOperationId },
+        query: {
+          operation: 'exports-read',
+          sessionId,
+          exportOperationId,
+          ...(hasFlag(arguments_, 'include-queue-bodies') ? { includeQueueBodies: true } : {}),
+        },
       },
     }
   }
@@ -147,6 +153,7 @@ function queryPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
           exportOperationId,
           timeoutMs: nonNegativeInteger(option(arguments_, 'timeout-ms'), '--timeout-ms'),
           ...(after ? { after } : {}),
+          ...(hasFlag(arguments_, 'include-queue-bodies') ? { includeQueueBodies: true } : {}),
         },
       },
     }

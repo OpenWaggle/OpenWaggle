@@ -38,6 +38,7 @@ export const mcpSessionQueryLifecycleOperationSchemasV2 = [
     archived: booleanFlag.optional(),
     limit: discoveryLimit.optional(),
     cursor: boundedCursor.optional(),
+    includeQueueBodies: booleanFlag.optional(),
   }),
   operationSchema('search', {
     message: mcpSessionTextSchemaV2.optional(),
@@ -86,6 +87,7 @@ export const mcpSessionQueryLifecycleOperationSchemasV2 = [
   operationSchema('export-cancel', {
     sessionId: mcpSessionIdSchemaV2.optional(),
     exportOperationId: mcpSessionIdSchemaV2.optional(),
+    includeQueueBodies: booleanFlag.optional(),
     ...idempotency,
   }),
   operationSchema('exports-list', {
@@ -105,6 +107,7 @@ export const mcpSessionQueryLifecycleOperationSchemasV2 = [
     sessionId: mcpSessionIdSchemaV2.optional(),
     exportOperationId: mcpSessionIdSchemaV2.optional(),
     timeoutMs: timeout.optional(),
+    includeQueueBodies: booleanFlag.optional(),
   }),
   operationSchema('requests-list', { sessionId: mcpSessionIdSchemaV2.optional() }),
   operationSchema('request-respond', {

@@ -26,6 +26,7 @@ export interface StoppableChild {
 interface StopChildDependencies {
   readonly platform?: NodeJS.Platform
   readonly waitForExit?: (child: StoppableChild, timeoutMs: number) => Promise<boolean>
+  readonly windowsProcessTreeSnapshot?: readonly WindowsProcessIdentity[]
   readonly snapshotWindowsTree?: (pid: number) => Promise<readonly WindowsProcessIdentity[]>
   readonly terminateWindowsTree?: (
     pid: number,
@@ -105,11 +106,12 @@ async function stopWindowsChild(
     force: boolean,
   ) => Promise<void>,
   verifyTreeExit: (snapshot: readonly WindowsProcessIdentity[]) => Promise<boolean>,
+  retainedSnapshot?: readonly WindowsProcessIdentity[],
 ) {
   if (child.pid === undefined) {
     throw new Error('Cannot terminate Windows GUI process tree without a PID.')
   }
-  const snapshot = await snapshotTree(child.pid)
+  const snapshot = retainedSnapshot ?? (await snapshotTree(child.pid))
   if (snapshot.length === 0) {
     throw new Error(
       `Could not snapshot Windows GUI process ${String(child.pid)}; descendant absence is unproven.`,
@@ -190,6 +192,7 @@ export async function stopChild(
       dependencies.snapshotWindowsTree ?? snapshotWindowsProcessTree,
       dependencies.terminateWindowsTree ?? terminateWindowsProcessTree,
       dependencies.verifyWindowsTreeExit ?? verifyWindowsProcessTreeExit,
+      dependencies.windowsProcessTreeSnapshot,
     )
     return
   }
@@ -212,6 +215,7 @@ export async function stopProcessTree(
       dependencies.snapshotWindowsTree ?? snapshotWindowsProcessTree,
       dependencies.terminateWindowsTree ?? terminateWindowsProcessTree,
       dependencies.verifyWindowsTreeExit ?? verifyWindowsProcessTreeExit,
+      dependencies.windowsProcessTreeSnapshot,
     )
     return
   }

@@ -19,6 +19,7 @@ import {
   stopChild,
   waitForHost,
 } from './live-session-orchestration-support'
+import { snapshotWindowsProcessTree } from './windows-process-tree'
 
 const ARGUMENT_SEPARATOR = '--'
 const FIRST_USER_ARGUMENT_INDEX = 2
@@ -244,10 +245,16 @@ export async function runPackagedSessionHostStartupScenario(
       await waitForHost(cliExecutable, environment)
       const secondGui = await launchGui(input.executable, environment, packagedGuiArguments())
       state.guiLogs.push(secondGui.logs)
+      const secondGuiWindowsSnapshot =
+        process.platform === 'win32' && secondGui.child.pid !== undefined
+          ? await snapshotWindowsProcessTree(secondGui.child.pid)
+          : undefined
       try {
         await waitForExit(secondGui.child)
       } finally {
-        await stopChild(secondGui.child)
+        await stopChild(secondGui.child, {
+          windowsProcessTreeSnapshot: secondGuiWindowsSnapshot,
+        })
       }
       if (state.gui.child.exitCode !== null || state.gui.child.signalCode !== null) {
         throw new Error('The primary packaged GUI exited after the second-instance probe.')

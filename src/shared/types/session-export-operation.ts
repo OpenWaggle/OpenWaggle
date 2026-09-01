@@ -94,11 +94,13 @@ export type SessionExportOperationQuery =
       readonly limit: number
       readonly cursor?: string
       readonly statuses?: readonly SessionExportOperationStatus[]
+      readonly includeQueueBodies?: boolean
     }
   | {
       readonly operation: 'exports-read'
       readonly sessionId: string
       readonly exportOperationId: string
+      readonly includeQueueBodies?: boolean
     }
   | {
       readonly operation: 'exports-wait'
@@ -106,6 +108,7 @@ export type SessionExportOperationQuery =
       readonly exportOperationId: string
       readonly timeoutMs: number
       readonly after?: SessionHostEventCursor
+      readonly includeQueueBodies?: boolean
     }
 
 export type SessionExportOperationQueryOutcome =

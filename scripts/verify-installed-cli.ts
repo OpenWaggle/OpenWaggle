@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { applicationCliStdout } from './electron-cli-stdout'
+import { stopProcessTree } from './qa/child-process-lifecycle'
 import { prepareQaProfileRemoval, shutdownSessionHostForQa } from './qa/session-host-shutdown'
 import { buildSafeElectronEnvironment } from './safe-electron-environment'
 
@@ -15,6 +16,11 @@ const WINDOWS_COMMAND_PROCESSOR = 'cmd.exe'
 interface CliResult {
   readonly stdout: string
   readonly stderr: string
+}
+
+interface RunInstalledCliOptions {
+  readonly maxOutputBytes?: number
+  readonly timeoutMs?: number
 }
 
 interface VerifyInstalledCliDependencies {
@@ -44,15 +50,19 @@ function installedCliProcess(command: string, args: readonly string[], platform:
   return platform === 'win32' ? windowsCommand(command, args) : { command, args }
 }
 
-function runInstalledCli(
+export function runInstalledCli(
   command: string,
   args: readonly string[],
   environment: Record<string, string>,
   platform: NodeJS.Platform,
+  options: RunInstalledCliOptions = {},
 ) {
   const processInput = installedCliProcess(command, args, platform)
+  const maxOutputBytes = options.maxOutputBytes ?? CLI_MAX_OUTPUT_BYTES
+  const timeoutMs = options.timeoutMs ?? CLI_TIMEOUT_MS
   return new Promise<CliResult>((resolve, reject) => {
     const child = spawn(processInput.command, [...processInput.args], {
+      detached: platform !== 'win32',
       env: environment,
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
@@ -60,33 +70,46 @@ function runInstalledCli(
     const stdout: Buffer[] = []
     const stderr: Buffer[] = []
     let outputBytes = 0
-    let timedOut = false
-    const timer = setTimeout(() => {
-      timedOut = true
-      child.kill('SIGKILL')
-    }, CLI_TIMEOUT_MS)
+    let outcomeOwned = false
+    const rejectAfterTreeCleanup = (failure: Error) => {
+      if (outcomeOwned) return
+      outcomeOwned = true
+      clearTimeout(timer)
+      void stopProcessTree(child).then(
+        () => reject(failure),
+        (cleanupError: unknown) =>
+          reject(
+            new AggregateError(
+              [failure, cleanupError],
+              'Installed OpenWaggle CLI failed and process-tree cleanup was not proven.',
+            ),
+          ),
+      )
+    }
     const collect = (target: Buffer[]) => (chunk: Buffer) => {
+      if (outcomeOwned) return
       outputBytes += chunk.byteLength
-      if (outputBytes > CLI_MAX_OUTPUT_BYTES) {
-        child.kill('SIGKILL')
+      if (outputBytes > maxOutputBytes) {
+        rejectAfterTreeCleanup(
+          new Error('Installed OpenWaggle CLI exceeded the verification output limit.'),
+        )
         return
       }
       target.push(chunk)
     }
     child.stdout.on('data', collect(stdout))
     child.stderr.on('data', collect(stderr))
-    child.once('error', reject)
+    child.once('error', (error) => {
+      if (outcomeOwned) return
+      outcomeOwned = true
+      clearTimeout(timer)
+      reject(error)
+    })
     child.once('close', (code, signal) => {
+      if (outcomeOwned) return
+      outcomeOwned = true
       clearTimeout(timer)
       const stderrText = Buffer.concat(stderr).toString()
-      if (timedOut) {
-        reject(new Error(`Installed OpenWaggle CLI timed out after ${String(CLI_TIMEOUT_MS)}ms.`))
-        return
-      }
-      if (outputBytes > CLI_MAX_OUTPUT_BYTES) {
-        reject(new Error('Installed OpenWaggle CLI exceeded the verification output limit.'))
-        return
-      }
       if (code !== 0) {
         reject(
           new Error(
@@ -97,6 +120,13 @@ function runInstalledCli(
       }
       resolve({ stdout: Buffer.concat(stdout).toString(), stderr: stderrText })
     })
+    const timer = setTimeout(
+      () =>
+        rejectAfterTreeCleanup(
+          new Error(`Installed OpenWaggle CLI timed out after ${String(timeoutMs)}ms.`),
+        ),
+      timeoutMs,
+    )
   })
 }
 

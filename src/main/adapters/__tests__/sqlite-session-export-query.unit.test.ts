@@ -237,10 +237,26 @@ describe('SQLite Session export query', () => {
       }),
     )
 
+    const redacted = await executeQuery(runtime, {
+      operation: 'exports-list',
+      sessionId: 'worker',
+      limit: 200,
+    })
+    if (redacted.outcome.operation !== 'exports-list' || !('exports' in redacted.outcome)) {
+      throw new Error('Expected redacted export operation list.')
+    }
+    expect(redacted.outcome.exports).toHaveLength(1)
+    expect(redacted.outcome.exports[0]?.manifest?.queue.items[0]).not.toHaveProperty('intent')
+    expect(redacted.outcome.exports[0]?.manifest?.queue).toMatchObject({
+      bodyScope: 'omitted-by-choice',
+      omittedBodyCount: 1,
+    })
+
     const first = await executeQuery(runtime, {
       operation: 'exports-list',
       sessionId: 'worker',
       limit: 200,
+      includeQueueBodies: true,
     })
     expect(Buffer.byteLength(JSON.stringify(first))).toBeLessThanOrEqual(
       SESSION_QUERY_MAX_RESPONSE_BYTES,
@@ -255,6 +271,7 @@ describe('SQLite Session export query', () => {
       sessionId: 'worker',
       limit: 200,
       cursor: first.outcome.nextCursor,
+      includeQueueBodies: true,
     })
     if (second.outcome.operation !== 'exports-list' || !('exports' in second.outcome)) {
       throw new Error('Expected export operation continuation.')

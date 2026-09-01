@@ -135,6 +135,30 @@ describe('QA child-process lifecycle', () => {
     expect(verifyWindowsTreeExit).toHaveBeenCalledWith(snapshot)
   })
 
+  it('uses a retained Windows snapshot after an expected child exit', async () => {
+    const snapshot = [processIdentity(49), processIdentity(490)]
+    const snapshotWindowsTree = vi.fn(async () => {
+      throw new Error('The exited root no longer has a live snapshot.')
+    })
+    const terminateWindowsTree = vi.fn(async () => undefined)
+    const verifyWindowsTreeExit = vi.fn(async () => true)
+
+    await expect(
+      stopChild(new FakeChild(49, 0), {
+        platform: 'win32',
+        windowsProcessTreeSnapshot: snapshot,
+        snapshotWindowsTree,
+        terminateWindowsTree,
+        verifyWindowsTreeExit,
+        waitForExit: async () => true,
+      }),
+    ).resolves.toBeUndefined()
+
+    expect(snapshotWindowsTree).not.toHaveBeenCalled()
+    expect(terminateWindowsTree).toHaveBeenCalledWith(49, snapshot, false)
+    expect(verifyWindowsTreeExit).toHaveBeenCalledWith(snapshot)
+  })
+
   it('fails closed when an exited Windows root has no capturable tree identity', async () => {
     const terminateWindowsTree = vi.fn(async () => undefined)
 

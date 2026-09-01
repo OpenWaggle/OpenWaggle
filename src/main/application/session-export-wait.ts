@@ -42,6 +42,7 @@ async function readExportOperation(
           operation: 'exports-read',
           sessionId: request.query.sessionId,
           exportOperationId: request.query.exportOperationId,
+          ...(request.query.includeQueueBodies ? { includeQueueBodies: true } : {}),
         },
       },
     }),

@@ -19,6 +19,27 @@ import {
   refreshedProfileId,
 } from './local-session-server-frame'
 
+const INVALIDATION_RESPONSE_DELIVERY_GRACE_MS = 250
+
+async function settleInvalidationResponse(response: Promise<void>) {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const outcome = await Promise.race([
+    response.then(
+      () => ({ status: 'sent' as const }),
+      (error: unknown) => ({ status: 'failed' as const, error }),
+    ),
+    new Promise<{ readonly status: 'pending' }>((resolve) => {
+      timer = setTimeout(
+        () => resolve({ status: 'pending' }),
+        INVALIDATION_RESPONSE_DELIVERY_GRACE_MS,
+      )
+      timer.unref?.()
+    }),
+  ])
+  if (timer) clearTimeout(timer)
+  return outcome
+}
+
 function commandFailure(error: unknown) {
   const failure = Runtime.isFiberFailure(error)
     ? Option.getOrUndefined(Cause.failureOption(error[Runtime.FiberFailureCauseId]))
@@ -70,11 +91,15 @@ export async function executeLocalSessionCommandFrame(input: {
     }
 
     const invalidated = invalidatedProfileId(payload)
-    try {
-      await input.send({ kind: 'response', requestId: input.frame.requestId, payload })
-    } finally {
-      if (invalidated) disconnectLocalSessionProfile(invalidated)
+    const response = input.send({ kind: 'response', requestId: input.frame.requestId, payload })
+    if (!invalidated) {
+      await response
+      return
     }
+    const responseOutcome = await settleInvalidationResponse(response)
+    disconnectLocalSessionProfile(invalidated)
+    if (responseOutcome.status === 'failed') throw responseOutcome.error
+    if (responseOutcome.status === 'pending') void response.catch(() => undefined)
   } finally {
     input.releaseAdmissionReader?.()
     releaseOperation()

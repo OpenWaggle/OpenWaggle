@@ -43,17 +43,20 @@ export const sessionsToolExportOperationParameters = [
       Type.Integer({ minimum: 1, maximum: SESSION_EXPORT_OPERATION_QUERY_LIMIT }),
     ),
     cursor: Type.Optional(Type.String()),
+    includeQueueBodies: Type.Optional(Type.Boolean()),
   }),
   Type.Object({
     action: Type.Literal('exports_read'),
     sessionId: Type.String(),
     exportOperationId: Type.String(),
+    includeQueueBodies: Type.Optional(Type.Boolean()),
   }),
   Type.Object({
     action: Type.Literal('exports_wait'),
     sessionId: Type.String(),
     exportOperationId: Type.String(),
     timeoutMs: Type.Integer({ minimum: 0, maximum: SESSION_QUERY_MAX_WAIT_MS }),
+    includeQueueBodies: Type.Optional(Type.Boolean()),
     after: Type.Optional(
       Type.Object({
         hostInstanceId: Type.String(),

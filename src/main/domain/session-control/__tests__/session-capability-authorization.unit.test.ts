@@ -111,6 +111,28 @@ describe('Session capability authorization', () => {
     })
   })
 
+  it('requires read authority for export history and queue authority for stored intents', () => {
+    const metadataOnly: SessionQueryRequest['query'] = {
+      operation: 'exports-read',
+      sessionId: 'session-explicit',
+      exportOperationId: 'export-1',
+    }
+    const withQueueBodies: SessionQueryRequest['query'] = {
+      ...metadataOnly,
+      includeQueueBodies: true,
+    }
+
+    expect(requiredSessionQueryCapabilities(metadataOnly)).toEqual([
+      'sessions:export',
+      'sessions:read',
+    ])
+    expect(requiredSessionQueryCapabilities(withQueueBodies)).toEqual([
+      'sessions:export',
+      'sessions:read',
+      'sessions:queue',
+    ])
+  })
+
   it('authorizes explicit project, Session, Hive, or all-target scopes', () => {
     expect(authorizeSessionTarget(authority, { projectPath: '/project' })).toEqual({
       authorized: true,

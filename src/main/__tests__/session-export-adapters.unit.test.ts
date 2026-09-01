@@ -78,7 +78,14 @@ describe('Session export adapters', () => {
       },
     })
 
-    const wait = parseMcpCliArguments(['wait', 'worker', 'export-1', '--timeout-ms', '1000'])
+    const wait = parseMcpCliArguments([
+      'wait',
+      'worker',
+      'export-1',
+      '--timeout-ms',
+      '1000',
+      '--include-queue-bodies',
+    ])
     expect(buildSessionsCliPayload('export', wait)).toMatchObject({
       request: {
         query: {
@@ -86,6 +93,7 @@ describe('Session export adapters', () => {
           sessionId: 'worker',
           exportOperationId: 'export-1',
           timeoutMs: 1000,
+          includeQueueBodies: true,
         },
       },
     })
@@ -93,5 +101,25 @@ describe('Session export adapters', () => {
     expect(
       buildSessionsCliPayload('export', parseMcpCliArguments(['cancel', 'worker', 'export-1'])),
     ).toMatchObject({ request: { command: { operation: 'export-cancel' } } })
+  })
+
+  it('maps explicit queue-body access through MCP export history', () => {
+    expect(
+      buildMcpSessionPayloadV2({
+        operation: 'exports-read',
+        sessionId: 'worker',
+        exportOperationId: 'export-1',
+        includeQueueBodies: true,
+      }),
+    ).toMatchObject({
+      request: {
+        query: {
+          operation: 'exports-read',
+          sessionId: 'worker',
+          exportOperationId: 'export-1',
+          includeQueueBodies: true,
+        },
+      },
+    })
   })
 })

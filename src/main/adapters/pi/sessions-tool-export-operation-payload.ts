@@ -92,12 +92,14 @@ function exportQueryPayload(
           limit: input.limit ?? SESSION_EXPORT_OPERATION_QUERY_LIMIT,
           ...(input.cursor ? { cursor: input.cursor } : {}),
           ...(input.statuses?.length ? { statuses: input.statuses } : {}),
+          ...(input.includeQueueBodies ? { includeQueueBodies: true } : {}),
         }
       : input.action === 'exports_read'
         ? {
             operation: 'exports-read' as const,
             sessionId: input.sessionId,
             exportOperationId: input.exportOperationId,
+            ...(input.includeQueueBodies ? { includeQueueBodies: true } : {}),
           }
         : {
             operation: 'exports-wait' as const,
@@ -105,6 +107,7 @@ function exportQueryPayload(
             exportOperationId: input.exportOperationId,
             timeoutMs: input.timeoutMs,
             ...(input.after ? { after: input.after } : {}),
+            ...(input.includeQueueBodies ? { includeQueueBodies: true } : {}),
           }
   return {
     contract: 'session-query-v2',

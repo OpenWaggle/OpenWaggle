@@ -86,7 +86,11 @@ export function requiredSessionQueryCapabilities(
         ? ['sessions:export', 'sessions:read', 'sessions:queue']
         : ['sessions:export', 'sessions:read'],
     )
-    .with('exports-list', 'exports-read', 'exports-wait', () => ['sessions:export'])
+    .with('exports-list', 'exports-read', 'exports-wait', (query) =>
+      query.includeQueueBodies
+        ? ['sessions:export', 'sessions:read', 'sessions:queue']
+        : ['sessions:export', 'sessions:read'],
+    )
     .with('delegations-list', 'delegations-read', 'delegations-conflicts', () => [
       'delegations:read',
     ])

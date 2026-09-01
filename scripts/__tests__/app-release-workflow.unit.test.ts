@@ -9,6 +9,8 @@ const WORKFLOW = fs.readFileSync(
   path.join(PROJECT_ROOT, '.github/workflows/release.yml'),
   'utf8',
 )
+const PNPM_WORKSPACE = fs.readFileSync(path.join(PROJECT_ROOT, 'pnpm-workspace.yaml'), 'utf8')
+const PNPM_LOCK = fs.readFileSync(path.join(PROJECT_ROOT, 'pnpm-lock.yaml'), 'utf8')
 describe('desktop app release workflow', () => {
   it('grants write permissions only to orchestration and publication jobs', () => {
     const parsed: unknown = parse(WORKFLOW)
@@ -29,6 +31,22 @@ describe('desktop app release workflow', () => {
       },
       parsed,
     )
+  })
+
+  it('prepares candidate-derived assets without publication authority', () => {
+    const preparationStart = WORKFLOW.indexOf('\n  prepare-release-assets:')
+    const publicationStart = WORKFLOW.indexOf('\n  release:', preparationStart)
+    const preparation = WORKFLOW.slice(preparationStart, publicationStart)
+    const publication = WORKFLOW.slice(publicationStart)
+
+    expect(preparationStart).toBeGreaterThan(0)
+    expect(publicationStart).toBeGreaterThan(preparationStart)
+    expect(preparation).not.toContain('contents: write')
+    expect(preparation).toContain('persist-credentials: false')
+    expect(preparation).toContain('generate-macos-update-metadata.ts')
+    expect(publication).not.toContain('actions/checkout')
+    expect(publication).not.toContain('\n        run:')
+    expect(publication).not.toContain('generate-macos-update-metadata.ts')
   })
 
   it('leaves the validated version PR open for a maintainer to merge', () => {
@@ -156,6 +174,14 @@ describe('desktop app release workflow', () => {
       "node --no-warnings scripts/generate-macos-update-metadata.ts release '${{ needs.version.outputs.new_version }}'",
     )
     expect(WORKFLOW).toContain('node-version: 24.14.0')
+    expect(WORKFLOW).toContain("'darwin',")
+    expect(WORKFLOW).toContain('process.env.OPENWAGGLE_ONNX_ARCH')
+    expect(WORKFLOW).toContain("'onnxruntime_binding.node'")
+    expect(PNPM_WORKSPACE).toContain(
+      '"@huggingface/transformers>onnxruntime-node": 1.23.2',
+    )
+    expect(PNPM_LOCK).toContain("'@huggingface/transformers>onnxruntime-node': 1.23.2")
+    expect(PNPM_LOCK).toContain('onnxruntime-node: 1.23.2')
   })
 
   it('gates every platform artifact on packaged resources and production startup', () => {

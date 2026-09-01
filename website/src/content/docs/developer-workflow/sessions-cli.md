@@ -120,7 +120,7 @@ if (exportLine.record === 'manifest') {
 }
 ```
 
-Artifact export is durable, supports status/list/read/cancel/watch operations, validates destination and resource scope, and refuses an existing destination unless `--overwrite` is explicit. Export-operation listings are also byte-paginated so large captured manifests cannot make status discovery unresponsive. `export watch --jsonl` is a command event stream, so it uses the same outer `type: "record"` envelope, cursor checkpoint, and `resync-required` records as `sessions watch`, including when unrelated export events are filtered out.
+Artifact export is durable, supports status/list/read/cancel/watch operations, validates destination and resource scope, and refuses an existing destination unless `--overwrite` is explicit. Export-operation listings are also byte-paginated so large captured manifests cannot make status discovery unresponsive. Export status, read, and wait responses omit stored queue intent bodies by default; pass `--include-queue-bodies` only when the active access profile grants both Session read and queue access. `export watch --jsonl` is a command event stream, so it uses the same outer `type: "record"` envelope, cursor checkpoint, and `resync-required` records as `sessions watch`, including when unrelated export events are filtered out.
 
 On Windows, workspace-scoped artifact export currently fails closed because the platform does not provide the descriptor-relative installation semantics OpenWaggle requires to prevent path-swap attacks. Use streaming export to stdout instead, for example `openwaggle sessions export <session-id> --format markdown > conversation.md`.
 

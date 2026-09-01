@@ -134,12 +134,14 @@ export const exportListQuerySchema = Schema.Struct({
   limit: Schema.Number.pipe(Schema.int(), Schema.between(1, SESSION_EXPORT_OPERATION_QUERY_LIMIT)),
   cursor: Schema.optional(boundedCursor),
   statuses: Schema.optional(Schema.Array(exportOperationStatusSchema).pipe(Schema.minItems(1))),
+  includeQueueBodies: Schema.optional(Schema.Boolean),
 })
 
 export const exportReadQuerySchema = Schema.Struct({
   operation: Schema.Literal('exports-read'),
   sessionId: Schema.String,
   exportOperationId: Schema.String,
+  includeQueueBodies: Schema.optional(Schema.Boolean),
 })
 
 export const exportWaitQuerySchema = Schema.Struct({
@@ -153,4 +155,5 @@ export const exportWaitQuerySchema = Schema.Struct({
       sequence: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
     }),
   ),
+  includeQueueBodies: Schema.optional(Schema.Boolean),
 })

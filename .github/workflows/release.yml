@@ -475,6 +475,29 @@ jobs:
         shell: bash
         run: test "$(uname -m)" = '${{ matrix.machine }}'
 
+      - name: Verify semantic runtime architecture
+        shell: bash
+        env:
+          OPENWAGGLE_ONNX_ARCH: ${{ matrix.arch }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+          const path = require('node:path')
+          const { createRequire } = require('node:module')
+          const transformersRequire = createRequire(require.resolve('@huggingface/transformers'))
+          const runtimePackage = transformersRequire.resolve('onnxruntime-node/package.json')
+          const binding = path.join(
+            path.dirname(runtimePackage),
+            'bin',
+            'napi-v6',
+            'darwin',
+            process.env.OPENWAGGLE_ONNX_ARCH,
+            'onnxruntime_binding.node',
+          )
+          fs.accessSync(binding)
+          console.log(`Verified semantic runtime binding: ${binding}`)
+          NODE
+
       - run: pnpm build
 
       - name: Build macOS ${{ matrix.arch }} artifacts
@@ -726,17 +749,16 @@ jobs:
           INSTALLER_PATH: ${{ runner.temp }}\release\windows\openwaggle-${{ needs.version.outputs.new_version }}-x64.exe
         run: pnpm exec tsx scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"
 
-  release:
-    name: Create GitHub Release
+  prepare-release-assets:
+    name: Prepare release assets
     needs: [version, verify-installers]
     if: needs.version.outputs.should_release == 'true'
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ needs.version.outputs.new_tag }}
+          persist-credentials: false
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
@@ -752,6 +774,25 @@ jobs:
           find artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' -o -name '*.exe' -o -name '*.yml' \) -exec cp {} release/ \;
           node --no-warnings scripts/generate-macos-update-metadata.ts release '${{ needs.version.outputs.new_version }}'
           cd release && sha256sum * > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-assets
+          path: release/*
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: [version, prepare-release-assets]
+    if: needs.version.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-assets
+          path: release
 
       - name: Create draft release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
