@@ -121,7 +121,7 @@ describe('SqliteSessionResourceRepositoryLive', () => {
           managedPath: null,
           available: true,
           occurrence: {
-            id: 'occurrence-older',
+            id: 'occurrence-provided',
             nodeId: 'node-old-branch',
             branchId: 'branch-old',
             actor: 'agent',
@@ -157,7 +157,6 @@ describe('SqliteSessionResourceRepositoryLive', () => {
       isOutput: true,
     })
     expect(resources[0]?.occurrences.map((occurrence) => occurrence.activity)).toEqual([
-      'read',
       'provided',
       'created',
     ])

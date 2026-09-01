@@ -19,10 +19,9 @@ export function makeSessionResourceRepositoryTestLayer(
             resource.sessionId === input.sessionId && resource.canonicalKey === input.canonicalKey,
         )
         const occurrences = existing
-          ? [
-              ...existing.occurrences.filter((occurrence) => occurrence.id !== input.occurrence.id),
-              input.occurrence,
-            ]
+          ? existing.occurrences.some((occurrence) => occurrence.id === input.occurrence.id)
+            ? existing.occurrences
+            : [...existing.occurrences, input.occurrence]
           : [input.occurrence]
         const resource: SessionResource = {
           id: existing?.id ?? input.id,

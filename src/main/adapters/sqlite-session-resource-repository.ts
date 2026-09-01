@@ -118,13 +118,7 @@ function upsertResource(sql: SqlClient.SqlClient, input: UpsertSessionResourceIn
             ${input.occurrence.label},
             ${input.occurrence.createdAt}
           )
-          ON CONFLICT(id) DO UPDATE SET
-            node_id = excluded.node_id,
-            branch_id = excluded.branch_id,
-            actor = excluded.actor,
-            activity = excluded.activity,
-            label = excluded.label,
-            created_at = excluded.created_at
+          ON CONFLICT(id) DO NOTHING
         `
         const resource = yield* readResourceById(sql, input.sessionId, resourceId)
         if (!resource) {
