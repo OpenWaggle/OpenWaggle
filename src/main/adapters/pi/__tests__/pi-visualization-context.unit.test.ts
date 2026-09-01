@@ -1,5 +1,6 @@
 import { PI_WAGGLE_TURN_CUSTOM_TYPE } from '@openwaggle/pi-waggle/protocol'
 import { describe, expect, it } from 'vitest'
+import { buildAtomicVisualizationPrompt } from '../pi-runtime-input'
 import {
   filterConsumedVisualizationContext,
   PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE,
@@ -41,6 +42,25 @@ function visualizationContext(timestamp: number): PiContextMessage {
 }
 
 describe('Pi visualization context filtering', () => {
+  it('keeps atomic steering context for its turn and strips it from later turns', async () => {
+    const context = [
+      '[OpenWaggle inline visualization context]',
+      'current selection',
+      '[/OpenWaggle inline visualization context]',
+    ].join('\n')
+    const atomicPrompt = user(buildAtomicVisualizationPrompt(context, 'inspect the selection'), 1)
+
+    await expect(filterConsumedVisualizationContext([atomicPrompt])).resolves.toEqual([
+      atomicPrompt,
+    ])
+
+    const laterTurn = [atomicPrompt, assistant('answer', 2), user('unrelated follow-up', 3)]
+    const filtered = await filterConsumedVisualizationContext(laterTurn)
+
+    expect(filtered[0]).toEqual(user('inspect the selection', 1))
+    expect(JSON.stringify(filtered)).not.toContain('current selection')
+  })
+
   it('keeps the current aside but removes it after the next user prompt begins', async () => {
     const current = [user('first', 1), visualizationContext(2)]
     await expect(filterConsumedVisualizationContext(current)).resolves.toEqual(current)

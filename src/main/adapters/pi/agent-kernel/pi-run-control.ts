@@ -1,6 +1,6 @@
 import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import type { AgentKernelRunControl } from '../../../ports/agent-kernel-service'
-import { buildPiPromptInput, PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE } from '../pi-runtime-input'
+import { buildAtomicVisualizationPrompt, buildPiPromptInput } from '../pi-runtime-input'
 
 const PI_STEER_READY_POLL_MS = 20
 
@@ -10,7 +10,6 @@ interface PiSteeringSession {
   readonly model:
     | { readonly input: readonly NonNullable<AgentSession['model']>['input'][number][] }
     | undefined
-  readonly sendCustomMessage: AgentSession['sendCustomMessage']
   readonly sendUserMessage: AgentSession['sendUserMessage']
 }
 
@@ -47,24 +46,13 @@ export function createPiRunControl(
         throw new Error('The active Pi session is not ready for steering.')
       }
       const promptInput = buildPiPromptInput({ input: session.model?.input ?? ['text'] }, payload)
-      if (promptInput.visualizationContext) {
-        await session.sendCustomMessage(
-          {
-            customType: PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE,
-            content: promptInput.visualizationContext,
-            display: false,
-            details: { source: 'openwaggle', kind: 'inline-visualization-context' },
-          },
-          { deliverAs: 'steer' },
-        )
-      }
+      const text = promptInput.visualizationContext
+        ? buildAtomicVisualizationPrompt(promptInput.visualizationContext, promptInput.text)
+        : promptInput.text
       const content =
         promptInput.images.length > 0
-          ? [
-              ...(promptInput.text ? [{ type: 'text' as const, text: promptInput.text }] : []),
-              ...promptInput.images,
-            ]
-          : promptInput.text
+          ? [...(text ? [{ type: 'text' as const, text }] : []), ...promptInput.images]
+          : text
       await session.sendUserMessage(content, { deliverAs: 'steer' })
     },
   }

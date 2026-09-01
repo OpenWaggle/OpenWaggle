@@ -1,7 +1,10 @@
 import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import { PI_WAGGLE_TURN_CUSTOM_TYPE } from '@openwaggle/pi-waggle/protocol'
 import { isRecord } from '@shared/utils/validation'
-import { PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE } from './pi-runtime-input'
+import {
+  PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE,
+  stripAtomicVisualizationContext,
+} from './pi-runtime-input'
 
 const WAGGLE_VISUALIZATION_CONTEXT_DETAIL = 'openWaggleVisualizationContext'
 
@@ -48,6 +51,19 @@ function stripWaggleVisualizationContext(message: PiContextMessage): PiContextMe
   return { ...message, details }
 }
 
+function stripConsumedAtomicVisualizationContext(message: PiContextMessage) {
+  if (message.role !== 'user') return message
+  if (typeof message.content === 'string') {
+    return { ...message, content: stripAtomicVisualizationContext(message.content) }
+  }
+  return {
+    ...message,
+    content: message.content.map((part) =>
+      part.type === 'text' ? { ...part, text: stripAtomicVisualizationContext(part.text) } : part,
+    ),
+  }
+}
+
 /**
  * Keeps visualization state visible to the provider only for the turn that supplied it.
  * Pi persists input messages for replay, so consumed asides and older Waggle snapshots must be
@@ -74,7 +90,9 @@ export async function filterConsumedVisualizationContext(
     if (message.role === 'custom' && message.customType === PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE) {
       return index === latestVisualizationAsideIndex && index > latestPromptIndex ? [message] : []
     }
-    const cleanMessage = stripWaggleVisualizationContext(message)
+    const cleanMessage = stripWaggleVisualizationContext(
+      index < latestPromptIndex ? stripConsumedAtomicVisualizationContext(message) : message,
+    )
     const activeWaggleAside =
       index === latestPromptIndex ? transientWaggleVisualizationAside(message) : null
     return activeWaggleAside ? [cleanMessage, activeWaggleAside] : [cleanMessage]

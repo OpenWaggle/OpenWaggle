@@ -69,19 +69,14 @@ describe('Pi native run control', () => {
     })
   })
 
-  it('queues visualization context in the same steering lane before the user message', async () => {
+  it('queues visualization context and the user request as one steering message', async () => {
     const abortController = new AbortController()
-    const calls: string[] = []
     const session = {
       isCompacting: false,
       isStreaming: true,
       model: modelFromReference('openai/gpt-5.5'),
-      sendCustomMessage: vi.fn(async () => {
-        calls.push('context')
-      }),
-      sendUserMessage: vi.fn(async () => {
-        calls.push('user')
-      }),
+      sendCustomMessage: vi.fn(async () => undefined),
+      sendUserMessage: vi.fn(async () => undefined),
     }
     const control = createPiRunControl(session, abortController.signal)
 
@@ -95,11 +90,14 @@ describe('Pi native run control', () => {
       }),
     )
 
-    expect(session.sendCustomMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('"selectedService":"api"') }),
+    expect(session.sendCustomMessage).not.toHaveBeenCalled()
+    expect(session.sendUserMessage).toHaveBeenCalledOnce()
+    expect(session.sendUserMessage).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /\[OpenWaggle inline visualization context\][\s\S]*"selectedService":"api"[\s\S]*Explain the selected service/,
+      ),
       { deliverAs: 'steer' },
     )
-    expect(calls).toEqual(['context', 'user'])
   })
 
   it('uses the live session model capabilities for steered attachments', async () => {
